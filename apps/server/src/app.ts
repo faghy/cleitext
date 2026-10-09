@@ -10,6 +10,7 @@ import { AppModule } from './app.module.js';
 import { IdentityService } from './auth/identity.service.js';
 import { SessionService } from './auth/session.service.js';
 import type { AppConfig } from './config/config.js';
+import { PublicService } from './public/public.service.js';
 import { createRequestHook } from './tenancy/request-hook.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
 
@@ -50,6 +51,18 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
         identity: app.get(IdentityService),
       }),
     );
+
+  // Public site: every other GET/HEAD (docs/ARCHITECTURE.md §12).
+  const publicService = app.get(PublicService);
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .get('/*', (request, reply) => {
+      if (request.url.startsWith('/api/') || request.url.startsWith('/admin')) {
+        return reply.callNotFound();
+      }
+      return publicService.handle(request, reply);
+    });
 
   await app.init();
   await app.getHttpAdapter().getInstance().ready();

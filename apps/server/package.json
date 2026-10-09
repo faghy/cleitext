@@ -15,6 +15,9 @@
   "dependencies": {
     "@cleitext/blocks": "workspace:*",
     "@cleitext/db": "workspace:*",
+    "@cleitext/renderer": "workspace:*",
+    "@cleitext/theme-aurora": "workspace:*",
+    "@cleitext/theme-sdk": "workspace:*",
     "@fastify/cookie": "^11.1.3",
     "@fastify/multipart": "^10.1.3",
     "@fastify/static": "^10.1.5",
@@ -29,6 +32,8 @@
     "nodemailer": "^10.0.16",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "sharp": "^0.35.5",
@@ -38,6 +43,8 @@
     "@cleitext/shared": "workspace:*",
     "@cleitext/testing": "workspace:*",
     "@swc/core": "^1.16.13",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "pino-pretty": "^13.2.0",
     "unplugin-swc": "^2.0.0"
   }

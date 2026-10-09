@@ -21,6 +21,9 @@ import { MailService } from './mail/mail.service.js';
 import { MediaController } from './media/media.controller.js';
 import { MediaService } from './media/media.service.js';
 import { ProfileController } from './profile/profile.controller.js';
+import { PublicService } from './public/public.service.js';
+import { SettingsController } from './settings/settings.controller.js';
+import { SettingsService } from './settings/settings.service.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
 import { UsersController } from './users/users.controller.js';
 import { UsersService } from './users/users.service.js';
@@ -72,6 +75,7 @@ export class AppModule {
         EntriesController,
         MediaController,
         TermsController,
+        SettingsController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -83,7 +87,9 @@ export class AppModule {
         LoginThrottleService,
         MailService,
         MediaService,
+        PublicService,
         SchedulerService,
+        SettingsService,
         SessionService,
         SiteResolverService,
         TermsService,

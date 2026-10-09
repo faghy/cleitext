@@ -1,0 +1,31 @@
+{
+  "name": "@cleitext/theme-aurora",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cleitext default theme",
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "style.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cleitext/theme-sdk": "workspace:*",
+    "react": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0"
+  }
+}

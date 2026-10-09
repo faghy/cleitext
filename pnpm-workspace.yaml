@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - themes/*
   - tools/*
 
 # Dependencies allowed to run install scripts.

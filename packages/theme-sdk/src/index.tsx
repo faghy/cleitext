@@ -1,0 +1,149 @@
+import { Blocks, ResponsiveImage, type RenderMedia } from '@cleitext/renderer';
+import type { CxdDocument } from '@cleitext/blocks';
+import { createContext, useContext, type ReactNode } from 'react';
+import type {
+  MenuItemView,
+  PageContext,
+  TemplateProps,
+  ThemeDefinition,
+  TemplateComponent,
+} from './types.js';
+
+export * from './types.js';
+export { Inline, safeUrl, type RenderMedia } from '@cleitext/renderer';
+
+const PageContextReact = createContext<PageContext | null>(null);
+
+export function PageProvider({ value, children }: { value: PageContext; children: ReactNode }) {
+  return <PageContextReact.Provider value={value}>{children}</PageContextReact.Provider>;
+}
+
+/** Site, language, menus and URL helpers of the page being rendered. */
+export function usePage(): PageContext {
+  const value = useContext(PageContextReact);
+  if (!value) throw new Error('usePage() must be used inside a Cleitext page');
+  return value;
+}
+
+/** The content of an entry, with the page's preloaded media. */
+export function EntryContent({ document }: { document: CxdDocument }) {
+  const page = usePage();
+  return (
+    <Blocks
+      document={document}
+      context={{ media: page.media, locale: page.locale, eagerFirstImage: true }}
+    />
+  );
+}
+
+/** A responsive image of the media library. */
+export function Image({
+  media,
+  alt,
+  eager = false,
+  sizes,
+}: {
+  media: RenderMedia;
+  alt?: string;
+  eager?: boolean;
+  sizes?: string;
+}) {
+  return (
+    <ResponsiveImage
+      media={media}
+      src={media.url}
+      alt={alt ?? media.alt}
+      eager={eager}
+      {...(sizes ? { sizes } : {})}
+    />
+  );
+}
+
+/** A menu as nested lists, with `aria-current` on the current item. */
+export function Menu({ items, className }: { items: MenuItemView[]; className?: string }) {
+  if (items.length === 0) return null;
+  return (
+    <ul className={className}>
+      {items.map((item) => (
+        <li key={item.id} className={item.current ? 'is-current' : undefined}>
+          <a
+            href={item.url}
+            aria-current={item.current ? 'page' : undefined}
+            target={item.target}
+            rel={item.target === '_blank' ? 'noopener noreferrer' : undefined}
+          >
+            {item.label}
+          </a>
+          {item.children.length > 0 && <Menu items={item.children} />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Formats an ISO date in the page's language. */
+export function FormattedDate({ iso }: { iso: string }) {
+  const { locale } = usePage();
+  const date = new Date(iso);
+  return (
+    <time dateTime={date.toISOString()}>
+      {date.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })}
+    </time>
+  );
+}
+
+/**
+ * Template hierarchy (docs/ARCHITECTURE.md §12.2), most specific first:
+ * entry-{type}-{slug} → entry-{type} → entry → index, and the equivalents for
+ * archives, taxonomies, search and 404.
+ */
+export function templateCandidates(
+  props: TemplateProps,
+  extra: { slug?: string; type?: string; taxonomy?: string; termSlug?: string } = {},
+): string[] {
+  switch (props.kind) {
+    case 'entry':
+      return [
+        ...(props.isFrontPage ? ['front-page'] : []),
+        `entry-${props.entry.type}-${props.entry.slug}`,
+        `entry-${props.entry.type}`,
+        'entry',
+        'index',
+      ];
+    case 'archive':
+      if (props.term && extra.taxonomy) {
+        return [
+          `taxonomy-${extra.taxonomy}-${extra.termSlug}`,
+          `taxonomy-${extra.taxonomy}`,
+          'taxonomy',
+          'archive',
+          'index',
+        ];
+      }
+      return [
+        ...(props.isHome ? ['home'] : []),
+        ...(extra.type ? [`archive-${extra.type}`] : []),
+        'archive',
+        'index',
+      ];
+    case 'search':
+      return ['search', 'index'];
+    case '404':
+      return ['404', 'index'];
+    case 'maintenance':
+      return ['maintenance', 'index'];
+  }
+}
+
+export function resolveTemplate(theme: ThemeDefinition, candidates: string[]): TemplateComponent {
+  for (const name of candidates) {
+    const template = theme.templates[name];
+    if (template) return template;
+  }
+  return theme.templates.index;
+}
+
+/** Identity helper giving theme authors type checking. */
+export function defineTheme(theme: ThemeDefinition): ThemeDefinition {
+  return theme;
+}
