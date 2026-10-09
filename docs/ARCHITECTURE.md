@@ -3,7 +3,7 @@
 > Version 0.2 · October 2026 · status: **draft for team review**
 > Project name: **cleitext** · License: **GPL-2.0-or-later** (like WordPress)
 > **Current phase: internal use.** Initially Cleitext powers our own sites and is not distributed. The public registry and domain are deferred to the open-source release phase (see §11.9 and [SPECIFICATIONS.md](./SPECIFICATIONS.md) M7).
-> The name combines *Cleito* (the CMS it grew out of) and *text*: content, blocks and plugins.
+> The name combines _Cleito_ (the CMS it grew out of) and _text_: content, blocks and plugins.
 > 🇮🇹 Italian version: [docs/it/ARCHITETTURA.md](./it/ARCHITETTURA.md) (secondary, may lag behind).
 
 ---
@@ -27,7 +27,7 @@
 15. [Performance and caching](#15-performance-and-caching)
 16. [Background jobs](#16-background-jobs)
 17. [WordPress as a model, not as code](#17-wordpress-as-a-model-not-as-code)
-18. [Deployment: Plesk and Docker](#18-deployment-plesk-and-docker)
+18. [Deployment: Plesk](#18-deployment-plesk)
 19. [Observability, testing and quality](#19-observability-testing-and-quality)
 20. [Decision log (ADR)](#20-decision-log-adr)
 21. [Risks and mitigations](#21-risks-and-mitigations)
@@ -45,18 +45,18 @@ Initially the editor **is Gutenberg**, used as a standalone library. The system 
 
 ### Guiding principles
 
-| # | Principle | What it means in practice |
-|---|---|---|
-| P1 | **WordPress as a model, not as code** | Same concepts and user experience, our own implementation. The core uses its own naming (*entry*, not *post*). |
-| P2 | **Replaceable editor** | Gutenberg is an *adapter* behind the `EditorAdapter` interface. Content is stored in the Cleitext format (**CXD**), not in Gutenberg markup. Switching editors means writing a new adapter, not migrating content. |
-| P3 | **Small core, everything else is a plugin** | The core handles sites, users, content, media, menus, themes and plugins. Forms, advanced SEO and comments are plugins. |
-| P4 | **The plugin API is the product** | A semver-versioned contract, documented and tested. Breaking it has an explicit cost. |
-| P5 | **Secure by default** | Isolation between sites in the database, granular permissions, non-executable uploads, no secrets in the code. |
-| P6 | **Make the most of PostgreSQL** | JSONB, full-text search, RLS, LISTEN/NOTIFY, job queues: no mandatory Redis or Elasticsearch. |
-| P7 | **Modular monolith** | A single deployable process, modules with clear boundaries. It can be split up if and when needed. |
-| P8 | **End-to-end types** | Zod schemas shared across database, API, admin and plugins. |
+| #   | Principle                                   | What it means in practice                                                                                                                                                                                          |
+| --- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P1  | **WordPress as a model, not as code**       | Same concepts and user experience, our own implementation. The core uses its own naming (_entry_, not _post_).                                                                                                     |
+| P2  | **Replaceable editor**                      | Gutenberg is an _adapter_ behind the `EditorAdapter` interface. Content is stored in the Cleitext format (**CXD**), not in Gutenberg markup. Switching editors means writing a new adapter, not migrating content. |
+| P3  | **Small core, everything else is a plugin** | The core handles sites, users, content, media, menus, themes and plugins. Forms, advanced SEO and comments are plugins.                                                                                            |
+| P4  | **The plugin API is the product**           | A semver-versioned contract, documented and tested. Breaking it has an explicit cost.                                                                                                                              |
+| P5  | **Secure by default**                       | Isolation between sites in the database, granular permissions, non-executable uploads, no secrets in the code.                                                                                                     |
+| P6  | **Make the most of PostgreSQL**             | JSONB, full-text search, RLS, LISTEN/NOTIFY, job queues: no mandatory Redis or Elasticsearch.                                                                                                                      |
+| P7  | **Modular monolith**                        | A single deployable process, modules with clear boundaries. It can be split up if and when needed.                                                                                                                 |
+| P8  | **End-to-end types**                        | Zod schemas shared across database, API, admin and plugins.                                                                                                                                                        |
 
-### What Cleitext is *not*
+### What Cleitext is _not_
 
 - It is not a fork of WordPress and contains no WordPress PHP code. It only uses the JavaScript packages of the Gutenberg editor (`@wordpress/block-editor` & co.), isolated in the adapter.
 - It is not "pure headless": it has server-side public rendering with themes, plus a complete API for those who use it headless.
@@ -66,18 +66,19 @@ Initially the editor **is Gutenberg**, used as a standalone library. The system 
 
 ## 2. Quality goals and constraints
 
-| Attribute | Measurable goal |
-|---|---|
-| **Efficiency** | Cached public page: TTFB p95 < 50 ms. Uncached: < 300 ms. Admin API p95 < 150 ms with 50,000 entries per site. |
-| **Security** | Zero data leakage between sites (automated isolation tests). OWASP ASVS level 2 as the reference. |
-| **Stability** | Semver on the core and the plugin API, deprecations lasting at least 2 minor versions, forward-only and tested migrations. |
-| **Modularity** | Every non-essential feature is a plugin that can be deactivated without breaking the core. |
-| **Footprint** | Less than 300 MB of RAM per process. One instance handles at least 100 sites. |
-| **Admin accessibility** | WCAG 2.1 AA. |
+| Attribute               | Measurable goal                                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Efficiency**          | Cached public page: TTFB p95 < 50 ms. Uncached: < 300 ms. Admin API p95 < 150 ms with 50,000 entries per site.             |
+| **Security**            | Zero data leakage between sites (automated isolation tests). OWASP ASVS level 2 as the reference.                          |
+| **Stability**           | Semver on the core and the plugin API, deprecations lasting at least 2 minor versions, forward-only and tested migrations. |
+| **Modularity**          | Every non-essential feature is a plugin that can be deactivated without breaking the core.                                 |
+| **Footprint**           | Less than 300 MB of RAM per process. One instance handles at least 100 sites.                                              |
+| **Admin accessibility** | WCAG 2.1 AA.                                                                                                               |
 
 **Constraints:**
+
 - Database: **PostgreSQL** (16 minimum, 17+ recommended).
-- Reference hosting: **Plesk with the Node.js extension** (Phusion Passenger), plus an official **Docker** image.
+- Reference hosting: **Plesk with the Node.js extension** (Phusion Passenger). Docker is **not** part of the project for now.
 - Runtime: **Node.js 24 LTS** (minimum 22 LTS).
 - License: **GPL-2.0-or-later**, the same as WordPress and the Gutenberg packages. The plugin model is the WordPress one (§11.10). Dependencies must have GPL-compatible licenses, and a license checker verifies this in CI.
 
@@ -85,22 +86,22 @@ Initially the editor **is Gutenberg**, used as a standalone library. The system 
 
 ## 3. Technology stack
 
-| Layer | Choice | Rationale | Rejected alternatives |
-|---|---|---|---|
-| Language | **TypeScript** (strict) | A single language for server, admin, editor and plugins. | PHP (a valid choice, but two languages), Go/Rust (dynamic plugins are hard) |
-| Server framework | **NestJS with the Fastify adapter** | Modules, dependency injection, guards and interceptors for modularity; Fastify for performance. | Plain Fastify (architecture to be built by hand), Express (slower) |
-| ORM / queries | **Drizzle ORM** + `postgres` (driver) | Strong types, transparent SQL, excellent JSONB support. | Prisma (separate engine, less SQL control), TypeORM |
-| Validation | **Zod** | Schemas shared across API, admin and plugins, with OpenAPI generation. | class-validator (server-side only) |
-| Editor | **Standalone Gutenberg** (`@wordpress/block-editor`, `@wordpress/components`, selected blocks from `@wordpress/block-library`) behind an `EditorAdapter` | Identical WordPress experience from day one, mature ecosystem, accessible. The stored format (CXD) stays independent. | Lexical/Tiptap with a custom block layer (months of work to reach the same UX): they remain candidates for a future adapter |
-| Admin UI | **React + Vite + Tailwind + shadcn/ui (Radix)** | Accessible components that we own, no lock-in. | MUI/Ant (imposed look) |
-| Admin data | **TanStack Query + TanStack Router** | Client cache and typed routing. | Redux, React Router |
-| Public rendering | **React SSR** (server only, no hydration by default) | Typed TSX themes, same skills as the admin, optional interactive "islands". | Eta/Nunjucks/Liquid (rejected: decision made, themes in React) |
-| Jobs | **pg-boss** (queues on PostgreSQL) | No Redis, transactional with the data. | BullMQ (requires Redis) |
-| Images | **sharp** | Fast AVIF/WebP variants. | ImageMagick |
-| Passwords | **argon2id** (`@node-rs/argon2`) | Current standard. | bcrypt |
-| Logging | **pino** | Fast structured logs, native in Fastify. | winston |
-| Monorepo | **pnpm + Turborepo** | Workspaces and incremental builds. | Nx (heavier) |
-| Testing | **Vitest, Playwright, Testcontainers** | Unit, end-to-end and real PostgreSQL. | Jest |
+| Layer            | Choice                                                                                                                                                   | Rationale                                                                                                             | Rejected alternatives                                                                                                       |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Language         | **TypeScript** (strict)                                                                                                                                  | A single language for server, admin, editor and plugins.                                                              | PHP (a valid choice, but two languages), Go/Rust (dynamic plugins are hard)                                                 |
+| Server framework | **NestJS with the Fastify adapter**                                                                                                                      | Modules, dependency injection, guards and interceptors for modularity; Fastify for performance.                       | Plain Fastify (architecture to be built by hand), Express (slower)                                                          |
+| ORM / queries    | **Drizzle ORM** + `postgres` (driver)                                                                                                                    | Strong types, transparent SQL, excellent JSONB support.                                                               | Prisma (separate engine, less SQL control), TypeORM                                                                         |
+| Validation       | **Zod**                                                                                                                                                  | Schemas shared across API, admin and plugins, with OpenAPI generation.                                                | class-validator (server-side only)                                                                                          |
+| Editor           | **Standalone Gutenberg** (`@wordpress/block-editor`, `@wordpress/components`, selected blocks from `@wordpress/block-library`) behind an `EditorAdapter` | Identical WordPress experience from day one, mature ecosystem, accessible. The stored format (CXD) stays independent. | Lexical/Tiptap with a custom block layer (months of work to reach the same UX): they remain candidates for a future adapter |
+| Admin UI         | **React + Vite + Tailwind + shadcn/ui (Radix)**                                                                                                          | Accessible components that we own, no lock-in.                                                                        | MUI/Ant (imposed look)                                                                                                      |
+| Admin data       | **TanStack Query + TanStack Router**                                                                                                                     | Client cache and typed routing.                                                                                       | Redux, React Router                                                                                                         |
+| Public rendering | **React SSR** (server only, no hydration by default)                                                                                                     | Typed TSX themes, same skills as the admin, optional interactive "islands".                                           | Eta/Nunjucks/Liquid (rejected: decision made, themes in React)                                                              |
+| Jobs             | **pg-boss** (queues on PostgreSQL)                                                                                                                       | No Redis, transactional with the data.                                                                                | BullMQ (requires Redis)                                                                                                     |
+| Images           | **sharp**                                                                                                                                                | Fast AVIF/WebP variants.                                                                                              | ImageMagick                                                                                                                 |
+| Passwords        | **argon2id** (`@node-rs/argon2`)                                                                                                                         | Current standard.                                                                                                     | bcrypt                                                                                                                      |
+| Logging          | **pino**                                                                                                                                                 | Fast structured logs, native in Fastify.                                                                              | winston                                                                                                                     |
+| Monorepo         | **pnpm + Turborepo**                                                                                                                                     | Workspaces and incremental builds.                                                                                    | Nx (heavier)                                                                                                                |
+| Testing          | **Vitest, Playwright, embedded PostgreSQL**                                                                                                              | Unit, end-to-end and real PostgreSQL without containers.                                                              | Jest, Testcontainers (requires Docker)                                                                                      |
 
 ---
 
@@ -109,12 +110,12 @@ Initially the editor **is Gutenberg**, used as a standalone library. The system 
 ```mermaid
 flowchart LR
     subgraph Client
-        V[Visitor] 
+        V[Visitor]
         E[Editor / Admin]
         H[Headless app]
     end
 
-    subgraph Plesk["Plesk / Docker"]
+    subgraph Plesk["Plesk"]
         NG[nginx<br/>static assets + media]
         subgraph App["Node process (Passenger)"]
             HTTP[Fastify + NestJS]
@@ -145,9 +146,10 @@ flowchart LR
 ```
 
 **Flow of a public request:**
+
 1. nginx serves assets and media directly, without going through Node.
 2. Fastify resolves the **site from the host** (`site_domains`) and opens a transaction with `SET LOCAL app.site_id`.
-3. It checks the page cache: on a *hit*, it responds immediately.
+3. It checks the page cache: on a _hit_, it responds immediately.
 4. The content router resolves permalink → entry (honoring `redirects`).
 5. The theme's template hierarchy picks the template, the block tree is turned into HTML and plugin filters are applied.
 6. The response is stored in the cache with tags (`entry:<id>`, `menu:<id>`, `type:<slug>`).
@@ -185,11 +187,13 @@ cleitext/
 │  └─ cleito-import/       # migration from the old Cleito CMS
 ├─ themes/
 │  └─ aurora/              # default theme
-├─ docker/
+├─ tools/
+│  └─ dev-db/              # local PostgreSQL for development (embedded binaries)
 └─ docs/
 ```
 
 **Dependency rules**, enforced in CI with `eslint-plugin-boundaries`:
+
 - `packages/core` **never** imports from `plugins/*` or `themes/*`.
 - Plugins import **only** from `plugin-sdk`, `admin-sdk`, `blocks`, `shared`, never from inside `core`.
 - **Imports from `@wordpress/*` are allowed only in `packages/editor-gutenberg` and in the blocks' `*.gutenberg.tsx` files.** Server, renderer, core, themes and server-side plugins never import them. This rule is what makes the editor replaceable.
@@ -200,23 +204,23 @@ cleitext/
 
 Each module is a NestJS module with a **public service** (exposed to plugins through the SDK) and an internal **repository** (Drizzle). Modules do not read other modules' tables: they communicate through services and events.
 
-| Module | Responsibility |
-|---|---|
-| `sites` | Sites, domains, active languages, host resolution, tenant context. |
-| `identity` | Users, sessions, 2FA, passkeys, API tokens, password reset. |
-| `access` | Roles, capabilities, guards, per-entry policies (owner/others). |
-| `content` | Content types, entries, revisions, statuses, scheduling, translations. |
-| `taxonomy` | Taxonomies and terms (categories, tags, custom). |
-| `media` | Uploads, validation, abstract storage (disk or S3), image variants. |
-| `navigation` | Menus, menu items, theme menu locations. |
-| `settings` | Typed settings by namespace (core and plugins). |
-| `routing` | Permalinks, redirects, URL → resource resolution. |
-| `search` | Per-language full-text indexing. |
-| `themes` | Theme registry, active theme per site, theme settings. |
-| `plugins` | Discovery, lifecycle, migrations and per-site activation. |
-| `audit` | Action log (who, what, when, from where). |
-| `jobs` | Facade over pg-boss, scheduled jobs (cron). |
-| `cache` | Tagged page cache and cross-process invalidation. |
+| Module       | Responsibility                                                         |
+| ------------ | ---------------------------------------------------------------------- |
+| `sites`      | Sites, domains, active languages, host resolution, tenant context.     |
+| `identity`   | Users, sessions, 2FA, passkeys, API tokens, password reset.            |
+| `access`     | Roles, capabilities, guards, per-entry policies (owner/others).        |
+| `content`    | Content types, entries, revisions, statuses, scheduling, translations. |
+| `taxonomy`   | Taxonomies and terms (categories, tags, custom).                       |
+| `media`      | Uploads, validation, abstract storage (disk or S3), image variants.    |
+| `navigation` | Menus, menu items, theme menu locations.                               |
+| `settings`   | Typed settings by namespace (core and plugins).                        |
+| `routing`    | Permalinks, redirects, URL → resource resolution.                      |
+| `search`     | Per-language full-text indexing.                                       |
+| `themes`     | Theme registry, active theme per site, theme settings.                 |
+| `plugins`    | Discovery, lifecycle, migrations and per-site activation.              |
+| `audit`      | Action log (who, what, when, from where).                              |
+| `jobs`       | Facade over pg-boss, scheduled jobs (cron).                            |
+| `cache`      | Tagged page cache and cross-process invalidation.                      |
 
 ---
 
@@ -564,12 +568,22 @@ create policy tenant_isolation on entries
 ```
 
 **Per-request cycle:**
+
 1. Fastify `onRequest` resolves `Host` → `site_domains` → `site_id`, with an in-memory cache invalidated via NOTIFY.
 2. It opens a transaction and runs `SET LOCAL app.site_id = '<uuid>'`. `SET LOCAL` is safe even with connection pooling, because it only applies to the transaction.
 3. All queries in the request go through that transaction (`AsyncLocalStorage` carries the context).
 4. Cross-site operations (super admin, CLI, migrations) use a separate `cleitext_admin` role with `BYPASSRLS`, and only in explicit code paths that are recorded in the audit log.
 
-**Mandatory tests:** a dedicated suite creates two sites and verifies that no endpoint and no service returns data from the other site.
+**Mandatory tests:** a dedicated suite creates two sites and verifies that no endpoint and no service returns data from the other site (`packages/db/test/tenant-isolation.test.ts`).
+
+**Implementation notes** (`packages/db/drizzle/0001_tenant_rls.sql`):
+
+- The current site is read through `cleitext_current_site_id()`, which maps an empty setting to `NULL`. After a transaction that used `SET LOCAL`, the setting reverts to `''`, not `NULL`, and must not break queries on the same pooled connection.
+- Tenant tables are `FORCE`d. `sites`, `site_domains`, `users` and `roles` have RLS enabled but are not forced, because the owner (CLI, installer) manages them. The application role never owns tables, so it is always subject to the policies.
+- Host resolution happens before any site context exists, through the `SECURITY DEFINER` function `cleitext_resolve_site(host)`, which returns only the site id.
+- Foreign-key checks bypass RLS. Child rows therefore reference parents through **composite foreign keys `(site_id, id)`**, so a row of site A can never point to a row of site B.
+- `users` are global: the application only sees members of the current site. `roles` with `site_id IS NULL` are system roles, readable by every site and writable only by the owner.
+- Privileges for the application role are granted by `cleitext_grant_app(role)`, executed after every migration.
 
 ---
 
@@ -605,12 +619,13 @@ stateDiagram-v2
 
 - **Save** = new `manual` revision + updated `current_revision_id`.
 - **Autosave** every 30 seconds = `autosave` revision. Only the latest one per user and entry is kept.
-- **Publish** = `published_revision_id := current_revision_id`. The public sees *only* `published_revision_id`, so published content can be edited without exposing drafts.
+- **Publish** = `published_revision_id := current_revision_id`. The public sees _only_ `published_revision_id`, so published content can be edited without exposing drafts.
 - **Revision cleanup**: the latest N (configurable), the published ones and labeled ones are kept.
 
 ### 9.3 Custom fields
 
 They are defined in `fields_schema` with a JSON-serializable DSL that can be converted to Zod: `text`, `richtext`, `number`, `boolean`, `date`, `select`, `media`, `relation`, `repeater`, `group`, `json`. The following rules apply:
+
 - server-side validation **always**, even if the admin has already validated;
 - fields marked `indexed: true` generate an expression index on `revisions.fields` / `entries` (via a migration job);
 - the admin automatically generates field forms from the schema.
@@ -653,9 +668,10 @@ flowchart LR
 
 **What stays the same if the editor changes:** database, CXD format, API, public rendering, themes, plugin server logic, block definitions (type, attributes, render, migrations).
 
-**What has to be rewritten:** the adapter package and the blocks' *edit* components (`*.gutenberg.tsx` → `*.<new>.tsx`).
+**What has to be rewritten:** the adapter package and the blocks' _edit_ components (`*.gutenberg.tsx` → `*.<new>.tsx`).
 
 **What we do NOT use from Gutenberg:**
+
 - HTML serialization with `<!-- wp:paragraph -->` comments: we store CXD;
 - the blocks' `save()` functions: the public HTML is produced by our renderer;
 - `@wordpress/core-data` and calls to the WordPress REST API: data, media and links go through our API via the adapter.
@@ -673,16 +689,14 @@ The **stored format** is neither Gutenberg markup nor the internal state of any 
       "type": "core/heading",
       "v": 1,
       "attrs": { "level": 2, "anchor": "intro" },
-      "content": [ { "text": "Welcome " }, { "text": "aboard", "marks": ["bold"] } ]
+      "content": [{ "text": "Welcome " }, { "text": "aboard", "marks": ["bold"] }]
     },
     {
       "id": "b_01JA9Y…",
       "type": "core/columns",
       "v": 1,
       "attrs": { "gap": "md" },
-      "children": [
-        { "id": "…", "type": "core/column", "v": 1, "attrs": {}, "children": [ /* … */ ] }
-      ]
+      "children": [{ "id": "…", "type": "core/column", "v": 1, "attrs": {}, "children": [/* … */] }]
     }
   ]
 }
@@ -700,15 +714,16 @@ The **stored format** is neither Gutenberg markup nor the internal state of any 
 
 ```ts
 interface EditorAdapter {
-  id: string;                                   // 'gutenberg'
+  id: string; // 'gutenberg'
   mount(el: HTMLElement, opts: EditorMountOptions): EditorInstance;
 }
 
 interface EditorMountOptions {
-  document: CxdDocument;                        // initial content
-  blocks: BlockDefinition[];                    // available blocks (core + plugins)
+  document: CxdDocument; // initial content
+  blocks: BlockDefinition[]; // available blocks (core + plugins)
   patterns: Pattern[];
-  services: {                                   // implemented by Cleitext, NOT by WordPress
+  services: {
+    // implemented by Cleitext, NOT by WordPress
     uploadMedia(file: File): Promise<MediaRef>;
     searchLinks(q: string): Promise<LinkSuggestion[]>;
     getMedia(id: string): Promise<MediaView>;
@@ -716,18 +731,19 @@ interface EditorMountOptions {
   };
   locale: string;
   readOnly?: boolean;
-  onChange(doc: CxdDocument): void;             // used for autosave and "modified" state
+  onChange(doc: CxdDocument): void; // used for autosave and "modified" state
 }
 
 interface EditorInstance {
   getDocument(): CxdDocument;
   insertBlocks(blocks: CxdBlock[]): void;
-  undo(): void; redo(): void;
+  undo(): void;
+  redo(): void;
   destroy(): void;
 }
 ```
 
-The edit screen (`editor-core`) is editor-agnostic: top bar, save/publish buttons, the inspector's *Document* tab with status, taxonomies, fields and plugin panels. Only the block area and the *Block* tab belong to the adapter.
+The edit screen (`editor-core`) is editor-agnostic: top bar, save/publish buttons, the inspector's _Document_ tab with status, taxonomies, fields and plugin panels. Only the block area and the _Block_ tab belong to the adapter.
 
 ### 10.3 Block definition
 
@@ -764,8 +780,13 @@ export default defineGutenbergEdit<'acme/hero'>(({ attributes, setAttributes }) 
   <>
     <InspectorControls>
       <PanelBody title="Overlay">
-        <RangeControl value={attributes.overlay} min={0} max={1} step={0.1}
-                      onChange={(overlay) => setAttributes({ overlay })} />
+        <RangeControl
+          value={attributes.overlay}
+          min={0}
+          max={1}
+          step={0.1}
+          onChange={(overlay) => setAttributes({ overlay })}
+        />
       </PanelBody>
     </InspectorControls>
     {/* … */}
@@ -775,7 +796,7 @@ export default defineGutenbergEdit<'acme/hero'>(({ attributes, setAttributes }) 
 ```
 
 - The adapter registers the block in Gutenberg (`registerBlockType`) using the Zod schema for the attributes, the `edit` component and `save: () => null`. Saving always goes through CXD.
-- **A block with no component for the active editor** is shown with a *form automatically generated from the Zod schema*, so it remains editable even after an editor switch, before anyone rewrites its component.
+- **A block with no component for the active editor** is shown with a _form automatically generated from the Zod schema_, so it remains editable even after an editor switch, before anyone rewrites its component.
 - For core blocks, **the `edit` components from `@wordpress/block-library` are reused** where possible, with a server renderer written by us.
 
 ### 10.4 Editor interface (Gutenberg)
@@ -783,10 +804,10 @@ export default defineGutenbergEdit<'acme/hero'>(({ attributes, setAttributes }) 
 - **Inserter** ("+" button and quick search with `/`), blocks grouped by category, patterns.
 - **Block toolbar**: move up/down, drag, transform to, duplicate, delete.
 - **Inspector** (right sidebar), with two tabs:
-  - *Document*: status, scheduling, permalink, taxonomies, featured image, custom fields, plugin panels.
-  - *Block*: the block's `InspectorControls` (Gutenberg), or a form generated from the Zod schema.
+  - _Document_: status, scheduling, permalink, taxonomies, featured image, custom fields, plugin panels.
+  - _Block_: the block's `InspectorControls` (Gutenberg), or a form generated from the Zod schema.
 - **List view** (tree structure), undo/redo, keyboard shortcuts.
-- **Patterns**: saved, reusable sets of blocks. There are *synced patterns* (the equivalent of reusable blocks) and *unsynced patterns*.
+- **Patterns**: saved, reusable sets of blocks. There are _synced patterns_ (the equivalent of reusable blocks) and _unsynced patterns_.
 - Real **preview** through the theme renderer, with a temporary preview token.
 
 ### 10.5 Core blocks (MVP)
@@ -798,9 +819,9 @@ Each one needs an editor-agnostic definition (schema and render), a Gutenberg ed
 ### 10.6 Technical notes on the Gutenberg integration
 
 - **Size**: Gutenberg is heavy, about 1–2 MB gzipped with its dependencies. It must be loaded **only on the edit screen** (lazily), while the rest of the admin stays lightweight.
-- **Styles**: editor styles are isolated in an editing iframe (supported by the block editor), so they do not conflict with the admin's Tailwind. The active theme's styles are injected into the iframe for an accurate preview (*editor styles*).
+- **Styles**: editor styles are isolated in an editing iframe (supported by the block editor), so they do not conflict with the admin's Tailwind. The active theme's styles are injected into the iframe for an accurate preview (_editor styles_).
 - **Versions**: the `@wordpress/*` packages must be updated **all together** and with a pinned version. Every update goes through the round-trip tests and the editor E2E tests.
-- **Reference**: projects such as *Isolated Block Editor* (Automattic) show how to use Gutenberg outside WordPress and are useful as an implementation reference.
+- **Reference**: projects such as _Isolated Block Editor_ (Automattic) show how to use Gutenberg outside WordPress and are useful as an implementation reference.
 
 ---
 
@@ -852,7 +873,7 @@ flowchart LR
     D -->|uninstall| E[Removed<br/>onUninstall<br/>DROP SCHEMA plg_x]
 ```
 
-- **Install** (global): from the registry, from the upload of a `.zip` or `.tgz` package (like WordPress's *Upload Plugin*) or from the developer's update server. This is followed by verification of checksum, `apiVersion` and dependencies (plus the signature, if the package comes from the registry) and by the migrations in the `plg_<slug>` schema. It can be done **from the admin** (super admin) or from the CLI (§11.9).
+- **Install** (global): from the registry, from the upload of a `.zip` or `.tgz` package (like WordPress's _Upload Plugin_) or from the developer's update server. This is followed by verification of checksum, `apiVersion` and dependencies (plus the signature, if the package comes from the registry) and by the migrations in the `plg_<slug>` schema. It can be done **from the admin** (super admin) or from the CLI (§11.9).
 - **Activate / Deactivate** (per site): `onActivate` / `onDeactivate` hooks. Data is kept.
 - **Uninstall**: `onUninstall`, then `DROP SCHEMA plg_<slug> CASCADE` and removal of the namespace's `settings`, with explicit confirmation.
 - **Loading**: at startup the server reads the installed plugins, imports them (`import()`) and registers their dynamic NestJS modules. **Installing or updating a plugin requires a graceful restart** of the process, which on Passenger is achieved with `tmp/restart.txt`. Activating or deactivating on a site does **not** require a restart, because hooks are filtered per site at runtime.
@@ -869,8 +890,9 @@ export default definePlugin({
       await ctx.jobs.enqueue('seo.ping-sitemaps', { siteId: entry.siteId });
     });
 
-    ctx.hooks.filter('render.head', (head, { entry }) =>
-      head.concat(buildMetaTags(entry)), { priority: 20 });
+    ctx.hooks.filter('render.head', (head, { entry }) => head.concat(buildMetaTags(entry)), {
+      priority: 20,
+    });
 
     // Declarative extensions
     ctx.content.registerFieldGroup({ types: ['page', 'article'], fields: seoFields });
@@ -879,9 +901,15 @@ export default definePlugin({
     ctx.settings.define(seoSettingsSchema);
     ctx.access.defineCapability('manage_seo', { defaultRoles: ['admin', 'editor'] });
   },
-  async onActivate(site)   { /* … */ },
-  async onDeactivate(site) { /* … */ },
-  async onUninstall()      { /* … */ },
+  async onActivate(site) {
+    /* … */
+  },
+  async onDeactivate(site) {
+    /* … */
+  },
+  async onUninstall() {
+    /* … */
+  },
 });
 ```
 
@@ -894,20 +922,21 @@ Hooks are declared with **declaration merging**, so TypeScript knows their paylo
 declare module '@cleitext/hooks' {
   interface Actions {
     'entry.published': { entry: EntryView; site: SiteView };
-    'user.login':      { user: UserView; ip: string };
+    'user.login': { user: UserView; ip: string };
   }
   interface Filters {
-    'render.head':       [head: HeadTag[], ctx: { entry?: EntryView }];
-    'entry.permalink':   [url: string, ctx: { entry: EntryView }];
-    'admin.menu':        [items: AdminMenuItem[], ctx: { user: UserView }];
+    'render.head': [head: HeadTag[], ctx: { entry?: EntryView }];
+    'entry.permalink': [url: string, ctx: { entry: EntryView }];
+    'admin.menu': [items: AdminMenuItem[], ctx: { user: UserView }];
   }
 }
 // a plugin can in turn declare its own hooks with the same mechanism
 ```
 
 **Bus rules:**
-- *Actions* are asynchronous and can run synchronously within the transaction (`'tx'`) or after commit (`'afterCommit'`, the default).
-- *Filters* are synchronous or asynchronous functions chained together, executed in priority order.
+
+- _Actions_ are asynchronous and can run synchronously within the transaction (`'tx'`) or after commit (`'afterCommit'`, the default).
+- _Filters_ are synchronous or asynchronous functions chained together, executed in priority order.
 - A handler error **is logged and isolated**: it does not bring down the request, except for hooks marked `critical`. A plugin that keeps failing is automatically deactivated and the problem is reported on the Dashboard.
 - Each handler has a configurable timeout. The time spent by each plugin is measured and visible in the admin.
 
@@ -921,6 +950,7 @@ declare module '@cleitext/hooks' {
 ### 11.7 Admin extensions
 
 The `admin` entry is an ESM module loaded at runtime. `react`, `react-dom` and `@cleitext/admin-sdk` are shared through an **import map**, so the plugin does not include them in its own bundle. The extension points are:
+
 - admin menu items and pages (routes);
 - Dashboard widgets;
 - panels in the document inspector (per content type);
@@ -937,10 +967,11 @@ The `admin` entry is an ESM module loaded at runtime. `react`, `react-dom` and `
 ### 11.9 Cleitext registry and installing from the admin
 
 > **Phases.**
+>
 > - **Internal use (now):** plugins are installed from a local folder, from a `.zip`/`.tgz` upload in the admin, or from the CLI. There is no online registry.
-> - **Public release (future):** the registry described below is enabled. The core code is already prepared for it: the registry client is a separate module (`registry-client`) and `REGISTRY_URL` is empty by default, so the *Add New* section only shows the upload.
+> - **Public release (future):** the registry described below is enabled. The core code is already prepared for it: the registry client is a separate module (`registry-client`) and `REGISTRY_URL` is empty by default, so the _Add New_ section only shows the upload.
 
-In the public phase, plugins and themes are distributed through **our own registry** (domain to be decided). From the admin, the super admin searches, installs and updates them, as in WordPress's *Plugins → Add New*.
+In the public phase, plugins and themes are distributed through **our own registry** (domain to be decided). From the admin, the super admin searches, installs and updates them, as in WordPress's _Plugins → Add New_.
 
 ```mermaid
 sequenceDiagram
@@ -962,6 +993,7 @@ sequenceDiagram
 ```
 
 **Registry (separate service, also open source):**
+
 - **API**: search, metadata, versions, downloads, anonymous installation statistics. A public page for each plugin with description, screenshots, changelog, compatibility and requested permissions.
 - **Publishing**: developer accounts, upload via the CLI (`cleitext publish`), **automated review** (valid manifest, build, dependency scan, compatible license, no obfuscated code) plus a **manual review** on first publication.
 - **Publishing open to everyone**, like the WordPress.org directory: anyone can publish free plugins and themes with a GPL-compatible license, after review.
@@ -971,16 +1003,18 @@ sequenceDiagram
 - **Updates**: periodic check (job) with an admin notification, one-click updates and rollback to the previous version, which is kept.
 
 **Security of installing from the admin:**
+
 - it requires the `manage_plugins` capability, which by default only the super admin has, with **mandatory 2FA**;
 - it can be disabled with `PLUGINS_INSTALL_FROM_UI=false`, for example in environments managed via CI;
 - plugins live in `cleitext-data/plugins`, outside the release, so they survive deployments. It is the only code folder writable by the process;
 - every operation is recorded in the audit log.
 
-**Themes**: same registry, same flow (`cleitext.theme.json`, signature, installation from the admin under *Appearance → Themes*).
+**Themes**: same registry, same flow (`cleitext.theme.json`, signature, installation from the admin under _Appearance → Themes_).
 
 ### 11.10 Plugin and theme licensing
 
 The core is **GPL-2.0-or-later**, like WordPress, and adopts **the same plugin licensing model**:
+
 - plugins and themes run in the same process and use the SDK, so, as WordPress maintains, their code is considered a derivative work and must be distributed under a **GPL-compatible** license (GPL-2.0-or-later, GPL-3.0, or MIT, Apache-2.0 or BSD for the code);
 - the **registry** only accepts free plugins and themes with a GPL-compatible license, like WordPress.org;
 - **premium plugins** are allowed as in WordPress: they are sold on the developer's site (the code remains under the GPL, while support, updates and services are paid), installed via upload and updated from the developer's server (`updateSource` field in the manifest). Assets such as images, CSS or front-end JavaScript may have different licenses, as in WordPress;
@@ -990,25 +1024,26 @@ The core is **GPL-2.0-or-later**, like WordPress, and adopts **the same plugin l
 
 ### 11.11 Mapping to the WordPress plugin system
 
-| WordPress | Cleitext |
-|---|---|
-| Main plugin file header (`Plugin Name`, `Version`, `Requires at least`…) | `cleitext.plugin.json` manifest (`name`, `version`, `requires.cleitext`…) |
-| `register_activation_hook` / `register_deactivation_hook` / `uninstall.php` | `onActivate` / `onDeactivate` / `onUninstall` |
-| `add_action` / `add_filter` / `do_action` / `apply_filters`, with priority | `hooks.on` / `hooks.filter` / `hooks.emit`, with priority and types |
-| *Plugins → Add New* (WordPress.org directory) | *Plugins → Add New* (Cleitext registry) |
-| *Upload Plugin* (.zip) | `.zip` / `.tgz` upload |
-| Per-plugin automatic updates (individually toggleable) | Per-plugin toggle: automatic updates on/off |
-| `Update URI` for premium plugins | `updateSource` in the manifest |
-| Per-site activation and *Network Activate* (multisite) | Per-site activation and **activation on all sites** (super admin) |
-| `mu-plugins` (always active) | `plugins-required/` folder: always-active plugins that cannot be deactivated from the admin |
-| `add_menu_page`, `add_meta_box`, Settings API | `admin-sdk`: `menu`, `documentPanels`, `settingsPages` |
-| `register_post_type`, `register_taxonomy` | `ctx.content.registerType`, `ctx.taxonomy.register` |
-| `register_block_type` | `defineBlock` (plus the Gutenberg edit component) |
-| `$wpdb` and prefixed tables | Dedicated PostgreSQL schema `plg_<slug>` with Drizzle |
-| WP-Cron | pg-boss jobs (`ctx.jobs.schedule`) |
-| Custom capabilities (`add_cap`) | `ctx.access.defineCapability` |
+| WordPress                                                                   | Cleitext                                                                                    |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Main plugin file header (`Plugin Name`, `Version`, `Requires at least`…)    | `cleitext.plugin.json` manifest (`name`, `version`, `requires.cleitext`…)                   |
+| `register_activation_hook` / `register_deactivation_hook` / `uninstall.php` | `onActivate` / `onDeactivate` / `onUninstall`                                               |
+| `add_action` / `add_filter` / `do_action` / `apply_filters`, with priority  | `hooks.on` / `hooks.filter` / `hooks.emit`, with priority and types                         |
+| _Plugins → Add New_ (WordPress.org directory)                               | _Plugins → Add New_ (Cleitext registry)                                                     |
+| _Upload Plugin_ (.zip)                                                      | `.zip` / `.tgz` upload                                                                      |
+| Per-plugin automatic updates (individually toggleable)                      | Per-plugin toggle: automatic updates on/off                                                 |
+| `Update URI` for premium plugins                                            | `updateSource` in the manifest                                                              |
+| Per-site activation and _Network Activate_ (multisite)                      | Per-site activation and **activation on all sites** (super admin)                           |
+| `mu-plugins` (always active)                                                | `plugins-required/` folder: always-active plugins that cannot be deactivated from the admin |
+| `add_menu_page`, `add_meta_box`, Settings API                               | `admin-sdk`: `menu`, `documentPanels`, `settingsPages`                                      |
+| `register_post_type`, `register_taxonomy`                                   | `ctx.content.registerType`, `ctx.taxonomy.register`                                         |
+| `register_block_type`                                                       | `defineBlock` (plus the Gutenberg edit component)                                           |
+| `$wpdb` and prefixed tables                                                 | Dedicated PostgreSQL schema `plg_<slug>` with Drizzle                                       |
+| WP-Cron                                                                     | pg-boss jobs (`ctx.jobs.schedule`)                                                          |
+| Custom capabilities (`add_cap`)                                             | `ctx.access.defineCapability`                                                               |
 
 **Intentional differences from WordPress** (for security and stability):
+
 - typed hooks;
 - isolation of plugin errors;
 - a separate DB schema for each plugin;
@@ -1073,23 +1108,23 @@ The full list of endpoints is in [SPECIFICATIONS.md](./SPECIFICATIONS.md) §6.
 
 ## 14. Security
 
-| Area | Measure |
-|---|---|
-| Passwords | argon2id, minimum policy of 12 characters, check against breached passwords (HIBP k-anonymity, optional). |
-| Login | Rate limiting per IP and per account, progressive lockout, audit of failed attempts. |
-| 2FA | TOTP and **passkeys (WebAuthn)**. Mandatory for administrative roles (configurable). |
-| Sessions | 256-bit random token, only the hash stored in the database, rotation on login and on privilege changes, revocation from the admin. |
-| CSRF | Double-submit token plus an `Origin` check on requests that modify data. |
-| Permissions | Granular capabilities checked by NestJS guards, plus resource policies (owner/others). |
-| Isolation | PostgreSQL RLS per site (§8), DB role per plugin (§11.6). |
-| Uploads | Check of the real type (magic bytes) against an allowlist, UUID renaming, storage outside the app root, served by nginx **without execution**, `Content-Disposition` for non-image types, SVG sanitized or disabled. |
-| HTML | Block output is escaped by default. The `html` block and `richtext` fields are sanitized (allowlist), unless the user has the `unfiltered_html` capability. |
-| Headers | Strict CSP (nonce), HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`. |
-| SSRF | Outgoing requests (oEmbed, webhooks, plugins) go through a client that blocks private and loopback IPs. |
-| Secrets | Only environment variables or configuration files outside the repository. Secrets in the database (TOTP, keys) are encrypted with an application key. |
-| Dependencies | `pnpm audit`, Renovate, SBOM (CycloneDX) on every release, signed releases. |
-| Errors | No stack traces in production. Correlation IDs in error responses. |
-| Audit | Logins, role changes, publications, plugin installations, settings changes. |
+| Area         | Measure                                                                                                                                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Passwords    | argon2id, minimum policy of 12 characters, check against breached passwords (HIBP k-anonymity, optional).                                                                                                            |
+| Login        | Rate limiting per IP and per account, progressive lockout, audit of failed attempts.                                                                                                                                 |
+| 2FA          | TOTP and **passkeys (WebAuthn)**. Mandatory for administrative roles (configurable).                                                                                                                                 |
+| Sessions     | 256-bit random token, only the hash stored in the database, rotation on login and on privilege changes, revocation from the admin.                                                                                   |
+| CSRF         | Double-submit token plus an `Origin` check on requests that modify data.                                                                                                                                             |
+| Permissions  | Granular capabilities checked by NestJS guards, plus resource policies (owner/others).                                                                                                                               |
+| Isolation    | PostgreSQL RLS per site (§8), DB role per plugin (§11.6).                                                                                                                                                            |
+| Uploads      | Check of the real type (magic bytes) against an allowlist, UUID renaming, storage outside the app root, served by nginx **without execution**, `Content-Disposition` for non-image types, SVG sanitized or disabled. |
+| HTML         | Block output is escaped by default. The `html` block and `richtext` fields are sanitized (allowlist), unless the user has the `unfiltered_html` capability.                                                          |
+| Headers      | Strict CSP (nonce), HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`.                                                                                                                         |
+| SSRF         | Outgoing requests (oEmbed, webhooks, plugins) go through a client that blocks private and loopback IPs.                                                                                                              |
+| Secrets      | Only environment variables or configuration files outside the repository. Secrets in the database (TOTP, keys) are encrypted with an application key.                                                                |
+| Dependencies | `pnpm audit`, Renovate, SBOM (CycloneDX) on every release, signed releases.                                                                                                                                          |
+| Errors       | No stack traces in production. Correlation IDs in error responses.                                                                                                                                                   |
+| Audit        | Logins, role changes, publications, plugin installations, settings changes.                                                                                                                                          |
 
 ---
 
@@ -1111,7 +1146,7 @@ The full list of endpoints is in [SPECIFICATIONS.md](./SPECIFICATIONS.md) §6.
 - **pg-boss** uses PostgreSQL (`pgboss` schema), so jobs are transactional with the data: a job enqueued in a rolled-back transaction never runs.
 - Core jobs: scheduled publishing, image variant generation, revision and trash cleanup, search index updates, webhook delivery, sending email.
 - **Two modes**, designed for Plesk:
-  - `JOBS_MODE=worker`: a separate worker process (Docker, VPS with systemd). This is the recommended mode.
+  - `JOBS_MODE=worker`: a separate worker process (VPS with systemd). This is the recommended mode.
   - `JOBS_MODE=inline`: the web process handles jobs in the background, for hosting where a second process cannot be started. In addition, a Plesk scheduled task calls `cleitext jobs:tick` every minute as a safeguard, because Passenger can shut down idle processes.
 
 ---
@@ -1120,35 +1155,36 @@ The full list of endpoints is in [SPECIFICATIONS.md](./SPECIFICATIONS.md) §6.
 
 Cleitext must **look and work like WordPress** for its users, but it is written from scratch. The relationship with WordPress spans four levels:
 
-| Level | What | Where |
-|---|---|---|
-| 1. Concepts and experience | Same concepts, same admin organization | Core (with its own naming) |
-| 2. Editor | Gutenberg as a library, **replaceable** | `editor-gutenberg` adapter (§10) |
-| 3. Migration | Import from WordPress | `wp-import` plugin |
-| 4. API compatibility | WP REST subset | `wp-compat` plugin (optional, after 1.0) |
+| Level                      | What                                    | Where                                    |
+| -------------------------- | --------------------------------------- | ---------------------------------------- |
+| 1. Concepts and experience | Same concepts, same admin organization  | Core (with its own naming)               |
+| 2. Editor                  | Gutenberg as a library, **replaceable** | `editor-gutenberg` adapter (§10)         |
+| 3. Migration               | Import from WordPress                   | `wp-import` plugin                       |
+| 4. API compatibility       | WP REST subset                          | `wp-compat` plugin (optional, after 1.0) |
 
 ### Level 1 — Concepts and experience (core, own naming)
 
-| WordPress | Cleitext | Notes |
-|---|---|---|
-| Post / Page | **Entry** of type `article` / `page` | In the admin the labels remain "Posts" and "Pages". |
-| Custom post type | **Content type** | Can also be defined from the admin, not only in code. |
-| Post meta | **Fields** (validated JSONB) | No EAV table. |
-| Taxonomy / Term | Taxonomy / Term | Same concept. |
-| Shortcode | **Block** | |
-| Widget / Sidebar | **Blocks in a theme area** | |
-| Customizer | **Theme settings** (schema-driven form) | |
-| Options | Typed **settings** by namespace | |
-| Roles & capabilities | Roles & capabilities | Same role names (Administrator, Editor, Author, Contributor, Subscriber). |
-| `add_action` / `add_filter` | `hooks.on` / `hooks.filter` | Typed. |
-| Multisite | **Sites** (native, RLS) | |
-| Template hierarchy | Template hierarchy (simplified) | |
+| WordPress                   | Cleitext                                | Notes                                                                     |
+| --------------------------- | --------------------------------------- | ------------------------------------------------------------------------- |
+| Post / Page                 | **Entry** of type `article` / `page`    | In the admin the labels remain "Posts" and "Pages".                       |
+| Custom post type            | **Content type**                        | Can also be defined from the admin, not only in code.                     |
+| Post meta                   | **Fields** (validated JSONB)            | No EAV table.                                                             |
+| Taxonomy / Term             | Taxonomy / Term                         | Same concept.                                                             |
+| Shortcode                   | **Block**                               |                                                                           |
+| Widget / Sidebar            | **Blocks in a theme area**              |                                                                           |
+| Customizer                  | **Theme settings** (schema-driven form) |                                                                           |
+| Options                     | Typed **settings** by namespace         |                                                                           |
+| Roles & capabilities        | Roles & capabilities                    | Same role names (Administrator, Editor, Author, Contributor, Subscriber). |
+| `add_action` / `add_filter` | `hooks.on` / `hooks.filter`             | Typed.                                                                    |
+| Multisite                   | **Sites** (native, RLS)                 |                                                                           |
+| Template hierarchy          | Template hierarchy (simplified)         |                                                                           |
 
 The admin layout echoes WordPress: dark sidebar on the left, widget-based Dashboard, list tables with bulk actions and quick edit, plugins and themes installable from the admin. The editor is Gutenberg. **The rest of the interface is our own**: Cleitext's palette, typography and components (React + Tailwind + shadcn/ui).
 
 ### Level 2 — Gutenberg editor, replaceable
 
 See §10. In short: Gutenberg is used as a library behind `EditorAdapter`. Content is stored in CXD, the public HTML is generated by our renderer, and imports from `@wordpress/*` are confined by a lint rule. **To switch editors in the future:**
+
 1. implement a new `EditorAdapter` (for example based on Lexical, Tiptap or an editor of our own);
 2. write the block edit components for the new editor. In the meantime, blocks without a component remain editable through the schema-generated form;
 3. change the `editor.adapter` setting, even per site, to allow a gradual migration;
@@ -1176,7 +1212,7 @@ See §10. In short: Gutenberg is used as a library behind `EditorAdapter`. Conte
 
 ---
 
-## 18. Deployment: Plesk and Docker
+## 18. Deployment: Plesk
 
 ### 18.1 Plesk (Node.js extension / Passenger)
 
@@ -1200,11 +1236,9 @@ See §10. In short: Gutenberg is used as a library behind `EditorAdapter`. Conte
 - **Jobs**: `JOBS_MODE=inline` plus a Plesk scheduled task `cleitext jobs:tick`, or a worker with systemd if root access is available.
 - **Multi-site**: **a single application** with multiple domains or aliases pointing to it. The site is resolved from the host, so no per-domain installation is needed.
 
-### 18.2 Docker
+### 18.2 Containers
 
-- Official multi-stage image (`node:24-slim`), non-root user, read-only filesystem except for the `media` and `cache` volumes.
-- Example `docker-compose.yml` with `app`, `worker`, `postgres`, `nginx`.
-- The same image works with the Plesk Docker extension.
+Docker images and Compose files are **not provided** for now (maintainer decision, October 2026). Development and tests run on an embedded PostgreSQL (`tools/dev-db`, `packages/testing`), with no system installation and no containers.
 
 ### 18.3 Configuration
 
@@ -1226,7 +1260,7 @@ PLUGINS_PATH, REGISTRY_URL, PLUGINS_INSTALL_FROM_UI=true|false, PLUGINS_ALLOW_UN
 - **Metrics** (optional): Prometheus endpoint, per-hook and per-plugin timings, cache hit rate. OpenTelemetry in a later phase.
 - **Tests**:
   - unit: Vitest on services, hooks and CXD format conversions;
-  - integration: Testcontainers with real PostgreSQL, migrations and **RLS isolation tests**;
+  - integration: real PostgreSQL started from embedded binaries (`embedded-postgres`) or from `CLEITEXT_TEST_PG_URL`, migrations and **RLS isolation tests**;
   - contract: plugin API, run against the official plugins;
   - end-to-end: Playwright on login, creating and publishing with the editor, plugin activation, WXR import;
   - performance: k6 on public pages and the API (§2 thresholds in nightly CI).
@@ -1236,24 +1270,25 @@ PLUGINS_PATH, REGISTRY_URL, PLUGINS_INSTALL_FROM_UI=true|false, PLUGINS_ALLOW_UN
 
 ## 20. Decision log (ADR)
 
-| ADR | Decision | Status |
-|---|---|---|
-| 001 | TypeScript/Node instead of PHP | Accepted |
-| 002 | NestJS with the Fastify adapter | Accepted |
-| 003 | Drizzle ORM on PostgreSQL | Accepted |
-| 004 | Modular monolith | Accepted |
-| 005 | Multi-site isolation with PostgreSQL RLS | Proposed |
-| 006 | Standalone Gutenberg editor behind `EditorAdapter`, content in our own CXD format | **Accepted** |
-| 007 | Versioned content with immutable revisions | Proposed |
-| 008 | One PostgreSQL schema per plugin | Proposed |
-| 009 | React SSR themes without hydration by default | **Accepted** |
-| 010 | Jobs on pg-boss, no mandatory Redis | Proposed |
-| 011 | WordPress as the conceptual model, compatibility only through `wp-*` plugins | **Accepted** |
+| ADR | Decision                                                                                                                    | Status       |
+| --- | --------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| 001 | TypeScript/Node instead of PHP                                                                                              | Accepted     |
+| 002 | NestJS with the Fastify adapter                                                                                             | Accepted     |
+| 003 | Drizzle ORM on PostgreSQL                                                                                                   | Accepted     |
+| 004 | Modular monolith                                                                                                            | Accepted     |
+| 005 | Multi-site isolation with PostgreSQL RLS                                                                                    | Proposed     |
+| 006 | Standalone Gutenberg editor behind `EditorAdapter`, content in our own CXD format                                           | **Accepted** |
+| 007 | Versioned content with immutable revisions                                                                                  | Proposed     |
+| 008 | One PostgreSQL schema per plugin                                                                                            | Proposed     |
+| 009 | React SSR themes without hydration by default                                                                               | **Accepted** |
+| 010 | Jobs on pg-boss, no mandatory Redis                                                                                         | Proposed     |
+| 011 | WordPress as the conceptual model, compatibility only through `wp-*` plugins                                                | **Accepted** |
 | 012 | GPL-2.0-or-later license with a WordPress-style plugin model (GPL-compatible plugins, premium allowed outside the registry) | **Accepted** |
-| 013 | Our own registry for plugins and themes, with installation from the admin and signed packages | **Accepted** |
-| 014 | Comments as a separate plugin (not in the core, not in 1.0) | **Accepted** |
-| 015 | E-commerce planned for the future as a plugin, not developed now | **Accepted** |
-| 016 | Plugin and theme registry planned for the public phase, not developed now | **Accepted** |
+| 013 | Our own registry for plugins and themes, with installation from the admin and signed packages                               | **Accepted** |
+| 014 | Comments as a separate plugin (not in the core, not in 1.0)                                                                 | **Accepted** |
+| 015 | E-commerce planned for the future as a plugin, not developed now                                                            | **Accepted** |
+| 016 | Plugin and theme registry planned for the public phase, not developed now                                                   | **Accepted** |
+| 017 | No Docker for now; development and tests use embedded PostgreSQL binaries                                                   | **Accepted** |
 
 Each ADR will be detailed in `docs/adr/NNN-title.md` (context, decision, consequences, alternatives).
 
@@ -1261,18 +1296,18 @@ Each ADR will be detailed in `docs/adr/NNN-title.md` (context, decision, consequ
 
 ## 21. Risks and mitigations
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Gutenberg outside WordPress: implicit dependencies on `core-data`/WP REST, bundle size, frequent updates of the `@wordpress/*` packages | High | Technical spike at the start of M2. Only selected blocks from `block-library`. Services provided by the adapter. Pinned versions updated together. Editor round-trip and E2E tests. Lazy loading. |
-| Loss of fidelity in the CXD ⇄ Gutenberg conversion (rich text, attributes) | Medium | Round-trip tests on every block (property-based and real fixtures), allowlist sanitization, preservation of unknown attributes. |
-| Plugin registry: operational burden (review, abuse, supply-chain security) | High | Automated plus manual review on first publication, Ed25519 signing, revocation, 2FA for developers. Open publishing like WordPress.org, with a review queue. |
-| Installing plugins from the admin: writing code to disk at runtime | High | `manage_plugins` only with 2FA, signed packages, dedicated folder, atomic switch, audit, can be disabled via env. |
-| Passenger limitations on Plesk (idle processes, jobs) | Medium | Minimum instances, `JOBS_MODE=inline` plus `jobs:tick`, Docker as an alternative. |
-| Malicious or faulty third-party plugins | High | Declared permissions, dedicated DB role, error isolation, automatic deactivation, package signing (future). |
-| RLS complexity (performance, debugging) | Medium | Simple policies on an indexed `site_id`, isolation tests, explicit admin role for cross-site paths. |
-| Scope creep (comments, page builder…) | High | Minimal core, everything else as plugins after 1.0. E-commerce and registry planned but deferred (§22.1). |
-| Gradual coupling with Gutenberg (making a future "switch" hard) | Medium | Lint rule on `@wordpress/*` imports, `EditorAdapter` as the only boundary, schema-generated forms as a fallback, architecture review. |
-| The team has to learn NestJS, Drizzle and the Gutenberg APIs | Medium | Milestone M0 dedicated to the skeleton, conventions and reference examples. |
+| Risk                                                                                                                                    | Impact | Mitigation                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gutenberg outside WordPress: implicit dependencies on `core-data`/WP REST, bundle size, frequent updates of the `@wordpress/*` packages | High   | Technical spike at the start of M2. Only selected blocks from `block-library`. Services provided by the adapter. Pinned versions updated together. Editor round-trip and E2E tests. Lazy loading. |
+| Loss of fidelity in the CXD ⇄ Gutenberg conversion (rich text, attributes)                                                              | Medium | Round-trip tests on every block (property-based and real fixtures), allowlist sanitization, preservation of unknown attributes.                                                                   |
+| Plugin registry: operational burden (review, abuse, supply-chain security)                                                              | High   | Automated plus manual review on first publication, Ed25519 signing, revocation, 2FA for developers. Open publishing like WordPress.org, with a review queue.                                      |
+| Installing plugins from the admin: writing code to disk at runtime                                                                      | High   | `manage_plugins` only with 2FA, signed packages, dedicated folder, atomic switch, audit, can be disabled via env.                                                                                 |
+| Passenger limitations on Plesk (idle processes, jobs)                                                                                   | Medium | Minimum instances, `JOBS_MODE=inline` plus `jobs:tick`, a VPS with systemd as an alternative.                                                                                                     |
+| Malicious or faulty third-party plugins                                                                                                 | High   | Declared permissions, dedicated DB role, error isolation, automatic deactivation, package signing (future).                                                                                       |
+| RLS complexity (performance, debugging)                                                                                                 | Medium | Simple policies on an indexed `site_id`, isolation tests, explicit admin role for cross-site paths.                                                                                               |
+| Scope creep (comments, page builder…)                                                                                                   | High   | Minimal core, everything else as plugins after 1.0. E-commerce and registry planned but deferred (§22.1).                                                                                         |
+| Gradual coupling with Gutenberg (making a future "switch" hard)                                                                         | Medium | Lint rule on `@wordpress/*` imports, `EditorAdapter` as the only boundary, schema-generated forms as a fallback, architecture review.                                                             |
+| The team has to learn NestJS, Drizzle and the Gutenberg APIs                                                                            | Medium | Milestone M0 dedicated to the skeleton, conventions and reference examples.                                                                                                                       |
 
 ---
 
@@ -1280,31 +1315,31 @@ Each ADR will be detailed in `docs/adr/NNN-title.md` (context, decision, consequ
 
 ### Decisions made (October 2026)
 
-| Topic | Decision |
-|---|---|
-| License | **GPL-2.0-or-later**, WordPress-style plugin model (§11.10) |
-| Publishing in the registry | **Open to everyone** after review, only free GPL-compatible plugins and themes |
-| Premium plugins | **Allowed** as in WordPress: sold externally, upload and updates from the developer's server |
-| Editor | Standalone **Gutenberg**, designed to be replaceable (§10) |
-| Themes | **React SSR** |
-| Comments | **Separate plugin**, not planned for now |
-| Plugins and themes | **Installation from the admin**: upload now, **our own registry** in the public phase (§11.9) |
-| Distribution | **Internal use** for now. No domain or public registry until we decide to open the project. |
-| Name | **cleitext** (npm scope `@cleitext/*`, CLI `cleitext`). A domain is not needed for now. |
-| E-commerce | **Planned for the future** as a plugin, **not to be built now** (§22.1) |
-| Plugin and theme registry | **Planned for the future**, **not to be built now** (§11.9, §22.1) |
-| Relationship with WordPress | **Conceptual and user-experience model, not code** (§17) |
+| Topic                       | Decision                                                                                      |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| License                     | **GPL-2.0-or-later**, WordPress-style plugin model (§11.10)                                   |
+| Publishing in the registry  | **Open to everyone** after review, only free GPL-compatible plugins and themes                |
+| Premium plugins             | **Allowed** as in WordPress: sold externally, upload and updates from the developer's server  |
+| Editor                      | Standalone **Gutenberg**, designed to be replaceable (§10)                                    |
+| Themes                      | **React SSR**                                                                                 |
+| Comments                    | **Separate plugin**, not planned for now                                                      |
+| Plugins and themes          | **Installation from the admin**: upload now, **our own registry** in the public phase (§11.9) |
+| Distribution                | **Internal use** for now. No domain or public registry until we decide to open the project.   |
+| Name                        | **cleitext** (npm scope `@cleitext/*`, CLI `cleitext`). A domain is not needed for now.       |
+| E-commerce                  | **Planned for the future** as a plugin, **not to be built now** (§22.1)                       |
+| Plugin and theme registry   | **Planned for the future**, **not to be built now** (§11.9, §22.1)                            |
+| Relationship with WordPress | **Conceptual and user-experience model, not code** (§17)                                      |
 
 ### 22.1 Planned but not to be built now
 
 These features **are not being developed now**, but the architecture must make them possible later without rewriting the core.
 
-| Feature | How it will be built | What the core must already guarantee |
-|---|---|---|
-| **Plugin and theme registry** (§11.9) | Separate service plus the `registry-client` module | Manifest with `license` and `updateSource`, package installation with atomic switch, configurable `REGISTRY_URL` that is empty by default |
-| **E-commerce** | `commerce` plugin (possibly several plugins: catalog, cart/orders, payments, shipping) | Custom content types and fields (products, prices, variants), registered users with a *Customer* role, public routes and plugin APIs, jobs and email, hooks on rendering and checkout, dedicated DB schema `plg_commerce` with transactions |
-| **Comments** | `comments` plugin | Hooks on entry rendering, registered users, reusable rate limiting and anti-spam |
-| **WordPress API compatibility** | `wp-compat` plugin | Complete content API, configurable permalinks |
+| Feature                               | How it will be built                                                                   | What the core must already guarantee                                                                                                                                                                                                        |
+| ------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Plugin and theme registry** (§11.9) | Separate service plus the `registry-client` module                                     | Manifest with `license` and `updateSource`, package installation with atomic switch, configurable `REGISTRY_URL` that is empty by default                                                                                                   |
+| **E-commerce**                        | `commerce` plugin (possibly several plugins: catalog, cart/orders, payments, shipping) | Custom content types and fields (products, prices, variants), registered users with a _Customer_ role, public routes and plugin APIs, jobs and email, hooks on rendering and checkout, dedicated DB schema `plg_commerce` with transactions |
+| **Comments**                          | `comments` plugin                                                                      | Hooks on entry rendering, registered users, reusable rate limiting and anti-spam                                                                                                                                                            |
+| **WordPress API compatibility**       | `wp-compat` plugin                                                                     | Complete content API, configurable permalinks                                                                                                                                                                                               |
 
 > When e-commerce comes around, the old Cleito CMS remains a functional reference for categories, brands, prices, couriers, payments and orders.
 
