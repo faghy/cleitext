@@ -1,8 +1,22 @@
 import { type DynamicModule, Global, Module } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { AuditService } from './audit/audit.service.js';
+import { AuthController } from './auth/auth.controller.js';
+import { AuthGuard } from './auth/auth.guard.js';
+import { AuthService } from './auth/auth.service.js';
+import { IdentityService } from './auth/identity.service.js';
+import { LoginThrottleService } from './auth/login-throttle.service.js';
+import { SessionService, UserTokenService } from './auth/session.service.js';
+import { ProblemDetailsFilter } from './common/problem.js';
 import { APP_CONFIG, type AppConfig } from './config/config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
+import { MailService } from './mail/mail.service.js';
+import { ProfileController } from './profile/profile.controller.js';
+import { SiteResolverService } from './tenancy/site-resolver.service.js';
+import { UsersController } from './users/users.controller.js';
+import { UsersService } from './users/users.service.js';
 
 @Global()
 @Module({})
@@ -31,7 +45,11 @@ export class AppModule {
               config.env === 'development'
                 ? { target: 'pino-pretty', options: { singleLine: true } }
                 : undefined,
-            redact: ['req.headers.authorization', 'req.headers.cookie'],
+            redact: [
+              'req.headers.authorization',
+              'req.headers.cookie',
+              'req.headers["x-csrf-token"]',
+            ],
             autoLogging: {
               ignore: (req) => req.url?.startsWith('/health/') ?? false,
             },
@@ -39,7 +57,20 @@ export class AppModule {
         }),
         DatabaseModule,
       ],
-      controllers: [HealthController],
+      controllers: [HealthController, AuthController, UsersController, ProfileController],
+      providers: [
+        { provide: APP_GUARD, useClass: AuthGuard },
+        { provide: APP_FILTER, useClass: ProblemDetailsFilter },
+        AuditService,
+        AuthService,
+        IdentityService,
+        LoginThrottleService,
+        MailService,
+        SessionService,
+        SiteResolverService,
+        UserTokenService,
+        UsersService,
+      ],
     };
   }
 }

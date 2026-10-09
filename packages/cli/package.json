@@ -1,0 +1,33 @@
+{
+  "name": "@cleitext/cli",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "bin": {
+    "cleitext": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cleitext/db": "workspace:*",
+    "@cleitext/shared": "workspace:*",
+    "@inquirer/prompts": "^8.7.3",
+    "@node-rs/argon2": "^2.2.2",
+    "commander": "^15.0.0",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "@cleitext/testing": "workspace:*"
+  }
+}

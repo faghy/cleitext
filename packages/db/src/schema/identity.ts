@@ -1,7 +1,11 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
+  index,
   inet,
+  integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -63,16 +67,67 @@ export const siteMembers = pgTable(
   (t) => [primaryKey({ columns: [t.siteId, t.userId] })],
 );
 
-export const sessions = pgTable('sessions', {
-  /** SHA-256 of the session token; the token itself is never stored. */
-  id: text('id').primaryKey(),
+/**
+ * Global super admins: every capability on every site. Kept out of `users` so
+ * that the application role (read-only here) can never grant itself the flag.
+ */
+export const superAdmins = pgTable('super_admins', {
   userId: uuid('user_id')
-    .notNull()
+    .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  ip: inet('ip'),
-  userAgent: text('user_agent'),
   createdAt: createdAt(),
+});
+
+export const sessions = pgTable(
+  'sessions',
+  {
+    /** SHA-256 of the session token; the token itself is never stored. */
+    id: text('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** "Remember me": long-lived, persistent cookie. */
+    remember: boolean('remember').notNull().default(false),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    ip: inet('ip'),
+    userAgent: text('user_agent'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('sessions_user_idx').on(t.userId)],
+);
+
+/**
+ * Single-use tokens (password reset, invitation). Global: they are looked up
+ * by hash before any site context exists. Invitation details live in `meta`.
+ */
+export const userTokens = pgTable(
+  'user_tokens',
+  {
+    /** SHA-256 of the token sent by email. */
+    tokenHash: text('token_hash').primaryKey(),
+    kind: text('kind').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    meta: jsonb('meta').notNull().default({}),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check('user_tokens_kind_check', sql`${t.kind} in ('password_reset', 'invitation')`),
+    index('user_tokens_user_idx').on(t.userId),
+  ],
+);
+
+/** Failed login counters for rate limiting and progressive lockout (RF-USR-09). */
+export const loginThrottle = pgTable('login_throttle', {
+  /** 'email:<address>' or 'ip:<address>' */
+  key: text('key').primaryKey(),
+  failures: integer('failures').notNull().default(0),
+  lockedUntil: timestamp('locked_until', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const apiTokens = pgTable('api_tokens', {

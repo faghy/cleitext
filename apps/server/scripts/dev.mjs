@@ -30,5 +30,7 @@ if (!process.env.DATABASE_URL) {
 children.push(
   spawn(process.execPath, ['--watch', `--env-file-if-exists=${envFile}`, 'dist/main.js'], {
     stdio: 'inherit',
+    // The admin dev server proxies API calls: trust its X-Forwarded-* headers.
+    env: { TRUST_PROXY: 'true', ...process.env },
   }),
 );

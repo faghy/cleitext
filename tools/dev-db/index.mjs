@@ -8,7 +8,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { migrate } from '@cleitext/db';
+import { addDomain, createSite, createUser, hasSites } from '@cleitext/cli';
+import { createDatabase, migrate } from '@cleitext/db';
 import { provisionDatabase, startEmbeddedPostgres } from '@cleitext/testing';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -25,6 +26,27 @@ const db = await provisionDatabase(server.superuserUrl, {
   appPassword: 'cleitext_app_dev',
 });
 await migrate({ ownerUrl: db.ownerUrl, appRole: db.appRole });
+
+// First start: a development site answering on localhost, plus a super admin.
+const DEV_ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
+const owner = createDatabase(db.ownerUrl, { max: 1 });
+try {
+  if (!(await hasSites(owner.db))) {
+    await createSite(owner.db, {
+      slug: 'dev',
+      name: 'Development',
+      host: 'localhost',
+      forceHttps: false,
+    });
+    await addDomain(owner.db, { site: 'dev', host: '127.0.0.1', forceHttps: false });
+    await createUser(owner.db, { ...DEV_ADMIN, displayName: 'Admin', superAdmin: true });
+    console.log(
+      `[dev-db] created site "Development" (localhost) and super admin ${DEV_ADMIN.email} / ${DEV_ADMIN.password}`,
+    );
+  }
+} finally {
+  await owner.close();
+}
 
 const envFile = join(root, '.env');
 if (!existsSync(envFile)) {

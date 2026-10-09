@@ -22,6 +22,8 @@ docs/it/                      Italian translations
 apps/server                   NestJS + Fastify server
 apps/admin                    admin SPA (React, Vite, Tailwind)
 packages/db                   Drizzle schema, migrations (drizzle/), RLS, site context
+packages/shared               capabilities, default roles, API schemas (server + admin)
+packages/cli                  `cleitext` CLI (owner connection)
 packages/testing              embedded PostgreSQL + DB provisioning for tests
 tools/dev-db                  persistent local PostgreSQL for `pnpm dev`
 ```
@@ -33,6 +35,8 @@ The full target layout (`plugins/`, `themes/`, more packages) is described in `d
 - `pnpm dev` — local DB + server + admin. `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm format`.
 - Schema changes: edit `packages/db/src/schema`, then `pnpm db:generate`. Hand-written SQL (RLS, functions) goes in custom migrations (`drizzle-kit generate --custom`).
 - Every new table with a `site_id` column must get RLS (`cleitext_enable_tenant_rls`) and composite FKs `(site_id, id)` to its parents. The isolation suite in `packages/db/test` fails when a tenant table has no RLS.
+- Auth model: cookie session + CSRF double-submit (`x-csrf-token` header and same-origin `Origin`) on every state-changing request; routes are authenticated by default (global `AuthGuard`), use `@Public()` / `@RequireCapability()`. Data access goes through `withContext(db, { siteId, userId }, fn)`.
+- Dev login: `admin@example.com` / `cleitext-admin` on `localhost` (seeded by `tools/dev-db`).
 - No Docker: tests and dev use embedded PostgreSQL. Set `CLEITEXT_TEST_PG_URL` (superuser URL) to test against an external server.
 - NestJS code in `apps/server` must not use `import type` for injected classes (decorator metadata).
 - TypeScript 7 compiles everything (`tsc` comes from `@typescript/native` = `typescript@7`). The `typescript` package is aliased to `@typescript/typescript6` only because typescript-eslint still needs the TS 6 API (official side-by-side setup). Drop the alias when typescript-eslint supports TS 7.

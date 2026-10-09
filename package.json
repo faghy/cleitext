@@ -17,7 +17,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "pnpm --filter @cleitext/db run generate",
-    "db:dev": "pnpm --filter @cleitext/dev-db run dev"
+    "db:dev": "pnpm --filter @cleitext/dev-db run dev",
+    "cleitext": "node --env-file-if-exists=.env packages/cli/dist/bin.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -31,5 +32,10 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "fastify": "^5.12.5"
+    }
   }
 }

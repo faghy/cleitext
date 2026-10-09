@@ -586,6 +586,21 @@ create policy tenant_isolation on entries
 - Gli `users` sono globali: l'applicazione vede solo i membri del sito corrente. I `roles` con `site_id IS NULL` sono ruoli di sistema, leggibili da tutti i siti e modificabili solo dal proprietario.
 - I privilegi del ruolo applicativo si concedono con `cleitext_grant_app(role)`, eseguita dopo ogni migrazione.
 
+**Identità** (`packages/db/drizzle/0003_identity_functions.sql`, tappa M1):
+
+- Ogni richiesta imposta anche `app.user_id`. Un utente può sempre leggere il proprio record, anche su un sito di cui non è membro (super admin).
+- Tabelle globali, consultate prima che esista un contesto di sito:
+  - `sessions` e `user_tokens` (link di reset password e di invito), che salvano solo l'hash SHA-256 dei token;
+  - `login_throttle` (contatori dei login falliti);
+  - `super_admins`, globale e **in sola lettura** per il ruolo applicativo, così l'applicazione non può mai concedere il flag.
+- Le funzioni `SECURITY DEFINER` restituiscono solo il necessario:
+  - `cleitext_find_login(email)` per il login;
+  - `cleitext_resolve_host(host)` per il sito e la policy del dominio;
+  - `cleitext_my_sites()` per il selettore dei siti.
+- Un trigger garantisce che un'iscrizione usi un ruolo di sistema o un ruolo dello stesso sito. Una chiave esterna non basta, perché i ruoli di sistema hanno `site_id` `NULL`.
+- I ruoli predefiniti (Amministratore, Editore, Autore, Collaboratore, Sottoscrittore) vengono creati come ruoli di sistema e rispecchiano `DEFAULT_ROLES` di `@cleitext/shared`. Un test verifica che coincidano.
+- Quando si inserisce una riga che l'applicazione non può rileggere sotto RLS (per esempio un utente non ancora membro), l'id viene generato dall'applicazione (`newId()`) e non si usa `RETURNING`.
+
 ---
 
 ## 9. Modello dei contenuti

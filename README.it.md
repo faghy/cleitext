@@ -4,7 +4,7 @@
 
 > 🇬🇧 La versione di riferimento è quella inglese: [README.md](./README.md). Questa traduzione è secondaria e può essere meno aggiornata.
 >
-> Stato: **sviluppo iniziale**, tappa M0 (fondamenta). Per ora è a uso interno; la distribuzione pubblica è prevista in seguito.
+> Stato: **sviluppo iniziale**, tappe M0 (fondamenta) e M1 (identità e siti). Per ora è a uso interno; la distribuzione pubblica è prevista in seguito.
 > Licenza: **GPL-2.0-or-later** (come WordPress)
 
 ## In sintesi
@@ -26,15 +26,16 @@ pnpm install
 pnpm dev          # database locale + server (http://127.0.0.1:3000) + admin (http://localhost:5173/admin/)
 ```
 
-Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/` e scrive un file `.env` (vedi `.env.example`).
+Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/`, scrive un file `.env` (vedi `.env.example`) e crea un sito **Development** che risponde su `localhost`. Accedi a http://localhost:5173/admin/ con `admin@example.com` / `cleitext-admin` (solo per lo sviluppo locale). Le email vengono stampate nel log del server.
 
-| Comando                                       | Cosa fa                                                                         |
-| --------------------------------------------- | ------------------------------------------------------------------------------- |
-| `pnpm dev`                                    | Avvia database locale, server e admin con ricaricamento automatico              |
-| `pnpm db:dev`                                 | Avvia solo il database locale (con le migrazioni applicate)                     |
-| `pnpm test`                                   | Esegue tutti i test, ogni suite su un PostgreSQL embedded nuovo                 |
-| `pnpm build` / `pnpm typecheck` / `pnpm lint` | Build, controllo dei tipi, lint                                                 |
-| `pnpm db:generate`                            | Genera una migrazione dopo una modifica allo schema in `packages/db/src/schema` |
+| Comando                                       | Cosa fa                                                                                                        |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                                    | Avvia database locale, server e admin con ricaricamento automatico                                             |
+| `pnpm db:dev`                                 | Avvia solo il database locale (con le migrazioni applicate)                                                    |
+| `pnpm test`                                   | Esegue tutti i test, ogni suite su un PostgreSQL embedded nuovo                                                |
+| `pnpm build` / `pnpm typecheck` / `pnpm lint` | Build, controllo dei tipi, lint                                                                                |
+| `pnpm db:generate`                            | Genera una migrazione dopo una modifica allo schema in `packages/db/src/schema`                                |
+| `pnpm cleitext <comando>`                     | CLI: `install`, `migrate`, `site:create`, `site:list`, `site:domain:add`, `user:create`, `user:reset-password` |
 
 ## Documentazione
 

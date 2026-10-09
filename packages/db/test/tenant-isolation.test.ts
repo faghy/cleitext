@@ -16,7 +16,14 @@ import {
 import * as s from '../src/schema/index.js';
 
 /** Tables without RLS. Anything else in `public` must have RLS enabled. */
-const GLOBAL_TABLES = ['sessions', 'plugins', 'plugin_migrations'];
+const GLOBAL_TABLES = [
+  'sessions',
+  'plugins',
+  'plugin_migrations',
+  'super_admins',
+  'user_tokens',
+  'login_throttle',
+];
 /** Tables with RLS that is intentionally not FORCEd (managed by the owner). */
 const NOT_FORCED = ['sites', 'site_domains', 'users', 'roles'];
 /** Tenant tables whose rows with `site_id IS NULL` are shared by every site. */
@@ -43,7 +50,6 @@ beforeAll(async () => {
   await owner.db
     .insert(s.plugins)
     .values({ slug: 'demo', version: '1.0.0', apiVersion: '^1.0', manifest: {} });
-  await owner.db.insert(s.roles).values({ slug: 'administrator', name: 'Administrator' });
 
   a = await seedSite(owner.db, 'alpha');
   b = await seedSite(owner.db, 'beta');
@@ -117,8 +123,8 @@ describe('reads', () => {
     await withSiteContext(app.db, a.siteId, async (tx) => {
       expect((await tx.select().from(s.sites)).map((r) => r.id)).toEqual([a.siteId]);
       expect((await tx.select().from(s.users)).map((r) => r.id)).toEqual([a.userId]);
-      const roleSites = (await tx.select().from(s.roles)).map((r) => r.siteId);
-      expect(roleSites.sort()).toEqual([a.siteId, null].sort());
+      const roleSites = new Set((await tx.select().from(s.roles)).map((r) => r.siteId));
+      expect(roleSites).toEqual(new Set([a.siteId, null]));
     });
   });
 

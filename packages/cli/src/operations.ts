@@ -1,0 +1,214 @@
+/**
+ * Administrative operations run with the owner connection (DATABASE_ADMIN_URL).
+ * Used by the `cleitext` CLI and by `tools/dev-db`.
+ */
+import {
+  roles,
+  siteDomains,
+  siteLocales,
+  siteMembers,
+  sites,
+  superAdmins,
+  users,
+  withSiteContext,
+  type Database,
+} from '@cleitext/db';
+import { emailSchema, passwordSchema } from '@cleitext/shared';
+import { hash } from '@node-rs/argon2';
+import { and, asc, eq, isNull, or } from 'drizzle-orm';
+
+export class OperationError extends Error {}
+
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+const HOST_RE =
+  /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
+const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
+
+export interface CreateSiteInput {
+  slug: string;
+  name: string;
+  /** Primary domain, without scheme or port (e.g. example.com). */
+  host: string;
+  locale?: string;
+  timezone?: string;
+  forceHttps?: boolean;
+}
+
+export async function createSite(db: Database, input: CreateSiteInput): Promise<string> {
+  if (!SLUG_RE.test(input.slug)) throw new OperationError(`Invalid site slug "${input.slug}".`);
+  const host = normalizeHost(input.host);
+  const locale = input.locale ?? 'en';
+
+  const [existing] = await db.select().from(sites).where(eq(sites.slug, input.slug));
+  if (existing) throw new OperationError(`A site with slug "${input.slug}" already exists.`);
+  await assertHostFree(db, host);
+
+  const [site] = await db
+    .insert(sites)
+    .values({
+      slug: input.slug,
+      name: input.name,
+      defaultLocale: locale,
+      timezone: input.timezone ?? 'UTC',
+    })
+    .returning();
+  const siteId = site!.id;
+  await db
+    .insert(siteDomains)
+    .values({ siteId, host, isPrimary: true, forceHttps: input.forceHttps ?? true });
+  await withSiteContext(db, siteId, (tx) =>
+    tx
+      .insert(siteLocales)
+      .values({ siteId, code: locale, name: locale.toUpperCase(), isDefault: true }),
+  );
+  return siteId;
+}
+
+export interface AddDomainInput {
+  site: string;
+  host: string;
+  primary?: boolean;
+  forceHttps?: boolean;
+}
+
+/** Adds a domain to a site (by slug). A new primary domain demotes the old one. */
+export async function addDomain(db: Database, input: AddDomainInput): Promise<void> {
+  const siteId = await siteIdBySlug(db, input.site);
+  const host = normalizeHost(input.host);
+  await assertHostFree(db, host);
+  await db.transaction(async (tx) => {
+    if (input.primary) {
+      await tx.update(siteDomains).set({ isPrimary: false }).where(eq(siteDomains.siteId, siteId));
+    }
+    await tx.insert(siteDomains).values({
+      siteId,
+      host,
+      isPrimary: input.primary ?? false,
+      forceHttps: input.forceHttps ?? true,
+    });
+  });
+}
+
+export async function listSites(db: Database) {
+  const rows = await db
+    .select({ site: sites, domain: siteDomains })
+    .from(sites)
+    .leftJoin(siteDomains, eq(siteDomains.siteId, sites.id))
+    .orderBy(asc(sites.slug), asc(siteDomains.host));
+  const result = new Map<
+    string,
+    { id: string; slug: string; name: string; status: string; domains: string[] }
+  >();
+  for (const { site, domain } of rows) {
+    const entry = result.get(site.id) ?? {
+      id: site.id,
+      slug: site.slug,
+      name: site.name,
+      status: site.status,
+      domains: [],
+    };
+    if (domain) entry.domains.push(domain.isPrimary ? `${domain.host} (primary)` : domain.host);
+    result.set(site.id, entry);
+  }
+  return [...result.values()];
+}
+
+export interface CreateUserInput {
+  email: string;
+  password: string;
+  displayName?: string;
+  superAdmin?: boolean;
+  /** Site slug and role slug, to add the user as a member. */
+  site?: string;
+  role?: string;
+}
+
+export async function createUser(db: Database, input: CreateUserInput): Promise<string> {
+  const email = parse(emailSchema, input.email, 'email');
+  const password = parse(passwordSchema, input.password, 'password');
+  const [existing] = await db.select().from(users).where(eq(users.email, email));
+  if (existing) throw new OperationError(`A user with email ${email} already exists.`);
+  if (input.site && !input.role) throw new OperationError('Specify --role together with --site.');
+
+  const [user] = await db
+    .insert(users)
+    .values({
+      email,
+      displayName: input.displayName ?? email.split('@')[0]!,
+      passwordHash: await hash(password),
+    })
+    .returning();
+  const userId = user!.id;
+  if (input.superAdmin) await db.insert(superAdmins).values({ userId });
+  if (input.site && input.role) await addMember(db, { userId, site: input.site, role: input.role });
+  return userId;
+}
+
+export async function setPassword(db: Database, email: string, password: string): Promise<void> {
+  const normalized = parse(emailSchema, email, 'email');
+  const passwordHash = await hash(parse(passwordSchema, password, 'password'));
+  const updated = await db
+    .update(users)
+    .set({ passwordHash, status: 'active' })
+    .where(eq(users.email, normalized))
+    .returning({ id: users.id });
+  if (updated.length === 0) throw new OperationError(`No user with email ${normalized}.`);
+}
+
+export async function addMember(
+  db: Database,
+  input: { userId: string; site: string; role: string },
+): Promise<void> {
+  const siteId = await siteIdBySlug(db, input.site);
+  const candidates = await db
+    .select()
+    .from(roles)
+    .where(and(eq(roles.slug, input.role), or(isNull(roles.siteId), eq(roles.siteId, siteId))));
+  const role = candidates.find((r) => r.siteId === siteId) ?? candidates[0];
+  if (!role) throw new OperationError(`Unknown role "${input.role}".`);
+  await withSiteContext(db, siteId, (tx) =>
+    tx.insert(siteMembers).values({ siteId, userId: input.userId, roleId: role.id }),
+  );
+}
+
+export async function hasSites(db: Database): Promise<boolean> {
+  const rows = await db.select({ id: sites.id }).from(sites).limit(1);
+  return rows.length > 0;
+}
+
+async function siteIdBySlug(db: Database, slug: string): Promise<string> {
+  const [site] = await db.select({ id: sites.id }).from(sites).where(eq(sites.slug, slug));
+  if (!site) throw new OperationError(`No site with slug "${slug}".`);
+  return site.id;
+}
+
+async function assertHostFree(db: Database, host: string): Promise<void> {
+  const [taken] = await db.select().from(siteDomains).where(eq(siteDomains.host, host));
+  if (taken) throw new OperationError(`The domain ${host} is already assigned to a site.`);
+}
+
+export function normalizeHost(value: string): string {
+  const host = value.trim().toLowerCase().replace(/\.$/, '');
+  if (!HOST_RE.test(host) && !IPV4_RE.test(host)) {
+    throw new OperationError(`Invalid domain "${value}". Use a host name without scheme or port.`);
+  }
+  return host;
+}
+
+function parse<T>(
+  schema: {
+    safeParse(
+      v: unknown,
+    ): { success: true; data: T } | { success: false; error: { issues: { message: string }[] } };
+  },
+  value: unknown,
+  label: string,
+): T {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    throw new OperationError(
+      `Invalid ${label}: ${result.error.issues[0]?.message ?? 'invalid value'}`,
+    );
+  }
+  return result.data;
+}

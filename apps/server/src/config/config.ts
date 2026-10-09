@@ -18,6 +18,23 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   /** Trust X-Forwarded-* headers (true behind nginx/Plesk). */
   TRUST_PROXY: booleanString.default(false),
+  /** Session lifetime without "remember me", and with it. */
+  SESSION_TTL_HOURS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 30)
+    .default(12),
+  SESSION_REMEMBER_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  /**
+   * Outgoing mail: `smtp://user:pass@host:587`, `smtps://…`, `log://` (print to
+   * the log, development) or `memory://` (kept in memory, tests).
+   */
+  MAIL_URL: z
+    .string()
+    .regex(/^(smtps?|log|memory):\/\//, 'Use smtp://, smtps://, log:// or memory://')
+    .default('log://'),
+  MAIL_FROM: z.string().min(3).default('Cleitext <no-reply@localhost>'),
 });
 
 export interface AppConfig {
@@ -27,6 +44,8 @@ export interface AppConfig {
   database: { url: string; poolMax: number };
   logLevel: string;
   trustProxy: boolean;
+  session: { ttlHours: number; rememberDays: number };
+  mail: { url: string; from: string };
 }
 
 export class ConfigError extends Error {
@@ -51,6 +70,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     database: { url: e.DATABASE_URL, poolMax: e.DATABASE_POOL_MAX },
     logLevel: e.LOG_LEVEL,
     trustProxy: e.TRUST_PROXY,
+    session: { ttlHours: e.SESSION_TTL_HOURS, rememberDays: e.SESSION_REMEMBER_DAYS },
+    mail: { url: e.MAIL_URL, from: e.MAIL_FROM },
   };
 }
 

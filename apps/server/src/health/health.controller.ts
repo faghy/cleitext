@@ -1,5 +1,6 @@
 import { getMigrationStatus, ping, type DatabaseClient } from '@cleitext/db';
 import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { Public } from '../common/decorators.js';
 import { DATABASE } from '../database/database.module.js';
 
 type CheckResult = { status: 'up' | 'down'; error?: string };
@@ -13,6 +14,7 @@ export interface ReadinessReport {
 }
 
 /** Liveness and readiness probes (docs/ARCHITECTURE.md §19). */
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(@Inject(DATABASE) private readonly database: DatabaseClient) {}
