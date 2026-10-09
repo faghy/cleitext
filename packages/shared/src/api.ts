@@ -72,6 +72,13 @@ export const inviteUserRequestSchema = z.object({
   email: emailSchema,
   displayName: z.string().trim().min(1).max(120),
   role: z.string().min(1).max(64),
+  /**
+   * Set the password directly, as in WordPress's "Add New User"; without
+   * it the person receives an invitation to choose one.
+   */
+  password: passwordSchema.optional(),
+  /** Email the person (invitation, or notice of the new account). Default true. */
+  sendEmail: z.boolean().optional(),
 });
 export type InviteUserRequest = z.input<typeof inviteUserRequestSchema>;
 

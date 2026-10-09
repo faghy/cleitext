@@ -28,6 +28,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { ClientInfo } from '../auth/auth.service.js';
 import { UserTokenService } from '../auth/session.service.js';
 import type { AuthContext } from '../common/request-context.js';
+import { hashPassword } from '../auth/crypto.js';
 import { DATABASE } from '../database/database.module.js';
 import { MailService } from '../mail/mail.service.js';
 
@@ -83,10 +84,20 @@ export class UsersService {
   async invite(
     siteId: string,
     auth: AuthContext,
-    input: Required<Pick<InviteUserRequest, 'displayName' | 'role'>> & { email: string },
+    input: Required<Pick<InviteUserRequest, 'displayName' | 'role'>> & {
+      email: string;
+      password?: string | undefined;
+      sendEmail?: boolean | undefined;
+    },
     client: ClientInfo,
   ): Promise<MemberView> {
     const existing = await findLogin(this.database.db, input.email);
+    // A password is only set for new accounts: never for someone else's account.
+    const passwordHash =
+      input.password && (!existing || existing.status === 'invited')
+        ? await hashPassword(input.password)
+        : null;
+    const sendEmail = input.sendEmail !== false;
 
     const result = await withContext(
       this.database.db,
@@ -108,7 +119,8 @@ export class UsersService {
             id: userId,
             email: input.email,
             displayName: input.displayName,
-            status: 'invited',
+            status: passwordHash ? 'active' : 'invited',
+            passwordHash,
           });
         }
 
@@ -116,7 +128,7 @@ export class UsersService {
         await this.audit.record(tx, {
           siteId,
           userId: auth.userId,
-          action: 'user.invited',
+          action: passwordHash ? 'user.created' : 'user.invited',
           targetType: 'user',
           targetId: userId,
           meta: { email: input.email, role: role.slug },
@@ -131,7 +143,25 @@ export class UsersService {
     );
 
     const needsAccount = !existing || existing.status === 'invited';
-    if (needsAccount) {
+    if (passwordHash && existing?.status === 'invited') {
+      await withContext(this.database.db, { siteId, userId: auth.userId }, (tx) =>
+        tx.update(users).set({ passwordHash, status: 'active' }).where(eq(users.id, result.userId)),
+      );
+    }
+    if (!sendEmail) {
+      // Nothing to send: the administrator shares the access details.
+    } else if (passwordHash) {
+      await this.mail.send({
+        to: input.email,
+        subject: `Your account on ${result.siteName}`,
+        text: [
+          `${auth.displayName} created an account for you on ${result.siteName} (${result.role.name}).`,
+          '',
+          `Sign in at ${client.origin}/admin/ with this email address and the password you were given.`,
+          'You can change it from your profile.',
+        ].join('\n'),
+      });
+    } else if (needsAccount) {
       const token = await this.tokens.issue({
         kind: 'invitation',
         userId: result.userId,

@@ -270,6 +270,62 @@ describe('invitations (M1 acceptance)', () => {
     expect(res.statusCode).toBe(403);
   });
 
+  it('creates an account with a password directly, like WordPress', async () => {
+    const admin = new TestClient(app, acme.host, '10.0.2.9');
+    await admin.login('admin@acme.test', PASSWORD);
+    const before = mail.outbox.length;
+    const created = await admin.post('/api/v1/users/invite', {
+      email: 'dana@acme.test',
+      displayName: 'Dana',
+      role: 'administrator',
+      password: 'a password chosen by the admin',
+      sendEmail: false,
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ status: 'active', role: { slug: 'administrator' } });
+    expect(mail.outbox.length).toBe(before);
+    const dana = new TestClient(app, acme.host, '10.0.2.10');
+    expect((await dana.login('dana@acme.test', 'a password chosen by the admin')).statusCode).toBe(
+      200,
+    );
+    expect((await dana.get('/api/v1/users')).statusCode).toBe(200);
+
+    // With the email: a notice without the password.
+    await admin.post('/api/v1/users/invite', {
+      email: 'gus@acme.test',
+      displayName: 'Gus',
+      role: 'author',
+      password: 'another admin chosen one',
+    });
+    const notice = mail.outbox.at(-1)!;
+    expect(notice).toMatchObject({ to: 'gus@acme.test', subject: 'Your account on Site acme' });
+    expect(notice.text).not.toContain('another admin chosen one');
+
+    // Short passwords are refused.
+    const weak = await admin.post('/api/v1/users/invite', {
+      email: 'weak@acme.test',
+      displayName: 'Weak',
+      role: 'author',
+      password: 'short',
+    });
+    expect(weak.statusCode).toBe(400);
+  });
+
+  it('never sets the password of an existing account', async () => {
+    // A super admin adds an existing person to another site.
+    const admin = new TestClient(app, other.host, '10.0.2.11');
+    await admin.login('root@cleitext.test', PASSWORD);
+    const added = await admin.post('/api/v1/users/invite', {
+      email: 'dana@acme.test',
+      displayName: 'Dana',
+      role: 'editor',
+      password: 'trying to take over dana',
+    });
+    expect(added.statusCode).toBe(201);
+    const thief = new TestClient(app, other.host, '10.0.2.12');
+    expect((await thief.login('dana@acme.test', 'trying to take over dana')).statusCode).toBe(401);
+  });
+
   it('validates the payload with readable errors', async () => {
     const admin = new TestClient(app, acme.host, '10.0.2.8');
     await admin.login('admin@acme.test', PASSWORD);

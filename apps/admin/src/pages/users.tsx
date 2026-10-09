@@ -54,17 +54,29 @@ export function UsersPage() {
   );
 }
 
+/** Users → Add New: an invitation, or an account with a password (as in WordPress). */
 function InviteForm({ roles }: { roles: RoleView[] }) {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('author');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
 
   const invite = useMutation({
-    mutationFn: () => api<MemberView>('POST', '/users/invite', { email, displayName, role }),
+    mutationFn: () =>
+      api<MemberView>('POST', '/users/invite', {
+        email,
+        displayName,
+        role,
+        ...(password ? { password } : {}),
+        sendEmail,
+      }),
     onSuccess: async () => {
       setEmail('');
       setDisplayName('');
+      setPassword('');
       await queryClient.invalidateQueries({ queryKey: MEMBERS_KEY });
     },
   });
@@ -76,32 +88,85 @@ function InviteForm({ roles }: { roles: RoleView[] }) {
     invite.mutate();
   };
 
+  const generate = () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(18));
+    setPassword(
+      btoa(String.fromCharCode(...bytes))
+        .replace(/[+/=]/g, '')
+        .slice(0, 20),
+    );
+    setShowPassword(true);
+  };
+
+  const done = invite.data;
   return (
-    <Card title="Invite someone">
-      <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-4 md:items-end" noValidate>
-        <TextField
-          label="Name"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          {...(fieldError('displayName') ? { error: fieldError('displayName') } : {})}
-        />
-        <TextField
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          {...(fieldError('email') ? { error: fieldError('email') } : {})}
-        />
-        <RoleSelect label="Role" roles={roles} value={role} onChange={setRole} />
+    <Card title="Add New User">
+      <form onSubmit={onSubmit} className="space-y-4" noValidate>
+        <div className="grid gap-4 md:grid-cols-3">
+          <TextField
+            label="Name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            {...(fieldError('displayName') ? { error: fieldError('displayName') } : {})}
+          />
+          <TextField
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            {...(fieldError('email') ? { error: fieldError('email') } : {})}
+          />
+          <RoleSelect label="Role" roles={roles} value={role} onChange={setRole} />
+        </div>
+        <div className="grid gap-4 md:grid-cols-3 md:items-end">
+          <TextField
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            hint="Leave empty to send an invitation: the person chooses the password."
+            {...(fieldError('password') ? { error: fieldError('password') } : {})}
+          />
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={generate}>
+              Generate password
+            </Button>
+            {password && (
+              <Button type="button" variant="secondary" onClick={() => setShowPassword((v) => !v)}>
+                {showPassword ? 'Hide' : 'Show'}
+              </Button>
+            )}
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={sendEmail}
+              onChange={(e) => setSendEmail(e.target.checked)}
+            />
+            {password
+              ? 'Send the new user an email about their account'
+              : 'Send the invitation by email'}
+          </label>
+        </div>
         <Button type="submit" disabled={invite.isPending}>
-          Send invitation
+          {password ? 'Add New User' : 'Send invitation'}
         </Button>
       </form>
       <div className="mt-3">
-        {invite.isSuccess && <Alert kind="success">Invitation sent to {invite.data.email}.</Alert>}
-        {invite.error && !fieldError('email') && !fieldError('displayName') && (
-          <Alert>{errorMessage(invite.error)}</Alert>
+        {done && (
+          <Alert kind="success">
+            {done.status === 'invited'
+              ? sendEmail
+                ? `Invitation sent to ${done.email}.`
+                : `${done.email} was invited; no email was sent.`
+              : `${done.email} can now sign in.`}
+          </Alert>
         )}
+        {invite.error &&
+          !fieldError('email') &&
+          !fieldError('displayName') &&
+          !fieldError('password') && <Alert>{errorMessage(invite.error)}</Alert>}
       </div>
     </Card>
   );
