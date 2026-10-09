@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { BlockRenderer } from './blocks.js';
 
 /** A media file as the renderer needs it (original plus resized variants). */
 export interface RenderMedia {
@@ -21,6 +22,8 @@ export interface RenderContext {
   eagerFirstImage?: boolean;
   /** Images rendered so far in the current document (set by `<Blocks>`). */
   imageCounter?: { n: number };
+  /** Renderers for this page only (e.g. blocks of plugins active on the site). */
+  renderers?: ReadonlyMap<string, BlockRenderer>;
 }
 
 const DEFAULT: RenderContext = { media: new Map(), locale: 'en', eagerFirstImage: true };

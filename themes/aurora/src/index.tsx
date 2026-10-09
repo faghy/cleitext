@@ -3,6 +3,7 @@ import {
   defineTheme,
   EntryContent,
   FormattedDate,
+  HeadTags,
   Image,
   Menu,
   usePage,
@@ -44,6 +45,7 @@ function Layout({ head, css, children }: LayoutProps) {
           content={head.og['og:image'] ? 'summary_large_image' : 'summary'}
         />
         <style dangerouslySetInnerHTML={{ __html: css }} />
+        <HeadTags tags={head.tags} />
       </head>
       <body>
         <a className="skip-link" href="#content">

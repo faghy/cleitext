@@ -14,12 +14,16 @@ import { effectiveCapabilities, type MeResponse } from '@cleitext/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
 import { DATABASE } from '../database/database.module.js';
 
 /** Loads who a user is on a given site: profile, role and capabilities. */
 @Injectable()
 export class IdentityService {
-  constructor(@Inject(DATABASE) private readonly database: DatabaseClient) {}
+  constructor(
+    @Inject(DATABASE) private readonly database: DatabaseClient,
+    private readonly plugins: PluginHost,
+  ) {}
 
   /**
    * Auth context for a user on a site, or null when the user is inactive or
@@ -63,7 +67,15 @@ export class IdentityService {
       locale: user.locale,
       isSuperAdmin,
       role: membership ? { id: membership.id, slug: membership.slug, name: membership.name } : null,
-      capabilities: effectiveCapabilities(membership?.capabilities ?? [], isSuperAdmin),
+      capabilities: [
+        ...effectiveCapabilities(membership?.capabilities ?? [], isSuperAdmin),
+        // Capabilities defined by the plugins active on the site.
+        ...this.plugins.capabilitiesFor(
+          await this.plugins.activeSlugs(siteId),
+          membership?.slug ?? null,
+          isSuperAdmin,
+        ),
+      ],
     };
   }
 

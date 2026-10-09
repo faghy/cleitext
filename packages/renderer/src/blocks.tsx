@@ -44,7 +44,8 @@ function BlockList({ blocks }: { blocks: CxdBlock[] }): ReactNode {
 }
 
 function Block({ block }: { block: CxdBlock }): ReactNode {
-  const renderer = renderers.get(block.type);
+  const context = useRenderContext();
+  const renderer = context.renderers?.get(block.type) ?? renderers.get(block.type);
   // Unknown blocks (e.g. from a disabled plugin) render nothing.
   if (!renderer) return null;
   const children = block.children ? <BlockList blocks={block.children} /> : null;

@@ -21,11 +21,15 @@ import { createApp } from '../src/app.js';
 import { hashPassword } from '../src/auth/crypto.js';
 import { loadConfig } from '../src/config/config.js';
 
-export async function startTestApp(): Promise<NestFastifyApplication> {
+export async function startTestApp(
+  options: { pluginsPath?: string } = {},
+): Promise<NestFastifyApplication> {
   const mediaPath = await mkdtemp(join(tmpdir(), 'cleitext-media-'));
+  const pluginsPath = options.pluginsPath ?? (await mkdtemp(join(tmpdir(), 'cleitext-plugins-')));
   return createApp(
     loadConfig({
       MEDIA_PATH: mediaPath,
+      PLUGINS_PATH: pluginsPath,
       NODE_ENV: 'test',
       LOG_LEVEL: 'silent',
       DATABASE_URL: inject('appUrl'),

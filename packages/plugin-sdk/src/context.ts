@@ -1,0 +1,242 @@
+import type { CxdBlock } from '@cleitext/blocks';
+import type { FieldDefinition, FieldValues, Label } from '@cleitext/shared';
+import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
+import type { ReactNode } from 'react';
+import type { HookApi } from './hooks.js';
+
+/** A site, as plugins see it. */
+export interface PluginSite {
+  id: string;
+  name: string;
+  defaultLocale: string;
+  locales: string[];
+}
+
+export interface PluginLogger {
+  debug(message: string, data?: Record<string, unknown>): void;
+  info(message: string, data?: Record<string, unknown>): void;
+  warn(message: string, data?: Record<string, unknown>): void;
+  error(message: string, data?: Record<string, unknown>): void;
+}
+
+// ---- Content ------------------------------------------------------------------------
+
+/** A content type added by a plugin, like WordPress's `register_post_type`. */
+export interface ContentTypeDefinition {
+  /** e.g. `event`. Unique on the site. */
+  slug: string;
+  /** Plural label, e.g. `{ en: 'Events', it: 'Eventi' }`. */
+  name: Label;
+  hierarchical?: boolean;
+  /** Public address pattern: `{slug}`, `{path}`, `{year}`, `{month}`. Default `/<type>/{slug}`. */
+  permalink?: string;
+  /** Custom fields, edited in the entry sidebar and stored with the entry. */
+  fields?: FieldDefinition[];
+}
+
+/** Extra fields on existing content types, stored under `fields[<id>]`. */
+export interface FieldGroupDefinition {
+  /** Key of the stored values; must start with the plugin slug, e.g. `seo`. */
+  id: string;
+  title: Label;
+  /** Content types that show the group. */
+  types: string[];
+  fields: FieldDefinition[];
+}
+
+export interface PluginEntry {
+  id: string;
+  type: string;
+  locale: string;
+  slug: string;
+  title: string;
+  status: string;
+  /** Public address (also for drafts, where it is the future address). */
+  url: string;
+  publishedAt: string | null;
+  fields: FieldValues;
+}
+
+export interface EntryQuery {
+  type?: string;
+  locale?: string;
+  /** Only published entries unless `any` (default `published`). */
+  status?: 'published' | 'any';
+  ids?: string[];
+  /** Default 50, at most 200. */
+  limit?: number;
+}
+
+export interface ContentApi {
+  /** Adds a content type to the sites where the plugin is active (needs `content:write`). */
+  registerType(definition: ContentTypeDefinition): void;
+  /** Adds fields to existing content types (needs `content:write`). */
+  registerFieldGroup(definition: FieldGroupDefinition): void;
+  /** Reads entries of a site, newest first (needs `content:read`). */
+  find(siteId: string, query?: EntryQuery): Promise<PluginEntry[]>;
+  get(siteId: string, id: string): Promise<PluginEntry | null>;
+}
+
+// ---- Blocks -------------------------------------------------------------------------
+
+export interface BlockLoadContext {
+  siteId: string;
+  locale: string;
+  /** The entry being rendered, if any. */
+  entry?: { id: string; type: string };
+  /** Adds a page-cache tag, e.g. `type:event`, so the page refreshes with that data. */
+  tag(tag: string): void;
+}
+
+export interface BlockRenderContext {
+  siteId: string;
+  locale: string;
+}
+
+/**
+ * A block contributed by a plugin. Its attributes are described with the
+ * field DSL: every editor builds the editing form from them, so the block
+ * does not depend on a particular editor.
+ */
+export interface PluginBlockDefinition<A extends FieldValues = FieldValues, D = undefined> {
+  /** `<plugin-slug>/<name>`, e.g. `events/upcoming`. */
+  type: string;
+  title: Label;
+  description?: Label;
+  /** Dashicon name shown in the editor, e.g. `calendar`. */
+  icon?: string;
+  category?: 'text' | 'media' | 'design' | 'widgets' | 'embed';
+  /** Attribute schema version, for future migrations. Default 1. */
+  version?: number;
+  attributes?: FieldDefinition[];
+  /** Loads data before rendering (rendering itself is synchronous). */
+  load?(attrs: A, context: BlockLoadContext): Promise<D>;
+  /** Server-side render for the public site. No client JavaScript. */
+  render(props: { attrs: A; data: D; block: CxdBlock; context: BlockRenderContext }): ReactNode;
+}
+
+export interface BlockApi {
+  /** Needs the `blocks` permission. */
+  register<A extends FieldValues, D>(definition: PluginBlockDefinition<A, D>): void;
+}
+
+// ---- Routes -------------------------------------------------------------------------
+
+export interface RouteRequest {
+  siteId: string;
+  method: string;
+  path: string;
+  params: Record<string, string>;
+  query: Record<string, string>;
+  /** Parsed JSON or form body. */
+  body: unknown;
+  ip: string;
+  /** Signed-in user, if any. */
+  user: { id: string; displayName: string; capabilities: string[] } | null;
+  headers: Record<string, string | undefined>;
+}
+
+export interface RouteResponse {
+  status?: number;
+  /** A string is sent as is; anything else as JSON. */
+  body?: unknown;
+  contentType?: string;
+  headers?: Record<string, string>;
+  /** Public GET routes: cache tags; the response is cached when set. */
+  cacheTags?: string[];
+}
+
+export type RouteHandler = (request: RouteRequest) => Promise<RouteResponse> | RouteResponse;
+
+export interface ApiRoute {
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  /** Path under `/api/v1/ext/<slug>`, with `:params`, e.g. `/forms/:id/entries`. */
+  path: string;
+  /** Capability required; omit with `public: true` for anonymous calls. */
+  capability?: string;
+  /** Anonymous access (e.g. a form submission); the request origin is still checked. */
+  public?: boolean;
+  handler: RouteHandler;
+}
+
+export interface PublicRoute {
+  method: 'GET' | 'POST';
+  /** Path on the public site, e.g. `/events.ics`. Matched before permalinks. */
+  path: string;
+  handler: RouteHandler;
+}
+
+export interface RouteApi {
+  /** REST endpoint for the admin or integrations (needs `routes:admin`). */
+  api(route: ApiRoute): void;
+  /** Address on the public site (needs `routes:public`). */
+  public(route: PublicRoute): void;
+}
+
+// ---- Settings, access, data, cache, mail --------------------------------------------
+
+export interface SettingsApi {
+  /**
+   * Declares the plugin settings (needs `settings:own`). The admin shows a
+   * form under Settings, stored per site in the `plugin:<slug>` namespace.
+   */
+  define(fields: FieldDefinition[], options?: { title?: Label; capability?: string }): void;
+  /** Values for a site, with the defaults. */
+  get(siteId: string): Promise<FieldValues>;
+}
+
+export interface AccessApi {
+  /** A capability granted to the given roles, e.g. `['administrator', 'editor']`. */
+  defineCapability(name: string, options: { label: Label; roles: string[] }): void;
+}
+
+/**
+ * The plugin's own database schema (`plg_<slug>`), with a PostgreSQL role
+ * that cannot see core tables. Row Level Security limits rows to the site.
+ */
+export interface PluginDatabase {
+  transaction<T>(siteId: string, fn: (tx: PluginTransaction) => Promise<T>): Promise<T>;
+}
+
+/** A Drizzle transaction; build queries with `drizzle-orm` (shared with the host). */
+export type PluginTransaction = PgTransaction<PgQueryResultHKT, Record<string, never>>;
+
+export interface CacheApi {
+  /** Drops cached pages showing these tags (e.g. `type:event`) on the site. */
+  invalidate(siteId: string, tags: string[]): Promise<void>;
+}
+
+export interface MailApi {
+  /** Needs `mail:send`. */
+  send(message: { to: string; subject: string; text: string; replyTo?: string }): Promise<void>;
+}
+
+// ---- Plugin -------------------------------------------------------------------------
+
+export interface PluginContext {
+  readonly plugin: { slug: string; version: string };
+  readonly log: PluginLogger;
+  readonly hooks: HookApi;
+  readonly content: ContentApi;
+  readonly blocks: BlockApi;
+  readonly routes: RouteApi;
+  readonly settings: SettingsApi;
+  readonly access: AccessApi;
+  readonly db: PluginDatabase;
+  readonly cache: CacheApi;
+  readonly mail: MailApi;
+}
+
+export interface PluginDefinition {
+  /** Runs once when the server starts: register hooks, types, blocks, routes. */
+  setup(context: PluginContext): void | Promise<void>;
+  /** Runs when the plugin is activated on a site. */
+  onActivate?(site: PluginSite, context: PluginContext): void | Promise<void>;
+  /** Runs when the plugin is deactivated on a site. Data is kept. */
+  onDeactivate?(site: PluginSite, context: PluginContext): void | Promise<void>;
+  /** Runs before the plugin's schema and settings are removed. */
+  onUninstall?(context: {
+    plugin: { slug: string; version: string };
+    log: PluginLogger;
+  }): void | Promise<void>;
+}

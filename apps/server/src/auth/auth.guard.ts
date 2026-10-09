@@ -48,7 +48,19 @@ export class AuthGuard implements CanActivate {
   }
 }
 
-function verifyCsrf(request: FastifyRequest): void {
+/** Same-origin check and double-submit CSRF token (also used by plugin routes). */
+export function verifyCsrf(request: FastifyRequest): void {
+  verifySameOrigin(request);
+
+  const header = request.headers[CSRF_HEADER];
+  const cookie = request.cookies[CSRF_COOKIE];
+  if (typeof header !== 'string' || !cookie || !safeEqual(header, cookie)) {
+    throw new ForbiddenException('Invalid or missing CSRF token.');
+  }
+}
+
+/** Rejects requests whose `Origin` (or `Referer`) is another host. */
+export function verifySameOrigin(request: FastifyRequest): void {
   const origin = request.headers.origin ?? refererOrigin(request.headers.referer);
   if (!origin) throw new ForbiddenException('Missing request origin.');
   let originHost: string;
@@ -59,12 +71,6 @@ function verifyCsrf(request: FastifyRequest): void {
   }
   if (originHost !== request.host) {
     throw new ForbiddenException('Cross-origin request rejected.');
-  }
-
-  const header = request.headers[CSRF_HEADER];
-  const cookie = request.cookies[CSRF_COOKIE];
-  if (typeof header !== 'string' || !cookie || !safeEqual(header, cookie)) {
-    throw new ForbiddenException('Invalid or missing CSRF token.');
   }
 }
 

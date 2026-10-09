@@ -60,7 +60,8 @@ export const meResponseSchema = z.object({
     locales: z.array(z.object({ code: z.string(), name: z.string(), isDefault: z.boolean() })),
   }),
   role: z.object({ slug: z.string(), name: z.string() }).nullable(),
-  capabilities: z.array(capabilitySchema),
+  /** Core capabilities, plus those of the plugins active on the site. */
+  capabilities: z.array(z.string()),
   sites: z.array(z.object({ id: z.uuid(), name: z.string(), host: z.string().nullable() })),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;

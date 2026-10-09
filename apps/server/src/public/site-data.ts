@@ -28,6 +28,7 @@ import { UrlBuilder, type LocaleInfo, type TypeInfo } from './urls.js';
 export interface PublishedEntry {
   row: typeof entries.$inferSelect;
   document: CxdDocument;
+  fields: Record<string, unknown>;
   authorName: string | null;
 }
 
@@ -39,15 +40,28 @@ export interface SiteData {
   urls: UrlBuilder;
 }
 
-export async function loadSiteData(tx: SiteTransaction): Promise<SiteData> {
+/**
+ * Content types of plugins are only visible while their plugin is active on
+ * the site: their entries are kept but not routed (deactivation is safe).
+ */
+export function isTypeAvailable(source: string, activePlugins: ReadonlySet<string>): boolean {
+  return !source.startsWith('plugin:') || activePlugins.has(source.slice('plugin:'.length));
+}
+
+export async function loadSiteData(
+  tx: SiteTransaction,
+  activePlugins: ReadonlySet<string> = new Set(),
+): Promise<SiteData> {
   const locales = (
     await tx.select().from(siteLocales).orderBy(asc(siteLocales.position), asc(siteLocales.code))
   ).map((l) => ({ code: l.code, name: l.name, isDefault: l.isDefault, urlPrefix: l.urlPrefix }));
-  const types = (await tx.select().from(contentTypes)).map((t) => ({
-    slug: t.slug,
-    permalink: t.permalink,
-    hierarchical: t.hierarchical,
-  }));
+  const types = (await tx.select().from(contentTypes))
+    .filter((t) => isTypeAvailable(t.source, activePlugins))
+    .map((t) => ({
+      slug: t.slug,
+      permalink: t.permalink,
+      hierarchical: t.hierarchical,
+    }));
   const taxonomyRows = await tx.select({ slug: taxonomies.slug }).from(taxonomies);
 
   // Paths of hierarchical entries (pages), computed from their parents.
@@ -95,6 +109,7 @@ export async function loadPublished(
       row: entries,
       title: revisions.title,
       document: revisions.document,
+      fields: revisions.fields,
       authorName: users.displayName,
     })
     .from(entries)
@@ -110,6 +125,7 @@ export async function loadPublished(
   return rows.map((r) => ({
     row: { ...r.row, title: r.title },
     document: r.document as CxdDocument,
+    fields: r.fields as Record<string, unknown>,
     authorName: r.authorName,
   }));
 }
@@ -196,6 +212,8 @@ export async function loadMenus(
   locale: string,
   urls: UrlBuilder,
   currentPath: string,
+  /** Content types visible on the site (links to other entries are dropped). */
+  typeSlugs: ReadonlySet<string>,
 ): Promise<Record<string, MenuItemView[]>> {
   const menuRows = await tx
     .select()
@@ -235,7 +253,9 @@ export async function loadMenus(
     switch (item.kind) {
       case 'entry': {
         const entry = item.entryId ? entryById.get(item.entryId) : undefined;
-        return entry ? { label: item.label || entry.title, url: urls.entry(entry) } : null;
+        return entry && typeSlugs.has(entry.typeSlug)
+          ? { label: item.label || entry.title, url: urls.entry(entry) }
+          : null;
       }
       case 'term': {
         const term = item.termId ? termById.get(item.termId) : undefined;

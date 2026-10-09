@@ -65,6 +65,13 @@ if (!existsSync(envFile)) {
   console.log(`[dev-db] wrote ${envFile}`);
 }
 
+// Server (cwd apps/server) and CLI (cwd root) must share the plugins folder.
+const env = await readFile(envFile, 'utf8');
+if (!/^PLUGINS_PATH=/m.test(env)) {
+  const pluginsPath = join(root, '.cleitext-dev', 'plugins');
+  await writeFile(envFile, `${env.replace(/\n?$/, '\n')}PLUGINS_PATH=${pluginsPath}\n`);
+}
+
 console.log(
   `[dev-db] PostgreSQL ready on 127.0.0.1:${port} (database "cleitext", migrations applied)`,
 );

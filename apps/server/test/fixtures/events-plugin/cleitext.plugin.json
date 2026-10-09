@@ -1,0 +1,19 @@
+{
+  "slug": "events",
+  "name": "Events (test fixture)",
+  "version": "1.0.0",
+  "apiVersion": "^1.0",
+  "description": "Events with RSVPs, used by the server tests.",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": [
+    "content:read",
+    "content:write",
+    "blocks",
+    "routes:admin",
+    "routes:public",
+    "settings:own",
+    "theme:hooks"
+  ],
+  "capabilities": ["manage_events"]
+}

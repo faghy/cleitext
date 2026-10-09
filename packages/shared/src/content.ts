@@ -1,3 +1,5 @@
+import type { FieldDefinition } from './fields.js';
+import type { FieldGroupView } from './plugins.js';
 import { z } from 'zod';
 import { localeSchema } from './api.js';
 
@@ -79,6 +81,12 @@ export interface ContentTypeView {
   hierarchical: boolean;
   supports: string[];
   permalink: string;
+  /** `core`, `user` or `plugin:<slug>`. */
+  source: string;
+  /** Custom fields of the type. */
+  fields: FieldDefinition[];
+  /** Extra fields added by plugins. */
+  fieldGroups: FieldGroupView[];
 }
 
 export interface EntrySummary {

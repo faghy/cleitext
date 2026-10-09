@@ -1,0 +1,38 @@
+{
+  "name": "@cleitext/plugin-sdk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Types and helpers to build Cleitext plugins.",
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "default": "./dist/host.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cleitext/blocks": "workspace:*",
+    "@cleitext/shared": "workspace:*",
+    "@cleitext/theme-sdk": "workspace:*",
+    "zod": "^4.6.5",
+    "drizzle-orm": "^0.45.4"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "react": "^19.3.0"
+  }
+}

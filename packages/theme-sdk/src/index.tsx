@@ -2,6 +2,7 @@ import { Blocks, ResponsiveImage, type RenderMedia } from '@cleitext/renderer';
 import type { CxdDocument } from '@cleitext/blocks';
 import { createContext, useContext, type ReactNode } from 'react';
 import type {
+  HeadTag,
   MenuItemView,
   PageContext,
   TemplateProps,
@@ -31,9 +32,27 @@ export function EntryContent({ document }: { document: CxdDocument }) {
   return (
     <Blocks
       document={document}
-      context={{ media: page.media, locale: page.locale, eagerFirstImage: true }}
+      context={{
+        media: page.media,
+        locale: page.locale,
+        eagerFirstImage: true,
+        ...(page.blockRenderers ? { renderers: page.blockRenderers } : {}),
+      }}
     />
   );
+}
+
+/** Extra `<head>` tags added by plugins. Layouts render it inside `<head>`. */
+export function HeadTags({ tags }: { tags: HeadTag[] | undefined }) {
+  return (tags ?? []).map((tag, index) => {
+    if (tag.tag === 'meta') return <meta key={index} {...tag.attrs} />;
+    if (tag.tag === 'link') return <link key={index} {...tag.attrs} />;
+    // `<` is escaped so that the data cannot close the script element.
+    const json = JSON.stringify(tag.data).replace(/</g, '\\u003c');
+    return (
+      <script key={index} type="application/ld+json" dangerouslySetInnerHTML={{ __html: json }} />
+    );
+  });
 }
 
 /** A responsive image of the media library. */

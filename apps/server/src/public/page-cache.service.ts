@@ -42,6 +42,7 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   private readonly processId = randomUUID();
   private unlisten: (() => Promise<void>) | null = null;
   private readonly siteListeners = new Set<() => void>();
+  private readonly pluginListeners = new Set<() => void>();
   readonly stats = { hits: 0, misses: 0, invalidations: 0 };
 
   constructor(
@@ -54,7 +55,7 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   }
 
   async onApplicationBootstrap(): Promise<void> {
-    if (!this.enabled) return;
+    // Always listen: site and plugin changes travel on the same channel.
     try {
       this.unlisten = await this.database.listen(CHANNEL, (payload) =>
         this.onNotification(payload),
@@ -121,15 +122,28 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
     return entry;
   }
 
-  /** Invalidates pages of a site showing any of the tags, in every process. */
-  async invalidate(siteId: string, tags: string[]): Promise<void> {
+  /**
+   * Invalidates pages of a site showing any of the tags, in every process.
+   * `sites: true` also tells other processes that the site's configuration
+   * changed (status, domains, active plugins).
+   */
+  async invalidate(
+    siteId: string,
+    tags: string[],
+    options: { sites?: boolean } = {},
+  ): Promise<void> {
     if (tags.length === 0) return;
     this.invalidateLocal(siteId, tags);
-    if (!this.enabled) return;
+    if (!this.enabled && !options.sites) return;
     try {
       await this.database.notify(
         CHANNEL,
-        JSON.stringify({ siteId, tags: [...new Set(tags)], from: this.processId }),
+        JSON.stringify({
+          siteId,
+          tags: [...new Set(tags)],
+          from: this.processId,
+          ...(options.sites ? { sites: true } : {}),
+        }),
       );
     } catch (error) {
       this.logger.error(`NOTIFY failed: ${String(error)}`);
@@ -141,6 +155,17 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
     this.siteListeners.add(listener);
   }
 
+  /** Called when plugins were installed, updated or removed (by the CLI). */
+  onPluginsChange(listener: () => void): void {
+    this.pluginListeners.add(listener);
+  }
+
+  /** Drops every cached page of this process. */
+  clearLocal(): void {
+    this.pages.clear();
+    this.byTag.clear();
+  }
+
   private onNotification(payload: string): void {
     try {
       const message = JSON.parse(payload) as {
@@ -148,7 +173,9 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
         tags?: string[];
         from?: string;
         sites?: boolean;
+        plugins?: boolean;
       };
+      if (message.plugins === true) for (const listener of this.pluginListeners) listener();
       if (message.from === this.processId) return; // already applied locally
       if (message.sites === true) for (const listener of this.siteListeners) listener();
       if (typeof message.siteId === 'string' && Array.isArray(message.tags)) {

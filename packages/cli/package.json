@@ -21,13 +21,19 @@
   },
   "dependencies": {
     "@cleitext/db": "workspace:*",
+    "@cleitext/plugin-sdk": "workspace:*",
     "@cleitext/shared": "workspace:*",
     "@inquirer/prompts": "^8.7.3",
     "@node-rs/argon2": "^2.2.2",
     "commander": "^15.0.0",
-    "drizzle-orm": "^0.45.4"
+    "drizzle-orm": "^0.45.4",
+    "esbuild": "^0.28.2",
+    "react": "^19.3.0",
+    "semver": "^7.8.5",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@cleitext/testing": "workspace:*"
+    "@cleitext/testing": "workspace:*",
+    "@types/semver": "^7.8.0"
   }
 }

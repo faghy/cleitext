@@ -104,7 +104,7 @@ export async function provisionDatabase(
 
   const su = postgres(superuserUrl, { max: 1, onnotice: () => {} });
   try {
-    await ensureRole(su, ownerRole, ownerPassword);
+    await ensureRole(su, ownerRole, ownerPassword, { createRole: true });
     await ensureRole(su, appRole, appPassword);
     const exists = await su`select 1 from pg_database where datname = ${database}`;
     if (exists.length === 0) {
@@ -142,11 +142,21 @@ export async function provisionDatabase(
   };
 }
 
-async function ensureRole(su: postgres.Sql, role: string, password: string): Promise<void> {
+async function ensureRole(
+  su: postgres.Sql,
+  role: string,
+  password: string,
+  options: { createRole?: boolean } = {},
+): Promise<void> {
   const exists = await su`select 1 from pg_roles where rolname = ${role}`;
   const verb = exists.length === 0 ? 'create' : 'alter';
-  // Roles are plain LOGIN roles: no superuser, no BYPASSRLS, no CREATEDB.
-  await su.unsafe(`${verb} role ${ident(role)} login password '${password.replace(/'/g, "''")}'`);
+  // Plain LOGIN roles: no superuser, no BYPASSRLS, no CREATEDB. The owner may
+  // create roles (one per plugin, see docs/ARCHITECTURE.md §11.6); since
+  // PostgreSQL 16 that only gives it power over the roles it creates.
+  const attributes = options.createRole ? 'login createrole' : 'login nocreaterole';
+  await su.unsafe(
+    `${verb} role ${ident(role)} ${attributes} password '${password.replace(/'/g, "''")}'`,
+  );
 }
 
 function ident(name: string): string {

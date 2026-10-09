@@ -1,5 +1,5 @@
 import type { CxdDocument } from '@cleitext/blocks';
-import type { RenderMedia } from '@cleitext/renderer';
+import type { BlockRenderer, RenderMedia } from '@cleitext/renderer';
 import type { ComponentType, ReactNode } from 'react';
 
 /**
@@ -58,6 +58,8 @@ export interface PublicEntry extends PublicEntrySummary {
   terms: Record<string, TermLink[]>;
   /** The same content in other languages. */
   translations: { locale: string; url: string; title: string }[];
+  /** Custom field values (content type fields and plugin field groups). */
+  fields: Record<string, unknown>;
 }
 
 export interface Pagination {
@@ -94,7 +96,15 @@ export interface HeadData {
   /** Open Graph / social metadata. */
   og: Record<string, string>;
   robots?: string;
+  /** Extra tags added by plugins (`render.head` filter). Layouts render them with `<HeadTags>`. */
+  tags?: HeadTag[];
 }
+
+export type HeadTag =
+  | { tag: 'meta'; attrs: Record<string, string> }
+  | { tag: 'link'; attrs: Record<string, string> }
+  /** Structured data, serialized safely. */
+  | { tag: 'json-ld'; data: unknown };
 
 export interface LayoutProps {
   head: HeadData;
@@ -126,4 +136,6 @@ export interface PageContext {
   urls: { home: string; search: string };
   /** Media preloaded for the page, by id. */
   media: ReadonlyMap<string, RenderMedia>;
+  /** Renderers of plugin blocks available on this site. */
+  blockRenderers?: ReadonlyMap<string, BlockRenderer>;
 }

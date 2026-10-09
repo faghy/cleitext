@@ -14,6 +14,9 @@ import { PublicService } from './public/public.service.js';
 import { createRequestHook } from './tenancy/request-hook.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
 import { PageCacheService } from './public/page-cache.service.js';
+import { PluginHost } from './plugins/plugin-host.service.js';
+import { PluginRoutes } from './plugins/plugin-routes.js';
+import { servePluginAsset } from './plugins/plugin-assets.js';
 
 /** Builds the application without listening, so tests can use `inject()`. */
 export async function createApp(config: AppConfig): Promise<NestFastifyApplication> {
@@ -56,8 +59,20 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
   // Status or domain changes made by the CLI reach every process.
   app.get(PageCacheService).onSiteChange(() => app.get(SiteResolverService).invalidate());
 
+  // (Url-encoded form bodies, posted to plugin routes, are parsed by NestJS.)
+  const fastify = app.getHttpAdapter().getInstance();
+
+  // Plugins (docs/ARCHITECTURE.md §11): loaded before serving requests.
+  await app.get(PluginHost).load();
+  const pluginRoutes = app.get(PluginRoutes);
+  fastify.all('/api/v1/ext/:plugin/*', (request, reply) => pluginRoutes.handleApi(request, reply));
+  fastify.get('/admin-plugins/:slug/:version/*', (request, reply) =>
+    servePluginAsset(app.get(PluginHost), request, reply),
+  );
+
   // Public site: every other GET/HEAD (docs/ARCHITECTURE.md §12).
   const publicService = app.get(PublicService);
+  fastify.post('/*', (request, reply) => publicService.handlePost(request, reply));
   app
     .getHttpAdapter()
     .getInstance()

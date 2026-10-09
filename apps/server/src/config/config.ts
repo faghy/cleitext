@@ -40,6 +40,8 @@ const envSchema = z.object({
   MAIL_FROM: z.string().min(3).default('Cleitext <no-reply@localhost>'),
   /** Uploaded files (disk storage driver). Relative paths start from the working directory. */
   MEDIA_PATH: z.string().min(1).default('cleitext-data/media'),
+  /** Installed plugins (written by `cleitext plugin:install`). */
+  PLUGINS_PATH: z.string().min(1).default('cleitext-data/plugins'),
   MEDIA_MAX_BYTES: z.coerce
     .number()
     .int()
@@ -69,6 +71,7 @@ export interface AppConfig {
   mail: { url: string; from: string };
   schedulerIntervalSeconds: number;
   media: { path: string; maxBytes: number };
+  plugins: { path: string };
   pageCache: { maxEntries: number; ttlSeconds: number };
   appSecret: string;
 }
@@ -102,6 +105,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     mail: { url: e.MAIL_URL, from: e.MAIL_FROM },
     schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,
     media: { path: resolve(e.MEDIA_PATH), maxBytes: e.MEDIA_MAX_BYTES },
+    plugins: { path: resolve(e.PLUGINS_PATH) },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
     // Development and tests only: production refuses to start without one.
     appSecret: e.APP_SECRET ?? 'cleitext-development-secret-not-for-production',

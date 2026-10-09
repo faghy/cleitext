@@ -22,6 +22,10 @@ import { MediaController } from './media/media.controller.js';
 import { MediaService } from './media/media.service.js';
 import { MenusController } from './menus/menus.controller.js';
 import { MenusService } from './menus/menus.service.js';
+import { PluginHost } from './plugins/plugin-host.service.js';
+import { PluginRoutes } from './plugins/plugin-routes.js';
+import { PluginServicesProvider } from './plugins/plugin-services.service.js';
+import { PluginsController } from './plugins/plugins.controller.js';
 import { ProfileController } from './profile/profile.controller.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PublicService } from './public/public.service.js';
@@ -80,6 +84,7 @@ export class AppModule {
         TermsController,
         SettingsController,
         MenusController,
+        PluginsController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -93,6 +98,9 @@ export class AppModule {
         MediaService,
         MenusService,
         PageCacheService,
+        PluginHost,
+        PluginRoutes,
+        PluginServicesProvider,
         PublicService,
         SchedulerService,
         SettingsService,

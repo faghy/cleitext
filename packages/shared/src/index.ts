@@ -4,3 +4,5 @@ export * from './content.js';
 export * from './media.js';
 export * from './settings.js';
 export * from './menus.js';
+export * from './fields.js';
+export * from './plugins.js';

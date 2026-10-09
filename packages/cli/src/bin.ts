@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import path from 'node:path';
 import { createDatabase, migrate } from '@cleitext/db';
+import { sql } from 'drizzle-orm';
 import { input, password as passwordPrompt } from '@inquirer/prompts';
 import { Command } from 'commander';
 import {
@@ -13,6 +15,13 @@ import {
   setPassword,
   setSiteStatus,
 } from './operations.js';
+import {
+  buildPlugin,
+  installPlugin,
+  listPlugins,
+  requestRestart,
+  uninstallPlugin,
+} from './plugins.js';
 
 const program = new Command()
   .name('cleitext')
@@ -218,6 +227,91 @@ program
       console.log(`Password updated for ${opts.email}.`);
     }),
   );
+
+// ---- Plugins (docs/ARCHITECTURE.md §11) ---------------------------------------------
+
+/** Installed plugins live here; the server reads the same variable. */
+function pluginsPath(): string {
+  return path.resolve(process.env.PLUGINS_PATH ?? 'cleitext-data/plugins');
+}
+
+/** Running servers reload their plugins (no restart needed). */
+async function announcePluginChange(db: ReturnType<typeof createDatabase>['db']): Promise<void> {
+  await db.execute(sql`select pg_notify('cleitext_cache', ${JSON.stringify({ plugins: true })})`);
+  if (await requestRestart(process.cwd()))
+    console.log('Passenger restart requested (tmp/restart.txt).');
+}
+
+program
+  .command('plugin:build')
+  .description('Bundle a plugin (TypeScript/JSX) into the entries named in its manifest.')
+  .argument('[dir]', 'plugin folder', '.')
+  .action(async (dir: string) => {
+    const { manifest, outputs } = await buildPlugin(path.resolve(dir));
+    console.log(`Built ${manifest.slug} ${manifest.version}:`);
+    for (const file of outputs) console.log(`  ${path.relative(process.cwd(), file)}`);
+  });
+
+program
+  .command('plugin:install')
+  .description('Install or update a plugin from a folder: files, migrations, registration.')
+  .argument('<dir>', 'plugin folder (already built)')
+  .option('--link', 'link the folder instead of copying it (development)')
+  .option('--build', 'build the plugin first')
+  .action(async (dir: string, opts: { link?: boolean; build?: boolean }) => {
+    const { appRole } = connectionSettings();
+    if (!appRole)
+      throw new OperationError('Set DATABASE_URL (application role) or CLEITEXT_APP_ROLE.');
+    if (opts.build) await buildPlugin(path.resolve(dir));
+    await withOwner(async (db) => {
+      const result = await installPlugin(db, {
+        source: dir,
+        pluginsPath: pluginsPath(),
+        appRole,
+        link: Boolean(opts.link),
+      });
+      const { slug, version } = result.manifest;
+      console.log(
+        result.previousVersion
+          ? `Updated ${slug} ${result.previousVersion} → ${version}.`
+          : `Installed ${slug} ${version}. Activate it on a site from the admin (Plugins).`,
+      );
+      if (result.migrations.length) console.log(`Migrations: ${result.migrations.join(', ')}`);
+      await announcePluginChange(db);
+    });
+  });
+
+program
+  .command('plugin:list')
+  .description('List installed plugins.')
+  .action(() =>
+    withOwner(async (db) => {
+      for (const plugin of await listPlugins(db)) {
+        console.log(`${plugin.slug}\t${plugin.version}\tAPI ${plugin.apiVersion}`);
+      }
+    }),
+  );
+
+program
+  .command('plugin:uninstall')
+  .description('Remove a plugin and ALL its data (schema, settings) from every site.')
+  .argument('<slug>')
+  .option('--yes', 'do not ask for confirmation')
+  .action(async (slug: string, opts: { yes?: boolean }) => {
+    if (!opts.yes) {
+      const { confirm } = await import('@inquirer/prompts');
+      const sure = await confirm({
+        message: `Delete ${slug} and all its data on every site? This cannot be undone.`,
+        default: false,
+      });
+      if (!sure) return;
+    }
+    await withOwner(async (db) => {
+      await uninstallPlugin(db, slug, { pluginsPath: pluginsPath() });
+      console.log(`Uninstalled ${slug}.`);
+      await announcePluginChange(db);
+    });
+  });
 
 program.parseAsync().catch((error: unknown) => {
   if (error instanceof OperationError) {

@@ -38,6 +38,11 @@ export class BlockRegistry {
     return this;
   }
 
+  /** Removes a definition (e.g. when a plugin is reloaded). */
+  unregister(type: string): void {
+    this.definitions.delete(type);
+  }
+
   get(type: string): BlockDefinition | undefined {
     return this.definitions.get(type);
   }

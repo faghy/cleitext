@@ -16,6 +16,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { ALLOWED_TYPES, detectType, RESIZABLE } from './media-types.js';
 import { DiskStorage, type MediaStorage } from './storage.js';
@@ -40,6 +41,7 @@ export class MediaService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly audit: AuditService,
     private readonly cache: PageCacheService,
+    private readonly plugins: PluginHost,
   ) {
     this.storage = new DiskStorage(config.media.path);
   }
@@ -103,7 +105,13 @@ export class MediaService {
 
     if (RESIZABLE.has(mime))
       this.track(this.generateVariants(siteId, id, storageKey, file.data, width));
-    return this.get(siteId, auth, id);
+    const view = await this.get(siteId, auth, id);
+    await this.plugins.emit(
+      'media.uploaded',
+      { media: { id: view.id, mime: view.mime, filename: view.filename, url: view.url } },
+      siteId,
+    );
+    return view;
   }
 
   async list(

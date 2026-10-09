@@ -15,6 +15,7 @@
   "dependencies": {
     "@cleitext/blocks": "workspace:*",
     "@cleitext/db": "workspace:*",
+    "@cleitext/plugin-sdk": "workspace:*",
     "@cleitext/renderer": "workspace:*",
     "@cleitext/theme-aurora": "workspace:*",
     "@cleitext/theme-sdk": "workspace:*",
@@ -36,15 +37,18 @@
     "react-dom": "^19.3.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "semver": "^7.8.5",
     "sharp": "^0.35.5",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@cleitext/cli": "workspace:*",
     "@cleitext/shared": "workspace:*",
     "@cleitext/testing": "workspace:*",
     "@swc/core": "^1.16.13",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/semver": "^7.8.0",
     "pino-pretty": "^13.2.0",
     "unplugin-swc": "^2.0.0"
   }

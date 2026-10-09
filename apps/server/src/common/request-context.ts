@@ -15,7 +15,8 @@ export interface AuthContext {
   locale: string;
   isSuperAdmin: boolean;
   role: { id: string; slug: string; name: string } | null;
-  capabilities: Capability[];
+  /** Core capabilities plus those defined by active plugins. */
+  capabilities: (Capability | (string & {}))[];
 }
 
 declare module 'fastify' {

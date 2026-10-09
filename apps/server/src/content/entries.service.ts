@@ -1,5 +1,4 @@
 import {
-  createCoreRegistry,
   cxdDocumentSchema,
   documentText,
   emptyDocument,
@@ -45,14 +44,18 @@ import { canDelete, canEdit, canPublish, canRead } from './entry-permissions.js'
 import { nextFreeSlug, slugify } from './slug.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { createPreviewToken } from '../public/preview.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
+import { isTypeAvailable } from '../public/site-data.js';
+import { blockRegistry } from './block-registry.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { TermsService } from './terms.service.js';
 
 type EntryRow = typeof entries.$inferSelect;
+type ContentTypeRow = typeof contentTypes.$inferSelect;
 type RevisionRow = typeof revisions.$inferSelect;
 type Tx = SiteTransaction;
 
-const registry = createCoreRegistry();
+const registry = blockRegistry;
 
 /** Entries, revisions and translations (docs/ARCHITECTURE.md §9). */
 @Injectable()
@@ -63,6 +66,7 @@ export class EntriesService {
     private readonly termsService: TermsService,
     private readonly cache: PageCacheService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly plugins: PluginHost,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
@@ -71,17 +75,90 @@ export class EntriesService {
 
   // ---- Content types --------------------------------------------------------
 
-  listTypes(siteId: string, auth: AuthContext): Promise<ContentTypeView[]> {
-    return this.run(siteId, auth, async (tx) => {
-      const rows = await tx.select().from(contentTypes).orderBy(asc(contentTypes.slug));
-      return rows.map((t) => ({
-        slug: t.slug,
-        name: t.name as Record<string, string>,
-        hierarchical: t.hierarchical,
-        supports: t.supports,
-        permalink: t.permalink,
-      }));
-    });
+  async listTypes(siteId: string, auth: AuthContext): Promise<ContentTypeView[]> {
+    const active = await this.plugins.activeSlugs(siteId);
+    const rows = await this.run(siteId, auth, (tx) =>
+      tx.select().from(contentTypes).orderBy(asc(contentTypes.slug)),
+    );
+    return Promise.all(
+      rows
+        .filter((t) => isTypeAvailable(t.source, active))
+        .map(async (t) => {
+          const { fields, groups } = await this.plugins.fieldsFor(siteId, t);
+          return {
+            slug: t.slug,
+            name: t.name as Record<string, string>,
+            hierarchical: t.hierarchical,
+            supports: t.supports,
+            permalink: t.permalink,
+            source: t.source,
+            fields,
+            fieldGroups: groups.map((g) => ({ id: g.id, title: g.title, fields: g.fields })),
+          };
+        }),
+    );
+  }
+
+  /** Content types of inactive plugins cannot get new entries. */
+  private async assertTypeAvailable(siteId: string, type: ContentTypeRow): Promise<void> {
+    if (!isTypeAvailable(type.source, await this.plugins.activeSlugs(siteId))) {
+      throw new BadRequestException(
+        `The content type "${type.slug}" is not available on this site.`,
+      );
+    }
+  }
+
+  /** Custom fields checked against the type and plugin field groups. */
+  private async validFields(
+    siteId: string,
+    type: ContentTypeRow,
+    values: Record<string, unknown>,
+    options: { partial?: boolean } = { partial: true },
+  ): Promise<Record<string, unknown>> {
+    const result = await this.plugins.validateFields(siteId, type, values, options);
+    if (!result.ok) {
+      throw new BadRequestException({
+        message: options.partial
+          ? 'Some fields are not valid.'
+          : 'Fill in the required fields before publishing.',
+        errors: result.errors,
+      });
+    }
+    return result.values;
+  }
+
+  /** Runs plugin actions after the change is committed. */
+  private async emitEntry(
+    siteId: string,
+    action:
+      | 'entry.created'
+      | 'entry.saved'
+      | 'entry.published'
+      | 'entry.unpublished'
+      | 'entry.trashed'
+      | 'entry.deleted',
+    view: Pick<
+      EntryView,
+      'id' | 'type' | 'locale' | 'slug' | 'title' | 'status' | 'translationGroup'
+    > & { fields?: Record<string, unknown> },
+  ): Promise<void> {
+    await this.plugins.emit(
+      action,
+      {
+        entry: {
+          id: view.id,
+          siteId,
+          type: view.type,
+          locale: view.locale,
+          slug: view.slug,
+          title: view.title,
+          status: view.status,
+          translationGroup: view.translationGroup,
+          fields: view.fields ?? {},
+        },
+      },
+      siteId,
+    );
   }
 
   // ---- Queries --------------------------------------------------------------
@@ -153,7 +230,7 @@ export class EntriesService {
 
   // ---- Commands ---------------------------------------------------------------
 
-  create(
+  async create(
     siteId: string,
     auth: AuthContext,
     input: {
@@ -172,8 +249,10 @@ export class EntriesService {
     }
     const document =
       input.document === undefined ? emptyDocument() : validateDocument(input.document);
-    return this.run(siteId, auth, async (tx) => {
+    const view = await this.run(siteId, auth, async (tx) => {
       const type = await this.contentType(tx, input.type);
+      await this.assertTypeAvailable(siteId, type);
+      const fields = await this.validFields(siteId, type, input.fields ?? {});
       const locale = input.locale ?? (await this.defaultLocale(tx, siteId));
       await this.assertLocale(tx, locale);
       const parentId = await this.validParent(tx, type, locale, input.parentId ?? null, null);
@@ -198,19 +277,12 @@ export class EntriesService {
         status: 'draft',
         authorId: auth.userId,
       });
-      await this.addRevision(
-        tx,
-        siteId,
-        id,
-        auth,
-        'manual',
-        input.title,
-        input.fields ?? {},
-        document,
-      );
+      await this.addRevision(tx, siteId, id, auth, 'manual', input.title, fields, document);
       await this.audit.record(tx, entryAudit(siteId, auth, 'entry.created', id, ip));
       return this.view(tx, auth, await this.load(tx, id));
     });
+    await this.emitEntry(siteId, 'entry.created', view);
+    return view;
   }
 
   /** Saves changes as a new revision (RF-CNT-05). Published content stays as it was until republished. */
@@ -268,8 +340,10 @@ export class EntriesService {
         );
       }
 
+      const fields =
+        input.fields === undefined ? undefined : await this.validFields(siteId, type, input.fields);
       const needsRevision =
-        input.title !== undefined || input.document !== undefined || input.fields !== undefined;
+        input.title !== undefined || input.document !== undefined || fields !== undefined;
       if (needsRevision) {
         const current = await this.revisionRow(tx, entry.currentRevisionId);
         await this.addRevision(
@@ -279,7 +353,7 @@ export class EntriesService {
           auth,
           'manual',
           input.title ?? entry.title,
-          input.fields ?? (current?.fields as Record<string, unknown>) ?? {},
+          fields ?? (current?.fields as Record<string, unknown>) ?? {},
           document ?? (current?.document as CxdDocument) ?? emptyDocument(),
         );
       }
@@ -295,6 +369,7 @@ export class EntriesService {
       return this.view(tx, auth, updated);
     });
     await this.cache.invalidate(siteId, tags);
+    await this.emitEntry(siteId, 'entry.saved', view);
     return view;
   }
 
@@ -340,6 +415,12 @@ export class EntriesService {
         throw new ConflictException(`A ${entry.status} entry cannot be published.`);
       }
       const revision = await this.revisionRow(tx, entry.currentRevisionId);
+      await this.validFields(
+        siteId,
+        await this.contentType(tx, entry.typeSlug),
+        (revision?.fields as Record<string, unknown>) ?? {},
+        { partial: false },
+      );
       const text = revision ? documentText(revision.document as CxdDocument) : '';
       await tx
         .update(entries)
@@ -444,8 +525,8 @@ export class EntriesService {
   }
 
   /** Permanent deletion, only from the trash. */
-  remove(siteId: string, auth: AuthContext, id: string, ip: string): Promise<void> {
-    return this.run(siteId, auth, async (tx) => {
+  async remove(siteId: string, auth: AuthContext, id: string, ip: string): Promise<void> {
+    const removed = await this.run(siteId, auth, async (tx) => {
       const entry = await this.load(tx, id);
       assertAllowed(
         canDelete(auth, { ...entry, status: 'draft' }),
@@ -457,7 +538,9 @@ export class EntriesService {
       await tx.update(entries).set({ parentId: null }).where(eq(entries.parentId, id));
       await tx.delete(entries).where(eq(entries.id, id));
       await this.audit.record(tx, entryAudit(siteId, auth, 'entry.deleted', id, ip));
+      return entry;
     });
+    await this.emitEntry(siteId, 'entry.deleted', { ...removed, type: removed.typeSlug });
   }
 
   // ---- Revisions ----------------------------------------------------------------
@@ -613,6 +696,13 @@ export class EntriesService {
       return this.view(tx, auth, updated);
     });
     await this.cache.invalidate(siteId, tags);
+    if (
+      action === 'entry.published' ||
+      action === 'entry.unpublished' ||
+      action === 'entry.trashed'
+    ) {
+      await this.emitEntry(siteId, action, view);
+    }
     return view;
   }
 

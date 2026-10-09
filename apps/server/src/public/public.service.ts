@@ -13,14 +13,16 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import type { CxdDocument } from '@cleitext/blocks';
+import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
+import type { RenderHookContext } from '@cleitext/plugin-sdk';
 import {
   documentExcerpt,
   firstImage,
   renderHtmlDocument,
+  type BlockRenderer,
   type RenderMedia,
 } from '@cleitext/renderer';
-import type { CoreSettings } from '@cleitext/shared';
+import { fieldDefaults, type CoreSettings } from '@cleitext/shared';
 import {
   PageProvider,
   resolveTemplate,
@@ -35,7 +37,8 @@ import {
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { createElement } from 'react';
+import { createElement, Fragment } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { SESSION_COOKIE } from '../auth/cookies.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
@@ -51,6 +54,9 @@ import {
   type PublishedEntry,
   type SiteData,
 } from './site-data.js';
+import { verifySameOrigin } from '../auth/auth.guard.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
+import { routeRequest, sendRouteResponse } from '../plugins/plugin-routes.js';
 import { verifyPreviewToken } from './preview.js';
 import { themeFor } from './themes.js';
 import { matchPermalink } from './urls.js';
@@ -87,6 +93,10 @@ interface RequestScope {
   locale: string;
   path: string;
   tags: Set<string>;
+  /** Plugins active on the site. */
+  activePlugins: ReadonlySet<string>;
+  /** Renderers of plugin blocks for the entry being rendered. */
+  blockRenderers?: ReadonlyMap<string, BlockRenderer>;
 }
 
 /** Public site: routing, data loading and theme rendering (docs/ARCHITECTURE.md §12). */
@@ -99,6 +109,7 @@ export class PublicService {
     private readonly settingsService: SettingsService,
     private readonly cache: PageCacheService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly plugins: PluginHost,
   ) {}
 
   /** Fastify handler for every public GET/HEAD request. */
@@ -148,6 +159,51 @@ export class PublicService {
           );
           return;
         }
+      }
+
+      const pluginRoute =
+        request.method === 'GET' || request.method === 'HEAD'
+          ? await this.matchPluginRoute(site.id, 'GET', url.pathname)
+          : null;
+      if (pluginRoute) {
+        const outcome = await this.plugins.runHook(
+          { plugin: pluginRoute.plugin.slug, name: `GET ${pluginRoute.route.path}` },
+          () =>
+            pluginRoute.route.handler(
+              routeRequest(request, site.id, url.pathname, pluginRoute.params),
+            ),
+        );
+        if (!outcome.ok) {
+          await reply.code(500).type('text/plain; charset=utf-8').send('Internal Server Error');
+          return;
+        }
+        const result = outcome.value;
+        const status = result.status ?? 200;
+        if (cacheable && status === 200 && result.cacheTags && typeof result.body === 'string') {
+          const contentType = result.contentType ?? 'text/plain; charset=utf-8';
+          const stored = this.cache.set(key, site.id, {
+            status,
+            html: result.body,
+            contentType,
+            tags: ['site', ...result.cacheTags],
+          });
+          for (const [name, value] of Object.entries(result.headers ?? {}))
+            void reply.header(name, value);
+          await this.sendPage(
+            request,
+            reply,
+            status,
+            result.body,
+            stored.etag,
+            'MISS',
+            contentType,
+            stored,
+          );
+        } else {
+          void reply.header('x-cache', 'BYPASS').header('cache-control', 'private, no-cache');
+          await sendRouteResponse(reply, result);
+        }
+        return;
       }
 
       const response = await this.respond(
@@ -305,7 +361,8 @@ export class PublicService {
     origin: string,
     path: string,
   ): Promise<{ scope: RequestScope; rest: string }> {
-    const data = await loadSiteData(tx);
+    const activePlugins = await this.plugins.activeSlugs(siteId);
+    const data = await loadSiteData(tx, activePlugins);
     const settings = await this.settingsService.core(tx);
     const [site] = await tx
       .select({ name: sites.name, theme: sites.themeSlug })
@@ -325,6 +382,7 @@ export class PublicService {
         locale,
         path,
         tags: new Set(['site']),
+        activePlugins,
       },
     };
   }
@@ -361,6 +419,7 @@ export class PublicService {
         entry: entries,
         title: revisions.title,
         document: revisions.document,
+        fields: revisions.fields,
         authorName: users.displayName,
       })
       .from(entries)
@@ -374,6 +433,7 @@ export class PublicService {
       {
         row: { ...row.entry, title: row.title },
         document: row.document as CxdDocument,
+        fields: row.fields as Record<string, unknown>,
         authorName: row.authorName,
       },
       { isFrontPage: false, preview: true },
@@ -598,10 +658,21 @@ export class PublicService {
       excerpt: documentExcerpt(entry.document),
       author: entry.authorName ? { displayName: entry.authorName } : null,
       image: image?.id ? (media.get(image.id) ?? null) : null,
+      fields: entry.fields,
       document: entry.document,
       terms: entryTermsMap,
       translations,
     };
+    if (scope.activePlugins.size > 0) {
+      const blocks = await this.plugins.applyFilter(
+        'render.blocks',
+        publicEntry.document.blocks,
+        { ...this.hookContext(scope, 'entry', publicEntry), entry: publicEntry },
+        scope.siteId,
+      );
+      publicEntry.document = { ...publicEntry.document, blocks };
+      scope.blockRenderers = await this.pluginBlockRenderers(scope, publicEntry);
+    }
 
     const alternates = [
       { locale: entry.row.locale, url: publicEntry.url },
@@ -820,7 +891,27 @@ export class PublicService {
     status: number,
   ): Promise<PublicResponse> {
     const { data, theme, locale } = scope;
-    const menus = await loadMenus(scope.tx, locale, data.urls, scope.path);
+    if (scope.activePlugins.size > 0) {
+      const hookContext = this.hookContext(
+        scope,
+        props.kind,
+        props.kind === 'entry' ? props.entry : undefined,
+      );
+      candidates = await this.plugins.applyFilter(
+        'theme.templateCandidates',
+        candidates,
+        hookContext,
+        scope.siteId,
+      );
+      head = await this.plugins.applyFilter('render.head', head, hookContext, scope.siteId);
+    }
+    const menus = await loadMenus(
+      scope.tx,
+      locale,
+      data.urls,
+      scope.path,
+      new Set(data.types.map((t) => t.slug)),
+    );
     scope.tags.add(`menus:${locale}`);
     const locales: LocaleLink[] = data.locales.map((l) => ({
       code: l.code,
@@ -840,9 +931,10 @@ export class PublicService {
       menus,
       urls: { home: data.urls.home(locale), search: data.urls.search(locale) },
       media,
+      ...(scope.blockRenderers ? { blockRenderers: scope.blockRenderers } : {}),
     };
     const Template = resolveTemplate(theme, candidates);
-    const html = renderHtmlDocument(
+    let html = renderHtmlDocument(
       createElement(PageProvider, {
         value: context,
         children: createElement(theme.Layout, {
@@ -852,7 +944,148 @@ export class PublicService {
         }),
       }),
     );
+    if (scope.activePlugins.size > 0) {
+      html = await this.plugins.applyFilter(
+        'render.html',
+        html,
+        this.hookContext(scope, props.kind, props.kind === 'entry' ? props.entry : undefined),
+        scope.siteId,
+      );
+    }
     return { status, html, tags: [...scope.tags] };
+  }
+
+  // ---- Plugins ----------------------------------------------------------------------
+
+  private hookContext(
+    scope: RequestScope,
+    route: TemplateProps['kind'],
+    entry?: PublicEntry,
+  ): RenderHookContext {
+    return {
+      siteId: scope.siteId,
+      locale: scope.locale,
+      route: route as RenderHookContext['route'],
+      path: scope.path,
+      ...(entry ? { entry } : {}),
+      tag: (tag: string) => {
+        scope.tags.add(tag);
+      },
+    };
+  }
+
+  /**
+   * Plugin blocks are loaded and rendered one by one before the page: a
+   * failing block renders nothing instead of breaking the page.
+   */
+  private async pluginBlockRenderers(
+    scope: RequestScope,
+    entry: PublicEntry,
+  ): Promise<Map<string, BlockRenderer> | undefined> {
+    const definitions = new Map(
+      (await this.plugins.activePlugins(scope.siteId)).flatMap((plugin) =>
+        plugin.blocks.map((block) => [block.type, { plugin: plugin.slug, block }] as const),
+      ),
+    );
+    if (definitions.size === 0) return undefined;
+    const found: CxdBlock[] = [];
+    const walk = (blocks: CxdBlock[]) => {
+      for (const block of blocks) {
+        if (definitions.has(block.type)) found.push(block);
+        if (block.children) walk(block.children);
+      }
+    };
+    walk(entry.document.blocks);
+    if (found.length === 0) return undefined;
+
+    const markup = new Map<string, string>();
+    await Promise.all(
+      found.map(async (instance) => {
+        const { plugin, block } = definitions.get(instance.type)!;
+        const attrs = { ...fieldDefaults(block.attributes ?? []), ...instance.attrs };
+        const outcome = await this.plugins.runHook(
+          { plugin, name: `block ${block.type}` },
+          async () => {
+            const data = block.load
+              ? await block.load(attrs, {
+                  siteId: scope.siteId,
+                  locale: scope.locale,
+                  entry: { id: entry.id, type: entry.type },
+                  tag: (tag) => {
+                    scope.tags.add(tag);
+                  },
+                })
+              : undefined;
+            return renderToStaticMarkup(
+              createElement(
+                Fragment,
+                null,
+                block.render({
+                  attrs,
+                  data,
+                  block: instance,
+                  context: { siteId: scope.siteId, locale: scope.locale },
+                }),
+              ),
+            );
+          },
+        );
+        if (outcome.ok) markup.set(instance.id, outcome.value);
+      }),
+    );
+    const renderer: BlockRenderer = ({ block }) => {
+      const html = markup.get(block.id);
+      return html
+        ? createElement('div', {
+            className: `wp-block-${block.type.replace('/', '-')}`,
+            dangerouslySetInnerHTML: { __html: html },
+          })
+        : null;
+    };
+    return new Map([...definitions.keys()].map((type) => [type, renderer]));
+  }
+
+  /** A public address of an active plugin (`ctx.routes.public`). */
+  async matchPluginRoute(siteId: string, method: string, path: string) {
+    if (this.plugins.list().length === 0) return null;
+    for (const plugin of await this.plugins.activePlugins(siteId)) {
+      for (const route of plugin.publicRoutes) {
+        if (route.method !== method) continue;
+        const params = route.compiled.match(path);
+        if (params) return { plugin, route, params };
+      }
+    }
+    return null;
+  }
+
+  /** POST to the public site: only plugin routes (e.g. form submissions) accept it. */
+  async handlePost(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const site = request.site;
+    const path = new URL(request.url, 'http://local').pathname;
+    const match =
+      site && site.status !== 'maintenance'
+        ? await this.matchPluginRoute(site.id, 'POST', path)
+        : null;
+    if (!site || !match) {
+      await reply.code(404).type('text/plain; charset=utf-8').send('Not Found');
+      return;
+    }
+    try {
+      verifySameOrigin(request);
+    } catch {
+      await reply.code(403).type('text/plain; charset=utf-8').send('Forbidden');
+      return;
+    }
+    const outcome = await this.plugins.runHook(
+      { plugin: match.plugin.slug, name: `POST ${match.route.path}` },
+      () => match.route.handler(routeRequest(request, site.id, path, match.params)),
+    );
+    void reply.header('cache-control', 'private, no-cache').header('x-cache', 'BYPASS');
+    if (!outcome.ok) {
+      await reply.code(500).type('text/plain; charset=utf-8').send('Internal Server Error');
+      return;
+    }
+    await sendRouteResponse(reply, outcome.value);
   }
 
   private head(
