@@ -2,7 +2,7 @@
 
 **An open-source, multi-site, multilingual CMS with a plugin system. It works like WordPress, but it is not built on WordPress.**
 
-> Status: **design phase** (v0.2, October 2026). No code yet. Currently intended for internal use, with a public release planned later.
+> Status: **early development** — milestone M0 (foundations). Currently intended for internal use, with a public release planned later.
 > License: **GPL-2.0-or-later** (same as WordPress) · 🇮🇹 [Leggi in italiano](./README.it.md)
 
 ## At a glance
@@ -13,14 +13,41 @@
 - **Public site**: React SSR themes, no JavaScript by default, tag-based page cache
 - **Extensibility**: a plugin system modeled on WordPress (hooks, activation/uninstall lifecycle, upload and auto-updates), with typed hooks and a dedicated PostgreSQL schema per plugin
 - **Multi-site**: one installation serves many domains, isolated with PostgreSQL Row Level Security
-- **Deployment**: Plesk (Node.js extension) or Docker
+- **Deployment**: Plesk (Node.js extension)
+
+## Development
+
+Requirements: **Node.js 22+** and **pnpm 10** (`corepack enable`). No PostgreSQL installation and no containers are needed: a real PostgreSQL server is started from embedded binaries.
+
+```bash
+pnpm install
+pnpm dev          # local database + server (http://127.0.0.1:3000) + admin (http://localhost:5173/admin/)
+```
+
+On first start, `pnpm dev` creates a local database in `.cleitext-dev/` and writes a `.env` file (see `.env.example`).
+
+| Command                                       | What it does                                                            |
+| --------------------------------------------- | ----------------------------------------------------------------------- |
+| `pnpm dev`                                    | Starts the local database, the server and the admin with hot reload     |
+| `pnpm db:dev`                                 | Starts only the local database (migrations applied)                     |
+| `pnpm test`                                   | Runs all tests, each suite on a fresh embedded PostgreSQL               |
+| `pnpm build` / `pnpm typecheck` / `pnpm lint` | Build, type checks, lint                                                |
+| `pnpm db:generate`                            | Generates a migration after a schema change in `packages/db/src/schema` |
+
+| Package            | Purpose                                                              |
+| ------------------ | -------------------------------------------------------------------- |
+| `apps/server`      | NestJS + Fastify server (health probes for now)                      |
+| `apps/admin`       | Admin SPA (React, Vite, Tailwind)                                    |
+| `packages/db`      | Drizzle schema, migrations, Row Level Security, site context helpers |
+| `packages/testing` | Embedded PostgreSQL and database provisioning for tests              |
+| `tools/dev-db`     | Persistent local PostgreSQL for development                          |
 
 ## Documentation
 
-| Document | Contents |
-|---|---|
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Principles, stack, data model (DDL), multi-site, editor, plugins, themes, security, deployment, ADRs, risks |
-| [`docs/SPECIFICATIONS.md`](./docs/SPECIFICATIONS.md) | Functional and non-functional requirements, REST API, plugin SDK, hooks, CXD format, CLI, roadmap |
+| Document                                             | Contents                                                                                                    |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)     | Principles, stack, data model (DDL), multi-site, editor, plugins, themes, security, deployment, ADRs, risks |
+| [`docs/SPECIFICATIONS.md`](./docs/SPECIFICATIONS.md) | Functional and non-functional requirements, REST API, plugin SDK, hooks, CXD format, CLI, roadmap           |
 
 Italian translations live in [`docs/it/`](./docs/it/). English is the reference version.
 
