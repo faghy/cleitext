@@ -14,12 +14,14 @@ import {
   LoginPage,
   ResetPasswordPage,
 } from './pages/auth-pages';
+import { AppearancePage } from './pages/appearance';
 import { DashboardPage, ForbiddenPage, PlaceholderPage } from './pages/dashboard';
 import { EntriesListPage } from './pages/entries-list';
 import { EntryEditorPage } from './pages/entry-editor';
 import { MediaPage } from './pages/media';
 import { AdminLayout } from './pages/layout';
 import { ProfilePage } from './pages/profile';
+import { SettingsPage } from './pages/settings';
 import { UsersPage } from './pages/users';
 
 interface RouterContext {
@@ -123,6 +125,8 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/media', MediaPage),
     sectionRoute('/users', UsersPage),
     sectionRoute('/profile', ProfilePage),
+    sectionRoute('/appearance', AppearancePage),
+    sectionRoute('/settings', SettingsPage),
     ...SECTIONS.filter((s) => !s.ready).map((s) =>
       sectionRoute(s.to, () => <PlaceholderPage path={s.to} />),
     ),

@@ -19,12 +19,12 @@ export const SECTIONS: Section[] = [
     to: '/appearance',
     label: 'Appearance',
     anyOf: ['manage_themes', 'manage_menus'],
-    ready: false,
+    ready: true,
   },
   { to: '/plugins', label: 'Plugins', anyOf: ['activate_plugins'], ready: false },
   { to: '/users', label: 'Users', anyOf: ['manage_users'], ready: true },
   { to: '/profile', label: 'Profile', anyOf: ['read'], ready: true },
-  { to: '/settings', label: 'Settings', anyOf: ['manage_settings'], ready: false },
+  { to: '/settings', label: 'Settings', anyOf: ['manage_settings'], ready: true },
 ];
 
 /** Sections the user can see with their capabilities on the current site. */

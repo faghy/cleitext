@@ -150,6 +150,28 @@ function Editor({ initial }: { initial: EntryView }) {
     },
   });
 
+  /** Saves, then opens the signed preview link (RF-CNT-09). */
+  const preview = useMutation({
+    mutationFn: async () => {
+      setError(null);
+      // Opened right away, so the browser does not treat it as a pop-up.
+      const tab = window.open('about:blank', '_blank');
+      try {
+        await save();
+        const { url } = await api<{ url: string }>('POST', `/entries/${entry.id}/preview`);
+        if (tab) tab.location.href = url;
+        else window.location.href = url;
+      } catch (e) {
+        tab?.close();
+        throw e;
+      }
+    },
+    onError: (e) => {
+      setSaveState(dirtyRef.current ? 'dirty' : 'saved');
+      setError(errorMessage(e));
+    },
+  });
+
   const readOnly = !entry.permissions.edit;
   const isPublished = entry.status === 'published';
   const backTo: string = entry.type === 'page' ? '/pages' : '/posts';
@@ -199,6 +221,15 @@ function Editor({ initial }: { initial: EntryView }) {
             onClick={() => action.mutate('save')}
           >
             Save draft
+          </Button>
+        )}
+        {!readOnly && entry.status !== 'trashed' && (
+          <Button
+            variant="secondary"
+            disabled={action.isPending || preview.isPending}
+            onClick={() => preview.mutate()}
+          >
+            Preview
           </Button>
         )}
         {!readOnly && !entry.permissions.publish && entry.status === 'draft' && (

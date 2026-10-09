@@ -4,6 +4,7 @@
  */
 import { entries, withSiteContext, type DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SchedulerService } from '../src/content/scheduler.service.js';
@@ -127,6 +128,22 @@ describe('page cache', () => {
     await get(app, `/${year}/longer-story`);
     await editor.post(`/api/v1/entries/${story.id}/unpublish`);
     expect((await get(app, `/${year}/longer-story`)).statusCode).toBe(404);
+  });
+
+  it('compresses pages for clients that accept it', async () => {
+    const plain = await get(app, '/');
+    const br = await get(app, '/', { 'accept-encoding': 'gzip, deflate, br' });
+    expect(br.headers['content-encoding']).toBe('br');
+    expect(br.headers.vary).toContain('accept-encoding');
+    expect(brotliDecompressSync(br.rawPayload).toString()).toBe(plain.body);
+    // The compressed copy is kept with the cached page.
+    const again = await get(app, '/', { 'accept-encoding': 'br' });
+    expect(again.headers['x-cache']).toBe('HIT');
+    expect(again.rawPayload.equals(br.rawPayload)).toBe(true);
+
+    const gzip = await get(app, '/', { 'accept-encoding': 'gzip' });
+    expect(gzip.headers['content-encoding']).toBe('gzip');
+    expect(gunzipSync(gzip.rawPayload).toString()).toBe(plain.body);
   });
 
   it('is bypassed by signed-in users and by search', async () => {

@@ -18,6 +18,9 @@ export interface CachedPage {
   tags: string[];
   storedAt: number;
   expiresAt: number;
+  /** Compressed bodies, made on first use. */
+  br?: Buffer;
+  gzip?: Buffer;
 }
 
 const CHANNEL = 'cleitext_cache';

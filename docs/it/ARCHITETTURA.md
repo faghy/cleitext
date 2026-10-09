@@ -1112,6 +1112,14 @@ Gli archivi e le tassonomie seguono lo stesso schema. Un plugin può aggiungere 
 - **Aree** del tema (header, footer, sidebar) composte a blocchi, al posto dei widget di WordPress.
 - Gli helper dell'SDK del tema (`useEntry`, `useMenu('primary')`, `useSettings`, `asset()`, `image()` con `srcset`) sono disponibili nei template.
 
+**Come è stato realizzato in M3** (`packages/renderer`, `packages/theme-sdk`, `themes/aurora`, `apps/server/src/public`):
+
+- Un tema è un modulo TypeScript (`defineTheme`): posizioni dei menu, un `Layout` e i template indicizzati secondo la gerarchia sopra. I dati della pagina arrivano tramite `usePage()`. La struttura a cartelle `manifest`/`templates/` e le impostazioni del tema arriveranno con il sistema a plugin (M4).
+- Le pagine sono generate con `renderToStaticMarkup`: le pagine intere finiscono in cache, quindi lo streaming non porterebbe vantaggi. Il markup dei blocchi usa le classi `wp-block-*` di WordPress. Le immagini diventano `<picture>` con varianti AVIF/WebP e caricamento lazy; fa eccezione la prima, che riceve `fetchpriority="high"`.
+- Instradamento: permalink per tipo di contenuto (`{year}/{slug}`, `{path}`…), prefisso per le lingue diverse da quella predefinita, archivi delle tassonomie, `/search`, 301 verso l'indirizzo canonico, tabella `redirects` (301/302/410) e pagina 404 del sito o del tema.
+- Inoltre: menu per posizione e lingua, alternative `hreflang`, tag canonical e Open Graph, `robots.txt`, indice delle sitemap con una sitemap per tipo e lingua, anteprime delle bozze con link firmati (HMAC con `APP_SECRET`, validi un'ora, `noindex`) e modalità manutenzione (503 con `Retry-After` per i visitatori; chi ha effettuato l'accesso vede il sito).
+- Misurato su una build di produzione (Lighthouse, profilo mobile): 100 in prestazioni, accessibilità, best practice e SEO su home, articolo e pagina.
+
 ---
 
 ## 13. API
@@ -1162,6 +1170,8 @@ L'elenco completo degli endpoint è in `SPECIFICHE.md` §6.
 - **Immagini**: varianti generate in background al momento dell'upload, `srcset`/`sizes` automatici, AVIF/WebP con fallback.
 - **Database**: indici mirati (§7.3), query di elenco solo su `entries`, mentre il caricamento del documento a blocchi avviene solo per la singola entry. Pool di connessioni dimensionato per processo.
 - **Admin**: editor e blocchi caricati lazy, bundle iniziale sotto i 500 KB gzip.
+
+**Come è stato realizzato in M3:** solo il backend in memoria (LRU per processo, `PAGE_CACHE_MAX_ENTRIES`, `PAGE_CACHE_TTL_SECONDS`); quello su disco è rimandato. Gli utenti autenticati, la ricerca e le anteprime non passano dalla cache. Le pagine hanno un `ETag` e vengono riconvalidate a ogni visita (`max-age=0`). Le versioni brotli/gzip si generano una volta sola e restano insieme alla pagina in cache. La pubblicazione programmata avviene dentro PostgreSQL e invia lo stesso `NOTIFY`. Il comando `site:maintenance` usa lo stesso canale per aggiornare la risoluzione degli host in tutti i processi. Se `LISTEN` fallisce, la cache si disattiva invece di servire pagine vecchie. Misurato su una build di produzione: circa 9.500 richieste/s con p99 a 4 ms per le pagine in cache, e p99 intorno ai 60 ms senza cache.
 
 ---
 

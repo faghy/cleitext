@@ -109,8 +109,48 @@ picture {
   flex-wrap: wrap;
   gap: 0.25rem 1.25rem;
 }
+/* Sub-menus: drop-downs opened by pointer or keyboard focus. */
+.site-nav li {
+  position: relative;
+}
 .site-nav ul ul {
   display: none;
+  position: absolute;
+  top: 100%;
+  left: -0.75rem;
+  z-index: 10;
+  min-width: 12rem;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.08);
+}
+.site-nav ul ul ul {
+  top: -0.5rem;
+  left: 100%;
+}
+.site-nav ul ul a {
+  display: block;
+  padding: 0.25rem 0;
+}
+.site-nav li:hover > ul,
+.site-nav li:focus-within > ul {
+  display: flex;
+}
+/* Touch screens have no hover: sub-menus are listed inline, indented. */
+@media (max-width: 781px), (hover: none) {
+  .site-nav ul ul {
+    display: flex;
+    position: static;
+    min-width: 0;
+    padding: 0.25rem 0 0 0.75rem;
+    border: 0;
+    box-shadow: none;
+    background: none;
+  }
 }
 .site-nav a,
 .footer-nav a {

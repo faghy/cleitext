@@ -1105,6 +1105,14 @@ Archives and taxonomies follow the same pattern. A plugin can add candidates thr
 - Theme **areas** (header, footer, sidebar) are composed of blocks, instead of WordPress widgets.
 - The theme SDK helpers (`useEntry`, `useMenu('primary')`, `useSettings`, `asset()`, `image()` with `srcset`) are available in templates.
 
+**As implemented in M3** (`packages/renderer`, `packages/theme-sdk`, `themes/aurora`, `apps/server/src/public`):
+
+- A theme is a TypeScript module (`defineTheme`): menu locations, a `Layout` and templates keyed by the hierarchy above. Page data comes through `usePage()`. The `manifest`/`templates/` folder layout and theme settings arrive with the plugin system (M4).
+- Pages are rendered with `renderToStaticMarkup` (complete pages are cached, so streaming brings nothing). Block markup uses WordPress's `wp-block-*` classes. Images become `<picture>` with AVIF/WebP variants and lazy loading, except the first one, which gets `fetchpriority="high"`.
+- Routing: permalinks per content type (`{year}/{slug}`, `{path}`…), language prefix for non-default languages, taxonomy archives, `/search`, a 301 to the canonical address, the `redirects` table (301/302/410) and the site's 404 page or the theme's.
+- Also: menus by location and language, `hreflang` alternates, canonical and Open Graph tags, `robots.txt`, a sitemap index with per-type, per-language sitemaps, signed draft previews (HMAC with `APP_SECRET`, valid for one hour, `noindex`), and maintenance mode (503 with `Retry-After` for visitors; signed-in users see the site).
+- Measured on a production build (Lighthouse, mobile): 100 for performance, accessibility, best practices and SEO on the home page, an article and a page.
+
 ---
 
 ## 13. API
@@ -1155,6 +1163,8 @@ The full list of endpoints is in [SPECIFICATIONS.md](./SPECIFICATIONS.md) §6.
 - **Images**: variants generated in the background at upload time, automatic `srcset`/`sizes`, AVIF/WebP with fallback.
 - **Database**: targeted indexes (§7.3), list queries on `entries` only, while the block document is loaded only for a single entry. Connection pool sized per process.
 - **Admin**: editor and blocks loaded lazily, initial bundle under 500 KB gzipped.
+
+**As implemented in M3:** the memory backend only (per-process LRU, `PAGE_CACHE_MAX_ENTRIES`, `PAGE_CACHE_TTL_SECONDS`). The disk backend is postponed. Signed-in users, search and previews bypass the cache. Pages carry an `ETag` and are revalidated on every visit (`max-age=0`). Brotli/gzip bodies are made once and stored with the cached page. Scheduled publishing runs inside PostgreSQL and sends the same `NOTIFY`. The `site:maintenance` command also uses the channel to refresh the host resolution of every process. If `LISTEN` fails, the cache turns itself off rather than serving stale pages. Measured on a production build: about 9,500 requests/s with p99 at 4 ms for cached pages, and p99 around 60 ms without the cache.
 
 ---
 

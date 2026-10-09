@@ -1,3 +1,5 @@
+import { promisify } from 'node:util';
+import zlib from 'node:zlib';
 import {
   entries,
   entryTerms,
@@ -54,6 +56,13 @@ import { themeFor } from './themes.js';
 import { matchPermalink } from './urls.js';
 
 const HTML = 'text/html; charset=utf-8';
+const brotli = promisify(zlib.brotliCompress);
+const gzip = promisify(zlib.gzip);
+
+interface Compressed {
+  br?: Buffer;
+  gzip?: Buffer;
+}
 
 export interface PublicResponse {
   status: number;
@@ -135,6 +144,7 @@ export class PublicService {
             hit.etag,
             'HIT',
             hit.contentType,
+            hit,
           );
           return;
         }
@@ -169,6 +179,7 @@ export class PublicService {
           stored.etag,
           'MISS',
           contentType,
+          stored,
         );
       } else {
         await this.sendPage(request, reply, response.status, html, null, 'BYPASS', contentType);
@@ -187,6 +198,8 @@ export class PublicService {
     etag: string | null,
     cacheStatus: 'HIT' | 'MISS' | 'BYPASS',
     contentType: string = HTML,
+    /** Cached page: keeps its compressed forms for the next requests. */
+    compressed: Compressed = {},
   ): Promise<void> {
     void reply.header('x-cache', cacheStatus);
     if (etag) {
@@ -199,7 +212,36 @@ export class PublicService {
     } else {
       void reply.header('cache-control', 'private, no-cache');
     }
-    await reply.code(status).type(contentType).send(html);
+    const body = await this.encode(request, reply, html, compressed);
+    await reply.code(status).type(contentType).send(body);
+  }
+
+  /** Brotli or gzip for clients that accept it (RNF-01: smaller pages, faster LCP). */
+  private async encode(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    html: string,
+    compressed: Compressed,
+  ): Promise<string | Buffer> {
+    if (html.length < 1024) return html;
+    void reply.header('vary', 'accept-encoding');
+    const accepted = String(request.headers['accept-encoding'] ?? '');
+    if (/\bbr\b/.test(accepted)) {
+      compressed.br ??= await brotli(html, {
+        params: {
+          [zlib.constants.BROTLI_PARAM_QUALITY]: 5,
+          [zlib.constants.BROTLI_PARAM_SIZE_HINT]: html.length,
+        },
+      });
+      void reply.header('content-encoding', 'br');
+      return compressed.br;
+    }
+    if (/\bgzip\b/.test(accepted)) {
+      compressed.gzip ??= await gzip(html, { level: 6 });
+      void reply.header('content-encoding', 'gzip');
+      return compressed.gzip;
+    }
+    return html;
   }
 
   async respond(
@@ -845,12 +887,14 @@ export class PublicService {
       'og:site_name': scope.siteTitle,
       'og:locale': scope.locale.replace('-', '_'),
     };
-    if (input.description) og['og:description'] = input.description;
+    // Pages without their own summary fall back to the tagline.
+    const description = input.description || scope.settings.tagline;
+    if (description) og['og:description'] = description;
     if (input.image) og['og:image'] = absolute(input.image.url);
     const noindex = input.noindex || scope.settings.discourageSearchEngines;
     return {
       title: input.title,
-      description: input.description,
+      description,
       canonical: input.noindex ? null : absolute(input.path),
       alternates,
       og,
