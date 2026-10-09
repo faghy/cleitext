@@ -140,7 +140,10 @@ export class EntriesService {
     view: Pick<
       EntryView,
       'id' | 'type' | 'locale' | 'slug' | 'title' | 'status' | 'translationGroup'
-    > & { fields?: Record<string, unknown> },
+    > & {
+      fields?: Record<string, unknown>;
+      revision?: { fields: Record<string, unknown> } | null;
+    },
   ): Promise<void> {
     await this.plugins.emit(
       action,
@@ -154,7 +157,7 @@ export class EntriesService {
           title: view.title,
           status: view.status,
           translationGroup: view.translationGroup,
-          fields: view.fields ?? {},
+          fields: view.revision?.fields ?? view.fields ?? {},
         },
       },
       siteId,

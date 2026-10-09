@@ -16,6 +16,7 @@ export default defineConfig({
       '/health': { target: serverUrl, xfwd: true },
       '/media': { target: serverUrl, xfwd: true },
       '/__preview': { target: serverUrl, xfwd: true },
+      '/admin-plugins': { target: serverUrl, xfwd: true },
     },
   },
 });

@@ -1,20 +1,27 @@
 import type { CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance, EditorServices, MediaRef } from '@cleitext/editor-core';
-import type {
-  EntryListResponse,
-  EntryView,
-  MediaListResponse,
-  MediaView,
-  RevisionSummary,
+import { FieldsForm } from '@cleitext/admin-sdk';
+import type { FieldBlockDefinition } from '@cleitext/editor-core';
+import {
+  labelText,
+  type ContentTypeView,
+  type EntryListResponse,
+  type EntryView,
+  type FieldValues,
+  type MediaListResponse,
+  type MediaView,
+  type PluginBlockView,
+  type RevisionSummary,
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, errorMessage, uploadFile } from '../api';
+import { api, ApiError, errorMessage, uploadFile } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button } from '../components/ui';
 import { formatDate, STATUS_LABELS } from './entries-list';
 import { EntryTerms } from './entry-terms';
+import { contentTypesQuery } from '../plugins';
 
 const AUTOSAVE_INTERVAL_MS = 30_000;
 
@@ -43,6 +50,7 @@ export function EntryEditorPage({ id }: { id: string }) {
 
 function Editor({ initial }: { initial: EntryView }) {
   const me = useMe();
+  const userLocale = me.user.locale;
   const queryClient = useQueryClient();
   const [entry, setEntry] = useState(initial);
   const [title, setTitle] = useState(initial.title);
@@ -51,6 +59,11 @@ function Editor({ initial }: { initial: EntryView }) {
   const [tab, setTab] = useState<'document' | 'block'>('document');
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState(initial.autosave);
+  const [fields, setFields] = useState<FieldValues>(initial.revision?.fields ?? {});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const fieldsRef = useRef<FieldValues>(fields);
+  const types = useQuery(contentTypesQuery);
+  const contentType = types.data?.find((t) => t.slug === initial.type);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLDivElement>(null);
@@ -63,16 +76,38 @@ function Editor({ initial }: { initial: EntryView }) {
     setSaveState('dirty');
   }, []);
 
+  const changeFields = (values: FieldValues) => {
+    fieldsRef.current = values;
+    setFields(values);
+    markDirty();
+  };
+
+  /** Validation messages of custom fields (`fields.<name>` or `fields.<group>.<name>`). */
+  const showFieldErrors = (error: unknown) => {
+    const errors: Record<string, string> = {};
+    if (error instanceof ApiError) {
+      for (const e of error.problem.errors ?? []) {
+        if (e.path.startsWith('fields.')) errors[e.path.slice('fields.'.length)] = e.message;
+      }
+    }
+    setFieldErrors(errors);
+  };
+
   // Mount the editor adapter (lazy: Gutenberg is loaded only here).
   useEffect(() => {
     let cancelled = false;
-    void import('@cleitext/editor-gutenberg').then(({ gutenbergAdapter }) => {
+    void Promise.all([
+      import('@cleitext/editor-gutenberg'),
+      // Blocks of the plugins active on the site.
+      api<PluginBlockView[]>('GET', '/blocks').catch(() => [] as PluginBlockView[]),
+    ]).then(([{ gutenbergAdapter }, blocks]) => {
       if (cancelled || !canvasRef.current) return;
       editorRef.current = gutenbergAdapter.mount({
         document: documentRef.current,
         targets: { canvas: canvasRef.current, inspector: inspectorRef.current },
         services: mediaServices(initial.locale),
         locale: initial.locale,
+        fieldBlocks: blocks.map((block) => toFieldBlock(block, userLocale)),
         onChange: (document) => {
           documentRef.current = document;
           markDirty();
@@ -84,7 +119,7 @@ function Editor({ initial }: { initial: EntryView }) {
       editorRef.current?.destroy();
       editorRef.current = null;
     };
-  }, [initial.locale, markDirty]);
+  }, [initial.locale, markDirty, userLocale]);
 
   // Warn before leaving with unsaved changes.
   useEffect(() => {
@@ -102,6 +137,7 @@ function Editor({ initial }: { initial: EntryView }) {
       void api<{ savedAt: string }>('PUT', `/entries/${entry.id}/autosave`, {
         title,
         document: documentRef.current,
+        fields: fieldsRef.current,
       })
         .then((r) => setAutosavedAt(r.savedAt))
         .catch(() => {});
@@ -123,7 +159,9 @@ function Editor({ initial }: { initial: EntryView }) {
     const view = await api<EntryView>('PATCH', `/entries/${entry.id}`, {
       title,
       document: editorRef.current?.getDocument() ?? documentRef.current,
+      fields: fieldsRef.current,
     });
+    setFieldErrors({});
     dirtyRef.current = false;
     setSaveState('saved');
     apply(view);
@@ -147,6 +185,7 @@ function Editor({ initial }: { initial: EntryView }) {
     onError: (e) => {
       setSaveState(dirtyRef.current ? 'dirty' : 'saved');
       setError(errorMessage(e));
+      showFieldErrors(e);
     },
   });
 
@@ -169,12 +208,23 @@ function Editor({ initial }: { initial: EntryView }) {
     onError: (e) => {
       setSaveState(dirtyRef.current ? 'dirty' : 'saved');
       setError(errorMessage(e));
+      showFieldErrors(e);
     },
   });
 
   const readOnly = !entry.permissions.edit;
   const isPublished = entry.status === 'published';
-  const backTo: string = entry.type === 'page' ? '/pages' : '/posts';
+  const backTo: string =
+    entry.type === 'page'
+      ? '/pages'
+      : entry.type === 'article'
+        ? '/posts'
+        : `/content/${entry.type}`;
+  const typeName = contentType
+    ? labelText(contentType.name, userLocale)
+    : entry.type === 'page'
+      ? 'Pages'
+      : 'Posts';
 
   return (
     <EditorShell>
@@ -184,7 +234,7 @@ function Editor({ initial }: { initial: EntryView }) {
           className="text-sm text-sky-700 hover:underline"
           aria-label="Back to the list"
         >
-          ← {entry.type === 'page' ? 'Pages' : 'Posts'}
+          ← {typeName}
         </Link>
         <label className="sr-only" htmlFor="entry-title">
           Title
@@ -263,6 +313,8 @@ function Editor({ initial }: { initial: EntryView }) {
               editorRef.current?.setDocument(recovery.document as CxdDocument);
               documentRef.current = recovery.document as CxdDocument;
               setTitle(recovery.title);
+              fieldsRef.current = recovery.fields;
+              setFields(recovery.fields);
               markDirty();
               setRecovery(null);
             }}
@@ -295,11 +347,27 @@ function Editor({ initial }: { initial: EntryView }) {
                 onClick={() => setTab(t)}
                 className={`flex-1 px-3 py-2 ${tab === t ? 'border-b-2 border-sky-700 font-medium' : 'text-slate-600'}`}
               >
-                {t === 'document' ? (entry.type === 'page' ? 'Page' : 'Post') : 'Block'}
+                {t === 'block'
+                  ? 'Block'
+                  : entry.type === 'page'
+                    ? 'Page'
+                    : entry.type === 'article'
+                      ? 'Post'
+                      : 'Entry'}
               </button>
             ))}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
+            {tab === 'document' && contentType && (
+              <FieldsPanel
+                type={contentType}
+                values={fields}
+                errors={fieldErrors}
+                locale={userLocale}
+                readOnly={readOnly}
+                onChange={changeFields}
+              />
+            )}
             {tab === 'document' && (
               <DocumentPanel
                 entry={entry}
@@ -313,6 +381,8 @@ function Editor({ initial }: { initial: EntryView }) {
                   editorRef.current?.setDocument(view.revision?.document as CxdDocument);
                   documentRef.current = view.revision?.document as CxdDocument;
                   setTitle(view.title);
+                  fieldsRef.current = view.revision?.fields ?? {};
+                  setFields(view.revision?.fields ?? {});
                   dirtyRef.current = false;
                   setSaveState('saved');
                 }}
@@ -325,6 +395,73 @@ function Editor({ initial }: { initial: EntryView }) {
       </div>
     </EditorShell>
   );
+}
+
+/** Custom fields of the content type and plugin field groups. */
+function FieldsPanel({
+  type,
+  values,
+  errors,
+  locale,
+  readOnly,
+  onChange,
+}: {
+  type: ContentTypeView;
+  values: FieldValues;
+  errors: Record<string, string>;
+  locale: string;
+  readOnly: boolean;
+  onChange: (values: FieldValues) => void;
+}) {
+  if (type.fields.length === 0 && type.fieldGroups.length === 0) return null;
+  const nested = (prefix: string) =>
+    Object.fromEntries(
+      Object.entries(errors)
+        .filter(([path]) => path.startsWith(`${prefix}.`))
+        .map(([path, message]) => [path.slice(prefix.length + 1), message]),
+    );
+  return (
+    <div className="space-y-5 border-b border-slate-200 p-4 text-sm">
+      {type.fields.length > 0 && (
+        <section className="space-y-2" aria-label="Details">
+          <h3 className="font-medium">Details</h3>
+          <FieldsForm
+            fields={type.fields}
+            values={values}
+            errors={errors}
+            locale={locale}
+            disabled={readOnly}
+            onChange={onChange}
+          />
+        </section>
+      )}
+      {type.fieldGroups.map((group) => (
+        <section key={group.id} className="space-y-2" aria-label={labelText(group.title, locale)}>
+          <h3 className="font-medium">{labelText(group.title, locale)}</h3>
+          <FieldsForm
+            fields={group.fields}
+            values={(values[group.id] as FieldValues | undefined) ?? {}}
+            errors={nested(group.id)}
+            locale={locale}
+            disabled={readOnly}
+            onChange={(groupValues) => onChange({ ...values, [group.id]: groupValues })}
+          />
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function toFieldBlock(block: PluginBlockView, locale: string): FieldBlockDefinition {
+  return {
+    type: block.type,
+    title: labelText(block.title, locale),
+    ...(block.description ? { description: labelText(block.description, locale) } : {}),
+    ...(block.icon ? { icon: block.icon } : {}),
+    category: block.category,
+    version: block.version,
+    attributes: block.attributes,
+  };
 }
 
 function DocumentPanel({

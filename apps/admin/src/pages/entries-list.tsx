@@ -25,7 +25,7 @@ const FILTERS: { label: string; status?: EntryStatus }[] = [
 ];
 
 /** WordPress-like list of entries of one type (Posts, Pages). */
-export function EntriesListPage({ type, title }: { type: 'article' | 'page'; title: string }) {
+export function EntriesListPage({ type, title }: { type: string; title: string }) {
   const me = useMe();
   const navigate = useNavigate();
   const [status, setStatus] = useState<EntryStatus | undefined>();

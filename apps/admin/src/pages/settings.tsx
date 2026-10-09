@@ -1,9 +1,16 @@
-import type { CoreSettings, EntryListResponse } from '@cleitext/shared';
+import { FieldsForm } from '@cleitext/admin-sdk';
+import {
+  labelText,
+  type CoreSettings,
+  type EntryListResponse,
+  type FieldValues,
+} from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { api, ApiError, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card, TextField } from '../components/ui';
+import { usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
 
@@ -18,7 +25,68 @@ export function SettingsPage() {
       <h1 className="text-2xl font-semibold">Settings</h1>
       {settings.error && <Alert>{errorMessage(settings.error)}</Alert>}
       {settings.data && <SettingsForm initial={settings.data} />}
+      <PluginSettings />
     </div>
+  );
+}
+
+/** Settings declared by active plugins (`ctx.settings.define`). */
+function PluginSettings() {
+  const plugins = usePluginAdmin().filter((p) => p.settings);
+  return plugins.map((plugin) => <PluginSettingsCard key={plugin.slug} plugin={plugin} />);
+}
+
+function PluginSettingsCard({ plugin }: { plugin: LoadedAdminPlugin }) {
+  const me = useMe();
+  const queryClient = useQueryClient();
+  const queryKey = ['settings', 'plugin', plugin.slug];
+  const current = useQuery({
+    queryKey,
+    queryFn: () => api<FieldValues>('GET', `/plugins/${plugin.slug}/settings`),
+  });
+  const [values, setValues] = useState<FieldValues | null>(null);
+  const save = useMutation({
+    mutationFn: () => api<FieldValues>('PATCH', `/plugins/${plugin.slug}/settings`, values ?? {}),
+    onSuccess: (saved) => {
+      setValues(null);
+      queryClient.setQueryData(queryKey, saved);
+    },
+  });
+  const errors =
+    save.error instanceof ApiError
+      ? Object.fromEntries((save.error.problem.errors ?? []).map((e) => [e.path, e.message]))
+      : {};
+  const shown = values ?? current.data;
+  return (
+    <section aria-label={labelText(plugin.settings!.title, me.user.locale)}>
+      <Card title={labelText(plugin.settings!.title, me.user.locale)}>
+        {current.error && <Alert>{errorMessage(current.error)}</Alert>}
+        {shown && (
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              save.mutate();
+            }}
+          >
+            <FieldsForm
+              fields={plugin.settings!.fields}
+              values={shown}
+              locale={me.user.locale}
+              errors={errors}
+              onChange={setValues}
+            />
+            {save.isSuccess && !values && <Alert kind="success">Settings saved.</Alert>}
+            {save.error && Object.keys(errors).length === 0 && (
+              <Alert>{errorMessage(save.error)}</Alert>
+            )}
+            <Button type="submit" disabled={save.isPending || !values}>
+              Save {plugin.name} settings
+            </Button>
+          </form>
+        )}
+      </Card>
+    </section>
   );
 }
 

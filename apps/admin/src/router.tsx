@@ -1,4 +1,5 @@
-import type { QueryClient } from '@tanstack/react-query';
+import { labelText } from '@cleitext/shared';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 import {
   createRootRouteWithContext,
   createRoute,
@@ -20,7 +21,9 @@ import { EntriesListPage } from './pages/entries-list';
 import { EntryEditorPage } from './pages/entry-editor';
 import { MediaPage } from './pages/media';
 import { AdminLayout } from './pages/layout';
+import { PluginsPage } from './pages/plugins';
 import { ProfilePage } from './pages/profile';
+import { contentTypesQuery, PluginPage } from './plugins';
 import { SettingsPage } from './pages/settings';
 import { UsersPage } from './pages/users';
 
@@ -98,6 +101,41 @@ function sectionRoute(path: string, Component: () => React.ReactNode) {
   });
 }
 
+/** Entries of a content type added by a plugin. */
+const contentRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/content/$type',
+  component: function Content() {
+    const { type } = contentRoute.useParams();
+    const { me } = appRoute.useRouteContext();
+    const types = useQuery({
+      ...contentTypesQuery,
+      enabled: me.capabilities.includes('edit_entries'),
+    });
+    if (!me.capabilities.includes('edit_entries')) return <ForbiddenPage />;
+    if (types.isPending) return null;
+    const found = types.data?.find((t) => t.slug === type);
+    if (!found) return <PlaceholderPage path={`/content/${type}`} />;
+    return <EntriesListPage key={type} type={type} title={labelText(found.name, me.user.locale)} />;
+  },
+});
+
+/** Admin pages of plugins: /ext/<slug>/<path>. */
+const pluginPageRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/ext/$plugin/$',
+  component: function Extension() {
+    const params = pluginPageRoute.useParams();
+    return (
+      <PluginPage
+        key={`${params.plugin}/${params._splat ?? ''}`}
+        slug={params.plugin}
+        path={params._splat ?? ''}
+      />
+    );
+  },
+});
+
 /** Full-screen editor: authenticated, outside the sidebar layout. */
 const editorRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -127,6 +165,9 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/profile', ProfilePage),
     sectionRoute('/appearance', AppearancePage),
     sectionRoute('/settings', SettingsPage),
+    sectionRoute('/plugins', PluginsPage),
+    contentRoute,
+    pluginPageRoute,
     ...SECTIONS.filter((s) => !s.ready).map((s) =>
       sectionRoute(s.to, () => <PlaceholderPage path={s.to} />),
     ),

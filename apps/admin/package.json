@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@cleitext/admin-sdk": "workspace:*",
     "@cleitext/blocks": "workspace:*",
     "@cleitext/editor-core": "workspace:*",
     "@cleitext/editor-gutenberg": "workspace:*",

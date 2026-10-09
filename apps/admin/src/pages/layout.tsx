@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { api } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { visibleSections } from '../navigation';
+import { usePluginMenu, type PluginMenuItem } from '../plugins';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
 export function AdminLayout() {
@@ -10,6 +11,13 @@ export function AdminLayout() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const sections = visibleSections(me.capabilities);
+  const pluginMenu = usePluginMenu();
+  // WordPress order: plugin content types after Pages, plugin pages at the end.
+  const items: (PluginMenuItem & { exact?: boolean })[] = sections.flatMap((section) => [
+    { to: section.to, label: section.label, exact: section.to === '/' },
+    ...(section.to === '/pages' ? pluginMenu.types : []),
+  ]);
+  items.push(...pluginMenu.pages);
 
   const logout = useMutation({
     mutationFn: () => api<void>('POST', '/auth/logout'),
@@ -30,11 +38,11 @@ export function AdminLayout() {
         </div>
         <nav aria-label="Main">
           <ul>
-            {sections.map((section) => (
+            {items.map((section) => (
               <li key={section.to}>
                 <Link
                   to={section.to}
-                  activeOptions={{ exact: section.to === '/' }}
+                  activeOptions={{ exact: Boolean(section.exact) }}
                   className="block px-4 py-2 text-sm hover:bg-slate-800"
                   activeProps={{ className: 'bg-sky-700 text-white', 'aria-current': 'page' }}
                 >

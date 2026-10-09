@@ -21,7 +21,7 @@ export const SECTIONS: Section[] = [
     anyOf: ['manage_themes', 'manage_menus'],
     ready: true,
   },
-  { to: '/plugins', label: 'Plugins', anyOf: ['activate_plugins'], ready: false },
+  { to: '/plugins', label: 'Plugins', anyOf: ['activate_plugins'], ready: true },
   { to: '/users', label: 'Users', anyOf: ['manage_users'], ready: true },
   { to: '/profile', label: 'Profile', anyOf: ['read'], ready: true },
   { to: '/settings', label: 'Settings', anyOf: ['manage_settings'], ready: true },

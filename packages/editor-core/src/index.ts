@@ -1,4 +1,5 @@
 import type { CxdDocument } from '@cleitext/blocks';
+import type { FieldDefinition } from '@cleitext/shared';
 
 /**
  * Editor-independent contract between the admin and a block editor
@@ -21,6 +22,11 @@ export interface EditorMountOptions {
   /** Content language (BCP 47). */
   locale: string;
   readOnly?: boolean;
+  /**
+   * Extra blocks (from plugins) described by their attributes: the editor
+   * builds their editing form itself, so they work with any editor.
+   */
+  fieldBlocks?: FieldBlockDefinition[];
   /** Called with the full document after every change. */
   onChange(document: CxdDocument): void;
 }
@@ -55,4 +61,16 @@ export interface EditorInstance {
   /** Replaces the content (e.g. after restoring a revision). Does not call `onChange`. */
   setDocument(document: CxdDocument): void;
   destroy(): void;
+}
+
+/** A block whose attributes are described with the field DSL. */
+export interface FieldBlockDefinition {
+  type: string;
+  title: string;
+  description?: string;
+  /** Dashicon name, e.g. `calendar`. */
+  icon?: string;
+  category: 'text' | 'media' | 'design' | 'widgets' | 'embed';
+  version: number;
+  attributes: FieldDefinition[];
 }
