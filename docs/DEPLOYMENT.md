@@ -99,7 +99,7 @@ In **Websites & Domains → example.com → Node.js**:
 | Application startup file | `app.js`           |
 | Document root            | `/cleitext/public` |
 
-Do not run "NPM install": the release already contains its dependencies. In **Hosting settings**, point the domain's document root to `cleitext/public` as well, and enable **SSL/TLS** (Let's Encrypt).
+Each field is edited on its own (click the value, then the check mark); there is no global "Save". Do not run "NPM install": the release already contains its dependencies. In **Hosting settings**, point the domain's document root to `cleitext/public` as well, and enable **SSL/TLS** (Let's Encrypt).
 
 ## 7. First installation
 

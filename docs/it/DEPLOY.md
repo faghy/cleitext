@@ -99,7 +99,7 @@ In **Websites & Domains → example.com → Node.js**:
 | File di avvio (Application startup file)    | `app.js`           |
 | document root (Document root)               | `/cleitext/public` |
 
-Non eseguire "NPM install": la release contiene già le sue dipendenze. In **Hosting settings**, fai puntare anche la document root del dominio a `cleitext/public` e attiva **SSL/TLS** (Let's Encrypt).
+Ogni campo si modifica a sé (clic sul valore, poi sul segno di spunta): non c'è un "Salva" generale. Non eseguire "NPM install": la release contiene già le sue dipendenze. In **Hosting settings**, fai puntare anche la document root del dominio a `cleitext/public` e attiva **SSL/TLS** (Let's Encrypt).
 
 ## 7. Prima installazione
 

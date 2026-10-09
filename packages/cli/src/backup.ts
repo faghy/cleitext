@@ -4,7 +4,7 @@
  */
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -27,6 +27,29 @@ interface BackupManifest {
   version: 1;
   createdAt: string;
   postgres: string;
+  /** Tables with FORCE ROW LEVEL SECURITY, set again after a restore. */
+  forcedTables?: string[];
+}
+
+/**
+ * Tables whose Row Level Security also applies to their owner (FORCE).
+ * pg_dump and pg_restore cannot read or load them as the owner, so FORCE
+ * is lifted for the time of the operation and set again afterwards.
+ */
+async function forcedTables(db: Database): Promise<string[]> {
+  const rows = await db.execute<{ name: string }>(sql`
+    select format('%I.%I', n.nspname, c.relname) as name
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where c.relkind = 'r' and c.relforcerowsecurity and pg_has_role(c.relowner, 'USAGE')
+    order by 1`);
+  return rows.map((r) => r.name);
+}
+
+async function setForce(db: Database, tables: string[], force: boolean): Promise<void> {
+  for (const table of tables) {
+    if (!/^[\w"$.]+$/.test(table)) throw new OperationError(`Unexpected table name ${table}`);
+    await db.execute(sql.raw(`ALTER TABLE ${table} ${force ? '' : 'NO '}FORCE ROW LEVEL SECURITY`));
+  }
 }
 
 /** pg_dump / pg_restore from PG_BIN (a folder) or the PATH. */
@@ -51,18 +74,28 @@ async function exec(name: 'pg_dump' | 'pg_restore', args: string[]): Promise<str
   }
 }
 
-export async function backup(paths: BackupPaths, out: string): Promise<{ bytes: number }> {
+export async function backup(
+  db: Database,
+  paths: BackupPaths,
+  out: string,
+): Promise<{ bytes: number }> {
   const dir = await mkdtemp(path.join(tmpdir(), 'cleitext-backup-'));
   try {
     const version = (await exec('pg_dump', ['--version'])).trim();
-    await exec('pg_dump', [
-      '--format=custom',
-      '--no-owner',
-      '--file',
-      path.join(dir, 'database.dump'),
-      '--dbname',
-      paths.ownerUrl,
-    ]);
+    const forced = await forcedTables(db);
+    await setForce(db, forced, false);
+    try {
+      await exec('pg_dump', [
+        '--format=custom',
+        '--no-owner',
+        '--file',
+        path.join(dir, 'database.dump'),
+        '--dbname',
+        paths.ownerUrl,
+      ]);
+    } finally {
+      await setForce(db, forced, true);
+    }
     for (const [name, source] of [
       ['media', paths.mediaPath],
       ['plugins', paths.pluginsPath],
@@ -76,14 +109,17 @@ export async function backup(paths: BackupPaths, out: string): Promise<{ bytes: 
       version: 1,
       createdAt: new Date().toISOString(),
       postgres: version,
+      forcedTables: forced,
     };
     await writeFile(path.join(dir, 'backup.json'), JSON.stringify(manifest, null, 2));
+    // The archive holds the whole database: readable by its owner only.
     await tar.create({ gzip: true, file: out, cwd: dir, portable: true }, [
       'backup.json',
       'database.dump',
       'media',
       'plugins',
     ]);
+    await chmod(out, 0o600);
     const { size } = await import('node:fs/promises').then((fs) => fs.stat(out));
     return { bytes: size };
   } finally {
@@ -134,15 +170,40 @@ export async function restore(
         ),
       );
     }
-    await exec('pg_restore', [
-      '--clean',
-      '--if-exists',
-      '--no-owner',
-      '--single-transaction',
-      '--dbname',
-      paths.ownerUrl,
-      dump,
-    ]);
+    // The current tables must be droppable and the dumped ones loadable.
+    await setForce(db, await forcedTables(db), false);
+    try {
+      // Extensions belong to the database administrator: they are not dropped
+      // or recreated by the restore, only created when missing.
+      const list = await exec('pg_restore', ['--list', dump]);
+      const extensions = [...list.matchAll(/^\d+; \d+ \d+ EXTENSION - ([a-z0-9_]+)\b/gm)].map(
+        (m) => m[1]!,
+      );
+      for (const extension of extensions) {
+        await db.execute(sql.raw(`CREATE EXTENSION IF NOT EXISTS ${extension}`));
+      }
+      const listFile = path.join(dir, 'restore.list');
+      await writeFile(
+        listFile,
+        list
+          .split('\n')
+          .filter((line) => !/ (EXTENSION|COMMENT - EXTENSION) /.test(line))
+          .join('\n'),
+      );
+      await exec('pg_restore', [
+        '--clean',
+        '--if-exists',
+        '--no-owner',
+        '--single-transaction',
+        `--use-list=${listFile}`,
+        '--dbname',
+        paths.ownerUrl,
+        dump,
+      ]);
+    } finally {
+      const again = new Set([...(manifest.forcedTables ?? []), ...(await forcedTables(db))]);
+      await setForce(db, [...again], true);
+    }
     // Roles are not part of a database dump: plugin roles and grants again.
     await grantAppPrivileges(db, paths.appRole);
     for (const plugin of await db.select().from(plugins)) {

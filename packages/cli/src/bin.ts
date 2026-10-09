@@ -331,8 +331,10 @@ program
   .description('Back up the database (pg_dump), media and plugins into one .tar.gz file.')
   .requiredOption('--out <file>', 'e.g. backups/cleitext-2026-10-10.tar.gz')
   .action(async (opts: { out: string }) => {
-    const { bytes } = await backup(dataPaths(), path.resolve(opts.out));
-    console.log(`Backup written: ${opts.out} (${(bytes / 1024 / 1024).toFixed(1)} MB)`);
+    await withOwner(async (db) => {
+      const { bytes } = await backup(db, dataPaths(), path.resolve(opts.out));
+      console.log(`Backup written: ${opts.out} (${(bytes / 1024 / 1024).toFixed(1)} MB)`);
+    });
   });
 
 program
