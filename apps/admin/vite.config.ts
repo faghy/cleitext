@@ -9,9 +9,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
+    // Forward the original host in X-Forwarded-* headers: the server resolves
+    // the site and checks the request origin against it.
     proxy: {
-      '/api': serverUrl,
-      '/health': serverUrl,
+      '/api': { target: serverUrl, xfwd: true },
+      '/health': { target: serverUrl, xfwd: true },
     },
   },
 });

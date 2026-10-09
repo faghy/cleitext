@@ -9,6 +9,7 @@
     "dev": "node ./index.mjs"
   },
   "dependencies": {
+    "@cleitext/cli": "workspace:*",
     "@cleitext/db": "workspace:*",
     "@cleitext/testing": "workspace:*"
   }

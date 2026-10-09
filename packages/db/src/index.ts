@@ -1,10 +1,18 @@
 export * from './schema/index.js';
 export * as schema from './schema/index.js';
+export { newId } from './schema/columns.js';
 export {
   createDatabase,
+  findLogin,
+  listMySites,
   ping,
+  resolveHost,
   resolveSiteByHost,
+  withContext,
   withSiteContext,
+  type HostResolution,
+  type LoginRecord,
+  type RequestContext,
   type CreateDatabaseOptions,
   type Database,
   type DatabaseClient,

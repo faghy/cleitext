@@ -27,6 +27,7 @@
     "uuid": "^14.0.2"
   },
   "devDependencies": {
+    "@cleitext/shared": "workspace:*",
     "@cleitext/testing": "workspace:*",
     "drizzle-kit": "^0.31.11"
   }
