@@ -251,6 +251,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@cleitext/blocks':
+        specifier: workspace:*
+        version: link:../../packages/blocks
       '@cleitext/db':
         specifier: workspace:*
         version: link:../../packages/db

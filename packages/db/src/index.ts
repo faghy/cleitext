@@ -6,6 +6,8 @@ export {
   findLogin,
   listMySites,
   ping,
+  publishDueEntries,
+  seedSiteDefaults,
   resolveHost,
   resolveSiteByHost,
   withContext,

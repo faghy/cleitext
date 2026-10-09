@@ -74,6 +74,18 @@ export function withSiteContext<T>(
   return withContext(db, { siteId }, fn);
 }
 
+/** Creates the default content types and taxonomies of a site (idempotent). */
+export async function seedSiteDefaults(db: Database, siteId: string): Promise<void> {
+  assertUuid(siteId, 'site id');
+  await db.execute(sql`select cleitext_seed_site_defaults(${siteId}::uuid)`);
+}
+
+/** Publishes scheduled entries that are due, on every site. Returns how many. */
+export async function publishDueEntries(db: Database): Promise<number> {
+  const rows = await db.execute<{ n: number }>(sql`select cleitext_publish_due_entries() as n`);
+  return Number(rows[0]?.n ?? 0);
+}
+
 /** Checks that the database answers. Throws when it does not. */
 export async function ping(db: Database): Promise<void> {
   await db.execute(sql`select 1`);

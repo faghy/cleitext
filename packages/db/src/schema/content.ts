@@ -55,7 +55,10 @@ export const entries = pgTable(
     parentId: uuid('parent_id'),
     slug: text('slug').notNull(),
     title: text('title').notNull().default(''),
-    status: text('status').notNull().default('draft'),
+    status: text('status')
+      .$type<'draft' | 'pending' | 'scheduled' | 'published' | 'private' | 'trashed'>()
+      .notNull()
+      .default('draft'),
     authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
     /** Latest saved revision. */
     currentRevisionId: uuid('current_revision_id'),
@@ -98,7 +101,10 @@ export const revisions = pgTable(
     id: id(),
     siteId: siteId(),
     entryId: uuid('entry_id').notNull(),
-    kind: text('kind').notNull().default('manual'),
+    kind: text('kind')
+      .$type<'manual' | 'autosave' | 'import' | 'restore'>()
+      .notNull()
+      .default('manual'),
     title: text('title').notNull(),
     /** Custom field values, validated against the content type schema. */
     fields: jsonb('fields').notNull().default({}),

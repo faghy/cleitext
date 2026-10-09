@@ -9,6 +9,9 @@ import { IdentityService } from './auth/identity.service.js';
 import { LoginThrottleService } from './auth/login-throttle.service.js';
 import { SessionService, UserTokenService } from './auth/session.service.js';
 import { ProblemDetailsFilter } from './common/problem.js';
+import { EntriesController } from './content/entries.controller.js';
+import { EntriesService } from './content/entries.service.js';
+import { SchedulerService } from './content/scheduler.service.js';
 import { APP_CONFIG, type AppConfig } from './config/config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -57,15 +60,23 @@ export class AppModule {
         }),
         DatabaseModule,
       ],
-      controllers: [HealthController, AuthController, UsersController, ProfileController],
+      controllers: [
+        HealthController,
+        AuthController,
+        UsersController,
+        ProfileController,
+        EntriesController,
+      ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ProblemDetailsFilter },
         AuditService,
         AuthService,
+        EntriesService,
         IdentityService,
         LoginThrottleService,
         MailService,
+        SchedulerService,
         SessionService,
         SiteResolverService,
         UserTokenService,

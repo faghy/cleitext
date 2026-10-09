@@ -4,6 +4,7 @@
  */
 import {
   roles,
+  seedSiteDefaults,
   siteDomains,
   siteLocales,
   siteMembers,
@@ -61,6 +62,7 @@ export async function createSite(db: Database, input: CreateSiteInput): Promise<
       .insert(siteLocales)
       .values({ siteId, code: locale, name: locale.toUpperCase(), isDefault: true }),
   );
+  await seedSiteDefaults(db, siteId);
   return siteId;
 }
 

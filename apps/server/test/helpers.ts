@@ -1,7 +1,9 @@
 import {
   createDatabase,
   roles,
+  seedSiteDefaults,
   siteDomains,
+  siteLocales,
   siteMembers,
   sites,
   superAdmins,
@@ -23,6 +25,7 @@ export async function startTestApp(): Promise<NestFastifyApplication> {
       LOG_LEVEL: 'silent',
       DATABASE_URL: inject('appUrl'),
       MAIL_URL: 'memory://',
+      SCHEDULER_INTERVAL_SECONDS: '0',
     }),
   );
 }
@@ -40,7 +43,7 @@ export interface SeededSite {
 export async function seedSite(
   owner: DatabaseClient,
   slug: string,
-  options: { aliases?: string[]; forceHttps?: boolean } = {},
+  options: { aliases?: string[]; forceHttps?: boolean; locales?: string[] } = {},
 ): Promise<SeededSite> {
   const [site] = await owner.db
     .insert(sites)
@@ -56,6 +59,17 @@ export async function seedSite(
       forceHttps: options.forceHttps ?? false,
     })),
   ]);
+  await withSiteContext(owner.db, site!.id, (tx) =>
+    tx.insert(siteLocales).values(
+      (options.locales ?? ['en']).map((code, index) => ({
+        siteId: site!.id,
+        code,
+        name: code.toUpperCase(),
+        isDefault: index === 0,
+      })),
+    ),
+  );
+  await seedSiteDefaults(owner.db, site!.id);
   return { id: site!.id, host };
 }
 
@@ -103,7 +117,7 @@ export class TestClient {
   ) {}
 
   async request(
-    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     url: string,
     body?: unknown,
     options: { csrf?: boolean; origin?: string | null } = {},

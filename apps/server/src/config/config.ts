@@ -35,6 +35,8 @@ const envSchema = z.object({
     .regex(/^(smtps?|log|memory):\/\//, 'Use smtp://, smtps://, log:// or memory://')
     .default('log://'),
   MAIL_FROM: z.string().min(3).default('Cleitext <no-reply@localhost>'),
+  /** How often scheduled entries are published; 0 disables it. */
+  SCHEDULER_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
 });
 
 export interface AppConfig {
@@ -46,6 +48,7 @@ export interface AppConfig {
   trustProxy: boolean;
   session: { ttlHours: number; rememberDays: number };
   mail: { url: string; from: string };
+  schedulerIntervalSeconds: number;
 }
 
 export class ConfigError extends Error {
@@ -72,6 +75,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     trustProxy: e.TRUST_PROXY,
     session: { ttlHours: e.SESSION_TTL_HOURS, rememberDays: e.SESSION_REMEMBER_DAYS },
     mail: { url: e.MAIL_URL, from: e.MAIL_FROM },
+    schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,
   };
 }
 
