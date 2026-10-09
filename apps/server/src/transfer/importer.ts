@@ -1,0 +1,607 @@
+import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
+import { documentText } from '@cleitext/blocks';
+import {
+  contentTypes,
+  entries,
+  entryTerms,
+  menuItems,
+  menus,
+  newId,
+  redirects,
+  revisions,
+  roles,
+  settings,
+  siteLocales,
+  siteMembers,
+  superAdmins,
+  taxonomies,
+  terms,
+  users,
+  withContext,
+  type Database,
+  type SiteTransaction,
+} from '@cleitext/db';
+import { CAPABILITIES } from '@cleitext/shared';
+import { and, eq, ne, sql } from 'drizzle-orm';
+import type { AuthContext } from '../common/request-context.js';
+import { nextFreeSlug, slugify } from '../content/slug.js';
+import type { MediaService } from '../media/media.service.js';
+import type { PageCacheService } from '../public/page-cache.service.js';
+import { loadSiteData } from '../public/site-data.js';
+import {
+  count,
+  emptyReport,
+  transferDocumentSchema,
+  type ImportReport,
+  type TransferEntry,
+  type TransferMenuItem,
+} from './model.js';
+
+export interface ImportOptions {
+  /** Owner connection: imports create users and write every table of the site. */
+  db: Database;
+  siteId: string;
+  /** Existing user recorded as author of the import (a super admin). */
+  asUserId: string;
+  media: MediaService;
+  cache: PageCacheService;
+  /** Reads the bytes of a media file (archive path, local file or URL). */
+  readFile(file: string): Promise<Buffer>;
+  /** Plugins active on the site (to compute addresses). */
+  activePlugins?: ReadonlySet<string>;
+  onProgress?(message: string): void;
+}
+
+interface MediaTarget {
+  id: string;
+  url: string;
+}
+
+/**
+ * Writes a transfer document into a site (RF-IMP-01…04). Records get new
+ * ids; existing locales, types, taxonomies, terms and users are reused.
+ * One failing record is reported and skipped, the rest goes on.
+ */
+export async function importDocument(
+  input: unknown,
+  options: ImportOptions,
+): Promise<ImportReport> {
+  const report = emptyReport();
+  const parsed = transferDocumentSchema.safeParse(input);
+  if (!parsed.success) {
+    report.errors.push(
+      ...parsed.error.issues
+        .slice(0, 20)
+        .map((i) => `Invalid document at ${i.path.join('.') || 'root'}: ${i.message}`),
+    );
+    return report;
+  }
+  const doc = parsed.data;
+  const { db, siteId } = options;
+  const progress = options.onProgress ?? (() => {});
+  const run = <T>(fn: (tx: SiteTransaction) => Promise<T>) =>
+    withContext(db, { siteId, userId: options.asUserId }, fn);
+
+  // ---- Structure -------------------------------------------------------------------
+  await run(async (tx) => {
+    const existing = new Set((await tx.select().from(siteLocales)).map((l) => l.code));
+    for (const [position, locale] of doc.locales.entries()) {
+      if (existing.has(locale.code)) continue;
+      await tx.insert(siteLocales).values({
+        siteId,
+        code: locale.code,
+        name: locale.name,
+        isDefault: false,
+        position: existing.size + position,
+        urlPrefix: locale.urlPrefix ?? null,
+      });
+      existing.add(locale.code);
+      count(report, 'locales');
+    }
+    const types = new Set((await tx.select().from(contentTypes)).map((t) => t.slug));
+    for (const type of doc.contentTypes) {
+      if (types.has(type.slug)) continue;
+      await tx.insert(contentTypes).values({
+        siteId,
+        slug: type.slug,
+        name: type.name,
+        source: 'user',
+        hierarchical: type.hierarchical,
+        permalink: type.permalink,
+      });
+      count(report, 'contentTypes');
+    }
+    const taxonomySlugs = new Set((await tx.select().from(taxonomies)).map((t) => t.slug));
+    for (const taxonomy of doc.taxonomies) {
+      if (taxonomySlugs.has(taxonomy.slug)) continue;
+      await tx.insert(taxonomies).values({ siteId, ...taxonomy });
+      count(report, 'taxonomies');
+    }
+  });
+
+  // ---- Users -----------------------------------------------------------------------
+  const userIds = new Map<string, string>();
+  await run(async (tx) => {
+    const roleRows = await tx.select().from(roles);
+    let created = 0;
+    for (const user of doc.users) {
+      const email = user.email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        report.warnings.push(`User "${user.displayName}" skipped: invalid email "${user.email}".`);
+        continue;
+      }
+      let [row] = await tx.select().from(users).where(eq(users.email, email));
+      if (!row) {
+        [row] = await tx
+          .insert(users)
+          .values({
+            id: newId(),
+            email,
+            displayName: user.displayName || email,
+            passwordHash: null,
+            locale: user.locale ?? 'en',
+          })
+          .returning();
+        created++;
+        count(report, 'users');
+      } else {
+        count(report, 'users', 'skipped');
+      }
+      userIds.set(user.ref, row!.id);
+      const role =
+        roleRows.find((r) => r.slug === user.role && r.siteId === siteId) ??
+        roleRows.find((r) => r.slug === (user.role ?? 'subscriber') && r.siteId === null);
+      if (role) {
+        await tx
+          .insert(siteMembers)
+          .values({ siteId, userId: row!.id, roleId: role.id })
+          .onConflictDoNothing();
+      } else {
+        report.warnings.push(`Unknown role "${user.role}" for ${email}: not added to the site.`);
+      }
+    }
+    if (created) {
+      report.warnings.push(
+        `${created} user(s) were created without a password: they sign in after "Forgot password".`,
+      );
+    }
+  });
+
+  // ---- Terms -----------------------------------------------------------------------
+  const termIds = new Map<string, string>();
+  await run(async (tx) => {
+    const taxonomyRows = await tx.select().from(taxonomies);
+    const groups = new Map<string, string>();
+    for (const term of orderByParent(doc.terms)) {
+      const taxonomy = taxonomyRows.find((t) => t.slug === term.taxonomy);
+      if (!taxonomy) {
+        report.errors.push(`Term "${term.name}": unknown taxonomy "${term.taxonomy}".`);
+        continue;
+      }
+      const slug = slugify(term.slug) || slugify(term.name) || 'term';
+      const [existing] = await tx
+        .select()
+        .from(terms)
+        .where(
+          and(
+            eq(terms.taxonomyId, taxonomy.id),
+            eq(terms.locale, term.locale),
+            eq(terms.slug, slug),
+          ),
+        );
+      if (existing) {
+        termIds.set(term.ref, existing.id);
+        count(report, 'terms', 'skipped');
+        continue;
+      }
+      const groupKey = term.translationRef ?? term.ref;
+      let group = groups.get(groupKey);
+      if (!group) groups.set(groupKey, (group = newId()));
+      const id = newId();
+      await tx.insert(terms).values({
+        id,
+        siteId,
+        taxonomyId: taxonomy.id,
+        locale: term.locale,
+        translationGroup: group,
+        parentId: term.parentRef ? (termIds.get(term.parentRef) ?? null) : null,
+        slug,
+        name: term.name,
+        description: term.description ?? null,
+      });
+      termIds.set(term.ref, id);
+      count(report, 'terms');
+    }
+  });
+
+  // ---- Media -----------------------------------------------------------------------
+  const mediaTargets = new Map<string, MediaTarget>();
+  const urlMap = new Map<string, string>();
+  const auth = importAuth(options.asUserId);
+  for (const [index, item] of doc.media.entries()) {
+    if (index % 25 === 0) progress(`Media ${index + 1}/${doc.media.length}`);
+    try {
+      const data = await options.readFile(item.file);
+      const view = await options.media.upload(
+        siteId,
+        auth,
+        { filename: item.filename, data },
+        '127.0.0.1',
+      );
+      if (item.alt || item.caption) {
+        await options.media.update(siteId, auth, view.id, {
+          ...(item.alt ? { alt: item.alt } : {}),
+          ...(item.caption ? { caption: item.caption } : {}),
+        });
+      }
+      mediaTargets.set(item.ref, { id: view.id, url: view.url });
+      for (const url of item.urls ?? []) urlMap.set(url, view.url);
+      count(report, 'media');
+    } catch (error) {
+      report.errors.push(`Media "${item.filename}" not imported: ${message(error)}`);
+    }
+  }
+  await options.media.idle();
+
+  // ---- Entries ---------------------------------------------------------------------
+  const entryIds = new Map<string, { id: string; group: string }>();
+  const groups = new Map<string, string>();
+  const ordered = orderByParent(doc.entries);
+  for (const [index, entry] of ordered.entries()) {
+    if (index % 50 === 0) progress(`Entries ${index + 1}/${ordered.length}`);
+    try {
+      const result = await run((tx) =>
+        insertEntry(tx, siteId, entry, {
+          author: (entry.authorRef && userIds.get(entry.authorRef)) || options.asUserId,
+          parent: entry.parentRef ? entryIds.get(entry.parentRef)?.id : undefined,
+          group: groupFor(groups, entry),
+          terms: termIds,
+          media: mediaTargets,
+          urls: urlMap,
+          report,
+        }),
+      );
+      entryIds.set(entry.ref, result);
+      count(report, 'entries');
+    } catch (error) {
+      report.errors.push(
+        `Entry "${entry.title}" (${entry.type}, ${entry.locale}) not imported: ${message(error)}`,
+      );
+    }
+  }
+
+  // ---- Settings, menus, redirects --------------------------------------------------
+  await run(async (tx) => {
+    const values: Record<string, unknown> = {};
+    if (doc.site.title) values.title = doc.site.title;
+    if (doc.site.tagline) values.tagline = doc.site.tagline;
+    if (doc.site.postsPerPage) values.postsPerPage = doc.site.postsPerPage;
+    const front = doc.site.frontPageRef && entryIds.get(doc.site.frontPageRef);
+    if (front) values.frontPage = front.group;
+    const posts = doc.site.postsPageRef && entryIds.get(doc.site.postsPageRef);
+    if (posts) values.postsPage = posts.group;
+    for (const [key, value] of Object.entries(values)) {
+      await tx
+        .insert(settings)
+        .values({ siteId, namespace: 'core', key, value })
+        .onConflictDoUpdate({
+          target: [settings.siteId, settings.namespace, settings.key],
+          set: { value },
+        });
+    }
+
+    const takenMenus = new Set((await tx.select().from(menus)).map((m) => `${m.locale}|${m.slug}`));
+    for (const menu of doc.menus) {
+      const slug = nextFreeSlug(
+        slugify(menu.name) || 'menu',
+        new Set(
+          [...takenMenus]
+            .filter((k) => k.startsWith(`${menu.locale}|`))
+            .map((k) => k.split('|')[1]!),
+        ),
+      );
+      takenMenus.add(`${menu.locale}|${slug}`);
+      const menuId = newId();
+      if (menu.location) {
+        await tx
+          .update(menus)
+          .set({ location: null })
+          .where(and(eq(menus.locale, menu.locale), eq(menus.location, menu.location)));
+      }
+      await tx.insert(menus).values({
+        id: menuId,
+        siteId,
+        slug,
+        name: menu.name,
+        locale: menu.locale,
+        location: menu.location ?? null,
+      });
+      const rows: (typeof menuItems.$inferInsert)[] = [];
+      const walk = (items: TransferMenuItem[], parentId: string | null) => {
+        items.forEach((item, position) => {
+          const entry = item.entryRef ? entryIds.get(item.entryRef) : undefined;
+          const term = item.termRef ? termIds.get(item.termRef) : undefined;
+          let kind = item.kind;
+          if ((kind === 'entry' && !entry) || (kind === 'term' && !term)) {
+            if (!item.url && !item.label) {
+              report.warnings.push(`Menu "${menu.name}": a link to a missing item was dropped.`);
+              return;
+            }
+            kind = item.url ? 'url' : 'custom';
+          }
+          const id = newId();
+          rows.push({
+            id,
+            siteId,
+            menuId,
+            parentId,
+            position,
+            kind,
+            entryId: kind === 'entry' ? entry!.id : null,
+            termId: kind === 'term' ? term! : null,
+            url: kind === 'url' ? (urlMap.get(item.url!) ?? item.url!) : null,
+            label: item.label?.trim() || (kind === 'url' || kind === 'custom' ? 'Link' : null),
+            target: item.target ?? null,
+          });
+          walk(item.children ?? [], id);
+        });
+      };
+      walk(menu.items, null);
+      if (rows.length) await tx.insert(menuItems).values(rows);
+      count(report, 'menus');
+    }
+
+    // Old addresses keep working (301), computed after every entry exists.
+    const data = await loadSiteData(tx, options.activePlugins ?? new Set());
+    const existing = new Set(
+      (await tx.select({ from: redirects.fromPath }).from(redirects)).map((r) => r.from),
+    );
+    // A redirect must never hide a page that exists (redirects win over routing).
+    const live = new Set(
+      (await tx.select().from(entries).where(ne(entries.status, 'trashed'))).map((row) =>
+        data.urls.entry(row),
+      ),
+    );
+    const add = async (from: string, to: string, status: number) => {
+      const path = normalizePath(from);
+      if (!path || path === to || existing.has(path) || live.has(path)) return;
+      existing.add(path);
+      await tx.insert(redirects).values({ siteId, fromPath: path, toPath: to, status });
+      count(report, 'redirects');
+    };
+    for (const entry of doc.entries) {
+      const target = entryIds.get(entry.ref);
+      if (!target || !entry.oldPaths?.length) continue;
+      const [row] = await tx.select().from(entries).where(eq(entries.id, target.id));
+      if (!row) continue;
+      const url = data.urls.entry(row);
+      for (const old of entry.oldPaths) await add(old, url, 301);
+    }
+    for (const redirect of doc.redirects) await add(redirect.from, redirect.to, redirect.status);
+  });
+
+  await options.cache.invalidate(siteId, ['site']);
+  return report;
+}
+
+// ---- Entries --------------------------------------------------------------------------
+
+async function insertEntry(
+  tx: SiteTransaction,
+  siteId: string,
+  entry: TransferEntry,
+  context: {
+    author: string;
+    parent: string | undefined;
+    group: string;
+    terms: Map<string, string>;
+    media: Map<string, MediaTarget>;
+    urls: Map<string, string>;
+    report: ImportReport;
+  },
+): Promise<{ id: string; group: string }> {
+  const [type] = await tx.select().from(contentTypes).where(eq(contentTypes.slug, entry.type));
+  if (!type) throw new Error(`unknown content type "${entry.type}"`);
+  const taken = new Set(
+    (
+      await tx
+        .select({ slug: entries.slug })
+        .from(entries)
+        .where(and(eq(entries.typeSlug, entry.type), eq(entries.locale, entry.locale)))
+    ).map((e) => e.slug),
+  );
+  const wanted = slugify(entry.slug) || slugify(entry.title) || 'entry';
+  const slug = nextFreeSlug(wanted, taken);
+  if (slug !== wanted) {
+    context.report.warnings.push(
+      `"${entry.title}": the address "${wanted}" was taken, "${slug}" used instead.`,
+    );
+  }
+
+  const document = remapMedia(
+    entry.document,
+    context.media,
+    context.urls,
+    context.report,
+    entry.title,
+  );
+  const id = newId();
+  const revisionId = newId();
+  const publishedAt = entry.publishedAt ? new Date(entry.publishedAt) : null;
+  const isPublic = entry.status === 'published' || entry.status === 'private';
+  await tx.insert(entries).values({
+    id,
+    siteId,
+    typeSlug: entry.type,
+    locale: entry.locale,
+    translationGroup: context.group,
+    parentId: type.hierarchical ? (context.parent ?? null) : null,
+    slug,
+    title: entry.title,
+    status: entry.status,
+    authorId: context.author,
+    publishedAt: isPublic ? (publishedAt ?? new Date()) : publishedAt,
+    scheduledAt: entry.scheduledAt ? new Date(entry.scheduledAt) : null,
+    position: entry.position ?? 0,
+    ...(entry.createdAt
+      ? { createdAt: new Date(entry.createdAt), updatedAt: new Date(entry.createdAt) }
+      : {}),
+  });
+  await tx.insert(revisions).values({
+    id: revisionId,
+    siteId,
+    entryId: id,
+    kind: 'import',
+    title: entry.title,
+    fields: entry.fields ?? {},
+    document,
+    schemaVersion: document.schema,
+    authorId: context.author,
+  });
+  await tx
+    .update(entries)
+    .set({
+      currentRevisionId: revisionId,
+      ...(isPublic
+        ? {
+            publishedRevisionId: revisionId,
+            search:
+              sql`to_tsvector('simple', unaccent(${`${entry.title}\n${documentText(document)}`}))` as never,
+          }
+        : {}),
+    })
+    .where(eq(entries.id, id));
+
+  let position = 0;
+  for (const [taxonomy, refs] of Object.entries(entry.terms ?? {})) {
+    for (const ref of refs) {
+      const termId = context.terms.get(ref);
+      if (!termId) {
+        context.report.warnings.push(`"${entry.title}": ${taxonomy} term ${ref} not found.`);
+        continue;
+      }
+      await tx
+        .insert(entryTerms)
+        .values({ siteId, entryId: id, termId, position: position++ })
+        .onConflictDoNothing();
+    }
+  }
+  return { id, group: context.group };
+}
+
+/** Image blocks: media refs become the imported media ids and URLs. */
+function remapMedia(
+  document: CxdDocument,
+  media: Map<string, MediaTarget>,
+  urls: Map<string, string>,
+  report: ImportReport,
+  title: string,
+): CxdDocument {
+  const walk = (blocks: CxdBlock[]): CxdBlock[] =>
+    blocks.map((block) => {
+      let attrs = block.attrs;
+      if (block.type === 'core/image') {
+        const target =
+          (typeof attrs.id === 'string' || typeof attrs.id === 'number'
+            ? media.get(String(attrs.id))
+            : undefined) ??
+          (typeof attrs.url === 'string' && urls.has(attrs.url)
+            ? { id: undefined, url: urls.get(attrs.url)! }
+            : undefined);
+        if (target) {
+          attrs = { ...attrs, url: target.url, ...(target.id ? { id: target.id } : {}) };
+          if (!target.id) delete attrs.id;
+        } else {
+          attrs = { ...attrs };
+          delete attrs.id;
+          if (typeof attrs.url === 'string') {
+            report.warnings.push(
+              `"${title}": image not imported, it still points to ${attrs.url}.`,
+            );
+          }
+        }
+      }
+      return { ...block, attrs, ...(block.children ? { children: walk(block.children) } : {}) };
+    });
+  return { ...document, blocks: walk(document.blocks) };
+}
+
+// ---- Helpers --------------------------------------------------------------------------
+
+function groupFor(groups: Map<string, string>, entry: TransferEntry): string {
+  const key = entry.translationRef ?? entry.ref;
+  let group = groups.get(key);
+  if (!group) groups.set(key, (group = newId()));
+  return group;
+}
+
+/** Parents before children (unknown parents are ignored). */
+function orderByParent<T extends { ref: string; parentRef?: string | undefined }>(items: T[]): T[] {
+  const byRef = new Map(items.map((i) => [i.ref, i]));
+  const done = new Set<string>();
+  const result: T[] = [];
+  const visit = (item: T, depth: number) => {
+    if (done.has(item.ref) || depth > 50) return;
+    const parent = item.parentRef ? byRef.get(item.parentRef) : undefined;
+    if (parent && parent !== item) visit(parent, depth + 1);
+    if (done.has(item.ref)) return;
+    done.add(item.ref);
+    result.push(item);
+  };
+  for (const item of items) visit(item, 0);
+  return result;
+}
+
+function normalizePath(value: string): string | null {
+  let path = value.trim();
+  try {
+    if (/^https?:\/\//i.test(path)) {
+      const url = new URL(path);
+      path = url.pathname + url.search;
+    }
+  } catch {
+    return null;
+  }
+  if (!path.startsWith('/')) path = `/${path}`;
+  if (path.length > 1) path = path.replace(/\/+$/, '');
+  try {
+    path = decodeURI(path);
+  } catch {
+    // keep as is
+  }
+  return path === '/' ? null : path;
+}
+
+function importAuth(userId: string): AuthContext {
+  return {
+    userId,
+    sessionId: 'import',
+    email: '',
+    displayName: 'Import',
+    locale: 'en',
+    isSuperAdmin: true,
+    role: null,
+    capabilities: [...CAPABILITIES],
+  };
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Super admin used as author of an import: by email, or the first one. */
+export async function importUser(db: Database, email?: string): Promise<string> {
+  const rows = await db
+    .select({ id: users.id, email: users.email })
+    .from(superAdmins)
+    .innerJoin(users, eq(users.id, superAdmins.userId));
+  const user = email ? rows.find((r) => r.email.toLowerCase() === email.toLowerCase()) : rows[0];
+  if (!user) {
+    throw new Error(
+      email
+        ? `${email} is not a super admin.`
+        : 'Create a super admin first (cleitext user:create --super-admin).',
+    );
+  }
+  return user.id;
+}

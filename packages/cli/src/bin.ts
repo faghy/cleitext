@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import type * as ServerTasks from './server-tasks.js';
 import { createDatabase, migrate } from '@cleitext/db';
 import { sql } from 'drizzle-orm';
 import { input, password as passwordPrompt } from '@inquirer/prompts';
@@ -312,6 +313,101 @@ program
       await announcePluginChange(db);
     });
   });
+
+// ---- Export and import (RF-IMP-01…04) -------------------------------------------------
+
+/** Tasks that run inside the application (media variants, cache, plugins). */
+async function tasks() {
+  const serverDir =
+    process.env.CLEITEXT_SERVER_DIR ??
+    path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../apps/server');
+  return (await import(path.join(serverDir, 'dist/tasks.js'))) as typeof ServerTasks;
+}
+
+async function withTasks<T>(
+  fn: (
+    t: Awaited<ReturnType<typeof tasks>>,
+    context: Awaited<ReturnType<Awaited<ReturnType<typeof tasks>>['openTasks']>>,
+  ) => Promise<T>,
+) {
+  const module = await tasks();
+  const context = await module.openTasks((message) => console.log(message));
+  try {
+    return await fn(module, context);
+  } finally {
+    await context.close();
+  }
+}
+
+async function printReport(
+  module: Awaited<ReturnType<typeof tasks>>,
+  report: Parameters<Awaited<ReturnType<typeof tasks>>['formatReport']>[0],
+  file?: string,
+) {
+  console.log(module.formatReport(report));
+  if (file) {
+    await module.saveReport(file, report);
+    console.log(`Full report: ${file}`);
+  }
+  if (report.errors.length) process.exitCode = 2;
+}
+
+program
+  .command('export')
+  .description(
+    'Export a site (content, media, menus, users without passwords) to a .tar.gz archive.',
+  )
+  .requiredOption('--site <slug>')
+  .requiredOption('--out <file>', 'archive to write, e.g. site.tar.gz')
+  .action((opts) =>
+    withTasks((module, context) => module.exportTask(context, { site: opts.site, out: opts.out })),
+  );
+
+program
+  .command('import')
+  .description('Import a Cleitext export archive into a site (merged with its content).')
+  .argument('<file>', 'archive written by cleitext export')
+  .requiredOption('--site <slug>')
+  .option('--as <email>', 'super admin recorded as author of the import')
+  .option('--report <file>', 'save the full report as JSON')
+  .action((file: string, opts) =>
+    withTasks(async (module, context) =>
+      printReport(
+        module,
+        await module.importTask(context, { file, site: opts.site, as: opts.as }),
+        opts.report,
+      ),
+    ),
+  );
+
+program
+  .command('import:wxr')
+  .description(
+    'Import a WordPress export (WXR): posts, pages, media, categories, tags, menus, authors.',
+  )
+  .argument('<file>', 'WordPress export (.xml)')
+  .requiredOption('--site <slug>')
+  .option('--locale <code>', 'language of the content (default: the site default)')
+  .option('--uploads <dir>', 'copy of wp-content/uploads, instead of downloading media')
+  .option('--author-role <slug>', 'role of imported authors', 'author')
+  .option('--as <email>', 'super admin recorded as author of the import')
+  .option('--report <file>', 'save the full report as JSON')
+  .action((file: string, opts) =>
+    withTasks(async (module, context) =>
+      printReport(
+        module,
+        await module.importWxrTask(context, {
+          file,
+          site: opts.site,
+          locale: opts.locale,
+          uploads: opts.uploads,
+          as: opts.as,
+          authorRole: opts.authorRole,
+        }),
+        opts.report,
+      ),
+    ),
+  );
 
 program.parseAsync().catch((error: unknown) => {
   if (error instanceof OperationError) {
