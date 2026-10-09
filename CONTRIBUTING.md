@@ -19,9 +19,24 @@ CONTRIBUTING.md                     these conventions
 docs/ARCHITECTURE.md          architecture (reference)
 docs/SPECIFICATIONS.md        requirements, APIs, SDK, roadmap (reference)
 docs/it/                      Italian translations
+apps/server                   NestJS + Fastify server
+apps/admin                    admin SPA (React, Vite, Tailwind)
+packages/db                   Drizzle schema, migrations (drizzle/), RLS, site context
+packages/testing              embedded PostgreSQL + DB provisioning for tests
+tools/dev-db                  persistent local PostgreSQL for `pnpm dev`
 ```
 
-The planned code layout (monorepo `apps/`, `packages/`, `plugins/`, `themes/`) is described in `docs/ARCHITECTURE.md` §5. Follow it when code is added.
+The full target layout (`plugins/`, `themes/`, more packages) is described in `docs/ARCHITECTURE.md` §5. Follow it when code is added.
+
+## Commands
+
+- `pnpm dev` — local DB + server + admin. `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm format`.
+- Schema changes: edit `packages/db/src/schema`, then `pnpm db:generate`. Hand-written SQL (RLS, functions) goes in custom migrations (`drizzle-kit generate --custom`).
+- Every new table with a `site_id` column must get RLS (`cleitext_enable_tenant_rls`) and composite FKs `(site_id, id)` to its parents. The isolation suite in `packages/db/test` fails when a tenant table has no RLS.
+- No Docker: tests and dev use embedded PostgreSQL. Set `CLEITEXT_TEST_PG_URL` (superuser URL) to test against an external server.
+- NestJS code in `apps/server` must not use `import type` for injected classes (decorator metadata).
+- TypeScript 7 compiles everything (`tsc` comes from `@typescript/native` = `typescript@7`). The `typescript` package is aliased to `@typescript/typescript6` only because typescript-eslint still needs the TS 6 API (official side-by-side setup). Drop the alias when typescript-eslint supports TS 7.
+- Prefer the latest stable, officially released version of every tool and library; no pre-releases as main choice.
 
 ## Workflow
 

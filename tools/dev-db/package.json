@@ -1,0 +1,15 @@
+{
+  "name": "@cleitext/dev-db",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "description": "Local PostgreSQL for development (embedded binaries, no system install)",
+  "scripts": {
+    "dev": "node ./index.mjs"
+  },
+  "dependencies": {
+    "@cleitext/db": "workspace:*",
+    "@cleitext/testing": "workspace:*"
+  }
+}

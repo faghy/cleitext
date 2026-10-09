@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+
+# Dependencies allowed to run install scripts.
+onlyBuiltDependencies:
+  - '@swc/core'
+  - esbuild
+  # PostgreSQL binaries for local development and tests (restores library symlinks).
+  - '@embedded-postgres/darwin-arm64'
+  - '@embedded-postgres/darwin-x64'
+  - '@embedded-postgres/linux-arm64'
+  - '@embedded-postgres/linux-x64'
+  - '@embedded-postgres/windows-x64'
