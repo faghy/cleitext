@@ -3,6 +3,7 @@ packages:
   - packages/*
   - themes/*
   - tools/*
+  - plugins/*
 
 # Dependencies allowed to run install scripts.
 allowBuilds:

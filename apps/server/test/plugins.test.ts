@@ -135,8 +135,7 @@ describe('installation', () => {
 
   it('lists the plugin, inactive, with what it adds', async () => {
     const list = (await admin.get('/api/v1/plugins')).json();
-    expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({
+    expect(list.find((p: { slug: string }) => p.slug === 'events')).toMatchObject({
       slug: 'events',
       version: '1.0.0',
       active: false,
@@ -265,7 +264,9 @@ describe('an active plugin', () => {
   it('keeps plugin data per site and away from core tables', async () => {
     // Its PostgreSQL role cannot read core tables.
     expect((await admin.get('/api/v1/ext/events/peek')).statusCode).toBe(500);
-    const stats = (await admin.get('/api/v1/plugins')).json()[0].stats;
+    const stats = (await admin.get('/api/v1/plugins'))
+      .json()
+      .find((p: { slug: string }) => p.slug === 'events').stats;
     expect(stats.errors).toBeGreaterThan(0);
     expect(stats.lastError).toMatch(/permission denied/);
 
@@ -305,7 +306,9 @@ describe('an active plugin', () => {
     ).toBe(400);
     expect((await editor.get('/api/v1/plugins/events/settings')).statusCode).toBe(403);
     const info = (await admin.get('/api/v1/plugins/admin')).json();
-    expect(info[0].settings.fields[0].name).toBe('icsName');
+    expect(info.find((p: { slug: string }) => p.slug === 'events').settings.fields[0].name).toBe(
+      'icsName',
+    );
   });
 
   it('grants its capabilities to the configured roles', async () => {
@@ -365,7 +368,8 @@ describe('updates and removal', () => {
     );
     expect(schemas).toHaveLength(0);
     await app.get(PluginHost).reload();
-    expect((await admin.get('/api/v1/plugins')).json()).toEqual([]);
+    const slugs = (await admin.get('/api/v1/plugins')).json().map((p: { slug: string }) => p.slug);
+    expect(slugs).not.toContain('events');
     // Its entries stay in the database, invisible.
     expect((await visitor.get('/events/spring-concert')).statusCode).toBe(404);
     expect((await visitor.get('/agenda')).statusCode).toBe(200);

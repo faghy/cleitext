@@ -398,6 +398,8 @@ Espone solo contenuti pubblicati. Accetta un token con scope `delivery:read`, op
 
 ## 7. Specifica plugin
 
+> La guida per gli sviluppatori, con ciò che è realizzato oggi, è [PLUGIN.md](./PLUGIN.md).
+
 ### 7.1 Manifest `cleitext.plugin.json`
 
 | Campo                                       | Tipo                            | Obbl. | Descrizione                                                                                                                       |

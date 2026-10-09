@@ -1,0 +1,11 @@
+{
+  "slug": "seo",
+  "name": "SEO",
+  "version": "1.0.0",
+  "apiVersion": "^1.0",
+  "description": "Search titles and descriptions per page, social cards and structured data.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": ["content:write", "settings:own", "theme:hooks"]
+}

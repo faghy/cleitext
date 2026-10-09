@@ -98,7 +98,7 @@ export interface BlockRenderContext {
  * field DSL: every editor builds the editing form from them, so the block
  * does not depend on a particular editor.
  */
-export interface PluginBlockDefinition<A extends FieldValues = FieldValues, D = undefined> {
+export interface PluginBlockDefinition<A extends object = FieldValues, D = undefined> {
   /** `<plugin-slug>/<name>`, e.g. `events/upcoming`. */
   type: string;
   title: Label;
@@ -117,7 +117,7 @@ export interface PluginBlockDefinition<A extends FieldValues = FieldValues, D = 
 
 export interface BlockApi {
   /** Needs the `blocks` permission. */
-  register<A extends FieldValues, D>(definition: PluginBlockDefinition<A, D>): void;
+  register<A extends object, D>(definition: PluginBlockDefinition<A, D>): void;
 }
 
 // ---- Routes -------------------------------------------------------------------------

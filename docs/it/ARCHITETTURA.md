@@ -1074,6 +1074,30 @@ Il core è **GPL-2.0-or-later**, come WordPress, e adotta **lo stesso modello di
 - facade con permessi dichiarati invece dell'accesso libero all'intero database;
 - riavvio graceful dopo l'installazione: in Node il codice si carica all'avvio, non a ogni richiesta come in PHP.
 
+### 11.12 Come è stato realizzato in M4
+
+Codice: `packages/plugin-sdk`, `packages/admin-sdk`, `packages/cli/src/plugins.ts`, `apps/server/src/plugins`. La guida per gli sviluppatori è [PLUGIN.md](./PLUGIN.md); i plugin ufficiali sono in `plugins/` (`seo`, `forms`) e un esempio in `examples/plugin-events`.
+
+- **Moduli condivisi senza import map.** `cleitext plugin:build` (esbuild) sostituisce gli import dei moduli forniti da Cleitext con l'istanza dell'host, letta da `globalThis.__cleitextShared`. Questi moduli sono React, Drizzle, Zod, i due SDK e React Query. Il meccanismo è lo stesso sul server e nell'admin, quindi i plugin vanno compilati con la CLI.
+- **Nessun riavvio.** Hook, route e blocchi dei plugin stanno in tabelle interne dell'host; non sono registrati in Fastify o NestJS. `plugin:install` e `plugin:uninstall` inviano una `NOTIFY` e ogni processo ricarica i plugin, importando ogni versione da un URL nuovo. Se esiste `tmp/restart.txt`, viene comunque aggiornato.
+- **Database.** Ogni plugin ha uno schema `plg_<slug>` e un ruolo `NOLOGIN` `cleitext_plg_<slug>`, concesso al ruolo applicativo. `ctx.db.transaction` esegue `SET LOCAL ROLE` insieme al contesto del sito e al `search_path`. Per questo il ruolo proprietario deve avere `CREATEROLE`; da PostgreSQL 16 dà potere solo sui ruoli che crea. Le migrazioni sono file SQL controllati tramite checksum.
+- **Attivazione.** L'attivazione è registrata per sito in `site_plugins` e tenuta in cache 30 s per processo, aggiornata attraverso il canale della cache.
+  - I tipi di contenuto dei plugin sono righe di `content_types` con `source = plugin:<slug>`, scritte all'attivazione.
+  - Finché il loro plugin è inattivo, questi tipi sono esclusi da admin, instradamento, menu e sitemap; le loro voci restano.
+- **Blocchi.**
+  - I loro attributi sono descritti con il DSL dei campi, e gli editor generano il form da soli (`fieldBlocks` dell'`EditorAdapter`).
+  - Sul sito pubblico ogni blocco di plugin è generato a parte (`renderToStaticMarkup`) e racchiuso in `div.wp-block-<plugin>-<nome>`. Un blocco che fallisce non mostra nulla.
+- **Hook.**
+  - Le azioni partono dopo il commit.
+  - I filtri sono `render.head`, `render.blocks`, `render.html` e `theme.templateCandidates`. `render.head` filtra l'oggetto `HeadData` invece di una lista `HeadTag[]` come previsto all'inizio.
+  - Gli errori sono isolati e gli handler vengono interrotti dopo 5 s. Chiamate, tempo ed errori per plugin sono visibili in Plugins (RF-PLG-06). La disattivazione automatica dei plugin che falliscono (RF-PLG-05) non è ancora realizzata.
+- **Non ancora disponibili:**
+  - registro e gestione dei pacchetti: installazione dall'admin (upload), registro, firme, aggiornamenti automatici e un comando di rollback (la versione precedente resta in `<slug>.previous`);
+  - ambito di attivazione: attivazione su tutta la rete e plugin obbligatori (must-use);
+  - SDK dell'admin: widget della Dashboard, pannelli del documento e colonne degli elenchi;
+  - API del contesto: `ctx.jobs`, `ctx.media` e `ctx.http`;
+  - `entry.published` per la pubblicazione programmata.
+
 ---
 
 ## 12. Temi e rendering pubblico
@@ -1265,7 +1289,8 @@ Vedi §10. In sintesi: Gutenberg è usato come libreria dietro `EditorAdapter`. 
 
 - **Build in CI**: si carica un archivio pronto (`dist` + `node_modules` di produzione). Sul server non si esegue mai la build.
 - **nginx** (direttive aggiuntive di Plesk) serve `/media/*` e `/assets/*` e, se c'è, la cache su disco, senza passare da Node.
-- **Passenger**: impostare un minimo di istanze maggiore o uguale a 1 per evitare l'avvio a freddo; riavvio dopo un deploy o un'installazione di plugin.
+- **Passenger**: impostare un minimo di istanze maggiore o uguale a 1 per evitare l'avvio a freddo; riavvio dopo un deploy. I plugin si ricaricano senza riavvio (§11.12).
+- **Ruoli del database**: il ruolo proprietario (`DATABASE_ADMIN_URL`) deve avere `CREATEROLE`, per creare un ruolo per plugin (§11.6). Al ruolo applicativo (`DATABASE_URL`) basta `LOGIN`.
 - **Migrazioni**: `cleitext migrate` come passo del deploy (Git di Plesk → "comandi di deploy aggiuntivi").
 - **Job**: `JOBS_MODE=inline` più un task pianificato di Plesk `cleitext jobs:tick`, oppure un worker con systemd se è disponibile l'accesso root.
 - **Multi-sito**: **un'unica applicazione** con più domini o alias puntati su di essa. Il sito si risolve dall'host, quindi non serve un'installazione per ogni dominio.

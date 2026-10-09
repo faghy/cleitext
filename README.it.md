@@ -4,7 +4,7 @@
 
 > 🇬🇧 La versione di riferimento è quella inglese: [README.md](./README.md). Questa traduzione è secondaria e può essere meno aggiornata.
 >
-> Stato: **sviluppo iniziale**, tappe M0 (fondamenta), M1 (identità e siti), M2 (contenuti ed editor) e M3 (sito pubblico). Per ora è a uso interno; la distribuzione pubblica è prevista in seguito.
+> Stato: **sviluppo iniziale**, tappe M0 (fondamenta), M1 (identità e siti), M2 (contenuti ed editor), M3 (sito pubblico) e M4 (plugin). Per ora è a uso interno; la distribuzione pubblica è prevista in seguito.
 > Licenza: **GPL-2.0-or-later** (come WordPress)
 
 ## In sintesi
@@ -23,20 +23,20 @@ Requisiti: **Node.js 22+** e **pnpm 12** (`npm i -g pnpm@12`). Non serve install
 
 ```bash
 pnpm install
-pnpm dev          # database locale + server (http://127.0.0.1:3000) + admin (http://localhost:5173/admin/)
+pnpm dev          # database locale + server e sito pubblico (http://localhost:3000) + admin (http://localhost:5173/admin/)
 ```
 
 Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/`, scrive un file `.env` (vedi `.env.example`) e crea un sito **Development** che risponde su `localhost`. Accedi a http://localhost:5173/admin/ con `admin@example.com` / `cleitext-admin` (solo per lo sviluppo locale). Le email vengono stampate nel log del server.
 
-| Comando                                       | Cosa fa                                                                                                                            |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                                    | Avvia database locale, server e admin con ricaricamento automatico                                                                 |
-| `pnpm db:dev`                                 | Avvia solo il database locale (con le migrazioni applicate)                                                                        |
-| `pnpm test`                                   | Esegue tutti i test, ogni suite su un PostgreSQL embedded nuovo                                                                    |
-| `pnpm e2e`                                    | Test nel browser dell'admin, dell'editor Gutenberg e del sito pubblico (Playwright; avvia `pnpm dev` se serve)                     |
-| `pnpm build` / `pnpm typecheck` / `pnpm lint` | Build, controllo dei tipi, lint                                                                                                    |
-| `pnpm db:generate`                            | Genera una migrazione dopo una modifica allo schema in `packages/db/src/schema`                                                    |
-| `pnpm cleitext <comando>`                     | CLI: `install`, `migrate`, `site:create`, `site:list`, `site:domain:add`, `site:maintenance`, `user:create`, `user:reset-password` |
+| Comando                                       | Cosa fa                                                                                                                                                                                                 |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                                    | Avvia database locale, server e admin con ricaricamento automatico                                                                                                                                      |
+| `pnpm db:dev`                                 | Avvia solo il database locale (con le migrazioni applicate)                                                                                                                                             |
+| `pnpm test`                                   | Esegue tutti i test, ogni suite su un PostgreSQL embedded nuovo                                                                                                                                         |
+| `pnpm e2e`                                    | Test nel browser dell'admin, dell'editor Gutenberg, dei plugin e del sito pubblico (Playwright; avvia `pnpm dev` se serve)                                                                              |
+| `pnpm build` / `pnpm typecheck` / `pnpm lint` | Build, controllo dei tipi, lint                                                                                                                                                                         |
+| `pnpm db:generate`                            | Genera una migrazione dopo una modifica allo schema in `packages/db/src/schema`                                                                                                                         |
+| `pnpm cleitext <comando>`                     | CLI: `install`, `migrate`, `site:create`, `site:list`, `site:domain:add`, `site:maintenance`, `user:create`, `user:reset-password`, `plugin:build`, `plugin:install`, `plugin:list`, `plugin:uninstall` |
 
 ## Documentazione
 
@@ -44,6 +44,7 @@ Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/`, scrive un
 | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | [`docs/it/ARCHITETTURA.md`](./docs/it/ARCHITETTURA.md) ([EN](./docs/ARCHITECTURE.md)) | Principi, stack, modello dati (DDL), multi-sito, editor, plugin, temi, sicurezza, deploy, ADR, rischi |
 | [`docs/it/SPECIFICHE.md`](./docs/it/SPECIFICHE.md) ([EN](./docs/SPECIFICATIONS.md))   | Requisiti funzionali e non funzionali, API REST, SDK dei plugin, hook, formato CXD, CLI, roadmap      |
+| [`docs/it/PLUGIN.md`](./docs/it/PLUGIN.md) ([EN](./docs/PLUGINS.md))                  | Sviluppare plugin: manifest, hook, tipi di contenuto, blocchi, route, tabelle proprie, pagine admin   |
 
 ## Il principio chiave
 

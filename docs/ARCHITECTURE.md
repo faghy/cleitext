@@ -1067,6 +1067,30 @@ The core is **GPL-2.0-or-later**, like WordPress, and adopts **the same plugin l
 - facades with declared permissions instead of unrestricted access to the whole database;
 - graceful restart after installation: in Node code is loaded at startup, not on every request as in PHP.
 
+### 11.12 As implemented in M4
+
+Code: `packages/plugin-sdk`, `packages/admin-sdk`, `packages/cli/src/plugins.ts`, `apps/server/src/plugins`. The developer guide is [PLUGINS.md](./PLUGINS.md); the official plugins are in `plugins/` (`seo`, `forms`) and an example in `examples/plugin-events`.
+
+- **Shared modules without an import map.** `cleitext plugin:build` (esbuild) replaces imports of the modules provided by Cleitext with the host's instance, read from `globalThis.__cleitextShared`. These modules are React, Drizzle, Zod, the two SDKs and React Query. The mechanism is the same on the server and in the admin, so plugins must be built with the CLI.
+- **No restart.** Hooks, routes and blocks of plugins live in the host's own tables; they are not registered in Fastify or NestJS. `plugin:install` and `plugin:uninstall` send a `NOTIFY`, and every process reloads its plugins, importing each version from a new URL. If `tmp/restart.txt` exists, it is still touched.
+- **Database.** Each plugin gets a `plg_<slug>` schema and a `NOLOGIN` role `cleitext_plg_<slug>`, granted to the application role. `ctx.db.transaction` runs `SET LOCAL ROLE` together with the site context and the `search_path`. The owner role therefore needs `CREATEROLE`; since PostgreSQL 16 this only gives power over the roles it creates. Migrations are SQL files checked by checksum.
+- **Activation.** Activation is stored per site in `site_plugins` and cached for 30 s per process, refreshed through the cache channel.
+  - Plugin content types are `content_types` rows with `source = plugin:<slug>`, written at activation.
+  - While their plugin is inactive, these types are filtered out of the admin, routing, menus and sitemaps; their entries are kept.
+- **Blocks.**
+  - Their attributes are described with the field DSL, and editors generate the form themselves (`fieldBlocks` of the `EditorAdapter`).
+  - On the public site, each plugin block is rendered separately (`renderToStaticMarkup`) and wrapped in `div.wp-block-<plugin>-<name>`. A failing block renders nothing.
+- **Hooks.**
+  - Actions run after the commit.
+  - The filters are `render.head`, `render.blocks`, `render.html` and `theme.templateCandidates`. `render.head` filters the `HeadData` object rather than a `HeadTag[]` list as first planned.
+  - Errors are isolated and handlers time out after 5 s. Calls, time and errors per plugin are shown in Plugins (RF-PLG-06). Automatic deactivation of failing plugins (RF-PLG-05) is not implemented yet.
+- **Not yet available:**
+  - registry and package handling: installing from the admin (upload), the registry, signatures, automatic updates and a rollback command (the previous version is kept in `<slug>.previous`);
+  - activation scope: network activation and must-use plugins;
+  - admin SDK: dashboard widgets, document panels and list columns;
+  - context APIs: `ctx.jobs`, `ctx.media` and `ctx.http`;
+  - `entry.published` for scheduled publication.
+
 ---
 
 ## 12. Themes and public rendering
@@ -1258,7 +1282,8 @@ See §10. In short: Gutenberg is used as a library behind `EditorAdapter`. Conte
 
 - **Build in CI**: a ready-made archive is uploaded (`dist` + production `node_modules`). The build never runs on the server.
 - **nginx** (Plesk additional directives) serves `/media/*` and `/assets/*` and, if present, the disk cache, without going through Node.
-- **Passenger**: set a minimum number of instances of at least 1 to avoid cold starts; restart after a deployment or a plugin installation.
+- **Passenger**: set a minimum number of instances of at least 1 to avoid cold starts; restart after a deployment. Plugins reload without a restart (§11.12).
+- **Database roles**: the owner role (`DATABASE_ADMIN_URL`) needs `CREATEROLE`, to create one role per plugin (§11.6). The application role (`DATABASE_URL`) needs nothing more than `LOGIN`.
 - **Migrations**: `cleitext migrate` as a deployment step (Plesk Git → "additional deployment actions").
 - **Jobs**: `JOBS_MODE=inline` plus a Plesk scheduled task `cleitext jobs:tick`, or a worker with systemd if root access is available.
 - **Multi-site**: **a single application** with multiple domains or aliases pointing to it. The site is resolved from the host, so no per-domain installation is needed.

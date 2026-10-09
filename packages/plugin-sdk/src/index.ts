@@ -29,7 +29,7 @@ export function definePlugin(definition: PluginDefinition): PluginDefinition {
 }
 
 /** Declares a block, with typed attributes and loaded data. */
-export function defineBlock<A extends FieldValues = FieldValues, D = undefined>(
+export function defineBlock<A extends object = FieldValues, D = undefined>(
   definition: PluginBlockDefinition<A, D>,
 ): PluginBlockDefinition<A, D> {
   return definition;

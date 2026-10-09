@@ -1,0 +1,13 @@
+{
+  "slug": "forms",
+  "name": "Forms",
+  "version": "1.0.0",
+  "apiVersion": "^1.0",
+  "description": "A contact form block. Messages are stored and sent by email.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "permissions": ["blocks", "routes:public", "routes:admin", "settings:own", "mail:send"],
+  "capabilities": ["manage_forms"]
+}
