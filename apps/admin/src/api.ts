@@ -24,7 +24,7 @@ async function fetchCsrf(): Promise<string> {
   return csrfToken;
 }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /**
  * JSON client for `/api/v1`. Sends the session cookie and, on state-changing

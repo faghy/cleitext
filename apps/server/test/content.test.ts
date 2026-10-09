@@ -88,6 +88,23 @@ describe('entries', () => {
     expect([a.slug, b.slug]).toEqual(['same-title', 'same-title-2']);
   });
 
+  it('derives the slug from the title until the entry is published', async () => {
+    const created = (
+      await as.author!.post('/api/v1/entries', { type: 'article', title: '' })
+    ).json();
+    expect(created.slug).toMatch(/^untitled(-\d+)?$/);
+    const titled = (
+      await as.author!.request('PATCH', `/api/v1/entries/${created.id}`, { title: 'Spring news' })
+    ).json();
+    expect(titled.slug).toBe('spring-news');
+    // A slug chosen by hand is kept.
+    await as.author!.request('PATCH', `/api/v1/entries/${created.id}`, { slug: 'my-choice' });
+    const renamed = (
+      await as.author!.request('PATCH', `/api/v1/entries/${created.id}`, { title: 'Autumn news' })
+    ).json();
+    expect(renamed.slug).toBe('my-choice');
+  });
+
   it('rejects invalid documents with details', async () => {
     const bad = await as.author!.post('/api/v1/entries', {
       type: 'article',

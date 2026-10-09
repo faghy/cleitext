@@ -1,6 +1,7 @@
 import {
   listMySites,
   roles,
+  siteLocales,
   siteMembers,
   sites,
   superAdmins,
@@ -11,7 +12,7 @@ import {
 } from '@cleitext/db';
 import { effectiveCapabilities, type MeResponse } from '@cleitext/shared';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 
@@ -70,6 +71,14 @@ export class IdentityService {
   async me(siteId: string, auth: AuthContext): Promise<MeResponse> {
     return withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
       const [site] = await tx.select().from(sites).where(eq(sites.id, siteId));
+      const locales = await tx
+        .select({
+          code: siteLocales.code,
+          name: siteLocales.name,
+          isDefault: siteLocales.isDefault,
+        })
+        .from(siteLocales)
+        .orderBy(asc(siteLocales.position), asc(siteLocales.code));
       return {
         user: {
           id: auth.userId,
@@ -78,7 +87,13 @@ export class IdentityService {
           locale: auth.locale,
           isSuperAdmin: auth.isSuperAdmin,
         },
-        site: { id: siteId, name: site?.name ?? '', slug: site?.slug ?? '' },
+        site: {
+          id: siteId,
+          name: site?.name ?? '',
+          slug: site?.slug ?? '',
+          defaultLocale: site?.defaultLocale ?? 'en',
+          locales,
+        },
         role: auth.role ? { slug: auth.role.slug, name: auth.role.name } : null,
         capabilities: auth.capabilities,
         sites: await listMySites(tx),

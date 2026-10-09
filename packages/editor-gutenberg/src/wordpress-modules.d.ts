@@ -10,3 +10,8 @@ declare module '@wordpress/block-library/build-module/*' {
 declare module '@wordpress/block-editor';
 
 declare module '*.css';
+
+declare module '*.css?inline' {
+  const css: string;
+  export default css;
+}

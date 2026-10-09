@@ -12,6 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@cleitext/blocks": "workspace:*",
+    "@cleitext/editor-core": "workspace:*",
     "@cleitext/editor-gutenberg": "workspace:*",
     "@cleitext/shared": "workspace:*",
     "@tanstack/react-query": "^5.104.1",

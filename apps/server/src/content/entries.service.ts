@@ -240,6 +240,21 @@ export class EntriesService {
           input.slug,
           entry.id,
         );
+      } else if (
+        input.slug === undefined &&
+        input.title !== undefined &&
+        input.title !== entry.title &&
+        !entry.publishedRevisionId &&
+        isAutomaticSlug(entry.slug, entry.title)
+      ) {
+        // Like WordPress: until first published, an untouched slug follows the title.
+        changes.slug = await this.uniqueSlug(
+          tx,
+          entry.typeSlug,
+          entry.locale,
+          slugify(input.title),
+          entry.id,
+        );
       }
 
       const needsRevision =
@@ -818,6 +833,14 @@ export function validateDocument(value: unknown): CxdDocument {
     });
   }
   return parsed.data;
+}
+
+/** Whether a slug is the one generated from the title (possibly de-duplicated). */
+function isAutomaticSlug(slug: string, title: string): boolean {
+  const base = slugify(title) || 'untitled';
+  return (
+    slug === base || (slug.startsWith(`${base}-`) && /^\d+$/.test(slug.slice(base.length + 1)))
+  );
 }
 
 function toSummary(entry: EntryRow, authorName: string | null): EntrySummary {

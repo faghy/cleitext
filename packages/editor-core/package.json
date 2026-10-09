@@ -1,0 +1,16 @@
+{
+  "name": "@cleitext/editor-core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cleitext/blocks": "workspace:*"
+  }
+}

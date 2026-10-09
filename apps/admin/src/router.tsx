@@ -1,5 +1,4 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { lazy, Suspense } from 'react';
 import {
   createRootRouteWithContext,
   createRoute,
@@ -16,6 +15,8 @@ import {
   ResetPasswordPage,
 } from './pages/auth-pages';
 import { DashboardPage, ForbiddenPage, PlaceholderPage } from './pages/dashboard';
+import { EntriesListPage } from './pages/entries-list';
+import { EntryEditorPage } from './pages/entry-editor';
 import { AdminLayout } from './pages/layout';
 import { ProfilePage } from './pages/profile';
 import { UsersPage } from './pages/users';
@@ -94,18 +95,18 @@ function sectionRoute(path: string, Component: () => React.ReactNode) {
   });
 }
 
-// Development-only feasibility spike for the Gutenberg editor (M2).
-const GutenbergSpike = lazy(() =>
-  import('@cleitext/editor-gutenberg').then((m) => ({ default: m.GutenbergSpike })),
-);
-const spikeRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: '/__editor-spike',
-  component: () => (
-    <Suspense fallback={<p>Loading editor…</p>}>
-      <GutenbergSpike />
-    </Suspense>
-  ),
+/** Full-screen editor: authenticated, outside the sidebar layout. */
+const editorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/entries/$id',
+  beforeLoad: async ({ context, location }) => {
+    const me = await context.queryClient.ensureQueryData(meQuery);
+    if (!me) throw redirect({ to: '/login', search: { redirect: location.href } });
+    if (!me.capabilities.includes('edit_entries')) throw redirect({ to: '/' });
+  },
+  component: function Editor() {
+    return <EntryEditorPage id={editorRoute.useParams().id} />;
+  },
 });
 
 const routeTree = rootRoute.addChildren([
@@ -113,11 +114,13 @@ const routeTree = rootRoute.addChildren([
   forgotRoute,
   resetRoute,
   inviteRoute,
+  editorRoute,
   appRoute.addChildren([
     sectionRoute('/', DashboardPage),
+    sectionRoute('/posts', () => <EntriesListPage type="article" title="Posts" />),
+    sectionRoute('/pages', () => <EntriesListPage type="page" title="Pages" />),
     sectionRoute('/users', UsersPage),
     sectionRoute('/profile', ProfilePage),
-    ...(import.meta.env.DEV ? [spikeRoute] : []),
     ...SECTIONS.filter((s) => !s.ready).map((s) =>
       sectionRoute(s.to, () => <PlaceholderPage path={s.to} />),
     ),
