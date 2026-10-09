@@ -12,6 +12,8 @@ import { ProblemDetailsFilter } from './common/problem.js';
 import { EntriesController } from './content/entries.controller.js';
 import { EntriesService } from './content/entries.service.js';
 import { SchedulerService } from './content/scheduler.service.js';
+import { TermsController } from './content/terms.controller.js';
+import { TermsService } from './content/terms.service.js';
 import { APP_CONFIG, type AppConfig } from './config/config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -69,6 +71,7 @@ export class AppModule {
         ProfileController,
         EntriesController,
         MediaController,
+        TermsController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -83,6 +86,7 @@ export class AppModule {
         SchedulerService,
         SessionService,
         SiteResolverService,
+        TermsService,
         UserTokenService,
         UsersService,
       ],

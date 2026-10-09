@@ -42,6 +42,7 @@ import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { canDelete, canEdit, canPublish, canRead } from './entry-permissions.js';
 import { nextFreeSlug, slugify } from './slug.js';
+import { TermsService } from './terms.service.js';
 
 type EntryRow = typeof entries.$inferSelect;
 type RevisionRow = typeof revisions.$inferSelect;
@@ -55,6 +56,7 @@ export class EntriesService {
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly audit: AuditService,
+    private readonly termsService: TermsService,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
@@ -217,6 +219,7 @@ export class EntriesService {
       position?: number | undefined;
       document?: unknown;
       fields?: Record<string, unknown> | undefined;
+      terms?: Record<string, (string | { name: string })[]> | undefined;
     },
     ip: string,
   ): Promise<EntryView> {
@@ -273,6 +276,7 @@ export class EntriesService {
         );
       }
       await tx.update(entries).set(changes).where(eq(entries.id, entry.id));
+      if (input.terms) await this.termsService.assign(tx, siteId, auth, entry, input.terms);
 
       const updated = await this.load(tx, entry.id);
       if (changes.slug && entry.publishedRevisionId) {
@@ -757,6 +761,7 @@ export class EntriesService {
       revision,
       autosave,
       translations: translations.map((t) => ({ ...t, status: t.status as EntryStatus })),
+      terms: await this.termsService.termsOfEntry(tx, entry.id),
       permissions: {
         edit: canEdit(auth, entry),
         publish: canPublish(auth, entry),

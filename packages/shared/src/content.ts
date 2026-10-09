@@ -38,6 +38,8 @@ export type CreateEntryRequest = z.input<typeof createEntryRequestSchema>;
 
 export const updateEntryRequestSchema = z.object({
   title: titleSchema.optional(),
+  /** Replaces the terms of the listed taxonomies. */
+  terms: z.lazy(() => termAssignmentsSchema).optional(),
   slug: slugSchema.optional(),
   parentId: z.uuid().nullable().optional(),
   position: z.number().int().min(0).max(1_000_000).optional(),
@@ -116,6 +118,8 @@ export interface EntryView extends EntrySummary {
   autosave: RevisionView | null;
   /** Other languages of the same content. */
   translations: { id: string; locale: string; title: string; status: EntryStatus }[];
+  /** Assigned terms, by taxonomy slug. */
+  terms: Record<string, TermView[]>;
   /** What the current user may do. */
   permissions: { edit: boolean; publish: boolean; delete: boolean };
 }
@@ -134,3 +138,43 @@ export interface EntryListResponse {
   items: EntrySummary[];
   nextCursor: string | null;
 }
+
+// ---- Taxonomies (RF-TAX-01/03) ------------------------------------------------
+
+export interface TaxonomyView {
+  slug: string;
+  name: Record<string, string>;
+  hierarchical: boolean;
+  contentTypes: string[];
+}
+
+export interface TermView {
+  id: string;
+  taxonomy: string;
+  locale: string;
+  translationGroup: string;
+  parentId: string | null;
+  slug: string;
+  name: string;
+  description: string | null;
+  /** Entries using the term (in lists). */
+  count: number;
+}
+
+export const createTermRequestSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  slug: slugSchema.optional(),
+  parentId: z.uuid().nullable().optional(),
+  locale: localeSchema.optional(),
+  description: z.string().max(2_000).optional(),
+});
+export type CreateTermRequest = z.input<typeof createTermRequestSchema>;
+
+export const updateTermRequestSchema = createTermRequestSchema.omit({ locale: true }).partial();
+export type UpdateTermRequest = z.input<typeof updateTermRequestSchema>;
+
+/** Term assignments: ids of existing terms, or `{ name }` to find or create (tags). */
+export const termAssignmentsSchema = z.record(
+  z.string().min(1).max(64),
+  z.array(z.union([z.uuid(), z.object({ name: z.string().trim().min(1).max(200) })])).max(100),
+);

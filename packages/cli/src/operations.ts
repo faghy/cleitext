@@ -14,7 +14,7 @@ import {
   withSiteContext,
   type Database,
 } from '@cleitext/db';
-import { emailSchema, passwordSchema } from '@cleitext/shared';
+import { emailSchema, localeSchema, passwordSchema } from '@cleitext/shared';
 import { hash } from '@node-rs/argon2';
 import { and, asc, eq, isNull, or } from 'drizzle-orm';
 
@@ -89,6 +89,30 @@ export async function addDomain(db: Database, input: AddDomainInput): Promise<vo
       forceHttps: input.forceHttps ?? true,
     });
   });
+}
+
+/** Enables a language on a site (BCP 47 code, e.g. `it` or `de-CH`). */
+export async function addLocale(
+  db: Database,
+  input: { site: string; code: string; name: string; isDefault?: boolean },
+): Promise<void> {
+  const siteId = await siteIdBySlug(db, input.site);
+  const code = parse(localeSchema, input.code, 'language code');
+  await withSiteContext(db, siteId, async (tx) => {
+    const [exists] = await tx.select().from(siteLocales).where(eq(siteLocales.code, code));
+    if (exists) throw new OperationError(`The language ${code} is already enabled.`);
+    if (input.isDefault) await tx.update(siteLocales).set({ isDefault: false });
+    const others = await tx.select().from(siteLocales);
+    await tx.insert(siteLocales).values({
+      siteId,
+      code,
+      name: input.name,
+      isDefault: Boolean(input.isDefault),
+      position: others.length,
+    });
+  });
+  if (input.isDefault)
+    await db.update(sites).set({ defaultLocale: code }).where(eq(sites.id, siteId));
 }
 
 export async function listSites(db: Database) {

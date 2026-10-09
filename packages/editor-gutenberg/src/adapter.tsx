@@ -83,7 +83,8 @@ export const gutenbergAdapter: EditorAdapter = {
     return {
       getDocument: () => controller.current(),
       setDocument: (document) => controller.replace(document),
-      destroy: () => root.unmount(),
+      // Deferred: the host may destroy the editor while React is rendering.
+      destroy: () => setTimeout(() => root.unmount(), 0),
     };
   },
 };
@@ -119,15 +120,21 @@ function GutenbergEditor({
       },
     });
 
+  // Replacements from the host (setDocument) are not user changes: no onChange.
+  const skipChange = useRef(false);
   controller.current = () => toCxd(value.blocks);
-  controller.replace = (document) => setValue({ blocks: load(document) }, false);
+  controller.replace = (document) => {
+    skipChange.current = true;
+    setValue({ blocks: load(document) }, false);
+  };
 
   const onChangeRef = useRef(options.onChange);
   onChangeRef.current = options.onChange;
   const first = useRef(true);
   useEffect(() => {
-    if (first.current) {
+    if (first.current || skipChange.current) {
       first.current = false;
+      skipChange.current = false;
       return;
     }
     onChangeRef.current(toCxd(value.blocks));

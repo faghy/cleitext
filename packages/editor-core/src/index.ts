@@ -52,7 +52,7 @@ export interface LinkSuggestion {
 
 export interface EditorInstance {
   getDocument(): CxdDocument;
-  /** Replaces the content (e.g. after restoring a revision). */
+  /** Replaces the content (e.g. after restoring a revision). Does not call `onChange`. */
   setDocument(document: CxdDocument): void;
   destroy(): void;
 }

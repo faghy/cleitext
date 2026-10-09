@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { inject } from 'vitest';
 import {
   addDomain,
+  addLocale,
   createSite,
   createUser,
   hasSites,
@@ -40,6 +41,16 @@ describe('sites', () => {
     expect(site).toMatchObject({ slug: 'main', name: 'Main', status: 'active' });
     expect(site?.domains.sort()).toEqual(['example.com (primary)', 'www.example.com']);
     expect(await hasSites(owner.db)).toBe(true);
+  });
+
+  it('enables languages', async () => {
+    await addLocale(owner.db, { site: 'main', code: 'en', name: 'English' });
+    await expect(
+      addLocale(owner.db, { site: 'main', code: 'en', name: 'English' }),
+    ).rejects.toThrow(/already enabled/);
+    await expect(
+      addLocale(owner.db, { site: 'main', code: 'xx_bad', name: 'Bad' }),
+    ).rejects.toThrow(OperationError);
   });
 
   it('switches the primary domain', async () => {

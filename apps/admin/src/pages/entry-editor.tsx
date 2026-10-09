@@ -14,6 +14,7 @@ import { api, errorMessage, uploadFile } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button } from '../components/ui';
 import { formatDate, STATUS_LABELS } from './entries-list';
+import { EntryTerms } from './entry-terms';
 
 const AUTOSAVE_INTERVAL_MS = 30_000;
 
@@ -435,6 +436,8 @@ function DocumentPanel({
           </select>
         </section>
       )}
+
+      <EntryTerms entry={entry} readOnly={readOnly} onSaved={onSaved} />
 
       {locales.length > 1 && (
         <section className="space-y-2">
