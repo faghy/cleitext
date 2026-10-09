@@ -4,7 +4,7 @@
 
 > 🇬🇧 La versione di riferimento è quella inglese: [README.md](./README.md). Questa traduzione è secondaria e può essere meno aggiornata.
 >
-> Stato: **progettazione** (v0.2, ottobre 2026), codice non ancora scritto. Per ora è a uso interno; la distribuzione pubblica è prevista in seguito.
+> Stato: **sviluppo iniziale**, tappa M0 (fondamenta). Per ora è a uso interno; la distribuzione pubblica è prevista in seguito.
 > Licenza: **GPL-2.0-or-later** (come WordPress)
 
 ## In sintesi
@@ -15,14 +15,33 @@
 - **Sito pubblico**: temi in React SSR, senza JavaScript di default, con cache a tag
 - **Estensibilità**: sistema a plugin sul modello di WordPress (hook, ciclo di vita attivazione/disinstallazione, upload e aggiornamenti automatici), con hook tipizzati e uno schema PostgreSQL dedicato per ogni plugin
 - **Multi-sito**: un'unica installazione per più domini, isolati con il Row Level Security di PostgreSQL
-- **Deploy**: Plesk (estensione Node.js) oppure Docker
+- **Deploy**: Plesk (estensione Node.js)
+
+## Sviluppo
+
+Requisiti: **Node.js 22+** e **pnpm 10** (`corepack enable`). Non serve installare PostgreSQL né usare container: un server PostgreSQL reale viene avviato dai binari embedded.
+
+```bash
+pnpm install
+pnpm dev          # database locale + server (http://127.0.0.1:3000) + admin (http://localhost:5173/admin/)
+```
+
+Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/` e scrive un file `.env` (vedi `.env.example`).
+
+| Comando                                       | Cosa fa                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------- |
+| `pnpm dev`                                    | Avvia database locale, server e admin con ricaricamento automatico              |
+| `pnpm db:dev`                                 | Avvia solo il database locale (con le migrazioni applicate)                     |
+| `pnpm test`                                   | Esegue tutti i test, ogni suite su un PostgreSQL embedded nuovo                 |
+| `pnpm build` / `pnpm typecheck` / `pnpm lint` | Build, controllo dei tipi, lint                                                 |
+| `pnpm db:generate`                            | Genera una migrazione dopo una modifica allo schema in `packages/db/src/schema` |
 
 ## Documentazione
 
-| Documento | Contenuto |
-|---|---|
+| Documento                                                                             | Contenuto                                                                                             |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | [`docs/it/ARCHITETTURA.md`](./docs/it/ARCHITETTURA.md) ([EN](./docs/ARCHITECTURE.md)) | Principi, stack, modello dati (DDL), multi-sito, editor, plugin, temi, sicurezza, deploy, ADR, rischi |
-| [`docs/it/SPECIFICHE.md`](./docs/it/SPECIFICHE.md) ([EN](./docs/SPECIFICATIONS.md)) | Requisiti funzionali e non funzionali, API REST, SDK dei plugin, hook, formato CXD, CLI, roadmap |
+| [`docs/it/SPECIFICHE.md`](./docs/it/SPECIFICHE.md) ([EN](./docs/SPECIFICATIONS.md))   | Requisiti funzionali e non funzionali, API REST, SDK dei plugin, hook, formato CXD, CLI, roadmap      |
 
 ## Il principio chiave
 
