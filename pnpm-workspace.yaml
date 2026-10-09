@@ -4,12 +4,16 @@ packages:
   - tools/*
 
 # Dependencies allowed to run install scripts.
-onlyBuiltDependencies:
-  - '@swc/core'
-  - esbuild
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
   # PostgreSQL binaries for local development and tests (restores library symlinks).
-  - '@embedded-postgres/darwin-arm64'
-  - '@embedded-postgres/darwin-x64'
-  - '@embedded-postgres/linux-arm64'
-  - '@embedded-postgres/linux-x64'
-  - '@embedded-postgres/windows-x64'
+  '@embedded-postgres/darwin-arm64': true
+  '@embedded-postgres/darwin-x64': true
+  '@embedded-postgres/linux-arm64': true
+  '@embedded-postgres/linux-x64': true
+  '@embedded-postgres/windows-x64': true
+
+# A single Fastify version for NestJS and the @fastify plugins.
+overrides:
+  fastify: ^5.12.5

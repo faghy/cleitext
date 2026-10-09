@@ -17,7 +17,7 @@
 
 ## Development
 
-Requirements: **Node.js 22+** and **pnpm 10** (`corepack enable`). No PostgreSQL installation and no containers are needed: a real PostgreSQL server is started from embedded binaries.
+Requirements: **Node.js 22+** and **pnpm 12** (`npm i -g pnpm@12`). No PostgreSQL installation and no containers are needed: a real PostgreSQL server is started from embedded binaries.
 
 ```bash
 pnpm install

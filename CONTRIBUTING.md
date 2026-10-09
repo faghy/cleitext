@@ -41,6 +41,7 @@ The full target layout (`plugins/`, `themes/`, more packages) is described in `d
 - NestJS code in `apps/server` must not use `import type` for injected classes (decorator metadata).
 - TypeScript 7 compiles everything (`tsc` comes from `@typescript/native` = `typescript@7`). The `typescript` package is aliased to `@typescript/typescript6` only because typescript-eslint still needs the TS 6 API (official side-by-side setup). Drop the alias when typescript-eslint supports TS 7.
 - Prefer the latest stable, officially released version of every tool and library; no pre-releases as main choice.
+- pnpm 12 is pinned in `packageManager`. Its default `minimumReleaseAge` policy rejects packages published in the last day: keep it (supply-chain protection) and retry later instead of relaxing it.
 
 ## Workflow
 
@@ -50,10 +51,11 @@ The full target layout (`plugins/`, `themes/`, more packages) is described in `d
 
 ## Git
 
-- Default branch: `main`. Remote: `git@github.com:faghy/cleitext.git` (public).
+- Work happens directly on `main`: no feature branches or pull requests for now. Remote: `git@github.com:faghy/cleitext.git` (private for now).
 - Use Conventional Commits in English (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`…).
-- Commit or push only when the maintainer asks. Pushing publishes to a public repository.
-- If SSH push is rejected (`Permission denied (publickey)`), push over HTTPS with the GitHub CLI credentials: `git -c credential.helper='!gh auth git-credential' push https://github.com/faghy/cleitext.git main`.
+- Commit or push only when the maintainer asks.
+- No attribution lines in commits or pull requests (no `Co-Authored-By` trailers for tools, no "generated with" footers).
+- If SSH push is rejected (`Permission denied (publickey)`), push over HTTPS with the GitHub CLI credentials: `git -c credential.helper='!gh auth git-credential' push https://github.com/faghy/cleitext.git main`. The GitHub CLI (`gh`) is the preferred way to talk to GitHub.
 - Never commit secrets, `.env` files, database dumps or customer data. The legacy Cleito CMS code is private and must never be copied into this repository, nor referenced by local paths.
 
 ## Project decisions

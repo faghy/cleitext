@@ -4,15 +4,15 @@
   "description": "Open-source multi-site CMS modeled on WordPress",
   "license": "GPL-2.0-or-later",
   "type": "module",
-  "packageManager": "pnpm@10.32.1",
+  "packageManager": "pnpm@12.10.1",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev": "env -u pnpm_config_verify_deps_before_run turbo run dev",
-    "build": "env -u pnpm_config_verify_deps_before_run turbo run build",
-    "typecheck": "env -u pnpm_config_verify_deps_before_run turbo run typecheck",
-    "test": "env -u pnpm_config_verify_deps_before_run turbo run test",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -32,10 +32,5 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.3"
-  },
-  "pnpm": {
-    "overrides": {
-      "fastify": "^5.12.5"
-    }
   }
 }
