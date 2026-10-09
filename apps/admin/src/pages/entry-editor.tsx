@@ -1,10 +1,16 @@
 import type { CxdDocument } from '@cleitext/blocks';
-import type { EditorInstance } from '@cleitext/editor-core';
-import type { EntryListResponse, EntryView, RevisionSummary } from '@cleitext/shared';
+import type { EditorInstance, EditorServices, MediaRef } from '@cleitext/editor-core';
+import type {
+  EntryListResponse,
+  EntryView,
+  MediaListResponse,
+  MediaView,
+  RevisionSummary,
+} from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, errorMessage } from '../api';
+import { api, errorMessage, uploadFile } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button } from '../components/ui';
 import { formatDate, STATUS_LABELS } from './entries-list';
@@ -64,7 +70,7 @@ function Editor({ initial }: { initial: EntryView }) {
       editorRef.current = gutenbergAdapter.mount({
         document: documentRef.current,
         targets: { canvas: canvasRef.current, inspector: inspectorRef.current },
-        services: {},
+        services: mediaServices(initial.locale),
         locale: initial.locale,
         onChange: (document) => {
           documentRef.current = document;
@@ -515,4 +521,27 @@ function DocumentPanel({
 
 function EditorShell({ children }: { children: React.ReactNode }) {
   return <div className="flex h-screen flex-col bg-slate-100 text-slate-900">{children}</div>;
+}
+
+/** Media services given to the editor adapter (upload and library). */
+function mediaServices(locale: string): EditorServices {
+  const toRef = (m: MediaView): MediaRef => ({
+    id: m.id,
+    url: m.url,
+    alt: m.alt[locale] ?? '',
+    mime: m.mime,
+    ...(m.width ? { width: m.width } : {}),
+    ...(m.height ? { height: m.height } : {}),
+    thumbnailUrl:
+      m.variants.find((v) => v.variant === 'thumb' && v.format === 'webp')?.url ?? m.url,
+  });
+  return {
+    uploadMedia: async (file) => toRef(await uploadFile<MediaView>(file)),
+    listMedia: async ({ kind, search }) => {
+      const params = new URLSearchParams({ limit: '60' });
+      if (kind) params.set('kind', kind);
+      if (search) params.set('q', search);
+      return (await api<MediaListResponse>('GET', `/media?${params}`)).items.map(toRef);
+    },
+  };
 }

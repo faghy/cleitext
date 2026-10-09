@@ -61,6 +61,29 @@ export async function api<T>(method: Method, path: string, body?: unknown): Prom
   return data as T;
 }
 
+/** Uploads a file to the media library (multipart, with the CSRF header). */
+export async function uploadFile<T>(file: File): Promise<T> {
+  const send = async (token: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetch('/api/v1/media', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { [CSRF_HEADER]: token },
+      body: form,
+    });
+  };
+  let res = await send(csrfToken ?? (await fetchCsrf()));
+  if (res.status === 403) res = await send(await fetchCsrf());
+  const data = (await res.json().catch(() => null)) as unknown;
+  if (!res.ok) {
+    throw new ApiError(
+      (data as ProblemDetails | null) ?? { title: res.statusText, status: res.status },
+    );
+  }
+  return data as T;
+}
+
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   return 'Something went wrong. Check your connection and try again.';

@@ -17,6 +17,7 @@ import {
 import { DashboardPage, ForbiddenPage, PlaceholderPage } from './pages/dashboard';
 import { EntriesListPage } from './pages/entries-list';
 import { EntryEditorPage } from './pages/entry-editor';
+import { MediaPage } from './pages/media';
 import { AdminLayout } from './pages/layout';
 import { ProfilePage } from './pages/profile';
 import { UsersPage } from './pages/users';
@@ -119,6 +120,7 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/', DashboardPage),
     sectionRoute('/posts', () => <EntriesListPage type="article" title="Posts" />),
     sectionRoute('/pages', () => <EntriesListPage type="page" title="Pages" />),
+    sectionRoute('/media', MediaPage),
     sectionRoute('/users', UsersPage),
     sectionRoute('/profile', ProfilePage),
     ...SECTIONS.filter((s) => !s.ready).map((s) =>

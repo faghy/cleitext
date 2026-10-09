@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { z } from 'zod';
 
 const booleanString = z
@@ -35,6 +36,13 @@ const envSchema = z.object({
     .regex(/^(smtps?|log|memory):\/\//, 'Use smtp://, smtps://, log:// or memory://')
     .default('log://'),
   MAIL_FROM: z.string().min(3).default('Cleitext <no-reply@localhost>'),
+  /** Uploaded files (disk storage driver). Relative paths start from the working directory. */
+  MEDIA_PATH: z.string().min(1).default('cleitext-data/media'),
+  MEDIA_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024)
+    .default(20 * 1024 * 1024),
   /** How often scheduled entries are published; 0 disables it. */
   SCHEDULER_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
 });
@@ -49,6 +57,7 @@ export interface AppConfig {
   session: { ttlHours: number; rememberDays: number };
   mail: { url: string; from: string };
   schedulerIntervalSeconds: number;
+  media: { path: string; maxBytes: number };
 }
 
 export class ConfigError extends Error {
@@ -76,6 +85,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     session: { ttlHours: e.SESSION_TTL_HOURS, rememberDays: e.SESSION_REMEMBER_DAYS },
     mail: { url: e.MAIL_URL, from: e.MAIL_FROM },
     schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,
+    media: { path: resolve(e.MEDIA_PATH), maxBytes: e.MEDIA_MAX_BYTES },
   };
 }
 

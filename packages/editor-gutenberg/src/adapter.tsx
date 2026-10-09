@@ -16,6 +16,7 @@ import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { fromGutenberg, toGutenberg } from './convert';
 import { buildBlocks, defaultsOf, isRegistered } from './gutenberg-tree';
+import { registerMediaUpload, setMediaServices } from './media-upload';
 import { registerCoreBlocks } from './register-blocks';
 import blockEditorContentCss from '@wordpress/block-editor/build-style/content.css?inline';
 import blockLibraryEditorCss from '@wordpress/block-library/build-style/editor.css?inline';
@@ -74,6 +75,8 @@ export const gutenbergAdapter: EditorAdapter = {
   id: 'gutenberg',
   mount(options: EditorMountOptions): EditorInstance {
     registerCoreBlocks();
+    registerMediaUpload();
+    setMediaServices(options.services);
     const controller: Controller = { current: () => options.document, replace: () => {} };
     const root = createRoot(options.targets.canvas);
     root.render(<GutenbergEditor options={options} controller={controller} />);

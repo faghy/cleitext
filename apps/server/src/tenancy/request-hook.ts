@@ -41,6 +41,19 @@ export function createRequestHook({ sites, sessions, identity }: Dependencies) {
       return reply;
     }
 
+    // Media files of other sites are not served on this host, and paths that
+    // try to leave the site's folder are refused before reaching the disk.
+    if (
+      request.url.startsWith('/media/') &&
+      (!request.url.startsWith(`/media/${resolution.siteId}/`) || !isSafeMediaPath(request.url))
+    ) {
+      await reply
+        .code(404)
+        .type('application/problem+json')
+        .send({ title: 'Not Found', status: 404 });
+      return reply;
+    }
+
     request.site = { id: resolution.siteId, status: resolution.siteStatus };
     request.auth = null;
 
@@ -52,4 +65,14 @@ export function createRequestHook({ sites, sessions, identity }: Dependencies) {
       }
     }
   };
+}
+
+function isSafeMediaPath(url: string): boolean {
+  let path: string;
+  try {
+    path = decodeURIComponent(url.split('?')[0]!);
+  } catch {
+    return false;
+  }
+  return !path.includes('..') && !path.includes('\\') && !path.includes('\0');
 }

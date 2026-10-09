@@ -16,6 +16,8 @@ import { APP_CONFIG, type AppConfig } from './config/config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MailService } from './mail/mail.service.js';
+import { MediaController } from './media/media.controller.js';
+import { MediaService } from './media/media.service.js';
 import { ProfileController } from './profile/profile.controller.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
 import { UsersController } from './users/users.controller.js';
@@ -66,6 +68,7 @@ export class AppModule {
         UsersController,
         ProfileController,
         EntriesController,
+        MediaController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -76,6 +79,7 @@ export class AppModule {
         IdentityService,
         LoginThrottleService,
         MailService,
+        MediaService,
         SchedulerService,
         SessionService,
         SiteResolverService,

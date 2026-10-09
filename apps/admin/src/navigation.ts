@@ -13,7 +13,7 @@ export interface Section {
 export const SECTIONS: Section[] = [
   { to: '/', label: 'Dashboard', anyOf: ['read'], ready: true },
   { to: '/posts', label: 'Posts', anyOf: ['edit_entries'], ready: true },
-  { to: '/media', label: 'Media', anyOf: ['upload_media'], ready: false },
+  { to: '/media', label: 'Media', anyOf: ['upload_media'], ready: true },
   { to: '/pages', label: 'Pages', anyOf: ['edit_entries'], ready: true },
   {
     to: '/appearance',

@@ -27,6 +27,8 @@ export interface EditorMountOptions {
 
 export interface EditorServices {
   uploadMedia?(file: File): Promise<MediaRef>;
+  /** Media library browsing, for the editor's media picker. */
+  listMedia?(query: { kind?: 'image'; search?: string }): Promise<MediaRef[]>;
   searchLinks?(query: string): Promise<LinkSuggestion[]>;
 }
 
@@ -37,6 +39,8 @@ export interface MediaRef {
   width?: number;
   height?: number;
   mime: string;
+  /** Small preview, when available. */
+  thumbnailUrl?: string;
 }
 
 export interface LinkSuggestion {

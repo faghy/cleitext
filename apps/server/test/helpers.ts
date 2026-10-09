@@ -1,3 +1,6 @@
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   createDatabase,
   roles,
@@ -19,8 +22,10 @@ import { hashPassword } from '../src/auth/crypto.js';
 import { loadConfig } from '../src/config/config.js';
 
 export async function startTestApp(): Promise<NestFastifyApplication> {
+  const mediaPath = await mkdtemp(join(tmpdir(), 'cleitext-media-'));
   return createApp(
     loadConfig({
+      MEDIA_PATH: mediaPath,
       NODE_ENV: 'test',
       LOG_LEVEL: 'silent',
       DATABASE_URL: inject('appUrl'),
@@ -144,6 +149,38 @@ export class TestClient {
       else this.cookies.set(cookie.name, cookie.value);
     }
     return response;
+  }
+
+  /** Uploads one file as multipart/form-data (field `file`). */
+  async upload(
+    url: string,
+    filename: string,
+    data: Buffer,
+    contentType = 'application/octet-stream',
+  ) {
+    const boundary = `----cleitext${Math.random().toString(16).slice(2)}`;
+    const body = Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+          `Content-Type: ${contentType}\r\n\r\n`,
+      ),
+      data,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    if (!this.csrf) await this.fetchCsrf();
+    return this.app.inject({
+      method: 'POST',
+      url,
+      remoteAddress: this.remoteAddress,
+      headers: {
+        host: this.host,
+        origin: `http://${this.host}`,
+        'x-csrf-token': this.csrf!,
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+        cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; '),
+      },
+      payload: body,
+    });
   }
 
   get(url: string) {

@@ -14,6 +14,7 @@ import * as paragraphBlock from '@wordpress/block-library/build-module/paragraph
 import * as quoteBlock from '@wordpress/block-library/build-module/quote/index.mjs';
 import * as separatorBlock from '@wordpress/block-library/build-module/separator/index.mjs';
 import * as spacerBlock from '@wordpress/block-library/build-module/spacer/index.mjs';
+import apiFetch from '@wordpress/api-fetch';
 import { setDefaultBlockName } from '@wordpress/blocks';
 import '@wordpress/format-library';
 import { registerUnavailableBlock } from './unavailable-block';
@@ -41,6 +42,11 @@ let registered = false;
 export function registerCoreBlocks(): void {
   if (registered) return;
   registered = true;
+  // Some Gutenberg internals (core-data) query the WordPress REST API. Cleitext
+  // has none: answer locally with empty data instead of hitting the network.
+  apiFetch.setFetchHandler(async ({ path = '' }: { path?: string }) =>
+    /\/types(\?|$)/.test(path) ? {} : [],
+  );
   for (const block of CORE_BLOCKS) (block as { init: () => unknown }).init();
   registerUnavailableBlock();
   setDefaultBlockName('core/paragraph');

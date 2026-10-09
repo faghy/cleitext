@@ -14,6 +14,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: serverUrl, xfwd: true },
       '/health': { target: serverUrl, xfwd: true },
+      '/media': { target: serverUrl, xfwd: true },
     },
   },
 });
