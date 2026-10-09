@@ -1,0 +1,30 @@
+{
+  "name": "@cleitext/editor-gutenberg",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./style.css": "./src/style.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@wordpress/block-editor": "^18.1.0",
+    "@wordpress/block-library": "^11.2.0",
+    "@wordpress/blocks": "^16.2.0",
+    "@wordpress/components": "^42.0.0",
+    "@wordpress/data": "^10.57.0",
+    "@wordpress/element": "^9.0.0",
+    "@wordpress/format-library": "^5.57.0",
+    "@wordpress/rich-text": "^7.57.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
+  }
+}

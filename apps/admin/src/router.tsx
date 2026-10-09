@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { lazy, Suspense } from 'react';
 import {
   createRootRouteWithContext,
   createRoute,
@@ -93,6 +94,20 @@ function sectionRoute(path: string, Component: () => React.ReactNode) {
   });
 }
 
+// Development-only feasibility spike for the Gutenberg editor (M2).
+const GutenbergSpike = lazy(() =>
+  import('@cleitext/editor-gutenberg').then((m) => ({ default: m.GutenbergSpike })),
+);
+const spikeRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/__editor-spike',
+  component: () => (
+    <Suspense fallback={<p>Loading editor…</p>}>
+      <GutenbergSpike />
+    </Suspense>
+  ),
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   forgotRoute,
@@ -102,6 +117,7 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/', DashboardPage),
     sectionRoute('/users', UsersPage),
     sectionRoute('/profile', ProfilePage),
+    ...(import.meta.env.DEV ? [spikeRoute] : []),
     ...SECTIONS.filter((s) => !s.ready).map((s) =>
       sectionRoute(s.to, () => <PlaceholderPage path={s.to} />),
     ),
