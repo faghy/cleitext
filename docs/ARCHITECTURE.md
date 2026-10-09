@@ -832,6 +832,14 @@ Each one needs an editor-agnostic definition (schema and render), a Gutenberg ed
 - **Versions**: the `@wordpress/*` packages must be updated **all together** and with a pinned version. Every update goes through the round-trip tests and the editor E2E tests.
 - **Reference**: projects such as _Isolated Block Editor_ (Automattic) show how to use Gutenberg outside WordPress and are useful as an implementation reference.
 
+**As implemented in M2** (`packages/editor-gutenberg`):
+
+- Blocks are registered one by one from `@wordpress/block-library` (`build-module/<block>`); WordPress-specific blocks (post title, query loop…) are never loaded.
+- The canvas is `BlockCanvas` (iframe). Content and editing-UI styles (`components`, `block-editor/content.css`, `block-library` style, theme and editor CSS) are passed as `__unstableResolvedAssets`; the admin keeps only the UI styles.
+- Gutenberg internals that call the WordPress REST API (`core-data`) are answered locally by an `apiFetch` fetch handler: no request leaves the browser.
+- The image block's "Media Library" is replaced through the `editor.MediaUpload` filter with a picker backed by Cleitext's media API (`EditorServices`).
+- Measured sizes: about 950 kB gzip for the editor chunk, loaded only on the edit screen; the initial admin bundle is about 140 kB gzip.
+
 ---
 
 ## 11. Plugin system
@@ -1271,7 +1279,7 @@ PLUGINS_PATH, REGISTRY_URL, PLUGINS_INSTALL_FROM_UI=true|false, PLUGINS_ALLOW_UN
   - unit: Vitest on services, hooks and CXD format conversions;
   - integration: real PostgreSQL started from embedded binaries (`embedded-postgres`) or from `CLEITEXT_TEST_PG_URL`, migrations and **RLS isolation tests**;
   - contract: plugin API, run against the official plugins;
-  - end-to-end: Playwright on login, creating and publishing with the editor, plugin activation, WXR import;
+  - end-to-end: Playwright on login, creating and publishing with the editor, plugin activation, WXR import (`apps/admin/e2e`, run by `pnpm e2e` and in CI);
   - performance: k6 on public pages and the API (§2 thresholds in nightly CI).
 - **Quality**: strict TypeScript, ESLint (with boundary rules), Prettier, Conventional Commits, Changesets for versioning, core coverage of at least 80%.
 

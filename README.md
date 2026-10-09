@@ -2,7 +2,7 @@
 
 **An open-source, multi-site, multilingual CMS with a plugin system. It works like WordPress, but it is not built on WordPress.**
 
-> Status: **early development** — milestones M0 (foundations) and M1 (identity and sites). Currently intended for internal use, with a public release planned later.
+> Status: **early development** — milestones M0 (foundations), M1 (identity and sites) and M2 (content and editor). Currently intended for internal use, with a public release planned later.
 > License: **GPL-2.0-or-later** (same as WordPress) · 🇮🇹 [Leggi in italiano](./README.it.md)
 
 ## At a glance
@@ -31,19 +31,23 @@ On first start, `pnpm dev` creates a local database in `.cleitext-dev/`, writes 
 | `pnpm dev`                                    | Starts the local database, the server and the admin with hot reload                                            |
 | `pnpm db:dev`                                 | Starts only the local database (migrations applied)                                                            |
 | `pnpm test`                                   | Runs all tests, each suite on a fresh embedded PostgreSQL                                                      |
+| `pnpm e2e`                                    | Browser tests of the admin and the Gutenberg editor (Playwright; starts `pnpm dev` if needed)                  |
 | `pnpm build` / `pnpm typecheck` / `pnpm lint` | Build, type checks, lint                                                                                       |
 | `pnpm db:generate`                            | Generates a migration after a schema change in `packages/db/src/schema`                                        |
 | `pnpm cleitext <command>`                     | CLI: `install`, `migrate`, `site:create`, `site:list`, `site:domain:add`, `user:create`, `user:reset-password` |
 
-| Package            | Purpose                                                                                 |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| `apps/server`      | NestJS + Fastify server: site resolution, authentication, users, profile, health probes |
-| `apps/admin`       | Admin SPA (React, Vite, Tailwind)                                                       |
-| `packages/db`      | Drizzle schema, migrations, Row Level Security, site context helpers                    |
-| `packages/shared`  | Capabilities, default roles and API schemas shared by server and admin                  |
-| `packages/cli`     | `cleitext` command-line tool (owner connection)                                         |
-| `packages/testing` | Embedded PostgreSQL and database provisioning for tests                                 |
-| `tools/dev-db`     | Persistent local PostgreSQL for development                                             |
+| Package                     | Purpose                                                                           |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| `apps/server`               | NestJS + Fastify server: sites, authentication, users, content, media, taxonomies |
+| `apps/admin`                | Admin SPA (React, Vite, Tailwind)                                                 |
+| `packages/db`               | Drizzle schema, migrations, Row Level Security, site context helpers              |
+| `packages/shared`           | Capabilities, default roles and API schemas shared by server and admin            |
+| `packages/blocks`           | Cleitext Document (CXD) format, rich-text conversion, core block definitions      |
+| `packages/editor-core`      | `EditorAdapter` contract between the admin and a block editor                     |
+| `packages/editor-gutenberg` | Gutenberg adapter (the only package allowed to import `@wordpress/*`)             |
+| `packages/cli`              | `cleitext` command-line tool (owner connection)                                   |
+| `packages/testing`          | Embedded PostgreSQL and database provisioning for tests                           |
+| `tools/dev-db`              | Persistent local PostgreSQL for development                                       |
 
 ## Documentation
 

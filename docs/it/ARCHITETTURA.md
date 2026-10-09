@@ -834,6 +834,14 @@ Per ognuno servono una definizione agnostica (schema e render), un componente ed
 
 ### 10.6 Note tecniche sull'integrazione Gutenberg
 
+**Come è stato realizzato in M2** (`packages/editor-gutenberg`):
+
+- I blocchi vengono registrati uno per uno da `@wordpress/block-library` (`build-module/<blocco>`). I blocchi specifici di WordPress (titolo del post, query loop…) non vengono mai caricati.
+- Il canvas è `BlockCanvas` (iframe). Gli stili del contenuto e dell'interfaccia di modifica (`components`, `block-editor/content.css`, lo stile di `block-library`, il CSS del tema e dell'editor) vengono passati come `__unstableResolvedAssets`. L'admin conserva solo gli stili dell'interfaccia.
+- Le parti interne di Gutenberg che chiamano la REST API di WordPress (`core-data`) ricevono una risposta locale da un fetch handler di `apiFetch`: nessuna richiesta esce dal browser.
+- La "Libreria media" del blocco immagine è sostituita, tramite il filtro `editor.MediaUpload`, da un selettore che usa l'API media di Cleitext (`EditorServices`).
+- Dimensioni misurate: circa 950 kB gzip per il chunk dell'editor, caricato solo nella schermata di modifica; il bundle iniziale dell'admin è di circa 140 kB gzip.
+
 - **Peso**: Gutenberg è pesante, circa 1–2 MB gzip con le dipendenze. Va caricato **solo nella schermata di modifica** (lazy), mentre il resto dell'admin resta leggero.
 - **Stili**: gli stili dell'editor sono isolati in un iframe di modifica (supportato dal block editor), così non entrano in conflitto con Tailwind dell'admin. Gli stili del tema attivo si iniettano nell'iframe per avere un'anteprima fedele (_editor styles_).
 - **Versioni**: i pacchetti `@wordpress/*` vanno aggiornati **tutti insieme** e con una versione fissata. Ogni aggiornamento passa dai test di round-trip e dagli E2E dell'editor.
@@ -1278,7 +1286,7 @@ PLUGINS_PATH, REGISTRY_URL, PLUGINS_INSTALL_FROM_UI=true|false, PLUGINS_ALLOW_UN
   - unità: Vitest su servizi, hook e conversioni del formato CXD;
   - integrazione: PostgreSQL reale avviato dai binari embedded (`embedded-postgres`) o da `CLEITEXT_TEST_PG_URL`, migrazioni e **test di isolamento RLS**;
   - contratto: API dei plugin, eseguita contro i plugin ufficiali;
-  - end-to-end: Playwright su login, creazione e pubblicazione con l'editor, attivazione plugin, import WXR;
+  - end-to-end: Playwright su login, creazione e pubblicazione con l'editor, attivazione plugin, import WXR (`apps/admin/e2e`, eseguiti con `pnpm e2e` e in CI);
   - prestazioni: k6 su pagine pubbliche e API (soglie di §2 in CI notturna).
 - **Qualità**: TypeScript strict, ESLint (con regole di confine), Prettier, Conventional Commits, Changesets per le versioni, copertura del core almeno all'80%.
 

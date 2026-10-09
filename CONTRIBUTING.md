@@ -24,6 +24,10 @@ apps/admin                    admin SPA (React, Vite, Tailwind)
 packages/db                   Drizzle schema, migrations (drizzle/), RLS, site context
 packages/shared               capabilities, default roles, API schemas (server + admin)
 packages/cli                  `cleitext` CLI (owner connection)
+packages/blocks               CXD format, rich-text conversion, core block definitions
+packages/editor-core          EditorAdapter contract
+packages/editor-gutenberg     Gutenberg adapter (only place for @wordpress/* imports)
+apps/admin/e2e                Playwright browser tests
 packages/testing              embedded PostgreSQL + DB provisioning for tests
 tools/dev-db                  persistent local PostgreSQL for `pnpm dev`
 ```
@@ -32,6 +36,7 @@ The full target layout (`plugins/`, `themes/`, more packages) is described in `d
 
 ## Commands
 
+- `pnpm e2e` — Playwright tests of the admin and the editor; run them after changing the editor or the admin flows.
 - `pnpm dev` — local DB + server + admin. `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm format`.
 - Schema changes: edit `packages/db/src/schema`, then `pnpm db:generate`. Hand-written SQL (RLS, functions) goes in custom migrations (`drizzle-kit generate --custom`).
 - Every new table with a `site_id` column must get RLS (`cleitext_enable_tenant_rls`) and composite FKs `(site_id, id)` to its parents. The isolation suite in `packages/db/test` fails when a tenant table has no RLS.

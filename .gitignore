@@ -30,3 +30,7 @@ Thumbs.db
 
 # Local development database (tools/dev-db)
 .cleitext-dev/
+
+# Playwright
+test-results/
+playwright-report/

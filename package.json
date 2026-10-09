@@ -18,7 +18,8 @@
     "format:check": "prettier --check .",
     "db:generate": "pnpm --filter @cleitext/db run generate",
     "db:dev": "pnpm --filter @cleitext/dev-db run dev",
-    "cleitext": "node --env-file-if-exists=.env packages/cli/dist/bin.js"
+    "cleitext": "node --env-file-if-exists=.env packages/cli/dist/bin.js",
+    "e2e": "playwright test -c apps/admin/playwright.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

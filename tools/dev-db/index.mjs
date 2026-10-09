@@ -5,7 +5,8 @@
 // Data lives in <repo>/.cleitext-dev/pg (git-ignored). Credentials below are
 // for local development only.
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { addDomain, createSite, createUser, hasSites } from '@cleitext/cli';
@@ -17,6 +18,7 @@ const dataDir = join(root, '.cleitext-dev', 'pg');
 const port = Number(process.env.CLEITEXT_DEV_PG_PORT ?? 54329);
 
 await mkdir(dirname(dataDir), { recursive: true });
+await stopOrphanedServer(dataDir);
 const server = await startEmbeddedPostgres({ dataDir, port });
 const db = await provisionDatabase(server.superuserUrl, {
   database: 'cleitext',
@@ -78,3 +80,30 @@ const stop = async () => {
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
 setInterval(() => {}, 1 << 30);
+
+/**
+ * A previous run killed without cleanup (e.g. SIGKILL) leaves PostgreSQL
+ * running on our data directory, which would block a new start. Stop it.
+ */
+async function stopOrphanedServer(dir) {
+  const pidFile = join(dir, 'postmaster.pid');
+  if (!existsSync(pidFile)) return;
+  const pid = Number((await readFile(pidFile, 'utf8')).split('\n')[0]);
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  try {
+    process.kill(pid, 0);
+  } catch {
+    return; // stale pid file: PostgreSQL removes it on start
+  }
+  console.log(`[dev-db] stopping a PostgreSQL left running by a previous run (pid ${pid})…`);
+  process.kill(pid, 'SIGINT'); // fast shutdown
+  for (let i = 0; i < 100; i++) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return;
+    }
+    await sleep(100);
+  }
+  throw new Error(`PostgreSQL (pid ${pid}) did not stop; stop it manually.`);
+}
