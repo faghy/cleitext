@@ -16,6 +16,7 @@ import * as separatorBlock from '@wordpress/block-library/build-module/separator
 import * as spacerBlock from '@wordpress/block-library/build-module/spacer/index.mjs';
 import { setDefaultBlockName } from '@wordpress/blocks';
 import '@wordpress/format-library';
+import { registerUnavailableBlock } from './unavailable-block';
 
 /** Core blocks available in the MVP editor (docs/ARCHITECTURE.md §10.5). */
 const CORE_BLOCKS = [
@@ -41,5 +42,6 @@ export function registerCoreBlocks(): void {
   if (registered) return;
   registered = true;
   for (const block of CORE_BLOCKS) (block as { init: () => unknown }).init();
+  registerUnavailableBlock();
   setDefaultBlockName('core/paragraph');
 }

@@ -1,0 +1,152 @@
+import { z } from 'zod';
+
+/**
+ * Cleitext Document (CXD): the editor-independent format in which content is
+ * stored (docs/ARCHITECTURE.md §10.1, docs/SPECIFICATIONS.md §9).
+ */
+
+export const CXD_SCHEMA_VERSION = 1;
+
+export const MARKS = ['bold', 'italic', 'underline', 'strike', 'code', 'sup', 'sub'] as const;
+export type Mark = (typeof MARKS)[number];
+
+/** A run of text with the same formatting. `\n` is a line break. */
+export interface CxdText {
+  text: string;
+  marks?: Mark[];
+}
+
+export interface CxdLink {
+  type: 'link';
+  href: string;
+  target?: '_blank';
+  rel?: string;
+  children: CxdText[];
+}
+
+export type CxdInline = CxdText | CxdLink;
+
+export interface CxdBlock {
+  /** Stable id, kept across saves (anchors, comments, diffs). */
+  id: string;
+  /** `namespace/name`, e.g. `core/paragraph`. */
+  type: string;
+  /** Version of the block's attribute schema, for migrations. */
+  v: number;
+  attrs: Record<string, unknown>;
+  /** Main rich text of text blocks. */
+  content?: CxdInline[];
+  /** Nested blocks of container blocks. */
+  children?: CxdBlock[];
+}
+
+export interface CxdDocument {
+  schema: typeof CXD_SCHEMA_VERSION;
+  blocks: CxdBlock[];
+}
+
+/** Safety limits for stored documents. */
+export const CXD_LIMITS = {
+  maxDepth: 12,
+  maxBlocks: 5_000,
+  maxTextLength: 200_000,
+} as const;
+
+const markSchema = z.enum(MARKS);
+
+export const cxdTextSchema = z
+  .object({
+    text: z.string().max(CXD_LIMITS.maxTextLength),
+    marks: z.array(markSchema).max(MARKS.length).optional(),
+  })
+  .strict();
+
+const SAFE_HREF = /^(https?:|mailto:|tel:|\/|#|\?)/i;
+
+export const cxdLinkSchema = z
+  .object({
+    type: z.literal('link'),
+    href: z
+      .string()
+      .max(2_000)
+      .refine((href) => SAFE_HREF.test(href.trim()), 'Unsupported link protocol'),
+    target: z.literal('_blank').optional(),
+    rel: z.string().max(200).optional(),
+    children: z.array(cxdTextSchema),
+  })
+  .strict();
+
+export const cxdInlineSchema = z.union([cxdTextSchema, cxdLinkSchema]);
+
+export const cxdBlockSchema: z.ZodType<CxdBlock> = z.lazy(() =>
+  z
+    .object({
+      id: z.string().min(1).max(64),
+      type: z.string().regex(/^[a-z0-9-]+\/[a-z0-9-]+$/, 'Block type must be namespace/name'),
+      v: z.number().int().min(1),
+      attrs: z.record(z.string(), z.unknown()),
+      content: z.array(cxdInlineSchema).optional(),
+      children: z.array(cxdBlockSchema).optional(),
+    })
+    .strict(),
+);
+
+export const cxdDocumentSchema = z
+  .object({
+    schema: z.literal(CXD_SCHEMA_VERSION),
+    blocks: z.array(cxdBlockSchema),
+  })
+  .strict()
+  .superRefine((doc, ctx) => {
+    let count = 0;
+    const walk = (blocks: CxdBlock[], depth: number) => {
+      if (depth > CXD_LIMITS.maxDepth) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Blocks nested deeper than ${CXD_LIMITS.maxDepth}`,
+        });
+        return;
+      }
+      for (const block of blocks) {
+        count++;
+        if (block.children) walk(block.children, depth + 1);
+      }
+    };
+    walk(doc.blocks, 1);
+    if (count > CXD_LIMITS.maxBlocks) {
+      ctx.addIssue({ code: 'custom', message: `More than ${CXD_LIMITS.maxBlocks} blocks` });
+    }
+  });
+
+export function emptyDocument(): CxdDocument {
+  return { schema: CXD_SCHEMA_VERSION, blocks: [] };
+}
+
+let counter = 0;
+
+/** New block id: short, URL-safe, unique enough within a document. */
+export function newBlockId(): string {
+  counter = (counter + 1) % 1_296;
+  const time = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 8);
+  return `b_${time}${counter.toString(36).padStart(2, '0')}${random}`;
+}
+
+/** Plain text of a document, for search indexing and excerpts. */
+export function documentText(doc: CxdDocument): string {
+  const parts: string[] = [];
+  const walk = (blocks: CxdBlock[]) => {
+    for (const block of blocks) {
+      if (block.content) parts.push(inlineText(block.content));
+      if (block.children) walk(block.children);
+    }
+  };
+  walk(doc.blocks);
+  return parts.filter(Boolean).join('\n');
+}
+
+export function inlineText(inlines: CxdInline[]): string {
+  return inlines
+    .map((node) => ('type' in node ? node.children.map((c) => c.text).join('') : node.text))
+    .join('');
+}
