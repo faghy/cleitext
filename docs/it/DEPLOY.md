@@ -97,7 +97,7 @@ In **Websites & Domains → example.com → Node.js**:
 | Modalità (Application mode)                 | production         |
 | Radice dell'applicazione (Application root) | `/cleitext`        |
 | File di avvio (Application startup file)    | `app.js`           |
-| document root (Document root)        | `/cleitext/public` |
+| document root (Document root)               | `/cleitext/public` |
 
 Non eseguire "NPM install": la release contiene già le sue dipendenze. In **Hosting settings**, fai puntare anche la document root del dominio a `cleitext/public` e attiva **SSL/TLS** (Let's Encrypt).
 
