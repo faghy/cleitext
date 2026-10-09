@@ -1,4 +1,6 @@
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 const booleanString = z
@@ -40,6 +42,8 @@ const envSchema = z.object({
   MAIL_FROM: z.string().min(3).default('Cleitext <no-reply@localhost>'),
   /** Uploaded files (disk storage driver). Relative paths start from the working directory. */
   MEDIA_PATH: z.string().min(1).default('cleitext-data/media'),
+  /** Built admin (apps/admin/dist). Default: next to the server in the release. */
+  ADMIN_PATH: z.string().min(1).optional(),
   /** Installed plugins (written by `cleitext plugin:install`). */
   PLUGINS_PATH: z.string().min(1).default('cleitext-data/plugins'),
   MEDIA_MAX_BYTES: z.coerce
@@ -72,6 +76,8 @@ export interface AppConfig {
   schedulerIntervalSeconds: number;
   media: { path: string; maxBytes: number };
   plugins: { path: string };
+  /** Folder of the built admin, if the server serves it (production). */
+  admin: { path: string | null };
   pageCache: { maxEntries: number; ttlSeconds: number };
   appSecret: string;
 }
@@ -106,6 +112,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,
     media: { path: resolve(e.MEDIA_PATH), maxBytes: e.MEDIA_MAX_BYTES },
     plugins: { path: resolve(e.PLUGINS_PATH) },
+    admin: { path: adminPath(e.ADMIN_PATH) },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
     // Development and tests only: production refuses to start without one.
     appSecret: e.APP_SECRET ?? 'cleitext-development-secret-not-for-production',
@@ -114,3 +121,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
 /** Injection token for the validated configuration. */
 export const APP_CONFIG = Symbol('APP_CONFIG');
+
+/** The built admin: ADMIN_PATH, or apps/admin/dist next to this server. */
+function adminPath(value: string | undefined): string | null {
+  const candidate = value
+    ? resolve(value)
+    : fileURLToPath(new URL('../../../admin/dist', import.meta.url));
+  return existsSync(join(candidate, 'index.html')) ? candidate : null;
+}

@@ -1,5 +1,6 @@
 {
   "name": "cleitext",
+  "version": "0.5.0",
   "private": true,
   "description": "Open-source multi-site CMS modeled on WordPress",
   "license": "GPL-2.0-or-later",
@@ -19,7 +20,8 @@
     "db:generate": "pnpm --filter @cleitext/db run generate",
     "db:dev": "pnpm --filter @cleitext/dev-db run dev",
     "cleitext": "node --env-file-if-exists=.env packages/cli/dist/bin.js",
-    "e2e": "playwright test -c apps/admin/playwright.config.ts"
+    "e2e": "playwright test -c apps/admin/playwright.config.ts",
+    "release": "node tools/release/index.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

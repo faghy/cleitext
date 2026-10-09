@@ -2,8 +2,10 @@ import 'reflect-metadata';
 import fastifyCookie from '@fastify/cookie';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
+import type { FastifyReply } from 'fastify';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
@@ -44,6 +46,31 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
     maxAge: '365d',
     immutable: true,
   });
+  // The built admin (production): hashed assets cached for a year, and the
+  // single-page app answering every other /admin address.
+  if (config.admin.path) {
+    await app.register(fastifyStatic, {
+      root: join(config.admin.path, 'assets'),
+      prefix: '/admin/assets/',
+      decorateReply: false,
+      index: false,
+      maxAge: '365d',
+      immutable: true,
+    });
+    const indexHtml = await readFile(join(config.admin.path, 'index.html'), 'utf8');
+    const sendAdmin = (_request: unknown, reply: FastifyReply) =>
+      reply
+        .header('cache-control', 'no-cache')
+        .header('x-frame-options', 'DENY')
+        .header('x-content-type-options', 'nosniff')
+        .header('referrer-policy', 'same-origin')
+        .type('text/html; charset=utf-8')
+        .send(indexHtml);
+    const instance = app.getHttpAdapter().getInstance();
+    instance.get('/admin', sendAdmin);
+    instance.get('/admin/*', sendAdmin);
+  }
+
   app
     .getHttpAdapter()
     .getInstance()

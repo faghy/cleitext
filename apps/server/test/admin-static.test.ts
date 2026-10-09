@@ -1,0 +1,51 @@
+/** The built admin served by the server in production (docs/DEPLOYMENT.md). */
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ownerDatabase, seedSite, startTestApp, type SeededSite } from './helpers.js';
+
+let app: NestFastifyApplication;
+let site: SeededSite;
+
+beforeAll(async () => {
+  const admin = await mkdtemp(join(tmpdir(), 'cleitext-admin-'));
+  await mkdir(join(admin, 'assets'));
+  await writeFile(join(admin, 'index.html'), '<!doctype html><title>Cleitext admin</title>');
+  await writeFile(join(admin, 'assets', 'main-abc123.js'), 'console.log(1)');
+  app = await startTestApp({ env: { ADMIN_PATH: admin } });
+  const owner = ownerDatabase();
+  site = await seedSite(owner, 'admin-static');
+  await owner.close();
+});
+
+afterAll(async () => {
+  await app?.close();
+});
+
+const get = (url: string) => app.inject({ method: 'GET', url, headers: { host: site.host } });
+
+describe('built admin', () => {
+  it('answers every admin address with the single-page app', async () => {
+    for (const url of ['/admin', '/admin/', '/admin/posts', '/admin/entries/123']) {
+      const res = await get(url);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('Cleitext admin');
+      expect(res.headers['cache-control']).toBe('no-cache');
+      expect(res.headers['x-frame-options']).toBe('DENY');
+    }
+  });
+
+  it('serves hashed assets with a long cache', async () => {
+    const res = await get('/admin/assets/main-abc123.js');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['cache-control']).toContain('immutable');
+    expect((await get('/admin/assets/missing.js')).statusCode).toBe(404);
+  });
+
+  it('leaves the API and the public site alone', async () => {
+    expect((await get('/api/v1/auth/me')).statusCode).toBe(401);
+    expect((await get('/')).statusCode).toBe(200);
+  });
+});

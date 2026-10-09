@@ -16,6 +16,7 @@ import {
   setPassword,
   setSiteStatus,
 } from './operations.js';
+import { backup, restore } from './backup.js';
 import {
   buildPlugin,
   installPlugin,
@@ -239,7 +240,7 @@ function pluginsPath(): string {
 /** Running servers reload their plugins (no restart needed). */
 async function announcePluginChange(db: ReturnType<typeof createDatabase>['db']): Promise<void> {
   await db.execute(sql`select pg_notify('cleitext_cache', ${JSON.stringify({ plugins: true })})`);
-  if (await requestRestart(process.cwd()))
+  if (await requestRestart(process.env.CLEITEXT_APP_ROOT ?? process.cwd()))
     console.log('Passenger restart requested (tmp/restart.txt).');
 }
 
@@ -310,6 +311,50 @@ program
     await withOwner(async (db) => {
       await uninstallPlugin(db, slug, { pluginsPath: pluginsPath() });
       console.log(`Uninstalled ${slug}.`);
+      await announcePluginChange(db);
+    });
+  });
+
+// ---- Backup and restore (RNF-15) ------------------------------------------------------
+
+function dataPaths() {
+  const { ownerUrl } = connectionSettings();
+  return {
+    ownerUrl,
+    mediaPath: path.resolve(process.env.MEDIA_PATH ?? 'cleitext-data/media'),
+    pluginsPath: pluginsPath(),
+  };
+}
+
+program
+  .command('backup')
+  .description('Back up the database (pg_dump), media and plugins into one .tar.gz file.')
+  .requiredOption('--out <file>', 'e.g. backups/cleitext-2026-10-10.tar.gz')
+  .action(async (opts: { out: string }) => {
+    const { bytes } = await backup(dataPaths(), path.resolve(opts.out));
+    console.log(`Backup written: ${opts.out} (${(bytes / 1024 / 1024).toFixed(1)} MB)`);
+  });
+
+program
+  .command('restore')
+  .description('Restore a backup: REPLACES the database, media and plugins (asks first).')
+  .argument('<file>')
+  .option('--yes', 'do not ask for confirmation')
+  .action(async (file: string, opts: { yes?: boolean }) => {
+    const { appRole } = connectionSettings();
+    if (!appRole)
+      throw new OperationError('Set DATABASE_URL (application role) or CLEITEXT_APP_ROLE.');
+    if (!opts.yes) {
+      const { confirm } = await import('@inquirer/prompts');
+      const sure = await confirm({
+        message: 'Replace the current database, media and plugins with this backup?',
+        default: false,
+      });
+      if (!sure) return;
+    }
+    await withOwner(async (db) => {
+      const manifest = await restore(db, { ...dataPaths(), appRole }, path.resolve(file));
+      console.log(`Restored the backup of ${manifest.createdAt}. Restart the server.`);
       await announcePluginChange(db);
     });
   });

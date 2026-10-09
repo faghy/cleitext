@@ -4,6 +4,9 @@
   "private": true,
   "license": "GPL-2.0-or-later",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -17,6 +20,7 @@
     "@cleitext/db": "workspace:*",
     "@cleitext/plugin-sdk": "workspace:*",
     "@cleitext/renderer": "workspace:*",
+    "@cleitext/shared": "workspace:*",
     "@cleitext/theme-aurora": "workspace:*",
     "@cleitext/theme-sdk": "workspace:*",
     "@fastify/cookie": "^11.1.3",
@@ -46,7 +50,6 @@
   },
   "devDependencies": {
     "@cleitext/cli": "workspace:*",
-    "@cleitext/shared": "workspace:*",
     "@cleitext/testing": "workspace:*",
     "@swc/core": "^1.16.13",
     "@types/react": "^19.3.0",

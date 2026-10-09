@@ -22,7 +22,7 @@ import { hashPassword } from '../src/auth/crypto.js';
 import { loadConfig } from '../src/config/config.js';
 
 export async function startTestApp(
-  options: { pluginsPath?: string } = {},
+  options: { pluginsPath?: string; env?: Record<string, string> } = {},
 ): Promise<NestFastifyApplication> {
   const mediaPath = await mkdtemp(join(tmpdir(), 'cleitext-media-'));
   const pluginsPath = options.pluginsPath ?? (await mkdtemp(join(tmpdir(), 'cleitext-plugins-')));
@@ -35,6 +35,7 @@ export async function startTestApp(
       DATABASE_URL: inject('appUrl'),
       MAIL_URL: 'memory://',
       SCHEDULER_INTERVAL_SECONDS: '0',
+      ...options.env,
     }),
   );
 }

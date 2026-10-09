@@ -275,6 +275,9 @@ importers:
       '@cleitext/renderer':
         specifier: workspace:*
         version: link:../../packages/renderer
+      '@cleitext/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@cleitext/theme-aurora':
         specifier: workspace:*
         version: link:../../themes/aurora
@@ -357,9 +360,6 @@ importers:
       '@cleitext/cli':
         specifier: workspace:*
         version: link:../../packages/cli
-      '@cleitext/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@cleitext/testing':
         specifier: workspace:*
         version: link:../../packages/testing
@@ -440,6 +440,9 @@ importers:
       semver:
         specifier: ^7.8.5
         version: 7.8.5
+      tar:
+        specifier: ^7.5.22
+        version: 7.5.22
       zod:
         specifier: ^4.6.5
         version: 4.6.5

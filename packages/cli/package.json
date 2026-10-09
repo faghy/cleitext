@@ -4,6 +4,9 @@
   "private": true,
   "license": "GPL-2.0-or-later",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "bin": {
     "cleitext": "./dist/bin.js"
   },
@@ -30,6 +33,7 @@
     "esbuild": "^0.28.2",
     "react": "^19.3.0",
     "semver": "^7.8.5",
+    "tar": "^7.5.22",
     "zod": "^4.6.5"
   },
   "devDependencies": {

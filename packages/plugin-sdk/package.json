@@ -5,6 +5,9 @@
   "description": "Types and helpers to build Cleitext plugins.",
   "license": "GPL-2.0-or-later",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
