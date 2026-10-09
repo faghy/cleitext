@@ -3,13 +3,17 @@ import { CORE_SETTINGS_DEFAULTS, coreSettingsSchema, type CoreSettings } from '@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { DATABASE } from '../database/database.module.js';
+import { PageCacheService } from '../public/page-cache.service.js';
 
 const NAMESPACE = 'core';
 
 /** Typed site settings, stored as JSON values by namespace and key. */
 @Injectable()
 export class SettingsService {
-  constructor(@Inject(DATABASE) private readonly database: DatabaseClient) {}
+  constructor(
+    @Inject(DATABASE) private readonly database: DatabaseClient,
+    private readonly cache: PageCacheService,
+  ) {}
 
   /** Core settings: stored values, defaults for missing or invalid ones. */
   async core(tx: SiteTransaction): Promise<CoreSettings> {
@@ -33,7 +37,7 @@ export class SettingsService {
     userId: string,
     changes: Partial<CoreSettings>,
   ): Promise<CoreSettings> {
-    return withContext(this.database.db, { siteId, userId }, async (tx) => {
+    const result = await withContext(this.database.db, { siteId, userId }, async (tx) => {
       for (const [key, value] of Object.entries(changes)) {
         if (value === undefined) continue;
         if (value === null) {
@@ -52,5 +56,7 @@ export class SettingsService {
       }
       return this.core(tx);
     });
+    await this.cache.invalidate(siteId, ['site']);
+    return result;
   }
 }

@@ -9,6 +9,7 @@ import {
 import {
   contentTypes,
   entries,
+  entryTerms,
   newId,
   redirects,
   revisions,
@@ -42,6 +43,7 @@ import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { canDelete, canEdit, canPublish, canRead } from './entry-permissions.js';
 import { nextFreeSlug, slugify } from './slug.js';
+import { PageCacheService } from '../public/page-cache.service.js';
 import { TermsService } from './terms.service.js';
 
 type EntryRow = typeof entries.$inferSelect;
@@ -57,6 +59,7 @@ export class EntriesService {
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly audit: AuditService,
     private readonly termsService: TermsService,
+    private readonly cache: PageCacheService,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
@@ -208,7 +211,7 @@ export class EntriesService {
   }
 
   /** Saves changes as a new revision (RF-CNT-05). Published content stays as it was until republished. */
-  update(
+  async update(
     siteId: string,
     auth: AuthContext,
     id: string,
@@ -224,10 +227,12 @@ export class EntriesService {
     ip: string,
   ): Promise<EntryView> {
     const document = input.document === undefined ? undefined : validateDocument(input.document);
-    return this.run(siteId, auth, async (tx) => {
+    let tags: string[] = [];
+    const view = await this.run(siteId, auth, async (tx) => {
       const entry = await this.load(tx, id);
       if (!canEdit(auth, entry)) throw new ForbiddenException('You cannot edit this entry.');
       const type = await this.contentType(tx, entry.typeSlug);
+      const before = await this.publicTags(tx, entry);
 
       const changes: Partial<typeof entries.$inferInsert> = { updatedAt: sql`now()` as never };
       if (input.title !== undefined) changes.title = input.title;
@@ -283,8 +288,11 @@ export class EntriesService {
         await this.redirectOldPath(tx, siteId, entry, updated, type.permalink);
       }
       await this.audit.record(tx, entryAudit(siteId, auth, 'entry.saved', id, ip));
+      tags = [...before, ...(await this.publicTags(tx, updated))];
       return this.view(tx, auth, updated);
     });
+    await this.cache.invalidate(siteId, tags);
+    return view;
   }
 
   /** Autosave (RF-CNT-06): one per user and entry, does not change the entry. */
@@ -581,12 +589,37 @@ export class EntriesService {
     action: string,
     apply: (tx: Tx, entry: EntryRow) => Promise<void>,
   ): Promise<EntryView> {
-    return this.run(siteId, auth, async (tx) => {
+    let tags: string[] = [];
+    const view = await this.run(siteId, auth, async (tx) => {
       const entry = await this.load(tx, id);
+      const before = await this.publicTags(tx, entry);
       await apply(tx, entry);
       await this.audit.record(tx, entryAudit(siteId, auth, action, id, ip));
-      return this.view(tx, auth, await this.load(tx, id));
+      const updated = await this.load(tx, id);
+      tags = [...before, ...(await this.publicTags(tx, updated))];
+      return this.view(tx, auth, updated);
     });
+    await this.cache.invalidate(siteId, tags);
+    return view;
+  }
+
+  /**
+   * Cache tags of the public pages showing a published entry (docs/ARCHITECTURE.md
+   * §15): the entry, its type's listings, menus, search, its term archives.
+   */
+  private async publicTags(tx: Tx, entry: EntryRow): Promise<string[]> {
+    if (entry.status !== 'published') return [];
+    const termRows = await tx
+      .select({ id: entryTerms.termId })
+      .from(entryTerms)
+      .where(eq(entryTerms.entryId, entry.id));
+    return [
+      `entry:${entry.id}`,
+      `type:${entry.typeSlug}`,
+      `menus:${entry.locale}`,
+      'search',
+      ...termRows.map((t) => `term:${t.id}`),
+    ];
   }
 
   private async load(tx: Tx, id: string): Promise<EntryRow> {

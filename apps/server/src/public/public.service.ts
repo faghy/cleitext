@@ -32,7 +32,9 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createElement } from 'react';
+import { SESSION_COOKIE } from '../auth/cookies.js';
 import { DATABASE } from '../database/database.module.js';
+import { PageCacheService } from './page-cache.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
   documentMedia,
@@ -79,6 +81,7 @@ export class PublicService {
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly settingsService: SettingsService,
+    private readonly cache: PageCacheService,
   ) {}
 
   /** Fastify handler for every public GET/HEAD request. */
@@ -88,31 +91,71 @@ export class PublicService {
       await reply.code(404).send();
       return;
     }
+    void reply
+      .header('x-content-type-options', 'nosniff')
+      .header('referrer-policy', 'strict-origin-when-cross-origin')
+      .header('x-frame-options', 'SAMEORIGIN');
     try {
       const url = new URL(request.url, 'http://local');
+      // Signed-in users bypass the cache (they will see editing tools later).
+      const cacheable = !request.cookies[SESSION_COOKIE] && !url.pathname.startsWith('/search');
+      const key = this.cache.key(site.id, request.host, request.url);
+
+      if (cacheable) {
+        const hit = this.cache.get(key);
+        if (hit) {
+          await this.sendPage(request, reply, hit.status, hit.html, hit.etag, 'HIT');
+          return;
+        }
+      }
+
       const response = await this.respond(
         site.id,
         `${request.protocol}://${request.host}`,
         url.pathname,
         url.searchParams,
       );
-      void reply
-        .header('x-content-type-options', 'nosniff')
-        .header('referrer-policy', 'strict-origin-when-cross-origin')
-        .header('x-frame-options', 'SAMEORIGIN');
       if (response.redirect) {
         await reply.redirect(response.redirect, response.status);
         return;
       }
-      await reply
-        .code(response.status)
-        .type('text/html; charset=utf-8')
-        .header('cache-control', 'no-cache')
-        .send(response.html);
+      const html = response.html ?? '';
+      if (cacheable && (response.status === 200 || response.status === 404)) {
+        const stored = this.cache.set(key, site.id, {
+          status: response.status,
+          html,
+          tags: response.tags,
+        });
+        await this.sendPage(request, reply, response.status, html, stored.etag, 'MISS');
+      } else {
+        await this.sendPage(request, reply, response.status, html, null, 'BYPASS');
+      }
     } catch (error) {
       this.logger.error(error);
       await reply.code(500).type('text/plain; charset=utf-8').send('Internal Server Error');
     }
+  }
+
+  private async sendPage(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    status: number,
+    html: string,
+    etag: string | null,
+    cacheStatus: 'HIT' | 'MISS' | 'BYPASS',
+  ): Promise<void> {
+    void reply.header('x-cache', cacheStatus);
+    if (etag) {
+      // Browsers revalidate every time; unchanged pages answer 304.
+      void reply.header('etag', etag).header('cache-control', 'public, max-age=0, must-revalidate');
+      if (status === 200 && request.headers['if-none-match'] === etag) {
+        await reply.code(304).send();
+        return;
+      }
+    } else {
+      void reply.header('cache-control', 'private, no-cache');
+    }
+    await reply.code(status).type('text/html; charset=utf-8').send(html);
   }
 
   async respond(

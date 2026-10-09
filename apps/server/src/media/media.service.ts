@@ -16,6 +16,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
+import { PageCacheService } from '../public/page-cache.service.js';
 import { ALLOWED_TYPES, detectType, RESIZABLE } from './media-types.js';
 import { DiskStorage, type MediaStorage } from './storage.js';
 
@@ -38,6 +39,7 @@ export class MediaService {
     @Inject(DATABASE) private readonly database: DatabaseClient,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly audit: AuditService,
+    private readonly cache: PageCacheService,
   ) {
     this.storage = new DiskStorage(config.media.path);
   }
@@ -192,6 +194,8 @@ export class MediaService {
         })
         .where(eq(media.id, id));
     });
+    // Alternative texts are rendered in pages: refresh them.
+    await this.cache.invalidate(siteId, ['site']);
     return this.get(siteId, auth, id);
   }
 
@@ -216,6 +220,7 @@ export class MediaService {
       },
     );
     await Promise.all(keys.map((key) => this.storage.delete(key)));
+    await this.cache.invalidate(siteId, ['site']);
   }
 
   /** Waits for background variant generation (tests, graceful shutdown). */

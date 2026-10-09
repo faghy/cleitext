@@ -91,7 +91,12 @@ export async function loadPublished(
   options: { limit?: number; offset?: number } = {},
 ): Promise<PublishedEntry[]> {
   let query = tx
-    .select({ row: entries, document: revisions.document, authorName: users.displayName })
+    .select({
+      row: entries,
+      title: revisions.title,
+      document: revisions.document,
+      authorName: users.displayName,
+    })
     .from(entries)
     .innerJoin(revisions, eq(revisions.id, entries.publishedRevisionId))
     .leftJoin(users, eq(users.id, entries.authorId))
@@ -101,8 +106,9 @@ export async function loadPublished(
   if (options.limit !== undefined) query = query.limit(options.limit);
   if (options.offset) query = query.offset(options.offset);
   const rows = await query;
+  // The public sees the published revision, title included (edits wait for republishing).
   return rows.map((r) => ({
-    row: r.row,
+    row: { ...r.row, title: r.title },
     document: r.document as CxdDocument,
     authorName: r.authorName,
   }));

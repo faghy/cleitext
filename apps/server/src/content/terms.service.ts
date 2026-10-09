@@ -22,6 +22,7 @@ import {
 import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { PageCacheService } from '../public/page-cache.service.js';
 import { nextFreeSlug, slugify } from './slug.js';
 
 type TaxonomyRow = typeof taxonomies.$inferSelect;
@@ -34,7 +35,10 @@ type TermRow = typeof terms.$inferSelect;
  */
 @Injectable()
 export class TermsService {
-  constructor(@Inject(DATABASE) private readonly database: DatabaseClient) {}
+  constructor(
+    @Inject(DATABASE) private readonly database: DatabaseClient,
+    private readonly cache: PageCacheService,
+  ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: SiteTransaction) => Promise<T>) {
     return withContext(this.database.db, { siteId, userId: auth.userId }, fn);
@@ -101,7 +105,7 @@ export class TermsService {
     });
   }
 
-  updateTerm(
+  async updateTerm(
     siteId: string,
     auth: AuthContext,
     id: string,
@@ -112,7 +116,7 @@ export class TermsService {
       description?: string | undefined;
     },
   ): Promise<TermView> {
-    return this.run(siteId, auth, async (tx) => {
+    const view = await this.run(siteId, auth, async (tx) => {
       if (!auth.capabilities.includes('manage_terms'))
         throw new ForbiddenException('You cannot manage terms.');
       const term = await this.term(tx, id);
@@ -138,10 +142,13 @@ export class TermsService {
       const [updated] = await tx.update(terms).set(changes).where(eq(terms.id, id)).returning();
       return toView(updated!, taxonomy!.slug, 0);
     });
+    // Term names and slugs appear on many pages: refresh the whole site.
+    await this.cache.invalidate(siteId, ['site']);
+    return view;
   }
 
-  deleteTerm(siteId: string, auth: AuthContext, id: string): Promise<void> {
-    return this.run(siteId, auth, async (tx) => {
+  async deleteTerm(siteId: string, auth: AuthContext, id: string): Promise<void> {
+    await this.run(siteId, auth, async (tx) => {
       if (!auth.capabilities.includes('manage_terms'))
         throw new ForbiddenException('You cannot manage terms.');
       const term = await this.term(tx, id);
@@ -149,6 +156,7 @@ export class TermsService {
       await tx.update(terms).set({ parentId: term.parentId }).where(eq(terms.parentId, id));
       await tx.delete(terms).where(eq(terms.id, id));
     });
+    await this.cache.invalidate(siteId, ['site']);
   }
 
   /** Terms assigned to an entry, grouped by taxonomy slug. */

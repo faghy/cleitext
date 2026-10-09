@@ -131,11 +131,15 @@ describe('entries', () => {
   it('shows the published version while edits are pending', async () => {
     const entry = await publish('page', 'Stable', { text: 'Published words.' });
     await editor.request('PATCH', `/api/v1/entries/${entry.id}`, {
+      title: 'Renamed draft',
+      slug: 'stable',
       document: doc('Unpublished words.'),
     });
     const { html } = await page('/stable');
     expect(html).toContain('Published words.');
+    expect(html).toContain('<h1>Stable</h1>');
     expect(html).not.toContain('Unpublished words.');
+    expect(html).not.toContain('Renamed draft');
   });
 
   it('escapes titles and content', async () => {

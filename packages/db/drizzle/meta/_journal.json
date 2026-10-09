@@ -36,6 +36,13 @@
       "when": 1791577554881,
       "tag": "0004_content_defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791581573237,
+      "tag": "0005_cache_notifications",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,7 @@ import { MailService } from './mail/mail.service.js';
 import { MediaController } from './media/media.controller.js';
 import { MediaService } from './media/media.service.js';
 import { ProfileController } from './profile/profile.controller.js';
+import { PageCacheService } from './public/page-cache.service.js';
 import { PublicService } from './public/public.service.js';
 import { SettingsController } from './settings/settings.controller.js';
 import { SettingsService } from './settings/settings.service.js';
@@ -87,6 +88,7 @@ export class AppModule {
         LoginThrottleService,
         MailService,
         MediaService,
+        PageCacheService,
         PublicService,
         SchedulerService,
         SettingsService,

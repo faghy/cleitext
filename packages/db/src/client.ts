@@ -12,6 +12,10 @@ export interface DatabaseClient {
   db: Database;
   /** Closes the connection pool. */
   close(): Promise<void>;
+  /** PostgreSQL LISTEN on a channel; returns a function that stops listening. */
+  listen(channel: string, onMessage: (payload: string) => void): Promise<() => Promise<void>>;
+  /** PostgreSQL NOTIFY (delivered to every listener, this process included). */
+  notify(channel: string, payload: string): Promise<void>;
 }
 
 export interface CreateDatabaseOptions {
@@ -25,6 +29,13 @@ export function createDatabase(url: string, options: CreateDatabaseOptions = {})
   return {
     db,
     close: () => client.end({ timeout: 5 }),
+    async listen(channel, onMessage) {
+      const subscription = await client.listen(channel, onMessage);
+      return () => subscription.unlisten();
+    },
+    async notify(channel, payload) {
+      await client.notify(channel, payload);
+    },
   };
 }
 

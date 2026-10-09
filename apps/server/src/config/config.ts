@@ -43,6 +43,15 @@ const envSchema = z.object({
     .int()
     .min(1024)
     .default(20 * 1024 * 1024),
+  /** Full-page cache for anonymous visitors: maximum pages kept (0 disables it). */
+  PAGE_CACHE_MAX_ENTRIES: z.coerce.number().int().min(0).max(1_000_000).default(5_000),
+  /** Safety lifetime of cached pages; changes invalidate them immediately anyway. */
+  PAGE_CACHE_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(7 * 86_400)
+    .default(3_600),
   /** How often scheduled entries are published; 0 disables it. */
   SCHEDULER_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
 });
@@ -58,6 +67,7 @@ export interface AppConfig {
   mail: { url: string; from: string };
   schedulerIntervalSeconds: number;
   media: { path: string; maxBytes: number };
+  pageCache: { maxEntries: number; ttlSeconds: number };
 }
 
 export class ConfigError extends Error {
@@ -86,6 +96,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     mail: { url: e.MAIL_URL, from: e.MAIL_FROM },
     schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,
     media: { path: resolve(e.MEDIA_PATH), maxBytes: e.MEDIA_MAX_BYTES },
+    pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
   };
 }
 
