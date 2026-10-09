@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+coverage/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+cleitext-data/
+uploads/
+*.log
+tmp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
