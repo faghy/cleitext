@@ -9,10 +9,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "dev": "env -u pnpm_config_verify_deps_before_run turbo run dev",
+    "build": "env -u pnpm_config_verify_deps_before_run turbo run build",
+    "typecheck": "env -u pnpm_config_verify_deps_before_run turbo run typecheck",
+    "test": "env -u pnpm_config_verify_deps_before_run turbo run test",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
