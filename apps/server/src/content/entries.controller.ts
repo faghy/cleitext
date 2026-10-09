@@ -118,6 +118,16 @@ export class EntriesController {
     return this.entries.publish(site.id, auth, id, request.ip);
   }
 
+  @Post('entries/:id/preview')
+  @HttpCode(200)
+  preview(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', uuid) id: string,
+  ): Promise<{ url: string }> {
+    return this.entries.previewUrl(site.id, auth, id);
+  }
+
   @Post('entries/:id/unpublish')
   @HttpCode(200)
   unpublish(

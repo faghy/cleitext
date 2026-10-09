@@ -19,6 +19,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   /** Trust X-Forwarded-* headers (true behind nginx/Plesk). */
   TRUST_PROXY: booleanString.default(false),
+  /** Secret for signed links (previews). Required in production, at least 32 characters. */
+  APP_SECRET: z.string().min(32).optional(),
   /** Session lifetime without "remember me", and with it. */
   SESSION_TTL_HOURS: z.coerce
     .number()
@@ -68,6 +70,7 @@ export interface AppConfig {
   schedulerIntervalSeconds: number;
   media: { path: string; maxBytes: number };
   pageCache: { maxEntries: number; ttlSeconds: number };
+  appSecret: string;
 }
 
 export class ConfigError extends Error {
@@ -85,6 +88,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     );
   }
   const e = parsed.data;
+  if (!e.APP_SECRET && e.NODE_ENV === 'production') {
+    throw new ConfigError(['APP_SECRET: required in production (at least 32 random characters)']);
+  }
   return {
     env: e.NODE_ENV,
     host: e.HOST,
@@ -97,6 +103,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,
     media: { path: resolve(e.MEDIA_PATH), maxBytes: e.MEDIA_MAX_BYTES },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
+    // Development and tests only: production refuses to start without one.
+    appSecret: e.APP_SECRET ?? 'cleitext-development-secret-not-for-production',
   };
 }
 

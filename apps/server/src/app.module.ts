@@ -20,6 +20,8 @@ import { HealthController } from './health/health.controller.js';
 import { MailService } from './mail/mail.service.js';
 import { MediaController } from './media/media.controller.js';
 import { MediaService } from './media/media.service.js';
+import { MenusController } from './menus/menus.controller.js';
+import { MenusService } from './menus/menus.service.js';
 import { ProfileController } from './profile/profile.controller.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PublicService } from './public/public.service.js';
@@ -77,6 +79,7 @@ export class AppModule {
         MediaController,
         TermsController,
         SettingsController,
+        MenusController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -88,6 +91,7 @@ export class AppModule {
         LoginThrottleService,
         MailService,
         MediaService,
+        MenusService,
         PageCacheService,
         PublicService,
         SchedulerService,

@@ -13,6 +13,7 @@ import type { AppConfig } from './config/config.js';
 import { PublicService } from './public/public.service.js';
 import { createRequestHook } from './tenancy/request-hook.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
+import { PageCacheService } from './public/page-cache.service.js';
 
 /** Builds the application without listening, so tests can use `inject()`. */
 export async function createApp(config: AppConfig): Promise<NestFastifyApplication> {
@@ -51,6 +52,9 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
         identity: app.get(IdentityService),
       }),
     );
+
+  // Status or domain changes made by the CLI reach every process.
+  app.get(PageCacheService).onSiteChange(() => app.get(SiteResolverService).invalidate());
 
   // Public site: every other GET/HEAD (docs/ARCHITECTURE.md §12).
   const publicService = app.get(PublicService);

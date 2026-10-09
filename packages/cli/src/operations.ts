@@ -16,7 +16,7 @@ import {
 } from '@cleitext/db';
 import { emailSchema, localeSchema, passwordSchema } from '@cleitext/shared';
 import { hash } from '@node-rs/argon2';
-import { and, asc, eq, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 
 export class OperationError extends Error {}
 
@@ -137,6 +137,21 @@ export async function listSites(db: Database) {
     result.set(site.id, entry);
   }
   return [...result.values()];
+}
+
+/**
+ * Turns maintenance mode on or off (RF-SIT-06). Running servers are told
+ * through the page-cache channel, so the change applies immediately.
+ */
+export async function setSiteStatus(
+  db: Database,
+  slug: string,
+  status: 'active' | 'maintenance',
+): Promise<void> {
+  const [site] = await db.update(sites).set({ status }).where(eq(sites.slug, slug)).returning();
+  if (!site) throw new OperationError(`No site with slug "${slug}".`);
+  const payload = JSON.stringify({ siteId: site.id, tags: ['site'], sites: true });
+  await db.execute(sql`select pg_notify('cleitext_cache', ${payload})`);
 }
 
 export interface CreateUserInput {

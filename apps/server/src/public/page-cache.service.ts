@@ -13,6 +13,7 @@ import { DATABASE } from '../database/database.module.js';
 export interface CachedPage {
   status: number;
   html: string;
+  contentType: string;
   etag: string;
   tags: string[];
   storedAt: number;
@@ -37,6 +38,7 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   private readonly byTag = new Map<string, Set<string>>();
   private readonly processId = randomUUID();
   private unlisten: (() => Promise<void>) | null = null;
+  private readonly siteListeners = new Set<() => void>();
   readonly stats = { hits: 0, misses: 0, invalidations: 0 };
 
   constructor(
@@ -90,7 +92,7 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   set(
     key: string,
     siteId: string,
-    page: { status: number; html: string; tags: string[] },
+    page: { status: number; html: string; contentType: string; tags: string[] },
   ): CachedPage {
     const ttl = page.status === 200 ? this.config.pageCache.ttlSeconds : 60;
     const entry: CachedPage = {
@@ -131,10 +133,21 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
     }
   }
 
+  /** Called when a site's settings changed outside this process (status, domains). */
+  onSiteChange(listener: () => void): void {
+    this.siteListeners.add(listener);
+  }
+
   private onNotification(payload: string): void {
     try {
-      const message = JSON.parse(payload) as { siteId?: string; tags?: string[]; from?: string };
+      const message = JSON.parse(payload) as {
+        siteId?: string;
+        tags?: string[];
+        from?: string;
+        sites?: boolean;
+      };
       if (message.from === this.processId) return; // already applied locally
+      if (message.sites === true) for (const listener of this.siteListeners) listener();
       if (typeof message.siteId === 'string' && Array.isArray(message.tags)) {
         this.invalidateLocal(
           message.siteId,

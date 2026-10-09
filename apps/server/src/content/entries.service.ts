@@ -43,6 +43,8 @@ import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { canDelete, canEdit, canPublish, canRead } from './entry-permissions.js';
 import { nextFreeSlug, slugify } from './slug.js';
+import { APP_CONFIG, type AppConfig } from '../config/config.js';
+import { createPreviewToken } from '../public/preview.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { TermsService } from './terms.service.js';
 
@@ -60,6 +62,7 @@ export class EntriesService {
     private readonly audit: AuditService,
     private readonly termsService: TermsService,
     private readonly cache: PageCacheService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
@@ -349,6 +352,16 @@ export class EntriesService {
           search: sql`to_tsvector('simple', unaccent(${`${entry.title}\n${text}`}))` as never,
         })
         .where(eq(entries.id, id));
+    });
+  }
+
+  /** Signed link to the latest saved version, valid for an hour (RF-CNT-09). */
+  previewUrl(siteId: string, auth: AuthContext, id: string): Promise<{ url: string }> {
+    return this.run(siteId, auth, async (tx) => {
+      const entry = await this.load(tx, id);
+      if (!canEdit(auth, entry)) throw new ForbiddenException('You cannot edit this entry.');
+      const token = createPreviewToken(this.config.appSecret, id);
+      return { url: `/__preview/${id}?token=${encodeURIComponent(token)}` };
     });
   }
 

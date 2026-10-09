@@ -15,6 +15,7 @@ export default defineConfig({
       '/api': { target: serverUrl, xfwd: true },
       '/health': { target: serverUrl, xfwd: true },
       '/media': { target: serverUrl, xfwd: true },
+      '/__preview': { target: serverUrl, xfwd: true },
     },
   },
 });

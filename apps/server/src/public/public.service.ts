@@ -2,13 +2,16 @@ import {
   entries,
   entryTerms,
   redirects,
+  revisions,
   sites,
   taxonomies,
   terms,
+  users,
   withContext,
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
+import type { CxdDocument } from '@cleitext/blocks';
 import {
   documentExcerpt,
   firstImage,
@@ -27,12 +30,12 @@ import {
   type TemplateProps,
   type ThemeDefinition,
 } from '@cleitext/theme-sdk';
-import { theme as aurora } from '@cleitext/theme-aurora';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, count, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createElement } from 'react';
 import { SESSION_COOKIE } from '../auth/cookies.js';
+import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import { PageCacheService } from './page-cache.service.js';
 import { SettingsService } from '../settings/settings.service.js';
@@ -46,15 +49,19 @@ import {
   type PublishedEntry,
   type SiteData,
 } from './site-data.js';
+import { verifyPreviewToken } from './preview.js';
+import { themeFor } from './themes.js';
 import { matchPermalink } from './urls.js';
 
-/** Installed themes. Loaded from packages; plugin-style installation comes with M4. */
-const THEMES = new Map<string, ThemeDefinition>([[aurora.slug, aurora]]);
-const DEFAULT_THEME = 'aurora';
+const HTML = 'text/html; charset=utf-8';
 
 export interface PublicResponse {
   status: number;
   html?: string;
+  /** Defaults to HTML. */
+  contentType?: string;
+  /** Extra response headers (e.g. Retry-After). */
+  headers?: Record<string, string>;
   redirect?: string;
   /** Cache tags of the page (docs/ARCHITECTURE.md §15). */
   tags: string[];
@@ -82,6 +89,7 @@ export class PublicService {
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly settingsService: SettingsService,
     private readonly cache: PageCacheService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   /** Fastify handler for every public GET/HEAD request. */
@@ -97,14 +105,37 @@ export class PublicService {
       .header('x-frame-options', 'SAMEORIGIN');
     try {
       const url = new URL(request.url, 'http://local');
+      // Maintenance mode (RF-SIT-06): visitors get a 503; signed-in users see the site.
+      if (site.status === 'maintenance' && !request.auth) {
+        const page = await this.maintenance(
+          site.id,
+          `${request.protocol}://${request.host}`,
+          url.pathname,
+        );
+        void reply.header('retry-after', '3600');
+        await this.sendPage(request, reply, page.status, page.html ?? '', null, 'BYPASS');
+        return;
+      }
+
       // Signed-in users bypass the cache (they will see editing tools later).
-      const cacheable = !request.cookies[SESSION_COOKIE] && !url.pathname.startsWith('/search');
+      const cacheable =
+        !request.cookies[SESSION_COOKIE] &&
+        !url.pathname.startsWith('/search') &&
+        !url.pathname.startsWith('/__preview/');
       const key = this.cache.key(site.id, request.host, request.url);
 
       if (cacheable) {
         const hit = this.cache.get(key);
         if (hit) {
-          await this.sendPage(request, reply, hit.status, hit.html, hit.etag, 'HIT');
+          await this.sendPage(
+            request,
+            reply,
+            hit.status,
+            hit.html,
+            hit.etag,
+            'HIT',
+            hit.contentType,
+          );
           return;
         }
       }
@@ -120,15 +151,27 @@ export class PublicService {
         return;
       }
       const html = response.html ?? '';
+      const contentType = response.contentType ?? HTML;
+      for (const [name, value] of Object.entries(response.headers ?? {}))
+        void reply.header(name, value);
       if (cacheable && (response.status === 200 || response.status === 404)) {
         const stored = this.cache.set(key, site.id, {
           status: response.status,
           html,
+          contentType,
           tags: response.tags,
         });
-        await this.sendPage(request, reply, response.status, html, stored.etag, 'MISS');
+        await this.sendPage(
+          request,
+          reply,
+          response.status,
+          html,
+          stored.etag,
+          'MISS',
+          contentType,
+        );
       } else {
-        await this.sendPage(request, reply, response.status, html, null, 'BYPASS');
+        await this.sendPage(request, reply, response.status, html, null, 'BYPASS', contentType);
       }
     } catch (error) {
       this.logger.error(error);
@@ -143,6 +186,7 @@ export class PublicService {
     html: string,
     etag: string | null,
     cacheStatus: 'HIT' | 'MISS' | 'BYPASS',
+    contentType: string = HTML,
   ): Promise<void> {
     void reply.header('x-cache', cacheStatus);
     if (etag) {
@@ -155,7 +199,7 @@ export class PublicService {
     } else {
       void reply.header('cache-control', 'private, no-cache');
     }
-    await reply.code(status).type('text/html; charset=utf-8').send(html);
+    await reply.code(status).type(contentType).send(html);
   }
 
   async respond(
@@ -192,30 +236,196 @@ export class PublicService {
         }
       }
 
-      const data = await loadSiteData(tx);
-      const settings = await this.settingsService.core(tx);
-      const [site] = await tx
-        .select({ name: sites.name, theme: sites.themeSlug })
-        .from(sites)
-        .where(eq(sites.id, siteId));
-      const theme = THEMES.get(site?.theme ?? DEFAULT_THEME) ?? THEMES.get(DEFAULT_THEME)!;
-      const { locale, rest } = data.urls.splitLocale(path);
-      const scope: RequestScope = {
+      const { scope, rest } = await this.scope(tx, siteId, origin, path);
+
+      if (redirect?.status === 410) return this.notFound(scope, 410);
+      if (path === '/robots.txt') return this.robots(scope);
+      if (path === '/sitemap.xml') return this.sitemapIndex(scope);
+      const sitemap = /^\/sitemap-([a-z0-9-]+)-([a-z]{2,3}(?:-[a-z]{2})?)\.xml$/i.exec(path);
+      if (sitemap) {
+        return (await this.sitemap(scope, sitemap[1]!, sitemap[2]!)) ?? this.notFound(scope, 404);
+      }
+      const preview = /^\/__preview\/([0-9a-f-]{36})$/.exec(path);
+      if (preview) {
+        return (
+          (await this.preview(scope, preview[1]!, query.get('token') ?? '')) ??
+          this.notFound(scope, 404)
+        );
+      }
+      return (await this.route(scope, rest, query)) ?? this.notFound(scope, 404);
+    });
+  }
+
+  /** Data shared by every route of a request. */
+  private async scope(
+    tx: SiteTransaction,
+    siteId: string,
+    origin: string,
+    path: string,
+  ): Promise<{ scope: RequestScope; rest: string }> {
+    const data = await loadSiteData(tx);
+    const settings = await this.settingsService.core(tx);
+    const [site] = await tx
+      .select({ name: sites.name, theme: sites.themeSlug })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+    const { locale, rest } = data.urls.splitLocale(path);
+    return {
+      rest,
+      scope: {
         tx,
         siteId,
         data,
         settings,
-        theme,
+        theme: themeFor(site?.theme),
         siteTitle: settings.title || site?.name || 'Cleitext',
         origin,
         locale,
         path,
         tags: new Set(['site']),
-      };
+      },
+    };
+  }
 
-      if (redirect?.status === 410) return this.notFound(scope, 410);
-      return (await this.route(scope, rest, query)) ?? this.notFound(scope, 404);
+  /** The theme's maintenance page, 503 (RF-SIT-06). */
+  async maintenance(siteId: string, origin: string, path: string): Promise<PublicResponse> {
+    return withContext(this.database.db, { siteId }, async (tx) => {
+      const { scope } = await this.scope(tx, siteId, origin, path);
+      const props: TemplateProps = { kind: 'maintenance' };
+      const head = this.head(scope, {
+        title: scope.siteTitle,
+        description: '',
+        path,
+        alternates: [],
+        type: 'website',
+        image: null,
+        noindex: true,
+      });
+      return this.render(scope, props, templateCandidates(props), head, new Map(), [], 503);
     });
+  }
+
+  // ---- Previews, robots.txt, sitemaps -------------------------------------------------
+
+  /** Latest saved version of any entry, behind a signed link (RF-CNT-09). */
+  private async preview(
+    scope: RequestScope,
+    entryId: string,
+    token: string,
+  ): Promise<PublicResponse | null> {
+    if (!verifyPreviewToken(this.config.appSecret, entryId, token)) return null;
+    const [row] = await scope.tx
+      .select({
+        entry: entries,
+        title: revisions.title,
+        document: revisions.document,
+        authorName: users.displayName,
+      })
+      .from(entries)
+      .innerJoin(revisions, eq(revisions.id, entries.currentRevisionId))
+      .leftJoin(users, eq(users.id, entries.authorId))
+      .where(and(eq(entries.id, entryId), ne(entries.status, 'trashed')));
+    if (!row) return null;
+    scope.locale = row.entry.locale;
+    const response = await this.renderEntry(
+      scope,
+      {
+        row: { ...row.entry, title: row.title },
+        document: row.document as CxdDocument,
+        authorName: row.authorName,
+      },
+      { isFrontPage: false, preview: true },
+    );
+    return { ...response, headers: { 'x-robots-tag': 'noindex, nofollow' } };
+  }
+
+  private robots(scope: RequestScope): PublicResponse {
+    const lines = scope.settings.discourageSearchEngines
+      ? ['User-agent: *', 'Disallow: /']
+      : [
+          'User-agent: *',
+          'Allow: /',
+          'Disallow: /admin',
+          'Disallow: /api/',
+          'Disallow: /__preview/',
+          'Disallow: /search',
+          '',
+          `Sitemap: ${scope.origin}/sitemap.xml`,
+        ];
+    return {
+      status: 200,
+      html: `${lines.join('\n')}\n`,
+      contentType: 'text/plain; charset=utf-8',
+      tags: ['site'],
+    };
+  }
+
+  /** Index of per-type, per-language sitemaps (RF-THM-07). */
+  private async sitemapIndex(scope: RequestScope): Promise<PublicResponse> {
+    const rows = await scope.tx
+      .selectDistinct({ type: entries.typeSlug, locale: entries.locale })
+      .from(entries)
+      .where(isPublished);
+    const items = rows
+      .map(
+        (r) =>
+          `<sitemap><loc>${xml(`${scope.origin}/sitemap-${r.type}-${r.locale}.xml`)}</loc></sitemap>`,
+      )
+      .join('');
+    return {
+      status: 200,
+      html: `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${items}</sitemapindex>`,
+      contentType: 'application/xml; charset=utf-8',
+      tags: ['site', ...rows.map((r) => `type:${r.type}`)],
+    };
+  }
+
+  private async sitemap(
+    scope: RequestScope,
+    type: string,
+    locale: string,
+  ): Promise<PublicResponse | null> {
+    const { tx, data, settings } = scope;
+    if (!data.types.some((t) => t.slug === type) || !data.locales.some((l) => l.code === locale))
+      return null;
+    const list = await loadPublished(
+      tx,
+      and(eq(entries.typeSlug, type), eq(entries.locale, locale)),
+      {
+        limit: 50_000,
+      },
+    );
+    if (list.length === 0) return null;
+    const groups = [...new Set(list.map((e) => e.row.translationGroup))];
+    const siblings = await loadPublished(tx, inArray(entries.translationGroup, groups));
+    const absolute = (path: string) => `${scope.origin}${path}`;
+    const urlOf = (entry: PublishedEntry) =>
+      settings.frontPage === entry.row.translationGroup
+        ? data.urls.home(entry.row.locale)
+        : data.urls.entry(entry.row);
+    const urls = list
+      .map((entry) => {
+        const alternates = siblings.filter(
+          (s) => s.row.translationGroup === entry.row.translationGroup,
+        );
+        const links =
+          alternates.length > 1
+            ? alternates
+                .map(
+                  (a) =>
+                    `<xhtml:link rel="alternate" hreflang="${xml(a.row.locale)}" href="${xml(absolute(urlOf(a)))}"/>`,
+                )
+                .join('')
+            : '';
+        return `<url><loc>${xml(absolute(urlOf(entry)))}</loc><lastmod>${entry.row.updatedAt.toISOString()}</lastmod>${links}</url>`;
+      })
+      .join('');
+    return {
+      status: 200,
+      html: `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls}</urlset>`,
+      contentType: 'application/xml; charset=utf-8',
+      tags: ['site', `type:${type}`],
+    };
   }
 
   // ---- Routing --------------------------------------------------------------------
@@ -304,7 +514,7 @@ export class PublicService {
   private async renderEntry(
     scope: RequestScope,
     entry: PublishedEntry,
-    options: { isFrontPage: boolean; status?: number },
+    options: { isFrontPage: boolean; status?: number; preview?: boolean },
   ): Promise<PublicResponse> {
     const { tx, data } = scope;
     scope.tags.add(`entry:${entry.row.id}`);
@@ -358,13 +568,13 @@ export class PublicService {
     const head = this.head(scope, {
       title: options.isFrontPage
         ? this.homeTitle(scope)
-        : `${entry.row.title} – ${scope.siteTitle}`,
+        : `${options.preview ? 'Preview: ' : ''}${entry.row.title} – ${scope.siteTitle}`,
       description: publicEntry.excerpt,
       path: publicEntry.url,
       alternates,
       type: entry.row.typeSlug === 'article' ? 'article' : 'website',
       image: publicEntry.image,
-      noindex: options.status === 404,
+      noindex: options.status === 404 || options.preview === true,
     });
     const props: TemplateProps = {
       kind: 'entry',
@@ -658,4 +868,8 @@ export class PublicService {
     const [row] = await tx.select({ n: count() }).from(entries).where(and(isPublished, where));
     return Number(row?.n ?? 0);
   }
+}
+
+function xml(value: string): string {
+  return value.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
 }

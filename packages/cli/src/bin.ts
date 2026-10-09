@@ -11,6 +11,7 @@ import {
   listSites,
   OperationError,
   setPassword,
+  setSiteStatus,
 } from './operations.js';
 
 const program = new Command()
@@ -124,6 +125,18 @@ program
       for (const site of await listSites(db)) {
         console.log(`${site.slug}\t${site.status}\t${site.name}\t${site.domains.join(', ')}`);
       }
+    }),
+  );
+
+program
+  .command('site:maintenance')
+  .description('Turn maintenance mode on or off: visitors get a 503, signed-in users see the site.')
+  .requiredOption('--site <slug>')
+  .option('--off', 'turn maintenance mode off (default: on)')
+  .action((opts) =>
+    withOwner(async (db) => {
+      await setSiteStatus(db, opts.site, opts.off ? 'active' : 'maintenance');
+      console.log(`Maintenance mode ${opts.off ? 'off' : 'on'} for ${opts.site}.`);
     }),
   );
 
