@@ -146,4 +146,17 @@ export const itContent: Messages = {
   '{count} items updated.': '{count} elementi aggiornati.',
   '{failed} of {count} items could not be changed: {error}':
     '{failed} elementi su {count} non sono stati modificati: {error}',
+  'All media items': 'Tutti i media',
+  Audio: 'Audio',
+  'Caption ({language})': 'Didascalia ({language})',
+  Documents: 'Documenti',
+  File: 'File',
+  'Filter by type': 'Filtra per tipo',
+  Grid: 'Griglia',
+  Images: 'Immagini',
+  List: 'Elenco',
+  'Search media': 'Cerca nei media',
+  Uploads: 'Caricamenti',
+  Video: 'Video',
+  View: 'Vista',
 };

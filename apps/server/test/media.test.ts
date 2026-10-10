@@ -149,6 +149,22 @@ describe('library', () => {
     expect(updated.json().alt).toEqual({ en: 'A cat', it: 'Un gatto' });
   });
 
+  it('searches captions and alternative texts and filters by type', async () => {
+    const res = await author.upload('/api/v1/media', 'img-1.png', await png(20, 20), 'image/png');
+    const id = res.json().id;
+    const updated = await author.request('PATCH', `/api/v1/media/${id}`, {
+      caption: { it: 'Tramonto sul lago' },
+      alt: { en: 'Lighthouse' },
+    });
+    expect(updated.json().caption).toEqual({ it: 'Tramonto sul lago' });
+    const byCaption = (await author.get('/api/v1/media?q=tramonto')).json();
+    expect(byCaption.items.map((m: { id: string }) => m.id)).toEqual([id]);
+    const byAlt = (await author.get('/api/v1/media?q=lighthouse')).json();
+    expect(byAlt.items.map((m: { id: string }) => m.id)).toEqual([id]);
+    expect((await author.get('/api/v1/media?kind=video')).json().items).toEqual([]);
+    expect((await author.get('/api/v1/media?kind=other')).statusCode).toBe(400);
+  });
+
   it('deletes the file and its variants', async () => {
     const res = await author.upload('/api/v1/media', 'gone.png', await png(800, 600), 'image/png');
     const { id, url } = res.json();

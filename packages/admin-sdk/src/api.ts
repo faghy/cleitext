@@ -61,27 +61,47 @@ export async function api<T>(method: Method, path: string, body?: unknown): Prom
   return data as T;
 }
 
-/** Uploads a file to the media library (multipart, with the CSRF header). */
-export async function uploadFile<T>(file: File): Promise<T> {
-  const send = async (token: string) => {
-    const form = new FormData();
-    form.append('file', file);
-    return fetch('/api/v1/media', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { [CSRF_HEADER]: token },
-      body: form,
+/**
+ * Uploads a file to the media library (multipart, with the CSRF header).
+ * `onProgress` receives the fraction sent, from 0 to 1 (RF-MED-01).
+ */
+export async function uploadFile<T>(
+  file: File,
+  options: { onProgress?: (fraction: number) => void } = {},
+): Promise<T> {
+  const send = (token: string) =>
+    new Promise<{ status: number; data: unknown }>((resolve, reject) => {
+      // XMLHttpRequest, because fetch does not report upload progress.
+      const request = new XMLHttpRequest();
+      request.open('POST', '/api/v1/media');
+      request.withCredentials = true;
+      request.setRequestHeader(CSRF_HEADER, token);
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) options.onProgress?.(event.loaded / event.total);
+      };
+      request.onload = () => {
+        let data: unknown = null;
+        try {
+          data = JSON.parse(request.responseText);
+        } catch {
+          // Not JSON: a generic problem is reported below.
+        }
+        resolve({ status: request.status, data });
+      };
+      request.onerror = () => reject(new TypeError('Network error'));
+      const form = new FormData();
+      form.append('file', file);
+      request.send(form);
     });
-  };
   let res = await send(csrfToken ?? (await fetchCsrf()));
   if (res.status === 403) res = await send(await fetchCsrf());
-  const data = (await res.json().catch(() => null)) as unknown;
-  if (!res.ok) {
+  if (res.status < 200 || res.status >= 300) {
     throw new ApiError(
-      (data as ProblemDetails | null) ?? { title: res.statusText, status: res.status },
+      (res.data as ProblemDetails | null) ?? { title: 'Upload failed', status: res.status },
     );
   }
-  return data as T;
+  options.onProgress?.(1);
+  return res.data as T;
 }
 
 export function errorMessage(error: unknown): string {

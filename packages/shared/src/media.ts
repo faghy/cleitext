@@ -34,7 +34,8 @@ export interface MediaListResponse {
 }
 
 export const listMediaQuerySchema = z.object({
-  kind: z.enum(['image', 'document']).optional(),
+  kind: z.enum(['image', 'video', 'audio', 'document']).optional(),
+  /** Searches the file name, alternative texts and captions. */
   q: z.string().trim().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(40),
   cursor: z.string().max(200).optional(),

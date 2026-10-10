@@ -10,7 +10,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, ilike, like, lt, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, like, lt, or, sql, type SQL } from 'drizzle-orm';
 import sharp from 'sharp';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
@@ -127,9 +127,19 @@ export class MediaService {
     return withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
       const conditions: SQL[] = [];
       if (query.kind === 'image') conditions.push(like(media.mime, 'image/%'));
+      if (query.kind === 'video') conditions.push(like(media.mime, 'video/%'));
+      if (query.kind === 'audio') conditions.push(like(media.mime, 'audio/%'));
       if (query.kind === 'document') conditions.push(like(media.mime, 'application/%'));
-      if (query.q)
-        conditions.push(ilike(media.filename, `%${query.q.replace(/[\\%_]/g, '\\$&')}%`));
+      if (query.q) {
+        const pattern = `%${query.q.replace(/[\\%_]/g, '\\$&')}%`;
+        conditions.push(
+          or(
+            ilike(media.filename, pattern),
+            sql`exists (select 1 from jsonb_each_text(${media.alt}) where value ilike ${pattern})`,
+            sql`exists (select 1 from jsonb_each_text(${media.caption}) where value ilike ${pattern})`,
+          )!,
+        );
+      }
       if (query.cursor) {
         const [createdAt, id] = decodeCursor(query.cursor);
         if (createdAt && id) {
