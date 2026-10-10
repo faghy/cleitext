@@ -2,7 +2,7 @@
  * Identity and sites (milestone M1): host resolution, CSRF, login, rate
  * limiting, invitations, password reset, members and profile.
  */
-import { auditLog, withSiteContext, type DatabaseClient } from '@cleitext/db';
+import { auditLog, loginThrottle, withSiteContext, type DatabaseClient } from '@cleitext/db';
 import { eq } from 'drizzle-orm';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -173,6 +173,23 @@ describe('login rate limiting (RF-USR-09)', () => {
     // Other accounts from another address are not affected.
     const other = new TestClient(app, acme.host, '10.0.1.2');
     expect((await other.login('admin@acme.test', PASSWORD)).statusCode).toBe(200);
+  });
+
+  it('forgets the failures of an address after 15 minutes', async () => {
+    const client = new TestClient(app, acme.host, '10.0.1.3');
+    // 19 old failures from a shared address, the last one 20 minutes ago.
+    await owner.db.insert(loginThrottle).values({
+      key: 'ip:10.0.1.3',
+      failures: 19,
+      updatedAt: new Date(Date.now() - 20 * 60_000),
+    });
+    expect((await client.login('admin@acme.test', 'wrong')).statusCode).toBe(401);
+    expect((await client.login('admin@acme.test', PASSWORD)).statusCode).toBe(200);
+    const [row] = await owner.db
+      .select()
+      .from(loginThrottle)
+      .where(eq(loginThrottle.key, 'ip:10.0.1.3'));
+    expect(row).toMatchObject({ failures: 1, lockedUntil: null });
   });
 
   it('records failed attempts in the audit log', async () => {

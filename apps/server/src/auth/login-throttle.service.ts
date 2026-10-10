@@ -8,7 +8,8 @@ import { DATABASE } from '../database/database.module.js';
  *
  * - per email: from the 5th consecutive failure, locked for 1 min, doubling
  *   on every further failure up to 15 min;
- * - per IP: 20 failures lock the address for 15 min.
+ * - per IP: 20 failures within 15 min lock the address for 15 min; older
+ *   failures are forgotten, so a shared address is not locked for good.
  * A successful login clears the email counter.
  */
 @Injectable()
@@ -39,20 +40,28 @@ export class LoginThrottleService {
         LoginThrottleService.MAX_LOCK_SECONDS,
       ),
     );
-    await this.bump(ipKey(ip), LoginThrottleService.IP_THRESHOLD, () => 15 * 60);
+    await this.bump(ipKey(ip), LoginThrottleService.IP_THRESHOLD, () => 15 * 60, IP_WINDOW_SECONDS);
   }
 
   async recordSuccess(email: string): Promise<void> {
     await this.database.db.delete(loginThrottle).where(eq(loginThrottle.key, emailKey(email)));
   }
 
-  private async bump(key: string, threshold: number, lockSeconds: (failures: number) => number) {
+  private async bump(
+    key: string,
+    threshold: number,
+    lockSeconds: (failures: number) => number,
+    windowSeconds?: number,
+  ) {
+    const next = windowSeconds
+      ? sql`case when ${loginThrottle.updatedAt} < now() - make_interval(secs => ${windowSeconds}) then 1 else ${loginThrottle.failures} + 1 end`
+      : sql`${loginThrottle.failures} + 1`;
     const [row] = await this.database.db
       .insert(loginThrottle)
       .values({ key, failures: 1 })
       .onConflictDoUpdate({
         target: loginThrottle.key,
-        set: { failures: sql`${loginThrottle.failures} + 1`, updatedAt: sql`now()` },
+        set: { failures: next, updatedAt: sql`now()` },
       })
       .returning({ failures: loginThrottle.failures });
     const failures = row?.failures ?? 1;
@@ -66,5 +75,6 @@ export class LoginThrottleService {
   }
 }
 
+const IP_WINDOW_SECONDS = 15 * 60;
 const emailKey = (email: string) => `email:${email.trim().toLowerCase()}`;
 const ipKey = (ip: string) => `ip:${ip}`;
