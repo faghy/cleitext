@@ -43,6 +43,7 @@
     "react-dom": "^19.3.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "sanitize-html": "^2.18.0",
     "semver": "^7.8.5",
     "sharp": "^0.35.5",
     "tar": "^7.5.22",
@@ -54,6 +55,7 @@
     "@swc/core": "^1.16.13",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/sanitize-html": "^2.16.2",
     "@types/semver": "^7.8.0",
     "pino-pretty": "^13.2.0",
     "unplugin-swc": "^2.0.0"

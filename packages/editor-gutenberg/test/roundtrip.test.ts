@@ -138,6 +138,24 @@ const sample: CxdDocument = {
     { id: 'sep', type: 'core/separator', v: 1, attrs: {} },
     { id: 'spc', type: 'core/spacer', v: 1, attrs: { height: '40px' } },
     { id: 'code', type: 'core/code', v: 1, attrs: {}, content: [{ text: 'const x = 1 < 2;' }] },
+    {
+      id: 'emb',
+      type: 'core/embed',
+      v: 1,
+      attrs: {
+        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        providerNameSlug: 'youtube',
+        type: 'video',
+        responsive: true,
+        caption: [{ text: 'A video' }],
+      },
+    },
+    {
+      id: 'html',
+      type: 'core/html',
+      v: 1,
+      attrs: { content: '<div class="note">Raw <b>HTML</b> &amp; <!-- comment --></div>' },
+    },
     { id: 'ext', type: 'acme/map', v: 2, attrs: { lat: 45.4, lng: 9.2 }, children: [] },
   ],
 };

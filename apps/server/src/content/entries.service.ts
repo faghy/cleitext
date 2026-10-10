@@ -50,6 +50,7 @@ import { isTypeAvailable } from '../public/site-data.js';
 import { blockRegistry } from './block-registry.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { TermsService } from './terms.service.js';
+import { sanitizeDocument } from './html-sanitize.js';
 
 type EntryRow = typeof entries.$inferSelect;
 type ContentTypeRow = typeof contentTypes.$inferSelect;
@@ -331,7 +332,7 @@ export class EntriesService {
       throw new ForbiddenException('You cannot create entries.');
     }
     const document =
-      input.document === undefined ? emptyDocument() : validateDocument(input.document);
+      input.document === undefined ? emptyDocument() : validateDocument(input.document, auth);
     const view = await this.run(siteId, auth, async (tx) => {
       const type = await this.contentType(tx, input.type);
       await this.assertTypeAvailable(siteId, type);
@@ -388,7 +389,8 @@ export class EntriesService {
     },
     ip: string,
   ): Promise<EntryView> {
-    const document = input.document === undefined ? undefined : validateDocument(input.document);
+    const document =
+      input.document === undefined ? undefined : validateDocument(input.document, auth);
     let tags: string[] = [];
     const view = await this.run(siteId, auth, async (tx) => {
       const entry = await this.load(tx, id);
@@ -478,7 +480,7 @@ export class EntriesService {
       featuredMediaId?: string | null | undefined;
     },
   ): Promise<{ revisionId: string; savedAt: string }> {
-    const document = validateDocument(input.document);
+    const document = validateDocument(input.document, auth);
     return this.run(siteId, auth, async (tx) => {
       const entry = await this.load(tx, id);
       if (!canEdit(auth, entry)) throw new ForbiddenException('You cannot edit this entry.');
@@ -1093,7 +1095,11 @@ export class EntriesService {
 // ---- Helpers ------------------------------------------------------------------------
 
 /** Validates a CXD document (schema and known blocks). */
-export function validateDocument(value: unknown): CxdDocument {
+/**
+ * Checks a document from the editor; `core/html` blocks are sanitized when
+ * the author cannot publish unfiltered HTML.
+ */
+export function validateDocument(value: unknown, auth: AuthContext): CxdDocument {
   const parsed = cxdDocumentSchema.safeParse(value);
   if (!parsed.success) {
     throw new BadRequestException({
@@ -1114,7 +1120,9 @@ export function validateDocument(value: unknown): CxdDocument {
       })),
     });
   }
-  return parsed.data;
+  return auth.capabilities.includes('unfiltered_html')
+    ? parsed.data
+    : sanitizeDocument(parsed.data);
 }
 
 /** Whether a slug is the one generated from the title (possibly de-duplicated). */

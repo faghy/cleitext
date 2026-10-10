@@ -37,6 +37,15 @@ const CANVAS_CSS = `
   .is-root-container > .alignfull { max-width: none; }
   h1, h2, h3, h4, h5, h6 { line-height: 1.25; }
   a { color: #0369a1; }
+  /* Responsive embeds, as in a theme supporting "responsive-embeds": without
+     them the preview of a video has no height. */
+  .wp-has-aspect-ratio .wp-block-embed__wrapper::before { content: ""; display: block; padding-top: 50%; }
+  .wp-has-aspect-ratio .wp-block-embed__wrapper iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .wp-embed-aspect-21-9 .wp-block-embed__wrapper::before { padding-top: 42.85%; }
+  .wp-embed-aspect-16-9 .wp-block-embed__wrapper::before { padding-top: 56.25%; }
+  .wp-embed-aspect-4-3 .wp-block-embed__wrapper::before { padding-top: 75%; }
+  .wp-embed-aspect-1-1 .wp-block-embed__wrapper::before { padding-top: 100%; }
+  .wp-embed-aspect-9-16 .wp-block-embed__wrapper::before { padding-top: 177.77%; }
 `;
 
 const RESOLVED_ASSETS = {

@@ -144,6 +144,34 @@ export const CORE_BLOCKS: BlockDefinition[] = [
     attrs: z.object({ ...common, tagName: z.string().optional() }).loose(),
   },
   {
+    type: 'core/embed',
+    version: 1,
+    title: 'Embed',
+    category: 'embed',
+    richAttributes: ['caption'],
+    attrs: z
+      .object({
+        ...common,
+        url: z.string().max(2_000).optional(),
+        providerNameSlug: z.string().max(64).optional(),
+        type: z.string().max(32).optional(),
+        responsive: z.boolean().optional(),
+        align,
+      })
+      .loose(),
+  },
+  {
+    /**
+     * Raw HTML. Sanitized on save unless the author has `unfiltered_html`
+     * (docs/ARCHITECTURE.md §18).
+     */
+    type: 'core/html',
+    version: 1,
+    title: 'Custom HTML',
+    category: 'widgets',
+    attrs: z.object({ content: z.string().max(200_000).optional() }).loose(),
+  },
+  {
     type: 'core/separator',
     version: 1,
     title: 'Separator',

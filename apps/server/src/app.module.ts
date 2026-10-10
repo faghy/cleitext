@@ -11,6 +11,7 @@ import { LoginThrottleService } from './auth/login-throttle.service.js';
 import { SessionService, UserTokenService } from './auth/session.service.js';
 import { ProblemDetailsFilter } from './common/problem.js';
 import { EntriesController } from './content/entries.controller.js';
+import { OEmbedController } from './content/oembed.controller.js';
 import { EntriesService } from './content/entries.service.js';
 import { SchedulerService } from './content/scheduler.service.js';
 import { TermsController } from './content/terms.controller.js';
@@ -84,6 +85,7 @@ export class AppModule {
         AuthController,
         UsersController,
         ProfileController,
+        OEmbedController,
         EntriesController,
         MediaController,
         TermsController,

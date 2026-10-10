@@ -1,5 +1,5 @@
 import type { CxdDocument } from '@cleitext/blocks';
-import type { EditorInstance, EditorServices, MediaRef } from '@cleitext/editor-core';
+import type { EditorInstance, EditorServices, EmbedPreview, MediaRef } from '@cleitext/editor-core';
 import { FieldsForm, useT } from '@cleitext/admin-sdk';
 import type { FieldBlockDefinition } from '@cleitext/editor-core';
 import {
@@ -848,6 +848,14 @@ function mediaServices(locale: string): EditorServices {
       if (kind) params.set('kind', kind);
       if (search) params.set('q', search);
       return (await api<MediaListResponse>('GET', `/media?${params}`)).items.map(toRef);
+    },
+    oembed: async (url) => {
+      try {
+        return await api<EmbedPreview>('GET', `/oembed?${new URLSearchParams({ url })}`);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
     },
   };
 }

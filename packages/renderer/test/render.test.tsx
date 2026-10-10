@@ -135,6 +135,36 @@ describe('core blocks', () => {
   });
 });
 
+describe('embeds and HTML', () => {
+  it('renders known embeds as lazy privacy-friendly iframes, others as links', () => {
+    const out = html(
+      doc(
+        {
+          id: 'e',
+          type: 'core/embed',
+          v: 1,
+          attrs: { url: 'https://youtu.be/dQw4w9WgXcQ', caption: [{ text: 'Song' }] },
+        },
+        { id: 'o', type: 'core/embed', v: 1, attrs: { url: 'https://example.com/post' } },
+        { id: 'x', type: 'core/embed', v: 1, attrs: { url: 'javascript:alert(1)' } },
+      ),
+    );
+    expect(out).toContain('src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"');
+    expect(out).toContain('loading="lazy"');
+    expect(out).toContain('is-provider-youtube');
+    expect(out).toContain('<figcaption class="wp-element-caption">Song</figcaption>');
+    expect(out).toContain('<a href="https://example.com/post">https://example.com/post</a>');
+    expect(out).not.toContain('javascript:');
+  });
+
+  it('outputs the HTML block as saved', () => {
+    const out = html(
+      doc({ id: 'h', type: 'core/html', v: 1, attrs: { content: '<p class="x">Hi</p>' } }),
+    );
+    expect(out).toBe('<div class="wp-block-html"><p class="x">Hi</p></div>');
+  });
+});
+
 describe('images', () => {
   const media: RenderMedia = {
     id: 'm1',

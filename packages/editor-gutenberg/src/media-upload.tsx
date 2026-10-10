@@ -13,6 +13,11 @@ export function setMediaServices(next: EditorServices): void {
   services = next;
 }
 
+/** Services of the mounted editor, for global handlers (e.g. apiFetch). */
+export function currentServices(): EditorServices {
+  return services;
+}
+
 let registered = false;
 
 export function registerMediaUpload(): void {

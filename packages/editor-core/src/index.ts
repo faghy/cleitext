@@ -36,6 +36,16 @@ export interface EditorServices {
   /** Media library browsing, for the editor's media picker. */
   listMedia?(query: { kind?: 'image'; search?: string }): Promise<MediaRef[]>;
   searchLinks?(query: string): Promise<LinkSuggestion[]>;
+  /** Embed preview (oEmbed response), or null when the address cannot be embedded. */
+  oembed?(url: string): Promise<EmbedPreview | null>;
+}
+
+export interface EmbedPreview {
+  type: string;
+  provider_name: string;
+  html: string;
+  width?: number;
+  height?: number;
 }
 
 export interface MediaRef {

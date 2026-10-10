@@ -1,4 +1,4 @@
-import type { CxdBlock, CxdDocument, CxdInline } from '@cleitext/blocks';
+import { resolveEmbed, type CxdBlock, type CxdDocument, type CxdInline } from '@cleitext/blocks';
 import type { CSSProperties, ReactNode } from 'react';
 import {
   RenderContextReact,
@@ -160,6 +160,60 @@ registerBlockRenderer('core/code', ({ block }) => (
     </code>
   </pre>
 ));
+
+/**
+ * Raw HTML, as saved: it was sanitized on save unless its author could
+ * publish unfiltered HTML.
+ */
+registerBlockRenderer('core/html', ({ block }) => {
+  const html = str(block.attrs.content);
+  return html ? <div className="wp-block-html" dangerouslySetInnerHTML={{ __html: html }} /> : null;
+});
+
+/** Known providers become a lazy iframe; any other address stays a link. */
+registerBlockRenderer('core/embed', ({ block }) => {
+  const url = safeUrl(str(block.attrs.url));
+  if (!url) return null;
+  const embed = resolveEmbed(url);
+  const caption = rich(block, 'caption');
+  return (
+    <figure
+      id={anchor(block)}
+      className={classes(
+        'wp-block-embed',
+        alignClass(block),
+        embed && `is-type-${embed.type}`,
+        embed && `is-provider-${embed.provider}`,
+        embed && `wp-block-embed-${embed.provider}`,
+        embed?.type === 'video' && 'wp-embed-aspect-16-9 wp-has-aspect-ratio',
+        extraClass(block),
+      )}
+    >
+      <div className="wp-block-embed__wrapper">
+        {embed ? (
+          <iframe
+            src={embed.src}
+            title={embed.providerName}
+            width={embed.width}
+            height={embed.height}
+            loading="lazy"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            style={{ border: 0 }}
+          />
+        ) : (
+          <a href={url}>{url}</a>
+        )}
+      </div>
+      {hasText(caption) && (
+        <figcaption className="wp-element-caption">
+          <Inline nodes={caption} />
+        </figcaption>
+      )}
+    </figure>
+  );
+});
 
 registerBlockRenderer('core/image', ({ block }) => <ImageBlock block={block} />);
 
