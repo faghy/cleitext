@@ -9,6 +9,8 @@ import { AuthService } from './auth/auth.service.js';
 import { IdentityService } from './auth/identity.service.js';
 import { TwoFactorService } from './auth/two-factor.service.js';
 import { PasskeyService } from './auth/passkey.service.js';
+import { ApiTokenService } from './auth/api-token.service.js';
+import { TokensController } from './auth/tokens.controller.js';
 import { LoginThrottleService } from './auth/login-throttle.service.js';
 import { SessionService, UserTokenService } from './auth/session.service.js';
 import { ProblemDetailsFilter } from './common/problem.js';
@@ -92,6 +94,7 @@ export class AppModule {
         ProfileController,
         TwoFactorController,
         PasskeysController,
+        TokensController,
         SecuritySettingsController,
         OEmbedController,
         EntriesController,
@@ -113,6 +116,7 @@ export class AppModule {
         IdentityService,
         TwoFactorService,
         PasskeyService,
+        ApiTokenService,
         LoginThrottleService,
         MailService,
         MediaService,

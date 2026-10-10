@@ -51,6 +51,8 @@ export const itAdmin: Messages = {
   'action.user.2fa.disabled': 'ha disattivato l’autenticazione a due fattori',
   'action.user.passkey.added': 'ha aggiunto una passkey',
   'action.user.passkey.removed': 'ha rimosso una passkey',
+  'action.token.created': 'ha creato un token API',
+  'action.token.revoked': 'ha revocato un token API',
   'action.entry.revision.restored': 'ha ripristinato una revisione di',
   'action.entry.restored': 'ha ripristinato dal cestino',
   'action.entry.scheduled': 'ha programmato',

@@ -1,7 +1,12 @@
 import type { RouteRequest, RouteResponse } from '@cleitext/plugin-sdk';
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { assertTwoFactorReady, verifyCsrf, verifySameOrigin } from '../auth/auth.guard.js';
+import {
+  assertTokenAllowed,
+  assertTwoFactorReady,
+  verifyCsrf,
+  verifySameOrigin,
+} from '../auth/auth.guard.js';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -79,7 +84,8 @@ export class PluginRoutes {
       if (route.public) {
         if (!SAFE_METHODS.has(request.method)) verifySameOrigin(request);
       } else {
-        if (!SAFE_METHODS.has(request.method)) verifyCsrf(request);
+        if (request.auth?.apiToken) assertTokenAllowed(request);
+        else if (!SAFE_METHODS.has(request.method)) verifyCsrf(request);
         if (!request.auth) return problem(reply, 401, 'Unauthorized', 'Sign in to continue.');
         assertTwoFactorReady(request);
         if (route.capability && !request.auth.capabilities.includes(route.capability)) {

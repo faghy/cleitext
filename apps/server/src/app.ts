@@ -11,6 +11,7 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { IdentityService } from './auth/identity.service.js';
 import { SessionService } from './auth/session.service.js';
+import { ApiTokenService } from './auth/api-token.service.js';
 import type { AppConfig } from './config/config.js';
 import { PublicService } from './public/public.service.js';
 import { createRequestHook } from './tenancy/request-hook.js';
@@ -80,6 +81,7 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
         sites: app.get(SiteResolverService),
         sessions: app.get(SessionService),
         identity: app.get(IdentityService),
+        apiTokens: app.get(ApiTokenService),
       }),
     );
 

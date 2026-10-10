@@ -82,6 +82,31 @@ export const passkeyRegisterRequestSchema = z.object({
 
 export const passkeyRenameRequestSchema = z.object({ name: z.string().trim().min(1).max(100) });
 
+/** `read`: GET requests only; `write`: every request. Always within the owner's permissions. */
+export const API_TOKEN_SCOPES = ['read', 'write'] as const;
+export type ApiTokenScope = (typeof API_TOKEN_SCOPES)[number];
+
+export interface ApiTokenView {
+  id: string;
+  name: string;
+  /** First characters, to recognize the token. */
+  prefix: string;
+  scopes: ApiTokenScope[];
+  owner: { id: string; displayName: string } | null;
+  createdAt: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+}
+
+export const createApiTokenRequestSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  scopes: z.array(z.enum(API_TOKEN_SCOPES)).min(1),
+  /** Days of validity; null for a token that never expires. */
+  expiresInDays: z.number().int().min(1).max(3650).nullable(),
+  /** Another member of the site (`manage_users`). */
+  userId: z.uuid().optional(),
+});
+
 export const securitySettingsSchema = z.object({
   /** Role slugs that must use 2FA; `super_admin` for super admins. */
   require2fa: z.array(z.string().min(1).max(64)).max(50),

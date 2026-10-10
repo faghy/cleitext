@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { SESSION_COOKIE } from '../auth/cookies.js';
+import type { ApiTokenService } from '../auth/api-token.service.js';
 import type { IdentityService } from '../auth/identity.service.js';
 import type { SessionService } from '../auth/session.service.js';
 import type { SiteResolverService } from './site-resolver.service.js';
@@ -8,15 +9,17 @@ interface Dependencies {
   sites: SiteResolverService;
   sessions: SessionService;
   identity: IdentityService;
+  apiTokens: ApiTokenService;
 }
 
 /**
  * Runs before routing for every request except health probes:
  * 1. resolves the site from the host — unknown hosts get a neutral 404 (RF-SIT-05);
  * 2. enforces HTTPS and the primary domain for page requests (RF-SIT-04);
- * 3. loads the signed-in user from the session cookie, if any.
+ * 3. loads the signed-in user from an API token (`Authorization: Bearer`)
+ *    or from the session cookie, if any.
  */
-export function createRequestHook({ sites, sessions, identity }: Dependencies) {
+export function createRequestHook({ sites, sessions, identity, apiTokens }: Dependencies) {
   return async function onRequest(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     if (request.url.startsWith('/health/')) return;
 
@@ -59,6 +62,17 @@ export function createRequestHook({ sites, sessions, identity }: Dependencies) {
 
     request.site = { id: resolution.siteId, status: resolution.siteStatus };
     request.auth = null;
+
+    // An explicit API token wins over the cookie; an invalid one is not
+    // replaced by the session, so that the client sees the error.
+    const authorization = request.headers.authorization;
+    if (authorization?.startsWith('Bearer ')) {
+      const found = await apiTokens.authenticate(resolution.siteId, authorization.slice(7).trim());
+      const auth = found && (await identity.load(resolution.siteId, found.userId, ''));
+      if (found && auth)
+        request.auth = { ...auth, apiToken: { id: found.id, scopes: found.scopes } };
+      return;
+    }
 
     const token = request.cookies[SESSION_COOKIE];
     if (token) {

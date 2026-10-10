@@ -16,6 +16,8 @@ export interface AuthContext {
   avatarUrl: string | null;
   /** 2FA state; `required` comes from the site's security settings. */
   twoFactor: { enabled: boolean; required: boolean };
+  /** Set when the request was authenticated with an API token. */
+  apiToken?: { id: string; scopes: string[] };
   isSuperAdmin: boolean;
   role: { id: string; slug: string; name: string } | null;
   /** Core capabilities plus those defined by active plugins. */
