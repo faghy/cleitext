@@ -23,6 +23,7 @@ import { Alert, Button } from '../components/ui';
 import { formatDate, STATUS_LABELS } from './entries-list';
 import { EntryTerms } from './entry-terms';
 import { contentTypesQuery } from '../plugins';
+import { descendantsOf, entryTree } from '../entry-tree';
 import { zonedTimeToIso } from '../time';
 
 const AUTOSAVE_INTERVAL_MS = 30_000;
@@ -623,7 +624,7 @@ function DocumentPanel({
   useEffect(() => setSlug(entry.slug), [entry.slug]);
 
   const saveSettings = useMutation({
-    mutationFn: (changes: { slug?: string; parentId?: string | null }) =>
+    mutationFn: (changes: { slug?: string; parentId?: string | null; position?: number }) =>
       api<EntryView>('PATCH', `/entries/${entry.id}`, changes),
     onSuccess: onSaved,
   });
@@ -638,12 +639,19 @@ function DocumentPanel({
     onSuccess: onRestored,
   });
 
+  const types = useQuery(contentTypesQuery);
+  const hierarchical = types.data?.find((ct) => ct.slug === entry.type)?.hierarchical ?? false;
   const pages = useQuery({
-    queryKey: ['entries', 'page', 'parents', entry.locale],
+    queryKey: ['entries', entry.type, 'parents', entry.locale],
     queryFn: () =>
-      api<EntryListResponse>('GET', `/entries?type=page&locale=${entry.locale}&limit=100`),
-    enabled: entry.type === 'page',
+      api<EntryListResponse>(
+        'GET',
+        `/entries?type=${entry.type}&locale=${entry.locale}&sort=order&limit=100`,
+      ),
+    enabled: hierarchical,
   });
+  const [position, setPosition] = useState(String(entry.position));
+  useEffect(() => setPosition(String(entry.position)), [entry.position]);
 
   const translate = useMutation({
     mutationFn: (locale: string) =>
@@ -742,24 +750,52 @@ function DocumentPanel({
         </label>
       </section>
 
-      {entry.type === 'page' && (
+      {hierarchical && (
         <section className="space-y-2">
-          <h3 className="font-medium">{t('Parent page')}</h3>
-          <select
-            value={entry.parentId ?? ''}
-            disabled={readOnly}
-            onChange={(e) => saveSettings.mutate({ parentId: e.target.value || null })}
-            className="w-full rounded border border-slate-300 bg-white px-2 py-1"
-          >
-            <option value="">{t('(no parent)')}</option>
-            {pages.data?.items
-              .filter((p) => p.id !== entry.id)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title || t('(no title)')}
-                </option>
-              ))}
-          </select>
+          <h3 className="font-medium">{t('Page attributes')}</h3>
+          <label className="block">
+            <span className="text-xs text-slate-600">{t('Parent page')}</span>
+            <select
+              value={entry.parentId ?? ''}
+              disabled={readOnly}
+              onChange={(e) => saveSettings.mutate({ parentId: e.target.value || null })}
+              className="w-full rounded border border-slate-300 bg-white px-2 py-1"
+            >
+              <option value="">{t('(no parent)')}</option>
+              {(() => {
+                const items = pages.data?.items ?? [];
+                // An entry cannot be moved under itself or its own children.
+                const excluded = descendantsOf(items, entry.id);
+                return entryTree(items)
+                  .filter((row) => !excluded.has(row.entry.id))
+                  .map((row) => (
+                    <option key={row.entry.id} value={row.entry.id}>
+                      {'\u2014 '.repeat(row.depth)}
+                      {row.entry.title || t('(no title)')}
+                    </option>
+                  ));
+              })()}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs text-slate-600">{t('Order')}</span>
+            <input
+              type="number"
+              min={0}
+              value={position}
+              readOnly={readOnly}
+              onChange={(e) => setPosition(e.target.value)}
+              onBlur={() => {
+                const next = Math.max(0, Math.trunc(Number(position) || 0));
+                if (next !== entry.position) saveSettings.mutate({ position: next });
+              }}
+              aria-describedby="entry-order-help"
+              className="w-full rounded border border-slate-300 px-2 py-1"
+            />
+          </label>
+          <p id="entry-order-help" className="text-xs text-slate-500">
+            {t('Pages with a lower number come first among their siblings.')}
+          </p>
         </section>
       )}
 

@@ -160,4 +160,7 @@ export const itContent: Messages = {
   Video: 'Video',
   View: 'Vista',
   'Drag to move': 'Trascina per spostare',
+  'Page attributes': 'Attributi pagina',
+  'Pages with a lower number come first among their siblings.':
+    'Tra pagine dello stesso livello, quelle con il numero più basso vengono prima.',
 };

@@ -12,10 +12,11 @@ import { labelText } from '@cleitext/shared';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useT } from '@cleitext/admin-sdk';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card } from '../components/ui';
+import { entryTree } from '../entry-tree';
 import { contentTypesQuery } from '../plugins';
 export const STATUS_LABELS: Record<EntryStatus, string> = {
   draft: 'Draft',
@@ -65,6 +66,11 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
   const multilingual = me.site.locales.length > 1;
   const types = useQuery(contentTypesQuery);
   const hierarchical = types.data?.find((ct) => ct.slug === type)?.hierarchical ?? false;
+  // Hierarchical types (pages) open in manual order, shown as a tree.
+  const sortTouched = useRef(false);
+  useEffect(() => {
+    if (hierarchical && !sortTouched.current) setSort({ by: 'order', dir: 'asc' });
+  }, [hierarchical]);
   const members = useQuery({
     queryKey: ['users'],
     queryFn: () => api<MemberView[]>('GET', '/users'),
@@ -87,11 +93,19 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
     enabled: applicable.length > 0,
   });
 
-  const filters = { type, status, query, author, locale, term, sort };
+  // The tree needs the whole hierarchy: only without filters that hide parents.
+  const treeView =
+    hierarchical && sort.by === 'order' && sort.dir === 'asc' && !query && !author && !term;
+  const filters = { type, status, query, author, locale, term, sort, treeView };
   const list = useInfiniteQuery({
     queryKey: ['entries', filters],
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ type, limit: '20', sort: sort.by, dir: sort.dir });
+      const params = new URLSearchParams({
+        type,
+        limit: treeView ? '100' : '20',
+        sort: sort.by,
+        dir: sort.dir,
+      });
       if (status) params.set('status', status);
       if (query) params.set('q', query);
       if (author) params.set('author', author);
@@ -131,7 +145,9 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
     },
   });
 
-  const items = list.data?.pages.flatMap((p) => p.items) ?? [];
+  const loaded = list.data?.pages.flatMap((p) => p.items) ?? [];
+  const rows = treeView ? entryTree(loaded) : loaded.map((entry) => ({ entry, depth: 0 }));
+  const items = rows.map((row) => row.entry);
   const allSelected = items.length > 0 && items.every((entry) => selected.has(entry.id));
   const bulkActions: { value: BulkAction; label: string }[] =
     status === 'trashed'
@@ -155,6 +171,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
   }
 
   function sortBy(by: Sort) {
+    sortTouched.current = true;
     setSort((current) =>
       current.by === by
         ? { by, dir: current.dir === 'asc' ? 'desc' : 'asc' }
@@ -364,7 +381,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
               </tr>
             </thead>
             <tbody>
-              {items.map((entry) =>
+              {rows.map(({ entry, depth }) =>
                 editing === entry.id ? (
                   <QuickEditRow
                     key={entry.id}
@@ -389,6 +406,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                         params={{ id: entry.id }}
                         className="font-medium text-sky-700 hover:underline"
                       >
+                        {depth > 0 && <span aria-hidden="true">{'\u2014 '.repeat(depth)}</span>}
                         {entry.title || t('(no title)')}
                       </Link>
                       {entry.hasUnpublishedChanges && (

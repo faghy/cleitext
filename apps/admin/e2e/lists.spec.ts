@@ -67,3 +67,57 @@ test('list tables sort, edit inline and apply bulk actions', async ({ page }) =>
 
   expect(errors).toEqual([]);
 });
+
+test('pages are listed as a tree and ordered from the editor', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const stamp = Date.now().toString(36);
+
+  await signIn(page);
+  // Titles starting with "0" come first among pages with the same order.
+  const ids = await page.evaluate(async (stamp) => {
+    const { token } = await (await fetch('/api/v1/auth/csrf')).json();
+    const headers = { 'x-csrf-token': token, 'content-type': 'application/json' };
+    const create = async (body: object) =>
+      (await (
+        await fetch('/api/v1/entries', { method: 'POST', headers, body: JSON.stringify(body) })
+      ).json()) as { id: string };
+    const parent = await create({ type: 'page', title: `0 Parent ${stamp}` });
+    const second = await create({ type: 'page', title: `0 B child ${stamp}` });
+    const first = await create({ type: 'page', title: `0 C child ${stamp}` });
+    for (const [child, position] of [
+      [second, 1],
+      [first, 0],
+    ] as const) {
+      await fetch(`/api/v1/entries/${child.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ parentId: parent.id, position }),
+      });
+    }
+    return { parent: parent.id, first: first.id };
+  }, stamp);
+
+  // In the editor: "C child" (order 0) moves after "B child" (order 1).
+  await page.goto(`/admin/entries/${ids.first}`);
+  await expect(page.getByLabel('Parent page')).toHaveValue(ids.parent);
+  const saved = page.waitForResponse(
+    (r) => r.url().endsWith(`/entries/${ids.first}`) && r.request().method() === 'PATCH',
+  );
+  await page.getByLabel('Order', { exact: true }).fill('2');
+  await page.getByLabel('Order', { exact: true }).blur();
+  expect((await saved).ok()).toBe(true);
+  // The parent cannot be moved under its own child.
+  await page.goto(`/admin/entries/${ids.parent}`);
+  await expect(
+    page.getByLabel('Parent page').locator('option', { hasText: `C child ${stamp}` }),
+  ).toHaveCount(0);
+
+  await page.goto('/admin/pages');
+  const ours = page.getByRole('row').filter({ hasText: stamp });
+  await expect(ours).toHaveCount(3);
+  const titles = await ours.getByRole('link').allTextContents();
+  expect(titles).toEqual([`0 Parent ${stamp}`, `— 0 B child ${stamp}`, `— 0 C child ${stamp}`]);
+
+  expect(errors).toEqual([]);
+});
