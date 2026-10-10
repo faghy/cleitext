@@ -33,8 +33,12 @@ test('the site name opens the site, whose toolbar leads back to the editor', asy
 
   // Hovering the site name shows "Visit site".
   const banner = page.getByRole('banner');
+  // Always visible on the right, opening a new tab.
+  await expect(
+    banner.getByRole('link', { name: 'Visit site (opens in a new tab)' }),
+  ).toHaveAttribute('target', '_blank');
   await banner.getByRole('link', { name: 'Development' }).hover();
-  await banner.getByRole('link', { name: 'Visit site' }).click();
+  await banner.locator('.group').getByRole('link', { name: 'Visit site' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/admin'));
 
   const toolbar = page.getByRole('navigation', { name: 'Toolbar' });
