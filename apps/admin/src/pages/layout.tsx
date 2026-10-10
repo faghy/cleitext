@@ -34,12 +34,12 @@ function SiteMenu({
       </a>
       <div className="absolute top-full left-0 z-40 hidden min-w-40 pt-1 group-focus-within:block group-hover:block">
         <ul
-          className={`rounded border py-1 text-sm font-normal shadow-lg ${dark ? 'border-slate-700 bg-slate-900 text-slate-200' : 'border-slate-200 bg-white text-slate-800'}`}
+          className={`rounded border py-1 text-sm font-normal shadow-lg ${dark ? 'border-white/10 bg-slate-900/60 text-slate-100 backdrop-blur-sm' : 'border-slate-200 bg-white text-slate-800'}`}
         >
           <li>
             <a
               href="/"
-              className={`block px-3 py-1.5 whitespace-nowrap ${dark ? 'hover:bg-slate-800 hover:text-white' : 'hover:bg-slate-100'}`}
+              className={`block px-3 py-1.5 whitespace-nowrap ${dark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-slate-100'}`}
             >
               {t('Visit site')}
             </a>
