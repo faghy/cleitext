@@ -195,6 +195,25 @@ export interface RoleView {
   name: string;
   system: boolean;
   capabilities: string[];
+  /** Members of the current site with this role. */
+  members?: number;
+}
+
+export const roleRequestSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  /** Generated from the name when omitted. */
+  slug: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9_-]{0,62}$/)
+    .optional(),
+  capabilities: z.array(z.string().min(1).max(100)).max(200),
+});
+export const updateRoleRequestSchema = roleRequestSchema.omit({ slug: true }).partial();
+
+/** Capabilities that roles can grant, for the role editor (RF-USR-06). */
+export interface CapabilityCatalog {
+  core: string[];
+  plugins: { name: string; plugin: string; label: string }[];
 }
 
 // ---- Profile -------------------------------------------------------------

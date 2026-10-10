@@ -9,12 +9,7 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import {
-  effectiveCapabilities,
-  type InviteUserRequest,
-  type MemberView,
-  type RoleView,
-} from '@cleitext/shared';
+import { effectiveCapabilities, type InviteUserRequest, type MemberView } from '@cleitext/shared';
 import {
   BadRequestException,
   ConflictException,
@@ -46,17 +41,6 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
   ) {}
-
-  async listRoles(siteId: string, auth: AuthContext): Promise<RoleView[]> {
-    return withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
-      const rows = await tx
-        .select()
-        .from(roles)
-        .where(or(isNull(roles.siteId), eq(roles.siteId, siteId)))
-        .orderBy(asc(roles.name));
-      return rows.map(toRoleView);
-    });
-  }
 
   async listMembers(siteId: string, auth: AuthContext): Promise<MemberView[]> {
     return withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
@@ -310,14 +294,4 @@ export class UsersService {
       throw new ForbiddenException('This role has permissions you do not have.');
     }
   }
-}
-
-function toRoleView(role: RoleRow): RoleView {
-  return {
-    id: role.id,
-    slug: role.slug,
-    name: role.name,
-    system: role.siteId === null,
-    capabilities: role.capabilities,
-  };
 }

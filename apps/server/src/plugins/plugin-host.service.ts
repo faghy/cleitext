@@ -410,18 +410,43 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     return errors.length ? { ok: false, errors } : { ok: true, values: result };
   }
 
-  /** Plugin capabilities for a role on a site (super admins get them all). */
+  /**
+   * Plugin capabilities for a role on a site: the roles named by the plugin,
+   * or roles that list the capability themselves (custom roles). Super
+   * admins get them all.
+   */
   capabilitiesFor(
     activeSlugs: Iterable<string>,
     roleSlug: string | null,
     isSuperAdmin: boolean,
+    roleCapabilities: readonly string[] = [],
   ): string[] {
     const result: string[] = [];
     for (const slug of activeSlugs) {
       const plugin = this.loaded.get(slug);
       if (!plugin) continue;
       for (const [name, capability] of plugin.capabilities) {
-        if (isSuperAdmin || (roleSlug && capability.roles.includes(roleSlug))) result.push(name);
+        if (
+          isSuperAdmin ||
+          (roleSlug && capability.roles.includes(roleSlug)) ||
+          roleCapabilities.includes(name)
+        )
+          result.push(name);
+      }
+    }
+    return result;
+  }
+
+  /** Capabilities defined by the plugins active on a site, for the role editor. */
+  capabilityCatalog(
+    activeSlugs: Iterable<string>,
+  ): { name: string; plugin: string; label: unknown }[] {
+    const result: { name: string; plugin: string; label: unknown }[] = [];
+    for (const slug of activeSlugs) {
+      const plugin = this.loaded.get(slug);
+      if (!plugin) continue;
+      for (const [name, capability] of plugin.capabilities) {
+        result.push({ name, plugin: slug, label: capability.label });
       }
     }
     return result;

@@ -45,6 +45,8 @@ import { SettingsController } from './settings/settings.controller.js';
 import { SettingsService } from './settings/settings.service.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
 import { UsersController } from './users/users.controller.js';
+import { RolesController } from './users/roles.controller.js';
+import { RolesService } from './users/roles.service.js';
 import { UsersService } from './users/users.service.js';
 
 @Global()
@@ -91,6 +93,7 @@ export class AppModule {
         AdminController,
         AuthController,
         UsersController,
+        RolesController,
         ProfileController,
         TwoFactorController,
         PasskeysController,
@@ -117,6 +120,7 @@ export class AppModule {
         TwoFactorService,
         PasskeyService,
         ApiTokenService,
+        RolesService,
         LoginThrottleService,
         MailService,
         MediaService,

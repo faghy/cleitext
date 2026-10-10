@@ -2,7 +2,6 @@ import {
   inviteUserRequestSchema,
   updateMemberRequestSchema,
   type MemberView,
-  type RoleView,
 } from '@cleitext/shared';
 import {
   Body,
@@ -27,12 +26,6 @@ import { UsersService } from './users.service.js';
 @Controller()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
-
-  @Get('roles')
-  @RequireCapability('manage_users')
-  roles(@CurrentSite() site: SiteContext, @CurrentAuth() auth: AuthContext): Promise<RoleView[]> {
-    return this.usersService.listRoles(site.id, auth);
-  }
 
   @Get('users')
   @RequireCapability('manage_users')

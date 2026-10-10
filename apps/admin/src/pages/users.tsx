@@ -5,6 +5,7 @@ import { api, ApiError, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Avatar } from '../components/avatar';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
+import { RolesCard } from './roles-card';
 
 const MEMBERS_KEY = ['users'] as const;
 
@@ -52,6 +53,7 @@ export function UsersPage() {
           </table>
         )}
       </Card>
+      <RolesCard />
     </div>
   );
 }

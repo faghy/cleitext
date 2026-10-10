@@ -90,6 +90,7 @@ export class IdentityService {
           await this.plugins.activeSlugs(siteId),
           membership?.slug ?? null,
           isSuperAdmin,
+          membership?.capabilities ?? [],
         ),
       ],
     };
