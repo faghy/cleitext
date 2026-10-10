@@ -95,6 +95,7 @@ describe('entries', () => {
     expect(status).toBe(200);
     expect(headers['content-type']).toBe('text/html; charset=utf-8');
     expect(headers['x-content-type-options']).toBe('nosniff');
+    expect(headers['content-security-policy']).toContain("object-src 'none'");
     expect(html.startsWith('<!doctype html><html lang="en">')).toBe(true);
     expect(html).toContain('<title>Weekend in Rome – Site public</title>');
     expect(html).toContain('<meta name="description" content="We walked a lot in Trastevere."/>');

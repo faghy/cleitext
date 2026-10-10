@@ -1,4 +1,5 @@
 /** The built admin served by the server in production (docs/DEPLOYMENT.md). */
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,7 +13,10 @@ let site: SeededSite;
 beforeAll(async () => {
   const admin = await mkdtemp(join(tmpdir(), 'cleitext-admin-'));
   await mkdir(join(admin, 'assets'));
-  await writeFile(join(admin, 'index.html'), '<!doctype html><title>Cleitext admin</title>');
+  await writeFile(
+    join(admin, 'index.html'),
+    '<!doctype html><title>Cleitext admin</title><script>window.x = 1;</script>',
+  );
   await writeFile(join(admin, 'assets', 'main-abc123.js'), 'console.log(1)');
   app = await startTestApp({ env: { ADMIN_PATH: admin } });
   const owner = ownerDatabase();
@@ -35,6 +39,16 @@ describe('built admin', () => {
       expect(res.headers['cache-control']).toBe('no-cache');
       expect(res.headers['x-frame-options']).toBe('DENY');
     }
+  });
+
+  it('sends a content security policy allowing only its own scripts', async () => {
+    const res = await get('/admin/login');
+    const csp = String(res.headers['content-security-policy']);
+    const hash = createHash('sha256').update('window.x = 1;').digest('base64');
+    expect(csp).toContain(`script-src 'self' 'sha256-${hash}'`);
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
 
   it('serves hashed assets with a long cache', async () => {

@@ -61,6 +61,7 @@ import { PluginHost } from '../plugins/plugin-host.service.js';
 import { routeRequest, sendRouteResponse } from '../plugins/plugin-routes.js';
 import { verifyPreviewToken } from './preview.js';
 import { themeFor } from './themes.js';
+import { PUBLIC_CSP } from '../common/security-headers.js';
 import { matchPermalink } from './urls.js';
 
 const HTML = 'text/html; charset=utf-8';
@@ -129,7 +130,8 @@ export class PublicService {
     void reply
       .header('x-content-type-options', 'nosniff')
       .header('referrer-policy', 'strict-origin-when-cross-origin')
-      .header('x-frame-options', 'SAMEORIGIN');
+      .header('x-frame-options', 'SAMEORIGIN')
+      .header('content-security-policy', PUBLIC_CSP);
     try {
       const url = new URL(request.url, 'http://local');
       // Maintenance mode (RF-SIT-06): visitors get a 503; signed-in users see the site.

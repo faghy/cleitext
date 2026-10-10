@@ -19,6 +19,7 @@ import { SiteResolverService } from './tenancy/site-resolver.service.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PluginHost } from './plugins/plugin-host.service.js';
 import { PluginRoutes } from './plugins/plugin-routes.js';
+import { adminCsp, inlineScriptHashes, securityHeaders } from './common/security-headers.js';
 import { servePluginAsset } from './plugins/plugin-assets.js';
 
 /** Builds the application without listening, so tests can use `inject()`. */
@@ -59,9 +60,12 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
       immutable: true,
     });
     const indexHtml = await readFile(join(config.admin.path, 'index.html'), 'utf8');
+    const csp = adminCsp(inlineScriptHashes(indexHtml));
     const sendAdmin = (_request: unknown, reply: FastifyReply) =>
       reply
         .header('cache-control', 'no-cache')
+        .header('content-security-policy', csp)
+        .header('cross-origin-opener-policy', 'same-origin')
         .header('x-frame-options', 'DENY')
         .header('x-content-type-options', 'nosniff')
         .header('referrer-policy', 'same-origin')
@@ -71,6 +75,14 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
     instance.get('/admin', sendAdmin);
     instance.get('/admin/*', sendAdmin);
   }
+
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook('onSend', async (request, reply, payload) => {
+      securityHeaders(request, reply);
+      return payload;
+    });
 
   app
     .getHttpAdapter()
