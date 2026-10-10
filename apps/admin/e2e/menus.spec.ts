@@ -32,6 +32,7 @@ test('menu items can be dragged to a new place and level', async ({ page }) => {
 
   await signIn(page);
   await page.goto('/admin/appearance');
+  await page.getByRole('tab', { name: 'Menus' }).click();
   await page.getByLabel('New menu').fill(`Drag ${stamp}`);
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByLabel('Menu name')).toHaveValue(`Drag ${stamp}`);

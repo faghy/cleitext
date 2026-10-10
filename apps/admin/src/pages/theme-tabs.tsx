@@ -17,8 +17,11 @@ interface ActiveTheme {
 
 const ACTIVE_KEY = ['themes', 'active'];
 
-/** Appearance → Themes (RF-THM-01): installed themes, one active per site. */
-export function ThemesTab() {
+/**
+ * Appearance → Themes (RF-THM-01): installed themes, one active per site. The active
+ * theme links to its options when it has some.
+ */
+export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefined }) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const themes = useQuery({
@@ -53,7 +56,15 @@ export function ThemesTab() {
             {theme.error ? (
               <Alert>{t('This theme could not be loaded: {error}', { error: theme.error })}</Alert>
             ) : theme.active ? (
-              <p className="text-sm font-medium text-sky-700">{t('Active')}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm font-medium text-sky-700">{t('Active')}</p>
+                {onCustomize && theme.settings.length > 0 && (
+                  <Button variant="secondary" onClick={onCustomize}>
+                    {t('Customize')}
+                    <span className="sr-only"> {theme.name}</span>
+                  </Button>
+                )}
+              </div>
             ) : (
               <Button
                 variant="secondary"

@@ -16,7 +16,16 @@ import { usePluginMenu, type PluginMenuItem } from '../plugins';
 const PROFILE: string = '/profile';
 
 /** As in WordPress: a link to the site with a "Visit site" menu on hover or focus. */
-function SiteMenu({ className, children }: { className: string; children: ReactNode }) {
+function SiteMenu({
+  className,
+  dark = false,
+  children,
+}: {
+  className: string;
+  /** In the dark sidebar: the menu takes the sidebar's colors. */
+  dark?: boolean;
+  children: ReactNode;
+}) {
   const { t } = useT();
   return (
     <div className="group relative">
@@ -24,9 +33,14 @@ function SiteMenu({ className, children }: { className: string; children: ReactN
         {children}
       </a>
       <div className="absolute top-full left-0 z-40 hidden min-w-40 pt-1 group-focus-within:block group-hover:block">
-        <ul className="rounded border border-slate-200 bg-white py-1 text-sm font-normal text-slate-800 shadow-lg">
+        <ul
+          className={`rounded border py-1 text-sm font-normal shadow-lg ${dark ? 'border-slate-700 bg-slate-900 text-slate-200' : 'border-slate-200 bg-white text-slate-800'}`}
+        >
           <li>
-            <a href="/" className="block px-3 py-1.5 whitespace-nowrap hover:bg-slate-100">
+            <a
+              href="/"
+              className={`block px-3 py-1.5 whitespace-nowrap ${dark ? 'hover:bg-slate-800 hover:text-white' : 'hover:bg-slate-100'}`}
+            >
               {t('Visit site')}
             </a>
           </li>
@@ -81,7 +95,10 @@ export function AdminLayout() {
     <div className="flex min-h-screen bg-slate-100 text-slate-900">
       <aside className="light-palette w-56 shrink-0 bg-slate-900 text-slate-200">
         <div className="px-4 py-4">
-          <SiteMenu className="flex items-center gap-2 rounded text-lg font-semibold text-white hover:text-sky-200">
+          <SiteMenu
+            dark
+            className="flex items-center gap-2 rounded text-lg font-semibold text-white hover:text-sky-200"
+          >
             <LogoMark size={24} />
             Cleitext
           </SiteMenu>

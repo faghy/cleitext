@@ -1,9 +1,27 @@
 import type { PluginView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { api, errorMessage } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, useT } from '../components/ui';
 import { PackageUpload } from '../components/package-upload';
+import { pagePath, usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
+
+/** Where an active plugin is configured: its first admin page, or its card in Settings. */
+function optionsLink(
+  plugin: LoadedAdminPlugin | undefined,
+  capabilities: readonly string[],
+): { to: string; hash?: string } | null {
+  if (!plugin) return null;
+  const page = plugin.definition?.pages?.find(
+    (p) => p.menu !== false && (!p.capability || capabilities.includes(p.capability)),
+  );
+  if (page) return { to: pagePath(plugin.slug, page.path) };
+  if (plugin.settings && capabilities.includes('manage_settings')) {
+    return { to: '/settings', hash: `plugin-${plugin.slug}` };
+  }
+  return null;
+}
 
 const PERMISSION_LABELS: Record<string, string> = {
   'content:read': 'Read content',
@@ -26,6 +44,7 @@ export function PluginsPage() {
     queryFn: () => api<PluginView[]>('GET', '/plugins'),
   });
   const me = useMe();
+  const adminPlugins = usePluginAdmin();
   // Activating on every site only means something with more than one site; a plugin
   // already active on every site can still be turned back.
   const canUseNetwork = me.user.isSuperAdmin && me.sites.length > 1;
@@ -115,9 +134,26 @@ export function PluginsPage() {
                   )}
                 </p>
               </div>
-              {plugin.status === 'loaded' && !plugin.mustUse && (
+              {plugin.status === 'loaded' && (plugin.active || !plugin.mustUse) && (
                 <div className="flex flex-wrap gap-2">
-                  {!plugin.network && (
+                  {plugin.active &&
+                    (() => {
+                      const link = optionsLink(
+                        adminPlugins.find((p) => p.slug === plugin.slug),
+                        me.capabilities,
+                      );
+                      return link ? (
+                        <Link
+                          to={link.to}
+                          hash={link.hash}
+                          className="rounded bg-sky-700 px-3 py-2 text-sm font-medium text-white hover:bg-sky-800"
+                        >
+                          {t('Settings')}
+                          <span className="sr-only"> {plugin.name}</span>
+                        </Link>
+                      ) : null;
+                    })()}
+                  {!plugin.network && !plugin.mustUse && (
                     <Button
                       variant={plugin.active ? 'secondary' : 'primary'}
                       disabled={toggle.isPending}
@@ -126,15 +162,18 @@ export function PluginsPage() {
                       {plugin.active ? t('Deactivate') : t('Activate')}
                     </Button>
                   )}
-                  {(canUseNetwork || (plugin.network && me.user.isSuperAdmin)) && (
-                    <Button
-                      variant="secondary"
-                      disabled={network.isPending}
-                      onClick={() => network.mutate({ slug: plugin.slug, on: !plugin.network })}
-                    >
-                      {plugin.network ? t('Deactivate on every site') : t('Activate on every site')}
-                    </Button>
-                  )}
+                  {!plugin.mustUse &&
+                    (canUseNetwork || (plugin.network && me.user.isSuperAdmin)) && (
+                      <Button
+                        variant="secondary"
+                        disabled={network.isPending}
+                        onClick={() => network.mutate({ slug: plugin.slug, on: !plugin.network })}
+                      >
+                        {plugin.network
+                          ? t('Deactivate on every site')
+                          : t('Activate on every site')}
+                      </Button>
+                    )}
                 </div>
               )}
               {plugin.mustUse && (

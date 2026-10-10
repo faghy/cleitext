@@ -79,6 +79,13 @@ async function setActive(page: Page, active: boolean) {
       card.getByRole('button', { name: active ? 'Deactivate' : 'Activate', exact: true }),
     ).toBeVisible();
   }
+  // Only an active plugin links to its options: here the Languages page.
+  const settings = card.getByRole('link', { name: 'Settings Multilingual' });
+  if (active) {
+    await expect(settings).toHaveAttribute('href', '/admin/ext/multilingual');
+  } else {
+    await expect(settings).toHaveCount(0);
+  }
 }
 
 test('languages are added, and content and categories translated', async ({ page }) => {

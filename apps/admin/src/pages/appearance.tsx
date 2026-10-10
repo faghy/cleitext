@@ -41,7 +41,7 @@ type Tab = 'menus' | 'themes' | 'customize' | 'areas' | 'patterns';
 export function AppearancePage() {
   const { t } = useT();
   const me = useMe();
-  const [tab, setTab] = useState<Tab>('menus');
+  const [tab, setTab] = useState<Tab>('themes');
   const tabs: { id: Tab; label: string; capability: string }[] = [
     { id: 'themes', label: 'Themes', capability: 'manage_themes' },
     { id: 'customize', label: 'Customize', capability: 'edit_theme_settings' },
@@ -70,7 +70,13 @@ export function AppearancePage() {
           ))}
         </div>
       </div>
-      {current === 'themes' && <ThemesTab />}
+      {current === 'themes' && (
+        <ThemesTab
+          onCustomize={
+            me.capabilities.includes('edit_theme_settings') ? () => setTab('customize') : undefined
+          }
+        />
+      )}
       {current === 'customize' && <CustomizeTab />}
       {current === 'areas' && <AreasTab />}
       {current === 'menus' && <MenusTab />}

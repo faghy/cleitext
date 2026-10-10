@@ -58,6 +58,7 @@ test('menus, settings, publishing and previews reach the public site', async ({
 
   // Appearance → Menus: a page and a custom link nested under it.
   await page.goto('/admin/appearance');
+  await page.getByRole('tab', { name: 'Menus' }).click();
   await page.getByLabel('New menu').fill(`Main ${stamp}`);
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByLabel('Menu name')).toHaveValue(`Main ${stamp}`);

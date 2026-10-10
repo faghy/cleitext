@@ -65,7 +65,10 @@ function PluginSettingsCard({ plugin }: { plugin: LoadedAdminPlugin }) {
       : {};
   const shown = values ?? current.data;
   return (
-    <section aria-label={labelText(plugin.settings!.title, me.user.locale)}>
+    <section
+      id={`plugin-${plugin.slug}`}
+      aria-label={labelText(plugin.settings!.title, me.user.locale)}
+    >
       <Card title={labelText(plugin.settings!.title, me.user.locale)}>
         {current.error && <Alert>{errorMessage(current.error)}</Alert>}
         {shown && (

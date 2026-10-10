@@ -17,11 +17,17 @@ test('the theme is customized with a live preview and a footer area', async ({ p
   await page.waitForURL('**/admin/');
   await page.goto('/admin/appearance');
 
-  await page.getByRole('tab', { name: 'Themes' }).click();
-  await expect(page.getByRole('listitem', { name: 'Aurora' })).toContainText('Active');
+  // Appearance opens on Themes; the active theme leads to its options.
+  await expect(page.getByRole('tab', { name: 'Themes' })).toHaveAttribute('aria-selected', 'true');
+  const aurora = page.getByRole('listitem', { name: 'Aurora' });
+  await expect(aurora).toContainText('Active');
+  await aurora.getByRole('button', { name: 'Customize Aurora' }).click();
+  await expect(page.getByRole('tab', { name: 'Customize' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
 
   // Customize: the preview follows the form before anything is saved.
-  await page.getByRole('tab', { name: 'Customize' }).click();
   await page.getByLabel('Footer text').fill(`Footer ${stamp}`);
   const preview = page.frameLocator('iframe[title="Site preview"]');
   await expect(preview.getByText(`Footer ${stamp}`)).toBeVisible();
