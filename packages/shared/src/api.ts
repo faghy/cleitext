@@ -51,6 +51,8 @@ export const meResponseSchema = z.object({
     displayName: z.string(),
     locale: z.string(),
     isSuperAdmin: z.boolean(),
+    /** Profile picture, or null for initials. */
+    avatarUrl: z.string().nullable(),
   }),
   site: z.object({
     id: z.uuid(),
@@ -91,6 +93,7 @@ export interface MemberView {
   id: string;
   email: string;
   displayName: string;
+  avatarUrl: string | null;
   status: 'active' | 'invited' | 'suspended';
   role: { slug: string; name: string };
   lastLoginAt: string | null;

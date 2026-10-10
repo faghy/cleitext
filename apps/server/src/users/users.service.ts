@@ -30,6 +30,7 @@ import { UserTokenService } from '../auth/session.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { hashPassword } from '../auth/crypto.js';
 import { DATABASE } from '../database/database.module.js';
+import { avatarUrl } from '../profile/avatar.js';
 import { MailService } from '../mail/mail.service.js';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -70,6 +71,7 @@ export class UsersService {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        avatarUrl: avatarUrl(user.avatarKey),
         status: user.status as MemberView['status'],
         role,
         lastLoginAt: user.lastLoginAt?.toISOString() ?? null,

@@ -4,6 +4,7 @@ import { api } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { visibleSections } from '../navigation';
 import { useT } from '../components/ui';
+import { Avatar } from '../components/avatar';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
@@ -79,7 +80,8 @@ export function AdminLayout() {
               </select>
             </label>
           )}
-          <span>
+          <span className="flex items-center gap-2">
+            <Avatar name={me.user.displayName} url={me.user.avatarUrl} size={24} />
             {me.user.displayName}
             <span className="ml-2 text-slate-500">
               {me.user.isSuperAdmin ? t('Super admin') : (me.role?.name ?? '')}

@@ -17,6 +17,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { DATABASE } from '../database/database.module.js';
+import { avatarUrl } from '../profile/avatar.js';
 
 /** Loads who a user is on a given site: profile, role and capabilities. */
 @Injectable()
@@ -66,6 +67,7 @@ export class IdentityService {
       email: user.email,
       displayName: user.displayName,
       locale: user.locale,
+      avatarUrl: avatarUrl(user.avatarKey),
       isSuperAdmin,
       role: membership ? { id: membership.id, slug: membership.slug, name: membership.name } : null,
       capabilities: [
@@ -103,6 +105,7 @@ export class IdentityService {
           displayName: auth.displayName,
           locale: auth.locale,
           isSuperAdmin: auth.isSuperAdmin,
+          avatarUrl: auth.avatarUrl,
         },
         site: {
           id: siteId,

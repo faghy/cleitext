@@ -43,9 +43,12 @@ export function createRequestHook({ sites, sessions, identity }: Dependencies) {
 
     // Media files of other sites are not served on this host, and paths that
     // try to leave the site's folder are refused before reaching the disk.
+    // Profile pictures belong to users, not sites: served on every site.
     if (
       request.url.startsWith('/media/') &&
-      (!request.url.startsWith(`/media/${resolution.siteId}/`) || !isSafeMediaPath(request.url))
+      ((!request.url.startsWith(`/media/${resolution.siteId}/`) &&
+        !request.url.startsWith('/media/avatars/')) ||
+        !isSafeMediaPath(request.url))
     ) {
       await reply
         .code(404)

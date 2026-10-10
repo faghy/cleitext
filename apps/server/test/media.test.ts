@@ -177,6 +177,38 @@ describe('library', () => {
   });
 });
 
+describe('profile pictures', () => {
+  it('crops the image, serves it on every site and replaces it', async () => {
+    const res = await author.upload('/api/v1/profile/avatar', 'me.png', await png(600, 300));
+    expect(res.statusCode).toBe(201);
+    const { avatarUrl } = res.json();
+    expect(avatarUrl).toMatch(/^\/media\/avatars\/[0-9a-f-]+\/[0-9a-f-]+\.webp$/);
+    const image = await author.get(avatarUrl);
+    expect(image.statusCode).toBe(200);
+    const meta = await sharp(image.rawPayload).metadata();
+    expect([meta.format, meta.width, meta.height]).toEqual(['webp', 256, 256]);
+    // Users belong to several sites: the picture is served on all of them.
+    expect((await stranger.get(avatarUrl)).statusCode).toBe(200);
+    expect((await author.get('/api/v1/auth/me')).json().user.avatarUrl).toBe(avatarUrl);
+
+    const next = (
+      await author.upload('/api/v1/profile/avatar', 'me2.png', await png(80, 80))
+    ).json().avatarUrl;
+    expect(next).not.toBe(avatarUrl);
+    expect((await author.get(avatarUrl)).statusCode).toBe(404);
+
+    const removed = await author.request('DELETE', '/api/v1/profile/avatar');
+    expect(removed.json()).toEqual({ avatarUrl: null });
+    expect((await author.get(next)).statusCode).toBe(404);
+  });
+
+  it('accepts only images', async () => {
+    const pdf = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF');
+    const res = await author.upload('/api/v1/profile/avatar', 'me.pdf', pdf);
+    expect(res.statusCode).toBe(415);
+  });
+});
+
 describe('isolation', () => {
   it('does not serve or expose files of another site', async () => {
     const res = await author.upload('/api/v1/media', 'mine.png', await png(50, 50), 'image/png');

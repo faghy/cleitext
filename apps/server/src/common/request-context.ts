@@ -13,6 +13,7 @@ export interface AuthContext {
   email: string;
   displayName: string;
   locale: string;
+  avatarUrl: string | null;
   isSuperAdmin: boolean;
   role: { id: string; slug: string; name: string } | null;
   /** Core capabilities plus those defined by active plugins. */

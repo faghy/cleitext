@@ -62,18 +62,19 @@ export async function api<T>(method: Method, path: string, body?: unknown): Prom
 }
 
 /**
- * Uploads a file to the media library (multipart, with the CSRF header).
+ * Uploads a file to the media library (multipart, with the CSRF header), or
+ * to another upload endpoint given as `path` (under `/api/v1`).
  * `onProgress` receives the fraction sent, from 0 to 1 (RF-MED-01).
  */
 export async function uploadFile<T>(
   file: File,
-  options: { onProgress?: (fraction: number) => void } = {},
+  options: { onProgress?: (fraction: number) => void; path?: string } = {},
 ): Promise<T> {
   const send = (token: string) =>
     new Promise<{ status: number; data: unknown }>((resolve, reject) => {
       // XMLHttpRequest, because fetch does not report upload progress.
       const request = new XMLHttpRequest();
-      request.open('POST', '/api/v1/media');
+      request.open('POST', `/api/v1${options.path ?? '/media'}`);
       request.withCredentials = true;
       request.setRequestHeader(CSRF_HEADER, token);
       request.upload.onprogress = (event) => {

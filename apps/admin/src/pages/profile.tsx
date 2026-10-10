@@ -1,7 +1,8 @@
 import type { SessionView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { api, ApiError, errorMessage } from '../api';
+import { useRef, useState } from 'react';
+import { api, ApiError, errorMessage, uploadFile } from '../api';
+import { Avatar } from '../components/avatar';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 
@@ -12,7 +13,10 @@ export function ProfilePage() {
       <h1 className="text-2xl font-semibold">{t('Profile')}</h1>
       <div className="grid gap-6 lg:grid-cols-2">
         <DetailsCard />
-        <PasswordCard />
+        <div className="space-y-6">
+          <AvatarCard />
+          <PasswordCard />
+        </div>
       </div>
       <SessionsCard />
     </div>
@@ -63,6 +67,77 @@ function DetailsCard() {
           {t('Save')}
         </Button>
       </form>
+    </Card>
+  );
+}
+
+/** Profile picture (RF-USR-07): cropped to a square by the server. */
+function AvatarCard() {
+  const me = useMe();
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const done = () => queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
+  const upload = useMutation({
+    mutationFn: (file: File) =>
+      uploadFile<{ avatarUrl: string }>(file, { path: '/profile/avatar' }),
+    onSuccess: done,
+  });
+  const remove = useMutation({
+    mutationFn: () => api<{ avatarUrl: null }>('DELETE', '/profile/avatar'),
+    onSuccess: done,
+  });
+  const error = upload.error ?? remove.error;
+
+  return (
+    <Card title={t('Profile picture')}>
+      <div className="flex items-center gap-4">
+        <Avatar name={me.user.displayName} url={me.user.avatarUrl} size={96} />
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              disabled={upload.isPending}
+              onClick={() => inputRef.current?.click()}
+            >
+              {upload.isPending
+                ? t('Uploading…')
+                : me.user.avatarUrl
+                  ? t('Change picture')
+                  : t('Upload picture')}
+            </Button>
+            {me.user.avatarUrl && (
+              <Button
+                variant="secondary"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate()}
+              >
+                {t('Remove picture')}
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-slate-600">
+            {t('JPEG, PNG, GIF, WebP or AVIF. It is cropped to a square.')}
+          </p>
+          <input
+            ref={inputRef}
+            type="file"
+            hidden
+            accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
+            aria-label={t('Profile picture file')}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) upload.mutate(file);
+              e.target.value = '';
+            }}
+          />
+        </div>
+      </div>
+      {error && (
+        <div className="mt-3">
+          <Alert>{errorMessage(error)}</Alert>
+        </div>
+      )}
     </Card>
   );
 }

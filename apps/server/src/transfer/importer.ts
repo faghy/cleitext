@@ -579,6 +579,7 @@ function importAuth(userId: string): AuthContext {
     email: '',
     displayName: 'Import',
     locale: 'en',
+    avatarUrl: null,
     isSuperAdmin: true,
     role: null,
     capabilities: [...CAPABILITIES],

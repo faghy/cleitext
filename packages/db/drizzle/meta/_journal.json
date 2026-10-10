@@ -64,6 +64,13 @@
       "when": 1791591516868,
       "tag": "0008_site_management",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791622375679,
+      "tag": "0009_user_avatar",
+      "breakpoints": true
     }
   ]
 }

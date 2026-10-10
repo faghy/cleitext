@@ -29,6 +29,8 @@ export const users = pgTable(
     /** Encrypted at the application level. */
     totpSecret: text('totp_secret'),
     locale: text('locale').notNull().default('en'),
+    /** Profile picture in the media storage (`avatars/<userId>/<id>.webp`). */
+    avatarKey: text('avatar_key'),
     createdAt: createdAt(),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   },

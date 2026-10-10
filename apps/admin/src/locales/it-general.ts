@@ -172,4 +172,11 @@ export const itGeneral: Messages = {
   '{plugin} failed to display this page: {error}':
     '{plugin} non è riuscito a mostrare questa pagina: {error}',
   '“Not found” page': 'Pagina “Non trovato”',
+  'Change picture': 'Cambia immagine',
+  'JPEG, PNG, GIF, WebP or AVIF. It is cropped to a square.':
+    'JPEG, PNG, GIF, WebP o AVIF. Viene ritagliata a forma quadrata.',
+  'Profile picture': 'Immagine del profilo',
+  'Profile picture file': "File dell'immagine del profilo",
+  'Remove picture': 'Rimuovi immagine',
+  'Upload picture': 'Carica immagine',
 };

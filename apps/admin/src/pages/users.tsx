@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
 import { api, ApiError, errorMessage } from '../api';
 import { useMe } from '../auth';
+import { Avatar } from '../components/avatar';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 
 const MEMBERS_KEY = ['users'] as const;
@@ -202,8 +203,13 @@ function MemberRow({
   return (
     <tr className="border-b border-slate-100 align-top">
       <td className="py-2">
-        {member.displayName}
-        {isSelf && <span className="ml-1 text-slate-500">{t('(you)')}</span>}
+        <span className="flex items-center gap-2">
+          <Avatar name={member.displayName} url={member.avatarUrl} />
+          <span>
+            {member.displayName}
+            {isSelf && <span className="ml-1 text-slate-500">{t('(you)')}</span>}
+          </span>
+        </span>
       </td>
       <td className="py-2">{member.email}</td>
       <td className="py-2">

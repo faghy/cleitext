@@ -11,6 +11,8 @@ import {
   Delete,
   Get,
   HttpCode,
+  HttpException,
+  HttpStatus,
   Inject,
   NotFoundException,
   Param,
@@ -18,6 +20,7 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service.js';
@@ -27,6 +30,9 @@ import { CurrentAuth, CurrentSite } from '../common/decorators.js';
 import { parseBody } from '../common/problem.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { ALLOWED_TYPES, detectType } from '../media/media-types.js';
+import { MediaService } from '../media/media.service.js';
+import { avatarUrl, processAvatar } from './avatar.js';
 
 /** The signed-in user's own profile and sessions (RF-USR-07). */
 @Controller('profile')
@@ -35,11 +41,82 @@ export class ProfileController {
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
+    private readonly media: MediaService,
   ) {}
 
   @Get()
   get(@CurrentAuth() auth: AuthContext) {
-    return { email: auth.email, displayName: auth.displayName, locale: auth.locale };
+    return {
+      email: auth.email,
+      displayName: auth.displayName,
+      locale: auth.locale,
+      avatarUrl: auth.avatarUrl,
+    };
+  }
+
+  /** Sets the profile picture (multipart, `file` field): cropped to a square WebP. */
+  @Post('avatar')
+  async setAvatar(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Req() request: FastifyRequest,
+  ): Promise<{ avatarUrl: string | null }> {
+    if (!request.isMultipart())
+      throw new BadRequestException('Send the image as multipart/form-data.');
+    const part = await request.file();
+    if (!part || part.fieldname !== 'file') throw new BadRequestException('Missing "file" field.');
+    let data: Buffer;
+    try {
+      data = await part.toBuffer();
+    } catch {
+      throw new HttpException('The file is too large.', HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+    const mime = await detectType(data);
+    if (!mime || ALLOWED_TYPES[mime]?.kind !== 'image') {
+      throw new HttpException(
+        'Upload a JPEG, PNG, GIF, WebP or AVIF image.',
+        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+      );
+    }
+    let image: Buffer;
+    try {
+      image = await processAvatar(data);
+    } catch {
+      throw new BadRequestException('This image could not be read.');
+    }
+    const key = `avatars/${auth.userId}/${randomUUID()}.webp`;
+    await this.media.storage.put(key, image);
+    return this.replaceAvatar(site.id, auth, key);
+  }
+
+  /** Back to initials. */
+  @Delete('avatar')
+  removeAvatar(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<{ avatarUrl: string | null }> {
+    return this.replaceAvatar(site.id, auth, null);
+  }
+
+  private async replaceAvatar(
+    siteId: string,
+    auth: AuthContext,
+    key: string | null,
+  ): Promise<{ avatarUrl: string | null }> {
+    const previous = await withContext(
+      this.database.db,
+      { siteId, userId: auth.userId },
+      async (tx) => {
+        const [user] = await tx
+          .select({ avatarKey: users.avatarKey })
+          .from(users)
+          .where(eq(users.id, auth.userId));
+        await tx.update(users).set({ avatarKey: key }).where(eq(users.id, auth.userId));
+        return user?.avatarKey ?? null;
+      },
+    );
+    if (previous && previous !== key) await this.media.storage.delete(previous);
+    return { avatarUrl: avatarUrl(key) };
   }
 
   @Patch()
@@ -62,7 +139,12 @@ export class ProfileController {
           .where(eq(users.id, auth.userId))
           .returning(),
     );
-    return { email: updated!.email, displayName: updated!.displayName, locale: updated!.locale };
+    return {
+      email: updated!.email,
+      displayName: updated!.displayName,
+      locale: updated!.locale,
+      avatarUrl: avatarUrl(updated!.avatarKey),
+    };
   }
 
   /** Changes the password and signs out every other session. */
