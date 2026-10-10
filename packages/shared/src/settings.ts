@@ -5,12 +5,12 @@ const coreSettingsFields = {
   /** Public title; the site name when empty. */
   title: z.string().trim().max(200),
   tagline: z.string().trim().max(300),
-  /** Static front page (translation group of a page), or the latest posts. */
+  /** Static front page (a page in the default language), or the latest posts. */
   frontPage: z.uuid().nullable(),
   /** Page that lists the posts when a static front page is set. */
   postsPage: z.uuid().nullable(),
   postsPerPage: z.number().int().min(1).max(100),
-  /** Page shown for "not found" (translation group), or the theme's 404. */
+  /** Page shown for "not found" (in the default language), or the theme's 404. */
   errorPage: z.uuid().nullable(),
   /** Ask search engines not to index the site. */
   discourageSearchEngines: z.boolean(),
@@ -51,39 +51,6 @@ export type CoreSettings = z.infer<typeof coreSettingsSchema>;
 /** Partial update: only the given keys change (no defaults applied). */
 export const updateCoreSettingsRequestSchema = z.object(coreSettingsFields).partial();
 export type UpdateCoreSettingsRequest = z.input<typeof updateCoreSettingsRequestSchema>;
-
-/** A language of the site (RF-SET-01). */
-export interface SiteLocaleView {
-  code: string;
-  name: string;
-  isDefault: boolean;
-  /** Address prefix, e.g. `/it`; the code when null. The default language has none. */
-  urlPrefix: string | null;
-  position: number;
-  /** Entries written in this language. */
-  entries: number;
-}
-
-export const createLocaleRequestSchema = z.object({
-  code: z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/, 'A language code such as it or de-CH'),
-  name: z.string().trim().min(1).max(60),
-  urlPrefix: z
-    .string()
-    .regex(/^\/[a-z0-9-]{1,20}$/)
-    .nullable()
-    .optional(),
-});
-
-export const updateLocaleRequestSchema = z.object({
-  name: z.string().trim().min(1).max(60).optional(),
-  urlPrefix: z
-    .string()
-    .regex(/^\/[a-z0-9-]{1,20}$/)
-    .nullable()
-    .optional(),
-  position: z.number().int().min(0).max(1000).optional(),
-  isDefault: z.literal(true).optional(),
-});
 
 /** Outgoing email of a site (RF-SET-02); the server's MAIL_URL otherwise. */
 export const mailSettingsRequestSchema = z.object({

@@ -8,8 +8,8 @@ const types: TypeInfo[] = [
 
 const urls = new UrlBuilder(
   [
-    { code: 'en', name: 'English', isDefault: true, urlPrefix: null },
-    { code: 'it', name: 'Italiano', isDefault: false, urlPrefix: null },
+    { code: 'en', name: 'English', isDefault: true, prefix: '' },
+    { code: 'it', name: 'Italiano', isDefault: false, prefix: '/it' },
   ],
   new Map(types.map((t) => [t.slug, t])),
   new Map([['team', ['about', 'team']]]),
@@ -42,6 +42,17 @@ describe('UrlBuilder', () => {
     expect(urls.splitLocale('/it/2026/ciao')).toEqual({ locale: 'it', rest: '/2026/ciao' });
     expect(urls.splitLocale('/it')).toEqual({ locale: 'it', rest: '/' });
     expect(urls.splitLocale('/italy')).toEqual({ locale: 'en', rest: '/italy' });
+  });
+
+  it('has no prefixes with a single language (no language plugin)', () => {
+    const single = new UrlBuilder(
+      [{ code: 'it', name: 'IT', isDefault: true, prefix: '' }],
+      new Map(types.map((t) => [t.slug, t])),
+      new Map(),
+    );
+    expect(single.home('it')).toBe('/');
+    expect(single.splitLocale('/en/about')).toEqual({ locale: 'it', rest: '/en/about' });
+    expect(single.term('tag', 'x', 'en')).toBe('/tag/x');
   });
 });
 

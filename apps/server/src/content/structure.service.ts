@@ -3,7 +3,6 @@ import {
   entries,
   newId,
   redirects,
-  siteLocales,
   taxonomies,
   terms,
   withContext,
@@ -25,6 +24,7 @@ import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { entryPath, localePrefixes } from './paths.js';
+import { LanguagesService } from './languages.service.js';
 
 type TypeRow = typeof contentTypes.$inferSelect;
 
@@ -57,6 +57,7 @@ export class StructureService {
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly audit: AuditService,
     private readonly cache: PageCacheService,
+    private readonly languages: LanguagesService,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: SiteTransaction) => Promise<T>) {
@@ -86,7 +87,7 @@ export class StructureService {
         .from(contentTypes)
         .where(eq(contentTypes.slug, input.slug));
       if (taken) throw new ConflictException(`A content type "${input.slug}" already exists.`);
-      await this.assertPermalink(tx, permalink, input.hierarchical, null);
+      await this.assertPermalink(tx, siteId, permalink, input.hierarchical, null);
       await tx.insert(contentTypes).values({
         id: newId(),
         siteId,
@@ -136,7 +137,7 @@ export class StructureService {
       if (input.fields) changes.fieldsSchema = { fields: input.fields };
       let made = 0;
       if (input.permalink !== undefined && input.permalink !== type.permalink) {
-        await this.assertPermalink(tx, input.permalink, type.hierarchical, type.id);
+        await this.assertPermalink(tx, siteId, input.permalink, type.hierarchical, type.id);
         changes.permalink = input.permalink;
         made = await this.redirectEntries(tx, siteId, type, input.permalink);
       }
@@ -284,6 +285,7 @@ export class StructureService {
    */
   private async assertPermalink(
     tx: SiteTransaction,
+    siteId: string,
     permalink: string,
     hierarchical: boolean,
     selfId: string | null,
@@ -304,12 +306,13 @@ export class StructureService {
     }
     const first = firstLiteral(permalink);
     if (first) {
-      const locales = await tx.select({ code: siteLocales.code }).from(siteLocales);
+      // Language prefixes (e.g. /en) belong to the language plugin.
+      const prefixes = [...localePrefixes(await this.languages.localesIn(tx, siteId)).values()];
       const taxonomy = await tx
         .select({ slug: taxonomies.slug })
         .from(taxonomies)
         .where(eq(taxonomies.slug, first));
-      if (RESERVED.has(first) || taxonomy.length > 0 || locales.some((l) => l.code === first)) {
+      if (RESERVED.has(first) || taxonomy.length > 0 || prefixes.includes(`/${first}`)) {
         throw new BadRequestException(`Addresses starting with /${first}/ are already used.`);
       }
     }
@@ -334,7 +337,7 @@ export class StructureService {
         and(eq(entries.typeSlug, type.slug), inArray(entries.status, ['published', 'private'])),
       )
       .limit(MAX_REDIRECTS);
-    const prefixes = await localePrefixes(tx);
+    const prefixes = localePrefixes(await this.languages.localesIn(tx, siteId));
     let made = 0;
     for (const entry of rows) {
       const prefix = prefixes.get(entry.locale) ?? '';

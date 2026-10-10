@@ -81,7 +81,7 @@ beforeAll(async () => {
   await installPlugin(owner.db, { source, pluginsPath, appRole: appRole() });
 
   app = await startTestApp({ pluginsPath, env: { DATABASE_ADMIN_URL: inject('ownerUrl') } });
-  site = await seedSite(owner, 'plugins', { locales: ['en', 'it'] });
+  site = await seedSite(owner, 'plugins');
   other = await seedSite(owner, 'plugins-other');
   await seedUser(owner, {
     email: 'admin@plugins.test',
@@ -395,6 +395,8 @@ describe('deactivation', () => {
       sql`select pg_notify('cleitext_cache', ${JSON.stringify({ plugins: true })})`,
     );
     await eventually(async () => (await host.activeSlugs(other.id)).has('events'));
+    // The list below reads this site's (cached) state too.
+    await eventually(async () => (await host.activeSlugs(site.id)).has('events'));
     const listed = (await admin.get('/api/v1/plugins')).json();
     expect(listed.find((p: { slug: string }) => p.slug === 'events')).toMatchObject({
       mustUse: true,

@@ -76,9 +76,6 @@ export const publishRequestSchema = z.object({
 export const scheduleRequestSchema = z.object({ scheduledAt: z.iso.datetime({ offset: true }) });
 export type ScheduleRequest = z.input<typeof scheduleRequestSchema>;
 
-export const createTranslationRequestSchema = z.object({ locale: localeSchema });
-export type CreateTranslationRequest = z.input<typeof createTranslationRequestSchema>;
-
 export const listEntriesQuerySchema = z.object({
   type: z.string().min(1).max(64).optional(),
   status: z.enum(ENTRY_STATUSES).optional(),
@@ -169,7 +166,6 @@ export interface EntrySummary {
   id: string;
   type: string;
   locale: string;
-  translationGroup: string;
   parentId: string | null;
   slug: string;
   title: string;
@@ -203,8 +199,6 @@ export interface EntryView extends EntrySummary {
   revision: RevisionView | null;
   /** The user's autosave, when newer than the current revision (RF-CNT-06). */
   autosave: RevisionView | null;
-  /** Other languages of the same content. */
-  translations: { id: string; locale: string; title: string; status: EntryStatus }[];
   /** Assigned terms, by taxonomy slug. */
   terms: Record<string, TermView[]>;
   /** What the current user may do. */
@@ -239,15 +233,12 @@ export interface TermView {
   id: string;
   taxonomy: string;
   locale: string;
-  translationGroup: string;
   parentId: string | null;
   slug: string;
   name: string;
   description: string | null;
   /** Entries using the term (in lists). */
   count: number;
-  /** The same term in the other languages (in lists, RF-TAX-03). */
-  translations?: { id: string; locale: string; name: string }[];
 }
 
 export const createTermRequestSchema = z.object({
@@ -256,18 +247,10 @@ export const createTermRequestSchema = z.object({
   parentId: z.uuid().nullable().optional(),
   locale: localeSchema.optional(),
   description: z.string().max(2_000).optional(),
-  /** Creates the term as the translation of another one, in another language. */
-  translationOf: z.uuid().optional(),
 });
 export type CreateTermRequest = z.input<typeof createTermRequestSchema>;
 
-export const updateTermRequestSchema = createTermRequestSchema
-  .omit({ locale: true, translationOf: true })
-  .partial()
-  .extend({
-    /** Links the term to the translations of another one; null unlinks it. */
-    translationOf: z.uuid().nullable().optional(),
-  });
+export const updateTermRequestSchema = createTermRequestSchema.omit({ locale: true }).partial();
 export type UpdateTermRequest = z.input<typeof updateTermRequestSchema>;
 
 /** Term assignments: ids of existing terms, or `{ name }` to find or create (tags). */

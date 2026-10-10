@@ -46,6 +46,7 @@ import { SESSION_COOKIE } from '../auth/cookies.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import { withAdminBar } from './admin-bar.js';
+import { LanguagesService } from '../content/languages.service.js';
 import { PageCacheService } from './page-cache.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
@@ -127,6 +128,7 @@ export class PublicService {
     private readonly cache: PageCacheService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly plugins: PluginHost,
+    private readonly languages: LanguagesService,
   ) {}
 
   /** Fastify handler for every public GET/HEAD request. */
@@ -401,12 +403,13 @@ export class PublicService {
     includePrivate = false,
   ): Promise<{ scope: RequestScope; rest: string }> {
     const activePlugins = await this.plugins.activeSlugs(siteId);
-    const data = await loadSiteData(tx, activePlugins);
-    const settings = await this.settingsService.core(tx);
     const [site] = await tx
-      .select({ name: sites.name, theme: sites.themeSlug })
+      .select({ name: sites.name, theme: sites.themeSlug, defaultLocale: sites.defaultLocale })
       .from(sites)
       .where(eq(sites.id, siteId));
+    const locales = await this.languages.locales(siteId, site?.defaultLocale ?? 'en');
+    const data = await loadSiteData(tx, activePlugins, locales);
+    const settings = await this.settingsService.core(tx);
     const { locale, rest } = data.urls.splitLocale(path);
     return {
       rest,
@@ -531,7 +534,7 @@ export class PublicService {
     type: string,
     locale: string,
   ): Promise<PublicResponse | null> {
-    const { tx, data, settings } = scope;
+    const { tx, data } = scope;
     if (!data.types.some((t) => t.slug === type) || !data.locales.some((l) => l.code === locale))
       return null;
     const list = await loadPublished(
@@ -542,19 +545,27 @@ export class PublicService {
       },
     );
     if (list.length === 0) return null;
-    const groups = [...new Set(list.map((e) => e.row.translationGroup))];
-    const siblings = await loadPublished(tx, inArray(entries.translationGroup, groups));
+    // Other languages (language plugin): alternates of each address.
+    const links = await this.languages.translations(
+      scope.siteId,
+      'entry',
+      list.map((e) => e.row.id),
+    );
+    const otherIds = [...new Set([...links.values()].flat().map((l) => l.id))];
+    const others =
+      otherIds.length > 0 ? await loadPublished(tx, inArray(entries.id, otherIds)) : [];
+    const byId = new Map(others.map((e) => [e.row.id, e]));
+    const front = await this.frontPageIds(scope);
     const absolute = (path: string) => `${scope.origin}${path}`;
     const urlOf = (entry: PublishedEntry) =>
-      settings.frontPage === entry.row.translationGroup
-        ? data.urls.home(entry.row.locale)
-        : data.urls.entry(entry.row);
+      front.has(entry.row.id) ? data.urls.home(entry.row.locale) : data.urls.entry(entry.row);
     const urls = list
       .map((entry) => {
-        const alternates = siblings.filter(
-          (s) => s.row.translationGroup === entry.row.translationGroup,
-        );
-        const links =
+        const alternates = [
+          entry,
+          ...(links.get(entry.row.id) ?? []).flatMap((l) => byId.get(l.id) ?? []),
+        ];
+        const hreflang =
           alternates.length > 1
             ? alternates
                 .map(
@@ -563,7 +574,7 @@ export class PublicService {
                 )
                 .join('')
             : '';
-        return `<url><loc>${xml(absolute(urlOf(entry)))}</loc><lastmod>${entry.row.updatedAt.toISOString()}</lastmod>${links}</url>`;
+        return `<url><loc>${xml(absolute(urlOf(entry)))}</loc><lastmod>${entry.row.updatedAt.toISOString()}</lastmod>${hreflang}</url>`;
       })
       .join('');
     return {
@@ -664,7 +675,7 @@ export class PublicService {
     if (home) {
       const page = Number(home[1] ?? 1);
       if (!home[1] && settings.frontPage) {
-        const front = await this.byGroup(scope, settings.frontPage);
+        const front = await this.settingPage(scope, settings.frontPage);
         if (front) return this.renderEntry(scope, front, { isFrontPage: true });
       }
       if (home[1] && page < 2) return null;
@@ -716,7 +727,10 @@ export class PublicService {
     if (data.urls.entry(entry.row) !== scope.path) return null;
 
     // The page that lists the posts, when a static front page is used.
-    if (settings.postsPage && entry.row.translationGroup === settings.postsPage) {
+    if (
+      settings.postsPage &&
+      entry.row.id === (await this.settingPage(scope, settings.postsPage))?.row.id
+    ) {
       return this.renderArchive(scope, {
         where: eq(entries.typeSlug, 'article'),
         title: entry.row.title,
@@ -729,13 +743,32 @@ export class PublicService {
     return this.renderEntry(scope, entry, { isFrontPage: false });
   }
 
-  private async byGroup(scope: RequestScope, group: string): Promise<PublishedEntry | null> {
-    const [entry] = await this.published(
+  /**
+   * The page chosen in a setting (front, posts or error page), in the
+   * language of the request: the page itself in its own language, or its
+   * translation known to the language plugin.
+   */
+  private async settingPage(scope: RequestScope, pageId: string): Promise<PublishedEntry | null> {
+    const [page] = await this.published(
       scope,
-      and(eq(entries.translationGroup, group), eq(entries.locale, scope.locale)),
+      and(eq(entries.id, pageId), eq(entries.locale, scope.locale)),
       { limit: 1 },
     );
-    return entry ?? null;
+    if (page || scope.data.locales.length < 2) return page ?? null;
+    const link = (await this.languages.translations(scope.siteId, 'entry', [pageId]))
+      .get(pageId)
+      ?.find((l) => l.locale === scope.locale);
+    if (!link) return null;
+    const [translation] = await this.published(scope, eq(entries.id, link.id), { limit: 1 });
+    return translation ?? null;
+  }
+
+  /** The front page and its translations: their address is the home of their language. */
+  private async frontPageIds(scope: RequestScope): Promise<Set<string>> {
+    const id = scope.settings.frontPage;
+    if (!id) return new Set();
+    const links = await this.languages.translations(scope.siteId, 'entry', [id]);
+    return new Set([id, ...(links.get(id) ?? []).map((l) => l.id)]);
   }
 
   // ---- Pages ------------------------------------------------------------------------
@@ -772,13 +805,27 @@ export class PublicService {
       });
     }
 
-    const translationRows = await this.published(
-      scope,
-      eq(entries.translationGroup, entry.row.translationGroup),
+    // Other languages, from the language plugin (none without it).
+    const links = (await this.languages.translations(scope.siteId, 'entry', [entry.row.id])).get(
+      entry.row.id,
     );
+    const translationRows = links?.length
+      ? await this.published(
+          scope,
+          inArray(
+            entries.id,
+            links.map((l) => l.id),
+          ),
+        )
+      : [];
+    const enabled = new Set(data.locales.map((l) => l.code));
     const translations = translationRows
-      .filter((t) => t.row.id !== entry.row.id)
-      .map((t) => ({ locale: t.row.locale, url: data.urls.entry(t.row), title: t.row.title }));
+      .filter((t) => t.row.id !== entry.row.id && enabled.has(t.row.locale))
+      .map((t) => ({
+        locale: t.row.locale,
+        url: options.isFrontPage ? data.urls.home(t.row.locale) : data.urls.entry(t.row),
+        title: t.row.title,
+      }));
 
     const featured = entry.featuredMediaId ? (media.get(entry.featuredMediaId) ?? null) : null;
     const image = featured ? { id: featured.id } : firstImage(entry.document);
@@ -946,16 +993,27 @@ export class PublicService {
       .select({ id: entryTerms.entryId })
       .from(entryTerms)
       .where(eq(entryTerms.termId, row.term.id));
-    // Translations of the term (RF-TAX-03), in the languages of the site.
-    const translations = await scope.tx
-      .select({ locale: terms.locale, slug: terms.slug })
-      .from(terms)
-      .where(
-        and(
-          eq(terms.taxonomyId, row.term.taxonomyId),
-          eq(terms.translationGroup, row.term.translationGroup),
-        ),
-      );
+    // Translations of the term, from the language plugin (none without it).
+    const links =
+      (await this.languages.translations(scope.siteId, 'term', [row.term.id])).get(row.term.id) ??
+      [];
+    const translations = [
+      { locale: row.term.locale, slug: row.term.slug },
+      ...(links.length > 0
+        ? await scope.tx
+            .select({ locale: terms.locale, slug: terms.slug })
+            .from(terms)
+            .where(
+              and(
+                eq(terms.taxonomyId, row.term.taxonomyId),
+                inArray(
+                  terms.id,
+                  links.map((l) => l.id),
+                ),
+              ),
+            )
+        : []),
+    ];
     const enabled = new Set(scope.data.locales.map((l) => l.code));
     const alternates =
       translations.length > 1
@@ -1044,7 +1102,7 @@ export class PublicService {
   /** The configured error page, or the theme's 404 template. */
   private async notFound(scope: RequestScope, status: number): Promise<PublicResponse> {
     if (scope.settings.errorPage) {
-      const page = await this.byGroup(scope, scope.settings.errorPage);
+      const page = await this.settingPage(scope, scope.settings.errorPage);
       if (page) return this.renderEntry(scope, page, { isFrontPage: false, status });
     }
     const props: TemplateProps = { kind: '404' };

@@ -1,4 +1,4 @@
-/** Posts → Categories (RF-TAX-01/03): add, edit, translate and delete terms. */
+/** Posts → Categories (RF-TAX-01): add, edit and delete terms (translations: multilingual.spec.ts). */
 import { expect, test, type Page } from '@playwright/test';
 import { appErrors } from './fixtures/errors.js';
 
@@ -13,7 +13,7 @@ async function signIn(page: Page) {
   await page.waitForURL('**/admin/');
 }
 
-test('categories are managed and translated from their own screen', async ({ page }) => {
+test('categories are managed from their own screen', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const stamp = Date.now().toString(36);
@@ -45,21 +45,7 @@ test('categories are managed and translated from their own screen', async ({ pag
   await edit.getByRole('button', { name: 'Update' }).click();
   await expect(page.getByRole('row').filter({ hasText: `Astrophysics ${stamp}` })).toHaveCount(1);
 
-  // Translate into Italian, then look at the Italian terms.
-  page.once('dialog', (dialog) => dialog.accept(`Scienza ${stamp}`));
-  await page
-    .getByRole('row')
-    .filter({ hasText: `Science ${stamp}` })
-    .filter({ hasNotText: 'Astrophysics' })
-    .getByRole('button', { name: /Add translation/ })
-    .click();
-  await expect(page.getByText(`Translation added: Scienza ${stamp}`)).toBeVisible();
-  await page.getByRole('button', { name: `Scienza ${stamp}` }).click();
-  await expect(page.getByLabel('Language')).toHaveValue('it');
-  await expect(page.getByRole('row').filter({ hasText: `Scienza ${stamp}` })).toHaveCount(1);
-
   // Delete.
-  await page.getByLabel('Language').selectOption('en');
   await page.getByLabel(/^Search categories/).fill(stamp);
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: `Delete Astrophysics ${stamp}` }).click();

@@ -5,7 +5,8 @@
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createDatabase, siteLocales, sites, withContext, type DatabaseClient } from '@cleitext/db';
+import { createDatabase, sites, withContext, type DatabaseClient } from '@cleitext/db';
+import { defaultLocaleIn, LanguagesService } from './content/languages.service.js';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq } from 'drizzle-orm';
 import { createApp } from './app.js';
@@ -68,7 +69,16 @@ export async function exportTask(
   options: { site: string; out: string },
 ): Promise<void> {
   const site = await siteBySlug(context, options.site);
-  const { document, files } = await exportSite(context.owner.db, site.id, { name: site.name });
+  const languages = context.app.get(LanguagesService);
+  const { document, files } = await exportSite(
+    context.owner.db,
+    site.id,
+    { name: site.name },
+    {
+      locales: await languages.locales(site.id, site.defaultLocale),
+      translations: (kind, ids) => languages.translations(site.id, kind, ids),
+    },
+  );
   const storage = new DiskStorage(context.config.media.path);
   await writeArchive(options.out, document, files, (key) => storage.pathOf(key));
   context.log(
@@ -143,15 +153,16 @@ async function runImport(
     cache: context.app.get(PageCacheService),
     readFile,
     activePlugins: await host.activeSlugs(siteId),
+    locales: await context.app
+      .get(LanguagesService)
+      .locales(siteId, await defaultLocale(context, siteId)),
+    onLanguagesPending: () => host.emit('languages.pending', {}, siteId),
     onProgress: context.log,
   });
 }
 
 async function defaultLocale(context: TaskContext, siteId: string): Promise<string> {
-  const rows = await withContext(context.owner.db, { siteId }, (tx) =>
-    tx.select().from(siteLocales).where(eq(siteLocales.isDefault, true)),
-  );
-  return rows[0]?.code ?? 'en';
+  return withContext(context.owner.db, { siteId }, (tx) => defaultLocaleIn(tx, siteId));
 }
 
 /** Human-readable report; the full one can be saved as JSON. */

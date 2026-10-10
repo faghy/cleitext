@@ -6,6 +6,7 @@ import { useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 import { entryTree } from '../entry-tree';
 import { PlaceholderPage } from './dashboard';
+import { PluginCell, usePluginColumnData, usePluginColumns } from '../plugins';
 
 export const taxonomiesQuery = {
   queryKey: ['taxonomies'],
@@ -38,24 +39,19 @@ export function TermsPage({ slug }: { slug: string }) {
     enabled: Boolean(taxonomy),
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['terms', slug] });
+  // Columns of plugins, e.g. the translations of the language plugin.
+  const columns = usePluginColumns('term', slug);
+  const listRows = (terms.data ?? []).map((term) => ({
+    id: term.id,
+    locale: term.locale,
+    title: term.name,
+  }));
+  const columnData = usePluginColumnData(columns, slug, listRows);
 
   const remove = useMutation({
     mutationFn: (id: string) => api<void>('DELETE', `/terms/${id}`),
     onSuccess: refresh,
   });
-  const translate = useMutation({
-    mutationFn: (input: { source: TermView; locale: string; name: string }) =>
-      api<TermView>('POST', `/taxonomies/${slug}/terms`, {
-        name: input.name,
-        locale: input.locale,
-        translationOf: input.source.id,
-      }),
-    onSuccess: async (term) => {
-      await refresh();
-      setMessage(t('Translation added: {name}', { name: term.name }));
-    },
-  });
-
   if (taxonomies.isPending) return <p className="text-sm text-slate-600">{t('Loading…')}</p>;
   if (!taxonomy) return <PlaceholderPage path={`/taxonomies/${slug}`} />;
 
@@ -70,7 +66,7 @@ export function TermsPage({ slug }: { slug: string }) {
     : taxonomy.hierarchical
       ? entryTree(all.map((term) => ({ ...term, title: term.name, position: 0 })))
       : all.map((entry) => ({ entry, depth: 0 }));
-  const error = remove.error ?? translate.error;
+  const error = remove.error;
 
   return (
     <div className="space-y-4">
@@ -138,14 +134,18 @@ export function TermsPage({ slug }: { slug: string }) {
                   <th className="py-2 font-medium">{t('Name')}</th>
                   <th className="py-2 font-medium">{t('Slug')}</th>
                   <th className="py-2 font-medium">{t('Count')}</th>
-                  {multilingual && <th className="py-2 font-medium">{t('Translations')}</th>}
+                  {columns.map((column) => (
+                    <th key={column.key} className="py-2 font-medium">
+                      {column.title}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map(({ entry: term, depth }) =>
                   editing === term.id ? (
                     <tr key={term.id} className="border-b border-slate-100 bg-slate-50">
-                      <td colSpan={multilingual ? 4 : 3} className="p-3">
+                      <td colSpan={3 + columns.length} className="p-3">
                         <TermForm
                           taxonomy={taxonomy}
                           locale={locale}
@@ -193,64 +193,19 @@ export function TermsPage({ slug }: { slug: string }) {
                       </td>
                       <td className="py-2 text-slate-600">{term.slug}</td>
                       <td className="py-2">{term.count}</td>
-                      {multilingual && (
-                        <td className="py-2">
-                          <ul className="space-y-1">
-                            {me.site.locales
-                              .filter((l) => l.code !== locale)
-                              .map((l) => {
-                                const translation = term.translations?.find(
-                                  (tr) => tr.locale === l.code,
-                                );
-                                return (
-                                  <li key={l.code}>
-                                    <span className="mr-1 text-xs text-slate-500 uppercase">
-                                      {l.code}
-                                    </span>
-                                    {translation ? (
-                                      <button
-                                        type="button"
-                                        className="text-sky-700 hover:underline"
-                                        onClick={() => setLocale(l.code)}
-                                      >
-                                        {translation.name}
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        className="text-sky-700 hover:underline"
-                                        disabled={translate.isPending}
-                                        onClick={() => {
-                                          const value = window.prompt(
-                                            t('Name of "{name}" in {language}', {
-                                              name: term.name,
-                                              language: l.name,
-                                            }),
-                                          );
-                                          if (value?.trim())
-                                            translate.mutate({
-                                              source: term,
-                                              locale: l.code,
-                                              name: value.trim(),
-                                            });
-                                        }}
-                                      >
-                                        {t('Add translation')}
-                                        <span className="sr-only">
-                                          {' '}
-                                          {t('of {name} in {language}', {
-                                            name: term.name,
-                                            language: l.name,
-                                          })}
-                                        </span>
-                                      </button>
-                                    )}
-                                  </li>
-                                );
-                              })}
-                          </ul>
+                      {columns.map((column) => (
+                        <td key={column.key} className="py-2">
+                          <PluginCell
+                            column={column}
+                            row={{ id: term.id, locale: term.locale, title: term.name }}
+                            data={columnData.data?.[column.key]?.[term.id]}
+                            refresh={() => {
+                              void columnData.refetch();
+                              void refresh();
+                            }}
+                          />
                         </td>
-                      )}
+                      ))}
                     </tr>
                   ),
                 )}

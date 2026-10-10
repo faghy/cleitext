@@ -4,7 +4,6 @@ import {
   type CoreSettings,
   type EntryListResponse,
   type FieldValues,
-  type SiteLocaleView,
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
@@ -30,7 +29,6 @@ export function SettingsPage() {
       <h1 className="text-2xl font-semibold">{t('Settings')}</h1>
       {settings.error && <Alert>{errorMessage(settings.error)}</Alert>}
       {settings.data && <SettingsForm initial={settings.data} />}
-      <LanguagesCard />
       <MailCard />
       <SecurityCard />
       <PluginSettings />
@@ -107,7 +105,8 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
   const set = <K extends keyof CoreSettings>(key: K, value: CoreSettings[K]) =>
     setValues((v) => ({ ...v, [key]: value }));
 
-  // Pages are chosen in the default language; translations follow automatically.
+  // Pages are chosen in the default language; with the language plugin,
+  // their translations take their place in the other languages.
   const pages = useQuery({
     queryKey: ['settings-pages', me.site.defaultLocale],
     queryFn: () =>
@@ -143,7 +142,7 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
       >
         <option value="">{empty}</option>
         {pages.data?.items.map((page) => (
-          <option key={page.id} value={page.translationGroup}>
+          <option key={page.id} value={page.id}>
             {page.title}
           </option>
         ))}
@@ -280,132 +279,5 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
         {t('Save changes')}
       </Button>
     </form>
-  );
-}
-
-/** Languages of the site (RF-SET-01). */
-function LanguagesCard() {
-  const { t } = useT();
-  const queryClient = useQueryClient();
-  const locales = useQuery({
-    queryKey: ['site', 'locales'],
-    queryFn: () => api<SiteLocaleView[]>('GET', '/site/locales'),
-  });
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const refresh = async (list: SiteLocaleView[]) => {
-    queryClient.setQueryData(['site', 'locales'], list);
-    await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
-  };
-  const add = useMutation({
-    mutationFn: () => api<SiteLocaleView[]>('POST', '/site/locales', { code, name }),
-    onSuccess: async (list) => {
-      setCode('');
-      setName('');
-      await refresh(list);
-    },
-  });
-  const change = useMutation({
-    mutationFn: ({ locale, body }: { locale: string; body: Record<string, unknown> }) =>
-      api<SiteLocaleView[]>('PATCH', `/site/locales/${locale}`, body),
-    onSuccess: refresh,
-  });
-  const remove = useMutation({
-    mutationFn: (locale: string) => api<SiteLocaleView[]>('DELETE', `/site/locales/${locale}`),
-    onSuccess: refresh,
-  });
-  const error = add.error ?? change.error ?? remove.error;
-  const addError =
-    add.error instanceof ApiError
-      ? (add.error.fieldError('code') ?? add.error.fieldError('name'))
-      : undefined;
-
-  return (
-    <section aria-label={t('Languages')}>
-      <Card title={t('Languages')}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-slate-600">
-              <th className="py-2">{t('Language')}</th>
-              <th className="py-2">{t('Code')}</th>
-              <th className="py-2">{t('Address')}</th>
-              <th className="py-2">{t('Entries')}</th>
-              <th className="py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {locales.data?.map((locale) => (
-              <tr key={locale.code} className="border-b border-slate-100">
-                <td className="py-2">
-                  {locale.name}
-                  {locale.isDefault && (
-                    <span className="ml-2 text-xs text-sky-700">{t('default')}</span>
-                  )}
-                </td>
-                <td className="py-2">{locale.code}</td>
-                <td className="py-2 text-slate-600">
-                  {locale.isDefault ? '/' : `${locale.urlPrefix ?? `/${locale.code}`}/…`}
-                </td>
-                <td className="py-2">{locale.entries}</td>
-                <td className="space-x-3 py-2 text-right">
-                  {!locale.isDefault && (
-                    <button
-                      type="button"
-                      className="text-sky-700 hover:underline"
-                      onClick={() =>
-                        change.mutate({ locale: locale.code, body: { isDefault: true } })
-                      }
-                    >
-                      {t('Make default')}
-                    </button>
-                  )}
-                  {!locale.isDefault && locale.entries === 0 && (
-                    <button
-                      type="button"
-                      className="text-red-700 hover:underline"
-                      onClick={() => {
-                        if (window.confirm(t('Remove {name}?', { name: locale.name })))
-                          remove.mutate(locale.code);
-                      }}
-                    >
-                      {t('Remove')}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <form
-          className="mt-4 grid gap-3 md:grid-cols-[8rem_1fr_auto] md:items-end"
-          onSubmit={(e) => {
-            e.preventDefault();
-            add.mutate();
-          }}
-        >
-          <TextField
-            label={t('Code')}
-            placeholder="de"
-            value={code}
-            onChange={(e) => setCode(e.target.value.trim())}
-          />
-          <TextField
-            label={t('Name')}
-            placeholder="Deutsch"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <Button type="submit" variant="secondary" disabled={!code || !name || add.isPending}>
-            {t('Add language')}
-          </Button>
-        </form>
-        {addError && <p className="mt-2 text-xs text-red-700">{addError}</p>}
-        {error && !addError && (
-          <div className="mt-3">
-            <Alert>{errorMessage(error)}</Alert>
-          </div>
-        )}
-      </Card>
-    </section>
   );
 }

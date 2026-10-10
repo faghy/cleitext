@@ -24,6 +24,7 @@ Questa guida è tutto ciò che ti serve per scriverne uno. Un esempio completo s
 12. [Permessi](#12-permessi)
 13. [Disattivazione, aggiornamenti, disinstallazione, errori](#13-disattivazione-aggiornamenti-disinstallazione-errori)
 14. [Riferimento: tipi di campo](#14-riferimento-tipi-di-campo)
+15. [Lingue (plugin delle lingue)](#15-lingue-plugin-delle-lingue)
 
 ---
 
@@ -165,15 +166,17 @@ ctx.hooks.filter(
 
 **Azioni** (vengono eseguite dopo che la modifica è stata salvata):
 
-| Nome                                      | Payload                                  |
-| ----------------------------------------- | ---------------------------------------- |
-| `entry.created` · `entry.saved`           | `{ entry }`                              |
-| `entry.published` · `entry.unpublished`   | `{ entry }`                              |
-| `entry.trashed` · `entry.deleted`         | `{ entry }`                              |
-| `media.uploaded`                          | `{ media: { id, mime, filename, url } }` |
-| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                      |
+| Nome                                      | Payload                                                                 |
+| ----------------------------------------- | ----------------------------------------------------------------------- |
+| `entry.created` · `entry.saved`           | `{ entry }`                                                             |
+| `entry.published` · `entry.unpublished`   | `{ entry }`                                                             |
+| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                             |
+| `term.created` · `term.deleted`           | `{ term }`                                                              |
+| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                |
+| `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue)) |
+| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                     |
 
-`entry` è `{ id, siteId, type, locale, slug, title, status, translationGroup, fields }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`.
+`entry` è `{ id, siteId, type, locale, slug, title, status, fields }`, `term` è `{ id, siteId, taxonomy, locale, slug, name }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`. `term.created` viene emesso per i termini creati dalla schermata dei termini, dall'API e dai plugin (non per i tag digitati nell'editor).
 
 **Filtri** (sito pubblico, richiedono il permesso `theme:hooks`):
 
@@ -238,6 +241,25 @@ ctx.content.registerFieldGroup({
 const events = await ctx.content.find(siteId, { type: 'event', locale: 'en', limit: 20 });
 const one = await ctx.content.get(siteId, id); // any status, or null
 // { id, type, locale, slug, title, status, url, publishedAt, fields }
+```
+
+**Copia delle voci** (`content:write`). Una bozza con contenuto, campi, riassunto e immagine in evidenza, fatta per conto di un utente: valgono i suoi permessi e il registro attività lo riporta. In un'altra lingua, il genitore e i termini diventano le loro traduzioni, quando il plugin delle lingue le conosce:
+
+```ts
+const copy = await ctx.content.copy(siteId, id, { userId: request.user!.id, locale: 'it' });
+```
+
+**Termini** (`content:read`, `content:write` per copiarli):
+
+```ts
+const terms = await ctx.terms.find(siteId, { taxonomy: 'category', locale: 'en' });
+// { id, taxonomy, locale, slug, name, parentId, url }
+const copy = await ctx.terms.copy(siteId, id, {
+  userId,
+  locale: 'it',
+  name: 'Viaggi',
+  parentId: null,
+});
 ```
 
 ## 7. Blocchi
@@ -350,6 +372,14 @@ ctx.settings.define(
 const { recipient } = await ctx.settings.get(siteId); // with defaults
 ```
 
+I valori piccoli che non sono impostazioni (un segnaposto di migrazione, l'ora dell'ultima sincronizzazione) vanno nello **storage** del plugin, per sito, accanto alle impostazioni:
+
+```ts
+await ctx.storage.set(siteId, 'lastSync', new Date().toISOString());
+const last = await ctx.storage.get<string>(siteId, 'lastSync'); // or null
+await ctx.storage.delete(siteId, 'lastSync');
+```
+
 ### Capability
 
 Dichiara la capability nel manifest, poi assegnala ai ruoli:
@@ -455,6 +485,34 @@ export default defineAdminPlugin({
 - `@tanstack/react-query` è disponibile, con il query client dell'admin.
 - Una pagina che va in crash mostra un messaggio di errore; il resto dell'admin continua a funzionare.
 
+**Sezioni dell'editor e colonne degli elenchi.** Oltre a pagine e widget della Bacheca, il punto di ingresso dell'admin può aggiungere una sezione alla barra laterale dell'editor e colonne agli elenchi di voci e termini (il plugin Multilingua aggiunge così la sezione e le colonne Traduzioni):
+
+```tsx
+export default defineAdminPlugin({
+  editorPanels: [
+    {
+      id: 'checks',
+      title: { en: 'Checks', it: 'Controlli' },
+      types: ['article'], // all types when omitted
+      visible: (props) => props.user.capabilities.includes('edit_entries'),
+      component: ({ entry, api, navigate }) => <p>{entry.title}</p>,
+    },
+  ],
+  entryColumns: [
+    {
+      id: 'score',
+      title: 'Score',
+      // Once per page of rows, so cells do not each call the server.
+      load: (rows, { api }) => api('GET', `/scores?ids=${rows.map((r) => r.id).join(',')}`),
+      cell: ({ row, data, refresh }) => <span>{String(data ?? '—')}</span>,
+    },
+  ],
+  termColumns: [], // the same, for categories, tags and other taxonomies
+});
+```
+
+`entry` è `{ id, type, locale, title, slug, status }`; le righe sono `{ id, locale, title, status? }`. `navigate('/entries/<id>')` apre un indirizzo dell'admin. `visible` nasconde una sezione o una colonna, per esempio quando il sito ha una sola lingua.
+
 ### Moduli condivisi
 
 Questi import sono forniti da Cleitext a runtime e non finiscono nel bundle. Non installarne altre versioni:
@@ -469,17 +527,18 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 
 ## 12. Permessi
 
-| Permesso        | Consente                                          |
-| --------------- | ------------------------------------------------- |
-| `content:read`  | `ctx.content.find` / `get`                        |
-| `content:write` | `ctx.content.registerType` / `registerFieldGroup` |
-| `blocks`        | `ctx.blocks.register`                             |
-| `routes:admin`  | `ctx.routes.api`                                  |
-| `routes:public` | `ctx.routes.public`                               |
-| `settings:own`  | `ctx.settings.define` / `get`                     |
-| `theme:hooks`   | filtri `render.*` e `theme.*`                     |
-| `mail:send`     | `ctx.mail.send`                                   |
-| `media:read`    | riservato all'API dei media                       |
+| Permesso        | Consente                                                                     |
+| --------------- | ---------------------------------------------------------------------------- |
+| `content:read`  | `ctx.content.find` / `get`, `ctx.terms.find`                                 |
+| `content:write` | `ctx.content.registerType` / `registerFieldGroup` / `copy`, `ctx.terms.copy` |
+| `blocks`        | `ctx.blocks.register`                                                        |
+| `routes:admin`  | `ctx.routes.api`                                                             |
+| `routes:public` | `ctx.routes.public`                                                          |
+| `settings:own`  | `ctx.settings.define` / `get`, `ctx.storage`                                 |
+| `languages`     | `ctx.languages` ([plugin delle lingue](#15-lingue-plugin-delle-lingue))      |
+| `theme:hooks`   | filtri `render.*` e `theme.*`                                                |
+| `mail:send`     | `ctx.mail.send`                                                              |
+| `media:read`    | riservato all'API dei media                                                  |
 
 Gli amministratori vedono i permessi richiesti in **Plugins → Details**. Le tue tabelle (`ctx.db`), gli hook sulle azioni, il logging, le capability e l'invalidazione della cache non richiedono permessi.
 
@@ -506,3 +565,44 @@ Usati dai campi dei tipi di contenuto, dai gruppi di campi, dagli attributi dei 
 | `media`    | id del media (uuid) | un'immagine della libreria media                        |
 
 Opzioni comuni: `name` (lettere, cifre, `_`), `label`, `help` e `required`. Le etichette sono stringhe oppure oggetti per lingua (`{ en: 'Date', it: 'Data' }`). Un campo facoltativo può essere vuoto (`null`).
+
+## 15. Lingue (plugin delle lingue)
+
+Il core conosce una sola lingua per sito, la **lingua predefinita**, più la lingua di ogni voce, termine e menu. Tutto il resto delle lingue multiple spetta a un **plugin delle lingue**, come il plugin ufficiale Multilingua (`plugins/multilingual`): l'elenco delle lingue, quali elementi si traducono a vicenda e le schermate per gestirli. Un sito che non lo usa non paga nulla: niente prefisso di lingua, hreflang, selettore o query in più.
+
+Un plugin delle lingue (permesso `languages`, uno solo attivo per sito) dice due cose al core:
+
+```ts
+ctx.languages.provide({
+  // The site's languages. The core puts the default first and gives it no prefix.
+  locales: async (siteId) => [
+    { code: 'en', name: 'English', prefix: '', isDefault: true },
+    { code: 'it', name: 'Italiano', prefix: '/it', isDefault: false },
+  ],
+  // For each id, the other versions of the item: [{ id, locale }].
+  translations: async (siteId, kind /* 'entry' | 'term' */, ids) => ({}),
+});
+```
+
+Con queste informazioni il core:
+
+- instrada gli indirizzi `/it/…` e costruisce gli URL di ogni lingua;
+- scrive i link hreflang (pagine, archivi, sitemap);
+- dà ai temi il selettore della lingua (`page.locales`);
+- mostra in ogni lingua la pagina iniziale, quella degli articoli e quella di errore;
+- permette all'admin di scrivere contenuti, termini e menu in ogni lingua.
+
+Il risultato di `locales` resta in cache per 30 secondi: dopo una modifica chiama `await ctx.languages.changed(siteId)`.
+
+Altre chiamate:
+
+| Chiamata                                         | Fa                                                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `ctx.languages.defaultLocale(siteId)`            | La lingua predefinita (quella del core).                                       |
+| `ctx.languages.setDefault(siteId, code)`         | La cambia; il codice deve essere tra quelli di `locales`.                      |
+| `ctx.languages.usage(siteId)`                    | Voci, termini e menu per lingua, per esempio prima di rimuoverne una.          |
+| `ctx.languages.pending(siteId)` · `clearPending` | Dati linguistici che il core conserva per un plugin delle lingue (vedi sotto). |
+
+**Dati linguistici in attesa.** I siti precedenti a M7 e i siti importati portano con sé lingue e collegamenti fra traduzioni (`{ locales, entries: [{ id, group }], terms: [...] }`). Il core li conserva finché un plugin delle lingue non li prende in carico: leggili con `pending`, salvali nelle tue tabelle, poi chiama `clearPending`. Il plugin Multilingua lo fa quando viene attivato e all'azione `languages.pending`.
+
+**Export.** `cleitext export` include le lingue e i gruppi di traduzione indicati dal plugin, così un sito si sposta insieme alle sue traduzioni.

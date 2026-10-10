@@ -21,8 +21,17 @@ export interface EntryEvent {
   slug: string;
   title: string;
   status: string;
-  translationGroup: string;
   fields: Record<string, unknown>;
+}
+
+/** A taxonomy term as hooks see it. */
+export interface TermEvent {
+  id: string;
+  siteId: string;
+  taxonomy: string;
+  locale: string;
+  slug: string;
+  name: string;
 }
 
 /** Actions (events): payload by name. Handlers run after the change is saved. */
@@ -33,6 +42,10 @@ export interface Actions {
   'entry.unpublished': { entry: EntryEvent };
   'entry.trashed': { entry: EntryEvent };
   'entry.deleted': { entry: EntryEvent };
+  'term.created': { term: TermEvent };
+  'term.deleted': { term: TermEvent };
+  /** Languages and translations were imported for the site: see `ctx.languages.pending`. */
+  'languages.pending': Record<string, never>;
   'media.uploaded': { media: { id: string; mime: string; filename: string; url: string } };
   'plugin.activated': { plugin: string };
   'plugin.deactivated': { plugin: string };

@@ -13,7 +13,6 @@ import {
   newId,
   redirects,
   revisions,
-  siteLocales,
   sites,
   users,
   withContext,
@@ -52,6 +51,7 @@ import { PageCacheService } from '../public/page-cache.service.js';
 import { TermsService } from './terms.service.js';
 import { sanitizeDocument } from './html-sanitize.js';
 import { entryPath, localePrefixes } from './paths.js';
+import { LanguagesService } from './languages.service.js';
 
 type EntryRow = typeof entries.$inferSelect;
 type ContentTypeRow = typeof contentTypes.$inferSelect;
@@ -61,7 +61,7 @@ type Tx = SiteTransaction;
 
 const registry = blockRegistry;
 
-/** Entries, revisions and translations (docs/ARCHITECTURE.md §9). */
+/** Entries and revisions (docs/ARCHITECTURE.md §9). Translations belong to the language plugin. */
 @Injectable()
 export class EntriesService {
   constructor(
@@ -71,6 +71,7 @@ export class EntriesService {
     private readonly cache: PageCacheService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly plugins: PluginHost,
+    private readonly languages: LanguagesService,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
@@ -141,10 +142,7 @@ export class EntriesService {
       | 'entry.unpublished'
       | 'entry.trashed'
       | 'entry.deleted',
-    view: Pick<
-      EntryView,
-      'id' | 'type' | 'locale' | 'slug' | 'title' | 'status' | 'translationGroup'
-    > & {
+    view: Pick<EntryView, 'id' | 'type' | 'locale' | 'slug' | 'title' | 'status'> & {
       fields?: Record<string, unknown>;
       revision?: { fields: Record<string, unknown> } | null;
     },
@@ -160,7 +158,6 @@ export class EntriesService {
           slug: view.slug,
           title: view.title,
           status: view.status,
-          translationGroup: view.translationGroup,
           fields: view.revision?.fields ?? view.fields ?? {},
         },
       },
@@ -397,7 +394,7 @@ export class EntriesService {
       await this.assertTypeAvailable(siteId, type);
       const fields = await this.validFields(siteId, type, input.fields ?? {});
       const locale = input.locale ?? (await this.defaultLocale(tx, siteId));
-      await this.assertLocale(tx, locale);
+      await this.assertLocale(tx, siteId, locale);
       const parentId = await this.validParent(tx, type, locale, input.parentId ?? null, null);
       const slug = await this.uniqueSlug(
         tx,
@@ -413,7 +410,6 @@ export class EntriesService {
         siteId,
         typeSlug: type.slug,
         locale,
-        translationGroup: newId(),
         parentId,
         slug,
         title: input.title,
@@ -787,65 +783,68 @@ export class EntriesService {
     });
   }
 
-  // ---- Translations (RF-CNT-10) ------------------------------------------------
+  // ---- Copies for plugins ---------------------------------------------------------
 
-  createTranslation(
+  /**
+   * A draft copy of an entry in a language (`ctx.content.copy`, used by the
+   * language plugin to start a translation). Content, fields, excerpt and
+   * featured image are copied; the parent and the terms become their
+   * versions in that language when the language plugin knows them.
+   */
+  async copyToLocale(
     siteId: string,
     auth: AuthContext,
     id: string,
     locale: string,
     ip: string,
   ): Promise<EntryView> {
-    return this.run(siteId, auth, async (tx) => {
-      if (!auth.capabilities.includes('edit_entries')) {
-        throw new ForbiddenException('You cannot create entries.');
-      }
-      const source = await this.load(tx, id);
-      assertAllowed(canRead(auth, source), 'You cannot view this entry.');
-      await this.assertLocale(tx, locale);
-      const [existing] = await tx
-        .select({ id: entries.id })
-        .from(entries)
-        .where(
-          and(eq(entries.translationGroup, source.translationGroup), eq(entries.locale, locale)),
-        );
-      if (existing) throw new ConflictException(`A ${locale} translation already exists.`);
-
-      const revision = await this.revisionRow(tx, source.currentRevisionId);
-      const newEntryId = newId();
-      await tx.insert(entries).values({
-        id: newEntryId,
-        siteId,
-        typeSlug: source.typeSlug,
+    const source = await this.get(siteId, auth, id);
+    const sameLocale = locale === source.locale;
+    const revision = source.revision;
+    let parentId: string | null = null;
+    if (source.parentId) {
+      parentId = sameLocale
+        ? source.parentId
+        : ((await this.languages.translations(siteId, 'entry', [source.parentId]))
+            .get(source.parentId)
+            ?.find((t) => t.locale === locale)?.id ?? null);
+    }
+    const copy = await this.create(
+      siteId,
+      auth,
+      {
+        type: source.type,
         locale,
-        translationGroup: source.translationGroup,
-        slug: await this.uniqueSlug(tx, source.typeSlug, locale, source.slug, null),
-        title: source.title,
-        status: 'draft',
-        authorId: auth.userId,
-      });
-      await this.addRevision(
-        tx,
-        siteId,
-        newEntryId,
-        auth,
-        'manual',
-        source.title,
-        (revision?.fields as Record<string, unknown>) ?? {},
-        (revision?.document as CxdDocument) ?? emptyDocument(),
-        {
-          summary: {
-            excerpt: revision?.excerpt ?? null,
-            featuredMediaId: revision?.featuredMediaId ?? null,
-          },
-        },
-      );
-      await this.audit.record(tx, {
-        ...entryAudit(siteId, auth, 'entry.translation.created', newEntryId, ip),
-        meta: { from: id, locale },
-      });
-      return this.view(tx, auth, await this.load(tx, newEntryId));
-    });
+        title: sameLocale && source.title ? `${source.title} (copy)` : source.title,
+        ...(sameLocale ? {} : { slug: source.slug }),
+        parentId,
+        document: revision?.document,
+        fields: revision?.fields ?? {},
+        excerpt: revision?.excerpt ?? null,
+        featuredMediaId: revision?.featuredMediaId ?? null,
+      },
+      ip,
+    );
+    const sourceTerms = Object.entries(source.terms);
+    const allIds = sourceTerms.flatMap(([, list]) => list.map((t) => t.id));
+    const links = sameLocale ? null : await this.languages.translations(siteId, 'term', allIds);
+    const terms = Object.fromEntries(
+      sourceTerms.map(([taxonomy, list]) => [
+        taxonomy,
+        list
+          .map((t) => (links ? links.get(t.id)?.find((l) => l.locale === locale)?.id : t.id))
+          .filter((termId): termId is string => Boolean(termId)),
+      ]),
+    );
+    const hasTerms = Object.values(terms).some((list) => list.length > 0);
+    if (!hasTerms && source.position === 0) return copy;
+    return this.update(
+      siteId,
+      auth,
+      copy.id,
+      { ...(hasTerms ? { terms } : {}), position: source.position },
+      ip,
+    );
   }
 
   // ---- Internals ------------------------------------------------------------------
@@ -918,9 +917,8 @@ export class EntriesService {
     return site?.locale ?? 'en';
   }
 
-  private async assertLocale(tx: Tx, locale: string): Promise<void> {
-    const [row] = await tx.select().from(siteLocales).where(eq(siteLocales.code, locale));
-    if (!row)
+  private async assertLocale(tx: Tx, siteId: string, locale: string): Promise<void> {
+    if (!(await this.languages.allowed(siteId, await this.defaultLocale(tx, siteId), locale)))
       throw new BadRequestException(`The language "${locale}" is not enabled on this site.`);
   }
 
@@ -1081,24 +1079,12 @@ export class EntriesService {
         ? toRevisionView(autosaveRow, auth.displayName)
         : null;
 
-    const translations = await tx
-      .select({
-        id: entries.id,
-        locale: entries.locale,
-        title: entries.title,
-        status: entries.status,
-      })
-      .from(entries)
-      .where(and(eq(entries.translationGroup, entry.translationGroup), ne(entries.id, entry.id)))
-      .orderBy(asc(entries.locale));
-
     return {
       ...toSummary(entry, authorRow?.name ?? null),
       createdAt: entry.createdAt.toISOString(),
       trashedAt: entry.trashedAt?.toISOString() ?? null,
       revision,
       autosave,
-      translations: translations.map((t) => ({ ...t, status: t.status as EntryStatus })),
       terms: await this.termsService.termsOfEntry(tx, entry.id),
       permissions: {
         edit: canEdit(auth, entry),
@@ -1116,7 +1102,8 @@ export class EntriesService {
     after: EntryRow,
     permalink: string,
   ): Promise<void> {
-    const prefix = (await localePrefixes(tx)).get(before.locale) ?? '';
+    const prefix =
+      localePrefixes(await this.languages.localesIn(tx, siteId)).get(before.locale) ?? '';
     const from = prefix + (await entryPath(tx, before, permalink));
     const to = prefix + (await entryPath(tx, after, permalink));
     if (from === to) return;
@@ -1176,7 +1163,6 @@ function toSummary(entry: EntryRow, authorName: string | null): EntrySummary {
     id: entry.id,
     type: entry.typeSlug,
     locale: entry.locale,
-    translationGroup: entry.translationGroup,
     parentId: entry.parentId,
     slug: entry.slug,
     title: entry.title,

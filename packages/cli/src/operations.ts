@@ -3,10 +3,10 @@
  * Used by the `cleitext` CLI and by `tools/dev-db`.
  */
 import {
+  entries,
   roles,
   seedSiteDefaults,
   siteDomains,
-  siteLocales,
   siteMembers,
   sites,
   superAdmins,
@@ -57,11 +57,6 @@ export async function createSite(db: Database, input: CreateSiteInput): Promise<
   await db
     .insert(siteDomains)
     .values({ siteId, host, isPrimary: true, forceHttps: input.forceHttps ?? true });
-  await withSiteContext(db, siteId, (tx) =>
-    tx
-      .insert(siteLocales)
-      .values({ siteId, code: locale, name: locale.toUpperCase(), isDefault: true }),
-  );
   await seedSiteDefaults(db, siteId);
   return siteId;
 }
@@ -89,30 +84,6 @@ export async function addDomain(db: Database, input: AddDomainInput): Promise<vo
       forceHttps: input.forceHttps ?? true,
     });
   });
-}
-
-/** Enables a language on a site (BCP 47 code, e.g. `it` or `de-CH`). */
-export async function addLocale(
-  db: Database,
-  input: { site: string; code: string; name: string; isDefault?: boolean },
-): Promise<void> {
-  const siteId = await siteIdBySlug(db, input.site);
-  const code = parse(localeSchema, input.code, 'language code');
-  await withSiteContext(db, siteId, async (tx) => {
-    const [exists] = await tx.select().from(siteLocales).where(eq(siteLocales.code, code));
-    if (exists) throw new OperationError(`The language ${code} is already enabled.`);
-    if (input.isDefault) await tx.update(siteLocales).set({ isDefault: false });
-    const others = await tx.select().from(siteLocales);
-    await tx.insert(siteLocales).values({
-      siteId,
-      code,
-      name: input.name,
-      isDefault: Boolean(input.isDefault),
-      position: others.length,
-    });
-  });
-  if (input.isDefault)
-    await db.update(sites).set({ defaultLocale: code }).where(eq(sites.id, siteId));
 }
 
 export async function listSites(db: Database) {
@@ -177,21 +148,19 @@ export async function updateSite(
     throw new OperationError('Nothing to change: give --name, --slug, --locale or --timezone.');
   }
   await withSiteContext(db, site.id, async (tx) => {
-    if (input.locale !== undefined) {
-      const [enabled] = await tx
-        .select()
-        .from(siteLocales)
-        .where(and(eq(siteLocales.siteId, site.id), eq(siteLocales.code, input.locale)));
-      if (!enabled) {
+    if (input.locale !== undefined && input.locale !== site.defaultLocale) {
+      const code = parse(localeSchema, input.locale, 'language code');
+      // Content stays in its language: it would disappear from the site.
+      const [written] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(entries)
+        .where(eq(entries.locale, site.defaultLocale));
+      if ((written?.n ?? 0) > 0) {
         throw new OperationError(
-          `The language "${input.locale}" is not enabled on this site: add it with site:locale:add.`,
+          `Content is written in "${site.defaultLocale}". To add or switch languages, use the Multilingual plugin (Settings → Languages).`,
         );
       }
-      await tx
-        .update(siteLocales)
-        .set({ isDefault: sql`${siteLocales.code} = ${input.locale}` })
-        .where(eq(siteLocales.siteId, site.id));
-      changes.defaultLocale = input.locale;
+      changes.defaultLocale = code;
     }
     if (Object.keys(changes).length > 0)
       await tx.update(sites).set(changes).where(eq(sites.id, site.id));

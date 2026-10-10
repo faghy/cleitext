@@ -39,9 +39,77 @@ export interface DashboardWidgetDefinition {
   component: ComponentType<AdminPageProps>;
 }
 
+/** The entry open in the editor, as panels see it. */
+export interface EditorEntry {
+  id: string;
+  type: string;
+  locale: string;
+  title: string;
+  slug: string;
+  status: string;
+}
+
+export interface EditorPanelProps extends AdminPageProps {
+  entry: EditorEntry;
+  /** Opens an admin address, e.g. `/entries/<id>`, without reloading the page. */
+  navigate: (to: string) => void;
+}
+
+/** A section of the editor sidebar, under the core ones. */
+export interface EditorPanelDefinition {
+  id: string;
+  title: Label;
+  /** Content types that show it (all when omitted). */
+  types?: string[];
+  capability?: string;
+  /** Shown only when this returns true, e.g. when the site has several languages. */
+  visible?: (props: AdminPageProps) => boolean;
+  component: ComponentType<EditorPanelProps>;
+}
+
+/** A row of a list, as columns see it. */
+export interface ListRow {
+  id: string;
+  locale: string;
+  title: string;
+  status?: string;
+}
+
+export interface ListCellProps<D = unknown> extends AdminPageProps {
+  row: ListRow;
+  /** What `load` returned for this row. */
+  data: D | undefined;
+  navigate: (to: string) => void;
+  /** Reloads the column data, e.g. after the cell changed something. */
+  refresh: () => void;
+}
+
+/**
+ * A column of the entries or terms lists. `load` runs once per page of
+ * rows, so cells do not each call the server.
+ */
+export interface ListColumnDefinition<D = unknown> {
+  id: string;
+  title: Label;
+  /** Content types (entries) or taxonomies (terms) that show it (all when omitted). */
+  types?: string[];
+  capability?: string;
+  /** Shown only when this returns true, e.g. when the site has several languages. */
+  visible?: (props: AdminPageProps) => boolean;
+  load?: (rows: ListRow[], props: AdminPageProps & { type: string }) => Promise<Record<string, D>>;
+  cell: ComponentType<ListCellProps<D>>;
+}
+
 export interface AdminPluginDefinition {
   pages?: AdminPageDefinition[];
   dashboardWidgets?: DashboardWidgetDefinition[];
+  editorPanels?: EditorPanelDefinition[];
+  /** Columns of the posts, pages and other content type lists. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each column has its own data type
+  entryColumns?: ListColumnDefinition<any>[];
+  /** Columns of the category, tag and other taxonomy screens. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each column has its own data type
+  termColumns?: ListColumnDefinition<any>[];
 }
 
 export function defineAdminPlugin(definition: AdminPluginDefinition): AdminPluginDefinition {

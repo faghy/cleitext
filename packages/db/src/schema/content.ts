@@ -49,9 +49,8 @@ export const entries = pgTable(
     id: id(),
     siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
     typeSlug: text('type_slug').notNull(),
+    /** Language of the entry: the site's default unless a language plugin adds others. */
     locale: text('locale').notNull(),
-    /** Entries that are translations of each other share this value. */
-    translationGroup: uuid('translation_group').notNull(),
     parentId: uuid('parent_id'),
     slug: text('slug').notNull(),
     title: text('title').notNull().default(''),
@@ -90,7 +89,6 @@ export const entries = pgTable(
       sql`${t.status} in ('draft', 'pending', 'scheduled', 'published', 'private', 'trashed')`,
     ),
     index('entries_list_idx').on(t.siteId, t.typeSlug, t.status, t.publishedAt.desc()),
-    index('entries_translation_group_idx').on(t.translationGroup),
     index('entries_search_idx').using('gin', t.search),
   ],
 );

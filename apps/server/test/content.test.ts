@@ -1,6 +1,6 @@
 /**
  * Content (milestone M2): entries, revisions, statuses, scheduling,
- * translations, permissions and redirects.
+ * permissions and redirects (translations: the multilingual plugin).
  */
 import { entries, redirects, withSiteContext, type DatabaseClient } from '@cleitext/db';
 import type { CxdDocument } from '@cleitext/blocks';
@@ -37,7 +37,7 @@ const doc = (text: string): CxdDocument => ({
 beforeAll(async () => {
   app = await startTestApp();
   owner = ownerDatabase();
-  site = await seedSite(owner, 'content', { locales: ['en', 'it'] });
+  site = await seedSite(owner, 'content');
   other = await seedSite(owner, 'content-other');
   let ip = 1;
   for (const role of ['administrator', 'editor', 'author', 'contributor', 'subscriber'] as const) {
@@ -128,7 +128,7 @@ describe('entries', () => {
     expect(bad.json().errors.length).toBeGreaterThan(0);
   });
 
-  it('rejects unknown content types and disabled languages', async () => {
+  it('rejects unknown content types and other languages (no language plugin)', async () => {
     expect(
       (await as.author!.post('/api/v1/entries', { type: 'event', title: 'x' })).statusCode,
     ).toBe(400);
@@ -277,36 +277,6 @@ describe('scheduling (RF-CNT-08)', () => {
     );
     expect(await app.get(SchedulerService).tick()).toBeGreaterThanOrEqual(1);
     expect((await as.author!.get(`/api/v1/entries/${entry.id}`)).json().status).toBe('published');
-  });
-});
-
-describe('translations (RF-CNT-10)', () => {
-  it('creates a draft translation in another enabled language', async () => {
-    const entry = await createArticle(as.author!, 'Hello world', 'english');
-    const translation = await as.author!.post(`/api/v1/entries/${entry.id}/translations`, {
-      locale: 'it',
-    });
-    expect(translation.statusCode).toBe(201);
-    expect(translation.json()).toMatchObject({
-      locale: 'it',
-      status: 'draft',
-      translationGroup: entry.translationGroup,
-      slug: entry.slug,
-    });
-    expect(translation.json().revision.document).toEqual(doc('english'));
-
-    const source = (await as.author!.get(`/api/v1/entries/${entry.id}`)).json();
-    expect(source.translations).toEqual([
-      expect.objectContaining({ id: translation.json().id, locale: 'it' }),
-    ]);
-    expect(
-      (await as.author!.post(`/api/v1/entries/${entry.id}/translations`, { locale: 'it' }))
-        .statusCode,
-    ).toBe(409);
-    expect(
-      (await as.author!.post(`/api/v1/entries/${entry.id}/translations`, { locale: 'de' }))
-        .statusCode,
-    ).toBe(400);
   });
 });
 

@@ -1,0 +1,593 @@
+import {
+  definePlugin,
+  type PluginContext,
+  type RouteRequest,
+  type RouteResponse,
+  type TranslatableKind,
+  type TranslationLink,
+} from '@cleitext/plugin-sdk';
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import {
+  languages,
+  translations,
+  type LanguageView,
+  type TranslationsResponse,
+  type TranslationView,
+} from './schema';
+
+/**
+ * Multilingual (M7): the site's languages and the links between the
+ * versions of an entry or a term in each of them. The core only knows the
+ * language of each item; it asks this plugin for the rest (LanguageProvider)
+ * and does the routing, the addresses, hreflang and the theme's language
+ * switcher with what it gets.
+ */
+
+const CODE_RE = /^[a-z]{2,3}(-[A-Z]{2})?$/;
+const PREFIX_RE = /^\/[a-z0-9-]{1,20}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Addresses the core uses for itself. */
+const RESERVED = new Set(['/admin', '/api', '/media', '/feed', '/search', '/page', '/health']);
+
+/** The language's own name, e.g. `Italiano` for `it`. */
+export function nativeName(code: string): string {
+  try {
+    const name = new Intl.DisplayNames([code], { type: 'language' }).of(code);
+    if (name && name !== code) return name.charAt(0).toLocaleUpperCase(code) + name.slice(1);
+  } catch {
+    // Unknown to this runtime.
+  }
+  return code.toUpperCase();
+}
+
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export default definePlugin({
+  setup(ctx) {
+    ctx.languages.provide({
+      async locales(siteId) {
+        const rows = await ctx.db.transaction(siteId, (tx) =>
+          tx.select().from(languages).orderBy(asc(languages.position), asc(languages.code)),
+        );
+        return rows.map((row) => ({
+          code: row.code,
+          name: row.name,
+          prefix: row.urlPrefix ?? `/${row.code}`,
+          isDefault: false,
+        }));
+      },
+      translations: (siteId, kind, ids) => linksOf(ctx, siteId, kind, ids),
+    });
+
+    // An item that is gone leaves its group.
+    ctx.hooks.on('entry.deleted', ({ entry }, { siteId }) =>
+      unlink(ctx, siteId, 'entry', entry.id),
+    );
+    ctx.hooks.on('term.deleted', ({ term }, { siteId }) => unlink(ctx, siteId, 'term', term.id));
+    // An imported site brought languages and translations.
+    ctx.hooks.on('languages.pending', (_, { siteId }) => takeOver(ctx, siteId));
+
+    routes(ctx);
+  },
+
+  async onActivate(site, ctx) {
+    // The default language is the core's; it is listed here too, first.
+    await ctx.db.transaction(site.id, (tx) =>
+      tx
+        .insert(languages)
+        .values({
+          siteId: site.id,
+          code: site.defaultLocale,
+          name: nativeName(site.defaultLocale),
+          position: 0,
+        })
+        .onConflictDoNothing(),
+    );
+    await takeOver(ctx, site.id);
+    await ctx.languages.changed(site.id);
+  },
+
+  async onDeactivate(site, ctx) {
+    // Back to one language: addresses, hreflang and lists change at once.
+    await ctx.languages.changed(site.id);
+  },
+});
+
+// ---- Links ----------------------------------------------------------------------------
+
+async function linksOf(
+  ctx: PluginContext,
+  siteId: string,
+  kind: TranslatableKind,
+  ids: string[],
+): Promise<Record<string, TranslationLink[]>> {
+  const valid = ids.filter((id) => UUID_RE.test(id));
+  if (valid.length === 0) return {};
+  return ctx.db.transaction(siteId, async (tx) => {
+    const own = await tx
+      .select({ id: translations.elementId, group: translations.groupId })
+      .from(translations)
+      .where(and(eq(translations.kind, kind), inArray(translations.elementId, valid)));
+    if (own.length === 0) return {};
+    const members = await tx
+      .select({
+        id: translations.elementId,
+        group: translations.groupId,
+        locale: translations.locale,
+      })
+      .from(translations)
+      .where(
+        and(
+          eq(translations.kind, kind),
+          inArray(translations.groupId, [...new Set(own.map((o) => o.group))]),
+        ),
+      );
+    const result: Record<string, TranslationLink[]> = {};
+    for (const { id, group } of own) {
+      result[id] = members
+        .filter((m) => m.group === group && m.id !== id)
+        .map((m) => ({ id: m.id, locale: m.locale }));
+    }
+    return result;
+  });
+}
+
+async function unlink(
+  ctx: PluginContext,
+  siteId: string,
+  kind: TranslatableKind,
+  id: string,
+): Promise<void> {
+  await ctx.db.transaction(siteId, (tx) =>
+    tx.delete(translations).where(and(eq(translations.kind, kind), eq(translations.elementId, id))),
+  );
+}
+
+/**
+ * Puts `target` (in `targetLocale`) in the group of `source`, which gets
+ * one when it had none. A group has one item per language.
+ */
+async function link(
+  ctx: PluginContext,
+  siteId: string,
+  kind: TranslatableKind,
+  source: { id: string; locale: string },
+  target: { id: string; locale: string },
+): Promise<void> {
+  if (source.locale === target.locale) {
+    throw new HttpError(400, 'A translation must be in another language.');
+  }
+  await ctx.db.transaction(siteId, async (tx) => {
+    const [existing] = await tx
+      .select({ group: translations.groupId })
+      .from(translations)
+      .where(and(eq(translations.kind, kind), eq(translations.elementId, source.id)));
+    const group = existing?.group ?? crypto.randomUUID();
+    if (!existing) {
+      await tx.insert(translations).values({
+        siteId,
+        kind,
+        elementId: source.id,
+        groupId: group,
+        locale: source.locale,
+      });
+    }
+    const [taken] = await tx
+      .select({ id: translations.elementId })
+      .from(translations)
+      .where(
+        and(
+          eq(translations.kind, kind),
+          eq(translations.groupId, group),
+          eq(translations.locale, target.locale),
+        ),
+      );
+    if (taken && taken.id !== target.id) {
+      throw new HttpError(409, 'There is already a translation in that language.');
+    }
+    await tx
+      .delete(translations)
+      .where(and(eq(translations.kind, kind), eq(translations.elementId, target.id)));
+    await tx.insert(translations).values({
+      siteId,
+      kind,
+      elementId: target.id,
+      groupId: group,
+      locale: target.locale,
+      sourceLocale: source.locale,
+    });
+  });
+  // Addresses in other languages appear on many pages (switcher, hreflang, sitemaps).
+  await ctx.cache.invalidate(siteId, ['site']);
+}
+
+/**
+ * Takes over the languages and links the core kept: from before this plugin
+ * existed (migration 0016), or brought by an imported site.
+ */
+async function takeOver(ctx: PluginContext, siteId: string): Promise<void> {
+  const pending = await ctx.languages.pending(siteId);
+  if (!pending) return;
+  const defaultLocale = await ctx.languages.defaultLocale(siteId);
+
+  // Languages first: links are only kept for languages of the site.
+  await ctx.db.transaction(siteId, async (tx) => {
+    const known = new Set(
+      (await tx.select({ code: languages.code }).from(languages)).map((l) => l.code),
+    );
+    let position = known.size;
+    for (const locale of [...pending.locales].sort(
+      (a, b) => (a.position ?? 0) - (b.position ?? 0),
+    )) {
+      if (!CODE_RE.test(locale.code) || known.has(locale.code)) continue;
+      known.add(locale.code);
+      await tx.insert(languages).values({
+        siteId,
+        code: locale.code,
+        name: locale.name?.trim() || nativeName(locale.code),
+        urlPrefix:
+          locale.code !== defaultLocale && locale.urlPrefix && PREFIX_RE.test(locale.urlPrefix)
+            ? locale.urlPrefix
+            : null,
+        position: position++,
+      });
+    }
+  });
+
+  for (const kind of ['entry', 'term'] as const) {
+    const items = kind === 'entry' ? pending.entries : pending.terms;
+    const ids = items.map((i) => i.id).filter((id) => UUID_RE.test(id));
+    const locales = await localesOf(ctx, siteId, kind, ids);
+    const groups = new Map<string, string>();
+    await ctx.db.transaction(siteId, async (tx) => {
+      for (const item of items) {
+        const locale = locales.get(item.id);
+        if (!locale) continue;
+        let group = groups.get(item.group);
+        if (!group) groups.set(item.group, (group = crypto.randomUUID()));
+        await tx
+          .insert(translations)
+          .values({ siteId, kind, elementId: item.id, groupId: group, locale })
+          .onConflictDoNothing();
+      }
+    });
+  }
+
+  await ctx.languages.clearPending(siteId);
+  await ctx.languages.changed(siteId);
+  ctx.log.info('Languages and translations taken over', {
+    siteId,
+    locales: pending.locales.length,
+    entries: pending.entries.length,
+    terms: pending.terms.length,
+  });
+}
+
+/** The language of existing entries or terms (missing ones are left out). */
+async function localesOf(
+  ctx: PluginContext,
+  siteId: string,
+  kind: TranslatableKind,
+  ids: string[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const size = kind === 'entry' ? 200 : 500;
+  for (let i = 0; i < ids.length; i += size) {
+    const chunk = ids.slice(i, i + size);
+    const items =
+      kind === 'entry'
+        ? await ctx.content.find(siteId, { ids: chunk, status: 'any', limit: size })
+        : await ctx.terms.find(siteId, { ids: chunk, limit: size });
+    for (const item of items) result.set(item.id, item.locale);
+  }
+  return result;
+}
+
+// ---- Routes (/api/v1/ext/multilingual) ------------------------------------------------
+
+function routes(ctx: PluginContext): void {
+  const handle =
+    (fn: (request: RouteRequest) => Promise<RouteResponse>) =>
+    async (request: RouteRequest): Promise<RouteResponse> => {
+      try {
+        return await fn(request);
+      } catch (error) {
+        // Refusals of the core (permissions, validation) are answers, not failures.
+        const status =
+          error instanceof HttpError
+            ? error.status
+            : typeof (error as { getStatus?: () => number }).getStatus === 'function'
+              ? (error as { getStatus: () => number }).getStatus()
+              : null;
+        if (status === null || status >= 500) throw error;
+        return { status, body: { title: (error as Error).message, status } };
+      }
+    };
+
+  // Languages (Settings → Languages).
+  ctx.routes.api({
+    method: 'GET',
+    path: '/languages',
+    capability: 'manage_settings',
+    handler: handle(async (request) => ({ body: await languageViews(ctx, request.siteId) })),
+  });
+
+  ctx.routes.api({
+    method: 'POST',
+    path: '/languages',
+    capability: 'manage_settings',
+    handler: handle(async (request) => {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const code = typeof body.code === 'string' ? body.code.trim() : '';
+      if (!CODE_RE.test(code)) throw new HttpError(400, 'A language code such as it or de-CH.');
+      const name =
+        typeof body.name === 'string' && body.name.trim()
+          ? body.name.trim().slice(0, 60)
+          : nativeName(code);
+      const urlPrefix = prefixOf(body.urlPrefix);
+      await ctx.db.transaction(request.siteId, async (tx) => {
+        const rows = await tx.select().from(languages);
+        if (rows.some((r) => r.code === code)) {
+          throw new HttpError(409, `The language "${code}" is already there.`);
+        }
+        assertPrefixFree(
+          rows.map((r) => r.urlPrefix ?? `/${r.code}`),
+          urlPrefix ?? `/${code}`,
+        );
+        await tx.insert(languages).values({
+          siteId: request.siteId,
+          code,
+          name,
+          urlPrefix,
+          position: Math.max(0, ...rows.map((r) => r.position + 1)),
+        });
+      });
+      await ctx.languages.changed(request.siteId);
+      return { status: 201, body: await languageViews(ctx, request.siteId) };
+    }),
+  });
+
+  ctx.routes.api({
+    method: 'PATCH',
+    path: '/languages/:code',
+    capability: 'manage_settings',
+    handler: handle(async (request) => {
+      const code = request.params.code ?? '';
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      await ctx.db.transaction(request.siteId, async (tx) => {
+        const rows = await tx.select().from(languages);
+        const row = rows.find((r) => r.code === code);
+        if (!row) throw new HttpError(404, 'Language not found.');
+        const changes: Partial<typeof languages.$inferInsert> = {};
+        if (typeof body.name === 'string' && body.name.trim())
+          changes.name = body.name.trim().slice(0, 60);
+        if (body.urlPrefix !== undefined) {
+          changes.urlPrefix = prefixOf(body.urlPrefix);
+          assertPrefixFree(
+            rows.filter((r) => r.code !== code).map((r) => r.urlPrefix ?? `/${r.code}`),
+            changes.urlPrefix ?? `/${code}`,
+          );
+        }
+        if (typeof body.position === 'number' && Number.isInteger(body.position))
+          changes.position = Math.min(Math.max(body.position, 0), 1000);
+        if (Object.keys(changes).length > 0) {
+          await tx.update(languages).set(changes).where(eq(languages.code, code));
+        }
+      });
+      if (body.isDefault === true) await ctx.languages.setDefault(request.siteId, code);
+      await ctx.languages.changed(request.siteId);
+      return { body: await languageViews(ctx, request.siteId) };
+    }),
+  });
+
+  ctx.routes.api({
+    method: 'DELETE',
+    path: '/languages/:code',
+    capability: 'manage_settings',
+    handler: handle(async (request) => {
+      const code = request.params.code ?? '';
+      const views = await languageViews(ctx, request.siteId);
+      const view = views.find((v) => v.code === code);
+      if (!view) throw new HttpError(404, 'Language not found.');
+      if (view.isDefault) throw new HttpError(409, 'The default language cannot be removed.');
+      const used = view.usage.entries + view.usage.terms + view.usage.menus;
+      if (used > 0) {
+        throw new HttpError(
+          409,
+          `Content is written in this language (${view.usage.entries} entries, ${view.usage.terms} terms, ${view.usage.menus} menus): move or delete it first.`,
+        );
+      }
+      await ctx.db.transaction(request.siteId, (tx) =>
+        tx.delete(languages).where(eq(languages.code, code)),
+      );
+      await ctx.languages.changed(request.siteId);
+      return { body: await languageViews(ctx, request.siteId) };
+    }),
+  });
+
+  // Translations of entries and terms.
+  ctx.routes.api({
+    method: 'GET',
+    path: '/translations',
+    capability: 'edit_entries',
+    handler: handle(async (request) => {
+      const kind = request.query.kind === 'term' ? 'term' : 'entry';
+      const ids = (request.query.ids ?? '')
+        .split(',')
+        .filter((id) => UUID_RE.test(id))
+        .slice(0, 200);
+      return { body: await translationViews(ctx, request.siteId, kind, ids) };
+    }),
+  });
+
+  ctx.routes.api({
+    method: 'POST',
+    path: '/translations/entry/:id',
+    capability: 'edit_entries',
+    handler: handle(async (request) => {
+      const id = request.params.id ?? '';
+      const locale = (request.body as { locale?: unknown } | null)?.locale;
+      if (!UUID_RE.test(id) || typeof locale !== 'string')
+        throw new HttpError(400, 'Invalid request.');
+      const source = await ctx.content.get(request.siteId, id);
+      if (!source) throw new HttpError(404, 'Entry not found.');
+      await assertFree(ctx, request.siteId, 'entry', id, locale);
+      const copy = await ctx.content.copy(request.siteId, id, {
+        userId: request.user!.id,
+        locale,
+      });
+      await link(ctx, request.siteId, 'entry', source, copy);
+      return { status: 201, body: { id: copy.id } };
+    }),
+  });
+
+  ctx.routes.api({
+    method: 'POST',
+    path: '/translations/term/:id',
+    capability: 'manage_terms',
+    handler: handle(async (request) => {
+      const id = request.params.id ?? '';
+      const body = (request.body ?? {}) as { locale?: unknown; name?: unknown };
+      if (!UUID_RE.test(id) || typeof body.locale !== 'string') {
+        throw new HttpError(400, 'Invalid request.');
+      }
+      const [source] = await ctx.terms.find(request.siteId, { ids: [id], limit: 1 });
+      if (!source) throw new HttpError(404, 'Term not found.');
+      await assertFree(ctx, request.siteId, 'term', id, body.locale);
+      // The parent of the copy: the translation of the source's parent.
+      const parentId = source.parentId
+        ? ((await linksOf(ctx, request.siteId, 'term', [source.parentId]))[source.parentId]?.find(
+            (l) => l.locale === body.locale,
+          )?.id ?? null)
+        : null;
+      const copy = await ctx.terms.copy(request.siteId, id, {
+        userId: request.user!.id,
+        locale: body.locale,
+        ...(typeof body.name === 'string' && body.name.trim()
+          ? { name: body.name.trim().slice(0, 200) }
+          : {}),
+        parentId,
+      });
+      await link(ctx, request.siteId, 'term', source, copy);
+      return { status: 201, body: { id: copy.id } };
+    }),
+  });
+
+  ctx.routes.api({
+    method: 'DELETE',
+    path: '/translations/:kind/:id',
+    capability: 'edit_entries',
+    handler: handle(async (request) => {
+      const kind = request.params.kind === 'term' ? 'term' : 'entry';
+      const id = request.params.id ?? '';
+      if (!UUID_RE.test(id)) throw new HttpError(404, 'Not found.');
+      if (kind === 'term' && !request.user?.capabilities.includes('manage_terms')) {
+        throw new HttpError(403, 'You cannot manage terms.');
+      }
+      await unlink(ctx, request.siteId, kind, id);
+      await ctx.cache.invalidate(request.siteId, ['site']);
+      return { status: 204 };
+    }),
+  });
+}
+
+function prefixOf(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string' || !PREFIX_RE.test(value)) {
+    throw new HttpError(400, 'An address prefix such as /en (letters, digits and dashes).');
+  }
+  return value;
+}
+
+function assertPrefixFree(taken: string[], prefix: string): void {
+  if (RESERVED.has(prefix) || taken.includes(prefix)) {
+    throw new HttpError(409, `The address ${prefix} is already used.`);
+  }
+}
+
+async function assertFree(
+  ctx: PluginContext,
+  siteId: string,
+  kind: TranslatableKind,
+  id: string,
+  locale: string,
+): Promise<void> {
+  const links = (await linksOf(ctx, siteId, kind, [id]))[id] ?? [];
+  if (links.some((l) => l.locale === locale)) {
+    throw new HttpError(409, 'There is already a translation in that language.');
+  }
+}
+
+async function languageViews(ctx: PluginContext, siteId: string): Promise<LanguageView[]> {
+  const [rows, usage, defaultLocale] = await Promise.all([
+    ctx.db.transaction(siteId, (tx) =>
+      tx.select().from(languages).orderBy(asc(languages.position), asc(languages.code)),
+    ),
+    ctx.languages.usage(siteId),
+    ctx.languages.defaultLocale(siteId),
+  ]);
+  const views = rows.map((row) => {
+    const isDefault = row.code === defaultLocale;
+    return {
+      code: row.code,
+      name: row.name,
+      prefix: isDefault ? '' : (row.urlPrefix ?? `/${row.code}`),
+      urlPrefix: row.urlPrefix,
+      position: row.position,
+      isDefault,
+      usage: usage[row.code] ?? { entries: 0, terms: 0, menus: 0 },
+    };
+  });
+  // The default first, as everywhere.
+  return [...views.filter((v) => v.isDefault), ...views.filter((v) => !v.isDefault)];
+}
+
+async function translationViews(
+  ctx: PluginContext,
+  siteId: string,
+  kind: TranslatableKind,
+  ids: string[],
+): Promise<TranslationsResponse> {
+  const links = await linksOf(ctx, siteId, kind, ids);
+  const all = [
+    ...new Set([
+      ...ids,
+      ...Object.values(links)
+        .flat()
+        .map((l) => l.id),
+    ]),
+  ];
+  const details = new Map<string, TranslationView>();
+  if (kind === 'entry') {
+    for (let i = 0; i < all.length; i += 200) {
+      for (const e of await ctx.content.find(siteId, {
+        ids: all.slice(i, i + 200),
+        status: 'any',
+        limit: 200,
+      })) {
+        details.set(e.id, { id: e.id, locale: e.locale, title: e.title, status: e.status });
+      }
+    }
+  } else {
+    for (const t of await ctx.terms.find(siteId, { ids: all, limit: 500 })) {
+      details.set(t.id, { id: t.id, locale: t.locale, title: t.name });
+    }
+  }
+  const result: TranslationsResponse = {};
+  for (const id of ids) {
+    const own = details.get(id);
+    if (!own) continue;
+    result[id] = {
+      locale: own.locale,
+      links: (links[id] ?? []).flatMap((l) => details.get(l.id) ?? []),
+    };
+  }
+  return result;
+}

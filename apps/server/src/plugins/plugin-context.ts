@@ -1,12 +1,17 @@
 import {
   PluginPermissionError,
+  type CopyOptions,
+  type LanguageUsage,
+  type PendingLanguages,
   type PluginContext,
   type PluginEntry,
   type PluginLogger,
   type PluginPermission,
   type PluginSite,
+  type PluginTerm,
   type PluginTransaction,
   type EntryQuery,
+  type TermQuery,
 } from '@cleitext/plugin-sdk';
 import type { FieldDefinition, FieldValues } from '@cleitext/shared';
 import { Logger } from '@nestjs/common';
@@ -16,6 +21,21 @@ import type { LoadedPlugin, PluginHost } from './plugin-host.service.js';
 export interface PluginServices {
   site(siteId: string): Promise<PluginSite>;
   findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]>;
+  copyEntry(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry>;
+  findTerms(siteId: string, query: TermQuery): Promise<PluginTerm[]>;
+  copyTerm(
+    siteId: string,
+    id: string,
+    options: CopyOptions & { name?: string; parentId?: string | null },
+  ): Promise<PluginTerm>;
+  languageUsage(siteId: string): Promise<Record<string, LanguageUsage>>;
+  setDefaultLocale(siteId: string, code: string): Promise<void>;
+  languagesChanged(siteId: string): Promise<void>;
+  pendingLanguages(siteId: string): Promise<PendingLanguages | null>;
+  clearPendingLanguages(siteId: string): Promise<void>;
+  storageGet(plugin: LoadedPlugin, siteId: string, key: string): Promise<unknown>;
+  storageSet(plugin: LoadedPlugin, siteId: string, key: string, value: unknown): Promise<void>;
+  storageDelete(plugin: LoadedPlugin, siteId: string, key: string): Promise<void>;
   settings(plugin: LoadedPlugin, siteId: string): Promise<FieldValues>;
   transaction<T>(
     plugin: LoadedPlugin,
@@ -96,6 +116,12 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         assertSiteId(siteId);
         return services().findEntries(siteId, query);
       },
+      async copy(siteId, id, options) {
+        require('content:write');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id) || !UUID_RE.test(options.userId)) throw new TypeError('Invalid id');
+        return services().copyEntry(siteId, id, options);
+      },
       async get(siteId, id) {
         require('content:read');
         assertSiteId(siteId);
@@ -106,6 +132,81 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           limit: 1,
         });
         return entry ?? null;
+      },
+    },
+
+    terms: {
+      async find(siteId, query = {}) {
+        require('content:read');
+        assertSiteId(siteId);
+        return services().findTerms(siteId, query);
+      },
+      async copy(siteId, id, options) {
+        require('content:write');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id) || !UUID_RE.test(options.userId)) throw new TypeError('Invalid id');
+        return services().copyTerm(siteId, id, options);
+      },
+    },
+
+    languages: {
+      provide(provider) {
+        require('languages');
+        if (
+          typeof provider?.locales !== 'function' ||
+          typeof provider.translations !== 'function'
+        ) {
+          throw new TypeError('A language provider needs locales() and translations()');
+        }
+        plugin.languageProvider = provider;
+      },
+      async defaultLocale(siteId) {
+        require('languages');
+        assertSiteId(siteId);
+        return (await services().site(siteId)).defaultLocale;
+      },
+      async usage(siteId) {
+        require('languages');
+        assertSiteId(siteId);
+        return services().languageUsage(siteId);
+      },
+      async setDefault(siteId, code) {
+        require('languages');
+        assertSiteId(siteId);
+        return services().setDefaultLocale(siteId, code);
+      },
+      async changed(siteId) {
+        require('languages');
+        assertSiteId(siteId);
+        return services().languagesChanged(siteId);
+      },
+      async pending(siteId) {
+        require('languages');
+        assertSiteId(siteId);
+        return services().pendingLanguages(siteId);
+      },
+      async clearPending(siteId) {
+        require('languages');
+        assertSiteId(siteId);
+        return services().clearPendingLanguages(siteId);
+      },
+    },
+
+    storage: {
+      async get(siteId, key) {
+        require('settings:own');
+        assertSiteId(siteId);
+        return (await services().storageGet(plugin, siteId, key)) as never;
+      },
+      async set(siteId, key, value) {
+        require('settings:own');
+        assertSiteId(siteId);
+        return services().storageSet(plugin, siteId, key, value);
+      },
+      async delete(siteId, key) {
+        require('settings:own');
+        assertSiteId(siteId);
+        return services().storageDelete(plugin, siteId, key);
       },
     },
 

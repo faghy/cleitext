@@ -40,7 +40,6 @@ export const terms = pgTable(
     siteId: siteId(),
     taxonomyId: uuid('taxonomy_id').notNull(),
     locale: text('locale').notNull(),
-    translationGroup: uuid('translation_group').notNull(),
     parentId: uuid('parent_id'),
     slug: text('slug').notNull(),
     name: text('name').notNull(),

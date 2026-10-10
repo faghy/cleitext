@@ -4,7 +4,7 @@
 
 > Versione 0.2 · ottobre 2026 · stato: **bozza per revisione del team**
 > Nome di progetto: **cleitext** · Licenza: **GPL-2.0-or-later** (come WordPress)
-> **Fase attuale: uso interno.** Inizialmente Cleitext serve ai nostri siti e non viene distribuito. Registro pubblico e dominio sono rinviati alla fase di apertura (vedi §11.9 e SPECIFICHE M7).
+> **Fase attuale: uso interno.** Inizialmente Cleitext serve ai nostri siti e non viene distribuito. Registro pubblico e dominio sono rinviati alla fase di apertura (vedi §11.9 e SPECIFICHE M8).
 > Il nome unisce _Cleito_ (il CMS da cui nasce) e _text_: contenuti, blocchi e plugin.
 
 ---
@@ -241,7 +241,6 @@ Ogni modulo è un modulo NestJS con un **servizio pubblico** (esposto ai plugin 
 ```mermaid
 erDiagram
     sites ||--o{ site_domains : ha
-    sites ||--o{ site_locales : ha
     sites ||--o{ site_members : ha
     users ||--o{ site_members : appartiene
     roles ||--o{ site_members : assegna
@@ -285,16 +284,6 @@ create table site_domains (
   host        citext not null unique,          -- risoluzione tenant per host
   is_primary  boolean not null default false,
   force_https boolean not null default true
-);
-
-create table site_locales (
-  site_id     uuid not null references sites(id) on delete cascade,
-  code        text not null,                   -- BCP 47: 'it', 'en', 'de-CH'
-  name        text not null,
-  is_default  boolean not null default false,
-  position    int  not null default 0,
-  url_prefix  text,                            -- es. '/en' ; null per la lingua di default
-  primary key (site_id, code)
 );
 
 -- ===== Identità e accessi =====
@@ -365,7 +354,6 @@ create table entries (
   site_id                uuid not null references sites(id) on delete cascade,
   type_slug              text not null,
   locale                 text not null,
-  translation_group      uuid not null,        -- stesse entry in lingue diverse
   parent_id              uuid references entries(id) on delete set null,
   slug                   text not null,
   title                  text not null default '',
@@ -384,7 +372,6 @@ create table entries (
   unique (site_id, type_slug, locale, slug)
 );
 create index entries_list_idx on entries (site_id, type_slug, status, published_at desc);
-create index entries_tgroup_idx on entries (translation_group);
 create index entries_search_idx on entries using gin (search);
 
 create table revisions (
@@ -417,7 +404,6 @@ create table terms (
   site_id            uuid not null references sites(id) on delete cascade,
   taxonomy_id        uuid not null references taxonomies(id) on delete cascade,
   locale             text not null,
-  translation_group  uuid not null,
   parent_id          uuid references terms(id) on delete set null,
   slug               text not null,
   name               text not null,
@@ -610,7 +596,7 @@ create policy tenant_isolation on entries
 - **Tipo di contenuto** (`content_types`): definisce i campi personalizzati (`fields_schema`), le funzioni supportate (blocchi, estratto, immagine in evidenza, gerarchia, revisioni) e il permalink. I tipi `page` e `article` sono creati dal core. Gli altri si creano dall'admin oppure li registrano i plugin.
 - **Entry**: l'istanza di un contenuto, in **una lingua**.
 - **Revisione**: istantanea immutabile di titolo, campi e documento a blocchi.
-- **Gruppo di traduzione**: collega le entry che rappresentano lo stesso contenuto in lingue diverse.
+- **Gruppo di traduzione**: collega le entry che rappresentano lo stesso contenuto in lingue diverse. Lo gestisce il plugin delle lingue (§9.4), non il core.
 
 ### 9.2 Ciclo di vita
 
@@ -648,9 +634,12 @@ Sono definiti in `fields_schema` con un DSL serializzabile in JSON e convertibil
 
 ### 9.4 Lingue
 
-- Ogni sito ha una o più lingue (`site_locales`), con prefisso URL opzionale (`/en/…`).
-- Lo slug è per lingua. Gli `hreflang` si generano dal `translation_group`.
-- Fallback configurabile: se una pagina non è tradotta si restituisce 404 oppure la versione nella lingua di default.
+- Il core conosce la **lingua predefinita** del sito (`sites.default_locale`) e la lingua di ogni voce, termine e menu (`locale`). Gli slug sono unici per lingua.
+- Tutto il resto spetta a un **plugin delle lingue** (M7), come il plugin ufficiale Multilingua: le altre lingue con i loro prefissi negli URL (`/en/…`) e i gruppi di traduzione di voci e termini (come `icl_translations` di WPML).
+- Il plugin dice al core ciò che serve tramite un `LanguageProvider` (`locales`, `translations`). Con queste informazioni il core instrada gli indirizzi con prefisso, costruisce gli URL di ogni lingua, scrive gli `hreflang` (pagine, archivi, sitemap) e dà ai temi il selettore della lingua.
+- Senza plugin delle lingue, `LanguagesService` risponde con la sola lingua predefinita, senza query né chiamate a plugin: un sito monolingua non paga nulla (verificato in CI).
+- I dati che il plugin non ha ancora (siti precedenti a M7, siti importati) restano in attesa in `settings` (`languages`/`pending`) finché un plugin delle lingue non li prende in carico.
+- Previsti nel plugin: ripiego sulla lingua predefinita per le pagine non tradotte, un dominio per lingua.
 
 ---
 

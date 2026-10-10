@@ -120,6 +120,14 @@ bin/cleitext plugin:install plugins/seo
 bin/cleitext plugin:install plugins/forms
 ```
 
+A site in more than one language needs the **Multilingual** plugin: install it, activate it on the site (Plugins), then add the languages in **Languages**. A site with one language does not need it and pays nothing for it.
+
+```bash
+bin/cleitext plugin:install plugins/multilingual
+```
+
+**Upgrading a multilingual site to 0.6 (M7).** Languages moved from the core to the Multilingual plugin. Migration 0016 keeps the site's languages and translation links aside; install and activate the plugin and it takes them over, with the same addresses. Until then the site shows its default language only.
+
 ## 8. Updates
 
 ```bash

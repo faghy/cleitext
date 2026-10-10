@@ -6,7 +6,6 @@ import {
   roles,
   seedSiteDefaults,
   siteDomains,
-  siteLocales,
   siteMembers,
   sites,
   superAdmins,
@@ -53,11 +52,11 @@ export interface SeededSite {
 export async function seedSite(
   owner: DatabaseClient,
   slug: string,
-  options: { aliases?: string[]; forceHttps?: boolean; locales?: string[] } = {},
+  options: { aliases?: string[]; forceHttps?: boolean; locale?: string } = {},
 ): Promise<SeededSite> {
   const [site] = await owner.db
     .insert(sites)
-    .values({ slug, name: `Site ${slug}` })
+    .values({ slug, name: `Site ${slug}`, defaultLocale: options.locale ?? 'en' })
     .returning();
   const host = `${slug}.test`;
   await owner.db.insert(siteDomains).values([
@@ -69,16 +68,6 @@ export async function seedSite(
       forceHttps: options.forceHttps ?? false,
     })),
   ]);
-  await withSiteContext(owner.db, site!.id, (tx) =>
-    tx.insert(siteLocales).values(
-      (options.locales ?? ['en']).map((code, index) => ({
-        siteId: site!.id,
-        code,
-        name: code.toUpperCase(),
-        isDefault: index === 0,
-      })),
-    ),
-  );
   await seedSiteDefaults(owner.db, site!.id);
   return { id: site!.id, host };
 }

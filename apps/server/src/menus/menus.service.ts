@@ -3,7 +3,6 @@ import {
   menuItems,
   menus,
   newId,
-  siteLocales,
   sites,
   terms,
   withContext,
@@ -16,6 +15,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { LanguagesService } from '../content/languages.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { themeFor } from '../public/themes.js';
 import { nextFreeSlug, slugify } from '../content/slug.js';
@@ -29,6 +29,7 @@ export class MenusService {
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly cache: PageCacheService,
+    private readonly languages: LanguagesService,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: SiteTransaction) => Promise<T>) {
@@ -73,7 +74,7 @@ export class MenusService {
   ): Promise<MenuView> {
     const view = await this.run(siteId, auth, async (tx) => {
       const locale = input.locale ?? (await this.defaultLocale(tx, siteId));
-      await this.assertLocale(tx, locale);
+      await this.assertLocale(tx, siteId, locale);
       const taken = await tx
         .select({ slug: menus.slug })
         .from(menus)
@@ -303,9 +304,8 @@ export class MenusService {
     return site?.locale ?? 'en';
   }
 
-  private async assertLocale(tx: SiteTransaction, locale: string): Promise<void> {
-    const [row] = await tx.select().from(siteLocales).where(eq(siteLocales.code, locale));
-    if (!row)
+  private async assertLocale(tx: SiteTransaction, siteId: string, locale: string): Promise<void> {
+    if (!(await this.languages.allowed(siteId, await this.defaultLocale(tx, siteId), locale)))
       throw new BadRequestException(`The language "${locale}" is not enabled on this site.`);
   }
 }

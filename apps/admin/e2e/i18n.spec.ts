@@ -34,7 +34,6 @@ test('switches the admin to Italian and back', async ({ page }) => {
   await expect(sidebar.getByRole('link', { name: 'Articoli' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Impostazioni' })).toBeVisible();
   await sidebar.getByRole('link', { name: 'Impostazioni' }).click();
-  await expect(page.getByRole('heading', { name: 'Lingue' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Email' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Invia email di prova' })).toBeVisible();
   await sidebar.getByRole('link', { name: 'Siti' }).click();

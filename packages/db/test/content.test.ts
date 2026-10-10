@@ -58,7 +58,6 @@ describe('scheduled publishing', () => {
             siteId,
             typeSlug: 'article',
             locale: 'en',
-            translationGroup: crypto.randomUUID(),
             slug,
             title: slug,
             status: 'scheduled',

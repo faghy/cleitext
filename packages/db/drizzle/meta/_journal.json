@@ -113,6 +113,13 @@
       "when": 1791634324124,
       "tag": "0015_install_check",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791642680726,
+      "tag": "0016_multilingual_out_of_core",
+      "breakpoints": true
     }
   ]
 }

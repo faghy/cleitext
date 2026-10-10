@@ -51,7 +51,7 @@ async function eventually(check: () => Promise<boolean>, timeoutMs = 5_000) {
 beforeAll(async () => {
   app = await startTestApp();
   owner = ownerDatabase();
-  site = await seedSite(owner, 'features', { locales: ['en', 'it'] });
+  site = await seedSite(owner, 'features');
   await seedUser(owner, {
     email: 'admin@features.test',
     password: PASSWORD,
@@ -113,7 +113,7 @@ describe('menus API', () => {
     expect((await visitor.get('/')).body).not.toContain('https://example.com/');
   });
 
-  it('keeps one menu per location and language', async () => {
+  it('keeps one menu per location', async () => {
     const first = (
       await admin.post('/api/v1/menus', { name: 'Footer A', location: 'footer' })
     ).json();
@@ -122,15 +122,13 @@ describe('menus API', () => {
     ).json();
     expect((await admin.get(`/api/v1/menus/${first.id}`)).json().location).toBeNull();
     expect((await admin.get(`/api/v1/menus/${second.id}`)).json().location).toBe('footer');
-
-    const it = (
-      await admin.post('/api/v1/menus', { name: 'Piè di pagina', locale: 'it', location: 'footer' })
-    ).json();
-    expect(it.location).toBe('footer');
-    expect((await admin.get(`/api/v1/menus/${second.id}`)).json().location).toBe('footer');
+    // Other languages need the language plugin.
+    expect(
+      (await admin.post('/api/v1/menus', { name: 'Piè di pagina', locale: 'it' })).statusCode,
+    ).toBe(400);
   });
 
-  it('rejects unsafe links, unknown locations and entries in another language', async () => {
+  it('rejects unsafe links and unknown locations', async () => {
     const menu = (await admin.post('/api/v1/menus', { name: 'Checks' })).json();
     const unsafe = await admin.request('PUT', `/api/v1/menus/${menu.id}/items`, {
       items: [{ kind: 'url', url: 'javascript:alert(1)', label: 'Bad' }],
@@ -141,14 +139,6 @@ describe('menus API', () => {
       location: 'sidebar',
     });
     expect(location.statusCode).toBe(400);
-
-    const italian = (
-      await admin.post('/api/v1/entries', { type: 'page', title: 'Chi siamo', locale: 'it' })
-    ).json();
-    const foreign = await admin.request('PUT', `/api/v1/menus/${menu.id}/items`, {
-      items: [{ kind: 'entry', entryId: italian.id }],
-    });
-    expect(foreign.statusCode).toBe(400);
 
     expect((await admin.request('DELETE', `/api/v1/menus/${menu.id}`)).statusCode).toBe(204);
     expect((await admin.get(`/api/v1/menus/${menu.id}`)).statusCode).toBe(404);
@@ -168,26 +158,19 @@ describe('robots.txt and sitemaps', () => {
     expect(robots.body).toContain(`Sitemap: http://${site.host}/sitemap.xml`);
   });
 
-  it('lists published entries per type and language, with translations', async () => {
-    const story = await publish('Sitemap story');
-    const translation = (
-      await admin.post(`/api/v1/entries/${story.id}/translations`, {
-        locale: 'it',
-        title: 'Storia della mappa',
-      })
-    ).json();
-    await admin.post(`/api/v1/entries/${translation.id}/publish`);
+  it('lists published entries per type', async () => {
+    await publish('Sitemap story');
     await admin.post('/api/v1/entries', { type: 'article', title: 'Draft only' });
 
     const index = await visitor.get('/sitemap.xml');
     expect(index.headers['content-type']).toContain('application/xml');
     expect(index.body).toContain(`http://${site.host}/sitemap-article-en.xml`);
-    expect(index.body).toContain(`http://${site.host}/sitemap-article-it.xml`);
+    expect(index.body).not.toContain(`sitemap-article-it.xml`);
 
     const articles = await visitor.get('/sitemap-article-en.xml');
     expect(articles.statusCode).toBe(200);
     expect(articles.body).not.toMatch(/draft-only/);
-    expect(articles.body).toContain('hreflang="it"');
+    expect(articles.body).not.toContain('hreflang');
     expect(articles.body).toContain('<lastmod>');
     expect(articles.body).toContain('/sitemap-story</loc>');
 
@@ -292,6 +275,6 @@ describe('RSS feeds (RF-THM-08)', () => {
     const archive = await visitor.get('/category/feeds');
     expect(archive.body).toContain('type="application/rss+xml"');
     expect(archive.body).toContain('/category/feeds/feed');
-    expect((await visitor.get('/it/feed')).statusCode).toBe(200);
+    expect((await visitor.get('/it/feed')).statusCode).toBe(404);
   });
 });

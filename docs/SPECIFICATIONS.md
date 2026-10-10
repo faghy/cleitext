@@ -59,22 +59,22 @@ Cleitext is an open-source, multi-site, multilingual CMS built on **Node.js/Type
 
 ## 2. Glossary
 
-| Term                  | Definition                                                                     |
-| --------------------- | ------------------------------------------------------------------------------ |
-| **Site**              | A tenant: its own domains, languages, content, users and settings.             |
-| **Content type**      | Definition of a class of content (page, article, event…) with its fields.      |
-| **Entry**             | A single piece of content of a type, in one language.                          |
-| **Revision**          | An immutable snapshot of an entry.                                             |
-| **Translation group** | The set of entries that represent the same content in different languages.     |
-| **Block**             | A unit of content in the editor (paragraph, image, columns…).                  |
-| **CXD**               | _Cleitext Document_, the JSON format in which blocks are stored.               |
-| **Pattern**           | A reusable composition of blocks.                                              |
-| **Taxonomy / Term**   | A classification system (categories, tags) and its values.                     |
-| **Area**              | A theme region (header, footer, sidebar) composed of blocks.                   |
-| **Capability**        | An atomic permission (`publish_entries`, `manage_plugins`…).                   |
-| **Hook**              | An extension point: _action_ (event) or _filter_ (transformation).             |
-| **Plugin**            | A package that extends the server, admin and/or editor through the Plugin SDK. |
-| **Theme**             | A package that defines the public look of a site.                              |
+| Term                  | Definition                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Site**              | A tenant: its own domains, languages, content, users and settings.                                       |
+| **Content type**      | Definition of a class of content (page, article, event…) with its fields.                                |
+| **Entry**             | A single piece of content of a type, in one language.                                                    |
+| **Revision**          | An immutable snapshot of an entry.                                                                       |
+| **Translation group** | The set of entries that represent the same content in different languages (kept by the language plugin). |
+| **Block**             | A unit of content in the editor (paragraph, image, columns…).                                            |
+| **CXD**               | _Cleitext Document_, the JSON format in which blocks are stored.                                         |
+| **Pattern**           | A reusable composition of blocks.                                                                        |
+| **Taxonomy / Term**   | A classification system (categories, tags) and its values.                                               |
+| **Area**              | A theme region (header, footer, sidebar) composed of blocks.                                             |
+| **Capability**        | An atomic permission (`publish_entries`, `manage_plugins`…).                                             |
+| **Hook**              | An extension point: _action_ (event) or _filter_ (transformation).                                       |
+| **Plugin**            | A package that extends the server, admin and/or editor through the Plugin SDK.                           |
+| **Theme**             | A package that defines the public look of a site.                                                        |
 
 ---
 
@@ -147,25 +147,25 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 
 ### 4.3 Content
 
-| ID        | Requirement                                                                                                                                     | Priority                           |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| RF-CNT-01 | `page` (hierarchical) and `article` types created by default for every site.                                                                    | MVP                                |
-| RF-CNT-02 | Creating custom content types from the admin: name, slug, hierarchical, supports, fields, permalink.                                            | 1.0                                |
-| RF-CNT-03 | Registering content types from plugins.                                                                                                         | MVP                                |
-| RF-CNT-04 | Statuses: draft, pending review, scheduled, published, private, trash. Transitions are those in the diagram in ARCHITECTURE §9.2.               | MVP                                |
-| RF-CNT-05 | Every save creates a revision. Listing, visual comparison (diff) and restoring revisions.                                                       | MVP (list and restore), 1.0 (diff) |
-| RF-CNT-06 | Autosave every 30 s and recovery after a crash or browser close.                                                                                | MVP                                |
-| RF-CNT-07 | Editing published content without exposing the changes until it is republished.                                                                 | MVP                                |
-| RF-CNT-08 | Scheduled publishing, with date and time in the site's time zone.                                                                               | MVP                                |
-| RF-CNT-09 | Preview with the theme, via a shareable, expiring preview link.                                                                                 | MVP                                |
-| RF-CNT-10 | Translations: create the version in another language from an existing entry, navigate between translations, see the status of each translation. | MVP                                |
-| RF-CNT-11 | Slug generated from the title (transliteration), editable and unique per type and language. Changing it creates an automatic 301 redirect.      | MVP                                |
-| RF-CNT-12 | Featured image and excerpt (if supported by the type).                                                                                          | MVP                                |
-| RF-CNT-13 | Child pages, ordering and hierarchical permalinks (`/about-us/team`).                                                                           | MVP                                |
-| RF-CNT-14 | Trash with automatic emptying after N days (default 30).                                                                                        | MVP                                |
-| RF-CNT-15 | Concurrent editing lock: "X is editing this page" warning with the option to take over.                                                         | 1.0                                |
-| RF-CNT-16 | "Private" visibility (only users with the capability) and "password protected".                                                                 | 1.0                                |
-| RF-CNT-17 | Custom editorial workflows (custom statuses).                                                                                                   | Later                              |
+| ID        | Requirement                                                                                                                                                                        | Priority                           |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| RF-CNT-01 | `page` (hierarchical) and `article` types created by default for every site.                                                                                                       | MVP                                |
+| RF-CNT-02 | Creating custom content types from the admin: name, slug, hierarchical, supports, fields, permalink.                                                                               | 1.0                                |
+| RF-CNT-03 | Registering content types from plugins.                                                                                                                                            | MVP                                |
+| RF-CNT-04 | Statuses: draft, pending review, scheduled, published, private, trash. Transitions are those in the diagram in ARCHITECTURE §9.2.                                                  | MVP                                |
+| RF-CNT-05 | Every save creates a revision. Listing, visual comparison (diff) and restoring revisions.                                                                                          | MVP (list and restore), 1.0 (diff) |
+| RF-CNT-06 | Autosave every 30 s and recovery after a crash or browser close.                                                                                                                   | MVP                                |
+| RF-CNT-07 | Editing published content without exposing the changes until it is republished.                                                                                                    | MVP                                |
+| RF-CNT-08 | Scheduled publishing, with date and time in the site's time zone.                                                                                                                  | MVP                                |
+| RF-CNT-09 | Preview with the theme, via a shareable, expiring preview link.                                                                                                                    | MVP                                |
+| RF-CNT-10 | Translations: create the version in another language from an existing entry, navigate between translations, see the status of each translation (official Multilingual plugin, M7). | MVP                                |
+| RF-CNT-11 | Slug generated from the title (transliteration), editable and unique per type and language. Changing it creates an automatic 301 redirect.                                         | MVP                                |
+| RF-CNT-12 | Featured image and excerpt (if supported by the type).                                                                                                                             | MVP                                |
+| RF-CNT-13 | Child pages, ordering and hierarchical permalinks (`/about-us/team`).                                                                                                              | MVP                                |
+| RF-CNT-14 | Trash with automatic emptying after N days (default 30).                                                                                                                           | MVP                                |
+| RF-CNT-15 | Concurrent editing lock: "X is editing this page" warning with the option to take over.                                                                                            | 1.0                                |
+| RF-CNT-16 | "Private" visibility (only users with the capability) and "password protected".                                                                                                    | 1.0                                |
+| RF-CNT-17 | Custom editorial workflows (custom statuses).                                                                                                                                      | Later                              |
 
 ### 4.4 Block editor
 
@@ -204,12 +204,12 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 
 ### 4.6 Taxonomies
 
-| ID        | Requirement                                                              | Priority |
-| --------- | ------------------------------------------------------------------------ | -------- |
-| RF-TAX-01 | Default `category` (hierarchical) and `tag` taxonomies for `article`.    | MVP      |
-| RF-TAX-02 | Custom taxonomies from the admin and from plugins.                       | 1.0      |
-| RF-TAX-03 | Translated terms, with per-language slug, description and custom fields. | MVP      |
-| RF-TAX-04 | Public archives per term (`/category/news`).                             | MVP      |
+| ID        | Requirement                                                                                                 | Priority |
+| --------- | ----------------------------------------------------------------------------------------------------------- | -------- |
+| RF-TAX-01 | Default `category` (hierarchical) and `tag` taxonomies for `article`.                                       | MVP      |
+| RF-TAX-02 | Custom taxonomies from the admin and from plugins.                                                          | 1.0      |
+| RF-TAX-03 | Translated terms, with per-language slug, description and custom fields (official Multilingual plugin, M7). | MVP      |
+| RF-TAX-04 | Public archives per term (`/category/news`).                                                                | MVP      |
 
 ### 4.7 Menus and navigation
 
@@ -259,12 +259,12 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 
 ### 4.10 Settings
 
-| ID        | Requirement                                                                                                           | Priority |
-| --------- | --------------------------------------------------------------------------------------------------------------------- | -------- |
-| RF-SET-01 | General settings: site name, tagline, languages, time zone, date format, home page, 404 page, articles per page.      | MVP      |
-| RF-SET-02 | Per-site email (SMTP) settings, with a test email.                                                                    | MVP      |
-| RF-SET-03 | Permalinks per content type (pattern with `{slug}`, `{year}`, `{month}`, `{parent}`, `{term:category}` placeholders). | 1.0      |
-| RF-SET-04 | Plugin settings on pages generated from the schema.                                                                   | MVP      |
+| ID        | Requirement                                                                                                                                                           | Priority |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| RF-SET-01 | General settings: site name, tagline, default language (more languages with the Multilingual plugin), time zone, date format, home page, 404 page, articles per page. | MVP      |
+| RF-SET-02 | Per-site email (SMTP) settings, with a test email.                                                                                                                    | MVP      |
+| RF-SET-03 | Permalinks per content type (pattern with `{slug}`, `{year}`, `{month}`, `{parent}`, `{term:category}` placeholders).                                                 | 1.0      |
+| RF-SET-04 | Plugin settings on pages generated from the schema.                                                                                                                   | MVP      |
 
 ### 4.11 Import, export and migration
 
@@ -732,7 +732,16 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 
 > **Estimate up to the internal 1.0:** about 5–7 months for a team of 2–3 developers. To be revised after M2, which is the main source of uncertainty.
 
-### M7 — Public release (when we decide to distribute it)
+### M7 — Multilingual in a plugin
+
+- The core keeps the language of each entry, term and menu and the site's default language, and nothing else: a site with one language has no language prefix, hreflang, switcher, extra query or plugin call.
+- The official **Multilingual** plugin (`plugins/multilingual`) adds the languages, the translation links of entries and terms (`LanguageProvider`), Settings → Languages, the Translations section of the editor and the translations columns of the lists.
+- Plugin API 1.1: `ctx.languages`, `ctx.content.copy`, `ctx.terms`, `ctx.storage`, term events, editor sections and list columns in the admin.
+- Migration 0016 hands the existing languages and translations over to the plugin; front, posts and error pages are stored as page ids.
+
+**✅ Acceptance:** monolingual sites behave as before with no multilingual cost (tested in CI); multilingual sites keep their languages, addresses and translations once the plugin is active.
+
+### M8 — Public release (when we decide to distribute it)
 
 - Choice of domain, project website, public documentation, admin in English.
 - Open Cleitext registry: developer accounts, `cleitext publish`, review, package signing, revocation, updates from the registry and from `updateSource`.
@@ -745,7 +754,7 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 ## 14. Out of scope
 
 - E-commerce: **planned for the future** as a plugin, not to be done now (see ARCHITECTURE §22.1).
-- Public plugin and theme registry: **planned for the future** (milestone M7), not to be done now.
+- Public plugin and theme registry: **planned for the future** (milestone M8), not to be done now.
 - Comments (separate plugin, not planned for now).
 - Real-time collaborative editing.
 - Free-form drag-and-drop visual page builder (beyond the block editor).

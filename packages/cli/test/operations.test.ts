@@ -1,6 +1,6 @@
 import {
   createDatabase,
-  siteLocales,
+  entries,
   siteMembers,
   sites,
   superAdmins,
@@ -18,7 +18,6 @@ import { inject } from 'vitest';
 import {
   addDomain,
   archiveSite,
-  addLocale,
   createSite,
   createUser,
   hasSites,
@@ -51,16 +50,6 @@ describe('sites', () => {
     expect(await hasSites(owner.db)).toBe(true);
   });
 
-  it('enables languages', async () => {
-    await addLocale(owner.db, { site: 'main', code: 'en', name: 'English' });
-    await expect(
-      addLocale(owner.db, { site: 'main', code: 'en', name: 'English' }),
-    ).rejects.toThrow(/already enabled/);
-    await expect(
-      addLocale(owner.db, { site: 'main', code: 'xx_bad', name: 'Bad' }),
-    ).rejects.toThrow(OperationError);
-  });
-
   it('switches the primary domain', async () => {
     await addDomain(owner.db, { site: 'main', host: 'new.example.com', primary: true });
     const [site] = await listSites(owner.db);
@@ -83,7 +72,6 @@ describe('sites', () => {
 
   it('updates name, slug, default language and time zone', async () => {
     await createSite(owner.db, { slug: 'second', name: 'Second', host: 'second.test' });
-    await addLocale(owner.db, { site: 'second', code: 'it', name: 'Italiano' });
     await updateSite(owner.db, 'second', {
       name: 'Secondo',
       slug: 'secondo',
@@ -92,12 +80,17 @@ describe('sites', () => {
     });
     const [site] = await owner.db.select().from(sites).where(eq(sites.slug, 'secondo'));
     expect(site).toMatchObject({ name: 'Secondo', defaultLocale: 'it', timezone: 'Europe/Rome' });
-    const locales = await withSiteContext(owner.db, site!.id, (tx) =>
-      tx.select().from(siteLocales).where(eq(siteLocales.siteId, site!.id)),
-    );
-    expect(locales.filter((l) => l.isDefault).map((l) => l.code)).toEqual(['it']);
 
-    await expect(updateSite(owner.db, 'secondo', { locale: 'fr' })).rejects.toThrow(/not enabled/);
+    // With content in it, the language stays: switching is the Multilingual plugin's job.
+    await withSiteContext(owner.db, site!.id, (tx) =>
+      tx.insert(entries).values({ siteId: site!.id, typeSlug: 'page', locale: 'it', slug: 'home' }),
+    );
+    await expect(updateSite(owner.db, 'secondo', { locale: 'fr' })).rejects.toThrow(
+      /Multilingual plugin/,
+    );
+    await expect(updateSite(owner.db, 'secondo', { locale: 'xx_bad' })).rejects.toThrow(
+      OperationError,
+    );
     await expect(updateSite(owner.db, 'secondo', { timezone: 'Mars/Base' })).rejects.toThrow(
       /time zone/,
     );

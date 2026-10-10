@@ -5,7 +5,6 @@ import {
   type EntryLockView,
   publishRequestSchema,
   createEntryRequestSchema,
-  createTranslationRequestSchema,
   listEntriesQuerySchema,
   scheduleRequestSchema,
   updateEntryRequestSchema,
@@ -288,17 +287,5 @@ export class EntriesController {
     @Req() request: FastifyRequest,
   ): Promise<EntryView> {
     return this.entries.restoreRevision(site.id, auth, id, revisionId, request.ip);
-  }
-
-  @Post('entries/:id/translations')
-  createTranslation(
-    @CurrentSite() site: SiteContext,
-    @CurrentAuth() auth: AuthContext,
-    @Param('id', uuid) id: string,
-    @Body() body: unknown,
-    @Req() request: FastifyRequest,
-  ): Promise<EntryView> {
-    const { locale } = parseBody(createTranslationRequestSchema, body);
-    return this.entries.createTranslation(site.id, auth, id, locale, request.ip);
   }
 }

@@ -68,7 +68,7 @@ beforeAll(async () => {
   app = await startTestApp();
   owner = ownerDatabase();
   wordpress = await seedSite(owner, 'from-wordpress');
-  clone = await seedSite(owner, 'clone', { locales: ['en', 'it'] });
+  clone = await seedSite(owner, 'clone');
   const [user] = await owner.db
     .insert(users)
     .values({ email: 'importer@transfer.test', displayName: 'Importer' })

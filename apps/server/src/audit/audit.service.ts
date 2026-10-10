@@ -23,7 +23,8 @@ export class AuditService {
       targetType: entry.targetType ?? null,
       targetId: entry.targetId ?? null,
       meta: entry.meta ?? {},
-      ip: entry.ip ?? null,
+      // Empty for actions without a request (plugins, tasks).
+      ip: entry.ip || null,
     });
   }
 }

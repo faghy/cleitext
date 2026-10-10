@@ -2,7 +2,6 @@ import {
   entries,
   entryTerms,
   newId,
-  siteLocales,
   sites,
   taxonomies,
   terms,
@@ -22,7 +21,9 @@ import {
 import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
+import { LanguagesService } from './languages.service.js';
 import { nextFreeSlug, slugify } from './slug.js';
 
 type TaxonomyRow = typeof taxonomies.$inferSelect;
@@ -38,6 +39,8 @@ export class TermsService {
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly cache: PageCacheService,
+    private readonly languages: LanguagesService,
+    private readonly plugins: PluginHost,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: SiteTransaction) => Promise<T>) {
@@ -74,32 +77,11 @@ export class TermsService {
           and(eq(terms.taxonomyId, taxonomy.id), locale ? eq(terms.locale, locale) : undefined),
         )
         .orderBy(asc(terms.name));
-      const groups = [...new Set(rows.map(({ term }) => term.translationGroup))];
-      const siblings =
-        groups.length > 0
-          ? await tx
-              .select({
-                id: terms.id,
-                locale: terms.locale,
-                name: terms.name,
-                group: terms.translationGroup,
-              })
-              .from(terms)
-              .where(
-                and(eq(terms.taxonomyId, taxonomy.id), inArray(terms.translationGroup, groups)),
-              )
-              .orderBy(asc(terms.locale))
-          : [];
-      return rows.map(({ term, count }) => ({
-        ...toView(term, taxonomy.slug, count),
-        translations: siblings
-          .filter((s) => s.group === term.translationGroup && s.id !== term.id)
-          .map(({ id, locale, name }) => ({ id, locale, name })),
-      }));
+      return rows.map(({ term, count }) => toView(term, taxonomy.slug, count));
     });
   }
 
-  createTerm(
+  async createTerm(
     siteId: string,
     auth: AuthContext,
     taxonomySlug: string,
@@ -109,40 +91,53 @@ export class TermsService {
       parentId?: string | null | undefined;
       locale?: string | undefined;
       description?: string | undefined;
-      translationOf?: string | undefined;
     },
   ): Promise<TermView> {
-    return this.run(siteId, auth, async (tx) => {
+    const view = await this.run(siteId, auth, async (tx) => {
       const taxonomy = await this.taxonomy(tx, taxonomySlug);
       this.assertCanCreate(auth, taxonomy);
       const locale = input.locale ?? (await this.defaultLocale(tx, siteId));
-      const [enabled] = await tx.select().from(siteLocales).where(eq(siteLocales.code, locale));
-      if (!enabled)
-        throw new BadRequestException(`The language "${locale}" is not enabled on this site.`);
-      let translationGroup: string | undefined;
-      let parentId = input.parentId;
-      if (input.translationOf) {
-        const source = await this.term(tx, input.translationOf);
-        if (source.taxonomyId !== taxonomy.id)
-          throw new BadRequestException('A translation must belong to the same taxonomy.');
-        await this.assertLocaleFree(tx, source.translationGroup, locale, null);
-        translationGroup = source.translationGroup;
-        // The parent follows the source's parent, when it is translated too.
-        if (parentId === undefined && source.parentId) {
-          parentId = (await this.translationIn(tx, source.parentId, locale))?.id ?? null;
-        }
-      }
+      await this.assertLocale(tx, siteId, locale);
       return toView(
-        await this.insertTerm(tx, siteId, taxonomy, {
-          ...input,
-          parentId,
-          locale,
-          translationGroup,
-        }),
+        await this.insertTerm(tx, siteId, taxonomy, { ...input, locale }),
         taxonomy.slug,
         0,
       );
     });
+    await this.emitTerm(siteId, 'term.created', view);
+    return view;
+  }
+
+  /**
+   * A copy of a term in a language (`ctx.terms.copy`, used by the language
+   * plugin to translate it). The plugin gives the parent in that language.
+   */
+  async copyToLocale(
+    siteId: string,
+    auth: AuthContext,
+    id: string,
+    input: { locale: string; name?: string | undefined; parentId?: string | null | undefined },
+  ): Promise<TermView> {
+    const view = await this.run(siteId, auth, async (tx) => {
+      const source = await this.term(tx, id);
+      const [taxonomy] = await tx
+        .select()
+        .from(taxonomies)
+        .where(eq(taxonomies.id, source.taxonomyId));
+      this.assertCanCreate(auth, taxonomy!);
+      await this.assertLocale(tx, siteId, input.locale);
+      const term = await this.insertTerm(tx, siteId, taxonomy!, {
+        name: input.name ?? source.name,
+        // A translated name gets its own slug; otherwise the source's is kept.
+        slug: input.locale === source.locale || input.name ? undefined : source.slug,
+        parentId: input.parentId ?? null,
+        locale: input.locale,
+        description: source.description ?? undefined,
+      });
+      return toView(term, taxonomy!.slug, 0);
+    });
+    await this.emitTerm(siteId, 'term.created', view);
+    return view;
   }
 
   async updateTerm(
@@ -154,7 +149,6 @@ export class TermsService {
       slug?: string | undefined;
       parentId?: string | null | undefined;
       description?: string | undefined;
-      translationOf?: string | null | undefined;
     },
   ): Promise<TermView> {
     const view = await this.run(siteId, auth, async (tx) => {
@@ -180,15 +174,6 @@ export class TermsService {
           term.id,
         );
       }
-      if (input.translationOf === null) {
-        changes.translationGroup = newId();
-      } else if (input.translationOf !== undefined) {
-        const other = await this.term(tx, input.translationOf);
-        if (other.taxonomyId !== term.taxonomyId)
-          throw new BadRequestException('A translation must belong to the same taxonomy.');
-        await this.assertLocaleFree(tx, other.translationGroup, term.locale, term.id);
-        changes.translationGroup = other.translationGroup;
-      }
       const [updated] = await tx.update(terms).set(changes).where(eq(terms.id, id)).returning();
       return toView(updated!, taxonomy!.slug, 0);
     });
@@ -198,15 +183,43 @@ export class TermsService {
   }
 
   async deleteTerm(siteId: string, auth: AuthContext, id: string): Promise<void> {
-    await this.run(siteId, auth, async (tx) => {
+    const view = await this.run(siteId, auth, async (tx) => {
       if (!auth.capabilities.includes('manage_terms'))
         throw new ForbiddenException('You cannot manage terms.');
       const term = await this.term(tx, id);
+      const [taxonomy] = await tx
+        .select({ slug: taxonomies.slug })
+        .from(taxonomies)
+        .where(eq(taxonomies.id, term.taxonomyId));
       // Children move up to the deleted term's parent, as in WordPress.
       await tx.update(terms).set({ parentId: term.parentId }).where(eq(terms.parentId, id));
       await tx.delete(terms).where(eq(terms.id, id));
+      return toView(term, taxonomy?.slug ?? '', 0);
     });
     await this.cache.invalidate(siteId, ['site']);
+    await this.emitTerm(siteId, 'term.deleted', view);
+  }
+
+  /** Runs plugin actions after the change is committed. */
+  private async emitTerm(
+    siteId: string,
+    action: 'term.created' | 'term.deleted',
+    view: TermView,
+  ): Promise<void> {
+    await this.plugins.emit(
+      action,
+      {
+        term: {
+          id: view.id,
+          siteId,
+          taxonomy: view.taxonomy,
+          locale: view.locale,
+          slug: view.slug,
+          name: view.name,
+        },
+      },
+      siteId,
+    );
   }
 
   /** Terms assigned to an entry, grouped by taxonomy slug. */
@@ -321,7 +334,6 @@ export class TermsService {
       parentId?: string | null | undefined;
       locale: string;
       description?: string | undefined;
-      translationGroup?: string | undefined;
     },
   ): Promise<TermRow> {
     const name = input.name.trim();
@@ -340,7 +352,6 @@ export class TermsService {
         siteId,
         taxonomyId: taxonomy.id,
         locale: input.locale,
-        translationGroup: input.translationGroup ?? newId(),
         parentId,
         slug: await this.uniqueSlug(tx, taxonomy.id, input.locale, input.slug ?? name, null),
         name,
@@ -350,46 +361,17 @@ export class TermsService {
     return term!;
   }
 
-  /** A translation group has at most one term per language. */
-  private async assertLocaleFree(
-    tx: SiteTransaction,
-    group: string,
-    locale: string,
-    exceptId: string | null,
-  ): Promise<void> {
-    const [taken] = await tx
-      .select({ id: terms.id })
-      .from(terms)
-      .where(
-        and(
-          eq(terms.translationGroup, group),
-          eq(terms.locale, locale),
-          exceptId ? ne(terms.id, exceptId) : undefined,
-        ),
-      );
-    if (taken) throw new ConflictException('This term already has a translation in that language.');
-  }
-
-  /** The translation of a term in a language, if any. */
-  private async translationIn(
-    tx: SiteTransaction,
-    id: string,
-    locale: string,
-  ): Promise<TermRow | undefined> {
-    const source = await this.term(tx, id);
-    const [found] = await tx
-      .select()
-      .from(terms)
-      .where(and(eq(terms.translationGroup, source.translationGroup), eq(terms.locale, locale)));
-    return found;
-  }
-
   private async defaultLocale(tx: SiteTransaction, siteId: string): Promise<string> {
     const [site] = await tx
       .select({ locale: sites.defaultLocale })
       .from(sites)
       .where(eq(sites.id, siteId));
     return site?.locale ?? 'en';
+  }
+
+  private async assertLocale(tx: SiteTransaction, siteId: string, locale: string): Promise<void> {
+    if (!(await this.languages.allowed(siteId, await this.defaultLocale(tx, siteId), locale)))
+      throw new BadRequestException(`The language "${locale}" is not enabled on this site.`);
   }
 
   private assertCanCreate(auth: AuthContext, taxonomy: TaxonomyRow): void {
@@ -466,7 +448,6 @@ function toView(term: TermRow, taxonomy: string, count: number): TermView {
     id: term.id,
     taxonomy,
     locale: term.locale,
-    translationGroup: term.translationGroup,
     parentId: term.parentId,
     slug: term.slug,
     name: term.name,

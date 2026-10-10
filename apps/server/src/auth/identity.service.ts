@@ -2,7 +2,6 @@ import {
   listMySites,
   roles,
   settings,
-  siteLocales,
   siteMembers,
   sites,
   superAdmins,
@@ -13,8 +12,9 @@ import {
 } from '@cleitext/db';
 import { effectiveCapabilities, type MeResponse } from '@cleitext/shared';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
+import { LanguagesService } from '../content/languages.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { DATABASE } from '../database/database.module.js';
 import { REQUIRE_2FA_KEY, SECURITY_NAMESPACE } from './two-factor.service.js';
@@ -26,6 +26,7 @@ export class IdentityService {
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly plugins: PluginHost,
+    private readonly languages: LanguagesService,
   ) {}
 
   /**
@@ -100,14 +101,9 @@ export class IdentityService {
   async me(siteId: string, auth: AuthContext): Promise<MeResponse> {
     return withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
       const [site] = await tx.select().from(sites).where(eq(sites.id, siteId));
-      const locales = await tx
-        .select({
-          code: siteLocales.code,
-          name: siteLocales.name,
-          isDefault: siteLocales.isDefault,
-        })
-        .from(siteLocales)
-        .orderBy(asc(siteLocales.position), asc(siteLocales.code));
+      const locales = (await this.languages.locales(siteId, site?.defaultLocale ?? 'en')).map(
+        ({ code, name, isDefault }) => ({ code, name, isDefault }),
+      );
       const [timezone] = await tx
         .select({ value: settings.value })
         .from(settings)

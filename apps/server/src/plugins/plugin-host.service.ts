@@ -23,6 +23,7 @@ import {
   type ApiRoute,
   type ContentTypeDefinition,
   type FieldGroupDefinition,
+  type LanguageProvider,
   type Filters,
   type PluginBlockDefinition,
   type PluginDefinition,
@@ -91,6 +92,8 @@ export interface LoadedPlugin {
   settings: { fields: FieldDefinition[]; title?: unknown; capability?: string } | null;
   capabilities: Map<string, { label: unknown; roles: string[] }>;
   hooks: HookRegistration[];
+  /** Set by `ctx.languages.provide` (permission `languages`). */
+  languageProvider: LanguageProvider | null;
   stats: PluginStats;
 }
 
@@ -216,6 +219,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       settings: null,
       capabilities: new Map(),
       hooks: [],
+      languageProvider: null,
       stats: { calls: 0, errors: 0, totalMs: 0, lastError: null },
     };
     try {
@@ -254,6 +258,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         publicRoutes: [],
         settings: null,
         hooks: [],
+        languageProvider: null,
       });
       plugin.capabilities.clear();
       this.logger.error(`Plugin ${slug} could not be loaded: ${plugin.error}`);
@@ -373,6 +378,20 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       }).catch((error: unknown) => this.logger.error(`Type sync failed: ${String(error)}`));
     }
     return slugs;
+  }
+
+  /**
+   * The language plugin active on a site, if any. Without one the site has
+   * only its default language; with no plugin installed this costs nothing.
+   */
+  async languagePlugin(siteId: string): Promise<LoadedPlugin | null> {
+    if (this.loaded.size === 0) return null;
+    for (const plugin of this.loaded.values()) {
+      if (plugin.languageProvider && (await this.activeSlugs(siteId)).has(plugin.slug)) {
+        return plugin;
+      }
+    }
+    return null;
   }
 
   async activePlugins(siteId: string): Promise<LoadedPlugin[]> {

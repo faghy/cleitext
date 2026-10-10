@@ -9,6 +9,7 @@ export interface PluginSite {
   id: string;
   name: string;
   defaultLocale: string;
+  /** Content languages, the default first (only the default without a language plugin). */
   locales: string[];
 }
 
@@ -67,6 +68,35 @@ export interface EntryQuery {
   limit?: number;
 }
 
+/** A taxonomy term, as plugins see it. */
+export interface PluginTerm {
+  id: string;
+  /** Taxonomy slug, e.g. `category`. */
+  taxonomy: string;
+  locale: string;
+  slug: string;
+  name: string;
+  parentId: string | null;
+  /** Public address of the term archive. */
+  url: string;
+}
+
+export interface TermQuery {
+  taxonomy?: string;
+  locale?: string;
+  ids?: string[];
+  /** Default 100, at most 500. */
+  limit?: number;
+}
+
+/** Options of a copy made on behalf of a user, whose permissions apply. */
+export interface CopyOptions {
+  /** The user doing it (e.g. `request.user.id`): their rights are checked and audited. */
+  userId: string;
+  /** Language of the copy; the source's when omitted. */
+  locale?: string;
+}
+
 export interface ContentApi {
   /** Adds a content type to the sites where the plugin is active (needs `content:write`). */
   registerType(definition: ContentTypeDefinition): void;
@@ -75,6 +105,112 @@ export interface ContentApi {
   /** Reads entries of a site, newest first (needs `content:read`). */
   find(siteId: string, query?: EntryQuery): Promise<PluginEntry[]>;
   get(siteId: string, id: string): Promise<PluginEntry | null>;
+  /**
+   * Copies an entry as a new draft, with its content, fields, excerpt and
+   * featured image, e.g. into another language (needs `content:write`).
+   * The parent becomes the parent's copy in that language, when there is one.
+   */
+  copy(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry>;
+}
+
+export interface TermsApi {
+  /** Reads terms of a site (needs `content:read`). */
+  find(siteId: string, query?: TermQuery): Promise<PluginTerm[]>;
+  /**
+   * Copies a term, e.g. into another language (needs `content:write`).
+   * `parentId` is the parent of the copy, in the copy's language.
+   */
+  copy(
+    siteId: string,
+    id: string,
+    options: CopyOptions & { name?: string; parentId?: string | null },
+  ): Promise<PluginTerm>;
+}
+
+// ---- Languages ----------------------------------------------------------------------
+
+/** A language of a site's content. */
+export interface ContentLocale {
+  /** e.g. `it`, `en`, `pt-BR`. */
+  code: string;
+  /** e.g. `Italiano`. */
+  name: string;
+  /** Address prefix: `''` for the default language, e.g. `/en` for the others. */
+  prefix: string;
+  isDefault: boolean;
+}
+
+export type TranslatableKind = 'entry' | 'term';
+
+/** Another version of an item, in another language. */
+export interface TranslationLink {
+  id: string;
+  locale: string;
+}
+
+/**
+ * What a language plugin tells the core. Without one, a site has only its
+ * default language, and the core does no multilingual work at all.
+ */
+export interface LanguageProvider {
+  /** The site's languages. The core puts the default first and gives it no prefix. */
+  locales(siteId: string): ContentLocale[] | Promise<ContentLocale[]>;
+  /** For each id, the other items of its translation group. Ids without any may be left out. */
+  translations(
+    siteId: string,
+    kind: TranslatableKind,
+    ids: string[],
+  ): Record<string, TranslationLink[]> | Promise<Record<string, TranslationLink[]>>;
+}
+
+export interface LanguageUsage {
+  entries: number;
+  terms: number;
+  menus: number;
+}
+
+/**
+ * Languages and translation links the core holds for a language plugin:
+ * from before M7, or from an imported site. Groups are opaque ids shared by
+ * the items that translate each other.
+ */
+export interface PendingLanguages {
+  locales: {
+    code: string;
+    name: string;
+    isDefault?: boolean;
+    position?: number;
+    urlPrefix?: string | null;
+  }[];
+  entries: { id: string; group: string }[];
+  terms: { id: string; group: string }[];
+}
+
+export interface LanguagesApi {
+  /** Makes the plugin the language provider of the sites where it is active (needs `languages`). */
+  provide(provider: LanguageProvider): void;
+  /** Entries, terms and menus in each language that has any (needs `languages`). */
+  usage(siteId: string): Promise<Record<string, LanguageUsage>>;
+  /** The site's default language, kept by the core (needs `languages`). */
+  defaultLocale(siteId: string): Promise<string>;
+  /** Changes the site's default language, which must be one of its languages (needs `languages`). */
+  setDefault(siteId: string, code: string): Promise<void>;
+  /** Drops the core's cached languages of a site after they change (needs `languages`). */
+  changed(siteId: string): Promise<void>;
+  /** Language data waiting for a plugin; the action `languages.pending` says when some arrives. */
+  pending(siteId: string): Promise<PendingLanguages | null>;
+  /** Forgets the pending data once taken over. */
+  clearPending(siteId: string): Promise<void>;
+}
+
+/**
+ * Small values of the plugin per site, e.g. a migration marker (needs
+ * `settings:own`). Stored next to the plugin settings.
+ */
+export interface StorageApi {
+  get<T = unknown>(siteId: string, key: string): Promise<T | null>;
+  set(siteId: string, key: string, value: unknown): Promise<void>;
+  delete(siteId: string, key: string): Promise<void>;
 }
 
 // ---- Blocks -------------------------------------------------------------------------
@@ -225,6 +361,9 @@ export interface PluginContext {
   readonly log: PluginLogger;
   readonly hooks: HookApi;
   readonly content: ContentApi;
+  readonly terms: TermsApi;
+  readonly languages: LanguagesApi;
+  readonly storage: StorageApi;
   readonly blocks: BlockApi;
   readonly routes: RouteApi;
   readonly settings: SettingsApi;

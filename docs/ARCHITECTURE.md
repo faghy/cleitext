@@ -2,7 +2,7 @@
 
 > Version 0.2 · October 2026 · status: **draft for team review**
 > Project name: **cleitext** · License: **GPL-2.0-or-later** (like WordPress)
-> **Current phase: internal use.** Initially Cleitext powers our own sites and is not distributed. The public registry and domain are deferred to the open-source release phase (see §11.9 and [SPECIFICATIONS.md](./SPECIFICATIONS.md) M7).
+> **Current phase: internal use.** Initially Cleitext powers our own sites and is not distributed. The public registry and domain are deferred to the open-source release phase (see §11.9 and [SPECIFICATIONS.md](./SPECIFICATIONS.md) M8).
 > The name combines _Cleito_ (the CMS it grew out of) and _text_: content, blocks and plugins.
 > 🇮🇹 Italian version: [docs/it/ARCHITETTURA.md](./it/ARCHITETTURA.md) (secondary, may lag behind).
 
@@ -240,7 +240,6 @@ Each module is a NestJS module with a **public service** (exposed to plugins thr
 ```mermaid
 erDiagram
     sites ||--o{ site_domains : has
-    sites ||--o{ site_locales : has
     sites ||--o{ site_members : has
     users ||--o{ site_members : belongs_to
     roles ||--o{ site_members : assigns
@@ -284,16 +283,6 @@ create table site_domains (
   host        citext not null unique,          -- tenant resolution by host
   is_primary  boolean not null default false,
   force_https boolean not null default true
-);
-
-create table site_locales (
-  site_id     uuid not null references sites(id) on delete cascade,
-  code        text not null,                   -- BCP 47: 'it', 'en', 'de-CH'
-  name        text not null,
-  is_default  boolean not null default false,
-  position    int  not null default 0,
-  url_prefix  text,                            -- e.g. '/en' ; null for the default language
-  primary key (site_id, code)
 );
 
 -- ===== Identity and access =====
@@ -364,7 +353,6 @@ create table entries (
   site_id                uuid not null references sites(id) on delete cascade,
   type_slug              text not null,
   locale                 text not null,
-  translation_group      uuid not null,        -- same entries in different languages
   parent_id              uuid references entries(id) on delete set null,
   slug                   text not null,
   title                  text not null default '',
@@ -383,7 +371,6 @@ create table entries (
   unique (site_id, type_slug, locale, slug)
 );
 create index entries_list_idx on entries (site_id, type_slug, status, published_at desc);
-create index entries_tgroup_idx on entries (translation_group);
 create index entries_search_idx on entries using gin (search);
 
 create table revisions (
@@ -416,7 +403,6 @@ create table terms (
   site_id            uuid not null references sites(id) on delete cascade,
   taxonomy_id        uuid not null references taxonomies(id) on delete cascade,
   locale             text not null,
-  translation_group  uuid not null,
   parent_id          uuid references terms(id) on delete set null,
   slug               text not null,
   name               text not null,
@@ -603,7 +589,7 @@ create policy tenant_isolation on entries
 - **Content type** (`content_types`): defines the custom fields (`fields_schema`), the supported features (blocks, excerpt, featured image, hierarchy, revisions) and the permalink. The `page` and `article` types are created by the core. Others are created from the admin or registered by plugins.
 - **Entry**: an instance of a piece of content, in **one language**.
 - **Revision**: an immutable snapshot of the title, fields and block document.
-- **Translation group**: links entries that represent the same content in different languages.
+- **Translation group**: links entries that represent the same content in different languages. It is kept by the language plugin (§9.4), not by the core.
 
 ### 9.2 Lifecycle
 
@@ -641,9 +627,12 @@ They are defined in `fields_schema` with a JSON-serializable DSL that can be con
 
 ### 9.4 Languages
 
-- Each site has one or more languages (`site_locales`), with an optional URL prefix (`/en/…`).
-- The slug is per language. `hreflang` tags are generated from the `translation_group`.
-- Configurable fallback: if a page is not translated, either a 404 or the default-language version is returned.
+- The core knows the site's **default language** (`sites.default_locale`) and the language of each entry, term and menu (`locale`). Slugs are unique per language.
+- Everything else belongs to a **language plugin** (M7), such as the official Multilingual plugin: the other languages with their URL prefixes (`/en/…`), and the translation groups of entries and terms (like WPML's `icl_translations`).
+- The plugin tells the core what it needs through a `LanguageProvider` (`locales`, `translations`). With it the core routes prefixed addresses, builds the URLs of each language, writes `hreflang` (pages, archives, sitemaps) and gives themes the language switcher.
+- Without a language plugin, `LanguagesService` answers with the default language only, without a query or a plugin call: a monolingual site pays nothing (tested in CI).
+- Data the plugin does not hold yet (sites from before M7, imported sites) waits as "pending language data" in `settings` (`languages`/`pending`) until a language plugin takes it over.
+- Planned in the plugin: fallback to the default language for untranslated pages, a domain per language.
 
 ---
 

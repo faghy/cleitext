@@ -11,7 +11,6 @@ import {
   revisions,
   roles,
   settings,
-  siteLocales,
   siteMembers,
   superAdmins,
   taxonomies,
@@ -28,6 +27,8 @@ import { nextFreeSlug, slugify } from '../content/slug.js';
 import type { MediaService } from '../media/media.service.js';
 import type { PageCacheService } from '../public/page-cache.service.js';
 import { loadSiteData } from '../public/site-data.js';
+import { defaultLocaleIn, PENDING } from '../content/languages.service.js';
+import type { ContentLocale, PendingLanguages } from '@cleitext/plugin-sdk';
 import {
   count,
   emptyReport,
@@ -49,6 +50,13 @@ export interface ImportOptions {
   readFile(file: string): Promise<Buffer>;
   /** Plugins active on the site (to compute addresses). */
   activePlugins?: ReadonlySet<string>;
+  /** The site's languages (LanguagesService); only the default one when omitted. */
+  locales?: ContentLocale[];
+  /**
+   * Called when languages or translations were handed over to a language
+   * plugin (`ctx.languages.pending`), so that an active one takes them now.
+   */
+  onLanguagesPending?(): Promise<void>;
   onProgress?(message: string): void;
 }
 
@@ -82,22 +90,23 @@ export async function importDocument(
   const run = <T>(fn: (tx: SiteTransaction) => Promise<T>) =>
     withContext(db, { siteId, userId: options.asUserId }, fn);
 
+  // Languages and translation links, for a language plugin.
+  const pending: PendingLanguages = {
+    locales: doc.locales.map((l, position) => ({
+      code: l.code,
+      name: l.name,
+      isDefault: l.isDefault ?? false,
+      position,
+      urlPrefix: l.urlPrefix ?? null,
+    })),
+    entries: [],
+    terms: [],
+  };
+
   // ---- Structure -------------------------------------------------------------------
   await run(async (tx) => {
-    const existing = new Set((await tx.select().from(siteLocales)).map((l) => l.code));
-    for (const [position, locale] of doc.locales.entries()) {
-      if (existing.has(locale.code)) continue;
-      await tx.insert(siteLocales).values({
-        siteId,
-        code: locale.code,
-        name: locale.name,
-        isDefault: false,
-        position: existing.size + position,
-        urlPrefix: locale.urlPrefix ?? null,
-      });
-      existing.add(locale.code);
-      count(report, 'locales');
-    }
+    // Languages are a language plugin's: they wait for one (see the end).
+    for (let i = 0; i < doc.locales.length; i++) count(report, 'locales');
     const types = new Set((await tx.select().from(contentTypes)).map((t) => t.slug));
     for (const type of doc.contentTypes) {
       if (types.has(type.slug)) continue;
@@ -171,7 +180,6 @@ export async function importDocument(
   const termIds = new Map<string, string>();
   await run(async (tx) => {
     const taxonomyRows = await tx.select().from(taxonomies);
-    const groups = new Map<string, string>();
     for (const term of orderByParent(doc.terms)) {
       const taxonomy = taxonomyRows.find((t) => t.slug === term.taxonomy);
       if (!taxonomy) {
@@ -194,16 +202,13 @@ export async function importDocument(
         count(report, 'terms', 'skipped');
         continue;
       }
-      const groupKey = term.translationRef ?? term.ref;
-      let group = groups.get(groupKey);
-      if (!group) groups.set(groupKey, (group = newId()));
       const id = newId();
+      if (term.translationRef) pending.terms.push({ id, group: term.translationRef });
       await tx.insert(terms).values({
         id,
         siteId,
         taxonomyId: taxonomy.id,
         locale: term.locale,
-        translationGroup: group,
         parentId: term.parentRef ? (termIds.get(term.parentRef) ?? null) : null,
         slug,
         name: term.name,
@@ -244,8 +249,7 @@ export async function importDocument(
   await options.media.idle();
 
   // ---- Entries ---------------------------------------------------------------------
-  const entryIds = new Map<string, { id: string; group: string }>();
-  const groups = new Map<string, string>();
+  const entryIds = new Map<string, { id: string }>();
   const ordered = orderByParent(doc.entries);
   for (const [index, entry] of ordered.entries()) {
     if (index % 50 === 0) progress(`Entries ${index + 1}/${ordered.length}`);
@@ -254,7 +258,6 @@ export async function importDocument(
         insertEntry(tx, siteId, entry, {
           author: (entry.authorRef && userIds.get(entry.authorRef)) || options.asUserId,
           parent: entry.parentRef ? entryIds.get(entry.parentRef)?.id : undefined,
-          group: groupFor(groups, entry),
           terms: termIds,
           media: mediaTargets,
           urls: urlMap,
@@ -262,6 +265,8 @@ export async function importDocument(
         }),
       );
       entryIds.set(entry.ref, result);
+      if (entry.translationRef)
+        pending.entries.push({ id: result.id, group: entry.translationRef });
       count(report, 'entries');
     } catch (error) {
       report.errors.push(
@@ -277,9 +282,9 @@ export async function importDocument(
     if (doc.site.tagline) values.tagline = doc.site.tagline;
     if (doc.site.postsPerPage) values.postsPerPage = doc.site.postsPerPage;
     const front = doc.site.frontPageRef && entryIds.get(doc.site.frontPageRef);
-    if (front) values.frontPage = front.group;
+    if (front) values.frontPage = front.id;
     const posts = doc.site.postsPageRef && entryIds.get(doc.site.postsPageRef);
-    if (posts) values.postsPage = posts.group;
+    if (posts) values.postsPage = posts.id;
     for (const [key, value] of Object.entries(values)) {
       await tx
         .insert(settings)
@@ -352,7 +357,14 @@ export async function importDocument(
     }
 
     // Old addresses keep working (301), computed after every entry exists.
-    const data = await loadSiteData(tx, options.activePlugins ?? new Set());
+    const defaultLocale = await defaultLocaleIn(tx, siteId);
+    const data = await loadSiteData(
+      tx,
+      options.activePlugins ?? new Set(),
+      options.locales ?? [
+        { code: defaultLocale, name: defaultLocale, prefix: '', isDefault: true },
+      ],
+    );
     const existing = new Set(
       (await tx.select({ from: redirects.fromPath }).from(redirects)).map((r) => r.from),
     );
@@ -380,6 +392,36 @@ export async function importDocument(
     for (const redirect of doc.redirects) await add(redirect.from, redirect.to, redirect.status);
   });
 
+  // A language plugin takes the languages and translation links over.
+  if (pending.locales.length > 1 || pending.entries.length > 0 || pending.terms.length > 0) {
+    await run(async (tx) => {
+      const [current] = await tx
+        .select({ value: settings.value })
+        .from(settings)
+        .where(and(eq(settings.namespace, PENDING.namespace), eq(settings.key, PENDING.key)));
+      const before = (current?.value as PendingLanguages | undefined) ?? {
+        locales: [],
+        entries: [],
+        terms: [],
+      };
+      const value: PendingLanguages = {
+        locales: [
+          ...before.locales,
+          ...pending.locales.filter((l) => !before.locales.some((b) => b.code === l.code)),
+        ],
+        entries: [...before.entries, ...pending.entries],
+        terms: [...before.terms, ...pending.terms],
+      };
+      await tx
+        .insert(settings)
+        .values({ siteId, namespace: PENDING.namespace, key: PENDING.key, value })
+        .onConflictDoUpdate({
+          target: [settings.siteId, settings.namespace, settings.key],
+          set: { value },
+        });
+    });
+    await options.onLanguagesPending?.();
+  }
   await options.cache.invalidate(siteId, ['site']);
   return report;
 }
@@ -393,13 +435,12 @@ async function insertEntry(
   context: {
     author: string;
     parent: string | undefined;
-    group: string;
     terms: Map<string, string>;
     media: Map<string, MediaTarget>;
     urls: Map<string, string>;
     report: ImportReport;
   },
-): Promise<{ id: string; group: string }> {
+): Promise<{ id: string }> {
   const [type] = await tx.select().from(contentTypes).where(eq(contentTypes.slug, entry.type));
   if (!type) throw new Error(`unknown content type "${entry.type}"`);
   const taken = new Set(
@@ -434,7 +475,6 @@ async function insertEntry(
     siteId,
     typeSlug: entry.type,
     locale: entry.locale,
-    translationGroup: context.group,
     parentId: type.hierarchical ? (context.parent ?? null) : null,
     slug,
     title: entry.title,
@@ -486,7 +526,7 @@ async function insertEntry(
         .onConflictDoNothing();
     }
   }
-  return { id, group: context.group };
+  return { id };
 }
 
 /** Image blocks: media refs become the imported media ids and URLs. */
@@ -527,13 +567,6 @@ function remapMedia(
 }
 
 // ---- Helpers --------------------------------------------------------------------------
-
-function groupFor(groups: Map<string, string>, entry: TransferEntry): string {
-  const key = entry.translationRef ?? entry.ref;
-  let group = groups.get(key);
-  if (!group) groups.set(key, (group = newId()));
-  return group;
-}
 
 /** Parents before children (unknown parents are ignored). */
 function orderByParent<T extends { ref: string; parentRef?: string | undefined }>(items: T[]): T[] {

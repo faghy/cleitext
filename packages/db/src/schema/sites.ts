@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { citext, createdAt, id } from './columns.js';
@@ -27,18 +27,3 @@ export const siteDomains = pgTable('site_domains', {
   isPrimary: boolean('is_primary').notNull().default(false),
   forceHttps: boolean('force_https').notNull().default(true),
 });
-
-export const siteLocales = pgTable(
-  'site_locales',
-  {
-    siteId: uuid('site_id')
-      .notNull()
-      .references(() => sites.id, { onDelete: 'cascade' }),
-    code: text('code').notNull(),
-    name: text('name').notNull(),
-    isDefault: boolean('is_default').notNull().default(false),
-    position: integer('position').notNull().default(0),
-    urlPrefix: text('url_prefix'),
-  },
-  (t) => [primaryKey({ columns: [t.siteId, t.code] })],
-);

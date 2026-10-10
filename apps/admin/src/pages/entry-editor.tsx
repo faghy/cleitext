@@ -18,14 +18,14 @@ import {
   type EntryLockView,
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, errorMessage, uploadFile } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button } from '../components/ui';
 import { formatDate, STATUS_LABELS } from './entries-list';
 import { EntryTerms } from './entry-terms';
-import { contentTypesQuery } from '../plugins';
+import { contentTypesQuery, PluginEditorPanels } from '../plugins';
 import { descendantsOf, entryTree } from '../entry-tree';
 import { diffWords, documentLines, type DiffPart } from '../diff';
 import { zonedTimeToIso } from '../time';
@@ -502,7 +502,6 @@ function Editor({ initial }: { initial: EntryView }) {
                   markDirty();
                 }}
                 entry={entry}
-                locales={me.site.locales}
                 readOnly={readOnly}
                 busy={action.isPending}
                 onAction={(kind) => action.mutate(kind)}
@@ -781,7 +780,6 @@ function DocumentPanel({
   visibility,
   onVisibility,
   entry,
-  locales,
   readOnly,
   busy,
   onAction,
@@ -791,7 +789,6 @@ function DocumentPanel({
   visibility: 'public' | 'private';
   onVisibility: (value: 'public' | 'private') => void;
   entry: EntryView;
-  locales: { code: string; name: string }[];
   readOnly: boolean;
   busy: boolean;
   onAction: (kind: 'unpublish' | 'trash' | { schedule: string }) => void;
@@ -799,7 +796,6 @@ function DocumentPanel({
   onRestored: (view: EntryView) => void;
 }) {
   const { t } = useT();
-  const navigate = useNavigate();
   const siteTimezone = useMe().site.timezone;
   const [slug, setSlug] = useState(entry.slug);
   const [scheduleAt, setScheduleAt] = useState('');
@@ -836,16 +832,7 @@ function DocumentPanel({
   const [position, setPosition] = useState(String(entry.position));
   useEffect(() => setPosition(String(entry.position)), [entry.position]);
 
-  const translate = useMutation({
-    mutationFn: (locale: string) =>
-      api<EntryView>('POST', `/entries/${entry.id}/translations`, { locale }),
-    onSuccess: (view) => navigate({ to: '/entries/$id', params: { id: view.id } }),
-  });
-
-  const missingLocales = locales.filter(
-    (l) => l.code !== entry.locale && !entry.translations.some((tr) => tr.locale === l.code),
-  );
-  const panelError = saveSettings.error ?? restore.error ?? translate.error;
+  const panelError = saveSettings.error ?? restore.error;
 
   return (
     <div className="space-y-5 p-4 text-sm">
@@ -984,42 +971,17 @@ function DocumentPanel({
 
       <EntryTerms entry={entry} readOnly={readOnly} onSaved={onSaved} />
 
-      {locales.length > 1 && (
-        <section className="space-y-2">
-          <h3 className="font-medium">{t('Language')}</h3>
-          <p className="uppercase">{entry.locale}</p>
-          <ul className="space-y-1">
-            {entry.translations.map((tr) => (
-              <li key={tr.id}>
-                <Link
-                  to="/entries/$id"
-                  params={{ id: tr.id }}
-                  className="text-sky-700 hover:underline"
-                >
-                  <span className="uppercase">{tr.locale}</span>: {tr.title || t('(no title)')}
-                </Link>{' '}
-                <span className="text-slate-500">({t(STATUS_LABELS[tr.status])})</span>
-              </li>
-            ))}
-          </ul>
-          {missingLocales.length > 0 && (
-            <select
-              value=""
-              disabled={translate.isPending}
-              onChange={(e) => e.target.value && translate.mutate(e.target.value)}
-              className="w-full rounded border border-slate-300 bg-white px-2 py-1"
-              aria-label={t('Add translation')}
-            >
-              <option value="">{t('Add translation…')}</option>
-              {missingLocales.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </section>
-      )}
+      {/* Sections of plugins, e.g. the translations of the language plugin. */}
+      <PluginEditorPanels
+        entry={{
+          id: entry.id,
+          type: entry.type,
+          locale: entry.locale,
+          title: entry.title,
+          slug: entry.slug,
+          status: entry.status,
+        }}
+      />
 
       <section className="space-y-2">
         <h3 className="font-medium">{t('Revisions')}</h3>

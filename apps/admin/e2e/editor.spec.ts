@@ -1,40 +1,16 @@
 /**
  * M2 acceptance (docs/SPECIFICATIONS.md §13): a writer creates an article with
  * headings, an image and columns, saves it, assigns terms, restores a
- * revision, translates it and schedules it — in the real Gutenberg editor.
+ * revision and schedules it — in the real Gutenberg editor. Translating is
+ * in multilingual.spec.ts (the Multilingual plugin).
  */
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 import { appErrors } from './fixtures/errors.js';
 
-const root = fileURLToPath(new URL('../../..', import.meta.url));
 const sample = fileURLToPath(new URL('./fixtures/sample.jpg', import.meta.url));
 // Development credentials seeded by tools/dev-db.
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
-
-test.beforeAll(() => {
-  // A second language for the translation step (idempotent).
-  try {
-    execFileSync(
-      'node',
-      [
-        '--env-file-if-exists=.env',
-        'packages/cli/dist/bin.js',
-        'site:locale:add',
-        '--site',
-        'dev',
-        '--code',
-        'it',
-        '--name',
-        'Italiano',
-      ],
-      { cwd: root, stdio: 'pipe' },
-    );
-  } catch (error) {
-    if (!String((error as { stderr?: Buffer }).stderr).includes('already enabled')) throw error;
-  }
-});
 
 async function signIn(page: Page) {
   await page.goto('/admin/login');
@@ -130,19 +106,7 @@ test('write, classify, revise, translate and schedule a post', async ({ page }) 
   expect(saved.revision.kind).toBe('restore');
   expect(JSON.stringify(saved.revision.document)).not.toContain('got lost');
 
-  // 4. Italian translation.
-  await page.getByLabel('Add translation').selectOption('it');
-  await page.waitForURL((url) => !url.pathname.endsWith(id));
-  const itId = page.url().split('/').pop()!;
-  await page.locator('#entry-title').fill(`Un weekend a Roma ${stamp}`);
-  await page.getByRole('button', { name: 'Save draft' }).click();
-  await expect(page.getByRole('status').getByText('Saved', { exact: true })).toBeVisible();
-  const italian = await entry(page, itId);
-  expect(italian).toMatchObject({ locale: 'it', slug: `un-weekend-a-roma-${stamp}` });
-  expect(italian.translations.map((t: { id: string }) => t.id)).toEqual([id]);
-  expect(italian.revision.document.blocks).toHaveLength(4);
-
-  // 5. Schedule the English post.
+  // 4. Schedule the English post.
   await page.goto(`/admin/entries/${id}`);
   const when = new Date(Date.now() + 2 * 86_400_000);
   const local = new Date(when.getTime() - when.getTimezoneOffset() * 60_000)

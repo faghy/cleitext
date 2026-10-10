@@ -60,7 +60,7 @@ const page = async (path: string) => {
 beforeAll(async () => {
   app = await startTestApp();
   owner = ownerDatabase();
-  site = await seedSite(owner, 'public', { locales: ['en', 'it'] });
+  site = await seedSite(owner, 'public');
   await seedUser(owner, { email: 'editor@public.test', password: PASSWORD, site, role: 'editor' });
   await seedUser(owner, {
     email: 'admin@public.test',
@@ -153,35 +153,16 @@ describe('entries', () => {
   });
 });
 
-describe('languages', () => {
-  it('serves translations under the language prefix, linked with hreflang', async () => {
-    const en = await publish('page', 'Contact');
-    const it = (
-      await editor.post(`/api/v1/entries/${en.id}/translations`, { locale: 'it' })
-    ).json();
-    await editor.request('PATCH', `/api/v1/entries/${it.id}`, {
-      title: 'Contatti',
-      slug: 'contatti',
-    });
-    await editor.post(`/api/v1/entries/${it.id}/publish`);
-
-    const italian = await page('/it/contatti');
-    expect(italian.status).toBe(200);
-    expect(italian.html).toContain('<html lang="it">');
-    expect(italian.html).toContain(
-      '<link rel="alternate" hrefLang="en" href="http://public.test/contact"/>',
-    );
-    expect(italian.html).toContain(
-      '<link rel="alternate" hrefLang="x-default" href="http://public.test/contact"/>',
-    );
-    expect(italian.html).toContain('Vai al contenuto');
-
+describe('one language (no language plugin)', () => {
+  it('has no language addresses, hreflang or language switcher', async () => {
+    await publish('page', 'Contact');
     const english = await page('/contact');
-    expect(english.html).toContain(
-      '<link rel="alternate" hrefLang="it" href="http://public.test/it/contatti"/>',
-    );
-    expect(english.html).toContain('<a href="/it/contatti" hrefLang="it" lang="it">IT</a>');
+    expect(english.status).toBe(200);
+    expect(english.html).toContain('<html lang="en">');
+    expect(english.html).not.toContain('hrefLang');
+    expect(english.html).not.toContain('class="languages"');
     expect((await page('/it/contact')).status).toBe(404);
+    expect((await page('/en/contact')).status).toBe(404);
   });
 });
 
@@ -217,8 +198,8 @@ describe('home and archives', () => {
     const admin = new TestClient(app, site.host, '10.6.0.4');
     await admin.login('admin@public.test', PASSWORD);
     await admin.request('PATCH', '/api/v1/settings/core', {
-      frontPage: welcome.translationGroup,
-      postsPage: blog.translationGroup,
+      frontPage: welcome.id,
+      postsPage: blog.id,
     });
     const home = await page('/');
     expect(home.html).toContain('Hello visitors.');
@@ -238,7 +219,7 @@ describe('home and archives', () => {
 });
 
 describe('search', () => {
-  it('finds published content in the current language only', async () => {
+  it('finds published content only', async () => {
     await publish('article', 'Gelato guide', { text: 'The best pistachio in town.' });
     const draft = (
       await editor.post('/api/v1/entries', { type: 'article', title: 'Pistachio secret' })
@@ -250,7 +231,6 @@ describe('search', () => {
     expect(html).toContain('<meta name="robots" content="noindex, follow"/>');
     // The matching word is marked in the result (RF-THM-10).
     expect(html).toContain('<mark>pistachio</mark>');
-    expect((await page('/it/search?q=pistachio')).html).not.toContain('Gelato guide');
     expect(draft.status).toBe('draft');
   });
 });
@@ -324,7 +304,7 @@ describe('redirects and errors', () => {
     const admin = new TestClient(app, site.host, '10.6.0.5');
     await admin.login('admin@public.test', PASSWORD);
     await admin.request('PATCH', '/api/v1/settings/core', {
-      errorPage: errorPage.translationGroup,
+      errorPage: errorPage.id,
     });
     const custom = await page('/still/nothing');
     expect(custom.status).toBe(404);

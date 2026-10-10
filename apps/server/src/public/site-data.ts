@@ -7,7 +7,6 @@ import {
   menuItems,
   menus,
   revisions,
-  siteLocales,
   taxonomies,
   terms,
   users,
@@ -22,7 +21,8 @@ import {
 } from '@cleitext/renderer';
 import type { MenuItemView, PublicEntrySummary } from '@cleitext/theme-sdk';
 import { and, asc, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
-import { UrlBuilder, type LocaleInfo, type TypeInfo } from './urls.js';
+import type { ContentLocale } from '@cleitext/plugin-sdk';
+import { UrlBuilder, type TypeInfo } from './urls.js';
 
 /** Published entry with its published revision. */
 export interface PublishedEntry {
@@ -37,7 +37,8 @@ export interface PublishedEntry {
 
 /** Data loaded once per request, shared by every route. */
 export interface SiteData {
-  locales: LocaleInfo[];
+  /** Content languages, the default first (LanguagesService). */
+  locales: ContentLocale[];
   types: TypeInfo[];
   taxonomies: string[];
   urls: UrlBuilder;
@@ -53,11 +54,9 @@ export function isTypeAvailable(source: string, activePlugins: ReadonlySet<strin
 
 export async function loadSiteData(
   tx: SiteTransaction,
-  activePlugins: ReadonlySet<string> = new Set(),
+  activePlugins: ReadonlySet<string>,
+  locales: ContentLocale[],
 ): Promise<SiteData> {
-  const locales = (
-    await tx.select().from(siteLocales).orderBy(asc(siteLocales.position), asc(siteLocales.code))
-  ).map((l) => ({ code: l.code, name: l.name, isDefault: l.isDefault, urlPrefix: l.urlPrefix }));
   const types = (await tx.select().from(contentTypes))
     .filter((t) => isTypeAvailable(t.source, activePlugins))
     .map((t) => ({

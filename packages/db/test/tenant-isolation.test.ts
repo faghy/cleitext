@@ -264,7 +264,6 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
 
   // Tenant tables are FORCEd: even the owner needs the site context.
   return withSiteContext(db, siteId, async (tx) => {
-    await tx.insert(s.siteLocales).values({ siteId, code: 'en', name: 'English', isDefault: true });
     const [role] = await tx
       .insert(s.roles)
       .values({ siteId, slug: 'editor', name: 'Editor', capabilities: ['edit_entries'] })
@@ -280,7 +279,6 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
         siteId,
         typeSlug: 'page',
         locale: 'en',
-        translationGroup: crypto.randomUUID(),
         slug: 'hello',
         title: `Hello ${name}`,
         authorId: userId,
@@ -304,7 +302,6 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
         siteId,
         taxonomyId: taxonomy!.id,
         locale: 'en',
-        translationGroup: crypto.randomUUID(),
         slug: 'news',
         name: 'News',
       })

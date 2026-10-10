@@ -1,11 +1,19 @@
 import * as adminSdk from '@cleitext/admin-sdk';
-import type { AdminPageDefinition, AdminPluginDefinition } from '@cleitext/admin-sdk';
+import type {
+  AdminPageDefinition,
+  AdminPageProps,
+  AdminPluginDefinition,
+  EditorEntry,
+  ListColumnDefinition,
+  ListRow,
+} from '@cleitext/admin-sdk';
 import { labelText, type ContentTypeView, type PluginAdminInfo } from '@cleitext/shared';
 import * as reactQuery from '@tanstack/react-query';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import * as jsxRuntime from 'react/jsx-runtime';
+import { useNavigate } from '@tanstack/react-router';
 import { api, pluginApi } from './api';
 import { useMe } from './auth';
 
@@ -97,6 +105,174 @@ export function pagePath(slug: string, path: string): string {
 
 function allowed(page: AdminPageDefinition, capabilities: readonly string[]): boolean {
   return !page.capability || capabilities.includes(page.capability);
+}
+
+/** What every plugin component receives. */
+function usePageProps(plugin: { slug: string; version: string }): AdminPageProps {
+  return pagePropsFor(plugin, useMe());
+}
+
+function shown(
+  item: { types?: string[]; capability?: string; visible?: (props: AdminPageProps) => boolean },
+  type: string,
+  props: AdminPageProps,
+): boolean {
+  if (item.types && !item.types.includes(type)) return false;
+  if (item.capability && !props.user.capabilities.includes(item.capability)) return false;
+  try {
+    return item.visible ? item.visible(props) : true;
+  } catch {
+    return false;
+  }
+}
+
+/** Sidebar sections of the editor added by plugins, under the core ones. */
+export function PluginEditorPanels({ entry }: { entry: EditorEntry }) {
+  const plugins = usePluginAdmin();
+  return (
+    <>
+      {plugins.flatMap((plugin) =>
+        (plugin.definition?.editorPanels ?? []).map((panel) => (
+          <PluginEditorPanel
+            key={`${plugin.slug}:${panel.id}`}
+            plugin={plugin}
+            panel={panel}
+            entry={entry}
+          />
+        )),
+      )}
+    </>
+  );
+}
+
+function PluginEditorPanel({
+  plugin,
+  panel,
+  entry,
+}: {
+  plugin: LoadedAdminPlugin;
+  panel: adminSdk.EditorPanelDefinition;
+  entry: EditorEntry;
+}) {
+  const props = usePageProps(plugin);
+  const me = useMe();
+  const navigate = useNavigate();
+  if (!shown(panel, entry.type, props)) return null;
+  const Component = panel.component;
+  return (
+    <section
+      className="border-t border-slate-200 p-4"
+      aria-label={labelText(panel.title, me.user.locale)}
+    >
+      <h3 className="mb-2 text-sm font-semibold">{labelText(panel.title, me.user.locale)}</h3>
+      <PluginErrorBoundary name={plugin.name}>
+        <Component {...props} entry={entry} navigate={(to) => void navigate({ to })} />
+      </PluginErrorBoundary>
+    </section>
+  );
+}
+
+export interface PluginColumn {
+  key: string;
+  title: string;
+  plugin: LoadedAdminPlugin;
+  definition: ListColumnDefinition<unknown>;
+  props: AdminPageProps;
+}
+
+/** Columns added by plugins to a list of entries (of a type) or terms (of a taxonomy). */
+export function usePluginColumns(kind: 'entry' | 'term', type: string): PluginColumn[] {
+  const me = useMe();
+  const plugins = usePluginAdmin();
+  const result: PluginColumn[] = [];
+  for (const plugin of plugins) {
+    const columns =
+      kind === 'entry' ? plugin.definition?.entryColumns : plugin.definition?.termColumns;
+    for (const definition of columns ?? []) {
+      const props = pagePropsFor(plugin, me);
+      if (!shown(definition, type, props)) continue;
+      result.push({
+        key: `${plugin.slug}:${definition.id}`,
+        title: labelText(definition.title, me.user.locale),
+        plugin,
+        definition,
+        props,
+      });
+    }
+  }
+  return result;
+}
+
+/** Data of the plugin columns for the rows shown, one load per column. */
+export function usePluginColumnData(columns: PluginColumn[], type: string, rows: ListRow[]) {
+  const ids = rows.map((r) => r.id).join(',');
+  return useQuery({
+    queryKey: ['plugin-columns', type, columns.map((c) => c.key).join('|'), ids],
+    enabled: columns.length > 0 && rows.length > 0,
+    queryFn: async () => {
+      const data: Record<string, Record<string, unknown>> = {};
+      await Promise.all(
+        columns.map(async (column) => {
+          if (!column.definition.load) return;
+          try {
+            data[column.key] = await column.definition.load(rows, { ...column.props, type });
+          } catch (error) {
+            console.error(`Column ${column.key} failed to load`, error);
+          }
+        }),
+      );
+      return data;
+    },
+  });
+}
+
+/** One cell of a plugin column. */
+export function PluginCell({
+  column,
+  row,
+  data,
+  refresh,
+}: {
+  column: PluginColumn;
+  row: ListRow;
+  data: unknown;
+  refresh: () => void;
+}) {
+  const navigate = useNavigate();
+  const Cell = column.definition.cell;
+  return (
+    <PluginErrorBoundary name={column.plugin.name}>
+      <Cell
+        {...column.props}
+        row={row}
+        data={data}
+        refresh={refresh}
+        navigate={(to) => void navigate({ to })}
+      />
+    </PluginErrorBoundary>
+  );
+}
+
+function pagePropsFor(
+  plugin: { slug: string; version: string },
+  me: ReturnType<typeof useMe>,
+): AdminPageProps {
+  return {
+    plugin: { slug: plugin.slug, version: plugin.version },
+    site: {
+      id: me.site.id,
+      name: me.site.name,
+      defaultLocale: me.site.defaultLocale,
+      locales: me.site.locales,
+    },
+    user: {
+      id: me.user.id,
+      displayName: me.user.displayName,
+      locale: me.user.locale,
+      capabilities: me.capabilities,
+    },
+    api: pluginApi(plugin.slug),
+  };
 }
 
 /** Renders a plugin admin page (route `/ext/$plugin/$`). */

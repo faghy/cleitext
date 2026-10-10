@@ -7,7 +7,6 @@ import { input, password as passwordPrompt } from '@inquirer/prompts';
 import { Command } from 'commander';
 import {
   addDomain,
-  addLocale,
   createSite,
   createUser,
   hasSites,
@@ -210,25 +209,6 @@ program
         forceHttps: opts.https,
       });
       console.log(`Domain ${opts.domain} added to ${opts.site}.`);
-    }),
-  );
-
-program
-  .command('site:locale:add')
-  .description('Enable a language on a site.')
-  .requiredOption('--site <slug>')
-  .requiredOption('--code <code>', 'BCP 47 code, e.g. it or de-CH')
-  .requiredOption('--name <name>', 'label, e.g. Italiano')
-  .option('--default', 'make it the default language')
-  .action((opts) =>
-    withOwner(async (db) => {
-      await addLocale(db, {
-        site: opts.site,
-        code: opts.code,
-        name: opts.name,
-        isDefault: Boolean(opts.default),
-      });
-      console.log(`Language ${opts.code} enabled on ${opts.site}.`);
     }),
   );
 

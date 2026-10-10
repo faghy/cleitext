@@ -76,7 +76,6 @@ export const itGeneral: Messages = {
   'Loading…': 'Caricamento…',
   'Lost your password?': 'Hai dimenticato la password?',
   Main: 'Principale',
-  'Make default': 'Rendi predefinita',
   Media: 'Media',
   Members: 'Membri',
   Name: 'Nome',

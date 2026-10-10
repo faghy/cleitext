@@ -15,7 +15,7 @@ let visitor: TestClient;
 beforeAll(async () => {
   app = await startTestApp();
   owner = ownerDatabase();
-  const site = await seedSite(owner, 'structure', { locales: ['en', 'it'] });
+  const site = await seedSite(owner, 'structure');
   await seedUser(owner, {
     email: 'admin@structure.test',
     password: PASSWORD,
@@ -102,7 +102,6 @@ describe('content types from the admin', () => {
       '/{slug}/x',
       '/api/{slug}',
       '/category/{slug}',
-      '/it/{slug}',
       '/news/{slug}',
     ]) {
       const res = await admin.request('PATCH', '/api/v1/content-types/recipe', { permalink });

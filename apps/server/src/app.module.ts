@@ -29,6 +29,7 @@ import { EntriesService } from './content/entries.service.js';
 import { SchedulerService } from './content/scheduler.service.js';
 import { TermsController } from './content/terms.controller.js';
 import { TermsService } from './content/terms.service.js';
+import { LanguagesService } from './content/languages.service.js';
 import { APP_CONFIG, type AppConfig } from './config/config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -47,7 +48,6 @@ import { PasskeysController } from './profile/passkeys.controller.js';
 import { SecuritySettingsController } from './settings/security.controller.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PublicService } from './public/public.service.js';
-import { LocalesController } from './settings/locales.controller.js';
 import { MailSettingsController } from './settings/mail-settings.controller.js';
 import { SitesController } from './settings/sites.controller.js';
 import { SettingsController } from './settings/settings.controller.js';
@@ -118,7 +118,6 @@ export class AppModule {
         MediaController,
         TermsController,
         SettingsController,
-        LocalesController,
         MailSettingsController,
         SitesController,
         MenusController,
@@ -153,6 +152,7 @@ export class AppModule {
         SessionService,
         SiteResolverService,
         TermsService,
+        LanguagesService,
         UserTokenService,
         UsersService,
       ],

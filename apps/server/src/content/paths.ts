@@ -1,4 +1,5 @@
-import { entries, siteLocales, type SiteTransaction } from '@cleitext/db';
+import { entries, type SiteTransaction } from '@cleitext/db';
+import type { ContentLocale } from '@cleitext/plugin-sdk';
 import { eq } from 'drizzle-orm';
 
 type EntryRow = typeof entries.$inferSelect;
@@ -28,14 +29,7 @@ export async function entryPath(
     .replace('{month}', String(date.getUTCMonth() + 1).padStart(2, '0'));
 }
 
-/** Address prefix of each language: none for the default one, `/{code}` otherwise. */
-export async function localePrefixes(tx: SiteTransaction): Promise<Map<string, string>> {
-  const rows = await tx.select().from(siteLocales);
-  return new Map(
-    rows.map((l) => {
-      if (l.isDefault) return [l.code, ''];
-      const prefix = (l.urlPrefix ?? `/${l.code}`).replace(/\/+$/, '');
-      return [l.code, prefix.startsWith('/') ? prefix : `/${prefix}`];
-    }),
-  );
+/** Address prefix of each language: none for the default one (LanguagesService). */
+export function localePrefixes(locales: ContentLocale[]): Map<string, string> {
+  return new Map(locales.map((l) => [l.code, l.isDefault ? '' : l.prefix]));
 }

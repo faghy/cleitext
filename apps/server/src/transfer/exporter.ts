@@ -10,7 +10,6 @@ import {
   revisions,
   roles,
   settings,
-  siteLocales,
   siteMembers,
   taxonomies,
   terms,
@@ -19,9 +18,16 @@ import {
   type Database,
 } from '@cleitext/db';
 import { and, asc, eq, ne } from 'drizzle-orm';
+import type { ContentLocale, TranslatableKind, TranslationLink } from '@cleitext/plugin-sdk';
 import type { TransferDocumentInput, TransferMenuItem } from './model.js';
 
 const CORE_TYPES = new Set(['page', 'article']);
+
+/** What the language plugin knows, through LanguagesService (omitted without one). */
+export interface ExportLanguages {
+  locales: ContentLocale[];
+  translations(kind: TranslatableKind, ids: string[]): Promise<Map<string, TranslationLink[]>>;
+}
 
 export interface ExportResult {
   document: TransferDocumentInput;
@@ -38,10 +44,11 @@ export async function exportSite(
   db: Database,
   siteId: string,
   source: { name?: string; url?: string } = {},
+  languages?: ExportLanguages,
 ): Promise<ExportResult> {
   return withContext(db, { siteId }, async (tx) => {
     const files = new Map<string, string>();
-    const locales = await tx.select().from(siteLocales).orderBy(asc(siteLocales.position));
+    const locales = languages && languages.locales.length > 1 ? languages.locales : [];
     const members = await tx
       .select({ user: users, role: roles.slug })
       .from(siteMembers)
@@ -64,14 +71,25 @@ export async function exportSite(
     const termById = new Map(termRows.map((t) => [t.id, t]));
     const settingRows = await tx.select().from(settings).where(eq(settings.namespace, 'core'));
     const setting = (key: string) => settingRows.find((s) => s.key === key)?.value;
-    const groupRef = (group: unknown) => {
-      if (typeof group !== 'string') return undefined;
-      const defaultLocale = locales.find((l) => l.isDefault)?.code;
-      const match =
-        entryRows.find((e) => e.translationGroup === group && e.locale === defaultLocale) ??
-        entryRows.find((e) => e.translationGroup === group);
-      return match?.id;
+    const pageRef = (id: unknown) =>
+      typeof id === 'string' && entryRows.some((e) => e.id === id) ? id : undefined;
+    // Translations: items of a group share the ref of its first member.
+    const groupRefs = async (kind: TranslatableKind, ids: string[]) => {
+      const refs = new Map<string, string>();
+      if (locales.length === 0) return refs;
+      for (const [id, links] of await languages!.translations(kind, ids)) {
+        if (links.length > 0) refs.set(id, [id, ...links.map((l) => l.id)].sort()[0]!);
+      }
+      return refs;
     };
+    const entryGroups = await groupRefs(
+      'entry',
+      entryRows.map((e) => e.id),
+    );
+    const termGroups = await groupRefs(
+      'term',
+      termRows.map((t) => t.id),
+    );
 
     for (const row of mediaRows) files.set(`media/${row.id}/${row.filename}`, row.storageKey);
 
@@ -102,18 +120,14 @@ export async function exportSite(
         ...(typeof setting('postsPerPage') === 'number'
           ? { postsPerPage: setting('postsPerPage') as number }
           : {}),
-        ...(groupRef(setting('frontPage'))
-          ? { frontPageRef: groupRef(setting('frontPage'))! }
-          : {}),
-        ...(groupRef(setting('postsPage'))
-          ? { postsPageRef: groupRef(setting('postsPage'))! }
-          : {}),
+        ...(pageRef(setting('frontPage')) ? { frontPageRef: pageRef(setting('frontPage'))! } : {}),
+        ...(pageRef(setting('postsPage')) ? { postsPageRef: pageRef(setting('postsPage'))! } : {}),
       },
       locales: locales.map((l) => ({
         code: l.code,
         name: l.name,
         isDefault: l.isDefault,
-        urlPrefix: l.urlPrefix,
+        urlPrefix: l.isDefault ? null : l.prefix,
       })),
       users: members.map((m) => ({
         ref: m.user.id,
@@ -140,7 +154,7 @@ export async function exportSite(
         ref: t.id,
         taxonomy: taxonomySlug.get(t.taxonomyId)!,
         locale: t.locale,
-        translationRef: t.translationGroup,
+        ...(termGroups.has(t.id) ? { translationRef: termGroups.get(t.id)! } : {}),
         ...(t.parentId ? { parentRef: t.parentId } : {}),
         slug: t.slug,
         name: t.name,
@@ -168,7 +182,7 @@ export async function exportSite(
             ref: e.id,
             type: e.typeSlug,
             locale: e.locale,
-            translationRef: e.translationGroup,
+            ...(entryGroups.has(e.id) ? { translationRef: entryGroups.get(e.id)! } : {}),
             ...(e.parentId ? { parentRef: e.parentId } : {}),
             slug: e.slug,
             title: revision.title,

@@ -1,17 +1,12 @@
+import type { ContentLocale } from '@cleitext/plugin-sdk';
+
 /**
  * Public URLs (docs/SPECIFICATIONS.md RF-SET-03): permalink patterns per
  * content type, language prefixes, hierarchical page paths.
  *
- * The default language has no prefix; the others use `/{code}` (or their
- * configured `url_prefix`).
+ * Languages come from the language plugin (LanguagesService): the default
+ * has no prefix. Without the plugin there is only the default language.
  */
-
-export interface LocaleInfo {
-  code: string;
-  name: string;
-  isDefault: boolean;
-  urlPrefix: string | null;
-}
 
 export interface TypeInfo {
   slug: string;
@@ -31,7 +26,7 @@ export interface EntryRef {
 
 export class UrlBuilder {
   constructor(
-    private readonly locales: LocaleInfo[],
+    private readonly locales: ContentLocale[],
     private readonly types: Map<string, TypeInfo>,
     /** Path segments of hierarchical entries by id (e.g. ['about', 'team']). */
     private readonly paths: Map<string, string[]>,
@@ -42,9 +37,10 @@ export class UrlBuilder {
   }
 
   prefix(locale: string): string {
+    if (this.locales.length < 2) return '';
     const info = this.locales.find((l) => l.code === locale);
-    if (!info || info.isDefault) return '';
-    return normalizePrefix(info.urlPrefix ?? `/${info.code}`);
+    if (!info || info.isDefault || !info.prefix) return '';
+    return normalizePrefix(info.prefix);
   }
 
   home(locale: string): string {
@@ -85,8 +81,8 @@ export class UrlBuilder {
   /** Splits `/it/foo` into the language and the rest of the path. */
   splitLocale(path: string): { locale: string; rest: string } {
     for (const info of this.locales) {
-      if (info.isDefault) continue;
-      const prefix = normalizePrefix(info.urlPrefix ?? `/${info.code}`);
+      if (info.isDefault || !info.prefix) continue;
+      const prefix = normalizePrefix(info.prefix);
       if (path === prefix || path.startsWith(`${prefix}/`)) {
         return { locale: info.code, rest: path.slice(prefix.length) || '/' };
       }

@@ -17,7 +17,7 @@ import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card } from '../components/ui';
 import { entryTree } from '../entry-tree';
-import { contentTypesQuery } from '../plugins';
+import { contentTypesQuery, PluginCell, usePluginColumnData, usePluginColumns } from '../plugins';
 export const STATUS_LABELS: Record<EntryStatus, string> = {
   draft: 'Draft',
   pending: 'Pending review',
@@ -118,8 +118,17 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 
+  // Columns of plugins, e.g. the translations of the language plugin.
+  const columns = usePluginColumns('entry', type);
+  const listRows = (list.data?.pages ?? [])
+    .flatMap((page) => page.items)
+    .map((e) => ({ id: e.id, locale: e.locale, title: e.title, status: e.status }));
+  const columnData = usePluginColumnData(columns, type, listRows);
+
   const create = useMutation({
-    mutationFn: () => api<EntryView>('POST', '/entries', { type, title: '' }),
+    // Filtered by language, a new entry is written in that language.
+    mutationFn: () =>
+      api<EntryView>('POST', '/entries', { type, title: '', ...(locale ? { locale } : {}) }),
     onSuccess: (entry) => navigate({ to: '/entries/$id', params: { id: entry.id } }),
   });
 
@@ -383,6 +392,11 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                 <SortHeader by="title" label={t('Title')} />
                 <th className="py-2 font-medium">{t('Author')}</th>
                 {multilingual && <th className="py-2 font-medium">{t('Language')}</th>}
+                {columns.map((column) => (
+                  <th key={column.key} className="py-2 font-medium">
+                    {column.title}
+                  </th>
+                ))}
                 <th className="py-2 font-medium">{t('Status')}</th>
                 {hierarchical && <SortHeader by="order" label={t('Order')} />}
                 <SortHeader by="date" label={t('Date')} />
@@ -395,7 +409,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                     key={entry.id}
                     entry={entry}
                     hierarchical={hierarchical}
-                    columns={5 + (multilingual ? 1 : 0) + (hierarchical ? 1 : 0)}
+                    columns={5 + (multilingual ? 1 : 0) + (hierarchical ? 1 : 0) + columns.length}
                     onClose={() => setEditing(null)}
                   />
                 ) : (
@@ -446,6 +460,24 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                     </td>
                     <td className="py-2">{entry.author?.displayName ?? '—'}</td>
                     {multilingual && <td className="py-2 uppercase">{entry.locale}</td>}
+                    {columns.map((column) => (
+                      <td key={column.key} className="py-2">
+                        <PluginCell
+                          column={column}
+                          row={{
+                            id: entry.id,
+                            locale: entry.locale,
+                            title: entry.title,
+                            status: entry.status,
+                          }}
+                          data={columnData.data?.[column.key]?.[entry.id]}
+                          refresh={() => {
+                            void columnData.refetch();
+                            void queryClient.invalidateQueries({ queryKey: ['entries'] });
+                          }}
+                        />
+                      </td>
+                    ))}
                     <td className="py-2">{t(STATUS_LABELS[entry.status])}</td>
                     {hierarchical && <td className="py-2">{entry.position}</td>}
                     <td className="py-2 text-slate-600">
