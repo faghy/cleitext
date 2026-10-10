@@ -185,6 +185,10 @@ export class TestClient {
     return this.request('POST', url, body ?? {});
   }
 
+  delete(url: string) {
+    return this.request('DELETE', url);
+  }
+
   login(email: string, password: string, remember = false) {
     return this.post('/api/v1/auth/login', { email, password, remember });
   }

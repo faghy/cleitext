@@ -10,6 +10,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
@@ -137,6 +138,24 @@ export class PluginsController {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  }
+
+  /**
+   * Delete (RF-PLG-04): removes a plugin that no site uses, with ALL its data,
+   * through the CLI (`plugin:uninstall`), as the database owner.
+   */
+  @Delete('plugins/:slug')
+  @HttpCode(204)
+  @RequireCapability('manage_plugins')
+  async remove(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('slug') slug: string,
+    @Req() request: FastifyRequest,
+  ): Promise<void> {
+    this.plugin(slug);
+    await runCli(['plugin:uninstall', slug, '--yes', '--only-inactive'], this.config);
+    await this.record(site.id, auth, 'plugin.deleted', slug, request.ip);
   }
 
   /** Admin extensions of the active plugins, for any signed-in user. */

@@ -51,6 +51,8 @@ export const ACTION_LABELS: Record<string, string> = {
   'plugin.network_deactivated': 'deactivated on every site the plugin',
   'plugin.uploaded': 'uploaded the plugin',
   'theme.uploaded': 'uploaded the theme',
+  'plugin.deleted': 'deleted the plugin',
+  'theme.deleted': 'deleted the theme',
 };
 
 /** Filters of the activity page: action prefixes. */

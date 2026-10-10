@@ -35,7 +35,7 @@ cleitext theme:list
 cleitext theme:uninstall my-theme       # only when no site uses it
 ```
 
-Running servers load a new or updated theme at once, without a restart. Each site chooses its theme in **Appearance → Themes**. React and `@cleitext/theme-sdk` come from the server: they are never bundled with the theme.
+Running servers load a new or updated theme at once, without a restart. Each site chooses its theme in **Appearance → Themes**, where super admins can also **Delete** an installed theme that no site uses (Aurora stays). React and `@cleitext/theme-sdk` come from the server: they are never bundled with the theme.
 
 ## 3. The theme definition
 

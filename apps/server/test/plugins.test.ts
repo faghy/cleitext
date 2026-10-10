@@ -7,7 +7,7 @@ import { cp, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPlugin, installPlugin, uninstallPlugin } from '@cleitext/cli';
+import { buildPlugin, installPlugin } from '@cleitext/cli';
 import { plugins, type DatabaseClient } from '@cleitext/db';
 import type { CxdDocument } from '@cleitext/blocks';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -413,6 +413,8 @@ describe('deactivation', () => {
 });
 
 describe('updates and removal', () => {
+  let root: TestClient;
+
   it('reloads updated plugins in running servers', async () => {
     const manifest = JSON.parse(await readFile(join(source, 'cleitext.plugin.json'), 'utf8'));
     await writeFile(
@@ -428,7 +430,7 @@ describe('updates and removal', () => {
   });
 
   it('installs an uploaded .tgz package (Upload Plugin)', async () => {
-    const root = new TestClient(app, site.host, '10.12.0.10');
+    root = new TestClient(app, site.host, '10.12.0.10');
     await root.login('root@plugins.test', PASSWORD);
     const { secret } = (await root.post('/api/v1/profile/2fa/setup')).json();
     await root.post('/api/v1/profile/2fa/enable', { code: totpCode(secret, currentStep()) });
@@ -448,8 +450,15 @@ describe('updates and removal', () => {
     ).toBe(403);
   });
 
-  it('uninstalls the plugin with its data', async () => {
-    await uninstallPlugin(owner.db, 'events', { pluginsPath });
+  it('deletes from the admin only a plugin active nowhere, with its data', async () => {
+    // Deleting code is for super admins, as installing it.
+    expect((await admin.delete('/api/v1/plugins/events')).statusCode).toBe(403);
+    const active = await root.delete('/api/v1/plugins/events');
+    expect(active.statusCode).toBe(400);
+    expect(active.json().detail).toContain('Deactivate events first');
+
+    expect((await admin.post('/api/v1/plugins/events/deactivate')).statusCode).toBe(200);
+    expect((await root.delete('/api/v1/plugins/events')).statusCode).toBe(204);
     const schemas = await owner.db.execute(
       sql`select 1 from pg_namespace where nspname = 'plg_events'`,
     );

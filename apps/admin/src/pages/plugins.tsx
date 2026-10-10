@@ -59,6 +59,17 @@ export function PluginsPage() {
       );
     },
   });
+  const canDelete = me.capabilities.includes('manage_plugins');
+  const remove = useMutation({
+    mutationFn: (slug: string) => api<void>('DELETE', `/plugins/${slug}`),
+    onSuccess: async () => {
+      await Promise.all(
+        [['plugins'], ['content-types'], ME_QUERY_KEY, ['plugins', 'admin']].map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      );
+    },
+  });
   const toggle = useMutation({
     mutationFn: ({ slug, activate }: { slug: string; activate: boolean }) =>
       api<PluginView>('POST', `/plugins/${slug}/${activate ? 'activate' : 'deactivate'}`),
@@ -84,8 +95,8 @@ export function PluginsPage() {
         {installAfter}
       </p>
       {plugins.error && <Alert>{errorMessage(plugins.error)}</Alert>}
-      {(toggle.error ?? network.error) && (
-        <Alert>{errorMessage(toggle.error ?? network.error)}</Alert>
+      {(toggle.error ?? network.error ?? remove.error) && (
+        <Alert>{errorMessage(toggle.error ?? network.error ?? remove.error)}</Alert>
       )}
       {plugins.data?.length === 0 && (
         <p className="rounded border border-slate-200 bg-white p-4 text-sm text-slate-600">
@@ -174,6 +185,29 @@ export function PluginsPage() {
                           : t('Activate on every site')}
                       </Button>
                     )}
+                  {/* As in WordPress: only a plugin active nowhere can be deleted. */}
+                  {canDelete && !plugin.active && !plugin.network && !plugin.mustUse && (
+                    <Button
+                      variant="danger"
+                      disabled={remove.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            t(
+                              'Delete {name} and all its data on every site? This cannot be undone.',
+                              {
+                                name: plugin.name,
+                              },
+                            ),
+                          )
+                        )
+                          remove.mutate(plugin.slug);
+                      }}
+                    >
+                      {t('Delete')}
+                      <span className="sr-only"> {plugin.name}</span>
+                    </Button>
+                  )}
                 </div>
               )}
               {plugin.mustUse && (

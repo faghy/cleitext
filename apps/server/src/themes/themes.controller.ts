@@ -3,9 +3,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
+  NotFoundException,
   Param,
   Post,
   Put,
@@ -72,6 +74,21 @@ export class ThemesController {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  }
+
+  /** Delete: removes an installed theme that no site uses (`theme:uninstall`). */
+  @Delete(':slug')
+  @HttpCode(204)
+  @RequireCapability('manage_plugins')
+  async remove(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('slug') slug: string,
+    @Req() request: FastifyRequest,
+  ): Promise<void> {
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(slug)) throw new NotFoundException('Theme not found.');
+    await runCli(['theme:uninstall', slug], this.config);
+    await this.themes.record(site.id, auth, 'theme.deleted', slug, request.ip);
   }
 
   @Post(':slug/activate')

@@ -106,6 +106,13 @@ export const itAdmin: Messages = {
   'Upload Theme': 'Carica tema',
   'action.plugin.uploaded': 'ha caricato il plugin',
   'action.theme.uploaded': 'ha caricato il tema',
+  'action.plugin.deleted': 'ha eliminato il plugin',
+  'action.theme.deleted': 'ha eliminato il tema',
+  Delete: 'Elimina',
+  'Delete {name} and all its data on every site? This cannot be undone.':
+    'Eliminare {name} e tutti i suoi dati su ogni sito? Non si può annullare.',
+  'Delete the theme {name}? This cannot be undone.':
+    'Eliminare il tema {name}? Non si può annullare.',
   'Go to': 'Vai a',
   'New post': 'Nuovo articolo',
   'New page': 'Nuova pagina',

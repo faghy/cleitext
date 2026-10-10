@@ -24,7 +24,7 @@ cleitext theme:list
 cleitext theme:uninstall mio-tema       # solo se nessun sito lo usa
 ```
 
-I server in esecuzione caricano subito un tema nuovo o aggiornato, senza riavvio. Ogni sito sceglie il proprio tema in **Aspetto → Temi**. React e `@cleitext/theme-sdk` vengono dal server e non sono mai inclusi nel tema.
+I server in esecuzione caricano subito un tema nuovo o aggiornato, senza riavvio. Ogni sito sceglie il proprio tema in **Aspetto → Temi**, dove i super admin possono anche **eliminare** un tema installato che nessun sito usa (Aurora resta). React e `@cleitext/theme-sdk` vengono dal server e non sono mai inclusi nel tema.
 
 ## 3. La definizione del tema
 

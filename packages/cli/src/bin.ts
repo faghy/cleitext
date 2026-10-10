@@ -374,7 +374,8 @@ program
   .description('Remove a plugin and ALL its data (schema, settings) from every site.')
   .argument('<slug>')
   .option('--yes', 'do not ask for confirmation')
-  .action(async (slug: string, opts: { yes?: boolean }) => {
+  .option('--only-inactive', 'refuse a plugin still active on some site')
+  .action(async (slug: string, opts: { yes?: boolean; onlyInactive?: boolean }) => {
     if (!opts.yes) {
       const { confirm } = await import('@inquirer/prompts');
       const sure = await confirm({
@@ -384,7 +385,10 @@ program
       if (!sure) return;
     }
     await withOwner(async (db) => {
-      await uninstallPlugin(db, slug, { pluginsPath: pluginsPath() });
+      await uninstallPlugin(db, slug, {
+        pluginsPath: pluginsPath(),
+        onlyInactive: Boolean(opts.onlyInactive),
+      });
       console.log(`Uninstalled ${slug}.`);
       await announcePluginChange(db);
     });

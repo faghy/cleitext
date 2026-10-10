@@ -32,14 +32,20 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
     mutationFn: (slug: string) => api<void>('POST', `/themes/${slug}/activate`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['themes'] }),
   });
+  const me = useMe();
+  const canDelete = me.capabilities.includes('manage_plugins');
+  const deleteTheme = useMutation({
+    mutationFn: (slug: string) => api<void>('DELETE', `/themes/${slug}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['themes'] }),
+  });
   const [installBefore, installAfter] = t(
     'More themes are installed on the server with {command}.',
   ).split('{command}');
 
   return (
     <div className="space-y-4">
-      {(themes.error ?? activate.error) && (
-        <Alert>{errorMessage(themes.error ?? activate.error)}</Alert>
+      {(themes.error ?? activate.error ?? deleteTheme.error) && (
+        <Alert>{errorMessage(themes.error ?? activate.error ?? deleteTheme.error)}</Alert>
       )}
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label={t('Themes')}>
         {themes.data?.map((theme) => (
@@ -66,14 +72,36 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
                 )}
               </div>
             ) : (
-              <Button
-                variant="secondary"
-                disabled={activate.isPending}
-                onClick={() => activate.mutate(theme.slug)}
-              >
-                {t('Activate')}
-                <span className="sr-only"> {theme.name}</span>
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant="secondary"
+                  disabled={activate.isPending}
+                  onClick={() => activate.mutate(theme.slug)}
+                >
+                  {t('Activate')}
+                  <span className="sr-only"> {theme.name}</span>
+                </Button>
+                {/* Bundled themes stay; one used by another site is refused by the server. */}
+                {canDelete && !theme.bundled && (
+                  <Button
+                    variant="danger"
+                    disabled={deleteTheme.isPending}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          t('Delete the theme {name}? This cannot be undone.', {
+                            name: theme.name,
+                          }),
+                        )
+                      )
+                        deleteTheme.mutate(theme.slug);
+                    }}
+                  >
+                    {t('Delete')}
+                    <span className="sr-only"> {theme.name}</span>
+                  </Button>
+                )}
+              </div>
             )}
           </li>
         ))}

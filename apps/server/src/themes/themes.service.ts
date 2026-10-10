@@ -225,11 +225,21 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
   }
 
   async recordUpload(siteId: string, auth: AuthContext, slug: string, ip: string): Promise<void> {
+    await this.record(siteId, auth, 'theme.uploaded', slug, ip);
+  }
+
+  async record(
+    siteId: string,
+    auth: AuthContext,
+    action: 'theme.uploaded' | 'theme.deleted',
+    slug: string,
+    ip: string,
+  ): Promise<void> {
     await this.run(siteId, auth, (tx) =>
       this.audit.record(tx, {
         siteId,
         userId: auth.userId,
-        action: 'theme.uploaded',
+        action,
         targetType: 'theme',
         targetId: slug,
         ip,

@@ -22,6 +22,7 @@ import {
   pluginMigrations,
   plugins,
   settings,
+  sitePlugins,
   sites,
   withSiteContext,
   type Database,
@@ -36,7 +37,7 @@ import {
   type PluginDefinition,
   type PluginManifest,
 } from '@cleitext/plugin-sdk';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import * as esbuild from 'esbuild';
 import semver from 'semver';
 import { OperationError } from './operations.js';
@@ -372,6 +373,8 @@ export async function listPlugins(db: Database) {
 
 export interface UninstallOptions {
   pluginsPath: string;
+  /** Refuse a plugin still active somewhere (deletion from the admin). */
+  onlyInactive?: boolean;
 }
 
 /**
@@ -386,6 +389,27 @@ export async function uninstallPlugin(
 ): Promise<void> {
   const [plugin] = await db.select().from(plugins).where(eq(plugins.slug, slug));
   if (!plugin) throw new OperationError(`The plugin ${slug} is not installed.`);
+  if (options.onlyInactive) {
+    if (plugin.mustUse)
+      throw new OperationError(`${slug} is a must-use plugin: remove it with the CLI.`);
+    if (plugin.network) throw new OperationError(`Deactivate ${slug} on every site first.`);
+    let active = 0;
+    // Activations are tenant rows: counted site by site.
+    for (const site of await db.select({ id: sites.id }).from(sites)) {
+      const rows = await withSiteContext(db, site.id, (tx) =>
+        tx
+          .select({ slug: sitePlugins.pluginSlug })
+          .from(sitePlugins)
+          .where(and(eq(sitePlugins.pluginSlug, slug), eq(sitePlugins.active, true))),
+      );
+      active += rows.length;
+    }
+    if (active > 0) {
+      throw new OperationError(
+        `Deactivate ${slug} first: it is active on ${active} ${active === 1 ? 'site' : 'sites'}.`,
+      );
+    }
+  }
   const dependents = (await db.select().from(plugins)).filter(
     (p) => (p.manifest as PluginManifest).requires?.plugins?.[slug] !== undefined,
   );
