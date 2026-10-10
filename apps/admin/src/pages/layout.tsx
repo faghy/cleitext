@@ -7,13 +7,34 @@ import { useT } from '../components/ui';
 import { Avatar } from '../components/avatar';
 import { LogoMark } from '@cleitext/admin-sdk';
 import { taxonomiesQuery, taxonomyLabel } from './terms';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
 /** Section routes are registered dynamically (navigation.ts), hence a plain string. */
 const PROFILE: string = '/profile';
+
+/** As in WordPress: a link to the site with a "Visit site" menu on hover or focus. */
+function SiteMenu({ className, children }: { className: string; children: ReactNode }) {
+  const { t } = useT();
+  return (
+    <div className="group relative">
+      <a href="/" className={className} aria-haspopup="true">
+        {children}
+      </a>
+      <div className="absolute top-full left-0 z-40 hidden min-w-40 pt-1 group-focus-within:block group-hover:block">
+        <ul className="rounded border border-slate-200 bg-white py-1 text-sm font-normal text-slate-800 shadow-lg">
+          <li>
+            <a href="/" className="block px-3 py-1.5 whitespace-nowrap hover:bg-slate-100">
+              {t('Visit site')}
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 export function AdminLayout() {
   const me = useMe();
@@ -60,10 +81,10 @@ export function AdminLayout() {
     <div className="flex min-h-screen bg-slate-100 text-slate-900">
       <aside className="light-palette w-56 shrink-0 bg-slate-900 text-slate-200">
         <div className="px-4 py-4">
-          <p className="flex items-center gap-2 text-lg font-semibold text-white">
+          <SiteMenu className="flex items-center gap-2 rounded text-lg font-semibold text-white hover:text-sky-200">
             <LogoMark size={24} />
             Cleitext
-          </p>
+          </SiteMenu>
           <p className="truncate text-xs text-slate-400" title={me.site.name}>
             {me.site.name}
           </p>
@@ -89,33 +110,12 @@ export function AdminLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-end gap-4 border-b border-slate-200 bg-white px-6 py-2 text-sm">
           {/* As in WordPress: the site name leads to the site, with a "Visit site" menu. */}
-          <div className="group relative">
-            <a
-              href="/"
-              className="flex items-center gap-1.5 rounded px-2 py-1 font-semibold text-slate-800 hover:bg-slate-100"
-              aria-haspopup="true"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-              </svg>
-              <span className="max-w-48 truncate">{me.site.name}</span>
-            </a>
-            <div className="absolute top-full left-0 z-40 hidden min-w-40 pt-1 group-focus-within:block group-hover:block">
-              <ul className="rounded border border-slate-200 bg-white py-1 shadow-lg">
-                <li>
-                  <a href="/" className="block px-3 py-1.5 whitespace-nowrap hover:bg-slate-100">
-                    {t('Visit site')}
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
+          <SiteMenu className="flex items-center gap-1.5 rounded px-2 py-1 font-semibold text-slate-800 hover:bg-slate-100">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+            </svg>
+            <span className="max-w-48 truncate">{me.site.name}</span>
+          </SiteMenu>
           <button
             type="button"
             className="mr-auto flex items-center gap-2 rounded border border-slate-300 px-2 py-1 text-slate-600 hover:border-slate-400"

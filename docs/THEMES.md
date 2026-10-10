@@ -95,7 +95,7 @@ Templates receive the page as props (`kind`: `entry`, `archive`, `search`, `404`
 settings: [
   { name: 'logo', type: 'media', label: { en: 'Logo', it: 'Logo' } },
   { name: 'headline', type: 'text', label: 'Headline', maxLength: 120 },
-  { name: 'showSearch', type: 'boolean', label: 'Show the search box', default: true },
+  { name: 'showSearch', type: 'boolean', label: 'Show the search box', default: false },
 ],
 ```
 

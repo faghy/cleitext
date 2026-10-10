@@ -92,7 +92,7 @@ function Layout({ head, css, children }: LayoutProps) {
                 <Menu items={page.menus.primary!} />
               </nav>
             )}
-            {settings.showSearch !== false && (
+            {settings.showSearch === true && (
               <form className="search-form" role="search" action={page.urls.search} method="get">
                 <label className="visually-hidden" htmlFor="search-q">
                   {t.search}
@@ -302,7 +302,7 @@ export const theme = defineTheme({
       name: 'showSearch',
       type: 'boolean',
       label: { en: 'Show the search box', it: 'Mostra la ricerca' },
-      default: true,
+      default: false,
     },
     {
       name: 'footerText',

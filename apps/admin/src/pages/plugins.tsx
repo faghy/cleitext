@@ -26,7 +26,9 @@ export function PluginsPage() {
     queryFn: () => api<PluginView[]>('GET', '/plugins'),
   });
   const me = useMe();
-  const isSuperAdmin = me.user.isSuperAdmin;
+  // Activating on every site only means something with more than one site; a plugin
+  // already active on every site can still be turned back.
+  const canUseNetwork = me.user.isSuperAdmin && me.sites.length > 1;
   const network = useMutation({
     mutationFn: ({ slug, on }: { slug: string; on: boolean }) =>
       api<PluginView>('POST', `/plugins/${slug}/network`, { network: on }),
@@ -124,7 +126,7 @@ export function PluginsPage() {
                       {plugin.active ? t('Deactivate') : t('Activate')}
                     </Button>
                   )}
-                  {isSuperAdmin && (
+                  {(canUseNetwork || (plugin.network && me.user.isSuperAdmin)) && (
                     <Button
                       variant="secondary"
                       disabled={network.isPending}

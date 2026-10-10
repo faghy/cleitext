@@ -37,6 +37,10 @@ test('the site name opens the site, whose toolbar leads back to the editor', asy
   await expect(
     banner.getByRole('link', { name: 'Visit site (opens in a new tab)' }),
   ).toHaveAttribute('target', '_blank');
+  // The Cleitext title in the sidebar has the same menu.
+  const sidebar = page.getByRole('complementary');
+  await sidebar.getByRole('link', { name: 'Cleitext' }).hover();
+  await expect(sidebar.getByRole('link', { name: 'Visit site' })).toHaveAttribute('href', '/');
   await banner.getByRole('link', { name: 'Development' }).hover();
   await banner.locator('.group').getByRole('link', { name: 'Visit site' }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/admin'));

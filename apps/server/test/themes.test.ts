@@ -82,7 +82,9 @@ describe('theme settings and areas', () => {
   it('saves settings checked against the schema, used by the pages', async () => {
     const active = (await admin.get('/api/v1/themes/active')).json();
     expect(active.theme.slug).toBe('aurora');
-    expect(active.values).toMatchObject({ showTagline: true, showSearch: true });
+    expect(active.values).toMatchObject({ showTagline: true, showSearch: false });
+    // No search box by default.
+    expect((await visitor.get('/')).body).not.toContain('role="search"');
     expect((await editor.get('/api/v1/themes/active')).statusCode).toBe(403);
 
     const bad = await admin.request('PUT', '/api/v1/themes/active/settings', {
@@ -90,12 +92,12 @@ describe('theme settings and areas', () => {
     });
     expect(bad.statusCode).toBe(400);
     const saved = await admin.request('PUT', '/api/v1/themes/active/settings', {
-      values: { showSearch: false, footerText: 'Made in Rome', accentColor: '#aa3300' },
+      values: { showSearch: true, footerText: 'Made in Rome', accentColor: '#aa3300' },
     });
-    expect(saved.json()).toMatchObject({ showSearch: false, footerText: 'Made in Rome' });
+    expect(saved.json()).toMatchObject({ showSearch: true, footerText: 'Made in Rome' });
     const home = await visitor.get('/');
     expect(home.body).toContain('Made in Rome');
-    expect(home.body).not.toContain('role="search"');
+    expect(home.body).toContain('role="search"');
     expect(home.body).toContain('--accent: #aa3300');
   });
 
