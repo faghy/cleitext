@@ -16,6 +16,8 @@ import { SessionService, UserTokenService } from './auth/session.service.js';
 import { ProblemDetailsFilter } from './common/problem.js';
 import { EntriesController } from './content/entries.controller.js';
 import { OEmbedController } from './content/oembed.controller.js';
+import { StructureController } from './content/structure.controller.js';
+import { StructureService } from './content/structure.service.js';
 import { EntriesService } from './content/entries.service.js';
 import { SchedulerService } from './content/scheduler.service.js';
 import { TermsController } from './content/terms.controller.js';
@@ -100,6 +102,7 @@ export class AppModule {
         TokensController,
         SecuritySettingsController,
         OEmbedController,
+        StructureController,
         EntriesController,
         MediaController,
         TermsController,
@@ -121,6 +124,7 @@ export class AppModule {
         PasskeyService,
         ApiTokenService,
         RolesService,
+        StructureService,
         LoginThrottleService,
         MailService,
         MediaService,

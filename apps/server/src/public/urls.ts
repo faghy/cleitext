@@ -51,6 +51,11 @@ export class UrlBuilder {
     return this.prefix(locale) || '/';
   }
 
+  /** RSS feed of the latest posts in a language (RF-THM-08). */
+  feed(locale: string): string {
+    return `${this.prefix(locale)}/feed`;
+  }
+
   search(locale: string): string {
     return `${this.prefix(locale)}/search`;
   }

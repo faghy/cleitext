@@ -622,8 +622,12 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         fieldsSchema: { fields: type.fields ?? [] },
         source,
       };
+      // A permalink changed in the settings (RF-SET-03) is kept.
       if (existing)
-        await tx.update(contentTypes).set(values).where(eq(contentTypes.id, existing.id));
+        await tx
+          .update(contentTypes)
+          .set({ ...values, permalink: existing.permalink })
+          .where(eq(contentTypes.id, existing.id));
       else await tx.insert(contentTypes).values({ siteId, slug: type.slug, ...values });
     }
   }

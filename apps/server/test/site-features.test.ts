@@ -262,3 +262,36 @@ describe('maintenance mode', () => {
     await eventually(async () => (await visitor.get('/')).statusCode === 200);
   });
 });
+
+describe('RSS feeds (RF-THM-08)', () => {
+  it('lists the latest public posts, also per term, with autodiscovery', async () => {
+    const term = (await admin.post('/api/v1/taxonomies/category/terms', { name: 'Feeds' })).json();
+    const post = await publish('Feed <story>', { excerpt: 'Short & sweet' });
+    await admin.request('PATCH', `/api/v1/entries/${post.id}`, {
+      terms: { category: [term.id] },
+    });
+    await admin.post(`/api/v1/entries/${post.id}/publish`);
+    const secret = (
+      await admin.post('/api/v1/entries', { type: 'article', title: 'Secret feed post' })
+    ).json();
+    await admin.post(`/api/v1/entries/${secret.id}/publish`, { visibility: 'private' });
+
+    const feed = await admin.get('/feed');
+    expect(feed.statusCode).toBe(200);
+    expect(feed.headers['content-type']).toContain('application/rss+xml');
+    expect(feed.body).toContain('<title>Feed &#60;story&#62;</title>');
+    expect(feed.body).toContain('<description>Short &#38; sweet</description>');
+    // Private posts never appear, even to a signed-in administrator.
+    expect(feed.body).not.toContain('Secret feed post');
+
+    const termFeed = await visitor.get('/category/feeds/feed');
+    expect(termFeed.statusCode).toBe(200);
+    expect(termFeed.body).toContain('Feed &#60;story&#62;');
+    expect((await visitor.get('/category/missing/feed')).statusCode).toBe(404);
+
+    const archive = await visitor.get('/category/feeds');
+    expect(archive.body).toContain('type="application/rss+xml"');
+    expect(archive.body).toContain('/category/feeds/feed');
+    expect((await visitor.get('/it/feed')).statusCode).toBe(200);
+  });
+});

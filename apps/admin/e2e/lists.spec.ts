@@ -78,6 +78,21 @@ test('pages are listed as a tree and ordered from the editor', async ({ page }) 
   const ids = await page.evaluate(async (stamp) => {
     const { token } = await (await fetch('/api/v1/auth/csrf')).json();
     const headers = { 'x-csrf-token': token, 'content-type': 'application/json' };
+    // Pages left by earlier runs would push these beyond the first page.
+    const old = await (await fetch('/api/v1/entries?type=page&q=child&limit=100')).json();
+    const parents = await (await fetch('/api/v1/entries?type=page&q=0%20Parent&limit=100')).json();
+    const leftovers = [...old.items, ...parents.items]
+      .filter((e: { title: string }) => /^0 (Parent|B child|C child) /.test(e.title))
+      .map((e: { id: string }) => e.id);
+    for (const action of ['trash', 'delete']) {
+      for (let i = 0; i < leftovers.length; i += 100) {
+        await fetch('/api/v1/entries/bulk', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ids: leftovers.slice(i, i + 100), action }),
+        });
+      }
+    }
     const create = async (body: object) =>
       (await (
         await fetch('/api/v1/entries', { method: 'POST', headers, body: JSON.stringify(body) })

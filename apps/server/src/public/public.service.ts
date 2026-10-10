@@ -549,6 +549,82 @@ export class PublicService {
     };
   }
 
+  /**
+   * RSS 2.0 feed of the latest public posts in the current language, or of a
+   * term's posts. Private entries never appear, even for signed-in users.
+   */
+  private async feed(
+    scope: RequestScope,
+    term: { taxonomy: string; slug: string } | null,
+  ): Promise<PublicResponse | null> {
+    const { tx, data, settings, locale } = scope;
+    let where = and(eq(entries.typeSlug, 'article'), eq(entries.locale, locale));
+    let title = scope.siteTitle;
+    let link = data.urls.home(locale);
+    let self = data.urls.feed(locale);
+    const tags = ['type:article'];
+    if (term) {
+      const [row] = await tx
+        .select({ term: terms })
+        .from(terms)
+        .innerJoin(taxonomies, eq(taxonomies.id, terms.taxonomyId))
+        .where(
+          and(
+            eq(taxonomies.slug, term.taxonomy),
+            eq(terms.slug, term.slug),
+            eq(terms.locale, locale),
+          ),
+        );
+      if (!row) return null;
+      const ids = tx
+        .select({ id: entryTerms.entryId })
+        .from(entryTerms)
+        .where(eq(entryTerms.termId, row.term.id));
+      where = and(where, inArray(entries.id, ids));
+      title = `${row.term.name} – ${scope.siteTitle}`;
+      link = data.urls.term(term.taxonomy, term.slug, locale);
+      self = `${link}/feed`;
+      tags.push(`term:${row.term.id}`);
+    }
+    const list = await loadPublished(tx, where, { limit: Math.max(settings.postsPerPage, 20) });
+    const { summaries } = await summarize(tx, list, data.urls, locale);
+    const absolute = (path: string) => `${scope.origin}${path}`;
+    const items = summaries
+      .map((entry) =>
+        [
+          '<item>',
+          `<title>${xml(entry.title)}</title>`,
+          `<link>${xml(absolute(entry.url))}</link>`,
+          `<guid isPermaLink="false">${xml(entry.id)}</guid>`,
+          entry.publishedAt
+            ? `<pubDate>${new Date(entry.publishedAt).toUTCString()}</pubDate>`
+            : '',
+          entry.author ? `<dc:creator>${xml(entry.author.displayName)}</dc:creator>` : '',
+          `<description>${xml(entry.excerpt)}</description>`,
+          '</item>',
+        ].join(''),
+      )
+      .join('');
+    const updated = summaries[0]?.publishedAt;
+    return {
+      status: 200,
+      html:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">' +
+        '<channel>' +
+        `<title>${xml(title)}</title>` +
+        `<link>${xml(absolute(link))}</link>` +
+        `<atom:link href="${xml(absolute(self))}" rel="self" type="application/rss+xml"/>` +
+        `<description>${xml(settings.tagline || scope.siteTitle)}</description>` +
+        `<language>${xml(locale)}</language>` +
+        (updated ? `<lastBuildDate>${new Date(updated).toUTCString()}</lastBuildDate>` : '') +
+        items +
+        '</channel></rss>',
+      contentType: 'application/rss+xml; charset=utf-8',
+      tags: ['site', ...tags],
+    };
+  }
+
   // ---- Routing --------------------------------------------------------------------
 
   private async route(
@@ -575,6 +651,13 @@ export class PublicService {
         isHome: true,
         tag: 'type:article',
       });
+    }
+
+    // RSS feeds (RF-THM-08): latest posts, and per category or tag.
+    if (rest === '/feed') return this.feed(scope, null);
+    const termFeed = /^\/([a-z0-9-]+)\/([a-z0-9]+(?:-[a-z0-9]+)*)\/feed$/.exec(rest);
+    if (termFeed && data.taxonomies.includes(termFeed[1]!)) {
+      return this.feed(scope, { taxonomy: termFeed[1]!, slug: termFeed[2]! });
     }
 
     if (rest === '/search') {
@@ -799,6 +882,14 @@ export class PublicService {
       type: 'website',
       image: null,
       noindex: false,
+      ...(options.term
+        ? {
+            feed: {
+              title: `${options.term.name} – ${scope.siteTitle}`,
+              href: `${options.base}/feed`,
+            },
+          }
+        : {}),
     });
     const candidates = templateCandidates(props, {
       type: 'article',
@@ -1164,6 +1255,8 @@ export class PublicService {
       type: 'website' | 'article';
       image: RenderMedia | null;
       noindex: boolean;
+      /** The feed of this page (term archives). */
+      feed?: { title: string; href: string };
     },
   ): HeadData {
     const absolute = (path: string) => `${scope.origin}${path}`;
@@ -1191,6 +1284,11 @@ export class PublicService {
     if (description) og['og:description'] = description;
     if (input.image) og['og:image'] = absolute(input.image.url);
     const noindex = input.noindex || scope.settings.discourageSearchEngines;
+    // Feed autodiscovery: the language's posts, and the term's on its archive.
+    const feeds = [
+      { title: scope.siteTitle, href: scope.data.urls.feed(scope.locale) },
+      ...(input.feed ? [input.feed] : []),
+    ];
     return {
       title: input.title,
       description,
@@ -1198,6 +1296,15 @@ export class PublicService {
       alternates,
       og,
       ...(noindex ? { robots: 'noindex, follow' } : {}),
+      tags: feeds.map((feed) => ({
+        tag: 'link' as const,
+        attrs: {
+          rel: 'alternate',
+          type: 'application/rss+xml',
+          title: feed.title,
+          href: absolute(feed.href),
+        },
+      })),
     };
   }
 

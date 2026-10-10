@@ -75,6 +75,15 @@ describe('list tables', () => {
     expect(titles(order)).toEqual(['Charlie', 'Bravo', 'Alpha']);
   });
 
+  it('lists hierarchical entries in tree order', async () => {
+    const parent = await create('Tree parent', { position: 5 });
+    await create('Tree child', { position: 0, parentId: parent });
+    await create('Tree root', { position: 4 });
+    const list = await editor.get('/api/v1/entries?type=page&sort=order&q=');
+    const order = titles(list).filter((t) => t.startsWith('Tree'));
+    expect(order).toEqual(['Tree root', 'Tree parent', 'Tree child']);
+  });
+
   it('runs bulk actions entry by entry', async () => {
     const a = await create('Bulk A');
     const b = await create('Bulk B');

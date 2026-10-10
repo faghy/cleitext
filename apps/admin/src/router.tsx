@@ -31,6 +31,7 @@ import { ActivityPage } from './pages/activity';
 import { SystemPage } from './pages/system';
 import { UsersPage } from './pages/users';
 import { TermsPage } from './pages/terms';
+import { StructurePage } from './pages/structure';
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -188,6 +189,7 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/profile', ProfilePage),
     sectionRoute('/appearance', AppearancePage),
     sectionRoute('/settings', SettingsPage),
+    sectionRoute('/structure', StructurePage),
     sectionRoute('/plugins', PluginsPage),
     sectionRoute('/sites', SitesPage),
     sectionRoute('/activity', ActivityPage),

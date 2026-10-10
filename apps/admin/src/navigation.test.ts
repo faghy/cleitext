@@ -17,6 +17,7 @@ describe('visibleSections', () => {
       'Users',
       'Profile',
       'Settings',
+      'Content structure',
       'Activity',
       'System status',
     ]);

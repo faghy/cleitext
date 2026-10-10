@@ -1,6 +1,7 @@
 import type { FieldDefinition } from './fields.js';
 import type { FieldGroupView } from './plugins.js';
 import { z } from 'zod';
+import { fieldListSchema } from './fields.js';
 import { localeSchema } from './api.js';
 
 /** Content API payloads (docs/SPECIFICATIONS.md §6.2). Documents are CXD. */
@@ -118,6 +119,44 @@ export interface ContentTypeView {
   /** Extra fields added by plugins. */
   fieldGroups: FieldGroupView[];
 }
+
+const structureSlug = z
+  .string()
+  .regex(/^[a-z][a-z0-9_-]{0,31}$/, 'Lowercase letters, digits, - and _, starting with a letter');
+const labels = z.record(
+  z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/),
+  z.string().trim().min(1).max(100),
+);
+
+/** Features an entry type can offer in the editor. */
+export const CONTENT_TYPE_FEATURES = ['blocks', 'featured_image', 'excerpt', 'parent'] as const;
+
+export const createContentTypeRequestSchema = z.object({
+  slug: structureSlug,
+  name: labels.refine((v) => Object.keys(v).length > 0, 'Give at least one name'),
+  hierarchical: z.boolean().default(false),
+  supports: z.array(z.enum(CONTENT_TYPE_FEATURES)).default(['blocks']),
+  /** `/events/{slug}`; built from the slug when omitted. */
+  permalink: z.string().max(200).optional(),
+  fields: z.lazy(() => fieldListSchema).default([]),
+});
+export const updateContentTypeRequestSchema = z.object({
+  name: labels.optional(),
+  supports: z.array(z.enum(CONTENT_TYPE_FEATURES)).optional(),
+  permalink: z.string().max(200).optional(),
+  fields: z.lazy(() => fieldListSchema).optional(),
+});
+
+export const createTaxonomyRequestSchema = z.object({
+  slug: structureSlug,
+  name: labels.refine((v) => Object.keys(v).length > 0, 'Give at least one name'),
+  hierarchical: z.boolean().default(false),
+  contentTypes: z.array(z.string().min(1).max(64)).max(50).default([]),
+});
+export const updateTaxonomyRequestSchema = z.object({
+  name: labels.optional(),
+  contentTypes: z.array(z.string().min(1).max(64)).max(50).optional(),
+});
 
 export interface EntrySummary {
   id: string;

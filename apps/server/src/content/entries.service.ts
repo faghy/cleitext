@@ -51,6 +51,7 @@ import { blockRegistry } from './block-registry.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { TermsService } from './terms.service.js';
 import { sanitizeDocument } from './html-sanitize.js';
+import { entryPath, localePrefixes } from './paths.js';
 
 type EntryRow = typeof entries.$inferSelect;
 type ContentTypeRow = typeof contentTypes.$inferSelect;
@@ -216,6 +217,35 @@ export class EntriesService {
         const offset = Math.max(0, Number(/^o:(\d+)$/.exec(query.cursor ?? '')?.[1] ?? 0));
         const ascending =
           (query.dir ?? (sort === 'title' || sort === 'order' ? 'asc' : 'desc')) === 'asc';
+        // Manual order without filters that hide parents: pages come in tree
+        // order (each parent followed by its children), as in WordPress.
+        if (sort === 'order' && ascending && !query.q && !query.author && !query.term) {
+          const all = await tx
+            .select({
+              id: entries.id,
+              parentId: entries.parentId,
+            })
+            .from(entries)
+            .where(and(...conditions))
+            .orderBy(asc(entries.position), asc(entries.title), desc(entries.id));
+          const ids = treeOrder(all).slice(offset, offset + query.limit);
+          const rows =
+            ids.length === 0
+              ? []
+              : await tx
+                  .select({ entry: entries, authorName: users.displayName })
+                  .from(entries)
+                  .leftJoin(users, eq(users.id, entries.authorId))
+                  .where(inArray(entries.id, ids));
+          const byId = new Map(rows.map((row) => [row.entry.id, row]));
+          return {
+            items: ids
+              .map((id) => byId.get(id))
+              .filter((row) => row !== undefined)
+              .map(({ entry, authorName }) => toSummary(entry, authorName)),
+            nextCursor: all.length > offset + query.limit ? `o:${offset + query.limit}` : null,
+          };
+        }
         const column =
           sort === 'title'
             ? entries.title
@@ -1057,8 +1087,9 @@ export class EntriesService {
     after: EntryRow,
     permalink: string,
   ): Promise<void> {
-    const from = await this.pathOf(tx, before, permalink);
-    const to = await this.pathOf(tx, after, permalink);
+    const prefix = (await localePrefixes(tx)).get(before.locale) ?? '';
+    const from = prefix + (await entryPath(tx, before, permalink));
+    const to = prefix + (await entryPath(tx, after, permalink));
     if (from === to) return;
     // Going back to an old slug must not leave a redirect loop.
     await tx.delete(redirects).where(eq(redirects.fromPath, to));
@@ -1069,32 +1100,10 @@ export class EntriesService {
     // Older redirects that pointed to the old path now point to the new one.
     await tx.update(redirects).set({ toPath: to }).where(eq(redirects.toPath, from));
   }
-
-  /** Public path from the content type's permalink pattern. */
-  private async pathOf(tx: Tx, entry: EntryRow, permalink: string): Promise<string> {
-    const segments: string[] = [entry.slug];
-    let parentId = entry.parentId;
-    for (let depth = 0; parentId && depth < 20; depth++) {
-      const [parent] = await tx
-        .select({ slug: entries.slug, parentId: entries.parentId })
-        .from(entries)
-        .where(eq(entries.id, parentId));
-      if (!parent) break;
-      segments.unshift(parent.slug);
-      parentId = parent.parentId;
-    }
-    const date = entry.publishedAt ?? entry.createdAt;
-    return permalink
-      .replace('{path}', segments.join('/'))
-      .replace('{slug}', entry.slug)
-      .replace('{year}', String(date.getUTCFullYear()))
-      .replace('{month}', String(date.getUTCMonth() + 1).padStart(2, '0'));
-  }
 }
 
 // ---- Helpers ------------------------------------------------------------------------
 
-/** Validates a CXD document (schema and known blocks). */
 /**
  * Checks a document from the editor; `core/html` blocks are sanitized when
  * the author cannot publish unfiltered HTML.
@@ -1202,4 +1211,29 @@ function decodeCursor(cursor: string | undefined): { updatedAt: Date; id: string
   } catch {
     return null;
   }
+}
+
+/**
+ * Depth-first order of entries already sorted among siblings: each parent
+ * followed by its children. Entries whose parent is not in the list are roots.
+ */
+export function treeOrder(rows: { id: string; parentId: string | null }[]): string[] {
+  const ids = new Set(rows.map((r) => r.id));
+  const children = new Map<string | null, string[]>();
+  for (const row of rows) {
+    const parent = row.parentId && ids.has(row.parentId) ? row.parentId : null;
+    children.set(parent, [...(children.get(parent) ?? []), row.id]);
+  }
+  const order: string[] = [];
+  const seen = new Set<string>();
+  const visit = (parent: string | null) => {
+    for (const id of children.get(parent) ?? []) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      order.push(id);
+      visit(id);
+    }
+  };
+  visit(null);
+  return order;
 }

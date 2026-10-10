@@ -77,7 +77,8 @@ export function usePluginMenu(): { types: PluginMenuItem[]; pages: PluginMenuIte
   const plugins = usePluginAdmin();
   return {
     types: (types.data ?? [])
-      .filter((t) => t.source.startsWith('plugin:'))
+      // Types of plugins and types made in Content structure.
+      .filter((t) => t.source.startsWith('plugin:') || t.source === 'user')
       .map((t) => ({ to: `/content/${t.slug}`, label: labelText(t.name, me.user.locale) })),
     pages: plugins.flatMap((plugin) =>
       (plugin.definition?.pages ?? [])
