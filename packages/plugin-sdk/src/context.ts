@@ -197,6 +197,13 @@ export interface LanguageProvider {
     kind: TranslatableKind,
     ids: string[],
   ): Record<string, TranslationLink[]> | Promise<Record<string, TranslationLink[]>>;
+  /**
+   * Optional, for lists in a language other than the default one (home,
+   * posts page, search, feeds): `null` lists only that language's entries;
+   * an array also lists the default language's entries, except those
+   * translated into it (the ids given: entries with a version in `locale`).
+   */
+  fallback?(siteId: string, locale: string): string[] | null | Promise<string[] | null>;
 }
 
 export interface LanguageUsage {

@@ -590,6 +590,9 @@ ctx.languages.provide({
   ],
   // For each id, the other versions of the item: [{ id, locale }].
   translations: async (siteId, kind /* 'entry' | 'term' */, ids) => ({}),
+  // Optional: lists of another language also show the default language's
+  // untranslated entries (null: no; or the ids already translated into it).
+  fallback: async (siteId, locale) => null,
 });
 ```
 

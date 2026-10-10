@@ -62,7 +62,8 @@ test('a synced pattern is inserted, and a selection saved as a pattern', async (
   // Insert the synced pattern from the inserter.
   await page.getByRole('button', { name: 'Add block' }).click();
   await page.getByRole('tab', { name: 'Patterns' }).click();
-  await page.getByText('Saved patterns', { exact: true }).click();
+  // By name: the list is paged, and earlier runs leave patterns behind.
+  await page.getByRole('searchbox', { name: 'Search' }).fill(`Notice ${stamp}`);
   await page
     .getByRole('option', { name: new RegExp(`Notice ${stamp} \\(synced\\)`) })
     .first()

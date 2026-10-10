@@ -69,6 +69,22 @@ export default definePlugin({
         }));
       },
       translations: (siteId, kind, ids) => linksOf(ctx, siteId, kind, ids),
+      // "Show untranslated content": lists of a language also show the
+      // default language's entries that have no version in it.
+      async fallback(siteId, locale) {
+        if ((await ctx.storage.get<boolean>(siteId, 'showUntranslated')) !== true) return null;
+        return ctx.db.transaction(siteId, async (tx) => {
+          const groups = tx
+            .select({ group: translations.groupId })
+            .from(translations)
+            .where(and(eq(translations.kind, 'entry'), eq(translations.locale, locale)));
+          const rows = await tx
+            .select({ id: translations.elementId })
+            .from(translations)
+            .where(and(eq(translations.kind, 'entry'), inArray(translations.groupId, groups)));
+          return rows.map((r) => r.id);
+        });
+      },
     });
 
     // An item that is gone leaves its group.
@@ -670,6 +686,31 @@ function routes(ctx: PluginContext): void {
       } catch (error) {
         throw new HttpError(502, (error as Error).message);
       }
+      return { status: 204 };
+    }),
+  });
+
+  // Options of the site.
+  ctx.routes.api({
+    method: 'GET',
+    path: '/options',
+    capability: 'manage_settings',
+    handler: handle(async (request) => ({
+      body: {
+        showUntranslated:
+          (await ctx.storage.get<boolean>(request.siteId, 'showUntranslated')) === true,
+      },
+    })),
+  });
+
+  ctx.routes.api({
+    method: 'PUT',
+    path: '/options',
+    capability: 'manage_settings',
+    handler: handle(async (request) => {
+      const body = (request.body ?? {}) as { showUntranslated?: unknown };
+      await ctx.storage.set(request.siteId, 'showUntranslated', body.showUntranslated === true);
+      await ctx.cache.invalidate(request.siteId, ['site']);
       return { status: 204 };
     }),
   });

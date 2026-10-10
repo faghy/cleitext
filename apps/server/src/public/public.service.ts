@@ -38,7 +38,7 @@ import {
   type ThemeDefinition,
 } from '@cleitext/theme-sdk';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createElement, Fragment } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -604,7 +604,7 @@ export class PublicService {
     term: { taxonomy: string; slug: string } | null,
   ): Promise<PublicResponse | null> {
     const { tx, data, settings, locale } = scope;
-    let where = and(eq(entries.typeSlug, 'article'), eq(entries.locale, locale));
+    let where = and(eq(entries.typeSlug, 'article'), await this.listedIn(scope));
     let title = scope.siteTitle;
     let link = data.urls.home(locale);
     let self = data.urls.feed(locale);
@@ -773,6 +773,26 @@ export class PublicService {
     return translation ?? null;
   }
 
+  /**
+   * Entries listed in the request's language: its own, plus the default
+   * language's ones not translated into it when the language plugin says so
+   * (like WPML's "display as translated"). They keep their own address.
+   */
+  private async listedIn(scope: RequestScope) {
+    const own = eq(entries.locale, scope.locale);
+    const defaultLocale = scope.data.locales[0]?.code;
+    if (!defaultLocale || scope.locale === defaultLocale) return own;
+    const translated = await this.languages.fallback(scope.siteId, scope.locale);
+    if (!translated) return own;
+    return or(
+      own,
+      and(
+        eq(entries.locale, defaultLocale),
+        translated.length > 0 ? notInArray(entries.id, translated) : undefined,
+      ),
+    )!;
+  }
+
   /** The front page and its translations: their address is the home of their language. */
   private async frontPageIds(scope: RequestScope): Promise<Set<string>> {
     const id = scope.settings.frontPage;
@@ -922,7 +942,7 @@ export class PublicService {
     const { tx, data, settings } = scope;
     scope.tags.add(options.tag);
     const perPage = settings.postsPerPage;
-    const where = and(options.where, eq(entries.locale, scope.locale));
+    const where = and(options.where, await this.listedIn(scope));
     const total = await this.count(scope, where);
     const totalPages = Math.max(1, Math.ceil(total / perPage));
     if (options.page > totalPages || options.page < 1) return null;
@@ -1066,7 +1086,7 @@ export class PublicService {
     let total = 0;
     if (q) {
       const match = sql`${entries.search} @@ plainto_tsquery('simple', unaccent(${q}))`;
-      const where = and(eq(entries.locale, scope.locale), match);
+      const where = and(await this.listedIn(scope), match);
       total = await this.count(scope, where);
       list = await this.published(scope, where, {
         limit: perPage,

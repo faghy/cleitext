@@ -100,11 +100,14 @@ function MenusTab() {
 
   const create = useMutation({
     mutationFn: () => api<MenuView>('POST', '/menus', { name: newName, locale }),
-    onSuccess: (menu) => {
+    onSuccess: async (menu) => {
       setNewName('');
-      // Show the new menu right away, not the first one until the list reloads.
+      // Show the new menu right away, not the first one until the list reloads;
+      // a list still loading from before must not overwrite it.
+      await queryClient.cancelQueries({ queryKey: ['menus', locale] });
       queryClient.setQueryData<MenuView[]>(['menus', locale], (list) => [...(list ?? []), menu]);
       setSelected(menu.id);
+      await queryClient.invalidateQueries({ queryKey: ['menus', locale] });
     },
   });
 

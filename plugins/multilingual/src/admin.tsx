@@ -50,6 +50,10 @@ addMessages('it', {
   Unlink: 'Scollega',
   'needs update': 'da aggiornare',
   'Automatic translation': 'Traduzione automatica',
+  'Content not translated yet': 'Contenuti non ancora tradotti',
+  'Show it in the other languages': 'Mostrali nelle altre lingue',
+  'The home page, the posts page, search and feeds of a language also list the posts not translated into it yet, in the default language.':
+    'La home, la pagina degli articoli, la ricerca e i feed di una lingua elencano anche gli articoli non ancora tradotti in quella lingua, nella lingua predefinita.',
   'With a DeepL API key, new translations can be translated automatically. The texts are sent to DeepL; the key is stored encrypted.':
     'Con una chiave API di DeepL le nuove traduzioni possono essere tradotte automaticamente. I testi vengono inviati a DeepL; la chiave è salvata cifrata.',
   'A DeepL key is saved.': 'È salvata una chiave DeepL.',
@@ -287,6 +291,7 @@ function LanguagesPage({ api }: AdminPageProps) {
       </Card>
       <AddLanguage api={api} taken={views.map((v) => v.code)} onAdded={done} />
       <SiteTexts api={api} languages={views.filter((v) => !v.isDefault)} />
+      <Options api={api} />
       <MachineSettings api={api} />
     </div>
   );
@@ -451,6 +456,42 @@ function SiteTextsForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function Options({ api }: { api: AdminPageProps['api'] }) {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const options = useQuery({
+    queryKey: ['multilingual', 'options'],
+    queryFn: () => api<{ showUntranslated: boolean }>('GET', '/options'),
+  });
+  const save = useMutation({
+    mutationFn: (showUntranslated: boolean) => api<void>('PUT', '/options', { showUntranslated }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['multilingual', 'options'] }),
+  });
+  if (!options.data) return null;
+  return (
+    <Card title={t('Content not translated yet')}>
+      {save.error && <Alert>{errorMessage(save.error)}</Alert>}
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={options.data.showUntranslated}
+          disabled={save.isPending}
+          onChange={(e) => save.mutate(e.target.checked)}
+        />
+        <span>
+          {t('Show it in the other languages')}
+          <span className="block text-slate-600">
+            {t(
+              'The home page, the posts page, search and feeds of a language also list the posts not translated into it yet, in the default language.',
+            )}
+          </span>
+        </span>
+      </label>
+    </Card>
   );
 }
 

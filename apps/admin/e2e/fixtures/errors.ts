@@ -8,8 +8,10 @@ const BROWSER_NOISE = [
   /^TypeError: Importing a module script failed\.$/,
   // WebKit: requests cancelled by a navigation, even when the code handles them.
   /due to access control checks\.$/,
-  // WebKit: Gutenberg reads the selection of a canvas that was just removed.
+  // WebKit (and Chromium below): Gutenberg reads the selection of a canvas that was just removed.
   /^null is not an object \(evaluating 'node\.ownerDocument\.defaultView\.getSelection'\)$/,
+  // The same in Chromium.
+  /^Cannot read properties of null \(reading 'getSelection'\)$/,
 ];
 
 export function appErrors(errors: string[]): string[] {

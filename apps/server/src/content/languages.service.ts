@@ -10,6 +10,7 @@ const CACHE_MS = 30_000;
 /** Where the core keeps language data for a language plugin (migration 0016, imports). */
 export const PENDING = { namespace: 'languages', key: 'pending' } as const;
 const CODE_RE = /^[a-z]{2,3}(-[A-Z]{2})?$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Content languages of a site (M7). The core knows only the default
@@ -86,6 +87,23 @@ export class LanguagesService {
       }
     }
     return result;
+  }
+
+  /**
+   * For lists in `locale` (never the default language): the entries already
+   * translated into it, when the language plugin shows the untranslated ones
+   * of the default language; null otherwise.
+   */
+  async fallback(siteId: string, locale: string): Promise<string[] | null> {
+    const plugin = await this.host.languagePlugin(siteId);
+    const provide = plugin?.languageProvider?.fallback;
+    if (!plugin || !provide) return null;
+    const outcome = await this.host.runHook(
+      { plugin: plugin.slug, name: 'languages.fallback', siteId },
+      () => provide.call(plugin.languageProvider, siteId, locale),
+    );
+    if (!outcome.ok || !Array.isArray(outcome.value)) return null;
+    return outcome.value.filter((id): id is string => typeof id === 'string' && UUID_RE.test(id));
   }
 
   /** Whether the site has a language plugin (the multilingual UI shows only then). */

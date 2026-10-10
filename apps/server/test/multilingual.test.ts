@@ -482,6 +482,38 @@ describe('automatic translation (DeepL)', () => {
   });
 });
 
+describe('content not translated yet', () => {
+  it('can be listed in the other languages, in the default one', async () => {
+    const { site: shown, admin: owner2 } = await newSite('fallback', '10.50.6.1');
+    await owner2.post('/api/v1/plugins/multilingual/activate');
+    await owner2.post(`${EXT}/languages`, { code: 'it', name: 'Italiano' });
+    const only = await publish(owner2, 'article', 'Only in English');
+    const both = await publish(owner2, 'article', 'In both languages');
+    const id = await translate(owner2, both.id, 'it');
+    await owner2.request('PATCH', `/api/v1/entries/${id}`, { title: 'In entrambe le lingue' });
+    await owner2.post(`/api/v1/entries/${id}/publish`);
+    const guest = new TestClient(app, shown.host, '10.50.6.2');
+    const year = new Date().getUTCFullYear();
+
+    let home = (await guest.get('/it')).body;
+    expect(home).toContain('In entrambe le lingue');
+    expect(home).not.toContain('Only in English');
+
+    expect(
+      (await owner2.request('PUT', `${EXT}/options`, { showUntranslated: true })).statusCode,
+    ).toBe(204);
+    home = (await guest.get('/it')).body;
+    expect(home).toContain('In entrambe le lingue');
+    expect(home).toContain(`href="/${year}/only-in-english"`);
+    expect(home).not.toContain('In both languages');
+    expect((await guest.get('/it/feed')).body).toContain('Only in English');
+    expect((await guest.get('/it/search?q=english')).body).toContain('Only in English');
+    // The default language lists only its own entries.
+    expect((await guest.get('/')).body).not.toContain('In entrambe le lingue');
+    expect(only.locale).toBe('en');
+  });
+});
+
 describe('sites without the plugin', () => {
   it('pay nothing for it: no provider call, no language markup', async () => {
     const { site: plain, admin: owner2 } = await newSite('plain', '10.50.5.1');
