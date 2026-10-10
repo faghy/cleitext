@@ -3,18 +3,20 @@ import { Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { api } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { visibleSections } from '../navigation';
+import { useT } from '../components/ui';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
 export function AdminLayout() {
   const me = useMe();
+  const { t } = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const sections = visibleSections(me.capabilities);
   const pluginMenu = usePluginMenu();
   // WordPress order: plugin content types after Pages, plugin pages at the end.
   const items: (PluginMenuItem & { exact?: boolean })[] = sections.flatMap((section) => [
-    { to: section.to, label: section.label, exact: section.to === '/' },
+    { to: section.to, label: t(section.label), exact: section.to === '/' },
     ...(section.to === '/pages' ? pluginMenu.types : []),
   ]);
   items.push(...pluginMenu.pages);
@@ -36,7 +38,7 @@ export function AdminLayout() {
             {me.site.name}
           </p>
         </div>
-        <nav aria-label="Main">
+        <nav aria-label={t('Main')}>
           <ul>
             {items.map((section) => (
               <li key={section.to}>
@@ -58,7 +60,7 @@ export function AdminLayout() {
         <header className="flex items-center justify-end gap-4 border-b border-slate-200 bg-white px-6 py-2 text-sm">
           {me.sites.length > 1 && (
             <label className="mr-auto flex items-center gap-2">
-              <span className="text-slate-600">Site</span>
+              <span className="text-slate-600">{t('Site')}</span>
               <select
                 className="rounded border border-slate-300 bg-white px-2 py-1"
                 value={me.site.id}
@@ -80,7 +82,7 @@ export function AdminLayout() {
           <span>
             {me.user.displayName}
             <span className="ml-2 text-slate-500">
-              {me.user.isSuperAdmin ? 'Super admin' : (me.role?.name ?? '')}
+              {me.user.isSuperAdmin ? t('Super admin') : (me.role?.name ?? '')}
             </span>
           </span>
           <button
@@ -89,7 +91,7 @@ export function AdminLayout() {
             onClick={() => logout.mutate()}
             disabled={logout.isPending}
           >
-            Sign out
+            {t('Sign out')}
           </button>
         </header>
         <main className="p-6">

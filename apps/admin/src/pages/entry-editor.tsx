@@ -1,6 +1,6 @@
 import type { CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance, EditorServices, MediaRef } from '@cleitext/editor-core';
-import { FieldsForm } from '@cleitext/admin-sdk';
+import { FieldsForm, useT } from '@cleitext/admin-sdk';
 import type { FieldBlockDefinition } from '@cleitext/editor-core';
 import {
   labelText,
@@ -31,12 +31,13 @@ type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
 
 /** Full-screen editor for one entry (RF-EDT-01, RF-CNT-04…10). */
 export function EntryEditorPage({ id }: { id: string }) {
+  const { t } = useT();
   const entry = useQuery({
     queryKey: ['entry', id],
     queryFn: () => api<EntryView>('GET', `/entries/${id}`),
   });
 
-  if (entry.isPending) return <EditorShell>Loading…</EditorShell>;
+  if (entry.isPending) return <EditorShell>{t('Loading…')}</EditorShell>;
   if (entry.isError) {
     return (
       <EditorShell>
@@ -51,6 +52,7 @@ export function EntryEditorPage({ id }: { id: string }) {
 }
 
 function Editor({ initial }: { initial: EntryView }) {
+  const { t } = useT();
   const me = useMe();
   const userLocale = me.user.locale;
   const queryClient = useQueryClient();
@@ -245,8 +247,8 @@ function Editor({ initial }: { initial: EntryView }) {
   const typeName = contentType
     ? labelText(contentType.name, userLocale)
     : entry.type === 'page'
-      ? 'Pages'
-      : 'Posts';
+      ? t('Pages')
+      : t('Posts');
 
   return (
     <EditorShell>
@@ -254,12 +256,12 @@ function Editor({ initial }: { initial: EntryView }) {
         <Link
           to={backTo}
           className="text-sm text-sky-700 hover:underline"
-          aria-label="Back to the list"
+          aria-label={t('Back to the list')}
         >
           ← {typeName}
         </Link>
         <label className="sr-only" htmlFor="entry-title">
-          Title
+          {t('Title')}
         </label>
         <input
           id="entry-title"
@@ -269,22 +271,22 @@ function Editor({ initial }: { initial: EntryView }) {
             setTitle(e.target.value);
             markDirty();
           }}
-          placeholder="Add title"
+          placeholder={t('Add title')}
           className="min-w-0 flex-1 rounded border border-transparent px-2 py-1 text-xl font-semibold hover:border-slate-200 focus:border-sky-600 focus:outline-none"
         />
         <span className="text-xs text-slate-500" role="status" aria-live="polite">
           {saveState === 'saving'
-            ? 'Saving…'
+            ? t('Saving…')
             : saveState === 'dirty'
               ? autosavedAt
-                ? `Autosaved ${new Date(autosavedAt).toLocaleTimeString()}`
-                : 'Unsaved changes'
+                ? t('Autosaved {time}', { time: new Date(autosavedAt).toLocaleTimeString() })
+                : t('Unsaved changes')
               : saveState === 'saved'
-                ? 'Saved'
+                ? t('Saved')
                 : ''}
         </span>
         <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-          {STATUS_LABELS[entry.status]}
+          {t(STATUS_LABELS[entry.status])}
         </span>
         {!readOnly && !isPublished && (
           <Button
@@ -292,7 +294,7 @@ function Editor({ initial }: { initial: EntryView }) {
             disabled={action.isPending}
             onClick={() => action.mutate('save')}
           >
-            Save draft
+            {t('Save draft')}
           </Button>
         )}
         {!readOnly && entry.status !== 'trashed' && (
@@ -301,17 +303,17 @@ function Editor({ initial }: { initial: EntryView }) {
             disabled={action.isPending || preview.isPending}
             onClick={() => preview.mutate()}
           >
-            Preview
+            {t('Preview')}
           </Button>
         )}
         {!readOnly && !entry.permissions.publish && entry.status === 'draft' && (
           <Button disabled={action.isPending} onClick={() => action.mutate('submit')}>
-            Submit for review
+            {t('Submit for review')}
           </Button>
         )}
         {entry.permissions.publish && entry.status !== 'trashed' && (
           <Button disabled={action.isPending} onClick={() => action.mutate('publish')}>
-            {isPublished ? 'Update' : 'Publish'}
+            {isPublished ? t('Update') : t('Publish')}
           </Button>
         )}
       </header>
@@ -323,12 +325,12 @@ function Editor({ initial }: { initial: EntryView }) {
       )}
       {readOnly && (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          You can view this entry but not change it.
+          {t('You can view this entry but not change it.')}
         </div>
       )}
       {recovery && (
         <div className="flex items-center gap-3 border-b border-sky-200 bg-sky-50 px-4 py-2 text-sm">
-          <span>There is an autosave of this entry newer than the saved version.</span>
+          <span>{t('There is an autosave of this entry newer than the saved version.')}</span>
           <Button
             variant="secondary"
             onClick={() => {
@@ -345,14 +347,14 @@ function Editor({ initial }: { initial: EntryView }) {
               setRecovery(null);
             }}
           >
-            Restore the autosave
+            {t('Restore the autosave')}
           </Button>
           <button
             type="button"
             className="text-sky-700 hover:underline"
             onClick={() => setRecovery(null)}
           >
-            Dismiss
+            {t('Dismiss')}
           </button>
         </div>
       )}
@@ -361,25 +363,25 @@ function Editor({ initial }: { initial: EntryView }) {
         <div ref={canvasRef} className="min-w-0 flex-1" />
         <aside
           className="flex w-80 shrink-0 flex-col border-l border-slate-200 bg-white"
-          aria-label="Settings"
+          aria-label={t('Settings')}
         >
           <div role="tablist" className="flex border-b border-slate-200 text-sm">
-            {(['document', 'block'] as const).map((t) => (
+            {(['document', 'block'] as const).map((name) => (
               <button
-                key={t}
+                key={name}
                 role="tab"
                 type="button"
-                aria-selected={tab === t}
-                onClick={() => setTab(t)}
-                className={`flex-1 px-3 py-2 ${tab === t ? 'border-b-2 border-sky-700 font-medium' : 'text-slate-600'}`}
+                aria-selected={tab === name}
+                onClick={() => setTab(name)}
+                className={`flex-1 px-3 py-2 ${tab === name ? 'border-b-2 border-sky-700 font-medium' : 'text-slate-600'}`}
               >
-                {t === 'block'
-                  ? 'Block'
+                {name === 'block'
+                  ? t('Block')
                   : entry.type === 'page'
-                    ? 'Page'
+                    ? t('Page')
                     : entry.type === 'article'
-                      ? 'Post'
-                      : 'Entry'}
+                      ? t('Post')
+                      : t('Entry')}
               </button>
             ))}
           </div>
@@ -517,6 +519,7 @@ function FieldsPanel({
   readOnly: boolean;
   onChange: (values: FieldValues) => void;
 }) {
+  const { t } = useT();
   if (type.fields.length === 0 && type.fieldGroups.length === 0) return null;
   const nested = (prefix: string) =>
     Object.fromEntries(
@@ -527,8 +530,8 @@ function FieldsPanel({
   return (
     <div className="space-y-5 border-b border-slate-200 p-4 text-sm">
       {type.fields.length > 0 && (
-        <section className="space-y-2" aria-label="Details">
-          <h3 className="font-medium">Details</h3>
+        <section className="space-y-2" aria-label={t('Details')}>
+          <h3 className="font-medium">{t('Details')}</h3>
           <FieldsForm
             fields={type.fields}
             values={values}
@@ -589,6 +592,7 @@ function DocumentPanel({
   onSaved: (view: EntryView) => void;
   onRestored: (view: EntryView) => void;
 }) {
+  const { t } = useT();
   const navigate = useNavigate();
   const siteTimezone = useMe().site.timezone;
   const [slug, setSlug] = useState(entry.slug);
@@ -625,7 +629,7 @@ function DocumentPanel({
   });
 
   const missingLocales = locales.filter(
-    (l) => l.code !== entry.locale && !entry.translations.some((t) => t.locale === l.code),
+    (l) => l.code !== entry.locale && !entry.translations.some((tr) => tr.locale === l.code),
   );
   const panelError = saveSettings.error ?? restore.error ?? translate.error;
 
@@ -634,9 +638,9 @@ function DocumentPanel({
       {panelError && <Alert>{errorMessage(panelError)}</Alert>}
 
       <section className="space-y-1">
-        <h3 className="font-medium">Status</h3>
+        <h3 className="font-medium">{t('Status')}</h3>
         <p>
-          {STATUS_LABELS[entry.status]}
+          {t(STATUS_LABELS[entry.status])}
           {entry.publishedAt &&
             entry.status === 'published' &&
             ` · ${formatDate(entry.publishedAt)}`}
@@ -644,23 +648,25 @@ function DocumentPanel({
         </p>
         {entry.permissions.publish && (
           <label className="mt-2 block">
-            <span className="text-xs text-slate-600">Visibility</span>
+            <span className="text-xs text-slate-600">{t('Visibility')}</span>
             <select
               value={visibility}
               onChange={(e) => onVisibility(e.target.value as 'public' | 'private')}
               className="w-full rounded border border-slate-300 bg-white px-2 py-1"
             >
-              <option value="public">Public</option>
-              <option value="private">Private (signed-in editors only)</option>
+              <option value="public">{t('Public')}</option>
+              <option value="private">{t('Private (signed-in editors only)')}</option>
             </select>
             {visibility !== (entry.status === 'private' ? 'private' : 'public') &&
               ['published', 'private'].includes(entry.status) && (
-                <span className="text-xs text-amber-700">Applied when you click Update.</span>
+                <span className="text-xs text-amber-700">
+                  {t('Applied when you click Update.')}
+                </span>
               )}
           </label>
         )}
         {entry.hasUnpublishedChanges && (
-          <p className="text-amber-700">The public version is older than the saved one.</p>
+          <p className="text-amber-700">{t('The public version is older than the saved one.')}</p>
         )}
         {entry.permissions.publish && ['published', 'scheduled'].includes(entry.status) && (
           <button
@@ -669,38 +675,40 @@ function DocumentPanel({
             disabled={busy}
             onClick={() => onAction('unpublish')}
           >
-            Switch to draft
+            {t('Switch to draft')}
           </button>
         )}
       </section>
 
       {entry.permissions.publish && ['draft', 'pending', 'scheduled'].includes(entry.status) && (
         <section className="space-y-2">
-          <h3 className="font-medium">Schedule</h3>
+          <h3 className="font-medium">{t('Schedule')}</h3>
           <label className="block">
-            <span className="sr-only">Publication date and time</span>
+            <span className="sr-only">{t('Publication date and time')}</span>
             <input
               type="datetime-local"
               value={scheduleAt}
               onChange={(e) => setScheduleAt(e.target.value)}
               className="w-full rounded border border-slate-300 px-2 py-1"
             />
-            <span className="text-xs text-slate-500">Site time zone: {siteTimezone}</span>
+            <span className="text-xs text-slate-500">
+              {t('Site time zone: {timezone}', { timezone: siteTimezone })}
+            </span>
           </label>
           <Button
             variant="secondary"
             disabled={!scheduleAt || busy}
             onClick={() => onAction({ schedule: scheduleAt })}
           >
-            Schedule
+            {t('Schedule')}
           </Button>
         </section>
       )}
 
       <section className="space-y-2">
-        <h3 className="font-medium">Permalink</h3>
+        <h3 className="font-medium">{t('Permalink')}</h3>
         <label className="block">
-          <span className="text-xs text-slate-600">Slug</span>
+          <span className="text-xs text-slate-600">{t('Slug')}</span>
           <input
             value={slug}
             readOnly={readOnly}
@@ -713,19 +721,19 @@ function DocumentPanel({
 
       {entry.type === 'page' && (
         <section className="space-y-2">
-          <h3 className="font-medium">Parent page</h3>
+          <h3 className="font-medium">{t('Parent page')}</h3>
           <select
             value={entry.parentId ?? ''}
             disabled={readOnly}
             onChange={(e) => saveSettings.mutate({ parentId: e.target.value || null })}
             className="w-full rounded border border-slate-300 bg-white px-2 py-1"
           >
-            <option value="">(no parent)</option>
+            <option value="">{t('(no parent)')}</option>
             {pages.data?.items
               .filter((p) => p.id !== entry.id)
               .map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.title || '(no title)'}
+                  {p.title || t('(no title)')}
                 </option>
               ))}
           </select>
@@ -736,19 +744,19 @@ function DocumentPanel({
 
       {locales.length > 1 && (
         <section className="space-y-2">
-          <h3 className="font-medium">Language</h3>
+          <h3 className="font-medium">{t('Language')}</h3>
           <p className="uppercase">{entry.locale}</p>
           <ul className="space-y-1">
-            {entry.translations.map((t) => (
-              <li key={t.id}>
+            {entry.translations.map((tr) => (
+              <li key={tr.id}>
                 <Link
                   to="/entries/$id"
-                  params={{ id: t.id }}
+                  params={{ id: tr.id }}
                   className="text-sky-700 hover:underline"
                 >
-                  <span className="uppercase">{t.locale}</span>: {t.title || '(no title)'}
+                  <span className="uppercase">{tr.locale}</span>: {tr.title || t('(no title)')}
                 </Link>{' '}
-                <span className="text-slate-500">({STATUS_LABELS[t.status]})</span>
+                <span className="text-slate-500">({t(STATUS_LABELS[tr.status])})</span>
               </li>
             ))}
           </ul>
@@ -758,9 +766,9 @@ function DocumentPanel({
               disabled={translate.isPending}
               onChange={(e) => e.target.value && translate.mutate(e.target.value)}
               className="w-full rounded border border-slate-300 bg-white px-2 py-1"
-              aria-label="Add translation"
+              aria-label={t('Add translation')}
             >
-              <option value="">Add translation…</option>
+              <option value="">{t('Add translation…')}</option>
               {missingLocales.map((l) => (
                 <option key={l.code} value={l.code}>
                   {l.name}
@@ -772,7 +780,7 @@ function DocumentPanel({
       )}
 
       <section className="space-y-2">
-        <h3 className="font-medium">Revisions</h3>
+        <h3 className="font-medium">{t('Revisions')}</h3>
         <ul className="space-y-1">
           {revisions.data?.map((revision) => (
             <li key={revision.id} className="flex items-center justify-between gap-2">
@@ -780,8 +788,8 @@ function DocumentPanel({
                 {formatDate(revision.createdAt)}
                 <span className="block text-xs text-slate-500">
                   {revision.author?.displayName ?? '—'}
-                  {revision.current && ' · current'}
-                  {revision.published && ' · published'}
+                  {revision.current && ` · ${t('current')}`}
+                  {revision.published && ` · ${t('published')}`}
                 </span>
               </span>
               {!revision.current && !readOnly && (
@@ -791,7 +799,7 @@ function DocumentPanel({
                   disabled={restore.isPending}
                   onClick={() => restore.mutate(revision.id)}
                 >
-                  Restore
+                  {t('Restore')}
                 </button>
               )}
             </li>
@@ -806,10 +814,10 @@ function DocumentPanel({
             className="text-red-700 hover:underline"
             disabled={busy}
             onClick={() => {
-              if (window.confirm('Move this entry to the trash?')) onAction('trash');
+              if (window.confirm(t('Move this entry to the trash?'))) onAction('trash');
             }}
           >
-            Move to trash
+            {t('Move to trash')}
           </button>
         </section>
       )}

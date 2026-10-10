@@ -1,5 +1,6 @@
 import type { EntryListResponse, MenuView, ThemeInfo } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useT } from '@cleitext/admin-sdk';
 import { useEffect, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
@@ -21,6 +22,7 @@ const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 t
 
 /** Appearance → Menus (RF-NAV-01/02/03). Themes come with the plugin system. */
 export function AppearancePage() {
+  const { t } = useT();
   const me = useMe();
   const queryClient = useQueryClient();
   const [locale, setLocale] = useState(me.site.defaultLocale);
@@ -51,16 +53,19 @@ export function AppearancePage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Menus</h1>
+          <h1 className="text-2xl font-semibold">{t('Menus')}</h1>
           {theme.data && (
             <p className="text-sm text-slate-600">
-              Theme: {theme.data.name} {theme.data.version}
+              {t('Theme: {name} {version}', {
+                name: theme.data.name,
+                version: theme.data.version,
+              })}
             </p>
           )}
         </div>
         {me.site.locales.length > 1 && (
           <label className="text-sm">
-            <span className="mr-2 font-medium">Language</span>
+            <span className="mr-2 font-medium">{t('Language')}</span>
             <select
               className="rounded border border-slate-300 bg-white px-2 py-1"
               value={locale}
@@ -85,7 +90,7 @@ export function AppearancePage() {
         <div className="flex flex-wrap items-end gap-3">
           {menus.data && menus.data.length > 0 && (
             <label className="text-sm">
-              <span className="mb-1 block font-medium">Menu to edit</span>
+              <span className="mb-1 block font-medium">{t('Menu to edit')}</span>
               <select
                 className={selectClass}
                 value={current?.id ?? ''}
@@ -110,7 +115,7 @@ export function AppearancePage() {
             }}
           >
             <TextField
-              label="New menu"
+              label={t('New menu')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
@@ -119,7 +124,7 @@ export function AppearancePage() {
               variant="secondary"
               disabled={create.isPending || !newName.trim()}
             >
-              Create
+              {t('Create')}
             </Button>
           </form>
         </div>
@@ -140,7 +145,7 @@ export function AppearancePage() {
       )}
       {menus.data?.length === 0 && (
         <p className="text-sm text-slate-600">
-          No menus in this language yet: create the first one.
+          {t('No menus in this language yet: create the first one.')}
         </p>
       )}
     </div>
@@ -156,6 +161,7 @@ function MenuEditor({
   theme: ThemeInfo;
   onDeleted: () => void;
 }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [name, setName] = useState(menu.name);
   const [location, setLocation] = useState(menu.location ?? '');
@@ -190,17 +196,21 @@ function MenuEditor({
     <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
       <AddItems locale={menu.locale} onAdd={(item) => setItems((list) => [...list, item])} />
 
-      <Card title="Menu structure">
+      <Card title={t('Menu structure')}>
         <div className="mb-4 grid gap-3 sm:grid-cols-2">
-          <TextField label="Menu name" value={name} onChange={(e) => setName(e.target.value)} />
+          <TextField
+            label={t('Menu name')}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
           <label className="block space-y-1 text-sm">
-            <span className="block font-medium text-slate-800">Display location</span>
+            <span className="block font-medium text-slate-800">{t('Display location')}</span>
             <select
               className={selectClass}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
             >
-              <option value="">None</option>
+              <option value="">{t('None')}</option>
               {Object.entries(theme.menuLocations).map(([slug, label]) => (
                 <option key={slug} value={slug}>
                   {label}
@@ -211,9 +221,9 @@ function MenuEditor({
         </div>
 
         {items.length === 0 ? (
-          <p className="text-sm text-slate-600">Add items from the column on the left.</p>
+          <p className="text-sm text-slate-600">{t('Add items from the column on the left.')}</p>
         ) : (
-          <ol className="space-y-2" aria-label="Menu items">
+          <ol className="space-y-2" aria-label={t('Menu items')}>
             {items.map((item, index) => (
               <li
                 key={item.key}
@@ -221,9 +231,11 @@ function MenuEditor({
                 className="rounded border border-slate-200 bg-slate-50 p-2"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs uppercase text-slate-500">{KIND_LABELS[item.kind]}</span>
+                  <span className="text-xs uppercase text-slate-500">
+                    {t(KIND_LABELS[item.kind])}
+                  </span>
                   <label className="sr-only" htmlFor={`label-${item.key}`}>
-                    Navigation label
+                    {t('Navigation label')}
                   </label>
                   <input
                     id={`label-${item.key}`}
@@ -232,34 +244,37 @@ function MenuEditor({
                     placeholder={item.title}
                     onChange={(e) => update(index, { label: e.target.value })}
                   />
-                  <TreeButton label="Move up" onClick={() => setItems(moveUp(items, index))}>
+                  <TreeButton label={t('Move up')} onClick={() => setItems(moveUp(items, index))}>
                     ↑
                   </TreeButton>
-                  <TreeButton label="Move down" onClick={() => setItems(moveDown(items, index))}>
+                  <TreeButton
+                    label={t('Move down')}
+                    onClick={() => setItems(moveDown(items, index))}
+                  >
                     ↓
                   </TreeButton>
                   <TreeButton
-                    label="Make sub-item"
+                    label={t('Make sub-item')}
                     disabled={!canIndent(items, index)}
                     onClick={() => setItems(indent(items, index))}
                   >
                     →
                   </TreeButton>
                   <TreeButton
-                    label="Move out of sub-items"
+                    label={t('Move out of sub-items')}
                     disabled={item.depth === 0}
                     onClick={() => setItems(outdent(items, index))}
                   >
                     ←
                   </TreeButton>
-                  <TreeButton label="Remove" onClick={() => setItems(remove(items, index))}>
+                  <TreeButton label={t('Remove')} onClick={() => setItems(remove(items, index))}>
                     ✕
                   </TreeButton>
                 </div>
                 {item.kind === 'url' && (
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
                     <label className="flex flex-1 items-center gap-2">
-                      <span>URL</span>
+                      <span>{t('URL')}</span>
                       <input
                         className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1"
                         value={item.url ?? ''}
@@ -274,7 +289,7 @@ function MenuEditor({
                           update(index, { target: e.target.checked ? '_blank' : null })
                         }
                       />
-                      Open in a new tab
+                      {t('Open in a new tab')}
                     </label>
                   </div>
                 )}
@@ -286,19 +301,20 @@ function MenuEditor({
         <div className="mt-4 space-y-3">
           {save.error && <Alert>{errorMessage(save.error)}</Alert>}
           {destroy.error && <Alert>{errorMessage(destroy.error)}</Alert>}
-          {saved && <Alert kind="success">Menu saved.</Alert>}
+          {saved && <Alert kind="success">{t('Menu saved.')}</Alert>}
           <div className="flex justify-between gap-3">
             <Button
               variant="danger"
               disabled={destroy.isPending}
               onClick={() => {
-                if (window.confirm(`Delete the menu "${menu.name}"?`)) destroy.mutate();
+                if (window.confirm(t('Delete the menu "{name}"?', { name: menu.name })))
+                  destroy.mutate();
               }}
             >
-              Delete menu
+              {t('Delete menu')}
             </Button>
             <Button disabled={save.isPending || !name.trim()} onClick={() => save.mutate()}>
-              Save menu
+              {t('Save menu')}
             </Button>
           </div>
         </div>
@@ -338,6 +354,7 @@ function TreeButton({
 }
 
 function AddItems({ locale, onAdd }: { locale: string; onAdd: (item: FlatItem) => void }) {
+  const { t } = useT();
   const [url, setUrl] = useState('https://');
   const [label, setLabel] = useState('');
 
@@ -356,9 +373,15 @@ function AddItems({ locale, onAdd }: { locale: string; onAdd: (item: FlatItem) =
 
   return (
     <div className="space-y-4">
-      <EntryPicker type="page" title="Pages" locale={locale} onAdd={onAdd} make={linkItem} />
-      <EntryPicker type="article" title="Posts" locale={locale} onAdd={onAdd} make={linkItem} />
-      <Card title="Custom link">
+      <EntryPicker type="page" title={t('Pages')} locale={locale} onAdd={onAdd} make={linkItem} />
+      <EntryPicker
+        type="article"
+        title={t('Posts')}
+        locale={locale}
+        onAdd={onAdd}
+        make={linkItem}
+      />
+      <Card title={t('Custom link')}>
         <form
           className="space-y-3"
           onSubmit={(e) => {
@@ -368,14 +391,18 @@ function AddItems({ locale, onAdd }: { locale: string; onAdd: (item: FlatItem) =
             setLabel('');
           }}
         >
-          <TextField label="URL" value={url} onChange={(e) => setUrl(e.target.value)} />
-          <TextField label="Link text" value={label} onChange={(e) => setLabel(e.target.value)} />
+          <TextField label={t('URL')} value={url} onChange={(e) => setUrl(e.target.value)} />
+          <TextField
+            label={t('Link text')}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
           <Button
             type="submit"
             variant="secondary"
             disabled={!label.trim() || url.trim().length < 2}
           >
-            Add to menu
+            {t('Add to menu')}
           </Button>
         </form>
       </Card>
@@ -396,6 +423,7 @@ function EntryPicker({
   onAdd: (item: FlatItem) => void;
   make: (kind: FlatItem['kind'], fields: Partial<FlatItem>) => FlatItem;
 }) {
+  const { t } = useT();
   const [q, setQ] = useState('');
   const entries = useQuery({
     queryKey: ['menu-picker', type, locale, q],
@@ -410,12 +438,12 @@ function EntryPicker({
   return (
     <Card title={title}>
       <label className="sr-only" htmlFor={`search-${type}`}>
-        Search {title.toLowerCase()}
+        {t('Search {title}', { title: title.toLowerCase() })}
       </label>
       <input
         id={`search-${type}`}
         type="search"
-        placeholder="Search"
+        placeholder={t('Search')}
         className="mb-2 w-full rounded border border-slate-300 px-2 py-1 text-sm"
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -428,14 +456,16 @@ function EntryPicker({
             <button
               type="button"
               className="shrink-0 text-sky-700 hover:underline"
-              aria-label={`Add ${entry.title} to the menu`}
+              aria-label={t('Add {title} to the menu', { title: entry.title })}
               onClick={() => onAdd(make('entry', { entryId: entry.id, title: entry.title }))}
             >
-              Add
+              {t('Add')}
             </button>
           </li>
         ))}
-        {entries.data?.items.length === 0 && <li className="text-slate-500">Nothing published.</li>}
+        {entries.data?.items.length === 0 && (
+          <li className="text-slate-500">{t('Nothing published.')}</li>
+        )}
       </ul>
     </Card>
   );

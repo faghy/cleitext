@@ -1,5 +1,6 @@
 import type { MediaListResponse, MediaView } from '@cleitext/shared';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useT } from '@cleitext/admin-sdk';
 import { type DragEvent, useRef, useState } from 'react';
 import { api, errorMessage, uploadFile } from '../api';
 import { useMe } from '../auth';
@@ -7,6 +8,7 @@ import { Alert, Button, Card, TextField } from '../components/ui';
 
 /** Media library (RF-MED-01, RF-MED-04): grid, upload, details. */
 export function MediaPage() {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -47,13 +49,13 @@ export function MediaPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">Media Library</h1>
+        <h1 className="text-2xl font-semibold">{t('Media Library')}</h1>
         <Button
           variant="secondary"
           onClick={() => inputRef.current?.click()}
           disabled={upload.isPending}
         >
-          {upload.isPending ? 'Uploading…' : 'Add New'}
+          {upload.isPending ? t('Uploading…') : t('Add New')}
         </Button>
         <input
           ref={inputRef}
@@ -74,7 +76,7 @@ export function MediaPage() {
         onDrop={onDrop}
         className={`rounded border-2 border-dashed p-4 text-center text-sm ${dragging ? 'border-sky-600 bg-sky-50' : 'border-slate-300 text-slate-600'}`}
       >
-        Drop files here to upload them.
+        {t('Drop files here to upload them.')}
       </div>
       {uploadErrors.map((message) => (
         <Alert key={message}>{message}</Alert>
@@ -83,10 +85,10 @@ export function MediaPage() {
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           <Card>
-            {library.isPending && <p className="text-sm text-slate-600">Loading…</p>}
+            {library.isPending && <p className="text-sm text-slate-600">{t('Loading…')}</p>}
             {library.error && <Alert>{errorMessage(library.error)}</Alert>}
             {!library.isPending && items.length === 0 && (
-              <p className="text-sm text-slate-600">No files yet.</p>
+              <p className="text-sm text-slate-600">{t('No files yet.')}</p>
             )}
             <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
               {items.map((item) => (
@@ -113,7 +115,7 @@ export function MediaPage() {
             {library.hasNextPage && (
               <div className="mt-3">
                 <Button variant="secondary" onClick={() => library.fetchNextPage()}>
-                  Load more
+                  {t('Load more')}
                 </Button>
               </div>
             )}
@@ -128,6 +130,7 @@ export function MediaPage() {
 }
 
 function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () => void }) {
+  const { t } = useT();
   const me = useMe();
   const queryClient = useQueryClient();
   const [alt, setAlt] = useState<Record<string, string>>(media.alt);
@@ -147,29 +150,29 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
   return (
     <aside
       className="w-80 shrink-0 space-y-3 rounded border border-slate-200 bg-white p-4 text-sm"
-      aria-label="File details"
+      aria-label={t('File details')}
     >
       {media.kind === 'image' && (
         <img src={media.url} alt="" className="w-full rounded border border-slate-200" />
       )}
       <dl className="space-y-1">
         <div>
-          <dt className="inline font-medium">File: </dt>
+          <dt className="inline font-medium">{t('File:')} </dt>
           <dd className="inline break-all">{media.filename}</dd>
         </div>
         <div>
-          <dt className="inline font-medium">Type: </dt>
+          <dt className="inline font-medium">{t('Type:')} </dt>
           <dd className="inline">{media.mime}</dd>
         </div>
         <div>
-          <dt className="inline font-medium">Size: </dt>
+          <dt className="inline font-medium">{t('Size:')} </dt>
           <dd className="inline">
             {formatBytes(media.sizeBytes)}
             {media.width && ` · ${media.width} × ${media.height}`}
           </dd>
         </div>
         <div>
-          <dt className="inline font-medium">URL: </dt>
+          <dt className="inline font-medium">{t('URL:')} </dt>
           <dd className="inline break-all">{media.url}</dd>
         </div>
       </dl>
@@ -184,15 +187,15 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
           {me.site.locales.map((locale) => (
             <TextField
               key={locale.code}
-              label={`Alternative text (${locale.name})`}
+              label={t('Alternative text ({language})', { language: locale.name })}
               value={alt[locale.code] ?? ''}
               onChange={(e) => setAlt({ ...alt, [locale.code]: e.target.value })}
             />
           ))}
-          {save.isSuccess && <Alert kind="success">Saved.</Alert>}
+          {save.isSuccess && <Alert kind="success">{t('Saved.')}</Alert>}
           {save.error && <Alert>{errorMessage(save.error)}</Alert>}
           <Button type="submit" disabled={save.isPending}>
-            Save
+            {t('Save')}
           </Button>
         </form>
       )}
@@ -203,13 +206,15 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
         disabled={remove.isPending}
         onClick={() => {
           if (
-            window.confirm('Delete this file permanently? Pages using it will show a broken image.')
+            window.confirm(
+              t('Delete this file permanently? Pages using it will show a broken image.'),
+            )
           ) {
             remove.mutate();
           }
         }}
       >
-        Delete permanently
+        {t('Delete permanently')}
       </button>
     </aside>
   );

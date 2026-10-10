@@ -7,6 +7,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { api } from './api.js';
+import { useT } from './i18n.js';
 
 const inputClass =
   'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600';
@@ -232,6 +233,7 @@ function MediaPicker({
   disabled: boolean;
   onChange: (value: string | null) => void;
 }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const images = useQuery({
     queryKey: ['media', 'picker'],
@@ -253,7 +255,7 @@ function MediaPicker({
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
         >
-          {value ? 'Change image' : 'Choose image'}
+          {value ? t('Change image') : t('Choose image')}
         </button>
         {value && (
           <button
@@ -262,7 +264,7 @@ function MediaPicker({
             className="text-sm text-red-700 hover:underline"
             onClick={() => onChange(null)}
           >
-            Remove
+            {t('Remove')}
           </button>
         )}
       </div>
@@ -284,7 +286,9 @@ function MediaPicker({
             </li>
           ))}
           {images.data?.items.length === 0 && (
-            <li className="col-span-4 text-sm text-slate-500">The media library is empty.</li>
+            <li className="col-span-4 text-sm text-slate-500">
+              {t('The media library is empty.')}
+            </li>
           )}
         </ul>
       )}

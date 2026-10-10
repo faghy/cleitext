@@ -23,7 +23,13 @@ export interface PluginServices {
     fn: (tx: PluginTransaction) => Promise<T>,
   ): Promise<T>;
   invalidate(siteId: string, tags: string[]): Promise<void>;
-  sendMail(message: { to: string; subject: string; text: string; replyTo?: string }): Promise<void>;
+  sendMail(message: {
+    to: string;
+    subject: string;
+    text: string;
+    replyTo?: string;
+    siteId?: string;
+  }): Promise<void>;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

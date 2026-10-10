@@ -1,3 +1,4 @@
+import { useT } from '@cleitext/admin-sdk';
 import { labelText } from '@cleitext/shared';
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import {
@@ -25,6 +26,7 @@ import { PluginsPage } from './pages/plugins';
 import { ProfilePage } from './pages/profile';
 import { contentTypesQuery, PluginPage } from './plugins';
 import { SettingsPage } from './pages/settings';
+import { SitesPage } from './pages/sites';
 import { UsersPage } from './pages/users';
 
 interface RouterContext {
@@ -158,14 +160,21 @@ const routeTree = rootRoute.addChildren([
   editorRoute,
   appRoute.addChildren([
     sectionRoute('/', DashboardPage),
-    sectionRoute('/posts', () => <EntriesListPage type="article" title="Posts" />),
-    sectionRoute('/pages', () => <EntriesListPage type="page" title="Pages" />),
+    sectionRoute('/posts', function Posts() {
+      const { t } = useT();
+      return <EntriesListPage type="article" title={t('Posts')} />;
+    }),
+    sectionRoute('/pages', function Pages() {
+      const { t } = useT();
+      return <EntriesListPage type="page" title={t('Pages')} />;
+    }),
     sectionRoute('/media', MediaPage),
     sectionRoute('/users', UsersPage),
     sectionRoute('/profile', ProfilePage),
     sectionRoute('/appearance', AppearancePage),
     sectionRoute('/settings', SettingsPage),
     sectionRoute('/plugins', PluginsPage),
+    sectionRoute('/sites', SitesPage),
     contentRoute,
     pluginPageRoute,
     ...SECTIONS.filter((s) => !s.ready).map((s) =>

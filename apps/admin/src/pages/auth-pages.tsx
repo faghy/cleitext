@@ -5,9 +5,10 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 import { api, ApiError, errorMessage } from '../api';
 import { ME_QUERY_KEY } from '../auth';
-import { Alert, AuthShell, Button, TextField } from '../components/ui';
+import { Alert, AuthShell, Button, TextField, useT } from '../components/ui';
 
 export function LoginPage({ redirect }: { redirect?: string | undefined }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -29,17 +30,17 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
 
   const error = login.error;
   return (
-    <AuthShell title="Sign in">
+    <AuthShell title={t('Sign in')}>
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         {error && (
           <Alert>
             {error instanceof ApiError && error.status === 429
-              ? 'Too many failed attempts. Wait a few minutes and try again.'
+              ? t('Too many failed attempts. Wait a few minutes and try again.')
               : errorMessage(error)}
           </Alert>
         )}
         <TextField
-          label="Email"
+          label={t('Email')}
           type="email"
           autoComplete="username"
           required
@@ -47,7 +48,7 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
           onChange={(e) => setEmail(e.target.value)}
         />
         <TextField
-          label="Password"
+          label={t('Password')}
           type="password"
           autoComplete="current-password"
           required
@@ -60,14 +61,14 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
             checked={remember}
             onChange={(e) => setRemember(e.target.checked)}
           />
-          Remember me
+          {t('Remember me')}
         </label>
         <Button type="submit" className="w-full" disabled={login.isPending}>
-          {login.isPending ? 'Signing in…' : 'Sign in'}
+          {login.isPending ? t('Signing in…') : t('Sign in')}
         </Button>
         <p className="text-center text-sm">
           <Link to="/forgot-password" className="text-sky-700 hover:underline">
-            Lost your password?
+            {t('Lost your password?')}
           </Link>
         </p>
       </form>
@@ -76,13 +77,14 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
 }
 
 export function ForgotPasswordPage() {
+  const { t } = useT();
   const [email, setEmail] = useState('');
   const request = useMutation({
     mutationFn: () => api<{ message: string }>('POST', '/auth/password/forgot', { email }),
   });
 
   return (
-    <AuthShell title="Reset your password">
+    <AuthShell title={t('Reset your password')}>
       {request.isSuccess ? (
         <div className="space-y-4">
           <Alert kind="success">{request.data.message}</Alert>
@@ -98,11 +100,11 @@ export function ForgotPasswordPage() {
           }}
         >
           <p className="text-sm text-slate-600">
-            Enter your email address: we will send you a link to choose a new password.
+            {t('Enter your email address: we will send you a link to choose a new password.')}
           </p>
           {request.error && <Alert>{errorMessage(request.error)}</Alert>}
           <TextField
-            label="Email"
+            label={t('Email')}
             type="email"
             autoComplete="username"
             required
@@ -110,7 +112,7 @@ export function ForgotPasswordPage() {
             onChange={(e) => setEmail(e.target.value)}
           />
           <Button type="submit" className="w-full" disabled={request.isPending}>
-            Send reset link
+            {t('Send reset link')}
           </Button>
           <BackToLogin />
         </form>
@@ -120,16 +122,17 @@ export function ForgotPasswordPage() {
 }
 
 export function ResetPasswordPage({ token }: { token: string }) {
+  const { t } = useT();
   const [password, setPassword] = useState('');
   const reset = useMutation({
     mutationFn: () => api<void>('POST', '/auth/password/reset', { token, password }),
   });
 
   return (
-    <AuthShell title="Choose a new password">
+    <AuthShell title={t('Choose a new password')}>
       {reset.isSuccess ? (
         <div className="space-y-4">
-          <Alert kind="success">Your password has been changed. You can now sign in.</Alert>
+          <Alert kind="success">{t('Your password has been changed. You can now sign in.')}</Alert>
           <BackToLogin />
         </div>
       ) : (
@@ -151,7 +154,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
             error={reset.error instanceof ApiError ? reset.error.fieldError('password') : undefined}
           />
           <Button type="submit" className="w-full" disabled={reset.isPending}>
-            Save password
+            {t('Save password')}
           </Button>
         </form>
       )}
@@ -160,6 +163,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
 }
 
 export function AcceptInvitePage({ token }: { token: string }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
@@ -188,10 +192,10 @@ export function AcceptInvitePage({ token }: { token: string }) {
     },
   });
 
-  if (invitation.isPending) return <AuthShell title="Invitation">Loading…</AuthShell>;
+  if (invitation.isPending) return <AuthShell title={t('Invitation')}>{t('Loading…')}</AuthShell>;
   if (invitation.isError) {
     return (
-      <AuthShell title="Invitation">
+      <AuthShell title={t('Invitation')}>
         <div className="space-y-4">
           <Alert>{errorMessage(invitation.error)}</Alert>
           <BackToLogin />
@@ -200,8 +204,11 @@ export function AcceptInvitePage({ token }: { token: string }) {
     );
   }
 
+  const [joiningBefore, joiningAfter] = t(
+    'You are joining as {email}. Choose a password to finish.',
+  ).split('{email}');
   return (
-    <AuthShell title={`Join ${invitation.data.siteName}`}>
+    <AuthShell title={t('Join {site}', { site: invitation.data.siteName })}>
       <form
         className="space-y-4"
         noValidate
@@ -211,14 +218,16 @@ export function AcceptInvitePage({ token }: { token: string }) {
         }}
       >
         <p className="text-sm text-slate-600">
-          You are joining as <strong>{invitation.data.email}</strong>. Choose a password to finish.
+          {joiningBefore}
+          <strong>{invitation.data.email}</strong>
+          {joiningAfter}
         </p>
         {accept.error &&
           !(accept.error instanceof ApiError && accept.error.fieldError('password')) && (
             <Alert>{errorMessage(accept.error)}</Alert>
           )}
         <TextField
-          label="Your name"
+          label={t('Your name')}
           autoComplete="name"
           value={displayName ?? invitation.data.displayName}
           onChange={(e) => setDisplayName(e.target.value)}
@@ -229,7 +238,7 @@ export function AcceptInvitePage({ token }: { token: string }) {
           error={accept.error instanceof ApiError ? accept.error.fieldError('password') : undefined}
         />
         <Button type="submit" className="w-full" disabled={accept.isPending}>
-          Accept invitation
+          {t('Accept invitation')}
         </Button>
       </form>
     </AuthShell>
@@ -245,14 +254,17 @@ function NewPasswordField({
   onChange: (value: string) => void;
   error?: string | undefined;
 }) {
+  const { t } = useT();
   return (
     <TextField
-      label="New password"
+      label={t('New password')}
       type="password"
       autoComplete="new-password"
       required
       minLength={PASSWORD_MIN_LENGTH}
-      hint={`At least ${PASSWORD_MIN_LENGTH} characters. A short sentence works well.`}
+      hint={t('At least {count} characters. A short sentence works well.', {
+        count: PASSWORD_MIN_LENGTH,
+      })}
       {...(error ? { error } : {})}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -270,10 +282,11 @@ export function safeRedirect(target: string | undefined): string {
 }
 
 function BackToLogin() {
+  const { t } = useT();
   return (
     <p className="text-center text-sm">
       <Link to="/login" className="text-sky-700 hover:underline">
-        Back to sign in
+        {t('Back to sign in')}
       </Link>
     </p>
   );

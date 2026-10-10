@@ -10,7 +10,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { api, ApiError, errorMessage } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
-import { Alert, Button, Card, TextField } from '../components/ui';
+import { Alert, Button, Card, TextField, useT } from '../components/ui';
+import { MailCard } from './mail-settings';
 import { usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
@@ -18,16 +19,18 @@ const TIME_ZONES = ['UTC', ...Intl.supportedValuesOf('timeZone').filter((z) => z
 
 /** Settings → General and Reading (RF-SET-01). */
 export function SettingsPage() {
+  const { t } = useT();
   const settings = useQuery({
     queryKey: ['settings', 'core'],
     queryFn: () => api<CoreSettings>('GET', '/settings/core'),
   });
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <h1 className="text-2xl font-semibold">{t('Settings')}</h1>
       {settings.error && <Alert>{errorMessage(settings.error)}</Alert>}
       {settings.data && <SettingsForm initial={settings.data} />}
       <LanguagesCard />
+      <MailCard />
       <PluginSettings />
     </div>
   );
@@ -41,6 +44,7 @@ function PluginSettings() {
 
 function PluginSettingsCard({ plugin }: { plugin: LoadedAdminPlugin }) {
   const me = useMe();
+  const { t } = useT();
   const queryClient = useQueryClient();
   const queryKey = ['settings', 'plugin', plugin.slug];
   const current = useQuery({
@@ -79,12 +83,12 @@ function PluginSettingsCard({ plugin }: { plugin: LoadedAdminPlugin }) {
               errors={errors}
               onChange={setValues}
             />
-            {save.isSuccess && !values && <Alert kind="success">Settings saved.</Alert>}
+            {save.isSuccess && !values && <Alert kind="success">{t('Settings saved.')}</Alert>}
             {save.error && Object.keys(errors).length === 0 && (
               <Alert>{errorMessage(save.error)}</Alert>
             )}
             <Button type="submit" disabled={save.isPending || !values}>
-              Save {plugin.name} settings
+              {t('Save {plugin} settings', { plugin: plugin.name })}
             </Button>
           </form>
         )}
@@ -95,6 +99,7 @@ function PluginSettingsCard({ plugin }: { plugin: LoadedAdminPlugin }) {
 
 function SettingsForm({ initial }: { initial: CoreSettings }) {
   const me = useMe();
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [values, setValues] = useState(initial);
   const set = <K extends keyof CoreSettings>(key: K, value: CoreSettings[K]) =>
@@ -157,24 +162,26 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
       }}
     >
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="General">
+        <Card title={t('General')}>
           <div className="space-y-4">
             <TextField
-              label="Site title"
+              label={t('Site title')}
               value={values.title}
               placeholder={me.site.name}
               onChange={(e) => set('title', e.target.value)}
-              hint="Shown in the header and in the browser tab. The site name is used when empty."
+              hint={t(
+                'Shown in the header and in the browser tab. The site name is used when empty.',
+              )}
               {...(titleError ? { error: titleError } : {})}
             />
             <TextField
-              label="Tagline"
+              label={t('Tagline')}
               value={values.tagline}
               onChange={(e) => set('tagline', e.target.value)}
-              hint="In a few words, what the site is about."
+              hint={t('In a few words, what the site is about.')}
             />
             <label className="block space-y-1 text-sm">
-              <span className="block font-medium text-slate-800">Time zone</span>
+              <span className="block font-medium text-slate-800">{t('Time zone')}</span>
               <select
                 className={selectClass}
                 value={values.timezone}
@@ -187,11 +194,11 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
                 ))}
               </select>
               <span className="block text-xs text-slate-500">
-                Dates on the site and scheduled publishing use this time zone.
+                {t('Dates on the site and scheduled publishing use this time zone.')}
               </span>
             </label>
             <label className="block space-y-1 text-sm">
-              <span className="block font-medium text-slate-800">Date format</span>
+              <span className="block font-medium text-slate-800">{t('Date format')}</span>
               <select
                 className={selectClass}
                 value={values.dateStyle}
@@ -207,18 +214,18 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
           </div>
         </Card>
 
-        <Card title="Reading">
+        <Card title={t('Reading')}>
           <div className="space-y-4">
-            {pageSelect('frontPage', 'Home page', 'Latest posts')}
+            {pageSelect('frontPage', t('Home page'), t('Latest posts'))}
             {values.frontPage &&
               pageSelect(
                 'postsPage',
-                'Posts page',
-                'None',
-                'Lists the latest posts when the home page is a static page.',
+                t('Posts page'),
+                t('None'),
+                t('Lists the latest posts when the home page is a static page.'),
               )}
             <TextField
-              label="Posts per page"
+              label={t('Posts per page')}
               type="number"
               min={1}
               max={100}
@@ -227,20 +234,20 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
               {...(perPageError ? { error: perPageError } : {})}
             />
             <TextField
-              label="Empty the trash after (days)"
+              label={t('Empty the trash after (days)')}
               type="number"
               min={0}
               max={3650}
               value={values.trashDays}
               onChange={(e) => set('trashDays', Number(e.target.value))}
-              hint="Trashed entries are deleted after this many days. 0 keeps them."
+              hint={t('Trashed entries are deleted after this many days. 0 keeps them.')}
               {...(fieldError('trashDays') ? { error: fieldError('trashDays')! } : {})}
             />
             {pageSelect(
               'errorPage',
-              '“Not found” page',
-              'Theme default',
-              'Shown with a 404 status for missing addresses.',
+              t('“Not found” page'),
+              t('Theme default'),
+              t('Shown with a 404 status for missing addresses.'),
             )}
             <label className="flex items-start gap-2 text-sm">
               <input
@@ -250,9 +257,13 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
                 onChange={(e) => set('discourageSearchEngines', e.target.checked)}
               />
               <span>
-                <span className="block font-medium text-slate-800">Discourage search engines</span>
+                <span className="block font-medium text-slate-800">
+                  {t('Discourage search engines')}
+                </span>
                 <span className="text-xs text-slate-500">
-                  Asks search engines not to index the site. It is up to them to honour the request.
+                  {t(
+                    'Asks search engines not to index the site. It is up to them to honour the request.',
+                  )}
                 </span>
               </span>
             </label>
@@ -261,10 +272,10 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
       </div>
 
       {pages.error && <Alert>{errorMessage(pages.error)}</Alert>}
-      {save.isSuccess && <Alert kind="success">Settings saved.</Alert>}
+      {save.isSuccess && <Alert kind="success">{t('Settings saved.')}</Alert>}
       {save.error && !titleError && !perPageError && <Alert>{errorMessage(save.error)}</Alert>}
       <Button type="submit" disabled={save.isPending}>
-        Save changes
+        {t('Save changes')}
       </Button>
     </form>
   );
@@ -272,6 +283,7 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
 
 /** Languages of the site (RF-SET-01). */
 function LanguagesCard() {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const locales = useQuery({
     queryKey: ['site', 'locales'],
@@ -307,15 +319,15 @@ function LanguagesCard() {
       : undefined;
 
   return (
-    <section aria-label="Languages">
-      <Card title="Languages">
+    <section aria-label={t('Languages')}>
+      <Card title={t('Languages')}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-slate-600">
-              <th className="py-2">Language</th>
-              <th className="py-2">Code</th>
-              <th className="py-2">Address</th>
-              <th className="py-2">Entries</th>
+              <th className="py-2">{t('Language')}</th>
+              <th className="py-2">{t('Code')}</th>
+              <th className="py-2">{t('Address')}</th>
+              <th className="py-2">{t('Entries')}</th>
               <th className="py-2" />
             </tr>
           </thead>
@@ -324,7 +336,9 @@ function LanguagesCard() {
               <tr key={locale.code} className="border-b border-slate-100">
                 <td className="py-2">
                   {locale.name}
-                  {locale.isDefault && <span className="ml-2 text-xs text-sky-700">default</span>}
+                  {locale.isDefault && (
+                    <span className="ml-2 text-xs text-sky-700">{t('default')}</span>
+                  )}
                 </td>
                 <td className="py-2">{locale.code}</td>
                 <td className="py-2 text-slate-600">
@@ -340,7 +354,7 @@ function LanguagesCard() {
                         change.mutate({ locale: locale.code, body: { isDefault: true } })
                       }
                     >
-                      Make default
+                      {t('Make default')}
                     </button>
                   )}
                   {!locale.isDefault && locale.entries === 0 && (
@@ -348,10 +362,11 @@ function LanguagesCard() {
                       type="button"
                       className="text-red-700 hover:underline"
                       onClick={() => {
-                        if (window.confirm(`Remove ${locale.name}?`)) remove.mutate(locale.code);
+                        if (window.confirm(t('Remove {name}?', { name: locale.name })))
+                          remove.mutate(locale.code);
                       }}
                     >
-                      Remove
+                      {t('Remove')}
                     </button>
                   )}
                 </td>
@@ -367,19 +382,19 @@ function LanguagesCard() {
           }}
         >
           <TextField
-            label="Code"
+            label={t('Code')}
             placeholder="de"
             value={code}
             onChange={(e) => setCode(e.target.value.trim())}
           />
           <TextField
-            label="Name"
+            label={t('Name')}
             placeholder="Deutsch"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <Button type="submit" variant="secondary" disabled={!code || !name || add.isPending}>
-            Add language
+            {t('Add language')}
           </Button>
         </form>
         {addError && <p className="mt-2 text-xs text-red-700">{addError}</p>}

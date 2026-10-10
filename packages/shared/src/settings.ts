@@ -84,3 +84,93 @@ export const updateLocaleRequestSchema = z.object({
   position: z.number().int().min(0).max(1000).optional(),
   isDefault: z.literal(true).optional(),
 });
+
+/** Outgoing email of a site (RF-SET-02); the server's MAIL_URL otherwise. */
+export const mailSettingsRequestSchema = z.object({
+  host: z
+    .string()
+    .trim()
+    .min(1)
+    .max(253)
+    .regex(/^[a-z0-9.-]+$/i, 'A host name, e.g. smtp.example.com'),
+  port: z.number().int().min(1).max(65_535),
+  /** `tls`: encrypted from the start (465); `starttls`: upgraded (587); `none`: local relays only. */
+  security: z.enum(['tls', 'starttls', 'none']),
+  user: z.string().trim().max(320).optional(),
+  /** Omitted: the stored password is kept. */
+  password: z.string().max(500).optional(),
+  /** Sender, e.g. `Example <no-reply@example.com>`. */
+  from: z.string().trim().min(3).max(320),
+});
+export type MailSettingsRequest = z.input<typeof mailSettingsRequestSchema>;
+
+export interface MailSettingsView {
+  /** False: the server's default settings are used. */
+  configured: boolean;
+  host: string | null;
+  port: number | null;
+  security: 'tls' | 'starttls' | 'none' | null;
+  user: string | null;
+  from: string | null;
+  /** The password itself is never returned. */
+  hasPassword: boolean;
+}
+
+export const testMailRequestSchema = z.object({ to: z.email() });
+
+// ---- Sites (RF-SIT-03, super admins) -----------------------------------------------
+
+const HOST_RE =
+  /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
+
+/** A host name without scheme, port or path, lowercased (e.g. www.example.com). */
+export const hostSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .transform((value) => value.replace(/^https?:\/\//, '').replace(/[/:].*$/, ''))
+  .pipe(z.string().regex(HOST_RE, 'A domain name, e.g. example.com'));
+
+export interface SiteDomainView {
+  id: string;
+  host: string;
+  isPrimary: boolean;
+  forceHttps: boolean;
+}
+
+export interface SiteView {
+  id: string;
+  slug: string;
+  name: string;
+  status: 'active' | 'maintenance' | 'archived';
+  defaultLocale: string;
+  createdAt: string;
+  domains: SiteDomainView[];
+}
+
+export const createSiteRequestSchema = z.object({
+  slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/, 'Lowercase letters, digits and dashes'),
+  name: z.string().trim().min(1).max(200),
+  host: hostSchema,
+  locale: z
+    .string()
+    .regex(/^[a-z]{2,3}(-[A-Z]{2})?$/)
+    .default('en'),
+  forceHttps: z.boolean().default(true),
+});
+
+export const updateSiteRequestSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  status: z.enum(['active', 'maintenance', 'archived']).optional(),
+});
+
+export const addDomainRequestSchema = z.object({
+  host: hostSchema,
+  isPrimary: z.boolean().default(false),
+  forceHttps: z.boolean().default(true),
+});
+
+export const updateDomainRequestSchema = z.object({
+  isPrimary: z.literal(true).optional(),
+  forceHttps: z.boolean().optional(),
+});

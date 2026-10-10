@@ -101,30 +101,35 @@ function allowed(page: AdminPageDefinition, capabilities: readonly string[]): bo
 /** Renders a plugin admin page (route `/ext/$plugin/$`). */
 export function PluginPage({ slug, path }: { slug: string; path: string }) {
   const me = useMe();
+  const { t } = adminSdk.useT();
   const plugins = useQuery(pluginAdminQuery);
-  if (plugins.isPending) return <p className="text-sm text-slate-600">Loading…</p>;
+  if (plugins.isPending) return <p className="text-sm text-slate-600">{t('Loading…')}</p>;
   const plugin = plugins.data?.find((p) => p.slug === slug);
   const page = plugin?.definition?.pages?.find((p) => p.path.replace(/^\/+/, '') === path);
   if (plugin?.error) {
     return (
       <adminSdk.Alert>
-        The admin pages of {plugin.name} could not be loaded. Check the browser console.
+        {t('The admin pages of {plugin} could not be loaded. Check the browser console.', {
+          plugin: plugin.name,
+        })}
       </adminSdk.Alert>
     );
   }
   if (!plugin || !page) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold">Not found</h1>
-        <p className="mt-2 text-slate-600">This page does not exist or its plugin is inactive.</p>
+        <h1 className="text-2xl font-semibold">{t('Not found')}</h1>
+        <p className="mt-2 text-slate-600">
+          {t('This page does not exist or its plugin is inactive.')}
+        </p>
       </div>
     );
   }
   if (!allowed(page, me.capabilities)) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold">Access denied</h1>
-        <p className="mt-2 text-slate-600">You do not have permission to open this page.</p>
+        <h1 className="text-2xl font-semibold">{t('Access denied')}</h1>
+        <p className="mt-2 text-slate-600">{t('You do not have permission to open this page.')}</p>
       </div>
     );
   }
@@ -166,7 +171,10 @@ class PluginErrorBoundary extends React.Component<
     if (this.state.error) {
       return (
         <adminSdk.Alert>
-          {this.props.name} failed to display this page: {this.state.error.message}
+          {adminSdk.t('{plugin} failed to display this page: {error}', {
+            plugin: this.props.name,
+            error: this.state.error.message,
+          })}
         </adminSdk.Alert>
       );
     }

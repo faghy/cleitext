@@ -120,18 +120,21 @@ export class AuthService {
       ttlMs: PASSWORD_RESET_TTL_MS,
     });
     const siteName = await this.siteName(siteId);
-    await this.mail.send({
-      to: email,
-      subject: `Reset your password on ${siteName}`,
-      text: [
-        `Someone asked to reset the password for ${email} on ${siteName}.`,
-        '',
-        'To choose a new password, open this link within one hour:',
-        `${client.origin}/admin/reset-password?token=${token}`,
-        '',
-        'If you did not ask for this, ignore this email: your password will not change.',
-      ].join('\n'),
-    });
+    await this.mail.send(
+      {
+        to: email,
+        subject: `Reset your password on ${siteName}`,
+        text: [
+          `Someone asked to reset the password for ${email} on ${siteName}.`,
+          '',
+          'To choose a new password, open this link within one hour:',
+          `${client.origin}/admin/reset-password?token=${token}`,
+          '',
+          'If you did not ask for this, ignore this email: your password will not change.',
+        ].join('\n'),
+      },
+      siteId,
+    );
   }
 
   /** Completes a password reset: new password, token consumed, sessions revoked. */

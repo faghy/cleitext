@@ -134,6 +134,8 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   ): Promise<void> {
     if (tags.length === 0) return;
     this.invalidateLocal(siteId, tags);
+    // Other processes hear it through NOTIFY; this one at once.
+    if (options.sites) for (const listener of this.siteListeners) listener();
     if (!this.enabled && !options.sites) return;
     try {
       await this.database.notify(

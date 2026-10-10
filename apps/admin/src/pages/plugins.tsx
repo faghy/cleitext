@@ -2,7 +2,7 @@ import type { PluginView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
 import { ME_QUERY_KEY } from '../auth';
-import { Alert, Button } from '../components/ui';
+import { Alert, Button, useT } from '../components/ui';
 
 const PERMISSION_LABELS: Record<string, string> = {
   'content:read': 'Read content',
@@ -18,6 +18,7 @@ const PERMISSION_LABELS: Record<string, string> = {
 
 /** Plugins → Installed Plugins (RF-PLG-02). Installation is done with the CLI. */
 export function PluginsPage() {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const plugins = useQuery({
     queryKey: ['plugins'],
@@ -36,21 +37,25 @@ export function PluginsPage() {
     },
   });
 
+  const [installBefore, installAfter] = t(
+    'Install plugins on the server with {command}, then activate them here for this site.',
+  ).split('{command}');
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Plugins</h1>
+      <h1 className="text-2xl font-semibold">{t('Plugins')}</h1>
       <p className="text-sm text-slate-600">
-        Install plugins on the server with <code>cleitext plugin:install &lt;folder&gt;</code>, then
-        activate them here for this site.
+        {installBefore}
+        <code>cleitext plugin:install &lt;folder&gt;</code>
+        {installAfter}
       </p>
       {plugins.error && <Alert>{errorMessage(plugins.error)}</Alert>}
       {toggle.error && <Alert>{errorMessage(toggle.error)}</Alert>}
       {plugins.data?.length === 0 && (
         <p className="rounded border border-slate-200 bg-white p-4 text-sm text-slate-600">
-          No plugins are installed.
+          {t('No plugins are installed.')}
         </p>
       )}
-      <ul className="space-y-3" aria-label="Installed plugins">
+      <ul className="space-y-3" aria-label={t('Installed plugins')}>
         {plugins.data?.map((plugin) => (
           <li
             key={plugin.slug}
@@ -65,13 +70,13 @@ export function PluginsPage() {
                 </h2>
                 {plugin.description && <p className="text-sm">{plugin.description}</p>}
                 <p className="text-xs text-slate-500">
-                  {plugin.author && <>By {plugin.author} · </>}
+                  {plugin.author && <>{t('By {author}', { author: plugin.author })} · </>}
                   {plugin.license}
                   {plugin.homepage && (
                     <>
                       {' · '}
                       <a className="text-sky-700 hover:underline" href={plugin.homepage}>
-                        Website
+                        {t('Website')}
                       </a>
                     </>
                   )}
@@ -83,39 +88,43 @@ export function PluginsPage() {
                   disabled={toggle.isPending}
                   onClick={() => toggle.mutate({ slug: plugin.slug, activate: !plugin.active })}
                 >
-                  {plugin.active ? 'Deactivate' : 'Activate'}
+                  {plugin.active ? t('Deactivate') : t('Activate')}
                 </Button>
               )}
             </div>
             {plugin.status === 'error' && (
               <div className="mt-3">
-                <Alert>This plugin could not be loaded: {plugin.error}</Alert>
+                <Alert>
+                  {t('This plugin could not be loaded: {error}', { error: plugin.error ?? '' })}
+                </Alert>
               </div>
             )}
             <details className="mt-3 text-sm">
-              <summary className="cursor-pointer text-slate-700">Details</summary>
+              <summary className="cursor-pointer text-slate-700">{t('Details')}</summary>
               <dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-[10rem_1fr]">
-                <dt className="text-slate-500">Permissions</dt>
+                <dt className="text-slate-500">{t('Permissions')}</dt>
                 <dd>
                   {plugin.permissions.length
-                    ? plugin.permissions.map((p) => PERMISSION_LABELS[p] ?? p).join(' · ')
-                    : 'None'}
+                    ? plugin.permissions
+                        .map((p) => (PERMISSION_LABELS[p] ? t(PERMISSION_LABELS[p]) : p))
+                        .join(' · ')
+                    : t('None')}
                 </dd>
                 {plugin.contributes.types.length > 0 && (
                   <>
-                    <dt className="text-slate-500">Content types</dt>
+                    <dt className="text-slate-500">{t('Content types')}</dt>
                     <dd>{plugin.contributes.types.join(', ')}</dd>
                   </>
                 )}
                 {plugin.contributes.blocks.length > 0 && (
                   <>
-                    <dt className="text-slate-500">Blocks</dt>
+                    <dt className="text-slate-500">{t('Blocks')}</dt>
                     <dd>{plugin.contributes.blocks.join(', ')}</dd>
                   </>
                 )}
                 {Object.keys(plugin.requires).length > 0 && (
                   <>
-                    <dt className="text-slate-500">Requires</dt>
+                    <dt className="text-slate-500">{t('Requires')}</dt>
                     <dd>
                       {Object.entries(plugin.requires)
                         .map(([slug, range]) => `${slug} ${range}`)
@@ -123,12 +132,17 @@ export function PluginsPage() {
                     </dd>
                   </>
                 )}
-                <dt className="text-slate-500">Activity</dt>
+                <dt className="text-slate-500">{t('Activity')}</dt>
                 <dd>
-                  {plugin.stats.calls} calls, {plugin.stats.totalMs} ms, {plugin.stats.errors}{' '}
-                  errors since the server started
+                  {t('{calls} calls, {ms} ms, {errors} errors since the server started', {
+                    calls: plugin.stats.calls,
+                    ms: plugin.stats.totalMs,
+                    errors: plugin.stats.errors,
+                  })}
                   {plugin.stats.lastError && (
-                    <span className="block text-red-700">Last error: {plugin.stats.lastError}</span>
+                    <span className="block text-red-700">
+                      {t('Last error: {error}', { error: plugin.stats.lastError })}
+                    </span>
                   )}
                 </dd>
               </dl>

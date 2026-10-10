@@ -193,6 +193,7 @@ export default definePlugin({
         if (typeof recipient === 'string' && EMAIL_RE.test(recipient)) {
           await ctx.mail
             .send({
+              siteId: request.siteId,
               to: recipient,
               replyTo: email,
               subject: `[${formName}] ${name}`,

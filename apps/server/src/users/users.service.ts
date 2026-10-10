@@ -165,16 +165,19 @@ export class UsersService {
     if (!sendEmail) {
       // Nothing to send: the administrator shares the access details.
     } else if (passwordHash) {
-      await this.mail.send({
-        to: input.email,
-        subject: `Your account on ${result.siteName}`,
-        text: [
-          `${auth.displayName} created an account for you on ${result.siteName} (${result.role.name}).`,
-          '',
-          `Sign in at ${client.origin}/admin/ with this email address and the password you were given.`,
-          'You can change it from your profile.',
-        ].join('\n'),
-      });
+      await this.mail.send(
+        {
+          to: input.email,
+          subject: `Your account on ${result.siteName}`,
+          text: [
+            `${auth.displayName} created an account for you on ${result.siteName} (${result.role.name}).`,
+            '',
+            `Sign in at ${client.origin}/admin/ with this email address and the password you were given.`,
+            'You can change it from your profile.',
+          ].join('\n'),
+        },
+        siteId,
+      );
     } else if (needsAccount) {
       const token = await this.tokens.issue({
         kind: 'invitation',
@@ -182,26 +185,32 @@ export class UsersService {
         ttlMs: INVITATION_TTL_MS,
         meta: { siteId },
       });
-      await this.mail.send({
-        to: input.email,
-        subject: `You have been invited to ${result.siteName}`,
-        text: [
-          `${auth.displayName} invited you to join ${result.siteName} as ${result.role.name}.`,
-          '',
-          'To accept and choose your password, open this link within 7 days:',
-          `${client.origin}/admin/accept-invite?token=${token}`,
-        ].join('\n'),
-      });
+      await this.mail.send(
+        {
+          to: input.email,
+          subject: `You have been invited to ${result.siteName}`,
+          text: [
+            `${auth.displayName} invited you to join ${result.siteName} as ${result.role.name}.`,
+            '',
+            'To accept and choose your password, open this link within 7 days:',
+            `${client.origin}/admin/accept-invite?token=${token}`,
+          ].join('\n'),
+        },
+        siteId,
+      );
     } else {
-      await this.mail.send({
-        to: input.email,
-        subject: `You have been added to ${result.siteName}`,
-        text: [
-          `${auth.displayName} added you to ${result.siteName} as ${result.role.name}.`,
-          '',
-          `Sign in with your existing account: ${client.origin}/admin/`,
-        ].join('\n'),
-      });
+      await this.mail.send(
+        {
+          to: input.email,
+          subject: `You have been added to ${result.siteName}`,
+          text: [
+            `${auth.displayName} added you to ${result.siteName} as ${result.role.name}.`,
+            '',
+            `Sign in with your existing account: ${client.origin}/admin/`,
+          ].join('\n'),
+        },
+        siteId,
+      );
     }
 
     const members = await this.listMembers(siteId, auth);

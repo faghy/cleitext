@@ -208,7 +208,14 @@ export interface CacheApi {
 
 export interface MailApi {
   /** Needs `mail:send`. */
-  send(message: { to: string; subject: string; text: string; replyTo?: string }): Promise<void>;
+  /** With `siteId`, the site's own SMTP settings are used when it has them. */
+  send(message: {
+    to: string;
+    subject: string;
+    text: string;
+    replyTo?: string;
+    siteId?: string;
+  }): Promise<void>;
 }
 
 // ---- Plugin -------------------------------------------------------------------------

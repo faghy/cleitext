@@ -30,6 +30,8 @@ import { ProfileController } from './profile/profile.controller.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PublicService } from './public/public.service.js';
 import { LocalesController } from './settings/locales.controller.js';
+import { MailSettingsController } from './settings/mail-settings.controller.js';
+import { SitesController } from './settings/sites.controller.js';
 import { SettingsController } from './settings/settings.controller.js';
 import { SettingsService } from './settings/settings.service.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
@@ -85,6 +87,8 @@ export class AppModule {
         TermsController,
         SettingsController,
         LocalesController,
+        MailSettingsController,
+        SitesController,
         MenusController,
         PluginsController,
       ],

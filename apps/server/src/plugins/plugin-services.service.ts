@@ -137,7 +137,9 @@ export class PluginServicesProvider implements PluginServices {
     subject: string;
     text: string;
     replyTo?: string;
+    siteId?: string;
   }): Promise<void> {
-    return this.mail.send(message);
+    const { siteId, ...mail } = message;
+    return this.mail.send(mail, siteId);
   }
 }

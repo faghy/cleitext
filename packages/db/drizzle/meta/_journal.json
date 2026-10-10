@@ -57,6 +57,13 @@
       "when": 1791590997426,
       "tag": "0007_site_locales",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791591516868,
+      "tag": "0008_site_management",
+      "breakpoints": true
     }
   ]
 }

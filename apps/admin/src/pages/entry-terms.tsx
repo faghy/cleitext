@@ -1,5 +1,6 @@
 import type { EntryView, TaxonomyView, TermView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useT } from '@cleitext/admin-sdk';
 import { useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
@@ -70,6 +71,7 @@ function label(taxonomy: TaxonomyView, locale: string): string {
 
 function HierarchicalTerms(props: TermsProps) {
   const { taxonomy, entry, readOnly } = props;
+  const { t } = useT();
   const me = useMe();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
@@ -129,8 +131,14 @@ function HierarchicalTerms(props: TermsProps) {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={`New ${label(taxonomy, 'en').toLowerCase().replace(/ies$/, 'y').replace(/s$/, '')}`}
-            aria-label={`Add new to ${label(taxonomy, 'en')}`}
+            placeholder={t('New {name}', {
+              name: label(taxonomy, 'en').toLowerCase().replace(/ies$/, 'y').replace(/s$/, ''),
+              taxonomy: label(taxonomy, me.user.locale).toLowerCase(),
+            })}
+            aria-label={t('Add new to {name}', {
+              name: label(taxonomy, 'en'),
+              taxonomy: label(taxonomy, me.user.locale),
+            })}
             className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1"
           />
           <button
@@ -138,7 +146,7 @@ function HierarchicalTerms(props: TermsProps) {
             className="text-sky-700 hover:underline"
             disabled={create.isPending}
           >
-            Add
+            {t('Add')}
           </button>
         </form>
       )}
@@ -148,6 +156,7 @@ function HierarchicalTerms(props: TermsProps) {
 
 function FlatTerms(props: TermsProps) {
   const { taxonomy, entry, readOnly } = props;
+  const { t } = useT();
   const me = useMe();
   const [value, setValue] = useState('');
   const assign = useAssign(props);
@@ -160,7 +169,7 @@ function FlatTerms(props: TermsProps) {
       .filter(Boolean);
     if (names.length === 0) return;
     setValue('');
-    assign.mutate([...current.map((t) => t.id), ...names.map((n) => ({ name: n }))]);
+    assign.mutate([...current.map((term) => term.id), ...names.map((n) => ({ name: n }))]);
   };
 
   return (
@@ -174,10 +183,10 @@ function FlatTerms(props: TermsProps) {
             {!readOnly && (
               <button
                 type="button"
-                aria-label={`Remove ${term.name}`}
+                aria-label={t('Remove {name}', { name: term.name })}
                 className="text-slate-500 hover:text-red-700"
                 onClick={() =>
-                  assign.mutate(current.filter((t) => t.id !== term.id).map((t) => t.id))
+                  assign.mutate(current.filter((c) => c.id !== term.id).map((c) => c.id))
                 }
               >
                 ×
@@ -198,8 +207,11 @@ function FlatTerms(props: TermsProps) {
             }
           }}
           onBlur={add}
-          placeholder="Add tags, separated by commas"
-          aria-label={`Add ${label(taxonomy, 'en').toLowerCase()}`}
+          placeholder={t('Add tags, separated by commas')}
+          aria-label={t('Add {name}', {
+            name: label(taxonomy, 'en').toLowerCase(),
+            taxonomy: label(taxonomy, me.user.locale).toLowerCase(),
+          })}
           className="w-full rounded border border-slate-300 px-2 py-1"
         />
       )}

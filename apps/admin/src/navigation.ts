@@ -25,6 +25,7 @@ export const SECTIONS: Section[] = [
   { to: '/users', label: 'Users', anyOf: ['manage_users'], ready: true },
   { to: '/profile', label: 'Profile', anyOf: ['read'], ready: true },
   { to: '/settings', label: 'Settings', anyOf: ['manage_settings'], ready: true },
+  { to: '/sites', label: 'Sites', anyOf: ['manage_sites'], ready: true },
 ];
 
 /** Sections the user can see with their capabilities on the current site. */

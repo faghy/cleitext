@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
 import { api, ApiError, errorMessage } from '../api';
 import { useMe } from '../auth';
-import { Alert, Button, Card, TextField } from '../components/ui';
+import { Alert, Button, Card, TextField, useT } from '../components/ui';
 
 const MEMBERS_KEY = ['users'] as const;
 
 export function UsersPage() {
   const me = useMe();
+  const { t } = useT();
   const members = useQuery({
     queryKey: MEMBERS_KEY,
     queryFn: () => api<MemberView[]>('GET', '/users'),
@@ -18,21 +19,21 @@ export function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Users</h1>
+      <h1 className="text-2xl font-semibold">{t('Users')}</h1>
       {canPromote && roles.data && <InviteForm roles={roles.data} />}
-      <Card title="Members">
-        {members.isPending && <p className="text-sm text-slate-600">Loading…</p>}
+      <Card title={t('Members')}>
+        {members.isPending && <p className="text-sm text-slate-600">{t('Loading…')}</p>}
         {members.error && <Alert>{errorMessage(members.error)}</Alert>}
         {members.data && (
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 text-slate-600">
               <tr>
-                <th className="py-2 font-medium">Name</th>
-                <th className="py-2 font-medium">Email</th>
-                <th className="py-2 font-medium">Role</th>
-                <th className="py-2 font-medium">Status</th>
+                <th className="py-2 font-medium">{t('Name')}</th>
+                <th className="py-2 font-medium">{t('Email')}</th>
+                <th className="py-2 font-medium">{t('Role')}</th>
+                <th className="py-2 font-medium">{t('Status')}</th>
                 <th className="py-2 font-medium">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t('Actions')}</span>
                 </th>
               </tr>
             </thead>
@@ -56,6 +57,7 @@ export function UsersPage() {
 
 /** Users → Add New: an invitation, or an account with a password (as in WordPress). */
 function InviteForm({ roles }: { roles: RoleView[] }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -100,41 +102,41 @@ function InviteForm({ roles }: { roles: RoleView[] }) {
 
   const done = invite.data;
   return (
-    <Card title="Add New User">
+    <Card title={t('Add New User')}>
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <div className="grid gap-4 md:grid-cols-3">
           <TextField
-            label="Name"
+            label={t('Name')}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             {...(fieldError('displayName') ? { error: fieldError('displayName') } : {})}
           />
           <TextField
-            label="Email"
+            label={t('Email')}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             {...(fieldError('email') ? { error: fieldError('email') } : {})}
           />
-          <RoleSelect label="Role" roles={roles} value={role} onChange={setRole} />
+          <RoleSelect label={t('Role')} roles={roles} value={role} onChange={setRole} />
         </div>
         <div className="grid gap-4 md:grid-cols-3 md:items-end">
           <TextField
-            label="Password"
+            label={t('Password')}
             type={showPassword ? 'text' : 'password'}
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            hint="Leave empty to send an invitation: the person chooses the password."
+            hint={t('Leave empty to send an invitation: the person chooses the password.')}
             {...(fieldError('password') ? { error: fieldError('password') } : {})}
           />
           <div className="flex gap-2">
             <Button type="button" variant="secondary" onClick={generate}>
-              Generate password
+              {t('Generate password')}
             </Button>
             {password && (
               <Button type="button" variant="secondary" onClick={() => setShowPassword((v) => !v)}>
-                {showPassword ? 'Hide' : 'Show'}
+                {showPassword ? t('Hide') : t('Show')}
               </Button>
             )}
           </div>
@@ -145,12 +147,12 @@ function InviteForm({ roles }: { roles: RoleView[] }) {
               onChange={(e) => setSendEmail(e.target.checked)}
             />
             {password
-              ? 'Send the new user an email about their account'
-              : 'Send the invitation by email'}
+              ? t('Send the new user an email about their account')
+              : t('Send the invitation by email')}
           </label>
         </div>
         <Button type="submit" disabled={invite.isPending}>
-          {password ? 'Add New User' : 'Send invitation'}
+          {password ? t('Add New User') : t('Send invitation')}
         </Button>
       </form>
       <div className="mt-3">
@@ -158,9 +160,9 @@ function InviteForm({ roles }: { roles: RoleView[] }) {
           <Alert kind="success">
             {done.status === 'invited'
               ? sendEmail
-                ? `Invitation sent to ${done.email}.`
-                : `${done.email} was invited; no email was sent.`
-              : `${done.email} can now sign in.`}
+                ? t('Invitation sent to {email}.', { email: done.email })
+                : t('{email} was invited; no email was sent.', { email: done.email })
+              : t('{email} can now sign in.', { email: done.email })}
           </Alert>
         )}
         {invite.error &&
@@ -183,6 +185,7 @@ function MemberRow({
   isSelf: boolean;
   canPromote: boolean;
 }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: MEMBERS_KEY });
 
@@ -200,13 +203,13 @@ function MemberRow({
     <tr className="border-b border-slate-100 align-top">
       <td className="py-2">
         {member.displayName}
-        {isSelf && <span className="ml-1 text-slate-500">(you)</span>}
+        {isSelf && <span className="ml-1 text-slate-500">{t('(you)')}</span>}
       </td>
       <td className="py-2">{member.email}</td>
       <td className="py-2">
         {canPromote && !isSelf ? (
           <RoleSelect
-            label={`Role of ${member.displayName}`}
+            label={t('Role of {name}', { name: member.displayName })}
             hideLabel
             roles={roles}
             value={member.role.slug}
@@ -217,17 +220,20 @@ function MemberRow({
         )}
         {error && <p className="mt-1 text-xs text-red-700">{errorMessage(error)}</p>}
       </td>
-      <td className="py-2">{member.status === 'invited' ? 'Invitation pending' : member.status}</td>
+      <td className="py-2">
+        {member.status === 'invited' ? t('Invitation pending') : t(member.status)}
+      </td>
       <td className="py-2 text-right">
         {!isSelf && (
           <Button
             variant="danger"
             disabled={remove.isPending}
             onClick={() => {
-              if (window.confirm(`Remove ${member.displayName} from this site?`)) remove.mutate();
+              if (window.confirm(t('Remove {name} from this site?', { name: member.displayName })))
+                remove.mutate();
             }}
           >
-            Remove
+            {t('Remove')}
           </Button>
         )}
       </td>
