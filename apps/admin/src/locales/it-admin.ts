@@ -116,4 +116,5 @@ export const itAdmin: Messages = {
   'Searching…': 'Ricerca…',
   'Search…': 'Cerca…',
   'Open the command palette': 'Apri la palette dei comandi',
+  'Visit site': 'Visualizza sito',
 };

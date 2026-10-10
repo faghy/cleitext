@@ -17,6 +17,11 @@ export default defineConfig({
       '/media': { target: serverUrl, xfwd: true },
       '/__preview': { target: serverUrl, xfwd: true },
       '/admin-plugins': { target: serverUrl, xfwd: true },
+      // The public site, so that "Visit site" and the toolbar work in development too.
+      '^/(?!admin(/|$)|api/|health|media/|__preview|admin-plugins)': {
+        target: serverUrl,
+        xfwd: true,
+      },
     },
   },
 });

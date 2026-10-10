@@ -84,6 +84,34 @@ export function AdminLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-end gap-4 border-b border-slate-200 bg-white px-6 py-2 text-sm">
+          {/* As in WordPress: the site name leads to the site, with a "Visit site" menu. */}
+          <div className="group relative">
+            <a
+              href="/"
+              className="flex items-center gap-1.5 rounded px-2 py-1 font-semibold text-slate-800 hover:bg-slate-100"
+              aria-haspopup="true"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+              </svg>
+              <span className="max-w-48 truncate">{me.site.name}</span>
+            </a>
+            <div className="absolute top-full left-0 z-40 hidden min-w-40 pt-1 group-focus-within:block group-hover:block">
+              <ul className="rounded border border-slate-200 bg-white py-1 shadow-lg">
+                <li>
+                  <a href="/" className="block px-3 py-1.5 whitespace-nowrap hover:bg-slate-100">
+                    {t('Visit site')}
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
           <button
             type="button"
             className="mr-auto flex items-center gap-2 rounded border border-slate-300 px-2 py-1 text-slate-600 hover:border-slate-400"

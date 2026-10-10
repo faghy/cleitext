@@ -45,6 +45,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { SESSION_COOKIE } from '../auth/cookies.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
+import { withAdminBar } from './admin-bar.js';
 import { PageCacheService } from './page-cache.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
@@ -89,6 +90,9 @@ export interface PublicResponse {
   redirect?: string;
   /** Cache tags of the page (docs/ARCHITECTURE.md §15). */
   tags: string[];
+  /** For the toolbar of signed-in users. */
+  siteTitle?: string;
+  entry?: { id: string; type: string };
 }
 
 interface RequestScope {
@@ -257,7 +261,16 @@ export class PublicService {
           stored,
         );
       } else {
-        await this.sendPage(request, reply, response.status, html, null, 'BYPASS', contentType);
+        // Signed-in visitors (never cached) get the toolbar leading to the admin.
+        const page =
+          request.auth && !request.auth.apiToken && contentType === HTML && response.siteTitle
+            ? withAdminBar(html, {
+                auth: request.auth,
+                siteName: response.siteTitle,
+                ...(response.entry ? { entry: response.entry } : {}),
+              })
+            : html;
+        await this.sendPage(request, reply, response.status, page, null, 'BYPASS', contentType);
       }
     } catch (error) {
       this.logger.error(error);
@@ -817,7 +830,7 @@ export class PublicService {
       entry: publicEntry,
       isFrontPage: options.isFrontPage,
     };
-    return this.render(
+    const response = await this.render(
       scope,
       props,
       templateCandidates(props),
@@ -826,6 +839,7 @@ export class PublicService {
       alternates,
       options.status ?? 200,
     );
+    return { ...response, entry: { id: entry.row.id, type: entry.row.typeSlug } };
   }
 
   private async renderArchive(
@@ -1151,7 +1165,7 @@ export class PublicService {
         scope.siteId,
       );
     }
-    return { status, html, tags: [...scope.tags] };
+    return { status, html, tags: [...scope.tags], siteTitle: scope.siteTitle };
   }
 
   // ---- Plugins ----------------------------------------------------------------------
