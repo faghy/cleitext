@@ -156,6 +156,38 @@ export function PluginPage({ slug, path }: { slug: string; path: string }) {
   );
 }
 
+/** A Dashboard widget of a plugin (RF-ADM-02), isolated like its pages. */
+export function PluginWidget({
+  plugin,
+  widget,
+}: {
+  plugin: LoadedAdminPlugin;
+  widget: adminSdk.DashboardWidgetDefinition;
+}) {
+  const me = useMe();
+  const Component = widget.component;
+  return (
+    <PluginErrorBoundary name={plugin.name}>
+      <Component
+        plugin={{ slug: plugin.slug, version: plugin.version }}
+        site={{
+          id: me.site.id,
+          name: me.site.name,
+          defaultLocale: me.site.defaultLocale,
+          locales: me.site.locales,
+        }}
+        user={{
+          id: me.user.id,
+          displayName: me.user.displayName,
+          locale: me.user.locale,
+          capabilities: me.capabilities,
+        }}
+        api={pluginApi(plugin.slug)}
+      />
+    </PluginErrorBoundary>
+  );
+}
+
 /** A crashing plugin page shows an error instead of breaking the admin. */
 class PluginErrorBoundary extends React.Component<
   { name: string; children: React.ReactNode },

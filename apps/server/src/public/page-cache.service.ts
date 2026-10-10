@@ -50,6 +50,11 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
+  /** Pages currently cached in this process. */
+  get size(): number {
+    return this.pages.size;
+  }
+
   get enabled(): boolean {
     return this.config.pageCache.maxEntries > 0;
   }

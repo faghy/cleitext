@@ -25,6 +25,8 @@ export const SECTIONS: Section[] = [
   { to: '/users', label: 'Users', anyOf: ['manage_users'], ready: true },
   { to: '/profile', label: 'Profile', anyOf: ['read'], ready: true },
   { to: '/settings', label: 'Settings', anyOf: ['manage_settings'], ready: true },
+  { to: '/activity', label: 'Activity', anyOf: ['manage_settings'], ready: true },
+  { to: '/system', label: 'System status', anyOf: ['manage_settings'], ready: true },
   { to: '/sites', label: 'Sites', anyOf: ['manage_sites'], ready: true },
 ];
 

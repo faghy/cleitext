@@ -27,6 +27,8 @@ import { ProfilePage } from './pages/profile';
 import { contentTypesQuery, PluginPage } from './plugins';
 import { SettingsPage } from './pages/settings';
 import { SitesPage } from './pages/sites';
+import { ActivityPage } from './pages/activity';
+import { SystemPage } from './pages/system';
 import { UsersPage } from './pages/users';
 
 interface RouterContext {
@@ -175,6 +177,8 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/settings', SettingsPage),
     sectionRoute('/plugins', PluginsPage),
     sectionRoute('/sites', SitesPage),
+    sectionRoute('/activity', ActivityPage),
+    sectionRoute('/system', SystemPage),
     contentRoute,
     pluginPageRoute,
     ...SECTIONS.filter((s) => !s.ready).map((s) =>

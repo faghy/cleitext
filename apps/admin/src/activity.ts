@@ -1,0 +1,40 @@
+/** Readable descriptions of activity log actions (RF-ADM-06), as English source texts. */
+export const ACTION_LABELS: Record<string, string> = {
+  'entry.created': 'created',
+  'entry.saved': 'edited',
+  'entry.published': 'published',
+  'entry.unpublished': 'switched to draft',
+  'entry.scheduled': 'scheduled',
+  'entry.submitted': 'submitted for review',
+  'entry.trashed': 'moved to the trash',
+  'entry.restored': 'restored from the trash',
+  'entry.deleted': 'deleted',
+  'entry.revision.restored': 'restored a revision of',
+  'entry.translation.created': 'translated',
+  'media.uploaded': 'uploaded a file',
+  'media.deleted': 'deleted a file',
+  'user.login': 'signed in',
+  'user.login.failed': 'failed to sign in',
+  'user.logout': 'signed out',
+  'user.invited': 'invited',
+  'user.created': 'created the account of',
+  'user.invitation.accepted': 'accepted the invitation',
+  'user.password.changed': 'changed their password',
+  'user.password.reset': 'reset their password',
+  'member.role.changed': 'changed the role of',
+  'member.removed': 'removed from the site',
+  'settings.updated': 'changed the settings',
+  'plugin.activated': 'activated the plugin',
+  'plugin.deactivated': 'deactivated the plugin',
+};
+
+/** Filters of the activity page: action prefixes. */
+export const ACTION_FILTERS: { label: string; action: string }[] = [
+  { label: 'All', action: '' },
+  { label: 'Content', action: 'entry' },
+  { label: 'Media', action: 'media' },
+  { label: 'Sign-ins', action: 'user.login' },
+  { label: 'Users', action: 'member' },
+  { label: 'Settings', action: 'settings' },
+  { label: 'Plugins', action: 'plugin' },
+];

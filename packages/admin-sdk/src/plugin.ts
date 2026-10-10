@@ -31,8 +31,17 @@ export interface AdminPageDefinition {
  * Admin entry of a plugin (docs/SPECIFICATIONS.md §7.5), the default export
  * of the module named `admin` in `cleitext.plugin.json`.
  */
+/** A box on the Dashboard (RF-ADM-02). */
+export interface DashboardWidgetDefinition {
+  id: string;
+  title: Label;
+  capability?: string;
+  component: ComponentType<AdminPageProps>;
+}
+
 export interface AdminPluginDefinition {
   pages?: AdminPageDefinition[];
+  dashboardWidgets?: DashboardWidgetDefinition[];
 }
 
 export function defineAdminPlugin(definition: AdminPluginDefinition): AdminPluginDefinition {

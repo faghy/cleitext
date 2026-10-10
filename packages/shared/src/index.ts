@@ -6,3 +6,4 @@ export * from './settings.js';
 export * from './menus.js';
 export * from './fields.js';
 export * from './plugins.js';
+export * from './admin.js';
