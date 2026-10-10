@@ -606,7 +606,7 @@ Con queste informazioni il core:
 - mostra in ogni lingua la pagina iniziale, quella degli articoli e quella di errore;
 - permette all'admin di scrivere contenuti, termini e menu in ogni lingua.
 
-Il risultato di `locales` resta in cache per 30 secondi: dopo una modifica chiama `await ctx.languages.changed(siteId)`.
+Una lingua può anche avere un dominio tutto suo (`host: 'example.de'`, uno dei domini secondari del sito): le sue pagine sono servite lì senza prefisso, e i link fra le lingue diventano assoluti. Il risultato di `locales` resta in cache per 30 secondi: dopo una modifica chiama `await ctx.languages.changed(siteId)`.
 
 Altre chiamate:
 

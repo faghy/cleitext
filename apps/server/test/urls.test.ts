@@ -44,6 +44,43 @@ describe('UrlBuilder', () => {
     expect(urls.splitLocale('/italy')).toEqual({ locale: 'en', rest: '/italy' });
   });
 
+  it('gives absolute addresses to languages served on their own domain', () => {
+    const make = (host: string) =>
+      new UrlBuilder(
+        [
+          { code: 'en', name: 'English', isDefault: true, prefix: '' },
+          { code: 'de', name: 'Deutsch', isDefault: false, prefix: '/de', host: 'example.de' },
+          { code: 'it', name: 'Italiano', isDefault: false, prefix: '/it' },
+        ],
+        new Map(types.map((t) => [t.slug, t])),
+        new Map(),
+      ).at({ host, primaryHost: 'example.com', scheme: 'https' });
+    const base = {
+      parentId: null,
+      createdAt: new Date('2026-01-01'),
+      publishedAt: new Date('2026-05-02'),
+    };
+    const de = { ...base, id: 'd', typeSlug: 'article', locale: 'de', slug: 'hallo' };
+    const en = { ...base, id: 'e', typeSlug: 'article', locale: 'en', slug: 'hello' };
+    const it = { ...base, id: 'i', typeSlug: 'article', locale: 'it', slug: 'ciao' };
+
+    const primary = make('example.com');
+    expect(primary.entry(de)).toBe('https://example.de/2026/hallo');
+    expect(primary.entry(en)).toBe('/2026/hello');
+    expect(primary.entry(it)).toBe('/it/2026/ciao');
+    expect(primary.home('de')).toBe('https://example.de/');
+    expect(primary.splitLocale('/de/2026/hallo')).toEqual({ locale: 'en', rest: '/de/2026/hallo' });
+
+    const german = make('example.de');
+    expect(german.hostLocale()).toBe('de');
+    expect(german.splitLocale('/2026/hallo')).toEqual({ locale: 'de', rest: '/2026/hallo' });
+    expect(german.entry(de)).toBe('/2026/hallo');
+    expect(german.entry(en)).toBe('https://example.com/2026/hello');
+    expect(german.entry(it)).toBe('https://example.com/it/2026/ciao');
+    expect(german.home('de')).toBe('/');
+    expect(german.home('en')).toBe('https://example.com/');
+  });
+
   it('has no prefixes with a single language (no language plugin)', () => {
     const single = new UrlBuilder(
       [{ code: 'it', name: 'IT', isDefault: true, prefix: '' }],

@@ -66,6 +66,7 @@ export default definePlugin({
           name: row.name,
           prefix: row.urlPrefix ?? `/${row.code}`,
           isDefault: false,
+          ...(row.host ? { host: row.host } : {}),
         }));
       },
       translations: (siteId, kind, ids) => linksOf(ctx, siteId, kind, ids),
@@ -187,6 +188,14 @@ async function onEntrySaved(
       syncing.delete(id);
     }
   }
+  // The sync is no review: they still need one, even if the plugin was
+  // reloaded meanwhile (the `syncing` memo is per loaded copy).
+  await ctx.db.transaction(siteId, (tx) =>
+    tx
+      .update(translations)
+      .set({ needsUpdate: true })
+      .where(and(eq(translations.kind, 'entry'), inArray(translations.elementId, others))),
+  );
 }
 
 /** The original of a group: the item not translated from another, else the default language's. */
@@ -469,6 +478,7 @@ function routes(ctx: PluginContext): void {
           ? body.name.trim().slice(0, 60)
           : nativeName(code);
       const urlPrefix = prefixOf(body.urlPrefix);
+      const host = hostOf(body.host);
       await ctx.db.transaction(request.siteId, async (tx) => {
         const rows = await tx.select().from(languages);
         if (rows.some((r) => r.code === code)) {
@@ -478,11 +488,15 @@ function routes(ctx: PluginContext): void {
           rows.map((r) => r.urlPrefix ?? `/${r.code}`),
           urlPrefix ?? `/${code}`,
         );
+        if (host && rows.some((r) => r.host === host)) {
+          throw new HttpError(409, `The domain ${host} is already used by a language.`);
+        }
         await tx.insert(languages).values({
           siteId: request.siteId,
           code,
           name,
           urlPrefix,
+          host,
           position: Math.max(0, ...rows.map((r) => r.position + 1)),
         });
       });
@@ -511,6 +525,15 @@ function routes(ctx: PluginContext): void {
             rows.filter((r) => r.code !== code).map((r) => r.urlPrefix ?? `/${r.code}`),
             changes.urlPrefix ?? `/${code}`,
           );
+        }
+        if (body.host !== undefined) {
+          changes.host = hostOf(body.host);
+          if (changes.host && code === (await ctx.languages.defaultLocale(request.siteId))) {
+            throw new HttpError(400, 'The default language uses the primary domain.');
+          }
+          if (changes.host && rows.some((r) => r.code !== code && r.host === changes.host)) {
+            throw new HttpError(409, `The domain ${changes.host} is already used by a language.`);
+          }
         }
         if (typeof body.position === 'number' && Number.isInteger(body.position))
           changes.position = Math.min(Math.max(body.position, 0), 1000);
@@ -893,6 +916,18 @@ async function originalOf(ctx: PluginContext, siteId: string, id: string): Promi
   return original?.id ?? null;
 }
 
+const HOST_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
+/** A domain without scheme or port, e.g. `example.de`; null clears it. */
+function hostOf(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  const host = typeof value === 'string' ? value.trim().toLowerCase().replace(/\.$/, '') : '';
+  if (!HOST_RE.test(host)) {
+    throw new HttpError(400, 'A domain such as example.de, without https:// or a path.');
+  }
+  return host;
+}
+
 function prefixOf(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value !== 'string' || !PREFIX_RE.test(value)) {
@@ -933,8 +968,9 @@ async function languageViews(ctx: PluginContext, siteId: string): Promise<Langua
     return {
       code: row.code,
       name: row.name,
-      prefix: isDefault ? '' : (row.urlPrefix ?? `/${row.code}`),
+      prefix: isDefault || row.host ? '' : (row.urlPrefix ?? `/${row.code}`),
       urlPrefix: row.urlPrefix,
+      host: isDefault ? null : row.host,
       position: row.position,
       isDefault,
       usage: usage[row.code] ?? { entries: 0, terms: 0, menus: 0 },

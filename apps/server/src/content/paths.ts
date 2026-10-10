@@ -31,5 +31,5 @@ export async function entryPath(
 
 /** Address prefix of each language: none for the default one (LanguagesService). */
 export function localePrefixes(locales: ContentLocale[]): Map<string, string> {
-  return new Map(locales.map((l) => [l.code, l.isDefault ? '' : l.prefix]));
+  return new Map(locales.map((l) => [l.code, l.isDefault || l.host ? '' : l.prefix]));
 }

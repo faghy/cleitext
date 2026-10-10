@@ -26,6 +26,11 @@ Then activate it on the site (Plugins). Languages and translations from before C
 
 Deactivating it brings the site back to its default language; nothing is deleted, and activating it again restores the other languages.
 
-## Planned
+## A domain per language
 
-A domain per language.
+A language can live on its own domain (e.g. `example.de`) instead of an address prefix:
+
+1. add the domain to the site as a secondary domain (Sites, or `bin/cleitext site:domain:add --site <slug> --domain example.de`), with its DNS record and certificate;
+2. in **Languages**, choose **Domain** on that language and enter it.
+
+Its pages are then served on that domain, and links between languages (switcher, `hreflang`, sitemaps) point to the right domain. The admin stays on the primary domain. A domain that is not one of the site's is ignored, and the language keeps its prefix.

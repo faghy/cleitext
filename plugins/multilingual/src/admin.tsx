@@ -27,6 +27,9 @@ addMessages('it', {
   Content: 'Contenuti',
   Default: 'Predefinita',
   'Make default': 'Rendi predefinita',
+  Domain: 'Dominio',
+  'Domain of {name}, e.g. example.de (add it to the site first). Empty: use the address prefix.':
+    'Dominio di {name}, es. example.de (aggiungilo prima al sito). Vuoto: usa il prefisso nell’indirizzo.',
   Remove: 'Rimuovi',
   'Move up': 'Sposta su',
   'Move down': 'Sposta giù',
@@ -208,7 +211,7 @@ function LanguagesPage({ api }: AdminPageProps) {
                   )}
                 </td>
                 <td className="py-2">{view.code}</td>
-                <td className="py-2 text-slate-600">{view.prefix || '/'}</td>
+                <td className="py-2 text-slate-600">{view.host ?? (view.prefix || '/')}</td>
                 <td className="py-2 text-slate-600">
                   {t('{entries} entries, {terms} terms', {
                     entries: view.usage.entries,
@@ -266,6 +269,26 @@ function LanguagesPage({ api }: AdminPageProps) {
                         }}
                       >
                         {t('Make default')}
+                        <span className="sr-only"> {view.name}</span>
+                      </button>
+                    )}
+                    {!view.isDefault && (
+                      <button
+                        type="button"
+                        className="text-sky-700 hover:underline"
+                        onClick={() => {
+                          const host = window.prompt(
+                            t(
+                              'Domain of {name}, e.g. example.de (add it to the site first). Empty: use the address prefix.',
+                              { name: view.name },
+                            ),
+                            view.host ?? '',
+                          );
+                          if (host !== null)
+                            change.mutate({ code: view.code, body: { host: host.trim() || null } });
+                        }}
+                      >
+                        {t('Domain')}
                         <span className="sr-only"> {view.name}</span>
                       </button>
                     )}

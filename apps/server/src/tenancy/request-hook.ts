@@ -3,10 +3,12 @@ import { SESSION_COOKIE } from '../auth/cookies.js';
 import type { ApiTokenService } from '../auth/api-token.service.js';
 import type { IdentityService } from '../auth/identity.service.js';
 import type { SessionService } from '../auth/session.service.js';
+import type { LanguagesService } from '../content/languages.service.js';
 import type { SiteResolverService } from './site-resolver.service.js';
 
 interface Dependencies {
   sites: SiteResolverService;
+  languages: LanguagesService;
   sessions: SessionService;
   identity: IdentityService;
   apiTokens: ApiTokenService;
@@ -19,7 +21,13 @@ interface Dependencies {
  * 3. loads the signed-in user from an API token (`Authorization: Bearer`)
  *    or from the session cookie, if any.
  */
-export function createRequestHook({ sites, sessions, identity, apiTokens }: Dependencies) {
+export function createRequestHook({
+  sites,
+  languages,
+  sessions,
+  identity,
+  apiTokens,
+}: Dependencies) {
   return async function onRequest(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     if (request.url.startsWith('/health/')) return;
 
@@ -35,7 +43,17 @@ export function createRequestHook({ sites, sessions, identity, apiTokens }: Depe
     const isPage =
       (request.method === 'GET' || request.method === 'HEAD') && !request.url.startsWith('/api/');
     const httpsRequired = resolution.forceHttps && request.protocol !== 'https';
-    const aliasHost = !resolution.isPrimary && resolution.primaryHost;
+    // Secondary domains lead to the primary one, except the public pages of a
+    // domain that serves one of the site's languages (language plugin).
+    const aliasHost =
+      !resolution.isPrimary &&
+      resolution.primaryHost &&
+      !(
+        isPage &&
+        !request.url.startsWith('/admin') &&
+        (await languages.isLanguageHost(resolution.siteId, request.hostname))
+      ) &&
+      resolution.primaryHost;
     if (httpsRequired || (isPage && aliasHost)) {
       const scheme = resolution.forceHttps ? 'https' : request.protocol;
       const host = isPage && aliasHost ? aliasHost : request.host;

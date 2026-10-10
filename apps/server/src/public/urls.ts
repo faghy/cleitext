@@ -24,7 +24,16 @@ export interface EntryRef {
   createdAt: Date;
 }
 
+/** Where a page is served, when some language has its own domain. */
+export interface UrlOrigin {
+  host: string;
+  primaryHost: string;
+  scheme: string;
+}
+
 export class UrlBuilder {
+  private origin: UrlOrigin | null = null;
+
   constructor(
     private readonly locales: ContentLocale[],
     private readonly types: Map<string, TypeInfo>,
@@ -36,28 +45,54 @@ export class UrlBuilder {
     return (this.locales.find((l) => l.isDefault) ?? this.locales[0])?.code ?? 'en';
   }
 
+  /**
+   * The host serving the page. Addresses of languages served on another
+   * domain become absolute. Only set when some language has a domain.
+   */
+  at(origin: UrlOrigin): this {
+    this.origin = origin;
+    return this;
+  }
+
+  /** The language whose own domain serves this page, if any. */
+  hostLocale(): string | null {
+    if (!this.origin || this.locales.length < 2) return null;
+    return this.locales.find((l) => !l.isDefault && l.host === this.origin!.host)?.code ?? null;
+  }
+
+  /** Path prefix of a language: none for the default one and for those with a domain. */
   prefix(locale: string): string {
     if (this.locales.length < 2) return '';
     const info = this.locales.find((l) => l.code === locale);
-    if (!info || info.isDefault || !info.prefix) return '';
+    if (!info || info.isDefault || info.host || !info.prefix) return '';
     return normalizePrefix(info.prefix);
   }
 
+  /** What comes before a path: the prefix, and the origin when on another domain. */
+  private base(locale: string): string {
+    const prefix = this.prefix(locale);
+    if (!this.origin || this.locales.length < 2) return prefix;
+    const info = this.locales.find((l) => l.code === locale);
+    const target = info && !info.isDefault && info.host ? info.host : this.origin.primaryHost;
+    return target === this.origin.host ? prefix : `${this.origin.scheme}://${target}${prefix}`;
+  }
+
   home(locale: string): string {
-    return this.prefix(locale) || '/';
+    const base = this.base(locale);
+    return !base ? '/' : /^https?:\/\/[^/]+$/.test(base) ? `${base}/` : base;
   }
 
   /** RSS feed of the latest posts in a language (RF-THM-08). */
   feed(locale: string): string {
-    return `${this.prefix(locale)}/feed`;
+    return `${this.base(locale)}/feed`;
   }
 
   search(locale: string): string {
-    return `${this.prefix(locale)}/search`;
+    return `${this.base(locale)}/search`;
   }
 
   term(taxonomy: string, slug: string, locale: string): string {
-    return `${this.prefix(locale)}/${taxonomy}/${slug}`;
+    return `${this.base(locale)}/${taxonomy}/${slug}`;
   }
 
   entry(entry: EntryRef): string {
@@ -69,7 +104,7 @@ export class UrlBuilder {
       .replace('{slug}', entry.slug)
       .replace('{year}', String(date.getUTCFullYear()))
       .replace('{month}', String(date.getUTCMonth() + 1).padStart(2, '0'));
-    return `${this.prefix(entry.locale)}${path}`;
+    return `${this.base(entry.locale)}${path}`;
   }
 
   /** `/page/2` style pagination of a listing URL. */
@@ -80,8 +115,10 @@ export class UrlBuilder {
 
   /** Splits `/it/foo` into the language and the rest of the path. */
   splitLocale(path: string): { locale: string; rest: string } {
+    const onDomain = this.hostLocale();
+    if (onDomain) return { locale: onDomain, rest: path };
     for (const info of this.locales) {
-      if (info.isDefault || !info.prefix) continue;
+      if (info.isDefault || info.host || !info.prefix) continue;
       const prefix = normalizePrefix(info.prefix);
       if (path === prefix || path.startsWith(`${prefix}/`)) {
         return { locale: info.code, rest: path.slice(prefix.length) || '/' };

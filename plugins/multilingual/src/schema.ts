@@ -6,6 +6,7 @@ export const languages = pgTable('languages', {
   name: text('name').notNull(),
   urlPrefix: text('url_prefix'),
   position: integer('position').notNull().default(0),
+  host: text('host'),
 });
 
 export const translations = pgTable('translations', {
@@ -33,6 +34,8 @@ export interface LanguageView {
   /** Address prefix, e.g. `/en` (empty for the default language). */
   prefix: string;
   urlPrefix: string | null;
+  /** A domain of its own instead of the prefix, e.g. `example.de`. */
+  host: string | null;
   position: number;
   isDefault: boolean;
   usage: { entries: number; terms: number; menus: number };

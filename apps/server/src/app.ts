@@ -16,6 +16,7 @@ import type { AppConfig } from './config/config.js';
 import { PublicService } from './public/public.service.js';
 import { createRequestHook } from './tenancy/request-hook.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
+import { LanguagesService } from './content/languages.service.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PluginHost } from './plugins/plugin-host.service.js';
 import { PluginRoutes } from './plugins/plugin-routes.js';
@@ -100,6 +101,7 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
       'onRequest',
       createRequestHook({
         sites: app.get(SiteResolverService),
+        languages: app.get(LanguagesService),
         sessions: app.get(SessionService),
         identity: app.get(IdentityService),
         apiTokens: app.get(ApiTokenService),

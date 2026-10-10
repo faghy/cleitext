@@ -514,6 +514,68 @@ describe('content not translated yet', () => {
   });
 });
 
+describe('a domain per language', () => {
+  it('serves a language on its own domain, linked to the others', async () => {
+    const domains = await seedSite(owner, 'domains', {
+      aliases: ['domains.de', 'www.domains.test'],
+    });
+    await seedUser(owner, {
+      email: 'admin@domains.test',
+      password: PASSWORD,
+      site: domains,
+      role: 'administrator',
+    });
+    const owner2 = new TestClient(app, domains.host, '10.50.7.1');
+    await owner2.login('admin@domains.test', PASSWORD);
+    await owner2.post('/api/v1/plugins/multilingual/activate');
+    await owner2.post(`${EXT}/languages`, { code: 'de', name: 'Deutsch' });
+    expect(
+      (await owner2.request('PATCH', `${EXT}/languages/de`, { host: 'https://x.de/a' })).statusCode,
+    ).toBe(400);
+    expect(
+      (await owner2.request('PATCH', `${EXT}/languages/en`, { host: 'domains.de' })).statusCode,
+    ).toBe(400);
+    const set = await owner2.request('PATCH', `${EXT}/languages/de`, { host: 'domains.de' });
+    expect(set.statusCode, set.body).toBe(200);
+
+    const en = await publish(owner2, 'page', 'About');
+    const id = await translate(owner2, en.id, 'de');
+    await owner2.request('PATCH', `/api/v1/entries/${id}`, {
+      title: 'Über uns',
+      slug: 'ueber-uns',
+    });
+    await owner2.post(`/api/v1/entries/${id}/publish`);
+
+    const german = new TestClient(app, 'domains.de', '10.50.7.2');
+    const page = await german.get('/ueber-uns');
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('<html lang="de">');
+    expect(page.body).toContain('hrefLang="en" href="http://domains.test/about"');
+    expect((await german.get('/about')).statusCode).toBe(404);
+    // The admin stays on the primary domain.
+    const admin = await german.get('/admin/');
+    expect(admin.statusCode).toBe(301);
+    expect(admin.headers.location).toBe('http://domains.test/admin/');
+
+    const english = await new TestClient(app, domains.host, '10.50.7.3').get('/about');
+    expect(english.body).toContain('hrefLang="de" href="http://domains.de/ueber-uns"');
+    expect(english.body).toContain('href="http://domains.de/ueber-uns" hrefLang="de"');
+    // Other secondary domains still lead to the primary one; prefixes are gone for German.
+    expect(
+      (await new TestClient(app, 'www.domains.test', '10.50.7.4').get('/about')).statusCode,
+    ).toBe(301);
+    expect(
+      (await new TestClient(app, domains.host, '10.50.7.5').get('/de/ueber-uns')).statusCode,
+    ).toBe(404);
+
+    // A domain that is not the site's is ignored: German is back under /de.
+    await owner2.request('PATCH', `${EXT}/languages/de`, { host: 'elsewhere.de' });
+    expect(
+      (await new TestClient(app, domains.host, '10.50.7.6').get('/de/ueber-uns')).statusCode,
+    ).toBe(200);
+  });
+});
+
 describe('sites without the plugin', () => {
   it('pay nothing for it: no provider call, no language markup', async () => {
     const { site: plain, admin: owner2 } = await newSite('plain', '10.50.5.1');

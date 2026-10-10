@@ -1,7 +1,14 @@
 import type { ContentLocale, TranslatableKind, TranslationLink } from '@cleitext/plugin-sdk';
-import { sites, type SiteTransaction } from '@cleitext/db';
-import { Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import {
+  siteDomains,
+  sites,
+  withContext,
+  type DatabaseClient,
+  type SiteTransaction,
+} from '@cleitext/db';
+import { Inject, Injectable } from '@nestjs/common';
+import { and, eq } from 'drizzle-orm';
+import { DATABASE } from '../database/database.module.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 
@@ -25,6 +32,7 @@ export class LanguagesService {
   constructor(
     private readonly host: PluginHost,
     cache: PageCacheService,
+    @Inject(DATABASE) private readonly database: DatabaseClient,
   ) {
     // `changed()` in any process clears every process.
     cache.onSiteChange(() => this.cache.clear());
@@ -47,8 +55,35 @@ export class LanguagesService {
       () => plugin.languageProvider!.locales(siteId),
     );
     const value = outcome.ok ? normalize(outcome.value, defaultLocale) : only;
+    // A language domain must be one of the site's own domains, not the primary one.
+    if (value.some((l) => l.host)) {
+      const aliases = new Set(
+        (
+          await withContext(this.database.db, { siteId }, (tx) =>
+            tx
+              .select({ host: siteDomains.host })
+              .from(siteDomains)
+              .where(and(eq(siteDomains.siteId, siteId), eq(siteDomains.isPrimary, false))),
+          )
+        ).map((d) => d.host.toLowerCase()),
+      );
+      for (const locale of value) if (locale.host && !aliases.has(locale.host)) delete locale.host;
+    }
     this.cache.set(key, { value, expiresAt: Date.now() + CACHE_MS });
     return value;
+  }
+
+  /**
+   * Whether a secondary domain of the site serves one of its languages (it
+   * is then not redirected to the primary one). Only asked for those domains.
+   */
+  async isLanguageHost(siteId: string, host: string): Promise<boolean> {
+    if (!(await this.host.languagePlugin(siteId))) return false;
+    const defaultLocale = await withContext(this.database.db, { siteId }, (tx) =>
+      defaultLocaleIn(tx, siteId),
+    );
+    const name = host.toLowerCase();
+    return (await this.locales(siteId, defaultLocale)).some((l) => l.host === name);
   }
 
   /** The site's languages, reading its default language in the transaction. */
@@ -128,11 +163,18 @@ function normalize(list: ContentLocale[], defaultLocale: string): ContentLocale[
             .trim()
             .replace(/\/+$/, '')
             .replace(/^(?!\/)/, '/');
+    const host =
+      !isDefault &&
+      typeof item.host === 'string' &&
+      /^[a-z0-9.-]{1,253}$/.test(item.host.toLowerCase())
+        ? item.host.toLowerCase()
+        : undefined;
     out.push({
       code: item.code,
       name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : item.code,
       prefix: isDefault || /^\/[a-z0-9-]+$/i.test(prefix) ? prefix : `/${item.code}`,
       isDefault,
+      ...(host ? { host } : {}),
     });
   }
   const index = out.findIndex((l) => l.isDefault);

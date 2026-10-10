@@ -6,6 +6,7 @@ import {
   patterns,
   redirects,
   revisions,
+  siteDomains,
   sites,
   taxonomies,
   terms,
@@ -409,6 +410,19 @@ export class PublicService {
       .where(eq(sites.id, siteId));
     const locales = await this.languages.locales(siteId, site?.defaultLocale ?? 'en');
     const data = await loadSiteData(tx, activePlugins, locales);
+    // Languages with their own domain: addresses on other domains are absolute.
+    if (locales.some((l) => l.host)) {
+      const [primary] = await tx
+        .select({ host: siteDomains.host })
+        .from(siteDomains)
+        .where(and(eq(siteDomains.siteId, siteId), eq(siteDomains.isPrimary, true)));
+      const url = new URL(origin);
+      data.urls.at({
+        host: url.hostname,
+        primaryHost: primary?.host ?? url.hostname,
+        scheme: url.protocol.replace(':', ''),
+      });
+    }
     let settings = await this.settingsService.core(tx);
     const { locale, rest } = data.urls.splitLocale(path);
     // Title and tagline of the other languages (language plugin); the default needs nothing.
@@ -566,7 +580,8 @@ export class PublicService {
       otherIds.length > 0 ? await loadPublished(tx, inArray(entries.id, otherIds)) : [];
     const byId = new Map(others.map((e) => [e.row.id, e]));
     const front = await this.frontPageIds(scope);
-    const absolute = (path: string) => `${scope.origin}${path}`;
+    const absolute = (path: string) =>
+      /^https?:\/\//.test(path) ? path : `${scope.origin}${path}`;
     const urlOf = (entry: PublishedEntry) =>
       front.has(entry.row.id) ? data.urls.home(entry.row.locale) : data.urls.entry(entry.row);
     const urls = list
@@ -634,7 +649,8 @@ export class PublicService {
     }
     const list = await loadPublished(tx, where, { limit: Math.max(settings.postsPerPage, 20) });
     const { summaries } = await summarize(tx, list, data.urls, locale);
-    const absolute = (path: string) => `${scope.origin}${path}`;
+    const absolute = (path: string) =>
+      /^https?:\/\//.test(path) ? path : `${scope.origin}${path}`;
     const items = summaries
       .map((entry) =>
         [
@@ -1403,7 +1419,8 @@ export class PublicService {
       feed?: { title: string; href: string };
     },
   ): HeadData {
-    const absolute = (path: string) => `${scope.origin}${path}`;
+    const absolute = (path: string) =>
+      /^https?:\/\//.test(path) ? path : `${scope.origin}${path}`;
     const alternates =
       input.alternates.length > 1
         ? [

@@ -174,6 +174,11 @@ export interface ContentLocale {
   /** Address prefix: `''` for the default language, e.g. `/en` for the others. */
   prefix: string;
   isDefault: boolean;
+  /**
+   * A domain of its own, e.g. `example.de`, instead of a prefix. It must be
+   * one of the site's domains (not the primary one); others are ignored.
+   */
+  host?: string;
 }
 
 export type TranslatableKind = 'entry' | 'term';

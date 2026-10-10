@@ -596,7 +596,7 @@ ctx.languages.provide({
 });
 ```
 
-With these the core routes `/it/…` addresses, builds the URLs of every language, writes hreflang links (pages, archives, sitemaps), gives themes the language switcher (`page.locales`), shows the front, posts and error pages in each language, and lets the admin write content, terms and menus in each language. Results of `locales` are cached for 30 seconds; call `await ctx.languages.changed(siteId)` after a change.
+With these the core routes `/it/…` addresses, builds the URLs of every language, writes hreflang links (pages, archives, sitemaps), gives themes the language switcher (`page.locales`), shows the front, posts and error pages in each language, and lets the admin write content, terms and menus in each language. A language can also have a domain of its own (`host: 'example.de'`, one of the site's secondary domains): its pages are served there without a prefix, and links between languages become absolute. Results of `locales` are cached for 30 seconds; call `await ctx.languages.changed(siteId)` after a change.
 
 Other calls:
 
