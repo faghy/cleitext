@@ -101,12 +101,13 @@ export function Menu({ items, className }: { items: MenuItemView[]; className?: 
 }
 
 /** Formats an ISO date in the page's language. */
+/** A date in the site's time zone and date style. */
 export function FormattedDate({ iso }: { iso: string }) {
-  const { locale } = usePage();
+  const { locale, site } = usePage();
   const date = new Date(iso);
   return (
     <time dateTime={date.toISOString()}>
-      {date.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })}
+      {date.toLocaleDateString(locale, { dateStyle: site.dateStyle, timeZone: site.timezone })}
     </time>
   );
 }

@@ -23,6 +23,7 @@ import { Alert, Button } from '../components/ui';
 import { formatDate, STATUS_LABELS } from './entries-list';
 import { EntryTerms } from './entry-terms';
 import { contentTypesQuery } from '../plugins';
+import { zonedTimeToIso } from '../time';
 
 const AUTOSAVE_INTERVAL_MS = 30_000;
 
@@ -197,7 +198,7 @@ function Editor({ initial }: { initial: EntryView }) {
       const path = typeof kind === 'object' ? 'schedule' : kind;
       const body =
         typeof kind === 'object'
-          ? { scheduledAt: new Date(kind.schedule).toISOString() }
+          ? { scheduledAt: zonedTimeToIso(kind.schedule, me.site.timezone) }
           : kind === 'publish'
             ? { visibility }
             : undefined;
@@ -589,6 +590,7 @@ function DocumentPanel({
   onRestored: (view: EntryView) => void;
 }) {
   const navigate = useNavigate();
+  const siteTimezone = useMe().site.timezone;
   const [slug, setSlug] = useState(entry.slug);
   const [scheduleAt, setScheduleAt] = useState('');
   useEffect(() => setSlug(entry.slug), [entry.slug]);
@@ -683,6 +685,7 @@ function DocumentPanel({
               onChange={(e) => setScheduleAt(e.target.value)}
               className="w-full rounded border border-slate-300 px-2 py-1"
             />
+            <span className="text-xs text-slate-500">Site time zone: {siteTimezone}</span>
           </label>
           <Button
             variant="secondary"

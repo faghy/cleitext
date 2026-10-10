@@ -14,6 +14,9 @@ export interface SiteInfo {
   tagline: string;
   /** Absolute origin of the site, e.g. https://example.com */
   origin: string;
+  /** IANA time zone and date style chosen in the settings. */
+  timezone: string;
+  dateStyle: 'long' | 'medium' | 'short';
 }
 
 export interface LocaleLink {

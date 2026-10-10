@@ -964,6 +964,8 @@ export class PublicService {
         title: scope.siteTitle,
         tagline: scope.settings.tagline,
         origin: scope.origin,
+        timezone: scope.settings.timezone,
+        dateStyle: scope.settings.dateStyle,
       },
       locale,
       locales,

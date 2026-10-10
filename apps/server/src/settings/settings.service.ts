@@ -1,4 +1,10 @@
-import { settings, withContext, type DatabaseClient, type SiteTransaction } from '@cleitext/db';
+import {
+  settings,
+  sites,
+  withContext,
+  type DatabaseClient,
+  type SiteTransaction,
+} from '@cleitext/db';
 import { CORE_SETTINGS_DEFAULTS, coreSettingsSchema, type CoreSettings } from '@cleitext/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
@@ -18,7 +24,12 @@ export class SettingsService {
   /** Core settings: stored values, defaults for missing or invalid ones. */
   async core(tx: SiteTransaction): Promise<CoreSettings> {
     const rows = await tx.select().from(settings).where(eq(settings.namespace, NAMESPACE));
-    const result: Record<string, unknown> = { ...CORE_SETTINGS_DEFAULTS };
+    // The time zone chosen at installation, until one is set here.
+    const [site] = await tx.select({ timezone: sites.timezone }).from(sites);
+    const result: Record<string, unknown> = {
+      ...CORE_SETTINGS_DEFAULTS,
+      ...(site?.timezone ? { timezone: site.timezone } : {}),
+    };
     for (const row of rows) {
       const field = coreSettingsSchema.shape[row.key as keyof CoreSettings];
       const parsed = field?.safeParse(row.value);

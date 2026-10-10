@@ -1,6 +1,7 @@
 import {
   listMySites,
   roles,
+  settings,
   siteLocales,
   siteMembers,
   sites,
@@ -91,6 +92,10 @@ export class IdentityService {
         })
         .from(siteLocales)
         .orderBy(asc(siteLocales.position), asc(siteLocales.code));
+      const [timezone] = await tx
+        .select({ value: settings.value })
+        .from(settings)
+        .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'timezone')));
       return {
         user: {
           id: auth.userId,
@@ -104,6 +109,8 @@ export class IdentityService {
           name: site?.name ?? '',
           slug: site?.slug ?? '',
           defaultLocale: site?.defaultLocale ?? 'en',
+          timezone:
+            typeof timezone?.value === 'string' ? timezone.value : (site?.timezone ?? 'UTC'),
           locales,
         },
         role: auth.role ? { slug: auth.role.slug, name: auth.role.name } : null,

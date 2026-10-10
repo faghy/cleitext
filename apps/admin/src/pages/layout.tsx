@@ -56,6 +56,27 @@ export function AdminLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-end gap-4 border-b border-slate-200 bg-white px-6 py-2 text-sm">
+          {me.sites.length > 1 && (
+            <label className="mr-auto flex items-center gap-2">
+              <span className="text-slate-600">Site</span>
+              <select
+                className="rounded border border-slate-300 bg-white px-2 py-1"
+                value={me.site.id}
+                onChange={(e) => {
+                  const target = me.sites.find((s) => s.id === e.target.value);
+                  // Each site has its own domain and session cookie.
+                  if (target?.host)
+                    window.location.href = `${window.location.protocol}//${target.host}/admin/`;
+                }}
+              >
+                {me.sites.map((site) => (
+                  <option key={site.id} value={site.id} disabled={!site.host}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <span>
             {me.user.displayName}
             <span className="ml-2 text-slate-500">

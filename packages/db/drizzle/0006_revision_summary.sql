@@ -39,3 +39,5 @@ BEGIN
   RETURN total;
 END
 $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION cleitext_purge_trash() FROM PUBLIC;

@@ -57,6 +57,8 @@ export const meResponseSchema = z.object({
     name: z.string(),
     slug: z.string(),
     defaultLocale: z.string(),
+    /** IANA time zone of the site (dates and scheduling). */
+    timezone: z.string(),
     locales: z.array(z.object({ code: z.string(), name: z.string(), isDefault: z.boolean() })),
   }),
   role: z.object({ slug: z.string(), name: z.string() }).nullable(),
