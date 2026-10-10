@@ -15,6 +15,8 @@ import {
   OperationError,
   setPassword,
   setSiteStatus,
+  archiveSite,
+  updateSite,
 } from './operations.js';
 import { backup, restore } from './backup.js';
 import {
@@ -136,6 +138,38 @@ program
       for (const site of await listSites(db)) {
         console.log(`${site.slug}\t${site.status}\t${site.name}\t${site.domains.join(', ')}`);
       }
+    }),
+  );
+
+program
+  .command('site:update')
+  .description("Change a site's name, slug, default language or time zone.")
+  .requiredOption('--site <slug>')
+  .option('--name <name>')
+  .option('--slug <slug>', 'new slug')
+  .option('--locale <code>', 'default language (already enabled on the site)')
+  .option('--timezone <tz>', 'IANA time zone')
+  .action((opts) =>
+    withOwner(async (db) => {
+      await updateSite(db, opts.site, {
+        name: opts.name,
+        slug: opts.slug,
+        locale: opts.locale,
+        timezone: opts.timezone,
+      });
+      console.log(`Site ${opts.slug ?? opts.site} updated.`);
+    }),
+  );
+
+program
+  .command('site:archive')
+  .description('Archive a site (kept, but offline), or bring it back with --restore.')
+  .requiredOption('--site <slug>')
+  .option('--restore', 'bring an archived site back online')
+  .action((opts) =>
+    withOwner(async (db) => {
+      await archiveSite(db, opts.site, Boolean(opts.restore));
+      console.log(`Site ${opts.site} ${opts.restore ? 'restored' : 'archived'}.`);
     }),
   );
 

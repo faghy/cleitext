@@ -271,7 +271,7 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 | ID        | Requirement                                                                                                                                     | Priority |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | RF-IMP-01 | Import of WordPress WXR files (`wp-import` plugin), with a report.                                                                              | 1.0      |
-| RF-IMP-02 | Migration from the old Cleito CMS (`cleito-import` plugin): pages, texts per language, menus, options, users (mandatory password reset), media. | 1.0      |
+| RF-IMP-02 | Migration from the old Cleito CMS (`cleito-import` plugin): pages, texts per language, menus, options, users (mandatory password reset), media. | Deferred |
 | RF-IMP-03 | Full export of a site in Cleitext format (JSON plus media, in an archive).                                                                      | 1.0      |
 | RF-IMP-04 | Import of a Cleitext export, to migrate or clone between instances.                                                                             | 1.0      |
 
@@ -654,22 +654,22 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 
 ## 12. CLI
 
-| Command                                                         | Description                                                                         |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `cleitext install`                                              | Interactive installation (DB, migrations, first site, super admin).                 |
-| `cleitext migrate [--plugins]`                                  | Runs core and plugin migrations.                                                    |
-| `cleitext site:create · site:list · site:domain:add`            | Site management.                                                                    |
-| `cleitext user:create · user:reset-password · user:promote`     | User management.                                                                    |
-| `cleitext plugin:search · plugin:install <slug                  | file.zip                                                                            | file.tgz> · plugin:update · plugin:rollback · plugin:list · plugin:uninstall` | Plugins (from the Cleitext registry or from a file). |
-| `cleitext theme:search · theme:install · theme:activate --site` | Themes.                                                                             |
-| `cleitext login · publish`                                      | For developers: authentication and publishing of plugins or themes to the registry. |
-| `cleitext import:wxr <file> --site`                             | WordPress import (requires `wp-import`).                                            |
-| `cleitext import:cleito --dsn <pg> --site-id <n> --site`        | Migration from the old CMS.                                                         |
-| `cleitext export · import`                                      | Export and import of a site in Cleitext format.                                     |
-| `cleitext cache:purge [--site] [--tag]`                         | Cache.                                                                              |
-| `cleitext jobs:tick · jobs:work · jobs:status`                  | Jobs (tick for the Plesk cron).                                                     |
-| `cleitext backup · restore`                                     | Backup and restore of DB and media.                                                 |
-| `cleitext doctor`                                               | Diagnostics: versions, connections, folder permissions, configuration.              |
+| Command                                                                           | Description                                                                         |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `cleitext install`                                                                | Interactive installation (DB, migrations, first site, super admin).                 |
+| `cleitext migrate [--plugins]`                                                    | Runs core and plugin migrations.                                                    |
+| `cleitext site:create · site:update · site:archive · site:list · site:domain:add` | Site management.                                                                    |
+| `cleitext user:create · user:reset-password · user:promote`                       | User management.                                                                    |
+| `cleitext plugin:search · plugin:install <slug                                    | file.zip                                                                            | file.tgz> · plugin:update · plugin:rollback · plugin:list · plugin:uninstall` | Plugins (from the Cleitext registry or from a file). |
+| `cleitext theme:search · theme:install · theme:activate --site`                   | Themes.                                                                             |
+| `cleitext login · publish`                                                        | For developers: authentication and publishing of plugins or themes to the registry. |
+| `cleitext import:wxr <file> --site`                                               | WordPress import (requires `wp-import`).                                            |
+| `cleitext import:cleito --dsn <pg> --site-id <n> --site`                          | Migration from the old CMS.                                                         |
+| `cleitext export · import`                                                        | Export and import of a site in Cleitext format.                                     |
+| `cleitext cache:purge [--site] [--tag]`                                           | Cache.                                                                              |
+| `cleitext jobs:tick · jobs:work · jobs:status`                                    | Jobs (tick for the Plesk cron).                                                     |
+| `cleitext backup · restore`                                                       | Backup and restore of DB and media.                                                 |
+| `cleitext doctor`                                                                 | Diagnostics: versions, connections, folder permissions, configuration.              |
 
 ---
 
@@ -717,10 +717,10 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 
 ### M5 — Migrations and deployment (2–3 weeks)
 
-- `cleito-import` (first real case: a Cleito site in production) and `wp-import`.
+- `cleito-import` (first real case: a Cleito site in production) and `wp-import`. _Update (October 2026): `cleito-import` is deferred, since no Cleito site needs migrating for now; the import model and `import:wxr` cover WordPress._
 - Plesk package, deployment guide, backup and restore.
 
-**✅ Acceptance:** the sample Cleito site is migrated to Plesk with correct content, menus, languages and redirects. A real WordPress WXR export is imported with a report showing no blocking errors.
+**✅ Acceptance:** the sample Cleito site is migrated to Plesk with correct content, menus, languages and redirects (deferred with `cleito-import`). A real WordPress WXR export is imported with a report showing no blocking errors.
 
 ### M6 — 1.0 release for internal use (3–4 weeks)
 

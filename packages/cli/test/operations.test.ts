@@ -1,6 +1,8 @@
 import {
   createDatabase,
+  siteLocales,
   siteMembers,
+  sites,
   superAdmins,
   users,
   withSiteContext,
@@ -12,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { inject } from 'vitest';
 import {
   addDomain,
+  archiveSite,
   addLocale,
   createSite,
   createUser,
@@ -20,6 +23,7 @@ import {
   normalizeHost,
   OperationError,
   setPassword,
+  updateSite,
 } from '../src/operations.js';
 
 let owner: DatabaseClient;
@@ -71,6 +75,41 @@ describe('sites', () => {
     expect(() => normalizeHost('https://example.com')).toThrow(OperationError);
     expect(() => normalizeHost('example.com:8080')).toThrow(OperationError);
     expect(normalizeHost('127.0.0.1')).toBe('127.0.0.1');
+  });
+
+  it('updates name, slug, default language and time zone', async () => {
+    await createSite(owner.db, { slug: 'second', name: 'Second', host: 'second.test' });
+    await addLocale(owner.db, { site: 'second', code: 'it', name: 'Italiano' });
+    await updateSite(owner.db, 'second', {
+      name: 'Secondo',
+      slug: 'secondo',
+      locale: 'it',
+      timezone: 'Europe/Rome',
+    });
+    const [site] = await owner.db.select().from(sites).where(eq(sites.slug, 'secondo'));
+    expect(site).toMatchObject({ name: 'Secondo', defaultLocale: 'it', timezone: 'Europe/Rome' });
+    const locales = await withSiteContext(owner.db, site!.id, (tx) =>
+      tx.select().from(siteLocales).where(eq(siteLocales.siteId, site!.id)),
+    );
+    expect(locales.filter((l) => l.isDefault).map((l) => l.code)).toEqual(['it']);
+
+    await expect(updateSite(owner.db, 'secondo', { locale: 'fr' })).rejects.toThrow(/not enabled/);
+    await expect(updateSite(owner.db, 'secondo', { timezone: 'Mars/Base' })).rejects.toThrow(
+      /time zone/,
+    );
+    await expect(updateSite(owner.db, 'secondo', { slug: 'main' })).rejects.toThrow(
+      /already exists/,
+    );
+    await expect(updateSite(owner.db, 'secondo', {})).rejects.toThrow(/Nothing to change/);
+  });
+
+  it('archives a site and brings it back', async () => {
+    await archiveSite(owner.db, 'secondo');
+    expect((await listSites(owner.db)).find((s) => s.slug === 'secondo')?.status).toBe('archived');
+    await expect(archiveSite(owner.db, 'secondo')).rejects.toThrow(/already archived/);
+    await archiveSite(owner.db, 'secondo', true);
+    expect((await listSites(owner.db)).find((s) => s.slug === 'secondo')?.status).toBe('active');
+    await expect(archiveSite(owner.db, 'missing')).rejects.toThrow(/No site/);
   });
 });
 

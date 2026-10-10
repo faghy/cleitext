@@ -139,6 +139,98 @@ export async function listSites(db: Database) {
   return [...result.values()];
 }
 
+export interface UpdateSiteInput {
+  name?: string;
+  /** New slug (used by the CLI and in backups). */
+  slug?: string;
+  /** New default language: must already be enabled on the site. */
+  locale?: string;
+  timezone?: string;
+}
+
+/** Changes a site's name, slug, default language or time zone (RF-SIT-03). */
+export async function updateSite(
+  db: Database,
+  slug: string,
+  input: UpdateSiteInput,
+): Promise<void> {
+  const [site] = await db.select().from(sites).where(eq(sites.slug, slug));
+  if (!site) throw new OperationError(`No site with slug "${slug}".`);
+  const changes: Partial<typeof sites.$inferInsert> = {};
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) throw new OperationError('The site name cannot be empty.');
+    changes.name = name;
+  }
+  if (input.slug !== undefined && input.slug !== slug) {
+    if (!SLUG_RE.test(input.slug)) throw new OperationError(`Invalid site slug "${input.slug}".`);
+    const [taken] = await db.select().from(sites).where(eq(sites.slug, input.slug));
+    if (taken) throw new OperationError(`A site with slug "${input.slug}" already exists.`);
+    changes.slug = input.slug;
+  }
+  if (input.timezone !== undefined) {
+    if (!isTimeZone(input.timezone))
+      throw new OperationError(`Unknown time zone "${input.timezone}".`);
+    changes.timezone = input.timezone;
+  }
+  if (Object.keys(changes).length === 0 && input.locale === undefined) {
+    throw new OperationError('Nothing to change: give --name, --slug, --locale or --timezone.');
+  }
+  await withSiteContext(db, site.id, async (tx) => {
+    if (input.locale !== undefined) {
+      const [enabled] = await tx
+        .select()
+        .from(siteLocales)
+        .where(and(eq(siteLocales.siteId, site.id), eq(siteLocales.code, input.locale)));
+      if (!enabled) {
+        throw new OperationError(
+          `The language "${input.locale}" is not enabled on this site: add it with site:locale:add.`,
+        );
+      }
+      await tx
+        .update(siteLocales)
+        .set({ isDefault: sql`${siteLocales.code} = ${input.locale}` })
+        .where(eq(siteLocales.siteId, site.id));
+      changes.defaultLocale = input.locale;
+    }
+    if (Object.keys(changes).length > 0)
+      await tx.update(sites).set(changes).where(eq(sites.id, site.id));
+  });
+  await notifySiteChanged(db, site.id);
+}
+
+/**
+ * Archives a site, or brings it back (RF-SIT-03). An archived site keeps
+ * its data but answers no request and runs no scheduled task.
+ */
+export async function archiveSite(db: Database, slug: string, restore = false): Promise<void> {
+  const [site] = await db.select().from(sites).where(eq(sites.slug, slug));
+  if (!site) throw new OperationError(`No site with slug "${slug}".`);
+  if (restore ? site.status !== 'archived' : site.status === 'archived') {
+    throw new OperationError(`The site "${slug}" is ${restore ? 'not' : 'already'} archived.`);
+  }
+  await db
+    .update(sites)
+    .set({ status: restore ? 'active' : 'archived' })
+    .where(eq(sites.id, site.id));
+  await notifySiteChanged(db, site.id);
+}
+
+function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Running servers drop what they cached about the site. */
+async function notifySiteChanged(db: Database, siteId: string): Promise<void> {
+  const payload = JSON.stringify({ siteId, tags: ['site'], sites: true });
+  await db.execute(sql`select pg_notify('cleitext_cache', ${payload})`);
+}
+
 /**
  * Turns maintenance mode on or off (RF-SIT-06). Running servers are told
  * through the page-cache channel, so the change applies immediately.
@@ -150,8 +242,7 @@ export async function setSiteStatus(
 ): Promise<void> {
   const [site] = await db.update(sites).set({ status }).where(eq(sites.slug, slug)).returning();
   if (!site) throw new OperationError(`No site with slug "${slug}".`);
-  const payload = JSON.stringify({ siteId: site.id, tags: ['site'], sites: true });
-  await db.execute(sql`select pg_notify('cleitext_cache', ${payload})`);
+  await notifySiteChanged(db, site.id);
 }
 
 export interface CreateUserInput {
