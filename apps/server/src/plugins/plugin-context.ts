@@ -22,6 +22,16 @@ export interface PluginServices {
   site(siteId: string): Promise<PluginSite>;
   findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]>;
   copyEntry(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry>;
+  updateFields(
+    siteId: string,
+    id: string,
+    values: FieldValues,
+    options: { userId: string },
+  ): Promise<void>;
+  fieldsOf(
+    siteId: string,
+    type: string,
+  ): Promise<{ fields: FieldDefinition[]; groups: { id: string; fields: FieldDefinition[] }[] }>;
   findTerms(siteId: string, query: TermQuery): Promise<PluginTerm[]>;
   copyTerm(
     siteId: string,
@@ -92,6 +102,7 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       },
       filter(name, handler, options) {
         if (name.startsWith('render.') || name.startsWith('theme.')) require('theme:hooks');
+        if (name.startsWith('site.')) require('languages');
         host.addHook(plugin, 'filter', name, handler as never, options?.priority);
       },
       async emit(name, payload, context) {
@@ -121,6 +132,17 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         assertSiteId(siteId);
         if (!UUID_RE.test(id) || !UUID_RE.test(options.userId)) throw new TypeError('Invalid id');
         return services().copyEntry(siteId, id, options);
+      },
+      async updateFields(siteId, id, values, options) {
+        require('content:write');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id) || !UUID_RE.test(options.userId)) throw new TypeError('Invalid id');
+        return services().updateFields(siteId, id, values, options);
+      },
+      async fields(siteId, type) {
+        require('content:read');
+        assertSiteId(siteId);
+        return services().fieldsOf(siteId, type);
       },
       async get(siteId, id) {
         require('content:read');

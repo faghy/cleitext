@@ -6,10 +6,13 @@ import {
   type TranslatableKind,
   type TranslationLink,
 } from '@cleitext/plugin-sdk';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import {
   languages,
+  strings,
   translations,
+  type OverviewRow,
+  type StringsResponse,
   type LanguageView,
   type TranslationsResponse,
   type TranslationView,
@@ -73,6 +76,19 @@ export default definePlugin({
     ctx.hooks.on('term.deleted', ({ term }, { siteId }) => unlink(ctx, siteId, 'term', term.id));
     // An imported site brought languages and translations.
     ctx.hooks.on('languages.pending', (_, { siteId }) => takeOver(ctx, siteId));
+    // Saving an original flags its translations and keeps their `copy` fields
+    // in step; saving a translation brings it up to date.
+    ctx.hooks.on('entry.saved', ({ entry }, { siteId, userId }) =>
+      onEntrySaved(ctx, siteId, entry, userId),
+    );
+    // Site title and tagline of the other languages.
+    ctx.hooks.filter('site.strings', async (value, { siteId, locale }) => {
+      const rows = await ctx.db.transaction(siteId, (tx) =>
+        tx.select().from(strings).where(eq(strings.locale, locale)),
+      );
+      const text = (key: 'title' | 'tagline') => rows.find((r) => r.key === key)?.value;
+      return { title: text('title') || value.title, tagline: text('tagline') ?? value.tagline };
+    });
 
     routes(ctx);
   },
@@ -99,6 +115,109 @@ export default definePlugin({
     await ctx.languages.changed(site.id);
   },
 });
+
+// ---- Status and synced fields ---------------------------------------------------------
+
+/** Entries being updated by the sync, whose own `entry.saved` must not clear their flag. */
+const syncing = new Set<string>();
+
+async function onEntrySaved(
+  ctx: PluginContext,
+  siteId: string,
+  entry: { id: string; type: string; fields: Record<string, unknown> },
+  userId: string | undefined,
+): Promise<void> {
+  if (syncing.has(entry.id)) return;
+  const others = await ctx.db.transaction(siteId, async (tx) => {
+    const [own] = await tx
+      .select()
+      .from(translations)
+      .where(and(eq(translations.kind, 'entry'), eq(translations.elementId, entry.id)));
+    if (!own) return [];
+    if (!(await isOriginal(ctx, siteId, own))) {
+      await tx
+        .update(translations)
+        .set({ needsUpdate: false })
+        .where(and(eq(translations.kind, 'entry'), eq(translations.elementId, entry.id)));
+      return [];
+    }
+    const members = await tx
+      .select({ id: translations.elementId })
+      .from(translations)
+      .where(and(eq(translations.kind, 'entry'), eq(translations.groupId, own.groupId)));
+    const ids = members.map((m) => m.id).filter((id) => id !== entry.id);
+    if (ids.length > 0) {
+      await tx
+        .update(translations)
+        .set({ needsUpdate: true })
+        .where(and(eq(translations.kind, 'entry'), inArray(translations.elementId, ids)));
+    }
+    return ids;
+  });
+  if (others.length === 0 || !userId) return;
+
+  // Fields marked `translation: 'copy'` stay the same in every language.
+  const values = await copiedValues(ctx, siteId, entry.type, entry.fields);
+  if (Object.keys(values).length === 0) return;
+  for (const id of others) {
+    syncing.add(id);
+    try {
+      await ctx.content.updateFields(siteId, id, values, { userId });
+    } catch (error) {
+      ctx.log.warn('A copied field could not be synced', { id, error: String(error) });
+    } finally {
+      syncing.delete(id);
+    }
+  }
+}
+
+/** The original of a group: the item not translated from another, else the default language's. */
+async function isOriginal(
+  ctx: PluginContext,
+  siteId: string,
+  row: typeof translations.$inferSelect,
+): Promise<boolean> {
+  if (row.sourceLocale !== null) return false;
+  const roots = await ctx.db.transaction(siteId, (tx) =>
+    tx
+      .select({ locale: translations.locale })
+      .from(translations)
+      .where(
+        and(
+          eq(translations.kind, row.kind),
+          eq(translations.groupId, row.groupId),
+          isNull(translations.sourceLocale),
+        ),
+      ),
+  );
+  if (roots.length <= 1) return true;
+  return row.locale === (await ctx.languages.defaultLocale(siteId));
+}
+
+async function copiedValues(
+  ctx: PluginContext,
+  siteId: string,
+  type: string,
+  fields: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const { fields: own, groups } = await ctx.content.fields(siteId, type);
+  const values: Record<string, unknown> = {};
+  for (const field of own) {
+    if (field.translation === 'copy' && field.name in fields)
+      values[field.name] = fields[field.name];
+  }
+  for (const group of groups) {
+    const stored = fields[group.id];
+    if (typeof stored !== 'object' || stored === null) continue;
+    const picked: Record<string, unknown> = {};
+    for (const field of group.fields) {
+      if (field.translation === 'copy' && field.name in stored)
+        picked[field.name] = (stored as Record<string, unknown>)[field.name];
+    }
+    if (Object.keys(picked).length > 0) values[group.id] = picked;
+  }
+  return values;
+}
 
 // ---- Links ----------------------------------------------------------------------------
 
@@ -412,6 +531,77 @@ function routes(ctx: PluginContext): void {
     }),
   });
 
+  // Site title and tagline per language.
+  ctx.routes.api({
+    method: 'GET',
+    path: '/strings',
+    capability: 'manage_settings',
+    handler: handle(async (request) => {
+      const rows = await ctx.db.transaction(request.siteId, (tx) => tx.select().from(strings));
+      const body: StringsResponse = {};
+      for (const row of rows)
+        (body[row.locale] ??= { title: '', tagline: '' })[row.key] = row.value;
+      return { body };
+    }),
+  });
+
+  ctx.routes.api({
+    method: 'PUT',
+    path: '/strings/:locale',
+    capability: 'manage_settings',
+    handler: handle(async (request) => {
+      const locale = request.params.locale ?? '';
+      if (!CODE_RE.test(locale)) throw new HttpError(400, 'Invalid language.');
+      if (locale === (await ctx.languages.defaultLocale(request.siteId))) {
+        throw new HttpError(400, 'The texts of the default language are in Settings.');
+      }
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      await ctx.db.transaction(request.siteId, async (tx) => {
+        for (const key of ['title', 'tagline'] as const) {
+          const value =
+            typeof body[key] === 'string' ? (body[key] as string).trim().slice(0, 300) : '';
+          await tx.delete(strings).where(and(eq(strings.locale, locale), eq(strings.key, key)));
+          if (value)
+            await tx.insert(strings).values({ siteId: request.siteId, locale, key, value });
+        }
+      });
+      await ctx.cache.invalidate(request.siteId, ['site']);
+      return { status: 204 };
+    }),
+  });
+
+  // Overview: entries of a type in the default language and their translations.
+  ctx.routes.api({
+    method: 'GET',
+    path: '/overview',
+    capability: 'edit_entries',
+    handler: handle(async (request) => {
+      const type = /^[a-z0-9-]{1,64}$/.test(request.query.type ?? '')
+        ? request.query.type!
+        : 'article';
+      const locale = await ctx.languages.defaultLocale(request.siteId);
+      const items = await ctx.content.find(request.siteId, {
+        type,
+        locale,
+        status: 'any',
+        limit: 200,
+      });
+      const views = await translationViews(
+        ctx,
+        request.siteId,
+        'entry',
+        items.map((i) => i.id),
+      );
+      const body: OverviewRow[] = items.map((item) => ({
+        id: item.id,
+        title: item.title,
+        status: item.status,
+        links: views[item.id]?.links ?? [],
+      }));
+      return { body };
+    }),
+  });
+
   // Translations of entries and terms.
   ctx.routes.api({
     method: 'GET',
@@ -580,13 +770,29 @@ async function translationViews(
       details.set(t.id, { id: t.id, locale: t.locale, title: t.name });
     }
   }
+  const rows = await ctx.db.transaction(siteId, (tx) =>
+    tx
+      .select({
+        id: translations.elementId,
+        needsUpdate: translations.needsUpdate,
+        sourceLocale: translations.sourceLocale,
+      })
+      .from(translations)
+      .where(and(eq(translations.kind, kind), inArray(translations.elementId, all))),
+  );
+  const state = new Map(rows.map((r) => [r.id, r]));
   const result: TranslationsResponse = {};
   for (const id of ids) {
     const own = details.get(id);
     if (!own) continue;
     result[id] = {
       locale: own.locale,
-      links: (links[id] ?? []).flatMap((l) => details.get(l.id) ?? []),
+      needsUpdate: state.get(id)?.needsUpdate ?? false,
+      isOriginal: (state.get(id)?.sourceLocale ?? null) === null,
+      links: (links[id] ?? []).flatMap((l) => {
+        const detail = details.get(l.id);
+        return detail ? [{ ...detail, needsUpdate: state.get(l.id)?.needsUpdate ?? false }] : [];
+      }),
     };
   }
   return result;

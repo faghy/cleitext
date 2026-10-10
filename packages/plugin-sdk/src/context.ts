@@ -111,6 +111,21 @@ export interface ContentApi {
    * The parent becomes the parent's copy in that language, when there is one.
    */
   copy(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry>;
+  /**
+   * Saves new values of some custom fields of an entry, as a new revision by
+   * the given user (needs `content:write`). Other fields keep their values.
+   */
+  updateFields(
+    siteId: string,
+    id: string,
+    values: FieldValues,
+    options: { userId: string },
+  ): Promise<void>;
+  /** Custom fields of a content type on the site: its own and the plugin field groups. */
+  fields(
+    siteId: string,
+    type: string,
+  ): Promise<{ fields: FieldDefinition[]; groups: { id: string; fields: FieldDefinition[] }[] }>;
 }
 
 export interface TermsApi {

@@ -73,11 +73,22 @@ export interface Filters {
   'render.html': [html: string, context: RenderHookContext];
   /** Template names tried in order, e.g. `entry-event` (needs `theme:hooks`). */
   'theme.templateCandidates': [candidates: string[], context: RenderHookContext];
+  /**
+   * Site title and tagline in a language other than the default one, e.g.
+   * translated by the language plugin (needs `languages`). Never called for
+   * the default language.
+   */
+  'site.strings': [
+    strings: { title: string; tagline: string },
+    context: { siteId: string; locale: string },
+  ];
 }
 
 /** Context of action handlers. */
 export interface HookContext {
   siteId: string;
+  /** The user whose change emitted the action, when there is one. */
+  userId?: string;
 }
 
 export interface HookOptions {

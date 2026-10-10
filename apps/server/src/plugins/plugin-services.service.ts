@@ -1,4 +1,5 @@
 import {
+  contentTypes,
   entries,
   menus,
   revisions,
@@ -23,7 +24,12 @@ import {
   type PluginTransaction,
   type TermQuery,
 } from '@cleitext/plugin-sdk';
-import { fieldDefaults, fieldsValidator, type FieldValues } from '@cleitext/shared';
+import {
+  fieldDefaults,
+  fieldsValidator,
+  type FieldDefinition,
+  type FieldValues,
+} from '@cleitext/shared';
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
@@ -92,6 +98,38 @@ export class PluginServicesProvider implements PluginServices {
     );
     const [entry] = await this.findEntries(siteId, { ids: [copy.id], status: 'any', limit: 1 });
     return entry!;
+  }
+
+  async updateFields(
+    siteId: string,
+    id: string,
+    values: FieldValues,
+    options: { userId: string },
+  ): Promise<void> {
+    const auth = await this.actor(siteId, options.userId);
+    const entry = await this.entriesService.get(siteId, auth, id);
+    const current = (entry.revision?.fields ?? {}) as FieldValues;
+    const merged: FieldValues = { ...current };
+    for (const [key, value] of Object.entries(values)) {
+      // Field groups are objects: only the given fields of a group change.
+      merged[key] =
+        isPlainObject(value) && isPlainObject(current[key])
+          ? { ...(current[key] as FieldValues), ...value }
+          : value;
+    }
+    await this.entriesService.update(siteId, auth, id, { fields: merged }, '');
+  }
+
+  fieldsOf(
+    siteId: string,
+    type: string,
+  ): Promise<{ fields: FieldDefinition[]; groups: { id: string; fields: FieldDefinition[] }[] }> {
+    return withContext(this.database.db, { siteId }, async (tx) => {
+      const [row] = await tx.select().from(contentTypes).where(eq(contentTypes.slug, type));
+      if (!row) return { fields: [], groups: [] };
+      const { fields, groups } = await this.host.fieldsFor(siteId, row);
+      return { fields, groups: groups.map((g) => ({ id: g.id, fields: g.fields })) };
+    });
   }
 
   findTerms(siteId: string, query: TermQuery): Promise<PluginTerm[]> {
@@ -345,4 +383,8 @@ export class PluginServicesProvider implements PluginServices {
 function storageKey(key: string): string {
   if (!/^[a-zA-Z0-9_.:-]{1,100}$/.test(key)) throw new TypeError(`Invalid storage key: ${key}`);
   return `storage:${key}`;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

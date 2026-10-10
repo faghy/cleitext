@@ -3,8 +3,9 @@
  * the same suite runs in Chromium, Firefox and WebKit (RNF-10).
  */
 const BROWSER_NOISE = [
-  // Firefox: a lazy import aborted by leaving the page while it loads.
+  // Firefox and WebKit: a lazy import aborted by leaving the page while it loads.
   /^error loading dynamically imported module/,
+  /^TypeError: Importing a module script failed\.$/,
   // WebKit: requests cancelled by a navigation, even when the code handles them.
   /due to access control checks\.$/,
   // WebKit: Gutenberg reads the selection of a canvas that was just removed.

@@ -564,7 +564,9 @@ Usati dai campi dei tipi di contenuto, dai gruppi di campi, dagli attributi dei 
 | `select`   | stringa             | `options: [{ value, label }]`, `default`                |
 | `media`    | id del media (uuid) | un'immagine della libreria media                        |
 
-Opzioni comuni: `name` (lettere, cifre, `_`), `label`, `help` e `required`. Le etichette sono stringhe oppure oggetti per lingua (`{ en: 'Date', it: 'Data' }`). Un campo facoltativo può essere vuoto (`null`).
+Opzioni comuni: `name` (lettere, cifre, `_`), `label`, `help`, `required` e `translation`. Le etichette sono stringhe oppure oggetti per lingua (`{ en: 'Date', it: 'Data' }`). Un campo facoltativo può essere vuoto (`null`).
+
+`translation` dice cosa succede al campo nelle altre lingue, con un plugin delle lingue: `translate` (predefinito) viene copiato nella nuova traduzione e poi modificato lì, `copy` resta uguale all'originale (si aggiorna quando l'originale viene salvato, come un prezzo), `ignore` parte vuoto.
 
 ## 15. Lingue (plugin delle lingue)
 
@@ -602,6 +604,8 @@ Altre chiamate:
 | `ctx.languages.setDefault(siteId, code)`         | La cambia; il codice deve essere tra quelli di `locales`.                      |
 | `ctx.languages.usage(siteId)`                    | Voci, termini e menu per lingua, per esempio prima di rimuoverne una.          |
 | `ctx.languages.pending(siteId)` · `clearPending` | Dati linguistici che il core conserva per un plugin delle lingue (vedi sotto). |
+
+Per le traduzioni, `ctx.content.updateFields(siteId, id, values, { userId })` salva alcuni campi personalizzati di una voce (per esempio per sincronizzare i campi `copy`), e `ctx.content.fields(siteId, type)` restituisce i campi di un tipo con i gruppi di campi (compreso `translation`). Il filtro `site.strings` (`{ title, tagline }`, contesto `{ siteId, locale }`) fornisce titolo e motto del sito nelle altre lingue; il core non lo chiama mai per la lingua predefinita. I gestori delle azioni ricevono l'utente che ha fatto la modifica come `context.userId`, quando c'è.
 
 **Dati linguistici in attesa.** I siti precedenti a M7 e i siti importati portano con sé lingue e collegamenti fra traduzioni (`{ locales, entries: [{ id, group }], terms: [...] }`). Il core li conserva finché un plugin delle lingue non li prende in carico: leggili con `pending`, salvali nelle tue tabelle, poi chiama `clearPending`. Il plugin Multilingua lo fa quando viene attivato e all'azione `languages.pending`.
 

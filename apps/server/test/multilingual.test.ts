@@ -139,7 +139,9 @@ describe('translations of entries', () => {
     const links = (await editor.get(`${EXT}/translations?kind=entry&ids=${en.id}`)).json();
     expect(links[en.id]).toEqual({
       locale: 'en',
-      links: [{ id, locale: 'it', title: 'Contact', status: 'draft' }],
+      needsUpdate: false,
+      isOriginal: true,
+      links: [{ id, locale: 'it', title: 'Contact', status: 'draft', needsUpdate: false }],
     });
     expect(
       (await editor.post(`${EXT}/translations/entry/${en.id}`, { locale: 'it' })).statusCode,
@@ -229,7 +231,7 @@ describe('translations of terms', () => {
     expect(created.statusCode, created.body).toBe(201);
     const links = (await admin.get(`${EXT}/translations?kind=term&ids=${world.id}`)).json();
     expect(links[world.id].links).toEqual([
-      { id: created.json().id, locale: 'it', title: 'Mondo' },
+      { id: created.json().id, locale: 'it', title: 'Mondo', needsUpdate: false },
     ]);
 
     const archive = await visitor.get('/category/world');
@@ -309,6 +311,74 @@ describe('deactivation', () => {
 
     await owner2.post('/api/v1/plugins/multilingual/activate');
     expect((await guest.get('/it/home-page')).statusCode).toBe(200);
+  });
+});
+
+describe('translation status and fields (step 5)', () => {
+  it('flags translations when the original changes, until they are saved', async () => {
+    const en = await publish(editor, 'page', 'Opening hours');
+    const id = await translate(editor, en.id, 'it');
+    const status = async (of: string) =>
+      (await editor.get(`${EXT}/translations?kind=entry&ids=${of}`)).json()[of];
+    expect((await status(en.id)).links[0].needsUpdate).toBe(false);
+
+    await editor.request('PATCH', `/api/v1/entries/${en.id}`, { title: 'Opening hours (summer)' });
+    expect((await status(en.id)).links[0].needsUpdate).toBe(true);
+    expect(await status(id)).toMatchObject({ needsUpdate: true, isOriginal: false });
+
+    await editor.request('PATCH', `/api/v1/entries/${id}`, { title: 'Orari estivi' });
+    expect((await status(en.id)).links[0].needsUpdate).toBe(false);
+
+    const overview = (await editor.get(`${EXT}/overview?type=page`)).json();
+    expect(overview.find((r: { id: string }) => r.id === en.id).links).toEqual([
+      expect.objectContaining({ id, locale: 'it', title: 'Orari estivi', needsUpdate: false }),
+    ]);
+  });
+
+  it('keeps copied fields in step and starts ignored ones empty', async () => {
+    const created = await admin.post('/api/v1/content-types', {
+      slug: 'product',
+      name: { en: 'Products' },
+      fields: [
+        { name: 'price', type: 'number', label: 'Price', translation: 'copy' },
+        { name: 'blurb', type: 'text', label: 'Blurb', translation: 'ignore' },
+        { name: 'note', type: 'text', label: 'Note' },
+      ],
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const en = (
+      await admin.post('/api/v1/entries', {
+        type: 'product',
+        title: 'Lamp',
+        fields: { price: 10, blurb: 'Bright', note: 'Fragile' },
+      })
+    ).json();
+    const id = await translate(admin, en.id, 'it');
+    const fieldsOf = async (of: string) =>
+      (await admin.get(`/api/v1/entries/${of}`)).json().revision.fields;
+    expect(await fieldsOf(id)).toEqual({ price: 10, note: 'Fragile' });
+
+    await admin.request('PATCH', `/api/v1/entries/${en.id}`, {
+      fields: { price: 12, blurb: 'Bright', note: 'Fragile!' },
+    });
+    expect(await fieldsOf(id)).toEqual({ price: 12, note: 'Fragile' });
+    // The sync itself does not count as bringing the translation up to date.
+    const links = (await admin.get(`${EXT}/translations?kind=entry&ids=${id}`)).json()[id];
+    expect(links.needsUpdate).toBe(true);
+  });
+
+  it('translates the site title and tagline', async () => {
+    expect(
+      (await admin.request('PUT', `${EXT}/strings/it`, { title: 'Il sito', tagline: 'Note' }))
+        .statusCode,
+    ).toBe(204);
+    expect((await admin.request('PUT', `${EXT}/strings/en`, { title: 'X' })).statusCode).toBe(400);
+    expect((await admin.get(`${EXT}/strings`)).json()).toEqual({
+      it: { title: 'Il sito', tagline: 'Note' },
+    });
+    const italian = (await visitor.get('/it')).body;
+    expect(italian).toContain('Il sito');
+    expect((await visitor.get('/')).body).not.toContain('Il sito');
   });
 });
 

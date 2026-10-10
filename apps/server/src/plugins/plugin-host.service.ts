@@ -496,10 +496,16 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   // ---- Hooks --------------------------------------------------------------------------
 
   /** Runs action handlers of the plugins active on the site; errors are isolated. */
-  async emit<K extends keyof Actions>(name: K, payload: Actions[K], siteId: string): Promise<void> {
+  async emit<K extends keyof Actions>(
+    name: K,
+    payload: Actions[K],
+    siteId: string,
+    userId?: string,
+  ): Promise<void> {
     if (this.loaded.size === 0) return;
+    const context = userId ? { siteId, userId } : { siteId };
     for (const hook of await this.hooksFor(siteId, 'action', name)) {
-      await this.runHook({ ...hook, siteId }, () => hook.handler(payload, { siteId }));
+      await this.runHook({ ...hook, siteId }, () => hook.handler(payload, context));
     }
   }
 

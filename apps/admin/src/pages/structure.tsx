@@ -293,6 +293,8 @@ function FieldsEditor({
   onChange: (fields: FieldDefinition[]) => void;
 }) {
   const { t } = useT();
+  // With a language plugin: what a translation does with the field (like WPML).
+  const multilingual = useMe().site.locales.length > 1;
   const update = (index: number, changes: Partial<FieldDefinition>) =>
     onChange(fields.map((f, i) => (i === index ? ({ ...f, ...changes } as FieldDefinition) : f)));
   return (
@@ -331,6 +333,7 @@ function FieldsEditor({
                   name: field.name,
                   label: field.label,
                   required: field.required,
+                  ...(field.translation ? { translation: field.translation } : {}),
                   type,
                 } as FieldDefinition;
                 if (type === 'select')
@@ -361,6 +364,24 @@ function FieldsEditor({
                   } as Partial<FieldDefinition>)
                 }
               />
+            </label>
+          )}
+          {multilingual && (
+            <label className="space-y-1">
+              <span className="block text-xs text-slate-600">{t('In other languages')}</span>
+              <select
+                className={selectClass}
+                value={field.translation ?? 'translate'}
+                onChange={(e) =>
+                  update(index, {
+                    translation: e.target.value as NonNullable<FieldDefinition['translation']>,
+                  })
+                }
+              >
+                <option value="translate">{t('Translated')}</option>
+                <option value="copy">{t('Same as the original')}</option>
+                <option value="ignore">{t('Left empty')}</option>
+              </select>
             </label>
           )}
           <label className="flex items-center gap-1 pb-1">

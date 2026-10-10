@@ -16,6 +16,13 @@ interface BaseField {
   label: Label;
   help?: Label;
   required?: boolean;
+  /**
+   * In other languages (with a language plugin): `translate` (default) is
+   * copied into a new translation and then edited there; `copy` stays the
+   * same as in the original; `ignore` starts empty. Like WPML's
+   * custom-field settings.
+   */
+  translation?: 'translate' | 'copy' | 'ignore';
 }
 
 export interface TextField extends BaseField {
@@ -67,6 +74,7 @@ const base = {
   label,
   help: label.optional(),
   required: z.boolean().optional(),
+  translation: z.enum(['translate', 'copy', 'ignore']).optional(),
 };
 
 /** Validates field definitions (from plugin code or stored content types). */

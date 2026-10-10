@@ -101,6 +101,19 @@ test('duplicates and the editing lock', async ({ page, browser }) => {
   await signIn(lucia, email, PASSWORD);
   await lucia.goto(`/admin/entries/${entry.id}`);
   await expect(lucia.locator('#entry-title')).toHaveValue(`Locked ${stamp}`);
+  // Her editor takes the lock just after it shows the entry (in development
+  // React mounts it twice: take, release, take again).
+  await lucia.waitForLoadState('networkidle');
+  await expect
+    .poll(async () => {
+      const lock = await call<{ lockedBy: { displayName: string } | null }>(
+        page,
+        'GET',
+        `/entries/${entry.id}/lock`,
+      );
+      return lock.lockedBy?.displayName ?? null;
+    })
+    .toBe(`Lucia ${stamp}`);
 
   await page.goto(`/admin/entries/${entry.id}`);
   await expect(page.getByText(`Lucia ${stamp} is editing this entry`)).toBeVisible();

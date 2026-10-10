@@ -104,7 +104,7 @@ export class TermsService {
         0,
       );
     });
-    await this.emitTerm(siteId, 'term.created', view);
+    await this.emitTerm(siteId, 'term.created', view, auth.userId);
     return view;
   }
 
@@ -136,7 +136,7 @@ export class TermsService {
       });
       return toView(term, taxonomy!.slug, 0);
     });
-    await this.emitTerm(siteId, 'term.created', view);
+    await this.emitTerm(siteId, 'term.created', view, auth.userId);
     return view;
   }
 
@@ -197,7 +197,7 @@ export class TermsService {
       return toView(term, taxonomy?.slug ?? '', 0);
     });
     await this.cache.invalidate(siteId, ['site']);
-    await this.emitTerm(siteId, 'term.deleted', view);
+    await this.emitTerm(siteId, 'term.deleted', view, auth.userId);
   }
 
   /** Runs plugin actions after the change is committed. */
@@ -205,6 +205,7 @@ export class TermsService {
     siteId: string,
     action: 'term.created' | 'term.deleted',
     view: TermView,
+    userId?: string,
   ): Promise<void> {
     await this.plugins.emit(
       action,
@@ -219,6 +220,7 @@ export class TermsService {
         },
       },
       siteId,
+      userId,
     );
   }
 

@@ -409,8 +409,18 @@ export class PublicService {
       .where(eq(sites.id, siteId));
     const locales = await this.languages.locales(siteId, site?.defaultLocale ?? 'en');
     const data = await loadSiteData(tx, activePlugins, locales);
-    const settings = await this.settingsService.core(tx);
+    let settings = await this.settingsService.core(tx);
     const { locale, rest } = data.urls.splitLocale(path);
+    // Title and tagline of the other languages (language plugin); the default needs nothing.
+    if (locale !== data.locales[0]?.code) {
+      const strings = await this.plugins.applyFilter(
+        'site.strings',
+        { title: settings.title || site?.name || '', tagline: settings.tagline },
+        { siteId, locale },
+        siteId,
+      );
+      settings = { ...settings, title: strings.title, tagline: strings.tagline };
+    }
     return {
       rest,
       scope: {

@@ -2,6 +2,10 @@ import type { Messages } from '@cleitext/admin-sdk';
 
 /** Italian texts of the admin (content screens), by English text. */
 export const itContent: Messages = {
+  'In other languages': 'Nelle altre lingue',
+  Translated: 'Tradotto',
+  'Same as the original': 'Uguale all’originale',
+  'Left empty': 'Lasciato vuoto',
   '(no parent)': '(nessun genitore)',
   '(no title)': '(nessun titolo)',
   Add: 'Aggiungi',

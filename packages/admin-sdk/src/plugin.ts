@@ -47,6 +47,8 @@ export interface EditorEntry {
   title: string;
   slug: string;
   status: string;
+  /** Changes on every save: use it in query keys to refresh after saving. */
+  updatedAt: string;
 }
 
 export interface EditorPanelProps extends AdminPageProps {

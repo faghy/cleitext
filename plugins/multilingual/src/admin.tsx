@@ -13,8 +13,8 @@ import {
   type ListRow,
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import type { LanguageView, TranslationsResponse } from './schema';
+import { useId, useState } from 'react';
+import type { LanguageView, OverviewRow, StringsResponse, TranslationsResponse } from './schema';
 
 addMessages('it', {
   Languages: 'Lingue',
@@ -48,6 +48,22 @@ addMessages('it', {
   'Name in {language}': 'Nome in {language}',
   '(no title)': '(senza titolo)',
   Unlink: 'Scollega',
+  'needs update': 'da aggiornare',
+  'The original changed after this translation: check it and save it.':
+    'L’originale è cambiato dopo questa traduzione: controllala e salvala.',
+  'Site title and tagline': 'Titolo e motto del sito',
+  'In the other languages. Empty texts show those of Settings.':
+    'Nelle altre lingue. I testi vuoti mostrano quelli delle Impostazioni.',
+  'Site title': 'Titolo del sito',
+  Tagline: 'Motto',
+  Save: 'Salva',
+  'Saved.': 'Salvato.',
+  'Content type': 'Tipo di contenuto',
+  Posts: 'Articoli',
+  Pages: 'Pagine',
+  Title: 'Titolo',
+  Translate: 'Traduci',
+  '{missing} to translate, {outdated} to update': '{missing} da tradurre, {outdated} da aggiornare',
   draft: 'bozza',
   pending: 'in revisione',
   scheduled: 'programmato',
@@ -257,6 +273,7 @@ function LanguagesPage({ api }: AdminPageProps) {
         </table>
       </Card>
       <AddLanguage api={api} taken={views.map((v) => v.code)} onAdded={done} />
+      <SiteTexts api={api} languages={views.filter((v) => !v.isDefault)} />
     </div>
   );
 }
@@ -271,6 +288,7 @@ function AddLanguage({
   onAdded: (views: LanguageView[]) => Promise<void>;
 }) {
   const { t } = useT();
+  const pickerId = useId();
   const [choice, setChoice] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -300,9 +318,12 @@ function AddLanguage({
         }}
       >
         {add.error && <Alert>{errorMessage(add.error)}</Alert>}
-        <label className="block space-y-1 text-sm">
-          <span className="block font-medium text-slate-800">{t('Language')}</span>
+        <div className="space-y-1 text-sm">
+          <label htmlFor={pickerId} className="block font-medium text-slate-800">
+            {t('Language')}
+          </label>
           <select
+            id={pickerId}
             className="w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm"
             value={choice}
             onChange={(e) => {
@@ -320,7 +341,7 @@ function AddLanguage({
               </option>
             ))}
           </select>
-        </label>
+        </div>
         <TextField
           label={t('Other code (e.g. de-CH)')}
           value={code}
@@ -351,11 +372,200 @@ function AddLanguage({
   );
 }
 
+function SiteTexts({ api, languages }: { api: AdminPageProps['api']; languages: LanguageView[] }) {
+  const { t } = useT();
+  const texts = useQuery({
+    queryKey: ['multilingual', 'strings'],
+    queryFn: () => api<StringsResponse>('GET', '/strings'),
+  });
+  if (languages.length === 0 || !texts.data) return null;
+  return (
+    <Card title={t('Site title and tagline')}>
+      <p className="mb-3 text-sm text-slate-600">
+        {t('In the other languages. Empty texts show those of Settings.')}
+      </p>
+      <div className="grid gap-6">
+        {languages.map((language) => (
+          <SiteTextsForm
+            key={language.code}
+            api={api}
+            language={language}
+            initial={texts.data[language.code] ?? { title: '', tagline: '' }}
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function SiteTextsForm({
+  api,
+  language,
+  initial,
+}: {
+  api: AdminPageProps['api'];
+  language: LanguageView;
+  initial: { title: string; tagline: string };
+}) {
+  const { t } = useT();
+  const [title, setTitle] = useState(initial.title);
+  const [tagline, setTagline] = useState(initial.tagline);
+  const save = useMutation({
+    mutationFn: () => api<void>('PUT', `/strings/${language.code}`, { title, tagline }),
+  });
+  return (
+    <form
+      className="grid max-w-xl gap-3"
+      aria-label={language.name}
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate();
+      }}
+    >
+      <h3 className="font-medium">{language.name}</h3>
+      {save.error && <Alert>{errorMessage(save.error)}</Alert>}
+      {save.isSuccess && <Alert kind="success">{t('Saved.')}</Alert>}
+      <TextField label={t('Site title')} value={title} onChange={(e) => setTitle(e.target.value)} />
+      <TextField
+        label={t('Tagline')}
+        value={tagline}
+        onChange={(e) => setTagline(e.target.value)}
+      />
+      <div>
+        <Button type="submit" disabled={save.isPending}>
+          {t('Save')}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// ---- Translations overview ----------------------------------------------------------
+
+function OverviewPage({ api, site, user }: AdminPageProps) {
+  const { t } = useT();
+  // Admin addresses, opened as links (pages get no router).
+  const open = (id: string) => window.location.assign(`/admin/entries/${id}`);
+  const [type, setType] = useState('article');
+  const list = useQuery({
+    queryKey: ['multilingual', 'overview', type],
+    queryFn: () => api<OverviewRow[]>('GET', `/overview?type=${type}`),
+  });
+  const create = useMutation({
+    mutationFn: ({ id, locale }: { id: string; locale: string }) =>
+      api<{ id: string }>('POST', `/translations/entry/${id}`, { locale }),
+    onSuccess: ({ id }) => open(id),
+  });
+  const others = site.locales.filter((l) => l.code !== site.defaultLocale);
+  const rows = list.data ?? [];
+  const missing = rows.filter((r) =>
+    others.some((l) => !r.links.some((x) => x.locale === l.code)),
+  ).length;
+  const outdated = rows.filter((r) => r.links.some((x) => x.needsUpdate)).length;
+  const canEdit = user.capabilities.includes('edit_entries');
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-semibold">{t('Translations')}</h1>
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <label className="flex items-center gap-2">
+          <span>{t('Content type')}</span>
+          <select
+            className="rounded border border-slate-300 bg-white px-2 py-1"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+          >
+            <option value="article">{t('Posts')}</option>
+            <option value="page">{t('Pages')}</option>
+          </select>
+        </label>
+        {list.data && (
+          <p className="text-slate-600">
+            {t('{missing} to translate, {outdated} to update', { missing, outdated })}
+          </p>
+        )}
+      </div>
+      {list.error && <Alert>{errorMessage(list.error)}</Alert>}
+      {create.error && <Alert>{errorMessage(create.error)}</Alert>}
+      <Card>
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-slate-200 text-slate-600">
+            <tr>
+              <th className="py-2 font-medium">{t('Title')}</th>
+              {others.map((l) => (
+                <th key={l.code} className="py-2 font-medium">
+                  {l.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id} className="border-b border-slate-100">
+                <td className="py-2">
+                  <a
+                    href={`/admin/entries/${row.id}`}
+                    className="font-medium text-sky-700 hover:underline"
+                  >
+                    {row.title || t('(no title)')}
+                  </a>
+                  <span className="text-slate-500">{statusLabel(row.status, t)}</span>
+                </td>
+                {others.map((l) => {
+                  const link = row.links.find((x) => x.locale === l.code);
+                  return (
+                    <td key={l.code} className="py-2">
+                      {link ? (
+                        <a
+                          href={`/admin/entries/${link.id}`}
+                          className="text-sky-700 hover:underline"
+                        >
+                          {link.title || t('(no title)')}
+                          <span className="text-slate-500">{statusLabel(link.status, t)}</span>
+                          {link.needsUpdate && <NeedsUpdate />}
+                        </a>
+                      ) : canEdit ? (
+                        <button
+                          type="button"
+                          className="text-sky-700 hover:underline"
+                          disabled={create.isPending}
+                          onClick={() => create.mutate({ id: row.id, locale: l.code })}
+                        >
+                          {t('Translate')}
+                          <span className="sr-only">
+                            {' '}
+                            {row.title} → {l.name}
+                          </span>
+                        </button>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+function NeedsUpdate() {
+  const { t } = useT();
+  return (
+    <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-900">
+      {t('needs update')}
+    </span>
+  );
+}
+
 // ---- Editor: Translations -----------------------------------------------------------
 
 function TranslationsPanel({ api, entry, site, navigate }: EditorPanelProps) {
   const { t } = useT();
-  const key = ['multilingual', 'translations', 'entry', entry.id];
+  const key = ['multilingual', 'translations', 'entry', entry.id, entry.updatedAt];
   const queryClient = useQueryClient();
   const data = useQuery({
     queryKey: key,
@@ -369,7 +579,8 @@ function TranslationsPanel({ api, entry, site, navigate }: EditorPanelProps) {
       navigate(`/entries/${id}`);
     },
   });
-  const links = data.data?.[entry.id]?.links ?? [];
+  const own = data.data?.[entry.id];
+  const links = own?.links ?? [];
   const nameOf = (code: string) => site.locales.find((l) => l.code === code)?.name ?? code;
   const missing = site.locales.filter(
     (l) => l.code !== entry.locale && !links.some((link) => link.locale === l.code),
@@ -378,6 +589,11 @@ function TranslationsPanel({ api, entry, site, navigate }: EditorPanelProps) {
   return (
     <div className="space-y-2 text-sm">
       <p>{t('Written in {language}.', { language: nameOf(entry.locale) })}</p>
+      {own?.needsUpdate && (
+        <p className="rounded bg-amber-50 px-2 py-1 text-amber-900" role="status">
+          {t('The original changed after this translation: check it and save it.')}
+        </p>
+      )}
       {data.error && <Alert>{errorMessage(data.error)}</Alert>}
       {create.error && <Alert>{errorMessage(create.error)}</Alert>}
       {links.length > 0 && (
@@ -398,6 +614,7 @@ function TranslationsPanel({ api, entry, site, navigate }: EditorPanelProps) {
                 })}
               </a>
               <span className="text-slate-500">{statusLabel(link.status, t)}</span>
+              {link.needsUpdate && <NeedsUpdate />}
             </li>
           ))}
         </ul>
@@ -468,12 +685,14 @@ function EntryTranslationsCell({ api, row, data, site, navigate }: ListCellProps
                 }}
               >
                 {l.code}
+                {link.needsUpdate && <span aria-hidden="true"> ⚠</span>}
                 <span className="sr-only">
                   {' '}
                   {t('{language}: {title}', {
                     language: l.name,
                     title: link.title || t('(no title)'),
                   })}
+                  {link.needsUpdate ? ` (${t('needs update')})` : ''}
                 </span>
               </a>
             ) : (
@@ -558,6 +777,12 @@ export default defineAdminPlugin({
       title: { en: 'Languages', it: 'Lingue' },
       capability: 'manage_settings',
       component: LanguagesPage,
+    },
+    {
+      path: 'overview',
+      title: { en: 'Translations', it: 'Traduzioni' },
+      capability: 'edit_entries',
+      component: OverviewPage,
     },
   ],
   editorPanels: [

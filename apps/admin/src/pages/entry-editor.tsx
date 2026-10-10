@@ -980,6 +980,7 @@ function DocumentPanel({
           title: entry.title,
           slug: entry.slug,
           status: entry.status,
+          updatedAt: entry.updatedAt,
         }}
       />
 

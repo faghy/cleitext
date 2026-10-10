@@ -562,7 +562,9 @@ Used by content type fields, field groups, block attributes and settings.
 | `select`   | string          | `options: [{ value, label }]`, `default`                |
 | `media`    | media id (uuid) | an image of the media library                           |
 
-Common options: `name` (letters, digits, `_`), `label`, `help` and `required`. Labels are strings or per-language objects (`{ en: 'Date', it: 'Data' }`). An optional field may be empty (`null`).
+Common options: `name` (letters, digits, `_`), `label`, `help`, `required` and `translation`. Labels are strings or per-language objects (`{ en: 'Date', it: 'Data' }`). An optional field may be empty (`null`).
+
+`translation` says what happens to the field in other languages, with a language plugin: `translate` (default) is copied into a new translation and then edited there, `copy` stays the same as in the original (it is updated when the original is saved, like a price), `ignore` starts empty.
 
 ## 15. Languages (language plugins)
 
@@ -592,6 +594,8 @@ Other calls:
 | `ctx.languages.setDefault(siteId, code)`         | Changes it; the code must be one of `locales`.                   |
 | `ctx.languages.usage(siteId)`                    | Entries, terms and menus per language, e.g. before removing one. |
 | `ctx.languages.pending(siteId)` · `clearPending` | Language data the core holds for a language plugin (see below).  |
+
+For translations, `ctx.content.updateFields(siteId, id, values, { userId })` saves some custom fields of an entry (e.g. to sync `copy` fields), and `ctx.content.fields(siteId, type)` returns the fields of a type with the field groups (`translation` included). The filter `site.strings` (`{ title, tagline }`, context `{ siteId, locale }`) gives the site title and tagline in the other languages; the core never calls it for the default language. Action handlers receive the user who made the change as `context.userId`, when there is one.
 
 **Pending language data.** Sites from before M7 and imported sites bring languages and translation links (`{ locales, entries: [{ id, group }], terms: [...] }`). The core keeps them until a language plugin takes them over: read them with `pending`, store them in your tables, then `clearPending`. The Multilingual plugin does it when it is activated and on the action `languages.pending`.
 

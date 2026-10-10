@@ -146,6 +146,7 @@ export class EntriesService {
       fields?: Record<string, unknown>;
       revision?: { fields: Record<string, unknown> } | null;
     },
+    userId?: string,
   ): Promise<void> {
     await this.plugins.emit(
       action,
@@ -162,6 +163,7 @@ export class EntriesService {
         },
       },
       siteId,
+      userId,
     );
   }
 
@@ -422,7 +424,7 @@ export class EntriesService {
       await this.audit.record(tx, entryAudit(siteId, auth, 'entry.created', id, ip));
       return this.view(tx, auth, await this.load(tx, id));
     });
-    await this.emitEntry(siteId, 'entry.created', view);
+    await this.emitEntry(siteId, 'entry.created', view, auth.userId);
     return view;
   }
 
@@ -518,7 +520,7 @@ export class EntriesService {
       return this.view(tx, auth, updated);
     });
     await this.cache.invalidate(siteId, tags);
-    await this.emitEntry(siteId, 'entry.saved', view);
+    await this.emitEntry(siteId, 'entry.saved', view, auth.userId);
     return view;
   }
 
@@ -702,7 +704,12 @@ export class EntriesService {
       await this.audit.record(tx, entryAudit(siteId, auth, 'entry.deleted', id, ip));
       return entry;
     });
-    await this.emitEntry(siteId, 'entry.deleted', { ...removed, type: removed.typeSlug });
+    await this.emitEntry(
+      siteId,
+      'entry.deleted',
+      { ...removed, type: removed.typeSlug },
+      auth.userId,
+    );
   }
 
   // ---- Revisions ----------------------------------------------------------------
@@ -785,6 +792,27 @@ export class EntriesService {
 
   // ---- Copies for plugins ---------------------------------------------------------
 
+  private async withoutIgnored(
+    siteId: string,
+    typeSlug: string,
+    fields: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const type = await withContext(this.database.db, { siteId }, (tx) =>
+      this.contentType(tx, typeSlug),
+    );
+    const { fields: own, groups } = await this.plugins.fieldsFor(siteId, type);
+    const result = { ...fields };
+    for (const field of own) if (field.translation === 'ignore') delete result[field.name];
+    for (const group of groups) {
+      const values = result[group.id];
+      if (typeof values !== 'object' || values === null) continue;
+      const copy = { ...(values as Record<string, unknown>) };
+      for (const field of group.fields) if (field.translation === 'ignore') delete copy[field.name];
+      result[group.id] = copy;
+    }
+    return result;
+  }
+
   /**
    * A draft copy of an entry in a language (`ctx.content.copy`, used by the
    * language plugin to start a translation). Content, fields, excerpt and
@@ -809,6 +837,7 @@ export class EntriesService {
             .get(source.parentId)
             ?.find((t) => t.locale === locale)?.id ?? null);
     }
+    const fields = revision?.fields ?? {};
     const copy = await this.create(
       siteId,
       auth,
@@ -819,7 +848,8 @@ export class EntriesService {
         ...(sameLocale ? {} : { slug: source.slug }),
         parentId,
         document: revision?.document,
-        fields: revision?.fields ?? {},
+        // Fields marked `translation: 'ignore'` start empty in another language.
+        fields: sameLocale ? fields : await this.withoutIgnored(siteId, source.type, fields),
         excerpt: revision?.excerpt ?? null,
         featuredMediaId: revision?.featuredMediaId ?? null,
       },
@@ -873,7 +903,7 @@ export class EntriesService {
       action === 'entry.unpublished' ||
       action === 'entry.trashed'
     ) {
-      await this.emitEntry(siteId, action, view);
+      await this.emitEntry(siteId, action, view, auth.userId);
     }
     return view;
   }

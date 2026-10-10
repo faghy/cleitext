@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const languages = pgTable('languages', {
   siteId: uuid('site_id').notNull(),
@@ -16,6 +16,14 @@ export const translations = pgTable('translations', {
   locale: text('locale').notNull(),
   sourceLocale: text('source_locale'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  needsUpdate: boolean('needs_update').notNull().default(false),
+});
+
+export const strings = pgTable('strings', {
+  siteId: uuid('site_id').notNull(),
+  locale: text('locale').notNull(),
+  key: text('key').$type<'title' | 'tagline'>().notNull(),
+  value: text('value').notNull(),
 });
 
 /** A language as listed by GET /api/v1/ext/multilingual/languages. */
@@ -36,7 +44,23 @@ export interface TranslationView {
   locale: string;
   title: string;
   status?: string;
+  /** The original changed after this translation was last saved. */
+  needsUpdate?: boolean;
 }
 
 /** GET /translations: for each id, its language and the other versions. */
-export type TranslationsResponse = Record<string, { locale: string; links: TranslationView[] }>;
+export type TranslationsResponse = Record<
+  string,
+  { locale: string; needsUpdate: boolean; isOriginal: boolean; links: TranslationView[] }
+>;
+
+/** GET /strings: site texts by language (the default language's are the core settings). */
+export type StringsResponse = Record<string, { title: string; tagline: string }>;
+
+/** GET /overview: entries of a type in the default language, with their translations. */
+export interface OverviewRow {
+  id: string;
+  title: string;
+  status: string;
+  links: TranslationView[];
+}

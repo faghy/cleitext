@@ -29,6 +29,14 @@ test.beforeAll(() => {
   );
 });
 
+// The other specs run on a site with one language, even after a failure here.
+test.afterAll(async ({ browser }) => {
+  const page = await browser.newPage();
+  await signIn(page);
+  await setActive(page, false);
+  await page.close();
+});
+
 async function signIn(page: Page) {
   await page.goto('/admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
@@ -81,82 +89,86 @@ test('languages are added, and content and categories translated', async ({ page
 
   await signIn(page);
   await setActive(page, true);
-  try {
-    // Settings → Languages.
-    await page.goto('/admin/');
-    await page
-      .getByRole('navigation', { name: 'Main' })
-      .getByRole('link', { name: 'Languages' })
-      .click();
-    await expect(page.getByRole('heading', { name: 'Languages', level: 1 })).toBeVisible();
-    const languages = page.getByRole('table');
-    if ((await languages.getByRole('row').filter({ hasText: 'Italiano' }).count()) === 0) {
-      await page.getByLabel('Language', { exact: true }).selectOption('it');
-      await page.getByRole('button', { name: 'Add', exact: true }).click();
-    }
-    await expect(languages.getByRole('row').filter({ hasText: 'Italiano' })).toHaveCount(1);
+  // Settings → Languages.
+  await page.goto('/admin/');
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Languages' })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Languages', level: 1 })).toBeVisible();
+  const languages = page.getByRole('table');
+  if ((await languages.getByRole('row').filter({ hasText: 'Italiano' }).count()) === 0) {
+    await page.getByLabel('Language', { exact: true }).selectOption('it');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+  }
+  await expect(languages.getByRole('row').filter({ hasText: 'Italiano' })).toHaveCount(1);
 
-    // The editor: Translations section, then the Italian copy.
-    const post = await call<{ id: string }>(page, 'POST', '/entries', {
-      type: 'article',
-      title: `Weekend in Rome ${stamp}`,
-    });
-    await page.goto(`/admin/entries/${post.id}`);
-    const panel = page.getByRole('region', { name: 'Translations' });
-    await expect(panel.getByText('Written in English.')).toBeVisible();
-    await panel.getByLabel('Add translation').selectOption('it');
-    await page.waitForURL((url) => !url.pathname.endsWith(post.id));
-    const itId = page.url().split('/').pop()!;
-    await page.getByRole('textbox', { name: 'Title' }).fill(`Weekend a Roma ${stamp}`);
-    await page.getByRole('button', { name: 'Save draft' }).click();
-    await expect(page.getByRole('status').getByText('Saved', { exact: true })).toBeVisible();
-    await expect(
-      page.getByRole('region', { name: 'Translations' }).getByText('Written in Italiano.'),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('region', { name: 'Translations' }).getByRole('link', {
-        name: `English: Weekend in Rome ${stamp}`,
-      }),
-    ).toBeVisible();
+  // The editor: Translations section, then the Italian copy.
+  const post = await call<{ id: string }>(page, 'POST', '/entries', {
+    type: 'article',
+    title: `Weekend in Rome ${stamp}`,
+  });
+  await page.goto(`/admin/entries/${post.id}`);
+  const panel = page.getByRole('region', { name: 'Translations' });
+  await expect(panel.getByText('Written in English.')).toBeVisible();
+  await panel.getByLabel('Add translation').selectOption('it');
+  await page.waitForURL((url) => !url.pathname.endsWith(post.id));
+  const itId = page.url().split('/').pop()!;
+  await page.getByRole('textbox', { name: 'Title' }).fill(`Weekend a Roma ${stamp}`);
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect(page.getByRole('status').getByText('Saved', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Translations' }).getByText('Written in Italiano.'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Translations' }).getByRole('link', {
+      name: `English: Weekend in Rome ${stamp}`,
+    }),
+  ).toBeVisible();
 
-    // The list: the English row links its Italian version.
-    await page.goto('/admin/posts');
-    await page.getByRole('searchbox', { name: 'Search posts' }).fill(stamp);
-    await page.getByRole('button', { name: 'Search', exact: true }).click();
-    const row = page.getByRole('row').filter({ hasText: `Weekend in Rome ${stamp}` });
-    await expect(
-      row.getByRole('link', { name: new RegExp(`Italiano: Weekend a Roma ${stamp}`) }),
-    ).toBeVisible();
+  // The list: the English row links its Italian version.
+  await page.goto('/admin/posts');
+  await page.getByRole('searchbox', { name: 'Search posts' }).fill(stamp);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: `Weekend in Rome ${stamp}` });
+  await expect(
+    row.getByRole('link', { name: new RegExp(`Italiano: Weekend a Roma ${stamp}`) }),
+  ).toBeVisible();
 
-    // Categories: a translation from the list.
-    await call(page, 'POST', '/taxonomies/category/terms', { name: `Travel ${stamp}` });
-    await page.goto('/admin/taxonomies/category');
-    page.once('dialog', (dialog) => dialog.accept(`Viaggi ${stamp}`));
-    await page
+  // Categories: a translation from the list.
+  await call(page, 'POST', '/taxonomies/category/terms', { name: `Travel ${stamp}` });
+  await page.goto('/admin/taxonomies/category');
+  page.once('dialog', (dialog) => dialog.accept(`Viaggi ${stamp}`));
+  await page
+    .getByRole('row')
+    .filter({ hasText: `Travel ${stamp}` })
+    .getByRole('button', { name: /Add translation/ })
+    .click();
+  await expect(
+    page
       .getByRole('row')
       .filter({ hasText: `Travel ${stamp}` })
-      .getByRole('button', { name: /Add translation/ })
-      .click();
-    await expect(
-      page
-        .getByRole('row')
-        .filter({ hasText: `Travel ${stamp}` })
-        .getByText(`Viaggi ${stamp}`),
-    ).toBeVisible();
+      .getByText(`Viaggi ${stamp}`),
+  ).toBeVisible();
 
-    // The public site: the Italian address, linked to the English one.
-    await call(page, 'POST', `/entries/${post.id}/publish`);
-    await call(page, 'POST', `/entries/${itId}/publish`);
-    const italian = await call<{ slug: string }>(page, 'GET', `/entries/${itId}`);
-    const year = new Date().getUTCFullYear();
-    const response = await page.goto(`${SITE}/it/${year}/${italian.slug}`);
-    expect(response?.status()).toBe(200);
-    await expect(page.locator('html')).toHaveAttribute('lang', 'it');
-    expect(await page.locator('link[rel="alternate"][hreflang="en"]').count()).toBe(1);
-  } finally {
-    // The other specs run on a site with one language.
-    await page.goto('/admin/');
-    await setActive(page, false);
-  }
+  // The overview: originals and their translations, per language.
+  await page.goto('/admin/ext/multilingual/overview');
+  await expect(page.getByRole('heading', { name: 'Translations', level: 1 })).toBeVisible();
+  await expect(
+    page
+      .getByRole('row')
+      .filter({ hasText: `Weekend in Rome ${stamp}` })
+      .getByRole('link', { name: new RegExp(`Weekend a Roma ${stamp}`) }),
+  ).toBeVisible();
+
+  // The public site: the Italian address, linked to the English one.
+  await call(page, 'POST', `/entries/${post.id}/publish`);
+  await call(page, 'POST', `/entries/${itId}/publish`);
+  const italian = await call<{ slug: string }>(page, 'GET', `/entries/${itId}`);
+  const year = new Date().getUTCFullYear();
+  const response = await page.goto(`${SITE}/it/${year}/${italian.slug}`);
+  expect(response?.status()).toBe(200);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'it');
+  expect(await page.locator('link[rel="alternate"][hreflang="en"]').count()).toBe(1);
   expect(appErrors(errors)).toEqual([]);
 });
