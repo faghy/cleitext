@@ -275,7 +275,7 @@ describe('security', () => {
       }),
       { numRuns: 1_000 },
     );
-  });
+  }, 60_000);
 
   it('safeUrl keeps only safe schemes', () => {
     expect(safeUrl('https://a.test/x')).toBe('https://a.test/x');

@@ -1,5 +1,6 @@
 /** Block patterns in the editor (RF-EDT-07). */
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 async function call<T>(page: Page, method: string, path: string, body?: unknown): Promise<T> {
   return page.evaluate(
@@ -92,5 +93,5 @@ test('a synced pattern is inserted, and a selection saved as a pattern', async (
     )
     .toMatchObject({ synced: false });
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

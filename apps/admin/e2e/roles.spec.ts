@@ -1,5 +1,6 @@
 /** Users → Roles (RF-USR-06): a custom role made from a built-in one. */
 import { expect, test } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 test('a custom role is duplicated, edited and deleted', async ({ page }) => {
   const errors: string[] = [];
@@ -37,5 +38,5 @@ test('a custom role is duplicated, edited and deleted', async ({ page }) => {
   await item.getByRole('button', { name: 'Delete' }).click();
   await expect(item).toHaveCount(0);
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

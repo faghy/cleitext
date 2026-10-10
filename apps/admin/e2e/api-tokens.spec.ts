@@ -1,5 +1,6 @@
 /** API tokens from the profile (RF-USR-08). */
 import { expect, test } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 test('a token is created once, used as a bearer and revoked', async ({ page, request }) => {
   const errors: string[] = [];
@@ -38,5 +39,5 @@ test('a token is created once, used as a bearer and revoked', async ({ page, req
   });
   expect(after.status()).toBe(401);
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

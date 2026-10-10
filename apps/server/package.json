@@ -13,7 +13,8 @@
     "dev": "tsc -p tsconfig.build.json && node ./scripts/dev.mjs",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.thresholds.lines=85 --coverage.thresholds.statements=85 --coverage.thresholds.functions=85 --coverage.thresholds.branches=70"
   },
   "dependencies": {
     "@cleitext/blocks": "workspace:*",

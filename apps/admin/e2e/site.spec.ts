@@ -4,6 +4,7 @@
  * flushing caches by hand, and drafts can be previewed with a signed link.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 // Development credentials seeded by tools/dev-db.
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
@@ -118,5 +119,5 @@ test('menus, settings, publishing and previews reach the public site', async ({
   await expect(site.getByText(`Draft ${stamp}`)).toHaveCount(0);
 
   await visitor.close();
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

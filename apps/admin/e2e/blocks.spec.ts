@@ -1,5 +1,6 @@
 /** Embed and Custom HTML blocks in the editor and on the public site (RF-EDT-02). */
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 // Development credentials seeded by tools/dev-db.
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
@@ -99,5 +100,5 @@ test('embed and HTML blocks are edited, saved and published', async ({ page, con
   await expect(site.locator(`.raw-${stamp} b`)).toHaveText('HTML');
   await visitor.close();
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

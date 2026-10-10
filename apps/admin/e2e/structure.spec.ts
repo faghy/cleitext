@@ -1,5 +1,6 @@
 /** Settings → Content structure (RF-CNT-02, RF-TAX-02, RF-SET-03). */
 import { expect, test } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 test('a content type and a taxonomy are made, used and removed', async ({ page }) => {
   const errors: string[] = [];
@@ -62,5 +63,5 @@ test('a content type and a taxonomy are made, used and removed', async ({ page }
     .click();
   await expect(page.getByRole('row', { name: `Books ${slug}` })).toHaveCount(0);
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

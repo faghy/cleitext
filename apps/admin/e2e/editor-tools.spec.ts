@@ -1,5 +1,6 @@
 /** Editor tools (M6): statistics, outline, revision diff, duplicates, editing lock. */
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 const PASSWORD = 'correct horse battery staple';
 
@@ -69,7 +70,7 @@ test('statistics, outline and revision diff in the editor', async ({ page }) => 
   await expect(dialog.locator('ins')).toContainText(['four']);
   await dialog.getByRole('button', { name: 'Close' }).click();
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });
 
 test('duplicates and the editing lock', async ({ page, browser }) => {

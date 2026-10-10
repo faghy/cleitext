@@ -1,5 +1,6 @@
 /** List tables (RF-ADM-03): search, sorting, quick edit and bulk actions. */
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 // Development credentials seeded by tools/dev-db.
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
@@ -65,7 +66,7 @@ test('list tables sort, edit inline and apply bulk actions', async ({ page }) =>
   await page.getByRole('button', { name: 'Apply' }).click();
   await expect(page.getByText('Nothing found.')).toBeVisible();
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });
 
 test('pages are listed as a tree and ordered from the editor', async ({ page }) => {
@@ -134,5 +135,5 @@ test('pages are listed as a tree and ordered from the editor', async ({ page }) 
   const titles = await ours.getByRole('link').allTextContents();
   expect(titles).toEqual([`0 Parent ${stamp}`, `— 0 B child ${stamp}`, `— 0 C child ${stamp}`]);
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

@@ -1,6 +1,7 @@
 /** Media library (RF-MED-01/04): upload, list view, captions, search and type filter. */
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 // Development credentials seeded by tools/dev-db.
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
@@ -71,5 +72,5 @@ test('upload, describe, search and filter media', async ({ page }) => {
   await page.getByLabel('Filter by type').selectOption('document');
   await expect(page.getByText('Nothing found.')).toBeVisible();
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

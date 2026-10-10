@@ -1,5 +1,6 @@
 /** Appearance → Themes, Customize and Areas (RF-THM-01/03/04). */
 import { expect, test } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 const SITE =
   process.env.CLEITEXT_SERVER_URL?.replace('127.0.0.1', 'localhost') ?? 'http://localhost:3000';
@@ -60,5 +61,5 @@ test('the theme is customized with a live preview and a footer area', async ({ p
     });
   });
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

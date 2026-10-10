@@ -17,7 +17,8 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.thresholds.lines=85 --coverage.thresholds.statements=85 --coverage.thresholds.functions=85 --coverage.thresholds.branches=75"
   },
   "dependencies": {
     "@cleitext/blocks": "workspace:*",

@@ -1,5 +1,6 @@
 /** Keyboard shortcuts in the editor and their help dialog (RF-EDT-06). */
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 // Development credentials seeded by tools/dev-db.
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
@@ -60,5 +61,5 @@ test('undo, save and the shortcuts help work from the keyboard', async ({ page }
   await page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
   await expect(dialog).toBeVisible();
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

@@ -15,6 +15,11 @@
       "dependsOn": ["^build"],
       "env": ["CLEITEXT_TEST_PG_URL"]
     },
+    "test:coverage": {
+      "dependsOn": ["^build"],
+      "env": ["CLEITEXT_TEST_PG_URL"],
+      "outputs": ["coverage/**"]
+    },
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,

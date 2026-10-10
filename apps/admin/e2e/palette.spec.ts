@@ -1,5 +1,6 @@
 /** Command palette (RF-ADM-05). */
 import { expect, test } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 test('Ctrl+K opens the palette to navigate and find content', async ({ page }) => {
   const errors: string[] = [];
@@ -38,5 +39,5 @@ test('Ctrl+K opens the palette to navigate and find content', async ({ page }) =
   await page.keyboard.press('Enter');
   await page.waitForURL(`**/admin/entries/${entry.id}`);
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

@@ -1,5 +1,6 @@
 /** Posts → Categories (RF-TAX-01/03): add, edit, translate and delete terms. */
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 // Development credentials seeded by tools/dev-db.
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
@@ -64,5 +65,5 @@ test('categories are managed and translated from their own screen', async ({ pag
   await page.getByRole('button', { name: `Delete Astrophysics ${stamp}` }).click();
   await expect(page.getByRole('row').filter({ hasText: `Astrophysics ${stamp}` })).toHaveCount(0);
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

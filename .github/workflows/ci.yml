@@ -11,7 +11,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -22,11 +22,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm lint
+      # RNF-08: no open high or critical vulnerabilities; RNF-17: GPL-compatible licenses.
+      - run: pnpm audit --prod --audit-level high
+      - run: pnpm check:licenses
       - run: pnpm build
       - run: pnpm typecheck
+      # RNF-04: initial admin load under 500 KB gzip, Gutenberg lazy.
+      - run: pnpm check:bundle
       # Tests start an embedded PostgreSQL (no containers needed).
       - run: pnpm test
-      # End-to-end: the real admin and Gutenberg editor in Chromium.
+      # End-to-end: the real admin and Gutenberg editor in Chromium, axe included (RNF-09).
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
       - uses: actions/upload-artifact@v4
@@ -35,3 +40,42 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # RNF-10: the same suite in Firefox and in Safari's engine.
+  browsers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps firefox webkit
+      - run: pnpm e2e:browsers
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-browsers
+          path: playwright-report/
+          retention-days: 7
+
+  # RNF-13 coverage of the core; RNF-01/02/05/14 and RF-THM-05 budgets.
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test:coverage
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm check:perf

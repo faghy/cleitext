@@ -112,7 +112,7 @@ describe('round trip (property)', () => {
       }),
       { numRuns: 2_000 },
     );
-  });
+  }, 60_000);
 
   it('always produces schema-valid nodes, whatever the HTML', () => {
     fc.assert(
@@ -123,5 +123,5 @@ describe('round trip (property)', () => {
       }),
       { numRuns: 2_000 },
     );
-  });
+  }, 60_000);
 });

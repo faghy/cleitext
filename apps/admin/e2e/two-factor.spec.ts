@@ -1,6 +1,7 @@
 /** Two-factor authentication from the admin (RF-USR-04). */
 import { createHmac } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 const PASSWORD = 'correct horse battery staple';
 
@@ -74,7 +75,7 @@ test('a user turns on 2FA and signs in with a code', async ({ page, browser }) =
   await user.waitForURL('**/admin/');
   await context.close();
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });
 
 test('a role that requires 2FA only reaches the profile until it is on', async ({

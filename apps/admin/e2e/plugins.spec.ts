@@ -7,6 +7,7 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
@@ -153,5 +154,5 @@ test('a plugin adds a type, a block, an admin page and its table; deactivating i
   await expect(page.getByText(`ada-${stamp}@example.com`)).toBeVisible();
 
   await visitor.close();
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

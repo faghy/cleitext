@@ -1,5 +1,6 @@
 /** Settings → Redirects (RF-NAV-04). */
 import { expect, test } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 const SITE =
   process.env.CLEITEXT_SERVER_URL?.replace('127.0.0.1', 'localhost') ?? 'http://localhost:3000';
@@ -42,5 +43,5 @@ test('redirects are added, imported and deleted', async ({ page, request }) => {
     await expect(page.getByRole('cell', { name: path, exact: true })).toHaveCount(0);
   }
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

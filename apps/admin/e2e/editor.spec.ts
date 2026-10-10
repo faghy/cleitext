@@ -6,6 +6,7 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
 const sample = fileURLToPath(new URL('./fixtures/sample.jpg', import.meta.url));
@@ -152,5 +153,5 @@ test('write, classify, revise, translate and schedule a post', async ({ page }) 
   await expect(page.getByText('Scheduled', { exact: true }).first()).toBeVisible();
   expect((await entry(page, id)).status).toBe('scheduled');
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

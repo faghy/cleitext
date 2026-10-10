@@ -26,6 +26,15 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1400, height: 1000 } },
     },
+    // RNF-10: `pnpm e2e:browsers` runs the same suite in Firefox and Safari's engine.
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'], viewport: { width: 1400, height: 1000 } },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'], viewport: { width: 1400, height: 1000 } },
+    },
   ],
   webServer: {
     command: 'pnpm dev',

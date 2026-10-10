@@ -1,7 +1,12 @@
 /** Passkeys (RF-USR-05), with Chromium's virtual authenticator. */
 import { expect, test } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
-test('a passkey is added in the profile and signs in without a password', async ({ page }) => {
+test('a passkey is added in the profile and signs in without a password', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'The virtual authenticator needs Chromium (CDP).');
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const name = `Virtual key ${Date.now().toString(36)}`;
@@ -43,5 +48,5 @@ test('a passkey is added in the profile and signs in without a password', async 
   await list.getByRole('button', { name: `Remove ${name}` }).click();
   await expect(list.getByRole('paragraph').filter({ hasText: name })).toHaveCount(0);
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

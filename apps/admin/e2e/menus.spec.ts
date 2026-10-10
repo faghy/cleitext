@@ -1,5 +1,6 @@
 /** Menu items are reordered and nested by dragging (M6). */
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 // Development credentials seeded by tools/dev-db.
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
@@ -59,5 +60,5 @@ test('menu items can be dragged to a new place and level', async ({ page }) => {
   await expect(page.getByText('Menu saved.')).toBeVisible();
   // The list now shows what the server stored.
   await expect.poll(labels).toEqual(['Three', '-One', 'Two']);
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

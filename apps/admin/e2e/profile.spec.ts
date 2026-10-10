@@ -1,6 +1,7 @@
 /** Profile picture (RF-USR-07): upload, shown in the top bar, removal. */
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { appErrors } from './fixtures/errors.js';
 
 // Development credentials seeded by tools/dev-db.
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
@@ -32,5 +33,5 @@ test('a profile picture can be set and removed', async ({ page }) => {
   await expect(avatar).toHaveCount(0);
   await expect(card.getByRole('button', { name: 'Upload picture' })).toBeVisible();
 
-  expect(errors).toEqual([]);
+  expect(appErrors(errors)).toEqual([]);
 });

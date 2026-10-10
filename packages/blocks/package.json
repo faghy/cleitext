@@ -17,7 +17,8 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.thresholds.lines=90 --coverage.thresholds.statements=90 --coverage.thresholds.functions=88 --coverage.thresholds.branches=80"
   },
   "dependencies": {
     "zod": "^4.6.5"
