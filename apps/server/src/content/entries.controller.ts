@@ -1,5 +1,7 @@
 import {
   autosaveRequestSchema,
+  bulkEntriesRequestSchema,
+  type BulkEntriesResponse,
   publishRequestSchema,
   createEntryRequestSchema,
   createTranslationRequestSchema,
@@ -55,6 +57,18 @@ export class EntriesController {
     @Query() query: Record<string, unknown>,
   ): Promise<EntryListResponse> {
     return this.entries.list(site.id, auth, parseBody(listEntriesQuerySchema, query));
+  }
+
+  @Post('entries/bulk')
+  @HttpCode(200)
+  bulk(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<BulkEntriesResponse> {
+    const { ids, action } = parseBody(bulkEntriesRequestSchema, body);
+    return this.entries.bulk(site.id, auth, ids, action, request.ip);
   }
 
   @Post('entries')

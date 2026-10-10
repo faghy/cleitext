@@ -37,7 +37,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, desc, eq, ilike, lt, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
@@ -178,6 +178,9 @@ export class EntriesService {
       q?: string | undefined;
       author?: string | undefined;
       parent?: string | undefined;
+      term?: string | undefined;
+      sort?: 'updated' | 'title' | 'date' | 'order' | undefined;
+      dir?: 'asc' | 'desc' | undefined;
       limit: number;
       cursor?: string | undefined;
     },
@@ -192,8 +195,50 @@ export class EntriesService {
       if (query.author) conditions.push(eq(entries.authorId, query.author));
       if (query.parent) conditions.push(eq(entries.parentId, query.parent));
       if (query.q) conditions.push(ilike(entries.title, `%${escapeLike(query.q)}%`));
+      if (query.term) {
+        conditions.push(
+          inArray(
+            entries.id,
+            tx
+              .select({ id: entryTerms.entryId })
+              .from(entryTerms)
+              .where(eq(entryTerms.termId, query.term)),
+          ),
+        );
+      }
       if (!auth.capabilities.includes('read_private_entries')) {
         conditions.push(or(ne(entries.status, 'private'), eq(entries.authorId, auth.userId))!);
+      }
+      const sort = query.sort ?? 'updated';
+      if (sort !== 'updated') {
+        // Other orders page by offset ("o:<n>").
+        const offset = Math.max(0, Number(/^o:(\d+)$/.exec(query.cursor ?? '')?.[1] ?? 0));
+        const ascending =
+          (query.dir ?? (sort === 'title' || sort === 'order' ? 'asc' : 'desc')) === 'asc';
+        const column =
+          sort === 'title'
+            ? entries.title
+            : sort === 'date'
+              ? entries.publishedAt
+              : entries.position;
+        const rows = await tx
+          .select({ entry: entries, authorName: users.displayName })
+          .from(entries)
+          .leftJoin(users, eq(users.id, entries.authorId))
+          .where(and(...conditions))
+          .orderBy(
+            ascending ? sql`${column} asc nulls last` : sql`${column} desc nulls last`,
+            ...(sort === 'order' ? [asc(entries.title)] : []),
+            desc(entries.id),
+          )
+          .limit(query.limit + 1)
+          .offset(offset);
+        return {
+          items: rows
+            .slice(0, query.limit)
+            .map(({ entry, authorName }) => toSummary(entry, authorName)),
+          nextCursor: rows.length > query.limit ? `o:${offset + query.limit}` : null,
+        };
       }
       const cursor = decodeCursor(query.cursor);
       if (cursor) {
@@ -223,6 +268,37 @@ export class EntriesService {
             : null,
       };
     });
+  }
+
+  /**
+   * The same action on several entries (RF-ADM-03), each with its own
+   * permission checks; one failure does not stop the others.
+   */
+  async bulk(
+    siteId: string,
+    auth: AuthContext,
+    ids: string[],
+    action: 'publish' | 'unpublish' | 'trash' | 'restore' | 'delete',
+    ip: string,
+  ): Promise<{ results: { id: string; ok: boolean; error?: string }[] }> {
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+    for (const id of [...new Set(ids)]) {
+      try {
+        if (action === 'publish') await this.publish(siteId, auth, id, ip);
+        else if (action === 'unpublish') await this.unpublish(siteId, auth, id, ip);
+        else if (action === 'trash') await this.trash(siteId, auth, id, ip);
+        else if (action === 'restore') await this.restore(siteId, auth, id, ip);
+        else await this.remove(siteId, auth, id, ip);
+        results.push({ id, ok: true });
+      } catch (error) {
+        results.push({
+          id,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return { results };
   }
 
   get(siteId: string, auth: AuthContext, id: string): Promise<EntryView> {
@@ -959,7 +1035,6 @@ export class EntriesService {
       ...toSummary(entry, authorRow?.name ?? null),
       createdAt: entry.createdAt.toISOString(),
       trashedAt: entry.trashedAt?.toISOString() ?? null,
-      position: entry.position,
       revision,
       autosave,
       translations: translations.map((t) => ({ ...t, status: t.status as EntryStatus })),
@@ -1060,6 +1135,7 @@ function toSummary(entry: EntryRow, authorName: string | null): EntrySummary {
     slug: entry.slug,
     title: entry.title,
     status: entry.status as EntryStatus,
+    position: entry.position,
     author: author(entry.authorId, authorName),
     publishedAt: entry.publishedAt?.toISOString() ?? null,
     scheduledAt: entry.scheduledAt?.toISOString() ?? null,

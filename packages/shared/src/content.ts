@@ -85,9 +85,24 @@ export const listEntriesQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
   author: z.uuid().optional(),
   parent: z.uuid().optional(),
+  /** Entries with this term (category, tag…). */
+  term: z.uuid().optional(),
+  /** `updated` (default), `title`, `date` (publication) or `order` (manual position). */
+  sort: z.enum(['updated', 'title', 'date', 'order']).default('updated'),
+  dir: z.enum(['asc', 'desc']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().max(200).optional(),
 });
+
+/** Bulk actions of list tables (RF-ADM-03). */
+export const bulkEntriesRequestSchema = z.object({
+  ids: z.array(z.uuid()).min(1).max(100),
+  action: z.enum(['publish', 'unpublish', 'trash', 'restore', 'delete']),
+});
+
+export interface BulkEntriesResponse {
+  results: { id: string; ok: boolean; error?: string }[];
+}
 export type ListEntriesQuery = z.input<typeof listEntriesQuerySchema>;
 
 export interface ContentTypeView {
@@ -113,6 +128,8 @@ export interface EntrySummary {
   slug: string;
   title: string;
   status: EntryStatus;
+  /** Manual order among siblings (RF-CNT-13). */
+  position: number;
   author: { id: string; displayName: string } | null;
   publishedAt: string | null;
   scheduledAt: string | null;
@@ -136,7 +153,6 @@ export interface RevisionView {
 export interface EntryView extends EntrySummary {
   createdAt: string;
   trashedAt: string | null;
-  position: number;
   /** Current (latest saved) revision. */
   revision: RevisionView | null;
   /** The user's autosave, when newer than the current revision (RF-CNT-06). */
