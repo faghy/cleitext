@@ -191,6 +191,16 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
               onChange={(e) => set('postsPerPage', Number(e.target.value))}
               {...(perPageError ? { error: perPageError } : {})}
             />
+            <TextField
+              label="Empty the trash after (days)"
+              type="number"
+              min={0}
+              max={3650}
+              value={values.trashDays}
+              onChange={(e) => set('trashDays', Number(e.target.value))}
+              hint="Trashed entries are deleted after this many days. 0 keeps them."
+              {...(fieldError('trashDays') ? { error: fieldError('trashDays')! } : {})}
+            />
             {pageSelect(
               'errorPage',
               '“Not found” page',

@@ -311,6 +311,33 @@ describe('invitations (M1 acceptance)', () => {
     expect(weak.statusCode).toBe(400);
   });
 
+  it('completes a pending invitation when the admin sets a password', async () => {
+    const admin = new TestClient(app, acme.host, '10.0.2.13');
+    await admin.login('admin@acme.test', PASSWORD);
+    await admin.post('/api/v1/users/invite', {
+      email: 'pia@acme.test',
+      displayName: 'Pia',
+      role: 'author',
+    });
+    const again = await admin.post('/api/v1/users/invite', {
+      email: 'pia@acme.test',
+      displayName: 'Pia',
+      role: 'editor',
+      password: 'set by the administrator',
+    });
+    expect(again.statusCode).toBe(201);
+    expect(again.json()).toMatchObject({ status: 'active', role: { slug: 'editor' } });
+    const pia = new TestClient(app, acme.host, '10.0.2.14');
+    expect((await pia.login('pia@acme.test', 'set by the administrator')).statusCode).toBe(200);
+    const third = await admin.post('/api/v1/users/invite', {
+      email: 'pia@acme.test',
+      displayName: 'Pia',
+      role: 'author',
+    });
+    expect(third.statusCode).toBe(409);
+    expect(third.json().detail).toMatch(/change their role/);
+  });
+
   it('never sets the password of an existing account', async () => {
     // A super admin adds an existing person to another site.
     const admin = new TestClient(app, other.host, '10.0.2.11');

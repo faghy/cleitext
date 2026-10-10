@@ -60,6 +60,8 @@ export interface PublicEntry extends PublicEntrySummary {
   translations: { locale: string; url: string; title: string }[];
   /** Custom field values (content type fields and plugin field groups). */
   fields: Record<string, unknown>;
+  /** Featured image chosen by the author, if any (RF-CNT-12). */
+  featuredImage: RenderMedia | null;
 }
 
 export interface Pagination {

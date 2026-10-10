@@ -108,6 +108,10 @@ export const revisions = pgTable(
     title: text('title').notNull(),
     /** Custom field values, validated against the content type schema. */
     fields: jsonb('fields').notNull().default({}),
+    /** Summary shown in listings and as meta description (RF-CNT-12). */
+    excerpt: text('excerpt'),
+    /** Featured image, a media item of the site (RF-CNT-12). */
+    featuredMediaId: uuid('featured_media_id'),
     /** Cleitext Document (CXD). */
     document: jsonb('document').notNull(),
     /** Version of the CXD document format. */

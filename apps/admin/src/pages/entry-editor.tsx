@@ -7,6 +7,7 @@ import {
   type ContentTypeView,
   type EntryListResponse,
   type EntryView,
+  type FieldDefinition,
   type FieldValues,
   type MediaListResponse,
   type MediaView,
@@ -62,6 +63,12 @@ function Editor({ initial }: { initial: EntryView }) {
   const [fields, setFields] = useState<FieldValues>(initial.revision?.fields ?? {});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const fieldsRef = useRef<FieldValues>(fields);
+  // Excerpt and featured image (RF-CNT-12), saved with the entry.
+  const [summary, setSummary] = useState<FieldValues>({
+    excerpt: initial.revision?.excerpt ?? null,
+    featuredMediaId: initial.revision?.featuredMediaId ?? null,
+  });
+  const summaryRef = useRef<FieldValues>(summary);
   const types = useQuery(contentTypesQuery);
   const contentType = types.data?.find((t) => t.slug === initial.type);
 
@@ -76,6 +83,12 @@ function Editor({ initial }: { initial: EntryView }) {
     setSaveState('dirty');
   }, []);
 
+  const changeSummary = (values: FieldValues) => {
+    summaryRef.current = values;
+    setSummary(values);
+    markDirty();
+  };
+
   const changeFields = (values: FieldValues) => {
     fieldsRef.current = values;
     setFields(values);
@@ -88,6 +101,7 @@ function Editor({ initial }: { initial: EntryView }) {
     if (error instanceof ApiError) {
       for (const e of error.problem.errors ?? []) {
         if (e.path.startsWith('fields.')) errors[e.path.slice('fields.'.length)] = e.message;
+        else if (e.path === 'featuredMediaId' || e.path === 'excerpt') errors[e.path] = e.message;
       }
     }
     setFieldErrors(errors);
@@ -138,6 +152,7 @@ function Editor({ initial }: { initial: EntryView }) {
         title,
         document: documentRef.current,
         fields: fieldsRef.current,
+        ...summaryRef.current,
       })
         .then((r) => setAutosavedAt(r.savedAt))
         .catch(() => {});
@@ -160,6 +175,7 @@ function Editor({ initial }: { initial: EntryView }) {
       title,
       document: editorRef.current?.getDocument() ?? documentRef.current,
       fields: fieldsRef.current,
+      ...summaryRef.current,
     });
     setFieldErrors({});
     dirtyRef.current = false;
@@ -315,6 +331,10 @@ function Editor({ initial }: { initial: EntryView }) {
               setTitle(recovery.title);
               fieldsRef.current = recovery.fields;
               setFields(recovery.fields);
+              changeSummary({
+                excerpt: recovery.excerpt,
+                featuredMediaId: recovery.featuredMediaId,
+              });
               markDirty();
               setRecovery(null);
             }}
@@ -359,6 +379,16 @@ function Editor({ initial }: { initial: EntryView }) {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {tab === 'document' && contentType && (
+              <SummaryPanel
+                supports={contentType.supports}
+                values={summary}
+                errors={fieldErrors}
+                locale={userLocale}
+                readOnly={readOnly}
+                onChange={changeSummary}
+              />
+            )}
+            {tab === 'document' && contentType && (
               <FieldsPanel
                 type={contentType}
                 values={fields}
@@ -383,6 +413,11 @@ function Editor({ initial }: { initial: EntryView }) {
                   setTitle(view.title);
                   fieldsRef.current = view.revision?.fields ?? {};
                   setFields(view.revision?.fields ?? {});
+                  summaryRef.current = {
+                    excerpt: view.revision?.excerpt ?? null,
+                    featuredMediaId: view.revision?.featuredMediaId ?? null,
+                  };
+                  setSummary(summaryRef.current);
                   dirtyRef.current = false;
                   setSaveState('saved');
                 }}
@@ -394,6 +429,64 @@ function Editor({ initial }: { initial: EntryView }) {
         </aside>
       </div>
     </EditorShell>
+  );
+}
+
+/** Featured image and excerpt, when the content type supports them. */
+function SummaryPanel({
+  supports,
+  values,
+  errors,
+  locale,
+  readOnly,
+  onChange,
+}: {
+  supports: string[];
+  values: FieldValues;
+  errors: Record<string, string>;
+  locale: string;
+  readOnly: boolean;
+  onChange: (values: FieldValues) => void;
+}) {
+  const fields: FieldDefinition[] = [
+    ...(supports.includes('featured_image')
+      ? [
+          {
+            name: 'featuredMediaId',
+            type: 'media',
+            label: { en: 'Featured image', it: 'Immagine in evidenza' },
+          } as const,
+        ]
+      : []),
+    ...(supports.includes('excerpt')
+      ? [
+          {
+            name: 'excerpt',
+            type: 'text',
+            multiline: true,
+            maxLength: 1000,
+            label: { en: 'Excerpt', it: 'Riassunto' },
+            help: {
+              en: 'Shown in lists and search results. The first lines of the text when empty.',
+              it: 'Mostrato negli elenchi e nei risultati di ricerca. Se vuoto, le prime righe del testo.',
+            },
+          } as const,
+        ]
+      : []),
+  ];
+  if (fields.length === 0) return null;
+  // Errors arrive as `fields.<name>` only for custom fields; these come with their own path.
+  return (
+    <div className="border-b border-slate-200 p-4 text-sm">
+      <FieldsForm
+        fields={fields}
+        values={values}
+        errors={errors}
+        locale={locale}
+        disabled={readOnly}
+        onChange={onChange}
+      />
+    </div>
   );
 }
 

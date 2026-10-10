@@ -97,6 +97,12 @@ export async function publishDueEntries(db: Database): Promise<number> {
   return Number(rows[0]?.n ?? 0);
 }
 
+/** Deletes entries left in the trash longer than each site allows (RF-CNT-14). */
+export async function purgeTrash(db: Database): Promise<number> {
+  const rows = await db.execute<{ n: number }>(sql`select cleitext_purge_trash() as n`);
+  return Number(rows[0]?.n ?? 0);
+}
+
 /** Checks that the database answers. Throws when it does not. */
 export async function ping(db: Database): Promise<void> {
   await db.execute(sql`select 1`);

@@ -1,4 +1,4 @@
-import { publishDueEntries, type DatabaseClient } from '@cleitext/db';
+import { publishDueEntries, purgeTrash, type DatabaseClient } from '@cleitext/db';
 import {
   Inject,
   Injectable,
@@ -18,6 +18,9 @@ import { DATABASE } from '../database/database.module.js';
 export class SchedulerService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger('Scheduler');
   private timer: NodeJS.Timeout | undefined;
+  private lastPurge = 0;
+  /** The trash is emptied at most once an hour. */
+  private static readonly PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
@@ -35,11 +38,21 @@ export class SchedulerService implements OnApplicationBootstrap, OnApplicationSh
     if (this.timer) clearInterval(this.timer);
   }
 
+  /** Empties old trash (RF-CNT-14); returns the number of deleted entries. */
+  async purge(): Promise<number> {
+    this.lastPurge = Date.now();
+    const deleted = await purgeTrash(this.database.db);
+    if (deleted > 0)
+      this.logger.log(`Emptied ${deleted} entr${deleted === 1 ? 'y' : 'ies'} from the trash`);
+    return deleted;
+  }
+
   async tick(): Promise<number> {
     try {
       const published = await publishDueEntries(this.database.db);
       if (published > 0)
         this.logger.log(`Published ${published} scheduled entr${published === 1 ? 'y' : 'ies'}`);
+      if (Date.now() - this.lastPurge >= SchedulerService.PURGE_INTERVAL_MS) await this.purge();
       return published;
     } catch (error) {
       this.logger.error(error);

@@ -29,6 +29,9 @@ export interface PublishedEntry {
   row: typeof entries.$inferSelect;
   document: CxdDocument;
   fields: Record<string, unknown>;
+  /** Excerpt and featured image of the revision (RF-CNT-12). */
+  excerpt: string | null;
+  featuredMediaId: string | null;
   authorName: string | null;
 }
 
@@ -110,6 +113,8 @@ export async function loadPublished(
       title: revisions.title,
       document: revisions.document,
       fields: revisions.fields,
+      excerpt: revisions.excerpt,
+      featuredMediaId: revisions.featuredMediaId,
       authorName: users.displayName,
     })
     .from(entries)
@@ -126,6 +131,8 @@ export async function loadPublished(
     row: { ...r.row, title: r.title },
     document: r.document as CxdDocument,
     fields: r.fields as Record<string, unknown>,
+    excerpt: r.excerpt,
+    featuredMediaId: r.featuredMediaId,
     authorName: r.authorName,
   }));
 }
@@ -174,7 +181,10 @@ export async function summarize(
   urls: UrlBuilder,
   locale: string,
 ): Promise<{ summaries: PublicEntrySummary[]; media: Map<string, RenderMedia> }> {
-  const firstImages = list.map((e) => firstImage(e.document));
+  // The featured image, or else the first image of the content.
+  const firstImages = list.map((e) =>
+    e.featuredMediaId ? { id: e.featuredMediaId } : firstImage(e.document),
+  );
   const mediaMap = await loadMedia(
     tx,
     firstImages.map((i) => i?.id).filter((id): id is string => Boolean(id)),
@@ -189,7 +199,7 @@ export async function summarize(
       title: entry.row.title,
       url: urls.entry(entry.row),
       publishedAt: entry.row.publishedAt?.toISOString() ?? null,
-      excerpt: documentExcerpt(entry.document),
+      excerpt: entry.excerpt || documentExcerpt(entry.document),
       author: entry.authorName ? { displayName: entry.authorName } : null,
       image: image?.id ? (mediaMap.get(image.id) ?? null) : null,
     };

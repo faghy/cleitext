@@ -7,6 +7,7 @@ export {
   listMySites,
   ping,
   publishDueEntries,
+  purgeTrash,
   seedSiteDefaults,
   resolveHost,
   resolveSiteByHost,

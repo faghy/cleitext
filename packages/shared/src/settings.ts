@@ -14,6 +14,8 @@ const coreSettingsFields = {
   errorPage: z.uuid().nullable(),
   /** Ask search engines not to index the site. */
   discourageSearchEngines: z.boolean(),
+  /** Days before trashed entries are deleted; 0 keeps them (RF-CNT-14). */
+  trashDays: z.number().int().min(0).max(3650),
 };
 
 export const CORE_SETTINGS_DEFAULTS = {
@@ -24,6 +26,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   postsPerPage: 10,
   errorPage: null,
   discourageSearchEngines: false,
+  trashDays: 30,
 } as const;
 
 export const coreSettingsSchema = z.object(coreSettingsFields);

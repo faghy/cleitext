@@ -411,3 +411,14 @@ code {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Featured image, wider than the text. */
+.entry-featured {
+  max-width: var(--wide);
+  margin: 0 auto 2rem;
+}
+.entry-featured img {
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}

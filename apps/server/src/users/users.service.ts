@@ -111,7 +111,18 @@ export class UsersService {
             .select()
             .from(siteMembers)
             .where(and(eq(siteMembers.siteId, siteId), eq(siteMembers.userId, userId)));
-          if (already) throw new ConflictException('This person is already a member of the site.');
+          // An invitation never accepted can be completed with a password.
+          if (already && !(passwordHash && existing?.status === 'invited')) {
+            throw new ConflictException(
+              'This person is already a member of the site: change their role from the list.',
+            );
+          }
+          if (already) {
+            await tx
+              .update(siteMembers)
+              .set({ roleId: role.id })
+              .where(and(eq(siteMembers.siteId, siteId), eq(siteMembers.userId, userId)));
+          }
         } else {
           // No RETURNING: the new user is not visible yet under RLS (not a member).
           userId = newId();
@@ -124,7 +135,10 @@ export class UsersService {
           });
         }
 
-        await tx.insert(siteMembers).values({ siteId, userId, roleId: role.id });
+        await tx
+          .insert(siteMembers)
+          .values({ siteId, userId, roleId: role.id })
+          .onConflictDoNothing();
         await this.audit.record(tx, {
           siteId,
           userId: auth.userId,

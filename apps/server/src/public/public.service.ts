@@ -16,6 +16,7 @@ import {
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import type { RenderHookContext } from '@cleitext/plugin-sdk';
 import {
+  collectMediaIds,
   documentExcerpt,
   firstImage,
   renderHtmlDocument,
@@ -45,7 +46,7 @@ import { DATABASE } from '../database/database.module.js';
 import { PageCacheService } from './page-cache.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
-  documentMedia,
+  loadMedia,
   isPublished,
   loadMenus,
   loadPublished,
@@ -420,6 +421,8 @@ export class PublicService {
         title: revisions.title,
         document: revisions.document,
         fields: revisions.fields,
+        excerpt: revisions.excerpt,
+        featuredMediaId: revisions.featuredMediaId,
         authorName: users.displayName,
       })
       .from(entries)
@@ -434,6 +437,8 @@ export class PublicService {
         row: { ...row.entry, title: row.title },
         document: row.document as CxdDocument,
         fields: row.fields as Record<string, unknown>,
+        excerpt: row.excerpt,
+        featuredMediaId: row.featuredMediaId,
         authorName: row.authorName,
       },
       { isFrontPage: false, preview: true },
@@ -620,7 +625,14 @@ export class PublicService {
   ): Promise<PublicResponse> {
     const { tx, data } = scope;
     scope.tags.add(`entry:${entry.row.id}`);
-    const media = await documentMedia(tx, entry.document, scope.locale);
+    const media = await loadMedia(
+      tx,
+      [
+        ...collectMediaIds(entry.document),
+        ...(entry.featuredMediaId ? [entry.featuredMediaId] : []),
+      ],
+      scope.locale,
+    );
 
     const termRows = await tx
       .select({ term: terms, taxonomy: taxonomies.slug })
@@ -646,7 +658,8 @@ export class PublicService {
       .filter((t) => t.row.id !== entry.row.id)
       .map((t) => ({ locale: t.row.locale, url: data.urls.entry(t.row), title: t.row.title }));
 
-    const image = firstImage(entry.document);
+    const featured = entry.featuredMediaId ? (media.get(entry.featuredMediaId) ?? null) : null;
+    const image = featured ? { id: featured.id } : firstImage(entry.document);
     const publicEntry: PublicEntry = {
       id: entry.row.id,
       type: entry.row.typeSlug,
@@ -655,7 +668,8 @@ export class PublicService {
       title: entry.row.title,
       url: options.isFrontPage ? data.urls.home(scope.locale) : data.urls.entry(entry.row),
       publishedAt: entry.row.publishedAt?.toISOString() ?? null,
-      excerpt: documentExcerpt(entry.document),
+      excerpt: entry.excerpt || documentExcerpt(entry.document),
+      featuredImage: featured,
       author: entry.authorName ? { displayName: entry.authorName } : null,
       image: image?.id ? (media.get(image.id) ?? null) : null,
       fields: entry.fields,

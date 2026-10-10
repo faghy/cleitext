@@ -26,6 +26,10 @@ const titleSchema = z.string().trim().max(300);
 /** Validated in depth by the server with the CXD schema and block definitions. */
 const documentSchema = z.unknown();
 const fieldsSchema = z.record(z.string(), z.unknown());
+/** Summary shown in listings and as meta description (RF-CNT-12). */
+const excerptSchema = z.string().trim().max(1_000).nullable();
+/** Featured image: a media item of the site. */
+const featuredMediaSchema = z.uuid().nullable();
 
 export const createEntryRequestSchema = z.object({
   type: z.string().min(1).max(64),
@@ -35,6 +39,8 @@ export const createEntryRequestSchema = z.object({
   parentId: z.uuid().nullable().optional(),
   document: documentSchema.optional(),
   fields: fieldsSchema.optional(),
+  excerpt: excerptSchema.optional(),
+  featuredMediaId: featuredMediaSchema.optional(),
 });
 export type CreateEntryRequest = z.input<typeof createEntryRequestSchema>;
 
@@ -47,6 +53,8 @@ export const updateEntryRequestSchema = z.object({
   position: z.number().int().min(0).max(1_000_000).optional(),
   document: documentSchema.optional(),
   fields: fieldsSchema.optional(),
+  excerpt: excerptSchema.optional(),
+  featuredMediaId: featuredMediaSchema.optional(),
 });
 export type UpdateEntryRequest = z.input<typeof updateEntryRequestSchema>;
 
@@ -54,6 +62,8 @@ export const autosaveRequestSchema = z.object({
   title: titleSchema,
   document: documentSchema,
   fields: fieldsSchema.optional(),
+  excerpt: excerptSchema.optional(),
+  featuredMediaId: featuredMediaSchema.optional(),
 });
 export type AutosaveRequest = z.input<typeof autosaveRequestSchema>;
 
@@ -111,6 +121,8 @@ export interface RevisionView {
   kind: 'manual' | 'autosave' | 'import' | 'restore';
   title: string;
   fields: Record<string, unknown>;
+  excerpt: string | null;
+  featuredMediaId: string | null;
   document: unknown;
   author: { id: string; displayName: string } | null;
   createdAt: string;

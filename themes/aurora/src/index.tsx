@@ -126,6 +126,11 @@ function Index(props: TemplateProps) {
               </p>
             )}
           </header>
+          {entry.featuredImage && (
+            <figure className="entry-featured">
+              <Image media={entry.featuredImage} eager sizes="(min-width: 70rem) 70rem, 100vw" />
+            </figure>
+          )}
           <div className="entry-content">
             <EntryContent document={entry.document} />
           </div>

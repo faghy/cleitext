@@ -6,6 +6,7 @@ import { entries, redirects, withSiteContext, type DatabaseClient } from '@cleit
 import type { CxdDocument } from '@cleitext/blocks';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq } from 'drizzle-orm';
+import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SchedulerService } from '../src/content/scheduler.service.js';
 import {
@@ -363,5 +364,96 @@ describe('listing', () => {
       await as.administrator!.get('/api/v1/entries?status=published&limit=100')
     ).json();
     expect(published.items.every((e: { status: string }) => e.status === 'published')).toBe(true);
+  });
+});
+
+describe('featured image and excerpt (RF-CNT-12)', () => {
+  it('are saved in revisions and used by the public site', async () => {
+    const admin = as.administrator!;
+    const image = sharp({
+      create: { width: 1200, height: 600, channels: 3, background: '#336699' },
+    });
+    const upload = await admin.upload(
+      '/api/v1/media',
+      'cover.png',
+      await image.png().toBuffer(),
+      'image/png',
+    );
+    const cover = upload.json();
+    const created = (
+      await admin.post('/api/v1/entries', {
+        type: 'article',
+        title: 'With a cover',
+        document: doc('The body text, which is not the excerpt.'),
+        excerpt: 'A short summary written by hand.',
+        featuredMediaId: cover.id,
+      })
+    ).json();
+    expect(created.revision).toMatchObject({
+      excerpt: 'A short summary written by hand.',
+      featuredMediaId: cover.id,
+    });
+    await admin.post(`/api/v1/entries/${created.id}/publish`);
+
+    const visitor = new TestClient(app, site.host, '10.12.0.1');
+    const page = (await visitor.get(`/${new Date().getUTCFullYear()}/with-a-cover`)).body;
+    expect(page).toContain('class="entry-featured"');
+    expect(page).toContain('<meta name="description" content="A short summary written by hand."/>');
+    expect(page).toMatch(/og:image" content="[^"]+\/media\//);
+    const home = (await visitor.get('/')).body;
+    expect(home).toContain('A short summary written by hand.');
+
+    // Unpublished changes stay hidden; the previous excerpt is still public.
+    await admin.request('PATCH', `/api/v1/entries/${created.id}`, { excerpt: 'Changed later.' });
+    expect((await visitor.get('/')).body).not.toContain('Changed later.');
+
+    // Removing the image clears the reference, the entry stays.
+    await admin.request('DELETE', `/api/v1/media/${cover.id}`);
+    const after = (await admin.get(`/api/v1/entries/${created.id}`)).json();
+    expect(after.revision.featuredMediaId).toBeNull();
+  });
+
+  it('refuses a featured image that is not an image of the site', async () => {
+    const res = await as.administrator!.post('/api/v1/entries', {
+      type: 'article',
+      title: 'Bad cover',
+      featuredMediaId: '00000000-0000-4000-8000-000000000000',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().errors[0].path).toBe('featuredMediaId');
+  });
+});
+
+describe('trash (RF-CNT-14)', () => {
+  it('is emptied after the configured number of days', async () => {
+    const admin = as.administrator!;
+    const old = (
+      await admin.post('/api/v1/entries', { type: 'article', title: 'Old trash' })
+    ).json();
+    const recent = (
+      await admin.post('/api/v1/entries', { type: 'article', title: 'Recent trash' })
+    ).json();
+    await admin.post(`/api/v1/entries/${old.id}/trash`);
+    await admin.post(`/api/v1/entries/${recent.id}/trash`);
+    await withSiteContext(owner.db, site.id, (tx) =>
+      tx
+        .update(entries)
+        .set({ trashedAt: new Date(Date.now() - 31 * 24 * 3600 * 1000) })
+        .where(eq(entries.id, old.id)),
+    );
+    expect(await app.get(SchedulerService).purge()).toBeGreaterThanOrEqual(1);
+    expect((await admin.get(`/api/v1/entries/${old.id}`)).statusCode).toBe(404);
+    expect((await admin.get(`/api/v1/entries/${recent.id}`)).statusCode).toBe(200);
+
+    // 0 keeps the trash.
+    await admin.request('PATCH', '/api/v1/settings/core', { trashDays: 0 });
+    await withSiteContext(owner.db, site.id, (tx) =>
+      tx
+        .update(entries)
+        .set({ trashedAt: new Date(Date.now() - 400 * 24 * 3600 * 1000) })
+        .where(eq(entries.id, recent.id)),
+    );
+    await app.get(SchedulerService).purge();
+    expect((await admin.get(`/api/v1/entries/${recent.id}`)).statusCode).toBe(200);
   });
 });

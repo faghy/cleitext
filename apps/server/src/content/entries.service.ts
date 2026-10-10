@@ -9,6 +9,7 @@ import {
   contentTypes,
   entries,
   entryTerms,
+  media,
   newId,
   redirects,
   revisions,
@@ -52,6 +53,7 @@ import { TermsService } from './terms.service.js';
 
 type EntryRow = typeof entries.$inferSelect;
 type ContentTypeRow = typeof contentTypes.$inferSelect;
+type Summary = { excerpt: string | null; featuredMediaId: string | null };
 type RevisionRow = typeof revisions.$inferSelect;
 type Tx = SiteTransaction;
 
@@ -244,6 +246,8 @@ export class EntriesService {
       parentId?: string | null | undefined;
       document?: unknown;
       fields?: Record<string, unknown> | undefined;
+      excerpt?: string | null | undefined;
+      featuredMediaId?: string | null | undefined;
     },
     ip: string,
   ): Promise<EntryView> {
@@ -280,7 +284,9 @@ export class EntriesService {
         status: 'draft',
         authorId: auth.userId,
       });
-      await this.addRevision(tx, siteId, id, auth, 'manual', input.title, fields, document);
+      await this.addRevision(tx, siteId, id, auth, 'manual', input.title, fields, document, {
+        summary: await this.validSummary(tx, input, null),
+      });
       await this.audit.record(tx, entryAudit(siteId, auth, 'entry.created', id, ip));
       return this.view(tx, auth, await this.load(tx, id));
     });
@@ -300,6 +306,8 @@ export class EntriesService {
       position?: number | undefined;
       document?: unknown;
       fields?: Record<string, unknown> | undefined;
+      excerpt?: string | null | undefined;
+      featuredMediaId?: string | null | undefined;
       terms?: Record<string, (string | { name: string })[]> | undefined;
     },
     ip: string,
@@ -346,7 +354,11 @@ export class EntriesService {
       const fields =
         input.fields === undefined ? undefined : await this.validFields(siteId, type, input.fields);
       const needsRevision =
-        input.title !== undefined || input.document !== undefined || fields !== undefined;
+        input.title !== undefined ||
+        input.document !== undefined ||
+        fields !== undefined ||
+        input.excerpt !== undefined ||
+        input.featuredMediaId !== undefined;
       if (needsRevision) {
         const current = await this.revisionRow(tx, entry.currentRevisionId);
         await this.addRevision(
@@ -358,6 +370,7 @@ export class EntriesService {
           input.title ?? entry.title,
           fields ?? (current?.fields as Record<string, unknown>) ?? {},
           document ?? (current?.document as CxdDocument) ?? emptyDocument(),
+          { summary: await this.validSummary(tx, input, current) },
         );
       }
       await tx.update(entries).set(changes).where(eq(entries.id, entry.id));
@@ -381,7 +394,13 @@ export class EntriesService {
     siteId: string,
     auth: AuthContext,
     id: string,
-    input: { title: string; document: unknown; fields?: Record<string, unknown> | undefined },
+    input: {
+      title: string;
+      document: unknown;
+      fields?: Record<string, unknown> | undefined;
+      excerpt?: string | null | undefined;
+      featuredMediaId?: string | null | undefined;
+    },
   ): Promise<{ revisionId: string; savedAt: string }> {
     const document = validateDocument(input.document);
     return this.run(siteId, auth, async (tx) => {
@@ -405,7 +424,7 @@ export class EntriesService {
         input.title,
         input.fields ?? {},
         document,
-        { setCurrent: false },
+        { setCurrent: false, summary: await this.validSummary(tx, input, null) },
       );
       return { revisionId: revision.id, savedAt: revision.createdAt.toISOString() };
     });
@@ -610,6 +629,7 @@ export class EntriesService {
         old.title,
         old.fields as Record<string, unknown>,
         old.document as CxdDocument,
+        { summary: { excerpt: old.excerpt, featuredMediaId: old.featuredMediaId } },
       );
       await tx
         .update(entries)
@@ -669,6 +689,12 @@ export class EntriesService {
         source.title,
         (revision?.fields as Record<string, unknown>) ?? {},
         (revision?.document as CxdDocument) ?? emptyDocument(),
+        {
+          summary: {
+            excerpt: revision?.excerpt ?? null,
+            featuredMediaId: revision?.featuredMediaId ?? null,
+          },
+        },
       );
       await this.audit.record(tx, {
         ...entryAudit(siteId, auth, 'entry.translation.created', newEntryId, ip),
@@ -804,6 +830,34 @@ export class EntriesService {
     return nextFreeSlug(base, new Set(rows.map((r) => r.slug)));
   }
 
+  /** Excerpt and featured image of a new revision: given values, or the current ones. */
+  private async validSummary(
+    tx: Tx,
+    input: { excerpt?: string | null | undefined; featuredMediaId?: string | null | undefined },
+    current: Pick<RevisionRow, 'excerpt' | 'featuredMediaId'> | null | undefined,
+  ): Promise<Summary> {
+    const featuredMediaId =
+      input.featuredMediaId !== undefined
+        ? input.featuredMediaId
+        : (current?.featuredMediaId ?? null);
+    if (featuredMediaId && input.featuredMediaId !== undefined) {
+      const [image] = await tx
+        .select({ mime: media.mime })
+        .from(media)
+        .where(eq(media.id, featuredMediaId));
+      if (!image?.mime.startsWith('image/')) {
+        throw new BadRequestException({
+          message: 'The featured image must be an image of the media library.',
+          errors: [{ path: 'featuredMediaId', message: 'Choose an image of the media library' }],
+        });
+      }
+    }
+    return {
+      excerpt: input.excerpt !== undefined ? input.excerpt || null : (current?.excerpt ?? null),
+      featuredMediaId,
+    };
+  }
+
   private async addRevision(
     tx: Tx,
     siteId: string,
@@ -813,7 +867,7 @@ export class EntriesService {
     title: string,
     fields: Record<string, unknown>,
     document: CxdDocument,
-    options: { setCurrent?: boolean } = {},
+    options: { setCurrent?: boolean; summary?: Summary } = {},
   ): Promise<RevisionRow> {
     const [revision] = await tx
       .insert(revisions)
@@ -824,6 +878,8 @@ export class EntriesService {
         kind,
         title,
         fields,
+        excerpt: options.summary?.excerpt ?? null,
+        featuredMediaId: options.summary?.featuredMediaId ?? null,
         document,
         schemaVersion: document.schema,
         authorId: auth.userId,
@@ -1014,6 +1070,8 @@ function toRevisionView(revision: RevisionRow, authorName: string | null): Revis
     kind: revision.kind as RevisionView['kind'],
     title: revision.title,
     fields: revision.fields as Record<string, unknown>,
+    excerpt: revision.excerpt,
+    featuredMediaId: revision.featuredMediaId,
     document: revision.document,
     author: author(revision.authorId, authorName),
     createdAt: revision.createdAt.toISOString(),
