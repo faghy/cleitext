@@ -17,6 +17,7 @@ coverage/
 # Runtime data
 cleitext-data/
 uploads/
+!apps/server/test/fixtures/wxr/uploads/
 *.log
 tmp/
 

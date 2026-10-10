@@ -28,6 +28,7 @@ export interface StartPostgresOptions {
 export async function startEmbeddedPostgres(
   options: StartPostgresOptions = {},
 ): Promise<RunningPostgres> {
+  keepExitCode();
   const persistent = options.dataDir !== undefined;
   const dataDir = options.dataDir ?? (await mkdtemp(join(tmpdir(), 'cleitext-pg-')));
   const port = options.port ?? (await getFreePort());
@@ -188,5 +189,24 @@ function getFreePort(): Promise<number> {
         else reject(new Error('Could not allocate a free port'));
       });
     });
+  });
+}
+
+let exitCodeKept = false;
+
+/**
+ * `embedded-postgres` loads `async-exit-hook`, which calls `process.exit(0)`
+ * on `beforeExit`: the code a test runner set for failed tests would be lost
+ * and CI would pass. Restore it on the way out.
+ */
+function keepExitCode(): void {
+  if (exitCodeKept) return;
+  exitCodeKept = true;
+  let code: typeof process.exitCode;
+  process.prependListener('beforeExit', () => {
+    code = process.exitCode;
+  });
+  process.prependListener('exit', () => {
+    if (code && code !== 0 && !process.exitCode) process.exitCode = code;
   });
 }
