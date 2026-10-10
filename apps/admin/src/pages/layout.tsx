@@ -10,6 +10,7 @@ import { taxonomiesQuery, taxonomyLabel } from './terms';
 import { useCallback, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
+import { UPDATES_QUERY } from './updates';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
 /** Section routes are registered dynamically (navigation.ts), hence a plain string. */
@@ -63,6 +64,12 @@ export function AdminLayout() {
   const mustSetUp2fa = me.user.twoFactorRequired && !me.user.twoFactorEnabled;
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const pluginMenu = usePluginMenu();
+  const updates = useQuery({
+    ...UPDATES_QUERY,
+    enabled: me.capabilities.includes('manage_plugins'),
+    staleTime: 10 * 60 * 1000,
+  });
+  const updateAvailable = Boolean(updates.data?.available);
   // WordPress order: plugin content types after Pages, plugin pages at the end.
   const taxonomies = useQuery({
     ...taxonomiesQuery,
@@ -116,7 +123,19 @@ export function AdminLayout() {
                   className={`block py-2 text-sm hover:bg-slate-800 ${section.sub ? 'pr-4 pl-8 text-xs' : 'px-4'}`}
                   activeProps={{ className: 'bg-sky-700 text-white', 'aria-current': 'page' }}
                 >
-                  {section.label}
+                  <span className="flex items-center justify-between gap-2">
+                    {section.label}
+                    {updateAvailable && (section.to === '/' || section.to === '/updates') && (
+                      // As in WordPress: a count on Dashboard and Updates.
+                      <span
+                        className="rounded-full bg-amber-500 px-1.5 text-xs leading-5 font-semibold text-slate-900"
+                        aria-label={t('An update is available')}
+                        title={t('An update is available')}
+                      >
+                        1
+                      </span>
+                    )}
+                  </span>
                 </Link>
               </li>
             ))}

@@ -131,9 +131,11 @@ export const itAdmin: Messages = {
     'L’aggiornamento si è fermato: {error} Il sito funziona ancora con la {version}.',
   'Cleitext is updated to {version}.': 'Cleitext è aggiornato alla {version}.',
   'Reload the admin': 'Ricarica l’amministrazione',
-  'Cleitext {version} is available: update from Updates.':
-    'È disponibile Cleitext {version}: aggiorna da Aggiornamenti.',
-  'Go to Updates': 'Vai ad Aggiornamenti',
+  'An update is available': 'È disponibile un aggiornamento',
+  'Update available': 'Aggiornamento disponibile',
+  'Cleitext {version} is available (installed: {current}).':
+    'È disponibile Cleitext {version} (installata: {current}).',
+  'Update now': 'Aggiorna ora',
   Delete: 'Elimina',
   'Delete {name} and all its data on every site? This cannot be undone.':
     'Eliminare {name} e tutti i suoi dati su ogni sito? Non si può annullare.',

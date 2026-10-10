@@ -51,14 +51,21 @@ export function DashboardPage() {
       <h1 className="text-2xl font-semibold">{t('Dashboard')}</h1>
       {board.error && <Alert>{errorMessage(board.error)}</Alert>}
       {updates.data?.available && updates.data.latest && (
-        <div className="flex flex-wrap items-center gap-3 rounded border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          <span>
-            {t('Cleitext {version} is available: update from Updates.', {
+        <div className="flex flex-wrap items-center gap-3 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <span className="rounded-full bg-amber-500 px-2 text-xs leading-5 font-semibold text-slate-900">
+            {t('Update available')}
+          </span>
+          <span className="flex-1">
+            {t('Cleitext {version} is available (installed: {current}).', {
               version: updates.data.latest,
+              current: updates.data.current,
             })}
           </span>
-          <Link to={UPDATES_PATH} className="font-medium text-sky-700 underline">
-            {t('Go to Updates')}
+          <Link
+            to={UPDATES_PATH}
+            className="rounded bg-sky-700 px-3 py-1.5 font-medium text-white hover:bg-sky-800"
+          >
+            {t('Update now')}
           </Link>
         </div>
       )}
