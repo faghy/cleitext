@@ -344,6 +344,25 @@ describe('deactivation', () => {
     expect((await visitor.get('/events/spring-concert')).statusCode).toBe(200);
     expect((await editor.get('/api/v1/ext/events/rsvps')).json()).toHaveLength(1);
   });
+
+  it('is deactivated on a site where it keeps failing, with a Dashboard notice', async () => {
+    const host = app.get(PluginHost);
+    for (let i = 0; i < 10; i++) {
+      await host.runHook({ plugin: 'events', name: 'test hook', siteId: site.id }, () => {
+        throw new Error('boom');
+      });
+    }
+    await eventually(async () => !(await host.activeSlugs(site.id)).has('events'));
+    const dashboard = (await admin.get('/api/v1/dashboard')).json();
+    expect(dashboard.pluginNotices).toEqual([
+      expect.objectContaining({ plugin: 'events', error: 'test hook: boom' }),
+    ]);
+    expect((await admin.request('DELETE', '/api/v1/dashboard/plugin-notices')).statusCode).toBe(
+      204,
+    );
+    expect((await admin.get('/api/v1/dashboard')).json().pluginNotices).toEqual([]);
+    await admin.post('/api/v1/plugins/events/activate');
+  });
 });
 
 describe('updates and removal', () => {

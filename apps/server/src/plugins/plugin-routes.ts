@@ -93,7 +93,7 @@ export class PluginRoutes {
         }
       }
       const outcome = await this.host.runHook(
-        { plugin: slug, name: `${request.method} ${route.path}` },
+        { plugin: slug, name: `${request.method} ${route.path}`, siteId: site.id },
         () => route.handler(routeRequest(request, site.id, path, params)),
       );
       if (!outcome.ok) return problem(reply, 500, 'Internal Server Error');

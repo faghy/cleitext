@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import {
   contentTypes,
   plugins,
+  settings,
   sitePlugins,
   withContext,
   type DatabaseClient,
@@ -43,12 +44,18 @@ import { blockRegistry } from '../content/block-registry.js';
 import { DATABASE } from '../database/database.module.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { createPluginContext, type PluginServices } from './plugin-context.js';
+import { AuditService } from '../audit/audit.service.js';
 import { compileRoute, type CompiledRoute } from './route-matcher.js';
 
 /** Default priority of hooks, as in WordPress. */
 const DEFAULT_PRIORITY = 10;
 /** A handler slower than this is abandoned (its plugin keeps running). */
 const HOOK_TIMEOUT_MS = 5_000;
+/** RF-PLG-05: this many failures on a site within the window deactivate the plugin there. */
+const FAILURE_LIMIT = 10;
+const FAILURE_WINDOW_MS = 5 * 60 * 1000;
+/** Settings namespace and key of the Dashboard notices about deactivated plugins. */
+export const PLUGIN_NOTICES = { namespace: 'plugins', key: 'notices' } as const;
 const ACTIVE_CACHE_MS = 30_000;
 
 export interface HookRegistration {
@@ -108,11 +115,15 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   private hookOrder = 0;
   private services: PluginServices | null = null;
   private retry: NodeJS.Timeout | undefined;
+  /** Recent failures per plugin and site (`slug:siteId`), for RF-PLG-05. */
+  private readonly failures = new Map<string, number[]>();
+  private readonly disabling = new Set<string>();
 
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly cache: PageCacheService,
+    private readonly audit: AuditService,
   ) {}
 
   /** Late binding of the services plugins use (avoids circular providers). */
@@ -458,7 +469,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   async emit<K extends keyof Actions>(name: K, payload: Actions[K], siteId: string): Promise<void> {
     if (this.loaded.size === 0) return;
     for (const hook of await this.hooksFor(siteId, 'action', name)) {
-      await this.runHook(hook, () => hook.handler(payload, { siteId }));
+      await this.runHook({ ...hook, siteId }, () => hook.handler(payload, { siteId }));
     }
   }
 
@@ -473,7 +484,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     let current = value;
     for (const hook of await this.hooksFor(siteId, 'filter', name)) {
       const input = current;
-      const output = await this.runHook(hook, () => hook.handler(input, context));
+      const output = await this.runHook({ ...hook, siteId }, () => hook.handler(input, context));
       // A failing filter is skipped: the value goes on unchanged.
       if (output.ok && output.value !== undefined) current = output.value as Filters[K][0];
     }
@@ -493,7 +504,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
 
   /** Runs plugin code with timing, a timeout and error isolation (RF-PLG-05/06). */
   async runHook<T>(
-    hook: { plugin: string; name: string },
+    hook: { plugin: string; name: string; siteId?: string },
     fn: () => T | Promise<T>,
   ): Promise<{ ok: true; value: T } | { ok: false }> {
     const plugin = this.loaded.get(hook.plugin);
@@ -517,6 +528,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         plugin.stats.lastError = `${hook.name}: ${message}`;
       }
       this.logger.error(`Plugin ${hook.plugin}, ${hook.name}: ${message}`);
+      if (hook.siteId) this.recordFailure(hook.plugin, hook.siteId, `${hook.name}: ${message}`);
       return { ok: false };
     } finally {
       clearTimeout(timer);
@@ -525,6 +537,80 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         plugin.stats.totalMs += performance.now() - started;
       }
     }
+  }
+
+  /**
+   * A plugin failing again and again on a site is deactivated there, and the
+   * Dashboard says so (RF-PLG-05). One slow or broken page should not keep
+   * every visit waiting for its hooks.
+   */
+  private recordFailure(slug: string, siteId: string, error: string): void {
+    const key = `${slug}:${siteId}`;
+    const now = Date.now();
+    const recent = (this.failures.get(key) ?? []).filter((t) => now - t < FAILURE_WINDOW_MS);
+    recent.push(now);
+    this.failures.set(key, recent);
+    if (recent.length < FAILURE_LIMIT || this.disabling.has(key)) return;
+    this.disabling.add(key);
+    void this.autoDeactivate(siteId, slug, error)
+      .catch((cause: unknown) =>
+        this.logger.error(`Could not deactivate ${slug}: ${describeError(cause)}`),
+      )
+      .finally(() => {
+        this.disabling.delete(key);
+        this.failures.delete(key);
+      });
+  }
+
+  private async autoDeactivate(siteId: string, slug: string, error: string): Promise<void> {
+    const deactivated = await withContext(this.database.db, { siteId }, async (tx) => {
+      const rows = await tx
+        .update(sitePlugins)
+        .set({ active: false })
+        .where(
+          and(
+            eq(sitePlugins.siteId, siteId),
+            eq(sitePlugins.pluginSlug, slug),
+            eq(sitePlugins.active, true),
+          ),
+        )
+        .returning();
+      if (rows.length === 0) return false;
+      const [current] = await tx
+        .select({ value: settings.value })
+        .from(settings)
+        .where(
+          and(
+            eq(settings.namespace, PLUGIN_NOTICES.namespace),
+            eq(settings.key, PLUGIN_NOTICES.key),
+          ),
+        );
+      const notices = Array.isArray(current?.value) ? (current.value as unknown[]) : [];
+      const value = [
+        ...notices.slice(-19),
+        { plugin: slug, error: error.slice(0, 500), at: new Date().toISOString() },
+      ];
+      await tx
+        .insert(settings)
+        .values({ siteId, ...PLUGIN_NOTICES, value })
+        .onConflictDoUpdate({
+          target: [settings.siteId, settings.namespace, settings.key],
+          set: { value },
+        });
+      await this.audit.record(tx, {
+        siteId,
+        userId: null,
+        action: 'plugin.auto_deactivated',
+        targetType: 'plugin',
+        targetId: slug,
+        meta: { error: error.slice(0, 500) },
+        ip: null,
+      });
+      return true;
+    });
+    if (!deactivated) return;
+    this.logger.warn(`Plugin ${slug} deactivated on site ${siteId} after repeated errors.`);
+    await this.changed(siteId);
   }
 
   // ---- Activation ---------------------------------------------------------------------

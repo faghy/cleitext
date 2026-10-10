@@ -30,11 +30,23 @@ export const ACTION_LABELS: Record<string, string> = {
   'role.created': 'created a role',
   'role.updated': 'changed a role',
   'role.deleted': 'deleted a role',
+  'redirect.created': 'added a redirect',
+  'redirect.updated': 'changed a redirect',
+  'redirect.deleted': 'deleted a redirect',
+  'redirect.imported': 'imported redirects',
+  'theme.activated': 'activated a theme',
+  'content_type.created': 'created a content type',
+  'content_type.updated': 'changed a content type',
+  'content_type.deleted': 'deleted a content type',
+  'taxonomy.created': 'created a taxonomy',
+  'taxonomy.updated': 'changed a taxonomy',
+  'taxonomy.deleted': 'deleted a taxonomy',
   'member.role.changed': 'changed the role of',
   'member.removed': 'removed from the site',
   'settings.updated': 'changed the settings',
   'plugin.activated': 'activated the plugin',
   'plugin.deactivated': 'deactivated the plugin',
+  'plugin.auto_deactivated': 'deactivated automatically the plugin',
 };
 
 /** Filters of the activity page: action prefixes. */

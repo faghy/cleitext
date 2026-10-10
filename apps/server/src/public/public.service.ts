@@ -179,7 +179,11 @@ export class PublicService {
           : null;
       if (pluginRoute) {
         const outcome = await this.plugins.runHook(
-          { plugin: pluginRoute.plugin.slug, name: `GET ${pluginRoute.route.path}` },
+          {
+            plugin: pluginRoute.plugin.slug,
+            name: `GET ${pluginRoute.route.path}`,
+            siteId: site.id,
+          },
           () =>
             pluginRoute.route.handler(
               routeRequest(request, site.id, url.pathname, pluginRoute.params),
@@ -1176,7 +1180,7 @@ export class PublicService {
         const { plugin, block } = definitions.get(instance.type)!;
         const attrs = { ...fieldDefaults(block.attributes ?? []), ...instance.attrs };
         const outcome = await this.plugins.runHook(
-          { plugin, name: `block ${block.type}` },
+          { plugin, name: `block ${block.type}`, siteId: scope.siteId },
           async () => {
             const data = block.load
               ? await block.load(attrs, {
@@ -1249,7 +1253,7 @@ export class PublicService {
       return;
     }
     const outcome = await this.plugins.runHook(
-      { plugin: match.plugin.slug, name: `POST ${match.route.path}` },
+      { plugin: match.plugin.slug, name: `POST ${match.route.path}`, siteId: site.id },
       () => match.route.handler(routeRequest(request, site.id, path, match.params)),
     );
     void reply.header('cache-control', 'private, no-cache').header('x-cache', 'BYPASS');

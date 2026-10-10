@@ -25,6 +25,7 @@ export const SECTIONS: Section[] = [
   { to: '/users', label: 'Users', anyOf: ['manage_users'], ready: true },
   { to: '/profile', label: 'Profile', anyOf: ['read'], ready: true },
   { to: '/settings', label: 'Settings', anyOf: ['manage_settings'], ready: true },
+  { to: '/redirects', label: 'Redirects', anyOf: ['manage_settings'], ready: true },
   {
     to: '/structure',
     label: 'Content structure',

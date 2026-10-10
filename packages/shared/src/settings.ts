@@ -174,3 +174,41 @@ export const updateDomainRequestSchema = z.object({
   isPrimary: z.literal(true).optional(),
   forceHttps: z.boolean().optional(),
 });
+
+// ---- Redirects (RF-NAV-04) -------------------------------------------------------
+
+export const REDIRECT_STATUSES = [301, 302, 307, 308, 410] as const;
+
+export interface RedirectView {
+  id: string;
+  from: string;
+  to: string;
+  status: (typeof REDIRECT_STATUSES)[number];
+  hits: number;
+}
+
+export const redirectRequestSchema = z
+  .object({
+    from: z.string().trim().startsWith('/', 'Start with /').max(2_000),
+    /** A path of the site or a full address; empty for 410 Gone. */
+    to: z
+      .string()
+      .trim()
+      .max(2_000)
+      .refine((v) => v === '' || v.startsWith('/') || /^https?:\/\//i.test(v), {
+        message: 'Use a path starting with / or an http(s) address',
+      }),
+    status: z
+      .union([z.literal(301), z.literal(302), z.literal(307), z.literal(308), z.literal(410)])
+      .default(301),
+  })
+  .refine((r) => r.status === 410 || r.to !== '', { message: 'Give the new address', path: ['to'] })
+  .refine((r) => r.from !== r.to, { message: 'A redirect cannot point to itself', path: ['to'] });
+export type RedirectRequest = z.input<typeof redirectRequestSchema>;
+
+export const redirectImportSchema = z.object({ csv: z.string().max(2_000_000) });
+
+export interface RedirectImportResult {
+  saved: number;
+  errors: { line: number; message: string }[];
+}

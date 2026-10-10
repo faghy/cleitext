@@ -50,6 +50,8 @@ export interface DashboardView {
   activity: AuditEntryView[] | null;
   /** Problems worth a look, for administrators. */
   warnings: string[];
+  /** Plugins deactivated on this site after repeated errors (RF-PLG-05). */
+  pluginNotices: { plugin: string; error: string; at: string }[];
 }
 
 /** System status page (RF-ADM-07). */

@@ -1,5 +1,5 @@
 import { labelText, type DashboardView } from '@cleitext/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
@@ -17,6 +17,11 @@ export function DashboardPage() {
   const board = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => api<DashboardView>('GET', '/dashboard'),
+  });
+  const queryClient = useQueryClient();
+  const dismiss = useMutation({
+    mutationFn: () => api<void>('DELETE', '/dashboard/plugin-notices'),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
   });
   const plugins = usePluginAdmin();
   const widgets = plugins.flatMap((plugin) =>
@@ -41,6 +46,22 @@ export function DashboardPage() {
       {data?.warnings.map((warning) => (
         <Alert key={warning}>{warning}</Alert>
       ))}
+      {data && data.pluginNotices.length > 0 && (
+        <Alert>
+          {data.pluginNotices.map((notice) => (
+            <span key={`${notice.plugin}-${notice.at}`} className="block">
+              {t('The plugin {plugin} was deactivated on {date} after repeated errors: {error}', {
+                plugin: notice.plugin,
+                date: new Date(notice.at).toLocaleString(language),
+                error: notice.error,
+              })}
+            </span>
+          ))}
+          <button type="button" className="mt-2 underline" onClick={() => void dismiss.mutate()}>
+            {t('Dismiss')}
+          </button>
+        </Alert>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title={t('Welcome, {name}', { name: me.user.displayName })}>
           <p className="text-sm text-slate-600">

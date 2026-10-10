@@ -6,6 +6,7 @@ import {
   getMigrationStatus,
   media,
   revisions,
+  settings,
   users,
   withContext,
   type DatabaseClient,
@@ -18,7 +19,7 @@ import {
   type DashboardView,
   type SystemStatusView,
 } from '@cleitext/shared';
-import { Controller, Get, Inject, Query } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Inject, Query } from '@nestjs/common';
 import { and, count, desc, eq, inArray, like, lt, or, sql, sum } from 'drizzle-orm';
 import { CurrentAuth, CurrentSite, RequireCapability } from '../common/decorators.js';
 import { parseBody } from '../common/problem.js';
@@ -26,7 +27,7 @@ import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import { MailService } from '../mail/mail.service.js';
-import { PluginHost } from '../plugins/plugin-host.service.js';
+import { PLUGIN_NOTICES, PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 
 /** Version of the release (root package.json, next to apps/). */
@@ -169,8 +170,43 @@ export class AdminController {
         })),
         activity,
         warnings,
+        pluginNotices: auth.capabilities.includes('activate_plugins')
+          ? await this.pluginNotices(tx)
+          : [],
       };
     });
+  }
+
+  /** Dismisses the notices about plugins deactivated after errors. */
+  @Delete('dashboard/plugin-notices')
+  @HttpCode(204)
+  @RequireCapability('activate_plugins')
+  async dismissPluginNotices(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<void> {
+    await this.run(site, auth, (tx) =>
+      tx
+        .delete(settings)
+        .where(
+          and(
+            eq(settings.namespace, PLUGIN_NOTICES.namespace),
+            eq(settings.key, PLUGIN_NOTICES.key),
+          ),
+        ),
+    );
+  }
+
+  private async pluginNotices(tx: SiteTransaction) {
+    const [row] = await tx
+      .select({ value: settings.value })
+      .from(settings)
+      .where(
+        and(eq(settings.namespace, PLUGIN_NOTICES.namespace), eq(settings.key, PLUGIN_NOTICES.key)),
+      );
+    return Array.isArray(row?.value)
+      ? (row.value as { plugin: string; error: string; at: string }[])
+      : [];
   }
 
   @Get('system/status')

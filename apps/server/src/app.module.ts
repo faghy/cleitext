@@ -19,6 +19,7 @@ import { OEmbedController } from './content/oembed.controller.js';
 import { StructureController } from './content/structure.controller.js';
 import { StructureService } from './content/structure.service.js';
 import { ThemesController } from './themes/themes.controller.js';
+import { RedirectsController } from './settings/redirects.controller.js';
 import { ThemesService } from './themes/themes.service.js';
 import { EntriesService } from './content/entries.service.js';
 import { SchedulerService } from './content/scheduler.service.js';
@@ -106,6 +107,7 @@ export class AppModule {
         OEmbedController,
         StructureController,
         ThemesController,
+        RedirectsController,
         EntriesController,
         MediaController,
         TermsController,
