@@ -3,6 +3,7 @@ import { delimiter, join, resolve } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import {
   canWrite,
+  createDatabaseAs,
   defaultDataDir,
   prepareDatabase,
   ROLE_RE,
@@ -123,10 +124,14 @@ async function requirements(root: string, request: FastifyRequest): Promise<Chec
 }
 
 interface DatabaseForm {
+  /** Create the database now as the PostgreSQL administrator, or use an existing one. */
+  mode: 'create' | 'existing';
   host: string;
   port: string;
   database: string;
   owner: string;
+  adminUser: string;
+  newOwner: string;
   appRole: string;
   dataDir: string;
   trustProxy: boolean;
@@ -227,17 +232,33 @@ ${blocked ? `<a class="button" href="/install?step=requirements">${t('Check')}</
     const field = (name: keyof DatabaseForm, label: string, extra = '', hint = '') =>
       `<label for="${name}">${t(label)}</label>
 <input id="${name}" name="${name}" value="${escape(String(values[name]))}" ${extra}>${hint ? `<p class="hint">${hint}</p>` : ''}`;
+    const radio = (mode: DatabaseForm['mode'], label: string) =>
+      `<label class="check"><input type="radio" name="mode" value="${mode}" id="mode-${mode}" ${values.mode === mode ? 'checked' : ''}> ${t(label)}</label>`;
     return `<h1>${t('Database')}</h1>
-<p>${t('Create the database in your panel (Plesk: Databases → Add Database, PostgreSQL) with one user, and enter its details. That user becomes the owner: Cleitext uses it only for installations and updates, and creates by itself a second user, with fewer rights, for the running site.')}</p>
+<p>${t('Cleitext uses an owner user only for installations and updates, and creates by itself a second user, with fewer rights, for the running site.')}</p>
 ${errorList(errors)}
-<form method="post" action="/install/database">
+<form method="post" action="/install/database" class="database">
+<fieldset><legend>${t('The database')}</legend>
+${radio('create', 'Create it now, with the PostgreSQL administrator')}
+${radio('existing', 'It already exists (created in the panel)')}
+</fieldset>
 <fieldset><legend>PostgreSQL</legend>
 <div class="row"><div>${field('host', 'Host', 'required')}</div><div class="small">${field('port', 'Port', 'required inputmode="numeric"')}</div></div>
 ${field('database', 'Database name', 'required autocomplete="off"')}
-${field('owner', 'Owner user', 'required autocomplete="off"')}
+${field('appRole', 'Application user', 'autocomplete="off"', t('Created by the installer. Leave it empty for {example}.', { example: '<database>_app' }))}
+</fieldset>
+<fieldset class="only-create"><legend>${t('PostgreSQL administrator')}</legend>
+<p class="hint">${t('Used only now, to create the database and its owner; it is not saved anywhere. Plesk: Tools & Settings → Database Servers → PostgreSQL.')}</p>
+${field('adminUser', 'Administrator user', 'autocomplete="off"')}
+<label for="adminPassword">${t('Administrator password')}</label>
+<input id="adminPassword" name="adminPassword" type="password" autocomplete="off">
+${field('newOwner', 'Owner user', 'autocomplete="off"', t('Created by the installer. Leave it empty for {example}.', { example: '<database>_owner' }))}
+</fieldset>
+<fieldset class="only-existing"><legend>${t('Owner of the database')}</legend>
+<p class="hint">${t('The user created with the database in the panel (Plesk: Databases → Add Database, PostgreSQL).')}</p>
+${field('owner', 'Owner user', 'autocomplete="off"')}
 <label for="ownerPassword">${t('Owner password')}</label>
 <input id="ownerPassword" name="ownerPassword" type="password" autocomplete="off">
-${field('appRole', 'Application user', 'autocomplete="off"', t('Created by the installer. Leave it empty for {example}.', { example: '<database>_app' }))}
 </fieldset>
 <fieldset><legend>${t('Data folder')}</legend>
 ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept across updates.'))}
@@ -249,10 +270,13 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
   };
 
   const databaseDefaults = (): DatabaseForm => ({
+    mode: 'create',
     host: 'localhost',
     port: '5432',
     database: '',
     owner: '',
+    adminUser: 'postgres',
+    newOwner: '',
     appRole: '',
     dataDir: defaultDataDir(root),
     trustProxy: true,
@@ -305,20 +329,29 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
     }
     const body = (request.body ?? {}) as Record<string, string | undefined>;
     const values: DatabaseForm = {
+      mode: body.mode === 'existing' ? 'existing' : 'create',
       host: (body.host ?? '').trim(),
       port: (body.port ?? '').trim(),
       database: (body.database ?? '').trim(),
       owner: (body.owner ?? '').trim(),
+      adminUser: (body.adminUser ?? '').trim(),
+      newOwner: (body.newOwner ?? '').trim(),
       appRole: (body.appRole ?? '').trim(),
       dataDir: (body.dataDir ?? '').trim(),
       trustProxy: body.trustProxy === 'on',
     };
+    const creating = values.mode === 'create';
     const appRole = values.appRole || `${values.database}_app`.slice(0, 63);
+    const owner = creating
+      ? values.newOwner || `${values.database}_owner`.slice(0, 63)
+      : values.owner;
     const errors: string[] = [];
     for (const [key, label] of [
       ['host', 'Host'],
       ['database', 'Database name'],
-      ['owner', 'Owner user'],
+      creating
+        ? (['adminUser', 'Administrator user'] as const)
+        : (['owner', 'Owner user'] as const),
       ['dataDir', 'Data folder'],
     ] as const) {
       if (!values[key])
@@ -328,12 +361,17 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
     if (!Number.isInteger(port) || port < 1 || port > 65_535) {
       errors.push(t('Enter the {field}.', { field: translate(lang, 'Port').toLowerCase() }));
     }
-    if (values.owner && (!ROLE_RE.test(values.owner) || !ROLE_RE.test(appRole))) {
+    if (values.database && !ROLE_RE.test(values.database)) {
+      errors.push(
+        t('Use letters, digits and underscores for the database name, starting with a letter.'),
+      );
+    }
+    if (owner && (!ROLE_RE.test(owner) || !ROLE_RE.test(appRole))) {
       errors.push(
         t('Use letters, digits and underscores for the user names, starting with a letter.'),
       );
     }
-    if (values.owner && appRole.toLowerCase() === values.owner.toLowerCase()) {
+    if (owner && appRole.toLowerCase() === owner.toLowerCase()) {
       errors.push(t('The application user must be different from the owner.'));
     }
     if (errors.length > 0) return show(request, reply, 400, 3, databasePage(lang, values, errors));
@@ -350,13 +388,24 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
       host: values.host,
       port,
       database: values.database,
-      owner: values.owner,
+      owner,
       ownerPassword: body.ownerPassword ?? '',
       appRole,
     };
     busy = true;
     let file: string;
     try {
+      if (creating) {
+        // The administrator's password is used here only, and never stored.
+        input.ownerPassword = await createDatabaseAs({
+          host: values.host,
+          port,
+          user: values.adminUser,
+          password: body.adminPassword ?? '',
+          database: values.database,
+          owner,
+        });
+      }
       const appPassword = await prepareDatabase(input);
       try {
         file = await writeConfiguration({
@@ -432,6 +481,24 @@ function problemText(lang: Lang, error: SetupProblem, input: DatabaseInput): str
         'A database user named {user} already exists and cannot be changed by the owner: choose another application user.',
         { user: input.appRole },
       );
+    case 'admin-connect':
+      return t('Could not connect as the PostgreSQL administrator: {error}', { error: p.error });
+    case 'admin-rights':
+      return t(
+        'This PostgreSQL user cannot create databases and users: enter the administrator (superuser) of the server.',
+      );
+    case 'owner-exists':
+      return t(
+        'A database user named {user} already exists: choose another owner user, or choose “It already exists” and enter its password.',
+        { user: input.owner },
+      );
+    case 'database-taken':
+      return t(
+        'The database {database} already exists and belongs to {owner}: choose another name, or choose “It already exists”.',
+        { database: input.database, owner: p.owner },
+      );
+    case 'create':
+      return t('Could not create the database: {error}', { error: p.error });
     case 'app-connect':
       return t('The application user {user} was created, but cannot connect: {error}', {
         user: input.appRole,

@@ -9,17 +9,21 @@ Questa guida installa Cleitext su un server gestito con Plesk, usando l'estensio
 Il modo più semplice, come con WordPress: niente da compilare, nessun file di configurazione da scrivere.
 
 1. **Scarica** `cleitext-<versione>.zip` dalla pagina [Releases](https://github.com/faghy/cleitext/releases). È compilato per Linux x64.
-2. **Crea il database** in Plesk: **Database → Aggiungi database**, tipo PostgreSQL, con un utente. Annota nome del database, utente e password.
+2. **Il database**: la procedura può crearlo da sola con utente e password dell'amministratore di PostgreSQL (Plesk: **Strumenti e impostazioni → Server di database → PostgreSQL**). Oppure crealo tu in Plesk (**Database → Aggiungi database**, tipo PostgreSQL, con un utente) e annota nome del database, utente e password.
 3. **Carica lo zip** nella cartella del dominio (**File**, poi **Estrai file**): crea la cartella `cleitext`. La versione è solo nel nome dello zip, mai in quello della cartella.
 4. **Configura Node.js** (**Siti web e domini → Node.js**) come al §6: radice dell'applicazione `/cleitext`, radice dei documenti `/cleitext/public`, file di avvio `app.js`, Node.js 22 o 24, modalità production. In **Impostazioni di hosting** fai puntare anche la radice dei documenti a `cleitext/public` e attiva **SSL/TLS** (Let's Encrypt). Poi **Abilita Node.js**.
 5. **Apri il sito.** La procedura parte da `/install`:
    1. **Benvenuto**: cosa ti serve, poi **Inizia**.
    2. **Requisiti**: Node.js, cartelle scrivibili, `pg_dump` per i backup, HTTPS.
-   3. **Database**: host, porta, database, utente e password del passo 2. Quell'utente diventa il proprietario. Se non può creare ruoli, la pagina mostra il comando da eseguire una volta come root, per esempio:
-      ```bash
-      sudo -u postgres psql -c 'ALTER ROLE "example_user" CREATEROLE;'
-      ```
-      La procedura crea poi l'utente dell'applicazione, genera i segreti e scrive `cleitext-shared/.env` (permessi 600, accanto alla cartella `cleitext`), con le cartelle `media`, `plugins`, `themes` e `backups`.
+   3. **Database**, in uno dei due modi:
+      - **Crealo ora** (predefinito): inserisci il nome del database e l'amministratore di PostgreSQL. La procedura crea l'utente proprietario (con il permesso di creare ruoli) e il database; l'amministratore serve solo in quel momento e non viene salvato.
+      - **Esiste già**: inserisci il nome del database e il suo utente, che diventa il proprietario. Se non può creare ruoli, la pagina mostra il comando da eseguire una volta come root, per esempio:
+        ```bash
+        sudo -u postgres psql -c 'ALTER ROLE "example_user" CREATEROLE;'
+        ```
+
+      In entrambi i casi la procedura crea poi l'utente dell'applicazione, genera i segreti e scrive `cleitext-shared/.env` (permessi 600, accanto alla cartella `cleitext`), con le cartelle `media`, `plugins`, `themes` e `backups`.
+
    4. **Sito e amministratore**: nome del sito, dominio, lingua, email e password del super amministratore.
 6. **Accedi** da `/admin/`. I plugin ufficiali SEO e Moduli sono installati ma non attivi; Hi John è attivo, nella bacheca.
 

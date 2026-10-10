@@ -29,7 +29,12 @@ export type CheckProblem =
   | { kind: 'createrole'; command: string }
   | { kind: 'owner'; command: string }
   | { kind: 'role-taken' }
-  | { kind: 'app-connect'; error: string };
+  | { kind: 'app-connect'; error: string }
+  | { kind: 'admin-connect'; error: string }
+  | { kind: 'admin-rights' }
+  | { kind: 'owner-exists' }
+  | { kind: 'database-taken'; owner: string }
+  | { kind: 'create'; error: string };
 
 export class SetupProblem extends Error {
   constructor(readonly problem: CheckProblem) {
@@ -143,6 +148,68 @@ export async function prepareDatabase(input: DatabaseInput): Promise<string> {
     return password;
   } finally {
     await owner.close();
+  }
+}
+
+export interface AdminInput {
+  host: string;
+  port: number;
+  /** PostgreSQL administrator (Plesk: Tools & Settings → Database Servers). Never stored. */
+  user: string;
+  password: string;
+  database: string;
+  owner: string;
+}
+
+/**
+ * Creates the owner role (with CREATEROLE) and the database it owns, as the
+ * PostgreSQL administrator, as hosting panels do. Returns the owner's password
+ * (random). An existing empty database of that owner is reused.
+ */
+export async function createDatabaseAs(admin: AdminInput): Promise<string> {
+  const target = { host: admin.host, port: admin.port, database: 'postgres' } as DatabaseInput;
+  const su = createDatabase(databaseUrl(target, admin.user, admin.password), { max: 1 });
+  try {
+    let facts: { allowed: boolean; owner_exists: boolean; database_owner: string | null };
+    try {
+      const rows = await withTimeout(
+        su.db.execute<typeof facts>(sql`
+          select (r.rolsuper or (r.rolcreaterole and r.rolcreatedb)) as allowed,
+                 exists (select 1 from pg_roles where rolname = ${admin.owner}) as owner_exists,
+                 (select pg_get_userbyid(datdba) from pg_database where datname = ${admin.database}) as database_owner
+          from pg_roles r where r.rolname = current_user`),
+        15_000,
+      );
+      facts = rows[0]!;
+    } catch (error) {
+      throw new SetupProblem({ kind: 'admin-connect', error: (error as Error).message });
+    }
+    if (!facts.allowed) throw new SetupProblem({ kind: 'admin-rights' });
+    if (facts.database_owner && facts.database_owner !== admin.owner) {
+      throw new SetupProblem({ kind: 'database-taken', owner: facts.database_owner });
+    }
+    // Someone else's user is never taken over (its password would change).
+    if (facts.owner_exists && !facts.database_owner)
+      throw new SetupProblem({ kind: 'owner-exists' });
+
+    const password = randomBytes(24).toString('hex');
+    try {
+      await su.db.execute(
+        sql.raw(
+          `${facts.owner_exists ? 'ALTER' : 'CREATE'} ROLE ${ident(admin.owner)} WITH LOGIN CREATEROLE NOSUPERUSER PASSWORD '${password}'`,
+        ),
+      );
+      if (!facts.database_owner) {
+        await su.db.execute(
+          sql.raw(`CREATE DATABASE ${ident(admin.database)} OWNER ${ident(admin.owner)}`),
+        );
+      }
+    } catch (error) {
+      throw new SetupProblem({ kind: 'create', error: (error as Error).message });
+    }
+    return password;
+  } finally {
+    await su.close();
   }
 }
 

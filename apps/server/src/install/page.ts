@@ -82,6 +82,31 @@ const IT: Record<string, string> = {
   'Database name': 'Nome del database',
   'Owner user': 'Utente proprietario',
   'Owner password': 'Password del proprietario',
+  'The database': 'Il database',
+  'Create it now, with the PostgreSQL administrator':
+    'Crealo ora, con l’amministratore di PostgreSQL',
+  'It already exists (created in the panel)': 'Esiste già (creato dal pannello)',
+  'Cleitext uses an owner user only for installations and updates, and creates by itself a second user, with fewer rights, for the running site.':
+    'Cleitext usa un utente proprietario solo per installazioni e aggiornamenti, e crea da solo un secondo utente, con meno permessi, per il sito in funzione.',
+  'PostgreSQL administrator': 'Amministratore di PostgreSQL',
+  'Used only now, to create the database and its owner; it is not saved anywhere. Plesk: Tools & Settings → Database Servers → PostgreSQL.':
+    'Serve solo ora, per creare il database e il suo proprietario; non viene salvato da nessuna parte. Plesk: Strumenti e impostazioni → Server di database → PostgreSQL.',
+  'Administrator user': 'Utente amministratore',
+  'Administrator password': 'Password dell’amministratore',
+  'Owner of the database': 'Proprietario del database',
+  'The user created with the database in the panel (Plesk: Databases → Add Database, PostgreSQL).':
+    'L’utente creato insieme al database dal pannello (Plesk: Database → Aggiungi database, PostgreSQL).',
+  'Use letters, digits and underscores for the database name, starting with a letter.':
+    'Per il nome del database usa lettere, cifre e trattini bassi, iniziando con una lettera.',
+  'Could not connect as the PostgreSQL administrator: {error}':
+    'Connessione come amministratore di PostgreSQL non riuscita: {error}',
+  'This PostgreSQL user cannot create databases and users: enter the administrator (superuser) of the server.':
+    'Questo utente di PostgreSQL non può creare database e utenti: inserisci l’amministratore (superuser) del server.',
+  'A database user named {user} already exists: choose another owner user, or choose “It already exists” and enter its password.':
+    'Esiste già un utente del database {user}: scegli un altro utente proprietario, oppure scegli «Esiste già» e inserisci la sua password.',
+  'The database {database} already exists and belongs to {owner}: choose another name, or choose “It already exists”.':
+    'Il database {database} esiste già e appartiene a {owner}: scegli un altro nome, oppure scegli «Esiste già».',
+  'Could not create the database: {error}': 'Creazione del database non riuscita: {error}',
   'Application user': 'Utente dell’applicazione',
   'Created by the installer. Leave it empty for {example}.':
     'Lo crea l’installer. Lascia vuoto per {example}.',
@@ -196,7 +221,7 @@ h1 { font-size: 1.5rem; }
 fieldset { border: 1px solid #8884; border-radius: .5rem; margin: 1rem 0; padding: .5rem 1rem 1rem; }
 label { display: block; margin-top: .75rem; font-size: .9rem; }
 label.check { display: flex; gap: .5rem; align-items: center; }
-input:not([type=checkbox]) { box-sizing: border-box; width: 100%; padding: .5rem; margin-top: .25rem; font: inherit; }
+input:not([type=checkbox]):not([type=radio]) { box-sizing: border-box; width: 100%; padding: .5rem; margin-top: .25rem; font: inherit; }
 .hint { font-size: .8rem; opacity: .75; margin: .25rem 0 0; }
 .row { display: flex; gap: .75rem; } .row > * { flex: 1; } .row > .small { flex: 0 0 6rem; }
 button, .button { display: inline-block; padding: .6rem 1.2rem; border: 0; border-radius: .4rem; background: #0369a1; color: #fff; font: inherit; text-decoration: none; cursor: pointer; margin-top: 1rem; }
@@ -216,6 +241,7 @@ td, th { text-align: left; padding: .45rem .3rem; border-bottom: 1px solid #8883
 td.mark { width: 1.5rem; font-weight: 700; }
 .ok { color: #16a34a; } .warn { color: #d97706; } .fail { color: #dc2626; }
 code { font-size: .9em; }
+form.database:has(#mode-create:checked) .only-existing, form.database:has(#mode-existing:checked) .only-create { display: none; }
 </style>
 </head>
 <body><main><div class="top">${LOGO}<a href="?lang=${other}" lang="${other}">${other === 'it' ? 'Italiano' : 'English'}</a></div>${progress}${body}</main></body>

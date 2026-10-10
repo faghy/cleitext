@@ -52,6 +52,7 @@ const post = (url: string, values: Record<string, string>, withCookie = true) =>
   });
 
 const databaseForm = (overrides: Record<string, string> = {}) => ({
+  mode: 'existing',
   host: host(),
   port: port(),
   database: db.database,
@@ -197,5 +198,101 @@ describe('setup wizard with the token (CLEITEXT_SETUP_TOKEN)', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(configured).toBe(1);
     expect((await wizard.inject({ url: '/install' })).headers.location).toBe('/install');
+  });
+});
+
+describe('setup wizard creating the database (PostgreSQL administrator)', () => {
+  const name = `cleitext_new_${Date.now().toString(36)}`;
+  let dir: string;
+  let open: FastifyInstance;
+  const admin = () => new URL(superuserUrl);
+  const create = (overrides: Record<string, string> = {}) =>
+    open.inject({
+      method: 'POST',
+      url: '/install/database',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: new URLSearchParams({
+        mode: 'create',
+        host: host(),
+        port: port(),
+        database: name,
+        adminUser: decodeURIComponent(admin().username),
+        adminPassword: decodeURIComponent(admin().password),
+        dataDir: join(dir, 'shared'),
+        trustProxy: 'on',
+        ...overrides,
+      }).toString(),
+    });
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'cleitext-setup-create-'));
+    open = await createSetup({ root: dir, onConfigured: () => {}, logLevel: 'silent' });
+  });
+
+  afterAll(async () => {
+    await open?.close();
+    await su(`drop database if exists "${name}" with (force)`);
+    for (const role of [
+      `${name}_app`,
+      `${name}_owner`,
+      'cleitext_taken_owner',
+      'cleitext_weak_admin',
+    ]) {
+      await su(`drop role if exists "${role}"`);
+    }
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reports a wrong administrator password', async () => {
+    const page = await create({ adminPassword: 'wrong' });
+    expect(page.statusCode).toBe(400);
+    expect(page.body).toContain('Could not connect as the PostgreSQL administrator');
+  });
+
+  it('refuses an administrator that cannot create databases and users', async () => {
+    await su(`create role cleitext_weak_admin login password 'weak-password-1'`);
+    const page = await create({
+      adminUser: 'cleitext_weak_admin',
+      adminPassword: 'weak-password-1',
+    });
+    expect(page.statusCode).toBe(400);
+    expect(page.body).toContain('cannot create databases and users');
+  });
+
+  it('never takes over an existing user', async () => {
+    await su(`create role cleitext_taken_owner login password 'someone-else-1'`);
+    const page = await create({ newOwner: 'cleitext_taken_owner' });
+    expect(page.statusCode).toBe(400);
+    expect(page.body).toContain('already exists');
+  });
+
+  it('creates owner, database and application user, and stores no administrator', async () => {
+    const page = await create();
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('Configuration saved');
+
+    const text = readFileSync(join(dir, 'shared', '.env'), 'utf8');
+    const config = loadConfig({ ...parseEnv(text), LOG_LEVEL: 'silent' });
+    expect(new URL(config.database.adminUrl!).username).toBe(`${name}_owner`);
+    expect(new URL(config.database.url).username).toBe(`${name}_app`);
+    expect(new URL(config.database.adminUrl!).pathname).toBe(`/${name}`);
+    // Neither the administrator's name nor its password is in any address.
+    for (const url of [config.database.url, config.database.adminUrl!]) {
+      expect(new URL(url).username).not.toBe(admin().username);
+      expect(new URL(url).password).not.toBe(admin().password);
+    }
+
+    // The owner can create roles and owns the new database.
+    const owner = createDatabase(config.database.adminUrl!, { max: 1 });
+    try {
+      const [row] = await owner.db.execute<{ creates: boolean; owns: boolean }>(
+        sql`select r.rolcreaterole as creates, d.datdba = r.oid as owns
+            from pg_roles r, pg_database d
+            where r.rolname = current_user and d.datname = current_database()`,
+      );
+      expect(row).toMatchObject({ creates: true, owns: true });
+    } finally {
+      await owner.close();
+    }
   });
 });
