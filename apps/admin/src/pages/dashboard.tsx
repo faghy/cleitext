@@ -7,9 +7,11 @@ import { ActivityList } from '../components/activity-list';
 import { Alert, Card, useT } from '../components/ui';
 import { PluginWidget, usePluginAdmin } from '../plugins';
 import { SECTIONS } from '../navigation';
+import { UPDATES_QUERY } from './updates';
 
 /** Section routes are registered by path (see router.tsx). */
 const ACTIVITY_PATH: string = '/activity';
+const UPDATES_PATH: string = '/updates';
 
 export function DashboardPage() {
   const me = useMe();
@@ -24,6 +26,11 @@ export function DashboardPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
   });
   const plugins = usePluginAdmin();
+  // Super admins hear about a new Cleitext version here, as in WordPress.
+  const updates = useQuery({
+    ...UPDATES_QUERY,
+    enabled: me.capabilities.includes('manage_plugins'),
+  });
   const widgets = plugins.flatMap((plugin) =>
     (plugin.definition?.dashboardWidgets ?? [])
       .filter((w) => !w.capability || me.capabilities.includes(w.capability))
@@ -43,6 +50,18 @@ export function DashboardPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">{t('Dashboard')}</h1>
       {board.error && <Alert>{errorMessage(board.error)}</Alert>}
+      {updates.data?.available && updates.data.latest && (
+        <div className="flex flex-wrap items-center gap-3 rounded border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          <span>
+            {t('Cleitext {version} is available: update from Updates.', {
+              version: updates.data.latest,
+            })}
+          </span>
+          <Link to={UPDATES_PATH} className="font-medium text-sky-700 underline">
+            {t('Go to Updates')}
+          </Link>
+        </div>
+      )}
       {data?.warnings.map((warning) => (
         <Alert key={warning}>{warning}</Alert>
       ))}

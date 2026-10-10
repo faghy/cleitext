@@ -56,6 +56,11 @@ const envSchema = z.object({
   PLUGINS_INSTALL_FROM_UI: booleanString.default(true),
   /** Packages not signed by a registry (all uploads, for now) are accepted. */
   PLUGINS_ALLOW_UNSIGNED: booleanString.default(true),
+  /** Where updates come from (GitHub owner/name); empty turns the update check off. */
+  UPDATES_REPO: z
+    .string()
+    .regex(/^([\w.-]+\/[\w.-]+)?$/)
+    .optional(),
   /** SVG uploads, sanitized (RF-MED-09). Off by default, as in WordPress. */
   MEDIA_ALLOW_SVG: booleanString.default(false),
   MEDIA_MAX_BYTES: z.coerce
@@ -90,6 +95,7 @@ export interface AppConfig {
   plugins: { path: string };
   themes: { path: string };
   packages: { installFromUi: boolean; allowUnsigned: boolean };
+  updates: { repo: string };
   /** Folder of the built admin, if the server serves it (production). */
   admin: { path: string | null };
   pageCache: { maxEntries: number; ttlSeconds: number };
@@ -136,6 +142,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     plugins: { path: resolve(e.PLUGINS_PATH) },
     themes: { path: resolve(e.THEMES_PATH) },
     packages: { installFromUi: e.PLUGINS_INSTALL_FROM_UI, allowUnsigned: e.PLUGINS_ALLOW_UNSIGNED },
+    // Tests never ask GitHub unless they say where.
+    updates: { repo: e.UPDATES_REPO ?? (e.NODE_ENV === 'test' ? '' : 'faghy/cleitext') },
     admin: { path: adminPath(e.ADMIN_PATH) },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
     // Development and tests only: production refuses to start without one.

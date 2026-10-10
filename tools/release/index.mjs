@@ -4,6 +4,7 @@
 //
 //   pnpm release            → release/cleitext-<version>/ and release/cleitext-<version>.tar.gz
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmod, cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -128,13 +129,27 @@ const zip = (file, folder, cwd) =>
   });
 zip(`${name}.zip`, folder, join(root, 'release'));
 console.log(`[release] release/${name}.tar.gz and .zip`);
+const separateFiles = [];
 for (const slug of separate) {
   const manifest = JSON.parse(
     await readFile(join(root, 'plugins', slug, 'cleitext.plugin.json'), 'utf8'),
   );
   const file = `cleitext-plugin-${slug}-${manifest.version}.zip`;
+  separateFiles.push(file);
   await rm(join(root, 'release', file), { force: true });
   zip(join('..', file), slug, join(root, 'release', `plugin-${slug}`));
   await rm(join(root, 'release', `plugin-${slug}`), { recursive: true, force: true });
   console.log(`[release] release/${file} (upload it from Plugins)`);
 }
+
+// SHA-256 of what is published: the updater checks the archive against it.
+const published = [`${name}.tar.gz`, `${name}.zip`, ...separateFiles];
+const sums = [];
+for (const file of published) {
+  const hash = createHash('sha256')
+    .update(await readFile(join(root, 'release', file)))
+    .digest('hex');
+  sums.push(`${hash}  ${file}`);
+}
+await writeFile(join(root, 'release', 'SHA256SUMS'), `${sums.join('\n')}\n`);
+console.log('[release] release/SHA256SUMS');

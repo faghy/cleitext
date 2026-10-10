@@ -12,6 +12,7 @@ export interface Section {
 /** Admin sections, in the familiar WordPress order. */
 export const SECTIONS: Section[] = [
   { to: '/', label: 'Dashboard', anyOf: ['read'], ready: true },
+  { to: '/updates', label: 'Updates', anyOf: ['manage_plugins'], ready: true },
   { to: '/posts', label: 'Posts', anyOf: ['edit_entries'], ready: true },
   { to: '/media', label: 'Media', anyOf: ['upload_media'], ready: true },
   { to: '/pages', label: 'Pages', anyOf: ['edit_entries'], ready: true },

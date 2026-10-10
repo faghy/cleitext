@@ -2,6 +2,8 @@ import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { AdminController } from './admin/admin.controller.js';
+import { UpdatesController } from './updates/updates.controller.js';
+import { UpdatesService } from './updates/updates.service.js';
 import { AuditService } from './audit/audit.service.js';
 import { AuthController } from './auth/auth.controller.js';
 import { AuthGuard } from './auth/auth.guard.js';
@@ -122,6 +124,7 @@ export class AppModule {
         SitesController,
         MenusController,
         PluginsController,
+        UpdatesController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -138,6 +141,7 @@ export class AppModule {
         LocksService,
         PatternsService,
         ThemesService,
+        UpdatesService,
         LoginThrottleService,
         MailService,
         MediaService,

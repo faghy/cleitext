@@ -53,6 +53,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'theme.uploaded': 'uploaded the theme',
   'plugin.deleted': 'deleted the plugin',
   'theme.deleted': 'deleted the theme',
+  'core.updated': 'started the update of Cleitext to',
 };
 
 /** Filters of the activity page: action prefixes. */

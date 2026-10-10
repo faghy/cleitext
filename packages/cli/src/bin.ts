@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { existsSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import semver from 'semver';
 import type * as ServerTasks from './server-tasks.js';
 import { createDatabase, migrate, sitePlugins, withSiteContext } from '@cleitext/db';
 import { sql } from 'drizzle-orm';
@@ -20,6 +24,7 @@ import {
   updateSite,
 } from './operations.js';
 import { backup, restore } from './backup.js';
+import { findRelease, isNewer, runUpdate, UPDATE_STEPS, type UpdateStep } from './update.js';
 import {
   announceThemeChange,
   buildTheme,
@@ -475,6 +480,165 @@ program
       console.log(`Backup written: ${opts.out} (${(bytes / 1024 / 1024).toFixed(1)} MB)`);
     });
   });
+
+// ---- Core updates ------------------------------------------------------------------------
+
+/** The application folder: this CLI is in <root>/packages/cli/dist. */
+function appRoot(): string {
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+}
+
+function installedVersion(root: string): string {
+  return (JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as { version: string })
+    .version;
+}
+
+interface UpdateStatus {
+  state: 'running' | 'done' | 'failed';
+  from: string;
+  to: string;
+  step: UpdateStep | null;
+  steps: UpdateStep[];
+  startedAt: string;
+  finishedAt?: string;
+  error?: string;
+}
+
+/** Written atomically: the admin of any server process reads it while it changes. */
+async function writeStatus(file: string | undefined, status: UpdateStatus): Promise<void> {
+  if (!file) return;
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(`${file}.tmp`, JSON.stringify(status));
+  await rename(`${file}.tmp`, file);
+}
+
+const run = promisify(execFile);
+
+/** A command of the new release's CLI, with the running version's configuration. */
+async function newCli(root: string, staging: string, args: string[]): Promise<void> {
+  const env = path.join(root, '.env');
+  await run(
+    process.execPath,
+    [
+      ...(existsSync(env) ? [`--env-file=${env}`] : []),
+      path.join(staging, 'packages/cli/dist/bin.js'),
+      ...args,
+    ],
+    { cwd: staging, timeout: 600_000, maxBuffer: 4 * 1024 * 1024 },
+  ).catch((error: { stderr?: string; message: string }) => {
+    throw new OperationError(`${args[0]} failed: ${(error.stderr || error.message).trim()}`);
+  });
+}
+
+program
+  .command('update')
+  .description(
+    'Update Cleitext to the latest release (or --to): download, verify, back up, migrate, switch.',
+  )
+  .option('--to <version>', 'a given version instead of the latest')
+  .option('--check', 'only tell whether an update is available')
+  .option(
+    '--repo <owner/name>',
+    'where the releases are',
+    process.env.UPDATES_REPO ?? 'faghy/cleitext',
+  )
+  .option('--status <file>', 'write the progress there (used by the admin)')
+  .option('--no-backup', 'skip the backup before migrating (not recommended)')
+  .option(
+    '--root <dir>',
+    'the application to update (default: the one of this CLI); lets a newer CLI update an older site',
+  )
+  .action(
+    async (opts: {
+      root?: string;
+      to?: string;
+      check?: boolean;
+      repo: string;
+      status?: string;
+      backup: boolean;
+    }) => {
+      const root = opts.root ? path.resolve(opts.root) : appRoot();
+      const from = installedVersion(root);
+      const release = await findRelease(opts.repo, opts.to);
+      if (opts.check) {
+        console.log(
+          isNewer(release.version, from)
+            ? `Cleitext ${release.version} is available (installed: ${from}).`
+            : `Cleitext ${from} is up to date.`,
+        );
+        return;
+      }
+      if (!opts.to && !isNewer(release.version, from)) {
+        console.log(`Cleitext ${from} is up to date.`);
+        return;
+      }
+      const status: UpdateStatus = {
+        state: 'running',
+        from,
+        to: release.version,
+        step: null,
+        steps: UPDATE_STEPS,
+        startedAt: new Date().toISOString(),
+      };
+      await writeStatus(opts.status, status);
+      try {
+        const result = await runUpdate({
+          root,
+          release,
+          onStep: (step) => {
+            status.step = step;
+            console.log(`… ${step}`);
+            void writeStatus(opts.status, status);
+          },
+          actions: {
+            backup: async () => {
+              if (!opts.backup) return;
+              const paths = dataPaths();
+              const out = path.join(
+                path.dirname(paths.mediaPath),
+                'backups',
+                `before-${release.version}.tar.gz`,
+              );
+              await mkdir(path.dirname(out), { recursive: true });
+              await withOwner((db) => backup(db, paths, out));
+            },
+            migrate: (staging) => newCli(root, staging, ['migrate']),
+            plugins: async (staging) => {
+              const installed = new Map(
+                (await withOwner((db) => listPlugins(db))).map((p) => [p.slug, p.version]),
+              );
+              const shipped = path.join(staging, 'plugins');
+              if (!existsSync(shipped)) return;
+              for (const slug of await readdir(shipped)) {
+                const manifest = path.join(shipped, slug, 'cleitext.plugin.json');
+                if (!existsSync(manifest)) continue;
+                const { version } = JSON.parse(await readFile(manifest, 'utf8')) as {
+                  version: string;
+                };
+                const current = installed.get(slug);
+                if (current && semver.valid(version) && semver.gt(version, current)) {
+                  await newCli(root, staging, ['plugin:install', path.join(shipped, slug)]);
+                }
+              }
+            },
+          },
+        });
+        Object.assign(status, { state: 'done', finishedAt: new Date().toISOString() });
+        await writeStatus(opts.status, status);
+        console.log(
+          `Updated ${from} → ${release.version}. Previous version kept in ${result.previous}.`,
+        );
+      } catch (error) {
+        Object.assign(status, {
+          state: 'failed',
+          finishedAt: new Date().toISOString(),
+          error: error instanceof Error ? error.message : String(error),
+        });
+        await writeStatus(opts.status, status);
+        throw error;
+      }
+    },
+  );
 
 program
   .command('restore')

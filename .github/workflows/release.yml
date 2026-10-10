@@ -30,6 +30,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            release/cleitext-*.zip release/cleitext-*.tar.gz \
+            release/cleitext-*.zip release/cleitext-*.tar.gz release/SHA256SUMS \
             --title "Cleitext ${GITHUB_REF_NAME#v}" \
             --notes-file <(git log -1 --format=%B)
