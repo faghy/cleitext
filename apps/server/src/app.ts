@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import fastifyCookie from '@fastify/cookie';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
@@ -69,6 +70,16 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
       maxAge: '365d',
       immutable: true,
     });
+    // The Cleitext logo files (apps/admin/public/brand), e.g. /admin/brand/logo.svg.
+    if (existsSync(join(config.admin.path, 'brand'))) {
+      await app.register(fastifyStatic, {
+        root: join(config.admin.path, 'brand'),
+        prefix: '/admin/brand/',
+        decorateReply: false,
+        index: false,
+        maxAge: '1d',
+      });
+    }
     const indexHtml = await readFile(join(config.admin.path, 'index.html'), 'utf8');
     const csp = adminCsp(inlineScriptHashes(indexHtml));
     const sendAdmin = (_request: unknown, reply: FastifyReply) =>

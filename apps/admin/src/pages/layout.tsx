@@ -5,6 +5,7 @@ import { ME_QUERY_KEY, useMe } from '../auth';
 import { visibleSections } from '../navigation';
 import { useT } from '../components/ui';
 import { Avatar } from '../components/avatar';
+import { LogoMark } from '@cleitext/admin-sdk';
 import { taxonomiesQuery, taxonomyLabel } from './terms';
 import { useCallback, useState } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
@@ -59,7 +60,10 @@ export function AdminLayout() {
     <div className="flex min-h-screen bg-slate-100 text-slate-900">
       <aside className="light-palette w-56 shrink-0 bg-slate-900 text-slate-200">
         <div className="px-4 py-4">
-          <p className="text-lg font-semibold text-white">Cleitext</p>
+          <p className="flex items-center gap-2 text-lg font-semibold text-white">
+            <LogoMark size={24} />
+            Cleitext
+          </p>
           <p className="truncate text-xs text-slate-400" title={me.site.name}>
             {me.site.name}
           </p>

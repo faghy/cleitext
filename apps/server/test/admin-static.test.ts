@@ -18,6 +18,8 @@ beforeAll(async () => {
     '<!doctype html><title>Cleitext admin</title><script>window.x = 1;</script>',
   );
   await writeFile(join(admin, 'assets', 'main-abc123.js'), 'console.log(1)');
+  await mkdir(join(admin, 'brand'));
+  await writeFile(join(admin, 'brand', 'logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
   app = await startTestApp({ env: { ADMIN_PATH: admin } });
   const owner = ownerDatabase();
   site = await seedSite(owner, 'admin-static');
@@ -31,6 +33,13 @@ afterAll(async () => {
 const get = (url: string) => app.inject({ method: 'GET', url, headers: { host: site.host } });
 
 describe('built admin', () => {
+  it('serves the Cleitext logo files', async () => {
+    const res = await get('/admin/brand/logo.svg');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('image/svg+xml');
+    expect(res.body).toContain('<svg');
+  });
+
   it('answers every admin address with the single-page app', async () => {
     for (const url of ['/admin', '/admin/', '/admin/posts', '/admin/entries/123']) {
       const res = await get(url);

@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/admin/public/brand/logo-dark.svg" />
+    <img src="apps/admin/public/brand/logo.svg" alt="Cleitext" width="268" height="64" />
+  </picture>
+</p>
+
 # Cleitext
 
 **CMS open source, multi-sito e multilingua, con sistema a plugin. Si usa come WordPress, ma non è costruito su WordPress.**

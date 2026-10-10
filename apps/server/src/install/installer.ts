@@ -240,12 +240,16 @@ label { display: block; margin-top: .75rem; font-size: .9rem; }
 label.check { display: flex; gap: .5rem; align-items: center; }
 input:not([type=checkbox]) { box-sizing: border-box; width: 100%; padding: .5rem; margin-top: .25rem; font: inherit; }
 button, .button { display: inline-block; padding: .6rem 1.2rem; border: 0; border-radius: .4rem; background: #0369a1; color: #fff; font: inherit; text-decoration: none; cursor: pointer; }
+.logo { display: flex; align-items: center; gap: .5rem; font-size: 1.25rem; font-weight: 700; margin: 0 0 1rem; }
 .errors { border: 1px solid #dc2626; border-radius: .5rem; padding: 0 1rem; color: #dc2626; }
 </style>
 </head>
-<body><main>${body}</main></body>
+<body><main>${LOGO}${body}</main></body>
 </html>`;
 }
+
+/** The Cleitext logo (apps/admin/public/brand/logo-mark.svg) above the installer. */
+const LOGO = `<p class="logo"><svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#0369a1"/><path d="M38.5 22.5 A13.5 13.5 0 1 0 38.5 41.5" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><rect x="43" y="19" width="5" height="26" rx="2.5" fill="#7dd3fc"/></svg> Cleitext</p>`;
 
 function escape(value: string): string {
   return value

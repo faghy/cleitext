@@ -83,12 +83,39 @@ export function Card({ title, children }: { title?: string; children: ReactNode 
   );
 }
 
+/** The Cleitext mark (apps/admin/public/brand/logo-mark.svg), decorative next to the name. */
+export function LogoMark({ size = 32, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      aria-hidden="true"
+      focusable="false"
+      className={className}
+    >
+      <rect width="64" height="64" rx="15" fill="#0369a1" />
+      <path
+        d="M38.5 22.5 A13.5 13.5 0 1 0 38.5 41.5"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="7"
+        strokeLinecap="round"
+      />
+      <rect x="43" y="19" width="5" height="26" rx="2.5" fill="#7dd3fc" />
+    </svg>
+  );
+}
+
 /** Centered box for the sign-in pages. */
 export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <div className="w-full max-w-sm">
-        <p className="mb-6 text-center text-2xl font-semibold text-slate-900">Cleitext</p>
+        <p className="mb-6 flex items-center justify-center gap-2 text-2xl font-semibold text-slate-900">
+          <LogoMark size={36} />
+          Cleitext
+        </p>
         <div className="rounded border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="mb-4 text-lg font-semibold">{title}</h1>
           {children}
