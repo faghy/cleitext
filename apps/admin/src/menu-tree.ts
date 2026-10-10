@@ -121,3 +121,40 @@ function shiftDepth(items: FlatItem[], index: number, delta: number): FlatItem[]
     i >= index && i < end ? { ...item, depth: item.depth + delta } : item,
   );
 }
+
+/** The item's subtree: its index range and how many levels it spans below it. */
+export function block(items: FlatItem[], index: number): { end: number; height: number } {
+  const end = blockEnd(items, index);
+  const depth = items[index]!.depth;
+  const height = Math.max(...items.slice(index, end).map((item) => item.depth - depth));
+  return { end, height };
+}
+
+/**
+ * Depths allowed when the subtree of `from` is dropped at position `to` of
+ * the list without it (drag & drop): at most one level below the item before,
+ * at least one level above the item after, within MAX_DEPTH.
+ */
+export function dropDepths(
+  items: FlatItem[],
+  from: number,
+  to: number,
+): { min: number; max: number } {
+  const { end, height } = block(items, from);
+  const rest = [...items.slice(0, from), ...items.slice(end)];
+  const before = rest[to - 1];
+  const after = rest[to];
+  const max = Math.min(before ? before.depth + 1 : 0, MAX_DEPTH - height);
+  const min = Math.min(after ? Math.max(0, after.depth - 1) : 0, max);
+  return { min, max };
+}
+
+/** Moves the subtree of `from` to position `to` of the list without it, at `depth`. */
+export function moveTo(items: FlatItem[], from: number, to: number, depth: number): FlatItem[] {
+  const { end } = block(items, from);
+  const { min, max } = dropDepths(items, from, to);
+  const delta = Math.min(max, Math.max(min, depth)) - items[from]!.depth;
+  const moved = items.slice(from, end).map((item) => ({ ...item, depth: item.depth + delta }));
+  const rest = [...items.slice(0, from), ...items.slice(end)];
+  return [...rest.slice(0, to), ...moved, ...rest.slice(to)];
+}

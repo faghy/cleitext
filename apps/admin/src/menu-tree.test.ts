@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   canIndent,
+  dropDepths,
   indent,
   MAX_DEPTH,
   moveDown,
+  moveTo,
   moveUp,
   outdent,
   remove,
@@ -56,6 +58,30 @@ describe('menu tree editing', () => {
     ];
     deep.push(item('y', MAX_DEPTH));
     expect(canIndent(deep, deep.length - 1)).toBe(false);
+  });
+
+  it('drops a subtree anywhere, at an allowed depth', () => {
+    // Without "a" and its children the list is [d]: before d, after d.
+    expect(shape(moveTo(sample, 0, 1, 0))).toEqual(['d', 'a', '-b', '-c']);
+    expect(shape(moveTo(sample, 0, 1, 1))).toEqual(['d', '-a', '--b', '--c']);
+    // "d" dropped between b and c: a sibling of them, or a child of b.
+    expect(dropDepths(sample, 3, 2)).toEqual({ min: 0, max: 2 });
+    expect(shape(moveTo(sample, 3, 2, 2))).toEqual(['a', '-b', '--d', '-c']);
+    // Before c (depth 1) the item must stay at depth 0 at least, and the
+    // requested depth is clamped.
+    expect(shape(moveTo(sample, 3, 0, 3))).toEqual(['d', 'a', '-b', '-c']);
+    // "b" dropped at the end, under d.
+    expect(shape(moveTo(sample, 1, 3, 9))).toEqual(['a', '-c', 'd', '-b']);
+  });
+
+  it('keeps dropped subtrees within the maximum depth', () => {
+    const tall = [item('a', 0), item('b', 0), item('c', 1), item('d', 2)];
+    // b spans two levels: under a it can go one level deep at most.
+    expect(dropDepths(tall, 1, 1).max).toBe(1);
+    const deep = Array.from({ length: MAX_DEPTH + 1 }, (_, i) => item(`x${i}`, i));
+    expect(dropDepths([...deep, ...tall.slice(1)], MAX_DEPTH + 1, MAX_DEPTH + 1).max).toBe(
+      MAX_DEPTH - 2,
+    );
   });
 
   it('removes items with their children', () => {

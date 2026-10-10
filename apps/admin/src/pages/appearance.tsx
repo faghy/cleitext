@@ -1,15 +1,18 @@
 import type { EntryListResponse, MenuView, ThemeInfo } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useT } from '@cleitext/admin-sdk';
-import { useEffect, useState } from 'react';
+import { Fragment, type PointerEvent, useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card, TextField } from '../components/ui';
 import {
+  block,
   canIndent,
+  dropDepths,
   flatten,
   indent,
   moveDown,
+  moveTo,
   moveUp,
   newKey,
   outdent,
@@ -17,6 +20,17 @@ import {
   toTree,
   type FlatItem,
 } from '../menu-tree';
+
+/** Horizontal distance for one level, as the indentation of the rows. */
+const LEVEL_PX = 24;
+
+interface DragState {
+  from: number;
+  startX: number;
+  /** Position in the list without the dragged subtree. */
+  to: number;
+  depth: number;
+}
 
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
 
@@ -189,6 +203,56 @@ function MenuEditor({
     },
   });
 
+  const listRef = useRef<HTMLOListElement>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const dragged = drag ? { from: drag.from, end: block(items, drag.from).end } : null;
+
+  /** Drop position and depth under the pointer (rows are matched by key). */
+  const target = (state: DragState, event: PointerEvent): DragState => {
+    const { end } = block(items, state.from);
+    const rest = [...items.slice(0, state.from), ...items.slice(end)];
+    let to = 0;
+    for (const item of rest) {
+      const row = listRef.current?.querySelector(`[data-key="${item.key}"]`);
+      if (!row) continue;
+      const rect = row.getBoundingClientRect();
+      if (event.clientY > rect.top + rect.height / 2) to++;
+    }
+    const { min, max } = dropDepths(items, state.from, to);
+    const wanted = items[state.from]!.depth + Math.round((event.clientX - state.startX) / LEVEL_PX);
+    return { ...state, to, depth: Math.min(max, Math.max(min, wanted)) };
+  };
+
+  const dragHandlers = (index: number) => ({
+    onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) return;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setDrag({ from: index, startX: event.clientX, to: index, depth: items[index]!.depth });
+    },
+    onPointerMove: (event: PointerEvent<HTMLButtonElement>) => {
+      if (drag) setDrag(target(drag, event));
+    },
+    onPointerUp: () => {
+      if (drag) setItems(moveTo(items, drag.from, drag.to, drag.depth));
+      setDrag(null);
+    },
+    onPointerCancel: () => setDrag(null),
+  });
+
+  /** Key of the row the drop marker is shown before (null: at the end). */
+  const markerBefore = (() => {
+    if (!drag || !dragged) return undefined;
+    const rest = [...items.slice(0, dragged.from), ...items.slice(dragged.end)];
+    return rest[drag.to]?.key ?? null;
+  })();
+  const marker = drag && (
+    <li
+      aria-hidden="true"
+      className="h-1 rounded bg-sky-600"
+      style={{ marginLeft: `${drag.depth * 1.5}rem` }}
+    />
+  );
+
   const update = (index: number, changes: Partial<FlatItem>) =>
     setItems((list) => list.map((item, i) => (i === index ? { ...item, ...changes } : item)));
 
@@ -223,78 +287,92 @@ function MenuEditor({
         {items.length === 0 ? (
           <p className="text-sm text-slate-600">{t('Add items from the column on the left.')}</p>
         ) : (
-          <ol className="space-y-2" aria-label={t('Menu items')}>
+          <ol ref={listRef} className="space-y-2" aria-label={t('Menu items')}>
             {items.map((item, index) => (
-              <li
-                key={item.key}
-                style={{ marginLeft: `${item.depth * 1.5}rem` }}
-                className="rounded border border-slate-200 bg-slate-50 p-2"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs uppercase text-slate-500">
-                    {t(KIND_LABELS[item.kind])}
-                  </span>
-                  <label className="sr-only" htmlFor={`label-${item.key}`}>
-                    {t('Navigation label')}
-                  </label>
-                  <input
-                    id={`label-${item.key}`}
-                    className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
-                    value={item.label ?? ''}
-                    placeholder={item.title}
-                    onChange={(e) => update(index, { label: e.target.value })}
-                  />
-                  <TreeButton label={t('Move up')} onClick={() => setItems(moveUp(items, index))}>
-                    ↑
-                  </TreeButton>
-                  <TreeButton
-                    label={t('Move down')}
-                    onClick={() => setItems(moveDown(items, index))}
-                  >
-                    ↓
-                  </TreeButton>
-                  <TreeButton
-                    label={t('Make sub-item')}
-                    disabled={!canIndent(items, index)}
-                    onClick={() => setItems(indent(items, index))}
-                  >
-                    →
-                  </TreeButton>
-                  <TreeButton
-                    label={t('Move out of sub-items')}
-                    disabled={item.depth === 0}
-                    onClick={() => setItems(outdent(items, index))}
-                  >
-                    ←
-                  </TreeButton>
-                  <TreeButton label={t('Remove')} onClick={() => setItems(remove(items, index))}>
-                    ✕
-                  </TreeButton>
-                </div>
-                {item.kind === 'url' && (
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                    <label className="flex flex-1 items-center gap-2">
-                      <span>{t('URL')}</span>
-                      <input
-                        className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1"
-                        value={item.url ?? ''}
-                        onChange={(e) => update(index, { url: e.target.value })}
-                      />
+              <Fragment key={item.key}>
+                {markerBefore === item.key && marker}
+                <li
+                  data-key={item.key}
+                  style={{ marginLeft: `${item.depth * 1.5}rem` }}
+                  className={`rounded border border-slate-200 bg-slate-50 p-2 ${dragged && index >= dragged.from && index < dragged.end ? 'opacity-40' : ''}`}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      title={t('Drag to move')}
+                      aria-label={t('Drag to move')}
+                      tabIndex={-1}
+                      className="cursor-grab touch-none px-1 text-slate-500 select-none active:cursor-grabbing"
+                      {...dragHandlers(index)}
+                    >
+                      ⠿
+                    </button>
+                    <span className="text-xs uppercase text-slate-500">
+                      {t(KIND_LABELS[item.kind])}
+                    </span>
+                    <label className="sr-only" htmlFor={`label-${item.key}`}>
+                      {t('Navigation label')}
                     </label>
-                    <label className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={item.target === '_blank'}
-                        onChange={(e) =>
-                          update(index, { target: e.target.checked ? '_blank' : null })
-                        }
-                      />
-                      {t('Open in a new tab')}
-                    </label>
+                    <input
+                      id={`label-${item.key}`}
+                      className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+                      value={item.label ?? ''}
+                      placeholder={item.title}
+                      onChange={(e) => update(index, { label: e.target.value })}
+                    />
+                    <TreeButton label={t('Move up')} onClick={() => setItems(moveUp(items, index))}>
+                      ↑
+                    </TreeButton>
+                    <TreeButton
+                      label={t('Move down')}
+                      onClick={() => setItems(moveDown(items, index))}
+                    >
+                      ↓
+                    </TreeButton>
+                    <TreeButton
+                      label={t('Make sub-item')}
+                      disabled={!canIndent(items, index)}
+                      onClick={() => setItems(indent(items, index))}
+                    >
+                      →
+                    </TreeButton>
+                    <TreeButton
+                      label={t('Move out of sub-items')}
+                      disabled={item.depth === 0}
+                      onClick={() => setItems(outdent(items, index))}
+                    >
+                      ←
+                    </TreeButton>
+                    <TreeButton label={t('Remove')} onClick={() => setItems(remove(items, index))}>
+                      ✕
+                    </TreeButton>
                   </div>
-                )}
-              </li>
+                  {item.kind === 'url' && (
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                      <label className="flex flex-1 items-center gap-2">
+                        <span>{t('URL')}</span>
+                        <input
+                          className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1"
+                          value={item.url ?? ''}
+                          onChange={(e) => update(index, { url: e.target.value })}
+                        />
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={item.target === '_blank'}
+                          onChange={(e) =>
+                            update(index, { target: e.target.checked ? '_blank' : null })
+                          }
+                        />
+                        {t('Open in a new tab')}
+                      </label>
+                    </div>
+                  )}
+                </li>
+              </Fragment>
             ))}
+            {markerBefore === null && marker}
           </ol>
         )}
 

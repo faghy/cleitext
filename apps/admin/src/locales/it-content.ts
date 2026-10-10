@@ -159,4 +159,5 @@ export const itContent: Messages = {
   Uploads: 'Caricamenti',
   Video: 'Video',
   View: 'Vista',
+  'Drag to move': 'Trascina per spostare',
 };
