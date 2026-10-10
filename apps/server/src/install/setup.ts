@@ -21,7 +21,16 @@ import {
   translate,
   type Lang,
 } from './page.js';
-import { ensureToken, hasSession, isHttps, sameSecret, startSession, tokenFile } from './token.js';
+import {
+  ensureToken,
+  hasSession,
+  isHttps,
+  removeToken,
+  sameSecret,
+  startSession,
+  tokenFile,
+  tokenRequired,
+} from './token.js';
 
 /**
  * Setup wizard (RF-SIT-02), served when Cleitext has no configuration yet:
@@ -36,6 +45,8 @@ export interface SetupOptions {
   /** Tests: where `.env` would be read from, to notice another process wrote it. */
   envFile?: string;
   logLevel?: string;
+  /** Ask for the setup token; default: `tokenRequired()` (CLEITEXT_SETUP_TOKEN). */
+  requireToken?: boolean;
 }
 
 /** Whether the server has no configuration: no database to talk to. */
@@ -123,7 +134,11 @@ interface DatabaseForm {
 
 export async function createSetup(options: SetupOptions): Promise<FastifyInstance> {
   const root = options.root;
-  const token = ensureToken(root);
+  const requireToken = options.requireToken ?? tokenRequired();
+  // Without the check there is no token: an old one would only confuse.
+  if (!requireToken) removeToken(root);
+  const token = requireToken ? ensureToken(root) : '';
+  const allowed = (request: FastifyRequest) => !requireToken || hasSession(request, token);
   const envFile = options.envFile ?? join(root, '.env');
   let configured = false;
   let busy = false;
@@ -157,20 +172,30 @@ export async function createSetup(options: SetupOptions): Promise<FastifyInstanc
     const t = tFor(lang);
     return `<h1>${t('Welcome')}</h1>
 <p>${t('Welcome to Cleitext. This guide checks the server, connects the database, writes the configuration and creates your site, in four steps.')}</p>
-<p>${translate(
-      lang,
-      'To prove that the server is yours, enter the setup token. It is printed in the server log (Plesk: the domain’s Logs) and in the file {file}; with SSH: {command}.',
-      {
-        file: `<code>${escape(tokenFile(root))}</code>`,
-        command: `<code>cat ${escape(tokenFile(root))}</code>`,
-      },
-    )}</p>
+${
+  requireToken
+    ? ''
+    : `<p>${t('Have the database details at hand: name, user and password, created in your panel (Plesk: Databases → Add Database, PostgreSQL).')}</p>
+<a class="button" href="/install?step=requirements">${t('Start')}</a>`
+}
+${
+  requireToken
+    ? `<p>${translate(
+        lang,
+        'To prove that the server is yours, enter the setup token. It is printed in the server log (Plesk: the domain’s Logs) and in the file {file}; with SSH: {command}.',
+        {
+          file: `<code>${escape(tokenFile(root))}</code>`,
+          command: `<code>cat ${escape(tokenFile(root))}</code>`,
+        },
+      )}</p>
 ${errorList(errors.map((e) => t(e)))}
 <form method="post" action="/install/token">
 <label for="token">${t('Setup token')}</label>
 <input id="token" name="token" type="password" autocomplete="off" required autofocus>
 <button type="submit">${t('Continue')}</button>
-</form>`;
+</form>`
+    : ''
+}`;
   };
 
   const requirementsPage = async (lang: Lang, request: FastifyRequest) => {
@@ -246,8 +271,9 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
   app.get('/install', async (request, reply) => {
     rememberLang(request, reply);
     const lang = langOf(request);
-    if (!hasSession(request, token)) return show(request, reply, 200, 1, welcome(lang));
     const step = (request.query as Record<string, string | undefined>).step;
+    if (!allowed(request) || (!requireToken && !step))
+      return show(request, reply, 200, 1, welcome(lang));
     if (step === 'database')
       return show(request, reply, 200, 3, databasePage(lang, databaseDefaults()));
     return show(request, reply, 200, 2, await requirementsPage(lang, request));
@@ -256,6 +282,7 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
   app.post('/install/token', async (request, reply) => {
     const lang = langOf(request);
     const given = String((request.body as Record<string, unknown> | undefined)?.token ?? '').trim();
+    if (!requireToken) return reply.redirect('/install?step=requirements', 303);
     if (!sameSecret(given, token)) {
       request.log.warn('Setup wizard: wrong setup token.');
       return show(request, reply, 403, 1, welcome(lang, ['The setup token is not correct.']));
@@ -267,7 +294,7 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
   app.post('/install/database', async (request, reply) => {
     const lang = langOf(request);
     const t = tFor(lang);
-    if (!hasSession(request, token)) {
+    if (!allowed(request)) {
       return show(
         request,
         reply,

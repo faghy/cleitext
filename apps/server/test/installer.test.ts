@@ -40,6 +40,7 @@ const valid = {
 beforeAll(async () => {
   installer = await createInstaller({
     config,
+    requireToken: true,
     run: async (args, env) => {
       calls.push({ args, env });
       return 'Installed.';
@@ -118,6 +119,16 @@ describe('web installer', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('asks for no token when the check is off (default)', async () => {
+    const open = await createInstaller({ config, run: async () => '', onInstalled: () => {} });
+    try {
+      const page = await open.inject({ url: '/install', headers: { host: 'new.example' } });
+      expect(page.body).not.toContain('name="token"');
+    } finally {
+      await open.close();
+    }
+  });
+
   it('takes over the setup wizard: same token, no need to enter it again', async () => {
     const root = mkdtempSync(join(tmpdir(), 'cleitext-installer-'));
     const runs: string[][] = [];
@@ -126,6 +137,7 @@ describe('web installer', () => {
     const after = await createInstaller({
       config,
       root,
+      requireToken: true,
       run: async (args) => {
         runs.push(args);
         return 'Installed.';
@@ -135,7 +147,12 @@ describe('web installer', () => {
     try {
       expect(setupToken(config, root)).toBe(token);
       // The session cookie of the wizard.
-      const wizard = await createSetup({ root, onConfigured: () => {}, logLevel: 'silent' });
+      const wizard = await createSetup({
+        root,
+        onConfigured: () => {},
+        logLevel: 'silent',
+        requireToken: true,
+      });
       const opened = await wizard.inject({
         method: 'POST',
         url: '/install/token',

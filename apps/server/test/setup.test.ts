@@ -1,5 +1,13 @@
 /** Setup wizard without a configuration (RF-SIT-02): token, requirements, database. */
-import { lstatSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseEnv } from 'node:util';
@@ -58,7 +66,12 @@ const databaseForm = (overrides: Record<string, string> = {}) => ({
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'cleitext-setup-'));
   db = await provisionDatabase(superuserUrl);
-  wizard = await createSetup({ root, onConfigured: () => configured++, logLevel: 'silent' });
+  wizard = await createSetup({
+    root,
+    onConfigured: () => configured++,
+    logLevel: 'silent',
+    requireToken: true,
+  });
 });
 
 afterAll(async () => {
@@ -68,7 +81,35 @@ afterAll(async () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe('setup wizard', () => {
+describe('setup wizard without the token (default)', () => {
+  it('starts from a welcome page and goes straight to the steps', async () => {
+    const plain = mkdtempSync(join(tmpdir(), 'cleitext-setup-open-'));
+    const open = await createSetup({ root: plain, onConfigured: () => {}, logLevel: 'silent' });
+    try {
+      const page = await open.inject({ url: '/install' });
+      expect(page.statusCode).toBe(200);
+      expect(page.body).not.toContain('name="token"');
+      expect(page.body).toContain('href="/install?step=requirements"');
+      expect(existsSync(tokenFile(plain))).toBe(false);
+      expect((await open.inject({ url: '/install?step=database' })).body).toContain(
+        'name="ownerPassword"',
+      );
+      // No session needed: an incomplete form is refused for what it lacks.
+      const post = await open.inject({
+        method: 'POST',
+        url: '/install/database',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        payload: 'host=localhost',
+      });
+      expect(post.statusCode).toBe(400);
+    } finally {
+      await open.close();
+      rmSync(plain, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('setup wizard with the token (CLEITEXT_SETUP_TOKEN)', () => {
   it('asks for the setup token, kept in tmp/setup-token', async () => {
     const page = await wizard.inject({ url: '/install' });
     expect(page.statusCode).toBe(200);

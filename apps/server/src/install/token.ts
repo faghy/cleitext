@@ -18,6 +18,16 @@ export function appRoot(): string {
   return resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 }
 
+/**
+ * Whether the wizard and the installer ask for the setup token. Off for now, by
+ * the maintainer's choice: install right after enabling the application, since
+ * until then whoever opens the site first can complete the setup. Turn it on
+ * with CLEITEXT_SETUP_TOKEN=true.
+ */
+export function tokenRequired(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.CLEITEXT_SETUP_TOKEN === 'true' || env.CLEITEXT_SETUP_TOKEN === '1';
+}
+
 export function tokenFile(root: string): string {
   return join(root, 'tmp', 'setup-token');
 }

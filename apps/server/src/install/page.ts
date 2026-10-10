@@ -39,6 +39,9 @@ const IT: Record<string, string> = {
   'Install Cleitext': 'Installa Cleitext',
   'Setup token': 'Codice di setup',
   Continue: 'Continua',
+  Start: 'Inizia',
+  'Have the database details at hand: name, user and password, created in your panel (Plesk: Databases → Add Database, PostgreSQL).':
+    'Tieni a portata di mano i dati del database: nome, utente e password, creati dal pannello (Plesk: Database → Aggiungi database, PostgreSQL).',
   Back: 'Indietro',
   Install: 'Installa',
   'Step {n} of {total}': 'Passo {n} di {total}',

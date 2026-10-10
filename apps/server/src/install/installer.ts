@@ -13,7 +13,7 @@ import {
   translate,
   type Lang,
 } from './page.js';
-import { appRoot, hasSession, readToken, removeToken, sameSecret } from './token.js';
+import { appRoot, hasSession, readToken, removeToken, sameSecret, tokenRequired } from './token.js';
 
 /**
  * Guided web installation on first start (RF-SIT-02). While the database has
@@ -32,6 +32,8 @@ export interface InstallerOptions {
   onInstalled: () => void;
   /** The application root, where `tmp/setup-token` is. */
   root?: string;
+  /** Ask for the setup token; default: `tokenRequired()` (CLEITEXT_SETUP_TOKEN). */
+  requireToken?: boolean;
 }
 
 const LOCALE_RE = /^[a-z]{2,3}(-[A-Z]{2})?$/;
@@ -65,6 +67,7 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
   const { config } = options;
   const root = options.root ?? appRoot();
   const token = setupToken(config, root);
+  const requireToken = options.requireToken ?? tokenRequired();
   const run: InstallRunner = options.run ?? ((args, env) => runCli(args, config, env));
   let installing = false;
   let installed = false;
@@ -83,7 +86,7 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
   const page = (request: FastifyRequest, reply: FastifyReply, status: number, body: string) =>
     sendPage(reply, status, langOf(request), body, { current: 4, labels: STEPS });
   /** The token was already entered in the setup wizard. */
-  const known = (request: FastifyRequest) => hasSession(request, token);
+  const known = (request: FastifyRequest) => !requireToken || hasSession(request, token);
 
   const defaults = (request: FastifyRequest): FormValues => ({
     token: '',

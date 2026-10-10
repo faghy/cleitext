@@ -11,8 +11,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+/** The version is in the archive names only: inside, the folder is always `cleitext`. */
 const name = `cleitext-${version}`;
-const out = join(root, 'release', name);
+const folder = 'cleitext';
+const out = join(root, 'release', folder);
 const pnpm = (...args) => execFileSync('pnpm', args, { cwd: root, stdio: 'inherit' });
 
 await rm(out, { recursive: true, force: true });
@@ -113,7 +115,7 @@ for (const file of ['LICENSE', 'README.md']) await cp(join(root, file), join(out
 await cp(join(root, 'docs/DEPLOYMENT.md'), join(out, 'DEPLOYMENT.md')).catch(() => {});
 
 console.log('[release] archives…');
-execFileSync('tar', ['-czf', `${name}.tar.gz`, name], {
+execFileSync('tar', ['-czf', `${name}.tar.gz`, folder], {
   cwd: join(root, 'release'),
   stdio: 'inherit',
 });
@@ -124,7 +126,7 @@ const zip = (file, folder, cwd) =>
     cwd,
     stdio: 'inherit',
   });
-zip(`${name}.zip`, name, join(root, 'release'));
+zip(`${name}.zip`, folder, join(root, 'release'));
 console.log(`[release] release/${name}.tar.gz and .zip`);
 for (const slug of separate) {
   const manifest = JSON.parse(

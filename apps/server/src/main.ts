@@ -4,7 +4,7 @@ import { createApp } from './app.js';
 import { ConfigError, loadConfig, type AppConfig } from './config/config.js';
 import { createInstaller, needsInstall, setupToken } from './install/installer.js';
 import { createSetup, needsSetup } from './install/setup.js';
-import { appRoot, ensureToken, tokenFile } from './install/token.js';
+import { appRoot, ensureToken, tokenFile, tokenRequired } from './install/token.js';
 
 declare const PhusionPassenger: unknown;
 
@@ -48,11 +48,13 @@ async function setup(): Promise<void> {
   const wizard = await createSetup({ root, onConfigured: () => done() });
   await wizard.listen({ port, host });
   console.log(
-    [
-      'Cleitext has no configuration yet.',
-      `Open /install on this site and enter the setup token: ${ensureToken(root)}`,
-      `(also in ${tokenFile(root)})`,
-    ].join('\n'),
+    tokenRequired()
+      ? [
+          'Cleitext has no configuration yet.',
+          `Open /install on this site and enter the setup token: ${ensureToken(root)}`,
+          `(also in ${tokenFile(root)})`,
+        ].join('\n')
+      : 'Cleitext has no configuration yet: open /install on this site.',
   );
   await finished;
   await wizard.close();
@@ -67,7 +69,9 @@ async function install(config: AppConfig): Promise<void> {
   console.log(
     [
       'Cleitext is not installed yet.',
-      `Open /install on this server and enter the setup token: ${setupToken(config)}`,
+      tokenRequired()
+        ? `Open /install on this server and enter the setup token: ${setupToken(config)}`
+        : 'Open /install on this server.',
       'Or install from the command line: cleitext install',
     ].join('\n'),
   );
