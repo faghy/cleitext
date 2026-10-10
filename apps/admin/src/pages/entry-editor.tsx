@@ -121,9 +121,12 @@ function Editor({ initial }: { initial: EntryView }) {
       import('@cleitext/editor-gutenberg'),
       // Blocks of the plugins active on the site.
       api<PluginBlockView[]>('GET', '/blocks').catch(() => [] as PluginBlockView[]),
-    ]).then(([{ gutenbergAdapter }, blocks]) => {
+      // The theme's styles for the canvas.
+      api<{ css: string }>('GET', '/themes/active/editor-styles').catch(() => ({ css: '' })),
+    ]).then(([{ gutenbergAdapter }, blocks, styles]) => {
       if (cancelled || !canvasRef.current) return;
       editorRef.current = gutenbergAdapter.mount({
+        styles: styles.css,
         document: documentRef.current,
         targets: { canvas: canvasRef.current, inspector: inspectorRef.current },
         services: mediaServices(initial.locale),
@@ -894,7 +897,7 @@ function EditorShell({ children }: { children: React.ReactNode }) {
 }
 
 /** Media services given to the editor adapter (upload and library). */
-function mediaServices(locale: string): EditorServices {
+export function mediaServices(locale: string): EditorServices {
   const toRef = (m: MediaView): MediaRef => ({
     id: m.id,
     url: m.url,

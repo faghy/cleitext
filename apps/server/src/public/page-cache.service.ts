@@ -43,6 +43,7 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   private unlisten: (() => Promise<void>) | null = null;
   private readonly siteListeners = new Set<() => void>();
   private readonly pluginListeners = new Set<() => void>();
+  private readonly themeListeners = new Set<() => void>();
   readonly stats = { hits: 0, misses: 0, invalidations: 0 };
 
   constructor(
@@ -167,6 +168,11 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
     this.pluginListeners.add(listener);
   }
 
+  /** Called when themes were installed, updated or removed (by the CLI). */
+  onThemesChange(listener: () => void): void {
+    this.themeListeners.add(listener);
+  }
+
   /** Drops every cached page of this process. */
   clearLocal(): void {
     this.pages.clear();
@@ -181,8 +187,10 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
         from?: string;
         sites?: boolean;
         plugins?: boolean;
+        themes?: boolean;
       };
       if (message.plugins === true) for (const listener of this.pluginListeners) listener();
+      if (message.themes === true) for (const listener of this.themeListeners) listener();
       if (message.from === this.processId) return; // already applied locally
       if (message.sites === true) for (const listener of this.siteListeners) listener();
       if (typeof message.siteId === 'string' && Array.isArray(message.tags)) {

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import {
+  BlockArea,
   defineTheme,
   EntryContent,
   FormattedDate,
@@ -7,6 +8,7 @@ import {
   Image,
   Menu,
   usePage,
+  useThemeSettings,
   type LayoutProps,
   type Pagination,
   type PublicEntrySummary,
@@ -21,9 +23,24 @@ const ICON = `data:image/svg+xml,${encodeURIComponent(
 
 /** Aurora: Cleitext's default theme (RF-THM-05). Accessible, fast, no JavaScript. */
 
+interface Settings extends Record<string, unknown> {
+  logo?: string;
+  accentColor?: string;
+  showTagline?: boolean;
+  showSearch?: boolean;
+  footerText?: string;
+}
+
+/** Only plain hex colors reach the stylesheet. */
+const HEX = /^#[0-9a-f]{6}$/i;
+
 function Layout({ head, css, children }: LayoutProps) {
   const page = usePage();
   const t = strings(page.locale);
+  const settings = useThemeSettings<Settings>();
+  const logo = settings.logo ? page.media.get(settings.logo) : undefined;
+  const accent =
+    settings.accentColor && HEX.test(settings.accentColor) ? settings.accentColor : null;
   return (
     <html lang={page.locale}>
       <head>
@@ -45,6 +62,13 @@ function Layout({ head, css, children }: LayoutProps) {
           content={head.og['og:image'] ? 'summary_large_image' : 'summary'}
         />
         <style dangerouslySetInnerHTML={{ __html: css }} />
+        {accent && (
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `@media (prefers-color-scheme: light) { :root { --accent: ${accent}; } }`,
+            }}
+          />
+        )}
         <HeadTags tags={head.tags} />
       </head>
       <body>
@@ -54,21 +78,29 @@ function Layout({ head, css, children }: LayoutProps) {
         <header className="site-header">
           <div className="container">
             <a className="site-title" href={page.urls.home}>
-              {page.site.title}
-              {page.site.tagline && <span className="site-tagline">{page.site.tagline}</span>}
+              {logo ? (
+                <img className="site-logo" src={logo.url} alt={page.site.title} />
+              ) : (
+                page.site.title
+              )}
+              {settings.showTagline !== false && page.site.tagline && (
+                <span className="site-tagline">{page.site.tagline}</span>
+              )}
             </a>
             {(page.menus.primary?.length ?? 0) > 0 && (
               <nav className="site-nav" aria-label={t.mainMenu}>
                 <Menu items={page.menus.primary!} />
               </nav>
             )}
-            <form className="search-form" role="search" action={page.urls.search} method="get">
-              <label className="visually-hidden" htmlFor="search-q">
-                {t.search}
-              </label>
-              <input id="search-q" type="search" name="q" placeholder={t.searchPlaceholder} />
-              <button type="submit">{t.search}</button>
-            </form>
+            {settings.showSearch !== false && (
+              <form className="search-form" role="search" action={page.urls.search} method="get">
+                <label className="visually-hidden" htmlFor="search-q">
+                  {t.search}
+                </label>
+                <input id="search-q" type="search" name="q" placeholder={t.searchPlaceholder} />
+                <button type="submit">{t.search}</button>
+              </form>
+            )}
             {page.locales.length > 1 && (
               <nav className="languages" aria-label={t.languages}>
                 <ul>
@@ -91,6 +123,7 @@ function Layout({ head, css, children }: LayoutProps) {
         </header>
         <main id="content">{children}</main>
         <footer className="site-footer">
+          <BlockArea name="footer" className="container footer-area" />
           <div className="container">
             {(page.menus.footer?.length ?? 0) > 0 && (
               <nav className="footer-nav" aria-label={t.footerMenu}>
@@ -98,8 +131,8 @@ function Layout({ head, css, children }: LayoutProps) {
               </nav>
             )}
             <p>
-              © {new Date().getFullYear()} {page.site.title} · {t.poweredBy}{' '}
-              <a href="https://github.com/faghy/cleitext">Cleitext</a>
+              {settings.footerText || `© ${new Date().getFullYear()} ${page.site.title}`} ·{' '}
+              {t.poweredBy} <a href="https://github.com/faghy/cleitext">Cleitext</a>
             </p>
           </div>
         </footer>
@@ -248,10 +281,41 @@ export const theme = defineTheme({
   slug: 'aurora',
   name: 'Aurora',
   version: '0.1.0',
+  description: 'Clean and readable, light and dark, without JavaScript.',
   menuLocations: { primary: 'Main menu', footer: 'Footer menu' },
+  settings: [
+    { name: 'logo', type: 'media', label: { en: 'Logo', it: 'Logo' } },
+    {
+      name: 'accentColor',
+      type: 'text',
+      label: { en: 'Accent color', it: 'Colore principale' },
+      help: { en: 'Hexadecimal, e.g. #0b5cad', it: 'Esadecimale, es. #0b5cad' },
+      maxLength: 7,
+    },
+    {
+      name: 'showTagline',
+      type: 'boolean',
+      label: { en: 'Show the tagline', it: 'Mostra il motto' },
+      default: true,
+    },
+    {
+      name: 'showSearch',
+      type: 'boolean',
+      label: { en: 'Show the search box', it: 'Mostra la ricerca' },
+      default: true,
+    },
+    {
+      name: 'footerText',
+      type: 'text',
+      label: { en: 'Footer text', it: 'Testo del piè di pagina' },
+      maxLength: 200,
+    },
+  ],
+  areas: { footer: 'Footer' },
   templates: { index: Index },
   Layout,
   css: readFileSync(new URL('../style.css', import.meta.url), 'utf8'),
+  editorCss: readFileSync(new URL('../editor.css', import.meta.url), 'utf8'),
 });
 
 export default theme;

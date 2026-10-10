@@ -5,6 +5,7 @@ import { Fragment, type PointerEvent, useEffect, useRef, useState } from 'react'
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card, TextField } from '../components/ui';
+import { AreasTab, CustomizeTab, ThemesTab } from './theme-tabs';
 import {
   block,
   canIndent,
@@ -34,8 +35,50 @@ interface DragState {
 
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
 
-/** Appearance → Menus (RF-NAV-01/02/03). Themes come with the plugin system. */
+type Tab = 'menus' | 'themes' | 'customize' | 'areas';
+
+/** Appearance: themes, their settings and areas, menus. */
 export function AppearancePage() {
+  const { t } = useT();
+  const me = useMe();
+  const [tab, setTab] = useState<Tab>('menus');
+  const tabs: { id: Tab; label: string; capability: string }[] = [
+    { id: 'themes', label: 'Themes', capability: 'manage_themes' },
+    { id: 'customize', label: 'Customize', capability: 'edit_theme_settings' },
+    { id: 'areas', label: 'Areas', capability: 'edit_theme_settings' },
+    { id: 'menus', label: 'Menus', capability: 'manage_menus' },
+  ];
+  const visible = tabs.filter((item) => me.capabilities.includes(item.capability));
+  const current = visible.some((item) => item.id === tab) ? tab : (visible[0]?.id ?? 'menus');
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-4">
+        <h1 className="text-2xl font-semibold">{t('Appearance')}</h1>
+        <div role="tablist" aria-label={t('Appearance')} className="flex gap-1 text-sm">
+          {visible.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={current === item.id}
+              onClick={() => setTab(item.id)}
+              className={`rounded px-3 py-1 ${current === item.id ? 'bg-slate-800 text-white' : 'text-sky-700 hover:underline'}`}
+            >
+              {t(item.label)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {current === 'themes' && <ThemesTab />}
+      {current === 'customize' && <CustomizeTab />}
+      {current === 'areas' && <AreasTab />}
+      {current === 'menus' && <MenusTab />}
+    </div>
+  );
+}
+
+/** Appearance → Menus (RF-NAV-01/02/03). */
+function MenusTab() {
   const { t } = useT();
   const me = useMe();
   const queryClient = useQueryClient();
@@ -67,7 +110,7 @@ export function AppearancePage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">{t('Menus')}</h1>
+          <h2 className="text-xl font-semibold">{t('Menus')}</h2>
           {theme.data && (
             <p className="text-sm text-slate-600">
               {t('Theme: {name} {version}', {

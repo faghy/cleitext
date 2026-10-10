@@ -445,3 +445,13 @@ code {
   height: auto;
   border-radius: 0.5rem;
 }
+
+/* Logo and footer area (theme settings, RF-THM-03/04). */
+.site-logo {
+  display: block;
+  max-height: 3rem;
+  width: auto;
+}
+.footer-area {
+  padding-block: 1.5rem 0;
+}

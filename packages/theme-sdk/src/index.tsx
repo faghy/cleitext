@@ -42,6 +42,30 @@ export function EntryContent({ document }: { document: CxdDocument }) {
   );
 }
 
+/** Values of the active theme's settings (RF-THM-03), defaults included. */
+export function useThemeSettings<T extends Record<string, unknown> = Record<string, unknown>>(): T {
+  return (usePage().themeSettings ?? {}) as T;
+}
+
+/** A block area of the theme (RF-THM-04); nothing when it is empty. */
+export function BlockArea({ name, className }: { name: string; className?: string }) {
+  const page = usePage();
+  const document = page.areas?.[name];
+  if (!document || document.blocks.length === 0) return null;
+  return (
+    <div className={className ?? `block-area block-area-${name}`}>
+      <Blocks
+        document={document}
+        context={{
+          media: page.media,
+          locale: page.locale,
+          ...(page.blockRenderers ? { renderers: page.blockRenderers } : {}),
+        }}
+      />
+    </div>
+  );
+}
+
 /** Extra `<head>` tags added by plugins. Layouts render it inside `<head>`. */
 export function HeadTags({ tags }: { tags: HeadTag[] | undefined }) {
   return (tags ?? []).map((tag, index) => {

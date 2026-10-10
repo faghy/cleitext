@@ -1,3 +1,4 @@
+import type { FieldDefinition } from '@cleitext/shared';
 import type { CxdDocument } from '@cleitext/blocks';
 import type { BlockRenderer, RenderMedia } from '@cleitext/renderer';
 import type { ComponentType, ReactNode } from 'react';
@@ -124,8 +125,21 @@ export interface ThemeDefinition {
   slug: string;
   name: string;
   version: string;
+  description?: string;
   /** Menu locations offered by the theme: key → label. */
   menuLocations: Record<string, string>;
+  /**
+   * Settings shown in Appearance → Customize (RF-THM-03): logo, colors,
+   * texts… Values reach templates through `useThemeSettings()`.
+   */
+  settings?: FieldDefinition[];
+  /**
+   * Areas made of blocks (RF-THM-04), e.g. `{ footer: 'Footer' }`, edited in
+   * Appearance → Areas and rendered with `<BlockArea name="footer" />`.
+   */
+  areas?: Record<string, string>;
+  /** CSS for the block editor's canvas, so that content looks like the site. */
+  editorCss?: string;
   /** Template components by name; `index` is required. */
   templates: { index: TemplateComponent } & Partial<Record<string, TemplateComponent>>;
   Layout: ComponentType<LayoutProps>;
@@ -145,4 +159,8 @@ export interface PageContext {
   media: ReadonlyMap<string, RenderMedia>;
   /** Renderers of plugin blocks available on this site. */
   blockRenderers?: ReadonlyMap<string, BlockRenderer>;
+  /** Values of the theme settings, defaults included. */
+  themeSettings?: Readonly<Record<string, unknown>>;
+  /** Block areas in the page's language, by name. */
+  areas?: Readonly<Record<string, CxdDocument>>;
 }

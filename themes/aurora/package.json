@@ -13,7 +13,8 @@
   },
   "files": [
     "dist",
-    "style.css"
+    "style.css",
+    "editor.css"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

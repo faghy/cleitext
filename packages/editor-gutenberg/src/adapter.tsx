@@ -183,7 +183,13 @@ function GutenbergEditor({
       hasFixedToolbar: false,
       focusMode: false,
       bodyPlaceholder: 'Type / to choose a block',
-      __unstableResolvedAssets: RESOLVED_ASSETS,
+      __unstableResolvedAssets: options.styles
+        ? {
+            ...RESOLVED_ASSETS,
+            // The theme's editor styles (RF-THM-03), after the defaults.
+            styles: `${RESOLVED_ASSETS.styles}<style>${options.styles.replace(/<\/style/gi, '<\\/style')}</style>`,
+          }
+        : RESOLVED_ASSETS,
       ...(options.services.uploadMedia ? { mediaUpload: makeMediaUpload(options) } : {}),
     }),
     [options],

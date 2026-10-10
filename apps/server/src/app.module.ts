@@ -18,6 +18,8 @@ import { EntriesController } from './content/entries.controller.js';
 import { OEmbedController } from './content/oembed.controller.js';
 import { StructureController } from './content/structure.controller.js';
 import { StructureService } from './content/structure.service.js';
+import { ThemesController } from './themes/themes.controller.js';
+import { ThemesService } from './themes/themes.service.js';
 import { EntriesService } from './content/entries.service.js';
 import { SchedulerService } from './content/scheduler.service.js';
 import { TermsController } from './content/terms.controller.js';
@@ -103,6 +105,7 @@ export class AppModule {
         SecuritySettingsController,
         OEmbedController,
         StructureController,
+        ThemesController,
         EntriesController,
         MediaController,
         TermsController,
@@ -125,6 +128,7 @@ export class AppModule {
         ApiTokenService,
         RolesService,
         StructureService,
+        ThemesService,
         LoginThrottleService,
         MailService,
         MediaService,

@@ -224,4 +224,17 @@ export const itContent: Messages = {
   'Yes / no': 'Sì / no',
   '{count} old addresses now redirect to the new ones.':
     'Ora {count} vecchi indirizzi rimandano ai nuovi.',
+  Area: 'Area',
+  Areas: 'Aree',
+  Customize: 'Personalizza',
+  'Customize {name}': 'Personalizza {name}',
+  'More themes are installed on the server with {command}.':
+    'Altri temi si installano sul server con {command}.',
+  'Preview of': 'Anteprima di',
+  'Save area': 'Salva area',
+  'Site preview': 'Anteprima del sito',
+  Themes: 'Temi',
+  'This theme could not be loaded: {error}': 'Non è stato possibile caricare questo tema: {error}',
+  'This theme has no block areas.': 'Questo tema non ha aree di blocchi.',
+  'This theme has no settings.': 'Questo tema non ha impostazioni.',
 };

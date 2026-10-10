@@ -27,6 +27,8 @@ export interface EditorMountOptions {
    * builds their editing form itself, so they work with any editor.
    */
   fieldBlocks?: FieldBlockDefinition[];
+  /** CSS of the site's theme for the canvas, so content looks like the site. */
+  styles?: string;
   /**
    * Shortcuts handled by the host page (e.g. save), listed in the editor's
    * keyboard shortcuts help next to the editor's own (RF-EDT-06).

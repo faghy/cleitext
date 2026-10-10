@@ -46,6 +46,7 @@ const envSchema = z.object({
   ADMIN_PATH: z.string().min(1).optional(),
   /** Installed plugins (written by `cleitext plugin:install`). */
   PLUGINS_PATH: z.string().min(1).default('cleitext-data/plugins'),
+  THEMES_PATH: z.string().min(1).default('cleitext-data/themes'),
   MEDIA_MAX_BYTES: z.coerce
     .number()
     .int()
@@ -76,6 +77,7 @@ export interface AppConfig {
   schedulerIntervalSeconds: number;
   media: { path: string; maxBytes: number };
   plugins: { path: string };
+  themes: { path: string };
   /** Folder of the built admin, if the server serves it (production). */
   admin: { path: string | null };
   pageCache: { maxEntries: number; ttlSeconds: number };
@@ -112,6 +114,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,
     media: { path: resolve(e.MEDIA_PATH), maxBytes: e.MEDIA_MAX_BYTES },
     plugins: { path: resolve(e.PLUGINS_PATH) },
+    themes: { path: resolve(e.THEMES_PATH) },
     admin: { path: adminPath(e.ADMIN_PATH) },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
     // Development and tests only: production refuses to start without one.

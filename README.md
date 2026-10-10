@@ -63,6 +63,7 @@ On first start, `pnpm dev` creates a local database in `.cleitext-dev/`, writes 
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)     | Principles, stack, data model (DDL), multi-site, editor, plugins, themes, security, deployment, ADRs, risks |
 | [`docs/SPECIFICATIONS.md`](./docs/SPECIFICATIONS.md) | Functional and non-functional requirements, REST API, plugin SDK, hooks, CXD format, CLI, roadmap           |
 | [`docs/PLUGINS.md`](./docs/PLUGINS.md)               | Developing plugins: manifest, hooks, content types, blocks, routes, own tables, admin pages                 |
+| [`docs/THEMES.md`](./docs/THEMES.md)                 | Developing themes: templates, settings, block areas, editor styles                                          |
 | [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)         | Installing and updating on a server (Plesk, nginx), backups                                                 |
 | [`docs/ASVS.md`](./docs/ASVS.md)                     | OWASP ASVS security checklist, open items; vulnerability reports in [`SECURITY.md`](./SECURITY.md)          |
 

@@ -81,6 +81,7 @@ APP_SECRET=…                      # openssl rand -hex 32
 TRUST_PROXY=true                  # behind nginx
 MEDIA_PATH=/var/www/vhosts/example.com/cleitext-shared/media
 PLUGINS_PATH=/var/www/vhosts/example.com/cleitext-shared/plugins
+THEMES_PATH=/var/www/vhosts/example.com/cleitext-shared/themes
 MAIL_URL=smtp://user:password@localhost:587
 MAIL_FROM=Example <no-reply@example.com>
 ```

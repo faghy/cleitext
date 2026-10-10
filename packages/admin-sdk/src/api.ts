@@ -30,7 +30,12 @@ export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  * JSON client for `/api/v1`. Sends the session cookie and, on state-changing
  * requests, the CSRF header (refreshing the token once if it was rejected).
  */
-export async function api<T>(method: Method, path: string, body?: unknown): Promise<T> {
+export async function api<T>(
+  method: Method,
+  path: string,
+  body?: unknown,
+  options: { text?: boolean } = {},
+): Promise<T> {
   const send = async (token: string | null) =>
     fetch(`/api/v1${path}`, {
       method,
@@ -52,6 +57,8 @@ export async function api<T>(method: Method, path: string, body?: unknown): Prom
   }
 
   if (res.status === 204) return undefined as T;
+  // Pages (e.g. a theme preview) come back as text.
+  if (options.text && res.ok) return (await res.text()) as T;
   const data = (await res.json().catch(() => null)) as unknown;
   if (!res.ok) {
     throw new ApiError(

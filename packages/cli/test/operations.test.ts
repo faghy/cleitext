@@ -10,6 +10,9 @@ import {
 } from '@cleitext/db';
 import { verify } from '@node-rs/argon2';
 import { eq } from 'drizzle-orm';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { inject } from 'vitest';
 import {
@@ -25,6 +28,7 @@ import {
   setPassword,
   updateSite,
 } from '../src/operations.js';
+import { uninstallTheme } from '../src/themes.js';
 
 let owner: DatabaseClient;
 
@@ -153,5 +157,20 @@ describe('users', () => {
     await setPassword(owner.db, 'root@example.com', 'another long password');
     const [user] = await owner.db.select().from(users).where(eq(users.email, 'root@example.com'));
     expect(await verify(user!.passwordHash!, 'another long password')).toBe(true);
+  });
+});
+
+describe('theme uninstall', () => {
+  it('refuses themes still used by a site', async () => {
+    const themesPath = await mkdtemp(path.join(tmpdir(), 'cleitext-themes-'));
+    await mkdir(path.join(themesPath, 'used'));
+    await writeFile(
+      path.join(themesPath, 'used', 'theme.json'),
+      JSON.stringify({ slug: 'used', name: 'Used', version: '1.0.0' }),
+    );
+    await owner.db.update(sites).set({ themeSlug: 'used' }).where(eq(sites.slug, 'main'));
+    await expect(uninstallTheme(owner.db, 'used', themesPath)).rejects.toThrow(/Used by main/);
+    await owner.db.update(sites).set({ themeSlug: null }).where(eq(sites.slug, 'main'));
+    await uninstallTheme(owner.db, 'used', themesPath);
   });
 });

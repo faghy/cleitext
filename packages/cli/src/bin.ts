@@ -20,6 +20,13 @@ import {
 } from './operations.js';
 import { backup, restore } from './backup.js';
 import {
+  announceThemeChange,
+  buildTheme,
+  installTheme,
+  listThemes,
+  uninstallTheme,
+} from './themes.js';
+import {
   buildPlugin,
   installPlugin,
   listPlugins,
@@ -348,6 +355,66 @@ program
       await announcePluginChange(db);
     });
   });
+
+// ---- Themes (RF-THM-01) -----------------------------------------------------------------
+
+function themesPath(): string {
+  return path.resolve(process.env.THEMES_PATH ?? 'cleitext-data/themes');
+}
+
+program
+  .command('theme:build')
+  .description('Bundle a theme (TypeScript/JSX) into the entry named in its theme.json.')
+  .argument('[dir]', 'theme folder', '.')
+  .action(async (dir: string) => {
+    const { manifest, output } = await buildTheme(path.resolve(dir));
+    console.log(
+      `Built ${manifest.slug} ${manifest.version}: ${path.relative(process.cwd(), output)}`,
+    );
+  });
+
+program
+  .command('theme:install')
+  .description('Install or update a theme from a folder; activate it per site in the admin.')
+  .argument('<dir>', 'theme folder')
+  .option('--link', 'link the folder instead of copying it (development)')
+  .option('--build', 'build the theme first')
+  .action(async (dir: string, opts: { link?: boolean; build?: boolean }) => {
+    if (opts.build) await buildTheme(path.resolve(dir));
+    const { manifest, previousVersion } = await installTheme({
+      source: dir,
+      themesPath: themesPath(),
+      link: Boolean(opts.link),
+    });
+    console.log(
+      previousVersion
+        ? `Updated ${manifest.slug} ${previousVersion} → ${manifest.version}.`
+        : `Installed ${manifest.slug} ${manifest.version}. Activate it in Appearance → Themes.`,
+    );
+    await withOwner((db) => announceThemeChange(db));
+  });
+
+program
+  .command('theme:list')
+  .description('List the installed themes (Aurora is always available).')
+  .action(async () => {
+    console.log('aurora\t(bundled)');
+    for (const theme of await listThemes(themesPath())) {
+      console.log(`${theme.slug}\t${theme.version}\t${theme.name}`);
+    }
+  });
+
+program
+  .command('theme:uninstall')
+  .description('Remove an installed theme that no site uses.')
+  .argument('<slug>')
+  .action((slug: string) =>
+    withOwner(async (db) => {
+      await uninstallTheme(db, slug, themesPath());
+      await announceThemeChange(db);
+      console.log(`Uninstalled ${slug}.`);
+    }),
+  );
 
 // ---- Backup and restore (RNF-15) ------------------------------------------------------
 

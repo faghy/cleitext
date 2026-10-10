@@ -62,6 +62,7 @@ import { routeRequest, sendRouteResponse } from '../plugins/plugin-routes.js';
 import { verifyPreviewToken } from './preview.js';
 import { themeFor } from './themes.js';
 import { PUBLIC_CSP } from '../common/security-headers.js';
+import { themeAreas, themeMediaIds, themeSettings } from './theme-data.js';
 import { matchPermalink } from './urls.js';
 
 const HTML = 'text/html; charset=utf-8';
@@ -105,6 +106,8 @@ interface RequestScope {
   includePrivate: boolean;
   /** Renderers of plugin blocks for the entry being rendered. */
   blockRenderers?: ReadonlyMap<string, BlockRenderer>;
+  /** Unsaved theme settings shown by the Customize preview (RF-THM-03). */
+  themeSettings?: Record<string, unknown>;
 }
 
 /** Public site: routing, data loading and theme rendering (docs/ARCHITECTURE.md §12). */
@@ -317,6 +320,8 @@ export class PublicService {
     query: URLSearchParams,
     /** Signed-in visitor: private entries are shown to those who may read them. */
     viewer: { capabilities: readonly string[] } | null = null,
+    /** Theme settings to preview instead of the saved ones (never cached). */
+    customize?: { themeSettings: Record<string, unknown> },
   ): Promise<PublicResponse> {
     const includePrivate = viewer?.capabilities.includes('read_private_entries') ?? false;
     let path: string;
@@ -348,6 +353,7 @@ export class PublicService {
       }
 
       const { scope, rest } = await this.scope(tx, siteId, origin, path, includePrivate);
+      if (customize) scope.themeSettings = customize.themeSettings;
 
       if (redirect?.status === 410) return this.notFound(scope, 410);
       if (path === '/robots.txt') return this.robots(scope);
@@ -1068,6 +1074,13 @@ export class PublicService {
       new Set(data.types.map((t) => t.slug)),
     );
     scope.tags.add(`menus:${locale}`);
+    // Theme settings and block areas, with the media they use.
+    const themeValues = scope.themeSettings ?? (await themeSettings(scope.tx, theme));
+    const areas = await themeAreas(scope.tx, theme, locale);
+    const extraMedia = themeMediaIds(theme, themeValues, areas).filter((id) => !media.has(id));
+    if (extraMedia.length > 0) {
+      for (const [id, item] of await loadMedia(scope.tx, extraMedia, locale)) media.set(id, item);
+    }
     const locales: LocaleLink[] = data.locales.map((l) => ({
       code: l.code,
       name: l.name,
@@ -1089,6 +1102,8 @@ export class PublicService {
       urls: { home: data.urls.home(locale), search: data.urls.search(locale) },
       media,
       ...(scope.blockRenderers ? { blockRenderers: scope.blockRenderers } : {}),
+      themeSettings: themeValues,
+      areas,
     };
     const Template = resolveTemplate(theme, candidates);
     let html = renderHtmlDocument(

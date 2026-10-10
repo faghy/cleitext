@@ -1,0 +1,40 @@
+/* Aurora in the block editor: the same type and colors as the site. */
+body {
+  font:
+    1.125rem/1.7 system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  color: #1f2933;
+}
+a {
+  color: #0b5cad;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  line-height: 1.25;
+  text-wrap: balance;
+}
+.wp-block-quote {
+  border-left: 4px solid #0b5cad;
+  padding-left: 1.25rem;
+  font-size: 1.2rem;
+}
+.wp-block-code {
+  background: #f5f7fa;
+  border: 1px solid #dde3ea;
+  border-radius: 6px;
+  padding: 1rem;
+}
+.wp-block-button__link {
+  background: #0b5cad;
+  color: #fff;
+  border-radius: 999px;
+}

@@ -1,0 +1,8 @@
+{
+  "slug": "plain",
+  "name": "Plain",
+  "version": "1.0.0",
+  "description": "Example Cleitext theme: one column, system fonts, a settings field and a block area.",
+  "license": "GPL-2.0-or-later",
+  "entry": "dist/index.js"
+}
