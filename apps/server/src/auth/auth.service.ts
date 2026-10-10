@@ -17,6 +17,8 @@ import { IdentityService } from './identity.service.js';
 import { LoginThrottleService } from './login-throttle.service.js';
 import { SessionService, UserTokenService } from './session.service.js';
 import { TwoFactorService } from './two-factor.service.js';
+import { PasskeyService, type RelyingParty } from './passkey.service.js';
+import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 
 const INVALID_CREDENTIALS = 'The email or password is not correct.';
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
@@ -46,6 +48,7 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly twoFactor: TwoFactorService,
+    private readonly passkeys: PasskeyService,
   ) {}
 
   /**
@@ -134,6 +137,31 @@ export class AuthService {
     await this.throttle.recordSuccess(email);
     const remember = Boolean(meta.remember);
     return { ...(await this.startSession(siteId, auth, remember, client, method)), remember };
+  }
+
+  /** Passkey sign-in (RF-USR-05): the passkey is both factors, no TOTP step. */
+  async loginPasskey(
+    siteId: string,
+    rp: RelyingParty,
+    token: string | undefined,
+    response: AuthenticationResponseJSON,
+    client: ClientInfo,
+  ): Promise<{ auth: AuthContext; token: string; expiresAt: Date }> {
+    const userId = await this.passkeys.authenticate(rp, token, response);
+    const auth = userId ? await this.identity.load(siteId, userId, '') : null;
+    if (!auth) {
+      await withContext(this.database.db, { siteId }, (tx) =>
+        this.audit.record(tx, {
+          siteId,
+          userId,
+          action: 'user.login.failed',
+          meta: { method: 'passkey' },
+          ip: client.ip,
+        }),
+      );
+      throw new UnauthorizedException('This passkey cannot sign in to this site.');
+    }
+    return this.startSession(siteId, auth, false, client, 'passkey');
   }
 
   private async startSession(

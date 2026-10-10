@@ -59,6 +59,29 @@ export interface TwoFactorSetupView {
   otpauthUrl: string;
 }
 
+export interface PasskeyView {
+  id: string;
+  name: string;
+  /** The domain it works on (passkeys are bound to a host). */
+  domain: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+/** Browser credential (WebAuthn JSON), checked by the server library. */
+const credentialSchema = z
+  .object({ id: z.string().min(1).max(1_024), type: z.literal('public-key') })
+  .loose();
+
+export const passkeyLoginRequestSchema = z.object({ response: credentialSchema });
+
+export const passkeyRegisterRequestSchema = z.object({
+  response: credentialSchema,
+  name: z.string().trim().max(100).default(''),
+});
+
+export const passkeyRenameRequestSchema = z.object({ name: z.string().trim().min(1).max(100) });
+
 export const securitySettingsSchema = z.object({
   /** Role slugs that must use 2FA; `super_admin` for super admins. */
   require2fa: z.array(z.string().min(1).max(64)).max(50),

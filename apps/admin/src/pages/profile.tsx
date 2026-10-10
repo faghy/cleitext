@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { api, ApiError, errorMessage, uploadFile } from '../api';
 import { Avatar } from '../components/avatar';
 import { TwoFactorCard } from './two-factor-card';
+import { PasskeysCard } from './passkeys-card';
 import { applyTheme, themePreference, type ThemePreference } from '../theme';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
@@ -20,7 +21,10 @@ export function ProfilePage() {
           <PasswordCard />
         </div>
       </div>
-      <TwoFactorCard />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TwoFactorCard />
+        <PasskeysCard />
+      </div>
       <SessionsCard />
     </div>
   );

@@ -23,6 +23,8 @@ export const ACTION_LABELS: Record<string, string> = {
   'user.password.reset': 'reset their password',
   'user.2fa.enabled': 'turned on two-factor authentication',
   'user.2fa.disabled': 'turned off two-factor authentication',
+  'user.passkey.added': 'added a passkey',
+  'user.passkey.removed': 'removed a passkey',
   'member.role.changed': 'changed the role of',
   'member.removed': 'removed from the site',
   'settings.updated': 'changed the settings',

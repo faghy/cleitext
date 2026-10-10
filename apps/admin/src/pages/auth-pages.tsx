@@ -1,6 +1,11 @@
 import type { MeResponse, TwoFactorChallenge } from '@cleitext/shared';
 import { PASSWORD_MIN_LENGTH } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  browserSupportsWebAuthn,
+  startAuthentication,
+  type PublicKeyCredentialRequestOptionsJSON,
+} from '@simplewebauthn/browser';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 import { api, ApiError, errorMessage } from '../api';
@@ -27,6 +32,18 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
       if ('twoFactorRequired' in result) setChallenge(result.challenge);
       else await signedIn(result);
     },
+  });
+
+  const passkey = useMutation({
+    mutationFn: async () => {
+      const optionsJSON = await api<PublicKeyCredentialRequestOptionsJSON>(
+        'POST',
+        '/auth/passkey/options',
+      );
+      const response = await startAuthentication({ optionsJSON });
+      return api<MeResponse>('POST', '/auth/passkey/verify', { response });
+    },
+    onSuccess: signedIn,
   });
 
   if (challenge) {
@@ -91,6 +108,25 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
           </Link>
         </p>
       </form>
+      {browserSupportsWebAuthn() && (
+        <div className="mt-4 space-y-2 border-t border-slate-200 pt-4">
+          {passkey.error && (
+            <Alert>
+              {passkey.error instanceof Error && passkey.error.name === 'NotAllowedError'
+                ? t('The passkey prompt was cancelled or timed out.')
+                : errorMessage(passkey.error)}
+            </Alert>
+          )}
+          <Button
+            variant="secondary"
+            className="w-full"
+            disabled={passkey.isPending}
+            onClick={() => passkey.mutate()}
+          >
+            {t('Use a passkey')}
+          </Button>
+        </div>
+      )}
     </AuthShell>
   );
 }

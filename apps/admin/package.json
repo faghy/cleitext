@@ -17,6 +17,7 @@
     "@cleitext/editor-core": "workspace:*",
     "@cleitext/editor-gutenberg": "workspace:*",
     "@cleitext/shared": "workspace:*",
+    "@simplewebauthn/browser": "^14.0.0",
     "@tanstack/react-query": "^5.104.1",
     "@tanstack/react-router": "^1.170.41",
     "react": "^19.3.0",

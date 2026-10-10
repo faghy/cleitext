@@ -217,4 +217,18 @@ export const itGeneral: Messages = {
   'Your role requires two-factor authentication: set it up to continue.':
     "Il tuo ruolo richiede l'autenticazione a due fattori: configurala per continuare.",
   '{count} recovery codes left.': 'Codici di recupero rimasti: {count}.',
+  'A passkey signs you in with your fingerprint, face or device PIN instead of the password and code. It works on the domain where you create it.':
+    'Una passkey ti fa accedere con impronta, volto o PIN del dispositivo al posto di password e codice. Funziona sul dominio in cui la crei.',
+  'Add a passkey': 'Aggiungi una passkey',
+  'Passkey name': 'Nome della passkey',
+  Passkeys: 'Passkey',
+  'Remove the passkey "{name}"?': 'Rimuovere la passkey «{name}»?',
+  'Use a passkey': 'Usa una passkey',
+  'The passkey prompt was cancelled or timed out.':
+    'La richiesta della passkey è stata annullata o è scaduta.',
+  'This browser does not support passkeys.': 'Questo browser non supporta le passkey.',
+  'Your passkeys': 'Le tue passkey',
+  'e.g. Work laptop': 'es. Portatile di lavoro',
+  'last used {date}': 'ultimo uso {date}',
+  'never used': 'mai usata',
 };

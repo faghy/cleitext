@@ -30,6 +30,7 @@
     "@nestjs/core": "^12.1.2",
     "@nestjs/platform-fastify": "^12.1.2",
     "@node-rs/argon2": "^2.2.2",
+    "@simplewebauthn/server": "^14.0.3",
     "drizzle-orm": "^0.45.4",
     "fast-xml-parser": "^5.11.2",
     "fastify": "^5.12.5",

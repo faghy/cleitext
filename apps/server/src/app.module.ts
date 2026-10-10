@@ -8,6 +8,7 @@ import { AuthGuard } from './auth/auth.guard.js';
 import { AuthService } from './auth/auth.service.js';
 import { IdentityService } from './auth/identity.service.js';
 import { TwoFactorService } from './auth/two-factor.service.js';
+import { PasskeyService } from './auth/passkey.service.js';
 import { LoginThrottleService } from './auth/login-throttle.service.js';
 import { SessionService, UserTokenService } from './auth/session.service.js';
 import { ProblemDetailsFilter } from './common/problem.js';
@@ -31,6 +32,7 @@ import { PluginServicesProvider } from './plugins/plugin-services.service.js';
 import { PluginsController } from './plugins/plugins.controller.js';
 import { ProfileController } from './profile/profile.controller.js';
 import { TwoFactorController } from './profile/two-factor.controller.js';
+import { PasskeysController } from './profile/passkeys.controller.js';
 import { SecuritySettingsController } from './settings/security.controller.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PublicService } from './public/public.service.js';
@@ -89,6 +91,7 @@ export class AppModule {
         UsersController,
         ProfileController,
         TwoFactorController,
+        PasskeysController,
         SecuritySettingsController,
         OEmbedController,
         EntriesController,
@@ -109,6 +112,7 @@ export class AppModule {
         EntriesService,
         IdentityService,
         TwoFactorService,
+        PasskeyService,
         LoginThrottleService,
         MailService,
         MediaService,

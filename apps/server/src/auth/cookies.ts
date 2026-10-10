@@ -35,3 +35,16 @@ export function setCsrfCookie(request: FastifyRequest, reply: FastifyReply, toke
     path: '/',
   });
 }
+
+/** Binds a pending passkey prompt to this browser (5 minutes, API paths only). */
+export const WEBAUTHN_COOKIE = 'cleitext_webauthn';
+
+export function setWebauthnCookie(request: FastifyRequest, reply: FastifyReply, token: string) {
+  reply.setCookie(WEBAUTHN_COOKIE, token, {
+    httpOnly: true,
+    secure: isSecure(request),
+    sameSite: 'strict',
+    path: '/api/v1/',
+    maxAge: 300,
+  });
+}

@@ -49,6 +49,8 @@ export const itAdmin: Messages = {
   'action.user.password.reset': 'ha reimpostato la password',
   'action.user.2fa.enabled': 'ha attivato l’autenticazione a due fattori',
   'action.user.2fa.disabled': 'ha disattivato l’autenticazione a due fattori',
+  'action.user.passkey.added': 'ha aggiunto una passkey',
+  'action.user.passkey.removed': 'ha rimosso una passkey',
   'action.entry.revision.restored': 'ha ripristinato una revisione di',
   'action.entry.restored': 'ha ripristinato dal cestino',
   'action.entry.scheduled': 'ha programmato',
