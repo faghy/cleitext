@@ -136,6 +136,7 @@ export async function runCli(
     plugins: { path: string };
     themes: { path: string };
   },
+  extraEnv: Record<string, string> = {},
 ): Promise<string> {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const base = path.resolve(here, '../../../..');
@@ -155,6 +156,7 @@ export async function runCli(
           ...(config.database.adminUrl ? { DATABASE_ADMIN_URL: config.database.adminUrl } : {}),
           PLUGINS_PATH: config.plugins.path,
           THEMES_PATH: config.themes.path,
+          ...extraEnv,
         },
       },
     );

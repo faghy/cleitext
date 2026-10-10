@@ -95,6 +95,8 @@ program
       const adminEmail = opts.adminEmail ?? (await input({ message: 'Super admin email' }));
       const adminPassword =
         opts.adminPassword ??
+        // Set by the web installer, so the password never shows in a process list.
+        process.env.CLEITEXT_ADMIN_PASSWORD ??
         (await passwordPrompt({
           message: 'Super admin password (min. 12 characters)',
           mask: true,

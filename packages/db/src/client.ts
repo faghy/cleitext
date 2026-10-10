@@ -108,6 +108,21 @@ export async function ping(db: Database): Promise<void> {
   await db.execute(sql`select 1`);
 }
 
+/**
+ * Whether Cleitext is installed: the schema exists and a site was created
+ * (RF-SIT-02). Works with the application role.
+ */
+export async function isInstalled(db: Database): Promise<boolean> {
+  const [schema] = await db.execute<{ ready: boolean }>(
+    sql`select to_regprocedure('cleitext_is_installed()') is not null as ready`,
+  );
+  if (!schema?.ready) return false;
+  const [row] = await db.execute<{ installed: boolean }>(
+    sql`select cleitext_is_installed() as installed`,
+  );
+  return row?.installed === true;
+}
+
 /** Resolves a request host to its site id, or null if no active site matches. */
 export async function resolveSiteByHost(db: Database, host: string): Promise<string | null> {
   return (await resolveHost(db, host))?.siteId ?? null;

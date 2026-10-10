@@ -111,6 +111,8 @@ bin/cleitext install --domain example.com --site-name "Example" --site-slug main
 
 Il comando applica le migrazioni, crea il sito e chiede email e password del super amministratore. Poi attiva l'applicazione in Plesk con **Enable** e apri `https://example.com/admin/`.
 
+**Oppure installa dal browser** (RF-SIT-02): con `DATABASE_ADMIN_URL` nel `.env`, attiva l'applicazione su un database vuoto. Il server risponde solo su `/install` e stampa nel log un token di installazione (Plesk: **Log** del dominio; systemd: `journalctl -u cleitext`). Inserisci nel modulo il token, il sito e il super amministratore: l'installazione esegue lo stesso comando in un processo separato, poi il server riparte in modalità normale. Il token deriva da `APP_SECRET`, quindi ogni processo mostra lo stesso.
+
 I plugin ufficiali si installano come qualsiasi altro:
 
 ```bash

@@ -4,6 +4,7 @@ export { newId } from './schema/columns.js';
 export {
   createDatabase,
   findLogin,
+  isInstalled,
   listMySites,
   ping,
   publishDueEntries,
