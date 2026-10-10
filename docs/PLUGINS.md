@@ -87,6 +87,7 @@ cleitext plugin:build ./my-plugin             # bundles src/ into dist/
 cleitext plugin:install ./my-plugin           # copies, runs migrations, registers
 cleitext plugin:install ./my-plugin --build   # both
 cleitext plugin:install ./my-plugin --link    # development: links the folder instead of copying it
+cleitext plugin:install ./my-plugin --required  # must-use: always active on every site
 cleitext plugin:list
 cleitext plugin:uninstall my-plugin           # removes the plugin and ALL its data (asks first)
 ```
@@ -95,7 +96,8 @@ In a Cleitext checkout, run them as `pnpm cleitext …`.
 
 - Installed plugins live in `PLUGINS_PATH` (default `cleitext-data/plugins`). The previous version is kept next to it (`<slug>.previous`).
 - Running servers **reload their plugins automatically** after `plugin:install` and `plugin:uninstall`: no restart is needed.
-- Then, in the admin, **Plugins → Activate** turns the plugin on for the current site.
+- Then, in the admin, **Plugins → Activate** turns the plugin on for the current site. Super admins can also **activate it on every site** (network activation).
+- Super admins with two-factor authentication on can also install a built plugin from the admin (**Plugins → Upload Plugin**, a `.zip` or `.tgz` of the plugin folder). Servers can turn this off with `PLUGINS_INSTALL_FROM_UI=false`.
 - During development, use `--link`. After `plugin:build`, install again (with `--link` the files are already in place, so this only reloads the servers).
 
 ## 4. The server entry

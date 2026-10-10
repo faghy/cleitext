@@ -5,6 +5,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Inject,
   Param,
   Post,
   Put,
@@ -18,6 +19,11 @@ import { CurrentAuth, CurrentSite, RequireCapability } from '../common/decorator
 import { parseBody } from '../common/problem.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { PublicService } from '../public/public.service.js';
+import { readFile, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { APP_CONFIG, type AppConfig } from '../config/config.js';
+import { uploadedFile } from '../plugins/plugins.controller.js';
+import { assertCanUpload, packageRoot, runCli, unpackPackage } from '../plugins/package-upload.js';
 import { ThemesService } from './themes.service.js';
 
 const settingsBody = z.object({ values: z.record(z.string(), z.unknown()) });
@@ -34,12 +40,38 @@ export class ThemesController {
   constructor(
     private readonly themes: ThemesService,
     private readonly publicService: PublicService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   @Get()
   @RequireCapability('manage_themes')
   list(@CurrentSite() site: SiteContext, @CurrentAuth() auth: AuthContext): Promise<ThemeView[]> {
     return this.themes.list(site.id, auth);
+  }
+
+  /** Upload Theme: a built .zip/.tgz package, installed like `theme:install`. */
+  @Post('upload')
+  @RequireCapability('manage_plugins')
+  async upload(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Req() request: FastifyRequest,
+  ): Promise<{ slug: string; version: string; message: string }> {
+    assertCanUpload(this.config.packages, auth);
+    const { data, filename } = await uploadedFile(request);
+    const dir = await unpackPackage(data, filename);
+    try {
+      const root = await packageRoot(dir, 'theme.json');
+      const manifest = JSON.parse(await readFile(path.join(root, 'theme.json'), 'utf8')) as {
+        slug?: string;
+        version?: string;
+      };
+      const message = await runCli(['theme:install', root], this.config);
+      await this.themes.recordUpload(site.id, auth, String(manifest.slug), request.ip);
+      return { slug: String(manifest.slug), version: String(manifest.version), message };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   }
 
   @Post(':slug/activate')

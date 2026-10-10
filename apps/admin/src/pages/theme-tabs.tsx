@@ -8,6 +8,7 @@ import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card, useT } from '../components/ui';
 import { mediaServices } from './entry-editor';
+import { PackageUpload } from '../components/package-upload';
 
 interface ActiveTheme {
   theme: ThemeView | undefined;
@@ -66,6 +67,11 @@ export function ThemesTab() {
           </li>
         ))}
       </ul>
+      <PackageUpload
+        title={t('Upload Theme')}
+        path="/themes/upload"
+        onInstalled={() => void queryClient.invalidateQueries({ queryKey: ['themes'] })}
+      />
       <p className="text-sm text-slate-600">
         {installBefore}
         <code>cleitext theme:install &lt;folder&gt;</code>

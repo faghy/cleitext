@@ -87,4 +87,23 @@ export const itAdmin: Messages = {
   'The plugin {plugin} was deactivated on {date} after repeated errors: {error}':
     'Il plugin {plugin} è stato disattivato il {date} dopo ripetuti errori: {error}',
   'action.plugin.auto_deactivated': 'ha disattivato automaticamente il plugin',
+  'Must-use': 'Obbligatorio',
+  Network: 'Rete',
+  'Deactivate on every site': 'Disattiva su tutti i siti',
+  'Activate on every site': 'Attiva su tutti i siti',
+  'Always active on every site.': 'Sempre attivo su tutti i siti.',
+  'action.plugin.network_activated': 'ha attivato su tutti i siti il plugin',
+  'action.plugin.network_deactivated': 'ha disattivato su tutti i siti il plugin',
+  'Packages uploaded here are not verified by a registry: install only code you trust. It runs on the server with access to every site.':
+    'I pacchetti caricati qui non sono verificati da un registro: installa solo codice di cui ti fidi. Gira sul server con accesso a tutti i siti.',
+  'Turn on two-factor authentication in your profile to install code.':
+    "Attiva l'autenticazione a due fattori nel profilo per installare codice.",
+  'Package file (.zip or .tgz)': 'File del pacchetto (.zip o .tgz)',
+  'Installing…': 'Installazione…',
+  'Installed {slug} {version}.': 'Installato {slug} {version}.',
+  'Choose a package': 'Scegli un pacchetto',
+  'Upload Plugin': 'Carica plugin',
+  'Upload Theme': 'Carica tema',
+  'action.plugin.uploaded': 'ha caricato il plugin',
+  'action.theme.uploaded': 'ha caricato il tema',
 };

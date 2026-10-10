@@ -1090,10 +1090,9 @@ Codice: `packages/plugin-sdk`, `packages/admin-sdk`, `packages/cli/src/plugins.t
 - **Hook.**
   - Le azioni partono dopo il commit.
   - I filtri sono `render.head`, `render.blocks`, `render.html` e `theme.templateCandidates`. `render.head` filtra l'oggetto `HeadData` invece di una lista `HeadTag[]` come previsto all'inizio.
-  - Gli errori sono isolati e gli handler vengono interrotti dopo 5 s. Chiamate, tempo ed errori per plugin sono visibili in Plugins (RF-PLG-06). La disattivazione automatica dei plugin che falliscono (RF-PLG-05) non è ancora realizzata.
+  - Gli errori sono isolati e gli handler vengono interrotti dopo 5 s. Chiamate, tempo ed errori per plugin sono visibili in Plugins (RF-PLG-06). Un plugin che fallisce dieci volte in cinque minuti su un sito viene disattivato lì e segnalato nella Bacheca (RF-PLG-05).
 - **Non ancora disponibili:**
-  - registro e gestione dei pacchetti: installazione dall'admin (upload), registro, firme, aggiornamenti automatici e un comando di rollback (la versione precedente resta in `<slug>.previous`);
-  - ambito di attivazione: attivazione su tutta la rete e plugin obbligatori (must-use);
+  - registro e gestione dei pacchetti: registro, firme, aggiornamenti automatici (serve il registro come fonte) e un comando di rollback (la versione precedente resta in `<slug>.previous`). Esistono invece il caricamento di plugin e temi dall'admin (super admin con 2FA, `.zip`/`.tgz` installato dalla CLI in un processo figlio; `PLUGINS_INSTALL_FROM_UI`, `PLUGINS_ALLOW_UNSIGNED`), l'attivazione su tutta la rete e i plugin obbligatori (`plugin:install --required`);
   - SDK dell'admin: widget della Dashboard, pannelli del documento e colonne degli elenchi;
   - API del contesto: `ctx.jobs`, `ctx.media` e `ctx.http`;
   - `entry.published` per la pubblicazione programmata.

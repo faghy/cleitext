@@ -17,6 +17,11 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(0).max(65_535).default(3000),
   /** Application role connection, subject to RLS. Never the table owner. */
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  /**
+   * Owner connection: never used by the web process itself, only handed to
+   * the CLI it runs to install uploaded packages (RF-PLG-10).
+   */
+  DATABASE_ADMIN_URL: z.url({ protocol: /^postgres(ql)?$/ }).optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   /** Trust X-Forwarded-* headers (true behind nginx/Plesk). */
@@ -47,6 +52,10 @@ const envSchema = z.object({
   /** Installed plugins (written by `cleitext plugin:install`). */
   PLUGINS_PATH: z.string().min(1).default('cleitext-data/plugins'),
   THEMES_PATH: z.string().min(1).default('cleitext-data/themes'),
+  /** Plugins and themes can be uploaded from the admin (RF-PLG-10/12). */
+  PLUGINS_INSTALL_FROM_UI: booleanString.default(true),
+  /** Packages not signed by a registry (all uploads, for now) are accepted. */
+  PLUGINS_ALLOW_UNSIGNED: booleanString.default(true),
   MEDIA_MAX_BYTES: z.coerce
     .number()
     .int()
@@ -69,7 +78,7 @@ export interface AppConfig {
   env: 'development' | 'test' | 'production';
   host: string;
   port: number;
-  database: { url: string; poolMax: number };
+  database: { url: string; poolMax: number; adminUrl: string | null };
   logLevel: string;
   trustProxy: boolean;
   session: { ttlHours: number; rememberDays: number };
@@ -78,6 +87,7 @@ export interface AppConfig {
   media: { path: string; maxBytes: number };
   plugins: { path: string };
   themes: { path: string };
+  packages: { installFromUi: boolean; allowUnsigned: boolean };
   /** Folder of the built admin, if the server serves it (production). */
   admin: { path: string | null };
   pageCache: { maxEntries: number; ttlSeconds: number };
@@ -106,7 +116,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     env: e.NODE_ENV,
     host: e.HOST,
     port: e.PORT,
-    database: { url: e.DATABASE_URL, poolMax: e.DATABASE_POOL_MAX },
+    database: {
+      url: e.DATABASE_URL,
+      poolMax: e.DATABASE_POOL_MAX,
+      adminUrl: e.DATABASE_ADMIN_URL ?? null,
+    },
     logLevel: e.LOG_LEVEL,
     trustProxy: e.TRUST_PROXY,
     session: { ttlHours: e.SESSION_TTL_HOURS, rememberDays: e.SESSION_REMEMBER_DAYS },
@@ -115,6 +129,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     media: { path: resolve(e.MEDIA_PATH), maxBytes: e.MEDIA_MAX_BYTES },
     plugins: { path: resolve(e.PLUGINS_PATH) },
     themes: { path: resolve(e.THEMES_PATH) },
+    packages: { installFromUi: e.PLUGINS_INSTALL_FROM_UI, allowUnsigned: e.PLUGINS_ALLOW_UNSIGNED },
     admin: { path: adminPath(e.ADMIN_PATH) },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
     // Development and tests only: production refuses to start without one.

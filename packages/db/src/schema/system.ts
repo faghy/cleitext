@@ -52,6 +52,10 @@ export const plugins = pgTable('plugins', {
   apiVersion: text('api_version').notNull(),
   installedAt: timestamp('installed_at', { withTimezone: true }).notNull().defaultNow(),
   manifest: jsonb('manifest').notNull(),
+  /** Active on every site, set by a super admin (RF-PLG-15). */
+  network: boolean('network').notNull().default(false),
+  /** Must-use: always active everywhere, installed with `plugin:install --required`. */
+  mustUse: boolean('must_use').notNull().default(false),
 });
 
 /** Per-site plugin activation. */

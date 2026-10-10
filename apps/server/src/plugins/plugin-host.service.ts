@@ -37,7 +37,7 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or, sql } from 'drizzle-orm';
 import semver from 'semver';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { blockRegistry } from '../content/block-registry.js';
@@ -141,7 +141,11 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         this.logger.error(`Reload failed: ${String(error)}`),
       );
     });
-    this.cache.onSiteChange(() => this.active.clear());
+    this.cache.onSiteChange(() => {
+      this.active.clear();
+      // A plugin activated for the whole network adds its types on every site.
+      this.synced.clear();
+    });
   }
 
   // ---- Loading ------------------------------------------------------------------------
@@ -344,14 +348,21 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     const cached = this.active.get(siteId);
     if (cached && cached.expiresAt > Date.now()) return cached.slugs;
     if (this.loaded.size === 0) return new Set();
-    const rows = await withContext(this.database.db, { siteId }, (tx) =>
-      tx
+    const { rows, everywhere } = await withContext(this.database.db, { siteId }, async (tx) => ({
+      rows: await tx
         .select({ slug: sitePlugins.pluginSlug })
         .from(sitePlugins)
         .where(eq(sitePlugins.active, true)),
-    );
+      // Network-activated and must-use plugins are active on every site (RF-PLG-15).
+      everywhere: await tx
+        .select({ slug: plugins.slug })
+        .from(plugins)
+        .where(or(eq(plugins.network, true), eq(plugins.mustUse, true))),
+    }));
     const slugs = new Set(
-      rows.map((r) => r.slug).filter((slug) => this.loaded.get(slug)?.status === 'loaded'),
+      [...rows, ...everywhere]
+        .map((r) => r.slug)
+        .filter((slug) => this.loaded.get(slug)?.status === 'loaded'),
     );
     this.active.set(siteId, { slugs, expiresAt: Date.now() + ACTIVE_CACHE_MS });
     if (!this.synced.has(siteId)) {
@@ -615,6 +626,35 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
 
   // ---- Activation ---------------------------------------------------------------------
 
+  /** Whether a plugin is network-activated or must-use. */
+  async scope(slug: string): Promise<{ network: boolean; mustUse: boolean }> {
+    const [row] = await this.database.db
+      .select({ network: plugins.network, mustUse: plugins.mustUse })
+      .from(plugins)
+      .where(eq(plugins.slug, slug));
+    return { network: row?.network ?? false, mustUse: row?.mustUse ?? false };
+  }
+
+  /**
+   * Activates or deactivates a plugin on every site (super admins, RF-PLG-15).
+   * Every process forgets which plugins sites have, and syncs their types.
+   */
+  async setNetwork(siteId: string, userId: string, slug: string, network: boolean): Promise<void> {
+    const plugin = this.loaded.get(slug);
+    if (!plugin) throw new PluginError(`The plugin ${slug} is not installed.`);
+    if (network && plugin.status === 'error')
+      throw new PluginError(`The plugin ${slug} failed to load: ${plugin.error}`);
+    await withContext(this.database.db, { siteId, userId }, (tx) =>
+      tx.execute(sql`select cleitext_app_set_plugin_network(${slug}, ${network})`),
+    );
+    // Every process reloads its plugins and drops every cached page.
+    await this.database.db.execute(
+      sql`select pg_notify('cleitext_cache', ${JSON.stringify({ plugins: true })})`,
+    );
+    this.active.clear();
+    this.synced.clear();
+  }
+
   /** Activates a plugin on a site (RF-PLG-02): dependencies, types, `onActivate`. */
   async activate(siteId: string, userId: string, slug: string): Promise<void> {
     const plugin = this.loaded.get(slug);
@@ -650,6 +690,13 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   /** Deactivates a plugin on a site; its data is kept. */
   async deactivate(siteId: string, userId: string, slug: string): Promise<void> {
     const plugin = this.loaded.get(slug);
+    const scope = await this.scope(slug);
+    if (scope.mustUse) throw new PluginError(`${slug} is a must-use plugin: it is always active.`);
+    if (scope.network) {
+      throw new PluginError(
+        `${slug} is active on the whole network: only a super admin can change it.`,
+      );
+    }
     const active = await this.activeSlugs(siteId);
     const dependents = [...active].filter(
       (other) => this.loaded.get(other)?.manifest.requires?.plugins?.[slug] !== undefined,

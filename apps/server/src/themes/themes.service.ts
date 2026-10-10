@@ -224,6 +224,19 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     return clean;
   }
 
+  async recordUpload(siteId: string, auth: AuthContext, slug: string, ip: string): Promise<void> {
+    await this.run(siteId, auth, (tx) =>
+      this.audit.record(tx, {
+        siteId,
+        userId: auth.userId,
+        action: 'theme.uploaded',
+        targetType: 'theme',
+        targetId: slug,
+        ip,
+      }),
+    );
+  }
+
   /** CSS of the active theme for the block editor's canvas. */
   async editorCss(siteId: string, auth: AuthContext): Promise<string> {
     return themeFor(await this.activeSlug(siteId, auth)).editorCss ?? '';

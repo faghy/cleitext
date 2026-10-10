@@ -1,8 +1,9 @@
 import type { PluginView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
-import { ME_QUERY_KEY } from '../auth';
+import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, useT } from '../components/ui';
+import { PackageUpload } from '../components/package-upload';
 
 const PERMISSION_LABELS: Record<string, string> = {
   'content:read': 'Read content',
@@ -23,6 +24,19 @@ export function PluginsPage() {
   const plugins = useQuery({
     queryKey: ['plugins'],
     queryFn: () => api<PluginView[]>('GET', '/plugins'),
+  });
+  const me = useMe();
+  const isSuperAdmin = me.user.isSuperAdmin;
+  const network = useMutation({
+    mutationFn: ({ slug, on }: { slug: string; on: boolean }) =>
+      api<PluginView>('POST', `/plugins/${slug}/network`, { network: on }),
+    onSuccess: async () => {
+      await Promise.all(
+        [['plugins'], ['content-types'], ME_QUERY_KEY, ['plugins', 'admin']].map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      );
+    },
   });
   const toggle = useMutation({
     mutationFn: ({ slug, activate }: { slug: string; activate: boolean }) =>
@@ -49,12 +63,19 @@ export function PluginsPage() {
         {installAfter}
       </p>
       {plugins.error && <Alert>{errorMessage(plugins.error)}</Alert>}
-      {toggle.error && <Alert>{errorMessage(toggle.error)}</Alert>}
+      {(toggle.error ?? network.error) && (
+        <Alert>{errorMessage(toggle.error ?? network.error)}</Alert>
+      )}
       {plugins.data?.length === 0 && (
         <p className="rounded border border-slate-200 bg-white p-4 text-sm text-slate-600">
           {t('No plugins are installed.')}
         </p>
       )}
+      <PackageUpload
+        title={t('Upload Plugin')}
+        path="/plugins/upload"
+        onInstalled={() => void queryClient.invalidateQueries({ queryKey: ['plugins'] })}
+      />
       <ul className="space-y-3" aria-label={t('Installed plugins')}>
         {plugins.data?.map((plugin) => (
           <li
@@ -67,6 +88,16 @@ export function PluginsPage() {
                 <h2 className="font-semibold">
                   {plugin.name}{' '}
                   <span className="text-sm font-normal text-slate-500">{plugin.version}</span>
+                  {plugin.mustUse && (
+                    <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-normal">
+                      {t('Must-use')}
+                    </span>
+                  )}
+                  {plugin.network && !plugin.mustUse && (
+                    <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-normal">
+                      {t('Network')}
+                    </span>
+                  )}
                 </h2>
                 {plugin.description && <p className="text-sm">{plugin.description}</p>}
                 <p className="text-xs text-slate-500">
@@ -82,14 +113,30 @@ export function PluginsPage() {
                   )}
                 </p>
               </div>
-              {plugin.status === 'loaded' && (
-                <Button
-                  variant={plugin.active ? 'secondary' : 'primary'}
-                  disabled={toggle.isPending}
-                  onClick={() => toggle.mutate({ slug: plugin.slug, activate: !plugin.active })}
-                >
-                  {plugin.active ? t('Deactivate') : t('Activate')}
-                </Button>
+              {plugin.status === 'loaded' && !plugin.mustUse && (
+                <div className="flex flex-wrap gap-2">
+                  {!plugin.network && (
+                    <Button
+                      variant={plugin.active ? 'secondary' : 'primary'}
+                      disabled={toggle.isPending}
+                      onClick={() => toggle.mutate({ slug: plugin.slug, activate: !plugin.active })}
+                    >
+                      {plugin.active ? t('Deactivate') : t('Activate')}
+                    </Button>
+                  )}
+                  {isSuperAdmin && (
+                    <Button
+                      variant="secondary"
+                      disabled={network.isPending}
+                      onClick={() => network.mutate({ slug: plugin.slug, on: !plugin.network })}
+                    >
+                      {plugin.network ? t('Deactivate on every site') : t('Activate on every site')}
+                    </Button>
+                  )}
+                </div>
+              )}
+              {plugin.mustUse && (
+                <p className="text-sm text-slate-600">{t('Always active on every site.')}</p>
               )}
             </div>
             {plugin.status === 'error' && (

@@ -301,7 +301,8 @@ program
   .argument('<dir>', 'plugin folder (already built)')
   .option('--link', 'link the folder instead of copying it (development)')
   .option('--build', 'build the plugin first')
-  .action(async (dir: string, opts: { link?: boolean; build?: boolean }) => {
+  .option('--required', 'must-use: always active on every site, cannot be deactivated')
+  .action(async (dir: string, opts: { link?: boolean; build?: boolean; required?: boolean }) => {
     const { appRole } = connectionSettings();
     if (!appRole)
       throw new OperationError('Set DATABASE_URL (application role) or CLEITEXT_APP_ROLE.');
@@ -312,6 +313,7 @@ program
         pluginsPath: pluginsPath(),
         appRole,
         link: Boolean(opts.link),
+        required: Boolean(opts.required),
       });
       const { slug, version } = result.manifest;
       console.log(

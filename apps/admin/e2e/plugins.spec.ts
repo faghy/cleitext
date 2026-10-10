@@ -41,11 +41,14 @@ async function setActive(page: Page, active: boolean) {
   await page.goto('/admin/plugins');
   const card = page.getByRole('listitem', { name: 'Events' });
   await expect(card).toBeVisible();
-  const button = card.getByRole('button', { name: active ? 'Activate' : 'Deactivate' });
+  const button = card.getByRole('button', {
+    name: active ? 'Activate' : 'Deactivate',
+    exact: true,
+  });
   if (await button.isVisible()) {
     await button.click();
     await expect(
-      card.getByRole('button', { name: active ? 'Deactivate' : 'Activate' }),
+      card.getByRole('button', { name: active ? 'Deactivate' : 'Activate', exact: true }),
     ).toBeVisible();
   }
 }

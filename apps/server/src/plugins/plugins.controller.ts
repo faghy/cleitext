@@ -21,12 +21,17 @@ import {
   Req,
 } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
+import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service.js';
 import { CurrentAuth, CurrentSite, RequireCapability } from '../common/decorators.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { PluginError, PluginHost, type LoadedPlugin } from './plugin-host.service.js';
+import { readFile, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { APP_CONFIG, type AppConfig } from '../config/config.js';
+import { assertCanUpload, packageRoot, runCli, unpackPackage } from './package-upload.js';
 import { PluginServicesProvider } from './plugin-services.service.js';
 
 /** Plugins on the current site (docs/SPECIFICATIONS.md §6.4, RF-PLG-02). */
@@ -34,6 +39,7 @@ import { PluginServicesProvider } from './plugin-services.service.js';
 export class PluginsController {
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly host: PluginHost,
     private readonly services: PluginServicesProvider,
     private readonly audit: AuditService,
@@ -43,7 +49,13 @@ export class PluginsController {
   @RequireCapability('activate_plugins')
   async list(@CurrentSite() site: SiteContext): Promise<PluginView[]> {
     const active = await this.host.activeSlugs(site.id);
-    return this.host.list().map((plugin) => view(plugin, active.has(plugin.slug)));
+    return Promise.all(
+      this.host
+        .list()
+        .map(async (plugin) =>
+          view(plugin, active.has(plugin.slug), await this.host.scope(plugin.slug)),
+        ),
+    );
   }
 
   @Post('plugins/:slug/activate')
@@ -57,7 +69,7 @@ export class PluginsController {
   ): Promise<PluginView> {
     await this.change(() => this.host.activate(site.id, auth.userId, slug));
     await this.record(site.id, auth, 'plugin.activated', slug, request.ip);
-    return view(this.plugin(slug), true);
+    return view(this.plugin(slug), true, await this.host.scope(slug));
   }
 
   @Post('plugins/:slug/deactivate')
@@ -72,7 +84,59 @@ export class PluginsController {
     this.plugin(slug);
     await this.change(() => this.host.deactivate(site.id, auth.userId, slug));
     await this.record(site.id, auth, 'plugin.deactivated', slug, request.ip);
-    return view(this.plugin(slug), false);
+    return view(this.plugin(slug), false, await this.host.scope(slug));
+  }
+
+  /** Activation on every site, by a super admin (RF-PLG-15). */
+  @Post('plugins/:slug/network')
+  @HttpCode(200)
+  @RequireCapability('manage_plugins')
+  async network(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('slug') slug: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<PluginView> {
+    const { network } = z.object({ network: z.boolean() }).parse(body ?? {});
+    this.plugin(slug);
+    await this.change(() => this.host.setNetwork(site.id, auth.userId, slug, network));
+    await this.record(
+      site.id,
+      auth,
+      network ? 'plugin.network_activated' : 'plugin.network_deactivated',
+      slug,
+      request.ip,
+    );
+    const active = await this.host.activeSlugs(site.id);
+    return view(this.plugin(slug), active.has(slug), await this.host.scope(slug));
+  }
+
+  /**
+   * Upload Plugin (RF-PLG-10): a built .zip/.tgz package, installed by the CLI
+   * like `plugin:install`. Not verified by a registry: the admin warns first.
+   */
+  @Post('plugins/upload')
+  @RequireCapability('manage_plugins')
+  async upload(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Req() request: FastifyRequest,
+  ): Promise<{ slug: string; version: string; message: string }> {
+    assertCanUpload(this.config.packages, auth);
+    const { data, filename } = await uploadedFile(request);
+    const dir = await unpackPackage(data, filename);
+    try {
+      const root = await packageRoot(dir, 'cleitext.plugin.json');
+      const manifest = JSON.parse(
+        await readFile(path.join(root, 'cleitext.plugin.json'), 'utf8'),
+      ) as { slug?: string; version?: string };
+      const message = await runCli(['plugin:install', root], this.config);
+      await this.record(site.id, auth, 'plugin.uploaded', String(manifest.slug), request.ip);
+      return { slug: String(manifest.slug), version: String(manifest.version), message };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   }
 
   /** Admin extensions of the active plugins, for any signed-in user. */
@@ -242,7 +306,11 @@ function settingsCapability(plugin: LoadedPlugin): string {
   return plugin.settings?.capability ?? 'manage_settings';
 }
 
-function view(plugin: LoadedPlugin, active: boolean): PluginView {
+function view(
+  plugin: LoadedPlugin,
+  active: boolean,
+  scope: { network: boolean; mustUse: boolean },
+): PluginView {
   const { manifest } = plugin;
   return {
     slug: plugin.slug,
@@ -255,6 +323,8 @@ function view(plugin: LoadedPlugin, active: boolean): PluginView {
     permissions: manifest.permissions,
     requires: manifest.requires?.plugins ?? {},
     active: active && plugin.status === 'loaded',
+    network: scope.network,
+    mustUse: scope.mustUse,
     status: plugin.status,
     error: plugin.error,
     contributes: {
@@ -265,4 +335,19 @@ function view(plugin: LoadedPlugin, active: boolean): PluginView {
     },
     stats: { ...plugin.stats, totalMs: Math.round(plugin.stats.totalMs) },
   };
+}
+
+/** The `file` field of a multipart upload. */
+export async function uploadedFile(
+  request: FastifyRequest,
+): Promise<{ data: Buffer; filename: string }> {
+  if (!request.isMultipart())
+    throw new BadRequestException('Send the package as multipart/form-data.');
+  const part = await request.file();
+  if (!part || part.fieldname !== 'file') throw new BadRequestException('Missing "file" field.');
+  try {
+    return { data: await part.toBuffer(), filename: part.filename };
+  } catch {
+    throw new BadRequestException('The package is too large.');
+  }
 }

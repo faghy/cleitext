@@ -192,6 +192,8 @@ export interface InstallOptions {
   appRole: string;
   /** Development: link the folder instead of copying it. */
   link?: boolean;
+  /** Must-use: always active on every site (RF-PLG-15). */
+  required?: boolean;
 }
 
 export interface InstallResult {
@@ -228,6 +230,8 @@ export async function installPlugin(db: Database, options: InstallOptions): Prom
     version: manifest.version,
     apiVersion: manifest.apiVersion,
     manifest: manifest as unknown as Record<string, unknown>,
+    // Kept on updates unless --required is given again.
+    ...(options.required ? { mustUse: true } : {}),
   };
   await db
     .insert(plugins)

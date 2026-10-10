@@ -4,8 +4,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
+import { strToU8, zipSync } from 'fflate';
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { currentStep, totpCode } from '../src/auth/totp.js';
+import {
+  ownerDatabase,
+  seedSite,
+  seedUser,
+  startTestApp,
+  TestClient,
+  type SeededSite,
+} from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
 
@@ -14,6 +23,7 @@ let owner: DatabaseClient;
 let admin: TestClient;
 let editor: TestClient;
 let visitor: TestClient;
+let seeded: SeededSite;
 
 /** A minimal installed theme, as `cleitext theme:build` would bundle it. */
 async function themesFolder(): Promise<string> {
@@ -43,9 +53,12 @@ export default sdk.defineTheme({ slug: 'plain', name: 'Plain', version: '1.0.0',
 }
 
 beforeAll(async () => {
-  app = await startTestApp({ env: { THEMES_PATH: await themesFolder() } });
+  app = await startTestApp({
+    env: { THEMES_PATH: await themesFolder(), DATABASE_ADMIN_URL: inject('ownerUrl') },
+  });
   owner = ownerDatabase();
   const site = await seedSite(owner, 'themes');
+  seeded = site;
   await seedUser(owner, {
     email: 'admin@themes.test',
     password: PASSWORD,
@@ -139,3 +152,56 @@ describe('installed themes', () => {
     expect((await visitor.get('/')).body).not.toContain('Plain theme of');
   });
 });
+
+describe('Upload Theme', () => {
+  it('installs a .zip package, only for super admins with 2FA', async () => {
+    const files = {
+      'shiny/theme.json': strToU8(
+        JSON.stringify({ slug: 'shiny', name: 'Shiny', version: '2.0.0' }),
+      ),
+      'shiny/dist/index.js': strToU8(
+        `const { createElement: h } = globalThis.__cleitextShared.react;
+const sdk = globalThis.__cleitextShared['@cleitext/theme-sdk'];
+export default sdk.defineTheme({ slug: 'shiny', name: 'Shiny', version: '2.0.0', menuLocations: {},
+  templates: { index: () => h('main', null, 'shiny') }, Layout: ({ children }) => h('html', null, h('body', null, children)), css: '' });`,
+      ),
+    };
+    const zip = Buffer.from(zipSync(files));
+    // An administrator cannot install code.
+    expect((await admin.upload('/api/v1/themes/upload', 'shiny.zip', zip)).statusCode).toBe(403);
+
+    await seedUser(owner, {
+      email: 'root@themes.test',
+      password: PASSWORD,
+      site: seeded,
+      role: 'subscriber',
+      superAdmin: true,
+    });
+    const root = new TestClient(app, 'themes.test', '10.35.0.9');
+    await root.login('root@themes.test', PASSWORD);
+    const without2fa = await root.upload('/api/v1/themes/upload', 'shiny.zip', zip);
+    expect(without2fa.statusCode).toBe(400);
+    expect(without2fa.json().detail).toContain('two-factor');
+
+    const { secret } = (await root.post('/api/v1/profile/2fa/setup')).json();
+    await root.post('/api/v1/profile/2fa/enable', { code: totpCode(secret, currentStep()) });
+    const evil = Buffer.from(zipSync({ '../evil.txt': strToU8('x') }));
+    expect((await root.upload('/api/v1/themes/upload', 'evil.zip', evil)).statusCode).toBe(400);
+
+    const res = await root.upload('/api/v1/themes/upload', 'shiny.zip', zip);
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ slug: 'shiny', version: '2.0.0' });
+    await eventually(async () =>
+      (await root.get('/api/v1/themes')).json().some((t: { slug: string }) => t.slug === 'shiny'),
+    );
+  });
+});
+
+async function eventually(check: () => Promise<boolean>, timeoutMs = 10_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await check()) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error('condition not met in time');
+}

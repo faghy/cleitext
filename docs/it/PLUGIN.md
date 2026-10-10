@@ -89,6 +89,7 @@ cleitext plugin:build ./my-plugin             # bundles src/ into dist/
 cleitext plugin:install ./my-plugin           # copies, runs migrations, registers
 cleitext plugin:install ./my-plugin --build   # both
 cleitext plugin:install ./my-plugin --link    # development: links the folder instead of copying it
+cleitext plugin:install ./my-plugin --required  # obbligatorio: sempre attivo su tutti i siti
 cleitext plugin:list
 cleitext plugin:uninstall my-plugin           # removes the plugin and ALL its data (asks first)
 ```
@@ -97,7 +98,8 @@ In una copia di lavoro di Cleitext, eseguili come `pnpm cleitext …`.
 
 - I plugin installati si trovano in `PLUGINS_PATH` (predefinito `cleitext-data/plugins`). La versione precedente viene conservata accanto (`<slug>.previous`).
 - I server in esecuzione **ricaricano automaticamente i plugin** dopo `plugin:install` e `plugin:uninstall`: non serve riavviarli.
-- Poi, nell'admin, **Plugins → Activate** attiva il plugin per il sito corrente.
+- Poi, nell'admin, **Plugins → Activate** attiva il plugin per il sito corrente. I super admin possono anche **attivarlo su tutti i siti** (attivazione di rete).
+- I super admin con l'autenticazione a due fattori attiva possono installare un plugin già compilato dall'admin (**Plugins → Carica plugin**, un `.zip` o `.tgz` della cartella del plugin). Il server può disattivarlo con `PLUGINS_INSTALL_FROM_UI=false`. Con `plugin:install --required` il plugin diventa obbligatorio: sempre attivo su tutti i siti.
 - Durante lo sviluppo, usa `--link`. Dopo `plugin:build`, installa di nuovo (con `--link` i file sono già al loro posto, quindi questo ricarica soltanto i server).
 
 ## 4. Il punto di ingresso del server

@@ -1083,10 +1083,9 @@ Code: `packages/plugin-sdk`, `packages/admin-sdk`, `packages/cli/src/plugins.ts`
 - **Hooks.**
   - Actions run after the commit.
   - The filters are `render.head`, `render.blocks`, `render.html` and `theme.templateCandidates`. `render.head` filters the `HeadData` object rather than a `HeadTag[]` list as first planned.
-  - Errors are isolated and handlers time out after 5 s. Calls, time and errors per plugin are shown in Plugins (RF-PLG-06). Automatic deactivation of failing plugins (RF-PLG-05) is not implemented yet.
+  - Errors are isolated and handlers time out after 5 s. Calls, time and errors per plugin are shown in Plugins (RF-PLG-06). A plugin failing ten times in five minutes on a site is deactivated there and flagged on the Dashboard (RF-PLG-05).
 - **Not yet available:**
-  - registry and package handling: installing from the admin (upload), the registry, signatures, automatic updates and a rollback command (the previous version is kept in `<slug>.previous`);
-  - activation scope: network activation and must-use plugins;
+  - registry and package handling: the registry, signatures, automatic updates (they need the registry as update source) and a rollback command (the previous version is kept in `<slug>.previous`). Upload Plugin/Theme exists: super admins with 2FA upload a built .zip/.tgz, installed by the CLI in a child process (`PLUGINS_INSTALL_FROM_UI`, `PLUGINS_ALLOW_UNSIGNED`). Network activation and must-use plugins (`plugin:install --required`) exist too;
   - admin SDK: dashboard widgets, document panels and list columns;
   - context APIs: `ctx.jobs`, `ctx.media` and `ctx.http`;
   - `entry.published` for scheduled publication.

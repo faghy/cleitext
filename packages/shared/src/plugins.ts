@@ -13,6 +13,10 @@ export interface PluginView {
   requires: Record<string, string>;
   /** Active on the current site. */
   active: boolean;
+  /** Active on every site, by a super admin (RF-PLG-15). */
+  network: boolean;
+  /** Must-use: always active, installed with `plugin:install --required`. */
+  mustUse: boolean;
   /** `error`: the plugin could not be loaded (see `error`). */
   status: 'loaded' | 'error';
   error: string | null;

@@ -8,13 +8,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPlugin, installPlugin, uninstallPlugin } from '@cleitext/cli';
-import { type DatabaseClient } from '@cleitext/db';
+import { plugins, type DatabaseClient } from '@cleitext/db';
 import type { CxdDocument } from '@cleitext/blocks';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { inject } from 'vitest';
 import { PluginHost } from '../src/plugins/plugin-host.service.js';
+import { currentStep, totpCode } from '../src/auth/totp.js';
+import * as tar from 'tar';
 import {
   ownerDatabase,
   seedSite,
@@ -78,7 +80,7 @@ beforeAll(async () => {
   await buildPlugin(source);
   await installPlugin(owner.db, { source, pluginsPath, appRole: appRole() });
 
-  app = await startTestApp({ pluginsPath });
+  app = await startTestApp({ pluginsPath, env: { DATABASE_ADMIN_URL: inject('ownerUrl') } });
   site = await seedSite(owner, 'plugins', { locales: ['en', 'it'] });
   other = await seedSite(owner, 'plugins-other');
   await seedUser(owner, {
@@ -363,6 +365,49 @@ describe('deactivation', () => {
     expect((await admin.get('/api/v1/dashboard')).json().pluginNotices).toEqual([]);
     await admin.post('/api/v1/plugins/events/activate');
   });
+
+  it('is activated on every site by a super admin, and must-use plugins stay on', async () => {
+    await seedUser(owner, {
+      email: 'root@plugins.test',
+      password: PASSWORD,
+      site,
+      role: 'subscriber',
+      superAdmin: true,
+    });
+    const root = new TestClient(app, site.host, '10.12.0.9');
+    await root.login('root@plugins.test', PASSWORD);
+    const host = app.get(PluginHost);
+    await admin.post('/api/v1/plugins/events/deactivate');
+    expect((await admin.post('/api/v1/plugins/events/network', { network: true })).statusCode).toBe(
+      403,
+    );
+    const on = await root.post('/api/v1/plugins/events/network', { network: true });
+    expect(on.json()).toMatchObject({ network: true, active: true });
+    await eventually(async () => (await host.activeSlugs(other.id)).has('events'));
+    // Sites cannot opt out of a network plugin.
+    expect((await admin.post('/api/v1/plugins/events/deactivate')).statusCode).toBe(400);
+    await root.post('/api/v1/plugins/events/network', { network: false });
+    await eventually(async () => !(await host.activeSlugs(site.id)).has('events'));
+
+    // Must-use, as installed with --required.
+    await owner.db.update(plugins).set({ mustUse: true }).where(eq(plugins.slug, 'events'));
+    await owner.db.execute(
+      sql`select pg_notify('cleitext_cache', ${JSON.stringify({ plugins: true })})`,
+    );
+    await eventually(async () => (await host.activeSlugs(other.id)).has('events'));
+    const listed = (await admin.get('/api/v1/plugins')).json();
+    expect(listed.find((p: { slug: string }) => p.slug === 'events')).toMatchObject({
+      mustUse: true,
+      active: true,
+    });
+    expect((await admin.post('/api/v1/plugins/events/deactivate')).statusCode).toBe(400);
+    await owner.db.update(plugins).set({ mustUse: false }).where(eq(plugins.slug, 'events'));
+    await owner.db.execute(
+      sql`select pg_notify('cleitext_cache', ${JSON.stringify({ plugins: true })})`,
+    );
+    await eventually(async () => !(await host.activeSlugs(other.id)).has('events'));
+    await admin.post('/api/v1/plugins/events/activate');
+  });
 });
 
 describe('updates and removal', () => {
@@ -378,6 +423,27 @@ describe('updates and removal', () => {
     );
     await eventually(async () => app.get(PluginHost).get('events')?.version === '1.1.0');
     expect((await visitor.get('/events/spring-concert')).statusCode).toBe(200);
+  });
+
+  it('installs an uploaded .tgz package (Upload Plugin)', async () => {
+    const root = new TestClient(app, site.host, '10.12.0.10');
+    await root.login('root@plugins.test', PASSWORD);
+    const { secret } = (await root.post('/api/v1/profile/2fa/setup')).json();
+    await root.post('/api/v1/profile/2fa/enable', { code: totpCode(secret, currentStep()) });
+    const manifest = JSON.parse(await readFile(join(source, 'cleitext.plugin.json'), 'utf8'));
+    manifest.version = '9.9.9';
+    await writeFile(join(source, 'cleitext.plugin.json'), JSON.stringify(manifest));
+    const archive = join(await mkdtemp(join(tmpdir(), 'events-tgz-')), 'events.tgz');
+    await tar.c({ gzip: true, file: archive, cwd: join(source, '..') }, ['events']);
+    const res = await root.upload('/api/v1/plugins/upload', 'events.tgz', await readFile(archive));
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ slug: 'events', version: '9.9.9' });
+    await eventually(async () => app.get(PluginHost).get('events')?.version === '9.9.9');
+    // Administrators cannot install code.
+    expect(
+      (await admin.upload('/api/v1/plugins/upload', 'events.tgz', await readFile(archive)))
+        .statusCode,
+    ).toBe(403);
   });
 
   it('uninstalls the plugin with its data', async () => {
