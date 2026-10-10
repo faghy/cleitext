@@ -6,7 +6,7 @@
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
-Questa guida è tutto ciò che ti serve per scriverne uno. Un esempio completo si trova in [`examples/plugin-events`](../../examples/plugin-events): un plugin _Events_ con un tipo di contenuto, un blocco, una pagina di amministrazione e una tabella propria.
+Questa guida è tutto ciò che ti serve per scriverne uno. Un esempio completo si trova in [`examples/plugin-events`](../../examples/plugin-events): un plugin _Events_ con un tipo di contenuto, un blocco, una pagina di amministrazione e una tabella propria. Il più piccolo è il plugin ufficiale [`plugins/hi-john`](../../plugins/hi-john), l'Hello Dolly di Cleitext: un solo ingresso nell'admin con un riquadro in bacheca, niente codice server, nessun permesso.
 
 ## Indice
 

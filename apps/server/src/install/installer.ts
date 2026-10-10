@@ -1,8 +1,19 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { createDatabase, isInstalled } from '@cleitext/db';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import type { AppConfig } from '../config/config.js';
 import { runCli } from '../plugins/package-upload.js';
+import {
+  errorList,
+  escape,
+  langOf,
+  rememberLang,
+  sendPage,
+  STEPS,
+  translate,
+  type Lang,
+} from './page.js';
+import { appRoot, hasSession, readToken, removeToken, sameSecret } from './token.js';
 
 /**
  * Guided web installation on first start (RF-SIT-02). While the database has
@@ -19,15 +30,9 @@ export interface InstallerOptions {
   run?: InstallRunner;
   /** Called once the installation succeeded and the answer was sent. */
   onInstalled: () => void;
+  /** The application root, where `tmp/setup-token` is. */
+  root?: string;
 }
-
-const INSTALL_CSP = [
-  "default-src 'none'",
-  "style-src 'unsafe-inline'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'none'",
-].join('; ');
 
 const LOCALE_RE = /^[a-z]{2,3}(-[A-Z]{2})?$/;
 
@@ -41,25 +46,25 @@ export async function needsInstall(config: AppConfig): Promise<boolean> {
 }
 
 /**
- * The setup token: derived from APP_SECRET, so every process of the server
- * shows and accepts the same one, and nobody can guess it without the secret.
+ * The setup token: the one of the setup wizard (`tmp/setup-token`) when it
+ * ran, so it is entered once; otherwise derived from APP_SECRET, so every
+ * process of the server shows and accepts the same one, and nobody can guess
+ * it without the secret.
  */
-export function setupToken(config: AppConfig): string {
-  return createHmac('sha256', config.appSecret)
-    .update(`cleitext-install:${config.database.url}`)
-    .digest('base64url')
-    .slice(0, 32);
-}
-
-function sameToken(given: string, expected: string): boolean {
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
+export function setupToken(config: AppConfig, root = appRoot()): string {
+  return (
+    readToken(root) ??
+    createHmac('sha256', config.appSecret)
+      .update(`cleitext-install:${config.database.url}`)
+      .digest('base64url')
+      .slice(0, 32)
+  );
 }
 
 export async function createInstaller(options: InstallerOptions): Promise<FastifyInstance> {
   const { config } = options;
-  const token = setupToken(config);
+  const root = options.root ?? appRoot();
+  const token = setupToken(config, root);
   const run: InstallRunner = options.run ?? ((args, env) => runCli(args, config, env));
   let installing = false;
   let installed = false;
@@ -75,22 +80,16 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
     (_request, body, done) => done(null, Object.fromEntries(new URLSearchParams(body as string))),
   );
 
-  const page = (reply: FastifyReply, status: number, body: string) =>
-    reply
-      .code(status)
-      .header('content-security-policy', INSTALL_CSP)
-      .header('cache-control', 'no-store')
-      .header('x-content-type-options', 'nosniff')
-      .header('x-frame-options', 'DENY')
-      .header('referrer-policy', 'no-referrer')
-      .type('text/html; charset=utf-8')
-      .send(layout(body));
+  const page = (request: FastifyRequest, reply: FastifyReply, status: number, body: string) =>
+    sendPage(reply, status, langOf(request), body, { current: 4, labels: STEPS });
+  /** The token was already entered in the setup wizard. */
+  const known = (request: FastifyRequest) => hasSession(request, token);
 
   const defaults = (request: FastifyRequest): FormValues => ({
     token: '',
-    siteName: 'My site',
+    siteName: translate(langOf(request), 'My site'),
     domain: request.hostname.replace(/:\d+$/, ''),
-    locale: 'en',
+    locale: langOf(request),
     adminEmail: '',
     https: request.protocol === 'https',
   });
@@ -98,7 +97,8 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
   app.get('/health/live', () => ({ status: 'ok' }));
   app.get('/install', (request, reply) => {
     if (installed) return reply.redirect('/admin/');
-    return page(reply, 200, form(defaults(request), []));
+    rememberLang(request, reply);
+    return page(request, reply, 200, form(langOf(request), defaults(request), [], known(request)));
   });
 
   app.post('/install', async (request, reply) => {
@@ -116,9 +116,16 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
     // The token is never echoed back.
     const again = { ...values, token: '' };
 
-    if (!sameToken(values.token, token)) {
+    const lang = langOf(request);
+    const session = known(request);
+    if (!session && !sameSecret(values.token, token)) {
       request.log.warn('Web installer: wrong setup token.');
-      return page(reply, 403, form(again, ['The setup token is not correct.']));
+      return page(
+        request,
+        reply,
+        403,
+        form(lang, again, ['The setup token is not correct.'], session),
+      );
     }
     const errors: string[] = [];
     if (!values.siteName) errors.push('Enter the site name.');
@@ -132,8 +139,14 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
         'Set DATABASE_ADMIN_URL (the database owner) in the server configuration, or install with `cleitext install`.',
       );
     }
-    if (errors.length > 0) return page(reply, 400, form(again, errors));
-    if (installing) return page(reply, 409, form(again, ['An installation is already running.']));
+    if (errors.length > 0) return page(request, reply, 400, form(lang, again, errors, session));
+    if (installing)
+      return page(
+        request,
+        reply,
+        409,
+        form(lang, again, ['An installation is already running.'], session),
+      );
 
     installing = true;
     try {
@@ -150,26 +163,31 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
           values.locale,
           '--admin-email',
           values.adminEmail,
+          '--official-plugins',
           ...(values.https ? [] : ['--no-https']),
         ],
         { CLEITEXT_ADMIN_PASSWORD: password },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return page(reply, 400, form(again, [message]));
+      return page(request, reply, 400, form(lang, again, [message], session));
     } finally {
       installing = false;
     }
 
     installed = true;
+    removeToken(root);
     request.log.info(`Web installer: installed ${values.domain}.`);
     reply.raw.once('finish', () => options.onInstalled());
+    const t = (text: string, vars?: Record<string, string>) => escape(translate(lang, text, vars));
     return page(
+      request,
       reply,
       200,
-      `<h1>Cleitext is installed</h1>
-<p>Sign in as <strong>${escape(values.adminEmail)}</strong> once the server has restarted.</p>
-<p><a class="button" href="/admin/">Go to the admin</a></p>`,
+      `<h1>${t('Cleitext is installed')}</h1>
+<p>${translate(lang, 'Sign in as {email} once the server has restarted.', { email: `<strong>${escape(values.adminEmail)}</strong>` })}</p>
+<p>${t('The official plugins SEO and Forms are installed: turn them on in Plugins when you need them. Hi John is already active: look at the dashboard.')}</p>
+<p><a class="button" href="/admin/">${t('Go to the admin')}</a></p>`,
     );
   });
 
@@ -192,70 +210,29 @@ interface FormValues {
   https: boolean;
 }
 
-function form(values: FormValues, errors: string[]): string {
+function form(lang: Lang, values: FormValues, errors: string[], session: boolean): string {
+  const t = (text: string) => escape(translate(lang, text));
   const field = (name: keyof FormValues, label: string, type = 'text', extra = '') =>
-    `<label for="${name}">${label}</label>
+    `<label for="${name}">${t(label)}</label>
 <input id="${name}" name="${name}" type="${type}" value="${escape(String(values[name]))}" required ${extra}>`;
-  return `<h1>Install Cleitext</h1>
-<p>Create the first site and its administrator. The setup token is printed in the server log.</p>
-${
-  errors.length > 0
-    ? `<div class="errors" role="alert"><ul>${errors.map((e) => `<li>${escape(e)}</li>`).join('')}</ul></div>`
-    : ''
-}
+  return `<h1>${t('Site and administrator')}</h1>
+<p>${t('Create the first site and its administrator.')}</p>
+${errorList(errors.map((e) => t(e)))}
 <form method="post" action="/install">
-${field('token', 'Setup token', 'password', 'autocomplete="off"')}
-<fieldset><legend>Site</legend>
+${session ? '' : field('token', 'Setup token', 'password', 'autocomplete="off"')}
+<fieldset><legend>${t('Site')}</legend>
 ${field('siteName', 'Site name')}
 ${field('domain', 'Domain', 'text', 'placeholder="example.com"')}
 ${field('locale', 'Language', 'text', 'maxlength="6"')}
-<label class="check"><input name="https" type="checkbox" ${values.https ? 'checked' : ''}> Always use HTTPS</label>
+<label class="check"><input name="https" type="checkbox" ${values.https ? 'checked' : ''}> ${t('Always use HTTPS')}</label>
 </fieldset>
-<fieldset><legend>Administrator</legend>
+<fieldset><legend>${t('Administrator')}</legend>
 ${field('adminEmail', 'Email', 'email', 'autocomplete="username"')}
-<label for="adminPassword">Password (at least 12 characters)</label>
+<label for="adminPassword">${t('Password (at least 12 characters)')}</label>
 <input id="adminPassword" name="adminPassword" type="password" minlength="12" required autocomplete="new-password">
-<label for="adminPasswordConfirm">Repeat the password</label>
+<label for="adminPasswordConfirm">${t('Repeat the password')}</label>
 <input id="adminPasswordConfirm" name="adminPasswordConfirm" type="password" minlength="12" required autocomplete="new-password">
 </fieldset>
-<button type="submit">Install</button>
+<button type="submit">${t('Install')}</button>
 </form>`;
-}
-
-function layout(body: string): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Install Cleitext</title>
-<style>
-:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-body { margin: 0; background: Canvas; color: CanvasText; }
-main { max-width: 28rem; margin: 3rem auto; padding: 0 1rem; }
-h1 { font-size: 1.5rem; }
-fieldset { border: 1px solid #8884; border-radius: .5rem; margin: 1rem 0; padding: .5rem 1rem 1rem; }
-label { display: block; margin-top: .75rem; font-size: .9rem; }
-label.check { display: flex; gap: .5rem; align-items: center; }
-input:not([type=checkbox]) { box-sizing: border-box; width: 100%; padding: .5rem; margin-top: .25rem; font: inherit; }
-button, .button { display: inline-block; padding: .6rem 1.2rem; border: 0; border-radius: .4rem; background: #0369a1; color: #fff; font: inherit; text-decoration: none; cursor: pointer; }
-.logo { display: flex; align-items: center; gap: .5rem; font-size: 1.25rem; font-weight: 700; margin: 0 0 1rem; }
-.errors { border: 1px solid #dc2626; border-radius: .5rem; padding: 0 1rem; color: #dc2626; }
-</style>
-</head>
-<body><main>${LOGO}${body}</main></body>
-</html>`;
-}
-
-/** The Cleitext logo (apps/admin/public/brand/logo-mark.svg) above the installer. */
-const LOGO = `<p class="logo"><svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#0369a1"/><path d="M38.5 22.5 A13.5 13.5 0 1 0 38.5 41.5" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><rect x="43" y="19" width="5" height="26" rx="2.5" fill="#7dd3fc"/></svg> Cleitext</p>`;
-
-function escape(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }

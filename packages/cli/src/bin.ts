@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import type * as ServerTasks from './server-tasks.js';
-import { createDatabase, migrate } from '@cleitext/db';
+import { createDatabase, migrate, sitePlugins, withSiteContext } from '@cleitext/db';
 import { sql } from 'drizzle-orm';
 import { input, password as passwordPrompt } from '@inquirer/prompts';
 import { Command } from 'commander';
@@ -39,6 +41,23 @@ const program = new Command()
   .version('0.0.0');
 
 /** Owner connection URL and application role (from DATABASE_URL's user name). */
+/** Official plugins installed by `install --official-plugins`; Multilingual is left out for now. */
+const INSTALL_ON_INSTALL = ['seo', 'forms', 'hi-john'];
+/** …and those turned on for the first site. */
+const ACTIVE_ON_INSTALL = ['hi-john'];
+
+/** Folders of those plugins shipped with this release (or this checkout). */
+async function officialPlugins(): Promise<string[]> {
+  const dir = path.join(process.env.CLEITEXT_APP_ROOT ?? process.cwd(), 'plugins');
+  if (!existsSync(dir)) return [];
+  const present = new Set(
+    (await readdir(dir, { withFileTypes: true }))
+      .filter((e) => e.isDirectory() && existsSync(path.join(dir, e.name, 'cleitext.plugin.json')))
+      .map((e) => e.name),
+  );
+  return INSTALL_ON_INSTALL.filter((slug) => present.has(slug)).map((slug) => path.join(dir, slug));
+}
+
 function connectionSettings(): { ownerUrl: string; appRole: string | undefined } {
   const ownerUrl = process.env.DATABASE_ADMIN_URL;
   if (!ownerUrl) throw new OperationError('Set DATABASE_ADMIN_URL (owner connection).');
@@ -78,6 +97,10 @@ program
   .option('--no-https', 'do not force HTTPS on the domain (local testing only)')
   .option('--admin-email <email>')
   .option('--admin-password <password>', 'prefer the interactive prompt')
+  .option(
+    '--official-plugins',
+    'also install the official plugins: SEO, Forms and Hi John (active)',
+  )
   .action(async (opts) => {
     const { ownerUrl, appRole } = connectionSettings();
     if (!appRole)
@@ -101,7 +124,7 @@ program
           mask: true,
         }));
 
-      await createSite(db, {
+      const siteId = await createSite(db, {
         slug: siteSlug,
         name: siteName,
         host: domain,
@@ -109,6 +132,33 @@ program
         forceHttps: opts.https,
       });
       await createUser(db, { email: adminEmail, password: adminPassword, superAdmin: true });
+      if (opts.officialPlugins) {
+        for (const source of await officialPlugins()) {
+          const { manifest } = await installPlugin(db, {
+            source,
+            pluginsPath: pluginsPath(),
+            appRole,
+            link: false,
+            required: false,
+          });
+          // Only admin plugins: no content types or onActivate to run here.
+          const active = ACTIVE_ON_INSTALL.includes(manifest.slug) && !manifest.server;
+          if (active) {
+            await withSiteContext(db, siteId, (tx) =>
+              tx.insert(sitePlugins).values({
+                siteId,
+                pluginSlug: manifest.slug,
+                active: true,
+                activatedAt: new Date(),
+              }),
+            );
+          }
+          console.log(
+            `Installed ${manifest.slug} ${manifest.version}${active ? ', active' : ' (not active)'}.`,
+          );
+        }
+        await announcePluginChange(db);
+      }
       console.log(
         `Installed. Sign in at ${opts.https ? 'https' : 'http'}://${domain}/admin/ as ${adminEmail}.`,
       );

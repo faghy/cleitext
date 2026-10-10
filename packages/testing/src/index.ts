@@ -8,6 +8,8 @@ import {
 export * from './postgres.js';
 
 export interface TestDatabase extends ProvisionedDatabase {
+  /** Superuser connection, for tests that create their own roles and databases. */
+  superuserUrl: string;
   /** Stops everything started by `setupTestDatabase`. */
   teardown(): Promise<void>;
 }
@@ -40,6 +42,7 @@ export async function setupTestDatabase(
 
   return {
     ...db,
+    superuserUrl,
     async teardown() {
       try {
         await db.drop();

@@ -1,0 +1,35 @@
+name: Release
+
+# A tag such as v0.7.0 builds the release on Linux x64 (the native modules match
+# the usual hosting servers) and publishes it on the GitHub Releases page:
+# the .zip and .tar.gz to install, and the separate plugin packages.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The tag matches the version
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: pnpm release
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            release/cleitext-*.zip release/cleitext-*.tar.gz \
+            --title "Cleitext ${GITHUB_REF_NAME#v}" \
+            --notes-file <(git log -1 --format=%B)

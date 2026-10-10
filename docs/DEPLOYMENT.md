@@ -2,7 +2,32 @@
 
 > 🇮🇹 [Leggi in italiano](./it/DEPLOY.md)
 
-This guide installs Cleitext on a server managed with Plesk, using the Plesk **Node.js** extension (Phusion Passenger). The release is built on your computer or in CI; the server only receives compiled files.
+This guide installs Cleitext on a server managed with Plesk, using the Plesk **Node.js** extension (Phusion Passenger). The server only receives compiled files: download them from the Releases page, or build them yourself (§3).
+
+## Quick installation: the setup wizard
+
+The easiest way, as with WordPress: nothing to build, no configuration file to write.
+
+1. **Download** `cleitext-<version>.zip` from the [Releases](https://github.com/faghy/cleitext/releases) page. It is built for Linux x64.
+2. **Create the database** in Plesk: **Databases → Add Database**, type PostgreSQL, with one user. Note the database name, the user and the password.
+3. **Upload the zip** to the domain's folder (**Files**, then **Extract Files**) and rename the folder `cleitext-<version>` to `cleitext`.
+4. **Set up Node.js** (**Websites & Domains → Node.js**) as in §6: application root `/cleitext`, document root `/cleitext/public`, startup file `app.js`, Node.js 22 or 24, mode production. In **Hosting settings** point the document root to `cleitext/public` as well, and enable **SSL/TLS** (Let's Encrypt). Then **Enable Node.js**.
+5. **Open the site.** The wizard starts at `/install`:
+   1. **Welcome**: enter the setup token. It is in the domain's **Logs** and in `cleitext/tmp/setup-token`.
+   2. **Requirements**: Node.js, writable folders, `pg_dump` for backups, HTTPS.
+   3. **Database**: host, port, database, user and password of step 2. That user becomes the owner. If it cannot create roles, the page shows the command to run once as root, for example:
+      ```bash
+      sudo -u postgres psql -c 'ALTER ROLE "example_user" CREATEROLE;'
+      ```
+      The wizard then creates the application user, generates the secrets and writes `cleitext-shared/.env` (mode 600, next to the `cleitext` folder), with the `media`, `plugins`, `themes` and `backups` folders.
+   4. **Site and administrator**: site name, domain, language, the super admin's email and password.
+6. **Sign in** at `/admin/`. The official SEO and Forms plugins are installed but not active; Hi John is active, on the dashboard.
+
+The setup token is deleted at the end. **Email**: until you add `MAIL_URL` and `MAIL_FROM` to `cleitext-shared/.env` (§5) and restart the app, emails (invitations, password resets) are only written to the log.
+
+**Multilingual** is not in the base package: download `cleitext-plugin-multilingual-<version>.zip` from the same Releases page and upload it in **Plugins → Upload Plugin** (two-factor authentication required).
+
+The rest of this guide is the manual installation, and the updates (§8).
 
 ## 1. Requirements
 
@@ -109,9 +134,9 @@ cd /var/www/vhosts/example.com/cleitext
 bin/cleitext install --domain example.com --site-name "Example" --site-slug main --locale it
 ```
 
-The command applies the migrations, creates the site and asks for the super admin's email and password. Then **Enable** the application in Plesk and open `https://example.com/admin/`.
+The command applies the migrations, creates the site and asks for the super admin's email and password; with `--official-plugins` it also installs SEO and Forms (not active) and Hi John (active), as the wizard does. Then **Enable** the application in Plesk and open `https://example.com/admin/`.
 
-**Or install from the browser** (RF-SIT-02): with `DATABASE_ADMIN_URL` in `.env`, enable the application on an empty database. The server then answers only `/install` and prints a setup token in its log (Plesk: **Logs** of the domain; systemd: `journalctl -u cleitext`). Enter the token, the site and the super admin in the form: the installation runs the same command in a separate process, then the server restarts in normal mode. The token is derived from `APP_SECRET`, so every process shows the same one.
+**Or install from the browser** (RF-SIT-02): with `DATABASE_ADMIN_URL` in `.env`, enable the application on an empty database (without any `.env`, the full setup wizard starts instead, see the top of this guide). The server then answers only `/install` and prints a setup token in its log (Plesk: **Logs** of the domain; systemd: `journalctl -u cleitext`). Enter the token, the site and the super admin in the form: the installation runs the same command in a separate process, then the server restarts in normal mode. The token is derived from `APP_SECRET`, so every process shows the same one.
 
 Official plugins are installed like any other:
 
@@ -120,11 +145,7 @@ bin/cleitext plugin:install plugins/seo
 bin/cleitext plugin:install plugins/forms
 ```
 
-A site in more than one language needs the **Multilingual** plugin: install it, activate it on the site (Plugins), then add the languages in **Languages**. A site with one language does not need it and pays nothing for it.
-
-```bash
-bin/cleitext plugin:install plugins/multilingual
-```
+A site in more than one language needs the **Multilingual** plugin. It is not in the base package: `pnpm release` writes it to `release/cleitext-plugin-multilingual-<version>.zip` (also on the Releases page). Upload it in **Plugins → Upload Plugin**, or unpack it on the server and run `bin/cleitext plugin:install <folder>`; then activate it on the site and add the languages in **Languages**. A site with one language does not need it and pays nothing for it.
 
 **Upgrading a multilingual site to 0.6 (M7).** Languages moved from the core to the Multilingual plugin. Migration 0016 keeps the site's languages and translation links aside; install and activate the plugin and it takes them over, with the same addresses. Until then the site shows its default language only.
 
@@ -141,6 +162,8 @@ cleitext-0.6.0/bin/cleitext migrate
 ln -sfn releases/cleitext-0.6.0 ../cleitext
 touch ../cleitext/tmp/restart.txt      # or "Restart App" in Plesk
 ```
+
+A site installed with the setup wizard has `cleitext` as a plain folder: the first time, move it into `releases/` (`mkdir -p releases && mv cleitext releases/cleitext-<old version>`), then follow the steps above. The configuration and the data are already in `cleitext-shared`.
 
 To roll back, point `cleitext` to the previous release and restart. If the migrations changed the database, restore the backup made before the update (§9).
 

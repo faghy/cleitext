@@ -4,7 +4,7 @@
 
 A plugin extends Cleitext the way a WordPress plugin extends WordPress. It can add content types with custom fields, blocks, pages to the admin, settings, endpoints, addresses on the public site and its own database tables, and it can react to what happens through hooks.
 
-This guide is all you need to write one. A complete example lives in [`examples/plugin-events`](../examples/plugin-events): an _Events_ plugin with a content type, a block, an admin page and its own table.
+This guide is all you need to write one. A complete example lives in [`examples/plugin-events`](../examples/plugin-events): an _Events_ plugin with a content type, a block, an admin page and its own table. The smallest one is the official [`plugins/hi-john`](../plugins/hi-john), Cleitext's Hello Dolly: one admin entry with a dashboard widget, no server code, no permissions.
 
 ## Contents
 

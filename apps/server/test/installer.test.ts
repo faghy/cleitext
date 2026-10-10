@@ -3,7 +3,12 @@ import type { FastifyInstance } from 'fastify';
 import { inject } from 'vitest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config/config.js';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createInstaller, needsInstall, setupToken } from '../src/install/installer.js';
+import { createSetup } from '../src/install/setup.js';
+import { ensureToken, tokenFile } from '../src/install/token.js';
 import { ownerDatabase, seedSite } from './helpers.js';
 
 const config = loadConfig({
@@ -101,6 +106,7 @@ describe('web installer', () => {
       'it',
       '--admin-email',
       'owner@new.example',
+      '--official-plugins',
       '--no-https',
     ]);
     expect(call!.args.join(' ')).not.toContain(valid.adminPassword);
@@ -110,5 +116,52 @@ describe('web installer', () => {
     const after = await installer.inject(form({ ...valid, token: setupToken(config) }));
     expect(after.statusCode).toBe(303);
     expect(calls).toHaveLength(1);
+  });
+
+  it('takes over the setup wizard: same token, no need to enter it again', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cleitext-installer-'));
+    const runs: string[][] = [];
+    // Written by the wizard before the installer starts.
+    const token = ensureToken(root);
+    const after = await createInstaller({
+      config,
+      root,
+      run: async (args) => {
+        runs.push(args);
+        return 'Installed.';
+      },
+      onInstalled: () => {},
+    });
+    try {
+      expect(setupToken(config, root)).toBe(token);
+      // The session cookie of the wizard.
+      const wizard = await createSetup({ root, onConfigured: () => {}, logLevel: 'silent' });
+      const opened = await wizard.inject({
+        method: 'POST',
+        url: '/install/token',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `token=${token}`,
+      });
+      await wizard.close();
+      const cookie = String(opened.headers['set-cookie']).split(';')[0]!;
+
+      const page = await after.inject({
+        url: '/install',
+        headers: { host: 'new.example', cookie },
+      });
+      expect(page.body).not.toContain('name="token"');
+      expect(page.body).toContain('aria-current="step"');
+      const done = await after.inject({
+        ...form(valid),
+        headers: { ...form(valid).headers, cookie },
+      });
+      expect(done.statusCode).toBe(200);
+      expect(runs).toHaveLength(1);
+      // Used up: the token file is gone.
+      expect(existsSync(tokenFile(root))).toBe(false);
+    } finally {
+      await after.close();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

@@ -1,0 +1,11 @@
+{
+  "slug": "hi-john",
+  "name": "Hi John",
+  "version": "1.0.0",
+  "apiVersion": "^1.0",
+  "description": "Not just a plugin: a line by John Lennon on your dashboard, in the spirit of WordPress's Hello Dolly. Also the smallest example of a plugin.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "admin": "dist/admin.js",
+  "permissions": []
+}
