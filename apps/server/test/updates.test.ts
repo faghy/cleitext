@@ -2,7 +2,6 @@
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { currentStep, totpCode } from '../src/auth/totp.js';
 import { UpdatesService } from '../src/updates/updates.service.js';
 import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
 
@@ -67,15 +66,7 @@ describe('updates', () => {
     expect((await root.get('/api/v1/updates/status')).json()).toBeNull();
   });
 
-  it('asks for two-factor authentication before updating, as for installing code', async () => {
-    const response = await root.post('/api/v1/updates/core');
-    expect(response.statusCode).toBe(400);
-    expect(response.json().detail).toContain('two-factor');
-  });
-
-  it('refuses when there is nothing newer', async () => {
-    const { secret } = (await root.post('/api/v1/profile/2fa/setup')).json();
-    await root.post('/api/v1/profile/2fa/enable', { code: totpCode(secret, currentStep()) });
+  it('needs no two-factor authentication, and refuses when there is nothing newer', async () => {
     latest = '0.0.1';
     const response = await root.post('/api/v1/updates/core');
     expect(response.statusCode).toBe(400);

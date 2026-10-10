@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
-import { useMe } from '../auth';
 import { Alert, Button, Card, useT } from '../components/ui';
 
 interface UpdateCheck {
@@ -44,7 +43,6 @@ export const UPDATES_QUERY = {
 /** Dashboard → Updates (RF-SYS-UPD): the core, as WordPress does it. */
 export function UpdatesPage() {
   const { t, language } = useT();
-  const me = useMe();
   const queryClient = useQueryClient();
   const check = useQuery(UPDATES_QUERY);
   const status = useQuery({
@@ -128,15 +126,9 @@ export function UpdatesPage() {
                     'Before updating, a backup of the database, media and plugins is made. The site keeps working during the update, and restarts on the new version at the end; the previous version is kept on the server.',
                   )}
                 </p>
-                {me.user.twoFactorEnabled ? (
-                  <Button disabled={start.isPending} onClick={() => start.mutate()}>
-                    {t('Update to {version}', { version: info.latest ?? '' })}
-                  </Button>
-                ) : (
-                  <p className="text-slate-700">
-                    {t('Turn on two-factor authentication in your profile to install code.')}
-                  </p>
-                )}
+                <Button disabled={start.isPending} onClick={() => start.mutate()}>
+                  {t('Update to {version}', { version: info.latest ?? '' })}
+                </Button>
               </>
             )}
           </div>

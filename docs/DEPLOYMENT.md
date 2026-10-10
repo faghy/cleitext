@@ -157,7 +157,7 @@ A site in more than one language needs the **Multilingual** plugin. It is not in
 
 ## 8. Updates
 
-**From the admin** (Cleitext 0.8 and later): super admins see a notice on the dashboard when a new version is published, and update in **Updates** with one button (two-factor authentication required, as for installing code). Cleitext downloads the release from GitHub, checks it against its SHA-256, makes a backup in `cleitext-shared/backups`, runs the database migrations, updates the official plugins that are installed, switches to the new version and restarts. The site keeps answering during the update; if a step fails, it stays on the running version. The previous version is kept: `.cleitext-previous` next to a `cleitext` folder installed by the wizard, or the previous folder in `releases/`.
+**From the admin** (Cleitext 0.8 and later): super admins see a notice on the dashboard when a new version is published, and update in **Updates** with one button. Cleitext downloads the release from GitHub, checks it against its SHA-256, makes a backup in `cleitext-shared/backups`, runs the database migrations, updates the official plugins that are installed, switches to the new version and restarts. The site keeps answering during the update; if a step fails, it stays on the running version. The previous version is kept: `.cleitext-previous` next to a `cleitext` folder installed by the wizard, or the previous folder in `releases/`.
 
 The same from SSH: `bin/cleitext update` (`--check` only tells whether there is one). Updates come from `UPDATES_REPO` (default `faghy/cleitext`); an empty value turns the check off.
 

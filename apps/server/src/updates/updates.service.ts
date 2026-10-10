@@ -15,7 +15,6 @@ import type { AuthContext } from '../common/request-context.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import { appRoot } from '../install/token.js';
-import { assertCanUpload } from '../plugins/package-upload.js';
 
 declare const PhusionPassenger: unknown;
 
@@ -148,8 +147,9 @@ export class UpdatesService implements OnModuleDestroy {
 
   /** Starts `cleitext update --to <latest>` in its own process. */
   async start(siteId: string, auth: AuthContext, ip: string): Promise<UpdateStatusView> {
-    // Updating installs code: the same rules as uploading a package.
-    assertCanUpload(this.config.packages, auth);
+    // Super admins only (the controller); two-factor authentication is not
+    // required here, by the maintainer's choice: releases come from GitHub
+    // and are checked against their SHA-256.
     const running = this.status();
     if (running?.state === 'running' && Date.now() - Date.parse(running.startedAt) < STALE_MS) {
       throw new ConflictException('An update is already running.');
