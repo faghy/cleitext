@@ -156,6 +156,12 @@ const sample: CxdDocument = {
       v: 1,
       attrs: { content: '<div class="note">Raw <b>HTML</b> &amp; <!-- comment --></div>' },
     },
+    {
+      id: 'pat',
+      type: 'cleitext/pattern',
+      v: 1,
+      attrs: { ref: '0190f2c4-0000-7000-8000-000000000009' },
+    },
     { id: 'ext', type: 'acme/map', v: 2, attrs: { lat: 45.4, lng: 9.2 }, children: [] },
   ],
 };

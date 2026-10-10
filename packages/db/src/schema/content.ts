@@ -142,3 +142,18 @@ export const entryLocks = pgTable('entry_locks', {
     .references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 });
+
+/**
+ * Block patterns (RF-EDT-07): saved selections of blocks, inserted as copies
+ * or, when synced, as a reference rendered from the pattern everywhere.
+ */
+export const patterns = pgTable('patterns', {
+  id: id(),
+  siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  document: jsonb('document').notNull(),
+  synced: boolean('synced').notNull().default(false),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

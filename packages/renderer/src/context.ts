@@ -1,3 +1,4 @@
+import type { CxdDocument } from '@cleitext/blocks';
 import { createContext, useContext } from 'react';
 import type { BlockRenderer } from './blocks.js';
 
@@ -18,6 +19,8 @@ export interface RenderMedia {
 export interface RenderContext {
   /** Media referenced by the document, by id. */
   media: ReadonlyMap<string, RenderMedia>;
+  /** Documents of the synced patterns used by the document, by id (RF-EDT-07). */
+  patterns?: ReadonlyMap<string, CxdDocument>;
   /** Content language, for `lang`-sensitive output. */
   locale: string;
   /** Load the first image eagerly (LCP), the others lazily. */

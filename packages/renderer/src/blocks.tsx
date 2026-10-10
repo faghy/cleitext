@@ -215,6 +215,23 @@ registerBlockRenderer('core/embed', ({ block }) => {
   );
 });
 
+/** A synced pattern: its blocks, from the pattern itself (one level deep). */
+registerBlockRenderer('cleitext/pattern', ({ block }) => <PatternBlock block={block} />);
+
+function PatternBlock({ block }: { block: CxdBlock }): ReactNode {
+  const context = useRenderContext();
+  const document =
+    typeof block.attrs.ref === 'string' ? context.patterns?.get(block.attrs.ref) : undefined;
+  if (!document) return null;
+  // Patterns inside a pattern are not expanded again.
+  const blocks = document.blocks.filter((b) => b.type !== 'cleitext/pattern');
+  return (
+    <RenderContextReact.Provider value={context}>
+      <BlockList blocks={blocks} />
+    </RenderContextReact.Provider>
+  );
+}
+
 registerBlockRenderer('core/image', ({ block }) => <ImageBlock block={block} />);
 
 function ImageBlock({ block }: { block: CxdBlock }): ReactNode {

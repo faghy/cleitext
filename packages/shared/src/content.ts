@@ -275,3 +275,25 @@ export const termAssignmentsSchema = z.record(
   z.string().min(1).max(64),
   z.array(z.union([z.uuid(), z.object({ name: z.string().trim().min(1).max(200) })])).max(100),
 );
+
+// ---- Patterns (RF-EDT-07) --------------------------------------------------------
+
+export interface PatternView {
+  id: string;
+  title: string;
+  document: unknown;
+  /** Inserted as a reference: changes reach every place that uses it. */
+  synced: boolean;
+  createdBy: { id: string; displayName: string } | null;
+  updatedAt: string;
+}
+
+export const createPatternRequestSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  document: z.unknown(),
+  synced: z.boolean().default(false),
+});
+export const updatePatternRequestSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  document: z.unknown().optional(),
+});

@@ -6,6 +6,8 @@ import { visibleSections } from '../navigation';
 import { useT } from '../components/ui';
 import { Avatar } from '../components/avatar';
 import { taxonomiesQuery, taxonomyLabel } from './terms';
+import { useCallback, useState } from 'react';
+import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
@@ -18,6 +20,9 @@ export function AdminLayout() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const sections = visibleSections(me.capabilities);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const togglePalette = useCallback(() => setPaletteOpen((open) => !open), []);
+  useCommandPaletteShortcut(togglePalette);
   // A role that requires 2FA reaches only the profile until it is on.
   const mustSetUp2fa = me.user.twoFactorRequired && !me.user.twoFactorEnabled;
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -79,6 +84,16 @@ export function AdminLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-end gap-4 border-b border-slate-200 bg-white px-6 py-2 text-sm">
+          <button
+            type="button"
+            className="mr-auto flex items-center gap-2 rounded border border-slate-300 px-2 py-1 text-slate-500 hover:border-slate-400"
+            onClick={() => setPaletteOpen(true)}
+            aria-label={t('Open the command palette')}
+            aria-keyshortcuts="Control+K"
+          >
+            {t('Search…')}
+            <kbd className="rounded bg-slate-100 px-1 text-xs">Ctrl K</kbd>
+          </button>
           {me.sites.length > 1 && (
             <label className="mr-auto flex items-center gap-2">
               <span className="text-slate-600">{t('Site')}</span>
@@ -116,6 +131,7 @@ export function AdminLayout() {
             {t('Sign out')}
           </button>
         </header>
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         <main className="p-6">
           {mustSetUp2fa && pathname !== PROFILE ? <Navigate to={PROFILE} /> : <Outlet />}
         </main>

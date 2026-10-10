@@ -5,7 +5,7 @@ import { Fragment, type PointerEvent, useEffect, useRef, useState } from 'react'
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card, TextField } from '../components/ui';
-import { AreasTab, CustomizeTab, ThemesTab } from './theme-tabs';
+import { AreasTab, CustomizeTab, PatternsTab, ThemesTab } from './theme-tabs';
 import {
   block,
   canIndent,
@@ -35,7 +35,7 @@ interface DragState {
 
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
 
-type Tab = 'menus' | 'themes' | 'customize' | 'areas';
+type Tab = 'menus' | 'themes' | 'customize' | 'areas' | 'patterns';
 
 /** Appearance: themes, their settings and areas, menus. */
 export function AppearancePage() {
@@ -47,6 +47,7 @@ export function AppearancePage() {
     { id: 'customize', label: 'Customize', capability: 'edit_theme_settings' },
     { id: 'areas', label: 'Areas', capability: 'edit_theme_settings' },
     { id: 'menus', label: 'Menus', capability: 'manage_menus' },
+    { id: 'patterns', label: 'Patterns', capability: 'edit_entries' },
   ];
   const visible = tabs.filter((item) => me.capabilities.includes(item.capability));
   const current = visible.some((item) => item.id === tab) ? tab : (visible[0]?.id ?? 'menus');
@@ -73,6 +74,7 @@ export function AppearancePage() {
       {current === 'customize' && <CustomizeTab />}
       {current === 'areas' && <AreasTab />}
       {current === 'menus' && <MenusTab />}
+      {current === 'patterns' && <PatternsTab />}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   type FieldValues,
   type MediaListResponse,
   type MediaView,
+  type PatternView,
   type PluginBlockView,
   type RevisionSummary,
   type RevisionView,
@@ -1108,6 +1109,17 @@ export function mediaServices(locale: string): EditorServices {
       if (kind) params.set('kind', kind);
       if (search) params.set('q', search);
       return (await api<MediaListResponse>('GET', `/media?${params}`)).items.map(toRef);
+    },
+    listPatterns: async () =>
+      (await api<PatternView[]>('GET', '/patterns')).map((pattern) => ({
+        id: pattern.id,
+        title: pattern.title,
+        document: pattern.document as CxdDocument,
+        synced: pattern.synced,
+      })),
+    savePattern: async (input) => {
+      const pattern = await api<PatternView>('POST', '/patterns', input);
+      return { ...input, id: pattern.id };
     },
     oembed: async (url) => {
       try {

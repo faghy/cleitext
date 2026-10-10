@@ -3,6 +3,7 @@ import zlib from 'node:zlib';
 import {
   entries,
   entryTerms,
+  patterns,
   redirects,
   revisions,
   sites,
@@ -17,6 +18,7 @@ import { documentText, type CxdBlock, type CxdDocument } from '@cleitext/blocks'
 import type { RenderHookContext } from '@cleitext/plugin-sdk';
 import {
   collectMediaIds,
+  collectPatternIds,
   documentExcerpt,
   firstImage,
   renderHtmlDocument,
@@ -1081,7 +1083,27 @@ export class PublicService {
     // Theme settings and block areas, with the media they use.
     const themeValues = scope.themeSettings ?? (await themeSettings(scope.tx, theme));
     const areas = await themeAreas(scope.tx, theme, locale);
-    const extraMedia = themeMediaIds(theme, themeValues, areas).filter((id) => !media.has(id));
+    // Synced patterns used by the entry or the areas (RF-EDT-07).
+    const patternIds = [
+      ...new Set(
+        [props.kind === 'entry' ? props.entry.document : null, ...Object.values(areas)].flatMap(
+          (doc) => collectPatternIds(doc),
+        ),
+      ),
+    ];
+    const patternDocs = new Map<string, CxdDocument>();
+    if (patternIds.length > 0) {
+      const rows = await scope.tx
+        .select({ id: patterns.id, document: patterns.document })
+        .from(patterns)
+        .where(and(inArray(patterns.id, patternIds), eq(patterns.synced, true)));
+      for (const row of rows) patternDocs.set(row.id, row.document as CxdDocument);
+      scope.tags.add('patterns');
+    }
+    const extraMedia = [
+      ...themeMediaIds(theme, themeValues, areas),
+      ...[...patternDocs.values()].flatMap((doc) => collectMediaIds(doc)),
+    ].filter((id) => !media.has(id));
     if (extraMedia.length > 0) {
       for (const [id, item] of await loadMedia(scope.tx, extraMedia, locale)) media.set(id, item);
     }
@@ -1108,6 +1130,7 @@ export class PublicService {
       ...(scope.blockRenderers ? { blockRenderers: scope.blockRenderers } : {}),
       themeSettings: themeValues,
       areas,
+      patterns: patternDocs,
     };
     const Template = resolveTemplate(theme, candidates);
     let html = renderHtmlDocument(

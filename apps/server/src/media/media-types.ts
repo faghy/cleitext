@@ -44,7 +44,11 @@ export async function detectType(data: Buffer): Promise<string | null> {
 
 /** An SVG file, recognized from its first bytes (file-type does not detect text formats). */
 export function looksLikeSvg(data: Buffer): boolean {
-  const head = data.subarray(0, 1024).toString('utf8').replace(/^\uFEFF/, '').trimStart();
+  const head = data
+    .subarray(0, 1024)
+    .toString('utf8')
+    .replace(/^\uFEFF/, '')
+    .trimStart();
   return /^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head);
 }
 

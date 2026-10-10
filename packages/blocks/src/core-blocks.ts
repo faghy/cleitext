@@ -172,6 +172,14 @@ export const CORE_BLOCKS: BlockDefinition[] = [
     attrs: z.object({ content: z.string().max(200_000).optional() }).loose(),
   },
   {
+    /** A synced pattern (RF-EDT-07): rendered from the pattern wherever it is used. */
+    type: 'cleitext/pattern',
+    version: 1,
+    title: 'Synced pattern',
+    category: 'design',
+    attrs: z.object({ ref: z.uuid() }).loose(),
+  },
+  {
     type: 'core/separator',
     version: 1,
     title: 'Separator',

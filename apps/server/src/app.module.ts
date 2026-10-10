@@ -19,8 +19,11 @@ import { OEmbedController } from './content/oembed.controller.js';
 import { StructureController } from './content/structure.controller.js';
 import { StructureService } from './content/structure.service.js';
 import { LocksService } from './content/locks.service.js';
+import { PatternsController } from './content/patterns.controller.js';
+import { PatternsService } from './content/patterns.service.js';
 import { ThemesController } from './themes/themes.controller.js';
 import { RedirectsController } from './settings/redirects.controller.js';
+import { SearchController } from './admin/search.controller.js';
 import { ThemesService } from './themes/themes.service.js';
 import { EntriesService } from './content/entries.service.js';
 import { SchedulerService } from './content/scheduler.service.js';
@@ -109,6 +112,8 @@ export class AppModule {
         StructureController,
         ThemesController,
         RedirectsController,
+        SearchController,
+        PatternsController,
         EntriesController,
         MediaController,
         TermsController,
@@ -132,6 +137,7 @@ export class AppModule {
         RolesService,
         StructureService,
         LocksService,
+        PatternsService,
         ThemesService,
         LoginThrottleService,
         MailService,

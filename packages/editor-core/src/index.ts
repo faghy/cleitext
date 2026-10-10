@@ -50,6 +50,14 @@ export interface EditorServices {
   /** Media library browsing, for the editor's media picker. */
   listMedia?(query: { kind?: 'image'; search?: string }): Promise<MediaRef[]>;
   searchLinks?(query: string): Promise<LinkSuggestion[]>;
+  /** Saved block patterns (RF-EDT-07). */
+  listPatterns?(): Promise<PatternRef[]>;
+  /** Saves blocks as a new pattern. */
+  savePattern?(input: {
+    title: string;
+    document: CxdDocument;
+    synced: boolean;
+  }): Promise<PatternRef>;
   /** Embed preview (oEmbed response), or null when the address cannot be embedded. */
   oembed?(url: string): Promise<EmbedPreview | null>;
 }
@@ -60,6 +68,13 @@ export interface EmbedPreview {
   html: string;
   width?: number;
   height?: number;
+}
+
+export interface PatternRef {
+  id: string;
+  title: string;
+  document: CxdDocument;
+  synced: boolean;
 }
 
 export interface MediaRef {

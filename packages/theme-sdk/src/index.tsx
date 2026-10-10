@@ -37,6 +37,7 @@ export function EntryContent({ document }: { document: CxdDocument }) {
         locale: page.locale,
         eagerFirstImage: true,
         ...(page.blockRenderers ? { renderers: page.blockRenderers } : {}),
+        ...(page.patterns ? { patterns: page.patterns } : {}),
       }}
     />
   );
@@ -60,6 +61,8 @@ export function BlockArea({ name, className }: { name: string; className?: strin
           media: page.media,
           locale: page.locale,
           ...(page.blockRenderers ? { renderers: page.blockRenderers } : {}),
+          ...(page.patterns ? { patterns: page.patterns } : {}),
+          ...(page.patterns ? { patterns: page.patterns } : {}),
         }}
       />
     </div>

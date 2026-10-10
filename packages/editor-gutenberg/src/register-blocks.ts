@@ -21,6 +21,7 @@ import { setDefaultBlockName } from '@wordpress/blocks';
 import '@wordpress/format-library';
 import { currentServices } from './media-upload';
 import { registerUnavailableBlock } from './unavailable-block';
+import { registerPatternBlock } from './patterns';
 
 /** Core blocks available in the MVP editor (docs/ARCHITECTURE.md §10.5). */
 const CORE_BLOCKS = [
@@ -63,5 +64,6 @@ export function registerCoreBlocks(): void {
   });
   for (const block of CORE_BLOCKS) (block as { init: () => unknown }).init();
   registerUnavailableBlock();
+  registerPatternBlock();
   setDefaultBlockName('core/paragraph');
 }

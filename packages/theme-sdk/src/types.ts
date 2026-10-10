@@ -163,4 +163,6 @@ export interface PageContext {
   themeSettings?: Readonly<Record<string, unknown>>;
   /** Block areas in the page's language, by name. */
   areas?: Readonly<Record<string, CxdDocument>>;
+  /** Synced patterns used by the page (RF-EDT-07), by id. */
+  patterns?: ReadonlyMap<string, CxdDocument>;
 }

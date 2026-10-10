@@ -135,6 +135,9 @@ test('a plugin adds a type, a block, an admin page and its table; deactivating i
   // The editor keeps the block as "unavailable".
   await page.goBack();
   await page.goto('/admin/pages');
+  // Pages pile up across runs: search instead of relying on the first page.
+  await page.getByRole('searchbox', { name: 'Search pages' }).fill(stamp);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('link', { name: `What's on ${stamp}` }).click();
   await expect(
     page

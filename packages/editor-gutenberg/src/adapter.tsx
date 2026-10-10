@@ -1,19 +1,32 @@
 import { createCoreRegistry, newBlockId, type CxdDocument } from '@cleitext/blocks';
-import type { EditorAdapter, EditorInstance, EditorMountOptions } from '@cleitext/editor-core';
+import type {
+  EditorAdapter,
+  EditorInstance,
+  EditorMountOptions,
+  PatternRef,
+} from '@cleitext/editor-core';
 import {
   BlockCanvas,
   BlockEditorKeyboardShortcuts,
   BlockEditorProvider,
   BlockInspector,
   Inserter,
+  store as blockEditorStore,
   __experimentalListView as ListView,
 } from '@wordpress/block-editor';
 import type { Block } from '@wordpress/blocks';
 import { Button, Modal, Popover, SlotFillProvider } from '@wordpress/components';
 import { useStateWithHistory } from '@wordpress/compose';
-import { useDispatch } from '@wordpress/data';
+import { select, useDispatch, useSelect } from '@wordpress/data';
 import { store as keyboardShortcutsStore, useShortcut } from '@wordpress/keyboard-shortcuts';
-import { keyboard, listView, plus, redo as redoIcon, undo as undoIcon } from '@wordpress/icons';
+import {
+  keyboard,
+  listView,
+  plus,
+  redo as redoIcon,
+  symbol,
+  undo as undoIcon,
+} from '@wordpress/icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
@@ -23,6 +36,7 @@ import { registerMediaUpload, setMediaServices } from './media-upload';
 import { registerFieldBlocks } from './field-blocks';
 import { registerCoreBlocks } from './register-blocks';
 import { EDITOR_SHORTCUTS, ShortcutsHelp } from './shortcuts';
+import { inserterPatterns, PATTERN_CATEGORIES, setPatterns } from './patterns';
 import blockEditorContentCss from '@wordpress/block-editor/build-style/content.css?inline';
 import blockLibraryEditorCss from '@wordpress/block-library/build-style/editor.css?inline';
 import componentsCss from '@wordpress/components/build-style/style.css?inline';
@@ -157,6 +171,37 @@ function GutenbergEditor({
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
+  // Saved patterns (RF-EDT-07), offered by the inserter.
+  const [patterns, setPatternsState] = useState<PatternRef[]>([]);
+  const loadPatterns = () =>
+    options.services.listPatterns?.().then((list) => {
+      setPatterns(list);
+      setPatternsState(list);
+    });
+  useEffect(() => {
+    void loadPatterns();
+  }, []);
+  const selectedClientIds = useSelect(
+    (choose) =>
+      (
+        choose(blockEditorStore) as unknown as { getSelectedBlockClientIds(): string[] }
+      ).getSelectedBlockClientIds(),
+    [],
+  );
+  const saveAsPattern = async () => {
+    const editor = select(blockEditorStore) as unknown as {
+      getBlocksByClientId(ids: string[]): Block[];
+    };
+    const blocks = editor.getBlocksByClientId(selectedClientIds).filter(Boolean);
+    if (blocks.length === 0 || !options.services.savePattern) return;
+    const title = window.prompt('Name of the pattern');
+    if (!title?.trim()) return;
+    const synced = window.confirm(
+      'Keep it synced? OK: every use follows changes made to the pattern. Cancel: insert copies.',
+    );
+    await options.services.savePattern({ title: title.trim(), document: toCxd(blocks), synced });
+    await loadPatterns();
+  };
   const { registerShortcut } = useDispatch(keyboardShortcutsStore) as unknown as {
     registerShortcut(shortcut: unknown): void;
   };
@@ -185,6 +230,8 @@ function GutenbergEditor({
       hasFixedToolbar: false,
       focusMode: false,
       bodyPlaceholder: 'Type / to choose a block',
+      __experimentalBlockPatterns: inserterPatterns(patterns),
+      __experimentalBlockPatternCategories: PATTERN_CATEGORIES,
       __unstableResolvedAssets: options.styles
         ? {
             ...RESOLVED_ASSETS,
@@ -194,7 +241,7 @@ function GutenbergEditor({
         : RESOLVED_ASSETS,
       ...(options.services.uploadMedia ? { mediaUpload: makeMediaUpload(options) } : {}),
     }),
-    [options],
+    [options, patterns],
   );
 
   return (
@@ -242,6 +289,15 @@ function GutenbergEditor({
               disabled={!hasRedo}
               size="compact"
             />
+            {options.services.savePattern && (
+              <Button
+                icon={symbol}
+                label="Save as pattern"
+                disabled={selectedClientIds.length === 0}
+                onClick={() => void saveAsPattern()}
+                size="compact"
+              />
+            )}
             <Button
               icon={listView}
               label="Document outline"

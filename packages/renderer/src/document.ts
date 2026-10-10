@@ -14,6 +14,20 @@ export function collectMediaIds(doc: CxdDocument | null | undefined): string[] {
   return [...ids];
 }
 
+/** Synced patterns referenced by a document (RF-EDT-07), to preload. */
+export function collectPatternIds(doc: CxdDocument | null | undefined): string[] {
+  const ids = new Set<string>();
+  const walk = (blocks: CxdBlock[]) => {
+    for (const block of blocks) {
+      if (block.type === 'cleitext/pattern' && typeof block.attrs.ref === 'string')
+        ids.add(block.attrs.ref);
+      if (block.children) walk(block.children);
+    }
+  };
+  if (doc) walk(doc.blocks);
+  return [...ids];
+}
+
 /** The first image of a document (for social previews). */
 export function firstImage(
   doc: CxdDocument | null | undefined,

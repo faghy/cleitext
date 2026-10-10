@@ -8,4 +8,4 @@ export {
 export { hasText, Inline } from './inline.js';
 export { safeUrl } from './url.js';
 export { renderHtmlDocument } from './render.js';
-export { collectMediaIds, documentExcerpt, firstImage } from './document.js';
+export { collectMediaIds, collectPatternIds, documentExcerpt, firstImage } from './document.js';

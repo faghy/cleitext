@@ -1,7 +1,7 @@
 import type { CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance } from '@cleitext/editor-core';
 import { FieldsForm } from '@cleitext/admin-sdk';
-import { labelText, type ThemeView } from '@cleitext/shared';
+import { labelText, type PatternView, type ThemeView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
@@ -230,16 +230,40 @@ export function AreasTab() {
 
 function AreaEditor({ name, locale }: { name: string; locale: string }) {
   const { t } = useT();
+  const url = `/themes/active/areas/${name}?locale=${encodeURIComponent(locale)}`;
+  return (
+    <DocumentEditor
+      key={url}
+      locale={locale}
+      load={() => api<CxdDocument>('GET', url)}
+      save={(document) => api<CxdDocument>('PUT', url, { document })}
+      saveLabel={t('Save area')}
+    />
+  );
+}
+
+/** The block editor on a document that is not an entry (areas, patterns). */
+function DocumentEditor({
+  locale,
+  load,
+  save: store,
+  saveLabel,
+}: {
+  locale: string;
+  load: () => Promise<CxdDocument>;
+  save: (document: CxdDocument | undefined) => Promise<unknown>;
+  saveLabel: string;
+}) {
+  const { t } = useT();
   const canvasRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorInstance | null>(null);
   const [ready, setReady] = useState(false);
-  const url = `/themes/active/areas/${name}?locale=${encodeURIComponent(locale)}`;
 
   useEffect(() => {
     let cancelled = false;
     void Promise.all([
       import('@cleitext/editor-gutenberg'),
-      api<CxdDocument>('GET', url),
+      load(),
       api<{ css: string }>('GET', '/themes/active/editor-styles').catch(() => ({ css: '' })),
     ]).then(([{ gutenbergAdapter }, document, styles]) => {
       if (cancelled || !canvasRef.current) return;
@@ -258,12 +282,10 @@ function AreaEditor({ name, locale }: { name: string; locale: string }) {
       editorRef.current?.destroy();
       editorRef.current = null;
     };
-    // Mounted once per area and language.
-  }, [url]);
+    // Mounted once per document (the parent sets a key).
+  }, []);
 
-  const save = useMutation({
-    mutationFn: () => api<CxdDocument>('PUT', url, { document: editorRef.current?.getDocument() }),
-  });
+  const save = useMutation({ mutationFn: () => store(editorRef.current?.getDocument()) });
 
   return (
     <div className="light-palette space-y-3">
@@ -274,8 +296,100 @@ function AreaEditor({ name, locale }: { name: string; locale: string }) {
       {save.error && <Alert>{errorMessage(save.error)}</Alert>}
       {save.isSuccess && <Alert kind="success">{t('Saved.')}</Alert>}
       <Button disabled={!ready || save.isPending} onClick={() => save.mutate()}>
-        {t('Save area')}
+        {saveLabel}
       </Button>
+    </div>
+  );
+}
+
+/** Appearance → Patterns (RF-EDT-07): saved patterns, editable and removable. */
+export function PatternsTab() {
+  const { t } = useT();
+  const me = useMe();
+  const queryClient = useQueryClient();
+  const patterns = useQuery({
+    queryKey: ['patterns'],
+    queryFn: () => api<PatternView[]>('GET', '/patterns'),
+  });
+  const [editing, setEditing] = useState<string | null>(null);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['patterns'] });
+  const rename = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
+      api<PatternView>('PATCH', `/patterns/${id}`, { title }),
+    onSuccess: refresh,
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api<void>('DELETE', `/patterns/${id}`),
+    onSuccess: refresh,
+  });
+  const current = patterns.data?.find((p) => p.id === editing);
+  const error = rename.error ?? remove.error ?? patterns.error;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600">
+        {t(
+          'Patterns are saved from the editor (Save as pattern). Synced patterns are the same everywhere: change them here.',
+        )}
+      </p>
+      {error && <Alert>{errorMessage(error)}</Alert>}
+      {patterns.data?.length === 0 && <p className="text-sm">{t('No patterns yet.')}</p>}
+      <ul
+        className="divide-y divide-slate-100 rounded border border-slate-200 bg-white"
+        aria-label={t('Patterns')}
+      >
+        {patterns.data?.map((pattern) => (
+          <li
+            key={pattern.id}
+            className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
+          >
+            <span>
+              <span className="font-medium">{pattern.title}</span>{' '}
+              <span className="text-xs text-slate-500">
+                {pattern.synced ? t('synced') : t('copied when inserted')}
+              </span>
+            </span>
+            <span className="flex gap-2">
+              <Button variant="secondary" onClick={() => setEditing(pattern.id)}>
+                {t('Edit')}
+                <span className="sr-only"> {pattern.title}</span>
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const title = window.prompt(t('New name'), pattern.title);
+                  if (title?.trim()) rename.mutate({ id: pattern.id, title: title.trim() });
+                }}
+              >
+                {t('Rename')}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (window.confirm(t('Delete the pattern "{name}"?', { name: pattern.title })))
+                    remove.mutate(pattern.id);
+                }}
+              >
+                {t('Delete')}
+              </Button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {current && (
+        <Card title={t('Edit {name}', { name: current.title })}>
+          <DocumentEditor
+            key={current.id}
+            locale={me.site.defaultLocale}
+            load={async () => current.document as CxdDocument}
+            save={async (document) => {
+              await api<PatternView>('PATCH', `/patterns/${current.id}`, { document });
+              await refresh();
+            }}
+            saveLabel={t('Save pattern')}
+          />
+        </Card>
+      )}
     </div>
   );
 }

@@ -346,6 +346,9 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
     await tx
       .insert(s.entryLocks)
       .values({ siteId, entryId, userId, expiresAt: new Date(Date.now() + 60_000) });
+    await tx
+      .insert(s.patterns)
+      .values({ siteId, title: 'Pattern', document: { schema: 1, blocks: [] }, createdBy: userId });
     return { siteId, host, userId, entryId, termId };
   });
 }

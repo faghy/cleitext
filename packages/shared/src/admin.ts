@@ -76,3 +76,11 @@ export interface SystemStatusView {
   scheduler: { intervalSeconds: number };
   mail: { siteSettings: boolean; serverDriver: string };
 }
+
+/** Global admin search for the command palette (RF-ADM-05). */
+export interface AdminSearchResult {
+  entries: { id: string; type: string; title: string; status: string }[];
+  media: { id: string; filename: string; mime: string }[];
+  terms: { id: string; name: string; taxonomy: string }[];
+  users: { id: string; displayName: string; email: string }[];
+}

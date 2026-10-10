@@ -289,4 +289,13 @@ export const itContent: Messages = {
   'Not used in any entry.': 'Non usato in nessuna voce.',
   '{name} is already in the library as {existing}: nothing was added.':
     '{name} è già nella libreria come {existing}: non è stato aggiunto nulla.',
+  'Patterns are saved from the editor (Save as pattern). Synced patterns are the same everywhere: change them here.':
+    'I pattern si salvano dall’editor (Salva come pattern). I pattern sincronizzati sono uguali ovunque: modificali qui.',
+  'No patterns yet.': 'Ancora nessun pattern.',
+  Patterns: 'Pattern',
+  synced: 'sincronizzato',
+  'copied when inserted': 'copiato quando viene inserito',
+  'New name': 'Nuovo nome',
+  'Delete the pattern "{name}"?': 'Eliminare il pattern «{name}»?',
+  'Save pattern': 'Salva pattern',
 };
