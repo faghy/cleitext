@@ -26,7 +26,8 @@ export function Avatar({
         ...style,
         fontSize: size * 0.4,
         color: '#fff',
-        backgroundColor: `hsl(${hue(name)} 45% 40%)`,
+        // Dark enough for white initials to pass WCAG AA on every hue.
+        backgroundColor: `hsl(${hue(name)} 45% 30%)`,
       }}
       className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold select-none"
     >

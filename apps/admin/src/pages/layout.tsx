@@ -86,13 +86,13 @@ export function AdminLayout() {
         <header className="flex items-center justify-end gap-4 border-b border-slate-200 bg-white px-6 py-2 text-sm">
           <button
             type="button"
-            className="mr-auto flex items-center gap-2 rounded border border-slate-300 px-2 py-1 text-slate-500 hover:border-slate-400"
+            className="mr-auto flex items-center gap-2 rounded border border-slate-300 px-2 py-1 text-slate-600 hover:border-slate-400"
             onClick={() => setPaletteOpen(true)}
             aria-label={t('Open the command palette')}
             aria-keyshortcuts="Control+K"
           >
             {t('Search…')}
-            <kbd className="rounded bg-slate-100 px-1 text-xs">Ctrl K</kbd>
+            <kbd className="rounded bg-slate-100 px-1 text-xs text-slate-700">Ctrl K</kbd>
           </button>
           {me.sites.length > 1 && (
             <label className="mr-auto flex items-center gap-2">

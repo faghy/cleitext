@@ -423,7 +423,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                         </span>
                       )}
                       {entry.status !== 'trashed' && (
-                        <div className="text-xs opacity-70 group-focus-within:opacity-100 group-hover:opacity-100">
+                        <div className="text-xs">
                           <button
                             type="button"
                             className="text-sky-700 hover:underline"

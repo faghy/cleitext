@@ -174,10 +174,14 @@ function GutenbergEditor({
   // Saved patterns (RF-EDT-07), offered by the inserter.
   const [patterns, setPatternsState] = useState<PatternRef[]>([]);
   const loadPatterns = () =>
-    options.services.listPatterns?.().then((list) => {
-      setPatterns(list);
-      setPatternsState(list);
-    });
+    options.services
+      .listPatterns?.()
+      .then((list) => {
+        setPatterns(list);
+        setPatternsState(list);
+      })
+      // Without the list the inserter simply offers no saved patterns.
+      .catch(() => undefined);
   useEffect(() => {
     void loadPatterns();
   }, []);
@@ -224,6 +228,16 @@ function GutenbergEditor({
     redo();
   });
   useShortcut('cleitext/keyboard-shortcuts', () => setHelpOpen((open) => !open));
+  // Escape closes the help even when the browser left the focus outside the
+  // modal (Firefox, after opening it from the canvas).
+  useEffect(() => {
+    if (!helpOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setHelpOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [helpOpen]);
 
   const settings = useMemo(
     () => ({

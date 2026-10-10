@@ -150,7 +150,7 @@ function SiteCard({ site }: { site: SiteView }) {
   return (
     <article
       aria-label={site.name}
-      className={`rounded border bg-white p-4 shadow-sm ${site.status === 'archived' ? 'border-slate-200 opacity-70' : 'border-slate-200'}`}
+      className={`rounded border bg-white p-4 shadow-sm ${site.status === 'archived' ? 'border-dashed border-slate-300 bg-slate-50' : 'border-slate-200'}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -164,7 +164,7 @@ function SiteCard({ site }: { site: SiteView }) {
               <>
                 {' · '}
                 <a
-                  className="text-sky-700 hover:underline"
+                  className="text-sky-700 underline"
                   href={`${primary.forceHttps ? 'https' : 'http'}://${primary.host}/admin/`}
                 >
                   {t('Open admin')}
