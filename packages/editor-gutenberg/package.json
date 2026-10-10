@@ -27,6 +27,8 @@
     "@wordpress/format-library": "^5.57.0",
     "@wordpress/hooks": "^4.57.0",
     "@wordpress/icons": "^18.0.0",
+    "@wordpress/keyboard-shortcuts": "^5.57.0",
+    "@wordpress/keycodes": "^4.57.0",
     "@wordpress/rich-text": "^7.57.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

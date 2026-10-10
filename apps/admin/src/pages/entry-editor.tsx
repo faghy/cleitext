@@ -128,6 +128,7 @@ function Editor({ initial }: { initial: EntryView }) {
         services: mediaServices(initial.locale),
         locale: initial.locale,
         fieldBlocks: blocks.map((block) => toFieldBlock(block, userLocale)),
+        hostShortcuts: [{ description: 'Save your changes.', modifier: 'primary', character: 's' }],
         onChange: (document) => {
           documentRef.current = document;
           markDirty();
@@ -237,6 +238,28 @@ function Editor({ initial }: { initial: EntryView }) {
   });
 
   const readOnly = !entry.permissions.edit;
+
+  // Ctrl/Cmd+S saves (also from the editor canvas, whose keys bubble up).
+  const saveShortcut = useRef<() => void>(() => {});
+  saveShortcut.current = () => {
+    if (!readOnly && entry.status !== 'trashed' && !action.isPending) action.mutate('save');
+  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key === 's'
+      ) {
+        event.preventDefault();
+        saveShortcut.current();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const isPublished = entry.status === 'published' || entry.status === 'private';
   const backTo: string =
     entry.type === 'page'

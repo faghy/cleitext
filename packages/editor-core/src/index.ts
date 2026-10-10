@@ -27,8 +27,20 @@ export interface EditorMountOptions {
    * builds their editing form itself, so they work with any editor.
    */
   fieldBlocks?: FieldBlockDefinition[];
+  /**
+   * Shortcuts handled by the host page (e.g. save), listed in the editor's
+   * keyboard shortcuts help next to the editor's own (RF-EDT-06).
+   */
+  hostShortcuts?: HostShortcut[];
   /** Called with the full document after every change. */
   onChange(document: CxdDocument): void;
+}
+
+export interface HostShortcut {
+  description: string;
+  /** `primary` is Ctrl, or Cmd on Apple devices; `access` is Shift+Alt (Ctrl+Option on Apple). */
+  modifier?: 'primary' | 'primaryShift' | 'primaryAlt' | 'access';
+  character: string;
 }
 
 export interface EditorServices {

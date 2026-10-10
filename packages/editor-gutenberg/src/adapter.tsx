@@ -8,10 +8,12 @@ import {
   Inserter,
 } from '@wordpress/block-editor';
 import type { Block } from '@wordpress/blocks';
-import { Button, Popover, SlotFillProvider } from '@wordpress/components';
+import { Button, Modal, Popover, SlotFillProvider } from '@wordpress/components';
 import { useStateWithHistory } from '@wordpress/compose';
-import { plus, redo as redoIcon, undo as undoIcon } from '@wordpress/icons';
-import { useEffect, useMemo, useRef } from 'react';
+import { useDispatch } from '@wordpress/data';
+import { store as keyboardShortcutsStore, useShortcut } from '@wordpress/keyboard-shortcuts';
+import { keyboard, plus, redo as redoIcon, undo as undoIcon } from '@wordpress/icons';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { fromGutenberg, toGutenberg } from './convert';
@@ -19,6 +21,7 @@ import { buildBlocks, defaultsOf, isRegistered } from './gutenberg-tree';
 import { registerMediaUpload, setMediaServices } from './media-upload';
 import { registerFieldBlocks } from './field-blocks';
 import { registerCoreBlocks } from './register-blocks';
+import { EDITOR_SHORTCUTS, ShortcutsHelp } from './shortcuts';
 import blockEditorContentCss from '@wordpress/block-editor/build-style/content.css?inline';
 import blockLibraryEditorCss from '@wordpress/block-library/build-style/editor.css?inline';
 import componentsCss from '@wordpress/components/build-style/style.css?inline';
@@ -151,6 +154,30 @@ function GutenbergEditor({
     onChangeRef.current(toCxd(value.blocks));
   }, [value.blocks]);
 
+  const [helpOpen, setHelpOpen] = useState(false);
+  const { registerShortcut } = useDispatch(keyboardShortcutsStore) as unknown as {
+    registerShortcut(shortcut: unknown): void;
+  };
+  useEffect(() => {
+    for (const shortcut of EDITOR_SHORTCUTS) registerShortcut(shortcut);
+  }, []);
+  // Shortcuts listen on the whole page: undo and redo apply only to keys
+  // pressed in the editor (the canvas bubbles its events to its iframe), so
+  // other fields keep their own undo.
+  const inEditor = (event: KeyboardEvent) =>
+    event.target instanceof Node && options.targets.canvas.contains(event.target);
+  useShortcut('cleitext/undo', (event: KeyboardEvent) => {
+    if (!inEditor(event)) return;
+    event.preventDefault();
+    undo();
+  });
+  useShortcut('cleitext/redo', (event: KeyboardEvent) => {
+    if (!inEditor(event)) return;
+    event.preventDefault();
+    redo();
+  });
+  useShortcut('cleitext/keyboard-shortcuts', () => setHelpOpen((open) => !open));
+
   const settings = useMemo(
     () => ({
       hasFixedToolbar: false,
@@ -207,12 +234,23 @@ function GutenbergEditor({
               disabled={!hasRedo}
               size="compact"
             />
+            <Button
+              icon={keyboard}
+              label="Keyboard shortcuts"
+              onClick={() => setHelpOpen(true)}
+              size="compact"
+            />
           </div>
           <div className="cleitext-gutenberg__canvas">
             <BlockCanvas height="100%" />
           </div>
         </div>
         {options.targets.inspector && createPortal(<BlockInspector />, options.targets.inspector)}
+        {helpOpen && (
+          <Modal title="Keyboard shortcuts" onRequestClose={() => setHelpOpen(false)} size="medium">
+            <ShortcutsHelp hostShortcuts={options.hostShortcuts ?? []} />
+          </Modal>
+        )}
         <Popover.Slot />
       </BlockEditorProvider>
     </SlotFillProvider>
