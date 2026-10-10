@@ -200,6 +200,8 @@ export interface TermView {
   description: string | null;
   /** Entries using the term (in lists). */
   count: number;
+  /** The same term in the other languages (in lists, RF-TAX-03). */
+  translations?: { id: string; locale: string; name: string }[];
 }
 
 export const createTermRequestSchema = z.object({
@@ -208,10 +210,18 @@ export const createTermRequestSchema = z.object({
   parentId: z.uuid().nullable().optional(),
   locale: localeSchema.optional(),
   description: z.string().max(2_000).optional(),
+  /** Creates the term as the translation of another one, in another language. */
+  translationOf: z.uuid().optional(),
 });
 export type CreateTermRequest = z.input<typeof createTermRequestSchema>;
 
-export const updateTermRequestSchema = createTermRequestSchema.omit({ locale: true }).partial();
+export const updateTermRequestSchema = createTermRequestSchema
+  .omit({ locale: true, translationOf: true })
+  .partial()
+  .extend({
+    /** Links the term to the translations of another one; null unlinks it. */
+    translationOf: z.uuid().nullable().optional(),
+  });
 export type UpdateTermRequest = z.input<typeof updateTermRequestSchema>;
 
 /** Term assignments: ids of existing terms, or `{ name }` to find or create (tags). */

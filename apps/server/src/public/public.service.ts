@@ -740,6 +740,8 @@ export class PublicService {
       page: number;
       isHome: boolean;
       tag: string;
+      /** The same archive in the other languages (translated terms). */
+      alternates?: { locale: string; url: string }[];
       term?: {
         taxonomy: string;
         slug: string;
@@ -791,7 +793,7 @@ export class PublicService {
       path: pagePath,
       alternates: options.isHome
         ? data.locales.map((l) => ({ locale: l.code, url: data.urls.home(l.code) }))
-        : [],
+        : (options.alternates ?? []),
       type: 'website',
       image: null,
       noindex: false,
@@ -800,7 +802,7 @@ export class PublicService {
       type: 'article',
       ...(options.term ? { taxonomy: options.term.taxonomy, termSlug: options.term.slug } : {}),
     });
-    return this.render(scope, props, candidates, head, media, [], 200);
+    return this.render(scope, props, candidates, head, media, options.alternates ?? [], 200);
   }
 
   private async renderTermArchive(
@@ -825,7 +827,28 @@ export class PublicService {
       .select({ id: entryTerms.entryId })
       .from(entryTerms)
       .where(eq(entryTerms.termId, row.term.id));
+    // Translations of the term (RF-TAX-03), in the languages of the site.
+    const translations = await scope.tx
+      .select({ locale: terms.locale, slug: terms.slug })
+      .from(terms)
+      .where(
+        and(
+          eq(terms.taxonomyId, row.term.taxonomyId),
+          eq(terms.translationGroup, row.term.translationGroup),
+        ),
+      );
+    const enabled = new Set(scope.data.locales.map((l) => l.code));
+    const alternates =
+      translations.length > 1
+        ? translations
+            .filter((tr) => enabled.has(tr.locale))
+            .map((tr) => ({
+              locale: tr.locale,
+              url: scope.data.urls.term(taxonomySlug, tr.slug, tr.locale),
+            }))
+        : [];
     return this.renderArchive(scope, {
+      alternates,
       where: inArray(entries.id, ids),
       title: row.term.name,
       base: scope.data.urls.term(taxonomySlug, slug, scope.locale),

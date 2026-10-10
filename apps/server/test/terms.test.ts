@@ -161,3 +161,51 @@ describe('assignments', () => {
     ).toBe(400);
   });
 });
+
+describe('translations (RF-TAX-03)', () => {
+  it('creates, lists, links and unlinks translated terms', async () => {
+    const news = (await editor.post('/api/v1/taxonomies/category/terms', { name: 'World' })).json();
+    const created = await editor.post('/api/v1/taxonomies/category/terms', {
+      name: 'Mondo',
+      locale: 'it',
+      translationOf: news.id,
+    });
+    expect(created.statusCode).toBe(201);
+    const mondo = created.json();
+    expect(mondo.translationGroup).toBe(news.translationGroup);
+
+    const en = (await editor.get('/api/v1/taxonomies/category/terms?locale=en')).json();
+    expect(en.find((t: { id: string }) => t.id === news.id).translations).toEqual([
+      { id: mondo.id, locale: 'it', name: 'Mondo' },
+    ]);
+
+    // One term per language in a group.
+    const twice = await editor.post('/api/v1/taxonomies/category/terms', {
+      name: 'Mondo bis',
+      locale: 'it',
+      translationOf: news.id,
+    });
+    expect(twice.statusCode).toBe(409);
+
+    // The public archive links its translation.
+    const page = await new TestClient(app, site.host, '10.20.0.9').get('/category/world');
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toMatch(/hrefLang="it" href="[^"]*\/it\/category\/mondo"/);
+
+    const unlinked = await editor.request('PATCH', `/api/v1/terms/${mondo.id}`, {
+      translationOf: null,
+    });
+    expect(unlinked.json().translationGroup).not.toBe(news.translationGroup);
+    const relinked = await editor.request('PATCH', `/api/v1/terms/${mondo.id}`, {
+      translationOf: news.id,
+    });
+    expect(relinked.json().translationGroup).toBe(news.translationGroup);
+
+    // Only terms of the same taxonomy can be translations.
+    const tag = (await editor.post('/api/v1/taxonomies/tag/terms', { name: 'Globe' })).json();
+    expect(
+      (await editor.request('PATCH', `/api/v1/terms/${mondo.id}`, { translationOf: tag.id }))
+        .statusCode,
+    ).toBe(400);
+  });
+});

@@ -74,7 +74,28 @@ export class TermsService {
           and(eq(terms.taxonomyId, taxonomy.id), locale ? eq(terms.locale, locale) : undefined),
         )
         .orderBy(asc(terms.name));
-      return rows.map(({ term, count }) => toView(term, taxonomy.slug, count));
+      const groups = [...new Set(rows.map(({ term }) => term.translationGroup))];
+      const siblings =
+        groups.length > 0
+          ? await tx
+              .select({
+                id: terms.id,
+                locale: terms.locale,
+                name: terms.name,
+                group: terms.translationGroup,
+              })
+              .from(terms)
+              .where(
+                and(eq(terms.taxonomyId, taxonomy.id), inArray(terms.translationGroup, groups)),
+              )
+              .orderBy(asc(terms.locale))
+          : [];
+      return rows.map(({ term, count }) => ({
+        ...toView(term, taxonomy.slug, count),
+        translations: siblings
+          .filter((s) => s.group === term.translationGroup && s.id !== term.id)
+          .map(({ id, locale, name }) => ({ id, locale, name })),
+      }));
     });
   }
 
@@ -88,6 +109,7 @@ export class TermsService {
       parentId?: string | null | undefined;
       locale?: string | undefined;
       description?: string | undefined;
+      translationOf?: string | undefined;
     },
   ): Promise<TermView> {
     return this.run(siteId, auth, async (tx) => {
@@ -97,8 +119,26 @@ export class TermsService {
       const [enabled] = await tx.select().from(siteLocales).where(eq(siteLocales.code, locale));
       if (!enabled)
         throw new BadRequestException(`The language "${locale}" is not enabled on this site.`);
+      let translationGroup: string | undefined;
+      let parentId = input.parentId;
+      if (input.translationOf) {
+        const source = await this.term(tx, input.translationOf);
+        if (source.taxonomyId !== taxonomy.id)
+          throw new BadRequestException('A translation must belong to the same taxonomy.');
+        await this.assertLocaleFree(tx, source.translationGroup, locale, null);
+        translationGroup = source.translationGroup;
+        // The parent follows the source's parent, when it is translated too.
+        if (parentId === undefined && source.parentId) {
+          parentId = (await this.translationIn(tx, source.parentId, locale))?.id ?? null;
+        }
+      }
       return toView(
-        await this.insertTerm(tx, siteId, taxonomy, { ...input, locale }),
+        await this.insertTerm(tx, siteId, taxonomy, {
+          ...input,
+          parentId,
+          locale,
+          translationGroup,
+        }),
         taxonomy.slug,
         0,
       );
@@ -114,6 +154,7 @@ export class TermsService {
       slug?: string | undefined;
       parentId?: string | null | undefined;
       description?: string | undefined;
+      translationOf?: string | null | undefined;
     },
   ): Promise<TermView> {
     const view = await this.run(siteId, auth, async (tx) => {
@@ -138,6 +179,15 @@ export class TermsService {
           input.parentId,
           term.id,
         );
+      }
+      if (input.translationOf === null) {
+        changes.translationGroup = newId();
+      } else if (input.translationOf !== undefined) {
+        const other = await this.term(tx, input.translationOf);
+        if (other.taxonomyId !== term.taxonomyId)
+          throw new BadRequestException('A translation must belong to the same taxonomy.');
+        await this.assertLocaleFree(tx, other.translationGroup, term.locale, term.id);
+        changes.translationGroup = other.translationGroup;
       }
       const [updated] = await tx.update(terms).set(changes).where(eq(terms.id, id)).returning();
       return toView(updated!, taxonomy!.slug, 0);
@@ -271,6 +321,7 @@ export class TermsService {
       parentId?: string | null | undefined;
       locale: string;
       description?: string | undefined;
+      translationGroup?: string | undefined;
     },
   ): Promise<TermRow> {
     const name = input.name.trim();
@@ -289,7 +340,7 @@ export class TermsService {
         siteId,
         taxonomyId: taxonomy.id,
         locale: input.locale,
-        translationGroup: newId(),
+        translationGroup: input.translationGroup ?? newId(),
         parentId,
         slug: await this.uniqueSlug(tx, taxonomy.id, input.locale, input.slug ?? name, null),
         name,
@@ -297,6 +348,40 @@ export class TermsService {
       })
       .returning();
     return term!;
+  }
+
+  /** A translation group has at most one term per language. */
+  private async assertLocaleFree(
+    tx: SiteTransaction,
+    group: string,
+    locale: string,
+    exceptId: string | null,
+  ): Promise<void> {
+    const [taken] = await tx
+      .select({ id: terms.id })
+      .from(terms)
+      .where(
+        and(
+          eq(terms.translationGroup, group),
+          eq(terms.locale, locale),
+          exceptId ? ne(terms.id, exceptId) : undefined,
+        ),
+      );
+    if (taken) throw new ConflictException('This term already has a translation in that language.');
+  }
+
+  /** The translation of a term in a language, if any. */
+  private async translationIn(
+    tx: SiteTransaction,
+    id: string,
+    locale: string,
+  ): Promise<TermRow | undefined> {
+    const source = await this.term(tx, id);
+    const [found] = await tx
+      .select()
+      .from(terms)
+      .where(and(eq(terms.translationGroup, source.translationGroup), eq(terms.locale, locale)));
+    return found;
   }
 
   private async defaultLocale(tx: SiteTransaction, siteId: string): Promise<string> {

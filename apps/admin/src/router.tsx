@@ -30,6 +30,7 @@ import { SitesPage } from './pages/sites';
 import { ActivityPage } from './pages/activity';
 import { SystemPage } from './pages/system';
 import { UsersPage } from './pages/users';
+import { TermsPage } from './pages/terms';
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -124,6 +125,18 @@ const contentRoute = createRoute({
   },
 });
 
+/** Terms of a taxonomy: Posts → Categories, Tags… */
+const taxonomyRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/taxonomies/$slug',
+  component: function Taxonomy() {
+    const { slug } = taxonomyRoute.useParams();
+    const { me } = appRoute.useRouteContext();
+    if (!me.capabilities.includes('manage_terms')) return <ForbiddenPage />;
+    return <TermsPage key={slug} slug={slug} />;
+  },
+});
+
 /** Admin pages of plugins: /ext/<slug>/<path>. */
 const pluginPageRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -180,6 +193,7 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/activity', ActivityPage),
     sectionRoute('/system', SystemPage),
     contentRoute,
+    taxonomyRoute,
     pluginPageRoute,
     ...SECTIONS.filter((s) => !s.ready).map((s) =>
       sectionRoute(s.to, () => <PlaceholderPage path={s.to} />),

@@ -163,4 +163,18 @@ export const itContent: Messages = {
   'Page attributes': 'Attributi pagina',
   'Pages with a lower number come first among their siblings.':
     'Tra pagine dello stesso livello, quelle con il numero più basso vengono prima.',
+  'Add new': 'Aggiungi nuovo',
+  'Added: {name}': 'Aggiunto: {name}',
+  Count: 'Conteggio',
+  Delete: 'Elimina',
+  'Delete "{name}"?': 'Eliminare «{name}»?',
+  Description: 'Descrizione',
+  Edit: 'Modifica',
+  'Edit {name}': 'Modifica {name}',
+  'Generated from the name': 'Generato dal nome',
+  'Name of "{name}" in {language}': 'Nome di «{name}» in {language}',
+  Parent: 'Genitore',
+  'Translation added: {name}': 'Traduzione aggiunta: {name}',
+  Translations: 'Traduzioni',
+  'of {name} in {language}': 'di {name} in {language}',
 };

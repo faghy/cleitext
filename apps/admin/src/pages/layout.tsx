@@ -1,10 +1,11 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { api } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { visibleSections } from '../navigation';
 import { useT } from '../components/ui';
 import { Avatar } from '../components/avatar';
+import { taxonomiesQuery, taxonomyLabel } from './terms';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
@@ -16,10 +17,23 @@ export function AdminLayout() {
   const sections = visibleSections(me.capabilities);
   const pluginMenu = usePluginMenu();
   // WordPress order: plugin content types after Pages, plugin pages at the end.
-  const items: (PluginMenuItem & { exact?: boolean })[] = sections.flatMap((section) => [
-    { to: section.to, label: t(section.label), exact: section.to === '/' },
-    ...(section.to === '/pages' ? pluginMenu.types : []),
-  ]);
+  const taxonomies = useQuery({
+    ...taxonomiesQuery,
+    enabled: me.capabilities.includes('manage_terms'),
+  });
+  // Taxonomies of posts appear under Posts, as Categories and Tags in WordPress.
+  const taxonomyItems = (taxonomies.data ?? []).map((taxonomy) => ({
+    to: `/taxonomies/${taxonomy.slug}`,
+    label: taxonomyLabel(taxonomy, me.user.locale),
+    sub: true,
+  }));
+  const items: (PluginMenuItem & { exact?: boolean; sub?: boolean })[] = sections.flatMap(
+    (section) => [
+      { to: section.to, label: t(section.label), exact: section.to === '/' },
+      ...(section.to === '/posts' ? taxonomyItems : []),
+      ...(section.to === '/pages' ? pluginMenu.types : []),
+    ],
+  );
   items.push(...pluginMenu.pages);
 
   const logout = useMutation({
@@ -46,7 +60,7 @@ export function AdminLayout() {
                 <Link
                   to={section.to}
                   activeOptions={{ exact: Boolean(section.exact) }}
-                  className="block px-4 py-2 text-sm hover:bg-slate-800"
+                  className={`block py-2 text-sm hover:bg-slate-800 ${section.sub ? 'pr-4 pl-8 text-xs' : 'px-4'}`}
                   activeProps={{ className: 'bg-sky-700 text-white', 'aria-current': 'page' }}
                 >
                   {section.label}
