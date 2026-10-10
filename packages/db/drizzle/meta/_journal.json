@@ -120,6 +120,13 @@
       "when": 1791642680726,
       "tag": "0016_multilingual_out_of_core",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791680000000,
+      "tag": "0017_plugin_roles_per_database",
+      "breakpoints": true
     }
   ]
 }

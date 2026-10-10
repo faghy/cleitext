@@ -12,7 +12,6 @@ import {
   type SiteTransaction,
 } from '@cleitext/db';
 import {
-  pluginRoleName,
   pluginSchemaName,
   type CopyOptions,
   type EntryQuery,
@@ -408,15 +407,25 @@ export class PluginServicesProvider implements PluginServices {
     fn: (tx: PluginTransaction) => Promise<T>,
   ): Promise<T> {
     const schema = pluginSchemaName(plugin.slug);
-    const role = pluginRoleName(plugin.slug);
     return this.database.db.transaction(async (tx) => {
       await tx.execute(
         sql`select set_config('app.site_id', ${siteId}, true), set_config('search_path', ${`${schema}, public`}, true)`,
       );
-      await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
+      let role = this.roles.get(plugin.slug);
+      if (!role) {
+        const [row] = await tx.execute<{ role: string }>(
+          sql`select cleitext_plugin_role(${plugin.slug}) as role`,
+        );
+        role = row!.role;
+        this.roles.set(plugin.slug, role);
+      }
+      await tx.execute(sql.raw(`SET LOCAL ROLE "${role.replaceAll('"', '""')}"`));
       return fn(tx as unknown as PluginTransaction);
     });
   }
+
+  /** Plugin role names, from the database (migration 0017); they never change at runtime. */
+  private readonly roles = new Map<string, string>();
 
   invalidate(siteId: string, tags: string[]): Promise<void> {
     return this.cache.invalidate(siteId, tags);

@@ -32,7 +32,8 @@ beforeAll(async () => {
   await cp(migrationsFolder, before, { recursive: true });
   const journalFile = join(before, 'meta/_journal.json');
   const journal = JSON.parse(await readFile(journalFile, 'utf8')) as { entries: { tag: string }[] };
-  journal.entries = journal.entries.filter((e) => !e.tag.startsWith('0016'));
+  // 0016 and everything after it: migrations run in order of their date.
+  journal.entries = journal.entries.filter((e) => e.tag < '0016');
   await writeFile(journalFile, JSON.stringify(journal));
   await drizzleMigrate(owner.db, { migrationsFolder: before });
 }, 120_000);

@@ -111,7 +111,8 @@ export function pluginSchemaName(slug: string): string {
   return `plg_${slug.replace(/-/g, '_')}`;
 }
 
-/** PostgreSQL role a plugin's queries run as (it cannot see core tables). */
-export function pluginRoleName(slug: string): string {
-  return `cleitext_plg_${slug.replace(/-/g, '_')}`;
-}
+/*
+ * The PostgreSQL role a plugin's queries run as (it cannot see core tables) is
+ * named by the database function cleitext_plugin_role(slug): roles are shared
+ * by every database of a server, so the name carries a tag of the database.
+ */

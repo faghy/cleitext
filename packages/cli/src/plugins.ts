@@ -28,7 +28,6 @@ import {
 } from '@cleitext/db';
 import {
   pluginManifestSchema,
-  pluginRoleName,
   pluginSchemaName,
   SDK_VERSION,
   SHARED_ADMIN_MODULES,
@@ -297,7 +296,7 @@ export async function migratePlugin(
   appRole: string,
 ): Promise<string[]> {
   const schema = pluginSchemaName(slug);
-  const role = pluginRoleName(slug);
+  const role = quoteIdent(await pluginRole(db, slug));
   const folder = path.join(dir, 'migrations');
   const files = existsSync(folder)
     ? (await readdir(folder)).filter((f) => f.endsWith('.sql')).sort()
@@ -312,7 +311,7 @@ export async function migratePlugin(
     await tx.execute(
       sql.raw(`
       DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${role.replaceAll('"', "'")}) THEN
           CREATE ROLE ${role} NOLOGIN;
         END IF;
       END $$`),
@@ -351,6 +350,14 @@ export async function migratePlugin(
     );
   });
   return applied;
+}
+
+/** The plugin's PostgreSQL role, named by the database (migration 0017). */
+async function pluginRole(db: Database, slug: string): Promise<string> {
+  const [row] = await db.execute<{ role: string }>(
+    sql`select cleitext_plugin_role(${slug}) as role`,
+  );
+  return row!.role;
 }
 
 function quoteIdent(name: string): string {
@@ -393,7 +400,7 @@ export async function uninstallPlugin(
     await runUninstallHook(dir, manifest);
   }
   const schema = pluginSchemaName(slug);
-  const role = pluginRoleName(slug);
+  const role = quoteIdent(await pluginRole(db, slug));
   await db.transaction(async (tx) => {
     await tx.execute(sql.raw(`DROP SCHEMA IF EXISTS ${schema} CASCADE`));
     // The role owns nothing: its grants went with the schema.

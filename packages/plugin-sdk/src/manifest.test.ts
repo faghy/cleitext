@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pluginManifestSchema, pluginRoleName, pluginSchemaName } from './manifest.js';
+import { pluginManifestSchema, pluginSchemaName } from './manifest.js';
 
 const valid = {
   slug: 'events',
@@ -32,6 +32,5 @@ describe('plugin manifest', () => {
 
   it('derives PostgreSQL names from the slug', () => {
     expect(pluginSchemaName('my-forms')).toBe('plg_my_forms');
-    expect(pluginRoleName('my-forms')).toBe('cleitext_plg_my_forms');
   });
 });
