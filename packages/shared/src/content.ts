@@ -158,6 +158,13 @@ export const updateTaxonomyRequestSchema = z.object({
   contentTypes: z.array(z.string().min(1).max(64)).max(50).optional(),
 });
 
+/** Concurrent editing lock (RF-CNT-15). */
+export interface EntryLockView {
+  /** Someone else editing the entry, or null. */
+  lockedBy: { id: string; displayName: string } | null;
+  expiresAt: string | null;
+}
+
 export interface EntrySummary {
   id: string;
   type: string;

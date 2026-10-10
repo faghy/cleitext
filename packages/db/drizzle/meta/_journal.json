@@ -92,6 +92,13 @@
       "when": 1791630673963,
       "tag": "0012_network_plugins",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791631565847,
+      "tag": "0013_entry_locks",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import type { CxdDocument } from '@cleitext/blocks';
+import { documentStats, type CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance, EditorServices, EmbedPreview, MediaRef } from '@cleitext/editor-core';
 import { FieldsForm, useT } from '@cleitext/admin-sdk';
 import type { FieldBlockDefinition } from '@cleitext/editor-core';
@@ -13,6 +13,8 @@ import {
   type MediaView,
   type PluginBlockView,
   type RevisionSummary,
+  type RevisionView,
+  type EntryLockView,
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -24,6 +26,7 @@ import { formatDate, STATUS_LABELS } from './entries-list';
 import { EntryTerms } from './entry-terms';
 import { contentTypesQuery } from '../plugins';
 import { descendantsOf, entryTree } from '../entry-tree';
+import { diffWords, documentLines, type DiffPart } from '../diff';
 import { zonedTimeToIso } from '../time';
 
 const AUTOSAVE_INTERVAL_MS = 30_000;
@@ -83,6 +86,8 @@ function Editor({ initial }: { initial: EntryView }) {
   const inspectorRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorInstance | null>(null);
   const documentRef = useRef<CxdDocument>(initial.revision?.document as CxdDocument);
+  const [statsDocument, setStatsDocument] = useState<CxdDocument>(documentRef.current);
+  const statsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dirtyRef = useRef(false);
 
   const markDirty = useCallback(() => {
@@ -136,6 +141,9 @@ function Editor({ initial }: { initial: EntryView }) {
         onChange: (document) => {
           documentRef.current = document;
           markDirty();
+          // Statistics follow the text, at most a few times a second.
+          clearTimeout(statsTimer.current);
+          statsTimer.current = setTimeout(() => setStatsDocument(document), 400);
         },
       });
     });
@@ -241,7 +249,46 @@ function Editor({ initial }: { initial: EntryView }) {
     },
   });
 
-  const readOnly = !entry.permissions.edit;
+  const canEdit = entry.permissions.edit;
+  // Editing lock (RF-CNT-15): while someone else holds it, this editor only shows.
+  const [lockedBy, setLockedBy] = useState<string | null>(null);
+  const readOnly = !canEdit || lockedBy !== null;
+  // Lock requests run one after the other: a release must not overtake the
+  // next acquisition (React mounts components twice in development).
+  const lockQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const acquireLock = useCallback(
+    (takeover = false) => {
+      lockQueue.current = lockQueue.current.then(async () => {
+        try {
+          await api<EntryLockView>(
+            'POST',
+            `/entries/${entry.id}/lock${takeover ? '?takeover=1' : ''}`,
+          );
+          setLockedBy(null);
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.status !== 409) return;
+          const status = await api<EntryLockView>('GET', `/entries/${entry.id}/lock`).catch(
+            () => null,
+          );
+          setLockedBy(status?.lockedBy?.displayName || t('Someone'));
+        }
+      });
+      return lockQueue.current;
+    },
+    [entry.id, t],
+  );
+  useEffect(() => {
+    if (!canEdit) return;
+    void acquireLock();
+    // The lock lasts two minutes: refresh it while the editor stays open.
+    const timer = setInterval(() => void acquireLock(), 60_000);
+    return () => {
+      clearInterval(timer);
+      lockQueue.current = lockQueue.current.then(() =>
+        api<void>('DELETE', `/entries/${entry.id}/lock`).catch(() => undefined),
+      );
+    };
+  }, [canEdit, acquireLock, entry.id]);
 
   // Ctrl/Cmd+S saves (also from the editor canvas, whose keys bubble up).
   const saveShortcut = useRef<() => void>(() => {});
@@ -350,7 +397,19 @@ function Editor({ initial }: { initial: EntryView }) {
           <Alert>{error}</Alert>
         </div>
       )}
-      {readOnly && (
+      {lockedBy !== null && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          <span>
+            {t('{name} is editing this entry: saving is off to keep their changes.', {
+              name: lockedBy,
+            })}
+          </span>
+          <Button variant="secondary" onClick={() => void acquireLock(true)}>
+            {t('Take over')}
+          </Button>
+        </div>
+      )}
+      {!canEdit && (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
           {t('You can view this entry but not change it.')}
         </div>
@@ -433,6 +492,7 @@ function Editor({ initial }: { initial: EntryView }) {
                 onChange={changeFields}
               />
             )}
+            {tab === 'document' && statsDocument && <StatsPanel document={statsDocument} />}
             {tab === 'document' && (
               <DocumentPanel
                 visibility={visibility}
@@ -598,6 +658,124 @@ function toFieldBlock(block: PluginBlockView, locale: string): FieldBlockDefinit
   };
 }
 
+/** Word count, reading time and heading outline (RF-EDT-10). */
+function StatsPanel({ document }: { document: CxdDocument }) {
+  const { t } = useT();
+  const stats = documentStats(document);
+  return (
+    <section
+      className="space-y-2 border-b border-slate-200 p-4 text-sm"
+      aria-label={t('Statistics')}
+    >
+      <p>
+        {t('{words} words · {characters} characters · {minutes} min read', {
+          words: stats.words,
+          characters: stats.characters,
+          minutes: stats.readingMinutes,
+        })}
+      </p>
+      {stats.headings.length > 0 && (
+        <details>
+          <summary className="cursor-pointer">{t('Outline')}</summary>
+          <ul className="mt-1 space-y-0.5">
+            {stats.headings.map((heading) => (
+              <li key={heading.id} style={{ paddingLeft: `${(heading.level - 2) * 0.75}rem` }}>
+                <span className="text-xs text-slate-500">H{heading.level}</span>{' '}
+                {heading.text || t('(empty heading)')}
+                {heading.problem && (
+                  <span className="block text-xs text-amber-700">
+                    {heading.problem === 'h1'
+                      ? t('The title is already the H1: use H2 here.')
+                      : t('A heading level is skipped.')}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
+}
+
+/** A saved revision compared with the current one (word by word). */
+function RevisionDiff({
+  entry,
+  revisionId,
+  onClose,
+}: {
+  entry: EntryView;
+  revisionId: string;
+  onClose: () => void;
+}) {
+  const { t } = useT();
+  const revision = useQuery({
+    queryKey: ['revision', entry.id, revisionId],
+    queryFn: () => api<RevisionView>('GET', `/entries/${entry.id}/revisions/${revisionId}`),
+  });
+  const current = entry.revision;
+  const render = (parts: DiffPart[]) =>
+    parts.map((part, index) =>
+      part.change === 'same' ? (
+        <span key={index}>{part.text}</span>
+      ) : part.change === 'added' ? (
+        <ins key={index} className="bg-emerald-100 text-emerald-900 no-underline">
+          {part.text}
+        </ins>
+      ) : (
+        <del key={index} className="bg-red-100 text-red-900">
+          {part.text}
+        </del>
+      ),
+    );
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('Compare revisions')}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose();
+      }}
+    >
+      <div className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded bg-white p-5 text-sm shadow-lg">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">{t('Compare revisions')}</h2>
+          <button
+            type="button"
+            className="text-sky-700 hover:underline"
+            onClick={onClose}
+            autoFocus
+          >
+            {t('Close')}
+          </button>
+        </div>
+        <p className="mb-3 text-xs text-slate-600">
+          {t('From the selected revision to the current one:')}{' '}
+          <del className="bg-red-100">{t('removed')}</del>{' '}
+          <ins className="bg-emerald-100 no-underline">{t('added')}</ins>
+        </p>
+        {revision.error && <Alert>{errorMessage(revision.error)}</Alert>}
+        {revision.data && current && (
+          <div className="space-y-3">
+            <p className="text-base font-semibold">
+              {render(diffWords(revision.data.title, current.title))}
+            </p>
+            <div className="leading-relaxed whitespace-pre-wrap">
+              {render(
+                diffWords(
+                  documentLines(revision.data.document as CxdDocument).join('\n'),
+                  documentLines(current.document as CxdDocument).join('\n'),
+                ),
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DocumentPanel({
   visibility,
   onVisibility,
@@ -624,6 +802,7 @@ function DocumentPanel({
   const siteTimezone = useMe().site.timezone;
   const [slug, setSlug] = useState(entry.slug);
   const [scheduleAt, setScheduleAt] = useState('');
+  const [comparing, setComparing] = useState<string | null>(null);
   useEffect(() => setSlug(entry.slug), [entry.slug]);
 
   const saveSettings = useMutation({
@@ -854,19 +1033,33 @@ function DocumentPanel({
                   {revision.published && ` · ${t('published')}`}
                 </span>
               </span>
-              {!revision.current && !readOnly && (
-                <button
-                  type="button"
-                  className="text-sky-700 hover:underline"
-                  disabled={restore.isPending}
-                  onClick={() => restore.mutate(revision.id)}
-                >
-                  {t('Restore')}
-                </button>
+              {!revision.current && (
+                <span className="flex gap-2">
+                  <button
+                    type="button"
+                    className="text-sky-700 hover:underline"
+                    onClick={() => setComparing(revision.id)}
+                  >
+                    {t('Compare')}
+                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="text-sky-700 hover:underline"
+                      disabled={restore.isPending}
+                      onClick={() => restore.mutate(revision.id)}
+                    >
+                      {t('Restore')}
+                    </button>
+                  )}
+                </span>
               )}
             </li>
           ))}
         </ul>
+        {comparing && (
+          <RevisionDiff entry={entry} revisionId={comparing} onClose={() => setComparing(null)} />
+        )}
       </section>
 
       {entry.permissions.delete && entry.status !== 'trashed' && (

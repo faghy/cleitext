@@ -261,4 +261,22 @@ export const itContent: Messages = {
   'To (path or full address)': 'A (percorso o indirizzo completo)',
   Type: 'Tipo',
   '{count} redirects saved.': 'Redirect salvati: {count}.',
+  '{words} words · {characters} characters · {minutes} min read':
+    '{words} parole · {characters} caratteri · {minutes} min di lettura',
+  Outline: 'Struttura',
+  '(empty heading)': '(titolo vuoto)',
+  'The title is already the H1: use H2 here.': 'Il titolo è già l’H1: qui usa H2.',
+  'A heading level is skipped.': 'Manca un livello di titolo.',
+  Statistics: 'Statistiche',
+  Compare: 'Confronta',
+  'Compare revisions': 'Confronta le revisioni',
+  'From the selected revision to the current one:': 'Dalla revisione scelta a quella attuale:',
+  removed: 'rimosso',
+  added: 'aggiunto',
+  Close: 'Chiudi',
+  '{name} is editing this entry: saving is off to keep their changes.':
+    '{name} sta modificando questa voce: il salvataggio è disattivato per non perdere le sue modifiche.',
+  'Take over': 'Subentra',
+  'Copy created: {title}': 'Copia creata: {title}',
+  'Document outline': 'Struttura del documento',
 };

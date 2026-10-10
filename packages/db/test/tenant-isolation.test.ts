@@ -343,6 +343,9 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
     await tx.insert(s.redirects).values({ siteId, fromPath: '/old', toPath: '/hello' });
     await tx.insert(s.sitePlugins).values({ siteId, pluginSlug: 'demo', active: true });
     await tx.insert(s.auditLog).values({ siteId, userId, action: 'test.seed' });
+    await tx
+      .insert(s.entryLocks)
+      .values({ siteId, entryId, userId, expiresAt: new Date(Date.now() + 60_000) });
     return { siteId, host, userId, entryId, termId };
   });
 }

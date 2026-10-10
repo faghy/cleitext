@@ -18,6 +18,7 @@ import { EntriesController } from './content/entries.controller.js';
 import { OEmbedController } from './content/oembed.controller.js';
 import { StructureController } from './content/structure.controller.js';
 import { StructureService } from './content/structure.service.js';
+import { LocksService } from './content/locks.service.js';
 import { ThemesController } from './themes/themes.controller.js';
 import { RedirectsController } from './settings/redirects.controller.js';
 import { ThemesService } from './themes/themes.service.js';
@@ -130,6 +131,7 @@ export class AppModule {
         ApiTokenService,
         RolesService,
         StructureService,
+        LocksService,
         ThemesService,
         LoginThrottleService,
         MailService,

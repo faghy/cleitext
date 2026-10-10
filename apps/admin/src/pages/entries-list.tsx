@@ -123,6 +123,14 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
     onSuccess: (entry) => navigate({ to: '/entries/$id', params: { id: entry.id } }),
   });
 
+  const duplicate = useMutation({
+    mutationFn: (id: string) => api<EntryView>('POST', `/entries/${id}/duplicate`),
+    onSuccess: async (copy) => {
+      setBulkMessage({ kind: 'success', text: t('Copy created: {title}', { title: copy.title }) });
+      await queryClient.invalidateQueries({ queryKey: ['entries'] });
+    },
+    onError: (error) => setBulkMessage({ kind: 'error', text: errorMessage(error) }),
+  });
   const bulk = useMutation({
     mutationFn: (input: { ids: string[]; action: BulkAction }) =>
       api<BulkEntriesResponse>('POST', '/entries/bulk', input),
@@ -422,6 +430,16 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                             onClick={() => setEditing(entry.id)}
                           >
                             {t('Quick Edit')}
+                          </button>
+                          {' · '}
+                          <button
+                            type="button"
+                            className="text-sky-700 hover:underline"
+                            disabled={duplicate.isPending}
+                            onClick={() => duplicate.mutate(entry.id)}
+                          >
+                            {t('Duplicate')}
+                            <span className="sr-only"> {entry.title}</span>
                           </button>
                         </div>
                       )}

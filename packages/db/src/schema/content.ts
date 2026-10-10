@@ -130,3 +130,15 @@ export const revisions = pgTable(
     index('revisions_entry_idx').on(t.entryId, t.createdAt.desc()),
   ],
 );
+
+/** Who is editing an entry (RF-CNT-15); refreshed while the editor is open. */
+export const entryLocks = pgTable('entry_locks', {
+  entryId: uuid('entry_id')
+    .primaryKey()
+    .references(() => entries.id, { onDelete: 'cascade' }),
+  siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+});

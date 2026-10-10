@@ -6,13 +6,14 @@ import {
   BlockEditorProvider,
   BlockInspector,
   Inserter,
+  __experimentalListView as ListView,
 } from '@wordpress/block-editor';
 import type { Block } from '@wordpress/blocks';
 import { Button, Modal, Popover, SlotFillProvider } from '@wordpress/components';
 import { useStateWithHistory } from '@wordpress/compose';
 import { useDispatch } from '@wordpress/data';
 import { store as keyboardShortcutsStore, useShortcut } from '@wordpress/keyboard-shortcuts';
-import { keyboard, plus, redo as redoIcon, undo as undoIcon } from '@wordpress/icons';
+import { keyboard, listView, plus, redo as redoIcon, undo as undoIcon } from '@wordpress/icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
@@ -155,6 +156,7 @@ function GutenbergEditor({
   }, [value.blocks]);
 
   const [helpOpen, setHelpOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const { registerShortcut } = useDispatch(keyboardShortcutsStore) as unknown as {
     registerShortcut(shortcut: unknown): void;
   };
@@ -241,14 +243,30 @@ function GutenbergEditor({
               size="compact"
             />
             <Button
+              icon={listView}
+              label="Document outline"
+              isPressed={listOpen}
+              aria-expanded={listOpen}
+              onClick={() => setListOpen((open) => !open)}
+              size="compact"
+            />
+            <Button
               icon={keyboard}
               label="Keyboard shortcuts"
               onClick={() => setHelpOpen(true)}
               size="compact"
             />
           </div>
-          <div className="cleitext-gutenberg__canvas">
-            <BlockCanvas height="100%" />
+          <div className="cleitext-gutenberg__body">
+            {listOpen && (
+              // Tree of the blocks (RF-EDT-05): select, move and nest them.
+              <aside className="cleitext-gutenberg__listview" aria-label="Document outline">
+                <ListView />
+              </aside>
+            )}
+            <div className="cleitext-gutenberg__canvas">
+              <BlockCanvas height="100%" />
+            </div>
           </div>
         </div>
         {options.targets.inspector && createPortal(<BlockInspector />, options.targets.inspector)}

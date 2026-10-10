@@ -342,6 +342,35 @@ export class EntriesService {
 
   // ---- Commands ---------------------------------------------------------------
 
+  /**
+   * A draft copy of an entry (duplicate): content, fields, summary and
+   * terms of its latest saved version, in the same language and place.
+   */
+  async duplicate(siteId: string, auth: AuthContext, id: string, ip: string): Promise<EntryView> {
+    const source = await this.get(siteId, auth, id);
+    const revision = source.revision;
+    const copy = await this.create(
+      siteId,
+      auth,
+      {
+        type: source.type,
+        locale: source.locale,
+        title: source.title ? `${source.title} (copy)` : '',
+        parentId: source.parentId,
+        document: revision?.document,
+        fields: revision?.fields ?? {},
+        excerpt: revision?.excerpt ?? null,
+        featuredMediaId: revision?.featuredMediaId ?? null,
+      },
+      ip,
+    );
+    const terms = Object.fromEntries(
+      Object.entries(source.terms).map(([taxonomy, list]) => [taxonomy, list.map((t) => t.id)]),
+    );
+    if (Object.keys(terms).length === 0 && source.position === 0) return copy;
+    return this.update(siteId, auth, copy.id, { terms, position: source.position }, ip);
+  }
+
   async create(
     siteId: string,
     auth: AuthContext,

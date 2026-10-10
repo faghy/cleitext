@@ -2,6 +2,7 @@ import {
   autosaveRequestSchema,
   bulkEntriesRequestSchema,
   type BulkEntriesResponse,
+  type EntryLockView,
   publishRequestSchema,
   createEntryRequestSchema,
   createTranslationRequestSchema,
@@ -32,6 +33,7 @@ import type { FastifyRequest } from 'fastify';
 import { CurrentAuth, CurrentSite, RequireCapability } from '../common/decorators.js';
 import { parseBody } from '../common/problem.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
+import { LocksService } from './locks.service.js';
 import { EntriesService } from './entries.service.js';
 
 const uuid = new ParseUUIDPipe();
@@ -40,7 +42,10 @@ const uuid = new ParseUUIDPipe();
 @Controller()
 @RequireCapability('edit_entries')
 export class EntriesController {
-  constructor(private readonly entries: EntriesService) {}
+  constructor(
+    private readonly entries: EntriesService,
+    private readonly locks: LocksService,
+  ) {}
 
   @Get('content-types')
   contentTypes(
@@ -178,6 +183,47 @@ export class EntriesController {
     @Req() request: FastifyRequest,
   ) {
     return this.entries.submit(site.id, auth, id, request.ip);
+  }
+
+  /** Takes the editing lock, or refreshes it; `?takeover=1` takes someone else's. */
+  @Post('entries/:id/lock')
+  @HttpCode(200)
+  lock(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', uuid) id: string,
+    @Query('takeover') takeover: string | undefined,
+  ): Promise<EntryLockView> {
+    return this.locks.acquire(site.id, auth, id, takeover === '1');
+  }
+
+  @Get('entries/:id/lock')
+  lockStatus(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', uuid) id: string,
+  ): Promise<EntryLockView> {
+    return this.locks.status(site.id, auth, id);
+  }
+
+  @Delete('entries/:id/lock')
+  @HttpCode(204)
+  unlock(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', uuid) id: string,
+  ): Promise<void> {
+    return this.locks.release(site.id, auth, id);
+  }
+
+  @Post('entries/:id/duplicate')
+  duplicate(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', uuid) id: string,
+    @Req() request: FastifyRequest,
+  ) {
+    return this.entries.duplicate(site.id, auth, id, request.ip);
   }
 
   @Post('entries/:id/trash')
