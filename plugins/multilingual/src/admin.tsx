@@ -49,6 +49,19 @@ addMessages('it', {
   '(no title)': '(senza titolo)',
   Unlink: 'Scollega',
   'needs update': 'da aggiornare',
+  'Automatic translation': 'Traduzione automatica',
+  'With a DeepL API key, new translations can be translated automatically. The texts are sent to DeepL; the key is stored encrypted.':
+    'Con una chiave API di DeepL le nuove traduzioni possono essere tradotte automaticamente. I testi vengono inviati a DeepL; la chiave è salvata cifrata.',
+  'A DeepL key is saved.': 'È salvata una chiave DeepL.',
+  'Remove the key': 'Rimuovi la chiave',
+  'DeepL API key': 'Chiave API di DeepL',
+  'Translate automatically (DeepL)': 'Traduci automaticamente (DeepL)',
+  'Translating…': 'Traduzione in corso…',
+  'This replaces the text of this translation with a new automatic one. Continue?':
+    'Il testo di questa traduzione sarà sostituito da una nuova traduzione automatica. Continuare?',
+  'Translate again from the original': 'Traduci di nuovo dall’originale',
+  'The copy was made, but not translated: {error}':
+    'La copia è stata creata, ma non tradotta: {error}',
   'The original changed after this translation: check it and save it.':
     'L’originale è cambiato dopo questa traduzione: controllala e salvala.',
   'Site title and tagline': 'Titolo e motto del sito',
@@ -274,6 +287,7 @@ function LanguagesPage({ api }: AdminPageProps) {
       </Card>
       <AddLanguage api={api} taken={views.map((v) => v.code)} onAdded={done} />
       <SiteTexts api={api} languages={views.filter((v) => !v.isDefault)} />
+      <MachineSettings api={api} />
     </div>
   );
 }
@@ -440,6 +454,70 @@ function SiteTextsForm({
   );
 }
 
+function MachineSettings({ api }: { api: AdminPageProps['api'] }) {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const state = useQuery({
+    queryKey: ['multilingual', 'machine'],
+    queryFn: () => api<{ configured: boolean }>('GET', '/machine'),
+  });
+  const [key, setKey] = useState('');
+  const done = async () => {
+    setKey('');
+    await queryClient.invalidateQueries({ queryKey: ['multilingual', 'machine'] });
+  };
+  const save = useMutation({
+    mutationFn: () => api<void>('PUT', '/machine', { apiKey: key }),
+    onSuccess: done,
+  });
+  const remove = useMutation({
+    mutationFn: () => api<void>('DELETE', '/machine'),
+    onSuccess: done,
+  });
+  return (
+    <Card title={t('Automatic translation')}>
+      <div className="grid max-w-xl gap-3 text-sm">
+        <p className="text-slate-600">
+          {t(
+            'With a DeepL API key, new translations can be translated automatically. The texts are sent to DeepL; the key is stored encrypted.',
+          )}
+        </p>
+        {save.error && <Alert>{errorMessage(save.error)}</Alert>}
+        {state.data?.configured ? (
+          <div className="flex items-center gap-3">
+            <span>{t('A DeepL key is saved.')}</span>
+            <Button variant="secondary" disabled={remove.isPending} onClick={() => remove.mutate()}>
+              {t('Remove the key')}
+            </Button>
+          </div>
+        ) : (
+          <form
+            className="grid gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              save.mutate();
+            }}
+          >
+            <TextField
+              label={t('DeepL API key')}
+              type="password"
+              autoComplete="off"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              required
+            />
+            <div>
+              <Button type="submit" disabled={save.isPending}>
+                {t('Save')}
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 // ---- Translations overview ----------------------------------------------------------
 
 function OverviewPage({ api, site, user }: AdminPageProps) {
@@ -571,13 +649,29 @@ function TranslationsPanel({ api, entry, site, navigate }: EditorPanelProps) {
     queryKey: key,
     queryFn: () => api<TranslationsResponse>('GET', `/translations?kind=entry&ids=${entry.id}`),
   });
+  const machine = useQuery({
+    queryKey: ['multilingual', 'machine'],
+    queryFn: () => api<{ configured: boolean }>('GET', '/machine'),
+  });
+  const [automatic, setAutomatic] = useState(true);
+  const useMachine = Boolean(machine.data?.configured) && automatic;
   const create = useMutation({
     mutationFn: (locale: string) =>
-      api<{ id: string }>('POST', `/translations/entry/${entry.id}`, { locale }),
-    onSuccess: async ({ id }) => {
+      api<{ id: string; warning?: string }>('POST', `/translations/entry/${entry.id}`, {
+        locale,
+        ...(useMachine ? { machine: true } : {}),
+      }),
+    onSuccess: async ({ id, warning }) => {
       await queryClient.invalidateQueries({ queryKey: ['multilingual', 'translations'] });
+      if (warning)
+        window.alert(t('The copy was made, but not translated: {error}', { error: warning }));
       navigate(`/entries/${id}`);
     },
+  });
+  const refresh = useMutation({
+    mutationFn: () => api<void>('POST', `/translations/entry/${entry.id}/machine`),
+    // The editor reloads the new version.
+    onSuccess: () => window.location.reload(),
   });
   const own = data.data?.[entry.id];
   const links = own?.links ?? [];
@@ -594,6 +688,23 @@ function TranslationsPanel({ api, entry, site, navigate }: EditorPanelProps) {
           {t('The original changed after this translation: check it and save it.')}
         </p>
       )}
+      {own && !own.isOriginal && machine.data?.configured && (
+        <Button
+          variant="secondary"
+          disabled={refresh.isPending}
+          onClick={() => {
+            if (
+              window.confirm(
+                t('This replaces the text of this translation with a new automatic one. Continue?'),
+              )
+            )
+              refresh.mutate();
+          }}
+        >
+          {refresh.isPending ? t('Translating…') : t('Translate again from the original')}
+        </Button>
+      )}
+      {refresh.error && <Alert>{errorMessage(refresh.error)}</Alert>}
       {data.error && <Alert>{errorMessage(data.error)}</Alert>}
       {create.error && <Alert>{errorMessage(create.error)}</Alert>}
       {links.length > 0 && (
@@ -619,6 +730,17 @@ function TranslationsPanel({ api, entry, site, navigate }: EditorPanelProps) {
           ))}
         </ul>
       )}
+      {missing.length > 0 && machine.data?.configured && (
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={automatic}
+            onChange={(e) => setAutomatic(e.target.checked)}
+          />
+          {t('Translate automatically (DeepL)')}
+        </label>
+      )}
+      {create.isPending && useMachine && <p role="status">{t('Translating…')}</p>}
       {missing.length > 0 && (
         <select
           value=""

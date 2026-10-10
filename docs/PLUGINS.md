@@ -247,6 +247,8 @@ const one = await ctx.content.get(siteId, id); // any status, or null
 const copy = await ctx.content.copy(siteId, id, { userId: request.user!.id, locale: 'it' });
 ```
 
+**Updating entries** (`content:write`). `ctx.content.update(siteId, id, { title, excerpt, document, fields }, { userId })` saves a new revision as that user (the document is validated like one from the editor); `ctx.content.revision(siteId, id)` reads the latest saved version. `@cleitext/plugin-sdk` also exports `inlineToHtml` and `htmlToInline`, to work on the rich text of blocks.
+
 **Terms** (`content:read`, `content:write` to copy):
 
 ```ts
@@ -376,6 +378,13 @@ Small values that are not settings (a migration marker, a last sync time) go in 
 await ctx.storage.set(siteId, 'lastSync', new Date().toISOString());
 const last = await ctx.storage.get<string>(siteId, 'lastSync'); // or null
 await ctx.storage.delete(siteId, 'lastSync');
+```
+
+**Secrets** such as API keys go in `ctx.secrets` (`settings:own`): they are encrypted in the database with a key derived from the server's `APP_SECRET`, and never shown back.
+
+```ts
+await ctx.secrets.set(siteId, 'apiKey', key);
+const apiKey = await ctx.secrets.get(siteId, 'apiKey'); // or null
 ```
 
 ### Capabilities

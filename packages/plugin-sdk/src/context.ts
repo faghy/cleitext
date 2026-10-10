@@ -121,6 +121,27 @@ export interface ContentApi {
     values: FieldValues,
     options: { userId: string },
   ): Promise<void>;
+  /**
+   * Saves a new revision of an entry with a new title, excerpt, block
+   * document and/or custom fields, as the given user (needs `content:write`).
+   * The document is validated like one saved from the editor.
+   */
+  update(
+    siteId: string,
+    id: string,
+    changes: { title?: string; excerpt?: string | null; document?: unknown; fields?: FieldValues },
+    options: { userId: string },
+  ): Promise<void>;
+  /** The latest saved version of an entry: title, excerpt, document and fields (needs `content:read`). */
+  revision(
+    siteId: string,
+    id: string,
+  ): Promise<{
+    title: string;
+    excerpt: string | null;
+    document: unknown;
+    fields: FieldValues;
+  } | null>;
   /** Custom fields of a content type on the site: its own and the plugin field groups. */
   fields(
     siteId: string,
@@ -216,6 +237,17 @@ export interface LanguagesApi {
   pending(siteId: string): Promise<PendingLanguages | null>;
   /** Forgets the pending data once taken over. */
   clearPending(siteId: string): Promise<void>;
+}
+
+/**
+ * Secrets of the plugin per site, e.g. an API key (needs `settings:own`).
+ * Encrypted in the database with a key derived from the server's APP_SECRET.
+ */
+export interface SecretsApi {
+  set(siteId: string, name: string, value: string): Promise<void>;
+  /** The value, or null when unset (or APP_SECRET changed). */
+  get(siteId: string, name: string): Promise<string | null>;
+  delete(siteId: string, name: string): Promise<void>;
 }
 
 /**
@@ -379,6 +411,7 @@ export interface PluginContext {
   readonly terms: TermsApi;
   readonly languages: LanguagesApi;
   readonly storage: StorageApi;
+  readonly secrets: SecretsApi;
   readonly blocks: BlockApi;
   readonly routes: RouteApi;
   readonly settings: SettingsApi;

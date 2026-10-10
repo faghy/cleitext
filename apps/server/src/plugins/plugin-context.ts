@@ -32,6 +32,21 @@ export interface PluginServices {
     siteId: string,
     type: string,
   ): Promise<{ fields: FieldDefinition[]; groups: { id: string; fields: FieldDefinition[] }[] }>;
+  updateEntry(
+    siteId: string,
+    id: string,
+    changes: { title?: string; excerpt?: string | null; document?: unknown; fields?: FieldValues },
+    options: { userId: string },
+  ): Promise<void>;
+  revisionOf(
+    siteId: string,
+    id: string,
+  ): Promise<{
+    title: string;
+    excerpt: string | null;
+    document: unknown;
+    fields: FieldValues;
+  } | null>;
   findTerms(siteId: string, query: TermQuery): Promise<PluginTerm[]>;
   copyTerm(
     siteId: string,
@@ -46,6 +61,9 @@ export interface PluginServices {
   storageGet(plugin: LoadedPlugin, siteId: string, key: string): Promise<unknown>;
   storageSet(plugin: LoadedPlugin, siteId: string, key: string, value: unknown): Promise<void>;
   storageDelete(plugin: LoadedPlugin, siteId: string, key: string): Promise<void>;
+  /** AES-256-GCM with a key from APP_SECRET (common/secrets.ts). */
+  seal(value: string): unknown;
+  unseal(sealed: unknown): string | null;
   settings(plugin: LoadedPlugin, siteId: string): Promise<FieldValues>;
   transaction<T>(
     plugin: LoadedPlugin,
@@ -91,6 +109,9 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
     }
   };
   const services = () => host.pluginServices;
+  const secretKey = (name: string) => `secret.${name}`;
+  const sealValue = (value: string) => services().seal(value);
+  const unsealValue = (sealed: unknown) => (sealed === null ? null : services().unseal(sealed));
 
   return {
     plugin: { slug: plugin.slug, version: plugin.version },
@@ -143,6 +164,18 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         require('content:read');
         assertSiteId(siteId);
         return services().fieldsOf(siteId, type);
+      },
+      async update(siteId, id, changes, options) {
+        require('content:write');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id) || !UUID_RE.test(options.userId)) throw new TypeError('Invalid id');
+        return services().updateEntry(siteId, id, changes, options);
+      },
+      async revision(siteId, id) {
+        require('content:read');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id)) return null;
+        return services().revisionOf(siteId, id);
       },
       async get(siteId, id) {
         require('content:read');
@@ -211,6 +244,24 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         require('languages');
         assertSiteId(siteId);
         return services().clearPendingLanguages(siteId);
+      },
+    },
+
+    secrets: {
+      async set(siteId, name, value) {
+        require('settings:own');
+        assertSiteId(siteId);
+        return services().storageSet(plugin, siteId, secretKey(name), sealValue(value));
+      },
+      async get(siteId, name) {
+        require('settings:own');
+        assertSiteId(siteId);
+        return unsealValue(await services().storageGet(plugin, siteId, secretKey(name)));
+      },
+      async delete(siteId, name) {
+        require('settings:own');
+        assertSiteId(siteId);
+        return services().storageDelete(plugin, siteId, secretKey(name));
       },
     },
 

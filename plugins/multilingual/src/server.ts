@@ -1,5 +1,7 @@
+import { DeepL, translateContent, type MachineTranslator } from './machine';
 import {
   definePlugin,
+  type FieldDefinition,
   type PluginContext,
   type RouteRequest,
   type RouteResponse,
@@ -623,18 +625,89 @@ function routes(ctx: PluginContext): void {
     capability: 'edit_entries',
     handler: handle(async (request) => {
       const id = request.params.id ?? '';
-      const locale = (request.body as { locale?: unknown } | null)?.locale;
+      const body = (request.body ?? {}) as { locale?: unknown; machine?: unknown };
+      const locale = body.locale;
       if (!UUID_RE.test(id) || typeof locale !== 'string')
         throw new HttpError(400, 'Invalid request.');
       const source = await ctx.content.get(request.siteId, id);
       if (!source) throw new HttpError(404, 'Entry not found.');
       await assertFree(ctx, request.siteId, 'entry', id, locale);
+      const translator = body.machine === true ? await machineFor(ctx, request.siteId) : null;
       const copy = await ctx.content.copy(request.siteId, id, {
         userId: request.user!.id,
         locale,
       });
       await link(ctx, request.siteId, 'entry', source, copy);
-      return { status: 201, body: { id: copy.id } };
+      if (!translator) return { status: 201, body: { id: copy.id } };
+      // The copy exists either way; a failed machine translation is reported.
+      try {
+        await machineTranslate(ctx, request.siteId, translator, source, copy, request.user!.id);
+        return { status: 201, body: { id: copy.id } };
+      } catch (error) {
+        return { status: 201, body: { id: copy.id, warning: (error as Error).message } };
+      }
+    }),
+  });
+
+  // Updates a translation from its original with machine translation.
+  ctx.routes.api({
+    method: 'POST',
+    path: '/translations/entry/:id/machine',
+    capability: 'edit_entries',
+    handler: handle(async (request) => {
+      const id = request.params.id ?? '';
+      if (!UUID_RE.test(id)) throw new HttpError(404, 'Not found.');
+      const translator = await machineFor(ctx, request.siteId);
+      if (!translator) throw new HttpError(409, 'Automatic translation is not set up.');
+      const target = await ctx.content.get(request.siteId, id);
+      if (!target) throw new HttpError(404, 'Entry not found.');
+      const originalId = await originalOf(ctx, request.siteId, id);
+      if (!originalId) throw new HttpError(409, 'This entry is not a translation.');
+      const original = await ctx.content.get(request.siteId, originalId);
+      if (!original) throw new HttpError(404, 'The original is gone.');
+      try {
+        await machineTranslate(ctx, request.siteId, translator, original, target, request.user!.id);
+      } catch (error) {
+        throw new HttpError(502, (error as Error).message);
+      }
+      return { status: 204 };
+    }),
+  });
+
+  // Automatic translation settings (the API key is stored encrypted).
+  ctx.routes.api({
+    method: 'GET',
+    path: '/machine',
+    capability: 'edit_entries',
+    handler: handle(async (request) => ({
+      body: {
+        provider: 'deepl',
+        configured: (await ctx.secrets.get(request.siteId, 'deepl')) !== null,
+      },
+    })),
+  });
+
+  ctx.routes.api({
+    method: 'PUT',
+    path: '/machine',
+    capability: 'manage_settings',
+    handler: handle(async (request) => {
+      const key = (request.body as { apiKey?: unknown } | null)?.apiKey;
+      if (typeof key !== 'string' || !/^[\w:-]{20,100}$/.test(key.trim())) {
+        throw new HttpError(400, 'Paste the API key of your DeepL account.');
+      }
+      await ctx.secrets.set(request.siteId, 'deepl', key.trim());
+      return { status: 204 };
+    }),
+  });
+
+  ctx.routes.api({
+    method: 'DELETE',
+    path: '/machine',
+    capability: 'manage_settings',
+    handler: handle(async (request) => {
+      await ctx.secrets.delete(request.siteId, 'deepl');
+      return { status: 204 };
     }),
   });
 
@@ -686,6 +759,97 @@ function routes(ctx: PluginContext): void {
       return { status: 204 };
     }),
   });
+}
+
+// ---- Machine translation ------------------------------------------------------------
+
+async function machineFor(ctx: PluginContext, siteId: string): Promise<MachineTranslator | null> {
+  const key = await ctx.secrets.get(siteId, 'deepl');
+  return key ? new DeepL(key) : null;
+}
+
+/** Writes into `target` the machine translation of `source`'s latest saved version. */
+async function machineTranslate(
+  ctx: PluginContext,
+  siteId: string,
+  translator: MachineTranslator,
+  source: { id: string; type: string; locale: string },
+  target: { id: string; locale: string },
+  userId: string,
+): Promise<void> {
+  const original = await ctx.content.revision(siteId, source.id);
+  const current = await ctx.content.revision(siteId, target.id);
+  if (!original || !current) throw new Error('The entry has no saved version.');
+  const { fields: own, groups } = await ctx.content.fields(siteId, source.type);
+  const translated = await translateContent(
+    translator,
+    {
+      ...original,
+      fields: { ...current.fields, ...pickTranslatable(original.fields, own, groups) },
+    },
+    { own, groups },
+    source.locale,
+    target.locale,
+  );
+  await ctx.content.update(
+    siteId,
+    target.id,
+    {
+      title: translated.title,
+      excerpt: translated.excerpt,
+      document: translated.document,
+      fields: translated.fields,
+    },
+    { userId },
+  );
+}
+
+/** Values of the fields that are translated (the others keep the target's). */
+function pickTranslatable(
+  fields: Record<string, unknown>,
+  own: FieldDefinition[],
+  groups: { id: string; fields: FieldDefinition[] }[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const field of own) {
+    if ((field.translation ?? 'translate') === 'translate' && field.name in fields)
+      result[field.name] = fields[field.name];
+  }
+  for (const group of groups) {
+    const values = fields[group.id];
+    if (!values || typeof values !== 'object') continue;
+    const picked: Record<string, unknown> = {};
+    for (const field of group.fields) {
+      if ((field.translation ?? 'translate') === 'translate' && field.name in values)
+        picked[field.name] = (values as Record<string, unknown>)[field.name];
+    }
+    result[group.id] = picked;
+  }
+  return result;
+}
+
+/** The original of a translation's group (the language it was translated from). */
+async function originalOf(ctx: PluginContext, siteId: string, id: string): Promise<string | null> {
+  const [own] = await ctx.db.transaction(siteId, (tx) =>
+    tx
+      .select()
+      .from(translations)
+      .where(and(eq(translations.kind, 'entry'), eq(translations.elementId, id))),
+  );
+  if (!own?.sourceLocale) return null;
+  const [original] = await ctx.db.transaction(siteId, (tx) =>
+    tx
+      .select({ id: translations.elementId })
+      .from(translations)
+      .where(
+        and(
+          eq(translations.kind, 'entry'),
+          eq(translations.groupId, own.groupId),
+          eq(translations.locale, own.sourceLocale!),
+        ),
+      ),
+  );
+  return original?.id ?? null;
 }
 
 function prefixOf(value: unknown): string | null {

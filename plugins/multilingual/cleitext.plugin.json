@@ -1,13 +1,13 @@
 {
   "slug": "multilingual",
   "name": "Multilingual",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "apiVersion": "^1.1",
   "description": "Several languages on a site: translations of content, categories and tags, language addresses, hreflang and a language switcher.",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
   "admin": "dist/admin.js",
-  "permissions": ["languages", "content:read", "content:write", "routes:admin"],
+  "permissions": ["languages", "content:read", "content:write", "routes:admin", "settings:own"],
   "capabilities": []
 }

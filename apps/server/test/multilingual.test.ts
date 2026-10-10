@@ -382,6 +382,106 @@ describe('translation status and fields (step 5)', () => {
   });
 });
 
+describe('automatic translation (DeepL)', () => {
+  it('translates a new copy, keeping marks, and keeps the key encrypted', async () => {
+    // DeepL answers by wrapping each text: [IT] … (marks and links pass through).
+    const calls: { url: string; body: { text: string[]; target_lang: string } }[] = [];
+    const real = globalThis.fetch;
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (!url.includes('deepl.com')) return real(input, init);
+      const body = JSON.parse(String(init!.body));
+      calls.push({ url, body });
+      return new Response(
+        JSON.stringify({ translations: body.text.map((t: string) => ({ text: `[IT] ${t}` })) }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+    try {
+      expect((await admin.get(`${EXT}/machine`)).json()).toEqual({
+        provider: 'deepl',
+        configured: false,
+      });
+      expect((await admin.request('PUT', `${EXT}/machine`, { apiKey: 'short' })).statusCode).toBe(
+        400,
+      );
+      const key = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890:fx';
+      expect((await admin.request('PUT', `${EXT}/machine`, { apiKey: key })).statusCode).toBe(204);
+      expect((await editor.get(`${EXT}/machine`)).json().configured).toBe(true);
+      // Stored encrypted, never in clear.
+      const stored = await withSiteContext(owner.db, site.id, (tx) =>
+        tx.select().from(settings).where(eq(settings.namespace, 'plugin:multilingual')),
+      );
+      expect(JSON.stringify(stored)).not.toContain(key);
+
+      const en = (
+        await editor.post('/api/v1/entries', {
+          type: 'page',
+          title: 'Machine page',
+          excerpt: 'Short & sweet',
+          document: {
+            schema: 1,
+            blocks: [
+              {
+                id: 'p',
+                type: 'core/paragraph',
+                v: 1,
+                attrs: {},
+                content: [{ text: 'Hello ' }, { text: 'world', marks: ['bold'] }],
+              },
+            ],
+          },
+        })
+      ).json();
+      const created = await editor.post(`${EXT}/translations/entry/${en.id}`, {
+        locale: 'it',
+        machine: true,
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      expect(created.json().warning).toBeUndefined();
+      const copy = (await editor.get(`/api/v1/entries/${created.json().id}`)).json();
+      expect(copy.title).toBe('[IT] Machine page');
+      expect(copy.revision.excerpt).toBe('[IT] Short & sweet');
+      expect(copy.revision.document.blocks[0].content).toEqual([
+        { text: '[IT] Hello ' },
+        { text: 'world', marks: ['bold'] },
+      ]);
+      expect(calls[0]!.url).toBe('https://api-free.deepl.com/v2/translate');
+      expect(calls[0]!.body.target_lang).toBe('IT');
+
+      // Again from the original, after it changed.
+      await editor.request('PATCH', `/api/v1/entries/${en.id}`, { title: 'Machine page 2' });
+      expect(
+        (await editor.post(`${EXT}/translations/entry/${created.json().id}/machine`)).statusCode,
+      ).toBe(204);
+      expect((await editor.get(`/api/v1/entries/${created.json().id}`)).json().title).toBe(
+        '[IT] Machine page 2',
+      );
+      const state = (
+        await editor.get(`${EXT}/translations?kind=entry&ids=${created.json().id}`)
+      ).json()[created.json().id];
+      expect(state.needsUpdate).toBe(false);
+
+      // A refusal from DeepL leaves an untranslated copy and says why.
+      spy.mockImplementation(async (input, init) =>
+        String(input).includes('deepl.com')
+          ? new Response('{}', { status: 456 })
+          : real(input, init),
+      );
+      const other = (await editor.post('/api/v1/entries', { type: 'page', title: 'Quota' })).json();
+      const failed = await editor.post(`${EXT}/translations/entry/${other.id}`, {
+        locale: 'it',
+        machine: true,
+      });
+      expect(failed.statusCode).toBe(201);
+      expect(failed.json().warning).toMatch(/quota/);
+    } finally {
+      spy.mockRestore();
+      await admin.request('DELETE', `${EXT}/machine`);
+    }
+  });
+});
+
 describe('sites without the plugin', () => {
   it('pay nothing for it: no provider call, no language markup', async () => {
     const { site: plain, admin: owner2 } = await newSite('plain', '10.50.5.1');

@@ -33,6 +33,8 @@ import {
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
+import { seal, unseal } from '../common/secrets.js';
+import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { IdentityService } from '../auth/identity.service.js';
 import { EntriesService } from '../content/entries.service.js';
 import { defaultLocaleIn, LanguagesService, PENDING } from '../content/languages.service.js';
@@ -56,6 +58,7 @@ export class PluginServicesProvider implements PluginServices {
     private readonly entriesService: EntriesService,
     private readonly termsService: TermsService,
     private readonly identity: IdentityService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {
     host.bind(this);
   }
@@ -118,6 +121,61 @@ export class PluginServicesProvider implements PluginServices {
           : value;
     }
     await this.entriesService.update(siteId, auth, id, { fields: merged }, '');
+  }
+
+  async updateEntry(
+    siteId: string,
+    id: string,
+    changes: { title?: string; excerpt?: string | null; document?: unknown; fields?: FieldValues },
+    options: { userId: string },
+  ): Promise<void> {
+    const auth = await this.actor(siteId, options.userId);
+    await this.entriesService.update(
+      siteId,
+      auth,
+      id,
+      {
+        ...(changes.title !== undefined ? { title: changes.title } : {}),
+        ...(changes.excerpt !== undefined ? { excerpt: changes.excerpt } : {}),
+        ...(changes.document !== undefined ? { document: changes.document } : {}),
+        ...(changes.fields !== undefined ? { fields: changes.fields } : {}),
+      },
+      '',
+    );
+  }
+
+  async revisionOf(
+    siteId: string,
+    id: string,
+  ): Promise<{
+    title: string;
+    excerpt: string | null;
+    document: unknown;
+    fields: FieldValues;
+  } | null> {
+    const row = await withContext(this.database.db, { siteId }, async (tx) => {
+      const [found] = await tx
+        .select({ revision: revisions })
+        .from(entries)
+        .innerJoin(revisions, eq(revisions.id, entries.currentRevisionId))
+        .where(and(eq(entries.id, id), ne(entries.status, 'trashed')));
+      return found?.revision;
+    });
+    if (!row) return null;
+    return {
+      title: row.title,
+      excerpt: row.excerpt ?? null,
+      document: row.document,
+      fields: (row.fields as FieldValues) ?? {},
+    };
+  }
+
+  seal(value: string): unknown {
+    return seal(this.config.appSecret, value);
+  }
+
+  unseal(sealed: unknown): string | null {
+    return unseal(this.config.appSecret, sealed);
   }
 
   fieldsOf(

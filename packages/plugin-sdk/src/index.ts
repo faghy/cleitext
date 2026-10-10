@@ -4,6 +4,14 @@ import type { PluginBlockDefinition, PluginDefinition } from './context.js';
 export * from './manifest.js';
 export * from './hooks.js';
 export * from './context.js';
+/** Rich text of block documents (CXD), e.g. to translate or index it. */
+export {
+  htmlToInline,
+  inlineToHtml,
+  type CxdBlock,
+  type CxdDocument,
+  type CxdInline,
+} from '@cleitext/blocks';
 export {
   fieldDefaults,
   fieldsValidator,

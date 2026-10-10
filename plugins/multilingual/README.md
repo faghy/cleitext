@@ -10,6 +10,8 @@ The official Cleitext plugin for sites in more than one language. Without it a s
 - **Translations** overview (sidebar): the entries of a type in the default language and their versions in each language, with what is missing or needs an update.
 - On the public site, through the core: language addresses, `hreflang` links (pages, archives, sitemaps), the theme's language switcher, the front, posts and error pages of each language, search and feeds per language.
 
+**Automatic translation** (optional): save a DeepL API key in **Languages** (stored encrypted). New translations can then be translated automatically — title, excerpt, the text of the blocks (bold, italics and links are kept), readable attributes such as alt texts, and text fields set to _Translated_ — and a translation that needs an update can be translated again from its original. The texts are sent to DeepL only when you ask for a translation.
+
 Custom fields follow their `translation` setting (Content structure): _Translated_ (copied, then edited in each language), _Same as the original_ (kept in step when the original is saved) or _Left empty_.
 
 ## Install
@@ -24,4 +26,4 @@ Deactivating it brings the site back to its default language; nothing is deleted
 
 ## Planned
 
-Machine translation, showing the default language when a page is not translated, a domain per language.
+Showing the default language when a page is not translated, a domain per language.
