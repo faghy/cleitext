@@ -1,5 +1,6 @@
 import {
   autosaveRequestSchema,
+  publishRequestSchema,
   createEntryRequestSchema,
   createTranslationRequestSchema,
   listEntriesQuerySchema,
@@ -114,8 +115,10 @@ export class EntriesController {
     @CurrentAuth() auth: AuthContext,
     @Param('id', uuid) id: string,
     @Req() request: FastifyRequest,
+    @Body() body: unknown,
   ) {
-    return this.entries.publish(site.id, auth, id, request.ip);
+    const { visibility } = parseBody(publishRequestSchema, body ?? {});
+    return this.entries.publish(site.id, auth, id, request.ip, visibility);
   }
 
   @Post('entries/:id/preview')

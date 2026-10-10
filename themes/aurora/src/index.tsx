@@ -217,7 +217,15 @@ function EntryList({ entries, empty }: { entries: PublicEntrySummary[]; empty: s
           <h2>
             <a href={entry.url}>{entry.title}</a>
           </h2>
-          {entry.excerpt && <p>{entry.excerpt}</p>}
+          {entry.highlight ? (
+            <p>
+              {entry.highlight.map((part, i) =>
+                part.match ? <mark key={i}>{part.text}</mark> : <span key={i}>{part.text}</span>,
+              )}
+            </p>
+          ) : (
+            entry.excerpt && <p>{entry.excerpt}</p>
+          )}
         </li>
       ))}
     </ul>

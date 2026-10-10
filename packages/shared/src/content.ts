@@ -67,6 +67,11 @@ export const autosaveRequestSchema = z.object({
 });
 export type AutosaveRequest = z.input<typeof autosaveRequestSchema>;
 
+/** `private`: visible only to users who may read private entries (RF-CNT-16). */
+export const publishRequestSchema = z.object({
+  visibility: z.enum(['public', 'private']).default('public'),
+});
+
 export const scheduleRequestSchema = z.object({ scheduledAt: z.iso.datetime({ offset: true }) });
 export type ScheduleRequest = z.input<typeof scheduleRequestSchema>;
 

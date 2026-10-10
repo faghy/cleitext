@@ -430,7 +430,14 @@ export class EntriesService {
     });
   }
 
-  publish(siteId: string, auth: AuthContext, id: string, ip: string): Promise<EntryView> {
+  /** Publishes the latest version; `private` makes it visible to allowed users only (RF-CNT-16). */
+  publish(
+    siteId: string,
+    auth: AuthContext,
+    id: string,
+    ip: string,
+    visibility: 'public' | 'private' = 'public',
+  ): Promise<EntryView> {
     return this.transition(siteId, auth, id, ip, 'entry.published', async (tx, entry) => {
       assertAllowed(canPublish(auth, entry), 'You cannot publish this entry.');
       if (!['draft', 'pending', 'scheduled', 'published', 'private'].includes(entry.status)) {
@@ -447,7 +454,7 @@ export class EntriesService {
       await tx
         .update(entries)
         .set({
-          status: 'published',
+          status: visibility === 'private' ? 'private' : 'published',
           publishedRevisionId: entry.currentRevisionId,
           publishedAt: entry.publishedAt ?? (sql`now()` as never),
           scheduledAt: null,

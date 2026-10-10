@@ -102,10 +102,17 @@ export const isPublished = and(
   isNotNull(entries.publishedRevisionId),
 );
 
+/** Published entries, plus private ones for users allowed to read them (RF-CNT-16). */
+export function isVisible(includePrivate: boolean) {
+  return includePrivate
+    ? and(inArray(entries.status, ['published', 'private']), isNotNull(entries.publishedRevisionId))
+    : isPublished;
+}
+
 export async function loadPublished(
   tx: SiteTransaction,
   where: ReturnType<typeof and>,
-  options: { limit?: number; offset?: number } = {},
+  options: { limit?: number; offset?: number; includePrivate?: boolean } = {},
 ): Promise<PublishedEntry[]> {
   let query = tx
     .select({
@@ -120,7 +127,7 @@ export async function loadPublished(
     .from(entries)
     .innerJoin(revisions, eq(revisions.id, entries.publishedRevisionId))
     .leftJoin(users, eq(users.id, entries.authorId))
-    .where(and(isPublished, where))
+    .where(and(isVisible(options.includePrivate ?? false), where))
     .orderBy(desc(entries.publishedAt), desc(entries.id))
     .$dynamic();
   if (options.limit !== undefined) query = query.limit(options.limit);

@@ -60,6 +60,9 @@ function Editor({ initial }: { initial: EntryView }) {
   const [tab, setTab] = useState<'document' | 'block'>('document');
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState(initial.autosave);
+  const [visibility, setVisibility] = useState<'public' | 'private'>(
+    initial.status === 'private' ? 'private' : 'public',
+  );
   const [fields, setFields] = useState<FieldValues>(initial.revision?.fields ?? {});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const fieldsRef = useRef<FieldValues>(fields);
@@ -195,7 +198,9 @@ function Editor({ initial }: { initial: EntryView }) {
       const body =
         typeof kind === 'object'
           ? { scheduledAt: new Date(kind.schedule).toISOString() }
-          : undefined;
+          : kind === 'publish'
+            ? { visibility }
+            : undefined;
       apply(await api<EntryView>('POST', `/entries/${entry.id}/${path}`, body));
     },
     onError: (e) => {
@@ -229,7 +234,7 @@ function Editor({ initial }: { initial: EntryView }) {
   });
 
   const readOnly = !entry.permissions.edit;
-  const isPublished = entry.status === 'published';
+  const isPublished = entry.status === 'published' || entry.status === 'private';
   const backTo: string =
     entry.type === 'page'
       ? '/pages'
@@ -400,6 +405,11 @@ function Editor({ initial }: { initial: EntryView }) {
             )}
             {tab === 'document' && (
               <DocumentPanel
+                visibility={visibility}
+                onVisibility={(value) => {
+                  setVisibility(value);
+                  markDirty();
+                }}
                 entry={entry}
                 locales={me.site.locales}
                 readOnly={readOnly}
@@ -558,6 +568,8 @@ function toFieldBlock(block: PluginBlockView, locale: string): FieldBlockDefinit
 }
 
 function DocumentPanel({
+  visibility,
+  onVisibility,
   entry,
   locales,
   readOnly,
@@ -566,6 +578,8 @@ function DocumentPanel({
   onSaved,
   onRestored,
 }: {
+  visibility: 'public' | 'private';
+  onVisibility: (value: 'public' | 'private') => void;
   entry: EntryView;
   locales: { code: string; name: string }[];
   readOnly: boolean;
@@ -626,6 +640,23 @@ function DocumentPanel({
             ` · ${formatDate(entry.publishedAt)}`}
           {entry.scheduledAt && ` · ${formatDate(entry.scheduledAt)}`}
         </p>
+        {entry.permissions.publish && (
+          <label className="mt-2 block">
+            <span className="text-xs text-slate-600">Visibility</span>
+            <select
+              value={visibility}
+              onChange={(e) => onVisibility(e.target.value as 'public' | 'private')}
+              className="w-full rounded border border-slate-300 bg-white px-2 py-1"
+            >
+              <option value="public">Public</option>
+              <option value="private">Private (signed-in editors only)</option>
+            </select>
+            {visibility !== (entry.status === 'private' ? 'private' : 'public') &&
+              ['published', 'private'].includes(entry.status) && (
+                <span className="text-xs text-amber-700">Applied when you click Update.</span>
+              )}
+          </label>
+        )}
         {entry.hasUnpublishedChanges && (
           <p className="text-amber-700">The public version is older than the saved one.</p>
         )}

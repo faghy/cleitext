@@ -247,6 +247,8 @@ describe('search', () => {
     expect(html).toContain('Gelato guide');
     expect(html).not.toContain('Pistachio secret');
     expect(html).toContain('<meta name="robots" content="noindex, follow"/>');
+    // The matching word is marked in the result (RF-THM-10).
+    expect(html).toContain('<mark>pistachio</mark>');
     expect((await page('/it/search?q=pistachio')).html).not.toContain('Gelato guide');
     expect(draft.status).toBe('draft');
   });

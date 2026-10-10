@@ -50,6 +50,8 @@ export interface PublicEntrySummary {
   excerpt: string;
   author: { displayName: string } | null;
   image: RenderMedia | null;
+  /** Search results: a fragment of the text with the matching words marked (RF-THM-10). */
+  highlight?: { text: string; match: boolean }[];
 }
 
 export interface PublicEntry extends PublicEntrySummary {

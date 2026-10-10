@@ -13,7 +13,7 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
+import { documentText, type CxdBlock, type CxdDocument } from '@cleitext/blocks';
 import type { RenderHookContext } from '@cleitext/plugin-sdk';
 import {
   collectMediaIds,
@@ -48,6 +48,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import {
   loadMedia,
   isPublished,
+  isVisible,
   loadMenus,
   loadPublished,
   loadSiteData,
@@ -63,6 +64,9 @@ import { themeFor } from './themes.js';
 import { matchPermalink } from './urls.js';
 
 const HTML = 'text/html; charset=utf-8';
+/** ts_headline settings: matches between \u0001 and \u0002 (never found in text). */
+const HEADLINE_OPTIONS =
+  'StartSel=\u0001, StopSel=\u0002, MaxWords=30, MinWords=12, MaxFragments=2, FragmentDelimiter=" … "';
 const brotli = promisify(zlib.brotliCompress);
 const gzip = promisify(zlib.gzip);
 
@@ -96,6 +100,8 @@ interface RequestScope {
   tags: Set<string>;
   /** Plugins active on the site. */
   activePlugins: ReadonlySet<string>;
+  /** Signed-in visitor allowed to read private entries (never cached). */
+  includePrivate: boolean;
   /** Renderers of plugin blocks for the entry being rendered. */
   blockRenderers?: ReadonlyMap<string, BlockRenderer>;
 }
@@ -212,6 +218,7 @@ export class PublicService {
         `${request.protocol}://${request.host}`,
         url.pathname,
         url.searchParams,
+        request.auth ?? null,
       );
       if (response.redirect) {
         await reply.redirect(response.redirect, response.status);
@@ -306,7 +313,10 @@ export class PublicService {
     origin: string,
     rawPath: string,
     query: URLSearchParams,
+    /** Signed-in visitor: private entries are shown to those who may read them. */
+    viewer: { capabilities: readonly string[] } | null = null,
   ): Promise<PublicResponse> {
+    const includePrivate = viewer?.capabilities.includes('read_private_entries') ?? false;
     let path: string;
     try {
       path = decodeURIComponent(rawPath);
@@ -335,7 +345,7 @@ export class PublicService {
         }
       }
 
-      const { scope, rest } = await this.scope(tx, siteId, origin, path);
+      const { scope, rest } = await this.scope(tx, siteId, origin, path, includePrivate);
 
       if (redirect?.status === 410) return this.notFound(scope, 410);
       if (path === '/robots.txt') return this.robots(scope);
@@ -361,6 +371,7 @@ export class PublicService {
     siteId: string,
     origin: string,
     path: string,
+    includePrivate = false,
   ): Promise<{ scope: RequestScope; rest: string }> {
     const activePlugins = await this.plugins.activeSlugs(siteId);
     const data = await loadSiteData(tx, activePlugins);
@@ -384,6 +395,7 @@ export class PublicService {
         path,
         tags: new Set(['site']),
         activePlugins,
+        includePrivate,
       },
     };
   }
@@ -580,8 +592,8 @@ export class PublicService {
     // Entries by permalink.
     const match = matchPermalink(rest, data.types);
     if (!match) return null;
-    const [entry] = await loadPublished(
-      scope.tx,
+    const [entry] = await this.published(
+      scope,
       and(
         eq(entries.typeSlug, match.type),
         eq(entries.locale, locale),
@@ -608,8 +620,8 @@ export class PublicService {
   }
 
   private async byGroup(scope: RequestScope, group: string): Promise<PublishedEntry | null> {
-    const [entry] = await loadPublished(
-      scope.tx,
+    const [entry] = await this.published(
+      scope,
       and(eq(entries.translationGroup, group), eq(entries.locale, scope.locale)),
       { limit: 1 },
     );
@@ -650,8 +662,8 @@ export class PublicService {
       });
     }
 
-    const translationRows = await loadPublished(
-      tx,
+    const translationRows = await this.published(
+      scope,
       eq(entries.translationGroup, entry.row.translationGroup),
     );
     const translations = translationRows
@@ -741,10 +753,10 @@ export class PublicService {
     scope.tags.add(options.tag);
     const perPage = settings.postsPerPage;
     const where = and(options.where, eq(entries.locale, scope.locale));
-    const total = await this.count(tx, where);
+    const total = await this.count(scope, where);
     const totalPages = Math.max(1, Math.ceil(total / perPage));
     if (options.page > totalPages || options.page < 1) return null;
-    const list = await loadPublished(tx, where, {
+    const list = await this.published(scope, where, {
       limit: perPage,
       offset: (options.page - 1) * perPage,
     });
@@ -845,10 +857,23 @@ export class PublicService {
     if (q) {
       const match = sql`${entries.search} @@ plainto_tsquery('simple', unaccent(${q}))`;
       const where = and(eq(entries.locale, scope.locale), match);
-      total = await this.count(tx, where);
-      list = await loadPublished(tx, where, { limit: perPage, offset: (current - 1) * perPage });
+      total = await this.count(scope, where);
+      list = await this.published(scope, where, {
+        limit: perPage,
+        offset: (current - 1) * perPage,
+      });
     }
     const { summaries, media } = await summarize(tx, list, data.urls, scope.locale);
+    // The matching words in context, marked by PostgreSQL (RF-THM-10).
+    await Promise.all(
+      list.map(async (entry, index) => {
+        const text = `${entry.row.title}. ${documentText(entry.document)}`.slice(0, 20_000);
+        const [row] = await tx.execute<{ h: string }>(
+          sql`select ts_headline('simple', ${text}, plainto_tsquery('simple', ${q}) || plainto_tsquery('simple', unaccent(${q})), ${HEADLINE_OPTIONS}) as h`,
+        );
+        if (row?.h && row.h.includes('\u0001')) summaries[index]!.highlight = splitHighlight(row.h);
+      }),
+    );
     const totalPages = Math.max(1, Math.ceil(total / perPage));
     const base = `${data.urls.search(scope.locale)}?q=${encodeURIComponent(q)}`;
     const props: TemplateProps = {
@@ -1155,12 +1180,35 @@ export class PublicService {
       : scope.siteTitle;
   }
 
-  private async count(tx: SiteTransaction, where: ReturnType<typeof and>): Promise<number> {
-    const [row] = await tx.select({ n: count() }).from(entries).where(and(isPublished, where));
+  private async count(scope: RequestScope, where: ReturnType<typeof and>): Promise<number> {
+    const [row] = await scope.tx
+      .select({ n: count() })
+      .from(entries)
+      .where(and(isVisible(scope.includePrivate), where));
     return Number(row?.n ?? 0);
+  }
+
+  /** Entries the current visitor may see (private ones only with the capability). */
+  private published(
+    scope: RequestScope,
+    where: ReturnType<typeof and>,
+    options: { limit?: number; offset?: number } = {},
+  ): Promise<PublishedEntry[]> {
+    return loadPublished(scope.tx, where, { ...options, includePrivate: scope.includePrivate });
   }
 }
 
 function xml(value: string): string {
   return value.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+/** ts_headline output (matches between \u0001 and \u0002) → text segments. */
+function splitHighlight(value: string): { text: string; match: boolean }[] {
+  const parts: { text: string; match: boolean }[] = [];
+  for (const chunk of value.split('\u0001')) {
+    const [match, rest] = chunk.includes('\u0002') ? chunk.split('\u0002', 2) : [null, chunk];
+    if (match) parts.push({ text: match, match: true });
+    if (rest) parts.push({ text: rest, match: false });
+  }
+  return parts;
 }

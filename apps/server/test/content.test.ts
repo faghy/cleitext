@@ -457,3 +457,33 @@ describe('trash (RF-CNT-14)', () => {
     expect((await admin.get(`/api/v1/entries/${recent.id}`)).statusCode).toBe(200);
   });
 });
+
+describe('private entries (RF-CNT-16)', () => {
+  it('are visible only to signed-in users who may read them', async () => {
+    const admin = as.administrator!;
+    const created = (
+      await admin.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Staff only',
+        document: doc('Internal notes.'),
+      })
+    ).json();
+    const published = await admin.post(`/api/v1/entries/${created.id}/publish`, {
+      visibility: 'private',
+    });
+    expect(published.json().status).toBe('private');
+
+    const visitor = new TestClient(app, site.host, '10.12.1.1');
+    expect((await visitor.get('/staff-only')).statusCode).toBe(404);
+    const page = await admin.get('/staff-only');
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('Internal notes.');
+    expect(page.headers['x-cache']).toBe('BYPASS');
+    // A subscriber cannot read private entries.
+    expect((await as.subscriber!.get('/staff-only')).statusCode).toBe(404);
+
+    // Back to public.
+    await admin.post(`/api/v1/entries/${created.id}/publish`);
+    expect((await visitor.get('/staff-only')).statusCode).toBe(200);
+  });
+});
