@@ -14,6 +14,8 @@ export interface AuthContext {
   displayName: string;
   locale: string;
   avatarUrl: string | null;
+  /** 2FA state; `required` comes from the site's security settings. */
+  twoFactor: { enabled: boolean; required: boolean };
   isSuperAdmin: boolean;
   role: { id: string; slug: string; name: string } | null;
   /** Core capabilities plus those defined by active plugins. */

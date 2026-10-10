@@ -29,6 +29,10 @@ export const users = pgTable(
     /** Encrypted at the application level. */
     totpSecret: text('totp_secret'),
     locale: text('locale').notNull().default('en'),
+    /** When TOTP 2FA was confirmed; null while `totp_secret` is only a pending setup. */
+    totpConfirmedAt: timestamp('totp_confirmed_at', { withTimezone: true }),
+    /** Last accepted TOTP time step: a code cannot be used twice. */
+    totpLastStep: integer('totp_last_step'),
     /** Profile picture in the media storage (`avatars/<userId>/<id>.webp`). */
     avatarKey: text('avatar_key'),
     createdAt: createdAt(),
@@ -118,7 +122,10 @@ export const userTokens = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    check('user_tokens_kind_check', sql`${t.kind} in ('password_reset', 'invitation')`),
+    check(
+      'user_tokens_kind_check',
+      sql`${t.kind} in ('password_reset', 'invitation', 'login_2fa')`,
+    ),
     index('user_tokens_user_idx').on(t.userId),
   ],
 );
@@ -143,4 +150,57 @@ export const apiTokens = pgTable('api_tokens', {
   scopes: text('scopes').array().notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  /** First characters of the token, to recognize it in lists. */
+  prefix: text('prefix').notNull().default(''),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+});
+
+/** Single-use 2FA recovery codes (RF-USR-04), stored as hashes. */
+export const userRecoveryCodes = pgTable(
+  'user_recovery_codes',
+  {
+    codeHash: text('code_hash').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('user_recovery_codes_user_idx').on(t.userId)],
+);
+
+/** WebAuthn credentials (RF-USR-05), bound to the domain they were made on. */
+export const userPasskeys = pgTable(
+  'user_passkeys',
+  {
+    /** Credential id, base64url. */
+    id: text('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** WebAuthn relying party: the host the passkey works on. */
+    rpId: text('rp_id').notNull(),
+    publicKey: text('public_key').notNull(),
+    counter: integer('counter').notNull().default(0),
+    transports: text('transports')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    name: text('name').notNull(),
+    createdAt: createdAt(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (t) => [index('user_passkeys_user_idx').on(t.userId)],
+);
+
+/** Pending WebAuthn challenges, single use and short-lived. */
+export const webauthnChallenges = pgTable('webauthn_challenges', {
+  /** SHA-256 of the random id kept by the browser in a cookie. */
+  id: text('id').primaryKey(),
+  challenge: text('challenge').notNull(),
+  kind: text('kind').notNull(),
+  /** Set for registrations (the signed-in user). */
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 });

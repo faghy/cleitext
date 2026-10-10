@@ -3,7 +3,9 @@ import {
   forgotPasswordRequestSchema,
   loginRequestSchema,
   resetPasswordRequestSchema,
+  twoFactorLoginRequestSchema,
   type MeResponse,
+  type TwoFactorChallenge,
 } from '@cleitext/shared';
 import { Body, Controller, Get, HttpCode, Post, Query, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -40,11 +42,31 @@ export class AuthController {
     @Body() body: unknown,
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<MeResponse> {
+  ): Promise<MeResponse | TwoFactorChallenge> {
     const input = parseBody(loginRequestSchema, body);
     const result = await this.authService.login(site.id, input, clientInfo(request));
+    if ('twoFactorRequired' in result) return result;
     setSessionCookie(request, reply, result.token, {
       remember: input.remember,
+      expiresAt: result.expiresAt,
+    });
+    return this.identity.me(site.id, result.auth);
+  }
+
+  /** Second sign-in step for accounts with 2FA (RF-USR-04). */
+  @Public()
+  @Post('2fa')
+  @HttpCode(200)
+  async twoFactor(
+    @CurrentSite() site: SiteContext,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MeResponse> {
+    const input = parseBody(twoFactorLoginRequestSchema, body);
+    const result = await this.authService.loginTwoFactor(site.id, input, clientInfo(request));
+    setSessionCookie(request, reply, result.token, {
+      remember: result.remember,
       expiresAt: result.expiresAt,
     });
     return this.identity.me(site.id, result.auth);

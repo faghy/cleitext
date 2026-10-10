@@ -23,6 +23,10 @@ const GLOBAL_TABLES = [
   'super_admins',
   'user_tokens',
   'login_throttle',
+  // Identity is global, like users: 2FA recovery codes and passkeys.
+  'user_recovery_codes',
+  'user_passkeys',
+  'webauthn_challenges',
 ];
 /** Tables with RLS that is intentionally not FORCEd (managed by the owner). */
 const NOT_FORCED = ['sites', 'site_domains', 'users', 'roles'];

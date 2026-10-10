@@ -26,6 +26,45 @@ export const loginRequestSchema = z.object({
 });
 export type LoginRequest = z.input<typeof loginRequestSchema>;
 
+/** Answer to a correct password when the account uses 2FA (RF-USR-04). */
+export interface TwoFactorChallenge {
+  twoFactorRequired: true;
+  /** Single-use, valid for a few minutes: sent back with the code. */
+  challenge: string;
+}
+
+export const twoFactorLoginRequestSchema = z.object({
+  challenge: z.string().min(10).max(200),
+  /** Authenticator code, or a recovery code. */
+  code: z.string().trim().min(6).max(20),
+});
+
+export const twoFactorCodeRequestSchema = z.object({ code: z.string().trim().min(6).max(20) });
+
+/** Sensitive account changes ask for the password again. */
+export const passwordConfirmRequestSchema = z.object({
+  password: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+});
+
+export interface TwoFactorStatusView {
+  enabled: boolean;
+  recoveryCodesLeft: number;
+  /** Required for the user's role on this site. */
+  required: boolean;
+}
+
+export interface TwoFactorSetupView {
+  /** Base32 secret, for typing into an authenticator app. */
+  secret: string;
+  otpauthUrl: string;
+}
+
+export const securitySettingsSchema = z.object({
+  /** Role slugs that must use 2FA; `super_admin` for super admins. */
+  require2fa: z.array(z.string().min(1).max(64)).max(50),
+});
+export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
+
 export const forgotPasswordRequestSchema = z.object({ email: emailSchema });
 export type ForgotPasswordRequest = z.input<typeof forgotPasswordRequestSchema>;
 
@@ -53,6 +92,9 @@ export const meResponseSchema = z.object({
     isSuperAdmin: z.boolean(),
     /** Profile picture, or null for initials. */
     avatarUrl: z.string().nullable(),
+    twoFactorEnabled: z.boolean(),
+    /** 2FA is mandatory for the user's role: only the setup is reachable until it is on. */
+    twoFactorRequired: z.boolean(),
   }),
   site: z.object({
     id: z.uuid(),

@@ -580,6 +580,7 @@ function importAuth(userId: string): AuthContext {
     displayName: 'Import',
     locale: 'en',
     avatarUrl: null,
+    twoFactor: { enabled: false, required: false },
     isSuperAdmin: true,
     role: null,
     capabilities: [...CAPABILITIES],

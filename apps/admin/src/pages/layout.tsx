@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Outlet, useNavigate } from '@tanstack/react-router';
+import { Link, Navigate, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { api } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { visibleSections } from '../navigation';
@@ -9,12 +9,18 @@ import { taxonomiesQuery, taxonomyLabel } from './terms';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
+/** Section routes are registered dynamically (navigation.ts), hence a plain string. */
+const PROFILE: string = '/profile';
+
 export function AdminLayout() {
   const me = useMe();
   const { t } = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const sections = visibleSections(me.capabilities);
+  // A role that requires 2FA reaches only the profile until it is on.
+  const mustSetUp2fa = me.user.twoFactorRequired && !me.user.twoFactorEnabled;
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const pluginMenu = usePluginMenu();
   // WordPress order: plugin content types after Pages, plugin pages at the end.
   const taxonomies = useQuery({
@@ -111,7 +117,7 @@ export function AdminLayout() {
           </button>
         </header>
         <main className="p-6">
-          <Outlet />
+          {mustSetUp2fa && pathname !== PROFILE ? <Navigate to={PROFILE} /> : <Outlet />}
         </main>
       </div>
     </div>

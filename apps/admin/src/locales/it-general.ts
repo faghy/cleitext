@@ -184,4 +184,37 @@ export const itGeneral: Messages = {
   Dark: 'Scuro',
   Light: 'Chiaro',
   'Same as the system': 'Come il sistema',
+  '1. Scan this QR code with your authenticator app:':
+    '1. Inquadra questo codice QR con la tua app di autenticazione:',
+  '2. Enter the 6-digit code it shows': '2. Inserisci il codice di 6 cifre che mostra',
+  'Authentication code': 'Codice di autenticazione',
+  'Besides the password, ask for a code from an authenticator app (such as Google Authenticator, Aegis or 1Password) when signing in.':
+    "Oltre alla password, all'accesso viene chiesto un codice generato da un'app di autenticazione (come Google Authenticator, Aegis o 1Password).",
+  Copy: 'Copia',
+  'Each code signs you in once if you lose your phone. They are shown only now: keep them somewhere safe.':
+    'Ogni codice permette un accesso se perdi il telefono. Vengono mostrati solo ora: conservali in un posto sicuro.',
+  'Enter the code shown by your authenticator app, or one of your recovery codes.':
+    'Inserisci il codice mostrato dalla tua app di autenticazione, oppure uno dei codici di recupero.',
+  'I saved them': 'Li ho salvati',
+  'Make new codes': 'Genera nuovi codici',
+  'New recovery codes': 'Nuovi codici di recupero',
+  'On.': 'Attiva.',
+  'Or type this key:': 'Oppure digita questa chiave:',
+  'QR code for the authenticator app': "Codice QR per l'app di autenticazione",
+  'Recovery codes': 'Codici di recupero',
+  'Roles that must use two-factor authentication':
+    "Ruoli che devono usare l'autenticazione a due fattori",
+  'Save your recovery codes': 'Salva i codici di recupero',
+  'Set up two-factor authentication': "Configura l'autenticazione a due fattori",
+  'Super admins': 'Super amministratori',
+  'Their members can only set it up until it is on. Turn it on for yourself first, if your role is one of them.':
+    'Finché non la attivano, i loro membri possono solo configurarla. Se il tuo ruolo è tra questi, attivala prima per te.',
+  'Turn off': 'Disattiva',
+  'Turn on': 'Attiva',
+  'Two-factor authentication': 'Autenticazione a due fattori',
+  Verify: 'Verifica',
+  'Your password': 'La tua password',
+  'Your role requires two-factor authentication: set it up to continue.':
+    "Il tuo ruolo richiede l'autenticazione a due fattori: configurala per continuare.",
+  '{count} recovery codes left.': 'Codici di recupero rimasti: {count}.',
 };

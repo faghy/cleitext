@@ -37,6 +37,7 @@ export class AuthGuard implements CanActivate {
 
     const auth = request.auth;
     if (!auth) throw new UnauthorizedException('Sign in to continue.');
+    assertTwoFactorReady(request);
 
     const required =
       this.reflector.getAllAndOverride<Capability[]>(CAPABILITIES_KEY, targets) ?? [];
@@ -46,6 +47,17 @@ export class AuthGuard implements CanActivate {
     }
     return true;
   }
+}
+
+/** Until a mandatory 2FA is on, only sign-in and the profile (its setup) are reachable. */
+export function assertTwoFactorReady(request: FastifyRequest): void {
+  const auth = request.auth;
+  if (!auth?.twoFactor.required || auth.twoFactor.enabled) return;
+  const path = request.url.split('?')[0]!;
+  if (/^\/api\/v1\/(auth|profile)(\/|$)/.test(path)) return;
+  throw new ForbiddenException(
+    'Turn on two-factor authentication in your profile to continue: it is required for your role.',
+  );
 }
 
 /** Same-origin check and double-submit CSRF token (also used by plugin routes). */

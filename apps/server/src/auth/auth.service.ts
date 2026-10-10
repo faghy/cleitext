@@ -16,9 +16,13 @@ import { hashPassword, verifyPassword } from './crypto.js';
 import { IdentityService } from './identity.service.js';
 import { LoginThrottleService } from './login-throttle.service.js';
 import { SessionService, UserTokenService } from './session.service.js';
+import { TwoFactorService } from './two-factor.service.js';
 
 const INVALID_CREDENTIALS = 'The email or password is not correct.';
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+/** Time to type the 2FA code after a correct password. */
+const TWO_FACTOR_TTL_MS = 5 * 60 * 1000;
+const INVALID_CODE = 'The code is not correct.';
 
 export interface ClientInfo {
   ip: string;
@@ -41,6 +45,7 @@ export class AuthService {
     private readonly throttle: LoginThrottleService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   /**
@@ -51,7 +56,10 @@ export class AuthService {
     siteId: string,
     input: { email: string; password: string; remember: boolean },
     client: ClientInfo,
-  ): Promise<{ auth: AuthContext; token: string; expiresAt: Date }> {
+  ): Promise<
+    | { auth: AuthContext; token: string; expiresAt: Date }
+    | { twoFactorRequired: true; challenge: string }
+  > {
     const wait = await this.throttle.retryAfter(input.email, client.ip);
     if (wait > 0) throw tooManyAttempts(wait);
 
@@ -76,10 +84,68 @@ export class AuthService {
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
 
+    if (auth.twoFactor.enabled) {
+      // The password was right: the session waits for the second factor.
+      const challenge = await this.tokens.issue({
+        kind: 'login_2fa',
+        userId: auth.userId,
+        ttlMs: TWO_FACTOR_TTL_MS,
+        meta: { remember: input.remember, email: input.email },
+      });
+      return { twoFactorRequired: true, challenge };
+    }
     await this.throttle.recordSuccess(input.email);
+    return this.startSession(siteId, auth, input.remember, client, 'password');
+  }
+
+  /** Second step of a 2FA sign-in: authenticator or recovery code (RF-USR-04). */
+  async loginTwoFactor(
+    siteId: string,
+    input: { challenge: string; code: string },
+    client: ClientInfo,
+  ): Promise<{ auth: AuthContext; token: string; expiresAt: Date; remember: boolean }> {
+    const record = await this.tokens.peek('login_2fa', input.challenge);
+    if (!record) {
+      throw new UnauthorizedException('The sign-in has expired: enter your password again.');
+    }
+    const meta = record.meta as { remember?: boolean; email?: string };
+    const email = meta.email ?? '';
+    const wait = await this.throttle.retryAfter(email, client.ip);
+    if (wait > 0) throw tooManyAttempts(wait);
+
+    const method = await this.twoFactor.verify(siteId, record.userId, input.code);
+    if (!method) {
+      await this.throttle.recordFailure(email, client.ip);
+      await withContext(this.database.db, { siteId }, (tx) =>
+        this.audit.record(tx, {
+          siteId,
+          userId: record.userId,
+          action: 'user.login.failed',
+          meta: { email, step: '2fa' },
+          ip: client.ip,
+        }),
+      );
+      throw new UnauthorizedException(INVALID_CODE);
+    }
+    const auth = await this.identity.load(siteId, record.userId, '');
+    if (!auth || !(await this.tokens.consume('login_2fa', input.challenge))) {
+      throw new UnauthorizedException('The sign-in has expired: enter your password again.');
+    }
+    await this.throttle.recordSuccess(email);
+    const remember = Boolean(meta.remember);
+    return { ...(await this.startSession(siteId, auth, remember, client, method)), remember };
+  }
+
+  private async startSession(
+    siteId: string,
+    auth: AuthContext,
+    remember: boolean,
+    client: ClientInfo,
+    method: 'password' | 'totp' | 'recovery' | 'passkey',
+  ): Promise<{ auth: AuthContext; token: string; expiresAt: Date }> {
     const session = await this.sessions.create({
       userId: auth.userId,
-      remember: input.remember,
+      remember,
       ip: client.ip,
       userAgent: client.userAgent,
     });
@@ -92,6 +158,7 @@ export class AuthService {
         siteId,
         userId: auth.userId,
         action: 'user.login',
+        ...(method === 'password' ? {} : { meta: { method } }),
         ip: client.ip,
       });
     });

@@ -1,4 +1,4 @@
-import type { MeResponse } from '@cleitext/shared';
+import type { MeResponse, TwoFactorChallenge } from '@cleitext/shared';
 import { PASSWORD_MIN_LENGTH } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -14,14 +14,33 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
+  const [challenge, setChallenge] = useState<string | null>(null);
 
+  const signedIn = async (me: MeResponse) => {
+    queryClient.setQueryData(ME_QUERY_KEY, me);
+    await navigate({ to: safeRedirect(redirect) });
+  };
   const login = useMutation({
-    mutationFn: () => api<MeResponse>('POST', '/auth/login', { email, password, remember }),
-    onSuccess: async (me) => {
-      queryClient.setQueryData(ME_QUERY_KEY, me);
-      await navigate({ to: safeRedirect(redirect) });
+    mutationFn: () =>
+      api<MeResponse | TwoFactorChallenge>('POST', '/auth/login', { email, password, remember }),
+    onSuccess: async (result) => {
+      if ('twoFactorRequired' in result) setChallenge(result.challenge);
+      else await signedIn(result);
     },
   });
+
+  if (challenge) {
+    return (
+      <TwoFactorStep
+        challenge={challenge}
+        onSignedIn={signedIn}
+        onExpired={() => {
+          setChallenge(null);
+          setPassword('');
+        }}
+      />
+    );
+  }
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -70,6 +89,65 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
           <Link to="/forgot-password" className="text-sky-700 hover:underline">
             {t('Lost your password?')}
           </Link>
+        </p>
+      </form>
+    </AuthShell>
+  );
+}
+
+/** Second sign-in step: a code from the authenticator app, or a recovery code. */
+function TwoFactorStep({
+  challenge,
+  onSignedIn,
+  onExpired,
+}: {
+  challenge: string;
+  onSignedIn: (me: MeResponse) => Promise<void>;
+  onExpired: () => void;
+}) {
+  const { t } = useT();
+  const [code, setCode] = useState('');
+  const verify = useMutation({
+    mutationFn: () => api<MeResponse>('POST', '/auth/2fa', { challenge, code }),
+    onSuccess: onSignedIn,
+  });
+  const error = verify.error;
+  return (
+    <AuthShell title={t('Two-factor authentication')}>
+      <form
+        className="space-y-4"
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          verify.mutate();
+        }}
+      >
+        <p className="text-sm text-slate-600">
+          {t('Enter the code shown by your authenticator app, or one of your recovery codes.')}
+        </p>
+        {error && (
+          <Alert>
+            {error instanceof ApiError && error.status === 429
+              ? t('Too many failed attempts. Wait a few minutes and try again.')
+              : errorMessage(error)}
+          </Alert>
+        )}
+        <TextField
+          label={t('Authentication code')}
+          autoComplete="one-time-code"
+          inputMode="text"
+          autoFocus
+          required
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+        />
+        <Button type="submit" className="w-full" disabled={verify.isPending || !code.trim()}>
+          {t('Verify')}
+        </Button>
+        <p className="text-center text-sm">
+          <button type="button" className="text-sky-700 hover:underline" onClick={onExpired}>
+            {t('Back to sign in')}
+          </button>
         </p>
       </form>
     </AuthShell>
