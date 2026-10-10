@@ -2,6 +2,7 @@ import {
   listMediaQuerySchema,
   updateMediaRequestSchema,
   type MediaListResponse,
+  type MediaUsageView,
   type MediaView,
 } from '@cleitext/shared';
 import {
@@ -71,6 +72,15 @@ export class MediaController {
     @Param('id', uuid) id: string,
   ): Promise<MediaView> {
     return this.mediaService.get(site.id, auth, id);
+  }
+
+  @Get(':id/usage')
+  usage(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', uuid) id: string,
+  ): Promise<MediaUsageView[]> {
+    return this.mediaService.usage(site.id, auth, id);
   }
 
   @Patch(':id')

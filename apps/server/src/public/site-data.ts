@@ -167,6 +167,7 @@ export async function loadMedia(
       width: row.width,
       height: row.height,
       alt,
+      focalPoint: (row.focalPoint as { x: number; y: number } | null) ?? null,
       variants: variants
         .filter((v) => v.mediaId === row.id)
         .map((v) => ({

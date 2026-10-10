@@ -26,6 +26,18 @@ export interface MediaView {
   createdAt: string;
   /** Resized WebP/AVIF variants; filled in shortly after upload. */
   variants: MediaVariantView[];
+  /** Point kept in view when the image is cropped (0–1 from the top left, RF-MED-05). */
+  focalPoint: { x: number; y: number } | null;
+  /** Set on upload when the same file was already in the library (RF-MED-08). */
+  duplicate?: boolean;
+}
+
+/** Where a media item is used (RF-MED-08). */
+export interface MediaUsageView {
+  id: string;
+  type: string;
+  title: string;
+  status: string;
 }
 
 export interface MediaListResponse {
@@ -46,5 +58,9 @@ const perLocale = z.record(z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/), z.strin
 export const updateMediaRequestSchema = z.object({
   alt: perLocale.optional(),
   caption: perLocale.optional(),
+  focalPoint: z
+    .object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })
+    .nullable()
+    .optional(),
 });
 export type UpdateMediaRequest = z.input<typeof updateMediaRequestSchema>;

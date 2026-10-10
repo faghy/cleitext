@@ -56,6 +56,8 @@ const envSchema = z.object({
   PLUGINS_INSTALL_FROM_UI: booleanString.default(true),
   /** Packages not signed by a registry (all uploads, for now) are accepted. */
   PLUGINS_ALLOW_UNSIGNED: booleanString.default(true),
+  /** SVG uploads, sanitized (RF-MED-09). Off by default, as in WordPress. */
+  MEDIA_ALLOW_SVG: booleanString.default(false),
   MEDIA_MAX_BYTES: z.coerce
     .number()
     .int()
@@ -84,7 +86,7 @@ export interface AppConfig {
   session: { ttlHours: number; rememberDays: number };
   mail: { url: string; from: string };
   schedulerIntervalSeconds: number;
-  media: { path: string; maxBytes: number };
+  media: { path: string; maxBytes: number; allowSvg: boolean };
   plugins: { path: string };
   themes: { path: string };
   packages: { installFromUi: boolean; allowUnsigned: boolean };
@@ -126,7 +128,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     session: { ttlHours: e.SESSION_TTL_HOURS, rememberDays: e.SESSION_REMEMBER_DAYS },
     mail: { url: e.MAIL_URL, from: e.MAIL_FROM },
     schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,
-    media: { path: resolve(e.MEDIA_PATH), maxBytes: e.MEDIA_MAX_BYTES },
+    media: {
+      path: resolve(e.MEDIA_PATH),
+      maxBytes: e.MEDIA_MAX_BYTES,
+      allowSvg: e.MEDIA_ALLOW_SVG,
+    },
     plugins: { path: resolve(e.PLUGINS_PATH) },
     themes: { path: resolve(e.THEMES_PATH) },
     packages: { installFromUi: e.PLUGINS_INSTALL_FROM_UI, allowUnsigned: e.PLUGINS_ALLOW_UNSIGNED },

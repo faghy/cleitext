@@ -284,6 +284,10 @@ export function ResponsiveImage({
   const h = cssLength(height);
   if (w) style.width = w;
   if (h) style.height = h;
+  // Crops made by the theme keep the chosen point in view (RF-MED-05).
+  if (media?.focalPoint) {
+    style.objectPosition = `${Math.round(media.focalPoint.x * 100)}% ${Math.round(media.focalPoint.y * 100)}%`;
+  }
   const loading = eager ? undefined : 'lazy';
   const img = (
     <img

@@ -279,4 +279,14 @@ export const itContent: Messages = {
   'Take over': 'Subentra',
   'Copy created: {title}': 'Copia creata: {title}',
   'Document outline': 'Struttura del documento',
+  'Set the focal point': 'Imposta il punto focale',
+  'Focal point: {x}% from the left, {y}% from the top.':
+    'Punto focale: {x}% da sinistra, {y}% dall’alto.',
+  'Click the image to choose what stays visible when it is cropped.':
+    'Fai clic sull’immagine per scegliere cosa resta visibile quando viene ritagliata.',
+  Reset: 'Azzera',
+  'Used in': 'Usato in',
+  'Not used in any entry.': 'Non usato in nessuna voce.',
+  '{name} is already in the library as {existing}: nothing was added.':
+    '{name} è già nella libreria come {existing}: non è stato aggiunto nulla.',
 };

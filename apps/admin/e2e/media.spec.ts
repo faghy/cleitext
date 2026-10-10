@@ -22,10 +22,12 @@ test('upload, describe, search and filter media', async ({ page }) => {
 
   await signIn(page);
   await page.goto('/admin/media');
+  // Bytes after the end of the JPEG make this file unique (duplicates are reused).
+  const unique = Buffer.concat([sample, Buffer.from(stamp)]);
   await page.locator('input[type=file]').setInputFiles({
     name,
     mimeType: 'image/jpeg',
-    buffer: sample,
+    buffer: unique,
   });
   // The progress list disappears once the upload is done.
   await expect(page.getByRole('list', { name: 'Uploads' })).toHaveCount(0);
@@ -49,6 +51,21 @@ test('upload, describe, search and filter media', async ({ page }) => {
   await page.getByRole('button', { name: 'Search' }).click();
   await expect(page.getByRole('row')).toHaveCount(2);
   await expect(page.getByRole('button', { name })).toBeVisible();
+
+  // Focal point: a click on the image.
+  await page
+    .getByRole('button', { name: 'Set the focal point' })
+    .click({ position: { x: 10, y: 10 } });
+  await expect(page.getByText(/^Focal point: \d+% from the left/)).toBeVisible();
+  await expect(page.getByText('Not used in any entry.')).toBeVisible();
+
+  // The same file again is not added twice.
+  await page.locator('input[type=file]').setInputFiles({
+    name: `again-${name}`,
+    mimeType: 'image/jpeg',
+    buffer: unique,
+  });
+  await expect(page.getByText(`again-${name} is already in the library as ${name}`)).toBeVisible();
 
   // The type filter hides it among documents.
   await page.getByLabel('Filter by type').selectOption('document');

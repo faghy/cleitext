@@ -1,5 +1,6 @@
-import type { MediaListResponse, MediaView } from '@cleitext/shared';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { MediaListResponse, MediaUsageView, MediaView } from '@cleitext/shared';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useT } from '@cleitext/admin-sdk';
 import { type DragEvent, Fragment, useRef, useState } from 'react';
 import { api, errorMessage, uploadFile } from '../api';
@@ -31,6 +32,8 @@ interface UploadState {
   name: string;
   progress: number;
   error?: string;
+  /** Set when the file was already in the library (RF-MED-08). */
+  existing?: string;
 }
 
 let uploadCounter = 0;
@@ -69,12 +72,15 @@ export function MediaPage() {
   const upload = useMutation({
     mutationFn: async (files: File[]) => {
       const queued = files.map((file) => ({ id: ++uploadCounter, name: file.name, progress: 0 }));
-      setUploads((current) => [...current.filter((u) => u.error), ...queued]);
+      setUploads((current) => [...current.filter((u) => u.error || u.existing), ...queued]);
       for (const [index, file] of files.entries()) {
         const id = queued[index]!.id;
         try {
-          await uploadFile<MediaView>(file, { onProgress: (progress) => update(id, { progress }) });
-          setUploads((current) => current.filter((u) => u.id !== id));
+          const uploaded = await uploadFile<MediaView>(file, {
+            onProgress: (progress) => update(id, { progress }),
+          });
+          if (uploaded.duplicate) update(id, { existing: uploaded.filename });
+          else setUploads((current) => current.filter((u) => u.id !== id));
         } catch (error) {
           update(id, { error: errorMessage(error) });
         }
@@ -140,6 +146,15 @@ export function MediaPage() {
               <li key={item.id}>
                 <Alert>
                   {item.name}: {item.error}
+                </Alert>
+              </li>
+            ) : item.existing ? (
+              <li key={item.id}>
+                <Alert kind="success">
+                  {t('{name} is already in the library as {existing}: nothing was added.', {
+                    name: item.name,
+                    existing: item.existing,
+                  })}
                 </Alert>
               </li>
             ) : (
@@ -347,9 +362,7 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
       className="w-80 shrink-0 space-y-3 rounded border border-slate-200 bg-white p-4 text-sm"
       aria-label={t('File details')}
     >
-      {media.kind === 'image' && (
-        <img src={media.url} alt="" className="w-full rounded border border-slate-200" />
-      )}
+      {media.kind === 'image' && <FocalPointPicker media={media} />}
       <dl className="space-y-1">
         <div>
           <dt className="inline font-medium">{t('File:')} </dt>
@@ -400,6 +413,7 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
           {t('Save')}
         </Button>
       </form>
+      <MediaUsage id={media.id} />
       {remove.error && <Alert>{errorMessage(remove.error)}</Alert>}
       <button
         type="button"
@@ -418,6 +432,103 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
         {t('Delete permanently')}
       </button>
     </aside>
+  );
+}
+
+/**
+ * Focal point (RF-MED-05): a click on the image sets the point kept in view
+ * when themes crop it.
+ */
+function FocalPointPicker({ media }: { media: MediaView }) {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const [point, setPoint] = useState(media.focalPoint);
+  const save = useMutation({
+    mutationFn: (focalPoint: { x: number; y: number } | null) =>
+      api<MediaView>('PATCH', `/media/${media.id}`, { focalPoint }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['media'] }),
+  });
+  const choose = (x: number, y: number) => {
+    const next = { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
+    setPoint(next);
+    save.mutate(next);
+  };
+  return (
+    <div className="space-y-1">
+      <div className="relative">
+        <button
+          type="button"
+          className="block w-full cursor-crosshair"
+          aria-label={t('Set the focal point')}
+          onClick={(e) => {
+            const box = e.currentTarget.getBoundingClientRect();
+            choose((e.clientX - box.left) / box.width, (e.clientY - box.top) / box.height);
+          }}
+        >
+          <img src={media.url} alt="" className="w-full rounded border border-slate-200" />
+        </button>
+        {point && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-sky-600/70 shadow"
+            style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
+          />
+        )}
+      </div>
+      <p className="text-xs text-slate-600">
+        {point
+          ? t('Focal point: {x}% from the left, {y}% from the top.', {
+              x: Math.round(point.x * 100),
+              y: Math.round(point.y * 100),
+            })
+          : t('Click the image to choose what stays visible when it is cropped.')}{' '}
+        {point && (
+          <button
+            type="button"
+            className="text-sky-700 hover:underline"
+            onClick={() => {
+              setPoint(null);
+              save.mutate(null);
+            }}
+          >
+            {t('Reset')}
+          </button>
+        )}
+      </p>
+      {save.error && <Alert>{errorMessage(save.error)}</Alert>}
+    </div>
+  );
+}
+
+/** Where the file is used (RF-MED-08). */
+function MediaUsage({ id }: { id: string }) {
+  const { t } = useT();
+  const usage = useQuery({
+    queryKey: ['media', id, 'usage'],
+    queryFn: () => api<MediaUsageView[]>('GET', `/media/${id}/usage`),
+  });
+  if (!usage.data) return null;
+  return (
+    <div>
+      <p className="font-medium">{t('Used in')}</p>
+      {usage.data.length === 0 ? (
+        <p className="text-slate-600">{t('Not used in any entry.')}</p>
+      ) : (
+        <ul className="list-disc pl-5">
+          {usage.data.map((entry) => (
+            <li key={entry.id}>
+              <Link
+                to="/entries/$id"
+                params={{ id: entry.id }}
+                className="text-sky-700 hover:underline"
+              >
+                {entry.title || t('(no title)')}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

@@ -1,6 +1,15 @@
 import { createHash } from 'node:crypto';
-import { media, mediaVariants, newId, users, withContext, type DatabaseClient } from '@cleitext/db';
-import type { MediaListResponse, MediaView } from '@cleitext/shared';
+import {
+  entries,
+  media,
+  mediaVariants,
+  newId,
+  revisions,
+  users,
+  withContext,
+  type DatabaseClient,
+} from '@cleitext/db';
+import type { MediaListResponse, MediaUsageView, MediaView } from '@cleitext/shared';
 import {
   ForbiddenException,
   HttpException,
@@ -10,7 +19,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, ilike, like, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, like, lt, or, sql, type SQL } from 'drizzle-orm';
 import sharp from 'sharp';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
@@ -18,7 +27,7 @@ import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
-import { ALLOWED_TYPES, detectType, RESIZABLE } from './media-types.js';
+import { ALLOWED_TYPES, detectType, looksLikeSvg, RESIZABLE, sanitizeSvg } from './media-types.js';
 import { DiskStorage, type MediaStorage } from './storage.js';
 
 type MediaRow = typeof media.$inferSelect;
@@ -52,13 +61,24 @@ export class MediaService {
     file: { filename: string; data: Buffer },
     ip: string,
   ): Promise<MediaView> {
-    const mime = await detectType(file.data);
+    let mime = await detectType(file.data);
+    // SVG only when the server allows it, and always sanitized (RF-MED-09).
+    if (!mime && this.config.media.allowSvg && looksLikeSvg(file.data)) {
+      file = { ...file, data: Buffer.from(sanitizeSvg(file.data.toString('utf8'))) };
+      mime = 'image/svg+xml';
+    }
     if (!mime) {
       throw new HttpException(
         'This type of file is not allowed. Upload images, PDF or Office documents, MP4 or MP3.',
         HttpStatus.UNSUPPORTED_MEDIA_TYPE,
       );
     }
+    // The same file is already in the library: reuse it (RF-MED-08).
+    const checksum = createHash('sha256').update(file.data).digest('hex');
+    const [existing] = await withContext(this.database.db, { siteId, userId: auth.userId }, (tx) =>
+      tx.select({ id: media.id }).from(media).where(eq(media.checksum, checksum)).limit(1),
+    );
+    if (existing) return { ...(await this.get(siteId, auth, existing.id)), duplicate: true };
     const info = ALLOWED_TYPES[mime]!;
     let width: number | null = null;
     let height: number | null = null;
@@ -86,7 +106,7 @@ export class MediaService {
           sizeBytes: file.data.length,
           width,
           height,
-          checksum: createHash('sha256').update(file.data).digest('hex'),
+          checksum,
           uploadedBy: auth.userId,
         });
         await this.audit.record(tx, {
@@ -199,6 +219,7 @@ export class MediaService {
     input: {
       alt?: Record<string, string> | undefined;
       caption?: Record<string, string> | undefined;
+      focalPoint?: { x: number; y: number } | null | undefined;
     },
   ): Promise<MediaView> {
     await withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
@@ -209,12 +230,41 @@ export class MediaService {
         .set({
           ...(input.alt ? { alt: { ...(row.alt as object), ...input.alt } } : {}),
           ...(input.caption ? { caption: { ...(row.caption as object), ...input.caption } } : {}),
+          ...(input.focalPoint !== undefined ? { focalPoint: input.focalPoint } : {}),
         })
         .where(eq(media.id, id));
     });
     // Alternative texts are rendered in pages: refresh them.
     await this.cache.invalidate(siteId, ['site']);
     return this.get(siteId, auth, id);
+  }
+
+  /**
+   * Entries whose latest saved version uses the media item: in their content
+   * or as featured image (RF-MED-08).
+   */
+  async usage(siteId: string, auth: AuthContext, id: string): Promise<MediaUsageView[]> {
+    return withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
+      await this.load(tx, id);
+      const rows = await tx
+        .select({
+          id: entries.id,
+          type: entries.typeSlug,
+          title: entries.title,
+          status: entries.status,
+        })
+        .from(entries)
+        .innerJoin(revisions, eq(revisions.id, entries.currentRevisionId))
+        .where(
+          or(
+            eq(revisions.featuredMediaId, id),
+            sql`${revisions.document}::text like ${`%"${id}"%`}`,
+          ),
+        )
+        .orderBy(asc(entries.title))
+        .limit(100);
+      return rows;
+    });
   }
 
   async remove(siteId: string, auth: AuthContext, id: string, ip: string): Promise<void> {
@@ -342,6 +392,7 @@ export class MediaService {
       height: row.height,
       alt: row.alt as Record<string, string>,
       caption: row.caption as Record<string, string>,
+      focalPoint: (row.focalPoint as { x: number; y: number } | null) ?? null,
       uploadedBy: row.uploadedBy
         ? { id: row.uploadedBy, displayName: uploaderName ?? 'Former member' }
         : null,

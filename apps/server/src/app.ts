@@ -47,6 +47,15 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
     dotfiles: 'deny',
     maxAge: '365d',
     immutable: true,
+    // Opened directly, an SVG cannot run anything or load other resources.
+    setHeaders: (res, file) => {
+      if (file.endsWith('.svg')) {
+        void res.header(
+          'content-security-policy',
+          "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        );
+      }
+    },
   });
   // The built admin (production): hashed assets cached for a year, and the
   // single-page app answering every other /admin address.

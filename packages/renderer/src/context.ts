@@ -10,6 +10,8 @@ export interface RenderMedia {
   height: number | null;
   alt: string;
   variants: { variant: string; format: string; url: string; width: number; height: number }[];
+  /** Kept in view when CSS crops the image (object-fit: cover). */
+  focalPoint?: { x: number; y: number } | null;
 }
 
 /** Data the server preloads before rendering (rendering is synchronous). */

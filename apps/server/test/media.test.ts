@@ -177,6 +177,62 @@ describe('library', () => {
   });
 });
 
+describe('duplicates, usage and focal point', () => {
+  it('reuses a file uploaded twice and tells where media are used', async () => {
+    const data = await png(31, 17);
+    const first = (await author.upload('/api/v1/media', 'same.png', data, 'image/png')).json();
+    const again = await author.upload('/api/v1/media', 'same-again.png', data, 'image/png');
+    expect(again.json()).toMatchObject({ id: first.id, duplicate: true });
+
+    expect((await author.get(`/api/v1/media/${first.id}/usage`)).json()).toEqual([]);
+    const entry = (
+      await author.post('/api/v1/entries', {
+        type: 'article',
+        title: 'Uses it',
+        featuredMediaId: first.id,
+      })
+    ).json();
+    const usage = (await author.get(`/api/v1/media/${first.id}/usage`)).json();
+    expect(usage).toEqual([{ id: entry.id, type: 'article', title: 'Uses it', status: 'draft' }]);
+  });
+
+  it('keeps a focal point, used where images are cropped', async () => {
+    const image = (
+      await author.upload('/api/v1/media', 'focus.png', await png(60, 40), 'image/png')
+    ).json();
+    const updated = await author.request('PATCH', `/api/v1/media/${image.id}`, {
+      focalPoint: { x: 0.25, y: 0.8 },
+    });
+    expect(updated.json().focalPoint).toEqual({ x: 0.25, y: 0.8 });
+    expect(
+      (await author.request('PATCH', `/api/v1/media/${image.id}`, { focalPoint: { x: 2, y: 0 } }))
+        .statusCode,
+    ).toBe(400);
+    const entry = (
+      await author.post('/api/v1/entries', {
+        type: 'article',
+        title: 'Focus',
+        document: {
+          schema: 1,
+          blocks: [{ id: 'i', type: 'core/image', v: 1, attrs: { id: image.id, url: image.url } }],
+        },
+      })
+    ).json();
+    await author.post(`/api/v1/entries/${entry.id}/publish`);
+    const page = await author.get(`/${new Date().getUTCFullYear()}/${entry.slug}`);
+    expect(page.body).toContain('object-position:25% 80%');
+  });
+
+  it('refuses SVG unless enabled', async () => {
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    );
+    expect((await author.upload('/api/v1/media', 'x.svg', svg, 'image/svg+xml')).statusCode).toBe(
+      415,
+    );
+  });
+});
+
 describe('profile pictures', () => {
   it('crops the image, serves it on every site and replaces it', async () => {
     const res = await author.upload('/api/v1/profile/avatar', 'me.png', await png(600, 300));
