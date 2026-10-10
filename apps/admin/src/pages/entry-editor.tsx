@@ -885,7 +885,12 @@ function DocumentPanel({
 }
 
 function EditorShell({ children }: { children: React.ReactNode }) {
-  return <div className="flex h-screen flex-col bg-slate-100 text-slate-900">{children}</div>;
+  // The editor keeps the light palette: its canvas is a white page.
+  return (
+    <div className="light-palette flex h-screen flex-col bg-slate-100 text-slate-900">
+      {children}
+    </div>
+  );
 }
 
 /** Media services given to the editor adapter (upload and library). */

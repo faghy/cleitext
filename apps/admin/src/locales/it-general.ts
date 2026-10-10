@@ -179,4 +179,9 @@ export const itGeneral: Messages = {
   'Profile picture file': "File dell'immagine del profilo",
   'Remove picture': 'Rimuovi immagine',
   'Upload picture': 'Carica immagine',
+  'Applied right away, on this browser.': 'Si applica subito, su questo browser.',
+  'Color scheme': 'Schema colori',
+  Dark: 'Scuro',
+  Light: 'Chiaro',
+  'Same as the system': 'Come il sistema',
 };

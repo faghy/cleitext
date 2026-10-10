@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { api, ApiError, errorMessage, uploadFile } from '../api';
 import { Avatar } from '../components/avatar';
+import { applyTheme, themePreference, type ThemePreference } from '../theme';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 
@@ -29,6 +30,7 @@ function DetailsCard() {
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState(me.user.displayName);
   const [locale, setLocale] = useState(me.user.locale);
+  const [theme, setTheme] = useState<ThemePreference>(themePreference);
 
   const save = useMutation({
     mutationFn: () => api('PATCH', '/profile', { displayName, locale }),
@@ -60,6 +62,26 @@ function DetailsCard() {
             <option value="en">English</option>
             <option value="it">Italiano</option>
           </select>
+        </label>
+        <label className="block space-y-1 text-sm">
+          <span className="block font-medium text-slate-800">{t('Color scheme')}</span>
+          <select
+            className="w-full rounded border border-slate-300 bg-white px-2 py-2"
+            value={theme}
+            onChange={(e) => {
+              const next = e.target.value as ThemePreference;
+              setTheme(next);
+              applyTheme(next);
+            }}
+            aria-describedby="theme-help"
+          >
+            <option value="system">{t('Same as the system')}</option>
+            <option value="light">{t('Light')}</option>
+            <option value="dark">{t('Dark')}</option>
+          </select>
+          <span id="theme-help" className="block text-xs text-slate-500">
+            {t('Applied right away, on this browser.')}
+          </span>
         </label>
         {save.isSuccess && <Alert kind="success">{t('Saved.')}</Alert>}
         {save.error && <Alert>{errorMessage(save.error)}</Alert>}
