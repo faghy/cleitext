@@ -180,13 +180,15 @@ ctx.hooks.filter(
 
 **Filtri** (sito pubblico, richiedono il permesso `theme:hooks`):
 
-| Nome                       | Valore                                                                                       | Contesto                        |
-| -------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------- |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                      | `RenderHookContext`             |
-| `render.blocks`            | i blocchi della voce (`CxdBlock[]`)                                                          | `RenderHookContext` con `entry` |
-| `render.html`              | la stringa HTML finale                                                                       | `RenderHookContext`             |
-| `theme.templateCandidates` | nomi dei template provati in ordine                                                          | `RenderHookContext`             |
-| `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso | `{ siteId, ids }`               |
+| Nome                       | Valore                                                                                       | Contesto                         |
+| -------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------- |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                      | `RenderHookContext`              |
+| `render.blocks`            | i blocchi della voce (`CxdBlock[]`)                                                          | `RenderHookContext` con `entry`  |
+| `render.html`              | la stringa HTML finale                                                                       | `RenderHookContext`              |
+| `theme.templateCandidates` | nomi dei template provati in ordine                                                          | `RenderHookContext`              |
+| `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso | `{ siteId, ids }`                |
+| `sitemap.sources`          | tipi di contenuto e tassonomie con una sitemap XML (`{ kind, slug }[]`)                      | `{ siteId }`                     |
+| `sitemap.urls`             | gli indirizzi di una sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` o `term`)    | `{ siteId, kind, slug, locale }` |
 
 `RenderHookContext` è `{ siteId, locale, route, path, entry?, tag(tag) }`. `route` è `entry`, `archive`, `search`, `404` o `maintenance`. `entry` è la voce pubblica: `{ id, type, title, url, fields, document, terms, … }`. Chiama `tag('type:event')` quando ciò che aggiungi dipende da altri dati (vedi [cache](#cache)).
 

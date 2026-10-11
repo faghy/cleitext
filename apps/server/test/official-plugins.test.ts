@@ -122,6 +122,74 @@ describe('SEO', () => {
     expect(page).toContain('<meta name="twitter:site" content="@example"/>');
     expect((await visitor.get('/')).body).toContain('"@type":"WebSite"');
   });
+
+  it('keeps out of the sitemaps what is kept out of search', async () => {
+    const shown = await publish('page', 'Shown page', {
+      document: {
+        schema: 1,
+        blocks: [
+          { id: 'i1', type: 'core/image', v: 1, attrs: { url: 'https://cdn.example.com/a.jpg' } },
+        ],
+      },
+    });
+    const hidden = await publish('page', 'Hidden page', { fields: { seo: { noindex: true } } });
+    const copy = await publish('page', 'Copied page', {
+      fields: { seo: { canonical: 'https://elsewhere.example/original' } },
+    });
+    const pages = (await visitor.get('/sitemap-page-en.xml')).body;
+    expect(pages).toContain(`/${shown.slug}</loc>`);
+    expect(pages).toContain('<image:loc>https://cdn.example.com/a.jpg</image:loc>');
+    expect(pages).not.toContain(`/${hidden.slug}<`);
+    expect(pages).not.toContain(`/${copy.slug}<`);
+
+    const page = (await visitor.get(`/${shown.slug}`)).body;
+    expect(page).toContain(
+      '<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"/>',
+    );
+    expect((await visitor.get(`/${copy.slug}`)).body).toContain(
+      '<link rel="canonical" href="https://elsewhere.example/original"/>',
+    );
+
+    // Content types and taxonomies hidden from search results, and no images.
+    const saved = await admin.request('PUT', '/api/v1/ext/seo/config', {
+      hiddenTypes: ['article'],
+      hiddenTaxonomies: ['category'],
+      sitemapImages: false,
+      representation: {
+        kind: 'organization',
+        name: 'Official Ltd',
+        logo: 'https://official.test/logo.png',
+        sameAs: ['https://www.linkedin.com/company/official', 'not a url'],
+      },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().representation.sameAs).toEqual([
+      'https://www.linkedin.com/company/official',
+    ]);
+    const index = (await visitor.get('/sitemap.xml')).body;
+    expect(index).toContain('sitemap-page-en.xml');
+    expect(index).not.toContain('sitemap-article-en.xml');
+    expect(index).not.toContain('sitemap-tax-category');
+    expect((await visitor.get('/sitemap-article-en.xml')).statusCode).toBe(404);
+    expect((await visitor.get('/sitemap-page-en.xml')).body).not.toContain('<image:loc>');
+    const article = await publish('article', 'Hidden type');
+    expect((await visitor.get(`/${new Date().getUTCFullYear()}/${article.slug}`)).body).toContain(
+      '<meta name="robots" content="noindex, follow"/>',
+    );
+
+    // The schema.org graph of the home page, linked by @id.
+    const home = (await visitor.get('/')).body;
+    const json = /<script type="application\/ld\+json">(.*?)<\/script>/.exec(home)![1]!;
+    const graph = JSON.parse(json)['@graph'] as Record<string, unknown>[];
+    const types = graph.map((g) => g['@type']);
+    expect(types).toEqual(expect.arrayContaining(['WebSite', 'Organization', 'WebPage']));
+    const website = graph.find((g) => g['@type'] === 'WebSite')!;
+    expect(website.publisher).toEqual({ '@id': 'http://official.test/#organization' });
+    expect(JSON.stringify(website.potentialAction)).toContain('/search?q={search_term_string}');
+    const org = graph.find((g) => g['@type'] === 'Organization')!;
+    expect(org.sameAs).toEqual(['https://www.linkedin.com/company/official']);
+    await admin.request('PUT', '/api/v1/ext/seo/config', {});
+  });
 });
 
 describe('Forms', () => {

@@ -52,7 +52,6 @@ import { PageCacheService } from './page-cache.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
   loadMedia,
-  isPublished,
   isVisible,
   loadMenus,
   loadPublished,
@@ -68,6 +67,7 @@ import { verifyPreviewToken } from './preview.js';
 import { themeFor } from './themes.js';
 import { PUBLIC_CSP } from '../common/security-headers.js';
 import { themeAreas, themeMediaIds, themeSettings } from './theme-data.js';
+import { SITEMAP_RE, SITEMAP_XSL, sitemap, sitemapIndex, type SitemapContext } from './sitemaps.js';
 import { matchPermalink } from './urls.js';
 
 const HTML = 'text/html; charset=utf-8';
@@ -168,6 +168,8 @@ export class PublicService {
       if (cacheable) {
         const hit = this.cache.get(key);
         if (hit) {
+          for (const [name, value] of Object.entries(hit.headers ?? {}))
+            void reply.header(name, value);
           await this.sendPage(
             request,
             reply,
@@ -252,6 +254,7 @@ export class PublicService {
           html,
           contentType,
           tags: response.tags,
+          ...(response.headers ? { headers: response.headers } : {}),
         });
         await this.sendPage(
           request,
@@ -379,10 +382,31 @@ export class PublicService {
 
       if (redirect?.status === 410) return this.notFound(scope, 410);
       if (path === '/robots.txt') return this.robots(scope);
-      if (path === '/sitemap.xml') return this.sitemapIndex(scope);
-      const sitemap = /^\/sitemap-([a-z0-9-]+)-([a-z]{2,3}(?:-[a-z]{2})?)\.xml$/i.exec(path);
-      if (sitemap) {
-        return (await this.sitemap(scope, sitemap[1]!, sitemap[2]!)) ?? this.notFound(scope, 404);
+      // The addresses of WordPress and Yoast SEO, for sites moved from there.
+      if (path === '/sitemap_index.xml' || path === '/wp-sitemap.xml') {
+        return { status: 301, redirect: '/sitemap.xml', tags: [] };
+      }
+      if (path === '/sitemap.xsl') {
+        return {
+          status: 200,
+          html: SITEMAP_XSL,
+          contentType: 'text/xsl; charset=utf-8',
+          tags: ['site'],
+        };
+      }
+      if (path === '/sitemap.xml') {
+        return this.sitemapResponse(scope, await sitemapIndex(await this.sitemapContext(scope)));
+      }
+      const sitemapMatch = SITEMAP_RE.exec(path);
+      if (sitemapMatch) {
+        const body = await sitemap(
+          await this.sitemapContext(scope),
+          sitemapMatch[1] ? 'taxonomy' : 'type',
+          sitemapMatch[2]!,
+          sitemapMatch[3]!,
+          Number(sitemapMatch[4] ?? 1),
+        );
+        return body ? this.sitemapResponse(scope, body) : this.notFound(scope, 404);
       }
       const preview = /^\/__preview\/([0-9a-f-]{36})$/.exec(path);
       if (preview) {
@@ -533,80 +557,48 @@ export class PublicService {
     };
   }
 
-  /** Index of per-type, per-language sitemaps (RF-THM-07). */
-  private async sitemapIndex(scope: RequestScope): Promise<PublicResponse> {
-    const rows = await scope.tx
-      .selectDistinct({ type: entries.typeSlug, locale: entries.locale })
-      .from(entries)
-      .where(isPublished);
-    const items = rows
-      .map(
-        (r) =>
-          `<sitemap><loc>${xml(`${scope.origin}/sitemap-${r.type}-${r.locale}.xml`)}</loc></sitemap>`,
-      )
-      .join('');
+  /** What the sitemaps need: the request's data and the plugins' filters (RF-THM-07). */
+  private async sitemapContext(scope: RequestScope): Promise<SitemapContext> {
+    const front = await this.frontPageIds(scope);
+    const errorPage = scope.settings.errorPage;
+    const hiddenLinks = errorPage
+      ? await this.languages.translations(scope.siteId, 'entry', [errorPage])
+      : new Map<string, { id: string }[]>();
     return {
-      status: 200,
-      html: `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${items}</sitemapindex>`,
-      contentType: 'application/xml; charset=utf-8',
-      tags: ['site', ...rows.map((r) => `type:${r.type}`)],
+      tx: scope.tx,
+      siteId: scope.siteId,
+      origin: scope.origin,
+      data: scope.data,
+      front,
+      hidden: new Set(
+        errorPage ? [errorPage, ...(hiddenLinks.get(errorPage) ?? []).map((l) => l.id)] : [],
+      ),
+      translations: (ids) => this.languages.translations(scope.siteId, 'entry', ids),
+      filterSources: (sources) =>
+        this.plugins.applyFilter(
+          'sitemap.sources',
+          sources,
+          { siteId: scope.siteId },
+          scope.siteId,
+        ),
+      filterUrls: (urls, context) =>
+        this.plugins.applyFilter(
+          'sitemap.urls',
+          urls,
+          { siteId: scope.siteId, ...context },
+          scope.siteId,
+        ),
     };
   }
 
-  private async sitemap(
-    scope: RequestScope,
-    type: string,
-    locale: string,
-  ): Promise<PublicResponse | null> {
-    const { tx, data } = scope;
-    if (!data.types.some((t) => t.slug === type) || !data.locales.some((l) => l.code === locale))
-      return null;
-    const list = await loadPublished(
-      tx,
-      and(eq(entries.typeSlug, type), eq(entries.locale, locale)),
-      {
-        limit: 50_000,
-      },
-    );
-    if (list.length === 0) return null;
-    // Other languages (language plugin): alternates of each address.
-    const links = await this.languages.translations(
-      scope.siteId,
-      'entry',
-      list.map((e) => e.row.id),
-    );
-    const otherIds = [...new Set([...links.values()].flat().map((l) => l.id))];
-    const others =
-      otherIds.length > 0 ? await loadPublished(tx, inArray(entries.id, otherIds)) : [];
-    const byId = new Map(others.map((e) => [e.row.id, e]));
-    const front = await this.frontPageIds(scope);
-    const absolute = (path: string) =>
-      /^https?:\/\//.test(path) ? path : `${scope.origin}${path}`;
-    const urlOf = (entry: PublishedEntry) =>
-      front.has(entry.row.id) ? data.urls.home(entry.row.locale) : data.urls.entry(entry.row);
-    const urls = list
-      .map((entry) => {
-        const alternates = [
-          entry,
-          ...(links.get(entry.row.id) ?? []).flatMap((l) => byId.get(l.id) ?? []),
-        ];
-        const hreflang =
-          alternates.length > 1
-            ? alternates
-                .map(
-                  (a) =>
-                    `<xhtml:link rel="alternate" hreflang="${xml(a.row.locale)}" href="${xml(absolute(urlOf(a)))}"/>`,
-                )
-                .join('')
-            : '';
-        return `<url><loc>${xml(absolute(urlOf(entry)))}</loc><lastmod>${entry.row.updatedAt.toISOString()}</lastmod>${hreflang}</url>`;
-      })
-      .join('');
+  private sitemapResponse(scope: RequestScope, body: string): PublicResponse {
     return {
       status: 200,
-      html: `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls}</urlset>`,
+      html: body,
       contentType: 'application/xml; charset=utf-8',
-      tags: ['site', `type:${type}`],
+      // Like Yoast SEO: the sitemaps are followed, not shown in results.
+      headers: { 'x-robots-tag': 'noindex, follow' },
+      tags: ['site', ...scope.data.types.map((t) => `type:${t.slug}`)],
     };
   }
 

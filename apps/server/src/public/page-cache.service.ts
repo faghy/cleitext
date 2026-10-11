@@ -16,6 +16,8 @@ export interface CachedPage {
   contentType: string;
   etag: string;
   tags: string[];
+  /** Extra headers sent with the page, e.g. X-Robots-Tag. */
+  headers?: Record<string, string>;
   storedAt: number;
   expiresAt: number;
   /** Compressed bodies, made on first use. */
@@ -102,7 +104,13 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   set(
     key: string,
     siteId: string,
-    page: { status: number; html: string; contentType: string; tags: string[] },
+    page: {
+      status: number;
+      html: string;
+      contentType: string;
+      tags: string[];
+      headers?: Record<string, string>;
+    },
   ): CachedPage {
     const ttl = page.status === 200 ? this.config.pageCache.ttlSeconds : 60;
     const entry: CachedPage = {

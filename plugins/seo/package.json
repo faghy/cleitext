@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-seo",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Official Cleitext plugin: SEO titles, descriptions, social cards and structured data.",
   "license": "GPL-2.0-or-later",
@@ -10,7 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@cleitext/admin-sdk": "workspace:*",
     "@cleitext/cli": "workspace:*",
-    "@cleitext/plugin-sdk": "workspace:*"
+    "@cleitext/plugin-sdk": "workspace:*",
+    "@tanstack/react-query": "^5.104.1",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.0"
   }
 }

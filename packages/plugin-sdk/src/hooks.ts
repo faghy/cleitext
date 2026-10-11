@@ -92,6 +92,35 @@ export interface Filters {
     states: Record<string, { key: string; label: Label }[]>,
     context: { siteId: string; ids: string[] },
   ];
+  /** Content types and taxonomies that get an XML sitemap (all by default). */
+  'sitemap.sources': [sources: SitemapSource[], context: { siteId: string }];
+  /** The addresses of one XML sitemap: remove pages kept out of search, add images… */
+  'sitemap.urls': [
+    urls: SitemapUrl[],
+    context: { siteId: string; kind: SitemapSource['kind']; slug: string; locale: string },
+  ];
+}
+
+/** What can have an XML sitemap: a content type or a taxonomy. */
+export interface SitemapSource {
+  kind: 'type' | 'taxonomy';
+  slug: string;
+}
+
+/** An address of an XML sitemap, as the `sitemap.urls` filter sees it. */
+export interface SitemapUrl {
+  /** Absolute address. */
+  loc: string;
+  /** ISO date of the last change, or null. */
+  lastmod: string | null;
+  /** Absolute addresses of the images of the page. */
+  images: string[];
+  /** The same page in other languages (hreflang). */
+  alternates: { hreflang: string; href: string }[];
+  /** The entry, for content type sitemaps. */
+  entry?: { id: string; type: string; fields: Record<string, unknown> };
+  /** The term, for taxonomy sitemaps. */
+  term?: { id: string; taxonomy: string };
 }
 
 /** Context of action handlers. */

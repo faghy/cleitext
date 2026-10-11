@@ -178,13 +178,15 @@ ctx.hooks.filter(
 
 **Filters** (public site, they need the `theme:hooks` permission):
 
-| Name                       | Value                                                                                | Context                          |
-| -------------------------- | ------------------------------------------------------------------------------------ | -------------------------------- |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`              | `RenderHookContext`              |
-| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                    | `RenderHookContext` with `entry` |
-| `render.html`              | the final HTML string                                                                | `RenderHookContext`              |
-| `theme.templateCandidates` | template names tried in order                                                        | `RenderHookContext`              |
-| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission | `{ siteId, ids }`                |
+| Name                       | Value                                                                                      | Context                          |
+| -------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------- |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                    | `RenderHookContext`              |
+| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                          | `RenderHookContext` with `entry` |
+| `render.html`              | the final HTML string                                                                      | `RenderHookContext`              |
+| `theme.templateCandidates` | template names tried in order                                                              | `RenderHookContext`              |
+| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission       | `{ siteId, ids }`                |
+| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                      | `{ siteId }`                     |
+| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`) | `{ siteId, kind, slug, locale }` |
 
 `RenderHookContext` is `{ siteId, locale, route, path, entry?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
 

@@ -772,6 +772,11 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 - **RF-CAT-01** Official catalog of plugins and themes (github.com/faghy/cleitext-catalog): `catalog.json` signed with Ed25519 by its CI, packages with SHA-256. Plugins → Add New and Appearance → Themes → Add New search and install from it; updates appear next to installed items, in Updates and as menu counts (RF-PLG-07, RF-PLG-09, RF-PLG-11 for official items). Third-party publishing (RF-PLG-16) stays for M8.
 - **RF-CAT-02** The catalog showcase plugin shows the catalog on a site (cleitext.com/plugins, /themes).
 
+### M13 — SEO and sitemaps (Yoast-like)
+
+- **RF-SEO-01** XML sitemaps for search engines: index with lastmod, one sitemap per content type or taxonomy and language, 1000 addresses each, images (featured and in blocks), hreflang alternates, no 404 page, private content or empty archives, `X-Robots-Tag: noindex, follow`, XSL view, redirects from `/sitemap_index.xml` and `/wp-sitemap.xml`. Plugin API 1.5 filters `sitemap.sources` and `sitemap.urls`.
+- **RF-SEO-02** SEO plugin 2.0: canonical address per page, content types and taxonomies hidden from search results (noindex and out of the sitemaps), sitemap images on or off, site representation, Yoast-like default robots and a schema.org graph linked by @id; an SEO admin page with the sitemap address and the Search Console steps.
+
 ### M11 — Analytics (separate plugin)
 
 - **RF-ANL-01** Matomo (anonymous without cookies, or with cookies after consent), Google Analytics 4, Google Tag Manager, Meta Pixel, Google Search Console and Bing verification; several at once; each declares its privacy rules, and services needing consent load only through the consent banner.
