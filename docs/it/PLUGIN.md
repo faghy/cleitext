@@ -416,6 +416,10 @@ Le pagine pubbliche sono in cache e vengono aggiornate tramite **tag**. Le pagin
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, replyTo? })`, inviata con le impostazioni di posta del server.
 
+### Media
+
+`media:read`: `await ctx.media.get(siteId, id)` restituisce un elemento della libreria media (`url`, `mime`, `width`, `height`, `alt` per lingua), per esempio l'immagine scelta in un campo `media`. Le voci restituite da `ctx.content.find` / `get` hanno il loro `parentId`.
+
 ### Dati personali (GDPR)
 
 Un plugin che conserva dati personali (messaggi, iscrizioni, ordini…) dovrebbe permettere al sito di rispondere alle richieste delle persone, come fanno gli exporter e gli eraser della privacy di WordPress (API dei plugin 1.2, nessun permesso richiesto):
@@ -604,7 +608,7 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 | `theme:hooks`   | filtri `render.*` e `theme.*`                                                |
 | `mail:send`     | `ctx.mail.send`                                                              |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                       |
-| `media:read`    | riservato all'API dei media                                                  |
+| `media:read`    | `ctx.media.get`                                                              |
 
 Gli amministratori vedono i permessi richiesti in **Plugins → Details**. Le tue tabelle (`ctx.db`), gli hook sulle azioni, il logging, le capability e l'invalidazione della cache non richiedono permessi.
 

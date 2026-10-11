@@ -776,6 +776,7 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 
 - **RF-SEO-01** XML sitemaps for search engines: index with lastmod, one sitemap per content type or taxonomy and language, 1000 addresses each, images (featured and in blocks), hreflang alternates, no 404 page, private content or empty archives, `X-Robots-Tag: noindex, follow`, XSL view, redirects from `/sitemap_index.xml` and `/wp-sitemap.xml`. Plugin API 1.5 filters `sitemap.sources` and `sitemap.urls`.
 - **RF-SEO-02** SEO plugin 2.0: canonical address per page, content types and taxonomies hidden from search results (noindex and out of the sitemaps), sitemap images on or off, site representation, Yoast-like default robots and a schema.org graph linked by @id; an SEO admin page with the sitemap address and the Search Console steps.
+- **RF-SEO-03** SEO 2.1: Search Console verification status (DNS TXT on the site's domains, or the home page tag), focus keyphrase and content analysis in the editor (SEO and readability, Google preview), title templates per content type, social image per page, Breadcrumbs block and BreadcrumbList; redirects for pages whose address or parent changes, subpages included. Plugin API 1.6: `ctx.media.get` (`media:read`), `parentId` on entries.
 
 ### M11 — Analytics (separate plugin)
 

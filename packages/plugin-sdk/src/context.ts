@@ -54,6 +54,8 @@ export interface PluginEntry {
   status: string;
   /** Public address (also for drafts, where it is the future address). */
   url: string;
+  /** Parent entry of hierarchical types (pages), or null. */
+  parentId: string | null;
   publishedAt: string | null;
   fields: FieldValues;
 }
@@ -270,6 +272,25 @@ export interface StorageApi {
   get<T = unknown>(siteId: string, key: string): Promise<T | null>;
   set(siteId: string, key: string, value: unknown): Promise<void>;
   delete(siteId: string, key: string): Promise<void>;
+}
+
+// ---- Media --------------------------------------------------------------------------
+
+/** An item of the media library, as plugins see it. */
+export interface PluginMedia {
+  id: string;
+  /** Public path, e.g. `/media/…`. */
+  url: string;
+  mime: string;
+  width: number | null;
+  height: number | null;
+  /** Alternative text by language. */
+  alt: Record<string, string>;
+}
+
+export interface MediaApi {
+  /** One item of the site's media library (needs `media:read`). */
+  get(siteId: string, id: string): Promise<PluginMedia | null>;
 }
 
 // ---- Blocks -------------------------------------------------------------------------
@@ -521,6 +542,7 @@ export interface PluginContext {
   readonly db: PluginDatabase;
   readonly cache: CacheApi;
   readonly mail: MailApi;
+  readonly media: MediaApi;
   readonly privacy: PrivacyApi;
 }
 

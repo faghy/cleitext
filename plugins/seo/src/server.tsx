@@ -1,11 +1,49 @@
-import { definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
-import { withDefaults, type SeoConfig } from './config';
+import { resolveTxt } from 'node:dns/promises';
+import { defineBlock, definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
+import { applyTemplate, withDefaults, type SeoConfig } from './config';
 
 interface SeoFields {
   title?: string | null;
   description?: string | null;
   noindex?: boolean | null;
   canonical?: string | null;
+  keyphrase?: string | null;
+  socialImage?: string | null;
+}
+
+interface Crumb {
+  title: string;
+  url: string;
+}
+
+const HOME_LABEL = (locale: string) => (locale.toLowerCase().startsWith('it') ? 'Home' : 'Home');
+
+/** The home of a language, from the address of one of its pages. */
+function homeOf(url: string, locale: string): string {
+  const prefix = `/${locale.toLowerCase()}`;
+  return url === prefix || url.startsWith(`${prefix}/`) ? prefix : '/';
+}
+
+/** Home, the published ancestors of an entry, and the entry itself. */
+async function trail(
+  ctx: PluginContext,
+  siteId: string,
+  entry: { id: string; title: string; url: string; locale: string },
+): Promise<Crumb[]> {
+  const ancestors: Crumb[] = [];
+  let current = await ctx.content.get(siteId, entry.id);
+  for (let depth = 0; current?.parentId && depth < 10; depth++) {
+    const parent = await ctx.content.get(siteId, current.parentId);
+    if (!parent || parent.status !== 'published') break;
+    ancestors.unshift({ title: parent.title, url: parent.url });
+    current = parent;
+  }
+  const home = homeOf(entry.url, entry.locale);
+  return [
+    { title: HOME_LABEL(entry.locale), url: home },
+    ...ancestors,
+    ...(entry.url === home ? [] : [{ title: entry.title, url: entry.url }]),
+  ];
 }
 
 const SEPARATORS = ['–', '|', '·', '—'] as const;
@@ -62,6 +100,25 @@ export default definePlugin({
           name: 'noindex',
           type: 'boolean',
           label: { en: 'Hide from search engines', it: 'Nascondi ai motori di ricerca' },
+        },
+        {
+          name: 'keyphrase',
+          type: 'text',
+          label: { en: 'Focus keyphrase', it: 'Frase chiave' },
+          help: {
+            en: 'The words people search to find this page; the SEO analysis checks the text against it.',
+            it: 'Le parole che le persone cercano per trovare questa pagina; l’analisi SEO controlla il testo su queste.',
+          },
+          maxLength: 100,
+        },
+        {
+          name: 'socialImage',
+          type: 'media',
+          label: { en: 'Social image', it: 'Immagine social' },
+          help: {
+            en: 'Shown when the page is shared on social networks; the featured image otherwise.',
+            it: 'Mostrata quando la pagina è condivisa sui social; altrimenti l’immagine in evidenza.',
+          },
         },
         {
           name: 'canonical',
@@ -144,10 +201,20 @@ export default definePlugin({
         const seo = (entry?.fields.seo ?? {}) as SeoFields;
         context.tag('seo');
 
-        // Title: "<page> <separator> <site>", except on the home page.
+        // Title: the template of the content type, "<page> <separator> <site>" by default.
         if (entry && !isHome(entry.url)) {
           const pageTitle = seo.title?.trim() || entry.title;
-          next.title = `${pageTitle} ${separator} ${siteName}`;
+          const template = cfg.titles[entry.type]?.trim();
+          next.title = template
+            ? applyTemplate(template, {
+                title: pageTitle,
+                sep: separator,
+                sitename: siteName,
+                excerpt: entry.excerpt ?? '',
+                category: entry.terms?.category?.[0]?.name ?? '',
+                currentyear: String(new Date().getFullYear()),
+              })
+            : `${pageTitle} ${separator} ${siteName}`;
           next.og['og:title'] = pageTitle;
         } else if (separator !== '–') {
           next.title = head.title.replace(' – ', ` ${separator} `);
@@ -179,6 +246,21 @@ export default definePlugin({
         const canonical = canonicalOf(seo);
         if (canonical && !hidden) next.canonical = canonical;
 
+        // Social image of the page, instead of the featured image.
+        const pageUrl = next.canonical ?? next.og['og:url'];
+        if (seo.socialImage && pageUrl) {
+          const image = await ctx.media.get(context.siteId, seo.socialImage);
+          if (image?.mime.startsWith('image/')) {
+            next.og['og:image'] = new URL(image.url, pageUrl).href;
+            if (image.width) next.og['og:image:width'] = String(image.width);
+            if (image.height) next.og['og:image:height'] = String(image.height);
+            next.tags.push({
+              tag: 'meta',
+              attrs: { name: 'twitter:card', content: 'summary_large_image' },
+            });
+          }
+        }
+
         const twitter = String(settings.twitterSite ?? '').trim();
         if (twitter) {
           next.tags.push({
@@ -191,8 +273,18 @@ export default definePlugin({
         }
 
         // Structured data: one schema.org graph, linked by @id, as Yoast SEO does.
+        const crumbs =
+          entry && !isHome(context.path)
+            ? await trail(ctx, context.siteId, {
+                id: entry.id,
+                title: seo.title?.trim() || entry.title,
+                url: entry.url,
+                locale: entry.locale,
+              })
+            : [];
         const graph = schemaGraph({
           cfg,
+          crumbs,
           head: next,
           siteName,
           description,
@@ -215,6 +307,97 @@ export default definePlugin({
       },
       { priority: 20 },
     );
+
+    // ---- Breadcrumbs block -------------------------------------------------------------
+
+    ctx.blocks.register(
+      defineBlock<Record<string, never>, Crumb[]>({
+        type: 'seo/breadcrumbs',
+        title: { en: 'Breadcrumbs', it: 'Briciole di pane' },
+        description: {
+          en: 'Home › Parent page › This page: where the page sits in the site.',
+          it: 'Home › Pagina madre › Questa pagina: dove si trova la pagina nel sito.',
+        },
+        icon: 'arrow-right-alt2',
+        category: 'widgets',
+        async load(_attrs, context) {
+          if (!context.entry) return [];
+          const entry = await ctx.content.get(context.siteId, context.entry.id);
+          if (!entry) return [];
+          return trail(ctx, context.siteId, entry);
+        },
+        render({ data, context }) {
+          if (!data || data.length < 2) return null;
+          const it = context.locale.toLowerCase().startsWith('it');
+          return (
+            <nav className="seo-breadcrumbs" aria-label={it ? 'Briciole di pane' : 'Breadcrumbs'}>
+              <style>
+                {'.seo-breadcrumbs ol{display:flex;flex-wrap:wrap;gap:.35rem;list-style:none;margin:0 0 1rem;padding:0;font-size:.9em}' +
+                  '.seo-breadcrumbs li+li::before{content:"›";margin-right:.35rem;opacity:.6}' +
+                  '.seo-breadcrumbs [aria-current]{opacity:.75}'}
+              </style>
+              <ol>
+                {data.map((crumb, i) =>
+                  i === data.length - 1 ? (
+                    <li key={crumb.url} aria-current="page">
+                      {crumb.title}
+                    </li>
+                  ) : (
+                    <li key={crumb.url}>
+                      <a href={crumb.url}>{crumb.title}</a>
+                    </li>
+                  ),
+                )}
+              </ol>
+            </nav>
+          );
+        },
+      }),
+    );
+
+    // ---- Admin: the SEO page ----------------------------------------------------------
+
+    /**
+     * How Search Console and Bing can see the site is verified: a DNS record
+     * (domain properties: nothing to paste) or a meta tag on the home page.
+     */
+    ctx.routes.api({
+      method: 'GET',
+      path: '/verification',
+      capability: 'manage_settings',
+      async handler(request) {
+        const host = (request.headers.host ?? '').split(':')[0]!.toLowerCase();
+        const labels = host.split('.');
+        const domains = labels
+          .map((_, i) => labels.slice(i).join('.'))
+          .filter((d) => d.includes('.'));
+        const dns: { domain: string; google: boolean; bing: boolean }[] = [];
+        for (const domain of domains) {
+          try {
+            const records = (await resolveTxt(domain)).map((r) => r.join(''));
+            const google = records.some((r) => r.startsWith('google-site-verification='));
+            const bing = records.some((r) => /^MS=ms\d+/i.test(r));
+            if (google || bing) dns.push({ domain, google, bing });
+          } catch {
+            // No TXT records, or no DNS here.
+          }
+        }
+        let meta = { google: false, bing: false };
+        try {
+          const origin = `${request.headers['x-forwarded-proto'] ?? 'https'}://${request.headers.host}`;
+          const html = await (
+            await fetch(`${origin}/`, { signal: AbortSignal.timeout(10_000) })
+          ).text();
+          meta = {
+            google: /<meta[^>]+name="google-site-verification"/i.test(html),
+            bing: /<meta[^>]+name="msvalidate\.01"/i.test(html),
+          };
+        } catch {
+          // The site could not be read from here.
+        }
+        return { body: { host, dns, meta } };
+      },
+    });
 
     // ---- Admin: the SEO page ----------------------------------------------------------
 
@@ -252,6 +435,11 @@ export default definePlugin({
           hiddenTypes: slugs(body.hiddenTypes),
           hiddenTaxonomies: slugs(body.hiddenTaxonomies),
           sitemapImages: body.sitemapImages !== false,
+          titles: Object.fromEntries(
+            Object.entries((body.titles ?? {}) as Record<string, unknown>)
+              .filter(([k, v]) => /^[a-z0-9_-]{1,64}$/.test(k) && typeof v === 'string' && v.trim())
+              .map(([k, v]) => [k, String(v).trim().slice(0, 200)]),
+          ),
           representation: {
             kind: rep.kind === 'person' ? 'person' : 'organization',
             name: typeof rep.name === 'string' ? rep.name.trim().slice(0, 200) : '',
@@ -272,6 +460,8 @@ export default definePlugin({
 
 interface GraphInput {
   cfg: SeoConfig;
+  /** Home › ancestors › page, for the BreadcrumbList. */
+  crumbs?: Crumb[];
   head: { canonical: string | null; og: Record<string, string>; title: string };
   siteName: string;
   description: string;
@@ -352,7 +542,24 @@ export function schemaGraph(input: GraphInput): Record<string, unknown> | null {
     ...(input.entry?.publishedAt ? { datePublished: input.entry.publishedAt } : {}),
     ...(image ? { primaryImageOfPage: { '@id': imageId }, image: { '@id': imageId } } : {}),
     ...(input.isHome && repId ? { about: { '@id': repId } } : {}),
+    ...(input.crumbs && input.crumbs.length > 1
+      ? { breadcrumb: { '@id': `${pageUrl}#breadcrumb` } }
+      : {}),
   });
+
+  if (input.crumbs && input.crumbs.length > 1) {
+    graph.push({
+      '@type': 'BreadcrumbList',
+      '@id': `${pageUrl}#breadcrumb`,
+      itemListElement: input.crumbs.map((crumb, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: crumb.title,
+        // As Yoast SEO: the last crumb is the page itself, without an address.
+        ...(i < input.crumbs!.length - 1 ? { item: new URL(crumb.url, origin).href } : {}),
+      })),
+    });
+  }
 
   if (input.entry?.type === 'article') {
     graph.push({

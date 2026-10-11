@@ -7,6 +7,8 @@ export interface SeoConfig {
   hiddenTaxonomies: string[];
   /** Images of the pages in the XML sitemaps. */
   sitemapImages: boolean;
+  /** Title templates by content type, e.g. `%%title%% %%sep%% %%sitename%%`. */
+  titles: Record<string, string>;
   /** Who the site represents, for Google's knowledge panel (schema.org). */
   representation: {
     kind: 'organization' | 'person';
@@ -22,6 +24,7 @@ export const DEFAULT_CONFIG: SeoConfig = {
   hiddenTypes: [],
   hiddenTaxonomies: [],
   sitemapImages: true,
+  titles: {},
   representation: { kind: 'organization', name: '', logo: '', sameAs: [] },
 };
 
@@ -32,4 +35,24 @@ export function withDefaults(saved: Partial<SeoConfig> | null): SeoConfig {
     ...value,
     representation: { ...DEFAULT_CONFIG.representation, ...value.representation },
   };
+}
+
+export const DEFAULT_TITLE = '%%title%% %%sep%% %%sitename%%';
+
+/** The variables of title templates, as in Yoast SEO. */
+export const TITLE_VARIABLES = [
+  'title',
+  'sep',
+  'sitename',
+  'excerpt',
+  'category',
+  'currentyear',
+] as const;
+
+export function applyTemplate(template: string, values: Record<string, string>): string {
+  return template
+    .replace(/%%([a-z_]+)%%/g, (_m, name: string) => values[name] ?? '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^\s*[-–—|·:]\s*|\s*[-–—|·:]\s*$/g, '')
+    .trim();
 }

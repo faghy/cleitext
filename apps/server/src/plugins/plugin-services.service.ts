@@ -3,6 +3,7 @@ import {
   auditLog,
   contentTypes,
   entries,
+  media,
   menus,
   revisions,
   settings,
@@ -27,6 +28,7 @@ import {
   type PluginTerm,
   type PendingLanguages,
   type PersonalDataGroup,
+  type PluginMedia,
   type PluginTransaction,
   type TermQuery,
 } from '@cleitext/plugin-sdk';
@@ -424,6 +426,22 @@ export class PluginServicesProvider implements PluginServices {
     ];
   }
 
+  async mediaItem(siteId: string, id: string): Promise<PluginMedia | null> {
+    const [row] = await withContext(this.database.db, { siteId }, (tx) =>
+      tx.select().from(media).where(eq(media.id, id)),
+    );
+    return row
+      ? {
+          id: row.id,
+          url: `/media/${row.storageKey}`,
+          mime: row.mime,
+          width: row.width,
+          height: row.height,
+          alt: (row.alt as Record<string, string>) ?? {},
+        }
+      : null;
+  }
+
   async findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]> {
     const active = await this.host.activeSlugs(siteId);
     return withContext(this.database.db, { siteId }, async (tx) => {
@@ -460,6 +478,7 @@ export class PluginServicesProvider implements PluginServices {
         title,
         status: row.status,
         url: data.urls.entry(row),
+        parentId: row.parentId ?? null,
         publishedAt: row.publishedAt?.toISOString() ?? null,
         fields: (fields as FieldValues) ?? {},
       }));

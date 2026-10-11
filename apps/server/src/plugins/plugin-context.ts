@@ -5,6 +5,7 @@ import {
   type PendingLanguages,
   type PersonalDataGroup,
   type PluginContext,
+  type PluginMedia,
   type PluginEntry,
   type PluginLogger,
   type PluginPermission,
@@ -79,6 +80,7 @@ export interface PluginServices {
     replyTo?: string;
     siteId?: string;
   }): Promise<void>;
+  mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
   /** What the core keeps about an email on a site: account, sessions, activity. */
   corePersonalData(siteId: string, email: string): Promise<PersonalDataGroup[]>;
 }
@@ -347,6 +349,15 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       send(message) {
         require('mail:send');
         return services().sendMail(message);
+      },
+    },
+
+    media: {
+      async get(siteId, id) {
+        require('media:read');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id)) return null;
+        return services().mediaItem(siteId, id);
       },
     },
 

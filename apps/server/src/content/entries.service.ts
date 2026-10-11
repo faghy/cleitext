@@ -486,6 +486,16 @@ export class EntriesService {
         );
       }
 
+      // A published page that moves (slug or parent) takes its subpages along:
+      // their old addresses redirect to the new ones (RF-SEO, like WordPress).
+      const moving =
+        Boolean(entry.publishedRevisionId) &&
+        (changes.slug !== undefined ||
+          (changes.parentId !== undefined && changes.parentId !== entry.parentId));
+      const oldPaths = moving
+        ? await this.subtreePaths(tx, siteId, entry.id, type.permalink)
+        : null;
+
       const fields =
         input.fields === undefined ? undefined : await this.validFields(siteId, type, input.fields);
       const needsRevision =
@@ -512,8 +522,12 @@ export class EntriesService {
       if (input.terms) await this.termsService.assign(tx, siteId, auth, entry, input.terms);
 
       const updated = await this.load(tx, entry.id);
-      if (changes.slug && entry.publishedRevisionId) {
-        await this.redirectOldPath(tx, siteId, entry, updated, type.permalink);
+      if (oldPaths) {
+        const newPaths = await this.subtreePaths(tx, siteId, entry.id, type.permalink);
+        for (const [entryId, from] of oldPaths) {
+          const to = newPaths.get(entryId);
+          if (to) await this.redirectPath(tx, siteId, from, to);
+        }
       }
       await this.audit.record(tx, entryAudit(siteId, auth, 'entry.saved', id, ip));
       tags = [...before, ...(await this.publicTags(tx, updated))];
@@ -1125,25 +1139,47 @@ export class EntriesService {
   }
 
   /** A 301 from the old public path when a published entry changes slug (RF-CNT-11). */
-  private async redirectOldPath(
+  /** Public paths of a published entry and its published descendants, by id. */
+  private async subtreePaths(
     tx: Tx,
     siteId: string,
-    before: EntryRow,
-    after: EntryRow,
+    rootId: string,
     permalink: string,
-  ): Promise<void> {
+  ): Promise<Map<string, string>> {
+    const root = await this.load(tx, rootId);
     const prefix =
-      localePrefixes(await this.languages.localesIn(tx, siteId)).get(before.locale) ?? '';
-    const from = prefix + (await entryPath(tx, before, permalink));
-    const to = prefix + (await entryPath(tx, after, permalink));
+      localePrefixes(await this.languages.localesIn(tx, siteId)).get(root.locale) ?? '';
+    const paths = new Map<string, string>();
+    let level = [root];
+    // Bounded depth and size: pages trees are small; this is not a crawler.
+    for (let depth = 0; level.length > 0 && depth < 20 && paths.size < 2000; depth++) {
+      for (const row of level) {
+        if (row.publishedRevisionId && ['published', 'private'].includes(row.status)) {
+          paths.set(row.id, prefix + (await entryPath(tx, row, permalink)));
+        }
+      }
+      level = await tx
+        .select()
+        .from(entries)
+        .where(
+          inArray(
+            entries.parentId,
+            level.map((r) => r.id),
+          ),
+        );
+    }
+    return paths;
+  }
+
+  private async redirectPath(tx: Tx, siteId: string, from: string, to: string): Promise<void> {
     if (from === to) return;
-    // Going back to an old slug must not leave a redirect loop.
+    // Going back to an old address must not leave a redirect loop.
     await tx.delete(redirects).where(eq(redirects.fromPath, to));
     await tx
       .insert(redirects)
       .values({ siteId, fromPath: from, toPath: to, status: 301 })
       .onConflictDoUpdate({ target: [redirects.siteId, redirects.fromPath], set: { toPath: to } });
-    // Older redirects that pointed to the old path now point to the new one.
+    // Older redirects that pointed to the old address now point to the new one.
     await tx.update(redirects).set({ toPath: to }).where(eq(redirects.toPath, from));
   }
 }

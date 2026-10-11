@@ -414,6 +414,10 @@ Public pages are cached and refreshed through **tags**. Pages showing an entry c
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, replyTo? })`, sent with the server's mail settings.
 
+### Media
+
+`media:read`: `await ctx.media.get(siteId, id)` returns an item of the media library (`url`, `mime`, `width`, `height`, `alt` by language), e.g. the image chosen in a `media` field. Entries returned by `ctx.content.find` / `get` carry their `parentId`.
+
 ### Personal data (GDPR)
 
 A plugin that keeps personal data (messages, sign-ups, orders…) should let the site answer the requests of people about it, as WordPress's privacy exporters and erasers do (plugin API 1.2, no permission needed):
@@ -602,7 +606,7 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 | `theme:hooks`   | filters `render.*` and `theme.*`                                             |
 | `mail:send`     | `ctx.mail.send`                                                              |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                       |
-| `media:read`    | reserved for the media API                                                   |
+| `media:read`    | `ctx.media.get`                                                              |
 
 Administrators see the requested permissions in **Plugins → Details**. Your own tables (`ctx.db`), hooks on actions, logging, capabilities and cache invalidation need no permission.
 

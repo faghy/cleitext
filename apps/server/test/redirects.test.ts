@@ -78,6 +78,48 @@ describe('redirects', () => {
     expect((await visitor.get('/old-page')).statusCode).toBe(404);
   });
 
+  it('follows pages that move, with their subpages', async () => {
+    const page = async (title: string, slug: string, parentId?: string) => {
+      const created = (
+        await admin.post('/api/v1/entries', {
+          type: 'page',
+          title,
+          slug,
+          ...(parentId ? { parentId } : {}),
+        })
+      ).json();
+      await admin.post(`/api/v1/entries/${created.id}/publish`);
+      return created.id as string;
+    };
+    const services = await page('Services', 'services');
+    await page('Design', 'design', services);
+    const other = await page('Company', 'company');
+    expect((await visitor.get('/services/design')).statusCode).toBe(200);
+
+    // The parent changes slug: it and its subpage redirect.
+    await admin.request('PATCH', `/api/v1/entries/${services}`, { slug: 'what-we-do' });
+    for (const [from, to] of [
+      ['/services', '/what-we-do'],
+      ['/services/design', '/what-we-do/design'],
+    ]) {
+      const res = await visitor.get(from!);
+      expect(res.statusCode).toBe(301);
+      expect(res.headers.location).toBe(to);
+    }
+    expect((await visitor.get('/what-we-do/design')).statusCode).toBe(200);
+
+    // The subpage moves to another parent: the old address follows it.
+    const design = (await admin.get('/api/v1/entries?type=page&limit=50'))
+      .json()
+      .items.find((e: { slug: string }) => e.slug === 'design').id;
+    await admin.request('PATCH', `/api/v1/entries/${design}`, { parentId: other });
+    const moved = await visitor.get('/what-we-do/design');
+    expect(moved.statusCode).toBe(301);
+    expect(moved.headers.location).toBe('/company/design');
+    // Older redirects are updated, so there is never a chain.
+    expect((await visitor.get('/services/design')).headers.location).toBe('/company/design');
+  });
+
   it('imports CSV, reporting bad lines', async () => {
     const csv = [
       'from,to,status',

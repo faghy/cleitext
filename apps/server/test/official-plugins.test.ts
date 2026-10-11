@@ -11,6 +11,7 @@ import type { CxdDocument } from '@cleitext/blocks';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import sharp from 'sharp';
 import { MailService } from '../src/mail/mail.service.js';
 import {
   ownerDatabase,
@@ -188,6 +189,49 @@ describe('SEO', () => {
     expect(JSON.stringify(website.potentialAction)).toContain('/search?q={search_term_string}');
     const org = graph.find((g) => g['@type'] === 'Organization')!;
     expect(org.sameAs).toEqual(['https://www.linkedin.com/company/official']);
+    await admin.request('PUT', '/api/v1/ext/seo/config', {});
+  });
+
+  it('adds breadcrumbs, title templates and a social image', async () => {
+    const parent = await publish('page', 'Services');
+    const child = await publish('page', 'Design', {
+      parentId: parent.id,
+      document: { schema: 1, blocks: [{ id: 'bc', type: 'seo/breadcrumbs', v: 1, attrs: {} }] },
+    });
+    const png = await sharp({
+      create: { width: 1200, height: 630, channels: 3, background: '#0f4c81' },
+    })
+      .png()
+      .toBuffer();
+    const image = (await admin.upload('/api/v1/media', 'card.png', png, 'image/png')).json();
+    await admin.request('PATCH', `/api/v1/entries/${child.id}`, {
+      fields: { seo: { socialImage: image.id, keyphrase: 'design' } },
+    });
+    await admin.post(`/api/v1/entries/${child.id}/publish`);
+    await admin.request('PUT', '/api/v1/ext/seo/config', {
+      titles: { page: '%%title%% %%sep%% Guides %%sep%% %%sitename%%' },
+    });
+
+    const html = (await visitor.get(`/${parent.slug}/${child.slug}`)).body;
+    expect(html).toMatch(
+      /<nav class="seo-breadcrumbs"[^>]*>.*<a href="\/">Home<\/a>.*<a href="\/services">Services<\/a>.*aria-current="page">Design</s,
+    );
+    expect(html).toContain('<title>Design | Guides | Site official</title>');
+    expect(html).toContain(
+      `<meta property="og:image" content="http://official.test${image.url}"/>`,
+    );
+    expect(html).toContain('<meta name="twitter:card" content="summary_large_image"/>');
+    const json = /<script type="application\/ld\+json">(.*?)<\/script>/.exec(html)![1]!;
+    const graph = JSON.parse(json)['@graph'] as Record<string, unknown>[];
+    const crumbs = graph.find((g) => g['@type'] === 'BreadcrumbList')!;
+    expect(crumbs.itemListElement).toEqual([
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'http://official.test/' },
+      { '@type': 'ListItem', position: 2, name: 'Services', item: 'http://official.test/services' },
+      { '@type': 'ListItem', position: 3, name: 'Design' },
+    ]);
+
+    const verification = (await admin.get('/api/v1/ext/seo/verification')).json();
+    expect(verification).toMatchObject({ host: 'official.test', dns: [], meta: { google: false } });
     await admin.request('PUT', '/api/v1/ext/seo/config', {});
   });
 });

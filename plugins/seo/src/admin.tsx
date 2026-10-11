@@ -11,7 +11,8 @@ import {
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { SeoConfig } from './config';
+import { DEFAULT_TITLE, TITLE_VARIABLES, type SeoConfig } from './config';
+import { SeoAnalysisPanel } from './panel';
 
 interface TypeView {
   slug: string;
@@ -45,7 +46,7 @@ function SeoPage(props: AdminPageProps) {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">SEO</h1>
-      <SitemapCard tr={tr} locale={props.user.locale} />
+      <SitemapCard tr={tr} locale={props.user.locale} api={props.api} />
       {saved.error && <Alert>{errorMessage(saved.error)}</Alert>}
       {saved.data && (
         <SeoForm key={JSON.stringify(saved.data)} {...props} initial={saved.data} tr={tr} />
@@ -54,7 +55,7 @@ function SeoPage(props: AdminPageProps) {
   );
 }
 
-function SitemapCard({ tr, locale }: { tr: Tr; locale: string }) {
+function SitemapCard({ tr, locale, api }: { tr: Tr; locale: string; api: AdminPageProps['api'] }) {
   const address = `${window.location.origin}/sitemap.xml`;
   const [copied, setCopied] = useState(false);
   const index = useQuery({ queryKey: ['seo', 'sitemaps'], queryFn: sitemapIndex });
@@ -84,45 +85,7 @@ function SitemapCard({ tr, locale }: { tr: Tr; locale: string }) {
             {tr('Open', 'Apri')}
           </a>
         </div>
-        <ol className="list-decimal space-y-1 pl-5 text-slate-700">
-          <li>
-            {tr('Open ', 'Apri ')}
-            <a
-              className="text-sky-700 underline"
-              href="https://search.google.com/search-console"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Google Search Console
-            </a>
-            {tr(
-              ' and add the site (the verification code goes in Analytics → Search engines, or use the DNS record).',
-              ' e aggiungi il sito (il codice di verifica va in Statistiche → Motori di ricerca, oppure usa il record DNS).',
-            )}
-          </li>
-          <li>
-            {tr('In ', 'In ')}
-            <strong>{tr('Sitemaps', 'Sitemap')}</strong>
-            {tr(', enter ', ', inserisci ')}
-            <code>sitemap.xml</code>
-            {tr(' and choose Submit.', ' e scegli Invia.')}
-          </li>
-          <li>
-            {tr('Do the same in ', 'Fai lo stesso in ')}
-            <a
-              className="text-sky-700 underline"
-              href="https://www.bing.com/webmasters"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Bing Webmaster Tools
-            </a>
-            {tr(
-              '. robots.txt already points to the sitemap, and it follows every change by itself.',
-              '. robots.txt indica già la sitemap, e si aggiorna da sola a ogni modifica.',
-            )}
-          </li>
-        </ol>
+        <Verification tr={tr} api={api} />
         {index.error && <Alert>{errorMessage(index.error)}</Alert>}
         {index.data && (
           <details>
@@ -134,7 +97,7 @@ function SitemapCard({ tr, locale }: { tr: Tr; locale: string }) {
             </summary>
             <ul className="mt-2 space-y-1">
               {index.data.map((s) => (
-                <li key={s.loc} className="flex flex-wrap gap-x-3">
+                <li key={s.loc} className="flex flex-wrap items-baseline gap-x-3">
                   <a
                     className="text-sky-700 hover:underline"
                     href={s.loc}
@@ -144,8 +107,8 @@ function SitemapCard({ tr, locale }: { tr: Tr; locale: string }) {
                     {new URL(s.loc).pathname}
                   </a>
                   {s.lastmod && (
-                    <span className="text-slate-500">
-                      {new Date(s.lastmod).toLocaleString(locale)}
+                    <span className="text-xs text-slate-500">
+                      {tr('changed', 'modificata il')} {new Date(s.lastmod).toLocaleString(locale)}
                     </span>
                   )}
                 </li>
@@ -155,6 +118,111 @@ function SitemapCard({ tr, locale }: { tr: Tr; locale: string }) {
         )}
       </div>
     </Card>
+  );
+}
+
+interface VerificationView {
+  host: string;
+  dns: { domain: string; google: boolean; bing: boolean }[];
+  meta: { google: boolean; bing: boolean };
+}
+
+const link = (href: string, label: string) => (
+  <a className="text-sky-700 underline" href={href} target="_blank" rel="noreferrer">
+    {label}
+  </a>
+);
+
+/** How Search Console sees the site: a domain property (DNS) or an address prefix (tag). */
+function Verification({ tr, api }: { tr: Tr; api: AdminPageProps['api'] }) {
+  const check = useQuery({
+    queryKey: ['seo', 'verification'],
+    queryFn: () => api<VerificationView>('GET', '/verification'),
+  });
+  const v = check.data;
+  const dns = v?.dns.find((d) => d.google);
+  const searchConsole = link('https://search.google.com/search-console', 'Google Search Console');
+  const domain = v ? v.host.split('.').slice(-2).join('.') : '';
+  return (
+    <div className="space-y-2 text-slate-700">
+      {check.isPending && (
+        <p className="text-slate-500">
+          {tr('Checking the verification…', 'Controllo della verifica…')}
+        </p>
+      )}
+      {dns ? (
+        <p className="rounded bg-emerald-50 px-3 py-2 text-emerald-900">
+          ✓{' '}
+          {tr(
+            `Verified with a DNS record on ${dns.domain}: in Search Console the site is a Domain property, so there is no tag to paste.`,
+            `Verificato con un record DNS su ${dns.domain}: in Search Console il sito è una proprietà Dominio, quindi non c’è nessun tag da incollare.`,
+          )}
+        </p>
+      ) : v?.meta.google ? (
+        <p className="rounded bg-emerald-50 px-3 py-2 text-emerald-900">
+          ✓{' '}
+          {tr(
+            'The home page has the Google verification tag (property by URL prefix).',
+            'La home ha il tag di verifica di Google (proprietà con prefisso URL).',
+          )}
+        </p>
+      ) : (
+        v && (
+          <div className="rounded bg-amber-50 px-3 py-2 text-amber-900">
+            <p>
+              {tr(
+                'The site is not verified for Google yet. Two ways, in ',
+                'Il sito non è ancora verificato per Google. Due modi, in ',
+              )}
+              {searchConsole}:
+            </p>
+            <ul className="mt-1 list-disc pl-5">
+              <li>
+                <strong>{tr('Domain', 'Dominio')}</strong>{' '}
+                {tr(
+                  `(recommended): add the TXT record Google gives you to the DNS of ${domain}. It covers every subdomain and protocol, and needs no tag.`,
+                  `(consigliato): aggiungi al DNS di ${domain} il record TXT che ti dà Google. Copre tutti i sottodomini e i protocolli, e non serve nessun tag.`,
+                )}
+              </li>
+              <li>
+                <strong>{tr('URL prefix', 'Prefisso URL')}</strong>{' '}
+                {tr(
+                  '— choose the HTML tag and paste it in Analytics → Search engines.',
+                  '— scegli il tag HTML e incollalo in Statistiche → Motori di ricerca.',
+                )}
+              </li>
+            </ul>
+          </div>
+        )
+      )}
+      <ol className="list-decimal space-y-1 pl-5">
+        <li>
+          {tr('In ', 'In ')}
+          {searchConsole}
+          {tr(', open ', ', apri ')}
+          <strong>{tr('Sitemaps', 'Sitemap')}</strong>
+          {tr(', enter ', ', inserisci ')}
+          <code>sitemap.xml</code>
+          {tr(' and choose Submit.', ' e scegli Invia.')}
+        </li>
+        <li>
+          {link('https://www.bing.com/webmasters', 'Bing Webmaster Tools')}
+          {tr(
+            ' can import the site and its sitemap from Search Console in one click.',
+            ' può importare il sito e la sua sitemap da Search Console con un clic.',
+          )}
+          {v?.dns.some((d) => d.bing) || v?.meta.bing
+            ? tr(' Bing: verified ✓', ' Bing: verificato ✓')
+            : ''}
+        </li>
+        <li>
+          {tr(
+            'robots.txt already points to the sitemap, and it follows every change by itself.',
+            'robots.txt indica già la sitemap, e si aggiorna da sola a ogni modifica.',
+          )}
+        </li>
+      </ol>
+    </div>
   );
 }
 
@@ -269,6 +337,31 @@ function SeoForm({ api, initial, tr, user }: AdminPageProps & { initial: SeoConf
         </div>
       </Card>
 
+      <Card title={tr('Titles', 'Titoli')}>
+        <div className="max-w-2xl space-y-3 text-sm">
+          <p className="text-slate-600">
+            {tr(
+              'How the title in search results is built for each content type. Variables: ',
+              'Come si compone il titolo nei risultati per ogni tipo di contenuto. Variabili: ',
+            )}
+            {TITLE_VARIABLES.map((v) => (
+              <code key={v} className="mr-1">{`%%${v}%%`}</code>
+            ))}
+          </p>
+          {types.data?.map((t) => (
+            <TextField
+              key={t.slug}
+              label={name(t.name)}
+              placeholder={DEFAULT_TITLE}
+              value={cfg.titles[t.slug] ?? ''}
+              onChange={(e) =>
+                setCfg((c) => ({ ...c, titles: { ...c.titles, [t.slug]: e.target.value } }))
+              }
+            />
+          ))}
+        </div>
+      </Card>
+
       <Card title={tr('Site representation', 'Rappresentazione del sito')}>
         <div className="max-w-2xl space-y-3 text-sm">
           <p className="text-slate-600">
@@ -337,6 +430,15 @@ function SeoForm({ api, initial, tr, user }: AdminPageProps & { initial: SeoConf
 }
 
 export default defineAdminPlugin({
+  editorPanels: [
+    {
+      id: 'seo-analysis',
+      title: { en: 'SEO analysis', it: 'Analisi SEO' },
+      types: ['page', 'article'],
+      capability: 'edit_entries',
+      component: SeoAnalysisPanel,
+    },
+  ],
   pages: [
     {
       path: '',
