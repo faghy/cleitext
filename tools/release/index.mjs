@@ -39,22 +39,24 @@ for (const dir of ['apps/server', 'packages/cli']) {
 
 console.log('[release] admin and official plugins…');
 await cp(join(root, 'apps/admin/dist'), join(out, 'apps/admin/dist'), { recursive: true });
-/** Official plugins not in the base package: shipped as their own package, to upload from Plugins. */
+/**
+ * Official plugins. Every one gets its own package (for the catalog and for
+ * Upload Plugin); those not in SEPARATE are also in the base package.
+ */
 const SEPARATE = ['multilingual', 'privacy', 'analytics', 'showcase'];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
   const source = join(root, 'plugins', slug);
   if (!existsSync(join(source, 'cleitext.plugin.json'))) continue;
-  const target = SEPARATE.includes(slug)
-    ? join(root, 'release', `plugin-${slug}`, slug)
-    : join(out, 'plugins', slug);
-  if (SEPARATE.includes(slug)) {
-    await rm(dirname(target), { recursive: true, force: true });
-    separate.push(slug);
-  }
-  for (const part of ['cleitext.plugin.json', 'dist', 'migrations', 'README.md']) {
-    if (existsSync(join(source, part)))
-      await cp(join(source, part), join(target, part), { recursive: true });
+  const own = join(root, 'release', `plugin-${slug}`, slug);
+  await rm(dirname(own), { recursive: true, force: true });
+  separate.push(slug);
+  const targets = SEPARATE.includes(slug) ? [own] : [join(out, 'plugins', slug), own];
+  for (const target of targets) {
+    for (const part of ['cleitext.plugin.json', 'dist', 'migrations', 'README.md']) {
+      if (existsSync(join(source, part)))
+        await cp(join(source, part), join(target, part), { recursive: true });
+    }
   }
 }
 
