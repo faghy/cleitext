@@ -413,6 +413,41 @@ Le pagine pubbliche sono in cache e vengono aggiornate tramite **tag**. Le pagin
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, replyTo? })`, inviata con le impostazioni di posta del server.
 
+### Dati personali (GDPR)
+
+Un plugin che conserva dati personali (messaggi, iscrizioni, ordini…) dovrebbe permettere al sito di rispondere alle richieste delle persone, come fanno gli exporter e gli eraser della privacy di WordPress (API dei plugin 1.2, nessun permesso richiesto):
+
+```ts
+ctx.privacy.registerExporter({
+  id: 'events', // inizia con lo slug del plugin
+  label: { en: 'Event sign-ups', it: 'Iscrizioni agli eventi' },
+  async export(siteId, email) {
+    const rows = await ctx.db.transaction(siteId, (tx) =>
+      tx.select().from(signups).where(eq(signups.email, email)),
+    );
+    return [
+      {
+        id: 'events.signups',
+        label: 'Iscrizioni',
+        items: rows.map((r) => ({ event: r.title, date: r.createdAt.toISOString() })),
+      },
+    ];
+  },
+});
+ctx.privacy.registerEraser({
+  id: 'events',
+  label: { en: 'Event sign-ups', it: 'Iscrizioni agli eventi' },
+  async erase(siteId, email) {
+    const gone = await ctx.db.transaction(siteId, (tx) =>
+      tx.delete(signups).where(eq(signups.email, email)).returning({ id: signups.id }),
+    );
+    return { removed: gone.length, retained: 0 }; // retained + messages: cosa deve restare, e perché
+  },
+});
+```
+
+L'email arriva in minuscolo. Vengono interpellati solo i plugin attivi sul sito. Un plugin con il permesso `privacy` (come Privacy e GDPR) esegue le richieste: `ctx.privacy.exportPersonalData(siteId, email)` raccoglie i dati del core (l'account di un membro del sito, le sue sessioni, i token e l'attività) e quelli di ogni exporter; `ctx.privacy.erasePersonalData(siteId, email)` esegue gli eraser (gli account restano: si eliminano da Utenti).
+
 ## 10. Le tue tabelle
 
 Le tabelle si trovano nello schema PostgreSQL del plugin, `plg_<slug>`. Vengono create da migrazioni SQL in `migrations/`, chiamate `NNNN_description.sql` ed eseguite in ordine quando il plugin viene installato o aggiornato:
@@ -547,6 +582,7 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 | `languages`     | `ctx.languages` ([plugin delle lingue](#15-lingue-plugin-delle-lingue))      |
 | `theme:hooks`   | filtri `render.*` e `theme.*`                                                |
 | `mail:send`     | `ctx.mail.send`                                                              |
+| `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                       |
 | `media:read`    | riservato all'API dei media                                                  |
 
 Gli amministratori vedono i permessi richiesti in **Plugins → Details**. Le tue tabelle (`ctx.db`), gli hook sulle azioni, il logging, le capability e l'invalidazione della cache non richiedono permessi.

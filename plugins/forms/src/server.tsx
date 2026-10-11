@@ -1,5 +1,5 @@
 import { defineBlock, definePlugin } from '@cleitext/plugin-sdk';
-import { desc, eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import { submissions, type Submission } from './schema';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -12,6 +12,7 @@ interface FormAttrs {
   buttonLabel: string;
   askPhone?: boolean;
   successMessage: string;
+  privacyUrl?: string;
 }
 
 /** Per-process limiter: enough against casual abuse on a single server. */
@@ -100,6 +101,16 @@ export default definePlugin({
             default: 'Thank you, we will reply soon.',
             maxLength: 300,
           },
+          {
+            name: 'privacyUrl',
+            type: 'text',
+            label: { en: 'Privacy policy address', it: 'Indirizzo della privacy policy' },
+            help: {
+              en: 'e.g. /privacy-policy: a notice with this link is shown under the form.',
+              it: 'Es. /privacy-policy: sotto il modulo compare un’informativa con questo link.',
+            },
+            maxLength: 300,
+          },
         ],
         render({ attrs, block, context }) {
           const it = context.locale.startsWith('it');
@@ -110,6 +121,7 @@ export default definePlugin({
                 {`#${id}-sent:not(:target),#${id}-error:not(:target){display:none}` +
                   `.contact-form form{display:grid;gap:.75rem;max-width:36rem}` +
                   `.contact-form label{display:grid;gap:.25rem}` +
+                  `.contact-form .form-privacy{font-size:.875em;margin:0}` +
                   `.contact-form .hp{position:absolute;left:-10000px}`}
               </style>
               <p id={`${id}-sent`} role="status">
@@ -146,6 +158,14 @@ export default definePlugin({
                   Website
                   <input name="website" tabIndex={-1} autoComplete="off" />
                 </label>
+                {attrs.privacyUrl && /^(\/|https?:\/\/)/.test(attrs.privacyUrl) && (
+                  <p className="form-privacy">
+                    {it
+                      ? 'Inviando il messaggio, i tuoi dati saranno trattati per risponderti, come descritto nella '
+                      : 'By sending the message, your data will be used to reply to you, as described in the '}
+                    <a href={attrs.privacyUrl}>privacy policy</a>.
+                  </p>
+                )}
                 <button type="submit">{attrs.buttonLabel}</button>
               </form>
             </section>
@@ -202,6 +222,51 @@ export default definePlugin({
             .catch((error: unknown) => ctx.log.error('Mail not sent', { error: String(error) }));
         }
         return redirect('sent');
+      },
+    });
+
+    // GDPR requests (Privacy plugin): the messages sent with an email address.
+    ctx.privacy.registerExporter({
+      id: 'forms',
+      label: { en: 'Form messages', it: 'Messaggi dei moduli' },
+      async export(siteId, email) {
+        const rows = await ctx.db.transaction(siteId, (tx) =>
+          tx
+            .select()
+            .from(submissions)
+            .where(eq(submissions.email, email))
+            .orderBy(asc(submissions.createdAt)),
+        );
+        return rows.length === 0
+          ? []
+          : [
+              {
+                id: 'forms.submissions',
+                label: { en: 'Form messages', it: 'Messaggi dei moduli' },
+                items: rows.map((r) => ({
+                  form: r.formName,
+                  page: r.pagePath,
+                  name: r.name,
+                  email: r.email,
+                  phone: r.phone,
+                  message: r.message,
+                  sent: r.createdAt.toISOString(),
+                })),
+              },
+            ];
+      },
+    });
+    ctx.privacy.registerEraser({
+      id: 'forms',
+      label: { en: 'Form messages', it: 'Messaggi dei moduli' },
+      async erase(siteId, email) {
+        const removed = await ctx.db.transaction(siteId, (tx) =>
+          tx
+            .delete(submissions)
+            .where(eq(submissions.email, email))
+            .returning({ id: submissions.id }),
+        );
+        return { removed: removed.length, retained: 0 };
       },
     });
 

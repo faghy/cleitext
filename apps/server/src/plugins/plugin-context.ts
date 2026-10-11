@@ -3,6 +3,7 @@ import {
   type CopyOptions,
   type LanguageUsage,
   type PendingLanguages,
+  type PersonalDataGroup,
   type PluginContext,
   type PluginEntry,
   type PluginLogger,
@@ -78,6 +79,8 @@ export interface PluginServices {
     replyTo?: string;
     siteId?: string;
   }): Promise<void>;
+  /** What the core keeps about an email on a site: account, sessions, activity. */
+  corePersonalData(siteId: string, email: string): Promise<PersonalDataGroup[]>;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -344,6 +347,25 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       send(message) {
         require('mail:send');
         return services().sendMail(message);
+      },
+    },
+
+    privacy: {
+      registerExporter(exporter) {
+        host.addPrivacyHandler(plugin, 'exporter', exporter);
+      },
+      registerEraser(eraser) {
+        host.addPrivacyHandler(plugin, 'eraser', eraser);
+      },
+      async exportPersonalData(siteId, email) {
+        require('privacy');
+        assertSiteId(siteId);
+        return host.exportPersonalData(siteId, email);
+      },
+      async erasePersonalData(siteId, email) {
+        require('privacy');
+        assertSiteId(siteId);
+        return host.erasePersonalData(siteId, email);
       },
     },
   };

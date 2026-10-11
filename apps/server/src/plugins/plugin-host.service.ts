@@ -15,6 +15,7 @@ import {
   fieldsValidator,
   labelText,
   type FieldDefinition,
+  type Label,
 } from '@cleitext/shared';
 import {
   pluginManifestSchema,
@@ -22,8 +23,12 @@ import {
   type Actions,
   type ApiRoute,
   type ContentTypeDefinition,
+  type ErasureResult,
   type FieldGroupDefinition,
   type LanguageProvider,
+  type PersonalDataEraser,
+  type PersonalDataExporter,
+  type PersonalDataGroup,
   type Filters,
   type PluginBlockDefinition,
   type PluginDefinition,
@@ -94,6 +99,9 @@ export interface LoadedPlugin {
   hooks: HookRegistration[];
   /** Set by `ctx.languages.provide` (permission `languages`). */
   languageProvider: LanguageProvider | null;
+  /** Registered with `ctx.privacy` (GDPR requests). */
+  exporters: PersonalDataExporter[];
+  erasers: PersonalDataEraser[];
   stats: PluginStats;
 }
 
@@ -220,6 +228,8 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       capabilities: new Map(),
       hooks: [],
       languageProvider: null,
+      exporters: [],
+      erasers: [],
       stats: { calls: 0, errors: 0, totalMs: 0, lastError: null },
     };
     try {
@@ -259,6 +269,8 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         settings: null,
         hooks: [],
         languageProvider: null,
+        exporters: [],
+        erasers: [],
       });
       plugin.capabilities.clear();
       this.logger.error(`Plugin ${slug} could not be loaded: ${plugin.error}`);
@@ -283,6 +295,95 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       priority: priority ?? DEFAULT_PRIORITY,
       order: this.hookOrder++,
     });
+  }
+
+  addPrivacyHandler(
+    plugin: LoadedPlugin,
+    kind: 'exporter' | 'eraser',
+    handler: PersonalDataExporter | PersonalDataEraser,
+  ): void {
+    if (handler.id !== plugin.slug && !handler.id.startsWith(`${plugin.slug}.`)) {
+      throw new PluginError(
+        `Privacy ${kind} ids must start with the plugin slug ("${plugin.slug}")`,
+      );
+    }
+    if (kind === 'exporter') plugin.exporters.push(handler as PersonalDataExporter);
+    else plugin.erasers.push(handler as PersonalDataEraser);
+  }
+
+  /** GDPR access request: the core's data, then each active plugin's. */
+  async exportPersonalData(siteId: string, email: string) {
+    const address = email.trim().toLowerCase();
+    const results: { source: string; label: Label; groups: PersonalDataGroup[] }[] = [
+      {
+        source: 'core',
+        label: { en: 'Account', it: 'Account' },
+        groups: await this.pluginServices.corePersonalData(siteId, address),
+      },
+    ];
+    for (const plugin of await this.activePlugins(siteId)) {
+      for (const exporter of plugin.exporters) {
+        try {
+          results.push({
+            source: exporter.id,
+            label: exporter.label,
+            groups: await exporter.export(siteId, address),
+          });
+        } catch (error) {
+          this.logger.error(`Privacy exporter ${exporter.id} failed: ${String(error)}`);
+          results.push({
+            source: exporter.id,
+            label: exporter.label,
+            groups: [
+              {
+                id: `${exporter.id}.error`,
+                label: { en: 'Error', it: 'Errore' },
+                items: [{ error: 'This source could not be read.' }],
+              },
+            ],
+          });
+        }
+      }
+    }
+    return results;
+  }
+
+  /** GDPR erasure request: each active plugin erases its data; accounts stay (Users). */
+  async erasePersonalData(siteId: string, email: string) {
+    const address = email.trim().toLowerCase();
+    const account = (await this.pluginServices.corePersonalData(siteId, address)).length > 0;
+    const results: ({ source: string; label: Label } & ErasureResult)[] = [
+      {
+        source: 'core',
+        label: { en: 'Account', it: 'Account' },
+        removed: 0,
+        retained: account ? 1 : 0,
+        messages: account
+          ? ['The user account is kept: delete it from Users if it should go too.']
+          : [],
+      },
+    ];
+    for (const plugin of await this.activePlugins(siteId)) {
+      for (const eraser of plugin.erasers) {
+        try {
+          results.push({
+            source: eraser.id,
+            label: eraser.label,
+            ...(await eraser.erase(siteId, address)),
+          });
+        } catch (error) {
+          this.logger.error(`Privacy eraser ${eraser.id} failed: ${String(error)}`);
+          results.push({
+            source: eraser.id,
+            label: eraser.label,
+            removed: 0,
+            retained: 0,
+            messages: ['This source could not be erased: try again or check the server log.'],
+          });
+        }
+      }
+    }
+    return results;
   }
 
   addType(plugin: LoadedPlugin, definition: ContentTypeDefinition): void {

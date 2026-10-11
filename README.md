@@ -21,6 +21,7 @@
 - **Extensibility**: a plugin system modeled on WordPress (hooks, activation/uninstall lifecycle, upload and auto-updates), with typed hooks and a dedicated PostgreSQL schema per plugin
 - **Multi-site**: one installation serves many domains, isolated with PostgreSQL Row Level Security
 - **AI assistants**: an MCP server lets people connect ChatGPT and other AI assistants with OAuth and have them build pages and posts with the blocks of the editor, or ask in the chat of the admin with the site's own AI provider
+- **Privacy & GDPR** (separate plugin): cookie banner following the Italian Garante's guidelines, with scripts held until consent and a consent log, privacy and cookie policy pages made of blocks, and requests to export or erase personal data
 - **Deployment**: Plesk (Node.js extension)
 
 ## Development
@@ -74,6 +75,7 @@ On first start, `pnpm dev` creates a local database in `.cleitext-dev/`, writes 
 | [`docs/THEMES.md`](./docs/THEMES.md)                 | Developing themes: templates, settings, block areas, editor styles                                          |
 | [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)         | Installing and updating on a server (Plesk, nginx), backups                                                 |
 | [`docs/MCP.md`](./docs/MCP.md)                       | AI assistants: connecting them through MCP and OAuth, their tools                                           |
+| [`docs/PRIVACY.md`](./docs/PRIVACY.md)               | Privacy & GDPR plugin: cookie banner, consent log, policies, personal data requests                         |
 | [`docs/ASVS.md`](./docs/ASVS.md)                     | OWASP ASVS security checklist, open items; vulnerability reports in [`SECURITY.md`](./SECURITY.md)          |
 
 Italian translations live in [`docs/it/`](./docs/it/). English is the reference version.

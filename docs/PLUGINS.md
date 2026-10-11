@@ -411,6 +411,41 @@ Public pages are cached and refreshed through **tags**. Pages showing an entry c
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, replyTo? })`, sent with the server's mail settings.
 
+### Personal data (GDPR)
+
+A plugin that keeps personal data (messages, sign-ups, orders…) should let the site answer the requests of people about it, as WordPress's privacy exporters and erasers do (plugin API 1.2, no permission needed):
+
+```ts
+ctx.privacy.registerExporter({
+  id: 'events', // starts with the plugin slug
+  label: { en: 'Event sign-ups', it: 'Iscrizioni agli eventi' },
+  async export(siteId, email) {
+    const rows = await ctx.db.transaction(siteId, (tx) =>
+      tx.select().from(signups).where(eq(signups.email, email)),
+    );
+    return [
+      {
+        id: 'events.signups',
+        label: 'Sign-ups',
+        items: rows.map((r) => ({ event: r.title, date: r.createdAt.toISOString() })),
+      },
+    ];
+  },
+});
+ctx.privacy.registerEraser({
+  id: 'events',
+  label: { en: 'Event sign-ups', it: 'Iscrizioni agli eventi' },
+  async erase(siteId, email) {
+    const gone = await ctx.db.transaction(siteId, (tx) =>
+      tx.delete(signups).where(eq(signups.email, email)).returning({ id: signups.id }),
+    );
+    return { removed: gone.length, retained: 0 }; // retained + messages: what must stay, and why
+  },
+});
+```
+
+The email comes in lowercase. Only the plugins active on the site are asked. A plugin with the `privacy` permission (such as Privacy & GDPR) runs the requests: `ctx.privacy.exportPersonalData(siteId, email)` gathers the core's data (the account of a member of the site, its sessions, tokens and activity) and every exporter's; `ctx.privacy.erasePersonalData(siteId, email)` runs the erasers (accounts are kept: they are deleted from Users).
+
 ## 10. Your own tables
 
 Tables live in the plugin's PostgreSQL schema `plg_<slug>`. They are created by SQL migrations in `migrations/`, named `NNNN_description.sql` and run in order when the plugin is installed or updated:
@@ -545,6 +580,7 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 | `languages`     | `ctx.languages` ([language plugins](#15-languages-language-plugins))         |
 | `theme:hooks`   | filters `render.*` and `theme.*`                                             |
 | `mail:send`     | `ctx.mail.send`                                                              |
+| `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                       |
 | `media:read`    | reserved for the media API                                                   |
 
 Administrators see the requested permissions in **Plugins → Details**. Your own tables (`ctx.db`), hooks on actions, logging, capabilities and cache invalidation need no permission.

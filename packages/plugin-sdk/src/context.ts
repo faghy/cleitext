@@ -413,6 +413,61 @@ export interface MailApi {
   }): Promise<void>;
 }
 
+// ---- Privacy ------------------------------------------------------------------------
+
+/**
+ * Personal data of a person, found by email, in one place: rows of name
+ * and value pairs, e.g. one row per message sent through a form.
+ */
+export interface PersonalDataGroup {
+  /** e.g. `forms.submissions`. */
+  id: string;
+  label: Label;
+  items: Record<string, string | number | boolean | null>[];
+}
+
+/** Finds the personal data a plugin keeps about an email address (GDPR art. 15 and 20). */
+export interface PersonalDataExporter {
+  /** Starts with the plugin slug, e.g. `forms`. */
+  id: string;
+  label: Label;
+  export(siteId: string, email: string): Promise<PersonalDataGroup[]>;
+}
+
+export interface ErasureResult {
+  /** Items deleted or anonymized. */
+  removed: number;
+  /** Items kept, e.g. for a legal obligation; say why in `messages`. */
+  retained: number;
+  messages?: string[];
+}
+
+/** Erases or anonymizes the personal data a plugin keeps about an email address (art. 17). */
+export interface PersonalDataEraser {
+  id: string;
+  label: Label;
+  erase(siteId: string, email: string): Promise<ErasureResult>;
+}
+
+export interface PrivacyApi {
+  /** Any plugin keeping personal data should register one; no permission needed. */
+  registerExporter(exporter: PersonalDataExporter): void;
+  registerEraser(eraser: PersonalDataEraser): void;
+  /**
+   * The personal data about an email on a site, from the core (account,
+   * sessions, activity) and from the plugins active there (needs `privacy`).
+   */
+  exportPersonalData(
+    siteId: string,
+    email: string,
+  ): Promise<{ source: string; label: Label; groups: PersonalDataGroup[] }[]>;
+  /** Runs the erasers of the plugins active on the site (needs `privacy`). */
+  erasePersonalData(
+    siteId: string,
+    email: string,
+  ): Promise<({ source: string; label: Label } & ErasureResult)[]>;
+}
+
 // ---- Plugin -------------------------------------------------------------------------
 
 export interface PluginContext {
@@ -431,6 +486,7 @@ export interface PluginContext {
   readonly db: PluginDatabase;
   readonly cache: CacheApi;
   readonly mail: MailApi;
+  readonly privacy: PrivacyApi;
 }
 
 export interface PluginDefinition {

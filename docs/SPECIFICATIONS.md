@@ -758,6 +758,13 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 - **RF-AI-03** Chat in Admin → AI assistants: the site's AI provider (OpenAI-compatible chat completions API, address, model and encrypted key set by super admins) runs the same tools as the signed-in user, with streamed progress; drafts unless the user lets it publish. Ready requests to use in the chat or copy into an assistant.
 - Acceptance: an assistant connected through OAuth builds a page from the theme's sections, saved as a draft that opens in the block editor; a read-only connection cannot change anything; revoking the token disconnects it.
 
+### M10 — Privacy & GDPR (separate plugin)
+
+- **RF-PRV-01** Cookie banner (Garante 2021 guidelines): accept and reject with the same weight, X = no consent, nothing pre-checked, categories (preferences, statistics, marketing), a way to change the choice on every page, asked again after 6 months or when categories or cookies change. Scripts and iframes of a category are inert until consent; Google Consent Mode v2.
+- **RF-PRV-02** Consent log as proof (art. 7.1): random id, categories, version, shortened IP, browser; CSV export; retention period.
+- **RF-PRV-03** Privacy and cookie policy drafts per language, made of core blocks and of the plugin's cookie table and preferences blocks.
+- **RF-PRV-04** Requests about personal data (art. 15, 17, 20): plugin API 1.2 `ctx.privacy` exporters and erasers (core: account, sessions, tokens, activity; Forms: messages), JSON export, erasure, request log.
+
 ## 14. Out of scope
 
 - E-commerce: **planned for the future** as a plugin, not to be done now (see ARCHITECTURE §22.1).

@@ -1,0 +1,21 @@
+{
+  "slug": "privacy",
+  "name": "Privacy & GDPR",
+  "version": "1.0.0",
+  "apiVersion": "^1.2",
+  "description": "Cookie banner with consent by category and a consent log, privacy and cookie policy pages, and requests to export or erase personal data.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "permissions": [
+    "blocks",
+    "content:read",
+    "privacy",
+    "routes:admin",
+    "routes:public",
+    "settings:own",
+    "theme:hooks"
+  ],
+  "capabilities": ["manage_privacy"]
+}

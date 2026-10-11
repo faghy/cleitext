@@ -1,12 +1,18 @@
 import {
+  apiTokens,
+  auditLog,
   contentTypes,
   entries,
   menus,
   revisions,
   settings,
+  sessions,
+  siteMembers,
   sites,
+  superAdmins,
   taxonomies,
   terms,
+  users,
   withContext,
   type DatabaseClient,
   type SiteTransaction,
@@ -20,6 +26,7 @@ import {
   type PluginSite,
   type PluginTerm,
   type PendingLanguages,
+  type PersonalDataGroup,
   type PluginTransaction,
   type TermQuery,
 } from '@cleitext/plugin-sdk';
@@ -333,6 +340,88 @@ export class PluginServicesProvider implements PluginServices {
           and(eq(settings.namespace, `plugin:${plugin.slug}`), eq(settings.key, storageKey(key))),
         ),
     );
+  }
+
+  /**
+   * What the core keeps about an email on a site (GDPR access request): the
+   * account, if it can use the site, its sessions, tokens and recent activity.
+   */
+  async corePersonalData(siteId: string, email: string): Promise<PersonalDataGroup[]> {
+    // Users are visible to the site only when they are its members (RLS).
+    const found = await withContext(this.database.db, { siteId }, async (tx) => {
+      const [user] = await tx.select().from(users).where(eq(users.email, email));
+      if (!user) return null;
+      const [member] = await tx
+        .select({ roleId: siteMembers.roleId })
+        .from(siteMembers)
+        .where(and(eq(siteMembers.siteId, siteId), eq(siteMembers.userId, user.id)));
+      if (!member) return null;
+      const [admin] = await tx.select().from(superAdmins).where(eq(superAdmins.userId, user.id));
+      return {
+        user,
+        admin: Boolean(admin),
+        sessionRows: await tx.select().from(sessions).where(eq(sessions.userId, user.id)),
+        tokens: await tx.select().from(apiTokens).where(eq(apiTokens.userId, user.id)),
+        activity: await tx
+          .select()
+          .from(auditLog)
+          .where(and(eq(auditLog.siteId, siteId), eq(auditLog.userId, user.id)))
+          .orderBy(desc(auditLog.createdAt))
+          .limit(1000),
+      };
+    });
+    if (!found) return [];
+    const { user, admin, sessionRows, tokens, activity } = found;
+    const date = (value: Date | null) => value?.toISOString() ?? null;
+    return [
+      {
+        id: 'core.account',
+        label: { en: 'Account', it: 'Account' },
+        items: [
+          {
+            email: user.email,
+            name: user.displayName,
+            language: user.locale,
+            created: date(user.createdAt),
+            lastSignIn: date(user.lastLoginAt),
+            twoFactor: Boolean(user.totpConfirmedAt),
+            superAdmin: admin,
+          },
+        ],
+      },
+      {
+        id: 'core.sessions',
+        label: { en: 'Sessions', it: 'Sessioni' },
+        items: sessionRows.map((row) => ({
+          ip: row.ip,
+          browser: row.userAgent,
+          lastSeen: date(row.lastSeenAt),
+          expires: date(row.expiresAt),
+        })),
+      },
+      {
+        id: 'core.tokens',
+        label: {
+          en: 'API tokens and connected assistants',
+          it: 'Token API e assistenti collegati',
+        },
+        items: tokens.map((row) => ({
+          name: row.name,
+          created: date(row.createdAt),
+          lastUsed: date(row.lastUsedAt),
+        })),
+      },
+      {
+        id: 'core.activity',
+        label: { en: 'Activity on the site', it: 'Attività sul sito' },
+        items: activity.map((row) => ({
+          action: row.action,
+          target: row.targetType ? `${row.targetType} ${row.targetId ?? ''}`.trim() : null,
+          ip: row.ip,
+          date: date(row.createdAt),
+        })),
+      },
+    ];
   }
 
   async findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]> {
