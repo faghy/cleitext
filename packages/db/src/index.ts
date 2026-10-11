@@ -1,6 +1,7 @@
 export * from './schema/index.js';
 export * as schema from './schema/index.js';
 export { newId } from './schema/columns.js';
+export { BREACHED_PASSWORD_MESSAGE, isBreachedPassword } from './passwords.js';
 export {
   createDatabase,
   findLogin,

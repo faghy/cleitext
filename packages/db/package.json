@@ -12,7 +12,8 @@
   },
   "files": [
     "dist",
-    "drizzle"
+    "drizzle",
+    "data"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

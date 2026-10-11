@@ -1,6 +1,6 @@
 {
   "name": "cleitext",
-  "version": "0.16.2",
+  "version": "0.17.0",
   "private": true,
   "description": "Open-source multi-site CMS modeled on WordPress",
   "license": "GPL-2.0-or-later",
@@ -21,6 +21,7 @@
     "check:licenses": "node tools/quality/licenses.mjs",
     "check:bundle": "node tools/quality/bundle-size.mjs",
     "check:perf": "node tools/quality/perf.mjs",
+    "check:scale": "node tools/quality/scale.mjs",
     "db:generate": "pnpm --filter @cleitext/db run generate",
     "db:dev": "pnpm --filter @cleitext/dev-db run dev",
     "cleitext": "node --env-file-if-exists=.env packages/cli/dist/bin.js",

@@ -418,6 +418,12 @@ describe('password reset (RF-USR-02)', () => {
     const token = tokenFromMail(mail.outbox, email);
     expect(mail.outbox.at(-1)?.text).toContain(`http://${acme.host}/admin/reset-password?token=`);
 
+    // A breached password is refused and the link still works.
+    const breached = await guest.post('/api/v1/auth/password/reset', {
+      token,
+      password: 'qwertyuiop12',
+    });
+    expect(breached.statusCode).toBe(400);
     const reset = await guest.post('/api/v1/auth/password/reset', {
       token,
       password: 'my new long password',
@@ -482,6 +488,15 @@ describe('profile (RF-USR-07)', () => {
       newPassword: 'a different password',
     });
     expect(wrong.statusCode).toBe(400);
+    // A password from the lists of breached passwords is refused, on its field.
+    const breached = await laptop.post('/api/v1/profile/password', {
+      currentPassword: PASSWORD,
+      newPassword: 'Password1234',
+    });
+    expect(breached.statusCode).toBe(400);
+    expect(breached.json().errors).toEqual([
+      { path: 'newPassword', message: expect.stringContaining('breached') },
+    ]);
     const changed = await laptop.post('/api/v1/profile/password', {
       currentPassword: PASSWORD,
       newPassword: 'a different password',

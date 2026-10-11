@@ -89,6 +89,22 @@ export const entries = pgTable(
       sql`${t.status} in ('draft', 'pending', 'scheduled', 'published', 'private', 'trashed')`,
     ),
     index('entries_list_idx').on(t.siteId, t.typeSlug, t.status, t.publishedAt.desc()),
+    // Orders of the admin lists (RNF-03): latest changes, title, publication date.
+    index('entries_admin_updated_idx').on(
+      t.siteId,
+      t.typeSlug,
+      t.updatedAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
+    index('entries_admin_title_idx').on(t.siteId, t.typeSlug, t.title, t.id.desc().nullsFirst()),
+    // Latest published entries of every type (dashboard).
+    index('entries_admin_published_idx').on(t.siteId, t.status, t.publishedAt.desc().nullsFirst()),
+    index('entries_admin_date_idx').on(
+      t.siteId,
+      t.typeSlug,
+      t.publishedAt.desc().nullsLast(),
+      t.id.desc().nullsFirst(),
+    ),
     index('entries_search_idx').using('gin', t.search),
   ],
 );

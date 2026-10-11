@@ -79,3 +79,4 @@ jobs:
       - run: pnpm test:coverage
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm check:perf
+      - run: pnpm check:scale

@@ -25,6 +25,7 @@ import { eq } from 'drizzle-orm';
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service.js';
 import { hashPassword, verifyPassword } from '../auth/crypto.js';
+import { assertPasswordNotBreached } from '../auth/password-policy.js';
 import { SessionService } from '../auth/session.service.js';
 import { CurrentAuth, CurrentSite } from '../common/decorators.js';
 import { parseBody } from '../common/problem.js';
@@ -162,6 +163,7 @@ export class ProfileController {
       if (!(await verifyPassword(user?.passwordHash ?? null, input.currentPassword))) {
         throw new BadRequestException('The current password is not correct.');
       }
+      assertPasswordNotBreached(input.newPassword, 'newPassword');
       await tx
         .update(users)
         .set({ passwordHash: await hashPassword(input.newPassword) })

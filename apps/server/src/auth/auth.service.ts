@@ -13,6 +13,7 @@ import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { MailService } from '../mail/mail.service.js';
 import { hashPassword, verifyPassword } from './crypto.js';
+import { assertPasswordNotBreached } from './password-policy.js';
 import { IdentityService } from './identity.service.js';
 import { LoginThrottleService } from './login-throttle.service.js';
 import { SessionService, UserTokenService } from './session.service.js';
@@ -238,6 +239,8 @@ export class AuthService {
     input: { token: string; password: string },
     client: ClientInfo,
   ): Promise<void> {
+    // Before the link is used up, so that the person can try another password.
+    assertPasswordNotBreached(input.password);
     const record = await this.tokens.peek('password_reset', input.token);
     if (!record || !(await this.tokens.consume('password_reset', input.token))) {
       throw new HttpException('This link is invalid or has expired.', HttpStatus.GONE);
@@ -279,6 +282,7 @@ export class AuthService {
     input: { token: string; password: string; displayName?: string | undefined },
     client: ClientInfo,
   ): Promise<{ auth: AuthContext; token: string; expiresAt: Date }> {
+    assertPasswordNotBreached(input.password);
     const record = await this.tokens.peek('invitation', input.token);
     const meta = record?.meta as InvitationMeta | undefined;
     if (!record || meta?.siteId !== siteId) {

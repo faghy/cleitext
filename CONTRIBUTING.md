@@ -39,7 +39,7 @@ The full target layout (`plugins/`, `themes/`, more packages) is described in `d
 
 - `pnpm e2e` — Playwright tests of the admin and the editor; run them after changing the editor or the admin flows.
 - `pnpm e2e:browsers` — the same tests in Firefox and WebKit (`pnpm exec playwright install firefox webkit` once).
-- Quality budgets, also run in CI: `pnpm test:coverage` (core coverage), `pnpm check:licenses`, `pnpm check:bundle` (after `pnpm build`), `pnpm check:perf` (after `pnpm build`: cold start, TTFB, memory and Lighthouse on a throwaway database).
+- Quality budgets, also run in CI: `pnpm test:coverage` (core coverage), `pnpm check:licenses`, `pnpm check:bundle` (after `pnpm build`), `pnpm check:perf` (after `pnpm build`: cold start, TTFB, memory and Lighthouse on a throwaway database), `pnpm check:scale` (after `pnpm build`: admin API with 50,000 entries, public pages with 100 sites).
 - `pnpm dev` — local DB + server + admin. `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm format`.
 - Schema changes: edit `packages/db/src/schema`, then `pnpm db:generate`. Hand-written SQL (RLS, functions) goes in custom migrations (`drizzle-kit generate --custom`).
 - Every new table with a `site_id` column must get RLS (`cleitext_enable_tenant_rls`) and composite FKs `(site_id, id)` to its parents. The isolation suite in `packages/db/test` fails when a tenant table has no RLS.

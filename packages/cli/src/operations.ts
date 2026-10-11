@@ -12,6 +12,8 @@ import {
   superAdmins,
   users,
   withSiteContext,
+  BREACHED_PASSWORD_MESSAGE,
+  isBreachedPassword,
   type Database,
 } from '@cleitext/db';
 import { emailSchema, localeSchema, passwordSchema } from '@cleitext/shared';
@@ -227,6 +229,7 @@ export interface CreateUserInput {
 export async function createUser(db: Database, input: CreateUserInput): Promise<string> {
   const email = parse(emailSchema, input.email, 'email');
   const password = parse(passwordSchema, input.password, 'password');
+  if (isBreachedPassword(password)) throw new OperationError(BREACHED_PASSWORD_MESSAGE);
   const [existing] = await db.select().from(users).where(eq(users.email, email));
   if (existing) throw new OperationError(`A user with email ${email} already exists.`);
   if (input.site && !input.role) throw new OperationError('Specify --role together with --site.');

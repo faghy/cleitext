@@ -4,7 +4,7 @@ Cleitext targets **OWASP ASVS 5.0, level 2** (RNF-08 in [SPECIFICATIONS.md](SPEC
 
 Status: ✅ met · ⚠️ partly met (reason given) · ➖ not applicable.
 
-Last review: October 2026, release 0.5.19.
+Last review: October 2026, release 0.17.0.
 
 ## V1 Encoding and sanitization
 
@@ -53,15 +53,15 @@ Last review: October 2026, release 0.5.19.
 
 ## V6 Authentication
 
-| Status | Requirement                 | How                                                                                                                                                                                                  |
-| ------ | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ✅     | Password storage            | argon2id with the library's OWASP parameters (`apps/server/src/auth/crypto.ts`).                                                                                                                     |
-| ✅     | Password rules              | 12 to 256 characters, any character allowed, no composition rules.                                                                                                                                   |
-| ⚠️     | Breached passwords          | Not checked against a list of known breached passwords yet.                                                                                                                                          |
-| ✅     | No account enumeration      | Same message and similar timing whether the email exists or not; the password reset always answers the same.                                                                                         |
-| ✅     | Multi-factor                | TOTP (RFC 6238) with single-use codes and ten hashed recovery codes; passkeys (WebAuthn). 2FA is optional, chosen by each user (`apps/server/src/auth/two-factor.service.ts`, `passkey.service.ts`). |
-| ✅     | Re-authentication           | Turning 2FA off and making new recovery codes ask for the password; changing the password asks for the current one and signs out other sessions.                                                     |
-| ✅     | Reset and invitation tokens | Random 256-bit, stored hashed, single use, short-lived (one hour for resets, seven days for invitations).                                                                                            |
+| Status | Requirement                 | How                                                                                                                                                                                                                                                         |
+| ------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅     | Password storage            | argon2id with the library's OWASP parameters (`apps/server/src/auth/crypto.ts`).                                                                                                                                                                            |
+| ✅     | Password rules              | 12 to 256 characters, any character allowed, no composition rules.                                                                                                                                                                                          |
+| ✅     | Breached passwords          | New passwords (sign-up by invitation, reset, change, accounts made by admins, CLI and installer) are refused when they are among the 46,000 most used breached passwords of 12+ characters, checked offline on the server (`packages/db/src/passwords.ts`). |
+| ✅     | No account enumeration      | Same message and similar timing whether the email exists or not; the password reset always answers the same.                                                                                                                                                |
+| ✅     | Multi-factor                | TOTP (RFC 6238) with single-use codes and ten hashed recovery codes; passkeys (WebAuthn). 2FA is optional, chosen by each user (`apps/server/src/auth/two-factor.service.ts`, `passkey.service.ts`).                                                        |
+| ✅     | Re-authentication           | Turning 2FA off and making new recovery codes ask for the password; changing the password asks for the current one and signs out other sessions.                                                                                                            |
+| ✅     | Reset and invitation tokens | Random 256-bit, stored hashed, single use, short-lived (one hour for resets, seven days for invitations).                                                                                                                                                   |
 
 ## V7 Session management
 
@@ -87,7 +87,11 @@ Last review: October 2026, release 0.5.19.
 
 ## V10 OAuth and OIDC
 
-➖ Not used yet (OIDC single sign-on is planned as a plugin, RF-USR-11).
+| Status | Requirement          | How                                                                                                                                                                                                         |
+| ------ | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅     | Authorization server | OAuth 2.1 for AI assistants (MCP): authorization code only, PKCE with S256 required, redirect URIs matched exactly against those registered, consent in the admin (`apps/server/src/mcp/oauth.service.ts`). |
+| ✅     | Codes and tokens     | Authorization codes single use and short-lived, refresh tokens rotated and stored hashed; access tokens are API tokens with scopes, listed and revoked by the user.                                         |
+| ➖     | OIDC                 | Single sign-on is planned as a plugin (RF-USR-11).                                                                                                                                                          |
 
 ## V11 Cryptography
 
@@ -142,6 +146,5 @@ Last review: October 2026, release 0.5.19.
 
 ## Open items
 
-- Check new passwords against a list of breached passwords (V6).
 - A strict CSP for public pages when the site does not use custom scripts (V3), for example as a setting.
 - Replace `drizzle-kit`'s outdated `@esbuild-kit` dependency when upstream does (V13, development only).

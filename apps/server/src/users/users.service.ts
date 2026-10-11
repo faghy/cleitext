@@ -24,6 +24,7 @@ import type { ClientInfo } from '../auth/auth.service.js';
 import { UserTokenService } from '../auth/session.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { hashPassword } from '../auth/crypto.js';
+import { assertPasswordNotBreached } from '../auth/password-policy.js';
 import { DATABASE } from '../database/database.module.js';
 import { avatarUrl } from '../profile/avatar.js';
 import { MailService } from '../mail/mail.service.js';
@@ -77,6 +78,7 @@ export class UsersService {
     },
     client: ClientInfo,
   ): Promise<MemberView> {
+    if (input.password) assertPasswordNotBreached(input.password);
     const existing = await findLogin(this.database.db, input.email);
     // A password is only set for new accounts: never for someone else's account.
     const passwordHash =
