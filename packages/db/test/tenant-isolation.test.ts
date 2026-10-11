@@ -269,9 +269,34 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
       .values({ siteId, slug: 'editor', name: 'Editor', capabilities: ['edit_entries'] })
       .returning();
     await tx.insert(s.siteMembers).values({ siteId, userId, roleId: role!.id });
-    await tx
+    const [token] = await tx
       .insert(s.apiTokens)
-      .values({ siteId, userId, name: 'ci', tokenHash: `hash-${name}`, scopes: ['delivery:read'] });
+      .values({ siteId, userId, name: 'ci', tokenHash: `hash-${name}`, scopes: ['delivery:read'] })
+      .returning();
+    const clientId = `client-${name}`;
+    await tx
+      .insert(s.oauthClients)
+      .values({ siteId, clientId, name: 'Assistant', redirectUris: ['https://a.example/cb'] });
+    const expiresAt = new Date(Date.now() + 60_000);
+    await tx.insert(s.oauthCodes).values({
+      siteId,
+      codeHash: `code-${name}`,
+      clientId,
+      userId,
+      redirectUri: 'https://a.example/cb',
+      codeChallenge: 'x',
+      scopes: ['read'],
+      expiresAt,
+    });
+    await tx.insert(s.oauthRefreshTokens).values({
+      siteId,
+      tokenHash: `refresh-${name}`,
+      clientId,
+      userId,
+      apiTokenId: token!.id,
+      scopes: ['read'],
+      expiresAt,
+    });
     await tx.insert(s.contentTypes).values({ siteId, slug: 'page', name: { en: 'Pages' } });
     const [entry] = await tx
       .insert(s.entries)

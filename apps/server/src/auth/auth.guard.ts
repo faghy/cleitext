@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { FastifyRequest } from 'fastify';
-import { CAPABILITIES_KEY, PUBLIC_KEY } from '../common/decorators.js';
+import { CAPABILITIES_KEY, NO_CSRF_KEY, PUBLIC_KEY } from '../common/decorators.js';
 import { CSRF_COOKIE } from './cookies.js';
 import { safeEqual } from './crypto.js';
 
@@ -28,11 +28,16 @@ export class AuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
 
+    const targets = [context.getHandler(), context.getClass()];
     // Bearer tokens are never sent by browsers on their own: no CSRF risk.
     if (request.auth?.apiToken) assertTokenAllowed(request);
-    else if (!SAFE_METHODS.has(request.method)) verifyCsrf(request);
+    else if (
+      !SAFE_METHODS.has(request.method) &&
+      !this.reflector.getAllAndOverride<boolean>(NO_CSRF_KEY, targets)
+    ) {
+      verifyCsrf(request);
+    }
 
-    const targets = [context.getHandler(), context.getClass()];
     if (this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, targets)) return true;
 
     const auth = request.auth;
@@ -57,6 +62,8 @@ export function assertTokenAllowed(request: FastifyRequest): void {
   const token = request.auth?.apiToken;
   if (!token) return;
   const path = request.url.split('?')[0]!;
+  // MCP checks the scopes tool by tool (src/mcp/tools.ts).
+  if (path === '/mcp') return;
   if (
     /^\/api\/v1\/(auth|profile|tokens)(\/|$)/.test(path) &&
     !(request.method === 'GET' && path === '/api/v1/auth/me')

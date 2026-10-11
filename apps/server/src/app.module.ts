@@ -3,6 +3,9 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { AdminController } from './admin/admin.controller.js';
 import { UpdatesController } from './updates/updates.controller.js';
+import { McpController } from './mcp/mcp.controller.js';
+import { OAuthController } from './mcp/oauth.controller.js';
+import { OAuthService } from './mcp/oauth.service.js';
 import { UpdatesService } from './updates/updates.service.js';
 import { AuditService } from './audit/audit.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -125,6 +128,8 @@ export class AppModule {
         MenusController,
         PluginsController,
         UpdatesController,
+        McpController,
+        OAuthController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -142,6 +147,7 @@ export class AppModule {
         PatternsService,
         ThemesService,
         UpdatesService,
+        OAuthService,
         LoginThrottleService,
         MailService,
         MediaService,

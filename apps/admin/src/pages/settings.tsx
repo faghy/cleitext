@@ -273,6 +273,39 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
             </label>
           </div>
         </Card>
+        <Card title={t('AI assistants (MCP)')}>
+          <div className="space-y-3 text-sm">
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={values.mcp}
+                onChange={(e) => set('mcp', e.target.checked)}
+              />
+              <span>
+                <span className="block font-medium text-slate-800">
+                  {t('Let AI assistants work on this site')}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {t(
+                    'People connect their assistant (Claude, ChatGPT, Cursor…) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish.',
+                  )}
+                </span>
+              </span>
+            </label>
+            {values.mcp && (
+              <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+                <p className="font-medium text-slate-800">{t('Address to add in the assistant')}</p>
+                <code className="block break-all select-all">{`${window.location.origin}/mcp`}</code>
+                <p className="text-xs text-slate-600">
+                  {t(
+                    'In the assistant, add a custom connector (MCP server) with this address: it asks to sign in here and to allow access. For tools that take a token instead, create one in Profile → API tokens.',
+                  )}
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
 
       {pages.error && <Alert>{errorMessage(pages.error)}</Alert>}

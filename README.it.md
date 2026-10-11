@@ -22,6 +22,7 @@
 - **Sito pubblico**: temi in React SSR, senza JavaScript di default, con cache a tag
 - **Estensibilità**: sistema a plugin sul modello di WordPress (hook, ciclo di vita attivazione/disinstallazione, upload e aggiornamenti automatici), con hook tipizzati e uno schema PostgreSQL dedicato per ogni plugin
 - **Multi-sito**: un'unica installazione per più domini, isolati con il Row Level Security di PostgreSQL
+- **Assistenti IA**: un server MCP permette di collegare Claude, ChatGPT e altri assistenti con OAuth e far costruire loro pagine e articoli con i blocchi dell'editor
 - **Deploy**: Plesk (estensione Node.js)
 
 ## Sviluppo
@@ -54,6 +55,7 @@ Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/`, scrive un
 | [`docs/it/PLUGIN.md`](./docs/it/PLUGIN.md) ([EN](./docs/PLUGINS.md))                  | Sviluppare plugin: manifest, hook, tipi di contenuto, blocchi, route, tabelle proprie, pagine admin   |
 | [`docs/it/TEMI.md`](./docs/it/TEMI.md) ([EN](./docs/THEMES.md))                       | Sviluppare temi: template, impostazioni, aree di blocchi, stili dell'editor                           |
 | [`docs/it/DEPLOY.md`](./docs/it/DEPLOY.md) ([EN](./docs/DEPLOYMENT.md))               | Installazione e aggiornamento su server (Plesk, nginx), backup                                        |
+| [`docs/it/MCP.md`](./docs/it/MCP.md) ([EN](./docs/MCP.md))                            | Assistenti IA: collegarli con MCP e OAuth, i loro strumenti                                           |
 | [`docs/it/ASVS.md`](./docs/it/ASVS.md) ([EN](./docs/ASVS.md))                         | Checklist di sicurezza OWASP ASVS e punti aperti; segnalazioni in [`SECURITY.md`](./SECURITY.md)      |
 
 ## Il principio chiave

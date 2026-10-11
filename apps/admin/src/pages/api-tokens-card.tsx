@@ -26,6 +26,7 @@ export function ApiTokensCard() {
   });
   const [name, setName] = useState('');
   const [write, setWrite] = useState(false);
+  const [publish, setPublish] = useState(false);
   const [expiry, setExpiry] = useState('90');
   const [created, setCreated] = useState<string | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['tokens'] });
@@ -34,7 +35,11 @@ export function ApiTokensCard() {
     mutationFn: () =>
       api<{ token: string; view: ApiTokenView }>('POST', '/tokens', {
         name,
-        scopes: (write ? ['read', 'write'] : ['read']) satisfies ApiTokenScope[],
+        scopes: (write
+          ? publish
+            ? ['read', 'write', 'publish']
+            : ['read', 'write']
+          : ['read']) satisfies ApiTokenScope[],
         expiresInDays: expiry === 'never' ? null : Number(expiry),
       }),
     onSuccess: async (result) => {
@@ -110,6 +115,16 @@ export function ApiTokensCard() {
             <input type="checkbox" checked={write} onChange={(e) => setWrite(e.target.checked)} />
             {t('Can make changes')}
           </label>
+          {write && (
+            <label className="flex items-center gap-2 pb-2">
+              <input
+                type="checkbox"
+                checked={publish}
+                onChange={(e) => setPublish(e.target.checked)}
+              />
+              {t('Can publish (AI assistants)')}
+            </label>
+          )}
           <div className="sm:col-span-3">
             <Button type="submit" disabled={create.isPending || !name.trim()}>
               {t('Create token')}
@@ -144,7 +159,11 @@ export function ApiTokensCard() {
                   </td>
                   {all && <td className="py-2">{token.owner?.displayName ?? '—'}</td>}
                   <td className="py-2">
-                    {token.scopes.includes('write') ? t('Read and write') : t('Read only')}
+                    {token.scopes.includes('publish')
+                      ? t('Read, write and publish')
+                      : token.scopes.includes('write')
+                        ? t('Read and write')
+                        : t('Read only')}
                   </td>
                   <td className="py-2">{date(token.lastUsedAt)}</td>
                   <td className="py-2">{token.expiresAt ? date(token.expiresAt) : t('Never')}</td>

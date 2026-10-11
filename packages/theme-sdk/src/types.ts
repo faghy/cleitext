@@ -140,6 +140,11 @@ export interface ThemeDefinition {
   areas?: Record<string, string>;
   /** CSS for the block editor's canvas, so that content looks like the site. */
   editorCss?: string;
+  /**
+   * How to build pages with this theme, for AI assistants connected through
+   * MCP (Markdown): its sections, classes and when to use them.
+   */
+  aiGuide?: string;
   /** Template components by name; `index` is required. */
   templates: { index: TemplateComponent } & Partial<Record<string, TemplateComponent>>;
   Layout: ComponentType<LayoutProps>;

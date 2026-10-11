@@ -13,7 +13,7 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { citext, createdAt, id } from './columns.js';
+import { citext, createdAt, id, siteId } from './columns.js';
 import { sites } from './sites.js';
 
 /** Users are global; access to a site is granted through `site_members`. */
@@ -153,6 +153,51 @@ export const apiTokens = pgTable('api_tokens', {
   /** First characters of the token, to recognize it in lists. */
   prefix: text('prefix').notNull().default(''),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+  /** Set for tokens issued through OAuth to a connected assistant (MCP). */
+  oauthClientId: text('oauth_client_id'),
+});
+
+/** OAuth clients (AI assistants) registered on a site for MCP (RFC 7591). */
+export const oauthClients = pgTable('oauth_clients', {
+  id: id(),
+  siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().unique(),
+  name: text('name').notNull(),
+  redirectUris: text('redirect_uris').array().notNull(),
+  createdAt: createdAt(),
+});
+
+/** Authorization codes, single use and short-lived, bound to a PKCE challenge. */
+export const oauthCodes = pgTable('oauth_codes', {
+  id: id(),
+  siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+  codeHash: text('code_hash').notNull().unique(),
+  clientId: text('client_id').notNull(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  scopes: text('scopes').array().notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+});
+
+/** Refresh tokens of connected assistants; each one renews one API token. */
+export const oauthRefreshTokens = pgTable('oauth_refresh_tokens', {
+  id: id(),
+  siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  clientId: text('client_id').notNull(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  apiTokenId: uuid('api_token_id')
+    .notNull()
+    .references(() => apiTokens.id, { onDelete: 'cascade' }),
+  scopes: text('scopes').array().notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: createdAt(),
 });
 

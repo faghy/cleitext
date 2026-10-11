@@ -145,6 +145,23 @@ export class TestClient {
     return response;
   }
 
+  /** Posts an HTML form (application/x-www-form-urlencoded), as a browser does. */
+  async postForm(url: string, fields: Record<string, string>) {
+    const response = await this.app.inject({
+      method: 'POST',
+      url,
+      remoteAddress: this.remoteAddress,
+      headers: {
+        host: this.host,
+        origin: `http://${this.host}`,
+        'content-type': 'application/x-www-form-urlencoded',
+        cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; '),
+      },
+      payload: new URLSearchParams(fields).toString(),
+    });
+    return response;
+  }
+
   /** Uploads one file as multipart/form-data (field `file`). */
   async upload(
     url: string,

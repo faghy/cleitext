@@ -83,7 +83,7 @@ export const passkeyRegisterRequestSchema = z.object({
 export const passkeyRenameRequestSchema = z.object({ name: z.string().trim().min(1).max(100) });
 
 /** `read`: GET requests only; `write`: every request. Always within the owner's permissions. */
-export const API_TOKEN_SCOPES = ['read', 'write'] as const;
+export const API_TOKEN_SCOPES = ['read', 'write', 'publish'] as const;
 export type ApiTokenScope = (typeof API_TOKEN_SCOPES)[number];
 
 export interface ApiTokenView {

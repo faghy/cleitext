@@ -316,6 +316,11 @@ export const theme = defineTheme({
   Layout,
   css: readFileSync(new URL('../style.css', import.meta.url), 'utf8'),
   editorCss: readFileSync(new URL('../editor.css', import.meta.url), 'utf8'),
+  aiGuide: `Aurora is a quiet, readable theme: one column of text (about 44rem), light and dark.
+- Build pages with core blocks only: headings in order, short paragraphs, lists, images, quotes, buttons.
+- Images and groups may use \`"align":"wide"\` (70rem) or \`"align":"full"\` (edge to edge).
+- Columns stack on phones; keep them to two or three.
+- There are no special section classes: keep layouts simple and let the content lead.`,
 });
 
 export default theme;

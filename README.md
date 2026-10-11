@@ -20,6 +20,7 @@
 - **Public site**: React SSR themes, no JavaScript by default, tag-based page cache
 - **Extensibility**: a plugin system modeled on WordPress (hooks, activation/uninstall lifecycle, upload and auto-updates), with typed hooks and a dedicated PostgreSQL schema per plugin
 - **Multi-site**: one installation serves many domains, isolated with PostgreSQL Row Level Security
+- **AI assistants**: an MCP server lets people connect Claude, ChatGPT and other assistants with OAuth and have them build pages and posts with the blocks of the editor
 - **Deployment**: Plesk (Node.js extension)
 
 ## Development
@@ -72,6 +73,7 @@ On first start, `pnpm dev` creates a local database in `.cleitext-dev/`, writes 
 | [`docs/PLUGINS.md`](./docs/PLUGINS.md)               | Developing plugins: manifest, hooks, content types, blocks, routes, own tables, admin pages                 |
 | [`docs/THEMES.md`](./docs/THEMES.md)                 | Developing themes: templates, settings, block areas, editor styles                                          |
 | [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)         | Installing and updating on a server (Plesk, nginx), backups                                                 |
+| [`docs/MCP.md`](./docs/MCP.md)                       | AI assistants: connecting them through MCP and OAuth, their tools                                           |
 | [`docs/ASVS.md`](./docs/ASVS.md)                     | OWASP ASVS security checklist, open items; vulnerability reports in [`SECURITY.md`](./SECURITY.md)          |
 
 Italian translations live in [`docs/it/`](./docs/it/). English is the reference version.

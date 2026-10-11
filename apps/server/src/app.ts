@@ -32,7 +32,20 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
   });
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
-  app.setGlobalPrefix('api/v1', { exclude: ['health/live', 'health/ready'] });
+  app.setGlobalPrefix('api/v1', {
+    exclude: [
+      'health/live',
+      'health/ready',
+      // MCP and the OAuth endpoints AI assistants discover from it (RF-AI-01/02).
+      'mcp',
+      'oauth/register',
+      'oauth/authorize',
+      'oauth/token',
+      '.well-known/oauth-protected-resource',
+      '.well-known/oauth-protected-resource/mcp',
+      '.well-known/oauth-authorization-server',
+    ],
+  });
 
   await app.register(fastifyCookie);
   await app.register(fastifyMultipart, {

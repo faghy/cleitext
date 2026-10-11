@@ -15,6 +15,13 @@ export const CAPABILITIES_KEY = 'cleitext:capabilities';
 /** The route does not require an authenticated user. CSRF still applies. */
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
 
+export const NO_CSRF_KEY = 'cleitext:no-csrf';
+/**
+ * No CSRF check: for endpoints called by other programs (OAuth, MCP) that
+ * never act on a cookie session alone.
+ */
+export const NoCsrf = () => SetMetadata(NO_CSRF_KEY, true);
+
 /** The authenticated user must hold every listed capability on the site. */
 export const RequireCapability = (...capabilities: Capability[]) =>
   SetMetadata(CAPABILITIES_KEY, capabilities);

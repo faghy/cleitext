@@ -248,6 +248,15 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
   }
 
   /** CSS of the active theme for the block editor's canvas. */
+  /** How to build pages with the active theme, for AI assistants (MCP). */
+  async aiGuide(
+    siteId: string,
+    auth: AuthContext,
+  ): Promise<{ slug: string; name: string; guide: string | null }> {
+    const theme = themeFor(await this.activeSlug(siteId, auth));
+    return { slug: theme.slug, name: theme.name, guide: theme.aiGuide ?? null };
+  }
+
   async editorCss(siteId: string, auth: AuthContext): Promise<string> {
     return themeFor(await this.activeSlug(siteId, auth)).editorCss ?? '';
   }

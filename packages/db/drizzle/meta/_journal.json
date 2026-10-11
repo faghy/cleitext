@@ -127,6 +127,13 @@
       "when": 1791680000000,
       "tag": "0017_plugin_roles_per_database",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791700000000,
+      "tag": "0018_oauth_mcp",
+      "breakpoints": true
     }
   ]
 }

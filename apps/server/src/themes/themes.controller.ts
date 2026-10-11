@@ -192,6 +192,13 @@ export class ThemesController {
     );
   }
 
+  /** How to build pages with the active theme, for AI assistants (MCP). */
+  @Get('active/guide')
+  @RequireCapability('edit_entries')
+  guide(@CurrentSite() site: SiteContext, @CurrentAuth() auth: AuthContext) {
+    return this.themes.aiGuide(site.id, auth);
+  }
+
   /** CSS of the active theme for the editor's canvas (RF-THM-03, editor styles). */
   @Get('active/editor-styles')
   @RequireCapability('edit_entries')

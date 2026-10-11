@@ -20,6 +20,8 @@ const coreSettingsFields = {
   timezone: z.string().min(1).max(64).refine(isTimeZone, 'Choose a time zone from the list'),
   /** How dates are written on the site. */
   dateStyle: z.enum(['long', 'medium', 'short']),
+  /** AI assistants can connect to the site through MCP (/mcp), with OAuth. */
+  mcp: z.boolean(),
 };
 
 /** A time zone known to the runtime (IANA name). */
@@ -43,6 +45,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   trashDays: 30,
   timezone: 'UTC',
   dateStyle: 'long',
+  mcp: false,
 } as const;
 
 export const coreSettingsSchema = z.object(coreSettingsFields);

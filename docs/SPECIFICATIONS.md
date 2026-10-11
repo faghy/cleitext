@@ -751,6 +751,12 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 
 ---
 
+### M9 — AI assistants (MCP)
+
+- **RF-AI-01** MCP server at `/mcp` (stateless Streamable HTTP), off until the site turns it on (Settings → AI assistants). Tools over the REST API, called with the assistant's token: site overview, block guide (core blocks, plugin blocks, the theme's `aiGuide`, the site's patterns), list/read/create/update entries (WordPress block markup, HTML or CXD, validated), preview links, publish (own scope), images from public https addresses, menus. New entries are drafts.
+- **RF-AI-02** OAuth 2.1 for assistants: protected resource and authorization server metadata, dynamic client registration, consent page, authorization code with PKCE (S256), rotating refresh tokens. Access tokens are API tokens of the user (scopes `read`, `write`, `publish`), listed and revoked in the profile.
+- Acceptance: an assistant connected through OAuth builds a page from the theme's sections, saved as a draft that opens in the block editor; a read-only connection cannot change anything; revoking the token disconnects it.
+
 ## 14. Out of scope
 
 - E-commerce: **planned for the future** as a plugin, not to be done now (see ARCHITECTURE §22.1).
