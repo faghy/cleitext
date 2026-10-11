@@ -6,7 +6,7 @@ import { Alert, Button, Card, useT } from './ui';
 
 /**
  * Upload Plugin / Upload Theme (RF-PLG-10): a built .zip or .tgz package,
- * for super admins with two-factor authentication on.
+ * for super admins.
  */
 export function PackageUpload({
   title,
@@ -33,38 +33,30 @@ export function PackageUpload({
             'Packages uploaded here are not verified by a registry: install only code you trust. It runs on the server with access to every site.',
           )}
         </Alert>
-        {!me.user.twoFactorEnabled ? (
-          <p className="text-slate-600">
-            {t('Turn on two-factor authentication in your profile to install code.')}
-          </p>
-        ) : (
-          <>
-            <input
-              ref={input}
-              type="file"
-              accept=".zip,.tgz,.tar.gz,application/zip,application/gzip"
-              aria-label={t('Package file (.zip or .tgz)')}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) upload.mutate(file);
-                e.target.value = '';
-              }}
-            />
-            {upload.isPending && <p>{t('Installing…')}</p>}
-            {upload.error && <Alert>{errorMessage(upload.error)}</Alert>}
-            {upload.data && (
-              <Alert kind="success">
-                {t('Installed {slug} {version}.', {
-                  slug: upload.data.slug,
-                  version: upload.data.version,
-                })}
-              </Alert>
-            )}
-            <Button variant="secondary" onClick={() => input.current?.click()}>
-              {t('Choose a package')}
-            </Button>
-          </>
+        <input
+          ref={input}
+          type="file"
+          accept=".zip,.tgz,.tar.gz,application/zip,application/gzip"
+          aria-label={t('Package file (.zip or .tgz)')}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) upload.mutate(file);
+            e.target.value = '';
+          }}
+        />
+        {upload.isPending && <p>{t('Installing…')}</p>}
+        {upload.error && <Alert>{errorMessage(upload.error)}</Alert>}
+        {upload.data && (
+          <Alert kind="success">
+            {t('Installed {slug} {version}.', {
+              slug: upload.data.slug,
+              version: upload.data.version,
+            })}
+          </Alert>
         )}
+        <Button variant="secondary" onClick={() => input.current?.click()}>
+          {t('Choose a package')}
+        </Button>
       </div>
     </Card>
   );

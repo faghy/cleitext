@@ -17,7 +17,6 @@ import type { AuthContext } from '../common/request-context.js';
 import { LanguagesService } from '../content/languages.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { DATABASE } from '../database/database.module.js';
-import { REQUIRE_2FA_KEY, SECURITY_NAMESPACE } from './two-factor.service.js';
 import { avatarUrl } from '../profile/avatar.js';
 
 /** Loads who a user is on a given site: profile, role and capabilities. */
@@ -63,12 +62,6 @@ export class IdentityService {
     const isSuperAdmin = Boolean(admin);
     if (!isSuperAdmin && !membership) return null;
 
-    const [security] = await tx
-      .select({ value: settings.value })
-      .from(settings)
-      .where(and(eq(settings.namespace, SECURITY_NAMESPACE), eq(settings.key, REQUIRE_2FA_KEY)));
-    const required2fa = Array.isArray(security?.value) ? (security.value as unknown[]) : [];
-
     return {
       userId,
       sessionId,
@@ -76,12 +69,7 @@ export class IdentityService {
       displayName: user.displayName,
       locale: user.locale,
       avatarUrl: avatarUrl(user.avatarKey),
-      twoFactor: {
-        enabled: Boolean(user.totpConfirmedAt),
-        required:
-          (isSuperAdmin && required2fa.includes('super_admin')) ||
-          (membership !== undefined && required2fa.includes(membership.slug)),
-      },
+      twoFactor: { enabled: Boolean(user.totpConfirmedAt) },
       isSuperAdmin,
       role: membership ? { id: membership.id, slug: membership.slug, name: membership.name } : null,
       capabilities: [
@@ -117,7 +105,6 @@ export class IdentityService {
           isSuperAdmin: auth.isSuperAdmin,
           avatarUrl: auth.avatarUrl,
           twoFactorEnabled: auth.twoFactor.enabled,
-          twoFactorRequired: auth.twoFactor.required,
         },
         site: {
           id: siteId,

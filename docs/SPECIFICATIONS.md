@@ -136,7 +136,7 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 | RF-USR-01 | Login with email and password, cookie-based session, logout and "remember me" (configurable duration). | MVP      |
 | RF-USR-02 | Password reset via email, with a short-lived single-use token.                                         | MVP      |
 | RF-USR-03 | Inviting a user to a site with a role: the user sets their password on first access.                   | MVP      |
-| RF-USR-04 | TOTP 2FA with recovery codes, mandatory for configurable roles.                                        | 1.0      |
+| RF-USR-04 | TOTP 2FA with recovery codes, optional for every user (turned on in the profile).                      | 1.0      |
 | RF-USR-05 | Passkey login (WebAuthn).                                                                              | 1.0      |
 | RF-USR-06 | Role and capability management from the admin.                                                         | 1.0      |
 | RF-USR-07 | User profile: name, avatar, admin language, active sessions (with revocation).                         | MVP      |
@@ -379,7 +379,7 @@ Base: `/api/v1`. The format is JSON. Errors follow RFC 9457. Pagination is curso
 | GET                   | `/plugins`                                                                     | Installed plugins and their status on the site.            |
 | POST                  | `/plugins/:slug/activate` · `/deactivate`                                      | Per-site activation.                                       |
 | GET                   | `/registry/plugins?q=` · `/registry/themes?q=`                                 | Search the Cleitext registry (proxied through the server). |
-| POST                  | `/plugins/install` `{slug, version}` · `/plugins/upload` (multipart .zip/.tgz) | Installation (`manage_plugins` + 2FA).                     |
+| POST                  | `/plugins/install` `{slug, version}` · `/plugins/upload` (multipart .zip/.tgz) | Installation (`manage_plugins`).                           |
 | POST                  | `/plugins/:slug/update` · `/plugins/:slug/rollback`                            | Update and rollback.                                       |
 | DELETE                | `/plugins/:slug`                                                               | Uninstall (with confirmation).                             |
 | GET                   | `/themes` · POST `/themes/install` · `/themes/:slug/activate`                  | Themes.                                                    |

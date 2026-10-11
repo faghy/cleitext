@@ -59,7 +59,7 @@ Last review: October 2026, release 0.5.19.
 | ✅     | Password rules              | 12 to 256 characters, any character allowed, no composition rules.                                                                                                                                   |
 | ⚠️     | Breached passwords          | Not checked against a list of known breached passwords yet.                                                                                                                                          |
 | ✅     | No account enumeration      | Same message and similar timing whether the email exists or not; the password reset always answers the same.                                                                                         |
-| ✅     | Multi-factor                | TOTP (RFC 6238) with single-use codes and ten hashed recovery codes; passkeys (WebAuthn). 2FA can be required for chosen roles (`apps/server/src/auth/two-factor.service.ts`, `passkey.service.ts`). |
+| ✅     | Multi-factor                | TOTP (RFC 6238) with single-use codes and ten hashed recovery codes; passkeys (WebAuthn). 2FA is optional, chosen by each user (`apps/server/src/auth/two-factor.service.ts`, `passkey.service.ts`). |
 | ✅     | Re-authentication           | Turning 2FA off and making new recovery codes ask for the password; changing the password asks for the current one and signs out other sessions.                                                     |
 | ✅     | Reset and invitation tokens | Random 256-bit, stored hashed, single use, short-lived (one hour for resets, seven days for invitations).                                                                                            |
 

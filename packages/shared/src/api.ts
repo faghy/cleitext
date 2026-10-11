@@ -49,8 +49,6 @@ export const passwordConfirmRequestSchema = z.object({
 export interface TwoFactorStatusView {
   enabled: boolean;
   recoveryCodesLeft: number;
-  /** Required for the user's role on this site. */
-  required: boolean;
 }
 
 export interface TwoFactorSetupView {
@@ -107,12 +105,6 @@ export const createApiTokenRequestSchema = z.object({
   userId: z.uuid().optional(),
 });
 
-export const securitySettingsSchema = z.object({
-  /** Role slugs that must use 2FA; `super_admin` for super admins. */
-  require2fa: z.array(z.string().min(1).max(64)).max(50),
-});
-export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
-
 export const forgotPasswordRequestSchema = z.object({ email: emailSchema });
 export type ForgotPasswordRequest = z.input<typeof forgotPasswordRequestSchema>;
 
@@ -141,8 +133,6 @@ export const meResponseSchema = z.object({
     /** Profile picture, or null for initials. */
     avatarUrl: z.string().nullable(),
     twoFactorEnabled: z.boolean(),
-    /** 2FA is mandatory for the user's role: only the setup is reachable until it is on. */
-    twoFactorRequired: z.boolean(),
   }),
   site: z.object({
     id: z.uuid(),

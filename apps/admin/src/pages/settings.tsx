@@ -11,7 +11,6 @@ import { api, ApiError, errorMessage } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 import { MailCard } from './mail-settings';
-import { SecurityCard } from './security-settings';
 import { usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
@@ -30,7 +29,6 @@ export function SettingsPage() {
       {settings.error && <Alert>{errorMessage(settings.error)}</Alert>}
       {settings.data && <SettingsForm initial={settings.data} />}
       <MailCard />
-      <SecurityCard />
       <PluginSettings />
     </div>
   );

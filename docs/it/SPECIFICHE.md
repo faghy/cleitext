@@ -136,7 +136,7 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 | RF-USR-01 | Login con email e password, sessione via cookie, logout e "ricordami" (durata configurabile). | MVP      |
 | RF-USR-02 | Reset password via email, con token monouso a scadenza breve.                                 | MVP      |
 | RF-USR-03 | Invito di un utente su un sito con un ruolo: l'utente imposta la password al primo accesso.   | MVP      |
-| RF-USR-04 | 2FA TOTP con codici di recupero, obbligatoria per ruoli configurabili.                        | 1.0      |
+| RF-USR-04 | 2FA TOTP con codici di recupero, facoltativa per ogni utente (si attiva nel profilo).         | 1.0      |
 | RF-USR-05 | Login con passkey (WebAuthn).                                                                 | 1.0      |
 | RF-USR-06 | Gestione ruoli e capability da admin.                                                         | 1.0      |
 | RF-USR-07 | Profilo utente: nome, avatar, lingua dell'admin, sessioni attive (con revoca).                | MVP      |
@@ -379,7 +379,7 @@ Base: `/api/v1`. Il formato è JSON. Gli errori seguono RFC 9457. La paginazione
 | GET                   | `/plugins`                                                                     | Plugin installati e stato sul sito.                       |
 | POST                  | `/plugins/:slug/activate` · `/deactivate`                                      | Attivazione per sito.                                     |
 | GET                   | `/registry/plugins?q=` · `/registry/themes?q=`                                 | Ricerca nel registro Cleitext (tramite proxy del server). |
-| POST                  | `/plugins/install` `{slug, version}` · `/plugins/upload` (multipart .zip/.tgz) | Installazione (`manage_plugins` + 2FA).                   |
+| POST                  | `/plugins/install` `{slug, version}` · `/plugins/upload` (multipart .zip/.tgz) | Installazione (`manage_plugins`).                         |
 | POST                  | `/plugins/:slug/update` · `/plugins/:slug/rollback`                            | Aggiornamento e rollback.                                 |
 | DELETE                | `/plugins/:slug`                                                               | Disinstallazione (con conferma).                          |
 | GET                   | `/themes` · POST `/themes/install` · `/themes/:slug/activate`                  | Temi.                                                     |

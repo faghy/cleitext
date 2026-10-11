@@ -39,10 +39,7 @@ export class TwoFactorController {
     @CurrentSite() site: SiteContext,
     @CurrentAuth() auth: AuthContext,
   ): Promise<TwoFactorStatusView> {
-    return {
-      ...(await this.twoFactor.status(site.id, auth.userId)),
-      required: auth.twoFactor.required,
-    };
+    return this.twoFactor.status(site.id, auth.userId);
   }
 
   /** A new secret for the authenticator app; 2FA is on only after `enable`. */
@@ -82,11 +79,6 @@ export class TwoFactorController {
     @Req() request: FastifyRequest,
   ): Promise<void> {
     await this.confirmPassword(site, auth, body);
-    if (auth.twoFactor.required) {
-      throw new BadRequestException(
-        'Two-factor authentication is required for your role: it cannot be turned off.',
-      );
-    }
     await this.twoFactor.disable(site.id, auth.userId);
     await this.record(site, auth, 'user.2fa.disabled', request.ip);
   }

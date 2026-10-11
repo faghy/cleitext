@@ -64,9 +64,6 @@ export function TwoFactorCard() {
     <Card title={t('Two-factor authentication')}>
       <div className="space-y-3 text-sm">
         {error && <Alert>{errorMessage(error)}</Alert>}
-        {status.data?.required && !status.data.enabled && (
-          <Alert>{t('Your role requires two-factor authentication: set it up to continue.')}</Alert>
-        )}
 
         {codes && (
           <div className="space-y-2 rounded border border-amber-200 bg-amber-50 p-3">
@@ -189,11 +186,9 @@ export function TwoFactorCard() {
                 <Button variant="secondary" onClick={() => setConfirming('codes')}>
                   {t('New recovery codes')}
                 </Button>
-                {!status.data.required && (
-                  <Button variant="danger" onClick={() => setConfirming('disable')}>
-                    {t('Turn off')}
-                  </Button>
-                )}
+                <Button variant="danger" onClick={() => setConfirming('disable')}>
+                  {t('Turn off')}
+                </Button>
               </div>
             )}
           </>

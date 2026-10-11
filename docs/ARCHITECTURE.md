@@ -1010,7 +1010,7 @@ sequenceDiagram
 
 **Security of installing from the admin:**
 
-- it requires the `manage_plugins` capability, which by default only the super admin has, with **mandatory 2FA**;
+- it requires the `manage_plugins` capability, which by default only the super admin has;
 - it can be disabled with `PLUGINS_INSTALL_FROM_UI=false`, for example in environments managed via CI;
 - plugins live in `cleitext-data/plugins`, outside the release, so they survive deployments. It is the only code folder writable by the process;
 - every operation is recorded in the audit log.
@@ -1074,7 +1074,7 @@ Code: `packages/plugin-sdk`, `packages/admin-sdk`, `packages/cli/src/plugins.ts`
   - The filters are `render.head`, `render.blocks`, `render.html` and `theme.templateCandidates`. `render.head` filters the `HeadData` object rather than a `HeadTag[]` list as first planned.
   - Errors are isolated and handlers time out after 5 s. Calls, time and errors per plugin are shown in Plugins (RF-PLG-06). A plugin failing ten times in five minutes on a site is deactivated there and flagged on the Dashboard (RF-PLG-05).
 - **Not yet available:**
-  - registry and package handling: the registry, signatures, automatic updates (they need the registry as update source) and a rollback command (the previous version is kept in `<slug>.previous`). Upload Plugin/Theme exists: super admins with 2FA upload a built .zip/.tgz, installed by the CLI in a child process (`PLUGINS_INSTALL_FROM_UI`, `PLUGINS_ALLOW_UNSIGNED`). Network activation and must-use plugins (`plugin:install --required`) exist too;
+  - registry and package handling: the registry, signatures, automatic updates (they need the registry as update source) and a rollback command (the previous version is kept in `<slug>.previous`). Upload Plugin/Theme exists: super admins upload a built .zip/.tgz, installed by the CLI in a child process (`PLUGINS_INSTALL_FROM_UI`, `PLUGINS_ALLOW_UNSIGNED`). Network activation and must-use plugins (`plugin:install --required`) exist too;
   - admin SDK: dashboard widgets, document panels and list columns;
   - context APIs: `ctx.jobs`, `ctx.media` and `ctx.http`;
   - `entry.published` for scheduled publication.
@@ -1149,7 +1149,7 @@ The full list of endpoints is in [SPECIFICATIONS.md](./SPECIFICATIONS.md) §6.
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Passwords    | argon2id, minimum policy of 12 characters, check against breached passwords (HIBP k-anonymity, optional).                                                                                                            |
 | Login        | Rate limiting per IP and per account, progressive lockout, audit of failed attempts.                                                                                                                                 |
-| 2FA          | TOTP and **passkeys (WebAuthn)**. Mandatory for administrative roles (configurable).                                                                                                                                 |
+| 2FA          | TOTP and **passkeys (WebAuthn)**. Optional: each user turns it on in the profile.                                                                                                                                    |
 | Sessions     | 256-bit random token, only the hash stored in the database, rotation on login and on privilege changes, revocation from the admin.                                                                                   |
 | CSRF         | Double-submit token plus an `Origin` check on requests that modify data.                                                                                                                                             |
 | Permissions  | Granular capabilities checked by NestJS guards, plus resource policies (owner/others).                                                                                                                               |
@@ -1341,7 +1341,7 @@ Each ADR will be detailed in `docs/adr/NNN-title.md` (context, decision, consequ
 | Gutenberg outside WordPress: implicit dependencies on `core-data`/WP REST, bundle size, frequent updates of the `@wordpress/*` packages | High   | Technical spike at the start of M2. Only selected blocks from `block-library`. Services provided by the adapter. Pinned versions updated together. Editor round-trip and E2E tests. Lazy loading. |
 | Loss of fidelity in the CXD ⇄ Gutenberg conversion (rich text, attributes)                                                              | Medium | Round-trip tests on every block (property-based and real fixtures), allowlist sanitization, preservation of unknown attributes.                                                                   |
 | Plugin registry: operational burden (review, abuse, supply-chain security)                                                              | High   | Automated plus manual review on first publication, Ed25519 signing, revocation, 2FA for developers. Open publishing like WordPress.org, with a review queue.                                      |
-| Installing plugins from the admin: writing code to disk at runtime                                                                      | High   | `manage_plugins` only with 2FA, signed packages, dedicated folder, atomic switch, audit, can be disabled via env.                                                                                 |
+| Installing plugins from the admin: writing code to disk at runtime                                                                      | High   | `manage_plugins` only (super admins), signed packages, dedicated folder, atomic switch, audit, can be disabled via env.                                                                           |
 | Passenger limitations on Plesk (idle processes, jobs)                                                                                   | Medium | Minimum instances, `JOBS_MODE=inline` plus `jobs:tick`, a VPS with systemd as an alternative.                                                                                                     |
 | Malicious or faulty third-party plugins                                                                                                 | High   | Declared permissions, dedicated DB role, error isolation, automatic deactivation, package signing (future).                                                                                       |
 | RLS complexity (performance, debugging)                                                                                                 | Medium | Simple policies on an indexed `site_id`, isolation tests, explicit admin role for cross-site paths.                                                                                               |

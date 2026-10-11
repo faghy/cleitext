@@ -96,8 +96,6 @@ export const itAdmin: Messages = {
   'action.plugin.network_deactivated': 'ha disattivato su tutti i siti il plugin',
   'Packages uploaded here are not verified by a registry: install only code you trust. It runs on the server with access to every site.':
     'I pacchetti caricati qui non sono verificati da un registro: installa solo codice di cui ti fidi. Gira sul server con accesso a tutti i siti.',
-  'Turn on two-factor authentication in your profile to install code.':
-    "Attiva l'autenticazione a due fattori nel profilo per installare codice.",
   'Package file (.zip or .tgz)': 'File del pacchetto (.zip o .tgz)',
   'Installing…': 'Installazione…',
   'Installed {slug} {version}.': 'Installato {slug} {version}.',

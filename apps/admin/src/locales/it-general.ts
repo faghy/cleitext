@@ -201,20 +201,13 @@ export const itGeneral: Messages = {
   'Or type this key:': 'Oppure digita questa chiave:',
   'QR code for the authenticator app': "Codice QR per l'app di autenticazione",
   'Recovery codes': 'Codici di recupero',
-  'Roles that must use two-factor authentication':
-    "Ruoli che devono usare l'autenticazione a due fattori",
   'Save your recovery codes': 'Salva i codici di recupero',
   'Set up two-factor authentication': "Configura l'autenticazione a due fattori",
-  'Super admins': 'Super amministratori',
-  'Their members can only set it up until it is on. Turn it on for yourself first, if your role is one of them.':
-    'Finché non la attivano, i loro membri possono solo configurarla. Se il tuo ruolo è tra questi, attivala prima per te.',
   'Turn off': 'Disattiva',
   'Turn on': 'Attiva',
   'Two-factor authentication': 'Autenticazione a due fattori',
   Verify: 'Verifica',
   'Your password': 'La tua password',
-  'Your role requires two-factor authentication: set it up to continue.':
-    "Il tuo ruolo richiede l'autenticazione a due fattori: configurala per continuare.",
   '{count} recovery codes left.': 'Codici di recupero rimasti: {count}.',
   'A passkey signs you in with your fingerprint, face or device PIN instead of the password and code. It works on the domain where you create it.':
     'Una passkey ti fa accedere con impronta, volto o PIN del dispositivo al posto di password e codice. Funziona sul dominio in cui la crei.',

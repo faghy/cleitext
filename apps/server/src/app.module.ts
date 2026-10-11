@@ -50,7 +50,6 @@ import { PluginsController } from './plugins/plugins.controller.js';
 import { ProfileController } from './profile/profile.controller.js';
 import { TwoFactorController } from './profile/two-factor.controller.js';
 import { PasskeysController } from './profile/passkeys.controller.js';
-import { SecuritySettingsController } from './settings/security.controller.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PublicService } from './public/public.service.js';
 import { MailSettingsController } from './settings/mail-settings.controller.js';
@@ -112,7 +111,6 @@ export class AppModule {
         TwoFactorController,
         PasskeysController,
         TokensController,
-        SecuritySettingsController,
         OEmbedController,
         StructureController,
         ThemesController,

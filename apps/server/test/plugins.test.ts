@@ -15,7 +15,6 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { inject } from 'vitest';
 import { PluginHost } from '../src/plugins/plugin-host.service.js';
-import { currentStep, totpCode } from '../src/auth/totp.js';
 import * as tar from 'tar';
 import {
   ownerDatabase,
@@ -432,8 +431,6 @@ describe('updates and removal', () => {
   it('installs an uploaded .tgz package (Upload Plugin)', async () => {
     root = new TestClient(app, site.host, '10.12.0.10');
     await root.login('root@plugins.test', PASSWORD);
-    const { secret } = (await root.post('/api/v1/profile/2fa/setup')).json();
-    await root.post('/api/v1/profile/2fa/enable', { code: totpCode(secret, currentStep()) });
     const manifest = JSON.parse(await readFile(join(source, 'cleitext.plugin.json'), 'utf8'));
     manifest.version = '9.9.9';
     await writeFile(join(source, 'cleitext.plugin.json'), JSON.stringify(manifest));

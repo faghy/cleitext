@@ -98,7 +98,7 @@ In a Cleitext checkout, run them as `pnpm cleitext …`.
 - Installed plugins live in `PLUGINS_PATH` (default `cleitext-data/plugins`). The previous version is kept next to it (`<slug>.previous`).
 - Running servers **reload their plugins automatically** after `plugin:install` and `plugin:uninstall`: no restart is needed.
 - Then, in the admin, **Plugins → Activate** turns the plugin on for the current site. Super admins can also **activate it on every site** (network activation), and **Delete** a plugin that is active on no site: like `plugin:uninstall`, it removes the plugin with ALL its data, after a confirmation.
-- Super admins with two-factor authentication on can also install a built plugin from the admin (**Plugins → Upload Plugin**, a `.zip` or `.tgz` of the plugin folder). Servers can turn this off with `PLUGINS_INSTALL_FROM_UI=false`.
+- Super admins can also install a built plugin from the admin (**Plugins → Upload Plugin**, a `.zip` or `.tgz` of the plugin folder). Servers can turn this off with `PLUGINS_INSTALL_FROM_UI=false`.
 - During development, use `--link`. After `plugin:build`, install again (with `--link` the files are already in place, so this only reloads the servers).
 
 ## 4. The server entry

@@ -1,5 +1,4 @@
 import {
-  settings,
   userRecoveryCodes,
   users,
   withContext,
@@ -19,10 +18,6 @@ import {
   otpauthUrl,
   verifyTotp,
 } from './totp.js';
-
-export const SECURITY_NAMESPACE = 'security';
-/** Setting: role slugs (and `super_admin`) that must use 2FA. */
-export const REQUIRE_2FA_KEY = 'require2fa';
 
 export interface TwoFactorStatus {
   enabled: boolean;
@@ -52,17 +47,6 @@ export class TwoFactorService {
 
   async isEnabled(siteId: string, userId: string): Promise<boolean> {
     return Boolean((await this.user(siteId, userId))?.totpConfirmedAt);
-  }
-
-  /** Role slugs required to use 2FA on the site (setting `security.require2fa`). */
-  async requiredRoles(siteId: string): Promise<string[]> {
-    const [row] = await withContext(this.database.db, { siteId }, (tx) =>
-      tx
-        .select({ value: settings.value })
-        .from(settings)
-        .where(and(eq(settings.namespace, SECURITY_NAMESPACE), eq(settings.key, REQUIRE_2FA_KEY))),
-    );
-    return Array.isArray(row?.value) ? (row.value as unknown[]).map(String) : [];
   }
 
   /** Starts the setup: a new pending secret, shown once as text and QR code. */

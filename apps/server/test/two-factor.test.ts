@@ -1,5 +1,5 @@
-/** Two-factor authentication (RF-USR-04): setup, sign-in, recovery codes, required roles. */
-import type { DatabaseClient } from '@cleitext/db';
+/** Two-factor authentication (RF-USR-04): setup, sign-in, recovery codes; always optional. */
+import { settings, withContext, type DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { currentStep, totpCode } from '../src/auth/totp.js';
@@ -120,26 +120,20 @@ describe('two-factor authentication', () => {
     expect((await plain.login('editor@2fa.test', PASSWORD)).json().user).toBeDefined();
   });
 
-  it('can be required for a role: until it is on, only the setup is reachable', async () => {
-    expect(
-      (await admin.request('PUT', '/api/v1/settings/security', { require2fa: ['editor'] }))
-        .statusCode,
-    ).toBe(200);
+  it('is never required: a former require2fa setting is ignored', async () => {
+    await withContext(owner.db, { siteId: site.id }, (tx) =>
+      tx.insert(settings).values({
+        siteId: site.id,
+        namespace: 'security',
+        key: 'require2fa',
+        value: ['editor', 'super_admin'],
+      }),
+    );
     const user = new TestClient(app, site.host, '10.30.0.9');
     const me = (await user.login('editor@2fa.test', PASSWORD)).json();
-    expect(me.user).toMatchObject({ twoFactorRequired: true, twoFactorEnabled: false });
-    expect((await user.get('/api/v1/entries')).statusCode).toBe(403);
-    expect((await user.get('/api/v1/auth/me')).statusCode).toBe(200);
-
-    const { secret: newSecret } = (await user.post('/api/v1/profile/2fa/setup')).json();
-    await user.post('/api/v1/profile/2fa/enable', { code: totpCode(newSecret, currentStep()) });
+    expect(me.user.twoFactorEnabled).toBe(false);
+    expect(me.user).not.toHaveProperty('twoFactorRequired');
     expect((await user.get('/api/v1/entries')).statusCode).toBe(200);
-    // A required 2FA cannot be turned off.
-    expect(
-      (await user.post('/api/v1/profile/2fa/disable', { password: PASSWORD })).statusCode,
-    ).toBe(400);
-    // Administrators are not affected.
-    expect((await admin.get('/api/v1/entries')).statusCode).toBe(200);
-    await admin.request('PUT', '/api/v1/settings/security', { require2fa: [] });
+    expect((await admin.get('/api/v1/settings/security')).statusCode).toBe(404);
   });
 });

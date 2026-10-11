@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Navigate, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
+import { Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { api } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { visibleSections } from '../navigation';
@@ -14,7 +14,6 @@ import { UPDATES_QUERY } from './updates';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
 /** Section routes are registered dynamically (navigation.ts), hence a plain string. */
-const PROFILE: string = '/profile';
 
 /** As in WordPress: a link to the site with a "Visit site" menu on hover or focus. */
 function SiteMenu({
@@ -60,9 +59,6 @@ export function AdminLayout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const togglePalette = useCallback(() => setPaletteOpen((open) => !open), []);
   useCommandPaletteShortcut(togglePalette);
-  // A role that requires 2FA reaches only the profile until it is on.
-  const mustSetUp2fa = me.user.twoFactorRequired && !me.user.twoFactorEnabled;
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const pluginMenu = usePluginMenu();
   const updates = useQuery({
     ...UPDATES_QUERY,
@@ -213,7 +209,7 @@ export function AdminLayout() {
         </header>
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         <main className="p-6">
-          {mustSetUp2fa && pathname !== PROFILE ? <Navigate to={PROFILE} /> : <Outlet />}
+          <Outlet />
         </main>
       </div>
     </div>

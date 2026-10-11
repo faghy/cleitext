@@ -14,8 +14,8 @@ export interface AuthContext {
   displayName: string;
   locale: string;
   avatarUrl: string | null;
-  /** 2FA state; `required` comes from the site's security settings. */
-  twoFactor: { enabled: boolean; required: boolean };
+  /** 2FA is optional: each person turns it on in their profile. */
+  twoFactor: { enabled: boolean };
   /** Set when the request was authenticated with an API token. */
   apiToken?: { id: string; scopes: string[] };
   isSuperAdmin: boolean;

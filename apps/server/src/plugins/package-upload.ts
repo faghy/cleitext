@@ -172,12 +172,12 @@ export async function runCli(
 }
 
 /**
- * Uploads install code on the server: only super admins (`manage_plugins`)
- * with 2FA on, when the configuration allows it (RF-PLG-10/12).
+ * Uploads install code on the server: only super admins (`manage_plugins`),
+ * when the configuration allows it (RF-PLG-10/12).
  */
 export function assertCanUpload(
   config: { installFromUi: boolean; allowUnsigned: boolean },
-  auth: { capabilities: readonly string[]; twoFactor: { enabled: boolean } },
+  auth: { capabilities: readonly string[] },
 ): void {
   if (!config.installFromUi) {
     throw new BadRequestException('Installing from the admin is turned off on this server.');
@@ -189,10 +189,5 @@ export function assertCanUpload(
   }
   if (!auth.capabilities.includes('manage_plugins')) {
     throw new BadRequestException('Only super admins can install code.');
-  }
-  if (!auth.twoFactor.enabled) {
-    throw new BadRequestException(
-      'Turn on two-factor authentication in your profile before installing code.',
-    );
   }
 }

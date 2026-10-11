@@ -6,7 +6,6 @@ import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { strToU8, zipSync } from 'fflate';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { currentStep, totpCode } from '../src/auth/totp.js';
 import {
   ownerDatabase,
   seedSite,
@@ -181,12 +180,7 @@ export default sdk.defineTheme({ slug: 'shiny', name: 'Shiny', version: '2.0.0',
     });
     const root = new TestClient(app, 'themes.test', '10.35.0.9');
     await root.login('root@themes.test', PASSWORD);
-    const without2fa = await root.upload('/api/v1/themes/upload', 'shiny.zip', zip);
-    expect(without2fa.statusCode).toBe(400);
-    expect(without2fa.json().detail).toContain('two-factor');
-
-    const { secret } = (await root.post('/api/v1/profile/2fa/setup')).json();
-    await root.post('/api/v1/profile/2fa/enable', { code: totpCode(secret, currentStep()) });
+    // Two-factor authentication is not needed (it is optional).
     const evil = Buffer.from(zipSync({ '../evil.txt': strToU8('x') }));
     expect((await root.upload('/api/v1/themes/upload', 'evil.zip', evil)).statusCode).toBe(400);
 
