@@ -23,6 +23,7 @@ import { LoginThrottleService } from './auth/login-throttle.service.js';
 import { SessionService, UserTokenService } from './auth/session.service.js';
 import { ProblemDetailsFilter } from './common/problem.js';
 import { EntriesController } from './content/entries.controller.js';
+import { EntryStatesService } from './content/entry-states.service.js';
 import { OEmbedController } from './content/oembed.controller.js';
 import { StructureController } from './content/structure.controller.js';
 import { StructureService } from './content/structure.service.js';
@@ -140,6 +141,7 @@ export class AppModule {
         AuditService,
         AuthService,
         EntriesService,
+        EntryStatesService,
         IdentityService,
         TwoFactorService,
         PasskeyService,

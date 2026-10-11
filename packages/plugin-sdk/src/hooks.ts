@@ -1,4 +1,5 @@
 import type { CxdBlock } from '@cleitext/blocks';
+import type { Label } from '@cleitext/shared';
 import type { HeadData, PublicEntry } from '@cleitext/theme-sdk';
 
 /**
@@ -81,6 +82,15 @@ export interface Filters {
   'site.strings': [
     strings: { title: string; tagline: string },
     context: { siteId: string; locale: string },
+  ];
+  /**
+   * What entries are for, shown next to their title in the admin, e.g. a
+   * plugin's own pages: `states[id].push({ key: 'privacy', label: { en: 'Privacy policy' } })`.
+   * The core already marks the front, posts and 404 pages. No permission needed.
+   */
+  'entry.states': [
+    states: Record<string, { key: string; label: Label }[]>,
+    context: { siteId: string; ids: string[] },
   ];
 }
 

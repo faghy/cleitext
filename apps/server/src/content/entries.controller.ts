@@ -34,6 +34,7 @@ import { parseBody } from '../common/problem.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { LocksService } from './locks.service.js';
 import { EntriesService } from './entries.service.js';
+import { EntryStatesService } from './entry-states.service.js';
 
 const uuid = new ParseUUIDPipe();
 
@@ -44,6 +45,7 @@ export class EntriesController {
   constructor(
     private readonly entries: EntriesService,
     private readonly locks: LocksService,
+    private readonly states: EntryStatesService,
   ) {}
 
   @Get('content-types')
@@ -55,12 +57,13 @@ export class EntriesController {
   }
 
   @Get('entries')
-  list(
+  async list(
     @CurrentSite() site: SiteContext,
     @CurrentAuth() auth: AuthContext,
     @Query() query: Record<string, unknown>,
   ): Promise<EntryListResponse> {
-    return this.entries.list(site.id, auth, parseBody(listEntriesQuerySchema, query));
+    const list = await this.entries.list(site.id, auth, parseBody(listEntriesQuerySchema, query));
+    return { ...list, items: await this.states.annotate(site.id, list.items) };
   }
 
   @Post('entries/bulk')
@@ -91,12 +94,15 @@ export class EntriesController {
   }
 
   @Get('entries/:id')
-  get(
+  async get(
     @CurrentSite() site: SiteContext,
     @CurrentAuth() auth: AuthContext,
     @Param('id', uuid) id: string,
   ): Promise<EntryView> {
-    return this.entries.get(site.id, auth, id);
+    const [entry] = await this.states.annotate(site.id, [
+      await this.entries.get(site.id, auth, id),
+    ]);
+    return entry!;
   }
 
   @Patch('entries/:id')

@@ -9,6 +9,7 @@ import type {
   TermView,
 } from '@cleitext/shared';
 import { labelText } from '@cleitext/shared';
+import { EntryStates } from '../components/entry-states';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useT } from '@cleitext/admin-sdk';
@@ -431,6 +432,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                         {depth > 0 && <span aria-hidden="true">{'\u2014 '.repeat(depth)}</span>}
                         {entry.title || t('(no title)')}
                       </Link>
+                      <EntryStates states={entry.states} />
                       {entry.hasUnpublishedChanges && (
                         <span className="ml-2 text-xs text-amber-700">
                           {t('unpublished changes')}

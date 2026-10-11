@@ -28,7 +28,7 @@ Ogni scelta viene registrata come prova (art. 7.1 GDPR): un id casuale conservat
 
 ## Policy
 
-**Privacy → Policy** chiede chi è il titolare del trattamento e cosa fa il sito (moduli di contatto, account, newsletter, statistiche, contenuti incorporati, hosting), poi crea le bozze **Privacy policy** e **Cookie policy** in ogni lingua del sito, fatte di blocchi normali da modificare nell'editor. La cookie policy contiene il blocco **Tabella dei cookie**, sempre allineato a **Privacy → Cookie**, e il **Pulsante preferenze cookie**. Una volta pubblicate, il banner le collega.
+**Privacy → Policy** chiede chi è il titolare del trattamento e cosa fa il sito (moduli di contatto, account, newsletter, statistiche, contenuti incorporati, hosting), poi crea le bozze **Privacy policy** e **Cookie policy** in ogni lingua del sito, fatte di blocchi normali da modificare nell'editor. La cookie policy contiene il blocco **Tabella dei cookie**, sempre allineato a **Privacy → Cookie**, e il **Pulsante preferenze cookie**. Una volta pubblicate, il banner le collega, e l'elenco delle pagine le segna con l'etichetta _Privacy policy_ o _Cookie policy_.
 
 Il modulo di contatto del plugin **Moduli** ha un _Indirizzo della privacy policy_: se impostato, sotto il modulo compare una breve informativa con il link.
 
@@ -47,4 +47,4 @@ Ogni richiesta viene registrata con la data e chi l'ha gestita; per le cancellaz
 bin/cleitext plugin:install plugins/privacy
 ```
 
-oppure carica lo zip da **Plugin → Carica plugin**, poi attivalo sul sito. Impostazioni, registrazioni e richieste restano se lo disattivi. Richiede Cleitext 0.11 o successivo (API dei plugin 1.2).
+oppure carica lo zip da **Plugin → Carica plugin**, poi attivalo sul sito. Impostazioni, registrazioni e richieste restano se lo disattivi. Richiede Cleitext 0.12 o successivo (API dei plugin 1.3).

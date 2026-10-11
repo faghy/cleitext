@@ -23,6 +23,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, errorMessage, uploadFile } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button } from '../components/ui';
+import { EntryStates } from '../components/entry-states';
 import { formatDate, STATUS_LABELS } from './entries-list';
 import { EntryTerms } from './entry-terms';
 import { contentTypesQuery, PluginEditorPanels } from '../plugins';
@@ -349,6 +350,7 @@ function Editor({ initial }: { initial: EntryView }) {
           placeholder={t('Add title')}
           className="min-w-0 flex-1 rounded border border-transparent px-2 py-1 text-xl font-semibold hover:border-slate-200 focus:border-sky-600 focus:outline-none"
         />
+        <EntryStates states={initial.states} />
         <span className="text-xs text-slate-500" role="status" aria-live="polite">
           {saveState === 'saving'
             ? t('Saving…')

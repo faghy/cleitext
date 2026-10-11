@@ -1,4 +1,4 @@
-import type { FieldDefinition } from './fields.js';
+import type { FieldDefinition, Label } from './fields.js';
 import type { FieldGroupView } from './plugins.js';
 import { z } from 'zod';
 import { fieldListSchema } from './fields.js';
@@ -178,6 +178,15 @@ export interface EntrySummary {
   updatedAt: string;
   /** Saved changes not yet published (RF-CNT-07). */
   hasUnpublishedChanges: boolean;
+  /** What the entry is for, shown next to its title: front page, 404 page, privacy policy… */
+  states?: EntryState[];
+}
+
+/** A role of an entry on the site, like WordPress's post states ("— Front Page"). */
+export interface EntryState {
+  /** e.g. `front`, `posts`, `error`, `privacy`. */
+  key: string;
+  label: Label;
 }
 
 export interface RevisionView {

@@ -26,7 +26,7 @@ Every choice is recorded as proof (GDPR art. 7.1): a random id kept in the visit
 
 ## Policies
 
-**Privacy → Policies** asks who the data controller is and what the site does (contact forms, accounts, newsletter, analytics, embedded content, hosting), then creates **Privacy policy** and **Cookie policy** drafts in each language of the site, made of ordinary blocks to edit in the editor. The cookie policy includes the **Cookie table** block, always in step with **Privacy → Cookies**, and the **Cookie preferences button**. Once published, the banner links to them.
+**Privacy → Policies** asks who the data controller is and what the site does (contact forms, accounts, newsletter, analytics, embedded content, hosting), then creates **Privacy policy** and **Cookie policy** drafts in each language of the site, made of ordinary blocks to edit in the editor. The cookie policy includes the **Cookie table** block, always in step with **Privacy → Cookies**, and the **Cookie preferences button**. Once published, the banner links to them, and the pages list marks them with a _Privacy policy_ or _Cookie policy_ tag.
 
 The **Forms** plugin's contact form has a _Privacy policy address_: when set, a short notice with the link is shown under the form.
 
@@ -45,4 +45,4 @@ Every request is logged with its date and who handled it; erasures keep only a m
 bin/cleitext plugin:install plugins/privacy
 ```
 
-or upload the zip in **Plugins → Upload Plugin**, then activate it on the site. Settings, records and requests are kept when it is deactivated. It needs Cleitext 0.11 or later (plugin API 1.2).
+or upload the zip in **Plugins → Upload Plugin**, then activate it on the site. Settings, records and requests are kept when it is deactivated. It needs Cleitext 0.12 or later (plugin API 1.3).

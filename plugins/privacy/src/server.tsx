@@ -161,6 +161,21 @@ export default definePlugin({
       roles: ['administrator'],
     });
 
+    // The policy pages are marked next to their title in the admin.
+    ctx.hooks.filter('entry.states', async (states, { siteId, ids }) => {
+      const cfg = await config(ctx, siteId);
+      const wanted = new Set(ids);
+      for (const pages of Object.values(cfg.pages)) {
+        if (pages.privacy && wanted.has(pages.privacy)) {
+          (states[pages.privacy] ??= []).push({ key: 'privacy', label: 'Privacy policy' });
+        }
+        if (pages.cookies && wanted.has(pages.cookies)) {
+          (states[pages.cookies] ??= []).push({ key: 'cookies', label: 'Cookie policy' });
+        }
+      }
+      return states;
+    });
+
     // ---- Public pages: the banner and the gated scripts -----------------------------
 
     ctx.hooks.filter('render.html', async (html, context) => {

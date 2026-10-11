@@ -234,6 +234,14 @@ describe('policies', () => {
     const home = (await visitor.get('/')).body;
     expect(home).toContain(`<a href="/${page.slug}">Privacy policy</a>`);
 
+    // Marked next to their title in the admin.
+    const marked = (await admin.get(`/api/v1/entries/${page.id}`)).json();
+    expect(marked.states).toEqual([{ key: 'privacy', label: 'Privacy policy' }]);
+    const list = (await admin.get('/api/v1/entries?type=page&limit=50')).json() as {
+      items: { id: string; states?: { key: string }[] }[];
+    };
+    expect(list.items.find((e) => e.id === cookiePage.id)?.states?.[0]?.key).toBe('cookies');
+
     const html = (await visitor.get(`/${cookiePage.slug}`)).body;
     expect(html).toContain('<code>cx_consent</code>');
     expect(html).toContain('href="#cookie-preferences"');
