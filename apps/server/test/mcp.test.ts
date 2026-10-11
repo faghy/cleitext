@@ -163,7 +163,7 @@ describe('MCP', () => {
     expect(created.isError).toBe(false);
     const entry = JSON.parse(created.text);
     expect(entry).toMatchObject({ status: 'draft', title: 'About us', blocks_count: 1 });
-    expect(entry.preview_url).toContain('/__preview');
+    expect(entry.preview_url).toMatch(/^https?:\/\/[^/]+\/__preview\//);
 
     const stored = JSON.parse((await call(readToken, 'get_entry', { id: entry.id })).text);
     expect(stored.blocks[0]).toMatchObject({

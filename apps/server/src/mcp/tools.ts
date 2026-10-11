@@ -317,11 +317,11 @@ export const TOOLS: Tool[] = [
         id = created.id;
       }
       const entry = await ok<EntryView>(ctx.api('GET', `/entries/${id}`));
-      const preview = await ctx.api('POST', `/entries/${id}/preview`, {});
+      const preview_url = await previewUrl(ctx, id);
       return {
         ...entrySummary(ctx, entry),
         blocks_count: entry.revision?.document?.blocks.length ?? 0,
-        preview_url: preview.status === 200 ? (preview.data as { url: string }).url : null,
+        preview_url,
         next: 'Show the preview to the user; publish only when they ask (publish_entry).',
       };
     },
@@ -342,10 +342,10 @@ export const TOOLS: Tool[] = [
       const fields = entryFields(args);
       if (Object.keys(fields).length === 0) throw new ToolError('Nothing to change.');
       const entry = await ok<EntryView>(ctx.api('PATCH', `/entries/${id}`, fields));
-      const preview = await ctx.api('POST', `/entries/${id}/preview`, {});
+      const preview_url = await previewUrl(ctx, id);
       return {
         ...entrySummary(ctx, entry),
-        preview_url: preview.status === 200 ? (preview.data as { url: string }).url : null,
+        preview_url,
       };
     },
   },
@@ -356,7 +356,9 @@ export const TOOLS: Tool[] = [
     scope: 'write',
     inputSchema: { type: 'object', properties: { id: string('The entry id.') }, required: ['id'] },
     async run(ctx, args) {
-      return ok(ctx.api('POST', `/entries/${encodeURIComponent(String(args.id))}/preview`, {}));
+      const url = await previewUrl(ctx, encodeURIComponent(String(args.id)));
+      if (!url) throw new ToolError('No preview for this entry: check the id.');
+      return { url };
     },
   },
   {
@@ -487,6 +489,13 @@ export const TOOLS: Tool[] = [
 ];
 
 /** What the connection's scopes allow (read ⊂ write; publish needs its own scope). */
+/** An absolute preview link: the assistant shows it to the user outside the site. */
+async function previewUrl(ctx: ToolContext, id: string): Promise<string | null> {
+  const preview = await ctx.api('POST', `/entries/${id}/preview`, {});
+  if (preview.status !== 200) return null;
+  return new URL((preview.data as { url: string }).url, ctx.origin).toString();
+}
+
 export function allowed(tool: Tool, scopes: string[]): boolean {
   if (tool.scope === 'read') return scopes.includes('read') || scopes.includes('write');
   return scopes.includes(tool.scope);
