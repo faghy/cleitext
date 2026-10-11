@@ -111,10 +111,10 @@ function fromWpBlock(
       warn('A gallery became a group of images.');
       const images = block.innerBlocks.length
         ? children()
-        : parse(html)
-            .querySelectorAll('figure,img')
-            .filter((n) => n.tagName === 'IMG' || !n.querySelector('figure'))
-            .map((node) => imageBlock(node, {}, undefined, options));
+        : // Each image once, with its nearest figure (and caption).
+          parse(html)
+            .querySelectorAll('img')
+            .map((img) => imageBlock(img.closest('figure') ?? img, {}, undefined, options));
       return [{ ...make('core/group', { className: 'wp-block-gallery' }), children: images }];
     }
     case 'core/buttons':
@@ -162,7 +162,9 @@ function fromWpBlock(
     case 'core/verse': {
       const code = parse(html).querySelector('code,pre');
       return [
-        make('core/code', common, [{ text: decode(code?.textContent ?? parse(html).textContent) }]),
+        make('core/code', common, [
+          { text: preText(code?.textContent ?? parse(html).textContent) },
+        ]),
       ];
     }
     case 'core/more':
@@ -309,7 +311,7 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
             blocks.push(imageBlock(node, {}, undefined, options));
           break;
         case 'PRE':
-          blocks.push(make('core/code', {}, [{ text: decode(node.textContent) }]));
+          blocks.push(make('core/code', {}, [{ text: preText(node.textContent) }]));
           break;
         case 'HR':
           blocks.push(make('core/separator', {}));
@@ -436,6 +438,14 @@ function firstElementInner(html: string, tag: string): string | null {
 
 function pick(source: Record<string, unknown>, keys: string[]): Record<string, unknown> {
   return Object.fromEntries(keys.filter((k) => source[k] !== undefined).map((k) => [k, source[k]]));
+}
+
+/**
+ * The text of a <pre>: the parser keeps its content raw, so markup inside
+ * (`<pre><code>`, the usual WordPress code block) is removed before decoding.
+ */
+function preText(raw: string): string {
+  return decode(raw.replace(/<[^>]*>/g, ''));
 }
 
 function decode(text: string): string {
