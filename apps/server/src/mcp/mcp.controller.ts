@@ -107,9 +107,15 @@ export class McpController {
       .send(Array.isArray(body) ? answers : answers[0]);
   }
 
-  /** No server-initiated stream: every answer comes with its request. */
+  /**
+   * No server-initiated stream: every answer comes with its request. Someone
+   * opening the address in a browser lands on Admin → AI assistants.
+   */
   @Get()
-  get(@Res() reply: FastifyReply) {
+  get(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
+    if (/text\/html/.test(request.headers.accept ?? '')) {
+      return reply.redirect('/admin/assistants', 302);
+    }
     return reply.code(405).header('allow', 'POST').send();
   }
 

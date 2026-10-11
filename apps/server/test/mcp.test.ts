@@ -83,6 +83,10 @@ afterAll(async () => {
 describe('MCP', () => {
   it('is off until the site turns it on', async () => {
     expect((await rpc(writeToken, 'initialize')).statusCode).toBe(404);
+    expect((await admin.get('/api/v1/assistants')).json()).toEqual({
+      enabled: false,
+      address: `http://${site.host}/mcp`,
+    });
     expect(
       (
         await app.inject({
@@ -93,6 +97,17 @@ describe('MCP', () => {
     ).toBe(404);
     const saved = await admin.request('PATCH', '/api/v1/settings/core', { mcp: true });
     expect(saved.statusCode).toBe(200);
+  });
+
+  it('sends people who open the address in a browser to the admin', async () => {
+    const browser = await app.inject({
+      url: '/mcp',
+      headers: { host: site.host, accept: 'text/html,application/xhtml+xml' },
+    });
+    expect(browser.statusCode).toBe(302);
+    expect(browser.headers.location).toBe('/admin/assistants');
+    expect((await app.inject({ url: '/mcp', headers: { host: site.host } })).statusCode).toBe(405);
+    expect((await admin.get('/api/v1/assistants')).json().enabled).toBe(true);
   });
 
   it('asks for a token and points to OAuth', async () => {
@@ -269,26 +284,32 @@ describe('OAuth for AI assistants', () => {
       state: 'xyz',
       scope: 'read write',
     });
-    const anonymous = await get(`/oauth/authorize?${query}`);
-    expect(anonymous.statusCode).toBe(302);
-    expect(anonymous.headers.location).toContain('/admin/login?redirect=');
+    // The consent is in the admin, which asks to sign in first.
+    const authorize = await get(`/oauth/authorize?${query}`);
+    expect(authorize.statusCode).toBe(302);
+    expect(authorize.headers.location).toBe(`/admin/connect?${query}`);
+    const params = Object.fromEntries(query);
+    expect((await get(`/api/v1/oauth/consent?${query}`)).statusCode).toBe(401);
 
-    const page = await get(`/oauth/authorize?${query}`, admin);
-    expect(page.statusCode).toBe(200);
-    expect(page.body).toContain('Assistant');
-    const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
-
-    const approved = await admin.postForm('/oauth/authorize', {
-      client_id: clientId,
-      redirect_uri: redirect,
-      state: 'xyz',
-      code_challenge: challenge,
-      scope: 'read write',
-      csrf,
-      decision: 'allow',
+    const view = await get(`/api/v1/oauth/consent?${query}`, admin);
+    expect(view.statusCode).toBe(200);
+    expect(view.json()).toMatchObject({
+      client: 'Assistant',
+      scopes: ['read', 'write'],
+      canPublish: true,
     });
-    expect(approved.statusCode).toBe(302);
-    const back = new URL(String(approved.headers.location));
+    const bad = await get(
+      `/api/v1/oauth/consent?${query}&redirect_uri=https://evil.example/cb`,
+      admin,
+    );
+    expect(bad.statusCode).toBe(400);
+
+    const denied = await admin.post('/api/v1/oauth/consent', { params, allow: false });
+    expect(new URL(denied.json().redirect).searchParams.get('error')).toBe('access_denied');
+
+    const approved = await admin.post('/api/v1/oauth/consent', { params, allow: true });
+    expect(approved.statusCode).toBe(200);
+    const back = new URL(approved.json().redirect);
     expect(back.origin + back.pathname).toBe(redirect);
     expect(back.searchParams.get('state')).toBe('xyz');
     const code = back.searchParams.get('code')!;
@@ -320,30 +341,25 @@ describe('OAuth for AI assistants', () => {
       code_challenge: challenge,
       code_challenge_method: 'S256',
     });
-    const page = await get(`/oauth/authorize?${query}`, admin);
-    const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
-    // A forged form without the page's token is refused.
+    const params = { ...Object.fromEntries(query), scope: 'read write' };
+    // An API token cannot give consent: only a person signed in to the admin.
+    const apiToken = await token(['read', 'write']);
     expect(
       (
-        await admin.postForm('/oauth/authorize', {
-          client_id: clientId,
-          redirect_uri: redirect,
-          code_challenge: challenge,
-          csrf: 'forged',
-          decision: 'allow',
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/oauth/consent',
+          headers: { host: site.host, authorization: `Bearer ${apiToken}` },
+          payload: { params, allow: true },
         })
       ).statusCode,
     ).toBe(403);
-    const approved = await admin.postForm('/oauth/authorize', {
-      client_id: clientId,
-      redirect_uri: redirect,
-      code_challenge: challenge,
-      scope: 'read write',
-      csrf,
-      decision: 'allow',
-      publish: 'on',
+    const approved = await admin.post('/api/v1/oauth/consent', {
+      params,
+      allow: true,
+      publish: true,
     });
-    const code = new URL(String(approved.headers.location)).searchParams.get('code')!;
+    const code = new URL(approved.json().redirect).searchParams.get('code')!;
     const tokens = (
       await form({
         grant_type: 'authorization_code',
@@ -354,6 +370,14 @@ describe('OAuth for AI assistants', () => {
       })
     ).json();
     expect(tokens).toMatchObject({ token_type: 'Bearer', scope: 'read write publish' });
+
+    // It is listed among the connected assistants (tokens marked as such).
+    const listed = (await admin.get('/api/v1/tokens')).json() as {
+      name: string;
+      assistant: boolean;
+    }[];
+    expect(listed.find((t) => t.name === 'Assistant (MCP)')?.assistant).toBe(true);
+    expect(listed.find((t) => t.name === 'read+write')?.assistant).toBe(false);
 
     const tools = (await rpc(tokens.access_token, 'tools/list')).json().result.tools;
     expect(tools.map((t: { name: string }) => t.name)).toContain('publish_entry');

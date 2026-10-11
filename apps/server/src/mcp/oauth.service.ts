@@ -41,6 +41,15 @@ export interface OAuthClient {
   redirectUris: string[];
 }
 
+/** An authorization request that passed the checks. */
+export interface CheckedRequest {
+  client: OAuthClient;
+  redirectUri: string;
+  scopes: string[];
+  codeChallenge: string;
+  state: string;
+}
+
 export interface TokenResponse {
   access_token: string;
   token_type: 'Bearer';
@@ -97,6 +106,43 @@ export class OAuthService {
       tx.select().from(oauthClients).where(eq(oauthClients.clientId, clientId)),
     );
     return row ? { clientId: row.clientId, name: row.name, redirectUris: row.redirectUris } : null;
+  }
+
+  /** The checks of an authorization request (query of /oauth/authorize). */
+  async checkRequest(
+    siteId: string,
+    q: Record<string, string | undefined>,
+  ): Promise<CheckedRequest | { problem: string }> {
+    if (q.response_type !== 'code')
+      return { problem: 'Only the authorization code flow is supported.' };
+    const client = q.client_id ? await this.client(siteId, q.client_id) : null;
+    if (!client)
+      return { problem: 'This assistant is not registered on this site: connect it again.' };
+    const redirectUri =
+      q.redirect_uri ?? (client.redirectUris.length === 1 ? client.redirectUris[0] : undefined);
+    if (
+      !redirectUri ||
+      !client.redirectUris.includes(redirectUri) ||
+      !validRedirectUri(redirectUri)
+    ) {
+      return { problem: 'The redirect address does not match the one the assistant registered.' };
+    }
+    if (!q.code_challenge || q.code_challenge_method !== 'S256') {
+      return { problem: 'PKCE (S256) is required.' };
+    }
+    const asked = (q.scope ?? '').split(/\s+/).filter(Boolean);
+    const scopes: string[] =
+      asked.length > 0 ? OAUTH_SCOPES.filter((s) => asked.includes(s)) : ['read', 'write'];
+    if (scopes.length === 0) return { problem: 'No known permission was requested.' };
+    // write includes read.
+    if (scopes.includes('write') && !scopes.includes('read')) scopes.unshift('read');
+    return {
+      client,
+      redirectUri,
+      scopes,
+      codeChallenge: q.code_challenge,
+      state: q.state ?? '',
+    };
   }
 
   /** A single-use code for the user's consent. */

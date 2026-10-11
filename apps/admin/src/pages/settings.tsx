@@ -6,6 +6,7 @@ import {
   type FieldValues,
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
 import { api, ApiError, errorMessage } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
@@ -14,6 +15,8 @@ import { MailCard } from './mail-settings';
 import { usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
+const ASSISTANTS_PATH: string = '/assistants';
+
 const TIME_ZONES = ['UTC', ...Intl.supportedValuesOf('timeZone').filter((z) => z !== 'UTC')];
 
 /** Settings → General and Reading (RF-SET-01). */
@@ -286,22 +289,17 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
                 </span>
                 <span className="text-xs text-slate-500">
                   {t(
-                    'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish.',
+                    'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish. Save, then open AI assistants to connect one.',
                   )}
                 </span>
               </span>
             </label>
-            {values.mcp && (
-              <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
-                <p className="font-medium text-slate-800">{t('Address to add in the assistant')}</p>
-                <code className="block break-all select-all">{`${window.location.origin}/mcp`}</code>
-                <p className="text-xs text-slate-600">
-                  {t(
-                    'In the assistant, add a custom connector (MCP server) with this address: it asks to sign in here and to allow access. For tools that take a token instead, create one in Profile → API tokens.',
-                  )}
-                </p>
-              </div>
-            )}
+            <Link
+              to={ASSISTANTS_PATH}
+              className="inline-block rounded border border-slate-300 bg-white px-3 py-2 font-medium text-slate-800 hover:bg-slate-50"
+            >
+              {t('Open AI assistants')}
+            </Link>
           </div>
         </Card>
       </div>

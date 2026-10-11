@@ -23,12 +23,13 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
 
   const signedIn = async (me: MeResponse) => {
     queryClient.setQueryData(ME_QUERY_KEY, me);
-    // Connecting an AI assistant: back to its consent page, outside the admin.
-    if (redirect?.startsWith('/oauth/authorize?')) {
-      window.location.assign(redirect);
+    // Connecting an AI assistant: a full load keeps its query exactly as sent.
+    const target = safeRedirect(redirect);
+    if (target.startsWith('/connect?')) {
+      window.location.assign(`/admin${target}`);
       return;
     }
-    await navigate({ to: safeRedirect(redirect) });
+    await navigate({ to: target });
   };
   const login = useMutation({
     mutationFn: () =>

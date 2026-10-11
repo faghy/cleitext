@@ -246,11 +246,62 @@ export const itGeneral: Messages = {
   'Can publish (AI assistants)': 'Può pubblicare (assistenti IA)',
   'AI assistants (MCP)': 'Assistenti IA (MCP)',
   'Let AI assistants work on this site': 'Permetti agli assistenti IA di lavorare su questo sito',
-  'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish.':
-    'Ognuno collega il proprio assistente IA (ChatGPT, Cursor o un altro client MCP) con il suo account e gli chiede di scrivere pagine e articoli. L’assistente usa i blocchi dell’editor e le sezioni del tema, agisce con i permessi della persona e crea bozze, a meno che non gli sia permesso di pubblicare.',
-  'Address to add in the assistant': 'Indirizzo da aggiungere nell’assistente',
-  'In the assistant, add a custom connector (MCP server) with this address: it asks to sign in here and to allow access. For tools that take a token instead, create one in Profile → API tokens.':
-    'Nell’assistente aggiungi un connettore personalizzato (server MCP) con questo indirizzo: ti chiederà di accedere qui e di consentire l’accesso. Per gli strumenti che vogliono invece un token, creane uno in Profilo → Token API.',
+  'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish. Save, then open AI assistants to connect one.':
+    'Ognuno collega il proprio assistente IA (ChatGPT, Cursor o un altro client MCP) con il suo account e gli chiede di scrivere pagine e articoli. L’assistente usa i blocchi dell’editor e le sezioni del tema, agisce con i permessi della persona e crea bozze, a meno che non gli sia permesso di pubblicare. Salva, poi apri Assistenti IA per collegarne uno.',
+  'Open AI assistants': 'Apri Assistenti IA',
+  'AI assistants': 'Assistenti IA',
+  'Connect your AI assistant (ChatGPT, Cursor or another MCP client) with your account and ask it to write pages and posts. It uses the blocks of the editor and the sections of the theme, acts with your permissions, and creates drafts unless you let it publish.':
+    'Collega il tuo assistente IA (ChatGPT, Cursor o un altro client MCP) con il tuo account e chiedigli di scrivere pagine e articoli. Usa i blocchi dell’editor e le sezioni del tema, agisce con i tuoi permessi e crea bozze, a meno che tu non gli permetta di pubblicare.',
+  'AI assistants are off': 'Gli assistenti IA sono disattivati',
+  'Turn them on to let the people of this site connect their assistant.':
+    'Attivali per permettere alle persone di questo sito di collegare il proprio assistente.',
+  'Turn on AI assistants': 'Attiva gli assistenti IA',
+  'Turn off AI assistants': 'Disattiva gli assistenti IA',
+  'Turn off AI assistants? Connected assistants stop working until you turn them on again.':
+    'Disattivare gli assistenti IA? Quelli collegati smettono di funzionare finché non li riattivi.',
+  'Ask an administrator of the site to turn them on.':
+    'Chiedi a un amministratore del sito di attivarli.',
+  'Connect an assistant': 'Collega un assistente',
+  'Copy the address of this site for assistants:':
+    'Copia l’indirizzo di questo sito per gli assistenti:',
+  Copied: 'Copiato',
+  'It is not a page to open in the browser: it is where the assistant talks to the site.':
+    'Non è una pagina da aprire nel browser: è l’indirizzo con cui l’assistente parla con il sito.',
+  'In your assistant, open the settings of connectors (or MCP servers) and add a custom connector with this address.':
+    'Nel tuo assistente apri le impostazioni dei connettori (o dei server MCP) e aggiungi un connettore personalizzato con questo indirizzo.',
+  'The assistant opens this site: sign in with your account, if asked, and choose Allow. That is where your credentials are asked, never in the assistant.':
+    'L’assistente apre questo sito: accedi con il tuo account, se richiesto, e scegli Consenti. Le credenziali le inserisci qui, mai nell’assistente.',
+  'Ask it what you need, for example:': 'Chiedigli quello che ti serve, per esempio:',
+  'Create an "About us" page with an opening section, three cards on what we do and a call to action.':
+    'Crea una pagina «Chi siamo» con una sezione di apertura, tre card su cosa facciamo e un invito all’azione.',
+  'Write a post about our new opening hours, in a friendly tone, and show me the preview.':
+    'Scrivi un articolo sui nostri nuovi orari, con un tono amichevole, e mostrami l’anteprima.',
+  'Translate the Contact page into Italian.': 'Traduci in italiano la pagina Contatti.',
+  'Tools that take a token instead of signing in: create one in':
+    'Per gli strumenti che usano un token invece dell’accesso: creane uno in',
+  'Profile → API tokens': 'Profilo → Token API',
+  'Connected assistants': 'Assistenti collegati',
+  'Disconnect "{name}"?': 'Scollegare «{name}»?',
+  Disconnect: 'Scollega',
+  'No assistant is connected to your account yet.':
+    'Nessun assistente è ancora collegato al tuo account.',
+  '{app} wants to work on {site} as {user}.': '{app} vuole lavorare su {site} come {user}.',
+  'It will be able to': 'Potrà',
+  'read pages, posts, media and menus': 'leggere pagine, articoli, media e menu',
+  'create and change drafts, upload images, set menus':
+    'creare e modificare bozze, caricare immagini, impostare i menu',
+  'also publish (otherwise everything stays a draft)':
+    'anche pubblicare (altrimenti resta tutto in bozza)',
+  'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time in AI assistants.':
+    'Agisce con i tuoi permessi, e tutto quello che fa finisce nel registro attività. Puoi scollegarlo quando vuoi da Assistenti IA.',
+  Allow: 'Consenti',
+  'Start again from your assistant.': 'Ricomincia dal tuo assistente.',
+  'This assistant is not registered on this site: connect it again.':
+    'Questo assistente non è registrato su questo sito: collegalo di nuovo.',
+  'The redirect address does not match the one the assistant registered.':
+    'L’indirizzo di ritorno non corrisponde a quello registrato dall’assistente.',
+  'AI assistants are turned off on this site.':
+    'Gli assistenti IA sono disattivati su questo sito.',
   'Read only': 'Sola lettura',
   Revoke: 'Revoca',
   'Revoke the token "{name}"?': 'Revocare il token «{name}»?',

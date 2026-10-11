@@ -26,6 +26,8 @@ import { PluginsPage } from './pages/plugins';
 import { ProfilePage } from './pages/profile';
 import { contentTypesQuery, PluginPage } from './plugins';
 import { SettingsPage } from './pages/settings';
+import { AssistantsPage } from './pages/assistants';
+import { ConnectPage } from './pages/connect';
 import { SitesPage } from './pages/sites';
 import { ActivityPage } from './pages/activity';
 import { SystemPage } from './pages/system';
@@ -198,6 +200,8 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/activity', ActivityPage),
     sectionRoute('/system', SystemPage),
     sectionRoute('/updates', UpdatesPage),
+    sectionRoute('/assistants', AssistantsPage),
+    sectionRoute('/connect', ConnectPage),
     contentRoute,
     taxonomyRoute,
     pluginPageRoute,

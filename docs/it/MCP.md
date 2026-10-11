@@ -6,11 +6,13 @@ Cleitext è un **server MCP**: ognuno collega il proprio assistente IA (ChatGPT,
 
 ## Attivarlo
 
-In **Impostazioni → Assistenti IA (MCP)** spunta _Permetti agli assistenti IA di lavorare su questo sito_ e salva. Lì trovi l'indirizzo da dare all'assistente: `https://<il tuo sito>/mcp`. Finché è spento, `/mcp` e gli indirizzi OAuth rispondono 404.
+Nell'admin apri **Assistenti IA** e scegli _Attiva gli assistenti IA_ (oppure spunta _Permetti agli assistenti IA di lavorare su questo sito_ in **Impostazioni → Assistenti IA (MCP)** e salva). La sezione **Assistenti IA** mostra l'indirizzo da dare all'assistente, `https://<il tuo sito>/mcp`, con il pulsante Copia, i passi per collegarlo e gli assistenti collegati al tuo account. Finché è spento, `/mcp` e gli indirizzi OAuth rispondono 404.
+
+L'indirizzo non è una pagina da aprire nel browser: chi lo apre lì finisce su **Assistenti IA** nell'admin.
 
 ## Collegare un assistente
 
-**Con OAuth** (le app con i "connettori personalizzati", come ChatGPT): aggiungi un connettore con l'indirizzo `https://<il tuo sito>/mcp`. L'assistente si registra da solo, apre l'accesso di Cleitext e ti chiede di consentire: leggere i contenuti, creare e modificare bozze e, solo se lo spunti e il tuo ruolo può pubblicare, pubblicare.
+**Con OAuth** (le app con i "connettori personalizzati", come ChatGPT): aggiungi un connettore con l'indirizzo `https://<il tuo sito>/mcp`. L'assistente si registra da solo e apre il sito: accedi all'admin, se serve, e vedi **Collega un assistente**, dove consenti l'accesso: leggere i contenuti, creare e modificare bozze e, solo se lo spunti e il tuo ruolo può pubblicare, pubblicare.
 
 **Con un token** (assistenti da desktop o da riga di comando, editor, script): crea un token in **Profilo → Token API** (_Può modificare_, e _Può pubblicare_ se serve), poi aggiungi il server alla configurazione MCP dell'assistente, per esempio:
 
@@ -26,7 +28,7 @@ In **Impostazioni → Assistenti IA (MCP)** spunta _Permetti agli assistenti IA 
 }
 ```
 
-Ogni collegamento è un token API del tuo account: lo trovi in **Profilo → Token API** (quelli OAuth si chiamano "<assistente> (MCP)"), e revocarlo scollega l'assistente.
+Ogni collegamento è un token API del tuo account: gli assistenti collegati con OAuth sono in **Assistenti IA → Assistenti collegati** (e in **Profilo → Token API**, con il nome "<assistente> (MCP)"); scollegarlo o revocarlo ferma l'assistente.
 
 ## Cosa può fare l'assistente
 
@@ -54,7 +56,7 @@ Aggiungi `aiGuide` (Markdown) alla definizione del tema: come si costruiscono le
 
 - L'assistente agisce come l'utente: non può mai fare più di quanto permette il suo ruolo.
 - I collegamenti di sola lettura non possono cambiare nulla; pubblicare richiede un permesso a parte.
-- OAuth: codice di autorizzazione con PKCE (S256), registrazione dinamica dei client, consenso sulla pagina del sito, token di accesso validi 7 giorni, token di rinnovo a rotazione validi 90 giorni.
+- OAuth: codice di autorizzazione con PKCE (S256), registrazione dinamica dei client, consenso nell'admin, con l'accesso di sempre (i token API non possono darlo), token di accesso validi 7 giorni, token di rinnovo a rotazione validi 90 giorni.
 - `/mcp` rifiuta le richieste delle pagine di altri siti nel browser (controllo dell'Origin).
 - `upload_image` scarica solo da indirizzi https pubblici: ogni indirizzo a cui punta un nome viene controllato al momento della connessione, redirect compresi; al massimo 15 MB, solo immagini.
 - Tutto quello che fa un assistente finisce nel registro attività, come l'utente, tramite il token.

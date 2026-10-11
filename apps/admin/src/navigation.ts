@@ -25,6 +25,7 @@ export const SECTIONS: Section[] = [
   { to: '/plugins', label: 'Plugins', anyOf: ['activate_plugins'], ready: true },
   { to: '/users', label: 'Users', anyOf: ['manage_users'], ready: true },
   { to: '/profile', label: 'Profile', anyOf: ['read'], ready: true },
+  { to: '/assistants', label: 'AI assistants', anyOf: ['edit_entries'], ready: true },
   { to: '/settings', label: 'Settings', anyOf: ['manage_settings'], ready: true },
   { to: '/redirects', label: 'Redirects', anyOf: ['manage_settings'], ready: true },
   {

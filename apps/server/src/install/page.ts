@@ -140,25 +140,6 @@ const IT: Record<string, string> = {
   Site: 'Sito',
   'Site name': 'Nome del sito',
   'My site': 'Il mio sito',
-  'Connect an AI assistant': 'Collega un assistente IA',
-  'Connect {app}': 'Collega {app}',
-  '{app} wants to work on {site} as {user}.': '{app} vuole lavorare su {site} come {user}.',
-  'It will be able to': 'Potrà',
-  'read pages, posts, media and menus': 'leggere pagine, articoli, media e menu',
-  'create and change drafts, upload images, set menus':
-    'creare e modificare bozze, caricare immagini, impostare i menu',
-  'also publish (otherwise everything stays a draft)':
-    'anche pubblicare (altrimenti resta tutto in bozza)',
-  'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time in your profile (API tokens).':
-    'Agisce con i tuoi permessi, e tutto quello che fa finisce nel registro attività. Puoi scollegarlo quando vuoi dal tuo profilo (Token API).',
-  Allow: 'Consenti',
-  Cancel: 'Annulla',
-  'The request has expired: start again from your assistant.':
-    'La richiesta è scaduta: ricomincia dal tuo assistente.',
-  'This assistant is not registered on this site: connect it again.':
-    'Questo assistente non è registrato su questo sito: collegalo di nuovo.',
-  'The redirect address does not match the one the assistant registered.':
-    'L’indirizzo di ritorno non corrisponde a quello registrato dall’assistente.',
   Domain: 'Dominio',
   Language: 'Lingua',
   'Always use HTTPS': 'Usa sempre HTTPS',

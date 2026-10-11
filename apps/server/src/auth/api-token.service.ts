@@ -144,5 +144,6 @@ function toView(row: typeof apiTokens.$inferSelect, owner: string | null): ApiTo
     createdAt: row.createdAt.toISOString(),
     expiresAt: row.expiresAt?.toISOString() ?? null,
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    assistant: row.oauthClientId !== null,
   };
 }

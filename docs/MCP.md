@@ -6,11 +6,13 @@ Cleitext is an **MCP server**: people connect their own AI assistant (ChatGPT, C
 
 ## Turn it on
 
-In **Settings → AI assistants (MCP)**, check _Let AI assistants work on this site_ and save. The address to give the assistant is shown there: `https://<your site>/mcp`. Until it is on, `/mcp` and the OAuth endpoints answer 404.
+In the admin, open **AI assistants** and choose _Turn on AI assistants_ (or check _Let AI assistants work on this site_ in **Settings → AI assistants (MCP)** and save). The **AI assistants** section shows the address to give the assistant, `https://<your site>/mcp`, with a Copy button, the steps to connect, and the assistants connected to your account. Until it is on, `/mcp` and the OAuth endpoints answer 404.
+
+The address is not a page to open in the browser: whoever opens it there lands on **AI assistants** in the admin.
 
 ## Connect an assistant
 
-**With OAuth** (apps with "custom connectors", such as ChatGPT): add a connector with the address `https://<your site>/mcp`. The assistant registers itself, opens the Cleitext sign-in, and asks you to allow access: reading content, creating and changing drafts, and — only if you check it and your role can publish — publishing.
+**With OAuth** (apps with "custom connectors", such as ChatGPT): add a connector with the address `https://<your site>/mcp`. The assistant registers itself and opens the site: you sign in to the admin, if needed, and see **Connect an assistant**, where you allow access: reading content, creating and changing drafts, and — only if you check it and your role can publish — publishing.
 
 **With a token** (desktop and command-line assistants, editors, scripts): create a token in **Profile → API tokens** (_Can make changes_, and _Can publish_ if wanted), then add the server to the assistant's MCP configuration, for example:
 
@@ -26,7 +28,7 @@ In **Settings → AI assistants (MCP)**, check _Let AI assistants work on this s
 }
 ```
 
-Each connection is an API token of your account: it is listed in **Profile → API tokens** (OAuth ones are named "<assistant> (MCP)"), and revoking it disconnects the assistant.
+Each connection is an API token of your account: assistants connected with OAuth are listed in **AI assistants → Connected assistants** (and in **Profile → API tokens**, named "<assistant> (MCP)"); disconnecting or revoking it stops the assistant.
 
 ## What the assistant can do
 
@@ -54,7 +56,7 @@ Add `aiGuide` (Markdown) to the theme definition: how pages are built with the t
 
 - The assistant acts as the user: it can never do more than the user's role.
 - Read-only connections cannot change anything; publishing needs its own permission.
-- OAuth: authorization code with PKCE (S256), dynamic client registration, consent on the site's own page, access tokens valid 7 days, rotating refresh tokens valid 90 days.
+- OAuth: authorization code with PKCE (S256), dynamic client registration, consent in the admin, signed in as usual (API tokens cannot give it), access tokens valid 7 days, rotating refresh tokens valid 90 days.
 - `/mcp` refuses requests from browser pages of other sites (Origin check).
 - `upload_image` only downloads from public https addresses: every address a name resolves to is checked when connecting, redirects included; at most 15 MB, images only.
 - Everything an assistant does is in the activity log, as the user, through the token.

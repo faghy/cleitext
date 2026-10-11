@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AdminController } from './admin/admin.controller.js';
 import { UpdatesController } from './updates/updates.controller.js';
 import { McpController } from './mcp/mcp.controller.js';
+import { AssistantsController } from './mcp/assistants.controller.js';
 import { OAuthController } from './mcp/oauth.controller.js';
 import { OAuthService } from './mcp/oauth.service.js';
 import { UpdatesService } from './updates/updates.service.js';
@@ -128,6 +129,7 @@ export class AppModule {
         UpdatesController,
         McpController,
         OAuthController,
+        AssistantsController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },

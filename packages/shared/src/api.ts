@@ -94,6 +94,8 @@ export interface ApiTokenView {
   createdAt: string;
   expiresAt: string | null;
   lastUsedAt: string | null;
+  /** Made by connecting an AI assistant (OAuth), not by hand. */
+  assistant: boolean;
 }
 
 export const createApiTokenRequestSchema = z.object({
@@ -104,6 +106,31 @@ export const createApiTokenRequestSchema = z.object({
   /** Another member of the site (`manage_users`). */
   userId: z.uuid().optional(),
 });
+
+/** Admin → AI assistants. */
+export interface AssistantsStatus {
+  enabled: boolean;
+  /** The MCP address to add in the assistant. */
+  address: string;
+}
+
+/** What an assistant asks for on /oauth/authorize, shown on the consent screen. */
+export interface OAuthConsentView {
+  client: string;
+  site: string;
+  user: string;
+  scopes: string[];
+  /** The user may let it publish too. */
+  canPublish: boolean;
+}
+
+export const oauthConsentRequestSchema = z.object({
+  /** The query of /oauth/authorize. */
+  params: z.record(z.string(), z.string()),
+  allow: z.boolean(),
+  publish: z.boolean().optional(),
+});
+export type OAuthConsentRequest = z.infer<typeof oauthConsentRequestSchema>;
 
 export const forgotPasswordRequestSchema = z.object({ email: emailSchema });
 export type ForgotPasswordRequest = z.input<typeof forgotPasswordRequestSchema>;

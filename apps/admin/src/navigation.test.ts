@@ -16,6 +16,7 @@ describe('visibleSections', () => {
       'Plugins',
       'Users',
       'Profile',
+      'AI assistants',
       'Settings',
       'Redirects',
       'Content structure',
@@ -32,6 +33,7 @@ describe('visibleSections', () => {
       'Pages',
       'Appearance',
       'Profile',
+      'AI assistants',
     ]);
   });
 
