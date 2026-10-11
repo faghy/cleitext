@@ -1,4 +1,4 @@
-import { resolveTxt } from 'node:dns/promises';
+import { Resolver, resolveTxt } from 'node:dns/promises';
 import { defineBlock, definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
 import { applyTemplate, withDefaults, type SeoConfig } from './config';
 
@@ -17,6 +17,20 @@ interface Crumb {
 }
 
 const HOME_LABEL = (locale: string) => (locale.toLowerCase().startsWith('it') ? 'Home' : 'Home');
+
+/**
+ * TXT records as Google sees them: public resolvers first (the server's own
+ * resolver may fail or keep an old answer), then the system one.
+ */
+async function txtRecords(domain: string): Promise<string[][]> {
+  const resolver = new Resolver({ timeout: 3000, tries: 2 });
+  resolver.setServers(['1.1.1.1', '8.8.8.8']);
+  try {
+    return await resolver.resolveTxt(domain);
+  } catch {
+    return resolveTxt(domain);
+  }
+}
 
 /** The home of a language, from the address of one of its pages. */
 function homeOf(url: string, locale: string): string {
@@ -374,7 +388,7 @@ export default definePlugin({
         const dns: { domain: string; google: boolean; bing: boolean }[] = [];
         for (const domain of domains) {
           try {
-            const records = (await resolveTxt(domain)).map((r) => r.join(''));
+            const records = (await txtRecords(domain)).map((r) => r.join(''));
             const google = records.some((r) => r.startsWith('google-site-verification='));
             const bing = records.some((r) => /^MS=ms\d+/i.test(r));
             if (google || bing) dns.push({ domain, google, bing });
