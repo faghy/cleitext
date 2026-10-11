@@ -253,7 +253,7 @@ describe('OAuth for AI assistants', () => {
       method: 'POST',
       url: '/oauth/register',
       headers: { host: site.host },
-      payload: { client_name: 'Claude', redirect_uris: [redirect] },
+      payload: { client_name: 'Assistant', redirect_uris: [redirect] },
     });
     expect(registered.statusCode).toBe(201);
     clientId = registered.json().client_id;
@@ -275,7 +275,7 @@ describe('OAuth for AI assistants', () => {
 
     const page = await get(`/oauth/authorize?${query}`, admin);
     expect(page.statusCode).toBe(200);
-    expect(page.body).toContain('Claude');
+    expect(page.body).toContain('Assistant');
     const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
 
     const approved = await admin.postForm('/oauth/authorize', {
@@ -380,7 +380,7 @@ describe('OAuth for AI assistants', () => {
 
     // The connection is an API token of the user: revoking it disconnects the assistant.
     const list = (await admin.get('/api/v1/tokens')).json() as { id: string; name: string }[];
-    const connected = list.find((t) => t.name === 'Claude (MCP)')!;
+    const connected = list.find((t) => t.name === 'Assistant (MCP)')!;
     expect((await admin.request('DELETE', `/api/v1/tokens/${connected.id}`)).statusCode).toBe(204);
     expect((await rpc(renewed.access_token, 'ping')).statusCode).toBe(401);
   });

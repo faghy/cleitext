@@ -288,7 +288,7 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
                 </span>
                 <span className="text-xs text-slate-500">
                   {t(
-                    'People connect their assistant (Claude, ChatGPT, Cursor…) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish.',
+                    'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish.',
                   )}
                 </span>
               </span>

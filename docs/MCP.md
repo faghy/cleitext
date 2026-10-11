@@ -2,7 +2,7 @@
 
 > 🇮🇹 [Leggi in italiano](./it/MCP.md)
 
-Cleitext is an **MCP server**: people connect their own AI assistant (Claude, ChatGPT, Cursor, Claude Code…) to the site and ask it to write pages and posts. The assistant works with the blocks of the editor and the sections of the theme, with the permissions of the person who connected it. Cleitext calls no AI service itself and needs no API key.
+Cleitext is an **MCP server**: people connect their own AI assistant (ChatGPT, Cursor or any MCP client) to the site and ask it to write pages and posts. The assistant works with the blocks of the editor and the sections of the theme, with the permissions of the person who connected it. Cleitext calls no AI service itself and needs no API key.
 
 ## Turn it on
 
@@ -10,12 +10,20 @@ In **Settings → AI assistants (MCP)**, check _Let AI assistants work on this s
 
 ## Connect an assistant
 
-**With OAuth** (claude.ai, ChatGPT and other apps with "custom connectors"): add a connector with the address `https://<your site>/mcp`. The assistant registers itself, opens the Cleitext sign-in, and asks you to allow access: reading content, creating and changing drafts, and — only if you check it and your role can publish — publishing.
+**With OAuth** (apps with "custom connectors", such as ChatGPT): add a connector with the address `https://<your site>/mcp`. The assistant registers itself, opens the Cleitext sign-in, and asks you to allow access: reading content, creating and changing drafts, and — only if you check it and your role can publish — publishing.
 
-**With a token** (Claude Code, Cursor, scripts): create a token in **Profile → API tokens** (_Can make changes_, and _Can publish_ if wanted), then for example:
+**With a token** (desktop and command-line assistants, editors, scripts): create a token in **Profile → API tokens** (_Can make changes_, and _Can publish_ if wanted), then add the server to the assistant's MCP configuration, for example:
 
-```bash
-claude mcp add --transport http cleitext https://example.com/mcp --header "Authorization: Bearer ctx_…"
+```json
+{
+  "mcpServers": {
+    "cleitext": {
+      "type": "http",
+      "url": "https://example.com/mcp",
+      "headers": { "Authorization": "Bearer ctx_…" }
+    }
+  }
+}
 ```
 
 Each connection is an API token of your account: it is listed in **Profile → API tokens** (OAuth ones are named "<assistant> (MCP)"), and revoking it disconnects the assistant.

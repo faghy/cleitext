@@ -20,7 +20,7 @@
 - **Public site**: React SSR themes, no JavaScript by default, tag-based page cache
 - **Extensibility**: a plugin system modeled on WordPress (hooks, activation/uninstall lifecycle, upload and auto-updates), with typed hooks and a dedicated PostgreSQL schema per plugin
 - **Multi-site**: one installation serves many domains, isolated with PostgreSQL Row Level Security
-- **AI assistants**: an MCP server lets people connect Claude, ChatGPT and other assistants with OAuth and have them build pages and posts with the blocks of the editor
+- **AI assistants**: an MCP server lets people connect ChatGPT and other AI assistants with OAuth and have them build pages and posts with the blocks of the editor
 - **Deployment**: Plesk (Node.js extension)
 
 ## Development

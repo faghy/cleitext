@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/MCP.md](../MCP.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-Cleitext è un **server MCP**: ognuno collega il proprio assistente IA (Claude, ChatGPT, Cursor, Claude Code…) al sito e gli chiede di scrivere pagine e articoli. L'assistente lavora con i blocchi dell'editor e le sezioni del tema, con i permessi della persona che l'ha collegato. Cleitext non chiama nessun servizio di IA e non serve nessuna chiave API.
+Cleitext è un **server MCP**: ognuno collega il proprio assistente IA (ChatGPT, Cursor o qualsiasi client MCP) al sito e gli chiede di scrivere pagine e articoli. L'assistente lavora con i blocchi dell'editor e le sezioni del tema, con i permessi della persona che l'ha collegato. Cleitext non chiama nessun servizio di IA e non serve nessuna chiave API.
 
 ## Attivarlo
 
@@ -10,12 +10,20 @@ In **Impostazioni → Assistenti IA (MCP)** spunta _Permetti agli assistenti IA 
 
 ## Collegare un assistente
 
-**Con OAuth** (claude.ai, ChatGPT e le altre app con i "connettori personalizzati"): aggiungi un connettore con l'indirizzo `https://<il tuo sito>/mcp`. L'assistente si registra da solo, apre l'accesso di Cleitext e ti chiede di consentire: leggere i contenuti, creare e modificare bozze e, solo se lo spunti e il tuo ruolo può pubblicare, pubblicare.
+**Con OAuth** (le app con i "connettori personalizzati", come ChatGPT): aggiungi un connettore con l'indirizzo `https://<il tuo sito>/mcp`. L'assistente si registra da solo, apre l'accesso di Cleitext e ti chiede di consentire: leggere i contenuti, creare e modificare bozze e, solo se lo spunti e il tuo ruolo può pubblicare, pubblicare.
 
-**Con un token** (Claude Code, Cursor, script): crea un token in **Profilo → Token API** (_Può modificare_, e _Può pubblicare_ se serve), poi per esempio:
+**Con un token** (assistenti da desktop o da riga di comando, editor, script): crea un token in **Profilo → Token API** (_Può modificare_, e _Può pubblicare_ se serve), poi aggiungi il server alla configurazione MCP dell'assistente, per esempio:
 
-```bash
-claude mcp add --transport http cleitext https://example.com/mcp --header "Authorization: Bearer ctx_…"
+```json
+{
+  "mcpServers": {
+    "cleitext": {
+      "type": "http",
+      "url": "https://example.com/mcp",
+      "headers": { "Authorization": "Bearer ctx_…" }
+    }
+  }
+}
 ```
 
 Ogni collegamento è un token API del tuo account: lo trovi in **Profilo → Token API** (quelli OAuth si chiamano "<assistente> (MCP)"), e revocarlo scollega l'assistente.

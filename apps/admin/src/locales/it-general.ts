@@ -253,8 +253,8 @@ export const itGeneral: Messages = {
   'Can publish (AI assistants)': 'Può pubblicare (assistenti IA)',
   'AI assistants (MCP)': 'Assistenti IA (MCP)',
   'Let AI assistants work on this site': 'Permetti agli assistenti IA di lavorare su questo sito',
-  'People connect their assistant (Claude, ChatGPT, Cursor…) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish.':
-    'Ognuno collega il proprio assistente (Claude, ChatGPT, Cursor…) con il suo account e gli chiede di scrivere pagine e articoli. L’assistente usa i blocchi dell’editor e le sezioni del tema, agisce con i permessi della persona e crea bozze, a meno che non gli sia permesso di pubblicare.',
+  'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish.':
+    'Ognuno collega il proprio assistente IA (ChatGPT, Cursor o un altro client MCP) con il suo account e gli chiede di scrivere pagine e articoli. L’assistente usa i blocchi dell’editor e le sezioni del tema, agisce con i permessi della persona e crea bozze, a meno che non gli sia permesso di pubblicare.',
   'Address to add in the assistant': 'Indirizzo da aggiungere nell’assistente',
   'In the assistant, add a custom connector (MCP server) with this address: it asks to sign in here and to allow access. For tools that take a token instead, create one in Profile → API tokens.':
     'Nell’assistente aggiungi un connettore personalizzato (server MCP) con questo indirizzo: ti chiederà di accedere qui e di consentire l’accesso. Per gli strumenti che vogliono invece un token, creane uno in Profilo → Token API.',
