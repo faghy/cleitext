@@ -212,6 +212,8 @@ Restore a backup on a test copy now and then, to be sure that your backups work.
 
 Imports add content to the site; they do not replace it. WordPress media files are downloaded from the old site; with a copy of its `wp-content/uploads` folder, pass `--uploads /path/to/uploads`. Every import prints a report and can save it with `--report report.json`. Old addresses are redirected to the new ones.
 
+From the admin, without the command line: install **WordPress Importer** from **Plugins → Add New**, open **Import from WordPress** and upload the export file. It runs in the background and shows the report at the end. Media files are downloaded from the old site (public addresses only), so keep it online until the import ends.
+
 ## 11. Several sites
 
 One installation serves many sites. Point other domains to the same application (as aliases of the domain in Plesk, or as domains whose document root is the same folder), then:

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.6.0';
+export const SDK_VERSION = '1.7.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -18,6 +18,8 @@ export const PLUGIN_PERMISSIONS = [
   'languages',
   /** Export and erase the personal data of anyone, gathered from the core and every plugin. */
   'privacy',
+  /** Import content from other systems into a site (WordPress exports). */
+  'import',
 ] as const;
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 

@@ -27,10 +27,12 @@ import {
   type PluginSite,
   type PluginTerm,
   type PendingLanguages,
+  type ImportReport,
   type PersonalDataGroup,
   type PluginMedia,
   type PluginTransaction,
   type TermQuery,
+  type WxrImportOptions,
 } from '@cleitext/plugin-sdk';
 import {
   fieldDefaults,
@@ -40,6 +42,7 @@ import {
 } from '@cleitext/shared';
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { fetchPublic } from '../common/public-fetch.js';
 import type { AuthContext } from '../common/request-context.js';
 import { seal, unseal } from '../common/secrets.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
@@ -49,8 +52,11 @@ import { defaultLocaleIn, LanguagesService, PENDING } from '../content/languages
 import { TermsService } from '../content/terms.service.js';
 import { DATABASE } from '../database/database.module.js';
 import { MailService } from '../mail/mail.service.js';
+import { MediaService } from '../media/media.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { isPublished, loadSiteData } from '../public/site-data.js';
+import { importDocument } from '../transfer/importer.js';
+import { wxrToDocument } from '../transfer/wxr.js';
 import type { PluginServices } from './plugin-context.js';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
 
@@ -66,6 +72,7 @@ export class PluginServicesProvider implements PluginServices {
     private readonly entriesService: EntriesService,
     private readonly termsService: TermsService,
     private readonly identity: IdentityService,
+    private readonly media: MediaService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {
     host.bind(this);
@@ -424,6 +431,52 @@ export class PluginServicesProvider implements PluginServices {
         })),
       },
     ];
+  }
+
+  /**
+   * A WordPress export imported from the admin (plugin API 1.7). Unlike the
+   * CLI, media files are only downloaded from public addresses: the export
+   * comes from a browser, so it must not reach the server's own network.
+   */
+  async importWxr(siteId: string, options: WxrImportOptions): Promise<ImportReport> {
+    if (!(await this.identity.load(siteId, options.userId, ''))) {
+      throw new ForbiddenException('This user cannot import into the site.');
+    }
+    const defaultLocale = await withContext(this.database.db, { siteId }, (tx) =>
+      defaultLocaleIn(tx, siteId),
+    );
+    const locales = await this.languages.locales(siteId, defaultLocale);
+    const locale = options.locale ?? defaultLocale;
+    if (!locales.some((l) => l.code === locale)) {
+      throw new BadRequestException(`The site has no language "${locale}".`);
+    }
+    const { document, warnings } = wxrToDocument(options.xml, {
+      locale,
+      ...(options.authorRole ? { authorRole: options.authorRole } : {}),
+    });
+    const report = await importDocument(document, {
+      db: this.database.db,
+      siteId,
+      asUserId: options.userId,
+      media: this.media,
+      cache: this.cache,
+      readFile: async (file) => {
+        if (!/^https?:\/\//i.test(file)) throw new Error('not a web address');
+        const { data } = await fetchPublic(file, {
+          maxBytes: this.config.media.maxBytes,
+          timeoutMs: 60_000,
+          allowHttp: true,
+          userAgent: 'Cleitext-WordPress-Importer/1.0',
+        });
+        return data;
+      },
+      activePlugins: await this.host.activeSlugs(siteId),
+      locales,
+      onLanguagesPending: () => this.host.emit('languages.pending', {}, siteId),
+      ...(options.onProgress ? { onProgress: options.onProgress } : {}),
+    });
+    report.warnings.unshift(...warnings);
+    return report;
   }
 
   async mediaItem(siteId: string, id: string): Promise<PluginMedia | null> {

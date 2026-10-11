@@ -3,6 +3,7 @@ import {
   type CopyOptions,
   type LanguageUsage,
   type PendingLanguages,
+  type ImportReport,
   type PersonalDataGroup,
   type PluginContext,
   type PluginMedia,
@@ -14,6 +15,7 @@ import {
   type PluginTransaction,
   type EntryQuery,
   type TermQuery,
+  type WxrImportOptions,
 } from '@cleitext/plugin-sdk';
 import type { FieldDefinition, FieldValues } from '@cleitext/shared';
 import { Logger } from '@nestjs/common';
@@ -83,6 +85,7 @@ export interface PluginServices {
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
   /** What the core keeps about an email on a site: account, sessions, activity. */
   corePersonalData(siteId: string, email: string): Promise<PersonalDataGroup[]>;
+  importWxr(siteId: string, options: WxrImportOptions): Promise<ImportReport>;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -385,6 +388,15 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         require('privacy');
         assertSiteId(siteId);
         return host.erasePersonalData(siteId, email);
+      },
+    },
+
+    transfer: {
+      async importWxr(siteId, options) {
+        require('import');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(options.userId)) throw new TypeError('Invalid user id.');
+        return services().importWxr(siteId, options);
       },
     },
   };

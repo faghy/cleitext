@@ -16,6 +16,7 @@ import {
   taxonomies,
   terms,
   users,
+  findLogin,
   withContext,
   type Database,
   type SiteTransaction,
@@ -139,31 +140,31 @@ export async function importDocument(
         report.warnings.push(`User "${user.displayName}" skipped: invalid email "${user.email}".`);
         continue;
       }
-      let [row] = await tx.select().from(users).where(eq(users.email, email));
-      if (!row) {
-        [row] = await tx
-          .insert(users)
-          .values({
-            id: newId(),
-            email,
-            displayName: user.displayName || email,
-            passwordHash: null,
-            locale: user.locale ?? 'en',
-          })
-          .returning();
+      // Accounts of other sites are not visible under RLS: looked up by email,
+      // and inserted without RETURNING (a new user is not a member yet).
+      let userId = (await findLogin(db, email))?.userId;
+      if (!userId) {
+        userId = newId();
+        await tx.insert(users).values({
+          id: userId,
+          email,
+          displayName: user.displayName || email,
+          passwordHash: null,
+          locale: user.locale ?? 'en',
+        });
         created++;
         count(report, 'users');
       } else {
         count(report, 'users', 'skipped');
       }
-      userIds.set(user.ref, row!.id);
+      userIds.set(user.ref, userId);
       const role =
         roleRows.find((r) => r.slug === user.role && r.siteId === siteId) ??
         roleRows.find((r) => r.slug === (user.role ?? 'subscriber') && r.siteId === null);
       if (role) {
         await tx
           .insert(siteMembers)
-          .values({ siteId, userId: row!.id, roleId: role.id })
+          .values({ siteId, userId, roleId: role.id })
           .onConflictDoNothing();
       } else {
         report.warnings.push(`Unknown role "${user.role}" for ${email}: not added to the site.`);

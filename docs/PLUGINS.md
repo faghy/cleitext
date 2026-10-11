@@ -361,6 +361,8 @@ ctx.routes.public({
 
 `request` is `{ siteId, method, path, params, query, body, ip, user, headers }`. `user` is `{ id, displayName, capabilities }` or `null`. The handler returns `{ status?, body?, contentType?, headers?, cacheTags? }`: a string `body` is sent as is, anything else as JSON. To redirect, return `{ status: 303, headers: { location: '/thanks' } }`.
 
+**Uploads** (plugin API 1.7): `await request.file()` returns the `file` field of a `multipart/form-data` request as `{ filename, mime, data }` (a `Buffer`), or `null`; files over the server's upload limit (`MEDIA_MAX_BYTES`) get a 413. In the admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` from the admin SDK sends it with the CSRF token and reports the progress.
+
 ## 9. Settings, capabilities, cache, mail
 
 ### Settings
@@ -470,6 +472,23 @@ ctx.privacy.declareTrackers(async (siteId) => [
 Load scripts that need consent inert — `<script type="text/plain" data-cx-category="statistics">` — and the banner runs them after consent. `ctx.privacy.trackers(siteId)` (permission `privacy`) returns the declarations of the active plugins.
 
 The email comes in lowercase. Only the plugins active on the site are asked. A plugin with the `privacy` permission (such as Privacy & GDPR) runs the requests: `ctx.privacy.exportPersonalData(siteId, email)` gathers the core's data (the account of a member of the site, its sessions, tokens and activity) and every exporter's; `ctx.privacy.erasePersonalData(siteId, email)` runs the erasers (accounts are kept: they are deleted from Users).
+
+### Import (WordPress)
+
+A plugin with the `import` permission can import a WordPress export (WXR) into a site (plugin API 1.7), as the official **WordPress Importer** does:
+
+```ts
+const report = await ctx.transfer.importWxr(siteId, {
+  xml, // the export file, as text
+  userId: request.user!.id, // recorded as author of the import
+  locale: 'it', // optional: the site's default language otherwise
+  authorRole: 'author', // role of the imported authors
+  onProgress: (message) => ctx.log.info(message),
+});
+// { created: { entries: 12, media: 30, … }, skipped: {…}, warnings: […], errors: […] }
+```
+
+Posts, pages, media, categories, tags, menus and authors are imported, with redirects from the old addresses; what is already on the site is kept. Media files are downloaded only from public addresses, never from the server's own network. A big site takes minutes: start the import without awaiting it in the route, and keep its progress in `ctx.storage`.
 
 ## 10. Your own tables
 
@@ -607,6 +626,7 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 | `mail:send`     | `ctx.mail.send`                                                              |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                       |
 | `media:read`    | `ctx.media.get`                                                              |
+| `import`        | `ctx.transfer.importWxr`                                                     |
 
 Administrators see the requested permissions in **Plugins → Details**. Your own tables (`ctx.db`), hooks on actions, logging, capabilities and cache invalidation need no permission.
 

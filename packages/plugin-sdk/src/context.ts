@@ -350,6 +350,17 @@ export interface RouteRequest {
   /** Signed-in user, if any. */
   user: { id: string; displayName: string; capabilities: string[] } | null;
   headers: Record<string, string | undefined>;
+  /**
+   * The `file` field of a multipart/form-data request (the admin's `uploadFile`),
+   * within the server's upload limit; null when the request has none.
+   */
+  file(): Promise<UploadedFile | null>;
+}
+
+export interface UploadedFile {
+  filename: string;
+  mime: string;
+  data: Buffer;
 }
 
 export interface RouteResponse {
@@ -432,6 +443,40 @@ export interface MailApi {
     replyTo?: string;
     siteId?: string;
   }): Promise<void>;
+}
+
+// ---- Import -------------------------------------------------------------------------
+
+/** What an import did: counts by kind, and what was adapted or left out. */
+export interface ImportReport {
+  created: Record<string, number>;
+  skipped: Record<string, number>;
+  /** Not blocking: something was adapted or left out. */
+  warnings: string[];
+  /** Blocking for that record: it was not imported. */
+  errors: string[];
+}
+
+export interface WxrImportOptions {
+  /** The WordPress export (WXR 1.x), as text. */
+  xml: string;
+  /** Existing user recorded as author of the import (the person who started it). */
+  userId: string;
+  /** Language of the content; the site's default language when omitted. */
+  locale?: string;
+  /** Role given to imported authors. Default `author`. */
+  authorRole?: string;
+  onProgress?(message: string): void;
+}
+
+export interface TransferApi {
+  /**
+   * Imports a WordPress export into a site (needs `import`): posts, pages,
+   * media, categories, tags, menus and authors, with redirects from the old
+   * addresses. Media files are downloaded from public addresses only. Existing
+   * records are kept. It can take minutes: run it outside the request.
+   */
+  importWxr(siteId: string, options: WxrImportOptions): Promise<ImportReport>;
 }
 
 // ---- Privacy ------------------------------------------------------------------------
@@ -544,6 +589,7 @@ export interface PluginContext {
   readonly mail: MailApi;
   readonly media: MediaApi;
   readonly privacy: PrivacyApi;
+  readonly transfer: TransferApi;
 }
 
 export interface PluginDefinition {

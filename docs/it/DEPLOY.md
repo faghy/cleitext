@@ -212,6 +212,8 @@ Ogni tanto ripristina un backup su una copia di prova, per essere sicuro che i t
 
 Le importazioni aggiungono contenuti al sito, non li sostituiscono. I file media di WordPress vengono scaricati dal vecchio sito; se hai una copia della sua cartella `wp-content/uploads`, passa `--uploads /path/to/uploads`. Ogni importazione stampa un resoconto e può salvarlo con `--report report.json`. I vecchi indirizzi vengono reindirizzati a quelli nuovi.
 
+Dall'amministrazione, senza riga di comando: installa **WordPress Importer** da **Plugin → Aggiungi nuovo**, apri **Importa da WordPress** e carica il file di esportazione. Lavora in background e alla fine mostra il resoconto. I file media vengono scaricati dal vecchio sito (solo da indirizzi pubblici), quindi tienilo online finché l'importazione non finisce.
+
 ## 11. Più siti
 
 Un'unica installazione serve molti siti. Fai puntare gli altri domini alla stessa applicazione (come alias del dominio in Plesk, oppure come domini la cui document root è la stessa cartella), poi:

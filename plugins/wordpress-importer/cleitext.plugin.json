@@ -1,0 +1,13 @@
+{
+  "slug": "wordpress-importer",
+  "name": "WordPress Importer",
+  "version": "1.0.0",
+  "apiVersion": "^1.7",
+  "description": "Imports a WordPress export from the admin: posts, pages, media, categories, tags, menus and authors, with redirects from the old addresses and a report.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "permissions": ["import", "routes:admin", "settings:own"],
+  "capabilities": ["import_wordpress"]
+}

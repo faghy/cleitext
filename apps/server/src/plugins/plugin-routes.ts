@@ -1,5 +1,5 @@
 import type { RouteRequest, RouteResponse } from '@cleitext/plugin-sdk';
-import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { assertTokenAllowed, verifyCsrf, verifySameOrigin } from '../auth/auth.guard.js';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
@@ -32,6 +32,16 @@ export function routeRequest(
       ? { id: auth.userId, displayName: auth.displayName, capabilities: [...auth.capabilities] }
       : null,
     headers,
+    async file() {
+      if (!request.isMultipart()) return null;
+      const part = await request.file();
+      if (!part || part.fieldname !== 'file') return null;
+      try {
+        return { filename: part.filename, mime: part.mimetype, data: await part.toBuffer() };
+      } catch {
+        throw new HttpException('The file is too large.', HttpStatus.PAYLOAD_TOO_LARGE);
+      }
+    },
   };
 }
 
