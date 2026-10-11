@@ -11,6 +11,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./html": {
+      "types": "./dist/html.d.ts",
+      "default": "./dist/html.js"
+    },
+    "./transfer": {
+      "types": "./dist/transfer.d.ts",
+      "default": "./dist/transfer.js"
     }
   },
   "scripts": {
@@ -21,6 +29,7 @@
     "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.thresholds.lines=90 --coverage.thresholds.statements=90 --coverage.thresholds.functions=88 --coverage.thresholds.branches=80"
   },
   "dependencies": {
+    "node-html-parser": "^9.0.4",
     "zod": "^4.6.5"
   },
   "devDependencies": {

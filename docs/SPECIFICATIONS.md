@@ -663,7 +663,6 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 | `cleitext plugin:search · plugin:install <slug                                    | file.zip                                                                            | file.tgz> · plugin:update · plugin:rollback · plugin:list · plugin:uninstall` | Plugins (from the Cleitext registry or from a file). |
 | `cleitext theme:search · theme:install · theme:activate --site`                   | Themes.                                                                             |
 | `cleitext login · publish`                                                        | For developers: authentication and publishing of plugins or themes to the registry. |
-| `cleitext import:wxr <file> --site`                                               | WordPress import (requires `wp-import`).                                            |
 | `cleitext import:cleito --dsn <pg> --site-id <n> --site`                          | Migration from the old CMS.                                                         |
 | `cleitext export · import`                                                        | Export and import of a site in Cleitext format.                                     |
 | `cleitext cache:purge [--site] [--tag]`                                           | Cache.                                                                              |
@@ -717,7 +716,7 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 
 ### M5 — Migrations and deployment (2–3 weeks)
 
-- `cleito-import` (first real case: a Cleito site in production) and `wp-import`. _Update (October 2026): `cleito-import` is deferred, since no Cleito site needs migrating for now; the import model and `import:wxr` cover WordPress._
+- `cleito-import` (first real case: a Cleito site in production) and `wp-import`. _Update (October 2026): `cleito-import` is deferred, since no Cleito site needs migrating for now; the import model covers WordPress, through the separate WordPress Importer plugin (plugin API 1.8)._
 - Plesk package, deployment guide, backup and restore.
 
 **✅ Acceptance:** the sample Cleito site is migrated to Plesk with correct content, menus, languages and redirects (deferred with `cleito-import`). A real WordPress WXR export is imported with a report showing no blocking errors.

@@ -6,7 +6,7 @@ import {
   type CxdBlock,
   type CxdDocument,
   type CxdInline,
-} from '@cleitext/blocks';
+} from '../index.js';
 import { HTMLElement, parse, TextNode, type Node } from 'node-html-parser';
 import { parseBlocks, type WpBlock } from './wp-blocks.js';
 

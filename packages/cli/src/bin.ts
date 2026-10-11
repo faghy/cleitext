@@ -730,35 +730,6 @@ program
     ),
   );
 
-program
-  .command('import:wxr')
-  .description(
-    'Import a WordPress export (WXR): posts, pages, media, categories, tags, menus, authors.',
-  )
-  .argument('<file>', 'WordPress export (.xml)')
-  .requiredOption('--site <slug>')
-  .option('--locale <code>', 'language of the content (default: the site default)')
-  .option('--uploads <dir>', 'copy of wp-content/uploads, instead of downloading media')
-  .option('--author-role <slug>', 'role of imported authors', 'author')
-  .option('--as <email>', 'super admin recorded as author of the import')
-  .option('--report <file>', 'save the full report as JSON')
-  .action((file: string, opts) =>
-    withTasks(async (module, context) =>
-      printReport(
-        module,
-        await module.importWxrTask(context, {
-          file,
-          site: opts.site,
-          locale: opts.locale,
-          uploads: opts.uploads,
-          as: opts.as,
-          authorRole: opts.authorRole,
-        }),
-        opts.report,
-      ),
-    ),
-  );
-
 program.parseAsync().catch((error: unknown) => {
   if (error instanceof OperationError) {
     console.error(`Error: ${error.message}`);

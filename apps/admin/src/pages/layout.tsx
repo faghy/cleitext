@@ -121,7 +121,9 @@ export function AdminLayout() {
 
   return (
     <div className="flex min-h-screen bg-slate-100 text-slate-900">
-      <aside className="light-palette w-56 shrink-0 bg-slate-900 text-slate-200">
+      {/* Darker than the content in both themes, with an edge: in the dark theme the
+          content's background is the old menu color, and the two blended. */}
+      <aside className="light-palette w-56 shrink-0 border-r border-black/40 bg-slate-950 text-slate-200 shadow-[inset_-1px_0_0_rgb(255_255_255/0.06)]">
         <div className="px-4 py-4">
           <SiteMenu
             dark
@@ -141,7 +143,7 @@ export function AdminLayout() {
                 <Link
                   to={section.to}
                   activeOptions={{ exact: Boolean(section.exact) }}
-                  className={`block py-2 text-sm hover:bg-slate-800 ${section.sub ? 'pr-4 pl-8 text-xs' : 'px-4'}`}
+                  className={`block py-2 text-sm hover:bg-slate-800/70 ${section.sub ? 'pr-4 pl-8 text-xs' : 'px-4'}`}
                   activeProps={{ className: 'bg-sky-700 text-white', 'aria-current': 'page' }}
                 >
                   <span className="flex items-center justify-between gap-2">

@@ -32,7 +32,7 @@ import {
   type PluginMedia,
   type PluginTransaction,
   type TermQuery,
-  type WxrImportOptions,
+  type DocumentImportOptions,
 } from '@cleitext/plugin-sdk';
 import {
   fieldDefaults,
@@ -56,7 +56,7 @@ import { MediaService } from '../media/media.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { isPublished, loadSiteData } from '../public/site-data.js';
 import { importDocument } from '../transfer/importer.js';
-import { wxrToDocument } from '../transfer/wxr.js';
+import { transferDocumentSchema } from '../transfer/model.js';
 import type { PluginServices } from './plugin-context.js';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
 
@@ -434,27 +434,37 @@ export class PluginServicesProvider implements PluginServices {
   }
 
   /**
-   * A WordPress export imported from the admin (plugin API 1.7). Unlike the
-   * CLI, media files are only downloaded from public addresses: the export
-   * comes from a browser, so it must not reach the server's own network.
+   * A transfer document built by an import plugin (plugin API 1.8), e.g. from
+   * a WordPress export uploaded in the admin. Unlike the CLI, media files are
+   * only downloaded from public addresses: the file comes from a browser, so
+   * it must not reach the server's own network or its disk.
    */
-  async importWxr(siteId: string, options: WxrImportOptions): Promise<ImportReport> {
+  async importDocument(
+    siteId: string,
+    input: unknown,
+    options: DocumentImportOptions,
+  ): Promise<ImportReport> {
     if (!(await this.identity.load(siteId, options.userId, ''))) {
       throw new ForbiddenException('This user cannot import into the site.');
+    }
+    const parsed = transferDocumentSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        `Not a valid transfer document: ${parsed.error.issues[0]?.path.join('.') || 'root'} ${parsed.error.issues[0]?.message ?? ''}`.trim(),
+      );
     }
     const defaultLocale = await withContext(this.database.db, { siteId }, (tx) =>
       defaultLocaleIn(tx, siteId),
     );
     const locales = await this.languages.locales(siteId, defaultLocale);
-    const locale = options.locale ?? defaultLocale;
-    if (!locales.some((l) => l.code === locale)) {
-      throw new BadRequestException(`The site has no language "${locale}".`);
+    const codes = new Set(locales.map((l) => l.code));
+    const unknown = [
+      ...new Set([...parsed.data.entries, ...parsed.data.terms].map((r) => r.locale)),
+    ].filter((code) => !codes.has(code));
+    if (unknown.length > 0) {
+      throw new BadRequestException(`The site has no language "${unknown.join('", "')}".`);
     }
-    const { document, warnings } = wxrToDocument(options.xml, {
-      locale,
-      ...(options.authorRole ? { authorRole: options.authorRole } : {}),
-    });
-    const report = await importDocument(document, {
+    return importDocument(parsed.data, {
       db: this.database.db,
       siteId,
       asUserId: options.userId,
@@ -466,7 +476,7 @@ export class PluginServicesProvider implements PluginServices {
           maxBytes: this.config.media.maxBytes,
           timeoutMs: 60_000,
           allowHttp: true,
-          userAgent: 'Cleitext-WordPress-Importer/1.0',
+          userAgent: 'Cleitext-Importer/1.0',
         });
         return data;
       },
@@ -475,8 +485,6 @@ export class PluginServicesProvider implements PluginServices {
       onLanguagesPending: () => this.host.emit('languages.pending', {}, siteId),
       ...(options.onProgress ? { onProgress: options.onProgress } : {}),
     });
-    report.warnings.unshift(...warnings);
-    return report;
   }
 
   async mediaItem(siteId: string, id: string): Promise<PluginMedia | null> {

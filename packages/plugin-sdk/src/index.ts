@@ -42,3 +42,4 @@ export function defineBlock<A extends object = FieldValues, D = undefined>(
 ): PluginBlockDefinition<A, D> {
   return definition;
 }
+export type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';

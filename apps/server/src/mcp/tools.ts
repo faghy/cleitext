@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- JSON answers of the REST API, read field by field. */
 import type { CxdBlock } from '@cleitext/blocks';
-import { htmlToCxd } from '../transfer/html-to-cxd.js';
+import { htmlToCxd } from '@cleitext/blocks/html';
 import { BLOCK_GUIDE } from './guide.js';
 import { ToolError } from './errors.js';
 import { fetchPublicFile } from './fetch-public.js';

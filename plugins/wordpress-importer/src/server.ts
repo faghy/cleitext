@@ -1,9 +1,11 @@
 import { definePlugin, type ImportReport, type PluginContext } from '@cleitext/plugin-sdk';
+import { wxrToDocument } from './wxr';
 
 /**
  * WordPress Importer: the export of a WordPress site (Tools → Export, a WXR
- * file) uploaded from the admin and imported by the core (`ctx.transfer`),
- * in the background, with its progress and report kept per site.
+ * file) uploaded from the admin, converted here into a transfer document and
+ * imported by the core (`ctx.transfer`, plugin API 1.8), in the background,
+ * with its progress and report kept per site.
  */
 
 export const CAPABILITY = 'import_wordpress';
@@ -21,7 +23,7 @@ const problem = (status: 400 | 409, detail: string) => ({
 export interface Job {
   status: 'running' | 'done' | 'failed';
   file: string;
-  locale: string | null;
+  locale: string;
   user: string;
   startedAt: string;
   updatedAt: string;
@@ -68,16 +70,18 @@ async function run(
     await ctx.storage.set(siteId, JOB, job);
   };
   try {
-    const report = await ctx.transfer.importWxr(siteId, {
-      xml: options.xml,
-      userId: options.userId,
+    const { document, warnings } = wxrToDocument(options.xml, {
+      locale: job.locale,
       authorRole: options.authorRole,
-      ...(job.locale ? { locale: job.locale } : {}),
+    });
+    const report = await ctx.transfer.importDocument(siteId, document, {
+      userId: options.userId,
       onProgress(message) {
         job.progress = [...job.progress, message].slice(-20);
         void save().catch(() => {});
       },
     });
+    report.warnings.unshift(...warnings);
     job.status = 'done';
     job.report = report;
   } catch (error) {
@@ -126,7 +130,10 @@ export default definePlugin({
             'This is not a WordPress export. In WordPress use Tools → Export → All content.',
           );
         }
-        const locale = request.query.locale?.trim() || null;
+        const locale = request.query.locale?.trim() ?? '';
+        if (!/^[a-z]{2,3}(-[A-Z]{2})?$/.test(locale)) {
+          return problem(400, 'Choose the language of the content.');
+        }
         const authorRole = ROLES.includes(request.query.authorRole ?? '')
           ? request.query.authorRole!
           : 'author';

@@ -17,6 +17,6 @@ Posts, pages, images and other media, categories, tags, menus and authors, with 
 - Authors get an account without a password, as members of the site with the chosen role; they set a password with **Forgot password**.
 - Custom post types of other plugins (WooCommerce products…) and comments are counted in the report and not imported; shortcodes stay as text.
 
-Only administrators can use it (capability `import_wordpress`). From the command line the same import is `bin/cleitext import:wxr export.xml --site <slug>`, which can also read media from a copy of `wp-content/uploads`.
+Only administrators can use it (capability `import_wordpress`).
 
-Plugin API 1.7: it uses `ctx.transfer.importWxr` (permission `import`) and `request.file()`.
+Plugin API 1.8: it reads the WordPress export itself and imports the result with `ctx.transfer.importDocument` (permission `import`); the upload comes through `request.file()`.

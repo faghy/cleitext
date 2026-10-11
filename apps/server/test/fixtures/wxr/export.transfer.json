@@ -1,0 +1,555 @@
+{
+  "warnings": [
+    "A morning at the harbour: Block some-plugin/map has no equivalent: its text was kept.",
+    "Old classic post: A table became text (tables are not supported yet).",
+    "Old classic post: contains shortcodes, left as text.",
+    "1 item(s) of the custom type \"product\" were not imported.",
+    "1 comment(s) were not imported (comments come with a plugin)."
+  ],
+  "document": {
+    "format": "cleitext-transfer",
+    "version": 1,
+    "source": {
+      "kind": "wordpress",
+      "name": "Seaside Notes",
+      "url": "https://old.example.com",
+      "exportedAt": "2026-10-11T19:53:33.852Z"
+    },
+    "site": {
+      "title": "Seaside Notes",
+      "tagline": "Stories from the coast"
+    },
+    "users": [
+      {
+        "ref": "user:marta",
+        "email": "marta@old.example.com",
+        "displayName": "Marta Rossi",
+        "role": "author"
+      }
+    ],
+    "terms": [
+      {
+        "ref": "category:travel",
+        "taxonomy": "category",
+        "locale": "en",
+        "slug": "travel",
+        "name": "Travel",
+        "description": null
+      },
+      {
+        "ref": "category:harbours",
+        "taxonomy": "category",
+        "locale": "en",
+        "slug": "harbours",
+        "name": "Harbours & ports",
+        "description": null,
+        "parentRef": "category:travel"
+      },
+      {
+        "ref": "tag:boats",
+        "taxonomy": "tag",
+        "locale": "en",
+        "slug": "boats",
+        "name": "Boats"
+      }
+    ],
+    "media": [
+      {
+        "ref": "att:10",
+        "file": "https://old.example.com/wp-content/uploads/2024/05/harbour.jpg",
+        "filename": "harbour.jpg",
+        "alt": {
+          "en": "Boats in the harbour"
+        },
+        "caption": {
+          "en": "The old harbour"
+        },
+        "urls": ["https://old.example.com/wp-content/uploads/2024/05/harbour.jpg"]
+      }
+    ],
+    "entries": [
+      {
+        "ref": "post:20",
+        "type": "article",
+        "locale": "en",
+        "slug": "a-morning-at-the-harbour",
+        "title": "A morning at the harbour",
+        "status": "published",
+        "authorRef": "user:marta",
+        "publishedAt": "2024-05-02T06:30:00Z",
+        "createdAt": "2024-05-02T06:30:00Z",
+        "position": 0,
+        "document": {
+          "schema": 1,
+          "blocks": [
+            {
+              "id": "b_mv48qs9h016zv9d1",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "The fishermen come back at "
+                },
+                {
+                  "text": "dawn",
+                  "marks": ["bold"]
+                },
+                {
+                  "text": ", see "
+                },
+                {
+                  "type": "link",
+                  "href": "https://old.example.com/about/",
+                  "children": [
+                    {
+                      "text": "who we are"
+                    }
+                  ]
+                },
+                {
+                  "text": "."
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9j02krwksc",
+              "type": "core/image",
+              "v": 1,
+              "attrs": {
+                "sizeSlug": "large",
+                "id": "att:10",
+                "url": "https://old.example.com/wp-content/uploads/2024/05/harbour-1024x768.jpg",
+                "alt": "Boats in the harbour",
+                "caption": [
+                  {
+                    "text": "Early light"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "b_mv48qs9j03a5fcc4",
+              "type": "core/heading",
+              "v": 1,
+              "attrs": {
+                "level": 3
+              },
+              "content": [
+                {
+                  "text": "What to bring"
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9k067l5e0c",
+              "type": "core/list",
+              "v": 1,
+              "attrs": {},
+              "children": [
+                {
+                  "id": "b_mv48qs9k04eae11o",
+                  "type": "core/list-item",
+                  "v": 1,
+                  "attrs": {},
+                  "content": [
+                    {
+                      "text": "A warm jacket"
+                    }
+                  ]
+                },
+                {
+                  "id": "b_mv48qs9k05vpzd0z",
+                  "type": "core/list-item",
+                  "v": 1,
+                  "attrs": {},
+                  "content": [
+                    {
+                      "text": "Coffee"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9k08u7shu2",
+              "type": "core/quote",
+              "v": 1,
+              "attrs": {
+                "citation": [
+                  {
+                    "text": "A sailor"
+                  }
+                ]
+              },
+              "children": [
+                {
+                  "id": "b_mv48qs9k07j927xu",
+                  "type": "core/paragraph",
+                  "v": 1,
+                  "attrs": {},
+                  "content": [
+                    {
+                      "text": "The sea is the same everywhere."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9k09u6w6tj",
+              "type": "core/columns",
+              "v": 1,
+              "attrs": {},
+              "children": [
+                {
+                  "id": "b_mv48qs9k0ahzmjyb",
+                  "type": "core/column",
+                  "v": 1,
+                  "attrs": {},
+                  "children": [
+                    {
+                      "id": "b_mv48qs9k0b9jom5l",
+                      "type": "core/paragraph",
+                      "v": 1,
+                      "attrs": {},
+                      "content": [
+                        {
+                          "text": "Left"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "b_mv48qs9k0cly4taa",
+                  "type": "core/column",
+                  "v": 1,
+                  "attrs": {},
+                  "children": [
+                    {
+                      "id": "b_mv48qs9l0dtly9jj",
+                      "type": "core/paragraph",
+                      "v": 1,
+                      "attrs": {},
+                      "content": [
+                        {
+                          "text": "Right"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9l0ezrrh3j",
+              "type": "core/separator",
+              "v": 1,
+              "attrs": {}
+            },
+            {
+              "id": "b_mv48qs9l0fi0k65j",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "Map of the coast"
+                }
+              ]
+            }
+          ]
+        },
+        "terms": {
+          "category": ["category:harbours"],
+          "tag": ["tag:boats"]
+        },
+        "oldPaths": ["https://old.example.com/2024/05/a-morning-at-the-harbour/", "/?p=20"]
+      },
+      {
+        "ref": "post:21",
+        "type": "article",
+        "locale": "en",
+        "slug": "old-classic-post",
+        "title": "Old classic post",
+        "status": "published",
+        "authorRef": "user:marta",
+        "publishedAt": "2019-03-10T10:00:00Z",
+        "createdAt": "2019-03-10T10:00:00Z",
+        "position": 0,
+        "document": {
+          "schema": 1,
+          "blocks": [
+            {
+              "id": "b_mv48qs9m0g4evkws",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "First paragraph with "
+                },
+                {
+                  "text": "emphasis",
+                  "marks": ["italic"]
+                },
+                {
+                  "text": "."
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9m0h9pjtpv",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "Second paragraph\nwith a line break."
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9m0ivmi8qe",
+              "type": "core/heading",
+              "v": 1,
+              "attrs": {
+                "level": 2
+              },
+              "content": [
+                {
+                  "text": "A heading"
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9m0jfp058n",
+              "type": "core/list",
+              "v": 1,
+              "attrs": {
+                "ordered": true
+              },
+              "children": [
+                {
+                  "id": "b_mv48qs9m0kmy09u0",
+                  "type": "core/list-item",
+                  "v": 1,
+                  "attrs": {},
+                  "content": [
+                    {
+                      "text": "One"
+                    }
+                  ]
+                },
+                {
+                  "id": "b_mv48qs9m0nn12os3",
+                  "type": "core/list-item",
+                  "v": 1,
+                  "attrs": {},
+                  "content": [
+                    {
+                      "text": "Two "
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "b_mv48qs9m0le7w0di",
+                      "type": "core/list",
+                      "v": 1,
+                      "attrs": {},
+                      "children": [
+                        {
+                          "id": "b_mv48qs9m0mqbthjv",
+                          "type": "core/list-item",
+                          "v": 1,
+                          "attrs": {},
+                          "content": [
+                            {
+                              "text": "Two and a half"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9n0ojxog62",
+              "type": "core/image",
+              "v": 1,
+              "attrs": {
+                "id": "att:10",
+                "url": "https://old.example.com/wp-content/uploads/2024/05/harbour-300x225.jpg",
+                "alt": ""
+              }
+            },
+            {
+              "id": "b_mv48qs9n0pim3x90",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "[gallery ids=\"10\"]"
+                }
+              ]
+            },
+            {
+              "id": "b_mv48qs9n0q3v14fv",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "Day · Hours"
+                }
+              ]
+            }
+          ]
+        },
+        "terms": {
+          "category": ["category:travel"],
+          "tag": []
+        },
+        "oldPaths": ["https://old.example.com/2019/03/old-classic-post/", "/?p=21"]
+      },
+      {
+        "ref": "post:30",
+        "type": "page",
+        "locale": "en",
+        "slug": "about",
+        "title": "About",
+        "status": "published",
+        "authorRef": "user:marta",
+        "publishedAt": "2020-01-01T00:00:00Z",
+        "createdAt": "2020-01-01T00:00:00Z",
+        "position": 0,
+        "document": {
+          "schema": 1,
+          "blocks": [
+            {
+              "id": "b_mv48qs9n0rdfylki",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "We write about the sea."
+                }
+              ]
+            }
+          ]
+        },
+        "terms": {
+          "category": [],
+          "tag": []
+        },
+        "oldPaths": ["https://old.example.com/about/", "/?p=30"]
+      },
+      {
+        "ref": "post:31",
+        "type": "page",
+        "locale": "en",
+        "parentRef": "post:30",
+        "slug": "team",
+        "title": "Team",
+        "status": "published",
+        "authorRef": "user:marta",
+        "publishedAt": "2020-01-02T00:00:00Z",
+        "createdAt": "2020-01-02T00:00:00Z",
+        "position": 0,
+        "document": {
+          "schema": 1,
+          "blocks": [
+            {
+              "id": "b_mv48qs9o0slwnidc",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "Marta and friends."
+                }
+              ]
+            }
+          ]
+        },
+        "terms": {
+          "category": [],
+          "tag": []
+        },
+        "oldPaths": ["https://old.example.com/about/team/", "/?p=31"]
+      },
+      {
+        "ref": "post:40",
+        "type": "article",
+        "locale": "en",
+        "slug": "Unfinished draft",
+        "title": "Unfinished draft",
+        "status": "draft",
+        "authorRef": "user:marta",
+        "position": 0,
+        "document": {
+          "schema": 1,
+          "blocks": [
+            {
+              "id": "b_mv48qs9o0t2dk919",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "Not yet."
+                }
+              ]
+            }
+          ]
+        },
+        "terms": {
+          "category": [],
+          "tag": []
+        }
+      }
+    ],
+    "menus": [
+      {
+        "name": "Main",
+        "locale": "en",
+        "items": [
+          {
+            "kind": "entry",
+            "entryRef": "post:30",
+            "label": null,
+            "target": null,
+            "children": [
+              {
+                "kind": "entry",
+                "entryRef": "post:31",
+                "label": "Our team",
+                "target": null,
+                "children": []
+              }
+            ]
+          },
+          {
+            "kind": "term",
+            "termRef": "category:travel",
+            "label": "Travel",
+            "target": null,
+            "children": []
+          },
+          {
+            "kind": "url",
+            "url": "https://shop.example.com/",
+            "label": "Shop",
+            "target": "_blank",
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}

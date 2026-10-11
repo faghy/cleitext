@@ -49,6 +49,8 @@ async function finished(): Promise<Job> {
 beforeAll(async () => {
   owner = ownerDatabase();
   const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
+  // Built in place: the plugin bundles its own dependencies (the WordPress reader).
+  await buildPlugin(join(pluginsRoot, 'wordpress-importer'));
   const source = join(
     await mkdtemp(join(tmpdir(), 'wordpress-importer-src-')),
     'wordpress-importer',
@@ -57,7 +59,6 @@ beforeAll(async () => {
     recursive: true,
     filter: (file) => !file.includes('node_modules'),
   });
-  await buildPlugin(source);
   await installPlugin(owner.db, {
     source,
     pluginsPath,
@@ -110,7 +111,7 @@ describe('WordPress Importer', () => {
       'http://127.0.0.1:9/wp-content/uploads/',
     );
     const started = await admin.upload(
-      '/api/v1/ext/wordpress-importer/imports?authorRole=contributor',
+      '/api/v1/ext/wordpress-importer/imports?locale=en&authorRole=contributor',
       'export.xml',
       Buffer.from(xml),
       'text/xml',

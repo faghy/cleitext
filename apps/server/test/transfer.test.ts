@@ -23,10 +23,9 @@ import { DiskStorage } from '../src/media/storage.js';
 import { PageCacheService } from '../src/public/page-cache.service.js';
 import { fileReader, openArchive, writeArchive } from '../src/transfer/archive.js';
 import { exportSite } from '../src/transfer/exporter.js';
-import { htmlToCxd } from '../src/transfer/html-to-cxd.js';
+import { htmlToCxd } from '@cleitext/blocks/html';
 import { importDocument } from '../src/transfer/importer.js';
 import type { ImportReport } from '../src/transfer/model.js';
-import { wxrToDocument } from '../src/transfer/wxr.js';
 import {
   ownerDatabase,
   seedSite,
@@ -64,6 +63,10 @@ async function runImport(
   });
 }
 
+async function wordpressDocument(): Promise<{ document: unknown; warnings: string[] }> {
+  return JSON.parse(await readFile(join(fixtures, 'export.transfer.json'), 'utf8'));
+}
+
 beforeAll(async () => {
   app = await startTestApp();
   owner = ownerDatabase();
@@ -82,8 +85,9 @@ beforeAll(async () => {
     role: 'administrator',
   });
 
-  const xml = await readFile(join(fixtures, 'export.xml'), 'utf8');
-  const { document, warnings } = wxrToDocument(xml, { locale: 'en' });
+  // A small WordPress site, as the WordPress Importer plugin converts it
+  // (its tests check that the conversion still gives this document).
+  const { document, warnings } = await wordpressDocument();
   const uploads = fileReader(join(fixtures, 'uploads'));
   report = await runImport(wordpress.id, document, (file) =>
     uploads(decodeURIComponent(/\/wp-content\/uploads\/(.+)$/.exec(file)![1]!)),
@@ -202,8 +206,7 @@ describe('WordPress import', () => {
   });
 
   it('can be imported twice without overwriting', async () => {
-    const xml = await readFile(join(fixtures, 'export.xml'), 'utf8');
-    const { document } = wxrToDocument(xml, { locale: 'en' });
+    const { document } = await wordpressDocument();
     const uploads = fileReader(join(fixtures, 'uploads'));
     const again = await runImport(wordpress.id, document, (file) =>
       uploads(decodeURIComponent(/\/wp-content\/uploads\/(.+)$/.exec(file)![1]!)),

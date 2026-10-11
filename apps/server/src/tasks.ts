@@ -1,10 +1,9 @@
 /**
  * Administrative tasks that need the application services (media variants,
  * cache, plugins) but no HTTP server: exports and imports (RF-IMP-01…04).
- * Run through the `cleitext` CLI: `cleitext export`, `import`, `import:wxr`.
+ * Run through the `cleitext` CLI: `cleitext export` and `import`.
  */
-import { readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { writeFile } from 'node:fs/promises';
 import { createDatabase, sites, withContext, type DatabaseClient } from '@cleitext/db';
 import { defaultLocaleIn, LanguagesService } from './content/languages.service.js';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -19,7 +18,6 @@ import { fileReader, openArchive, writeArchive } from './transfer/archive.js';
 import { exportSite } from './transfer/exporter.js';
 import { importDocument, importUser } from './transfer/importer.js';
 import type { ImportReport, TransferDocument } from './transfer/model.js';
-import { wxrToDocument } from './transfer/wxr.js';
 
 export interface TaskContext {
   app: NestFastifyApplication;
@@ -98,43 +96,6 @@ export async function importTask(
   } finally {
     await archive.close();
   }
-}
-
-/**
- * `cleitext import:wxr <export.xml> --site <slug>` (RF-IMP-01). Media files
- * are downloaded from the old site, or read from a copy of its uploads
- * folder (`--uploads`).
- */
-export async function importWxrTask(
-  context: TaskContext,
-  options: {
-    file: string;
-    site: string;
-    locale?: string | undefined;
-    uploads?: string | undefined;
-    as?: string | undefined;
-    authorRole?: string | undefined;
-  },
-): Promise<ImportReport> {
-  const site = await siteBySlug(context, options.site);
-  const xml = await readFile(options.file, 'utf8');
-  const locale = options.locale ?? (await defaultLocale(context, site.id));
-  const { document, warnings } = wxrToDocument(xml, {
-    locale,
-    ...(options.authorRole ? { authorRole: options.authorRole } : {}),
-  });
-  const download = fileReader(null);
-  const uploads = options.uploads ? path.resolve(options.uploads) : null;
-  const local = uploads ? fileReader(uploads) : null;
-  const reader = async (file: string) => {
-    // http://old.example.com/wp-content/uploads/2024/05/a.jpg → <uploads>/2024/05/a.jpg
-    const match = /\/wp-content\/uploads\/(.+)$/.exec(file.split('?')[0]!);
-    if (local && match) return local(decodeURIComponent(match[1]!));
-    return download(file);
-  };
-  const report = await runImport(context, site.id, document, reader, options.as);
-  report.warnings.unshift(...warnings);
-  return report;
 }
 
 async function runImport(

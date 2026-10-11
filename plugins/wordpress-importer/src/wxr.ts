@@ -1,8 +1,8 @@
 import type { CxdBlock } from '@cleitext/blocks';
 import { newBlockId } from '@cleitext/blocks';
 import { XMLParser } from 'fast-xml-parser';
-import { htmlToCxd } from './html-to-cxd.js';
-import type { TransferDocumentInput, TransferMenuItem } from './model.js';
+import { htmlToCxd } from '@cleitext/blocks/html';
+import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
 
 type Node = Record<string, unknown>;
 

@@ -1,20 +1,25 @@
 {
   "name": "@cleitext/plugin-wordpress-importer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Official Cleitext plugin: imports a WordPress export (WXR) from the admin.",
   "license": "GPL-2.0-or-later",
   "type": "module",
   "scripts": {
     "build": "cleitext plugin:build .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@cleitext/admin-sdk": "workspace:*",
+    "@cleitext/blocks": "workspace:*",
     "@cleitext/cli": "workspace:*",
     "@cleitext/plugin-sdk": "workspace:*",
     "@tanstack/react-query": "^5.104.1",
+    "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
-    "react": "^19.3.0"
+    "fast-xml-parser": "^5.11.2",
+    "react": "^19.3.0",
+    "vitest": "^5.0.3"
   }
 }

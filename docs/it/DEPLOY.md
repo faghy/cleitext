@@ -208,11 +208,10 @@ Ogni tanto ripristina un backup su una copia di prova, per essere sicuro che i t
 | Da                     | Comando                                                                                                |
 | ---------------------- | ------------------------------------------------------------------------------------------------------ |
 | Un altro sito Cleitext | `bin/cleitext export --site main --out site.tar.gz`, poi `bin/cleitext import site.tar.gz --site main` |
-| WordPress              | **Tools → Export → All content** in WordPress, poi `bin/cleitext import:wxr export.xml --site main`    |
 
-Le importazioni aggiungono contenuti al sito, non li sostituiscono. I file media di WordPress vengono scaricati dal vecchio sito; se hai una copia della sua cartella `wp-content/uploads`, passa `--uploads /path/to/uploads`. Ogni importazione stampa un resoconto e può salvarlo con `--report report.json`. I vecchi indirizzi vengono reindirizzati a quelli nuovi.
+Le importazioni aggiungono contenuti al sito, non li sostituiscono. Ogni importazione stampa un resoconto e può salvarlo con `--report report.json`.
 
-Dall'amministrazione, senza riga di comando: installa **WordPress Importer** da **Plugin → Aggiungi nuovo**, apri **Importa da WordPress** e carica il file di esportazione. Lavora in background e alla fine mostra il resoconto. I file media vengono scaricati dal vecchio sito (solo da indirizzi pubblici), quindi tienilo online finché l'importazione non finisce.
+**Da WordPress**: installa il plugin **WordPress Importer** da **Plugin → Aggiungi nuovo** (non è nel pacchetto base), esporta il vecchio sito con **Strumenti → Esporta → Tutti i contenuti** in WordPress, poi apri **Importa da WordPress** nell'amministrazione e carica il file. Lavora in background e alla fine mostra un resoconto; i vecchi indirizzi vengono reindirizzati a quelli nuovi. I file media vengono scaricati dal vecchio sito (solo da indirizzi pubblici), quindi tienilo online finché l'importazione non finisce.
 
 ## 11. Più siti
 

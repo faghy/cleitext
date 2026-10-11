@@ -22,16 +22,5 @@ export declare function importTask(
   context: TaskContext,
   options: { file: string; site: string; as?: string | undefined },
 ): Promise<ImportReport>;
-export declare function importWxrTask(
-  context: TaskContext,
-  options: {
-    file: string;
-    site: string;
-    locale?: string | undefined;
-    uploads?: string | undefined;
-    as?: string | undefined;
-    authorRole?: string | undefined;
-  },
-): Promise<ImportReport>;
 export declare function formatReport(report: ImportReport): string;
 export declare function saveReport(file: string, report: ImportReport): Promise<void>;

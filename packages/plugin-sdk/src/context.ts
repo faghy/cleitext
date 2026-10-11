@@ -1,4 +1,5 @@
 import type { CxdBlock } from '@cleitext/blocks';
+import type { TransferDocumentInput } from '@cleitext/blocks/transfer';
 import type { FieldDefinition, FieldValues, Label } from '@cleitext/shared';
 import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
 import type { ReactNode } from 'react';
@@ -457,26 +458,26 @@ export interface ImportReport {
   errors: string[];
 }
 
-export interface WxrImportOptions {
-  /** The WordPress export (WXR 1.x), as text. */
-  xml: string;
+export interface DocumentImportOptions {
   /** Existing user recorded as author of the import (the person who started it). */
   userId: string;
-  /** Language of the content; the site's default language when omitted. */
-  locale?: string;
-  /** Role given to imported authors. Default `author`. */
-  authorRole?: string;
   onProgress?(message: string): void;
 }
 
 export interface TransferApi {
   /**
-   * Imports a WordPress export into a site (needs `import`): posts, pages,
-   * media, categories, tags, menus and authors, with redirects from the old
-   * addresses. Media files are downloaded from public addresses only. Existing
-   * records are kept. It can take minutes: run it outside the request.
+   * Imports a transfer document (`@cleitext/blocks/transfer`, built by the
+   * plugin from another system's export) into a site (needs `import`):
+   * entries, media, terms, menus, users and redirects. Its languages must be
+   * languages of the site. Media files are downloaded from public http(s)
+   * addresses only. Existing records are kept. It can take minutes: run it
+   * outside the request.
    */
-  importWxr(siteId: string, options: WxrImportOptions): Promise<ImportReport>;
+  importDocument(
+    siteId: string,
+    document: TransferDocumentInput,
+    options: DocumentImportOptions,
+  ): Promise<ImportReport>;
 }
 
 // ---- Privacy ------------------------------------------------------------------------

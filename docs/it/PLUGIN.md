@@ -475,22 +475,22 @@ Carica inattivi gli script che richiedono il consenso — `<script type="text/pl
 
 L'email arriva in minuscolo. Vengono interpellati solo i plugin attivi sul sito. Un plugin con il permesso `privacy` (come Privacy e GDPR) esegue le richieste: `ctx.privacy.exportPersonalData(siteId, email)` raccoglie i dati del core (l'account di un membro del sito, le sue sessioni, i token e l'attività) e quelli di ogni exporter; `ctx.privacy.erasePersonalData(siteId, email)` esegue gli eraser (gli account restano: si eliminano da Utenti).
 
-### Importazione (WordPress)
+### Importazione
 
-Un plugin con il permesso `import` può importare in un sito un'esportazione di WordPress (WXR) (API dei plugin 1.7), come fa il plugin ufficiale **WordPress Importer**:
+Un plugin con il permesso `import` può portare in un sito contenuti da un altro sistema (API dei plugin 1.8), come fa il plugin ufficiale **WordPress Importer**: legge l'esportazione dell'altro sistema, costruisce un **documento di trasferimento** (il formato di `@cleitext/blocks/transfer`, lo stesso delle esportazioni di Cleitext) e lo passa al core:
 
 ```ts
-const report = await ctx.transfer.importWxr(siteId, {
-  xml, // il file di esportazione, come testo
+import type { TransferDocumentInput } from '@cleitext/plugin-sdk';
+
+const document: TransferDocumentInput = convert(file); // voci, media, termini, menu, utenti, redirect
+const report = await ctx.transfer.importDocument(siteId, document, {
   userId: request.user!.id, // registrato come autore dell'importazione
-  locale: 'it', // facoltativo: altrimenti la lingua predefinita del sito
-  authorRole: 'author', // ruolo degli autori importati
   onProgress: (message) => ctx.log.info(message),
 });
 // { created: { entries: 12, media: 30, … }, skipped: {…}, warnings: […], errors: […] }
 ```
 
-Vengono importati articoli, pagine, media, categorie, tag, menu e autori, con i redirect dai vecchi indirizzi; quello che c'è già sul sito resta com'è. I file multimediali vengono scaricati solo da indirizzi pubblici, mai dalla rete del server. Un sito grande richiede minuti: avvia l'importazione senza attenderla nella route e tieni l'avanzamento in `ctx.storage`.
+Il contenuto delle voci è fatto di blocchi: `@cleitext/blocks/html` li ricava da HTML e block markup (`htmlToCxd`). I file media si indicano con il loro indirizzo http(s) e vengono scaricati solo da indirizzi pubblici, mai dalla rete del server. Quello che c'è già sul sito resta com'è, e i vecchi indirizzi (`oldPaths`) diventano redirect. Un sito grande richiede minuti: avvia l'importazione senza attenderla nella route e tieni l'avanzamento in `ctx.storage`.
 
 ## 10. Le tue tabelle
 
@@ -628,7 +628,7 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 | `mail:send`     | `ctx.mail.send`                                                              |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                       |
 | `media:read`    | `ctx.media.get`                                                              |
-| `import`        | `ctx.transfer.importWxr`                                                     |
+| `import`        | `ctx.transfer.importDocument`                                                |
 
 Gli amministratori vedono i permessi richiesti in **Plugins → Details**. Le tue tabelle (`ctx.db`), gli hook sulle azioni, il logging, le capability e l'invalidazione della cache non richiedono permessi.
 
