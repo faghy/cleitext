@@ -9,6 +9,7 @@ import { useMe } from '../auth';
 import { Alert, Button, Card, useT } from '../components/ui';
 import { mediaServices } from './entry-editor';
 import { PackageUpload } from '../components/package-upload';
+import { CatalogBrowser, CatalogUpdateButton } from '../components/catalog';
 
 interface ActiveTheme {
   theme: ThemeView | undefined;
@@ -41,9 +42,34 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
   const [installBefore, installAfter] = t(
     'More themes are installed on the server with {command}.',
   ).split('{command}');
+  // Themes → Add New: the catalog and the upload, as in WordPress.
+  const [adding, setAdding] = useState(false);
+  if (adding) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-lg font-semibold">{t('Add Themes')}</h2>
+          <Button variant="secondary" onClick={() => setAdding(false)}>
+            {t('Installed themes')}
+          </Button>
+        </div>
+        <CatalogBrowser type="theme" />
+        <PackageUpload
+          title={t('Upload Theme')}
+          path="/themes/upload"
+          onInstalled={() => void queryClient.invalidateQueries({ queryKey: ['themes'] })}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
+      {canDelete && (
+        <Button variant="secondary" onClick={() => setAdding(true)}>
+          {t('Add New Theme')}
+        </Button>
+      )}
       {(themes.error ?? activate.error ?? deleteTheme.error) && (
         <Alert>{errorMessage(themes.error ?? activate.error ?? deleteTheme.error)}</Alert>
       )}
@@ -59,6 +85,7 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
               <span className="text-sm font-normal text-slate-500">{theme.version}</span>
             </h2>
             {theme.description && <p className="text-sm text-slate-600">{theme.description}</p>}
+            <CatalogUpdateButton type="theme" slug={theme.slug} />
             {theme.error ? (
               <Alert>{t('This theme could not be loaded: {error}', { error: theme.error })}</Alert>
             ) : theme.active ? (
@@ -106,11 +133,6 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
           </li>
         ))}
       </ul>
-      <PackageUpload
-        title={t('Upload Theme')}
-        path="/themes/upload"
-        onInstalled={() => void queryClient.invalidateQueries({ queryKey: ['themes'] })}
-      />
       <p className="text-sm text-slate-600">
         {installBefore}
         <code>cleitext theme:install &lt;folder&gt;</code>

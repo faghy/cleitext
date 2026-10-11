@@ -40,7 +40,7 @@ for (const dir of ['apps/server', 'packages/cli']) {
 console.log('[release] admin and official plugins…');
 await cp(join(root, 'apps/admin/dist'), join(out, 'apps/admin/dist'), { recursive: true });
 /** Official plugins not in the base package: shipped as their own package, to upload from Plugins. */
-const SEPARATE = ['multilingual', 'privacy', 'analytics'];
+const SEPARATE = ['multilingual', 'privacy', 'analytics', 'showcase'];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
   const source = join(root, 'plugins', slug);

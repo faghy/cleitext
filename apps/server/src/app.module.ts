@@ -3,6 +3,8 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { AdminController } from './admin/admin.controller.js';
 import { UpdatesController } from './updates/updates.controller.js';
+import { CatalogController } from './catalog/catalog.controller.js';
+import { CatalogService } from './catalog/catalog.service.js';
 import { McpController } from './mcp/mcp.controller.js';
 import { AssistantsController } from './mcp/assistants.controller.js';
 import { ChatController } from './mcp/chat.controller.js';
@@ -130,6 +132,7 @@ export class AppModule {
         MenusController,
         PluginsController,
         UpdatesController,
+        CatalogController,
         McpController,
         OAuthController,
         AssistantsController,
@@ -152,6 +155,7 @@ export class AppModule {
         PatternsService,
         ThemesService,
         UpdatesService,
+        CatalogService,
         OAuthService,
         ChatService,
         LoginThrottleService,

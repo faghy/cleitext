@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
 import { Alert, Button, Card, useT } from '../components/ui';
+import { CatalogUpdateButton, useCatalogUpdates } from '../components/catalog';
 
 interface UpdateCheck {
   current: string;
@@ -173,6 +174,32 @@ export function UpdatesPage() {
           )}
         </Card>
       )}
+      <ExtensionUpdates />
     </div>
+  );
+}
+
+/** Plugins and themes with a newer version in the catalog. */
+function ExtensionUpdates() {
+  const { t } = useT();
+  const updates = useCatalogUpdates();
+  return (
+    <Card title={t('Plugins and themes')}>
+      {updates.length === 0 ? (
+        <p className="text-sm text-slate-600">{t('Plugins and themes are up to date.')}</p>
+      ) : (
+        <ul className="space-y-3 text-sm">
+          {updates.map((item) => (
+            <li key={`${item.type}-${item.slug}`} className="flex flex-wrap items-center gap-3">
+              <span className="font-medium">{item.name}</span>
+              <span className="text-slate-600">
+                {item.installed} → {item.version}
+              </span>
+              <CatalogUpdateButton type={item.type} slug={item.slug} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

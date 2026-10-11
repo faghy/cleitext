@@ -5,6 +5,8 @@ import { api, errorMessage } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, useT } from '../components/ui';
 import { PackageUpload } from '../components/package-upload';
+import { CatalogBrowser, CatalogUpdateButton } from '../components/catalog';
+import { useState } from 'react';
 import { pagePath, usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
 /** Where an active plugin is configured: its first admin page, or its card in Settings. */
@@ -86,9 +88,36 @@ export function PluginsPage() {
   const [installBefore, installAfter] = t(
     'Install plugins on the server with {command}, then activate them here for this site.',
   ).split('{command}');
+  // Plugins → Add New: the catalog and the upload, as in WordPress.
+  const [adding, setAdding] = useState(false);
+  if (adding) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold">{t('Add Plugins')}</h1>
+          <Button variant="secondary" onClick={() => setAdding(false)}>
+            {t('Installed plugins')}
+          </Button>
+        </div>
+        <CatalogBrowser type="plugin" />
+        <PackageUpload
+          title={t('Upload Plugin')}
+          path="/plugins/upload"
+          onInstalled={() => void queryClient.invalidateQueries({ queryKey: ['plugins'] })}
+        />
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">{t('Plugins')}</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-semibold">{t('Plugins')}</h1>
+        {canDelete && (
+          <Button variant="secondary" onClick={() => setAdding(true)}>
+            {t('Add New')}
+          </Button>
+        )}
+      </div>
       <p className="text-sm text-slate-600">
         {installBefore}
         <code>cleitext plugin:install &lt;folder&gt;</code>
@@ -103,11 +132,6 @@ export function PluginsPage() {
           {t('No plugins are installed.')}
         </p>
       )}
-      <PackageUpload
-        title={t('Upload Plugin')}
-        path="/plugins/upload"
-        onInstalled={() => void queryClient.invalidateQueries({ queryKey: ['plugins'] })}
-      />
       <ul className="space-y-3" aria-label={t('Installed plugins')}>
         {plugins.data?.map((plugin) => (
           <li
@@ -164,6 +188,7 @@ export function PluginsPage() {
                         </Link>
                       ) : null;
                     })()}
+                  <CatalogUpdateButton type="plugin" slug={plugin.slug} />
                   {!plugin.network && !plugin.mustUse && (
                     <Button
                       variant={plugin.active ? 'secondary' : 'primary'}

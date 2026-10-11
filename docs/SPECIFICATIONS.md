@@ -767,6 +767,11 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 
 - **RF-PRV-05** Trackers declared by plugins (plugin API 1.4, `ctx.privacy.declareTrackers`): their consent category, cookies, Consent Mode and policy text are applied by the privacy plugin.
 
+### M12 — Catalog (first part of M8)
+
+- **RF-CAT-01** Official catalog of plugins and themes (github.com/faghy/cleitext-catalog): `catalog.json` signed with Ed25519 by its CI, packages with SHA-256. Plugins → Add New and Appearance → Themes → Add New search and install from it; updates appear next to installed items, in Updates and as menu counts (RF-PLG-07, RF-PLG-09, RF-PLG-11 for official items). Third-party publishing (RF-PLG-16) stays for M8.
+- **RF-CAT-02** The catalog showcase plugin shows the catalog on a site (cleitext.com/plugins, /themes).
+
 ### M11 — Analytics (separate plugin)
 
 - **RF-ANL-01** Matomo (anonymous without cookies, or with cookies after consent), Google Analytics 4, Google Tag Manager, Meta Pixel, Google Search Console and Bing verification; several at once; each declares its privacy rules, and services needing consent load only through the consent banner.

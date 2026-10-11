@@ -1,0 +1,51 @@
+import { z } from 'zod';
+
+/** An item of the plugin and theme catalog (RF-PLG-07), as listed in catalog.json. */
+export const catalogItemSchema = z.object({
+  type: z.enum(['plugin', 'theme']),
+  slug: z.string().regex(/^[a-z][a-z0-9-]{1,39}$/),
+  name: z.string().min(1).max(100),
+  /** Short description by language. */
+  summary: z.record(z.string(), z.string().max(1000)),
+  tags: z.array(z.string().max(40)).max(20).default([]),
+  icon: z.url().nullable().default(null),
+  screenshots: z.array(z.url()).max(10).default([]),
+  version: z.string().max(40),
+  /** Plugins: the plugin API range they need. */
+  apiVersion: z.string().max(40).optional(),
+  /** Themes: the Cleitext versions they need, e.g. `>=0.9.0`. */
+  requires: z.string().max(40).optional(),
+  license: z.string().max(60),
+  author: z.string().max(200),
+  download: z.url(),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  size: z.number().int().positive(),
+  homepage: z.url().optional(),
+  updatedAt: z.string().max(40),
+});
+export type CatalogItem = z.infer<typeof catalogItemSchema>;
+
+export const catalogSchema = z.object({
+  schema: z.literal(1),
+  generatedAt: z.string(),
+  items: z.array(catalogItemSchema).max(2000),
+});
+
+/** A catalog item for this site: what is installed and whether it can be. */
+export interface CatalogEntryView extends CatalogItem {
+  /** Installed version, or null. */
+  installed: string | null;
+  /** A newer version than the installed one. */
+  update: boolean;
+  /** Works with this Cleitext. */
+  compatible: boolean;
+}
+
+export interface CatalogView {
+  /** False when the server has no catalog (CATALOG_URL empty). */
+  enabled: boolean;
+  items: CatalogEntryView[];
+  /** Why the catalog could not be read, if so. */
+  error: string | null;
+  checkedAt: string | null;
+}

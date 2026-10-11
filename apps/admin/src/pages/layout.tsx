@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
 import { UPDATES_QUERY } from './updates';
+import { useCatalogUpdates } from '../components/catalog';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
 /** Section routes are registered dynamically (navigation.ts), hence a plain string. */
@@ -66,6 +67,16 @@ export function AdminLayout() {
     staleTime: 10 * 60 * 1000,
   });
   const updateAvailable = Boolean(updates.data?.available);
+  const pluginUpdates = useCatalogUpdates('plugin').length;
+  const themeUpdates = useCatalogUpdates('theme').length;
+  const badge = (to: string) =>
+    to === '/' || to === '/updates'
+      ? (updateAvailable ? 1 : 0) + pluginUpdates + themeUpdates
+      : to === '/plugins'
+        ? pluginUpdates
+        : to === '/appearance'
+          ? themeUpdates
+          : 0;
   // WordPress order: plugin content types after Pages, plugin pages at the end.
   const taxonomies = useQuery({
     ...taxonomiesQuery,
@@ -135,14 +146,14 @@ export function AdminLayout() {
                 >
                   <span className="flex items-center justify-between gap-2">
                     {section.label}
-                    {updateAvailable && (section.to === '/' || section.to === '/updates') && (
-                      // As in WordPress: a count on Dashboard and Updates.
+                    {badge(section.to) > 0 && (
+                      // As in WordPress: counts on Dashboard, Updates, Plugins and Appearance.
                       <span
                         className="rounded-full bg-amber-500 px-1.5 text-xs leading-5 font-semibold text-slate-900"
-                        aria-label={t('An update is available')}
-                        title={t('An update is available')}
+                        aria-label={t('{count} updates available', { count: badge(section.to) })}
+                        title={t('{count} updates available', { count: badge(section.to) })}
                       >
-                        1
+                        {badge(section.to)}
                       </span>
                     )}
                   </span>

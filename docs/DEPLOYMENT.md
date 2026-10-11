@@ -31,7 +31,9 @@ The easiest way, as with WordPress: nothing to build, no configuration file to w
 
 **Email**: until you add `MAIL_URL` and `MAIL_FROM` to `cleitext-shared/.env` (§5) and restart the app, emails (invitations, password resets) are only written to the log.
 
-**Multilingual**, **Privacy & GDPR** and **Analytics** are not in the base package: download `cleitext-plugin-multilingual-<version>.zip`, `cleitext-plugin-privacy-<version>.zip` or `cleitext-plugin-analytics-<version>.zip` from the same Releases page and upload it in **Plugins → Upload Plugin** (see [PRIVACY.md](./PRIVACY.md) for the cookie banner and the policies).
+**Plugins and themes from the catalog.** Super admins install the official plugins (Multilingual, Privacy & GDPR, Analytics…) and themes (Canvas, Pulsar…) from **Plugins → Add New** and **Appearance → Themes → Add New**, and update them from there or from **Updates**. The [Cleitext catalog](https://github.com/faghy/cleitext-catalog) is an index signed with Ed25519; every package is checked against its SHA-256 before installing. `CATALOG_URL` (empty: off) and `CATALOG_PUBLIC_KEY` change where it comes from.
+
+**Multilingual**, **Privacy & GDPR** and **Analytics** are not in the base package: install them from the catalog, or download `cleitext-plugin-multilingual-<version>.zip`, `cleitext-plugin-privacy-<version>.zip` or `cleitext-plugin-analytics-<version>.zip` from the same Releases page and upload it in **Plugins → Upload Plugin** (see [PRIVACY.md](./PRIVACY.md) for the cookie banner and the policies).
 
 The rest of this guide is the manual installation, and the updates (§8).
 

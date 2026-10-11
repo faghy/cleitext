@@ -56,6 +56,10 @@ const envSchema = z.object({
   PLUGINS_INSTALL_FROM_UI: booleanString.default(true),
   /** Packages not signed by a registry (all uploads, for now) are accepted. */
   PLUGINS_ALLOW_UNSIGNED: booleanString.default(true),
+  /** The signed index of the plugin and theme catalog; empty turns the catalog off. */
+  CATALOG_URL: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]).optional(),
+  /** Ed25519 public key of the catalog (SPKI DER, base64). */
+  CATALOG_PUBLIC_KEY: z.string().min(40).optional(),
   /** Where updates come from (GitHub owner/name); empty turns the update check off. */
   UPDATES_REPO: z
     .string()
@@ -95,6 +99,8 @@ export interface AppConfig {
   plugins: { path: string };
   themes: { path: string };
   packages: { installFromUi: boolean; allowUnsigned: boolean };
+  /** Plugins → Add New and Themes → Add New (RF-PLG-07): an index signed with Ed25519. */
+  catalog: { url: string; publicKey: string };
   updates: { repo: string };
   /** Folder of the built admin, if the server serves it (production). */
   admin: { path: string | null };
@@ -142,6 +148,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     plugins: { path: resolve(e.PLUGINS_PATH) },
     themes: { path: resolve(e.THEMES_PATH) },
     packages: { installFromUi: e.PLUGINS_INSTALL_FROM_UI, allowUnsigned: e.PLUGINS_ALLOW_UNSIGNED },
+    catalog: {
+      url: e.CATALOG_URL ?? (e.NODE_ENV === 'test' ? '' : DEFAULT_CATALOG_URL),
+      publicKey: e.CATALOG_PUBLIC_KEY ?? DEFAULT_CATALOG_KEY,
+    },
     // Tests never ask GitHub unless they say where.
     updates: { repo: e.UPDATES_REPO ?? (e.NODE_ENV === 'test' ? '' : 'faghy/cleitext') },
     admin: { path: adminPath(e.ADMIN_PATH) },
@@ -150,6 +160,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     appSecret: e.APP_SECRET ?? 'cleitext-development-secret-not-for-production',
   };
 }
+
+/** The official catalog (github.com/faghy/cleitext-catalog) and its signing key. */
+export const DEFAULT_CATALOG_URL =
+  'https://github.com/faghy/cleitext-catalog/releases/download/catalog/catalog.json';
+export const DEFAULT_CATALOG_KEY = 'MCowBQYDK2VwAyEAqg+tdu3CRzfBy9RInH4I0fcFvfgkppCNihY2uQ+pxXA=';
 
 /** Injection token for the validated configuration. */
 export const APP_CONFIG = Symbol('APP_CONFIG');

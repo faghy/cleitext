@@ -23,6 +23,7 @@
 - **AI assistants**: an MCP server lets people connect ChatGPT and other AI assistants with OAuth and have them build pages and posts with the blocks of the editor, or ask in the chat of the admin with the site's own AI provider
 - **Privacy & GDPR** (separate plugin): cookie banner following the Italian Garante's guidelines, with scripts held until consent and a consent log, privacy and cookie policy pages made of blocks, and requests to export or erase personal data
 - **Analytics** (separate plugin): Matomo, Google Analytics 4, Tag Manager, Meta Pixel, Search Console and Bing verification, with their privacy rules applied by Privacy & GDPR
+- **Catalog**: official plugins and themes installed and updated from the admin (Plugins → Add New), from a catalog signed with Ed25519 — [faghy/cleitext-catalog](https://github.com/faghy/cleitext-catalog)
 - **Deployment**: Plesk (Node.js extension)
 
 ## Development

@@ -1,0 +1,11 @@
+{
+  "slug": "showcase",
+  "name": "Catalog showcase",
+  "version": "1.0.0",
+  "apiVersion": "^1.4",
+  "description": "A block that shows the plugins and themes of the Cleitext catalog on a site, with versions, screenshots and downloads.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": ["blocks", "settings:own"]
+}
