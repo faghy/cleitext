@@ -102,7 +102,7 @@ const TEXTS = {
   },
 };
 
-const STYLE = `.cx-catalog{display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fill,minmax(min(100%,19rem),1fr));margin:1.5rem 0;text-align:left}
+const STYLE = `.cx-catalog{list-style:none;padding:0;display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fill,minmax(min(100%,19rem),1fr));margin:1.5rem 0;text-align:left}
 .cx-catalog__card{display:flex;flex-direction:column;background:#fff;color:#1f2937;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06)}
 .cx-catalog__shot{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;object-position:top;border-bottom:1px solid #e5e7eb}
 .cx-catalog__body{display:flex;flex-direction:column;gap:.75rem;padding:1.25rem;flex:1}
