@@ -86,6 +86,7 @@ describe('MCP', () => {
     expect((await admin.get('/api/v1/assistants')).json()).toEqual({
       enabled: false,
       address: `http://${site.host}/mcp`,
+      chat: false,
     });
     expect(
       (

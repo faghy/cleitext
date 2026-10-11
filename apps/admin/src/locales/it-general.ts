@@ -249,16 +249,81 @@ export const itGeneral: Messages = {
   'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish. Save, then open AI assistants to connect one.':
     'Ognuno collega il proprio assistente IA (ChatGPT, Cursor o un altro client MCP) con il suo account e gli chiede di scrivere pagine e articoli. L’assistente usa i blocchi dell’editor e le sezioni del tema, agisce con i permessi della persona e crea bozze, a meno che non gli sia permesso di pubblicare. Salva, poi apri Assistenti IA per collegarne uno.',
   'Open AI assistants': 'Apri Assistenti IA',
+  'Ask an AI assistant to write pages and posts: here in the chat, or from your own assistant (ChatGPT, Cursor or another MCP client). It uses the blocks of the editor and the sections of the theme, acts with your permissions, and creates drafts unless you let it publish.':
+    'Chiedi a un assistente IA di scrivere pagine e articoli: qui nella chat, oppure dal tuo assistente (ChatGPT, Cursor o un altro client MCP). Usa i blocchi dell’editor e le sezioni del tema, agisce con i tuoi permessi e crea bozze, a meno che tu non gli permetta di pubblicare.',
+  Chat: 'Chat',
+  'To chat here, set up an AI provider at the bottom of this page.':
+    'Per usare la chat qui, configura un fornitore di IA in fondo a questa pagina.',
+  'To chat here, a super admin has to set up an AI provider.':
+    'Per usare la chat qui, un super amministratore deve configurare un fornitore di IA.',
+  'Ready requests': 'Richieste pronte',
+  'Requests that work well: change the words in brackets, then use them here or copy them into your assistant.':
+    'Richieste che funzionano bene: cambia le parole tra parentesi quadre, poi usale qui o copiale nel tuo assistente.',
+  'Use in the chat': 'Usa nella chat',
+  'Create a page "About us" with an opening section, three cards about what we do and a final call to action, in the style of the theme.':
+    'Crea una pagina «Chi siamo» con una sezione di apertura, tre card su cosa facciamo e un invito all’azione finale, nello stile del tema.',
+  'Write a post of about 500 words on [topic], with headings, and show me the preview.':
+    'Scrivi un articolo di circa 500 parole su [argomento], con i titoli, e mostrami l’anteprima.',
+  'Translate the page [title] into [language], keeping the same blocks and images.':
+    'Traduci la pagina [titolo] in [lingua], mantenendo gli stessi blocchi e le immagini.',
+  'Rewrite the texts of the page [title] in a clearer, friendlier tone, without changing its structure.':
+    'Riscrivi i testi della pagina [titolo] con un tono più chiaro e cordiale, senza cambiarne la struttura.',
+  'Add a section of frequently asked questions, with five questions and answers, at the end of the page [title].':
+    'Aggiungi una sezione di domande frequenti, con cinque domande e risposte, in fondo alla pagina [titolo].',
+  'Read the home page and suggest three improvements to texts and layout, without changing anything yet.':
+    'Leggi la home e suggerisci tre miglioramenti a testi e impaginazione, senza modificare ancora nulla.',
+  'Write a short excerpt for every page that has none.':
+    'Scrivi un breve riassunto per ogni pagina che non ce l’ha.',
+  'Set the main menu with Home, About us, Blog and Contact.':
+    'Imposta il menu principale con Home, Chi siamo, Blog e Contatti.',
+  'List my drafts and tell me which ones look ready to publish.':
+    'Elenca le mie bozze e dimmi quali sembrano pronte da pubblicare.',
+  'Your own assistant (MCP)': 'Il tuo assistente (MCP)',
+  'Connections from assistants such as ChatGPT or Cursor are off on this site.':
+    'I collegamenti da assistenti come ChatGPT o Cursor sono disattivati su questo sito.',
+  'Allow connections': 'Consenti i collegamenti',
+  'Turn off connections': 'Disattiva i collegamenti',
+  'Turn off connections? Connected assistants stop working until you turn them on again.':
+    'Disattivare i collegamenti? Gli assistenti collegati smettono di funzionare finché non li riattivi.',
+  'In the chat of your assistant, ask what you need: the ready requests above are a good start.':
+    'Nella chat del tuo assistente chiedi quello che ti serve: le richieste pronte qui sopra sono un buon inizio.',
+  'AI provider for the chat': 'Fornitore di IA per la chat',
+  'Any service with an OpenAI-compatible chat completions API: for example https://api.openai.com/v1, https://openrouter.ai/api/v1, or http://localhost:11434/v1 for Ollama on this server. Choose a model that can use tools (function calling). The provider bills the use to the account of the key.':
+    'Qualunque servizio con un’API chat completions compatibile con OpenAI: per esempio https://api.openai.com/v1, https://openrouter.ai/api/v1, oppure http://localhost:11434/v1 per Ollama su questo server. Scegli un modello che sappia usare gli strumenti (function calling). Il fornitore addebita l’uso all’account della chiave.',
+  'API address': 'Indirizzo dell’API',
+  Model: 'Modello',
+  'API key': 'Chiave API',
+  'Saved: leave empty to keep it': 'Salvata: lascia vuoto per mantenerla',
+  'The key is stored encrypted and never shown again.':
+    'La chiave è salvata cifrata e non viene più mostrata.',
+  'Remove the AI provider? The chat stops working.':
+    'Rimuovere il fornitore di IA? La chat smette di funzionare.',
+  'Ask for a page, a post, a translation or a change: the assistant works on the site with your permissions and leaves drafts for you to check.':
+    'Chiedi una pagina, un articolo, una traduzione o una modifica: l’assistente lavora sul sito con i tuoi permessi e lascia bozze da controllare.',
+  'Working…': 'Al lavoro…',
+  'Your request': 'La tua richiesta',
+  'What should the assistant do?': 'Cosa deve fare l’assistente?',
+  Send: 'Invia',
+  Stop: 'Ferma',
+  'New conversation': 'Nuova conversazione',
+  'It may also publish': 'Può anche pubblicare',
+  'Ctrl+Enter to send': 'Ctrl+Invio per inviare',
+  'No AI provider is set up for the chat.': 'Non è configurato nessun fornitore di IA per la chat.',
+  'The chat failed on the server. Try again later.':
+    'La chat non è riuscita sul server. Riprova più tardi.',
+  'Reading the site': 'Lettura del sito',
+  'Reading how to write blocks': 'Lettura della guida ai blocchi',
+  'Reading a pattern': 'Lettura di un pattern',
+  'Looking for pages and posts': 'Ricerca di pagine e articoli',
+  'Reading a page': 'Lettura di una pagina',
+  'Creating a draft': 'Creazione di una bozza',
+  'Changing a page': 'Modifica di una pagina',
+  'Making a preview link': 'Creazione del link di anteprima',
+  Publishing: 'Pubblicazione',
+  'Uploading an image': 'Caricamento di un’immagine',
+  'Looking at the media': 'Consultazione dei media',
+  'Updating a menu': 'Aggiornamento di un menu',
   'AI assistants': 'Assistenti IA',
-  'Connect your AI assistant (ChatGPT, Cursor or another MCP client) with your account and ask it to write pages and posts. It uses the blocks of the editor and the sections of the theme, acts with your permissions, and creates drafts unless you let it publish.':
-    'Collega il tuo assistente IA (ChatGPT, Cursor o un altro client MCP) con il tuo account e chiedigli di scrivere pagine e articoli. Usa i blocchi dell’editor e le sezioni del tema, agisce con i tuoi permessi e crea bozze, a meno che tu non gli permetta di pubblicare.',
-  'AI assistants are off': 'Gli assistenti IA sono disattivati',
-  'Turn them on to let the people of this site connect their assistant.':
-    'Attivali per permettere alle persone di questo sito di collegare il proprio assistente.',
-  'Turn on AI assistants': 'Attiva gli assistenti IA',
-  'Turn off AI assistants': 'Disattiva gli assistenti IA',
-  'Turn off AI assistants? Connected assistants stop working until you turn them on again.':
-    'Disattivare gli assistenti IA? Quelli collegati smettono di funzionare finché non li riattivi.',
   'Ask an administrator of the site to turn them on.':
     'Chiedi a un amministratore del sito di attivarli.',
   'Connect an assistant': 'Collega un assistente',
@@ -271,12 +336,6 @@ export const itGeneral: Messages = {
     'Nel tuo assistente apri le impostazioni dei connettori (o dei server MCP) e aggiungi un connettore personalizzato con questo indirizzo.',
   'The assistant opens this site: sign in with your account, if asked, and choose Allow. That is where your credentials are asked, never in the assistant.':
     'L’assistente apre questo sito: accedi con il tuo account, se richiesto, e scegli Consenti. Le credenziali le inserisci qui, mai nell’assistente.',
-  'Ask it what you need, for example:': 'Chiedigli quello che ti serve, per esempio:',
-  'Create an "About us" page with an opening section, three cards on what we do and a call to action.':
-    'Crea una pagina «Chi siamo» con una sezione di apertura, tre card su cosa facciamo e un invito all’azione.',
-  'Write a post about our new opening hours, in a friendly tone, and show me the preview.':
-    'Scrivi un articolo sui nostri nuovi orari, con un tono amichevole, e mostrami l’anteprima.',
-  'Translate the Contact page into Italian.': 'Traduci in italiano la pagina Contatti.',
   'Tools that take a token instead of signing in: create one in':
     'Per gli strumenti che usano un token invece dell’accesso: creane uno in',
   'Profile → API tokens': 'Profilo → Token API',

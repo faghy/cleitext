@@ -516,3 +516,38 @@ export function toolList(scopes: string[]) {
     },
   }));
 }
+
+/** How an assistant should work on the site, sent when it connects. */
+export const ASSISTANT_INSTRUCTIONS = `You are connected to a Cleitext site, a CMS with a block editor like WordPress.
+Start with get_site, then read get_block_guide before writing: pages and posts are made of
+blocks, and the theme has its own sections and patterns. Everything you create is a draft:
+share the preview link, and publish only when the user asks. People edit your work in the
+block editor afterwards, so keep it made of blocks, in the language of each entry.`;
+
+/** Runs a tool for the assistant; problems come back as text it can act on. */
+export async function callTool(
+  ctx: ToolContext,
+  name: string,
+  args: Record<string, unknown>,
+  onFailure?: (error: unknown) => void,
+): Promise<{ text: string; isError: boolean }> {
+  const tool = TOOLS.find((t) => t.name === name);
+  if (!tool) return { text: `Unknown tool: ${name}`, isError: true };
+  if (!allowed(tool, ctx.scopes)) {
+    return {
+      text: `This connection may not use ${name}: it needs the "${tool.scope}" permission.`,
+      isError: true,
+    };
+  }
+  try {
+    const data = await tool.run(ctx, args);
+    return {
+      text: typeof data === 'string' ? data : JSON.stringify(data, null, 2),
+      isError: false,
+    };
+  } catch (error) {
+    if (error instanceof ToolError) return { text: error.message, isError: true };
+    onFailure?.(error);
+    return { text: 'The tool failed on the server. Try again later.', isError: true };
+  }
+}

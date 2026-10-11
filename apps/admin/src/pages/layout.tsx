@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Outlet, useNavigate } from '@tanstack/react-router';
+import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { api } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { visibleSections } from '../navigation';
@@ -7,7 +7,7 @@ import { useT } from '../components/ui';
 import { Avatar } from '../components/avatar';
 import { LogoMark } from '@cleitext/admin-sdk';
 import { taxonomiesQuery, taxonomyLabel } from './terms';
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
 import { UPDATES_QUERY } from './updates';
@@ -85,6 +85,20 @@ export function AdminLayout() {
     ],
   );
   items.push(...pluginMenu.pages);
+
+  // The browser tab names the screen and the site, as in WordPress: "Pages ‹ My site".
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const current = items
+    .filter((item) =>
+      item.to === '/'
+        ? pathname === '/'
+        : pathname === item.to || pathname.startsWith(`${item.to}/`),
+    )
+    .sort((a, b) => b.to.length - a.to.length)[0];
+  const tabTitle = current ? `${current.label} ‹ ${me.site.name}` : me.site.name;
+  useEffect(() => {
+    document.title = tabTitle;
+  }, [tabTitle]);
 
   const logout = useMutation({
     mutationFn: () => api<void>('POST', '/auth/logout'),

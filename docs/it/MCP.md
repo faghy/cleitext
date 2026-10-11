@@ -48,6 +48,12 @@ Ogni collegamento è un token API del tuo account: gli assistenti collegati con 
 
 I contenuti arrivano come **markup dei blocchi di WordPress** (`<!-- wp:heading -->…`), HTML semplice o blocchi di Cleitext; vengono convertiti e validati come tutto ciò che si salva nell'editor, quindi il risultato si apre sempre nell'editor a blocchi. Un assistente non cancella niente.
 
+## Chat nell'admin
+
+**Assistenti IA** ha anche una **Chat**: scrivi lì la richiesta e l'IA del sito la esegue con gli stessi strumenti, come te, mostrando ogni passo (lettura del sito, creazione di una bozza…) e i link per modificare e vedere l'anteprima del risultato. Spunta _Può anche pubblicare_ per lasciarla pubblicare; altrimenti lascia bozze. Le **Richieste pronte** sono esempi che funzionano bene: usale nella chat o copiale nel tuo assistente.
+
+La chat ha bisogno di un **fornitore di IA**, configurato da un super admin in fondo alla pagina: qualunque servizio con un'API chat completions compatibile con OpenAI (l'indirizzo, come `https://api.openai.com/v1`, `https://openrouter.ai/api/v1` o `http://localhost:11434/v1` per Ollama, un modello che sappia usare gli strumenti, e la chiave). La chiave è salvata cifrata e non viene più mostrata; il fornitore addebita l'uso all'account della chiave. La conversazione resta nella scheda del browser finché non ne inizi una nuova.
+
 ## Per chi crea temi
 
 Aggiungi `aiGuide` (Markdown) alla definizione del tema: come si costruiscono le pagine con il tema, le sue sezioni e classi e quando usarle. Gli assistenti la leggono con `get_block_guide`, insieme ai pattern del sito: è il modo migliore per farli costruire nello stile del tema.

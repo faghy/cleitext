@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { withContext, type DatabaseClient } from '@cleitext/db';
 import { Controller, Delete, Get, Inject, Post, Req, Res } from '@nestjs/common';
@@ -9,8 +8,9 @@ import { NoCsrf, Public } from '../common/decorators.js';
 import { DATABASE } from '../database/database.module.js';
 import { appRoot } from '../install/token.js';
 import { SettingsService } from '../settings/settings.service.js';
-import { ToolError } from './errors.js';
-import { allowed, toolList, TOOLS, type ApiResult, type ToolContext } from './tools.js';
+import { apiContext } from './api-context.js';
+import { siteOrigin } from './origin.js';
+import { ASSISTANT_INSTRUCTIONS, callTool, toolList, TOOLS } from './tools.js';
 
 /**
  * MCP server of a site (RF-AI-01): `POST /mcp`, JSON-RPC over the stateless
@@ -30,21 +30,11 @@ const VERSION = (() => {
   }
 })();
 
-const INSTRUCTIONS = `You are connected to a Cleitext site, a CMS with a block editor like WordPress.
-Start with get_site, then read get_block_guide before writing: pages and posts are made of
-blocks, and the theme has its own sections and patterns. Everything you create is a draft:
-share the preview link, and publish only when the user asks. People edit your work in the
-block editor afterwards, so keep it made of blocks, in the language of each entry.`;
-
 interface JsonRpcMessage {
   jsonrpc?: string;
   id?: string | number | null;
   method?: string;
   params?: Record<string, unknown>;
-}
-
-export function siteOrigin(request: FastifyRequest): string {
-  return `${request.protocol}://${request.host}`;
 }
 
 @Controller('mcp')
@@ -139,7 +129,7 @@ export class McpController {
           protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: 'cleitext', title: 'Cleitext', version: VERSION },
-          instructions: INSTRUCTIONS,
+          instructions: ASSISTANT_INSTRUCTIONS,
         });
       }
       case 'ping':
@@ -150,27 +140,17 @@ export class McpController {
         const name = String(message.params?.name ?? '');
         const tool = TOOLS.find((t) => t.name === name);
         if (!tool) return rpcError(id, -32602, `Unknown tool: ${name}`);
-        if (!allowed(tool, scopes)) {
-          return rpcResult(
-            id,
-            toolText(
-              `This connection may not use ${name}: it needs the "${tool.scope}" permission.`,
-              true,
-            ),
-          );
-        }
         const args = (message.params?.arguments ?? {}) as Record<string, unknown>;
-        try {
-          const data = await tool.run(this.context(request), args);
-          return rpcResult(
-            id,
-            toolText(typeof data === 'string' ? data : JSON.stringify(data, null, 2)),
-          );
-        } catch (error) {
-          if (error instanceof ToolError) return rpcResult(id, toolText(error.message, true));
-          request.log.error(error, `MCP tool ${name} failed`);
-          return rpcResult(id, toolText('The tool failed on the server. Try again later.', true));
-        }
+        const ctx = apiContext(
+          this.adapter.httpAdapter.getInstance<FastifyInstance>(),
+          request,
+          { authorization: request.headers.authorization! },
+          scopes,
+        );
+        const result = await callTool(ctx, name, args, (error) =>
+          request.log.error(error, `MCP tool ${name} failed`),
+        );
+        return rpcResult(id, toolText(result.text, result.isError));
       }
       case 'resources/list':
         return rpcResult(id, { resources: [] });
@@ -179,65 +159,6 @@ export class McpController {
       default:
         return rpcError(id, -32601, `Method not found: ${message.method}`);
     }
-  }
-
-  /** Calls to the REST API of the site, as the connected user (same token, same host). */
-  private context(request: FastifyRequest): ToolContext {
-    const fastify = this.adapter.httpAdapter.getInstance<FastifyInstance>();
-    const headers = {
-      host: request.headers.host ?? request.host,
-      authorization: request.headers.authorization!,
-      ...(request.headers['x-forwarded-proto']
-        ? { 'x-forwarded-proto': request.headers['x-forwarded-proto'] }
-        : {}),
-      ...(request.headers['x-forwarded-for']
-        ? { 'x-forwarded-for': request.headers['x-forwarded-for'] }
-        : {}),
-    };
-    const send = async (
-      method: string,
-      path: string,
-      payload: string | Buffer | undefined,
-      type?: string,
-    ) => {
-      const response = await fastify.inject({
-        method: method as 'GET',
-        url: `/api/v1${path}`,
-        headers: { ...headers, ...(type ? { 'content-type': type } : {}) },
-        remoteAddress: request.ip,
-        ...(payload !== undefined ? { payload } : {}),
-      });
-      let data: unknown;
-      try {
-        data = response.body ? JSON.parse(response.body) : null;
-      } catch {
-        data = response.body;
-      }
-      return { status: response.statusCode, data } satisfies ApiResult;
-    };
-    return {
-      origin: siteOrigin(request),
-      scopes: request.auth!.apiToken!.scopes,
-      api: (method, path, body) =>
-        send(
-          method,
-          path,
-          body === undefined ? undefined : JSON.stringify(body),
-          body === undefined ? undefined : 'application/json',
-        ),
-      upload: (filename, data) => {
-        const boundary = `cleitext${randomBytes(12).toString('hex')}`;
-        const safeName = filename.replace(/["\r\n]/g, '');
-        const payload = Buffer.concat([
-          Buffer.from(
-            `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`,
-          ),
-          data,
-          Buffer.from(`\r\n--${boundary}--\r\n`),
-        ]);
-        return send('POST', '/media', payload, `multipart/form-data; boundary=${boundary}`);
-      },
-    };
   }
 }
 

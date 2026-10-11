@@ -5,6 +5,8 @@ import { AdminController } from './admin/admin.controller.js';
 import { UpdatesController } from './updates/updates.controller.js';
 import { McpController } from './mcp/mcp.controller.js';
 import { AssistantsController } from './mcp/assistants.controller.js';
+import { ChatController } from './mcp/chat.controller.js';
+import { ChatService } from './mcp/chat.service.js';
 import { OAuthController } from './mcp/oauth.controller.js';
 import { OAuthService } from './mcp/oauth.service.js';
 import { UpdatesService } from './updates/updates.service.js';
@@ -130,6 +132,7 @@ export class AppModule {
         McpController,
         OAuthController,
         AssistantsController,
+        ChatController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -148,6 +151,7 @@ export class AppModule {
         ThemesService,
         UpdatesService,
         OAuthService,
+        ChatService,
         LoginThrottleService,
         MailService,
         MediaService,

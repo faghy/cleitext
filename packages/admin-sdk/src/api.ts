@@ -69,6 +69,46 @@ export async function api<T>(
 }
 
 /**
+ * POST whose answer is a stream of JSON lines (such as the admin chat):
+ * each line is passed to `onLine` as soon as it arrives.
+ */
+export async function apiStream<T>(
+  path: string,
+  body: unknown,
+  onLine: (line: T) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const send = (token: string) =>
+    fetch(`/api/v1${path}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json', [CSRF_HEADER]: token },
+      body: JSON.stringify(body),
+      ...(signal ? { signal } : {}),
+    });
+  let res = await send(csrfToken ?? (await fetchCsrf()));
+  if (res.status === 403) res = await send(await fetchCsrf());
+  if (!res.ok || !res.body) {
+    const data = (await res.json().catch(() => null)) as ProblemDetails | null;
+    throw new ApiError(data ?? { title: res.statusText || 'Error', status: res.status });
+  }
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    let end: number;
+    while ((end = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, end).trim();
+      buffer = buffer.slice(end + 1);
+      if (line) onLine(JSON.parse(line) as T);
+    }
+  }
+  if (buffer.trim()) onLine(JSON.parse(buffer) as T);
+}
+
+/**
  * Uploads a file to the media library (multipart, with the CSRF header), or
  * to another upload endpoint given as `path` (under `/api/v1`).
  * `onProgress` receives the fraction sent, from 0 to 1 (RF-MED-01).

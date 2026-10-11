@@ -23,7 +23,8 @@ import { parseBody } from '../common/problem.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { SettingsService } from '../settings/settings.service.js';
-import { siteOrigin } from './mcp.controller.js';
+import { ChatService } from './chat.service.js';
+import { siteOrigin } from './origin.js';
 import { OAuthService } from './oauth.service.js';
 
 /**
@@ -35,6 +36,7 @@ export class AssistantsController {
   constructor(
     private readonly oauth: OAuthService,
     private readonly settings: SettingsService,
+    private readonly chat: ChatService,
     @Inject(DATABASE) private readonly database: DatabaseClient,
   ) {}
 
@@ -48,7 +50,11 @@ export class AssistantsController {
     @CurrentSite() site: SiteContext,
     @Req() request: FastifyRequest,
   ): Promise<AssistantsStatus> {
-    return { enabled: await this.enabled(site.id), address: `${siteOrigin(request)}/mcp` };
+    return {
+      enabled: await this.enabled(site.id),
+      address: `${siteOrigin(request)}/mcp`,
+      chat: await this.chat.configured(site.id),
+    };
   }
 
   /** What the assistant asks for, to show it before the user allows it. */

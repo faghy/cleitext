@@ -4,7 +4,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { NoCsrf, Public } from '../common/decorators.js';
 import { DATABASE } from '../database/database.module.js';
 import { SettingsService } from '../settings/settings.service.js';
-import { siteOrigin } from './mcp.controller.js';
+import { siteOrigin } from './origin.js';
 import { OAUTH_SCOPES, OAuthError, OAuthService } from './oauth.service.js';
 
 /**

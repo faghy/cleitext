@@ -109,10 +109,55 @@ export const createApiTokenRequestSchema = z.object({
 
 /** Admin → AI assistants. */
 export interface AssistantsStatus {
+  /** MCP: people can connect their own assistant. */
   enabled: boolean;
   /** The MCP address to add in the assistant. */
   address: string;
+  /** The chat in the admin has an AI provider. */
+  chat: boolean;
 }
+
+/** The AI provider of the admin chat (an OpenAI-compatible chat completions API). */
+export interface AiProviderView {
+  baseUrl: string;
+  model: string;
+  hasKey: boolean;
+}
+
+export const aiProviderRequestSchema = z.object({
+  baseUrl: z.url({ protocol: /^https?$/ }).max(300),
+  model: z.string().trim().min(1).max(200),
+  /** Kept when omitted, removed with an empty string. */
+  apiKey: z.string().trim().max(1000).optional(),
+});
+export type AiProviderRequest = z.infer<typeof aiProviderRequestSchema>;
+
+/** A message of the admin chat, in the chat completions format. */
+export type AssistantChatMessage = Record<string, unknown> & {
+  role: 'user' | 'assistant' | 'tool';
+};
+
+export const assistantChatRequestSchema = z.object({
+  /** The conversation so far, as returned by the last answer, plus the new question. */
+  messages: z
+    .array(
+      z.looseObject({
+        role: z.enum(['user', 'assistant', 'tool']),
+      }),
+    )
+    .min(1)
+    .max(400),
+  publish: z.boolean().optional(),
+});
+
+/** One line of the streamed answer of the admin chat. */
+export type AssistantChatEvent =
+  | { type: 'tool'; name: string }
+  | { type: 'tool-done'; name: string; ok: boolean }
+  | { type: 'text'; text: string }
+  | { type: 'done'; messages: AssistantChatMessage[] }
+  | { type: 'error'; message: string }
+  | { type: 'ping' };
 
 /** What an assistant asks for on /oauth/authorize, shown on the consent screen. */
 export interface OAuthConsentView {
