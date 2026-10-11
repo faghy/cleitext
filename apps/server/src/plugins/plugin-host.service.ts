@@ -29,6 +29,7 @@ import {
   type PersonalDataEraser,
   type PersonalDataExporter,
   type PersonalDataGroup,
+  type TrackerDeclaration,
   type Filters,
   type PluginBlockDefinition,
   type PluginDefinition,
@@ -102,6 +103,8 @@ export interface LoadedPlugin {
   /** Registered with `ctx.privacy` (GDPR requests). */
   exporters: PersonalDataExporter[];
   erasers: PersonalDataEraser[];
+  /** Registered with `ctx.privacy.declareTrackers`. */
+  trackerProviders: ((siteId: string) => TrackerDeclaration[] | Promise<TrackerDeclaration[]>)[];
   stats: PluginStats;
 }
 
@@ -230,6 +233,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       languageProvider: null,
       exporters: [],
       erasers: [],
+      trackerProviders: [],
       stats: { calls: 0, errors: 0, totalMs: 0, lastError: null },
     };
     try {
@@ -271,6 +275,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         languageProvider: null,
         exporters: [],
         erasers: [],
+        trackerProviders: [],
       });
       plugin.capabilities.clear();
       this.logger.error(`Plugin ${slug} could not be loaded: ${plugin.error}`);
@@ -309,6 +314,25 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     }
     if (kind === 'exporter') plugin.exporters.push(handler as PersonalDataExporter);
     else plugin.erasers.push(handler as PersonalDataEraser);
+  }
+
+  /** The trackers that the plugins active on a site add to it, with their rules. */
+  async trackers(siteId: string): Promise<TrackerDeclaration[]> {
+    const result: TrackerDeclaration[] = [];
+    for (const plugin of await this.activePlugins(siteId)) {
+      for (const provider of plugin.trackerProviders) {
+        try {
+          for (const tracker of await provider(siteId)) {
+            if (tracker.id === plugin.slug || tracker.id.startsWith(`${plugin.slug}.`)) {
+              result.push(tracker);
+            }
+          }
+        } catch (error) {
+          this.logger.error(`Trackers of ${plugin.slug} failed: ${String(error)}`);
+        }
+      }
+    }
+    return result;
   }
 
   /** GDPR access request: the core's data, then each active plugin's. */

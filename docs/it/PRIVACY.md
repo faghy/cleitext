@@ -14,6 +14,10 @@ Segue il GDPR e, per l'Italia, le linee guida cookie del Garante del 10 giugno 2
 - Si cambia la scelta da un piccolo pulsante in un angolo di ogni pagina, da una voce di menu con indirizzo `#cookie-preferences`, o dal blocco **Pulsante preferenze cookie**.
 - Testi in italiano e inglese, oppure i tuoi per ogni lingua; barra o riquadro; il tuo colore. Usabile da tastiera.
 
+### Servizi di altri plugin
+
+I servizi aggiunti da altri plugin, come **Analytics** (Matomo, Google Analytics, Tag Manager, Meta Pixel), portano le proprie regole: la loro categoria viene offerta nel banner, i loro cookie entrano nella tabella dei cookie, la Google Consent Mode si attiva per i servizi Google e la privacy policy li descrive. **Privacy → Banner cookie → Servizi di tracciamento** li mostra.
+
 ### Script bloccati fino al consenso
 
 In **Privacy → Banner cookie** incolla il codice di statistiche, pubblicità o pixel nella sua categoria: arriva nella pagina inattivo (`<script type="text/plain">`, iframe senza `src`) e parte solo dopo che il visitatore ha accettato quella categoria. Nelle pagine e nei temi, scrivi gli script come `<script type="text/plain" data-cx-category="statistics">` e gli iframe con `data-cx-src="…" data-cx-category="marketing"` per lo stesso comportamento.
@@ -47,4 +51,4 @@ Ogni richiesta viene registrata con la data e chi l'ha gestita; per le cancellaz
 bin/cleitext plugin:install plugins/privacy
 ```
 
-oppure carica lo zip da **Plugin → Carica plugin**, poi attivalo sul sito. Impostazioni, registrazioni e richieste restano se lo disattivi. Richiede Cleitext 0.12 o successivo (API dei plugin 1.3).
+oppure carica lo zip da **Plugin → Carica plugin**, poi attivalo sul sito. Impostazioni, registrazioni e richieste restano se lo disattivi. Richiede Cleitext 0.13 o successivo (API dei plugin 1.4).

@@ -31,7 +31,7 @@ The easiest way, as with WordPress: nothing to build, no configuration file to w
 
 **Email**: until you add `MAIL_URL` and `MAIL_FROM` to `cleitext-shared/.env` (§5) and restart the app, emails (invitations, password resets) are only written to the log.
 
-**Multilingual** and **Privacy & GDPR** are not in the base package: download `cleitext-plugin-multilingual-<version>.zip` or `cleitext-plugin-privacy-<version>.zip` from the same Releases page and upload it in **Plugins → Upload Plugin** (see [PRIVACY.md](./PRIVACY.md) for the cookie banner and the policies).
+**Multilingual**, **Privacy & GDPR** and **Analytics** are not in the base package: download `cleitext-plugin-multilingual-<version>.zip`, `cleitext-plugin-privacy-<version>.zip` or `cleitext-plugin-analytics-<version>.zip` from the same Releases page and upload it in **Plugins → Upload Plugin** (see [PRIVACY.md](./PRIVACY.md) for the cookie banner and the policies).
 
 The rest of this guide is the manual installation, and the updates (§8).
 

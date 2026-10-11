@@ -34,8 +34,8 @@ export function gateHtml(html: string, category: Category): string {
 }
 
 /** Google Consent Mode v2 defaults, before any Google tag: everything denied until chosen. */
-export function consentModeScript(version: number): string {
-  return `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}(function(){var g={ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'denied',personalization_storage:'denied',security_storage:'granted',wait_for_update:500};try{var m=document.cookie.match(/(?:^|; )cx_consent=([^;]*)/);var c=m&&JSON.parse(decodeURIComponent(m[1]));if(c&&c.v===${version}){var k=c.c||[];if(k.indexOf('statistics')>=0)g.analytics_storage='granted';if(k.indexOf('marketing')>=0){g.ad_storage='granted';g.ad_user_data='granted';g.ad_personalization='granted';}if(k.indexOf('preferences')>=0){g.functionality_storage='granted';g.personalization_storage='granted';}}}catch(e){}gtag('consent','default',g);})();</script>`;
+export function consentModeScript(version: string): string {
+  return `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}(function(){var g={ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'denied',personalization_storage:'denied',security_storage:'granted',wait_for_update:500};try{var m=document.cookie.match(/(?:^|; )cx_consent=([^;]*)/);var c=m&&JSON.parse(decodeURIComponent(m[1]));if(c&&c.v===${JSON.stringify(version)}){var k=c.c||[];if(k.indexOf('statistics')>=0)g.analytics_storage='granted';if(k.indexOf('marketing')>=0){g.ad_storage='granted';g.ad_user_data='granted';g.ad_personalization='granted';}if(k.indexOf('preferences')>=0){g.functionality_storage='granted';g.personalization_storage='granted';}}}catch(e){}gtag('consent','default',g);})();</script>`;
 }
 
 export interface BannerLinks {
@@ -43,7 +43,12 @@ export interface BannerLinks {
   cookies?: string;
 }
 
-export function bannerHtml(config: PrivacyConfig, locale: string, links: BannerLinks): string {
+export function bannerHtml(
+  config: PrivacyConfig,
+  locale: string,
+  links: BannerLinks,
+  version: string,
+): string {
   const t = textsFor(locale);
   const lang = locale.toLowerCase().startsWith('it') ? 'it' : 'en';
   const title = config.banner.title[locale] || config.banner.title[lang] || t.title;
@@ -68,7 +73,7 @@ export function bannerHtml(config: PrivacyConfig, locale: string, links: BannerL
     })
     .join('');
 
-  return `<div id="cx-consent" class="cx-consent cx-consent--${config.banner.layout}" role="dialog" aria-labelledby="cx-consent-title" aria-describedby="cx-consent-text" hidden data-version="${config.version}" data-months="${Math.min(Math.max(config.banner.months, 1), 12)}" data-categories="${offered.join(',')}" data-consent-mode="${config.banner.consentMode ? '1' : '0'}" lang="${lang}">
+  return `<div id="cx-consent" class="cx-consent cx-consent--${config.banner.layout}" role="dialog" aria-labelledby="cx-consent-title" aria-describedby="cx-consent-text" hidden data-version="${escape(version)}" data-months="${Math.min(Math.max(config.banner.months, 1), 12)}" data-categories="${offered.join(',')}" data-consent-mode="${config.banner.consentMode ? '1' : '0'}" lang="${lang}">
 <button type="button" class="cx-consent__close" data-cx="reject" aria-label="${escape(t.close)}" title="${escape(t.close)}">×</button>
 <h2 id="cx-consent-title" class="cx-consent__title">${escape(title)}</h2>
 <p id="cx-consent-text" class="cx-consent__text">${escape(message)}${policyLinks ? ` ${policyLinks}` : ''}</p>
@@ -118,7 +123,7 @@ const STYLE = `.cx-consent{position:fixed;z-index:2147483000;box-sizing:border-b
 /** Plain ES2017, no dependencies: runs on every page, before or without any framework. */
 const SCRIPT = `(function(){
 var root=document.getElementById('cx-consent');if(!root)return;
-var V=+root.getAttribute('data-version'),M=+root.getAttribute('data-months')||6;
+var V=root.getAttribute('data-version'),M=+root.getAttribute('data-months')||6;
 var OFFERED=(root.getAttribute('data-categories')||'').split(',').filter(Boolean);
 var CM=root.getAttribute('data-consent-mode')==='1';
 var reopen=document.querySelector('.cx-consent-reopen');

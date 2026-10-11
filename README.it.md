@@ -24,6 +24,7 @@
 - **Multi-sito**: un'unica installazione per più domini, isolati con il Row Level Security di PostgreSQL
 - **Assistenti IA**: un server MCP permette di collegare ChatGPT e altri assistenti IA con OAuth e far costruire loro pagine e articoli con i blocchi dell'editor, oppure chiedere nella chat dell'admin con il fornitore di IA del sito
 - **Privacy e GDPR** (plugin separato): banner dei cookie secondo le linee guida del Garante, con gli script bloccati fino al consenso e un registro dei consensi, pagine di privacy e cookie policy fatte di blocchi, e richieste di esportazione o cancellazione dei dati personali
+- **Analytics** (plugin separato): Matomo, Google Analytics 4, Tag Manager, Meta Pixel, verifica di Search Console e Bing, con le regole privacy applicate da Privacy e GDPR
 - **Deploy**: Plesk (estensione Node.js)
 
 ## Sviluppo
@@ -58,6 +59,7 @@ Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/`, scrive un
 | [`docs/it/DEPLOY.md`](./docs/it/DEPLOY.md) ([EN](./docs/DEPLOYMENT.md))               | Installazione e aggiornamento su server (Plesk, nginx), backup                                        |
 | [`docs/it/MCP.md`](./docs/it/MCP.md) ([EN](./docs/MCP.md))                            | Assistenti IA: collegarli con MCP e OAuth, i loro strumenti                                           |
 | [`docs/it/PRIVACY.md`](./docs/it/PRIVACY.md) ([EN](./docs/PRIVACY.md))                | Plugin Privacy e GDPR: banner dei cookie, registro consensi, policy, richieste sui dati personali     |
+| [`docs/it/ANALYTICS.md`](./docs/it/ANALYTICS.md) ([EN](./docs/ANALYTICS.md))          | Plugin Analytics: Matomo, Google Analytics, Tag Manager, Meta Pixel, motori di ricerca                |
 | [`docs/it/ASVS.md`](./docs/it/ASVS.md) ([EN](./docs/ASVS.md))                         | Checklist di sicurezza OWASP ASVS e punti aperti; segnalazioni in [`SECURITY.md`](./SECURITY.md)      |
 
 ## Il principio chiave

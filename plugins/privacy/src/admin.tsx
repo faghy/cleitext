@@ -5,9 +5,11 @@ import {
   Card,
   defineAdminPlugin,
   errorMessage,
+  labelText,
   TextField,
   type AdminPageProps,
 } from '@cleitext/admin-sdk';
+import type { TrackerDeclaration } from '@cleitext/plugin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import {
@@ -20,6 +22,13 @@ import {
 } from './config';
 
 type Tab = 'banner' | 'cookies' | 'policies' | 'requests' | 'consents';
+
+interface TrackersView {
+  trackers: TrackerDeclaration[];
+  categories: Category[];
+  consentMode: boolean;
+  bannerShown: boolean;
+}
 
 interface ConsentStats {
   total: number;
@@ -171,6 +180,8 @@ function BannerTab({
   busy,
   tr,
   site,
+  api,
+  user,
 }: AdminPageProps & {
   config: PrivacyConfig;
   save: (next: PrivacyConfig & { askAgain?: boolean }) => void;
@@ -178,6 +189,10 @@ function BannerTab({
   tr: Tr;
 }) {
   const [banner, setBanner] = useState(config.banner);
+  const trackers = useQuery({
+    queryKey: ['privacy', 'trackers', config],
+    queryFn: () => api<TrackersView>('GET', '/trackers'),
+  });
   const [retention, setRetention] = useState(config.consentRetentionMonths);
   const set = <K extends keyof PrivacyConfig['banner']>(
     key: K,
@@ -215,6 +230,53 @@ function BannerTab({
         save({ ...config, banner, consentRetentionMonths: retention });
       }}
     >
+      <Card title={tr('Tracking services', 'Servizi di tracciamento')}>
+        {trackers.data && trackers.data.trackers.length > 0 ? (
+          <div className="space-y-3 text-sm">
+            <p className="text-slate-600">
+              {tr(
+                'Added by other plugins, such as Analytics. Their rules are applied automatically: the banner asks for their category, their cookies are in the cookie table, and the privacy policy describes them when you create it again.',
+                'Aggiunti da altri plugin, come Analytics. Le loro regole sono applicate automaticamente: il banner chiede la loro categoria, i loro cookie sono nella tabella dei cookie e la privacy policy li descrive quando la crei di nuovo.',
+              )}
+            </p>
+            <ul className="space-y-2">
+              {trackers.data.trackers.map((t) => (
+                <li key={t.id} className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                  <span className="font-medium">{t.name}</span>
+                  <span className="text-slate-500"> · {t.provider}</span>
+                  <span className="block text-xs text-slate-600">
+                    {t.requiresConsent
+                      ? tr(
+                          `Only after consent to “${categoryLabel(textsFor('en'), t.category)}”`,
+                          `Solo dopo il consenso a “${categoryLabel(textsFor('it'), t.category)}”`,
+                        )
+                      : tr(
+                          'No consent needed (anonymous, no cookies)',
+                          'Nessun consenso necessario (anonimo, senza cookie)',
+                        )}
+                    {t.cookies.length > 0 &&
+                      ` · ${tr('cookies', 'cookie')}: ${t.cookies.map((c) => c.name).join(', ')}`}
+                    {t.transfersOutsideEu &&
+                      ` · ${tr('data outside the EU', 'dati fuori dall’UE')}`}
+                    {t.googleConsentMode && ' · Google Consent Mode v2'}
+                  </span>
+                  <span className="block text-xs text-slate-500">
+                    {labelText(t.purpose, user.locale)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-600">
+            {tr(
+              'None. To connect Matomo, Google Analytics, Search Console and other services, install the Analytics plugin: their privacy rules are then applied here automatically.',
+              'Nessuno. Per collegare Matomo, Google Analytics, Search Console e altri servizi installa il plugin Analytics: le loro regole privacy vengono poi applicate qui automaticamente.',
+            )}
+          </p>
+        )}
+      </Card>
+
       <Card title={tr('Banner', 'Banner')}>
         <div className="space-y-3">
           <Check

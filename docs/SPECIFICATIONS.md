@@ -765,6 +765,12 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 - **RF-PRV-03** Privacy and cookie policy drafts per language, made of core blocks and of the plugin's cookie table and preferences blocks.
 - **RF-PRV-04** Requests about personal data (art. 15, 17, 20): plugin API 1.2 `ctx.privacy` exporters and erasers (core: account, sessions, tokens, activity; Forms: messages), JSON export, erasure, request log.
 
+- **RF-PRV-05** Trackers declared by plugins (plugin API 1.4, `ctx.privacy.declareTrackers`): their consent category, cookies, Consent Mode and policy text are applied by the privacy plugin.
+
+### M11 — Analytics (separate plugin)
+
+- **RF-ANL-01** Matomo (anonymous without cookies, or with cookies after consent), Google Analytics 4, Google Tag Manager, Meta Pixel, Google Search Console and Bing verification; several at once; each declares its privacy rules, and services needing consent load only through the consent banner.
+
 ## 14. Out of scope
 
 - E-commerce: **planned for the future** as a plugin, not to be done now (see ARCHITECTURE §22.1).

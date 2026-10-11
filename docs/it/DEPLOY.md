@@ -31,7 +31,7 @@ Il modo più semplice, come con WordPress: niente da compilare, nessun file di c
 
 **Email**: finché non aggiungi `MAIL_URL` e `MAIL_FROM` a `cleitext-shared/.env` (§5) e riavvii l'applicazione, le email (inviti, reimpostazione della password) vengono solo scritte nel log.
 
-**Multilingua** e **Privacy e GDPR** non sono nel pacchetto base: scarica `cleitext-plugin-multilingual-<versione>.zip` o `cleitext-plugin-privacy-<versione>.zip` dalla stessa pagina Releases e caricalo da **Plugin → Carica plugin** (vedi [PRIVACY.md](./PRIVACY.md) per il banner dei cookie e le policy).
+**Multilingua**, **Privacy e GDPR** e **Analytics** non sono nel pacchetto base: scarica `cleitext-plugin-multilingual-<versione>.zip`, `cleitext-plugin-privacy-<versione>.zip` o `cleitext-plugin-analytics-<versione>.zip` dalla stessa pagina Releases e caricalo da **Plugin → Carica plugin** (vedi [PRIVACY.md](./PRIVACY.md) per il banner dei cookie e le policy).
 
 Il resto della guida descrive l'installazione manuale e gli aggiornamenti (§8).
 

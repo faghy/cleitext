@@ -12,6 +12,10 @@ It follows the GDPR and, for Italy, the Garante's cookie guidelines of 10 June 2
 - People change their choice from a small button in a corner of every page, from a menu item with the address `#cookie-preferences`, or from the **Cookie preferences button** block.
 - Texts in English and Italian, or your own per language; bar or box; your color. Keyboard accessible.
 
+### Services of other plugins
+
+Services added by other plugins, such as **Analytics** (Matomo, Google Analytics, Tag Manager, Meta Pixel), bring their own rules: their category is offered in the banner, their cookies join the cookie table, Google Consent Mode turns on for Google services, and the privacy policy describes them. **Privacy → Cookie banner → Tracking services** shows them.
+
 ### Scripts held until consent
 
 In **Privacy → Cookie banner**, paste the code of analytics, ads or pixels into its category: it reaches the page inert (`<script type="text/plain">`, iframes without `src`) and runs only after the visitor accepts that category. In pages and themes, write scripts as `<script type="text/plain" data-cx-category="statistics">` and iframes with `data-cx-src="…" data-cx-category="marketing"` to get the same behavior.
@@ -45,4 +49,4 @@ Every request is logged with its date and who handled it; erasures keep only a m
 bin/cleitext plugin:install plugins/privacy
 ```
 
-or upload the zip in **Plugins → Upload Plugin**, then activate it on the site. Settings, records and requests are kept when it is deactivated. It needs Cleitext 0.12 or later (plugin API 1.3).
+or upload the zip in **Plugins → Upload Plugin**, then activate it on the site. Settings, records and requests are kept when it is deactivated. It needs Cleitext 0.13 or later (plugin API 1.4).

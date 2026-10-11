@@ -351,6 +351,14 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
     },
 
     privacy: {
+      declareTrackers(provider) {
+        plugin.trackerProviders.push(provider);
+      },
+      async trackers(siteId) {
+        require('privacy');
+        assertSiteId(siteId);
+        return host.trackers(siteId);
+      },
       registerExporter(exporter) {
         host.addPrivacyHandler(plugin, 'exporter', exporter);
       },

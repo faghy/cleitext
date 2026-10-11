@@ -449,7 +449,42 @@ export interface PersonalDataEraser {
   erase(siteId: string, email: string): Promise<ErasureResult>;
 }
 
+/**
+ * A service that tracks visitors (analytics, ads, pixels), declared by the
+ * plugin that adds it, so that the privacy plugin can ask for consent, list
+ * its cookies and describe it in the policies.
+ */
+export interface TrackerDeclaration {
+  /** Starts with the plugin slug, e.g. `analytics.ga4`. */
+  id: string;
+  /** e.g. `Google Analytics 4`. */
+  name: string;
+  /** Who runs it, e.g. `Google Ireland Ltd`. */
+  provider: string;
+  category: 'preferences' | 'statistics' | 'marketing';
+  /** False when it may run without consent, e.g. anonymous analytics without cookies. */
+  requiresConsent: boolean;
+  cookies: { name: string; duration: string; purpose: Label }[];
+  /** What it does with the data, for the privacy policy (one or two sentences). */
+  purpose: Label;
+  /** Data may go outside the European Economic Area. */
+  transfersOutsideEu?: boolean;
+  /** The provider's privacy policy. */
+  privacyPolicyUrl?: string;
+  /** Uses Google tags: Google Consent Mode v2 should be on. */
+  googleConsentMode?: boolean;
+}
+
 export interface PrivacyApi {
+  /**
+   * Declares the trackers the plugin adds to a site, given its settings
+   * (no permission needed). Plugins that load tracking scripts should.
+   */
+  declareTrackers(
+    provider: (siteId: string) => TrackerDeclaration[] | Promise<TrackerDeclaration[]>,
+  ): void;
+  /** The trackers declared by the plugins active on a site (needs `privacy`). */
+  trackers(siteId: string): Promise<TrackerDeclaration[]>;
   /** Any plugin keeping personal data should register one; no permission needed. */
   registerExporter(exporter: PersonalDataExporter): void;
   registerEraser(eraser: PersonalDataEraser): void;

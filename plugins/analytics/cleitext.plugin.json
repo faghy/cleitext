@@ -1,0 +1,13 @@
+{
+  "slug": "analytics",
+  "name": "Analytics",
+  "version": "1.0.0",
+  "apiVersion": "^1.4",
+  "description": "Matomo, Google Analytics 4, Google Tag Manager, Meta Pixel, and site verification for Google Search Console and Bing, with their privacy rules applied by Privacy & GDPR.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "permissions": ["routes:admin", "settings:own", "theme:hooks"],
+  "capabilities": ["manage_analytics"]
+}

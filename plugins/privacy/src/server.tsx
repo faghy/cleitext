@@ -1,4 +1,10 @@
-import { defineBlock, definePlugin, labelText, type PluginContext } from '@cleitext/plugin-sdk';
+import {
+  defineBlock,
+  definePlugin,
+  labelText,
+  type PluginContext,
+  type TrackerDeclaration,
+} from '@cleitext/plugin-sdk';
 import { count, desc, eq, lt, sql } from 'drizzle-orm';
 import { bannerHtml, CONSENT_PATH, consentModeScript } from './banner';
 import {
@@ -131,6 +137,85 @@ async function config(ctx: PluginContext, siteId: string): Promise<PrivacyConfig
   return withDefaults(await ctx.storage.get<Partial<PrivacyConfig>>(siteId, 'config'));
 }
 
+/** The settings with the rules of the trackers other plugins add (Analytics…). */
+interface Effective {
+  cfg: PrivacyConfig;
+  trackers: TrackerDeclaration[];
+  /** Changes when categories, cookies or trackers change: visitors answer again. */
+  version: string;
+}
+
+function hash(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+async function effective(ctx: PluginContext, siteId: string): Promise<Effective> {
+  const cfg = await config(ctx, siteId);
+  const trackers = await ctx.privacy.trackers(siteId);
+  const needed = trackers.filter((t) => t.requiresConsent).map((t) => t.category);
+  const categories = CATEGORIES.filter(
+    (c) => cfg.banner.categories.includes(c) || needed.includes(c),
+  );
+  const version =
+    trackers.length === 0
+      ? String(cfg.version)
+      : `${cfg.version}.${hash(
+          JSON.stringify(
+            trackers.map((t) => [
+              t.id,
+              t.category,
+              t.requiresConsent,
+              t.cookies.map((c) => c.name),
+            ]),
+          ),
+        )}`;
+  return {
+    cfg: {
+      ...cfg,
+      banner: {
+        ...cfg.banner,
+        categories,
+        consentMode: cfg.banner.consentMode || trackers.some((t) => t.googleConsentMode),
+      },
+    },
+    trackers,
+    version,
+  };
+}
+
+/** Whether visitors see the banner. */
+const bannerShown = (e: Effective) => e.cfg.banner.enabled && e.cfg.banner.categories.length > 0;
+
+/** The cookie table: the banner's own cookie, the listed ones, those of the trackers. */
+function cookieRows(e: Effective, locale: string): CookieRow[] {
+  const t = textsFor(locale);
+  const rows: CookieRow[] = [];
+  if (bannerShown(e)) {
+    rows.push({
+      name: 'cx_consent',
+      provider: 'This site',
+      category: 'necessary',
+      purpose: t.consentCookie,
+      duration: `${e.cfg.banner.months} ${t.months}`,
+    });
+  }
+  rows.push(...e.cfg.cookies.filter((row) => row.name !== 'cx_consent'));
+  for (const tracker of e.trackers) {
+    for (const cookie of tracker.cookies) {
+      rows.push({
+        name: cookie.name,
+        provider: tracker.provider,
+        category: tracker.category,
+        purpose: labelText(cookie.purpose, locale),
+        duration: cookie.duration,
+      });
+    }
+  }
+  return rows;
+}
+
 /** Addresses of the policy pages in a language, or in the default one. */
 async function policyLinks(
   ctx: PluginContext,
@@ -180,16 +265,17 @@ export default definePlugin({
 
     ctx.hooks.filter('render.html', async (html, context) => {
       context.tag(CACHE_TAG);
-      const cfg = await config(ctx, context.siteId);
+      const e = await effective(ctx, context.siteId);
+      const cfg = e.cfg;
       if (!cfg.banner.enabled) return html;
       let out = html;
       if (cfg.banner.consentMode) {
-        out = out.replace(/<head\b[^>]*>/i, (head) => `${head}${consentModeScript(cfg.version)}`);
+        out = out.replace(/<head\b[^>]*>/i, (head) => `${head}${consentModeScript(e.version)}`);
       }
       // With only technical cookies there is nothing to ask (Garante 2021).
-      if (cfg.banner.categories.length === 0) return out;
+      if (!bannerShown(e)) return out;
       const links = await policyLinks(ctx, context.siteId, cfg, context.locale);
-      const banner = bannerHtml(cfg, context.locale, links);
+      const banner = bannerHtml(cfg, context.locale, links, e.version);
       const end = out.lastIndexOf('</body>');
       return end >= 0 ? `${out.slice(0, end)}${banner}${out.slice(end)}` : `${out}${banner}`;
     });
@@ -202,7 +288,7 @@ export default definePlugin({
         const consentId = text(body.id, 64);
         if (!/^[A-Za-z0-9-]{8,64}$/.test(consentId)) return { status: 400 };
         if (!allowed(`${request.siteId}|${request.ip}`)) return { status: 429 };
-        const cfg = await config(ctx, request.siteId);
+        const { cfg } = await effective(ctx, request.siteId);
         const chosen = Array.isArray(body.categories) ? body.categories : [];
         const categories = cfg.banner.categories.filter((c) => chosen.includes(c));
         await ctx.db.transaction(request.siteId, async (tx) => {
@@ -210,7 +296,7 @@ export default definePlugin({
             siteId: request.siteId,
             consentId,
             categories,
-            version: Number(body.version) || cfg.version,
+            version: cfg.version,
             ip: truncateIp(request.ip) || null,
             userAgent: text(request.headers['user-agent'], 300) || null,
           });
@@ -244,7 +330,7 @@ export default definePlugin({
         category: 'widgets',
         async load(_attrs, context) {
           context.tag(CACHE_TAG);
-          return (await config(ctx, context.siteId)).cookies;
+          return cookieRows(await effective(ctx, context.siteId), context.locale);
         },
         render({ data, context }) {
           const t = textsFor(context.locale);
@@ -370,7 +456,7 @@ export default definePlugin({
       async handler(request) {
         const kind = request.params.kind as PolicyKind;
         if (kind !== 'privacy' && kind !== 'cookies') return { status: 404 };
-        const cfg = await config(ctx, request.siteId);
+        const { cfg, trackers } = await effective(ctx, request.siteId);
         // The admin passes the site's name and address, as it shows them.
         const locale = text(request.query.locale, 20) || 'en';
         const origin = /^https?:\/\/[^/]+$/.test(request.query.origin ?? '')
@@ -383,7 +469,25 @@ export default definePlugin({
             locale,
             { name: text(request.query.site, 200) || request.headers.host || '', url: origin },
             await policyLinks(ctx, request.siteId, cfg, locale),
+            trackers,
           ),
+        };
+      },
+    });
+
+    ctx.routes.api({
+      method: 'GET',
+      path: '/trackers',
+      capability: 'manage_privacy',
+      async handler(request) {
+        const e = await effective(ctx, request.siteId);
+        return {
+          body: {
+            trackers: e.trackers,
+            categories: e.cfg.banner.categories,
+            consentMode: e.cfg.banner.consentMode,
+            bannerShown: bannerShown(e),
+          },
         };
       },
     });

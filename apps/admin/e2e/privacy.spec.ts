@@ -10,10 +10,27 @@ import { appErrors } from './fixtures/errors.js';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
+/**
+ * Installing a plugin restarts the development server a moment later: wait,
+ * then until its health check answers several times in a row.
+ */
+async function waitUntilReady() {
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  await sleep(2000);
+  let streak = 0;
+  for (let i = 0; i < 240 && streak < 3; i++) {
+    const ok = await fetch('http://localhost:5173/health/ready')
+      .then((r) => r.ok)
+      .catch(() => false);
+    streak = ok ? streak + 1 : 0;
+    await sleep(500);
+  }
+}
+
 const SITE =
   process.env.CLEITEXT_SERVER_URL?.replace('127.0.0.1', 'localhost') ?? 'http://localhost:3000';
 
-test.beforeAll(() => {
+test.beforeAll(async () => {
   execFileSync(
     'node',
     [
@@ -25,6 +42,8 @@ test.beforeAll(() => {
     ],
     { cwd: root, stdio: 'pipe' },
   );
+  // Installing restarts the development server: wait until it answers again.
+  await waitUntilReady();
 });
 
 // The other specs run without the banner, even after a failure here.
@@ -134,6 +153,8 @@ test('the admin page writes a privacy policy as a draft made of blocks', async (
   page.on('pageerror', (e) => errors.push(e.message));
   await signIn(page);
   await call(page, 'POST', '/plugins/privacy/activate');
+  // The menu shows the pages of plugins active when the admin loaded.
+  await page.reload();
   await page.getByRole('link', { name: 'Privacy', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Privacy & GDPR' })).toBeVisible();
   await page.getByRole('tab', { name: 'Policies' }).click();

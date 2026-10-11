@@ -191,7 +191,8 @@ describe('consent log', () => {
     });
     const csv = await admin.get('/api/v1/ext/privacy/consents.csv');
     expect(csv.headers['content-type']).toContain('text/csv');
-    expect(csv.body).toContain('abc123def456,"statistics",4,203.0.113.0,"Test"');
+    // The version recorded is the site's, not the one the browser sends.
+    expect(csv.body).toMatch(/abc123def456,"statistics",\d+,203\.0\.113\.0,"Test"/);
   });
 
   it('is only for privacy managers', async () => {

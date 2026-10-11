@@ -447,6 +447,24 @@ ctx.privacy.registerEraser({
 });
 ```
 
+Un plugin che carica script di tracciamento (statistiche, pubblicità, pixel) dovrebbe anche dichiararli (API dei plugin 1.4), perché il plugin privacy chieda il consenso per la loro categoria, elenchi i loro cookie e li descriva nelle policy:
+
+```ts
+ctx.privacy.declareTrackers(async (siteId) => [
+  {
+    id: 'stats.plausible',
+    name: 'Plausible',
+    provider: 'Plausible Insights OÜ',
+    category: 'statistics',
+    requiresConsent: false, // anonimo, senza cookie
+    cookies: [],
+    purpose: { en: 'We measure visits anonymously.', it: 'Misuriamo le visite in forma anonima.' },
+  },
+]);
+```
+
+Carica inattivi gli script che richiedono il consenso — `<script type="text/plain" data-cx-category="statistics">` — e il banner li esegue dopo il consenso. `ctx.privacy.trackers(siteId)` (permesso `privacy`) restituisce le dichiarazioni dei plugin attivi.
+
 L'email arriva in minuscolo. Vengono interpellati solo i plugin attivi sul sito. Un plugin con il permesso `privacy` (come Privacy e GDPR) esegue le richieste: `ctx.privacy.exportPersonalData(siteId, email)` raccoglie i dati del core (l'account di un membro del sito, le sue sessioni, i token e l'attività) e quelli di ogni exporter; `ctx.privacy.erasePersonalData(siteId, email)` esegue gli eraser (gli account restano: si eliminano da Utenti).
 
 ## 10. Le tue tabelle

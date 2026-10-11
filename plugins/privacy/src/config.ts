@@ -78,13 +78,6 @@ export const DEFAULT_CONFIG: PrivacyConfig = {
   version: 1,
   cookies: [
     {
-      name: 'cx_consent',
-      provider: 'This site',
-      category: 'necessary',
-      purpose: 'Remembers your cookie choices.',
-      duration: '6 months',
-    },
-    {
       name: 'cleitext_session, cleitext_csrf',
       provider: 'This site',
       category: 'necessary',
@@ -152,6 +145,8 @@ export const TEXTS = {
     },
     noCookies: 'No cookies are listed yet.',
     thisSite: 'This site',
+    consentCookie: 'Remembers your cookie choices.',
+    months: 'months',
   },
   it: {
     title: 'La tua privacy',
@@ -184,6 +179,8 @@ export const TEXTS = {
     },
     noCookies: 'Nessun cookie ancora elencato.',
     thisSite: 'Questo sito',
+    consentCookie: 'Ricorda le tue scelte sui cookie.',
+    months: 'mesi',
   },
 };
 

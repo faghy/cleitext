@@ -1,4 +1,10 @@
-import { htmlToInline, type CxdBlock, type CxdDocument } from '@cleitext/plugin-sdk';
+import {
+  htmlToInline,
+  labelText,
+  type CxdBlock,
+  type CxdDocument,
+  type TrackerDeclaration,
+} from '@cleitext/plugin-sdk';
 import type { PrivacyConfig } from './config';
 
 /**
@@ -59,6 +65,7 @@ export function policy(
   locale: string,
   site: { name: string; url: string },
   links: { privacy?: string; cookies?: string },
+  trackers: TrackerDeclaration[] = [],
 ): { title: string; slug: string; document: CxdDocument } {
   const it = locale.toLowerCase().startsWith('it');
   const today = new Date().toLocaleDateString(it ? 'it-IT' : 'en-GB', {
@@ -68,7 +75,7 @@ export function policy(
   });
   const blocks =
     kind === 'privacy'
-      ? privacyPolicy(config, it, site, links)
+      ? privacyPolicy(config, it, site, links, trackers)
       : cookiePolicy(config, it, site, links);
   blocks.push(paragraph(`<em>${it ? 'Ultimo aggiornamento' : 'Last updated'}: ${today}</em>`));
   return {
@@ -83,6 +90,7 @@ function privacyPolicy(
   it: boolean,
   site: { name: string; url: string },
   links: { cookies?: string },
+  trackers: TrackerDeclaration[],
 ): CxdBlock[] {
   const p = config.processing;
   const c = config.controller;
@@ -134,7 +142,7 @@ function privacyPolicy(
           'Con il tuo consenso (art. 6.1.a GDPR) usiamo la tua email per inviarti la newsletter, finché non ti cancelli con il link presente in ogni messaggio.',
         ),
       );
-    if (p.analytics)
+    if (p.analytics && trackers.length === 0)
       blocks.push(
         heading('Statistiche', 3),
         paragraph(
@@ -148,6 +156,7 @@ function privacyPolicy(
           `Alcune pagine includono contenuti di altri siti, come video o mappe. Vengono caricati solo con il tuo consenso alla categoria “Marketing”, perché questi siti possono raccogliere dati su di te. I dettagli sono nella ${cookieLink}.`,
         ),
       );
+    blocks.push(...trackerBlocks(trackers, true));
     blocks.push(
       heading('Cookie'),
       paragraph(
@@ -218,7 +227,7 @@ function privacyPolicy(
           'With your consent (Art. 6(1)(a) GDPR) we use your email to send you the newsletter, until you unsubscribe with the link in every message.',
         ),
       );
-    if (p.analytics)
+    if (p.analytics && trackers.length === 0)
       blocks.push(
         heading('Statistics', 3),
         paragraph(
@@ -232,6 +241,7 @@ function privacyPolicy(
           `Some pages include content from other sites, such as videos or maps. It is loaded only with your consent to the “Marketing” category, since those sites may collect data about you. Details are in the ${cookieLink}.`,
         ),
       );
+    blocks.push(...trackerBlocks(trackers, false));
     blocks.push(
       heading('Cookies'),
       paragraph(
@@ -353,4 +363,38 @@ function cookiePolicy(
       'Cookies of services of other companies are managed by them under their own policies, named in the table above by provider. They are only turned on after your consent to their category.',
     ),
   ];
+}
+
+/** One section per tracking service added by a plugin (Analytics…), with its rules. */
+function trackerBlocks(trackers: TrackerDeclaration[], it: boolean): CxdBlock[] {
+  const category = (t: TrackerDeclaration) =>
+    it
+      ? { preferences: 'Preferenze', statistics: 'Statistiche', marketing: 'Marketing' }[t.category]
+      : { preferences: 'Preferences', statistics: 'Statistics', marketing: 'Marketing' }[
+          t.category
+        ];
+  return trackers.flatMap((t) => {
+    const parts = [
+      escape(labelText(t.purpose, it ? 'it' : 'en')),
+      it
+        ? `Il servizio è fornito da <strong>${escape(t.provider)}</strong>.`
+        : `The service is provided by <strong>${escape(t.provider)}</strong>.`,
+      t.requiresConsent
+        ? it
+          ? `Viene attivato solo con il tuo consenso alla categoria “${category(t)}” (art. 6.1.a GDPR), che puoi revocare in qualsiasi momento dalle preferenze cookie.`
+          : `It is turned on only with your consent to the “${category(t)}” category (Art. 6(1)(a) GDPR), which you can withdraw at any time from the cookie preferences.`
+        : it
+          ? 'Funziona senza cookie e in forma anonima, solo per statistiche aggregate su questo sito, sulla base del legittimo interesse del titolare (art. 6.1.f GDPR).'
+          : 'It works without cookies and anonymously, only for aggregate statistics about this site, on the basis of the controller’s legitimate interest (Art. 6(1)(f) GDPR).',
+      t.transfersOutsideEu
+        ? it
+          ? 'I dati possono essere trasferiti fuori dallo Spazio economico europeo, anche negli Stati Uniti, con le garanzie previste dal GDPR (EU-U.S. Data Privacy Framework o clausole contrattuali standard).'
+          : 'Data may be transferred outside the European Economic Area, including to the United States, with the safeguards of the GDPR (EU-U.S. Data Privacy Framework or standard contractual clauses).'
+        : '',
+      t.privacyPolicyUrl
+        ? `${it ? 'Informativa del fornitore' : 'Provider’s privacy policy'}: <a href="${escape(t.privacyPolicyUrl)}">${escape(t.privacyPolicyUrl)}</a>.`
+        : '',
+    ].filter(Boolean);
+    return [heading(escape(t.name), 3), paragraph(parts.join(' '))];
+  });
 }
