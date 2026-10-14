@@ -23,13 +23,21 @@ const HOME_LABEL = (locale: string) => (locale.toLowerCase().startsWith('it') ? 
  * resolver may fail or keep an old answer), then the system one.
  */
 async function txtRecords(domain: string): Promise<string[][]> {
-  const resolver = new Resolver({ timeout: 3000, tries: 2 });
+  const resolver = new Resolver({ timeout: 1500, tries: 1 });
   resolver.setServers(['1.1.1.1', '8.8.8.8']);
   try {
     return await resolver.resolveTxt(domain);
   } catch {
-    return resolveTxt(domain);
+    return within(resolveTxt(domain), 1500);
   }
+}
+
+/** Rejects when `promise` takes longer than `ms`: plugin routes have 5 seconds in all. */
+function within<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out')), ms).unref()),
+  ]);
 }
 
 /** The home of a language, from the address of one of its pages. */
@@ -385,30 +393,33 @@ export default definePlugin({
         const domains = labels
           .map((_, i) => labels.slice(i).join('.'))
           .filter((d) => d.includes('.'));
-        const dns: { domain: string; google: boolean; bing: boolean }[] = [];
-        for (const domain of domains) {
+        // All at once, within the time a plugin route has (5 seconds).
+        const lookups = domains.map(async (domain) => {
           try {
-            const records = (await txtRecords(domain)).map((r) => r.join(''));
+            const records = (await within(txtRecords(domain), 3500)).map((r) => r.join(''));
             const google = records.some((r) => r.startsWith('google-site-verification='));
             const bing = records.some((r) => /^MS=ms\d+/i.test(r));
-            if (google || bing) dns.push({ domain, google, bing });
+            return google || bing ? { domain, google, bing } : null;
           } catch {
-            // No TXT records, or no DNS here.
+            return null; // No TXT records, or no DNS here.
           }
-        }
-        let meta = { google: false, bing: false };
-        try {
-          const origin = `${request.headers['x-forwarded-proto'] ?? 'https'}://${request.headers.host}`;
-          const html = await (
-            await fetch(`${origin}/`, { signal: AbortSignal.timeout(10_000) })
-          ).text();
-          meta = {
-            google: /<meta[^>]+name="google-site-verification"/i.test(html),
-            bing: /<meta[^>]+name="msvalidate\.01"/i.test(html),
-          };
-        } catch {
-          // The site could not be read from here.
-        }
+        });
+        const page = (async () => {
+          try {
+            const origin = `${request.headers['x-forwarded-proto'] ?? 'https'}://${request.headers.host}`;
+            const html = await (
+              await fetch(`${origin}/`, { signal: AbortSignal.timeout(3500) })
+            ).text();
+            return {
+              google: /<meta[^>]+name="google-site-verification"/i.test(html),
+              bing: /<meta[^>]+name="msvalidate\.01"/i.test(html),
+            };
+          } catch {
+            return { google: false, bing: false }; // The site could not be read from here.
+          }
+        })();
+        const dns = (await Promise.all(lookups)).filter((d) => d !== null);
+        const meta = await page;
         return { body: { host, dns, meta } };
       },
     });
