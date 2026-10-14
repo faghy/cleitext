@@ -1,0 +1,11 @@
+{
+  "slug": "maps",
+  "name": "Maps",
+  "version": "1.0.0",
+  "apiVersion": "^1.4",
+  "description": "A Map block: paste a link from Google Maps, OpenStreetMap, Bing Maps, Apple Maps or uMap, or write an address, and the place is shown with directions and \"Open in\" links. Maps that set cookies wait for consent with the Privacy & GDPR plugin.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": ["blocks", "settings:own"]
+}

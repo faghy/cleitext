@@ -43,7 +43,15 @@ await cp(join(root, 'apps/admin/dist'), join(out, 'apps/admin/dist'), { recursiv
  * Official plugins. Every one gets its own package (for the catalog and for
  * Upload Plugin); those not in SEPARATE are also in the base package.
  */
-const SEPARATE = ['multilingual', 'privacy', 'analytics', 'showcase', 'wordpress-importer'];
+const SEPARATE = [
+  'multilingual',
+  'privacy',
+  'analytics',
+  'showcase',
+  'wordpress-importer',
+  'maps',
+  'click-to-chat',
+];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
   const source = join(root, 'plugins', slug);
