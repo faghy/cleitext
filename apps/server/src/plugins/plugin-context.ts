@@ -134,7 +134,8 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         host.addHook(plugin, 'action', name, handler as never, options?.priority);
       },
       filter(name, handler, options) {
-        if (name.startsWith('render.') || name.startsWith('theme.')) require('theme:hooks');
+        if (name.startsWith('render.') || name.startsWith('theme.') || name.startsWith('cache.'))
+          require('theme:hooks');
         if (name.startsWith('site.')) require('languages');
         host.addHook(plugin, 'filter', name, handler as never, options?.priority);
       },

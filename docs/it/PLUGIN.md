@@ -166,31 +166,35 @@ ctx.hooks.filter(
 
 **Azioni** (vengono eseguite dopo che la modifica è stata salvata):
 
-| Nome                                      | Payload                                                                 |
-| ----------------------------------------- | ----------------------------------------------------------------------- |
-| `entry.created` · `entry.saved`           | `{ entry }`                                                             |
-| `entry.published` · `entry.unpublished`   | `{ entry }`                                                             |
-| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                             |
-| `term.created` · `term.deleted`           | `{ term }`                                                              |
-| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                |
-| `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue)) |
-| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                     |
+| Nome                                      | Payload                                                                     |
+| ----------------------------------------- | --------------------------------------------------------------------------- |
+| `entry.created` · `entry.saved`           | `{ entry }`                                                                 |
+| `entry.published` · `entry.unpublished`   | `{ entry }`                                                                 |
+| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                                 |
+| `term.created` · `term.deleted`           | `{ term }`                                                                  |
+| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                    |
+| `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue))     |
+| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                         |
+| `cache.invalidated`                       | `{ tags }`: sono cambiate le pagine con questi tag (`site`: tutte), API 1.9 |
 
 `entry` è `{ id, siteId, type, locale, slug, title, status, fields }`, `term` è `{ id, siteId, taxonomy, locale, slug, name }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`. `term.created` viene emesso per i termini creati dalla schermata dei termini, dall'API e dai plugin (non per i tag digitati nell'editor).
 
 **Filtri** (sito pubblico, richiedono il permesso `theme:hooks`):
 
-| Nome                       | Valore                                                                                       | Contesto                         |
-| -------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------- |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                      | `RenderHookContext`              |
-| `render.blocks`            | i blocchi della voce (`CxdBlock[]`)                                                          | `RenderHookContext` con `entry`  |
-| `render.html`              | la stringa HTML finale                                                                       | `RenderHookContext`              |
-| `theme.templateCandidates` | nomi dei template provati in ordine                                                          | `RenderHookContext`              |
-| `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso | `{ siteId, ids }`                |
-| `sitemap.sources`          | tipi di contenuto e tassonomie con una sitemap XML (`{ kind, slug }[]`)                      | `{ siteId }`                     |
-| `sitemap.urls`             | gli indirizzi di una sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` o `term`)    | `{ siteId, kind, slug, locale }` |
+| Nome                       | Valore                                                                                       | Contesto                               |
+| -------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                      | `RenderHookContext`                    |
+| `render.blocks`            | i blocchi della voce (`CxdBlock[]`)                                                          | `RenderHookContext` con `entry`        |
+| `render.html`              | la stringa HTML finale                                                                       | `RenderHookContext`                    |
+| `theme.templateCandidates` | nomi dei template provati in ordine                                                          | `RenderHookContext`                    |
+| `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso | `{ siteId, ids }`                      |
+| `sitemap.sources`          | tipi di contenuto e tassonomie con una sitemap XML (`{ kind, slug }[]`)                      | `{ siteId }`                           |
+| `sitemap.urls`             | gli indirizzi di una sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` o `term`)    | `{ siteId, kind, slug, locale }`       |
+| `cache.headers`            | header in più delle risposte pubbliche tenute dalla cache delle pagine, API 1.9              | `{ siteId, host, path, status, tags }` |
 
 `RenderHookContext` è `{ siteId, locale, route, path, entry?, tag(tag) }`. `route` è `entry`, `archive`, `search`, `404` o `maintenance`. `entry` è la voce pubblica: `{ id, type, title, url, fields, document, terms, … }`. Chiama `tag('type:event')` quando ciò che aggiungi dipende da altri dati (vedi [cache](#cache)).
+
+**Cache davanti a Cleitext** (API dei plugin 1.9). `cache.headers` aggiunge header alle risposte pubbliche che la cache delle pagine tiene (mai a chi ha fatto il login): calcolati una volta, salvati con la pagina e inviati a ogni hit, per esempio un `Cache-Control` con `s-maxage` e i tag della pagina per Varnish o una CDN. `cache.invalidated` viene emesso una volta per modifica, fuori dalla transazione che l’ha fatta, con i tag delle pagine cambiate: svuotale lì. Il plugin ufficiale **Cache esterna** fa entrambe le cose per Varnish e Cloudflare.
 
 `head.tags` aggiunge tag a `<head>`: `{ tag: 'meta', attrs }`, `{ tag: 'link', attrs }` oppure `{ tag: 'json-ld', data }` (dati strutturati, serializzati in modo sicuro).
 

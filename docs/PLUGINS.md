@@ -164,31 +164,35 @@ ctx.hooks.filter(
 
 **Actions** (they run after the change is saved):
 
-| Name                                      | Payload                                                        |
-| ----------------------------------------- | -------------------------------------------------------------- |
-| `entry.created` · `entry.saved`           | `{ entry }`                                                    |
-| `entry.published` · `entry.unpublished`   | `{ entry }`                                                    |
-| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                    |
-| `term.created` · `term.deleted`           | `{ term }`                                                     |
-| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                       |
-| `languages.pending`                       | `{}` ([language data](#15-languages-language-plugins) arrived) |
-| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                            |
+| Name                                      | Payload                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `entry.created` · `entry.saved`           | `{ entry }`                                                      |
+| `entry.published` · `entry.unpublished`   | `{ entry }`                                                      |
+| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                      |
+| `term.created` · `term.deleted`           | `{ term }`                                                       |
+| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                         |
+| `languages.pending`                       | `{}` ([language data](#15-languages-language-plugins) arrived)   |
+| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                              |
+| `cache.invalidated`                       | `{ tags }`: pages with these tags changed (`site`: all), API 1.9 |
 
 `entry` is `{ id, siteId, type, locale, slug, title, status, fields }`, `term` is `{ id, siteId, taxonomy, locale, slug, name }`. Scheduled entries published automatically do not emit `entry.published` yet. `term.created` is emitted for terms created from the terms screen, the API and plugins (not for tags typed in the editor).
 
 **Filters** (public site, they need the `theme:hooks` permission):
 
-| Name                       | Value                                                                                      | Context                          |
-| -------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------- |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                    | `RenderHookContext`              |
-| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                          | `RenderHookContext` with `entry` |
-| `render.html`              | the final HTML string                                                                      | `RenderHookContext`              |
-| `theme.templateCandidates` | template names tried in order                                                              | `RenderHookContext`              |
-| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission       | `{ siteId, ids }`                |
-| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                      | `{ siteId }`                     |
-| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`) | `{ siteId, kind, slug, locale }` |
+| Name                       | Value                                                                                      | Context                                |
+| -------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                    | `RenderHookContext`                    |
+| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                          | `RenderHookContext` with `entry`       |
+| `render.html`              | the final HTML string                                                                      | `RenderHookContext`                    |
+| `theme.templateCandidates` | template names tried in order                                                              | `RenderHookContext`                    |
+| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission       | `{ siteId, ids }`                      |
+| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                      | `{ siteId }`                           |
+| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`) | `{ siteId, kind, slug, locale }`       |
+| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                         | `{ siteId, host, path, status, tags }` |
 
 `RenderHookContext` is `{ siteId, locale, route, path, entry?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
+
+**Caches in front of Cleitext** (plugin API 1.9). `cache.headers` adds headers to the public responses the page cache keeps (never to signed-in visitors): computed once, stored with the page and sent on every hit, e.g. a `Cache-Control` with `s-maxage` and the page's tags for Varnish or a CDN. `cache.invalidated` is emitted once per change, outside the transaction that made it, with the tags whose pages changed: purge them there. The official **Edge cache** plugin does both for Varnish and Cloudflare.
 
 `head.tags` adds tags to `<head>`: `{ tag: 'meta', attrs }`, `{ tag: 'link', attrs }` or `{ tag: 'json-ld', data }` (structured data, safely serialized).
 

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   contentTypes,
+  detached,
   plugins,
   settings,
   sitePlugins,
@@ -154,6 +155,11 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       void this.reload().catch((error: unknown) =>
         this.logger.error(`Reload failed: ${String(error)}`),
       );
+    });
+    // After the change is saved, outside the transaction that made it.
+    this.cache.onInvalidate((siteId, tags) => {
+      if (this.loaded.size === 0) return;
+      detached(() => setImmediate(() => void this.emit('cache.invalidated', { tags }, siteId)));
     });
     this.cache.onSiteChange(() => {
       this.active.clear();

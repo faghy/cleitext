@@ -13,6 +13,7 @@ export {
   seedSiteDefaults,
   resolveHost,
   resolveSiteByHost,
+  detached,
   inTransaction,
   transactionFor,
   withContext,

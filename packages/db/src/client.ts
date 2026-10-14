@@ -115,6 +115,15 @@ function findScope(db: Database, context: TransactionContext): Scope | undefined
   return undefined;
 }
 
+/**
+ * Runs `fn` as if no transaction were open: what it starts later (e.g. after
+ * a timer) takes connections of its own and never joins the caller's
+ * transaction, which may be gone by then.
+ */
+export function detached<T>(fn: () => T): T {
+  return scopes.exit(fn);
+}
+
 /** Whether `fn` would share an open transaction rather than take a connection. */
 export function inTransaction(db: Database, context: TransactionContext): boolean {
   return findScope(db, context) !== undefined;

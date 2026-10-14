@@ -51,6 +51,7 @@ const SEPARATE = [
   'wordpress-importer',
   'maps',
   'click-to-chat',
+  'edge-cache',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {

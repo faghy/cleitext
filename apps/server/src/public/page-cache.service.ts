@@ -44,6 +44,7 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   private readonly processId = randomUUID();
   private unlisten: (() => Promise<void>) | null = null;
   private readonly siteListeners = new Set<() => void>();
+  private readonly invalidateListeners = new Set<(siteId: string, tags: string[]) => void>();
   private readonly pluginListeners = new Set<() => void>();
   private readonly themeListeners = new Set<() => void>();
   readonly stats = { hits: 0, misses: 0, invalidations: 0 };
@@ -148,6 +149,8 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   ): Promise<void> {
     if (tags.length === 0) return;
     this.invalidateLocal(siteId, tags);
+    // Caches in front of Cleitext, once per change (not on NOTIFY from other processes).
+    for (const listener of this.invalidateListeners) listener(siteId, [...new Set(tags)]);
     // Other processes hear it through NOTIFY; this one at once.
     if (options.sites) for (const listener of this.siteListeners) listener();
     if (!this.enabled && !options.sites) return;
@@ -164,6 +167,11 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
     } catch (error) {
       this.logger.error(`NOTIFY failed: ${String(error)}`);
     }
+  }
+
+  /** Called when this process invalidates pages of a site (the `cache.invalidated` action). */
+  onInvalidate(listener: (siteId: string, tags: string[]) => void): void {
+    this.invalidateListeners.add(listener);
   }
 
   /** Called when a site's settings changed outside this process (status, domains). */

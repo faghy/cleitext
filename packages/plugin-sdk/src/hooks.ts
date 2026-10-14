@@ -50,6 +50,24 @@ export interface Actions {
   'media.uploaded': { media: { id: string; mime: string; filename: string; url: string } };
   'plugin.activated': { plugin: string };
   'plugin.deactivated': { plugin: string };
+  /**
+   * Pages of the site showing any of these tags changed (plugin API 1.9),
+   * e.g. to purge them from a cache in front of Cleitext (Varnish, a CDN).
+   * Emitted once per change, by the process that made it; `site` means
+   * every page of the site.
+   */
+  'cache.invalidated': { tags: string[] };
+}
+
+/** Context of the `cache.headers` filter: a public response going into the page cache. */
+export interface CacheHeadersContext {
+  siteId: string;
+  /** Host name of the request, without the port. */
+  host: string;
+  path: string;
+  status: number;
+  /** Its page-cache tags, e.g. `site`, `entry:<id>`, `type:article`. */
+  tags: string[];
 }
 
 /** Context of the public-rendering filters. */
@@ -92,6 +110,13 @@ export interface Filters {
     states: Record<string, { key: string; label: Label }[]>,
     context: { siteId: string; ids: string[] },
   ];
+  /**
+   * Extra headers of public responses that the page cache keeps (plugin API
+   * 1.9, needs `theme:hooks`), e.g. for a cache in front of Cleitext: a
+   * `Cache-Control` with `s-maxage`, `CDN-Cache-Control`, the tags of the
+   * page. Signed-in visitors never get them: their pages are not cached.
+   */
+  'cache.headers': [headers: Record<string, string>, context: CacheHeadersContext];
   /** Content types and taxonomies that get an XML sitemap (all by default). */
   'sitemap.sources': [sources: SitemapSource[], context: { siteId: string }];
   /** The addresses of one XML sitemap: remove pages kept out of search, add images… */

@@ -208,14 +208,19 @@ export class PublicService {
         const status = result.status ?? 200;
         if (cacheable && status === 200 && result.cacheTags && typeof result.body === 'string') {
           const contentType = result.contentType ?? 'text/plain; charset=utf-8';
+          const tags = ['site', ...result.cacheTags];
+          const headers = {
+            ...result.headers,
+            ...(await this.cacheHeaders(site.id, request.hostname, url.pathname, status, tags)),
+          };
           const stored = this.cache.set(key, site.id, {
             status,
             html: result.body,
             contentType,
-            tags: ['site', ...result.cacheTags],
+            tags,
+            headers,
           });
-          for (const [name, value] of Object.entries(result.headers ?? {}))
-            void reply.header(name, value);
+          for (const [name, value] of Object.entries(headers)) void reply.header(name, value);
           await this.sendPage(
             request,
             reply,
@@ -246,15 +251,27 @@ export class PublicService {
       }
       const html = response.html ?? '';
       const contentType = response.contentType ?? HTML;
-      for (const [name, value] of Object.entries(response.headers ?? {}))
-        void reply.header(name, value);
-      if (cacheable && (response.status === 200 || response.status === 404)) {
+      const store = cacheable && (response.status === 200 || response.status === 404);
+      const headers = {
+        ...response.headers,
+        ...(store
+          ? await this.cacheHeaders(
+              site.id,
+              request.hostname,
+              url.pathname,
+              response.status,
+              response.tags,
+            )
+          : {}),
+      };
+      for (const [name, value] of Object.entries(headers)) void reply.header(name, value);
+      if (store) {
         const stored = this.cache.set(key, site.id, {
           status: response.status,
           html,
           contentType,
           tags: response.tags,
-          ...(response.headers ? { headers: response.headers } : {}),
+          ...(Object.keys(headers).length > 0 ? { headers } : {}),
         });
         await this.sendPage(
           request,
@@ -284,6 +301,34 @@ export class PublicService {
     }
   }
 
+  /**
+   * Headers that plugins add to a public response the page cache keeps
+   * (`cache.headers`): computed once, stored with the page, sent on every hit.
+   */
+  private async cacheHeaders(
+    siteId: string,
+    host: string,
+    path: string,
+    status: number,
+    tags: string[],
+  ): Promise<Record<string, string>> {
+    const headers = await this.plugins.applyFilter(
+      'cache.headers',
+      {},
+      { siteId, host, path, status, tags: [...new Set(tags)] },
+      siteId,
+    );
+    const out: Record<string, string> = {};
+    if (!headers || typeof headers !== 'object') return out;
+    for (const [name, value] of Object.entries(headers)) {
+      if (!/^[A-Za-z0-9-]{1,64}$/.test(name) || typeof value !== 'string') continue;
+      if (/^(set-cookie|content-(type|length|encoding)|etag|x-cache)$/i.test(name)) continue;
+      if (/[\r\n]/.test(value) || value.length > 8000) continue;
+      out[name.toLowerCase()] = value;
+    }
+    return out;
+  }
+
   private async sendPage(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -297,8 +342,12 @@ export class PublicService {
   ): Promise<void> {
     void reply.header('x-cache', cacheStatus);
     if (etag) {
-      // Browsers revalidate every time; unchanged pages answer 304.
-      void reply.header('etag', etag).header('cache-control', 'public, max-age=0, must-revalidate');
+      // Browsers revalidate every time; unchanged pages answer 304. A plugin
+      // may have set its own (`cache.headers`), e.g. with s-maxage for a proxy.
+      void reply.header('etag', etag);
+      if (!reply.hasHeader('cache-control')) {
+        void reply.header('cache-control', 'public, max-age=0, must-revalidate');
+      }
       if (status === 200 && request.headers['if-none-match'] === etag) {
         await reply.code(304).send();
         return;
