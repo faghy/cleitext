@@ -186,6 +186,24 @@ describe('robots.txt and sitemaps', () => {
     await admin.request('PATCH', '/api/v1/settings/core', { discourageSearchEngines: false });
     expect((await visitor.get('/robots.txt')).body).toContain('Sitemap:');
   });
+
+  it('shows the "back to top" arrow only when it is turned on', async () => {
+    const off = (await visitor.get('/')).body;
+    expect(off).not.toContain('cx-to-top');
+    const on = await admin.request('PATCH', '/api/v1/settings/core', { backToTop: true });
+    expect(on.statusCode, on.body).toBe(200);
+    const html = (await visitor.get('/')).body;
+    expect(html).toContain(
+      '<a class="cx-to-top" href="#top" aria-label="Back to top" title="Back to top" hidden>',
+    );
+    expect(html.match(/class="cx-to-top"/g)).toHaveLength(1);
+    expect(html.indexOf('cx-to-top')).toBeLessThan(html.lastIndexOf('</body>'));
+    // Also on pages that are not found, and in the cache.
+    expect((await visitor.get('/no-such-page')).body).toContain('class="cx-to-top"');
+    expect((await visitor.get('/')).headers['x-cache']).toBe('HIT');
+    await admin.request('PATCH', '/api/v1/settings/core', { backToTop: false });
+    expect((await visitor.get('/')).body).not.toContain('cx-to-top');
+  });
 });
 
 describe('previews', () => {

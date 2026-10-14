@@ -22,6 +22,8 @@ const coreSettingsFields = {
   dateStyle: z.enum(['long', 'medium', 'short']),
   /** AI assistants can connect to the site through MCP (/mcp), with OAuth. */
   mcp: z.boolean(),
+  /** An arrow on the public pages that scrolls back to the top. */
+  backToTop: z.boolean(),
 };
 
 /** A time zone known to the runtime (IANA name). */
@@ -46,6 +48,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   timezone: 'UTC',
   dateStyle: 'long',
   mcp: false,
+  backToTop: false,
 } as const;
 
 export const coreSettingsSchema = z.object(coreSettingsFields);

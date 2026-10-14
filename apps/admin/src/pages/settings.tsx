@@ -272,6 +272,22 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
                 </span>
               </span>
             </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={values.backToTop}
+                onChange={(e) => set('backToTop', e.target.checked)}
+              />
+              <span>
+                <span className="block font-medium text-slate-800">{t('“Back to top” arrow')}</span>
+                <span className="text-xs text-slate-500">
+                  {t(
+                    'Shows a round arrow in a corner of the public pages when visitors scroll down; it takes them back to the top with a smooth scroll.',
+                  )}
+                </span>
+              </span>
+            </label>
           </div>
         </Card>
         <Card title={t('AI assistants (MCP)')}>

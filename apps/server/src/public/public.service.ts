@@ -46,6 +46,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { SESSION_COOKIE } from '../auth/cookies.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
+import { withBackToTop } from './back-to-top.js';
 import { withAdminBar } from './admin-bar.js';
 import { LanguagesService } from '../content/languages.service.js';
 import { PageCacheService } from './page-cache.service.js';
@@ -1302,6 +1303,7 @@ export class PublicService {
         }),
       }),
     );
+    if (scope.settings.backToTop) html = withBackToTop(html, locale);
     if (scope.activePlugins.size > 0) {
       html = await this.plugins.applyFilter(
         'render.html',

@@ -46,6 +46,9 @@ export const itGeneral: Messages = {
   default: 'predefinita',
   Details: 'Dettagli',
   'Discourage search engines': 'Scoraggia i motori di ricerca',
+  '“Back to top” arrow': 'Freccia «Torna su»',
+  'Shows a round arrow in a corner of the public pages when visitors scroll down; it takes them back to the top with a smooth scroll.':
+    'Mostra una freccia tonda in un angolo delle pagine pubbliche quando i visitatori scorrono verso il basso; li riporta in cima con uno scorrimento morbido.',
   Email: 'Email',
   'Empty the trash after (days)': 'Svuota il cestino dopo (giorni)',
   'Enter your email address: we will send you a link to choose a new password.':
