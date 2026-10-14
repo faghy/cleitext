@@ -33,16 +33,24 @@ export class IdentityService {
    * has no access to the site (neither member nor super admin).
    */
   async load(siteId: string, userId: string, sessionId: string): Promise<AuthContext | null> {
+    const active = await this.plugins.activeSlugs(siteId);
     return withContext(this.database.db, { siteId, userId }, (tx) =>
-      this.loadInTx(tx, siteId, userId, sessionId),
+      this.loadInTx(tx, siteId, userId, sessionId, active),
     );
   }
 
+  /** The plugins active on the site, for `loadInTx`: read them before opening the transaction. */
+  activePlugins(siteId: string): Promise<Set<string>> {
+    return this.plugins.activeSlugs(siteId);
+  }
+
+  /** `active` comes from `activePlugins`: reading it here would need a second connection. */
   async loadInTx(
     tx: SiteTransaction,
     siteId: string,
     userId: string,
     sessionId: string,
+    active: Set<string>,
   ): Promise<AuthContext | null> {
     const [user] = await tx.select().from(users).where(eq(users.id, userId));
     if (!user || user.status !== 'active') return null;
@@ -76,7 +84,7 @@ export class IdentityService {
         ...effectiveCapabilities(membership?.capabilities ?? [], isSuperAdmin),
         // Capabilities defined by the plugins active on the site.
         ...this.plugins.capabilitiesFor(
-          await this.plugins.activeSlugs(siteId),
+          active,
           membership?.slug ?? null,
           isSuperAdmin,
           membership?.capabilities ?? [],
@@ -87,38 +95,45 @@ export class IdentityService {
 
   /** Payload of `GET /auth/me` (and of a successful login). */
   async me(siteId: string, auth: AuthContext): Promise<MeResponse> {
-    return withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
-      const [site] = await tx.select().from(sites).where(eq(sites.id, siteId));
-      const locales = (await this.languages.locales(siteId, site?.defaultLocale ?? 'en')).map(
-        ({ code, name, isDefault }) => ({ code, name, isDefault }),
-      );
-      const [timezone] = await tx
-        .select({ value: settings.value })
-        .from(settings)
-        .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'timezone')));
-      return {
-        user: {
-          id: auth.userId,
-          email: auth.email,
-          displayName: auth.displayName,
-          locale: auth.locale,
-          isSuperAdmin: auth.isSuperAdmin,
-          avatarUrl: auth.avatarUrl,
-          twoFactorEnabled: auth.twoFactor.enabled,
-        },
-        site: {
-          id: siteId,
-          name: site?.name ?? '',
-          slug: site?.slug ?? '',
-          defaultLocale: site?.defaultLocale ?? 'en',
-          timezone:
-            typeof timezone?.value === 'string' ? timezone.value : (site?.timezone ?? 'UTC'),
-          locales,
-        },
-        role: auth.role ? { slug: auth.role.slug, name: auth.role.name } : null,
-        capabilities: auth.capabilities,
-        sites: await listMySites(tx),
-      };
-    });
+    const { site, timezone, mySites } = await withContext(
+      this.database.db,
+      { siteId, userId: auth.userId },
+      async (tx) => ({
+        site: (await tx.select().from(sites).where(eq(sites.id, siteId)))[0],
+        timezone: (
+          await tx
+            .select({ value: settings.value })
+            .from(settings)
+            .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'timezone')))
+        )[0],
+        mySites: await listMySites(tx),
+      }),
+    );
+    // After the transaction: a language plugin may need its own connection.
+    const locales = (await this.languages.locales(siteId, site?.defaultLocale ?? 'en')).map(
+      ({ code, name, isDefault }) => ({ code, name, isDefault }),
+    );
+    return {
+      user: {
+        id: auth.userId,
+        email: auth.email,
+        displayName: auth.displayName,
+        locale: auth.locale,
+        isSuperAdmin: auth.isSuperAdmin,
+        avatarUrl: auth.avatarUrl,
+        twoFactorEnabled: auth.twoFactor.enabled,
+      },
+      site: {
+        id: siteId,
+        name: site?.name ?? '',
+        slug: site?.slug ?? '',
+        defaultLocale: site?.defaultLocale ?? 'en',
+        timezone: typeof timezone?.value === 'string' ? timezone.value : (site?.timezone ?? 'UTC'),
+        locales,
+      },
+      role: auth.role ? { slug: auth.role.slug, name: auth.role.name } : null,
+      capabilities: auth.capabilities,
+      sites: mySites,
+    };
   }
 }

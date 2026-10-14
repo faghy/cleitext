@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { sql } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
@@ -23,9 +24,145 @@ export interface CreateDatabaseOptions {
   max?: number;
 }
 
+/**
+ * The site settings a transaction runs with. Plugin transactions also have
+ * the plugin's role (and the `search_path` that goes with it).
+ */
+export interface TransactionContext {
+  siteId: string;
+  userId?: string | null;
+  role?: string;
+}
+
+/** A transaction (or a savepoint in one) open in the current async chain. */
+interface Scope {
+  db: Database;
+  tx: SiteTransaction;
+  /** Null for a plain `db.transaction`: never shared. */
+  context: TransactionContext | null;
+  open: boolean;
+  /** Savepoints other code is running in this scope: it ends after them. */
+  pending: Set<Promise<unknown>>;
+  /** Savepoints on one connection must not interleave: one at a time. */
+  queue: Promise<unknown>;
+}
+
+const scopes = new AsyncLocalStorage<Scope[]>();
+const warnedNesting = new Set<string>();
+
+/**
+ * A transaction holds a pool connection until it ends. Opening another one on
+ * the same pool from inside it needs a second connection: when every request
+ * does so at once the pool runs dry, each waits for the others and the app
+ * hangs. `withContext` therefore shares the open transaction; this catches
+ * the rest. `CLEITEXT_DB_NESTING=error` (tests) throws; otherwise a warning
+ * per call site.
+ */
+function guardNesting(db: Database): void {
+  if (!scopes.getStore()?.some((s) => s.db === db && s.open)) return;
+  const error = new Error(
+    'Connection taken inside a transaction on the same pool: this can exhaust the pool.',
+  );
+  if (process.env.CLEITEXT_DB_NESTING === 'error') throw error;
+  const site = error.stack?.split('\n').slice(2, 6).join('\n') ?? '';
+  if (warnedNesting.has(site)) return;
+  warnedNesting.add(site);
+  process.emitWarning(error.message, { code: 'CLEITEXT_DB_NESTING', detail: site });
+}
+
+async function runScope<T>(
+  db: Database,
+  tx: SiteTransaction,
+  context: TransactionContext | null,
+  fn: (tx: SiteTransaction) => Promise<T>,
+): Promise<T> {
+  const scope: Scope = {
+    db,
+    tx,
+    context,
+    open: true,
+    pending: new Set(),
+    queue: Promise.resolve(),
+  };
+  try {
+    return await scopes.run([...(scopes.getStore() ?? []), scope], () => fn(tx));
+  } finally {
+    // Nothing new starts on this connection (it may soon serve another
+    // request); what already started, such as a timed-out hook, ends first.
+    scope.open = false;
+    while (scope.pending.size > 0) await Promise.allSettled([...scope.pending]);
+  }
+}
+
+/** The innermost open transaction on `db` whose settings `context` can use. */
+function findScope(db: Database, context: TransactionContext): Scope | undefined {
+  const stack = scopes.getStore() ?? [];
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const scope = stack[i]!;
+    const outer = scope.context;
+    if (
+      scope.db === db &&
+      scope.open &&
+      outer &&
+      outer.siteId === context.siteId &&
+      outer.role === context.role &&
+      // Without a user it may run where one is set (it only sees more of that user).
+      (!context.userId || outer.userId === context.userId)
+    ) {
+      return scope;
+    }
+  }
+  return undefined;
+}
+
+/** Whether `fn` would share an open transaction rather than take a connection. */
+export function inTransaction(db: Database, context: TransactionContext): boolean {
+  return findScope(db, context) !== undefined;
+}
+
+/**
+ * Runs `fn` in a transaction with these settings: inside a savepoint of an
+ * open one that has them (no second connection), or in a new transaction
+ * that `setup` prepares.
+ */
+export function transactionFor<T>(
+  db: Database,
+  context: TransactionContext,
+  setup: (tx: SiteTransaction) => Promise<unknown>,
+  fn: (tx: SiteTransaction) => Promise<T>,
+): Promise<T> {
+  const outer = findScope(db, context);
+  if (!outer) {
+    return db.transaction(async (tx) => {
+      await setup(tx);
+      scopes.getStore()!.at(-1)!.context = context;
+      return fn(tx);
+    });
+  }
+  // A savepoint keeps a failure here from aborting the outer transaction.
+  const run = outer.queue.then(() =>
+    outer.tx.transaction((savepoint) => runScope(db, savepoint, outer.context, fn)),
+  );
+  outer.queue = run.catch(() => {});
+  outer.pending.add(run);
+  void run.finally(() => outer.pending.delete(run)).catch(() => {});
+  return run;
+}
+
 export function createDatabase(url: string, options: CreateDatabaseOptions = {}): DatabaseClient {
   const client = postgres(url, { max: options.max ?? 10, onnotice: () => {} });
   const db = drizzle(client, { schema });
+  // Queries outside a transaction take a connection too (transactions have their own client).
+  const unsafe = client.unsafe.bind(client);
+  client.unsafe = ((...args: Parameters<typeof unsafe>) => {
+    guardNesting(db);
+    return unsafe(...args);
+  }) as typeof unsafe;
+  const transaction = db.transaction.bind(db);
+  db.transaction = (fn, config) => {
+    guardNesting(db);
+    return transaction((tx) => runScope(db, tx, null, fn), config);
+  };
   return {
     db,
     close: () => client.end({ timeout: 5 }),
@@ -34,7 +171,11 @@ export function createDatabase(url: string, options: CreateDatabaseOptions = {})
       return () => subscription.unlisten();
     },
     async notify(channel, payload) {
-      await client.notify(channel, payload);
+      // Inside a transaction it goes with it, on its connection: delivered on
+      // commit, when the change it announces is visible to other processes.
+      const scope = scopes.getStore()?.findLast((s) => s.db === db && s.open);
+      if (scope) await scope.tx.execute(sql`select pg_notify(${channel}, ${payload})`);
+      else await client.notify(channel, payload);
     },
   };
 }
@@ -58,7 +199,8 @@ export interface RequestContext {
  * Runs `fn` in a transaction bound to a site (and optionally a user): every
  * query inside only sees and writes rows of that site (PostgreSQL RLS, see
  * docs/ARCHITECTURE.md §8). Settings are transaction-local, so this is safe
- * with connection pooling.
+ * with connection pooling. Inside a transaction of the same site it runs in a
+ * savepoint of that one, on its connection.
  */
 export async function withContext<T>(
   db: Database,
@@ -67,13 +209,16 @@ export async function withContext<T>(
 ): Promise<T> {
   assertUuid(context.siteId, 'site id');
   if (context.userId) assertUuid(context.userId, 'user id');
-  return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select set_config('app.site_id', ${context.siteId}, true),
-                 set_config('app.user_id', ${context.userId ?? ''}, true)`,
-    );
-    return fn(tx);
-  });
+  return transactionFor(
+    db,
+    { siteId: context.siteId, userId: context.userId ?? null },
+    (tx) =>
+      tx.execute(
+        sql`select set_config('app.site_id', ${context.siteId}, true),
+                   set_config('app.user_id', ${context.userId ?? ''}, true)`,
+      ),
+    fn,
+  );
 }
 
 /** Shorthand for `withContext` without a user. */

@@ -293,6 +293,7 @@ export class AuthService {
     }
 
     const passwordHash = await hashPassword(input.password);
+    const active = await this.identity.activePlugins(siteId);
     const auth = await withContext(
       this.database.db,
       { siteId, userId: record.userId },
@@ -312,7 +313,7 @@ export class AuthService {
           action: 'user.invitation.accepted',
           ip: client.ip,
         });
-        return this.identity.loadInTx(tx, siteId, record.userId, '');
+        return this.identity.loadInTx(tx, siteId, record.userId, '', active);
       },
     );
     if (!auth) throw new HttpException('This invitation is no longer valid.', HttpStatus.GONE);

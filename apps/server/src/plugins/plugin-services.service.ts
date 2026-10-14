@@ -3,6 +3,7 @@ import {
   auditLog,
   contentTypes,
   entries,
+  inTransaction,
   media,
   menus,
   revisions,
@@ -13,6 +14,7 @@ import {
   superAdmins,
   taxonomies,
   terms,
+  transactionFor,
   users,
   withContext,
   type DatabaseClient,
@@ -50,7 +52,7 @@ import { IdentityService } from '../auth/identity.service.js';
 import { EntriesService } from '../content/entries.service.js';
 import { defaultLocaleIn, LanguagesService, PENDING } from '../content/languages.service.js';
 import { TermsService } from '../content/terms.service.js';
-import { DATABASE } from '../database/database.module.js';
+import { DATABASE, PLUGIN_DATABASE } from '../database/database.module.js';
 import { MailService } from '../mail/mail.service.js';
 import { MediaService } from '../media/media.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
@@ -65,6 +67,7 @@ import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
 export class PluginServicesProvider implements PluginServices {
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
+    @Inject(PLUGIN_DATABASE) private readonly pluginDatabase: DatabaseClient,
     private readonly host: PluginHost,
     private readonly cache: PageCacheService,
     private readonly mail: MailService,
@@ -569,6 +572,10 @@ export class PluginServicesProvider implements PluginServices {
   /**
    * A transaction as the plugin's own PostgreSQL role: it only sees its
    * `plg_<slug>` schema, and Row Level Security limits rows to the site.
+   * It has a connection of the plugin pool, taken only while holding one of
+   * the main pool (the request's, or one opened here): always in that order,
+   * so the two pools never wait on each other. Inside a transaction of the
+   * same plugin and site it runs in a savepoint of that one.
    */
   transaction<T>(
     plugin: LoadedPlugin,
@@ -576,21 +583,35 @@ export class PluginServicesProvider implements PluginServices {
     fn: (tx: PluginTransaction) => Promise<T>,
   ): Promise<T> {
     const schema = pluginSchemaName(plugin.slug);
-    return this.database.db.transaction(async (tx) => {
-      await tx.execute(
-        sql`select set_config('app.site_id', ${siteId}, true), set_config('search_path', ${`${schema}, public`}, true)`,
+    const run = async (): Promise<T> => {
+      const role = await this.roleOf(plugin.slug, siteId);
+      return transactionFor(
+        this.pluginDatabase.db,
+        { siteId, role },
+        async (tx) => {
+          await tx.execute(
+            sql`select set_config('app.site_id', ${siteId}, true), set_config('search_path', ${`${schema}, public`}, true)`,
+          );
+          await tx.execute(sql.raw(`SET LOCAL ROLE "${role.replaceAll('"', '""')}"`));
+        },
+        (tx) => revocable(tx, fn),
       );
-      let role = this.roles.get(plugin.slug);
-      if (!role) {
-        const [row] = await tx.execute<{ role: string }>(
-          sql`select cleitext_plugin_role(${plugin.slug}) as role`,
-        );
-        role = row!.role;
-        this.roles.set(plugin.slug, role);
-      }
-      await tx.execute(sql.raw(`SET LOCAL ROLE "${role.replaceAll('"', '""')}"`));
-      return fn(tx as unknown as PluginTransaction);
-    });
+    };
+    return inTransaction(this.database.db, { siteId })
+      ? run()
+      : withContext(this.database.db, { siteId }, run);
+  }
+
+  private async roleOf(slug: string, siteId: string): Promise<string> {
+    let role = this.roles.get(slug);
+    if (!role) {
+      const [row] = await withContext(this.database.db, { siteId }, (tx) =>
+        tx.execute<{ role: string }>(sql`select cleitext_plugin_role(${slug}) as role`),
+      );
+      role = row!.role;
+      this.roles.set(slug, role);
+    }
+    return role;
   }
 
   /** Plugin role names, from the database (migration 0017); they never change at runtime. */
@@ -609,6 +630,29 @@ export class PluginServicesProvider implements PluginServices {
   }): Promise<void> {
     const { siteId, ...mail } = message;
     return this.mail.send(mail, siteId);
+  }
+}
+
+/**
+ * The plugin's handle on its transaction stops working when the transaction
+ * ends: its connection then serves other requests, as other roles.
+ */
+async function revocable<T>(
+  tx: SiteTransaction,
+  fn: (tx: PluginTransaction) => Promise<T>,
+): Promise<T> {
+  const { proxy, revoke } = Proxy.revocable(tx, {
+    get(target, key) {
+      const value: unknown = Reflect.get(target, key, target);
+      return typeof value === 'function'
+        ? (value as (...args: unknown[]) => unknown).bind(target)
+        : value;
+    },
+  });
+  try {
+    return await fn(proxy as unknown as PluginTransaction);
+  } finally {
+    revoke();
   }
 }
 

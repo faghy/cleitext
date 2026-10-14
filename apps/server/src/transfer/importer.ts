@@ -131,6 +131,13 @@ export async function importDocument(
 
   // ---- Users -----------------------------------------------------------------------
   const userIds = new Map<string, string>();
+  // Accounts of other sites are not visible under RLS: looked up by email,
+  // before the transaction (the lookup takes a connection of its own).
+  const existing = new Map<string, string | undefined>();
+  for (const user of doc.users) {
+    const email = user.email.trim().toLowerCase();
+    if (!existing.has(email)) existing.set(email, (await findLogin(db, email))?.userId);
+  }
   await run(async (tx) => {
     const roleRows = await tx.select().from(roles);
     let created = 0;
@@ -140,9 +147,8 @@ export async function importDocument(
         report.warnings.push(`User "${user.displayName}" skipped: invalid email "${user.email}".`);
         continue;
       }
-      // Accounts of other sites are not visible under RLS: looked up by email,
-      // and inserted without RETURNING (a new user is not a member yet).
-      let userId = (await findLogin(db, email))?.userId;
+      // Inserted without RETURNING: a new user is not a member yet.
+      let userId = existing.get(email);
       if (!userId) {
         userId = newId();
         await tx.insert(users).values({
@@ -152,6 +158,7 @@ export async function importDocument(
           passwordHash: null,
           locale: user.locale ?? 'en',
         });
+        existing.set(email, userId);
         created++;
         count(report, 'users');
       } else {

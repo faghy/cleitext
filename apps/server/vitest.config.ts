@@ -8,5 +8,7 @@ export default defineConfig({
     globalSetup: ['./test/global-setup.ts'],
     testTimeout: 30_000,
     hookTimeout: 120_000,
+    // A transaction that takes a second connection of its pool fails the test (pool exhaustion).
+    env: { CLEITEXT_DB_NESTING: 'error' },
   },
 });

@@ -309,6 +309,9 @@ export async function migratePlugin(
   }
   const applied: string[] = [];
   await db.transaction(async (tx) => {
+    // Two installs of the same plugin at once would both create its role,
+    // schema and tables: the second waits for the first, then finds them.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`cleitext:plugin:${slug}`}))`);
     await tx.execute(
       sql.raw(`
       DO $$ BEGIN

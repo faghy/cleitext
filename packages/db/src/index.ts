@@ -13,6 +13,8 @@ export {
   seedSiteDefaults,
   resolveHost,
   resolveSiteByHost,
+  inTransaction,
+  transactionFor,
   withContext,
   withSiteContext,
   type HostResolution,
@@ -23,6 +25,7 @@ export {
   type DatabaseClient,
   type Schema,
   type SiteTransaction,
+  type TransactionContext,
 } from './client.js';
 export {
   getMigrationStatus,
