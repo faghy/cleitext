@@ -319,19 +319,23 @@ function CommentForm({
   return (
     <div className="cx-respond" id="respond">
       <h3 className="cx-respond__title">
-        <span data-cx-reply-title="">{t.leaveComment}</span>{' '}
+        <span data-cx-reply-title={t.leaveComment}>
+          {comments.replyTo
+            ? fill(t.replyTo, { name: comments.replyTo.authorName })
+            : t.leaveComment}
+        </span>{' '}
         <a
           href={`${entry.url}#respond`}
           className="cx-respond__cancel"
           data-cx-cancel-reply=""
-          hidden
+          hidden={!comments.replyTo}
         >
           {t.cancelReply}
         </a>
       </h3>
       <form className="cx-form" method="post" action={comments.action} data-cx-comment-form="">
         <input type="hidden" name="entry" value={entry.id} />
-        <input type="hidden" name="parent" value="" data-cx-parent="" />
+        <input type="hidden" name="parent" value={comments.replyTo?.id ?? ''} data-cx-parent="" />
         <input type="hidden" name="back" value={entry.url} />
         {/* Left empty by people; bots fill it in. */}
         <div className="cx-hp" aria-hidden="true">
@@ -593,7 +597,7 @@ if(f){
 var store={};try{store=JSON.parse(localStorage.getItem('cx-commenter')||'{}')}catch(e){}
 f.querySelectorAll('[data-cx-remember]').forEach(function(i){var k=i.getAttribute('data-cx-remember');if(store[k]&&!i.value)i.value=store[k]});
 f.addEventListener('submit',function(){var s={};f.querySelectorAll('[data-cx-remember]').forEach(function(i){s[i.getAttribute('data-cx-remember')]=i.value});try{localStorage.setItem('cx-commenter',JSON.stringify(s))}catch(e){}});
-var respond=document.getElementById('respond'),home=respond&&respond.parentNode,next=respond&&respond.nextSibling,title=respond&&respond.querySelector('[data-cx-reply-title]'),cancel=respond&&respond.querySelector('[data-cx-cancel-reply]'),parent=f.querySelector('[data-cx-parent]'),original=title&&title.textContent;
+var respond=document.getElementById('respond'),home=respond&&respond.parentNode,next=respond&&respond.nextSibling,title=respond&&respond.querySelector('[data-cx-reply-title]'),cancel=respond&&respond.querySelector('[data-cx-cancel-reply]'),parent=f.querySelector('[data-cx-parent]'),original=title&&(title.getAttribute('data-cx-reply-title')||title.textContent);
 document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('[data-cx-reply]');if(a&&respond){e.preventDefault();a.closest('article').after(respond);parent.value=a.getAttribute('data-cx-reply');title.textContent=a.textContent+' — '+a.getAttribute('data-cx-reply-name');cancel.hidden=false;f.querySelector('textarea').focus()}
 var c=e.target.closest&&e.target.closest('[data-cx-cancel-reply]');if(c&&respond){e.preventDefault();home.insertBefore(respond,next);parent.value='';title.textContent=original;cancel.hidden=true}});
 var q=new URLSearchParams(location.search).get('replyto');if(q){var link=document.querySelector('[data-cx-reply="'+q+'"]');if(link)link.click()}}

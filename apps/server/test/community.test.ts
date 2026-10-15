@@ -201,6 +201,10 @@ describe('comments', () => {
     expect(posted.headers.location).toMatch(/comment=posted#comment-/);
     const body = (await guest.get(postPath)).body;
     expect(body).toMatch(/cx-comments__children[\s\S]*Me again/);
+    // Without JavaScript, the reply link opens the form answering the comment.
+    const replying = (await guest.get(`${postPath}?replyto=${list.items[0].id}`)).body;
+    expect(replying).toContain(`name="parent" value="${list.items[0].id}"`);
+    expect(replying).toContain('Reply to Gina');
   });
 
   it('send to spam what has blocked words, and refuse closed entries', async () => {

@@ -73,6 +73,8 @@ export interface EntryComments {
   action: string;
   /** After posting: `pending` (waiting for approval), `posted`, or an error to show. */
   notice?: { kind: 'pending' | 'posted' | 'error'; text?: string };
+  /** The comment being answered (`?replyto=<id>`), for forms without JavaScript. */
+  replyTo?: { id: string; authorName: string };
 }
 
 export interface PublicComment {

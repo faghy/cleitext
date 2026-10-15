@@ -40,6 +40,7 @@ import {
   type LocaleLink,
   type EntryComments,
   type PageContext,
+  type PublicComment,
   type PublicEntry,
   type Viewer,
   type MenuItemView,
@@ -113,6 +114,8 @@ export interface PublicResponse {
   /** For the toolbar of signed-in users. */
   siteTitle?: string;
   entry?: { id: string; type: string };
+  /** The account and sign-out addresses in the page's language, for the toolbar. */
+  account?: { url: string; logout: string };
 }
 
 interface RequestScope {
@@ -368,6 +371,9 @@ export class PublicService {
                 auth: request.auth,
                 siteName: response.siteTitle,
                 ...(response.entry ? { entry: response.entry } : {}),
+                ...(response.account
+                  ? { accountUrl: response.account.url, logoutUrl: response.account.logout }
+                  : {}),
               })
             : html;
         await this.sendPage(request, reply, response.status, page, null, 'BYPASS', contentType);
@@ -1597,7 +1603,16 @@ export class PublicService {
     }
     // Last in <head>: each block's own CSS overrides the plugins' stylesheets.
     if (scope.blockCss && scope.blockCss.length > 0) html = withBlockCss(html, scope.blockCss);
-    return { status, html, tags: [...scope.tags], siteTitle: scope.siteTitle };
+    return {
+      status,
+      html,
+      tags: [...scope.tags],
+      siteTitle: scope.siteTitle,
+      account: {
+        url: scope.data.urls.account(scope.locale),
+        logout: scope.data.urls.account(scope.locale, 'logout'),
+      },
+    };
   }
 
   // ---- Plugins ----------------------------------------------------------------------
@@ -2151,7 +2166,20 @@ export class PublicService {
           : params['comment-error']
             ? { kind: 'error', text: params['comment-error'].slice(0, 200) }
             : undefined;
+    // `?replyto=<id>`: the form answers that comment (pages without JavaScript).
+    const find = (list: PublicComment[], id: string): PublicComment | undefined => {
+      for (const item of list) {
+        if (item.id === id) return item;
+        const found = find(item.replies, id);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    const answered = params.replyto ? find(listed.items, params.replyto) : undefined;
     publicEntry.comments = {
+      ...(answered && !answered.pending
+        ? { replyTo: { id: answered.id, authorName: answered.authorName } }
+        : {}),
       open,
       count: row.commentCount,
       items: listed.items,
