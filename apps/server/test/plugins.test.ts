@@ -270,6 +270,10 @@ describe('an active plugin', () => {
     expect(second.headers['x-cache']).toBe('MISS');
     expect(second.body).toContain('Aaa first by title@/events/aaa-first-by-title');
     expect(second.body).toContain(`data-total="${total + 1}"`);
+    // The address's parameters reach the loader (pagination).
+    const skipped = await visitor.get('/titles?skip=1');
+    expect(skipped.body).not.toContain('Aaa first by title');
+    expect(skipped.body).toContain(titles[0]);
   });
 
   it('renders container blocks with their children, in pages and synced patterns', async () => {

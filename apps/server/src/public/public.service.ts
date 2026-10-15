@@ -113,6 +113,8 @@ interface RequestScope {
   origin: string;
   locale: string;
   path: string;
+  /** The address's query parameters (e.g. a loop's page), for plugin blocks. */
+  params?: Record<string, string>;
   tags: Set<string>;
   /** Plugins active on the site. */
   activePlugins: ReadonlySet<string>;
@@ -446,6 +448,9 @@ export class PublicService {
       }
 
       const { scope, rest } = await this.scope(tx, siteId, origin, path, includePrivate);
+      scope.params = Object.fromEntries(
+        [...query].slice(0, 20).map(([k, v]) => [k.slice(0, 64), v.slice(0, 200)]),
+      );
       if (customize?.theme) scope.theme = themeFor(customize.theme);
       if (customize?.themeSettings) scope.themeSettings = customize.themeSettings;
 
@@ -1494,6 +1499,7 @@ export class PublicService {
         home: scope.data.urls.home(scope.locale),
       },
       ...(props.kind === 'entry' ? { entry: props.entry } : {}),
+      ...(scope.params ? { params: scope.params } : {}),
       ...(props.kind === 'archive'
         ? {
             archive: {

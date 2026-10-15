@@ -32,7 +32,10 @@ async function kitFor(ctx: PluginContext, siteId: string): Promise<Kit> {
 function blockFor(
   ctx: PluginContext,
   definition: ElementDefinition,
-): PluginBlockDefinition<Record<string, unknown>, { kit: Kit; attrs: Record<string, unknown> }> {
+): PluginBlockDefinition<
+  Record<string, unknown>,
+  { kit: Kit; attrs: Record<string, unknown>; data?: unknown }
+> {
   const contextOf = (context: {
     locale: string;
     media: RenderContext['media'];
@@ -67,7 +70,10 @@ function blockFor(
           tag: context.tag,
         }),
       ]);
-      return { kit, attrs: resolved };
+      const data = definition.load
+        ? await definition.load(withDefaults(definition, resolved), context)
+        : undefined;
+      return { kit, attrs: resolved, ...(data !== undefined ? { data } : {}) };
     },
     media: (attrs) => definition.media?.(withDefaults(definition, attrs)) ?? [],
     css: ({ block, context }) =>
@@ -94,6 +100,7 @@ function blockFor(
         children,
         ...(items ? { items } : {}),
         context: contextOf(context),
+        ...(data?.data !== undefined ? { data: data.data } : {}),
       });
     },
   };

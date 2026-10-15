@@ -97,6 +97,7 @@ export default definePlugin({
             orderBy: 'title',
             order: 'asc',
             limit: attrs.limit,
+            offset: Number(context.page.params?.skip ?? 0),
           });
           return { titles: entries.map((e) => `${e.title}@${e.url}`), total };
         },

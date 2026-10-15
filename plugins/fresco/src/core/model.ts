@@ -1,3 +1,4 @@
+import type { BlockLoadContext } from '@cleitext/plugin-sdk';
 /**
  * Fresco's model. A page is a CXD document whose blocks are Fresco elements:
  * `fresco/container` (flex or grid, nested freely) and widgets such as
@@ -217,6 +218,8 @@ export interface RenderProps {
   /** The same children, one node each (to wrap them one by one). */
   items?: ReactNode[];
   context: RenderContext;
+  /** On the page: what the element's `load` returned (undefined in the editor). */
+  data?: unknown;
 }
 
 /**
@@ -238,6 +241,11 @@ export interface ElementDefinition {
   accepts?: (type: string) => boolean;
   controls: Control[];
   render: (props: RenderProps) => ReactNode;
+  /**
+   * On the server, before rendering: data the element needs (e.g. the
+   * entries of a loop), with Cleitext's block load context.
+   */
+  load?: (settings: Settings, context: BlockLoadContext) => Promise<unknown>;
   /** Media ids its settings use (images, galleries, backgrounds). */
   media?: (settings: Settings) => string[];
   /** Name of the front-end handler (public/frontend.ts) that runs on it. */

@@ -310,6 +310,8 @@ export interface MediaApi {
 export interface BlockPage {
   route: 'entry' | 'archive' | 'search' | '404' | 'maintenance';
   site: { title: string; tagline: string; home: string };
+  /** Query parameters of the address (plugin API 1.11), e.g. a loop's page number. */
+  params?: Record<string, string>;
   /** Entry pages: the entry shown. */
   entry?: PublicEntry;
   /** Archives (and the latest posts on the home page). */
