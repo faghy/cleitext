@@ -298,6 +298,12 @@ export function rootProps(
     const w = node.attrs[`_width@${device}`];
     if (w === 'full' || w === 'auto') classes.push(`fr-w-${w}-${device}`);
   }
+  // Global classes of atomic elements.
+  if (Array.isArray(settings._classes)) {
+    for (const id of settings._classes) {
+      if (typeof id === 'string' && /^[a-z0-9-]{1,40}$/.test(id)) classes.push(`fr-g-${id}`);
+    }
+  }
   const props: ReturnType<typeof rootProps> = { className: classes.join(' ') };
   if (typeof settings._css_id === 'string' && CSS_ID.test(settings._css_id))
     props.id = settings._css_id;
@@ -327,7 +333,24 @@ export function ElementRoot({
   settings: Settings;
   name: string;
   editing: boolean;
-  tag?: 'div' | 'section' | 'article' | 'aside' | 'header' | 'footer' | 'nav' | 'main' | 'a';
+  tag?:
+    | 'div'
+    | 'section'
+    | 'article'
+    | 'aside'
+    | 'header'
+    | 'footer'
+    | 'nav'
+    | 'main'
+    | 'a'
+    | 'h1'
+    | 'h2'
+    | 'h3'
+    | 'h4'
+    | 'h5'
+    | 'h6'
+    | 'p'
+    | 'span';
   children?: ReactNode;
   extra?: Record<string, string | undefined>;
 }) {

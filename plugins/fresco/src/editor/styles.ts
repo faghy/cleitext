@@ -168,4 +168,14 @@ label.fre-checks{flex-direction:row;align-items:center;gap:8px}
 .fre-library__info span{font-size:11.5px;color:var(--fre-muted)}
 .fre-repeater__item.is-on{border-color:var(--fre-accent)}
 .fre-repeater__name{border:0;min-height:28px}
+.fre-chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+.fre-chip{display:inline-flex;align-items:center;border:1px solid var(--fre-line);border-radius:999px;background:#fff;font-size:12px;overflow:hidden}
+button.fre-chip,.fre-chip button{border:0;background:none;padding:3px 9px;cursor:pointer}
+.fre-chip button+button{padding-left:2px;color:var(--fre-muted)}
+.fre-chip.is-on{border-color:var(--fre-accent);background:var(--fre-accent-soft);color:var(--fre-accent)}
+.fre-dot{display:inline-block;width:6px;height:6px;margin-left:6px;border-radius:50%;background:var(--fre-accent)}
+.fre-shadow{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.fre-shadow label{display:flex;flex-direction:column;align-items:center;font-size:10px;color:var(--fre-muted)}
+.fre-shadow .fre-input--number{width:100%}
+.fre-shadow .fre-mono{grid-column:1/-1}
 `;

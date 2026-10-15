@@ -2,6 +2,7 @@
 import { registerElement } from '../core/registry.js';
 import type { ElementDefinition } from '../core/model.js';
 import { button, divider, heading, image, spacer, text } from './basic.js';
+import { ATOMIC_ELEMENTS } from './atomic.js';
 import { container } from './container.js';
 import { navMenu } from './menu.js';
 import { icon, iconBox, imageBox, video } from './general.js';
@@ -53,6 +54,7 @@ export const FREE_ELEMENTS: ElementDefinition[] = [
   gallery,
   audio,
   navMenu,
+  ...ATOMIC_ELEMENTS,
 ];
 
 export function registerFreeElements(): void {

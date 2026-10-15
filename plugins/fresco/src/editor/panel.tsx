@@ -13,6 +13,7 @@ import {
 import type { Control, ElementCategory, FrescoNode, Settings, Tab } from '../core/model.js';
 import { getElement, listElements } from '../core/registry.js';
 import { ColorPicker, ControlField, Svg, type ControlEnv } from './controls.js';
+import { AtomicStyle } from './atomic-style.js';
 import { LibraryView } from './library.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
@@ -111,7 +112,7 @@ function ElementsView({ store, onDragStart }: PanelProps) {
 
 // ---- Element settings -----------------------------------------------------------------------
 
-function ElementView({ store, media }: PanelProps) {
+function ElementView({ store, media, canManageKit }: PanelProps) {
   const selected = useStore(store, (s) => s.selected);
   const blocks = useStore(store, (s) => s.blocks);
   const tab = useStore(store, (s) => s.tab);
@@ -153,7 +154,7 @@ function ElementView({ store, media }: PanelProps) {
       </nav>
       <div className="fre-tabs" role="tablist">
         {(['content', 'style', 'advanced'] as Tab[]).map((t) =>
-          definition.controls.some((c) => c.tab === t) ? (
+          definition.controls.some((c) => c.tab === t) || (definition.atomic && t === 'style') ? (
             <button
               key={t}
               type="button"
@@ -167,6 +168,9 @@ function ElementView({ store, media }: PanelProps) {
           ) : null,
         )}
       </div>
+      {definition.atomic && tab === 'style' && (
+        <AtomicStyle store={store} node={node} canManageKit={canManageKit} />
+      )}
       {sections.map((section) => {
         const inSection = controls.filter((c) => c.section === section);
         const hoverable = inSection.some((c) => c.hover);
@@ -540,6 +544,132 @@ function SiteView({ store, canManageKit, onSaveKit }: PanelProps) {
                 What "Hide the page title" hides, as a CSS selector of your theme.
               </p>
             </div>
+          </div>
+        )}
+      </section>
+      <section className={`fre-section${section === 'variables' ? ' is-open' : ''}`}>
+        {sectionHead('variables', 'Variables')}
+        {section === 'variables' && (
+          <div className="fre-section__body">
+            <p className="fre-help">
+              Named colors, fonts and sizes for the Style tab of atomic elements.
+            </p>
+            {kit.variables.map((variable) => (
+              <div key={variable.id} className="fre-kitrow">
+                <input
+                  className="fre-input"
+                  value={variable.label}
+                  aria-label="Name"
+                  onChange={(e) =>
+                    set({
+                      variables: kit.variables.map((v) =>
+                        v.id === variable.id ? { ...v, label: e.target.value } : v,
+                      ),
+                    })
+                  }
+                />
+                {variable.type === 'color' && (
+                  <input
+                    type="color"
+                    value={/^#[0-9a-f]{6}$/i.test(variable.value) ? variable.value : '#000000'}
+                    aria-label="Color"
+                    onChange={(e) =>
+                      set({
+                        variables: kit.variables.map((v) =>
+                          v.id === variable.id ? { ...v, value: e.target.value } : v,
+                        ),
+                      })
+                    }
+                  />
+                )}
+                <input
+                  className="fre-input fre-mono"
+                  value={variable.value}
+                  aria-label="Value"
+                  onChange={(e) =>
+                    set({
+                      variables: kit.variables.map((v) =>
+                        v.id === variable.id ? { ...v, value: e.target.value } : v,
+                      ),
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  className="fre-iconbtn"
+                  aria-label={`Remove ${variable.label}`}
+                  onClick={() =>
+                    set({ variables: kit.variables.filter((v) => v.id !== variable.id) })
+                  }
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <div className="fre-library__save">
+              {(
+                [
+                  ['color', '#c2410c', 'Color'],
+                  ['font', 'Inter', 'Font'],
+                  ['size', '24px', 'Size'],
+                ] as const
+              ).map(([type, value, label]) => (
+                <button
+                  key={type}
+                  type="button"
+                  className="fre-button"
+                  onClick={() => {
+                    const id = `${type}-${Math.random().toString(36).slice(2, 7)}`;
+                    set({
+                      variables: [
+                        ...kit.variables,
+                        { id, label: `New ${label.toLowerCase()}`, type, value },
+                      ],
+                    });
+                  }}
+                >
+                  + {label}
+                </button>
+              ))}
+            </div>
+            {kit.classes.length > 0 && (
+              <>
+                <h4 className="fre-subheading">Global classes</h4>
+                {kit.classes.map((c) => (
+                  <div key={c.id} className="fre-kitrow">
+                    <input
+                      className="fre-input"
+                      value={c.label}
+                      aria-label="Class name"
+                      onChange={(e) =>
+                        set({
+                          classes: kit.classes.map((x) =>
+                            x.id === c.id ? { ...x, label: e.target.value } : x,
+                          ),
+                        })
+                      }
+                    />
+                    <code className="fre-mono">.fr-g-{c.id}</code>
+                    <button
+                      type="button"
+                      className="fre-iconbtn"
+                      aria-label={`Delete the class ${c.label}`}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Delete the class “${c.label}”? Elements keep the name but lose its style.`,
+                          )
+                        ) {
+                          set({ classes: kit.classes.filter((x) => x.id !== c.id) });
+                        }
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
       </section>

@@ -243,6 +243,11 @@ export interface ElementDefinition {
   create?: () => NewNode;
   /** Pro elements need Fresco Pro. */
   pro?: boolean;
+  /**
+   * Atomic element: styled with style variants (`_styles`) and global
+   * classes (`_classes`) instead of style controls.
+   */
+  atomic?: boolean;
   /** Settings holding raw HTML (cleaned on save for authors without unfiltered_html). */
   html?: string[];
   /**

@@ -18,6 +18,7 @@ import {
   type Settings,
   type SizeValue,
 } from './model.js';
+import { normalizeVariants, variantsCss } from './atomic.js';
 
 /** One CSS rule body per selector, per device. */
 type Sheet = Record<Device, Map<string, string[]>>;
@@ -342,6 +343,10 @@ export function elementCss(
   const settings = withDefaults(definition, node.attrs);
   const sheet = emptySheet();
   const scope = `.${elementClass(node.id)}`;
+  // Atomic elements: their own style variants.
+  const atomic = definition.atomic
+    ? variantsCss(scope, normalizeVariants(node.attrs._styles), breakpoints)
+    : '';
   const at = (selector: string) => selector.replaceAll('{{el}}', scope);
   for (const control of definition.controls) {
     if (control.noCss || !conditionMet(control, settings)) continue;
@@ -366,7 +371,7 @@ export function elementCss(
       }
     }
   }
-  return printSheet(sheet, breakpoints);
+  return atomic + printSheet(sheet, breakpoints);
 }
 
 /** `.a .b, .c` → `.a .b:hover, .c:hover` (the first part only is the element). */

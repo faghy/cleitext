@@ -117,7 +117,8 @@ export function FrescoEditor(props: EditorProps) {
     void api<unknown>('GET', '/kit')
       .then((kit) => store.actions.setKit(normalizeKit(kit), false))
       .catch(() => {});
-  }, [api, assetsBase, store]);
+    // Once: `api` is a new function on every render of the host.
+  }, []);
 
   // Changes go to Cleitext, which saves them with the entry.
   useEffect(

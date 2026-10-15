@@ -4,6 +4,7 @@
  * colors and fonts through CSS variables, so changing the kit restyles every
  * page at once.
  */
+import { atomicKitCss, normalizeVariants, type GlobalClass, type Variable } from './atomic.js';
 import { safeColor, safeFont } from './css.js';
 import { DEFAULT_BREAKPOINTS, type Breakpoints, type SizeValue } from './model.js';
 
@@ -43,6 +44,10 @@ export interface Kit {
   googleFonts: string[];
   /** The theme's page title, hidden by the page setting "Hide the page title". */
   titleSelector?: string;
+  /** Atomic styling: classes shared by elements. */
+  classes: GlobalClass[];
+  /** Atomic styling: named colors, fonts and sizes. */
+  variables: Variable[];
 }
 
 /** The four system colors and fonts, always there (they can be changed, not removed). */
@@ -66,6 +71,8 @@ export const DEFAULT_KIT: Kit = {
   gap: { size: 20, unit: 'px' },
   style: {},
   googleFonts: [],
+  classes: [],
+  variables: [],
   titleSelector:
     'h1.entry-title, .entry-title, .page-title, .entry-header h1, main h1:first-of-type',
 };
@@ -134,6 +141,34 @@ export function normalizeKit(value: unknown): Kit {
       Object.entries(style).filter(([, v]) => safeColor(v) !== null),
     ) as Kit['style'],
     titleSelector: safeSelector(input.titleSelector) ?? DEFAULT_KIT.titleSelector!,
+    classes: Array.isArray(input.classes)
+      ? input.classes
+          .filter((c) => c && ID.test(String(c.id)) && typeof c.label === 'string')
+          .slice(0, 500)
+          .map((c) => ({
+            id: c.id,
+            label: c.label.slice(0, 60),
+            variants: normalizeVariants(c.variants),
+          }))
+      : [],
+    variables: Array.isArray(input.variables)
+      ? input.variables
+          .filter(
+            (v) =>
+              v &&
+              ID.test(String(v.id)) &&
+              typeof v.label === 'string' &&
+              ['color', 'font', 'size'].includes(v.type) &&
+              typeof v.value === 'string',
+          )
+          .slice(0, 500)
+          .map((v) => ({
+            id: v.id,
+            label: v.label.slice(0, 60),
+            type: v.type,
+            value: v.value.slice(0, 200),
+          }))
+      : [],
     googleFonts: Array.isArray(input.googleFonts)
       ? input.googleFonts
           .filter((f) => typeof f === 'string' && /^[\w ]{1,60}$/.test(f))
@@ -182,6 +217,7 @@ export function kitCss(kit: Kit): string {
   if (s.background && safeColor(s.background))
     scoped.push(`body.fr-page{background-color:${safeColor(s.background)}}`);
   css += scoped.join('');
+  css += atomicKitCss(kit.classes, kit.variables, kit.breakpoints);
   css += responsiveUtilities(kit.breakpoints);
   return css.replace(/<\/?style/gi, '');
 }

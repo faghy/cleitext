@@ -1218,3 +1218,58 @@ a.fr-container {
     sans-serif;
   color: #64748b;
 }
+
+/* ---- Atomic elements: plain defaults, styled from the Style tab ---- */
+
+.fr-a-flex {
+  display: flex;
+  gap: 10px;
+}
+.fr-a-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.fr-a-box.fr-a-box {
+  min-height: 0;
+}
+.fr-a-heading {
+  margin: 0;
+  font-size: 2em;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.fr-a-paragraph > div > :first-child {
+  margin-top: 0;
+}
+.fr-a-paragraph > div > :last-child {
+  margin-bottom: 0;
+}
+a.fr-a-button,
+div.fr-a-button {
+  display: inline-block;
+  padding: 12px 24px;
+  background: var(--fr-c-accent, #1d4ed8);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 4px;
+}
+.fr-a-image img,
+.fr-a-svg img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.fr-a-divider hr {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid currentColor;
+  opacity: 0.25;
+}
+.fr-a-video iframe,
+.fr-a-video video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+}
