@@ -4,7 +4,7 @@
     "Old classic post: A table became text (tables are not supported yet).",
     "Old classic post: contains shortcodes, left as text.",
     "1 item(s) of the custom type \"product\" were not imported.",
-    "1 comment(s) were not imported (comments come with a plugin)."
+    "1 pingback(s) and trackback(s) were not imported."
   ],
   "document": {
     "format": "cleitext-transfer",
@@ -265,7 +265,38 @@
           "category": ["category:harbours"],
           "tag": ["tag:boats"]
         },
-        "oldPaths": ["https://old.example.com/2024/05/a-morning-at-the-harbour/", "/?p=20"]
+        "oldPaths": ["https://old.example.com/2024/05/a-morning-at-the-harbour/", "/?p=20"],
+        "commentStatus": "open",
+        "comments": [
+          {
+            "ref": "comment:1",
+            "authorName": "Luca",
+            "authorEmail": "luca@example.com",
+            "authorUrl": "https://luca.example.com",
+            "content": "Lovely!",
+            "status": "approved",
+            "createdAt": "2024-05-03T09:00:00Z",
+            "ip": "203.0.113.7"
+          },
+          {
+            "ref": "comment:2",
+            "parentRef": "comment:1",
+            "userRef": "user:marta",
+            "authorName": "Marta Rossi",
+            "authorEmail": "marta@old.example.com",
+            "content": "Thank you & see you there.",
+            "status": "approved",
+            "createdAt": "2024-05-03T10:15:00Z"
+          },
+          {
+            "ref": "comment:3",
+            "authorName": "Cheap pills",
+            "authorEmail": "spam@example.net",
+            "content": "Buy now",
+            "status": "spam",
+            "createdAt": "2024-05-04T01:00:00Z"
+          }
+        ]
       },
       {
         "ref": "post:21",

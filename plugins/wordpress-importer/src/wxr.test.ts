@@ -27,7 +27,7 @@ describe('WordPress export to transfer document', () => {
       authorRole: 'editor',
     });
     expect(warnings.join('\n')).toContain('custom type "product"');
-    expect(warnings.join('\n')).toContain('comment(s) were not imported');
+    expect(warnings.join('\n')).toContain('1 pingback(s)');
     expect(document.entries?.every((e) => e.locale === 'it')).toBe(true);
     expect(document.users?.[0]?.role).toBe('editor');
   });

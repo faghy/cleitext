@@ -99,7 +99,50 @@
 		<wp:post_type><![CDATA[post]]></wp:post_type>
 		<category domain="category" nicename="harbours"><![CDATA[Harbours &amp; ports]]></category>
 		<category domain="post_tag" nicename="boats"><![CDATA[Boats]]></category>
-		<wp:comment><wp:comment_id>1</wp:comment_id><wp:comment_content><![CDATA[Lovely!]]></wp:comment_content></wp:comment>
+		<wp:comment_status><![CDATA[open]]></wp:comment_status>
+		<wp:comment>
+			<wp:comment_id>1</wp:comment_id>
+			<wp:comment_author><![CDATA[Luca]]></wp:comment_author>
+			<wp:comment_author_email><![CDATA[luca@example.com]]></wp:comment_author_email>
+			<wp:comment_author_url><![CDATA[https://luca.example.com]]></wp:comment_author_url>
+			<wp:comment_author_IP><![CDATA[203.0.113.7]]></wp:comment_author_IP>
+			<wp:comment_date_gmt><![CDATA[2024-05-03 09:00:00]]></wp:comment_date_gmt>
+			<wp:comment_content><![CDATA[Lovely!]]></wp:comment_content>
+			<wp:comment_approved><![CDATA[1]]></wp:comment_approved>
+			<wp:comment_type><![CDATA[comment]]></wp:comment_type>
+			<wp:comment_parent>0</wp:comment_parent>
+			<wp:comment_user_id>0</wp:comment_user_id>
+		</wp:comment>
+		<wp:comment>
+			<wp:comment_id>2</wp:comment_id>
+			<wp:comment_author><![CDATA[Marta Rossi]]></wp:comment_author>
+			<wp:comment_author_email><![CDATA[marta@old.example.com]]></wp:comment_author_email>
+			<wp:comment_date_gmt><![CDATA[2024-05-03 10:15:00]]></wp:comment_date_gmt>
+			<wp:comment_content><![CDATA[Thank you &amp; see you there.]]></wp:comment_content>
+			<wp:comment_approved><![CDATA[1]]></wp:comment_approved>
+			<wp:comment_type><![CDATA[]]></wp:comment_type>
+			<wp:comment_parent>1</wp:comment_parent>
+			<wp:comment_user_id>1</wp:comment_user_id>
+		</wp:comment>
+		<wp:comment>
+			<wp:comment_id>3</wp:comment_id>
+			<wp:comment_author><![CDATA[Cheap pills]]></wp:comment_author>
+			<wp:comment_author_email><![CDATA[spam@example.net]]></wp:comment_author_email>
+			<wp:comment_date_gmt><![CDATA[2024-05-04 01:00:00]]></wp:comment_date_gmt>
+			<wp:comment_content><![CDATA[Buy now]]></wp:comment_content>
+			<wp:comment_approved><![CDATA[spam]]></wp:comment_approved>
+			<wp:comment_parent>0</wp:comment_parent>
+		</wp:comment>
+		<wp:comment>
+			<wp:comment_id>4</wp:comment_id>
+			<wp:comment_author><![CDATA[Another blog]]></wp:comment_author>
+			<wp:comment_author_url><![CDATA[https://another.example.org/link]]></wp:comment_author_url>
+			<wp:comment_date_gmt><![CDATA[2024-05-05 08:00:00]]></wp:comment_date_gmt>
+			<wp:comment_content><![CDATA[[&#8230;] a morning at the harbour [&#8230;]]]></wp:comment_content>
+			<wp:comment_approved><![CDATA[1]]></wp:comment_approved>
+			<wp:comment_type><![CDATA[pingback]]></wp:comment_type>
+			<wp:comment_parent>0</wp:comment_parent>
+		</wp:comment>
 	</item>
 
 	<item>

@@ -16,7 +16,7 @@ Posts, pages, images and other media, categories, tags, menus and authors, with 
 - Nothing already on the site is overwritten: importing the same file twice adds nothing new.
 - Media files are downloaded from the WordPress site, only from public addresses: keep the old site online until the import ends.
 - Authors get an account without a password, as members of the site with the chosen role; they set a password with **Forgot password**.
-- Custom post types of other plugins (WooCommerce products…) and comments are counted in the report and not imported; shortcodes stay as text.
+- Comments come along with their threads (approved, waiting and spam); pingbacks, trackbacks and trashed comments are counted in the report. Custom post types of other plugins (WooCommerce products…) are counted and not imported; shortcodes stay as text.
 
 Only administrators can use it (capability `import_wordpress`).
 

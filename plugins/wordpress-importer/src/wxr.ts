@@ -65,6 +65,12 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const items = (channel.item as Node[] | undefined) ?? [];
 
   // ---- Authors ------------------------------------------------------------------------
+  const loginById = new Map(
+    ((channel['wp:author'] as Node[] | undefined) ?? []).map((a) => [
+      text(a['wp:author_id']),
+      text(a['wp:author_login']),
+    ]),
+  );
   const authors = ((channel['wp:author'] as Node[] | undefined) ?? []).map((a) => ({
     ref: `user:${text(a['wp:author_login'])}`,
     email: text(a['wp:author_email']),
@@ -133,7 +139,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   // ---- Posts and pages ------------------------------------------------------------------
   const entries: NonNullable<TransferDocumentInput['entries']> = [];
   const skippedTypes = new Map<string, number>();
-  let comments = 0;
+  let pingbacks = 0;
+  let trashedComments = 0;
   let elementorPages = 0;
   const entryRefs = new Map<number, string>();
   for (const item of items) {
@@ -194,7 +201,51 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       const file = media.find((m) => m.ref === thumbnailRef)!;
       document.blocks.unshift(imageBlock(thumbnailRef, file.file, file.alt?.[locale] ?? ''));
     }
-    comments += ((item['wp:comment'] as Node[] | undefined) ?? []).length;
+    const gmt = text(item['wp:post_date_gmt']);
+    const date = gmt && !gmt.startsWith('0000') ? `${gmt.replace(' ', 'T')}Z` : undefined;
+    // Comments: approved, waiting and spam ones (pingbacks are links, not comments).
+    const comments: NonNullable<NonNullable<TransferDocumentInput['entries']>[number]['comments']> =
+      [];
+    for (const c of (item['wp:comment'] as Node[] | undefined) ?? []) {
+      const kind = text(c['wp:comment_type']);
+      if (kind === 'pingback' || kind === 'trackback') {
+        pingbacks++;
+        continue;
+      }
+      const approved = text(c['wp:comment_approved']);
+      const commentStatus =
+        approved === '1'
+          ? 'approved'
+          : approved === '0'
+            ? 'pending'
+            : approved === 'spam'
+              ? 'spam'
+              : null;
+      if (!commentStatus) {
+        trashedComments++;
+        continue;
+      }
+      const commentGmt = text(c['wp:comment_date_gmt']);
+      const parentId = text(c['wp:comment_parent']);
+      const login = loginById.get(text(c['wp:comment_user_id']));
+      const authorUrl = text(c['wp:comment_author_url']);
+      const ip = text(c['wp:comment_author_IP']);
+      comments.push({
+        ref: `comment:${text(c['wp:comment_id'])}`,
+        ...(parentId && parentId !== '0' ? { parentRef: `comment:${parentId}` } : {}),
+        ...(login ? { userRef: `user:${login}` } : {}),
+        authorName: decode(text(c['wp:comment_author'])) || 'Anonymous',
+        authorEmail: text(c['wp:comment_author_email']),
+        ...(authorUrl ? { authorUrl } : {}),
+        content: decode(text(c['wp:comment_content'])),
+        status: commentStatus,
+        createdAt:
+          commentGmt && !commentGmt.startsWith('0000')
+            ? `${commentGmt.replace(' ', 'T')}Z`
+            : (date ?? new Date().toISOString()),
+        ...(ip ? { ip } : {}),
+      });
+    }
     if (/\[[a-z_-]+[^\]]*\]/i.test(content) && !/<!--\s+wp:shortcode/.test(content)) {
       warnings.push(`${title || `#${id}`}: contains shortcodes, left as text.`);
     }
@@ -202,8 +253,6 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       domain: String(c['@_domain'] ?? ''),
       slug: String(c['@_nicename'] ?? ''),
     }));
-    const gmt = text(item['wp:post_date_gmt']);
-    const date = gmt && !gmt.startsWith('0000') ? `${gmt.replace(' ', 'T')}Z` : undefined;
     const ref = `post:${id}`;
     entryRefs.set(id, ref);
     const link = text(item.link);
@@ -228,6 +277,10 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         tag: categories.filter((c) => c.domain === 'post_tag').map((c) => `tag:${c.slug}`),
       },
       ...(link && status === 'published' ? { oldPaths: [link, ...(id ? [`/?p=${id}`] : [])] } : {}),
+      ...(text(item['wp:comment_status'])
+        ? { commentStatus: text(item['wp:comment_status']) === 'open' ? 'open' : 'closed' }
+        : {}),
+      ...(comments.length ? { comments } : {}),
     });
   }
   for (const [type, n] of skippedTypes) {
@@ -238,8 +291,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       `${elementorPages} page(s) built with Elementor were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
     );
   }
-  if (comments)
-    warnings.push(`${comments} comment(s) were not imported (comments come with a plugin).`);
+  if (pingbacks) warnings.push(`${pingbacks} pingback(s) and trackback(s) were not imported.`);
+  if (trashedComments) warnings.push(`${trashedComments} trashed comment(s) were not imported.`);
 
   // ---- Menus ------------------------------------------------------------------------------
   const menus: NonNullable<TransferDocumentInput['menus']> = [];

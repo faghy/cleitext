@@ -134,9 +134,16 @@ describe('HTML to CXD', () => {
 describe('WordPress import', () => {
   it('imports posts, pages, media, terms and menus with a report', () => {
     expect(report.errors).toEqual([]);
-    expect(report.created).toMatchObject({ entries: 5, media: 1, terms: 3, menus: 1, users: 1 });
+    expect(report.created).toMatchObject({
+      entries: 5,
+      media: 1,
+      terms: 3,
+      menus: 1,
+      users: 1,
+      comments: 3,
+    });
     const warnings = report.warnings.join('\n');
-    expect(warnings).toContain('1 comment(s) were not imported');
+    expect(warnings).toContain('1 pingback(s)');
     expect(warnings).toContain('custom type "product"');
     expect(warnings).toContain('shortcodes');
     expect(warnings).toContain('A table became text');
@@ -156,6 +163,13 @@ describe('WordPress import', () => {
     expect(page.body).toContain('wp-block-columns');
     expect(page.body).toContain('Map of the coast');
     expect(page.body).toContain('href="/category/harbours"');
+    // Comments come along, threaded; spam stays out of sight.
+    expect(page.body).toContain('2 comments');
+    expect(page.body).toMatch(
+      /Lovely![\s\S]*cx-comments__children[\s\S]*Thank you &amp; see you there\./,
+    );
+    expect(page.body).not.toContain('Buy now');
+    expect(page.body).toContain('action="/comments"');
   });
 
   it('points images inside other blocks (page builders) to the imported media', async () => {
@@ -306,8 +320,11 @@ describe('Cleitext export and import', () => {
     expect(page.body).toContain(`/media/${clone.id}/`);
     expect(page.body).not.toContain(`/media/${wordpress.id}/`);
     expect((await visitor.get('/about/team')).statusCode).toBe(200);
-    // Redirects travel too.
+    // Redirects and comments travel too.
     expect((await visitor.get('/2024/05/a-morning-at-the-harbour')).statusCode).toBe(301);
+    // The source has the WordPress post twice (imported twice above).
+    expect(result.created.comments).toBe(6);
+    expect(page.body).toContain('Thank you &amp; see you there.');
   });
 
   it('refuses archives with unsafe paths or invalid documents', async () => {

@@ -1,5 +1,6 @@
 import type { CxdDocument } from '@cleitext/blocks';
 import {
+  comments,
   contentTypes,
   entries,
   entryTerms,
@@ -66,6 +67,14 @@ export async function exportSite(
       .where(ne(entries.status, 'trashed'))
       .orderBy(asc(entries.createdAt));
     const revisionRows = await tx.select().from(revisions);
+    const commentRows = await tx
+      .select()
+      .from(comments)
+      .where(ne(comments.status, 'trash'))
+      .orderBy(asc(comments.createdAt));
+    const commentsOf = new Map<string, (typeof commentRows)[number][]>();
+    for (const c of commentRows)
+      (commentsOf.get(c.entryId) ?? commentsOf.set(c.entryId, []).get(c.entryId)!).push(c);
     const revisionById = new Map(revisionRows.map((r) => [r.id, r]));
     const entryTermRows = await tx.select().from(entryTerms).orderBy(asc(entryTerms.position));
     const termById = new Map(termRows.map((t) => [t.id, t]));
@@ -195,6 +204,22 @@ export async function exportSite(
             fields: revision.fields as Record<string, unknown>,
             document: revision.document as CxdDocument,
             terms: termsOf,
+            commentStatus: e.commentStatus === 'open' ? ('open' as const) : ('closed' as const),
+            ...(commentsOf.has(e.id)
+              ? {
+                  comments: commentsOf.get(e.id)!.map((c) => ({
+                    ref: c.id,
+                    ...(c.parentId ? { parentRef: c.parentId } : {}),
+                    ...(c.userId ? { userRef: c.userId } : {}),
+                    authorName: c.authorName,
+                    authorEmail: c.authorEmail,
+                    authorUrl: c.authorUrl,
+                    content: c.content,
+                    status: c.status as 'pending' | 'approved' | 'spam',
+                    createdAt: c.createdAt.toISOString(),
+                  })),
+                }
+              : {}),
           },
         ];
       }),

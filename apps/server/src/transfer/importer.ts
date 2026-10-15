@@ -1,7 +1,9 @@
 import { newCommentStatus } from '../community/defaults.js';
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import { documentText } from '@cleitext/blocks';
+import { isIP } from 'node:net';
 import {
+  comments,
   contentTypes,
   entries,
   entryTerms,
@@ -36,6 +38,7 @@ import {
   emptyReport,
   transferDocumentSchema,
   type ImportReport,
+  type TransferComment,
   type TransferEntry,
   type TransferMenuItem,
 } from './model.js';
@@ -274,6 +277,9 @@ export async function importDocument(
         }),
       );
       entryIds.set(entry.ref, result);
+      if (entry.comments?.length) {
+        await run((tx) => insertComments(tx, siteId, result.id, entry.comments!, userIds, report));
+      }
       if (entry.translationRef)
         pending.entries.push({ id: result.id, group: entry.translationRef });
       count(report, 'entries');
@@ -437,6 +443,45 @@ export async function importDocument(
 
 // ---- Entries --------------------------------------------------------------------------
 
+/** The comments of an imported entry, threads kept, and its comment count. */
+async function insertComments(
+  tx: SiteTransaction,
+  siteId: string,
+  entryId: string,
+  list: TransferComment[],
+  userIds: Map<string, string>,
+  report: ImportReport,
+): Promise<void> {
+  const ids = new Map(list.map((c) => [c.ref, newId()]));
+  const rows = list.map((c) => {
+    const ip = c.ip && isIP(c.ip) ? c.ip : null;
+    const url = c.authorUrl && /^https?:\/\/\S+$/i.test(c.authorUrl) ? c.authorUrl : null;
+    return {
+      id: ids.get(c.ref)!,
+      siteId,
+      entryId,
+      parentId: (c.parentRef && ids.get(c.parentRef)) || null,
+      userId: (c.userRef && userIds.get(c.userRef)) || null,
+      authorName: c.authorName.trim().slice(0, 120) || 'Anonymous',
+      authorEmail: c.authorEmail.trim().toLowerCase().slice(0, 200),
+      authorUrl: url,
+      content: c.content,
+      status: c.status,
+      ip,
+      createdAt: new Date(c.createdAt),
+      updatedAt: new Date(c.createdAt),
+    };
+  });
+  for (let i = 0; i < rows.length; i += 500) {
+    await tx.insert(comments).values(rows.slice(i, i + 500));
+  }
+  for (let i = 0; i < rows.length; i++) count(report, 'comments');
+  await tx
+    .update(entries)
+    .set({ commentCount: rows.filter((r) => r.status === 'approved').length })
+    .where(eq(entries.id, entryId));
+}
+
 async function insertEntry(
   tx: SiteTransaction,
   siteId: string,
@@ -492,7 +537,10 @@ async function insertEntry(
     publishedAt: isPublic ? (publishedAt ?? new Date()) : publishedAt,
     scheduledAt: entry.scheduledAt ? new Date(entry.scheduledAt) : null,
     position: entry.position ?? 0,
-    commentStatus: await newCommentStatus(tx, type.supports ?? []),
+    commentStatus:
+      entry.commentStatus && (type.supports ?? []).includes('comments')
+        ? entry.commentStatus
+        : await newCommentStatus(tx, type.supports ?? []),
     ...(entry.createdAt
       ? { createdAt: new Date(entry.createdAt), updatedAt: new Date(entry.createdAt) }
       : {}),

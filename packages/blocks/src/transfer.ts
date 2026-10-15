@@ -46,6 +46,21 @@ export const transferMediaSchema = z.object({
   urls: z.array(z.string().max(2_000)).max(50).optional(),
 });
 
+/** A comment on an entry (RF-COM); replies point to their parent. */
+export const transferCommentSchema = z.object({
+  ref,
+  parentRef: ref.optional(),
+  /** The account that wrote it, when it had one. */
+  userRef: ref.optional(),
+  authorName: z.string().max(200),
+  authorEmail: z.string().max(320).default(''),
+  authorUrl: z.string().max(2_000).nullable().optional(),
+  content: z.string().max(65_000),
+  status: z.enum(['pending', 'approved', 'spam']),
+  createdAt: z.iso.datetime({ offset: true }),
+  ip: z.string().max(64).nullable().optional(),
+});
+
 export const transferEntrySchema = z.object({
   ref,
   type: slug,
@@ -67,6 +82,9 @@ export const transferEntrySchema = z.object({
   terms: z.record(z.string(), z.array(ref)).optional(),
   /** Old public paths, redirected to the new address. */
   oldPaths: z.array(z.string().max(2_000)).max(20).optional(),
+  /** Visitors may comment (types with comments only). */
+  commentStatus: z.enum(['open', 'closed']).optional(),
+  comments: z.array(transferCommentSchema).max(20_000).optional(),
 });
 
 export interface TransferMenuItem {
@@ -168,4 +186,5 @@ export type TransferDocument = z.output<typeof transferDocumentSchema>;
 export type TransferDocumentInput = z.input<typeof transferDocumentSchema>;
 export type TransferEntry = z.output<typeof transferEntrySchema>;
 export type TransferTerm = z.output<typeof transferTermSchema>;
+export type TransferComment = z.output<typeof transferCommentSchema>;
 export type TransferMedia = z.output<typeof transferMediaSchema>;
