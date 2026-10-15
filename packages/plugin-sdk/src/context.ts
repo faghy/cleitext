@@ -3,6 +3,7 @@ import type { TransferDocumentInput } from '@cleitext/blocks/transfer';
 import type { FieldDefinition, FieldValues, Label } from '@cleitext/shared';
 import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
 import type { ReactNode } from 'react';
+import type { Pagination, PublicEntry, PublicEntrySummary } from '@cleitext/theme-sdk';
 import type { HookApi, RenderHookContext } from './hooks.js';
 
 /** A site, as plugins see it. */
@@ -305,9 +306,30 @@ export interface MediaApi {
 
 // ---- Blocks -------------------------------------------------------------------------
 
+/** The page being rendered, for blocks that show its data (a theme builder's widgets). */
+export interface BlockPage {
+  route: 'entry' | 'archive' | 'search' | '404' | 'maintenance';
+  site: { title: string; tagline: string; home: string };
+  /** Entry pages: the entry shown. */
+  entry?: PublicEntry;
+  /** Archives (and the latest posts on the home page). */
+  archive?: {
+    title: string;
+    description?: string;
+    term?: { taxonomy: string; slug: string; name: string; description: string | null };
+    contentType?: string;
+    entries: PublicEntrySummary[];
+    pagination: Pagination;
+  };
+  /** Search results. */
+  search?: { query: string; entries: PublicEntrySummary[]; pagination: Pagination };
+}
+
 export interface BlockLoadContext {
   siteId: string;
   locale: string;
+  /** The page being rendered. */
+  page: BlockPage;
   /** The entry being rendered, if any. */
   entry?: { id: string; type: string };
   /** Adds a page-cache tag, e.g. `type:event`, so the page refreshes with that data. */
@@ -317,6 +339,8 @@ export interface BlockLoadContext {
 export interface BlockRenderContext {
   siteId: string;
   locale: string;
+  /** The page being rendered. */
+  page: BlockPage;
   /** Media preloaded for the page (those listed by `media`), by id. */
   media: ReadonlyMap<string, BlockMedia>;
   /** The site's menus in the page's language, by theme location (e.g. `primary`). */

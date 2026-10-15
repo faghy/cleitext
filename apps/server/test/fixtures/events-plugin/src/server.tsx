@@ -114,8 +114,11 @@ export default definePlugin({
         container: true,
         html: ['note'],
         attributes: [{ name: 'note', type: 'text', label: 'Note', multiline: true }],
-        render: ({ attrs, items }) => (
-          <div className="stack">
+        render: ({ attrs, items, context }) => (
+          <div
+            className="stack"
+            data-page={`${context.page.route}:${context.page.entry?.title ?? ''}`}
+          >
             <div className="note" dangerouslySetInnerHTML={{ __html: attrs.note ?? '' }} />
             <ol>
               {items?.map((item, i) => (

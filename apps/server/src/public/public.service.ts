@@ -16,7 +16,7 @@ import {
   type SiteTransaction,
 } from '@cleitext/db';
 import { cxdDocumentSchema, documentText, type CxdBlock, type CxdDocument } from '@cleitext/blocks';
-import type { RenderHookContext } from '@cleitext/plugin-sdk';
+import type { BlockPage, RenderHookContext } from '@cleitext/plugin-sdk';
 import {
   Block,
   collectMediaIds,
@@ -1327,7 +1327,7 @@ export class PublicService {
           ...Object.values(locations),
           ...patternDocs.values(),
         ],
-        props.kind === 'entry' ? { id: props.entry.id, type: props.entry.type } : undefined,
+        props,
         media,
         menus,
       );
@@ -1442,7 +1442,7 @@ export class PublicService {
   private async pluginBlockRenderers(
     scope: RequestScope,
     documents: CxdDocument[],
-    entry: { id: string; type: string } | undefined,
+    props: TemplateProps,
     media: Map<string, RenderMedia>,
     menus: Record<string, MenuItemView[]>,
   ): Promise<Map<string, BlockRenderer> | undefined> {
@@ -1484,7 +1484,33 @@ export class PublicService {
         media.set(id, item);
       }
     }
-    const context = { siteId: scope.siteId, locale: scope.locale, media, menus };
+    const entry =
+      props.kind === 'entry' ? { id: props.entry.id, type: props.entry.type } : undefined;
+    const page: BlockPage = {
+      route: props.kind,
+      site: {
+        title: scope.siteTitle,
+        tagline: scope.settings.tagline,
+        home: scope.data.urls.home(scope.locale),
+      },
+      ...(props.kind === 'entry' ? { entry: props.entry } : {}),
+      ...(props.kind === 'archive'
+        ? {
+            archive: {
+              title: props.title,
+              ...(props.description ? { description: props.description } : {}),
+              ...(props.term ? { term: props.term } : {}),
+              ...(props.contentType ? { contentType: props.contentType } : {}),
+              entries: props.entries,
+              pagination: props.pagination,
+            },
+          }
+        : {}),
+      ...(props.kind === 'search'
+        ? { search: { query: props.query, entries: props.entries, pagination: props.pagination } }
+        : {}),
+    };
+    const context = { siteId: scope.siteId, locale: scope.locale, media, menus, page };
     const inPage = (block: { container?: boolean; wrapper?: boolean }) =>
       block.container === true || block.wrapper === false;
 
@@ -1502,6 +1528,7 @@ export class PublicService {
               ? await block.load(attrs, {
                   siteId: scope.siteId,
                   locale: scope.locale,
+                  page,
                   ...(entry ? { entry } : {}),
                   tag: (tag) => {
                     scope.tags.add(tag);

@@ -345,6 +345,8 @@ describe('an active plugin', () => {
 
     await editor.post(`/api/v1/entries/${byEditor.id}/publish`);
     const html = (await visitor.get('/stacked')).body;
+    // Blocks know the page they are on.
+    expect(html).toContain('data-page="entry:Stacked"');
     expect(html).toContain(
       '<div class="note"><b>Hi</b></div><ol><li><p>One</p></li><li><p>Two</p></li></ol>',
     );
