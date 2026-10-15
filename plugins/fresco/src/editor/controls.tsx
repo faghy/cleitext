@@ -1119,6 +1119,15 @@ function FontSelect({
           </option>
         ))}
       </optgroup>
+      {extensions().customFonts.length > 0 && (
+        <optgroup label="Custom fonts">
+          {extensions().customFonts.map((font) => (
+            <option key={font} value={font}>
+              {font}
+            </option>
+          ))}
+        </optgroup>
+      )}
       <optgroup label="System">
         {SYSTEM_FONTS.map((font) => (
           <option key={font} value={font}>
