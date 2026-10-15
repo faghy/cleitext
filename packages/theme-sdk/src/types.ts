@@ -50,6 +50,8 @@ export interface EntryAuthor {
   /** Author archive (`/author/<slug>`), when the person has one. */
   url?: string;
   bio?: string;
+  website?: string | null;
+  /** A picture (Gravatar), or null to show the initials. */
   avatarUrl?: string | null;
 }
 
@@ -143,6 +145,8 @@ export type TemplateProps =
       term?: { taxonomy: string; slug: string; name: string; description: string | null };
       /** Set for the archive of a content type (e.g. the posts). */
       contentType?: string;
+      /** Set for an author's archive (`/author/<slug>`). */
+      author?: EntryAuthor & { slug: string; website?: string | null };
       entries: PublicEntrySummary[];
       pagination: Pagination;
       isHome: boolean;

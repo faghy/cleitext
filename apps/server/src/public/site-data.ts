@@ -33,6 +33,21 @@ export interface PublishedEntry {
   excerpt: string | null;
   featuredMediaId: string | null;
   authorName: string | null;
+  /** The author's archive slug (`/author/<slug>`). */
+  authorSlug?: string | null;
+}
+
+/** The author of a published entry, with the address of their archive. */
+export function entryAuthor(
+  entry: PublishedEntry,
+  urls: UrlBuilder,
+  locale: string,
+): PublicEntrySummary['author'] {
+  if (!entry.authorName) return null;
+  return {
+    displayName: entry.authorName,
+    ...(entry.authorSlug ? { url: urls.author(locale, entry.authorSlug) } : {}),
+  };
 }
 
 /** Data loaded once per request, shared by every route. */
@@ -140,6 +155,7 @@ export async function loadPublished(
       excerpt: revisions.excerpt,
       featuredMediaId: revisions.featuredMediaId,
       authorName: users.displayName,
+      authorSlug: users.slug,
     })
     .from(entries)
     .innerJoin(revisions, eq(revisions.id, entries.publishedRevisionId))
@@ -158,6 +174,7 @@ export async function loadPublished(
     excerpt: r.excerpt,
     featuredMediaId: r.featuredMediaId,
     authorName: r.authorName,
+    authorSlug: r.authorSlug,
   }));
 }
 
@@ -225,7 +242,7 @@ export async function summarize(
       url: urls.entry(entry.row),
       publishedAt: entry.row.publishedAt?.toISOString() ?? null,
       excerpt: entry.excerpt || documentExcerpt(entry.document),
-      author: entry.authorName ? { displayName: entry.authorName } : null,
+      author: entryAuthor(entry, urls, locale),
       image: image?.id ? (mediaMap.get(image.id) ?? null) : null,
     };
   });

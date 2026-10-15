@@ -27,6 +27,7 @@ import { assertPasswordNotBreached } from '../auth/password-policy.js';
 import { SessionService, UserTokenService } from '../auth/session.service.js';
 import { DATABASE } from '../database/database.module.js';
 import { MailService } from '../mail/mail.service.js';
+import { PageCacheService } from '../public/page-cache.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { allow, say, slugify } from './limits.js';
@@ -82,6 +83,7 @@ export class AccountsService {
     private readonly mail: MailService,
     private readonly audit: AuditService,
     private readonly plugins: PluginHost,
+    private readonly cache: PageCacheService,
   ) {}
 
   /**
@@ -338,6 +340,7 @@ export class AccountsService {
         })
         .where(eq(users.id, userId)),
     );
+    await this.cache.invalidate(siteId, [`author:${userId}`]);
   }
 
   async changePassword(

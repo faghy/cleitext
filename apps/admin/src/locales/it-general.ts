@@ -492,4 +492,9 @@ export const itGeneral: Messages = {
     'Semplici link ai social network: niente script e nessun tracciamento.',
   'Allow comments': 'Permetti i commenti',
   '{count} comments': '{count} commenti',
+  'About you': 'Informazioni su di te',
+  'Biographical info': 'Biografia',
+  'Shown in author boxes and on your author page.':
+    'Appare nel box autore e nella tua pagina autore.',
+  'Author page address': 'Indirizzo della pagina autore',
 };

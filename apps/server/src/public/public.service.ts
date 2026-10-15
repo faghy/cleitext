@@ -61,6 +61,7 @@ import { SESSION_COOKIE } from '../auth/cookies.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import { withBackToTop } from './back-to-top.js';
+import { avatarUrl } from '../profile/avatar.js';
 import { withAdminBar } from './admin-bar.js';
 import { LanguagesService } from '../content/languages.service.js';
 import { PageCacheService } from './page-cache.service.js';
@@ -72,6 +73,7 @@ import {
   loadPublished,
   loadSiteData,
   summarize,
+  entryAuthor,
   type PublishedEntry,
   type SiteData,
 } from './site-data.js';
@@ -664,6 +666,7 @@ export class PublicService {
         excerpt: revisions.excerpt,
         featuredMediaId: revisions.featuredMediaId,
         authorName: users.displayName,
+        authorSlug: users.slug,
       })
       .from(entries)
       .innerJoin(revisions, eq(revisions.id, entries.currentRevisionId))
@@ -680,6 +683,7 @@ export class PublicService {
         excerpt: row.excerpt,
         featuredMediaId: row.featuredMediaId,
         authorName: row.authorName,
+        authorSlug: row.authorSlug,
       },
       { isFrontPage: false, preview: true },
     );
@@ -876,6 +880,10 @@ export class PublicService {
       );
     }
 
+    // Author archives: /author/{slug}[/page/N]
+    const author = /^\/author\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/page\/(\d+))?$/.exec(rest);
+    if (author) return this.renderAuthorArchive(scope, author[1]!, Number(author[2] ?? 1));
+
     // Category and tag archives: /{taxonomy}/{slug}[/page/N]
     const taxonomy = /^\/([a-z0-9-]+)\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/page\/(\d+))?$/.exec(rest);
     if (taxonomy && data.taxonomies.includes(taxonomy[1]!)) {
@@ -1038,7 +1046,7 @@ export class PublicService {
       publishedAt: entry.row.publishedAt?.toISOString() ?? null,
       excerpt: entry.excerpt || documentExcerpt(entry.document),
       featuredImage: featured,
-      author: entry.authorName ? { displayName: entry.authorName } : null,
+      author: await this.fullAuthor(scope, entry),
       image: image?.id ? (media.get(image.id) ?? null) : null,
       fields: entry.fields,
       document: entry.document,
@@ -1112,6 +1120,7 @@ export class PublicService {
         description: string | null;
         id: string;
       };
+      author?: NonNullable<Extract<TemplateProps, { kind: 'archive' }>['author']>;
     },
   ): Promise<PublicResponse | null> {
     const { tx, data, settings } = scope;
@@ -1132,18 +1141,23 @@ export class PublicService {
     const props: TemplateProps = {
       kind: 'archive',
       title: options.title,
-      ...(options.term
+      ...(options.author
         ? {
-            term: {
-              taxonomy: options.term.taxonomy,
-              slug: options.term.slug,
-              name: options.term.name,
-              description: options.term.description,
-            },
+            author: options.author,
+            ...(options.author.bio ? { description: options.author.bio } : {}),
           }
-        : options.tag.startsWith('type:')
-          ? { contentType: options.tag.slice('type:'.length) }
-          : {}),
+        : options.term
+          ? {
+              term: {
+                taxonomy: options.term.taxonomy,
+                slug: options.term.slug,
+                name: options.term.name,
+                description: options.term.description,
+              },
+            }
+          : options.tag.startsWith('type:')
+            ? { contentType: options.tag.slice('type:'.length) }
+            : {}),
       entries: summaries,
       pagination: {
         page: options.page,
@@ -1155,7 +1169,7 @@ export class PublicService {
     };
     const head = this.head(scope, {
       title: options.isHome ? this.homeTitle(scope) : `${options.title} – ${scope.siteTitle}`,
-      description: options.term?.description ?? scope.settings.tagline,
+      description: options.term?.description ?? options.author?.bio ?? scope.settings.tagline,
       path: pagePath,
       alternates: options.isHome
         ? data.locales.map((l) => ({ locale: l.code, url: data.urls.home(l.code) }))
@@ -1177,6 +1191,84 @@ export class PublicService {
       ...(options.term ? { taxonomy: options.term.taxonomy, termSlug: options.term.slug } : {}),
     });
     return this.render(scope, props, candidates, head, media, options.alternates ?? [], 200);
+  }
+
+  /** The posts of a person (RF-THM-11): only people with published entries have one. */
+  private async renderAuthorArchive(
+    scope: RequestScope,
+    slug: string,
+    page: number,
+  ): Promise<PublicResponse | null> {
+    const [person] = await scope.tx
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        slug: users.slug,
+        bio: users.bio,
+        website: users.website,
+        email: users.email,
+        avatarKey: users.avatarKey,
+      })
+      .from(users)
+      .where(eq(users.slug, slug));
+    if (!person?.slug) return null;
+    // Their posts, as in WordPress (pages and other types are not listed).
+    const where = and(eq(entries.authorId, person.id), eq(entries.typeSlug, 'article'));
+    if ((await this.count(scope, and(where, await this.listedIn(scope)))) === 0) return null;
+    const base = scope.data.urls.author(scope.locale, person.slug);
+    return this.renderArchive(scope, {
+      where,
+      title: person.displayName,
+      base,
+      page,
+      isHome: false,
+      tag: `author:${person.id}`,
+      alternates: scope.data.locales.map((l) => ({
+        locale: l.code,
+        url: scope.data.urls.author(l.code, person.slug!),
+      })),
+      author: {
+        displayName: person.displayName,
+        slug: person.slug,
+        url: base,
+        ...(person.bio ? { bio: person.bio } : {}),
+        website: person.website,
+        avatarUrl: avatarUrl(person.avatarKey) ?? this.avatar(scope, person.email),
+      },
+    });
+  }
+
+  /** A Gravatar picture when the site uses them, else null (initials). */
+  private avatar(scope: RequestScope, email: string | null | undefined, size = 88): string | null {
+    if (scope.settings.avatars !== 'gravatar' || !email) return null;
+    const hash = createHash('md5').update(email.trim().toLowerCase()).digest('hex');
+    return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=mp`;
+  }
+
+  /** The author of an entry's page, with the bio and picture for an author box. */
+  private async fullAuthor(
+    scope: RequestScope,
+    entry: PublishedEntry,
+  ): Promise<PublicEntry['author']> {
+    const author = entryAuthor(entry, scope.data.urls, scope.locale);
+    if (!author || !entry.row.authorId) return author;
+    scope.tags.add(`author:${entry.row.authorId}`);
+    const [person] = await scope.tx
+      .select({
+        bio: users.bio,
+        website: users.website,
+        email: users.email,
+        avatarKey: users.avatarKey,
+      })
+      .from(users)
+      .where(eq(users.id, entry.row.authorId));
+    if (!person) return author;
+    return {
+      ...author,
+      ...(person.bio ? { bio: person.bio } : {}),
+      website: person.website,
+      avatarUrl: avatarUrl(person.avatarKey) ?? this.avatar(scope, person.email),
+    };
   }
 
   private async renderTermArchive(
@@ -2046,10 +2138,7 @@ export class PublicService {
         page: Number(params['comments-page']) || 1,
         viewerId: scope.viewer?.id ?? null,
         ...(settings.avatars === 'gravatar'
-          ? {
-              gravatar: (email: string) =>
-                `https://www.gravatar.com/avatar/${createHash('md5').update(email.trim().toLowerCase()).digest('hex')}?s=88&d=mp`,
-            }
+          ? { gravatar: (email: string) => this.avatar(scope, email) }
           : {}),
       },
     );
@@ -2182,7 +2271,7 @@ export class PublicService {
         publishedAt: entry.row.publishedAt?.toISOString() ?? null,
         excerpt: entry.excerpt || documentExcerpt(entry.document),
         featuredImage: featured,
-        author: entry.authorName ? { displayName: entry.authorName } : null,
+        author: entryAuthor(entry, data.urls, scope.locale),
         image: image?.id ? (media.get(image.id) ?? null) : null,
         fields: entry.fields,
         document: entry.document,

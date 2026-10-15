@@ -1,6 +1,7 @@
 /** Blogging as in WordPress: sign-ups, comments with moderation, likes (RF-USR-11, RF-COM). */
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import type { DatabaseClient } from '@cleitext/db';
+import { users, type DatabaseClient } from '@cleitext/db';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resetLimits } from '../src/community/limits.js';
 import { MailService } from '../src/mail/mail.service.js';
@@ -277,5 +278,41 @@ describe('likes', () => {
     const unliked = await visitor.postForm('/likes', { entry: postId, back: postPath });
     expect(unliked.statusCode).toBe(303);
     expect((await visitor.get(postPath)).body).toMatch(/data-cx-like-count="">2</);
+  });
+});
+
+describe('authors', () => {
+  it('have an archive of their posts, and a box with their bio under posts', async () => {
+    const about = (await admin.get('/api/v1/profile/about')).json();
+    expect(about.slug).toBeTruthy();
+    const saved = await admin.request('PATCH', '/api/v1/profile', {
+      bio: 'Writes about gardens.',
+      website: 'https://writer.example',
+      slug: 'the-writer',
+    });
+    expect(saved.statusCode).toBe(200);
+
+    const visitor = new TestClient(app, host, '10.51.0.12');
+    const archive = await visitor.get('/author/the-writer');
+    expect(archive.statusCode).toBe(200);
+    expect(archive.body).toContain('Talk to me');
+    expect(archive.body).toContain('Writes about gardens.');
+    expect(archive.body).toContain('cx-author--page');
+
+    const post = (await visitor.get(postPath)).body;
+    expect(post).toContain('class="cx-author cx-author--entry"');
+    expect(post).toContain('href="/author/the-writer"');
+    expect(post).toContain('https://writer.example');
+  });
+
+  it('exist only for people with published posts', async () => {
+    const visitor = new TestClient(app, host, '10.51.0.13');
+    expect((await visitor.get('/author/nobody-here')).statusCode).toBe(404);
+    // Nina registered and comments, but writes nothing: no page that lists accounts.
+    const [nina] = await owner.db
+      .select({ slug: users.slug })
+      .from(users)
+      .where(eq(users.email, 'nina@x.test'));
+    expect((await visitor.get(`/author/${nina!.slug}`)).statusCode).toBe(404);
   });
 });

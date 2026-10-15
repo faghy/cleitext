@@ -111,6 +111,8 @@ export const entries = pgTable(
       t.id.desc().nullsFirst(),
     ),
     index('entries_search_idx').using('gin', t.search),
+    // Author archives, and authors readable by the site (RF-THM-11).
+    index('entries_author_idx').on(t.siteId, t.authorId),
   ],
 );
 

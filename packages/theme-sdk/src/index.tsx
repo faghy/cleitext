@@ -18,6 +18,7 @@ export { Inline, safeUrl, type RenderMedia } from '@cleitext/renderer';
 export { PageProvider, usePage } from './context.js';
 export { AccountForms, accountStrings, type AccountAttrs, type AccountView } from './account.js';
 export {
+  AuthorBox,
   CommentText,
   Comments,
   COMMUNITY_CSS,
@@ -25,6 +26,7 @@ export {
   communityStrings,
   EntryActions,
   EntryCommunity,
+  initials,
 } from './community.js';
 
 /**
@@ -205,6 +207,7 @@ export function templateCandidates(
         'index',
       ];
     case 'archive':
+      if (props.author) return [`author-${props.author.slug}`, 'author', 'archive', 'index'];
       if (props.term && extra.taxonomy) {
         return [
           `taxonomy-${extra.taxonomy}-${extra.termSlug}`,

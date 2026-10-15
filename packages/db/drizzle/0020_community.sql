@@ -113,6 +113,47 @@ UPDATE users u
   FROM numbered n WHERE n.id = u.id;
 --> statement-breakpoint
 
+-- Every new account gets an author page address, however it is created
+-- (sign-up, invitation, CLI): from the name, made unique when taken.
+CREATE OR REPLACE FUNCTION cleitext_user_slug() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER
+  SET search_path = pg_catalog, public
+  AS $$
+DECLARE base text;
+BEGIN
+  IF NEW.slug IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+  base := left(coalesce(nullif(trim(BOTH '-' FROM regexp_replace(lower(public.unaccent(NEW.display_name)), '[^a-z0-9]+', '-', 'g')), ''), 'user'), 60);
+  IF EXISTS (SELECT 1 FROM public.users WHERE slug = base) THEN
+    base := base || '-' || right(replace(NEW.id::text, '-', ''), 8);
+  END IF;
+  NEW.slug := base;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER users_slug BEFORE INSERT ON users
+  FOR EACH ROW EXECUTE FUNCTION cleitext_user_slug();
+--> statement-breakpoint
+
+-- Authors are readable by the sites they wrote for (author names, boxes and
+-- pages), even when they are not members (super admins, people who left).
+CREATE INDEX "entries_author_idx" ON "entries" USING btree ("site_id","author_id");--> statement-breakpoint
+DROP POLICY users_read ON users;--> statement-breakpoint
+CREATE POLICY users_read ON users FOR SELECT
+  USING (
+    id = cleitext_current_user_id()
+    OR EXISTS (
+      SELECT 1 FROM site_members m
+      WHERE m.user_id = users.id AND m.site_id = cleitext_current_site_id()
+    )
+    OR EXISTS (
+      SELECT 1 FROM entries e
+      WHERE e.author_id = users.id AND e.site_id = cleitext_current_site_id()
+    )
+  );--> statement-breakpoint
+
 -- Removes an account that belongs to no site any more (someone leaving the
 -- only site they joined). Super admins are never removed this way.
 CREATE OR REPLACE FUNCTION cleitext_delete_orphan_user(p_user uuid) RETURNS boolean

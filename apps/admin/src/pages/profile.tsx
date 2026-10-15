@@ -1,4 +1,4 @@
-import type { SessionView } from '@cleitext/shared';
+import type { ProfileAboutView, SessionView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { api, ApiError, errorMessage, uploadFile } from '../api';
@@ -16,7 +16,10 @@ export function ProfilePage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">{t('Profile')}</h1>
       <div className="grid gap-6 lg:grid-cols-2">
-        <DetailsCard />
+        <div className="space-y-6">
+          <DetailsCard />
+          <AboutCard />
+        </div>
         <div className="space-y-6">
           <AvatarCard />
           <PasswordCard />
@@ -29,6 +32,68 @@ export function ProfilePage() {
       <ApiTokensCard />
       <SessionsCard />
     </div>
+  );
+}
+
+/** Bio, website and author page address, as in WordPress (RF-THM-11). */
+function AboutCard() {
+  const about = useQuery({
+    queryKey: ['profile', 'about'],
+    queryFn: () => api<ProfileAboutView>('GET', '/profile/about'),
+  });
+  return about.data ? <AboutForm initial={about.data} /> : null;
+}
+
+function AboutForm({ initial }: { initial: ProfileAboutView }) {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const [values, setValues] = useState(initial);
+  const save = useMutation({
+    mutationFn: () => api('PATCH', '/profile', values),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['profile', 'about'] }),
+  });
+  return (
+    <Card title={t('About you')}>
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate();
+        }}
+      >
+        <label className="block space-y-1 text-sm">
+          <span className="block font-medium text-slate-800">{t('Biographical info')}</span>
+          <textarea
+            className="w-full rounded border border-slate-300 p-2"
+            rows={4}
+            maxLength={2000}
+            value={values.bio}
+            onChange={(e) => setValues({ ...values, bio: e.target.value })}
+          />
+          <span className="block text-xs text-slate-500">
+            {t('Shown in author boxes and on your author page.')}
+          </span>
+        </label>
+        <TextField
+          label={t('Website')}
+          type="url"
+          placeholder="https://"
+          value={values.website}
+          onChange={(e) => setValues({ ...values, website: e.target.value })}
+        />
+        <TextField
+          label={t('Author page address')}
+          value={values.slug}
+          onChange={(e) => setValues({ ...values, slug: e.target.value })}
+          hint={`/author/${values.slug || '…'}`}
+        />
+        {save.isSuccess && <Alert kind="success">{t('Saved.')}</Alert>}
+        {save.error && <Alert>{errorMessage(save.error)}</Alert>}
+        <Button type="submit" disabled={save.isPending}>
+          {t('Save')}
+        </Button>
+      </form>
+    </Card>
   );
 }
 

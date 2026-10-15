@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import {
+  AuthorBox,
   BlockArea,
   defineTheme,
   EntryContent,
@@ -161,7 +162,18 @@ function Index(props: TemplateProps) {
               {isArticle && entry.publishedAt && (
                 <p className="entry-meta">
                   <FormattedDate iso={entry.publishedAt} />
-                  {entry.author && ` · ${entry.author.displayName}`}
+                  {entry.author && (
+                    <>
+                      {' · '}
+                      {entry.author.url ? (
+                        <a href={entry.author.url} rel="author">
+                          {entry.author.displayName}
+                        </a>
+                      ) : (
+                        entry.author.displayName
+                      )}
+                    </>
+                  )}
                 </p>
               )}
             </header>
@@ -200,6 +212,7 @@ function Index(props: TemplateProps) {
               <h1>{props.title}</h1>
               {props.term?.description && <p>{props.term.description}</p>}
             </header>
+            {props.author && <AuthorBox author={props.author} variant="page" />}
             <EntryList entries={props.entries} empty={t.nothingYet} />
             <PageLinks pagination={props.pagination} />
           </div>

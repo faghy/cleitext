@@ -2,11 +2,13 @@ import { users, withContext, type DatabaseClient } from '@cleitext/db';
 import {
   changePasswordRequestSchema,
   updateProfileRequestSchema,
+  type ProfileAboutView,
   type SessionView,
 } from '@cleitext/shared';
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -33,6 +35,7 @@ import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { ALLOWED_TYPES, detectType } from '../media/media-types.js';
 import { MediaService } from '../media/media.service.js';
+import { PageCacheService } from '../public/page-cache.service.js';
 import { avatarUrl, processAvatar } from './avatar.js';
 
 /** The signed-in user's own profile and sessions (RF-USR-07). */
@@ -43,6 +46,7 @@ export class ProfileController {
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
     private readonly media: MediaService,
+    private readonly cache: PageCacheService,
   ) {}
 
   @Get()
@@ -120,6 +124,24 @@ export class ProfileController {
     return { avatarUrl: avatarUrl(key) };
   }
 
+  /** Bio, website and author page address (RF-THM-11). */
+  @Get('about')
+  async about(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<ProfileAboutView> {
+    const [user] = await withContext(
+      this.database.db,
+      { siteId: site.id, userId: auth.userId },
+      (tx) =>
+        tx
+          .select({ bio: users.bio, website: users.website, slug: users.slug })
+          .from(users)
+          .where(eq(users.id, auth.userId)),
+    );
+    return { bio: user?.bio ?? '', website: user?.website ?? '', slug: user?.slug ?? '' };
+  }
+
   @Patch()
   async update(
     @CurrentSite() site: SiteContext,
@@ -136,10 +158,19 @@ export class ProfileController {
           .set({
             ...(input.displayName ? { displayName: input.displayName } : {}),
             ...(input.locale ? { locale: input.locale } : {}),
+            ...(input.bio !== undefined ? { bio: input.bio } : {}),
+            ...(input.website !== undefined ? { website: input.website || null } : {}),
+            ...(input.slug ? { slug: input.slug } : {}),
           })
           .where(eq(users.id, auth.userId))
           .returning(),
-    );
+    ).catch((error: unknown) => {
+      const cause = (error as { cause?: { constraint_name?: string } }).cause;
+      if (cause?.constraint_name?.includes('slug'))
+        throw new ConflictException('That author page address is taken: choose another one.');
+      throw error;
+    });
+    await this.cache.invalidate(site.id, [`author:${auth.userId}`]);
     return {
       email: updated!.email,
       displayName: updated!.displayName,

@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from 'react';
 import { usePage } from './context.js';
-import type { EntryComments, PublicComment, PublicEntry } from './types.js';
+import type { EntryAuthor, EntryComments, PublicComment, PublicEntry } from './types.js';
 
 type Strings = Record<keyof typeof EN, string>;
 
@@ -44,6 +44,8 @@ const EN = {
   copyLink: 'Copy link',
   copied: 'Link copied',
   required: 'required',
+  writtenBy: 'Written by {name}',
+  allPosts: 'All posts by {name}',
 };
 const IT: Strings = {
   comments: 'Commenti',
@@ -79,6 +81,8 @@ const IT: Strings = {
   copyLink: 'Copia il link',
   copied: 'Link copiato',
   required: 'obbligatorio',
+  writtenBy: 'Scritto da {name}',
+  allPosts: 'Tutti gli articoli di {name}',
 };
 
 export function communityStrings(locale: string): Strings {
@@ -470,9 +474,82 @@ export function EntryActions({ entry }: { entry?: PublicEntry }) {
 }
 
 /** Everything under an entry: like, share and comments. */
+/** Two letters for people without a picture. */
+export function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const letters =
+    words.length > 1 ? [words[0]![0], words.at(-1)![0]] : [...(words[0] ?? '?')].slice(0, 2);
+  return letters.join('').toUpperCase();
+}
+
+/**
+ * The author of an entry with picture, bio and a link to their posts, as
+ * WordPress themes show it under posts. With `author`, any person (e.g. on
+ * an author page).
+ */
+export function AuthorBox({
+  author: given,
+  entry,
+  variant = 'entry',
+}: {
+  author?: EntryAuthor;
+  entry?: PublicEntry;
+  /** `page`: on the author's own page, without the name and the link to it. */
+  variant?: 'entry' | 'page';
+}) {
+  const page = usePage();
+  const author = given ?? (entry ?? page.entry)?.author;
+  if (!author) return null;
+  const t = communityStrings(page.locale);
+  const full = variant === 'entry';
+  return (
+    <section className={`cx-author cx-author--${variant}`} aria-label={t.author}>
+      {author.avatarUrl ? (
+        <img
+          className="cx-avatar cx-author__avatar"
+          src={author.avatarUrl}
+          alt=""
+          width={72}
+          height={72}
+          loading="lazy"
+        />
+      ) : (
+        <span className="cx-avatar cx-avatar--initials cx-author__avatar" aria-hidden="true">
+          {initials(author.displayName)}
+        </span>
+      )}
+      <div className="cx-author__body">
+        {full && (
+          <h2 className="cx-author__name">{fill(t.writtenBy, { name: author.displayName })}</h2>
+        )}
+        {author.bio && (
+          <div className="cx-author__bio">
+            <CommentText text={author.bio} />
+          </div>
+        )}
+        <p className="cx-author__links">
+          {full && author.url && (
+            <a href={author.url} rel="author">
+              {fill(t.allPosts, { name: author.displayName })}
+            </a>
+          )}
+          {author.website && (
+            <a href={author.website} rel="me nofollow noopener">
+              {t.website}
+            </a>
+          )}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function EntryCommunity({ entry }: { entry?: PublicEntry }) {
+  const page = usePage();
+  const target = entry ?? page.entry;
   return (
     <div className="cx-community">
+      {target?.author?.bio && <AuthorBox entry={target} />}
       <EntryActions {...(entry ? { entry } : {})} />
       <Comments {...(entry ? { entry } : {})} />
     </div>
@@ -499,6 +576,9 @@ export const COMMUNITY_CSS = `
 .cx-button{padding:.65em 1.4em;border:0;border-radius:6px;background:var(--cx-accent,#1d4ed8);color:#fff;font:inherit;font-weight:600;cursor:pointer}
 .cx-notice{padding:.75rem 1rem;border-radius:6px;background:rgba(22,163,74,.12)}.cx-notice--error{background:rgba(220,38,38,.12)}
 .cx-hp{position:absolute!important;left:-9999px;width:1px;height:1px;overflow:hidden}.cx-required{color:#dc2626}
+.cx-author{display:flex;gap:1rem;align-items:flex-start;margin:0 0 1.5rem;padding:1.25rem;border-radius:8px;background:rgba(127,127,127,.08)}
+.cx-author__avatar{width:72px;height:72px;font-size:1.2em}.cx-author__name{margin:0 0 .4rem;font-size:1.05em}.cx-author__bio p{margin:.3rem 0}
+.cx-author__links{display:flex;flex-wrap:wrap;gap:.25rem 1rem;margin:.5rem 0 0;font-size:.9em}
 .cx-comments__pages{display:flex;justify-content:space-between;margin:1rem 0}
 .cx-account{max-width:28rem;margin:0 auto 3rem}.cx-account__links{font-size:.95em}.cx-account h2{margin-top:2.5rem;font-size:1.2em}
 .cx-button--quiet{background:transparent;color:inherit;border:1px solid currentColor}.cx-button--danger{background:#dc2626}

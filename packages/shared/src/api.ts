@@ -283,7 +283,36 @@ export interface CapabilityCatalog {
 export const updateProfileRequestSchema = z.object({
   displayName: z.string().trim().min(1).max(120).optional(),
   locale: localeSchema.optional(),
+  /** Shown in author boxes and on the author page (RF-THM-11). */
+  bio: z.string().trim().max(2000).optional(),
+  website: z
+    .union([
+      z.literal(''),
+      z
+        .string()
+        .trim()
+        .url()
+        .max(300)
+        .regex(/^https?:\/\//i),
+    ])
+    .optional(),
+  /** The author page address: `/author/<slug>`. */
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1)
+    .max(60)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .optional(),
 });
+
+/** Bio, website and author page address of the signed-in user. */
+export interface ProfileAboutView {
+  bio: string;
+  website: string;
+  slug: string;
+}
 export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
 
 export const changePasswordRequestSchema = z.object({
