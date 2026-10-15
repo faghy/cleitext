@@ -34,6 +34,11 @@ export interface RenderContext {
    * theme builder (theme locations).
    */
   entry?: { document: CxdDocument };
+  /**
+   * The page is inside a visual editor's frame: the entry's content is left
+   * to the editor, as an empty `[data-cx-editor-canvas]` element.
+   */
+  editorFrame?: boolean;
 }
 
 const DEFAULT: RenderContext = { media: new Map(), locale: 'en', eagerFirstImage: true };

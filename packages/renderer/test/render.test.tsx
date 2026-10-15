@@ -385,6 +385,20 @@ describe('patterns, templates and pages', () => {
         />,
       );
     expect(render(true)).toBe('<p>Before</p><p>Entry text</p>');
+    // In a visual editor's frame the editor draws the content there.
+    expect(
+      renderToStaticMarkup(
+        <Blocks
+          document={template}
+          context={{
+            media: new Map(),
+            locale: 'en',
+            entry: { document: entry },
+            editorFrame: true,
+          }}
+        />,
+      ),
+    ).toBe('<p>Before</p><div data-cx-editor-canvas=""></div>');
     expect(render(false)).toBe('<p>Before</p>');
   });
 

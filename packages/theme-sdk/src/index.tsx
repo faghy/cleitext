@@ -78,6 +78,7 @@ export function Location({
           ...(page.blockRenderers ? { renderers: page.blockRenderers } : {}),
           ...(page.patterns ? { patterns: page.patterns } : {}),
           ...(entry ? { entry } : {}),
+          ...(page.editorFrame ? { editorFrame: true } : {}),
         }}
       />
     </div>

@@ -224,6 +224,7 @@ registerBlockRenderer('cleitext/entry-content', () => <EntryContentBlock />);
 
 function EntryContentBlock(): ReactNode {
   const context = useRenderContext();
+  if (context.editorFrame && context.entry) return <div data-cx-editor-canvas="" />;
   const document = context.entry?.document;
   if (!document) return null;
   // Without `entry`, so an entry-content block inside the entry renders nothing.
