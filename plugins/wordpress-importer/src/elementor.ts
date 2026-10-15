@@ -294,7 +294,7 @@ export function elementorToFresco(data: string, ctx: ElementorContext): CxdBlock
       copy(out, src, from, to, (v) =>
         ['left', 'center', 'right', 'justify'].includes(str(v)) ? str(v) : undefined,
       );
-    let result: CxdBlock | null = null;
+    let result: CxdBlock | null;
     switch (type) {
       case 'heading': {
         out.title = str(src.title)
