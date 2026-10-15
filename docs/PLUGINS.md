@@ -258,6 +258,8 @@ const one = await ctx.content.get(siteId, id); // any status, or null
 // { id, type, locale, slug, title, status, url, publishedAt, fields }
 ```
 
+With `withDocument: true` each entry also has its block `document` (the published one; the latest with `status: 'any'`). Entries of private types (`public: false`) are found too, with an empty `url`.
+
 **Copying entries** (`content:write`). A draft copy with the content, fields, excerpt and featured image, made on behalf of a user whose permissions apply (and who is recorded in the activity log). In another language, the parent and the terms become their translations when the language plugin knows them:
 
 ```ts

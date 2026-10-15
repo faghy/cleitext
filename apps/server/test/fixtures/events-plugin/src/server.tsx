@@ -29,6 +29,17 @@ export default definePlugin({
     });
     // Templates the plugin uses itself: no public address.
     ctx.content.registerType({ slug: 'event_template', name: 'Event templates', public: false });
+    ctx.routes.api({
+      method: 'GET',
+      path: '/templates',
+      capability: 'manage_events',
+      handler: async (request) => ({
+        body: await ctx.content.find(request.siteId, {
+          type: 'event_template',
+          withDocument: true,
+        }),
+      }),
+    });
     ctx.access.defineCapability('manage_events', {
       label: 'Manage events',
       roles: ['administrator', 'editor'],

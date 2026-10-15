@@ -364,6 +364,15 @@ describe('an active plugin', () => {
     expect(types.find((t: { slug: string }) => t.slug === 'event_template').supports).toContain(
       'private',
     );
+    // The plugin reads its templates, with their published document.
+    const templates = (await admin.get('/api/v1/ext/events/templates')).json();
+    expect(templates).toEqual([
+      expect.objectContaining({
+        title: 'Secret layout zebra',
+        url: '',
+        document: { schema: 1, blocks: [] },
+      }),
+    ]);
   });
 
   it('fills the theme locations: header and the single template with the entry content', async () => {

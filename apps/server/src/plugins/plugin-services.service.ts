@@ -56,7 +56,7 @@ import { DATABASE, PLUGIN_DATABASE } from '../database/database.module.js';
 import { MailService } from '../mail/mail.service.js';
 import { MediaService } from '../media/media.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
-import { isPublished, loadSiteData } from '../public/site-data.js';
+import { isPublished, isTypeAvailable, loadSiteData } from '../public/site-data.js';
 import { importDocument } from '../transfer/importer.js';
 import { transferDocumentSchema } from '../transfer/model.js';
 import type { PluginServices } from './plugin-context.js';
@@ -514,7 +514,20 @@ export class PluginServicesProvider implements PluginServices {
         active,
         await this.languages.locales(siteId, await defaultLocaleIn(tx, siteId)),
       );
-      const visible = new Set(data.types.map((t) => t.slug));
+      // Types of the site and of active plugins, private ones included (no address).
+      const typeRows = await tx
+        .select({
+          slug: contentTypes.slug,
+          source: contentTypes.source,
+          supports: contentTypes.supports,
+        })
+        .from(contentTypes);
+      const visible = new Set(
+        typeRows.filter((t) => isTypeAvailable(t.source, active)).map((t) => t.slug),
+      );
+      const privateTypes = new Set(
+        typeRows.filter((t) => t.supports.includes('private')).map((t) => t.slug),
+      );
       if (query.type && !visible.has(query.type)) return [];
       const published = (query.status ?? 'published') === 'published';
       const conditions = [
@@ -525,7 +538,12 @@ export class PluginServicesProvider implements PluginServices {
         ...(query.ids?.length ? [inArray(entries.id, query.ids)] : []),
       ];
       const rows = await tx
-        .select({ row: entries, title: revisions.title, fields: revisions.fields })
+        .select({
+          row: entries,
+          title: revisions.title,
+          fields: revisions.fields,
+          document: revisions.document,
+        })
         .from(entries)
         .innerJoin(
           revisions,
@@ -534,17 +552,18 @@ export class PluginServicesProvider implements PluginServices {
         .where(and(...conditions))
         .orderBy(desc(entries.publishedAt), desc(entries.createdAt))
         .limit(Math.min(Math.max(query.limit ?? 50, 1), 200));
-      return rows.map(({ row, title, fields }) => ({
+      return rows.map(({ row, title, fields, document }) => ({
         id: row.id,
         type: row.typeSlug,
         locale: row.locale,
         slug: row.slug,
         title,
         status: row.status,
-        url: data.urls.entry(row),
+        url: privateTypes.has(row.typeSlug) ? '' : data.urls.entry(row),
         parentId: row.parentId ?? null,
         publishedAt: row.publishedAt?.toISOString() ?? null,
         fields: (fields as FieldValues) ?? {},
+        ...(query.withDocument ? { document: document as PluginEntry['document'] } : {}),
       }));
     });
   }

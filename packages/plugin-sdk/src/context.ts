@@ -1,4 +1,4 @@
-import type { CxdBlock } from '@cleitext/blocks';
+import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import type { TransferDocumentInput } from '@cleitext/blocks/transfer';
 import type { FieldDefinition, FieldValues, Label } from '@cleitext/shared';
 import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
@@ -64,6 +64,8 @@ export interface PluginEntry {
   parentId: string | null;
   publishedAt: string | null;
   fields: FieldValues;
+  /** The block document (with `withDocument` in the query): the published one, or the latest. */
+  document?: CxdDocument;
 }
 
 export interface EntryQuery {
@@ -74,6 +76,8 @@ export interface EntryQuery {
   ids?: string[];
   /** Default 50, at most 200. */
   limit?: number;
+  /** Also return each entry's block document. */
+  withDocument?: boolean;
 }
 
 /** A taxonomy term, as plugins see it. */
