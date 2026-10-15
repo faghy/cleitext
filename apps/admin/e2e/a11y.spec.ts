@@ -17,6 +17,7 @@ const ADMIN_SCREENS = [
   '/admin/pages',
   '/admin/taxonomies/category',
   '/admin/media',
+  '/admin/comments',
   '/admin/appearance',
   '/admin/plugins',
   '/admin/users',

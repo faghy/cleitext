@@ -28,7 +28,10 @@ test('switches the admin to Italian and back', async ({ page }) => {
 
   await page.goto('/admin/profile');
   await page.getByLabel('Admin language').selectOption('it');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page
+    .locator('form', { has: page.getByLabel('Admin language') })
+    .getByRole('button', { name: 'Save', exact: true })
+    .click();
 
   const sidebar = page.getByRole('navigation', { name: 'Principale' });
   await expect(sidebar.getByRole('link', { name: 'Articoli' })).toBeVisible();
@@ -42,7 +45,10 @@ test('switches the admin to Italian and back', async ({ page }) => {
   // Back to English for the other tests.
   await page.goto('/admin/profile');
   await page.getByLabel('Lingua della bacheca').selectOption('en');
-  await page.getByRole('button', { name: 'Salva', exact: true }).click();
+  await page
+    .locator('form', { has: page.getByLabel('Lingua della bacheca') })
+    .getByRole('button', { name: 'Salva', exact: true })
+    .click();
   await expect(
     page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Posts' }),
   ).toBeVisible();

@@ -132,9 +132,7 @@ export function CommentsPage() {
             >
               {t(tab.label)}
               {counts && (
-                <span className="ml-1 opacity-75">
-                  ({tab.value ? counts[tab.value] : counts.all})
-                </span>
+                <span className="ml-1">({tab.value ? counts[tab.value] : counts.all})</span>
               )}
             </button>
           ))}
@@ -217,7 +215,10 @@ export function CommentsPage() {
                       <>
                         {' '}
                         ·{' '}
-                        <a className="text-sky-700" href={`mailto:${comment.authorEmail}`}>
+                        <a
+                          className="text-sky-700 underline"
+                          href={`mailto:${comment.authorEmail}`}
+                        >
                           {comment.authorEmail}
                         </a>
                       </>
@@ -228,7 +229,10 @@ export function CommentsPage() {
                     {' · '}
                     <span>
                       {t('on')}{' '}
-                      <a className="text-sky-700" href={`/admin/entries/${comment.entryId}`}>
+                      <a
+                        className="text-sky-700 underline"
+                        href={`/admin/entries/${comment.entryId}`}
+                      >
                         {comment.entryTitle}
                       </a>
                     </span>
