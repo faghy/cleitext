@@ -1245,12 +1245,15 @@ export function mediaServices(locale: string): EditorServices {
       return (await api<MediaListResponse>('GET', `/media?${params}`)).items.map(toRef);
     },
     listPatterns: async () =>
-      (await api<PatternView[]>('GET', '/patterns')).map((pattern) => ({
-        id: pattern.id,
-        title: pattern.title,
-        document: pattern.document as CxdDocument,
-        synced: pattern.synced,
-      })),
+      (await api<PatternView[]>('GET', '/patterns'))
+        // Templates of other editors (page builders) are theirs only.
+        .filter((pattern) => !(pattern.document as CxdDocument | null)?.editor)
+        .map((pattern) => ({
+          id: pattern.id,
+          title: pattern.title,
+          document: pattern.document as CxdDocument,
+          synced: pattern.synced,
+        })),
     savePattern: async (input) => {
       const pattern = await api<PatternView>('POST', '/patterns', input);
       return { ...input, id: pattern.id };

@@ -159,4 +159,13 @@ label.fre-checks{flex-direction:row;align-items:center;gap:8px}
 .fre-menu button:hover{background:#fff1e8;color:#c2410c}
 .fre-menu button:disabled{opacity:.4;cursor:default;background:none;color:inherit}
 .fre-menu kbd{font:11px system-ui,sans-serif;color:#9ca3af}
+.fre-ok{color:#15803d;margin:8px 0}
+.fre-library__save{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.fre-library__list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.fre-library__item{display:flex;align-items:center;gap:6px;padding:8px;border:1px solid var(--fre-line);border-radius:8px}
+.fre-library__info{flex:1;min-width:0;display:flex;flex-direction:column}
+.fre-library__info strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fre-library__info span{font-size:11.5px;color:var(--fre-muted)}
+.fre-repeater__item.is-on{border-color:var(--fre-accent)}
+.fre-repeater__name{border:0;min-height:28px}
 `;

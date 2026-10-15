@@ -1,0 +1,103 @@
+import type { CxdDocument } from '@cleitext/blocks';
+import { describe, expect, it } from 'vitest';
+import { fromBlocks, inlineHtml, toBlocks } from '../src/editor/convert.js';
+
+const doc: CxdDocument = {
+  schema: 1,
+  blocks: [
+    { id: 'h', type: 'core/heading', v: 1, attrs: { level: 1 }, content: [{ text: 'Welcome' }] },
+    {
+      id: 'p',
+      type: 'core/paragraph',
+      v: 1,
+      attrs: {},
+      content: [
+        { text: 'Hello ', marks: [] },
+        { text: 'world', marks: ['bold'] },
+        { type: 'link', href: '/about', children: [{ text: ' & more' }] },
+      ],
+    },
+    {
+      id: 'cols',
+      type: 'core/columns',
+      v: 1,
+      attrs: {},
+      children: [
+        {
+          id: 'c1',
+          type: 'core/column',
+          v: 1,
+          attrs: {},
+          children: [
+            {
+              id: 'i',
+              type: 'core/image',
+              v: 1,
+              attrs: { id: 'm1', url: '/media/a.jpg', alt: 'A' },
+            },
+          ],
+        },
+        {
+          id: 'c2',
+          type: 'core/column',
+          v: 1,
+          attrs: {},
+          children: [{ id: 's', type: 'core/separator', v: 1, attrs: {} }],
+        },
+      ],
+    },
+    {
+      id: 'l',
+      type: 'core/list',
+      v: 1,
+      attrs: { ordered: true },
+      children: [{ id: 'li', type: 'core/list-item', v: 1, attrs: {}, content: [{ text: 'One' }] }],
+    },
+  ],
+};
+
+describe('conversion', () => {
+  it('turns blocks into Fresco elements, widgets wrapped in containers', () => {
+    const fresco = fromBlocks(doc);
+    expect(fresco.editor).toEqual({ id: 'fresco' });
+    const blocks = fresco.blocks as unknown as {
+      type: string;
+      attrs: Record<string, unknown>;
+      children?: { type: string; attrs: Record<string, unknown>; children?: unknown[] }[];
+    }[];
+    expect(blocks.map((b) => b.type)).toEqual([
+      'fresco/container',
+      'fresco/container',
+      'fresco/container',
+    ]);
+    expect(blocks[0]!.children!.map((c) => c.type)).toEqual(['fresco/heading', 'fresco/text']);
+    expect(blocks[0]!.children![0]!.attrs).toEqual({ title: 'Welcome', tag: 'h1' });
+    expect(blocks[0]!.children![1]!.attrs.content).toBe(
+      '<p>Hello <strong>world</strong><a href="/about"> &amp; more</a></p>',
+    );
+    expect(blocks[1]!.attrs.flex_direction).toBe('row');
+    expect(blocks[1]!.children![0]!.children).toEqual([
+      expect.objectContaining({
+        type: 'fresco/image',
+        attrs: { image: { id: 'm1', url: '/media/a.jpg', alt: 'A' } },
+      }),
+    ]);
+    expect(blocks[2]!.children![0]!.attrs.content).toBe('<ol><li>One</li></ol>');
+  });
+
+  it('goes back to blocks, flattening the layout', () => {
+    const back = toBlocks(fromBlocks(doc));
+    expect(back.editor).toBeUndefined();
+    expect(back.blocks.map((b) => b.type)).toEqual([
+      'core/heading',
+      'core/html',
+      'core/image',
+      'core/separator',
+      'core/html',
+    ]);
+  });
+
+  it('escapes text', () => {
+    expect(inlineHtml([{ text: '<script>' }])).toBe('&lt;script&gt;');
+  });
+});

@@ -13,6 +13,7 @@ import type { FrescoNode, MenuItem, RenderMediaItem, Settings } from '../core/mo
 import { getElement } from '../core/registry.js';
 import { Canvas, startDrag, type CanvasApi } from './canvas.js';
 import { DEVICE_ICONS, Svg } from './controls.js';
+import { saveTemplate } from './library.js';
 import { Panel } from './panel.js';
 import { createStore, useStore, type PanelView, type Store } from './store.js';
 import { EDITOR_CSS } from './styles.js';
@@ -24,6 +25,7 @@ const VIEWS: { view: PanelView; title: string; icon: string }[] = [
     title: 'Elements',
     icon: 'M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z',
   },
+  { view: 'library', title: 'Templates', icon: 'M4 5h6v14H4z M12 5h3v14h-3z M17 6l3 1-3 12-3-1z' },
   {
     view: 'navigator',
     title: 'Navigator',
@@ -372,6 +374,12 @@ function ContextMenu({
         store.get().clipboard?.type !== node?.type,
       )}
       {item('Reset style', () => store.actions.resetStyle(menu.id))}
+      {item('Save as template', () => {
+        const node = find(store.get().blocks, menu.id);
+        const name =
+          node && window.prompt('Name of the template', getElement(node.type)?.title ?? '');
+        if (node && name) void saveTemplate(name, 'section', [node]).catch(() => {});
+      })}
       {item('Navigator', () => store.actions.setView('navigator'))}
       {item('Delete', () => store.actions.remove(menu.id), false, 'Del')}
     </div>

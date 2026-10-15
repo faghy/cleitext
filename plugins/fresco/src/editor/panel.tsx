@@ -13,6 +13,7 @@ import {
 import type { Control, ElementCategory, FrescoNode, Settings, Tab } from '../core/model.js';
 import { getElement, listElements } from '../core/registry.js';
 import { ColorPicker, ControlField, Svg, type ControlEnv } from './controls.js';
+import { LibraryView } from './library.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
 
@@ -44,6 +45,7 @@ export function Panel(props: PanelProps) {
       {view === 'elements' && <ElementsView {...props} />}
       {view === 'element' && <ElementView {...props} />}
       {view === 'navigator' && <Navigator store={props.store} />}
+      {view === 'library' && <LibraryView store={props.store} />}
       {view === 'page' && <PageView store={props.store} />}
       {view === 'site' && <SiteView {...props} />}
     </div>

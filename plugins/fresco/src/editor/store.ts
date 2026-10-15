@@ -11,7 +11,7 @@ import type { Device, FrescoNode, NewNode, Settings, Tab } from '../core/model.j
 import { getElement } from '../core/registry.js';
 import * as tree from './tree.js';
 
-export type PanelView = 'elements' | 'element' | 'page' | 'site' | 'navigator';
+export type PanelView = 'elements' | 'element' | 'page' | 'site' | 'navigator' | 'library';
 
 export interface EditorState {
   blocks: FrescoNode[];

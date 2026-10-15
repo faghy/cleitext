@@ -4,6 +4,7 @@
  */
 import { defineAdminPlugin } from '@cleitext/admin-sdk';
 import { registerFreeElements } from './elements/index.js';
+import { fromBlocks, toBlocks } from './editor/convert.js';
 import { FrescoEditor } from './editor/editor.js';
 
 registerFreeElements();
@@ -14,6 +15,8 @@ export default defineAdminPlugin({
       id: 'fresco',
       title: 'Fresco',
       types: ['page', 'article'],
+      fromBlocks,
+      toBlocks,
       component: FrescoEditor,
     },
   ],
