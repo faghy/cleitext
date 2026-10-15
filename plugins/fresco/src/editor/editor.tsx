@@ -45,14 +45,31 @@ function toNodes(document: CxdDocument): FrescoNode[] {
   return document.blocks as unknown as FrescoNode[];
 }
 
+/** The most limited access the extensions give this user. */
+function accessOf(user: EditorProps['user']): 'full' | 'content' | 'none' {
+  let access: 'full' | 'content' | 'none' = 'full';
+  for (const fn of extensions().editorAccess) {
+    try {
+      const result = fn(user);
+      if (result === 'none') return 'none';
+      if (result === 'content') access = 'content';
+    } catch {
+      // A failing extension changes nothing.
+    }
+  }
+  return access;
+}
+
 export function FrescoEditor(props: EditorProps) {
   const { document, onChange, readOnly, frameUrl, media, plugin, api, user, openSettings } = props;
+  const access = accessOf(user);
   const store = useMemo(
     () =>
       createStore({
         blocks: toNodes(document),
         page: (document.editor?.data ?? {}) as Settings,
-        readOnly,
+        readOnly: readOnly || access === 'none',
+        contentOnly: access === 'content',
         entry: { id: props.entry.id, type: props.entry.type, locale: props.entry.locale },
       }),
     // The editor is mounted again when the document is replaced from outside.

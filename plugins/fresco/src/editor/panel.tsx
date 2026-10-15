@@ -42,6 +42,16 @@ export interface PanelProps {
 
 export function Panel(props: PanelProps) {
   const view = useStore(props.store, (s) => s.view);
+  const contentOnly = useStore(props.store, (s) => s.contentOnly);
+  if (contentOnly && ['elements', 'library', 'site'].includes(view)) {
+    return (
+      <div className="fre-panel__body">
+        <p className="fre-empty-note">
+          You can change the texts, images and links of this page: select an element on the page.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="fre-panel__body">
       {view === 'elements' && <ElementsView {...props} />}
@@ -120,6 +130,7 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
   const device = useStore(store, (s) => s.device);
   const kit = useStore(store, (s) => s.kit);
   const readOnly = useStore(store, (s) => s.readOnly);
+  const contentOnly = useStore(store, (s) => s.contentOnly);
   const [hover, setHover] = useState<Record<string, boolean>>({});
   const [openSection, setOpenSection] = useState<Record<string, string | null>>({});
   const node = selected ? find(blocks, selected) : null;
@@ -129,7 +140,8 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
   }
   const settings = withDefaults(definition, node.attrs);
   const allControls = controlsOf(definition);
-  const controls = allControls.filter((c) => c.tab === tab && conditionMet(c, settings));
+  const shownTab = contentOnly ? 'content' : tab;
+  const controls = allControls.filter((c) => c.tab === shownTab && conditionMet(c, settings));
   const sections = [...new Set(controls.map((c) => c.section))];
   const sectionKey = `${node.type}:${tab}`;
   const current = openSection[sectionKey] === undefined ? sections[0] : openSection[sectionKey];
@@ -155,22 +167,23 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
         })}
       </nav>
       <div className="fre-tabs" role="tablist">
-        {(['content', 'style', 'advanced'] as Tab[]).map((t) =>
-          allControls.some((c) => c.tab === t) || (definition.atomic && t === 'style') ? (
-            <button
-              key={t}
-              type="button"
-              role="tab"
-              aria-selected={tab === t}
-              className={tab === t ? 'is-on' : ''}
-              onClick={() => store.actions.setTab(t)}
-            >
-              {t === 'content' ? 'Content' : t === 'style' ? 'Style' : 'Advanced'}
-            </button>
-          ) : null,
+        {(contentOnly ? (['content'] as Tab[]) : (['content', 'style', 'advanced'] as Tab[])).map(
+          (t) =>
+            allControls.some((c) => c.tab === t) || (definition.atomic && t === 'style') ? (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={shownTab === t}
+                className={shownTab === t ? 'is-on' : ''}
+                onClick={() => store.actions.setTab(t)}
+              >
+                {t === 'content' ? 'Content' : t === 'style' ? 'Style' : 'Advanced'}
+              </button>
+            ) : null,
         )}
       </div>
-      {definition.atomic && tab === 'style' && (
+      {definition.atomic && shownTab === 'style' && (
         <AtomicStyle store={store} node={node} canManageKit={canManageKit} />
       )}
       {sections.map((section) => {

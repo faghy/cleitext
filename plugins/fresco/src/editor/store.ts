@@ -27,6 +27,8 @@ export interface EditorState {
   /** Copied element (in this tab; also in localStorage for other pages). */
   clipboard: FrescoNode | null;
   readOnly: boolean;
+  /** Content only (role manager of Fresco Pro): texts and media, no structure or style. */
+  contentOnly: boolean;
   /** Editor only: the item shown by tabs and accordions, by element id (-1: none). */
   active: Record<string, number>;
   /** The entry being edited. */
@@ -45,6 +47,7 @@ export function createStore(initial: {
   blocks: FrescoNode[];
   page: Settings;
   readOnly: boolean;
+  contentOnly?: boolean;
   entry?: { id: string; type: string; locale: string };
 }) {
   let state: EditorState = {
@@ -59,6 +62,7 @@ export function createStore(initial: {
     kitDirty: false,
     clipboard: null,
     readOnly: initial.readOnly,
+    contentOnly: initial.contentOnly === true,
     active: {},
     entry: initial.entry ?? { id: '', type: 'page', locale: 'en' },
   };
@@ -161,6 +165,7 @@ export function createStore(initial: {
     },
     /** Adds a new element of a type; widgets dropped at the top get a container. */
     add(type: string, place: tree.Place): string | null {
+      if (state.contentOnly) return null;
       const node = create(type);
       if (!node) return null;
       const definition = getElement(type);
@@ -175,6 +180,7 @@ export function createStore(initial: {
       return node.id;
     },
     insertNodes(nodes: FrescoNode[], place: tree.Place) {
+      if (state.contentOnly) return;
       let blocks = state.blocks;
       nodes.forEach((node, i) => {
         blocks = tree.insert(blocks, node, { parent: place.parent, index: place.index + i });
@@ -182,6 +188,7 @@ export function createStore(initial: {
       change({ blocks, selected: nodes[0]?.id ?? state.selected });
     },
     move(id: string, place: tree.Place) {
+      if (state.contentOnly) return;
       const node = tree.find(state.blocks, id);
       if (!node) return;
       if (place.parent === null && !getElement(node.type)?.container) {
@@ -198,6 +205,7 @@ export function createStore(initial: {
       change({ blocks: tree.move(state.blocks, id, place), selected: id });
     },
     remove(id: string) {
+      if (state.contentOnly) return;
       change({
         blocks: tree.remove(state.blocks, id),
         selected: state.selected === id ? null : state.selected,
@@ -205,6 +213,7 @@ export function createStore(initial: {
       if (state.view === 'element' && !state.selected) set({ view: 'elements' });
     },
     duplicate(id: string) {
+      if (state.contentOnly) return;
       const result = tree.duplicate(state.blocks, id);
       if (result.id) change({ blocks: result.tree, selected: result.id });
     },
@@ -220,6 +229,7 @@ export function createStore(initial: {
     },
     /** Pastes after an element (or at the end of the page). */
     paste(after: string | null) {
+      if (state.contentOnly) return;
       let node = state.clipboard;
       try {
         const stored = localStorage.getItem('fresco:clipboard');
@@ -241,6 +251,7 @@ export function createStore(initial: {
     },
     /** Applies the copied element's style (not its content) to another of the same type. */
     pasteStyle(id: string) {
+      if (state.contentOnly) return;
       const source = state.clipboard;
       const target = tree.find(state.blocks, id);
       const definition = target && getElement(target.type);
@@ -258,6 +269,7 @@ export function createStore(initial: {
       change({ blocks: tree.update(state.blocks, id, (node) => ({ ...node, attrs })) });
     },
     resetStyle(id: string) {
+      if (state.contentOnly) return;
       const target = tree.find(state.blocks, id);
       const definition = target && getElement(target.type);
       if (!target || !definition) return;
