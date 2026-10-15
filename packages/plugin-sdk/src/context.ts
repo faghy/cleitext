@@ -347,6 +347,8 @@ export interface RouteRequest {
   query: Record<string, string>;
   /** Parsed JSON or form body. */
   body: unknown;
+  /** The body as received (JSON and forms), e.g. to check a webhook signature. */
+  rawBody: Buffer | null;
   ip: string;
   /** Signed-in user, if any. */
   user: { id: string; displayName: string; capabilities: string[] } | null;
@@ -366,7 +368,7 @@ export interface UploadedFile {
 
 export interface RouteResponse {
   status?: number;
-  /** A string is sent as is; anything else as JSON. */
+  /** A string or a Buffer (plugin API 1.10) is sent as is; anything else as JSON. */
   body?: unknown;
   contentType?: string;
   headers?: Record<string, string>;
@@ -384,6 +386,13 @@ export interface ApiRoute {
   capability?: string;
   /** Anonymous access (e.g. a form submission); the request origin is still checked. */
   public?: boolean;
+  /**
+   * Called by other servers (payment webhooks, license clients; plugin API
+   * 1.10): anonymous, no origin check, no session even with a cookie. The
+   * handler must authenticate the caller itself, e.g. with a signature over
+   * `rawBody`.
+   */
+  webhook?: boolean;
   handler: RouteHandler;
 }
 

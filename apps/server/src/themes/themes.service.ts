@@ -1,8 +1,9 @@
 import type { CxdDocument } from '@cleitext/blocks';
 import { settings, sites, withContext, type DatabaseClient } from '@cleitext/db';
-import { fieldsValidator, type ThemeView } from '@cleitext/shared';
+import { fieldsValidator, type LicenseView, type ThemeView } from '@cleitext/shared';
 import {
   BadRequestException,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -24,7 +25,9 @@ import {
   loadThemes,
   themeFailures,
   themeFor,
+  themePaid,
 } from '../public/themes.js';
+import { LicensesService } from '../catalog/licenses.service.js';
 
 /** Themes per site: activation, settings, block areas (RF-THM-01/03/04). */
 @Injectable()
@@ -36,6 +39,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly cache: PageCacheService,
     private readonly audit: AuditService,
+    private readonly licenses: LicensesService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -72,6 +76,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
 
   async list(siteId: string, auth: AuthContext): Promise<ThemeView[]> {
     const active = await this.activeSlug(siteId, auth);
+    const licenses = await this.licenses.list(siteId, auth);
     const views: ThemeView[] = installedThemes().map(({ theme, bundled }) => ({
       slug: theme.slug,
       name: theme.name,
@@ -82,6 +87,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       menuLocations: theme.menuLocations,
       areas: theme.areas ?? {},
       settings: theme.settings ?? [],
+      paid: paidView(theme.slug, licenses),
       error: null,
     }));
     for (const [slug, error] of themeFailures()) {
@@ -95,6 +101,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
         menuLocations: {},
         areas: {},
         settings: [],
+        paid: null,
         error,
       });
     }
@@ -104,6 +111,17 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
   async activate(siteId: string, auth: AuthContext, slug: string, ip: string): Promise<void> {
     if (!isThemeAvailable(slug))
       throw new NotFoundException(`The theme "${slug}" is not installed.`);
+    // Paid themes: a license for this site, activated once with the license
+    // server (RF-CAT-03). Without one the theme can only be tried (Live Preview).
+    if (themePaid(slug) && !(await this.licenses.has(siteId, auth, slug))) {
+      throw new HttpException(
+        {
+          message:
+            'This theme is paid: enter a license key for this site to activate it. You can try it with Live Preview.',
+        },
+        402,
+      );
+    }
     await this.run(siteId, auth, async (tx) => {
       await tx.execute(sql`select cleitext_app_set_theme(${slug})`);
       await this.audit.record(tx, {
@@ -267,4 +285,11 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       throw new NotFoundException(`The theme has no area "${name}".`);
     }
   }
+}
+
+function paidView(slug: string, licenses: ReadonlyMap<string, LicenseView>): ThemeView['paid'] {
+  const paid = themePaid(slug);
+  return paid
+    ? { purchaseUrl: paid.purchaseUrl ?? null, license: licenses.get(slug) ?? null }
+    : null;
 }

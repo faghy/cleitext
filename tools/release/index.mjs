@@ -52,6 +52,7 @@ const SEPARATE = [
   'maps',
   'click-to-chat',
   'edge-cache',
+  'store',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {

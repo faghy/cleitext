@@ -173,4 +173,37 @@ export const itAdmin: Messages = {
   '{count} updates available': 'Aggiornamenti disponibili: {count}',
   'Plugins and themes': 'Plugin e temi',
   'Plugins and themes are up to date.': 'Plugin e temi sono aggiornati.',
+  // Paid themes (RF-CAT-03) and Live Preview.
+  '{price} per site': '{price} per sito',
+  'updates with no end': 'aggiornamenti senza scadenza',
+  '{months} months of updates': '{months} mesi di aggiornamenti',
+  'License active on this site': 'Licenza attiva su questo sito',
+  'Updates included with no end.': 'Aggiornamenti inclusi senza scadenza.',
+  'Updates ended on {date}: the theme keeps working, renew to get new versions.':
+    'Gli aggiornamenti sono finiti il {date}: il tema continua a funzionare, rinnova per avere le nuove versioni.',
+  'Updates included until {date}.': 'Aggiornamenti inclusi fino al {date}.',
+  '{used} sites in use, no limit.': '{used} siti in uso, senza limite.',
+  '{used} of {total} sites in use.': '{used} siti su {total} in uso.',
+  'The license is valid.': 'La licenza è valida.',
+  Renew: 'Rinnova',
+  'Check license': 'Verifica la licenza',
+  'Remove the license of {name} from this site? The theme keeps working, but it cannot be activated again here without a license.':
+    'Togliere la licenza di {name} da questo sito? Il tema continua a funzionare, ma qui non si potrà riattivare senza una licenza.',
+  'Remove license': 'Togli la licenza',
+  'License key': 'Chiave di licenza',
+  'Activating…': 'Attivazione…',
+  'Activate license': 'Attiva la licenza',
+  'Buy a license': 'Acquista una licenza',
+  '{version} is out: renew the license to update.':
+    'È uscita la versione {version}: rinnova la licenza per aggiornare.',
+  'Renew to update': 'Rinnova per aggiornare',
+  'Install the demo': 'Installa la demo',
+  'Try it with Live Preview in Installed themes, then activate a license.':
+    'Provalo con l’Anteprima dal vivo in Temi installati, poi attiva una licenza.',
+  'Live Preview': 'Anteprima dal vivo',
+  'Live Preview: {name}': 'Anteprima dal vivo: {name}',
+  'Paid theme': 'Tema a pagamento',
+  'Paid theme · demo': 'Tema a pagamento · demo',
+  'This is the demo of a paid theme: enter a license key to activate it.':
+    'Questa è la demo di un tema a pagamento: inserisci una chiave di licenza per attivarlo.',
 };

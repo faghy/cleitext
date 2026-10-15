@@ -20,7 +20,9 @@ import { z } from 'zod';
 import { CurrentAuth, CurrentSite, RequireCapability } from '../common/decorators.js';
 import { parseBody } from '../common/problem.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
+import { siteOrigin } from '../mcp/origin.js';
 import { PublicService } from '../public/public.service.js';
+import { isThemeAvailable } from '../public/themes.js';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
@@ -33,6 +35,7 @@ const previewBody = z.object({
   path: z.string().startsWith('/').max(500).default('/'),
   values: z.record(z.string(), z.unknown()),
 });
+const livePreviewBody = z.object({ path: z.string().startsWith('/').max(500).default('/') });
 const areaBody = z.object({ document: z.unknown() });
 const localeQuery = z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/);
 
@@ -101,6 +104,39 @@ export class ThemesController {
     @Req() request: FastifyRequest,
   ): Promise<void> {
     return this.themes.activate(site.id, auth, slug, request.ip);
+  }
+
+  /**
+   * Live Preview: a page of the site with another installed theme, before
+   * activating it. Also how a paid theme's demo is tried (RF-CAT-03).
+   */
+  @Post(':slug/preview')
+  @HttpCode(200)
+  @RequireCapability('manage_themes')
+  async livePreview(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('slug') slug: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<string> {
+    const { path } = parseBody(livePreviewBody, body);
+    if (!isThemeAvailable(slug))
+      throw new NotFoundException(`The theme "${slug}" is not installed.`);
+    const origin = siteOrigin(request);
+    const [pathname, search = ''] = path.split('?');
+    const response = await this.publicService.respond(
+      site.id,
+      origin,
+      pathname!,
+      new URLSearchParams(search),
+      auth,
+      { theme: slug },
+    );
+    if (response.redirect) throw new BadRequestException('This address redirects elsewhere.');
+    void reply.type('text/html; charset=utf-8').header('cache-control', 'no-store');
+    return (response.html ?? '').replace(/<head>/i, `<head><base href="${origin}/">`);
   }
 
   /** The active theme and its settings' values. */

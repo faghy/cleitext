@@ -18,6 +18,7 @@ import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import { assertCanUpload } from '../plugins/package-upload.js';
+import { siteOrigin } from '../mcp/origin.js';
 import { CatalogService } from './catalog.service.js';
 
 /**
@@ -36,8 +37,12 @@ export class CatalogController {
   ) {}
 
   @Get()
-  view(@Query('refresh') refresh?: string): Promise<CatalogView> {
-    return this.catalog.view(refresh === '1');
+  view(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Query('refresh') refresh?: string,
+  ): Promise<CatalogView> {
+    return this.catalog.view(site.id, auth, refresh === '1');
   }
 
   @Post(':type/:slug/install')
@@ -53,7 +58,11 @@ export class CatalogController {
     if (!/^[a-z][a-z0-9-]{1,39}$/.test(slug)) throw new BadRequestException('Unknown slug.');
     // The same rules as uploads, without the warning: the package is verified.
     assertCanUpload({ ...this.config.packages, allowUnsigned: true }, auth);
-    const result = await this.catalog.install(type, slug);
+    const result = await this.catalog.install(type, slug, {
+      id: site.id,
+      auth,
+      origin: siteOrigin(request),
+    });
     await withContext(this.database.db, { siteId: site.id, userId: auth.userId }, (tx) =>
       this.audit.record(tx, {
         siteId: site.id,

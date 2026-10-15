@@ -363,7 +363,27 @@ ctx.routes.public({
 
 `POST` public routes receive HTML form posts (`application/x-www-form-urlencoded`, parsed into an object) and are refused when the `Origin` is another site. Paths starting with `/api`, `/admin`, `/media` and `/__preview` are reserved.
 
-`request` is `{ siteId, method, path, params, query, body, ip, user, headers }`. `user` is `{ id, displayName, capabilities }` or `null`. The handler returns `{ status?, body?, contentType?, headers?, cacheTags? }`: a string `body` is sent as is, anything else as JSON. To redirect, return `{ status: 303, headers: { location: '/thanks' } }`.
+`request` is `{ siteId, method, path, params, query, body, rawBody, ip, user, headers }`. `user` is `{ id, displayName, capabilities }` or `null`; `rawBody` is the body as received (a `Buffer`, for JSON and forms) or `null`. The handler returns `{ status?, body?, contentType?, headers?, cacheTags? }`: a string or a `Buffer` (plugin API 1.10) `body` is sent as is, anything else as JSON. To redirect, return `{ status: 303, headers: { location: '/thanks' } }`.
+
+**Calls from other servers** (plugin API 1.10): an API route with `webhook: true` is anonymous and skips the origin check, for payment webhooks or clients such as Cleitext sites. The session is ignored even when a cookie comes with the request, so the handler must check who is calling, e.g. an HMAC signature over `rawBody`:
+
+```ts
+ctx.routes.api({
+  method: 'POST',
+  path: '/webhooks/payments',
+  webhook: true,
+  async handler(request) {
+    const secret = await ctx.secrets.get(request.siteId, 'webhookSecret');
+    const expected = createHmac('sha256', secret ?? '')
+      .update(request.rawBody ?? '')
+      .digest('hex');
+    if (!secret || request.headers['x-signature'] !== expected) return { status: 401 };
+    return { body: { ok: true } };
+  },
+});
+```
+
+The official **Store** plugin uses them for the license server of paid themes.
 
 **Uploads** (plugin API 1.7): `await request.file()` returns the `file` field of a `multipart/form-data` request as `{ filename, mime, data }` (a `Buffer`), or `null`; files over the server's upload limit (`MEDIA_MAX_BYTES`) get a 413. In the admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` from the admin SDK sends it with the CSRF token and reports the progress.
 

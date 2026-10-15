@@ -365,7 +365,27 @@ ctx.routes.public({
 
 Le route pubbliche `POST` ricevono gli invii di moduli HTML (`application/x-www-form-urlencoded`, convertiti in un oggetto) e vengono rifiutate quando l'`Origin` è un altro sito. I percorsi che iniziano con `/api`, `/admin`, `/media` e `/__preview` sono riservati.
 
-`request` è `{ siteId, method, path, params, query, body, ip, user, headers }`. `user` è `{ id, displayName, capabilities }` oppure `null`. L'handler restituisce `{ status?, body?, contentType?, headers?, cacheTags? }`: un `body` stringa viene inviato così com'è, qualsiasi altra cosa come JSON. Per un reindirizzamento, restituisci `{ status: 303, headers: { location: '/thanks' } }`.
+`request` è `{ siteId, method, path, params, query, body, rawBody, ip, user, headers }`. `user` è `{ id, displayName, capabilities }` oppure `null`; `rawBody` è il corpo così come è arrivato (un `Buffer`, per JSON e moduli) oppure `null`. L'handler restituisce `{ status?, body?, contentType?, headers?, cacheTags? }`: un `body` stringa o `Buffer` (API dei plugin 1.10) viene inviato così com'è, qualsiasi altra cosa come JSON. Per un reindirizzamento, restituisci `{ status: 303, headers: { location: '/thanks' } }`.
+
+**Chiamate da altri server** (API dei plugin 1.10): una rotta API con `webhook: true` è anonima e salta il controllo dell'origine, per i webhook dei pagamenti o per client come i siti Cleitext. La sessione viene ignorata anche se la richiesta porta un cookie, quindi l'handler deve verificare chi chiama, per esempio con una firma HMAC su `rawBody`:
+
+```ts
+ctx.routes.api({
+  method: 'POST',
+  path: '/webhooks/payments',
+  webhook: true,
+  async handler(request) {
+    const secret = await ctx.secrets.get(request.siteId, 'webhookSecret');
+    const expected = createHmac('sha256', secret ?? '')
+      .update(request.rawBody ?? '')
+      .digest('hex');
+    if (!secret || request.headers['x-signature'] !== expected) return { status: 401 };
+    return { body: { ok: true } };
+  },
+});
+```
+
+Il plugin ufficiale **Store** le usa per il server delle licenze dei temi a pagamento.
 
 **Caricamenti** (API dei plugin 1.7): `await request.file()` restituisce il campo `file` di una richiesta `multipart/form-data` come `{ filename, mime, data }` (un `Buffer`), oppure `null`; i file oltre il limite del server (`MEDIA_MAX_BYTES`) ricevono un 413. Nell'admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` dell'admin SDK lo invia con il token CSRF e riporta l'avanzamento.
 

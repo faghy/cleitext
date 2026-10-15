@@ -10,6 +10,7 @@ import { Alert, Button, Card, useT } from '../components/ui';
 import { mediaServices } from './entry-editor';
 import { PackageUpload } from '../components/package-upload';
 import { CatalogBrowser, CatalogUpdateButton } from '../components/catalog';
+import { LicenseBox } from '../components/license';
 
 interface ActiveTheme {
   theme: ThemeView | undefined;
@@ -44,6 +45,20 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
   ).split('{command}');
   // Themes → Add New: the catalog and the upload, as in WordPress.
   const [adding, setAdding] = useState(false);
+  const [previewing, setPreviewing] = useState<ThemeView | null>(null);
+  if (previewing) {
+    return (
+      <LivePreview
+        theme={previewing}
+        onClose={() => setPreviewing(null)}
+        onActivate={() =>
+          activate.mutate(previewing.slug, { onSuccess: () => setPreviewing(null) })
+        }
+        activating={activate.isPending}
+        error={activate.error}
+      />
+    );
+  }
   if (adding) {
     return (
       <div className="space-y-4">
@@ -86,6 +101,19 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
             </h2>
             {theme.description && <p className="text-sm text-slate-600">{theme.description}</p>}
             <CatalogUpdateButton type="theme" slug={theme.slug} />
+            {theme.paid && !theme.error && (
+              <>
+                <p className="text-xs font-medium uppercase tracking-wide text-amber-800">
+                  {theme.paid.license ? t('Paid theme') : t('Paid theme · demo')}
+                </p>
+                <LicenseBox
+                  slug={theme.slug}
+                  name={theme.name}
+                  purchaseUrl={theme.paid.purchaseUrl}
+                  license={theme.paid.license}
+                />
+              </>
+            )}
             {theme.error ? (
               <Alert>{t('This theme could not be loaded: {error}', { error: theme.error })}</Alert>
             ) : theme.active ? (
@@ -102,10 +130,14 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   variant="secondary"
-                  disabled={activate.isPending}
+                  disabled={activate.isPending || (theme.paid !== null && !theme.paid.license)}
                   onClick={() => activate.mutate(theme.slug)}
                 >
                   {t('Activate')}
+                  <span className="sr-only"> {theme.name}</span>
+                </Button>
+                <Button variant="secondary" onClick={() => setPreviewing(theme)}>
+                  {t('Live Preview')}
                   <span className="sr-only"> {theme.name}</span>
                 </Button>
                 {/* Bundled themes stay; one used by another site is refused by the server. */}
@@ -138,6 +170,77 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
         <code>cleitext theme:install &lt;folder&gt;</code>
         {installAfter}
       </p>
+    </div>
+  );
+}
+
+/**
+ * Live Preview: the site's own pages with an installed theme that is not
+ * active, before activating it. Paid themes are tried this way (their demo).
+ */
+function LivePreview({
+  theme,
+  onClose,
+  onActivate,
+  activating,
+  error,
+}: {
+  theme: ThemeView;
+  onClose: () => void;
+  onActivate: () => void;
+  activating: boolean;
+  error: unknown;
+}) {
+  const { t } = useT();
+  const [path, setPath] = useState('/');
+  const [html, setHtml] = useState('');
+  const [failure, setFailure] = useState<unknown>(null);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void api<string>('POST', `/themes/${theme.slug}/preview`, { path }, { text: true })
+        .then((page) => {
+          setHtml(page);
+          setFailure(null);
+        })
+        .catch((e: unknown) => setFailure(e));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [theme.slug, path]);
+  const locked = theme.paid !== null && !theme.paid.license;
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-semibold">{t('Live Preview: {name}', { name: theme.name })}</h2>
+        <Button disabled={activating || locked} onClick={onActivate}>
+          {t('Activate')}
+        </Button>
+        <Button variant="secondary" onClick={onClose}>
+          {t('Installed themes')}
+        </Button>
+      </div>
+      {locked && (
+        <p className="text-sm text-slate-600">
+          {t('This is the demo of a paid theme: enter a license key to activate it.')}
+        </p>
+      )}
+      {Boolean(error ?? failure) && <Alert>{errorMessage(error ?? failure)}</Alert>}
+      <label className="flex items-center gap-2 text-sm">
+        <span className="font-medium">{t('Preview of')}</span>
+        <input
+          className="flex-1 rounded border border-slate-300 px-2 py-1"
+          value={path}
+          onChange={(e) =>
+            setPath(e.target.value.startsWith('/') ? e.target.value : `/${e.target.value}`)
+          }
+        />
+      </label>
+      <iframe
+        title={t('Site preview')}
+        // No scripts, no same-origin access: the page is only shown.
+        sandbox=""
+        srcDoc={html}
+        className="h-[75vh] w-full rounded border border-slate-200 bg-white"
+      />
     </div>
   );
 }

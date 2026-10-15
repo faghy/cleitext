@@ -770,6 +770,7 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 
 - **RF-CAT-01** Official catalog of plugins and themes (github.com/faghy/cleitext-catalog): `catalog.json` signed with Ed25519 by its CI, packages with SHA-256. Plugins → Add New and Appearance → Themes → Add New search and install from it; updates appear next to installed items, in Updates and as menu counts (RF-PLG-07, RF-PLG-09, RF-PLG-11 for official items). Third-party publishing (RF-PLG-16) stays for M8.
 - **RF-CAT-02** The catalog showcase plugin shows the catalog on a site (cleitext.com/plugins, /themes).
+- **RF-CAT-03** Paid themes: the price buys downloads, updates and support, never the right to run what is installed. The signed catalog lists them with `paid` (price, months of updates, purchase address, license server) and their SHA-256 as usual. Without a license the demo can be installed and tried with **Live Preview**; activating the theme on a site needs a license key for that site, activated once with the license server and kept encrypted. Downloads use short-lived addresses from the license server; versions released after the updates a license includes ask to renew. The license server is never asked while pages are rendered, and installed themes keep working when it cannot be reached or the license ends. The official Store plugin is the license server (keys, seats per site, Lemon Squeezy webhooks, private releases).
 
 ### M13 — SEO and sitemaps (Yoast-like)
 

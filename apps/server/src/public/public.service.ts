@@ -395,8 +395,11 @@ export class PublicService {
     query: URLSearchParams,
     /** Signed-in visitor: private entries are shown to those who may read them. */
     viewer: { capabilities: readonly string[] } | null = null,
-    /** Theme settings to preview instead of the saved ones (never cached). */
-    customize?: { themeSettings: Record<string, unknown> },
+    /**
+     * Previews (never cached): theme settings instead of the saved ones, or
+     * another installed theme instead of the active one (Live Preview).
+     */
+    customize?: { themeSettings?: Record<string, unknown>; theme?: string },
   ): Promise<PublicResponse> {
     const includePrivate = viewer?.capabilities.includes('read_private_entries') ?? false;
     let path: string;
@@ -428,7 +431,8 @@ export class PublicService {
       }
 
       const { scope, rest } = await this.scope(tx, siteId, origin, path, includePrivate);
-      if (customize) scope.themeSettings = customize.themeSettings;
+      if (customize?.theme) scope.theme = themeFor(customize.theme);
+      if (customize?.themeSettings) scope.themeSettings = customize.themeSettings;
 
       if (redirect?.status === 410) return this.notFound(scope, 410);
       if (path === '/robots.txt') return this.robots(scope);

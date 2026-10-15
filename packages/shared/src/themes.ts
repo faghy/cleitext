@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { FieldDefinition } from './fields.js';
+import type { LicenseView } from './licenses.js';
 
 /** `theme.json` of an installable theme package (RF-THM-01). */
 export const themeManifestSchema = z.object({
@@ -10,6 +11,11 @@ export const themeManifestSchema = z.object({
   author: z.string().max(200).optional(),
   license: z.string().max(100).default('GPL-2.0-or-later'),
   homepage: z.url().optional(),
+  /**
+   * Paid themes (RF-CAT-03): activating them on a site needs a license for
+   * that site, activated with this license server.
+   */
+  paid: z.object({ licenseServer: z.url(), purchaseUrl: z.url().optional() }).optional(),
   /** Bundle built by `cleitext theme:build`, default export `defineTheme(…)`. */
   entry: z.string().min(1).default('dist/index.js'),
 });
@@ -29,6 +35,8 @@ export interface ThemeView {
   menuLocations: Record<string, string>;
   areas: Record<string, string>;
   settings: FieldDefinition[];
+  /** Paid themes: where to buy a license, and this site's license (null without). */
+  paid: { purchaseUrl: string | null; license: LicenseView | null } | null;
   /** Set when an installed theme could not be loaded. */
   error: string | null;
 }

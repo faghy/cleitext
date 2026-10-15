@@ -12,6 +12,7 @@ export function routeRequest(
   siteId: string,
   path: string,
   params: Record<string, string>,
+  options: { anonymous?: boolean } = {},
 ): RouteRequest {
   const url = new URL(request.url, 'http://local');
   const headers: Record<string, string | undefined> = {};
@@ -19,7 +20,8 @@ export function routeRequest(
     if (name === 'cookie' || name === 'authorization') continue;
     headers[name] = Array.isArray(value) ? value.join(', ') : value;
   }
-  const auth = request.auth;
+  const auth = options.anonymous ? null : request.auth;
+  const raw = (request as FastifyRequest & { rawBody?: Buffer | string }).rawBody;
   return {
     siteId,
     method: request.method,
@@ -27,6 +29,7 @@ export function routeRequest(
     params,
     query: Object.fromEntries(url.searchParams),
     body: request.body ?? null,
+    rawBody: raw === undefined ? null : Buffer.isBuffer(raw) ? raw : Buffer.from(raw),
     ip: request.ip,
     user: auth
       ? { id: auth.userId, displayName: auth.displayName, capabilities: [...auth.capabilities] }
@@ -45,7 +48,7 @@ export function routeRequest(
   };
 }
 
-/** Sends a plugin handler result: a string as is, anything else as JSON. */
+/** Sends a plugin handler result: a string or a Buffer as is, anything else as JSON. */
 export async function sendRouteResponse(reply: FastifyReply, result: RouteResponse): Promise<void> {
   for (const [name, value] of Object.entries(result.headers ?? {})) void reply.header(name, value);
   const status = result.status ?? (result.body === undefined ? 204 : 200);
@@ -53,6 +56,11 @@ export async function sendRouteResponse(reply: FastifyReply, result: RouteRespon
     await reply
       .code(status)
       .type(result.contentType ?? 'text/plain; charset=utf-8')
+      .send(result.body);
+  } else if (Buffer.isBuffer(result.body)) {
+    await reply
+      .code(status)
+      .type(result.contentType ?? 'application/octet-stream')
       .send(result.body);
   } else if (result.body === undefined) {
     await reply.code(status).send();
@@ -86,7 +94,9 @@ export class PluginRoutes {
       if (!match) return problem(reply, 404, 'Not Found');
       const { route, params } = match;
 
-      if (route.public) {
+      if (route.webhook) {
+        // Other servers: the handler checks who is calling.
+      } else if (route.public) {
         if (!SAFE_METHODS.has(request.method)) verifySameOrigin(request);
       } else {
         if (request.auth?.apiToken) assertTokenAllowed(request);
@@ -98,7 +108,10 @@ export class PluginRoutes {
       }
       const outcome = await this.host.runHook(
         { plugin: slug, name: `${request.method} ${route.path}`, siteId: site.id },
-        () => route.handler(routeRequest(request, site.id, path, params)),
+        () =>
+          route.handler(
+            routeRequest(request, site.id, path, params, { anonymous: route.webhook === true }),
+          ),
       );
       if (!outcome.ok) return problem(reply, 500, 'Internal Server Error');
       await sendRouteResponse(reply, outcome.value);

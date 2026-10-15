@@ -29,6 +29,8 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
   const adapter = new FastifyAdapter({ trustProxy: config.trustProxy });
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.forRoot(config), adapter, {
     bufferLogs: true,
+    // Kept for plugin webhook routes, which check signatures over the body.
+    rawBody: true,
   });
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks();

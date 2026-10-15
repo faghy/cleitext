@@ -24,7 +24,18 @@ cleitext theme:list
 cleitext theme:uninstall mio-tema       # solo se nessun sito lo usa
 ```
 
-I server in esecuzione caricano subito un tema nuovo o aggiornato, senza riavvio. Ogni sito sceglie il proprio tema in **Aspetto → Temi**, dove i super admin possono anche **eliminare** un tema installato che nessun sito usa (Aurora resta). React e `@cleitext/theme-sdk` vengono dal server e non sono mai inclusi nel tema.
+I server in esecuzione caricano subito un tema nuovo o aggiornato, senza riavvio. Ogni sito sceglie il proprio tema in **Aspetto → Temi**, dove i super admin possono anche **eliminare** un tema installato che nessun sito usa (Aurora resta). L'**Anteprima dal vivo** mostra le pagine del sito con un tema installato prima di attivarlo. React e `@cleitext/theme-sdk` vengono dal server e non sono mai inclusi nel tema.
+
+I **temi a pagamento** (RF-CAT-03) aggiungono a `theme.json` il loro server delle licenze:
+
+```json
+"paid": {
+  "licenseServer": "https://cleitext.com/api/v1/ext/store/v1",
+  "purchaseUrl": "https://cleitext.com/store/mio-tema"
+}
+```
+
+Un tema così si può installare e provare con l'Anteprima dal vivo senza licenza (la demo), ma un sito può attivarlo solo dopo aver inserito una chiave di licenza per quel sito in **Aspetto → Temi**. La chiave viene verificata una volta con il server delle licenze e conservata cifrata; le pagine non interrogano mai il server, e il tema continua a funzionare se la licenza viene tolta o i suoi aggiornamenti finiscono. Gli aggiornamenti dal catalogo richiedono una licenza i cui aggiornamenti includano la nuova versione (altrimenti _Rinnova per aggiornare_). Il codice resta GPL: la licenza compra download, aggiornamenti e assistenza.
 
 ## 3. La definizione del tema
 

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { themeManifestSchema, SHARED_THEME_MODULES } from '@cleitext/shared';
+import { themeManifestSchema, SHARED_THEME_MODULES, type ThemeManifest } from '@cleitext/shared';
 import type { ThemeDefinition } from '@cleitext/theme-sdk';
 import { theme as aurora } from '@cleitext/theme-aurora';
 
@@ -14,6 +14,7 @@ import { theme as aurora } from '@cleitext/theme-aurora';
 const bundled = new Map<string, ThemeDefinition>([[aurora.slug, aurora]]);
 let installed = new Map<string, ThemeDefinition>();
 let failures = new Map<string, string>();
+let paid = new Map<string, NonNullable<ThemeManifest['paid']>>();
 let generation = 0;
 
 export const DEFAULT_THEME = 'aurora';
@@ -37,6 +38,11 @@ export function themeFailures(): ReadonlyMap<string, string> {
   return failures;
 }
 
+/** Paid themes (RF-CAT-03): their license server, from theme.json. */
+export function themePaid(slug: string): ThemeManifest['paid'] | null {
+  return paid.get(slug) ?? null;
+}
+
 export function isThemeAvailable(slug: string): boolean {
   return bundled.has(slug) || installed.has(slug);
 }
@@ -52,6 +58,7 @@ export async function loadThemes(dir: string): Promise<void> {
   generation++;
   const next = new Map<string, ThemeDefinition>();
   const errors = new Map<string, string>();
+  const nextPaid = new Map<string, NonNullable<ThemeManifest['paid']>>();
   const folders = existsSync(dir)
     ? // `x.staging` and `x.previous` belong to an installation in progress.
       (await readdir(dir, { withFileTypes: true })).filter(
@@ -76,10 +83,12 @@ export async function loadThemes(dir: string): Promise<void> {
       if (theme.slug !== manifest.slug)
         throw new Error('The bundle slug does not match theme.json');
       next.set(theme.slug, theme);
+      if (manifest.paid) nextPaid.set(theme.slug, manifest.paid);
     } catch (error) {
       errors.set(folder.name, error instanceof Error ? error.message : String(error));
     }
   }
   installed = next;
   failures = errors;
+  paid = nextPaid;
 }

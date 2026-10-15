@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, errorMessage } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
+import { LicenseBox, PaidPrice } from './license';
 import { Alert, Button, useT } from './ui';
 
 /** The catalog, for super admins (who can install code). */
@@ -56,12 +57,36 @@ export function CatalogUpdateButton({ type, slug }: { type: 'plugin' | 'theme'; 
   const item = useCatalogUpdates(type).find((i) => i.slug === slug);
   const install = useInstall();
   if (!item) return null;
+  if (item.renew) return <RenewNote item={item} />;
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       <Button variant="secondary" disabled={install.isPending} onClick={() => install.mutate(item)}>
         {install.isPending ? t('Updating…') : t('Update to {version}', { version: item.version })}
       </Button>
       {install.error && <span className="text-xs text-red-700">{errorMessage(install.error)}</span>}
+    </span>
+  );
+}
+
+/** A paid update newer than the updates the license includes. */
+function RenewNote({ item }: { item: CatalogEntryView }) {
+  const { t } = useT();
+  const url = item.siteLicense?.renewUrl ?? item.paid?.purchaseUrl;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-amber-800">
+        {t('{version} is out: renew the license to update.', { version: item.version })}
+      </span>
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded bg-sky-700 px-3 py-2 font-medium text-white hover:bg-sky-800"
+        >
+          {t('Renew to update')}
+        </a>
+      )}
     </span>
   );
 }
@@ -172,6 +197,7 @@ export function CatalogBrowser({ type }: { type: 'plugin' | 'theme' }) {
                   </div>
                 </div>
                 <p className="flex-1 text-sm text-slate-700">{summary(item)}</p>
+                {item.paid && <PaidPrice paid={item.paid} />}
                 {!item.compatible && (
                   <p className="text-xs text-amber-800">
                     {t('Needs a newer Cleitext: update it first.')}
@@ -189,9 +215,13 @@ export function CatalogBrowser({ type }: { type: 'plugin' | 'theme' }) {
                     >
                       {install.isPending && install.variables?.slug === item.slug
                         ? t('Installing…')
-                        : t('Install')}
+                        : item.paid && !item.siteLicense
+                          ? t('Install the demo')
+                          : t('Install')}
                       <span className="sr-only"> {item.name}</span>
                     </Button>
+                  ) : item.renew ? (
+                    <RenewNote item={item} />
                   ) : item.update ? (
                     <Button
                       disabled={!item.compatible || install.isPending}
@@ -204,7 +234,12 @@ export function CatalogBrowser({ type }: { type: 'plugin' | 'theme' }) {
                       {t('Installed')}
                     </span>
                   )}
-                  {justInstalled && (
+                  {justInstalled && item.paid && !item.siteLicense && (
+                    <span className="text-xs text-slate-600">
+                      {t('Try it with Live Preview in Installed themes, then activate a license.')}
+                    </span>
+                  )}
+                  {justInstalled && (!item.paid || item.siteLicense) && (
                     <Button
                       variant="secondary"
                       disabled={activate.isPending}
@@ -224,6 +259,14 @@ export function CatalogBrowser({ type }: { type: 'plugin' | 'theme' }) {
                     </a>
                   )}
                 </div>
+                {item.paid && item.type === 'theme' && (
+                  <LicenseBox
+                    slug={item.slug}
+                    name={item.name}
+                    purchaseUrl={item.paid.purchaseUrl}
+                    license={item.siteLicense}
+                  />
+                )}
               </div>
             </li>
           );

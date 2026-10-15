@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paidSchema, type LicenseView } from './licenses.js';
 
 /** An item of the plugin and theme catalog (RF-PLG-07), as listed in catalog.json. */
 export const catalogItemSchema = z.object({
@@ -22,6 +23,8 @@ export const catalogItemSchema = z.object({
   size: z.number().int().positive(),
   homepage: z.url().optional(),
   updatedAt: z.string().max(40),
+  /** Paid items (RF-CAT-03): the download needs a license for the site. */
+  paid: paidSchema.optional(),
 });
 export type CatalogItem = z.infer<typeof catalogItemSchema>;
 
@@ -39,6 +42,10 @@ export interface CatalogEntryView extends CatalogItem {
   update: boolean;
   /** Works with this Cleitext. */
   compatible: boolean;
+  /** Paid items: this site's license key, activated (null without). */
+  siteLicense: LicenseView | null;
+  /** Paid items: the update is newer than the updates the license includes. */
+  renew: boolean;
 }
 
 export interface CatalogView {

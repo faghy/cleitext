@@ -35,7 +35,18 @@ cleitext theme:list
 cleitext theme:uninstall my-theme       # only when no site uses it
 ```
 
-Running servers load a new or updated theme at once, without a restart. Each site chooses its theme in **Appearance → Themes**, where super admins can also **Delete** an installed theme that no site uses (Aurora stays). React and `@cleitext/theme-sdk` come from the server: they are never bundled with the theme.
+Running servers load a new or updated theme at once, without a restart. Each site chooses its theme in **Appearance → Themes**, where super admins can also **Delete** an installed theme that no site uses (Aurora stays). **Live Preview** shows the site's own pages with an installed theme before activating it. React and `@cleitext/theme-sdk` come from the server: they are never bundled with the theme.
+
+**Paid themes** (RF-CAT-03) add their license server to `theme.json`:
+
+```json
+"paid": {
+  "licenseServer": "https://cleitext.com/api/v1/ext/store/v1",
+  "purchaseUrl": "https://cleitext.com/store/my-theme"
+}
+```
+
+Such a theme can be installed and tried with Live Preview without a license (the demo), but a site can activate it only after entering a license key for that site in **Appearance → Themes**. The key is checked once with the license server and kept encrypted; pages never ask the server, and the theme keeps working if the license is removed or its updates end. Updates from the catalog need a license whose updates include the new version (_Renew to update_ otherwise). The code stays GPL: the license buys downloads, updates and support.
 
 ## 3. The theme definition
 

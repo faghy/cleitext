@@ -9,3 +9,4 @@ export * from './plugins.js';
 export * from './admin.js';
 export * from './themes.js';
 export * from './catalog.js';
+export * from './licenses.js';
