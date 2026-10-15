@@ -2,6 +2,7 @@ import type { CxdBlock } from '@cleitext/blocks';
 import { newBlockId } from '@cleitext/blocks';
 import { XMLParser } from 'fast-xml-parser';
 import { htmlToCxd } from '@cleitext/blocks/html';
+import { elementorToFresco } from './elementor.js';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
 
 type Node = Record<string, unknown>;
@@ -30,6 +31,11 @@ export interface WxrOptions {
   locale: string;
   /** Role given to imported authors. Default `author`. */
   authorRole?: string;
+  /**
+   * Pages built with Elementor: `fresco` turns their layout into a Fresco
+   * page (default), `content` keeps only the HTML WordPress exported.
+   */
+  elementor?: 'fresco' | 'content';
 }
 
 export interface WxrResult {
@@ -128,6 +134,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const entries: NonNullable<TransferDocumentInput['entries']> = [];
   const skippedTypes = new Map<string, number>();
   let comments = 0;
+  let elementorPages = 0;
   const entryRefs = new Map<number, string>();
   for (const item of items) {
     const type = text(item['wp:post_type']);
@@ -156,14 +163,34 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     const id = Number(text(item['wp:post_id']));
     const title = decode(text(item.title));
     const content = text(item['content:encoded']);
-    const document = htmlToCxd(content, {
+    let document = htmlToCxd(content, {
       mediaRef: (attachment) => attachmentRefs.get(attachment),
       warn: (message) => warnings.push(`${title || `#${id}`}: ${message}`),
     });
+    // Elementor pages: their layout, as a Fresco page.
+    const elementorData = meta(item, '_elementor_data');
+    if (
+      options.elementor !== 'content' &&
+      meta(item, '_elementor_edit_mode') === 'builder' &&
+      elementorData
+    ) {
+      const blocks = elementorToFresco(elementorData, {
+        mediaRef: (attachment) => attachmentRefs.get(attachment),
+        warn: (message) => warnings.push(`${title || `#${id}`}: ${message}`),
+      });
+      if (blocks && blocks.length > 0) {
+        document = { schema: 1, blocks, editor: { id: 'fresco' } };
+        elementorPages++;
+      }
+    }
     // The featured image opens the content, unless it is already there.
     const thumbnail = Number(meta(item, '_thumbnail_id') ?? NaN);
     const thumbnailRef = attachmentRefs.get(thumbnail);
-    if (thumbnailRef && !JSON.stringify(document.blocks).includes(`"${thumbnailRef}"`)) {
+    if (
+      thumbnailRef &&
+      !document.editor &&
+      !JSON.stringify(document.blocks).includes(`"${thumbnailRef}"`)
+    ) {
       const file = media.find((m) => m.ref === thumbnailRef)!;
       document.blocks.unshift(imageBlock(thumbnailRef, file.file, file.alt?.[locale] ?? ''));
     }
@@ -205,6 +232,11 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   }
   for (const [type, n] of skippedTypes) {
     warnings.push(`${n} item(s) of the custom type "${type}" were not imported.`);
+  }
+  if (elementorPages) {
+    warnings.push(
+      `${elementorPages} page(s) built with Elementor were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
+    );
   }
   if (comments)
     warnings.push(`${comments} comment(s) were not imported (comments come with a plugin).`);

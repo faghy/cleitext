@@ -7,7 +7,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  entries,
   menus,
+  revisions,
   sites,
   superAdmins,
   users,
@@ -154,6 +156,72 @@ describe('WordPress import', () => {
     expect(page.body).toContain('wp-block-columns');
     expect(page.body).toContain('Map of the coast');
     expect(page.body).toContain('href="/category/harbours"');
+  });
+
+  it('points images inside other blocks (page builders) to the imported media', async () => {
+    const site = await seedSite(owner, 'builder-import');
+    const oldUrl = 'https://old.example.com/wp-content/uploads/2024/05/harbour.jpg';
+    const { document } = (await wordpressDocument()) as {
+      document: { media: unknown[]; site: unknown; source: unknown };
+    };
+    const uploads = fileReader(join(fixtures, 'uploads'));
+    const result = await runImport(
+      site.id,
+      {
+        format: 'cleitext-transfer',
+        version: 1,
+        source: document.source,
+        site: document.site,
+        media: document.media,
+        entries: [
+          {
+            ref: 'page:1',
+            type: 'page',
+            locale: 'en',
+            slug: 'built',
+            title: 'Built',
+            status: 'published',
+            document: {
+              schema: 1,
+              blocks: [
+                {
+                  id: 'g1',
+                  type: 'acme/gallery',
+                  v: 1,
+                  attrs: {
+                    images: [{ id: 'att:10', url: oldUrl, alt: 'Boats' }],
+                    background: { id: null, url: oldUrl },
+                    unknown: { id: 'att:99', url: 'https://elsewhere.test/x.jpg' },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      (file) => uploads(decodeURIComponent(/\/wp-content\/uploads\/(.+)$/.exec(file)![1]!)),
+    );
+    expect(result.errors).toEqual([]);
+    const [row] = await withSiteContext(owner.db, site.id, (tx) =>
+      tx
+        .select({ document: revisions.document })
+        .from(entries)
+        .innerJoin(revisions, eq(revisions.id, entries.currentRevisionId))
+        .where(eq(entries.slug, 'built')),
+    );
+    const attrs = (
+      row!.document as {
+        blocks: {
+          attrs: Record<string, { id: unknown; url: string }[] & { id: unknown; url: string }>;
+        }[];
+      }
+    ).blocks[0]!.attrs;
+    const image = attrs.images![0]!;
+    expect(typeof image.id).toBe('string');
+    expect(image.id).not.toBe('att:10');
+    expect(image.url).toContain(`/media/${site.id}/`);
+    expect(attrs.background!.url).toContain(`/media/${site.id}/`);
+    expect(attrs.unknown!.url).toBe('https://elsewhere.test/x.jpg');
   });
 
   it('keeps hierarchy, dates, drafts and the featured image', async () => {

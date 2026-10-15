@@ -12,6 +12,7 @@ The official Cleitext plugin to move a WordPress site in from the admin, without
 
 Posts, pages, images and other media, categories, tags, menus and authors, with dates, drafts, parent pages and featured images. Block content stays made of blocks; classic content is split into paragraphs and headings like WordPress does. The old addresses (`/2024/05/my-post/`, `/?p=12`) redirect to the new pages.
 
+- Pages built with **Elementor** become **Fresco** pages: sections, columns and containers, the common widgets with their texts, links, images, colors, typography, spacing and per-device values. Widgets with no Fresco counterpart keep their text and are listed in the report. Activate Fresco to show and edit them.
 - Nothing already on the site is overwritten: importing the same file twice adds nothing new.
 - Media files are downloaded from the WordPress site, only from public addresses: keep the old site online until the import ends.
 - Authors get an account without a password, as members of the site with the chosen role; they set a password with **Forgot password**.

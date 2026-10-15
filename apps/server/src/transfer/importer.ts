@@ -568,10 +568,40 @@ function remapMedia(
             );
           }
         }
-      }
+      } else attrs = remapMediaValues(attrs, media, urls) as typeof attrs;
       return { ...block, attrs, ...(block.children ? { children: walk(block.children) } : {}) };
     });
   return { ...document, blocks: walk(document.blocks) };
+}
+
+/**
+ * Media inside other blocks' attributes (e.g. a page builder's images):
+ * objects `{ id: <media ref>, url }` get the imported id and address, and
+ * known old addresses in `url` are replaced.
+ */
+function remapMediaValues(
+  value: unknown,
+  media: Map<string, MediaTarget>,
+  urls: Map<string, string>,
+): unknown {
+  if (Array.isArray(value)) return value.map((v) => remapMediaValues(v, media, urls));
+  if (!value || typeof value !== 'object') return value;
+  const object = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(object)) out[key] = remapMediaValues(v, media, urls);
+  if ('url' in object) {
+    const target =
+      typeof object.id === 'string' || typeof object.id === 'number'
+        ? media.get(String(object.id))
+        : undefined;
+    if (target) {
+      out.url = target.url;
+      out.id = target.id ?? null;
+    } else if (typeof object.url === 'string' && urls.has(object.url)) {
+      out.url = urls.get(object.url);
+    }
+  }
+  return out;
 }
 
 // ---- Helpers --------------------------------------------------------------------------
