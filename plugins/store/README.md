@@ -1,12 +1,12 @@
 # Store
 
-The official Cleitext plugin that runs the **license server of paid themes** (RF-CAT-03). It is meant for the site that sells them, such as cleitext.com, and is not in the base package. Install it from **Plugins → Upload Plugin** with `cleitext-plugin-store-<version>.zip` from the Releases page.
+The official Cleitext plugin that runs the **license server of paid themes and plugins** (RF-CAT-03). It is meant for the site that sells them, such as cleitext.com, and is not in the base package. Install it from **Plugins → Upload Plugin** with `cleitext-plugin-store-<version>.zip` from the Releases page.
 
 ## What the buyer gets
 
 - A **license key** by email: 25 characters, for example `7KQ2M-XV9RT-4HZC8-PDA3W-NEJB5`. The last character is a check character, so Cleitext spots a mistyped key before asking the server.
 - The key is valid for a number of **sites** (1, 5… or no limit) and includes **updates** for some months, 12 by default.
-- On each site, **Appearance → Themes → Enter license key** activates the key once, for that site. The theme can then be activated, and its updates come from the catalog.
+- On each site, **Appearance → Themes → Enter license key** (or **Plugins**, for a paid plugin) activates the key once, for that site. The theme or plugin can then be activated, and its updates come from the catalog.
 - The **demo**: the theme can be installed without a license and tried with **Live Preview** on the site's own pages. It cannot be activated without a license.
 - After the updates end, the theme keeps working. Only new versions ask for a **renewal**. A refunded order revokes the license: sites keep the theme, but they get no more downloads.
 

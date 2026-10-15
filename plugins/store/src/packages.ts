@@ -1,8 +1,9 @@
 /**
  * Paid packages live in the releases of a private GitHub repository, as the
- * catalog build puts them: tag `theme-<slug>-<version>`, asset
- * `cleitext-theme-<slug>-<version>.zip`. The store reads them with its token
- * and hands out the short-lived address GitHub redirects to.
+ * catalog build puts them: tag `theme-<slug>-<version>` with the asset
+ * `cleitext-theme-<slug>-<version>.zip`, or `plugin-…` and
+ * `cleitext-plugin-…` for plugins. The store reads them with its token and
+ * hands out the short-lived address GitHub redirects to.
  */
 export interface PackageSource {
   api: string;
@@ -34,27 +35,29 @@ export async function findRelease(
   const key = `${source.api}|${source.repo}|${slug}|${version}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < 10 * 60_000) return hit.release;
-  const res = await fetch(
-    `${source.api}/repos/${source.repo}/releases/tags/theme-${slug}-${version}`,
-    {
-      headers: headers(source, 'application/vnd.github+json'),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    },
-  );
-  if (res.status === 404) {
-    cache.set(key, { at: Date.now(), release: null });
-    return null;
+  // A product is a theme or a plugin: its release says which.
+  let release: Release | null = null;
+  for (const type of ['theme', 'plugin'] as const) {
+    const res = await fetch(
+      `${source.api}/repos/${source.repo}/releases/tags/${type}-${slug}-${version}`,
+      {
+        headers: headers(source, 'application/vnd.github+json'),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      },
+    );
+    if (res.status === 404) continue;
+    if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+    const data = (await res.json()) as {
+      published_at?: string;
+      created_at?: string;
+      assets?: { name: string; url: string }[];
+    };
+    const asset = data.assets?.find((a) => a.name === `cleitext-${type}-${slug}-${version}.zip`);
+    release = asset
+      ? { publishedAt: data.published_at ?? data.created_at ?? '', assetUrl: asset.url }
+      : null;
+    break;
   }
-  if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
-  const data = (await res.json()) as {
-    published_at?: string;
-    created_at?: string;
-    assets?: { name: string; url: string }[];
-  };
-  const asset = data.assets?.find((a) => a.name === `cleitext-theme-${slug}-${version}.zip`);
-  const release = asset
-    ? { publishedAt: data.published_at ?? data.created_at ?? '', assetUrl: asset.url }
-    : null;
   cache.set(key, { at: Date.now(), release });
   if (cache.size > 1000) cache.clear();
   return release;
