@@ -4,7 +4,14 @@ import type { BlockPage } from '@cleitext/plugin-sdk';
  * attributes on the root, more CSS, and conditions deciding whether an
  * element shows on the page. Kept on `globalThis`, like the registry.
  */
-import type { Control, ElementDefinition, FrescoNode, RenderContext, Settings } from './model.js';
+import type {
+  Control,
+  ControlOption,
+  ElementDefinition,
+  FrescoNode,
+  RenderContext,
+  Settings,
+} from './model.js';
 
 export interface Extensions {
   /** Controls added to elements (e.g. motion effects in the Advanced tab). */
@@ -24,6 +31,8 @@ export interface Extensions {
   fieldAddons: unknown[];
   /** Editor: extra sections of the page settings (e.g. a template's conditions). */
   pageSettings: unknown[];
+  /** Editor: choices of `select` controls with a `source`, loaded when shown. */
+  optionSources: Record<string, () => Promise<ControlOption[]>>;
 }
 
 export interface ResolveContext {
@@ -49,13 +58,17 @@ export function extensions(): Extensions {
     resolve: [],
     fieldAddons: [],
     pageSettings: [],
+    optionSources: {},
   });
 }
 
 /** Empties the lists: on the server, plugins set them up again when they reload. */
 export function resetExtensions(): void {
   const all = extensions();
-  for (const list of Object.values(all)) (list as unknown[]).length = 0;
+  for (const list of Object.values(all)) {
+    if (Array.isArray(list)) list.length = 0;
+  }
+  all.optionSources = {};
 }
 
 /** An element's controls, with those added by extensions. */

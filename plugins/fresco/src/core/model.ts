@@ -142,6 +142,11 @@ export interface Control {
   hover?: boolean;
   /** Choices of `select` and `choose`. */
   options?: ControlOption[];
+  /**
+   * `select` only: more choices from an option source registered by a
+   * plugin (`extensions().optionSources`), e.g. the site's templates.
+   */
+  source?: string;
   /** Units of `slider` and `box`. */
   units?: string[];
   min?: number;

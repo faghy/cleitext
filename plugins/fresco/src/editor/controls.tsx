@@ -14,6 +14,7 @@ import {
   settingKey,
   type BoxValue,
   type Control,
+  type ControlOption,
   type Device,
   type GroupControl,
   type LinkValue,
@@ -151,6 +152,7 @@ function valueOf(
 // ---- Dispatcher ---------------------------------------------------------------------------
 
 export function ControlField({ control, env }: { control: Control; env: ControlEnv }) {
+  useOptionSources();
   const { key, value, inherited } = valueOf(control, env);
   const set = (v: unknown, merge = true) => env.set({ [key]: v }, merge ? key : undefined);
   const has = env.attrs[key] !== undefined;
@@ -214,7 +216,10 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
       );
     case 'select':
     case 'animation': {
-      const options = control.type === 'animation' ? ANIMATIONS : (control.options ?? []);
+      const options =
+        control.type === 'animation'
+          ? ANIMATIONS
+          : [...(control.options ?? []), ...(control.source ? sourceOptions(control.source) : [])];
       return (
         <Row control={control} env={env} inline reset={reset}>
           <select
@@ -1394,6 +1399,34 @@ function groupFields(control: GroupControl): Control[] {
     default:
       return [];
   }
+}
+
+/** Choices from option sources, loaded once per editor session. */
+const sourceCache = new Map<string, ControlOption[]>();
+const sourceListeners = new Set<() => void>();
+function sourceOptions(name: string): ControlOption[] {
+  const cached = sourceCache.get(name);
+  if (cached) return cached;
+  const load = extensions().optionSources[name];
+  sourceCache.set(name, []);
+  load?.()
+    .then((options) => {
+      sourceCache.set(name, options);
+      for (const listener of sourceListeners) listener();
+    })
+    .catch(() => sourceCache.delete(name));
+  return [];
+}
+/** Re-renders a control when its source has loaded. */
+export function useOptionSources(): void {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const listener = () => bump((n) => n + 1);
+    sourceListeners.add(listener);
+    return () => {
+      sourceListeners.delete(listener);
+    };
+  }, []);
 }
 
 /** Defaults of a repeater's fields, for an item that has not set them. */
