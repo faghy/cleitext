@@ -486,6 +486,86 @@ export const TOOLS: Tool[] = [
       return { menu_id: menu.id, location, locale };
     },
   },
+  {
+    name: 'list_comments',
+    title: 'List comments',
+    description:
+      'Comments of the site, newest first: those waiting for approval (status "pending"), approved ones, spam or trash. Needs the right to moderate comments.',
+    scope: 'read',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: string('pending, approved, spam or trash; all but trash when omitted.'),
+        search: string('Words to look for in the text, the name or the email.'),
+        page: { type: 'integer', minimum: 1, default: 1 },
+      },
+    },
+    async run(ctx, args) {
+      const query = new URLSearchParams({ page: String(args.page ?? 1) });
+      if (args.status) query.set('status', String(args.status));
+      if (args.search) query.set('search', String(args.search));
+      const list = await ok<Record<string, any>>(ctx.api('GET', `/comments?${query}`));
+      return {
+        counts: list.counts,
+        total: list.total,
+        comments: (list.items as Record<string, any>[]).map((c) => ({
+          id: c.id,
+          entry_id: c.entryId,
+          entry_title: c.entryTitle,
+          parent_id: c.parentId,
+          status: c.status,
+          author: c.authorName,
+          email: c.authorEmail,
+          website: c.authorUrl,
+          content: c.content,
+          created_at: c.createdAt,
+        })),
+      };
+    },
+  },
+  {
+    name: 'moderate_comments',
+    title: 'Moderate comments',
+    description:
+      'Approves comments (they appear on the site), holds them back, marks them as spam or moves them to the trash.',
+    scope: 'publish',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ids: { type: 'array', items: { type: 'string' }, description: 'Comment ids.' },
+        status: string('approved, pending, spam or trash.', {
+          enum: ['approved', 'pending', 'spam', 'trash'],
+        }),
+      },
+      required: ['ids', 'status'],
+    },
+    async run(ctx, args) {
+      return ok(ctx.api('POST', '/comments/status', { ids: args.ids, status: args.status }));
+    },
+  },
+  {
+    name: 'reply_to_comment',
+    title: 'Reply to a comment',
+    description:
+      'Publishes a reply from the connected user under a comment; a comment waiting for approval is approved too.',
+    scope: 'publish',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: string('The comment answered.'),
+        content: string('The reply, as plain text (paragraphs separated by blank lines).'),
+      },
+      required: ['id', 'content'],
+    },
+    async run(ctx, args) {
+      const reply = await ok<Record<string, any>>(
+        ctx.api('POST', `/comments/${encodeURIComponent(String(args.id))}/reply`, {
+          content: args.content,
+        }),
+      );
+      return { id: reply.id, status: 'approved' };
+    },
+  },
 ];
 
 /** What the connection's scopes allow (read ⊂ write; publish needs its own scope). */

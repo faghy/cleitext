@@ -218,6 +218,64 @@ describe('MCP', () => {
     expect(published.status).toBe('published');
   });
 
+  it('moderates and answers comments', async () => {
+    const post = JSON.parse(
+      (
+        await call(publishToken, 'create_entry', {
+          type: 'article',
+          title: 'Talk',
+          content: '<p>Say something</p>',
+        })
+      ).text,
+    );
+    await call(publishToken, 'publish_entry', { id: post.id });
+    const sent = await app.inject({
+      method: 'POST',
+      url: '/comments',
+      headers: {
+        host: site.host,
+        origin: `http://${site.host}`,
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      remoteAddress: '10.37.5.1',
+      payload: new URLSearchParams({
+        entry: post.id,
+        back: '/',
+        comment: 'Is this on?',
+        name: 'Pia',
+        email: 'pia@example.com',
+        ts: String(Date.now() - 5000),
+      }).toString(),
+    });
+    expect(sent.statusCode).toBe(303);
+
+    const pending = JSON.parse(
+      (await call(readToken, 'list_comments', { status: 'pending' })).text,
+    );
+    expect(pending.comments[0]).toMatchObject({ author: 'Pia', content: 'Is this on?' });
+    const id = pending.comments[0].id as string;
+    // Approving shows it on the site: the publish permission.
+    expect(
+      (await call(writeToken, 'moderate_comments', { ids: [id], status: 'approved' })).isError,
+    ).toBe(true);
+    const reply = JSON.parse(
+      (await call(publishToken, 'reply_to_comment', { id, content: 'Loud and clear.' })).text,
+    );
+    expect(reply.status).toBe('approved');
+    const approved = JSON.parse(
+      (await call(readToken, 'list_comments', { status: 'approved' })).text,
+    );
+    expect(approved.comments.map((c: { content: string }) => c.content)).toEqual([
+      'Loud and clear.',
+      'Is this on?',
+    ]);
+    expect(
+      JSON.parse(
+        (await call(publishToken, 'moderate_comments', { ids: [id], status: 'spam' })).text,
+      ),
+    ).toEqual({ changed: 1 });
+  });
+
   it('downloads images only from public https addresses', async () => {
     expect(
       (await call(writeToken, 'upload_image', { url: 'http://example.com/a.png', alt: 'a' })).text,
