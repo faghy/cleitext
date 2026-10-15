@@ -82,6 +82,10 @@ export interface RenderHookContext {
   tag(tag: string): void;
   /** The page is shown inside a visual editor (`PageContext.editorFrame`). */
   editorFrame?: boolean;
+  /** Entries: the entry is the site's home page. */
+  isFrontPage?: boolean;
+  /** Archives: the term (taxonomy and slug) or the content type listed; `home` for the latest posts on the home page. */
+  archive?: { taxonomy?: string; term?: string; type?: string; home?: boolean };
 }
 
 /** Filters (transformations): `[value, context]` by name. */

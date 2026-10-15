@@ -1050,11 +1050,14 @@ export class PublicService {
         ? {
             term: {
               taxonomy: options.term.taxonomy,
+              slug: options.term.slug,
               name: options.term.name,
               description: options.term.description,
             },
           }
-        : {}),
+        : options.tag.startsWith('type:')
+          ? { contentType: options.tag.slice('type:'.length) }
+          : {}),
       entries: summaries,
       pagination: {
         page: options.page,
@@ -1255,6 +1258,7 @@ export class PublicService {
         scope,
         props.kind,
         props.kind === 'entry' ? props.entry : undefined,
+        props,
       );
       candidates = await this.plugins.applyFilter(
         'theme.templateCandidates',
@@ -1388,6 +1392,7 @@ export class PublicService {
         scope,
         props.kind,
         props.kind === 'entry' ? props.entry : undefined,
+        props,
       );
       html = await this.plugins.applyFilter('render.html', html, hookContext, scope.siteId);
       html = await this.withPluginAssets(scope, html, hookContext);
@@ -1403,6 +1408,7 @@ export class PublicService {
     scope: RequestScope,
     route: TemplateProps['kind'],
     entry?: PublicEntry,
+    props?: TemplateProps,
   ): RenderHookContext {
     return {
       siteId: scope.siteId,
@@ -1411,6 +1417,16 @@ export class PublicService {
       path: scope.path,
       ...(entry ? { entry } : {}),
       ...(scope.editorFrame ? { editorFrame: true } : {}),
+      ...(props?.kind === 'entry' && props.isFrontPage ? { isFrontPage: true } : {}),
+      ...(props?.kind === 'archive'
+        ? {
+            archive: {
+              ...(props.term ? { taxonomy: props.term.taxonomy, term: props.term.slug } : {}),
+              ...(props.contentType ? { type: props.contentType } : {}),
+              ...(props.isHome ? { home: true } : {}),
+            },
+          }
+        : {}),
       tag: (tag: string) => {
         scope.tags.add(tag);
       },

@@ -84,7 +84,9 @@ export type TemplateProps =
       title: string;
       description?: string;
       /** Set for category/tag archives. */
-      term?: { taxonomy: string; name: string; description: string | null };
+      term?: { taxonomy: string; slug: string; name: string; description: string | null };
+      /** Set for the archive of a content type (e.g. the posts). */
+      contentType?: string;
       entries: PublicEntrySummary[];
       pagination: Pagination;
       isHome: boolean;
