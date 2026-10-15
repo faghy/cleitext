@@ -1,7 +1,7 @@
 {
   "slug": "edge-cache",
   "name": "Edge cache",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": "^1.9",
   "description": "Public pages kept by Varnish or Cloudflare in front of Cleitext, and purged from them by tag as soon as they change. The admin, the API and signed-in users are never cached.",
   "author": "Cleitext",

@@ -71,6 +71,8 @@ export default defineAdminPlugin({
       title: { en: 'Messages', it: 'Messaggi' },
       capability: 'manage_forms',
       component: SubmissionsPage,
+      // An envelope.
+      icon: 'M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z M3.5 7.5L12 13l8.5-5.5',
     },
   ],
 });

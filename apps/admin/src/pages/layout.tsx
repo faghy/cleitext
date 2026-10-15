@@ -10,6 +10,7 @@ import { taxonomiesQuery, taxonomyLabel } from './terms';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
 import { usePluginMenu, type PluginMenuItem } from '../plugins';
+import { MenuIcon } from '../components/menu-icons';
 import { UPDATES_QUERY } from './updates';
 import { useCatalogUpdates } from '../components/catalog';
 
@@ -90,7 +91,7 @@ export function AdminLayout() {
   }));
   const items: (PluginMenuItem & { exact?: boolean; sub?: boolean })[] = sections.flatMap(
     (section) => [
-      { to: section.to, label: t(section.label), exact: section.to === '/' },
+      { to: section.to, label: t(section.label), icon: section.icon, exact: section.to === '/' },
       ...(section.to === '/posts' ? taxonomyItems : []),
       ...(section.to === '/pages' ? pluginMenu.types : []),
     ],
@@ -143,11 +144,12 @@ export function AdminLayout() {
                 <Link
                   to={section.to}
                   activeOptions={{ exact: Boolean(section.exact) }}
-                  className={`block py-2 text-sm hover:bg-slate-800/70 ${section.sub ? 'pr-4 pl-8 text-xs' : 'px-4'}`}
+                  className={`block py-2 text-sm hover:bg-slate-800/70 ${section.sub ? 'pr-4 pl-11 text-xs' : 'px-4'}`}
                   activeProps={{ className: 'bg-sky-700 text-white', 'aria-current': 'page' }}
                 >
-                  <span className="flex items-center justify-between gap-2">
-                    {section.label}
+                  <span className="flex items-center gap-2.5">
+                    {section.icon && <MenuIcon path={section.icon} />}
+                    <span className="min-w-0 flex-1">{section.label}</span>
                     {badge(section.to) > 0 && (
                       // As in WordPress: counts on Dashboard, Updates, Plugins and Appearance.
                       <span

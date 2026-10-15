@@ -268,6 +268,8 @@ export default defineAdminPlugin({
       title: { en: 'Edge cache', it: 'Cache esterna' },
       capability: 'manage_settings',
       component: EdgeCachePage,
+      // A lightning bolt.
+      icon: 'M13.5 2.5L5 13.5h6.5l-1 8 8.5-11h-6.5z',
     },
   ],
 });

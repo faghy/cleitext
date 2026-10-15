@@ -364,6 +364,8 @@ export default defineAdminPlugin({
       title: { en: 'Analytics', it: 'Statistiche' },
       capability: 'manage_analytics',
       component: AnalyticsPage,
+      // A bar chart.
+      icon: 'M4 20h16 M7 16.5V11 M12 16.5V5.5 M17 16.5V8.5',
     },
   ],
 });

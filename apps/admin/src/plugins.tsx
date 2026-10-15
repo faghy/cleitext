@@ -1,4 +1,5 @@
 import * as adminSdk from '@cleitext/admin-sdk';
+import { MENU_ICONS, pluginIcon } from './components/menu-icons';
 import type {
   AdminPageDefinition,
   AdminPageProps,
@@ -75,6 +76,8 @@ export const contentTypesQuery = queryOptions({
 export interface PluginMenuItem {
   to: string;
   label: string;
+  /** SVG path data (components/menu-icons.tsx); none for sub-entries. */
+  icon?: string;
 }
 
 /** Sidebar entries added by plugins: their content types and their pages. */
@@ -87,13 +90,18 @@ export function usePluginMenu(): { types: PluginMenuItem[]; pages: PluginMenuIte
     types: (types.data ?? [])
       // Types of plugins and types made in Content structure.
       .filter((t) => t.source.startsWith('plugin:') || t.source === 'user')
-      .map((t) => ({ to: `/content/${t.slug}`, label: labelText(t.name, me.user.locale) })),
+      .map((t) => ({
+        to: `/content/${t.slug}`,
+        label: labelText(t.name, me.user.locale),
+        icon: MENU_ICONS.content,
+      })),
     pages: plugins.flatMap((plugin) =>
       (plugin.definition?.pages ?? [])
         .filter((page) => page.menu !== false && allowed(page, me.capabilities))
         .map((page) => ({
           to: pagePath(plugin.slug, page.path),
           label: labelText(page.title, me.user.locale),
+          icon: pluginIcon(page.icon),
         })),
     ),
   };

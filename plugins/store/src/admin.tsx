@@ -688,6 +688,8 @@ export default defineAdminPlugin({
       title: { en: 'Store', it: 'Store' },
       capability: 'manage_store',
       component: StorePage,
+      // A shopping bag.
+      icon: 'M5.5 8h13l-1 12.5h-11z M9 10.5V7a3 3 0 0 1 6 0v3.5',
     },
   ],
 });

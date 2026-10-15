@@ -314,6 +314,8 @@ export default defineAdminPlugin({
       title: { en: 'Import from WordPress', it: 'Importa da WordPress' },
       capability: 'import_wordpress',
       component: ImporterPage,
+      // An arrow into a tray.
+      icon: 'M12 3.5v10.5 M8 10l4 4 4-4 M4 14.5V19a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19v-4.5',
     },
   ],
 });

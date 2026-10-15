@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-analytics",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Official Cleitext plugin: Matomo, Google Analytics, Tag Manager, Meta Pixel, Search Console and Bing verification.",
   "license": "GPL-2.0-or-later",

@@ -584,6 +584,7 @@ export default defineAdminPlugin({
       title: { en: 'RSVPs', it: 'Prenotazioni' },
       capability: 'manage_events',
       component: RsvpsPage,
+      icon: 'M8 3v3 M16 3v3 M4 8h16 M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
     },
   ],
 });
@@ -591,6 +592,7 @@ export default defineAdminPlugin({
 
 - Page props: `plugin`, `site` (`id`, `name`, `defaultLocale`, `locales`), `user` (`id`, `displayName`, `locale`, `capabilities`) and `api`, which calls your endpoints (`api('GET', '/rsvps')` → `/api/v1/ext/<slug>/rsvps`).
 - `menu: false` hides a page from the sidebar. `capability` hides it from users without that capability.
+- `icon` is the page's sidebar icon: SVG path data on a 24×24 grid, drawn as an outline like the core's icons (stroke 1.75, round ends, no fill). Pages without one, or with something that is not path data, get a puzzle piece.
 - From `@cleitext/admin-sdk` you get `Button`, `Card`, `TextField`, `Alert`, `FieldsForm` (a form generated from field definitions), `api` (the core API), `pluginApi`, `ApiError`, `errorMessage` and `labelText`. Use them and their Tailwind classes, or inline styles. Your own Tailwind classes are not compiled.
 - `@tanstack/react-query` is available, with the admin's query client.
 - A page that crashes shows an error message; the rest of the admin keeps working.

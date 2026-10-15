@@ -445,6 +445,8 @@ export default defineAdminPlugin({
       title: 'SEO',
       capability: 'manage_settings',
       component: SeoPage,
+      // A lens over a rising line.
+      icon: 'M10.5 17a6.5 6.5 0 1 0 0-13a6.5 6.5 0 1 0 0 13z M15.3 15.3L21 21 M7.3 12.3l2-2 1.6 1.6 2.6-2.9',
     },
   ],
 });

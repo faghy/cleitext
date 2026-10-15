@@ -586,6 +586,7 @@ export default defineAdminPlugin({
       title: { en: 'RSVPs', it: 'Prenotazioni' },
       capability: 'manage_events',
       component: RsvpsPage,
+      icon: 'M8 3v3 M16 3v3 M4 8h16 M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
     },
   ],
 });
@@ -593,6 +594,7 @@ export default defineAdminPlugin({
 
 - Props della pagina: `plugin`, `site` (`id`, `name`, `defaultLocale`, `locales`), `user` (`id`, `displayName`, `locale`, `capabilities`) e `api`, che chiama i tuoi endpoint (`api('GET', '/rsvps')` → `/api/v1/ext/<slug>/rsvps`).
 - `menu: false` nasconde una pagina dalla barra laterale. `capability` la nasconde agli utenti che non hanno quella capability.
+- `icon` è l'icona della pagina nella barra laterale: dati di un tracciato SVG su una griglia 24×24, disegnato a contorno come le icone del core (tratto 1.75, estremità arrotondate, senza riempimento). Le pagine senza icona, o con qualcosa che non è un tracciato, ricevono un pezzo di puzzle.
 - Da `@cleitext/admin-sdk` ottieni `Button`, `Card`, `TextField`, `Alert`, `FieldsForm` (un modulo generato dalle definizioni dei campi), `api` (l'API del core), `pluginApi`, `ApiError`, `errorMessage` e `labelText`. Usali insieme alle loro classi Tailwind, oppure usa stili inline. Le tue classi Tailwind non vengono compilate.
 - `@tanstack/react-query` è disponibile, con il query client dell'admin.
 - Una pagina che va in crash mostra un messaggio di errore; il resto dell'admin continua a funzionare.

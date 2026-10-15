@@ -963,12 +963,16 @@ export default defineAdminPlugin({
       title: { en: 'Languages', it: 'Lingue' },
       capability: 'manage_settings',
       component: LanguagesPage,
+      // Two scripts: a character and a letter.
+      icon: 'M3 5.5h9 M7.5 3.5v2 M5 5.5c.7 3 2.8 5.4 6 6.5 M10 5.5c-.7 3.2-2.9 5.8-6 7.2 M12.5 21l4-10 4 10 M13.8 18h5.4',
     },
     {
       path: 'overview',
       title: { en: 'Translations', it: 'Traduzioni' },
       capability: 'edit_entries',
       component: OverviewPage,
+      // A list with check marks.
+      icon: 'M10 6h10 M10 12h10 M10 18h10 M3.5 6l1.5 1.5L7.5 5 M3.5 12l1.5 1.5L7.5 11 M3.5 18l1.5 1.5L7.5 17',
     },
   ],
   editorPanels: [

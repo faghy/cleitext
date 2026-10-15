@@ -1,7 +1,7 @@
 {
   "slug": "store",
   "name": "Store",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": "^1.10",
   "description": "The license server of paid catalog themes: license keys sold through Lemon Squeezy or made by hand, activations per site, demo and update downloads from private releases.",
   "author": "Cleitext",

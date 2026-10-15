@@ -22,6 +22,12 @@ export interface AdminPageDefinition {
   title: Label;
   /** Shown in the sidebar (default `true`). */
   menu?: boolean;
+  /**
+   * Sidebar icon: SVG path data on a 24×24 grid, drawn as an outline
+   * (stroke 1.75, round ends, no fill), e.g. `'M4 6h16v12H4z M4 7l8 6 8-6'`.
+   * Without it, or when it is not path data, a puzzle piece.
+   */
+  icon?: string;
   /** Required capability; pages are hidden from users without it. */
   capability?: string;
   component: ComponentType<AdminPageProps>;

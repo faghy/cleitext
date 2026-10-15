@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-edge-cache",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Official Cleitext plugin: Varnish and Cloudflare in front of Cleitext, purged by tag.",
   "license": "GPL-2.0-or-later",
