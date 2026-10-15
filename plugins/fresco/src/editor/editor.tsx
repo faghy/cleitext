@@ -52,6 +52,7 @@ export function FrescoEditor(props: EditorProps) {
         blocks: toNodes(document),
         page: (document.editor?.data ?? {}) as Settings,
         readOnly,
+        entry: { id: props.entry.id, type: props.entry.type, locale: props.entry.locale },
       }),
     // The editor is mounted again when the document is replaced from outside.
     [],

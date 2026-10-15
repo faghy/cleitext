@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from 'react';
 import { elementClass } from './css.js';
+import { extraRootProps } from './extensions.js';
 import type { Control, FrescoNode, Settings } from './model.js';
 
 export const UNITS = {
@@ -283,6 +284,7 @@ export function rootProps(
   'data-fr-delay'?: string;
   'data-fr-id'?: string;
   style?: Record<string, string>;
+  [attribute: string]: unknown;
 } {
   const classes = ['fr-e', elementClass(node.id), name];
   if (typeof settings._css_classes === 'string') {
@@ -316,6 +318,10 @@ export function rootProps(
       props['data-fr-delay'] = String(Math.min(delay, 10000));
   }
   if (editing) props['data-fr-id'] = node.id;
+  // Attributes from extensions (Fresco Pro); their classes are added, not replaced.
+  const { className: extraClass, ...extra } = extraRootProps(node, settings, editing);
+  if (extraClass) props.className += ` ${extraClass}`;
+  for (const [key, value] of Object.entries(extra)) if (!(key in props)) props[key] = value;
   return props;
 }
 

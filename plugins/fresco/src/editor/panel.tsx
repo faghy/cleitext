@@ -1,6 +1,6 @@
 /** The side panel: elements, the selected element's settings, navigator, page and site settings. */
 import type { EditorMedia } from '@cleitext/admin-sdk';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ComponentType } from 'react';
 import { conditionMet, withDefaults } from '../core/css.js';
 import {
   DEFAULT_KIT,
@@ -14,6 +14,7 @@ import type { Control, ElementCategory, FrescoNode, Settings, Tab } from '../cor
 import { getElement, listElements } from '../core/registry.js';
 import { ColorPicker, ControlField, Svg, type ControlEnv } from './controls.js';
 import { AtomicStyle } from './atomic-style.js';
+import { controlsOf, extensions } from '../core/extensions.js';
 import { LibraryView } from './library.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
@@ -127,7 +128,8 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
     return <p className="fre-empty-note">Select an element on the page to edit it.</p>;
   }
   const settings = withDefaults(definition, node.attrs);
-  const controls = definition.controls.filter((c) => c.tab === tab && conditionMet(c, settings));
+  const allControls = controlsOf(definition);
+  const controls = allControls.filter((c) => c.tab === tab && conditionMet(c, settings));
   const sections = [...new Set(controls.map((c) => c.section))];
   const sectionKey = `${node.type}:${tab}`;
   const current = openSection[sectionKey] === undefined ? sections[0] : openSection[sectionKey];
@@ -154,7 +156,7 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
       </nav>
       <div className="fre-tabs" role="tablist">
         {(['content', 'style', 'advanced'] as Tab[]).map((t) =>
-          definition.controls.some((c) => c.tab === t) || (definition.atomic && t === 'style') ? (
+          allControls.some((c) => c.tab === t) || (definition.atomic && t === 'style') ? (
             <button
               key={t}
               type="button"
@@ -406,6 +408,10 @@ function PageView({ store }: { store: Store }) {
           />
         </div>
       </div>
+      {extensions().pageSettings.map((section, n) => {
+        const Section = section as ComponentType<{ store: Store }>;
+        return <Section key={n} store={store} />;
+      })}
     </div>
   );
 }

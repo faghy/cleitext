@@ -8,6 +8,8 @@ import { elementCss, safeColor, withDefaults } from './core/css.js';
 import { setIconData, type IconData } from './core/icons.js';
 import { googleFontsUrl, kitCss, normalizeKit, safeSelector, type Kit } from './core/kit.js';
 import type { ElementDefinition, FrescoNode, RenderContext } from './core/model.js';
+import { installApi } from './api.js';
+import { isVisible, resolveSettings } from './core/extensions.js';
 import { listElements } from './core/registry.js';
 import { registerFreeElements } from './elements/index.js';
 import icons from './public/icons.json';
@@ -30,7 +32,7 @@ async function kitFor(ctx: PluginContext, siteId: string): Promise<Kit> {
 function blockFor(
   ctx: PluginContext,
   definition: ElementDefinition,
-): PluginBlockDefinition<Record<string, unknown>, Kit> {
+): PluginBlockDefinition<Record<string, unknown>, { kit: Kit; attrs: Record<string, unknown> }> {
   const contextOf = (context: {
     locale: string;
     media: RenderContext['media'];
@@ -50,9 +52,19 @@ function blockFor(
     wrapper: false,
     ...(definition.html ? { html: definition.html } : {}),
     // The kit (breakpoints) is needed by the CSS; it is cached per site.
-    load: async (_attrs, context) => {
+    // Also the settings computed from data (dynamic tags of Fresco Pro).
+    load: async (attrs, context) => {
       context.tag(KIT_TAG);
-      return kitFor(ctx, context.siteId);
+      const [kit, resolved] = await Promise.all([
+        kitFor(ctx, context.siteId),
+        resolveSettings(attrs, {
+          siteId: context.siteId,
+          locale: context.locale,
+          ...(context.entry ? { entry: context.entry } : {}),
+          tag: context.tag,
+        }),
+      ]);
+      return { kit, attrs: resolved };
     },
     media: (attrs) => definition.media?.(withDefaults(definition, attrs)) ?? [],
     css: ({ block, context }) =>
@@ -61,14 +73,26 @@ function blockFor(
         block as FrescoNode,
         (kits.get(context.siteId)?.kit ?? normalizeKit(null)).breakpoints,
       ),
-    render: ({ attrs, block, children, items, context }) =>
-      definition.render({
+    render: ({ attrs: stored, data, block, children, items, context }) => {
+      const attrs = data?.attrs ?? stored;
+      // Display conditions (Fresco Pro) may hide the element on this page.
+      if (
+        !isVisible(
+          { ...(block as FrescoNode), attrs },
+          withDefaults(definition, attrs),
+          contextOf(context),
+        )
+      ) {
+        return null;
+      }
+      return definition.render({
         node: { ...(block as FrescoNode), attrs },
         settings: withDefaults(definition, attrs),
         children,
         ...(items ? { items } : {}),
         context: contextOf(context),
-      }),
+      });
+    },
   };
 }
 
@@ -76,6 +100,11 @@ export default definePlugin({
   setup(ctx) {
     setIconData(icons as unknown as IconData);
     registerFreeElements();
+    // Fresco Pro (loaded after Fresco) builds and registers its elements with this.
+    installApi({
+      blockFor: (pluginCtx: PluginContext, definition: ElementDefinition) =>
+        blockFor(pluginCtx, definition),
+    });
     for (const definition of listElements()) {
       if (definition.type.startsWith('fresco/')) ctx.blocks.register(blockFor(ctx, definition));
     }

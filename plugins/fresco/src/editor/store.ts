@@ -29,6 +29,8 @@ export interface EditorState {
   readOnly: boolean;
   /** Editor only: the item shown by tabs and accordions, by element id (-1: none). */
   active: Record<string, number>;
+  /** The entry being edited. */
+  entry: { id: string; type: string; locale: string };
 }
 
 interface Snapshot {
@@ -39,7 +41,12 @@ interface Snapshot {
 
 const HISTORY = 100;
 
-export function createStore(initial: { blocks: FrescoNode[]; page: Settings; readOnly: boolean }) {
+export function createStore(initial: {
+  blocks: FrescoNode[];
+  page: Settings;
+  readOnly: boolean;
+  entry?: { id: string; type: string; locale: string };
+}) {
   let state: EditorState = {
     blocks: initial.blocks,
     page: initial.page,
@@ -53,6 +60,7 @@ export function createStore(initial: { blocks: FrescoNode[]; page: Settings; rea
     clipboard: null,
     readOnly: initial.readOnly,
     active: {},
+    entry: initial.entry ?? { id: '', type: 'page', locale: 'en' },
   };
   const past: Snapshot[] = [];
   const future: Snapshot[] = [];

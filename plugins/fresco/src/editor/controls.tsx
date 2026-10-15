@@ -3,11 +3,12 @@
  * prefixed ones) of the selected element, for the device being edited.
  */
 import type { EditorMedia } from '@cleitext/admin-sdk';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { ANIMATIONS } from '../core/common.js';
 import { isBox, isSize } from '../core/css.js';
 import { Icon, iconDataLoaded, iconNames } from '../core/icons.js';
 import { GOOGLE_FONTS, SYSTEM_FONTS, type Kit } from '../core/kit.js';
+import { extensions } from '../core/extensions.js';
 import { isMedia } from '../core/media.js';
 import {
   settingKey,
@@ -99,6 +100,10 @@ function Row({
     <div className={`fre-control${inline ? ' fre-control--inline' : ''}`}>
       <div className="fre-control__head">
         <span className="fre-control__label">{control.label}</span>
+        {extensions().fieldAddons.map((addon, i) => {
+          const Addon = addon as ComponentType<{ control: Control; env: ControlEnv }>;
+          return <Addon key={i} control={control} env={env} />;
+        })}
         {control.responsive && <DeviceSwitch env={env} />}
         {reset && (
           <button

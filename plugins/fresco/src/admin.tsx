@@ -3,18 +3,19 @@
  * the elements registered for the editor's panel and canvas.
  */
 import { defineAdminPlugin } from '@cleitext/admin-sdk';
+import { installApi } from './api.js';
 import { registerFreeElements } from './elements/index.js';
 import { fromBlocks, toBlocks } from './editor/convert.js';
 import { FrescoEditor } from './editor/editor.js';
 
 registerFreeElements();
+installApi();
 
 export default defineAdminPlugin({
   editors: [
     {
       id: 'fresco',
       title: 'Fresco',
-      types: ['page', 'article'],
       fromBlocks,
       toBlocks,
       component: FrescoEditor,

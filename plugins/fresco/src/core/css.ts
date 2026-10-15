@@ -19,6 +19,7 @@ import {
   type SizeValue,
 } from './model.js';
 import { normalizeVariants, variantsCss } from './atomic.js';
+import { controlsOf, extraCss } from './extensions.js';
 
 /** One CSS rule body per selector, per device. */
 type Sheet = Record<Device, Map<string, string[]>>;
@@ -328,7 +329,7 @@ export function conditionMet(control: Control, settings: Settings): boolean {
 /** The element's settings with the defaults of its controls. */
 export function withDefaults(definition: ElementDefinition, attrs: Settings): Settings {
   const settings: Settings = {};
-  for (const control of definition.controls) {
+  for (const control of controlsOf(definition)) {
     if (control.default !== undefined) settings[control.name] = control.default;
   }
   return { ...settings, ...attrs };
@@ -348,7 +349,7 @@ export function elementCss(
     ? variantsCss(scope, normalizeVariants(node.attrs._styles), breakpoints)
     : '';
   const at = (selector: string) => selector.replaceAll('{{el}}', scope);
-  for (const control of definition.controls) {
+  for (const control of controlsOf(definition)) {
     if (control.noCss || !conditionMet(control, settings)) continue;
     if (isGroup(control)) {
       groupCss(sheet, control, settings, at(control.selector));
@@ -371,7 +372,11 @@ export function elementCss(
       }
     }
   }
-  return atomic + printSheet(sheet, breakpoints);
+  return (
+    atomic +
+    printSheet(sheet, breakpoints) +
+    extraCss(node, settings, scope).replace(/<\/?style/gi, '')
+  );
 }
 
 /** `.a .b, .c` → `.a .b:hover, .c:hover` (the first part only is the element). */
