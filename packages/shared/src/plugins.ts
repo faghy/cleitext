@@ -1,3 +1,5 @@
+import type { LicenseView } from './licenses.js';
+
 import type { FieldDefinition, Label } from './fields.js';
 
 /** A plugin as listed in Plugins (RF-PLG-02). */
@@ -24,6 +26,8 @@ export interface PluginView {
   contributes: { types: string[]; blocks: string[]; settings: boolean; admin: boolean };
   /** Time spent in hooks and errors since the server started (RF-PLG-06). */
   stats: { calls: number; errors: number; totalMs: number; lastError: string | null };
+  /** Paid plugin (RF-CAT-03): where to buy it and this site's license; null when free. */
+  paid: { purchaseUrl: string | null; license: LicenseView | null } | null;
 }
 
 /** What the admin loads for the plugins active on the site. */

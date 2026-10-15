@@ -2,6 +2,8 @@ import { settings, withContext, type DatabaseClient } from '@cleitext/db';
 import { labelText } from '@cleitext/plugin-sdk';
 import {
   fieldsValidator,
+  licenseStorageKey,
+  type LicenseView,
   type PluginAdminInfo,
   type PluginBlockView,
   type PluginView,
@@ -14,6 +16,7 @@ import {
   ForbiddenException,
   Get,
   HttpCode,
+  HttpException,
   Inject,
   NotFoundException,
   Param,
@@ -25,6 +28,7 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service.js';
+import { LicensesService } from '../catalog/licenses.service.js';
 import { CurrentAuth, CurrentSite, RequireCapability } from '../common/decorators.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
@@ -44,17 +48,22 @@ export class PluginsController {
     private readonly host: PluginHost,
     private readonly services: PluginServicesProvider,
     private readonly audit: AuditService,
+    private readonly licenses: LicensesService,
   ) {}
 
   @Get('plugins')
   @RequireCapability('activate_plugins')
-  async list(@CurrentSite() site: SiteContext): Promise<PluginView[]> {
+  async list(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<PluginView[]> {
     const active = await this.host.activeSlugs(site.id);
+    const licenses = await this.licenses.list(site.id, auth);
     return Promise.all(
       this.host
         .list()
         .map(async (plugin) =>
-          view(plugin, active.has(plugin.slug), await this.host.scope(plugin.slug)),
+          view(plugin, active.has(plugin.slug), await this.host.scope(plugin.slug), licenses),
         ),
     );
   }
@@ -68,9 +77,25 @@ export class PluginsController {
     @Param('slug') slug: string,
     @Req() request: FastifyRequest,
   ): Promise<PluginView> {
+    // Paid plugins: a license for this site (RF-CAT-03). Without one the
+    // plugin is installed as a demo and cannot be activated.
+    const paid = this.host.get(slug)?.manifest.paid;
+    if (paid && !(await this.licenses.has(site.id, auth, { type: 'plugin', slug }))) {
+      throw new HttpException(
+        {
+          message: 'This plugin is paid: enter a license key for this site to activate it.',
+        },
+        402,
+      );
+    }
     await this.change(() => this.host.activate(site.id, auth.userId, slug));
     await this.record(site.id, auth, 'plugin.activated', slug, request.ip);
-    return view(this.plugin(slug), true, await this.host.scope(slug));
+    return view(
+      this.plugin(slug),
+      true,
+      await this.host.scope(slug),
+      await this.licenses.list(site.id, auth),
+    );
   }
 
   @Post('plugins/:slug/deactivate')
@@ -329,6 +354,7 @@ function view(
   plugin: LoadedPlugin,
   active: boolean,
   scope: { network: boolean; mustUse: boolean },
+  licenses?: ReadonlyMap<string, LicenseView>,
 ): PluginView {
   const { manifest } = plugin;
   return {
@@ -353,6 +379,12 @@ function view(
       admin: Boolean(manifest.admin),
     },
     stats: { ...plugin.stats, totalMs: Math.round(plugin.stats.totalMs) },
+    paid: manifest.paid
+      ? {
+          purchaseUrl: manifest.paid.purchaseUrl ?? null,
+          license: licenses?.get(licenseStorageKey('plugin', plugin.slug)) ?? null,
+        }
+      : null,
   };
 }
 

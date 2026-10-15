@@ -68,6 +68,11 @@ export const pluginManifestSchema = z.object({
    * `dist/public`, served at `/plugin-assets/<slug>/<version>/<file>`.
    * `plugin:build` bundles `src/public` into it.
    */
+  /**
+   * A paid plugin (RF-CAT-03): where its licenses are activated. It can be
+   * installed to try (demo) but activated only with a license for the site.
+   */
+  paid: z.object({ licenseServer: z.url(), purchaseUrl: z.url().optional() }).optional(),
   public: z
     .string()
     .regex(RELATIVE_DIR_RE, 'A folder inside the plugin, e.g. dist/public')

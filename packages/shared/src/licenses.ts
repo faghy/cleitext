@@ -69,7 +69,19 @@ export const licenseRequestSchema = z.object({
 });
 
 /** The license of a paid theme on this site, without the key. */
+/** What a license is for. */
+export type LicensedType = 'theme' | 'plugin';
+
+/**
+ * Where a site keeps a license: themes by slug (as since 0.23), plugins as
+ * `plugin:<slug>`, so a theme and a plugin with the same slug do not collide.
+ */
+export function licenseStorageKey(type: LicensedType, slug: string): string {
+  return type === 'theme' ? slug : `plugin:${slug}`;
+}
+
 export interface LicenseView {
+  type: LicensedType;
   slug: string;
   /** The last characters of the key. */
   keyHint: string;

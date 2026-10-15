@@ -1,8 +1,8 @@
 /**
- * Paid themes in the catalog (RF-CAT-03): the demo installed without a
- * license and tried with Live Preview, a key activated per site, downloads
- * through short-lived addresses, "Renew to update", and themes that keep
- * working whatever the license server says. The license server is a fake.
+ * Paid themes and plugins in the catalog (RF-CAT-03): the demo installed
+ * without a license and tried with Live Preview, a key activated per site,
+ * downloads through short-lived addresses, "Renew to update", and themes that
+ * keep working whatever the license server says. The license server is a fake.
  */
 import { createHash, generateKeyPairSync, randomBytes, sign } from 'node:crypto';
 import { mkdtemp } from 'node:fs/promises';
@@ -105,6 +105,39 @@ function item(version: string) {
   };
 }
 
+/** A paid plugin, `vivid-blocks`, sold by the same license server. */
+function pluginItem(version: string) {
+  const zip = Buffer.from(
+    zipSync({
+      'vivid-blocks/cleitext.plugin.json': strToU8(
+        JSON.stringify({
+          slug: 'vivid-blocks',
+          name: 'Vivid Blocks',
+          version,
+          apiVersion: '^1.0',
+          license: 'GPL-3.0-or-later',
+          server: 'dist/server.js',
+          paid: { licenseServer: `${base}/v1`, purchaseUrl: 'https://shop.test/vivid-blocks' },
+        }),
+      ),
+      'vivid-blocks/dist/server.js': strToU8('export default { setup() {} };\n'),
+    }),
+  );
+  files.set(`/packages/vivid-blocks-${version}.zip`, zip);
+  return {
+    ...item(version),
+    type: 'plugin',
+    slug: 'vivid-blocks',
+    name: 'Vivid Blocks',
+    apiVersion: '^1.0',
+    license: 'GPL-3.0-or-later',
+    download: `${base}/v1/download/vivid-blocks/${version}`,
+    sha256: createHash('sha256').update(zip).digest('hex'),
+    size: zip.length,
+    paid: { ...item(version).paid, purchaseUrl: 'https://shop.test/vivid-blocks' },
+  };
+}
+
 function publish(items: unknown[]) {
   const body = Buffer.from(
     JSON.stringify({ schema: 1, generatedAt: '2026-10-11T00:00:00Z', items }),
@@ -146,7 +179,7 @@ function licenseServer(action: string, body: Record<string, unknown>): [number, 
       const version = String(body.version);
       if (body.demo) {
         return license.demo
-          ? [200, { url: `download/vivid/${version}?t=demo`, updatesUntil: null }]
+          ? [200, { url: `download/${String(body.slug)}/${version}?t=demo`, updatesUntil: null }]
           : [403, { message: 'No demo for this theme.' }];
       }
       if (!license.activations.has(String(body.activation))) {
@@ -161,7 +194,13 @@ function licenseServer(action: string, body: Record<string, unknown>): [number, 
           },
         ];
       }
-      return [200, { url: `download/vivid/${version}?t=ok`, updatesUntil: license.updatesUntil }];
+      return [
+        200,
+        {
+          url: `download/${String(body.slug)}/${version}?t=ok`,
+          updatesUntil: license.updatesUntil,
+        },
+      ];
     }
   }
   return [404, { message: 'Not found' }];
@@ -170,11 +209,13 @@ function licenseServer(action: string, body: Record<string, unknown>): [number, 
 beforeAll(async () => {
   server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://local');
-    const download = /^\/v1\/download\/vivid\/([\d.]+)$/.exec(url.pathname);
+    const download = /^\/v1\/download\/([a-z-]+)\/([\d.]+)$/.exec(url.pathname);
     if (download) {
       // Short-lived addresses only: redirected to the package, as to storage.
       if (!url.searchParams.get('t')) return void res.writeHead(403).end();
-      return void res.writeHead(302, { location: `/packages/vivid-${download[1]}.zip` }).end();
+      return void res
+        .writeHead(302, { location: `/packages/${download[1]}-${download[2]}.zip` })
+        .end();
     }
     if (req.method === 'POST' && url.pathname.startsWith('/v1/')) {
       let raw = '';
@@ -368,6 +409,82 @@ describe('paid themes', () => {
       (await otherAdmin.request('PUT', '/api/v1/licenses/vivid', { key: license.key })).statusCode,
     ).toBe(200);
     expect((await otherAdmin.post('/api/v1/themes/vivid/activate')).statusCode).toBe(204);
+  });
+
+  it('sells plugins the same way: demo, 402 without a license, then a key per site', async () => {
+    license.seats = 5;
+    publish([item('1.1.0'), pluginItem('1.0.0')]);
+    const listed = (await root.get('/api/v1/catalog?refresh=1'))
+      .json()
+      .items.find((i: { slug: string }) => i.slug === 'vivid-blocks');
+    expect(listed).toMatchObject({
+      type: 'plugin',
+      paid: { updatesMonths: 12 },
+      siteLicense: null,
+    });
+
+    const installed = await root.post('/api/v1/catalog/plugin/vivid-blocks/install');
+    expect(installed.statusCode, installed.body).toBe(200);
+    expect(license.calls.at(-1)).toMatchObject({
+      action: 'download-token',
+      body: { demo: true, slug: 'vivid-blocks', version: '1.0.0' },
+    });
+    const pluginView = async () =>
+      (await admin.get('/api/v1/plugins'))
+        .json()
+        .find((p: { slug: string }) => p.slug === 'vivid-blocks');
+    expect(await pluginView()).toMatchObject({
+      active: false,
+      paid: { purchaseUrl: 'https://shop.test/vivid-blocks', license: null },
+    });
+
+    const refused = await admin.post('/api/v1/plugins/vivid-blocks/activate');
+    expect(refused.statusCode).toBe(402);
+    expect(refused.json().detail).toContain('license key');
+
+    // The theme route does not license plugins, and the other way round.
+    expect(
+      (await admin.request('PUT', '/api/v1/licenses/vivid-blocks', { key: license.key }))
+        .statusCode,
+    ).toBe(404);
+    const activated = await admin.request('PUT', '/api/v1/licenses/plugins/vivid-blocks', {
+      key: license.key,
+    });
+    expect(activated.statusCode, activated.body).toBe(200);
+    expect(activated.json()).toMatchObject({ type: 'plugin', slug: 'vivid-blocks' });
+    expect(license.calls.at(-1)).toMatchObject({
+      action: 'activate',
+      body: { slug: 'vivid-blocks', siteOrigin: `http://${site.host}` },
+    });
+    const stored = await withSiteContext(owner.db, site.id, (tx) =>
+      tx
+        .select({ key: settings.key })
+        .from(settings)
+        .where(and(eq(settings.namespace, 'licenses'), eq(settings.key, 'plugin:vivid-blocks'))),
+    );
+    expect(stored).toHaveLength(1);
+
+    expect((await admin.post('/api/v1/plugins/vivid-blocks/activate')).statusCode).toBe(200);
+    expect(await pluginView()).toMatchObject({
+      active: true,
+      paid: { license: { type: 'plugin', keyHint: license.key.slice(-5) } },
+    });
+    expect((await admin.get('/api/v1/licenses/plugins')).json()).toEqual([
+      expect.objectContaining({ type: 'plugin', slug: 'vivid-blocks' }),
+    ]);
+    expect(
+      (await root.get('/api/v1/catalog'))
+        .json()
+        .items.find((i: { slug: string }) => i.slug === 'vivid-blocks').siteLicense,
+    ).toMatchObject({ type: 'plugin' });
+
+    expect((await admin.post('/api/v1/licenses/plugins/vivid-blocks/refresh')).statusCode).toBe(
+      200,
+    );
+    expect((await admin.delete('/api/v1/licenses/plugins/vivid-blocks')).json()).toEqual({
+      warning: null,
+    });
+    expect((await pluginView()).paid.license).toBeNull();
   });
 
   it('keeps installed themes when the license server is down', async () => {

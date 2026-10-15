@@ -5,7 +5,7 @@ import { AdminController } from './admin/admin.controller.js';
 import { UpdatesController } from './updates/updates.controller.js';
 import { CatalogController } from './catalog/catalog.controller.js';
 import { CatalogService } from './catalog/catalog.service.js';
-import { LicensesController } from './catalog/licenses.controller.js';
+import { LicensesController, PluginLicensesController } from './catalog/licenses.controller.js';
 import { LicensesService } from './catalog/licenses.service.js';
 import { McpController } from './mcp/mcp.controller.js';
 import { AssistantsController } from './mcp/assistants.controller.js';
@@ -135,6 +135,7 @@ export class AppModule {
         PluginsController,
         UpdatesController,
         CatalogController,
+        PluginLicensesController,
         LicensesController,
         McpController,
         OAuthController,

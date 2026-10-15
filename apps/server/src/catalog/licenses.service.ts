@@ -2,7 +2,9 @@ import { settings, withContext, type DatabaseClient } from '@cleitext/db';
 import {
   formatLicenseKey,
   isLicenseKey,
+  licenseStorageKey,
   normalizeLicenseKey,
+  type LicensedType,
   type LicenseView,
 } from '@cleitext/shared';
 import {
@@ -57,8 +59,14 @@ const statusAnswer = z.object({
 });
 const tokenAnswer = z.object({ url: z.string().min(1).max(2000), updatesUntil: datetime });
 
+/** A paid theme or plugin. */
+export interface LicensedItem {
+  type: LicensedType;
+  slug: string;
+}
+
 /**
- * Licenses of paid themes (RF-CAT-03), one per theme and site. The key is
+ * Licenses of paid themes and plugins (RF-CAT-03), one per item and site. The key is
  * activated once with the theme's license server and kept encrypted; the
  * server is asked again only to download a version or to refresh the status,
  * never while pages are rendered.
@@ -76,7 +84,8 @@ export class LicensesService {
     return withContext(this.database.db, { siteId, userId: auth.userId }, fn);
   }
 
-  private async stored(siteId: string, auth: AuthContext, slug: string) {
+  private async stored(siteId: string, auth: AuthContext, item: LicensedItem) {
+    const key = licenseStorageKey(item.type, item.slug);
     const [row] = await this.run(siteId, auth, (tx) =>
       tx
         .select({ value: settings.value })
@@ -85,7 +94,7 @@ export class LicensesService {
           and(
             eq(settings.siteId, siteId),
             eq(settings.namespace, LICENSES_NAMESPACE),
-            eq(settings.key, slug),
+            eq(settings.key, key),
           ),
         ),
     );
@@ -95,10 +104,11 @@ export class LicensesService {
   private async save(
     siteId: string,
     auth: AuthContext,
-    slug: string,
+    item: LicensedItem,
     value: StoredLicense | null,
     audit?: { action: string; ip: string; meta?: Record<string, unknown> },
   ): Promise<void> {
+    const key = licenseStorageKey(item.type, item.slug);
     await this.run(siteId, auth, async (tx) => {
       await tx
         .delete(settings)
@@ -106,21 +116,19 @@ export class LicensesService {
           and(
             eq(settings.siteId, siteId),
             eq(settings.namespace, LICENSES_NAMESPACE),
-            eq(settings.key, slug),
+            eq(settings.key, key),
           ),
         );
       if (value) {
-        await tx
-          .insert(settings)
-          .values({ siteId, namespace: LICENSES_NAMESPACE, key: slug, value });
+        await tx.insert(settings).values({ siteId, namespace: LICENSES_NAMESPACE, key, value });
       }
       if (audit) {
         await this.audit.record(tx, {
           siteId,
           userId: auth.userId,
           action: audit.action,
-          targetType: 'theme',
-          targetId: slug,
+          targetType: item.type,
+          targetId: item.slug,
           meta: audit.meta ?? {},
           ip: audit.ip,
         });
@@ -128,9 +136,10 @@ export class LicensesService {
     });
   }
 
-  private view(slug: string, s: StoredLicense): LicenseView {
+  private view(item: LicensedItem, s: StoredLicense): LicenseView {
     return {
-      slug,
+      type: item.type,
+      slug: item.slug,
       keyHint: s.keyHint,
       activatedAt: s.activatedAt,
       updatesUntil: s.updatesUntil,
@@ -139,7 +148,7 @@ export class LicensesService {
     };
   }
 
-  /** The licenses of the site, by theme. */
+  /** The licenses of the site, by storage key (`licenseStorageKey`). */
   async list(siteId: string, auth: AuthContext): Promise<Map<string, LicenseView>> {
     const rows = await this.run(siteId, auth, (tx) =>
       tx
@@ -147,19 +156,27 @@ export class LicensesService {
         .from(settings)
         .where(and(eq(settings.siteId, siteId), eq(settings.namespace, LICENSES_NAMESPACE))),
     );
-    return new Map(rows.map((r) => [r.key, this.view(r.key, r.value as StoredLicense)]));
+    return new Map(
+      rows.map((r) => {
+        const item: LicensedItem = r.key.startsWith('plugin:')
+          ? { type: 'plugin', slug: r.key.slice('plugin:'.length) }
+          : { type: 'theme', slug: r.key };
+        return [r.key, this.view(item, r.value as StoredLicense)];
+      }),
+    );
   }
 
-  async has(siteId: string, auth: AuthContext, slug: string): Promise<boolean> {
-    return (await this.stored(siteId, auth, slug)) !== null;
+  async has(siteId: string, auth: AuthContext, item: LicensedItem): Promise<boolean> {
+    return (await this.stored(siteId, auth, item)) !== null;
   }
 
   /** Activates a key for this site with the license server, and keeps it. */
   async activate(
     siteId: string,
     auth: AuthContext,
-    input: { slug: string; key: string; server: string; origin: string; ip: string },
+    input: LicensedItem & { key: string; server: string; origin: string; ip: string },
   ): Promise<LicenseView> {
+    const item: LicensedItem = { type: input.type, slug: input.slug };
     if (!isLicenseKey(input.key)) {
       throw new BadRequestException(
         'This is not a valid license key: check it against the email you received.',
@@ -184,25 +201,26 @@ export class LicensesService {
       seats: answer.seats,
       renewUrl: answer.renewUrl,
     };
-    await this.save(siteId, auth, input.slug, value, {
+    await this.save(siteId, auth, item, value, {
       action: 'license.activated',
       ip: input.ip,
       meta: { keyHint: value.keyHint },
     });
-    return this.view(input.slug, value);
+    return this.view(item, value);
   }
 
   /**
-   * Frees the site's seat and forgets the key. The theme keeps working; it
+   * Frees the site's seat and forgets the key. The item keeps working; it
    * cannot be activated again on this site without a license.
    */
   async deactivate(
     siteId: string,
     auth: AuthContext,
-    slug: string,
+    item: LicensedItem,
     ip: string,
   ): Promise<{ warning: string | null }> {
-    const stored = await this.stored(siteId, auth, slug);
+    const slug = item.slug;
+    const stored = await this.stored(siteId, auth, item);
     if (!stored) return { warning: null };
     let warning: string | null = null;
     const activation = unseal(this.config.appSecret, stored.activation);
@@ -213,19 +231,24 @@ export class LicensesService {
         warning = `The license server was not told (${(error as Error).message}): the seat may stay in use until you free it from your account.`;
       }
     }
-    await this.save(siteId, auth, slug, null, { action: 'license.deactivated', ip });
+    await this.save(siteId, auth, item, null, { action: 'license.deactivated', ip });
     return { warning };
   }
 
   /** Asks the server what the license includes now (e.g. after a renewal). */
-  async refresh(siteId: string, auth: AuthContext, slug: string): Promise<LicenseView | null> {
-    const stored = await this.stored(siteId, auth, slug);
+  async refresh(
+    siteId: string,
+    auth: AuthContext,
+    item: LicensedItem,
+  ): Promise<LicenseView | null> {
+    const slug = item.slug;
+    const stored = await this.stored(siteId, auth, item);
     if (!stored) return null;
     const answer = statusAnswer.parse(
       await this.call(stored.server, 'status', { activation: this.activation(stored), slug }),
     );
     if (answer.status !== 'active') {
-      await this.save(siteId, auth, slug, null, {
+      await this.save(siteId, auth, item, null, {
         action: 'license.deactivated',
         ip: '',
         meta: { reason: answer.status },
@@ -242,8 +265,8 @@ export class LicensesService {
       seats: answer.seats,
       renewUrl: answer.renewUrl ?? stored.renewUrl,
     };
-    await this.save(siteId, auth, slug, value);
-    return this.view(slug, value);
+    await this.save(siteId, auth, item, value);
+    return this.view(item, value);
   }
 
   /**
@@ -254,9 +277,10 @@ export class LicensesService {
   async downloadUrl(
     siteId: string,
     auth: AuthContext,
-    input: { slug: string; version: string; server: string; origin: string },
+    input: LicensedItem & { version: string; server: string; origin: string },
   ): Promise<string> {
-    const stored = await this.stored(siteId, auth, input.slug);
+    const item: LicensedItem = { type: input.type, slug: input.slug };
+    const stored = await this.stored(siteId, auth, item);
     const server = stored?.server ?? input.server;
     const body = stored
       ? { activation: this.activation(stored), slug: input.slug, version: input.version }
@@ -273,12 +297,12 @@ export class LicensesService {
     } catch (error) {
       const until = (error as { updatesUntil?: unknown }).updatesUntil;
       if (stored && typeof until === 'string' && until !== stored.updatesUntil) {
-        await this.save(siteId, auth, input.slug, { ...stored, updatesUntil: until });
+        await this.save(siteId, auth, item, { ...stored, updatesUntil: until });
       }
       throw error;
     }
     if (stored && answer.updatesUntil !== stored.updatesUntil) {
-      await this.save(siteId, auth, input.slug, { ...stored, updatesUntil: answer.updatesUntil });
+      await this.save(siteId, auth, item, { ...stored, updatesUntil: answer.updatesUntil });
     }
     // The address is relative to the license server, or on the same server.
     const url = new URL(answer.url, `${server.replace(/\/+$/, '')}/`);
@@ -315,7 +339,7 @@ export class LicensesService {
       });
     } catch {
       throw new ServiceUnavailableException(
-        `The license server (${new URL(base).host}) cannot be reached: try again later. Installed themes keep working.`,
+        `The license server (${new URL(base).host}) cannot be reached: try again later. Installed themes and plugins keep working.`,
       );
     }
     const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;

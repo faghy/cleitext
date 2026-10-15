@@ -113,7 +113,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       throw new NotFoundException(`The theme "${slug}" is not installed.`);
     // Paid themes: a license for this site, activated once with the license
     // server (RF-CAT-03). Without one the theme can only be tried (Live Preview).
-    if (themePaid(slug) && !(await this.licenses.has(siteId, auth, slug))) {
+    if (themePaid(slug) && !(await this.licenses.has(siteId, auth, { type: 'theme', slug }))) {
       throw new HttpException(
         {
           message:

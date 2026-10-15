@@ -7,6 +7,8 @@ import {
   type CatalogEntryView,
   type CatalogItem,
   type CatalogView,
+  licenseStorageKey,
+  type LicensedType,
   type LicenseView,
 } from '@cleitext/shared';
 import {
@@ -94,13 +96,17 @@ export class CatalogService {
   }
 
   /**
-   * Where a paid theme is licensed: the signed catalog says so, or, for a
-   * theme no longer listed, its theme.json. Null for free themes.
+   * Where a paid theme or plugin is licensed: the signed catalog says so,
+   * or, for one no longer listed, its theme.json or cleitext.plugin.json.
+   * Null for free items.
    */
-  async paidInfo(slug: string): Promise<{ server: string; purchaseUrl: string | null } | null> {
-    const item = (await this.items()).find((i) => i.type === 'theme' && i.slug === slug);
+  async paidInfo(
+    type: LicensedType,
+    slug: string,
+  ): Promise<{ server: string; purchaseUrl: string | null } | null> {
+    const item = (await this.items()).find((i) => i.type === type && i.slug === slug);
     if (item?.paid) return { server: item.paid.licenseServer, purchaseUrl: item.paid.purchaseUrl };
-    const manifest = themePaid(slug);
+    const manifest = type === 'theme' ? themePaid(slug) : this.plugins.get(slug)?.manifest.paid;
     return manifest
       ? { server: manifest.licenseServer, purchaseUrl: manifest.purchaseUrl ?? null }
       : null;
@@ -120,7 +126,9 @@ export class CatalogService {
     const update = Boolean(
       installed && semver.valid(installed) && semver.gt(item.version, installed),
     );
-    const siteLicense = item.paid ? (licenses.get(item.slug) ?? null) : null;
+    const siteLicense = item.paid
+      ? (licenses.get(licenseStorageKey(item.type, item.slug)) ?? null)
+      : null;
     const until = siteLicense?.updatesUntil ? Date.parse(siteLicense.updatesUntil) : NaN;
     return {
       ...item,
@@ -155,6 +163,7 @@ export class CatalogService {
     // (the demo when the site has no license yet).
     const download = item.paid
       ? await this.licenses.downloadUrl(site.id, site.auth, {
+          type,
           slug,
           version: item.version,
           server: item.paid.licenseServer,

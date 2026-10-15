@@ -28,20 +28,23 @@ export function PaidPrice({ paid }: { paid: PaidInfo }) {
 }
 
 /**
- * The license of a paid theme on this site (RF-CAT-03): the key to enter,
- * or what the license includes, with a check and a way to free the seat.
+ * The license of a paid theme or plugin on this site (RF-CAT-03): the key to
+ * enter, or what the license includes, with a check and a way to free the seat.
  */
 export function LicenseBox({
+  type = 'theme',
   slug,
   name,
   purchaseUrl,
   license,
 }: {
+  type?: 'theme' | 'plugin';
   slug: string;
   name: string;
   purchaseUrl: string | null;
   license: LicenseView | null;
 }) {
+  const base = type === 'theme' ? `/licenses/${slug}` : `/licenses/plugins/${slug}`;
   const { t } = useT();
   const me = useMe();
   const queryClient = useQueryClient();
@@ -49,10 +52,12 @@ export function LicenseBox({
   const [warning, setWarning] = useState<string | null>(null);
   const done = () =>
     Promise.all(
-      [['themes'], ['catalog']].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      [['themes'], ['plugins'], ['catalog']].map((queryKey) =>
+        queryClient.invalidateQueries({ queryKey }),
+      ),
     );
   const activate = useMutation({
-    mutationFn: () => api<LicenseView>('PUT', `/licenses/${slug}`, { key }),
+    mutationFn: () => api<LicenseView>('PUT', base, { key }),
     onSuccess: () => {
       setKey('');
       setWarning(null);
@@ -60,11 +65,11 @@ export function LicenseBox({
     },
   });
   const check = useMutation({
-    mutationFn: () => api<LicenseView>('POST', `/licenses/${slug}/refresh`),
+    mutationFn: () => api<LicenseView>('POST', `${base}/refresh`),
     onSettled: done,
   });
   const remove = useMutation({
-    mutationFn: () => api<{ warning: string | null }>('DELETE', `/licenses/${slug}`),
+    mutationFn: () => api<{ warning: string | null }>('DELETE', base),
     onSuccess: (result) => {
       setWarning(result.warning);
       void done();
@@ -73,7 +78,8 @@ export function LicenseBox({
   const error = activate.error ?? check.error ?? remove.error;
   const date = (iso: string) => new Date(iso).toLocaleDateString(me.user.locale);
 
-  if (!me.capabilities.includes('manage_themes')) return null;
+  if (!me.capabilities.includes(type === 'theme' ? 'manage_themes' : 'activate_plugins'))
+    return null;
   if (license) {
     const ended = license.updatesUntil !== null && Date.parse(license.updatesUntil) < Date.now();
     return (
@@ -85,9 +91,17 @@ export function LicenseBox({
           {license.updatesUntil === null
             ? t('Updates included with no end.')
             : ended
-              ? t('Updates ended on {date}: the theme keeps working, renew to get new versions.', {
-                  date: date(license.updatesUntil),
-                })
+              ? type === 'theme'
+                ? t(
+                    'Updates ended on {date}: the theme keeps working, renew to get new versions.',
+                    {
+                      date: date(license.updatesUntil),
+                    },
+                  )
+                : t(
+                    'Updates ended on {date}: the plugin keeps working, renew to get new versions.',
+                    { date: date(license.updatesUntil) },
+                  )
               : t('Updates included until {date}.', { date: date(license.updatesUntil) })}
           {license.seats &&
             ` ${
@@ -118,10 +132,15 @@ export function LicenseBox({
             onClick={() => {
               if (
                 window.confirm(
-                  t(
-                    'Remove the license of {name} from this site? The theme keeps working, but it cannot be activated again here without a license.',
-                    { name },
-                  ),
+                  type === 'theme'
+                    ? t(
+                        'Remove the license of {name} from this site? The theme keeps working, but it cannot be activated again here without a license.',
+                        { name },
+                      )
+                    : t(
+                        'Remove the license of {name} from this site? The plugin keeps working while active, but it cannot be activated again here without a license.',
+                        { name },
+                      ),
                 )
               )
                 remove.mutate();

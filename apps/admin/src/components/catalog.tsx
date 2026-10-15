@@ -259,8 +259,9 @@ export function CatalogBrowser({ type }: { type: 'plugin' | 'theme' }) {
                     </a>
                   )}
                 </div>
-                {item.paid && item.type === 'theme' && (
+                {item.paid && (
                   <LicenseBox
+                    type={item.type}
                     slug={item.slug}
                     name={item.name}
                     purchaseUrl={item.paid.purchaseUrl}

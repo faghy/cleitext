@@ -6,6 +6,7 @@ import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, useT } from '../components/ui';
 import { PackageUpload } from '../components/package-upload';
 import { CatalogBrowser, CatalogUpdateButton } from '../components/catalog';
+import { LicenseBox } from '../components/license';
 import { useState } from 'react';
 import { pagePath, usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
@@ -156,6 +157,20 @@ export function PluginsPage() {
                   )}
                 </h2>
                 {plugin.description && <p className="text-sm">{plugin.description}</p>}
+                {plugin.paid && plugin.status !== 'error' && (
+                  <>
+                    <p className="text-xs font-medium uppercase tracking-wide text-amber-800">
+                      {plugin.paid.license ? t('Paid plugin') : t('Paid plugin · demo')}
+                    </p>
+                    <LicenseBox
+                      type="plugin"
+                      slug={plugin.slug}
+                      name={plugin.name}
+                      purchaseUrl={plugin.paid.purchaseUrl}
+                      license={plugin.paid.license}
+                    />
+                  </>
+                )}
                 <p className="text-xs text-slate-500">
                   {plugin.author && <>{t('By {author}', { author: plugin.author })} · </>}
                   {plugin.license}

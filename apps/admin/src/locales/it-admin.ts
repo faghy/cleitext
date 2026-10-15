@@ -204,6 +204,12 @@ export const itAdmin: Messages = {
   'Live Preview: {name}': 'Anteprima dal vivo: {name}',
   'Paid theme': 'Tema a pagamento',
   'Paid theme · demo': 'Tema a pagamento · demo',
+  'Paid plugin': 'Plugin a pagamento',
+  'Paid plugin · demo': 'Plugin a pagamento · demo',
+  'Updates ended on {date}: the plugin keeps working, renew to get new versions.':
+    'Aggiornamenti terminati il {date}: il plugin continua a funzionare, rinnova per avere le nuove versioni.',
+  'Remove the license of {name} from this site? The plugin keeps working while active, but it cannot be activated again here without a license.':
+    'Rimuovere la licenza di {name} da questo sito? Il plugin continua a funzionare finché resta attivo, ma qui non si potrà riattivare senza licenza.',
   'This is the demo of a paid theme: enter a license key to activate it.':
     'Questa è la demo di un tema a pagamento: inserisci una chiave di licenza per attivarlo.',
 };
