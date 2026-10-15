@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import {
+  copyFile,
   cp,
   lstat,
   mkdir,
@@ -178,7 +179,64 @@ export async function buildPlugin(dir: string): Promise<BuildResult> {
       });
     if (result.errors.length === 0) outputs.push(outfile);
   }
+  if (manifest.public) outputs.push(...(await buildPublicFiles(dir, manifest.public)));
   return { manifest, outputs };
+}
+
+/**
+ * Files for the public site: `src/public` (for a `dist/public` folder) is
+ * copied, with scripts bundled and minified (each `.ts`/`.tsx`/`.js` file is
+ * an entry, imports included) and styles minified. Without a source folder,
+ * the public folder is used as it is.
+ */
+async function buildPublicFiles(dir: string, folder: string): Promise<string[]> {
+  const source = path.join(dir, folder.replace(/^dist\//, 'src/'));
+  const target = path.join(dir, folder);
+  if (source === target || !existsSync(source)) return [];
+  await rm(target, { recursive: true, force: true });
+  const outputs: string[] = [];
+  const files = (await readdir(source, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.relative(source, path.join(entry.parentPath, entry.name)));
+  for (const file of files) {
+    const extension = path.extname(file);
+    const from = path.join(source, file);
+    // Modules imported by entries live in `_`-prefixed files or folders, and are not entries.
+    if (file.split(path.sep).some((part) => part.startsWith('_'))) continue;
+    if (['.ts', '.tsx', '.js', '.jsx', '.mts', '.css'].includes(extension)) {
+      const outfile = path.join(
+        target,
+        file.replace(/\.(tsx?|jsx?)$/, '.js').replace(/\.mts$/, '.mjs'),
+      );
+      await esbuild
+        .build({
+          entryPoints: [from],
+          outfile,
+          bundle: true,
+          format: extension === '.mts' ? 'esm' : 'iife',
+          platform: 'browser',
+          target: 'es2020',
+          jsx: 'automatic',
+          minify: true,
+          legalComments: 'linked',
+          logLevel: 'silent',
+          loader: { '.woff2': 'file', '.woff': 'file', '.svg': 'file', '.png': 'file' },
+        })
+        .catch((error: unknown) => {
+          const failure = error as esbuild.BuildFailure;
+          throw new OperationError(
+            `Build of public/${file} failed:\n  ${(failure.errors?.map((e) => `${e.location?.file ?? ''}:${e.location?.line ?? ''} ${e.text}`) ?? [String(error)]).join('\n  ')}`,
+          );
+        });
+      outputs.push(outfile);
+    } else {
+      const outfile = path.join(target, file);
+      await mkdir(path.dirname(outfile), { recursive: true });
+      await copyFile(from, outfile);
+      outputs.push(outfile);
+    }
+  }
+  return outputs;
 }
 
 // ---- Install ----------------------------------------------------------------------------

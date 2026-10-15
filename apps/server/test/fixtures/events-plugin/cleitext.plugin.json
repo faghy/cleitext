@@ -6,6 +6,7 @@
   "description": "Events with RSVPs, used by the server tests.",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
+  "public": "dist/public",
   "permissions": [
     "content:read",
     "content:write",

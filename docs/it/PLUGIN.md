@@ -78,6 +78,7 @@ my-plugin/
 | `license`                           |      ✅      | Identificatore SPDX di una licenza compatibile con la GPL: `GPL-2.0-or-later`, `GPL-3.0-or-later`, `MIT`, `Apache-2.0`, `BSD-3-Clause`, `ISC`…                   |
 | `server`                            |              | Percorso del punto di ingresso del server compilato. Il sorgente è lo stesso percorso sotto `src/` (`dist/server.js` ← `src/server.ts` o `.tsx`, `.js`).         |
 | `admin`                             |              | Percorso del punto di ingresso dell'admin compilato, con la stessa regola.                                                                                       |
+| `public`                            |              | Cartella dei file per il sito pubblico, per esempio `dist/public` (§9, Script e stili pubblici).                                                                 |
 | `requires.plugins`                  |              | Plugin che devono essere installati (e attivi sul sito) prima: `{ "slug": "semver range" }`.                                                                     |
 | `permissions`                       |              | Ciò che il plugin usa ([§12](#12-permessi)). Usare qualcosa che non è elencato lancia `PluginPermissionError`.                                                   |
 | `capabilities`                      |              | Capability definite dal plugin ([§9](#capability)).                                                                                                              |
@@ -321,7 +322,7 @@ ctx.blocks.register(
 - Quando il plugin è inattivo, i suoi blocchi restano nel contenuto ma non renderizzano nulla. L'editor li mostra come _non disponibili_ e li mantiene invariati.
 - I blocchi vengono disegnati ovunque si trovino: nella voce, nelle aree a blocchi del tema e nei pattern sincronizzati.
 
-**Contenitori, CSS e media.** I page builder hanno bisogno di blocchi che ne contengono altri e che si danno uno stile da sé:
+**Contenitori, CSS e media** (API dei plugin 1.11). I page builder hanno bisogno di blocchi che ne contengono altri e che si danno uno stile da sé:
 
 - `container: true`: il blocco può tenere altri blocchi in `children`. Cleitext li disegna e li passa a `render` come `children`.
 - `wrapper: false`: toglie il `<div class="wp-block-…">` intorno al blocco. I contenitori non ce l'hanno.
@@ -399,6 +400,26 @@ Il plugin ufficiale **Store** le usa per il server delle licenze dei temi a paga
 **Caricamenti** (API dei plugin 1.7): `await request.file()` restituisce il campo `file` di una richiesta `multipart/form-data` come `{ filename, mime, data }` (un `Buffer`), oppure `null`; i file oltre il limite del server (`MEDIA_MAX_BYTES`) ricevono un 413. Nell'admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` dell'admin SDK lo invia con il token CSRF e riporta l'avanzamento.
 
 ## 9. Impostazioni, capability, cache, mail
+
+### Script e stili pubblici (API dei plugin 1.11)
+
+I file per i visitatori (script, stili, font, immagini) vanno nella cartella indicata da `public` nel manifest, per esempio `dist/public`. `plugin:build` la riempie da `src/public`:
+
+- ogni file `.ts`, `.tsx`, `.js` viene impacchettato con i suoi import e minificato (`.mts` diventa un modulo ES `.mjs`);
+- i file `.css` vengono minificati;
+- gli altri file vengono copiati;
+- file e cartelle che iniziano con `_` servono solo agli import e non vengono pubblicati.
+
+Sono serviti su `/plugin-assets/<slug>/<versione>/<file>`, con cache di un anno (la versione cambia l'indirizzo). Si aggiungono alle pagine con `ctx.assets` (serve `theme:hooks`):
+
+```ts
+// Solo nelle pagine che usano il widget del plugin.
+ctx.assets.enqueue({ file: 'slider.js', when: ({ html }) => html.includes('my-slider') });
+ctx.assets.enqueue({ file: 'slider.css', when: ({ html }) => html.includes('my-slider') });
+const font = ctx.assets.url('fonts/icons.woff2'); // l'indirizzo, per il proprio markup
+```
+
+Gli stili vanno in fondo al `<head>`, gli script prima di `</body>` (`defer`, oppure `type="module"` per `.mjs`). `when` riceve il contesto dell'hook della pagina e il suo HTML finale.
 
 ### Impostazioni
 
@@ -636,7 +657,7 @@ export default defineAdminPlugin({
 
 `entry` è `{ id, type, locale, title, slug, status }`; le righe sono `{ id, locale, title, status? }`. `navigate('/entries/<id>')` apre un indirizzo dell'admin. `visible` nasconde una sezione o una colonna, per esempio quando il sito ha una sola lingua.
 
-**Editor.** Un plugin può offrire un editor per le voci al posto dell'editor a blocchi, per esempio un page builder. Occupa tutto lo schermo sotto la barra superiore dell'editor, che mantiene titolo, salvataggio, anteprima e pubblicazione:
+**Editor** (API dei plugin 1.11). Un plugin può offrire un editor per le voci al posto dell'editor a blocchi, per esempio un page builder. Occupa tutto lo schermo sotto la barra superiore dell'editor, che mantiene titolo, salvataggio, anteprima e pubblicazione:
 
 ```tsx
 export default defineAdminPlugin({

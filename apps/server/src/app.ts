@@ -147,6 +147,9 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
   fastify.get('/admin-plugins/:slug/:version/*', (request, reply) =>
     servePluginAsset(app.get(PluginHost), request, reply),
   );
+  fastify.get('/plugin-assets/:slug/:version/*', (request, reply) =>
+    servePluginAsset(app.get(PluginHost), request, reply, 'public'),
+  );
 
   // Public site: every other GET/HEAD (docs/ARCHITECTURE.md §12).
   const publicService = app.get(PublicService);

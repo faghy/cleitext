@@ -72,6 +72,11 @@ export default definePlugin({
       }),
     );
 
+    // Script and style only on pages that show the events block.
+    for (const file of ['events.js', 'events.css']) {
+      ctx.assets.enqueue({ file, when: ({ html }) => html.includes('class="events"') });
+    }
+
     // A container: its children are rendered by Cleitext, its CSS goes to <head>.
     ctx.blocks.register(
       defineBlock<{ tone: string }>({

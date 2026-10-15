@@ -33,6 +33,7 @@ import {
   type TrackerDeclaration,
   type Filters,
   type PluginBlockDefinition,
+  type PublicAsset,
   type PluginDefinition,
   type PluginManifest,
   type PublicRoute,
@@ -106,6 +107,8 @@ export interface LoadedPlugin {
   erasers: PersonalDataEraser[];
   /** Registered with `ctx.privacy.declareTrackers`. */
   trackerProviders: ((siteId: string) => TrackerDeclaration[] | Promise<TrackerDeclaration[]>)[];
+  /** Files of the `public` folder added to public pages (`ctx.assets.enqueue`). */
+  assets: PublicAsset[];
   stats: PluginStats;
 }
 
@@ -240,6 +243,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       exporters: [],
       erasers: [],
       trackerProviders: [],
+      assets: [],
       stats: { calls: 0, errors: 0, totalMs: 0, lastError: null },
     };
     try {
@@ -282,6 +286,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         exporters: [],
         erasers: [],
         trackerProviders: [],
+        assets: [],
       });
       plugin.capabilities.clear();
       this.logger.error(`Plugin ${slug} could not be loaded: ${plugin.error}`);

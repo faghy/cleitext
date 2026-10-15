@@ -3,7 +3,7 @@ import type { TransferDocumentInput } from '@cleitext/blocks/transfer';
 import type { FieldDefinition, FieldValues, Label } from '@cleitext/shared';
 import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
 import type { ReactNode } from 'react';
-import type { HookApi } from './hooks.js';
+import type { HookApi, RenderHookContext } from './hooks.js';
 
 /** A site, as plugins see it. */
 export interface PluginSite {
@@ -622,8 +622,30 @@ export interface PrivacyApi {
 
 // ---- Plugin -------------------------------------------------------------------------
 
+/** A file of the plugin's `public` folder added to public pages. */
+export interface PublicAsset {
+  /** Path inside the `public` folder: `.js`/`.mjs` scripts, `.css` styles. */
+  file: string;
+  /**
+   * Pages that get it (all when omitted), e.g. only those using the
+   * plugin's blocks: `({ html }) => html.includes('my-widget')`.
+   */
+  when?: (context: RenderHookContext & { html: string }) => boolean | Promise<boolean>;
+}
+
+export interface AssetsApi {
+  /** Address of a file of the `public` folder, with the version (cached for a year). */
+  url(file: string): string;
+  /**
+   * Adds a script (before `</body>`, deferred; `.mjs` as a module) or a
+   * stylesheet (in `<head>`) to public pages. Needs `theme:hooks`.
+   */
+  enqueue(asset: PublicAsset): void;
+}
+
 export interface PluginContext {
   readonly plugin: { slug: string; version: string };
+  readonly assets: AssetsApi;
   readonly log: PluginLogger;
   readonly hooks: HookApi;
   readonly content: ContentApi;

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.10.0';
+export const SDK_VERSION = '1.11.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -27,6 +27,8 @@ export const PLUGIN_SLUG_RE = /^[a-z][a-z0-9-]{1,39}$/;
 const SEMVER_RE =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const RELATIVE_PATH_RE = /^(?!\/)(?!.*\.\.)[\w./-]+\.m?js$/;
+/** A folder inside the plugin, e.g. `dist/public`. */
+const RELATIVE_DIR_RE = /^(?!\/)(?!.*\.\.)[\w-]+(\/[\w-]+)*$/;
 
 /** Licenses accepted for plugins: GPL-compatible (ARCHITECTURE §11.10). */
 export const GPL_COMPATIBLE_LICENSES = [
@@ -61,6 +63,15 @@ export const pluginManifestSchema = z.object({
   server: z.string().regex(RELATIVE_PATH_RE).optional(),
   /** Admin entry point (ESM), relative to the plugin folder. */
   admin: z.string().regex(RELATIVE_PATH_RE).optional(),
+  /**
+   * Folder of files for the public site (scripts, styles, fonts), e.g.
+   * `dist/public`, served at `/plugin-assets/<slug>/<version>/<file>`.
+   * `plugin:build` bundles `src/public` into it.
+   */
+  public: z
+    .string()
+    .regex(RELATIVE_DIR_RE, 'A folder inside the plugin, e.g. dist/public')
+    .optional(),
   requires: z
     .object({
       cleitext: z.string().max(50).optional(),

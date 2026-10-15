@@ -76,6 +76,7 @@ my-plugin/
 | `license`                           |    ✅    | SPDX identifier of a GPL-compatible license: `GPL-2.0-or-later`, `GPL-3.0-or-later`, `MIT`, `Apache-2.0`, `BSD-3-Clause`, `ISC`…      |
 | `server`                            |          | Path of the built server entry. Its source is the same path under `src/` (`dist/server.js` ← `src/server.ts` or `.tsx`, `.js`).       |
 | `admin`                             |          | Path of the built admin entry, same rule.                                                                                             |
+| `public`                            |          | Folder of files for the public site, e.g. `dist/public` (§9, Public scripts and styles).                                              |
 | `requires.plugins`                  |          | Plugins that must be installed (and active on the site) first: `{ "slug": "semver range" }`.                                          |
 | `permissions`                       |          | What the plugin uses ([§12](#12-permissions)). Using something not listed throws `PluginPermissionError`.                             |
 | `capabilities`                      |          | Capabilities the plugin defines ([§9](#capabilities)).                                                                                |
@@ -319,7 +320,7 @@ ctx.blocks.register(
 - When the plugin is inactive, its blocks stay in the content but render nothing. The editor shows them as _unavailable_ and keeps them unchanged.
 - Blocks render wherever they are: in the entry, in the theme's block areas and in synced patterns.
 
-**Containers, CSS and media.** Page builders need blocks that hold other blocks and style themselves:
+**Containers, CSS and media** (plugin API 1.11). Page builders need blocks that hold other blocks and style themselves:
 
 ```tsx
 defineBlock<{ gap: number; image?: string }>({
@@ -419,6 +420,26 @@ The official **Store** plugin uses them for the license server of paid themes.
 **Uploads** (plugin API 1.7): `await request.file()` returns the `file` field of a `multipart/form-data` request as `{ filename, mime, data }` (a `Buffer`), or `null`; files over the server's upload limit (`MEDIA_MAX_BYTES`) get a 413. In the admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` from the admin SDK sends it with the CSRF token and reports the progress.
 
 ## 9. Settings, capabilities, cache, mail
+
+### Public scripts and styles (plugin API 1.11)
+
+Files for visitors (scripts, styles, fonts, images) go in the folder named by `public` in the manifest, e.g. `dist/public`. `plugin:build` fills it from `src/public`:
+
+- every `.ts`, `.tsx`, `.js` file is bundled with its imports and minified (`.mts` becomes an ES module `.mjs`);
+- `.css` files are minified;
+- other files are copied;
+- files and folders starting with `_` are only imported, never published.
+
+They are served at `/plugin-assets/<slug>/<version>/<file>`, cached for a year (the version changes the address). Add them to pages with `ctx.assets` (needs `theme:hooks`):
+
+```ts
+// Only on pages that use the plugin's widget.
+ctx.assets.enqueue({ file: 'slider.js', when: ({ html }) => html.includes('my-slider') });
+ctx.assets.enqueue({ file: 'slider.css', when: ({ html }) => html.includes('my-slider') });
+const font = ctx.assets.url('fonts/icons.woff2'); // the address, for your own markup
+```
+
+Styles go at the end of `<head>`, scripts before `</body>` (`defer`, or `type="module"` for `.mjs`). `when` receives the page's hook context and its final HTML.
 
 ### Settings
 
@@ -656,7 +677,7 @@ export default defineAdminPlugin({
 
 `entry` is `{ id, type, locale, title, slug, status }`; rows are `{ id, locale, title, status? }`. `navigate('/entries/<id>')` opens an admin address. `visible` hides a section or column, e.g. when the site has a single language.
 
-**Editors.** A plugin can offer an editor for entries instead of the block editor, such as a page builder. It takes the whole screen under the editor's top bar, which keeps the title, saving, preview and publishing:
+**Editors** (plugin API 1.11). A plugin can offer an editor for entries instead of the block editor, such as a page builder. It takes the whole screen under the editor's top bar, which keeps the title, saving, preview and publishing:
 
 ```tsx
 export default defineAdminPlugin({

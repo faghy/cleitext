@@ -20,6 +20,7 @@ import {
 import type { FieldDefinition, FieldValues } from '@cleitext/shared';
 import { Logger } from '@nestjs/common';
 import type { LoadedPlugin, PluginHost } from './plugin-host.service.js';
+import { pluginAssetUrl } from './plugin-assets.js';
 
 /** What plugin contexts need from the core, implemented by `PluginServices`. */
 export interface PluginServices {
@@ -293,6 +294,22 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         require('settings:own');
         assertSiteId(siteId);
         return services().storageDelete(plugin, siteId, key);
+      },
+    },
+
+    assets: {
+      url(file) {
+        return pluginAssetUrl(plugin.slug, plugin.version, file);
+      },
+      enqueue(asset) {
+        require('theme:hooks');
+        if (!plugin.manifest.public) {
+          throw new Error('Assets need a "public" folder in cleitext.plugin.json.');
+        }
+        if (!/\.(m?js|css)$/.test(asset.file)) {
+          throw new Error(`Only .js, .mjs and .css files can be added to pages: ${asset.file}`);
+        }
+        plugin.assets.push(asset);
       },
     },
 

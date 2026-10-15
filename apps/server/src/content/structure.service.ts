@@ -32,6 +32,7 @@ type TypeRow = typeof contentTypes.$inferSelect;
 const RESERVED = new Set([
   'admin',
   'admin-plugins',
+  'plugin-assets',
   'api',
   'media',
   'health',

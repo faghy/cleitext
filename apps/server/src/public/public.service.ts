@@ -64,6 +64,7 @@ import {
 import { verifySameOrigin } from '../auth/auth.guard.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { routeRequest, sendRouteResponse } from '../plugins/plugin-routes.js';
+import { pluginAssetUrl } from '../plugins/plugin-assets.js';
 import { verifyPreviewToken } from './preview.js';
 import { themeFor } from './themes.js';
 import { PUBLIC_CSP } from '../common/security-headers.js';
@@ -1338,12 +1339,13 @@ export class PublicService {
       });
     }
     if (scope.activePlugins.size > 0) {
-      html = await this.plugins.applyFilter(
-        'render.html',
-        html,
-        this.hookContext(scope, props.kind, props.kind === 'entry' ? props.entry : undefined),
-        scope.siteId,
+      const hookContext = this.hookContext(
+        scope,
+        props.kind,
+        props.kind === 'entry' ? props.entry : undefined,
       );
+      html = await this.plugins.applyFilter('render.html', html, hookContext, scope.siteId);
+      html = await this.withPluginAssets(scope, html, hookContext);
     }
     return { status, html, tags: [...scope.tags], siteTitle: scope.siteTitle };
   }
@@ -1361,6 +1363,7 @@ export class PublicService {
       route: route as RenderHookContext['route'],
       path: scope.path,
       ...(entry ? { entry } : {}),
+      ...(scope.editorFrame ? { editorFrame: true } : {}),
       tag: (tag: string) => {
         scope.tags.add(tag);
       },
@@ -1491,6 +1494,43 @@ export class PublicService {
       }
     };
     return new Map([...definitions.keys()].map((type) => [type, renderer]));
+  }
+
+  /** Scripts and styles that active plugins add to the page (`ctx.assets.enqueue`). */
+  private async withPluginAssets(
+    scope: RequestScope,
+    html: string,
+    context: RenderHookContext,
+  ): Promise<string> {
+    const styles: string[] = [];
+    const scripts: string[] = [];
+    for (const plugin of await this.plugins.activePlugins(scope.siteId)) {
+      for (const asset of plugin.assets) {
+        if (asset.when) {
+          const outcome = await this.plugins.runHook(
+            { plugin: plugin.slug, name: `asset ${asset.file}`, siteId: scope.siteId },
+            async () => Boolean(await asset.when!({ ...context, html })),
+          );
+          if (!outcome.ok || !outcome.value) continue;
+        }
+        // Slug, version and path parts are URL-encoded: nothing can break the attribute.
+        const url = pluginAssetUrl(plugin.slug, plugin.version, asset.file);
+        if (asset.file.endsWith('.css')) styles.push(`<link rel="stylesheet" href="${url}">`);
+        else if (asset.file.endsWith('.mjs'))
+          scripts.push(`<script type="module" src="${url}"></script>`);
+        else scripts.push(`<script src="${url}" defer></script>`);
+      }
+    }
+    if (styles.length > 0) {
+      const at = html.indexOf('</head>');
+      if (at !== -1) html = html.slice(0, at) + styles.join('') + html.slice(at);
+    }
+    if (scripts.length > 0) {
+      const at = html.lastIndexOf('</body>');
+      html =
+        at === -1 ? html + scripts.join('') : html.slice(0, at) + scripts.join('') + html.slice(at);
+    }
+    return html;
   }
 
   /** A public address of an active plugin (`ctx.routes.public`). */

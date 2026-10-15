@@ -222,6 +222,22 @@ describe('an active plugin', () => {
     expect(first.body.match(/wp-block-events-upcoming/g)).toHaveLength(1);
     expect((await visitor.get('/agenda')).headers['x-cache']).toBe('HIT');
 
+    // Its script and style, only where the block is.
+    const script = '<script src="/plugin-assets/events/1.0.0/events.js" defer></script>';
+    expect(first.body).toContain(script);
+    expect(first.body.slice(0, first.body.indexOf('</head>'))).toContain(
+      '<link rel="stylesheet" href="/plugin-assets/events/1.0.0/events.css">',
+    );
+    expect((await visitor.get('/')).body).not.toContain('/plugin-assets/events/');
+    const js = await visitor.get('/plugin-assets/events/1.0.0/events.js');
+    expect(js.statusCode).toBe(200);
+    expect(js.headers['content-type']).toContain('text/javascript');
+    expect(js.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(js.body).toContain('toUpperCase');
+    expect((await visitor.get('/plugin-assets/events/1.0.0/_label.js')).statusCode).toBe(404);
+    expect((await visitor.get('/plugin-assets/events/0.9.0/events.js')).statusCode).toBe(404);
+    expect((await visitor.get('/plugin-assets/events/1.0.0/../server.js')).statusCode).toBe(404);
+
     await createEvent('Summer fair', '2030-07-01');
     const second = await visitor.get('/agenda');
     expect(second.headers['x-cache']).toBe('MISS');

@@ -13,7 +13,20 @@ const TYPES: Record<string, string> = {
   '.png': 'image/png',
   '.webp': 'image/webp',
   '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
 };
+
+/** Address of a file of a plugin's `public` folder (`ctx.assets.url`). */
+export function pluginAssetUrl(slug: string, version: string, file: string): string {
+  const clean = file
+    .replace(/^\/+/, '')
+    .split('/')
+    .map((part) => encodeURIComponent(part))
+    .join('/');
+  return `/plugin-assets/${slug}/${encodeURIComponent(version)}/${clean}`;
+}
 
 /**
  * Files of a plugin's admin entry, at `/admin-plugins/<slug>/<version>/<file>`.
@@ -24,15 +37,19 @@ export async function servePluginAsset(
   host: PluginHost,
   request: FastifyRequest,
   reply: FastifyReply,
+  kind: 'admin' | 'public' = 'admin',
 ): Promise<void> {
   const params = request.params as { slug: string; version: string; '*': string };
   const plugin = host.get(params.slug);
   const file = params['*'] ?? '';
   const type = TYPES[path.extname(file)];
-  const root = plugin?.manifest.admin
-    ? path.dirname(path.join(plugin.dir, plugin.manifest.admin))
-    : null;
-  const target = root ? path.resolve(plugin!.dir, file) : '';
+  // Public files: the manifest's `public` folder, served to the site's visitors.
+  const folder =
+    kind === 'admin'
+      ? plugin?.manifest.admin && path.dirname(plugin.manifest.admin)
+      : plugin?.manifest.public;
+  const root = plugin && folder ? path.join(plugin.dir, folder) : null;
+  const target = root ? path.resolve(kind === 'admin' ? plugin!.dir : root, file) : '';
   if (
     !plugin ||
     !root ||

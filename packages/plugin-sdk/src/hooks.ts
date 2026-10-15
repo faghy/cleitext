@@ -80,6 +80,8 @@ export interface RenderHookContext {
   entry?: PublicEntry;
   /** Adds a page-cache tag, so the page refreshes when that data changes. */
   tag(tag: string): void;
+  /** The page is shown inside a visual editor (`PageContext.editorFrame`). */
+  editorFrame?: boolean;
 }
 
 /** Filters (transformations): `[value, context]` by name. */
