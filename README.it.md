@@ -57,6 +57,7 @@ Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/`, scrive un
 | [`docs/it/SPECIFICHE.md`](./docs/it/SPECIFICHE.md) ([EN](./docs/SPECIFICATIONS.md))   | Requisiti funzionali e non funzionali, API REST, SDK dei plugin, hook, formato CXD, CLI, roadmap      |
 | [`docs/it/PLUGIN.md`](./docs/it/PLUGIN.md) ([EN](./docs/PLUGINS.md))                  | Sviluppare plugin: manifest, hook, tipi di contenuto, blocchi, route, tabelle proprie, pagine admin   |
 | [`docs/it/TEMI.md`](./docs/it/TEMI.md) ([EN](./docs/THEMES.md))                       | Sviluppare temi: template, impostazioni, aree di blocchi, stili dell'editor                           |
+| [`docs/it/FRESCO.md`](./docs/it/FRESCO.md) ([EN](./docs/FRESCO.md))                   | Fresco e Fresco Pro: page builder visuale, Theme Builder, moduli, loop, popup                         |
 | [`docs/it/DEPLOY.md`](./docs/it/DEPLOY.md) ([EN](./docs/DEPLOYMENT.md))               | Installazione e aggiornamento su server (Plesk, nginx), backup                                        |
 | [`docs/it/MCP.md`](./docs/it/MCP.md) ([EN](./docs/MCP.md))                            | Assistenti IA: collegarli con MCP e OAuth, i loro strumenti                                           |
 | [`docs/it/PRIVACY.md`](./docs/it/PRIVACY.md) ([EN](./docs/PRIVACY.md))                | Plugin Privacy e GDPR: banner dei cookie, registro consensi, policy, richieste sui dati personali     |

@@ -75,6 +75,7 @@ On first start, `pnpm dev` creates a local database in `.cleitext-dev/`, writes 
 | [`docs/SPECIFICATIONS.md`](./docs/SPECIFICATIONS.md) | Functional and non-functional requirements, REST API, plugin SDK, hooks, CXD format, CLI, roadmap           |
 | [`docs/PLUGINS.md`](./docs/PLUGINS.md)               | Developing plugins: manifest, hooks, content types, blocks, routes, own tables, admin pages                 |
 | [`docs/THEMES.md`](./docs/THEMES.md)                 | Developing themes: templates, settings, block areas, editor styles                                          |
+| [`docs/FRESCO.md`](./docs/FRESCO.md)                 | Fresco and Fresco Pro: the visual page builder, Theme Builder, forms, loops, popups                         |
 | [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)         | Installing and updating on a server (Plesk, nginx), backups                                                 |
 | [`docs/MCP.md`](./docs/MCP.md)                       | AI assistants: connecting them through MCP and OAuth, their tools                                           |
 | [`docs/PRIVACY.md`](./docs/PRIVACY.md)               | Privacy & GDPR plugin: cookie banner, consent log, policies, personal data requests                         |
