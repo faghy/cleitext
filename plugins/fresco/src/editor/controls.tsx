@@ -1195,34 +1195,29 @@ function Repeater({ control, env }: { control: Control; env: ControlEnv }) {
             </div>
             {open === index && (
               <div className="fre-repeater__body">
-                {(control.fields ?? []).map((field) => (
-                  <ControlField
-                    key={field.name}
-                    control={{ ...field, responsive: false, hover: false }}
-                    env={{
-                      ...env,
-                      attrs: item,
-                      settings: {
-                        ...Object.fromEntries(
-                          (control.fields ?? [])
-                            .filter((f) => f.default !== undefined)
-                            .map((f) => [f.name, f.default]),
-                        ),
-                        ...item,
-                      },
-                      set: (changes) => {
-                        const next = [...items];
-                        const updated = { ...item };
-                        for (const [k, v] of Object.entries(changes)) {
-                          if (v === undefined || v === '') delete updated[k];
-                          else updated[k] = v;
-                        }
-                        next[index] = updated;
-                        write(next);
-                      },
-                    }}
-                  />
-                ))}
+                {(control.fields ?? [])
+                  .filter((field) => conditionMet(field, { ...fieldDefaults(control), ...item }))
+                  .map((field) => (
+                    <ControlField
+                      key={field.name}
+                      control={{ ...field, responsive: false, hover: false }}
+                      env={{
+                        ...env,
+                        attrs: item,
+                        settings: { ...fieldDefaults(control), ...item },
+                        set: (changes) => {
+                          const next = [...items];
+                          const updated = { ...item };
+                          for (const [k, v] of Object.entries(changes)) {
+                            if (v === undefined || v === '') delete updated[k];
+                            else updated[k] = v;
+                          }
+                          next[index] = updated;
+                          write(next);
+                        },
+                      }}
+                    />
+                  ))}
               </div>
             )}
           </div>
@@ -1399,6 +1394,13 @@ function groupFields(control: GroupControl): Control[] {
     default:
       return [];
   }
+}
+
+/** Defaults of a repeater's fields, for an item that has not set them. */
+function fieldDefaults(control: Control): Settings {
+  return Object.fromEntries(
+    (control.fields ?? []).filter((f) => f.default !== undefined).map((f) => [f.name, f.default]),
+  );
 }
 
 function conditionMet(control: Control, settings: Settings): boolean {
