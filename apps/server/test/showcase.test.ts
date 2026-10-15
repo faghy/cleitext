@@ -67,6 +67,28 @@ const ITEMS = [
     size: 16240,
     updatedAt: '2026-10-11T00:00:00Z',
   },
+  {
+    type: 'theme',
+    slug: 'vivid',
+    name: 'Vivid',
+    summary: { en: 'A paid theme.', it: 'Un tema a pagamento.' },
+    tags: [],
+    icon: null,
+    screenshots: [],
+    version: '1.0.0',
+    license: 'GPL-2.0-or-later',
+    author: 'Cleitext',
+    download: 'https://store.example/v1/download/vivid/1.0.0',
+    sha256: 'c'.repeat(64),
+    size: 52000,
+    updatedAt: '2026-10-11T00:00:00Z',
+    paid: {
+      price: { amount: 59, currency: 'EUR', per: 'site' },
+      updatesMonths: 12,
+      purchaseUrl: 'https://store.example/vivid',
+      licenseServer: 'https://store.example/v1',
+    },
+  },
 ];
 
 function publish(signer = keys.privateKey) {
@@ -156,5 +178,14 @@ describe('catalog showcase', () => {
     expect(html).toContain('src="https://example.com/canvas.png"');
     expect(html).toContain('Needs Cleitext ≥ 0.9.0');
     expect(html).not.toContain('privacy.zip');
+  });
+
+  it('shows the price of paid themes, with Buy instead of Download', async () => {
+    const page = await pageWith('theme');
+    const html = (await visitor.get(`/${page.slug}`)).body;
+    expect(html).toMatch(/<strong>€59<\/strong> per site · 12 months of updates/);
+    expect(html).toContain('href="https://store.example/vivid">Buy</a>');
+    expect(html).toContain('then Live Preview');
+    expect(html).not.toContain('download/vivid');
   });
 });

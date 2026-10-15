@@ -30,6 +30,12 @@ interface Item {
   size: number;
   homepage?: string;
   updatedAt: string;
+  /** Paid themes (RF-CAT-03): bought on the store, tried as a demo from the admin. */
+  paid?: {
+    price: { amount: number; currency: string };
+    updatesMonths: number;
+    purchaseUrl: string;
+  };
 }
 
 interface Attrs {
@@ -80,6 +86,10 @@ const TEXTS = {
     version: 'Version',
     by: 'by',
     download: 'Download',
+    buy: 'Buy',
+    perSite: 'per site',
+    monthsOfUpdates: 'months of updates',
+    demo: 'Try the demo from your admin: Appearance → Themes → Add New Theme, then Live Preview.',
     details: 'Details',
     needs: 'Needs Cleitext',
     install: 'Install it from your admin: Plugins → Add New.',
@@ -92,6 +102,10 @@ const TEXTS = {
     version: 'Versione',
     by: 'di',
     download: 'Scarica',
+    buy: 'Acquista',
+    perSite: 'per sito',
+    monthsOfUpdates: 'mesi di aggiornamenti',
+    demo: 'Prova la demo dall’admin: Aspetto → Temi → Aggiungi nuovo tema, poi Anteprima dal vivo.',
     details: 'Dettagli',
     needs: 'Richiede Cleitext',
     install: 'Installalo dall’admin: Plugin → Aggiungi nuovo.',
@@ -114,6 +128,8 @@ const STYLE = `.cx-catalog{list-style:none;padding:0;display:grid;gap:1.5rem;gri
 .cx-catalog__tags{display:flex;flex-wrap:wrap;gap:.35rem;margin:0;padding:0;list-style:none}
 .cx-catalog__tags li{font-size:.75rem;background:#f1f5f9;color:#334155;border-radius:999px;padding:.15rem .6rem}
 .cx-catalog__how{margin:0;font-size:.8rem;color:#6b7280}
+.cx-catalog__price{margin:0;font-size:.95rem}
+.cx-catalog__price strong{font-size:1.2rem}
 .cx-catalog__actions{display:flex;gap:.5rem;flex-wrap:wrap}
 .cx-catalog__button{display:inline-block;padding:.55rem 1rem;border-radius:.5rem;font-weight:600;font-size:.9rem;text-decoration:none;border:2px solid #0f4c81;background:#0f4c81;color:#fff}
 .cx-catalog__button--plain{background:transparent;color:#0f4c81}
@@ -224,14 +240,34 @@ export default definePlugin({
                           ))}
                         </ul>
                       )}
+                      {item.paid && (
+                        <p className="cx-catalog__price">
+                          <strong>
+                            {new Intl.NumberFormat(it ? 'it-IT' : 'en-GB', {
+                              style: 'currency',
+                              currency: item.paid.price.currency,
+                              maximumFractionDigits: item.paid.price.amount % 1 === 0 ? 0 : 2,
+                            }).format(item.paid.price.amount)}
+                          </strong>{' '}
+                          {t.perSite}
+                          {item.paid.updatesMonths > 0 &&
+                            ` · ${item.paid.updatesMonths} ${t.monthsOfUpdates}`}
+                        </p>
+                      )}
                       <p className="cx-catalog__how">
-                        {item.type === 'plugin' ? t.install : t.installTheme}
+                        {item.paid ? t.demo : item.type === 'plugin' ? t.install : t.installTheme}
                         {item.requires ? ` ${t.needs} ${item.requires.replace('>=', '≥ ')}.` : ''}
                       </p>
                       <div className="cx-catalog__actions">
-                        <a className="cx-catalog__button" href={item.download}>
-                          {t.download} ({Math.max(1, Math.round(item.size / 1024))} KB)
-                        </a>
+                        {item.paid ? (
+                          <a className="cx-catalog__button" href={item.paid.purchaseUrl}>
+                            {t.buy}
+                          </a>
+                        ) : (
+                          <a className="cx-catalog__button" href={item.download}>
+                            {t.download} ({Math.max(1, Math.round(item.size / 1024))} KB)
+                          </a>
+                        )}
                         {item.homepage && (
                           <a
                             className="cx-catalog__button cx-catalog__button--plain"
