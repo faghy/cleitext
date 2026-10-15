@@ -1401,21 +1401,21 @@ function groupFields(control: GroupControl): Control[] {
   }
 }
 
-/** Choices from option sources, loaded once per editor session. */
-const sourceCache = new Map<string, ControlOption[]>();
+/** Choices from option sources, loaded when shown and again after a few seconds. */
+const sourceCache = new Map<string, { options: ControlOption[]; at: number }>();
 const sourceListeners = new Set<() => void>();
 function sourceOptions(name: string): ControlOption[] {
   const cached = sourceCache.get(name);
-  if (cached) return cached;
+  if (cached && Date.now() - cached.at < 10_000) return cached.options;
   const load = extensions().optionSources[name];
-  sourceCache.set(name, []);
+  sourceCache.set(name, { options: cached?.options ?? [], at: Date.now() });
   load?.()
     .then((options) => {
-      sourceCache.set(name, options);
+      sourceCache.set(name, { options, at: Date.now() });
       for (const listener of sourceListeners) listener();
     })
     .catch(() => sourceCache.delete(name));
-  return [];
+  return cached?.options ?? [];
 }
 /** Re-renders a control when its source has loaded. */
 export function useOptionSources(): void {
