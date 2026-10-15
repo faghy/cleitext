@@ -4,6 +4,8 @@
  * their admin pages (admin SDK), so core and plugin entries look alike.
  */
 export const MENU_ICONS = {
+  /** A speech bubble. */
+  comments: 'M4 5h16v11H9l-5 4z M8 9h8 M8 12h5',
   /** A gauge. */
   dashboard:
     'M3.5 16a8.5 8.5 0 0 1 17 0 M12 16l4-4.5 M10.5 16a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0 M6.6 10.6l.9.9 M12 7.5v1.3 M17.4 10.6l-.9.9',

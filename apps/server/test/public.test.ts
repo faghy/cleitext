@@ -106,7 +106,10 @@ describe('entries', () => {
     expect(html).toContain('<h1>Weekend in Rome</h1>');
     expect(html).toContain('<p>We walked a lot in Trastevere.</p>');
     expect(html).toContain('<a href="/category/travel">Travel</a>');
-    expect(html).not.toContain('<script');
+    // No JavaScript, except the small optional one of comments and likes.
+    expect(html.replace(/<script data-cx-community>[\s\S]*?<\/script>/, '')).not.toContain(
+      '<script',
+    );
   });
 
   it('serves hierarchical pages at their full path only', async () => {
@@ -149,7 +152,9 @@ describe('entries', () => {
     });
     const { html } = await page('/evil-script-alert-1-script');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
-    expect(html).not.toMatch(/<script|<img src=x/);
+    expect(html.replace(/<script data-cx-community>[\s\S]*?<\/script>/, '')).not.toMatch(
+      /<script|<img src=x/,
+    );
   });
 });
 

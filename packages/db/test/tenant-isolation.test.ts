@@ -310,6 +310,14 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
       })
       .returning();
     const entryId = entry!.id;
+    await tx.insert(s.comments).values({
+      siteId,
+      entryId,
+      authorName: `Reader ${name}`,
+      content: 'Nice',
+      status: 'approved',
+    });
+    await tx.insert(s.entryLikes).values({ siteId, entryId, liker: `visitor:${name}` });
     await tx.insert(s.revisions).values({
       siteId,
       entryId,

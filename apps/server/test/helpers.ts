@@ -159,6 +159,10 @@ export class TestClient {
       },
       payload: new URLSearchParams(fields).toString(),
     });
+    for (const cookie of response.cookies as { name: string; value: string; maxAge?: number }[]) {
+      if (cookie.value === '' || cookie.maxAge === 0) this.cookies.delete(cookie.name);
+      else this.cookies.set(cookie.name, cookie.value);
+    }
     return response;
   }
 

@@ -35,10 +35,18 @@ export const users = pgTable(
     totpLastStep: integer('totp_last_step'),
     /** Profile picture in the media storage (`avatars/<userId>/<id>.webp`). */
     avatarKey: text('avatar_key'),
+    /** Public profile: a few words, a website, and the address of the author page. */
+    bio: text('bio').notNull().default(''),
+    website: text('website'),
+    slug: citext('slug').unique(),
+    /** When the person confirmed the address; null while a sign-up waits for it. */
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
     createdAt: createdAt(),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   },
-  (t) => [check('users_status_check', sql`${t.status} in ('active', 'invited', 'suspended')`)],
+  (t) => [
+    check('users_status_check', sql`${t.status} in ('active', 'invited', 'suspended', 'pending')`),
+  ],
 );
 
 export const roles = pgTable(
@@ -124,7 +132,7 @@ export const userTokens = pgTable(
   (t) => [
     check(
       'user_tokens_kind_check',
-      sql`${t.kind} in ('password_reset', 'invitation', 'login_2fa')`,
+      sql`${t.kind} in ('password_reset', 'invitation', 'login_2fa', 'email_verify')`,
     ),
     index('user_tokens_user_idx').on(t.userId),
   ],

@@ -103,7 +103,7 @@ export class SessionService {
   }
 }
 
-export type TokenKind = 'password_reset' | 'invitation' | 'login_2fa';
+export type TokenKind = 'password_reset' | 'invitation' | 'login_2fa' | 'email_verify';
 
 /** Single-use tokens sent by email (password reset, invitation). */
 @Injectable()

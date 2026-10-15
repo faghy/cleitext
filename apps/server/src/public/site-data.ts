@@ -64,6 +64,7 @@ export async function loadSiteData(
       slug: t.slug,
       permalink: t.permalink,
       hierarchical: t.hierarchical,
+      supports: t.supports,
     }));
   const taxonomyRows = await tx.select({ slug: taxonomies.slug }).from(taxonomies);
 

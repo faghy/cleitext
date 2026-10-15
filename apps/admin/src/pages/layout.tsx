@@ -1,3 +1,4 @@
+import { usePendingComments } from './comments';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { api } from '../api';
@@ -70,14 +71,17 @@ export function AdminLayout() {
   const updateAvailable = Boolean(updates.data?.available);
   const pluginUpdates = useCatalogUpdates('plugin').length;
   const themeUpdates = useCatalogUpdates('theme').length;
+  const pendingComments = usePendingComments(me.capabilities.includes('moderate_comments'));
   const badge = (to: string) =>
-    to === '/' || to === '/updates'
-      ? (updateAvailable ? 1 : 0) + pluginUpdates + themeUpdates
-      : to === '/plugins'
-        ? pluginUpdates
-        : to === '/appearance'
-          ? themeUpdates
-          : 0;
+    to === '/comments'
+      ? pendingComments
+      : to === '/' || to === '/updates'
+        ? (updateAvailable ? 1 : 0) + pluginUpdates + themeUpdates
+        : to === '/plugins'
+          ? pluginUpdates
+          : to === '/appearance'
+            ? themeUpdates
+            : 0;
   // WordPress order: plugin content types after Pages, plugin pages at the end.
   const taxonomies = useQuery({
     ...taxonomiesQuery,
@@ -154,8 +158,16 @@ export function AdminLayout() {
                       // As in WordPress: counts on Dashboard, Updates, Plugins and Appearance.
                       <span
                         className="rounded-full bg-amber-500 px-1.5 text-xs leading-5 font-semibold text-slate-900"
-                        aria-label={t('{count} updates available', { count: badge(section.to) })}
-                        title={t('{count} updates available', { count: badge(section.to) })}
+                        aria-label={
+                          section.to === '/comments'
+                            ? t('{count} comments waiting', { count: badge(section.to) })
+                            : t('{count} updates available', { count: badge(section.to) })
+                        }
+                        title={
+                          section.to === '/comments'
+                            ? t('{count} comments waiting', { count: badge(section.to) })
+                            : t('{count} updates available', { count: badge(section.to) })
+                        }
                       >
                         {badge(section.to)}
                       </span>

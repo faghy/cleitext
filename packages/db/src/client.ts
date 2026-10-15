@@ -313,7 +313,7 @@ export async function resolveHost(db: Database, host: string): Promise<HostResol
 export interface LoginRecord {
   userId: string;
   passwordHash: string | null;
-  status: 'active' | 'invited' | 'suspended';
+  status: 'active' | 'invited' | 'suspended' | 'pending';
   isSuperAdmin: boolean;
 }
 

@@ -1,3 +1,4 @@
+import { newCommentStatus } from '../community/defaults.js';
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import { documentText } from '@cleitext/blocks';
 import {
@@ -491,6 +492,7 @@ async function insertEntry(
     publishedAt: isPublic ? (publishedAt ?? new Date()) : publishedAt,
     scheduledAt: entry.scheduledAt ? new Date(entry.scheduledAt) : null,
     position: entry.position ?? 0,
+    commentStatus: await newCommentStatus(tx, type.supports ?? []),
     ...(entry.createdAt
       ? { createdAt: new Date(entry.createdAt), updatedAt: new Date(entry.createdAt) }
       : {}),

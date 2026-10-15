@@ -1,5 +1,5 @@
 import type { CxdDocument } from '@cleitext/blocks';
-import { createContext, useContext } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import type { BlockRenderer } from './blocks.js';
 
 /** A media file as the renderer needs it (original plus resized variants). */
@@ -39,6 +39,8 @@ export interface RenderContext {
    * to the editor, as an empty `[data-cx-editor-canvas]` element.
    */
   editorFrame?: boolean;
+  /** Shown after the entry's content in templates (likes, sharing, comments). */
+  afterEntryContent?: ReactNode;
 }
 
 const DEFAULT: RenderContext = { media: new Map(), locale: 'en', eagerFirstImage: true };

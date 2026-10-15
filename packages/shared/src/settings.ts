@@ -33,6 +33,49 @@ const coreSettingsFields = {
     .nullable(),
   /** The corner the arrow sits in. */
   backToTopPosition: z.enum(['right', 'left']),
+
+  // ---- Membership (RF-USR-11) ----
+  /** Anyone can create an account on the site. */
+  registration: z.boolean(),
+  /** Role given to people who sign up. */
+  defaultRole: z.string().trim().min(1).max(64),
+  /** New accounts confirm their email address before they can sign in. */
+  verifyEmail: z.boolean(),
+  /** Page with the terms people accept when they sign up; none when null. */
+  termsPage: z.uuid().nullable(),
+
+  // ---- Discussion (RF-COM) ----
+  /** New entries of types with comments accept them. */
+  commentsDefault: z.boolean(),
+  /** Only signed-in people can comment. */
+  commentRegistration: z.boolean(),
+  /** Guests give a name and an email address. */
+  commentRequireNameEmail: z.boolean(),
+  /** Comments close on entries older than this many days; 0 never. */
+  commentCloseAfterDays: z.number().int().min(0).max(3650),
+  /** Levels of replies (1: no replies). */
+  commentThreadDepth: z.number().int().min(1).max(10),
+  /** Top-level comments per page; 0 all on one page. */
+  commentsPerPage: z.number().int().min(0).max(500),
+  commentOrder: z.enum(['oldest', 'newest']),
+  /** Held for approval: every comment, the first of each person, or none. */
+  commentModeration: z.enum(['always', 'first', 'none']),
+  /** Held when it has more links than this. */
+  commentMaxLinks: z.number().int().min(0).max(50),
+  /** Words (one per line) that hold a comment for approval. */
+  commentHoldWords: z.string().max(20_000),
+  /** Words (one per line) that send a comment to spam. */
+  commentBlockWords: z.string().max(20_000),
+  /** Email the entry's author about new comments. */
+  commentNotifyAuthor: z.boolean(),
+  /** Email the moderators about comments waiting for approval. */
+  commentNotifyModerators: z.boolean(),
+  /** Pictures next to comments: initials, or Gravatar (sends a hash of the email to Gravatar). */
+  avatars: z.enum(['initials', 'gravatar']),
+  /** Who can like entries. */
+  likes: z.enum(['off', 'everyone', 'users']),
+  /** Links to share entries on social networks, under entries with comments. */
+  shareButtons: z.boolean(),
 };
 
 /** A time zone known to the runtime (IANA name). */
@@ -60,6 +103,26 @@ export const CORE_SETTINGS_DEFAULTS = {
   backToTop: false,
   backToTopColor: null,
   backToTopPosition: 'right',
+  registration: false,
+  defaultRole: 'subscriber',
+  verifyEmail: true,
+  termsPage: null,
+  commentsDefault: true,
+  commentRegistration: false,
+  commentRequireNameEmail: true,
+  commentCloseAfterDays: 0,
+  commentThreadDepth: 5,
+  commentsPerPage: 50,
+  commentOrder: 'oldest',
+  commentModeration: 'first',
+  commentMaxLinks: 2,
+  commentHoldWords: '',
+  commentBlockWords: '',
+  commentNotifyAuthor: true,
+  commentNotifyModerators: true,
+  avatars: 'initials',
+  likes: 'everyone',
+  shareButtons: true,
 } as const;
 
 export const coreSettingsSchema = z.object(coreSettingsFields);

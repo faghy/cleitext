@@ -233,6 +233,7 @@ function EntryContentBlock(): ReactNode {
   return (
     <RenderContextReact.Provider value={{ ...rest, imageCounter: { n: 0 } }}>
       <BlockList blocks={document.blocks.filter((b) => b.type !== 'cleitext/entry-content')} />
+      {context.afterEntryContent}
     </RenderContextReact.Provider>
   );
 }

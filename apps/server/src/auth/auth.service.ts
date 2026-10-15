@@ -1,5 +1,6 @@
 import { findLogin, sites, users, withContext, type DatabaseClient } from '@cleitext/db';
 import {
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
@@ -74,6 +75,10 @@ export class AuthService {
         ? await this.identity.load(siteId, login.userId, '')
         : null;
 
+    // A sign-up waiting for its email confirmation: say so, the password was right.
+    if (login && valid && login.status === 'pending') {
+      throw new ForbiddenException('Confirm your email address first: open the link we sent you.');
+    }
     if (!login || !auth) {
       await this.throttle.recordFailure(input.email, client.ip);
       await withContext(this.database.db, { siteId }, (tx) =>
@@ -205,7 +210,13 @@ export class AuthService {
    * Starts a password reset (RF-USR-02). Always succeeds from the caller's
    * point of view, so that it cannot be used to discover accounts.
    */
-  async forgotPassword(siteId: string, email: string, client: ClientInfo): Promise<void> {
+  async forgotPassword(
+    siteId: string,
+    email: string,
+    client: ClientInfo,
+    /** Page where the link leads: the admin's, or the site's own account page. */
+    resetUrl = `${client.origin}/admin/reset-password`,
+  ): Promise<void> {
     const login = await findLogin(this.database.db, email);
     if (!login || login.status !== 'active') return;
 
@@ -224,7 +235,7 @@ export class AuthService {
           `Someone asked to reset the password for ${email} on ${siteName}.`,
           '',
           'To choose a new password, open this link within one hour:',
-          `${client.origin}/admin/reset-password?token=${token}`,
+          `${resetUrl}?token=${token}`,
           '',
           'If you did not ask for this, ignore this email: your password will not change.',
         ].join('\n'),

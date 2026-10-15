@@ -57,6 +57,24 @@ export interface Actions {
    * every page of the site.
    */
   'cache.invalidated': { tags: string[] };
+  /** Someone created an account on the site (plugin API 1.12). */
+  'user.registered': { user: { id: string; email: string; displayName: string } };
+  /** A comment was posted, whatever its status (plugin API 1.12). */
+  'comment.created': { comment: CommentEvent };
+  /** A comment changed status: approved, spam, trash… (plugin API 1.12). */
+  'comment.status': { comment: CommentEvent; from: string };
+}
+
+export interface CommentEvent {
+  id: string;
+  entryId: string;
+  parentId: string | null;
+  type: string;
+  status: 'pending' | 'approved' | 'spam' | 'trash';
+  userId: string | null;
+  authorName: string;
+  authorEmail: string;
+  content: string;
 }
 
 /** Context of the `cache.headers` filter: a public response going into the page cache. */

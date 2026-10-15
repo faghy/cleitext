@@ -82,10 +82,12 @@ describe('public toolbar', () => {
     expect(body).toMatch(/<body[^>]*><style>/);
   });
 
-  it('shows subscribers who they are, without editing links', async () => {
+  it('shows subscribers who they are, with their account instead of the admin', async () => {
     const { body } = await subscriber.get(path);
     expect(body).toContain('id="cleitext-admin-bar"');
     expect(body).not.toContain('/admin/entries/');
-    expect(body).toContain('href="/admin/profile"');
+    expect(body).not.toContain('href="/admin/');
+    expect(body).toContain('href="/account"');
+    expect(body).toContain('action="/account/logout"');
   });
 });

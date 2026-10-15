@@ -26,6 +26,13 @@ export const SECTIONS: Section[] = [
   { to: '/media', icon: MENU_ICONS.media, label: 'Media', anyOf: ['upload_media'], ready: true },
   { to: '/pages', icon: MENU_ICONS.pages, label: 'Pages', anyOf: ['edit_entries'], ready: true },
   {
+    to: '/comments',
+    icon: MENU_ICONS.comments,
+    label: 'Comments',
+    anyOf: ['moderate_comments'],
+    ready: true,
+  },
+  {
     to: '/appearance',
     icon: MENU_ICONS.appearance,
     label: 'Appearance',

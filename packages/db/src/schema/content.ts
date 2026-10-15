@@ -66,6 +66,11 @@ export const entries = pgTable(
     publishedAt: timestamp('published_at', { withTimezone: true }),
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
     position: integer('position').notNull().default(0),
+    /** Visitors may comment (`open`) or not; set from the type's `comments` support. */
+    commentStatus: text('comment_status').$type<'open' | 'closed'>().notNull().default('closed'),
+    /** Approved comments, kept up to date by the comments service. */
+    commentCount: integer('comment_count').notNull().default(0),
+    likeCount: integer('like_count').notNull().default(0),
     search: tsvector('search'),
     createdAt: createdAt(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -1,3 +1,4 @@
+import { newCommentStatus } from '../community/defaults.js';
 import {
   cxdDocumentSchema,
   documentText,
@@ -417,6 +418,7 @@ export class EntriesService {
         title: input.title,
         status: 'draft',
         authorId: auth.userId,
+        commentStatus: await newCommentStatus(tx, type.supports),
       });
       await this.addRevision(tx, siteId, id, auth, 'manual', input.title, fields, document, {
         summary: await this.validSummary(tx, input, null),
@@ -1127,6 +1129,7 @@ export class EntriesService {
       ...toSummary(entry, authorRow?.name ?? null),
       createdAt: entry.createdAt.toISOString(),
       trashedAt: entry.trashedAt?.toISOString() ?? null,
+      comments: { status: entry.commentStatus, count: entry.commentCount },
       revision,
       autosave,
       terms: await this.termsService.termsOfEntry(tx, entry.id),

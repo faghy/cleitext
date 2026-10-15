@@ -15,6 +15,7 @@ const LABELS = {
     editPage: 'Edit page',
     edit: 'Edit',
     signedIn: 'Signed in as',
+    signOut: 'Sign out',
   },
   it: {
     toolbar: 'Barra degli strumenti',
@@ -23,6 +24,7 @@ const LABELS = {
     editPage: 'Modifica pagina',
     edit: 'Modifica',
     signedIn: 'Connesso come',
+    signOut: 'Esci',
   },
 } as const;
 
@@ -50,9 +52,18 @@ export interface AdminBarOptions {
   siteName: string;
   /** The entry shown, when the page is one. */
   entry?: { id: string; type: string };
+  /** The visitor's account page and sign-out address on the site. */
+  accountUrl?: string;
+  logoutUrl?: string;
 }
 
-export function adminBar({ auth, siteName, entry }: AdminBarOptions): string {
+export function adminBar({
+  auth,
+  siteName,
+  entry,
+  accountUrl,
+  logoutUrl,
+}: AdminBarOptions): string {
   const t = auth.locale.toLowerCase().startsWith('it') ? LABELS.it : LABELS.en;
   const canEdit = auth.capabilities.includes('edit_entries');
   const editLabel =
@@ -61,6 +72,13 @@ export function adminBar({ auth, siteName, entry }: AdminBarOptions): string {
   const avatar = auth.avatarUrl
     ? `<img src="${escape(auth.avatarUrl)}" alt="">`
     : `<span aria-hidden="true">${escape(initials)}</span>`;
+  // People with nothing to do in the admin (subscribers) get their account, not the dashboard.
+  const member = auth.capabilities.every((c) => c === 'read');
+  if (member) {
+    const account = accountUrl ?? '/account';
+    const out = `<form method="post" action="${escape(logoutUrl ?? '/account/logout')}" style="margin:0"><button type="submit" style="font:inherit;color:inherit;background:none;border:0;padding:6px 8px;cursor:pointer">${escape(t.signOut)}</button></form>`;
+    return `${STYLE}<nav id="cleitext-admin-bar" aria-label="${escape(t.toolbar)}"><a class="cab-site" href="/">${escape(siteName)}</a><a class="cab-user" href="${escape(account)}"><span class="cab-label">${escape(t.signedIn)} ${escape(auth.displayName)}</span>${avatar}</a>${out}</nav>`;
+  }
   const links = [
     `<a class="cab-site" href="/admin/" title="${escape(t.dashboard)}">${icon('M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z')}<span class="cab-label">${escape(siteName)}</span></a>`,
     canEdit && entry

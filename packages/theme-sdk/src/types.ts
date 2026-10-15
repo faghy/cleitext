@@ -44,6 +44,58 @@ export interface TermLink {
   url: string;
 }
 
+/** The author of an entry, with the address of their author page. */
+export interface EntryAuthor {
+  displayName: string;
+  /** Author archive (`/author/<slug>`), when the person has one. */
+  url?: string;
+  bio?: string;
+  avatarUrl?: string | null;
+}
+
+/** The comments of an entry and how visitors can add theirs (RF-COM). */
+export interface EntryComments {
+  /** Visitors may comment now. */
+  open: boolean;
+  /** Approved comments. */
+  count: number;
+  /** Top-level comments of this page, with their replies. */
+  items: PublicComment[];
+  page: number;
+  pages: number;
+  /** Only signed-in people can comment. */
+  registrationRequired: boolean;
+  requireNameEmail: boolean;
+  threadDepth: number;
+  /** Address the comment form posts to. */
+  action: string;
+  /** After posting: `pending` (waiting for approval), `posted`, or an error to show. */
+  notice?: { kind: 'pending' | 'posted' | 'error'; text?: string };
+}
+
+export interface PublicComment {
+  id: string;
+  parentId: string | null;
+  authorName: string;
+  authorUrl: string | null;
+  avatar: { initials: string; url: string | null };
+  /** Plain text: themes show it with `CommentText` (paragraphs and links). */
+  content: string;
+  createdAt: string;
+  /** Visible only to its author while it waits for approval. */
+  pending: boolean;
+  byPostAuthor: boolean;
+  replies: PublicComment[];
+}
+
+/** The signed-in visitor (null on pages served from the cache: visitors there are anonymous). */
+export interface Viewer {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  capabilities: readonly string[];
+}
+
 export interface PublicEntrySummary {
   id: string;
   type: string;
@@ -52,7 +104,7 @@ export interface PublicEntrySummary {
   url: string;
   publishedAt: string | null;
   excerpt: string;
-  author: { displayName: string } | null;
+  author: EntryAuthor | null;
   image: RenderMedia | null;
   /** Search results: a fragment of the text with the matching words marked (RF-THM-10). */
   highlight?: { text: string; match: boolean }[];
@@ -68,6 +120,10 @@ export interface PublicEntry extends PublicEntrySummary {
   fields: Record<string, unknown>;
   /** Featured image chosen by the author, if any (RF-CNT-12). */
   featuredImage: RenderMedia | null;
+  /** Comments, for types that have them. */
+  comments?: EntryComments;
+  /** Likes, when the site has them on. */
+  likes?: { count: number; liked: boolean; action: string; usersOnly: boolean };
 }
 
 export interface Pagination {
@@ -152,6 +208,11 @@ export interface ThemeDefinition {
   Layout: ComponentType<LayoutProps>;
   /** Stylesheet inlined in every page. Keep it small. */
   css: string;
+  /**
+   * `manual`: the theme places `<EntryCommunity />` (or `<Comments />`)
+   * itself; otherwise `EntryContent` adds them after the entry.
+   */
+  comments?: 'auto' | 'manual';
 }
 
 /** Everything a template can read through `usePage()`. */
@@ -169,7 +230,23 @@ export interface PageContext {
   locales: LocaleLink[];
   menus: Record<string, MenuItemView[]>;
   /** URL helpers bound to the current language. */
-  urls: { home: string; search: string };
+  urls: {
+    home: string;
+    search: string;
+    /** Sign in, sign up and the visitor's account (RF-USR-11). */
+    login?: string;
+    register?: string;
+    account?: string;
+    logout?: string;
+  };
+  /** The signed-in visitor, if any. */
+  viewer?: Viewer | null;
+  /** The entry being shown, on entry pages. */
+  entry?: PublicEntry;
+  /** Sharing links under entries (Settings → Discussion). */
+  share?: boolean;
+  /** `EntryContent` adds likes, sharing and comments after the entry (themes without `comments: 'manual'`). */
+  autoCommunity?: boolean;
   /** Media preloaded for the page, by id. */
   media: ReadonlyMap<string, RenderMedia>;
   /** Renderers of plugin blocks available on this site. */

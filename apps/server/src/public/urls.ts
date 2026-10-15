@@ -12,6 +12,8 @@ export interface TypeInfo {
   slug: string;
   permalink: string;
   hierarchical: boolean;
+  /** Features of the type, e.g. `comments`. */
+  supports?: string[];
 }
 
 export interface EntryRef {
@@ -80,6 +82,16 @@ export class UrlBuilder {
   home(locale: string): string {
     const base = this.base(locale);
     return !base ? '/' : /^https?:\/\/[^/]+$/.test(base) ? `${base}/` : base;
+  }
+
+  /** Pages of visitors' accounts: sign in, sign up, profile (RF-USR-11). */
+  account(locale: string, page = ''): string {
+    return `${this.home(locale).replace(/\/$/, '')}/account${page ? `/${page}` : ''}`;
+  }
+
+  /** Author archive (RF-THM-11). */
+  author(locale: string, slug: string): string {
+    return `${this.home(locale).replace(/\/$/, '')}/author/${encodeURIComponent(slug)}`;
   }
 
   /** RSS feed of the latest posts in a language (RF-THM-08). */

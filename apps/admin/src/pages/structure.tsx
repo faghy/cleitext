@@ -18,6 +18,7 @@ const FEATURE_LABELS: Record<(typeof CONTENT_TYPE_FEATURES)[number], string> = {
   featured_image: 'Featured image',
   excerpt: 'Excerpt',
   parent: 'Parent page',
+  comments: 'Comments',
 };
 
 const FIELD_TYPES: { value: FieldDefinition['type']; label: string }[] = [

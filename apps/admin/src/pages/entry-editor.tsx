@@ -649,6 +649,9 @@ function Editor({ initial }: { initial: EntryView }) {
                 onChange={changeSummary}
               />
             )}
+            {tab === 'document' && contentType?.supports.includes('comments') && entry && (
+              <DiscussionPanel entryId={entry.id} comments={entry.comments} readOnly={readOnly} />
+            )}
             {tab === 'document' && contentType && (
               <FieldsPanel
                 type={contentType}
@@ -694,6 +697,49 @@ function Editor({ initial }: { initial: EntryView }) {
         </aside>
       </div>
     </EditorShell>
+  );
+}
+
+/** Comments of the entry: open or closed, and how many (RF-COM). */
+function DiscussionPanel({
+  entryId,
+  comments,
+  readOnly,
+}: {
+  entryId: string;
+  comments: { status: 'open' | 'closed'; count: number } | undefined;
+  readOnly: boolean;
+}) {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(comments?.status !== 'closed');
+  const change = useMutation({
+    mutationFn: (next: boolean) =>
+      api<void>('PATCH', `/entries/${entryId}/comments`, { status: next ? 'open' : 'closed' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['entry', entryId] }),
+  });
+  return (
+    <div className="space-y-2 border-b border-slate-200 p-4 text-sm">
+      <p className="font-medium text-slate-800">{t('Discussion')}</p>
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={open}
+          disabled={readOnly || change.isPending}
+          onChange={(e) => {
+            setOpen(e.target.checked);
+            change.mutate(e.target.checked);
+          }}
+        />
+        {t('Allow comments')}
+      </label>
+      {(comments?.count ?? 0) > 0 && (
+        <a className="text-sky-700 hover:underline" href={`/admin/comments?entry=${entryId}`}>
+          {t('{count} comments', { count: comments!.count })}
+        </a>
+      )}
+      {change.error && <p className="text-red-700">{errorMessage(change.error)}</p>}
+    </div>
   );
 }
 

@@ -29,20 +29,30 @@ import {
 } from '@cleitext/renderer';
 import { fieldDefaults, type CoreSettings } from '@cleitext/shared';
 import {
+  type AccountAttrs,
+  COMMUNITY_CSS,
+  COMMUNITY_JS,
   Location,
   PageProvider,
   resolveTemplate,
   templateCandidates,
   type HeadData,
   type LocaleLink,
+  type EntryComments,
   type PageContext,
   type PublicEntry,
+  type Viewer,
   type MenuItemView,
   type ThemeLocation,
   type TemplateProps,
   type ThemeDefinition,
 } from '@cleitext/theme-sdk';
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { AccountsService } from '../community/accounts.service.js';
+import { CommentsService } from '../community/comments.service.js';
+import { CommunityPublic, safePath, withQuery } from '../community/community-public.js';
+import { setSessionCookie } from '../auth/cookies.js';
+import { createHash } from 'node:crypto';
 import { and, count, eq, inArray, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createElement, Fragment } from 'react';
@@ -120,6 +130,8 @@ interface RequestScope {
   activePlugins: ReadonlySet<string>;
   /** Signed-in visitor allowed to read private entries (never cached). */
   includePrivate: boolean;
+  /** The signed-in visitor (pages for them are never cached). */
+  viewer?: Viewer | null;
   /** Renderers of plugin blocks for the entry being rendered. */
   blockRenderers?: ReadonlyMap<string, BlockRenderer>;
   /** Unsaved theme settings shown by the Customize preview (RF-THM-03). */
@@ -142,7 +154,23 @@ export class PublicService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly plugins: PluginHost,
     private readonly languages: LanguagesService,
+    private readonly comments: CommentsService,
+    private readonly community: CommunityPublic,
+    private readonly accounts: AccountsService,
   ) {}
+
+  /** The site's default language and every language code (for public forms). */
+  private async localesOf(siteId: string): Promise<{ defaultLocale: string; codes: string[] }> {
+    const defaultLocale = await withContext(this.database.db, { siteId }, async (tx) => {
+      const [row] = await tx
+        .select({ locale: sites.defaultLocale })
+        .from(sites)
+        .where(eq(sites.id, siteId));
+      return row?.locale ?? 'en';
+    });
+    const locales = await this.languages.locales(siteId, defaultLocale);
+    return { defaultLocale, codes: locales.map((l) => l.code) };
+  }
 
   /** Fastify handler for every public GET/HEAD request. */
   async handle(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -167,6 +195,35 @@ export class PublicService {
         );
         void reply.header('retry-after', '3600');
         await this.sendPage(request, reply, page.status, page.html ?? '', null, 'BYPASS');
+        return;
+      }
+
+      // Email confirmation links of new accounts (RF-USR-11): they sign in.
+      const verify = /^(\/[a-z]{2}(?:-[a-z]{2,4})?)?\/account\/verify$/i.exec(url.pathname);
+      if (verify) {
+        const base = `${verify[1] ?? ''}/account`;
+        const { defaultLocale } = await this.localesOf(site.id);
+        const locale = verify[1]?.slice(1) ?? defaultLocale;
+        try {
+          const result = await this.accounts.verify(site.id, url.searchParams.get('token') ?? '', {
+            ip: request.ip,
+            userAgent: request.headers['user-agent'] ?? null,
+            origin: `${request.protocol}://${request.host}`,
+            locale,
+          });
+          setSessionCookie(request, reply, result.token, {
+            remember: false,
+            expiresAt: result.expiresAt,
+          });
+          await reply
+            .header('cache-control', 'private, no-store')
+            .redirect(`${base}?verified=1`, 303);
+        } catch (error) {
+          const text = error instanceof Error ? error.message : 'This link is invalid.';
+          await reply
+            .header('cache-control', 'private, no-store')
+            .redirect(withQuery(`${base}/login`, { error: text }), 303);
+        }
         return;
       }
 
@@ -411,7 +468,12 @@ export class PublicService {
     rawPath: string,
     query: URLSearchParams,
     /** Signed-in visitor: private entries are shown to those who may read them. */
-    viewer: { capabilities: readonly string[] } | null = null,
+    viewer: {
+      capabilities: readonly string[];
+      userId?: string;
+      displayName?: string;
+      avatarUrl?: string | null;
+    } | null = null,
     /**
      * Previews (never cached): theme settings instead of the saved ones, or
      * another installed theme instead of the active one (Live Preview).
@@ -448,6 +510,14 @@ export class PublicService {
       }
 
       const { scope, rest } = await this.scope(tx, siteId, origin, path, includePrivate);
+      if (viewer?.userId) {
+        scope.viewer = {
+          id: viewer.userId,
+          displayName: viewer.displayName ?? '',
+          avatarUrl: viewer.avatarUrl ?? null,
+          capabilities: viewer.capabilities,
+        };
+      }
       scope.params = Object.fromEntries(
         [...query].slice(0, 20).map(([k, v]) => [k.slice(0, 64), v.slice(0, 200)]),
       );
@@ -787,6 +857,10 @@ export class PublicService {
       });
     }
 
+    // Visitors' accounts (RF-USR-11).
+    const account = /^\/account(?:\/(login|register|lost-password|reset-password))?$/.exec(rest);
+    if (account) return this.renderAccount(scope, account[1] ?? '', query);
+
     // RSS feeds (RF-THM-08): latest posts, and per category or tag.
     if (rest === '/feed') return this.feed(scope, null);
     const termFeed = /^\/([a-z0-9-]+)\/([a-z0-9]+(?:-[a-z0-9]+)*)\/feed$/.exec(rest);
@@ -971,6 +1045,13 @@ export class PublicService {
       terms: entryTermsMap,
       translations,
     };
+    // Comments and likes of types that have them (not in previews).
+    if (
+      !options.preview &&
+      data.types.find((t) => t.slug === entry.row.typeSlug)?.supports?.includes('comments')
+    ) {
+      await this.addCommunity(scope, entry.row, publicEntry);
+    }
     if (scope.activePlugins.size > 0) {
       const blocks = await this.plugins.applyFilter(
         'render.blocks',
@@ -1355,7 +1436,18 @@ export class PublicService {
       locale,
       locales,
       menus,
-      urls: { home: data.urls.home(locale), search: data.urls.search(locale) },
+      urls: {
+        home: data.urls.home(locale),
+        search: data.urls.search(locale),
+        login: data.urls.account(locale, 'login'),
+        account: data.urls.account(locale),
+        logout: data.urls.account(locale, 'logout'),
+        ...(scope.settings.registration ? { register: data.urls.account(locale, 'register') } : {}),
+      },
+      viewer: scope.viewer ?? null,
+      ...(props.kind === 'entry' ? { entry: props.entry } : {}),
+      share: scope.settings.shareButtons,
+      autoCommunity: theme.comments !== 'manual',
       media,
       ...(scope.blockRenderers ? { blockRenderers: scope.blockRenderers } : {}),
       themeSettings: themeValues,
@@ -1385,6 +1477,15 @@ export class PublicService {
       );
       const at = html.lastIndexOf('</body>');
       html = at === -1 ? html + overlay : html.slice(0, at) + overlay + html.slice(at);
+    }
+    // Comments, likes and account forms: their default look and small script.
+    if (html.includes('class="cx-')) {
+      const headAt = html.indexOf('</head>');
+      if (headAt !== -1)
+        html = `${html.slice(0, headAt)}<style id="cx-community">${COMMUNITY_CSS}</style>${html.slice(headAt)}`;
+      const bodyAt = html.lastIndexOf('</body>');
+      if (bodyAt !== -1)
+        html = `${html.slice(0, bodyAt)}<script data-cx-community>${COMMUNITY_JS}</script>${html.slice(bodyAt)}`;
     }
     if (scope.settings.backToTop) {
       html = withBackToTop(html, locale, {
@@ -1655,6 +1756,15 @@ export class PublicService {
   async handlePost(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const site = request.site;
     const path = new URL(request.url, 'http://local').pathname;
+    // Sign-in, sign-up, profile, comments and likes (RF-USR-11, RF-COM).
+    if (
+      site &&
+      site.status !== 'maintenance' &&
+      /\/(account\/[a-z0-9-]+|comments|likes)$/i.test(path)
+    ) {
+      const { defaultLocale, codes } = await this.localesOf(site.id);
+      if (await this.community.handlePost(request, reply, site.id, defaultLocale, codes)) return;
+    }
     const match =
       site && site.status !== 'maintenance'
         ? await this.matchPluginRoute(site.id, 'POST', path)
@@ -1749,6 +1859,229 @@ export class PublicService {
     return scope.settings.tagline
       ? `${scope.siteTitle} – ${scope.settings.tagline}`
       : scope.siteTitle;
+  }
+
+  /** Sign in, sign up, password and profile pages, inside the theme's layout. */
+  private async renderAccount(
+    scope: RequestScope,
+    page: string,
+    query: URLSearchParams,
+  ): Promise<PublicResponse> {
+    const { data, locale, settings } = scope;
+    const base = data.urls.account(locale);
+    const L = (en: string, it: string) => (locale.startsWith('it') ? it : en);
+    const error = query.get('error')?.slice(0, 300);
+    const notice = error
+      ? { kind: 'error' as const, text: error }
+      : query.get('notice')
+        ? { kind: 'ok' as const, text: query.get('notice')!.slice(0, 300) }
+        : undefined;
+    const redirect = safePath(query.get('redirect') ?? '', base);
+    let attrs: AccountAttrs;
+    let title: string;
+    if (page === '') {
+      if (!scope.viewer)
+        return {
+          status: 303,
+          redirect: withQuery(data.urls.account(locale, 'login'), { redirect: base }),
+          tags: [],
+        };
+      const [profile] = await scope.tx.select().from(users).where(eq(users.id, scope.viewer.id));
+      if (!profile) return { status: 303, redirect: data.urls.account(locale, 'login'), tags: [] };
+      title = L('Your account', 'Il tuo account');
+      attrs = {
+        view: query.get('verified') ? 'verified' : 'profile',
+        locale,
+        base,
+        ...(notice
+          ? { notice }
+          : query.get('welcome')
+            ? {
+                notice: {
+                  kind: 'ok',
+                  text: L('Welcome: your account is ready.', 'Benvenuto: il tuo account è pronto.'),
+                },
+              }
+            : {}),
+        profile: {
+          displayName: profile.displayName,
+          email: profile.email,
+          bio: profile.bio,
+          website: profile.website ?? '',
+          authorUrl: profile.slug ? data.urls.author(locale, profile.slug) : null,
+          canDelete: !scope.viewer.capabilities.includes('manage_users'),
+        },
+      };
+      if (attrs.view === 'verified')
+        attrs = {
+          ...attrs,
+          view: 'profile',
+          notice: {
+            kind: 'ok',
+            text: L(
+              'Your email address is confirmed: welcome!',
+              'Il tuo indirizzo email è confermato: benvenuto!',
+            ),
+          },
+        };
+    } else if (page === 'login') {
+      if (scope.viewer && query.get('step') !== '2fa') return { status: 303, redirect, tags: [] };
+      const twofactor = query.get('step') === '2fa' && query.get('challenge');
+      title = L('Sign in', 'Accedi');
+      attrs = {
+        view: twofactor ? 'twofactor' : 'login',
+        locale,
+        base,
+        redirect,
+        registration: settings.registration,
+        ...(notice ? { notice } : {}),
+        ...(query.get('email') ? { email: query.get('email')!.slice(0, 200) } : {}),
+        ...(twofactor ? { challenge: query.get('challenge')!.slice(0, 200) } : {}),
+      };
+    } else if (page === 'register') {
+      if (!settings.registration) return this.notFound(scope, 404);
+      title = L('Create an account', 'Crea un account');
+      const termsUrl = settings.termsPage ? await this.pageUrl(scope, settings.termsPage) : null;
+      attrs = query.get('sent')
+        ? { view: 'sent', locale, base }
+        : {
+            view: 'register',
+            locale,
+            base,
+            termsUrl,
+            ...(notice ? { notice } : {}),
+            ...(query.get('email') ? { email: query.get('email')!.slice(0, 200) } : {}),
+            ...(query.get('name') ? { name: query.get('name')!.slice(0, 80) } : {}),
+          };
+    } else if (page === 'lost-password') {
+      title = L('Lost password', 'Password dimenticata');
+      attrs = query.get('sent')
+        ? { view: 'sent', locale, base }
+        : { view: 'lost', locale, base, ...(notice ? { notice } : {}) };
+    } else {
+      title = L('Choose a new password', 'Scegli una nuova password');
+      attrs = {
+        view: 'reset',
+        locale,
+        base,
+        token: (query.get('token') ?? '').slice(0, 200),
+        ...(notice ? { notice } : {}),
+      };
+    }
+    const path = page ? data.urls.account(locale, page) : base;
+    const entry: PublicEntry = {
+      id: `account-${page || 'profile'}`,
+      type: 'page',
+      locale,
+      slug: 'account',
+      title,
+      url: path,
+      publishedAt: null,
+      excerpt: '',
+      author: null,
+      image: null,
+      document: {
+        schema: 1,
+        blocks: [
+          {
+            id: 'account',
+            type: 'cleitext/account',
+            v: 1,
+            attrs: attrs as unknown as Record<string, unknown>,
+          },
+        ],
+      },
+      terms: {},
+      translations: [],
+      fields: {},
+      featuredImage: null,
+    };
+    const props: TemplateProps = { kind: 'entry', entry, isFrontPage: false };
+    const head = this.head(scope, {
+      title: `${title} – ${scope.siteTitle}`,
+      description: '',
+      path,
+      alternates: [],
+      type: 'website',
+      image: null,
+      noindex: true,
+    });
+    const response = await this.render(
+      scope,
+      props,
+      templateCandidates(props),
+      head,
+      new Map(),
+      [],
+      200,
+    );
+    // Pages with a visitor's data are never cached.
+    return { ...response, headers: { ...response.headers, 'cache-control': 'private, no-store' } };
+  }
+
+  /** Address of a page by id (terms, privacy), or null. */
+  private async pageUrl(scope: RequestScope, id: string): Promise<string | null> {
+    const [row] = await this.published(scope, eq(entries.id, id), { limit: 1 });
+    return row ? scope.data.urls.entry(row.row) : null;
+  }
+
+  /** Comments, likes and their notices on an entry's page (RF-COM). */
+  private async addCommunity(
+    scope: RequestScope,
+    row: {
+      id: string;
+      authorId: string | null;
+      commentStatus: string;
+      commentCount: number;
+      likeCount: number;
+    },
+    publicEntry: PublicEntry,
+  ): Promise<void> {
+    const { settings, params = {} } = scope;
+    const listed = await this.comments.forEntry(
+      scope.tx,
+      { id: row.id, authorId: row.authorId },
+      settings,
+      {
+        page: Number(params['comments-page']) || 1,
+        viewerId: scope.viewer?.id ?? null,
+        ...(settings.avatars === 'gravatar'
+          ? {
+              gravatar: (email: string) =>
+                `https://www.gravatar.com/avatar/${createHash('md5').update(email.trim().toLowerCase()).digest('hex')}?s=88&d=mp`,
+            }
+          : {}),
+      },
+    );
+    const { open } = await this.comments.openFor(scope.tx, row.id, settings);
+    const notice: EntryComments['notice'] | undefined =
+      params.comment === 'pending'
+        ? { kind: 'pending' }
+        : params.comment === 'posted'
+          ? { kind: 'posted' }
+          : params['comment-error']
+            ? { kind: 'error', text: params['comment-error'].slice(0, 200) }
+            : undefined;
+    publicEntry.comments = {
+      open,
+      count: row.commentCount,
+      items: listed.items,
+      page: listed.page,
+      pages: listed.pages,
+      registrationRequired: settings.commentRegistration,
+      requireNameEmail: settings.commentRequireNameEmail,
+      threadDepth: settings.commentThreadDepth,
+      action: `${scope.data.urls.home(scope.locale).replace(/\/$/, '')}/comments`,
+      ...(notice ? { notice } : {}),
+    };
+    if (settings.likes !== 'off') {
+      publicEntry.likes = {
+        count: row.likeCount,
+        liked: false,
+        action: `${scope.data.urls.home(scope.locale).replace(/\/$/, '')}/likes`,
+        usersOnly: settings.likes === 'users',
+      };
+    }
   }
 
   /** Entries for plugin listings (BlockLoadContext.query), complete as on their own page. */

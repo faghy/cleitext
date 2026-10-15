@@ -126,7 +126,13 @@ const labels = z.record(
 );
 
 /** Features an entry type can offer in the editor. */
-export const CONTENT_TYPE_FEATURES = ['blocks', 'featured_image', 'excerpt', 'parent'] as const;
+export const CONTENT_TYPE_FEATURES = [
+  'blocks',
+  'featured_image',
+  'excerpt',
+  'parent',
+  'comments',
+] as const;
 
 export const createContentTypeRequestSchema = z.object({
   slug: structureSlug,
@@ -204,6 +210,8 @@ export interface RevisionView {
 export interface EntryView extends EntrySummary {
   createdAt: string;
   trashedAt: string | null;
+  /** Comments: open or closed, and how many are approved (RF-COM). */
+  comments: { status: 'open' | 'closed'; count: number };
   /** Current (latest saved) revision. */
   revision: RevisionView | null;
   /** The user's autosave, when newer than the current revision (RF-CNT-06). */

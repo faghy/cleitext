@@ -20,6 +20,7 @@ export const CAPABILITIES = [
   'edit_others_entries',
   'publish_others_entries',
   'manage_terms',
+  'moderate_comments',
   'publish_entries',
   'upload_media',
   'edit_entries',
@@ -55,6 +56,7 @@ const editor: Capability[] = [
   'publish_others_entries',
   'manage_terms',
   'read_private_entries',
+  'moderate_comments',
 ];
 const administrator: Capability[] = [
   ...editor,

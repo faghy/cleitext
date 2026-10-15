@@ -9,6 +9,7 @@ export const CAPABILITY_LABELS: Record<string, string> = {
   read_private_entries: 'See private content',
   upload_media: 'Upload media',
   manage_terms: 'Manage categories and tags',
+  moderate_comments: 'Moderate comments',
   manage_menus: 'Manage menus',
   manage_taxonomies: 'Manage taxonomies',
   manage_content_types: 'Manage content types',

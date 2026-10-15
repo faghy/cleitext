@@ -12,6 +12,7 @@ import { api, ApiError, errorMessage } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 import { MailCard } from './mail-settings';
+import { DiscussionCard, MembershipCard } from './settings-community';
 import { usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
@@ -328,6 +329,12 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
             </span>
           )}
         </div>
+        <MembershipCard
+          values={values}
+          set={set}
+          pages={(pages.data?.items ?? []).map((p) => ({ id: p.id, title: p.title }))}
+        />
+        <DiscussionCard values={values} set={set} />
         <Card title={t('AI assistants (MCP)')}>
           <div className="space-y-3 text-sm">
             <label className="flex items-start gap-2">

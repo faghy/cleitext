@@ -1,10 +1,11 @@
 import { Blocks, ResponsiveImage, type RenderMedia } from '@cleitext/renderer';
 import type { CxdDocument } from '@cleitext/blocks';
-import { createContext, useContext, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { EntryCommunity } from './community.js';
+import { usePage } from './context.js';
 import type {
   HeadTag,
   MenuItemView,
-  PageContext,
   TemplateProps,
   ThemeDefinition,
   TemplateComponent,
@@ -14,35 +15,42 @@ import type {
 export * from './types.js';
 export { Inline, safeUrl, type RenderMedia } from '@cleitext/renderer';
 
-const PageContextReact = createContext<PageContext | null>(null);
+export { PageProvider, usePage } from './context.js';
+export { AccountForms, accountStrings, type AccountAttrs, type AccountView } from './account.js';
+export {
+  CommentText,
+  Comments,
+  COMMUNITY_CSS,
+  COMMUNITY_JS,
+  communityStrings,
+  EntryActions,
+  EntryCommunity,
+} from './community.js';
 
-export function PageProvider({ value, children }: { value: PageContext; children: ReactNode }) {
-  return <PageContextReact.Provider value={value}>{children}</PageContextReact.Provider>;
-}
-
-/** Site, language, menus and URL helpers of the page being rendered. */
-export function usePage(): PageContext {
-  const value = useContext(PageContextReact);
-  if (!value) throw new Error('usePage() must be used inside a Cleitext page');
-  return value;
-}
-
-/** The content of an entry, with the page's preloaded media. */
+/**
+ * The content of an entry, with the page's preloaded media. On the entry's
+ * own page it is followed by likes, sharing and comments, unless the theme
+ * shows them itself (`comments: 'manual'`).
+ */
 export function EntryContent({ document }: { document: CxdDocument }) {
   const page = usePage();
   // A visual editor (plugin) renders the content itself, in the site's own layout.
   if (page.editorFrame) return <div data-cx-editor-canvas="" />;
+  const community = page.autoCommunity && page.entry && page.entry.document === document;
   return (
-    <Blocks
-      document={document}
-      context={{
-        media: page.media,
-        locale: page.locale,
-        eagerFirstImage: true,
-        ...(page.blockRenderers ? { renderers: page.blockRenderers } : {}),
-        ...(page.patterns ? { patterns: page.patterns } : {}),
-      }}
-    />
+    <>
+      <Blocks
+        document={document}
+        context={{
+          media: page.media,
+          locale: page.locale,
+          eagerFirstImage: true,
+          ...(page.blockRenderers ? { renderers: page.blockRenderers } : {}),
+          ...(page.patterns ? { patterns: page.patterns } : {}),
+        }}
+      />
+      {community && <EntryCommunity />}
+    </>
   );
 }
 
@@ -79,6 +87,9 @@ export function Location({
           ...(page.patterns ? { patterns: page.patterns } : {}),
           ...(entry ? { entry } : {}),
           ...(page.editorFrame ? { editorFrame: true } : {}),
+          ...(entry && page.autoCommunity && page.entry
+            ? { afterEntryContent: <EntryCommunity /> }
+            : {}),
         }}
       />
     </div>

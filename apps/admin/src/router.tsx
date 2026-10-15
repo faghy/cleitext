@@ -35,6 +35,7 @@ import { UpdatesPage } from './pages/updates';
 import { UsersPage } from './pages/users';
 import { TermsPage } from './pages/terms';
 import { StructurePage } from './pages/structure';
+import { CommentsPage } from './pages/comments';
 import { RedirectsPage } from './pages/redirects';
 
 interface RouterContext {
@@ -195,6 +196,7 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/settings', SettingsPage),
     sectionRoute('/structure', StructurePage),
     sectionRoute('/redirects', RedirectsPage),
+    sectionRoute('/comments', CommentsPage),
     sectionRoute('/plugins', PluginsPage),
     sectionRoute('/sites', SitesPage),
     sectionRoute('/activity', ActivityPage),

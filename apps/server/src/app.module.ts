@@ -44,6 +44,11 @@ import { TermsController } from './content/terms.controller.js';
 import { TermsService } from './content/terms.service.js';
 import { LanguagesService } from './content/languages.service.js';
 import { APP_CONFIG, type AppConfig } from './config/config.js';
+import { AccountsService } from './community/accounts.service.js';
+import { CommunityPublic } from './community/community-public.js';
+import { CommentsController } from './community/comments.controller.js';
+import { CommentsService } from './community/comments.service.js';
+import { LikesService } from './community/likes.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MailService } from './mail/mail.service.js';
@@ -141,6 +146,7 @@ export class AppModule {
         OAuthController,
         AssistantsController,
         ChatController,
+        CommentsController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -180,6 +186,10 @@ export class AppModule {
         LanguagesService,
         UserTokenService,
         UsersService,
+        AccountsService,
+        CommunityPublic,
+        CommentsService,
+        LikesService,
       ],
     };
   }
