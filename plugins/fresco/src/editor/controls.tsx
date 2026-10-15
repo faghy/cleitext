@@ -1033,12 +1033,20 @@ function IconPicker({
   onPick,
   onClose,
 }: {
-  onPick: (v: { set: string; name: string }) => void;
+  onPick: (v: { set: string; name: string; url?: string }) => void;
   onClose: () => void;
 }) {
   const [search, setSearch] = useState('');
   const [set, setSet] = useState('all');
-  const all = useMemo(() => (iconDataLoaded() ? iconNames() : []), []);
+  const all = useMemo(
+    (): [string, string, string?][] => [
+      ...extensions().iconSets.flatMap((group) =>
+        group.icons.map((icon): [string, string, string] => [group.id, icon.name, icon.url]),
+      ),
+      ...(iconDataLoaded() ? iconNames() : []),
+    ],
+    [],
+  );
   const shown = all
     .filter(
       ([s, name]) =>
@@ -1070,6 +1078,11 @@ function IconPicker({
             aria-label="Icon set"
           >
             <option value="all">All</option>
+            {extensions().iconSets.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.label}
+              </option>
+            ))}
             <option value="solid">Solid</option>
             <option value="regular">Regular</option>
             <option value="brands">Brands</option>
@@ -1079,15 +1092,15 @@ function IconPicker({
           </button>
         </div>
         <div className="fre-modal__grid fre-modal__grid--icons">
-          {shown.map(([s, name]) => (
+          {shown.map(([s, name, url]) => (
             <button
               key={`${s}:${name}`}
               type="button"
               className="fre-thumb fre-thumb--icon"
               title={`${name} (${s})`}
-              onClick={() => onPick({ set: s, name })}
+              onClick={() => onPick(url ? { set: s, name, url } : { set: s, name })}
             >
-              <Icon value={{ set: s, name }} />
+              <Icon value={url ? { set: s, name, url } : { set: s, name }} />
               <span>{name}</span>
             </button>
           ))}

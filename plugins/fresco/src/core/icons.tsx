@@ -41,7 +41,20 @@ export function iconNames(): [string, string][] {
   );
 }
 
+/** Addresses custom icons may use: the site's own files, or https. */
+const ICON_URL = /^(\/[\w./-]+|https:\/\/[^\s"'()<>\\]+)\.svg$/;
+
 export function Icon({ value, className }: { value: unknown; className?: string }) {
+  if (isIcon(value) && typeof value.url === 'string' && ICON_URL.test(value.url)) {
+    const mask = `url("${value.url}") center / contain no-repeat`;
+    return (
+      <span
+        className={className ? `fr-icon fr-icon--mask ${className}` : 'fr-icon fr-icon--mask'}
+        style={{ WebkitMask: mask, mask }}
+        aria-hidden="true"
+      />
+    );
+  }
   const shape = iconShape(value);
   if (!shape) return null;
   const [width, height, path] = shape;

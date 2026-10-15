@@ -230,6 +230,10 @@ a.fr-container {
   height: 1em;
   vertical-align: -0.125em;
 }
+.fr-icon--mask {
+  display: inline-block;
+  background-color: currentColor;
+}
 .fr-icon-widget {
   text-align: center;
 }

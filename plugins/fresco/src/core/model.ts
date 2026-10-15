@@ -67,6 +67,8 @@ export interface LinkValue {
 export interface IconValue {
   set: string;
   name: string;
+  /** Custom icons (sets added by plugins): an SVG drawn as a mask in the text color. */
+  url?: string;
 }
 
 /** Devices, from the widest. Desktop has no suffix. */

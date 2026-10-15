@@ -33,6 +33,8 @@ export interface Extensions {
   pageSettings: unknown[];
   /** Editor: more items of an element's right-click menu (e.g. "Save as global widget"). */
   menuActions: MenuAction[];
+  /** Editor: icon sets added by plugins (custom icons), offered in the icon picker. */
+  iconSets: { id: string; label: string; icons: { name: string; url: string }[] }[];
   /** Editor: font families added by plugins (custom fonts), offered in the font pickers. */
   customFonts: string[];
   /** Editor: choices of `select` controls with a `source`, loaded when shown. */
@@ -71,6 +73,7 @@ export function extensions(): Extensions {
     pageSettings: [],
     menuActions: [],
     customFonts: [],
+    iconSets: [],
     optionSources: {},
   });
 }
