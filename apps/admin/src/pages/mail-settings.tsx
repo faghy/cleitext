@@ -75,6 +75,15 @@ export function MailCard() {
                 'This site uses the server email settings. Enter an SMTP server to send from this site’s address.',
               )}
         </p>
+        {current.data && !current.data.configured && current.data.serverLogsOnly && (
+          <div className="mb-4">
+            <Alert>
+              {t(
+                'The server has no email settings: messages (invitations, password resets, forms) are only written to its log. Enter an SMTP server below.',
+              )}
+            </Alert>
+          </div>
+        )}
         <form
           className="grid gap-4 md:grid-cols-2"
           onSubmit={(e) => {

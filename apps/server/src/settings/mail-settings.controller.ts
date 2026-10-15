@@ -105,6 +105,11 @@ export class MailSettingsController {
     @Body() body: unknown,
   ): Promise<{ sent: true }> {
     const { to } = parseBody(testMailRequestSchema, body);
+    if (!(await this.mail.delivers(site.id))) {
+      throw new BadRequestException(
+        'Email is not set up: the server only writes messages to its log (MAIL_URL). Enter an SMTP server for this site, or set MAIL_URL on the server.',
+      );
+    }
     try {
       await this.mail.send(
         {

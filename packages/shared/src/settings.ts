@@ -87,6 +87,11 @@ export interface MailSettingsView {
   from: string | null;
   /** The password itself is never returned. */
   hasPassword: boolean;
+  /**
+   * True when the server's own settings only write emails to its log
+   * (`MAIL_URL=log://`): without settings here, nothing is delivered.
+   */
+  serverLogsOnly: boolean;
 }
 
 export const testMailRequestSchema = z.object({ to: z.email() });

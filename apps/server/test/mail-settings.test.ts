@@ -66,6 +66,7 @@ describe('site email settings', () => {
       user: 'mailer',
       from: 'Mailing <hello@mailing.test>',
       hasPassword: true,
+      serverLogsOnly: false,
     });
     const rows = await withSiteContext(owner.db, site.id, (tx) =>
       tx.select().from(settings).where(eq(settings.namespace, 'mail')),

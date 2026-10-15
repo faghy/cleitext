@@ -89,7 +89,13 @@ export class MailService {
       user: typeof values.user === 'string' ? values.user : null,
       from: typeof values.from === 'string' ? values.from : null,
       hasPassword: Boolean(values.password),
+      serverLogsOnly: this.driver === 'log',
     };
+  }
+
+  /** False when the site's emails would only be written to the log. */
+  async delivers(siteId: string): Promise<boolean> {
+    return this.driver !== 'log' || Boolean((await this.siteTransport(siteId))?.transport);
   }
 
   private async load(siteId: string): Promise<Record<string, unknown>> {
