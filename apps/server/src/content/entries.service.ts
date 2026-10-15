@@ -1213,7 +1213,7 @@ export function validateDocument(value: unknown, auth: AuthContext): CxdDocument
   }
   return auth.capabilities.includes('unfiltered_html')
     ? parsed.data
-    : sanitizeDocument(parsed.data);
+    : sanitizeDocument(parsed.data, (type) => registry.get(type)?.htmlAttributes);
 }
 
 /** Whether a slug is the one generated from the title (possibly de-duplicated). */

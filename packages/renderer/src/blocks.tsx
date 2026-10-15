@@ -43,7 +43,8 @@ function BlockList({ blocks }: { blocks: CxdBlock[] }): ReactNode {
   return blocks.map((block) => <Block key={block.id} block={block} />);
 }
 
-function Block({ block }: { block: CxdBlock }): ReactNode {
+/** One block (with its children), in the current render context. */
+export function Block({ block }: { block: CxdBlock }): ReactNode {
   const context = useRenderContext();
   const renderer = context.renderers?.get(block.type) ?? renderers.get(block.type);
   // Unknown blocks (e.g. from a disabled plugin) render nothing.

@@ -304,6 +304,47 @@ describe('an active plugin', () => {
     }
   });
 
+  it('gives containers each child on its own, and cleans raw HTML of authors without unfiltered_html', async () => {
+    const stack = (note: string) => ({
+      schema: 1,
+      blocks: [
+        {
+          id: 'st1',
+          type: 'events/stack',
+          v: 1,
+          attrs: { note },
+          children: [
+            { id: 'q1', type: 'core/paragraph', v: 1, attrs: {}, content: [{ text: 'One' }] },
+            { id: 'q2', type: 'core/paragraph', v: 1, attrs: {}, content: [{ text: 'Two' }] },
+          ],
+        },
+      ],
+    });
+    const note = '<b>Hi</b><script>alert(1)</script>';
+    const byEditor = (
+      await editor.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Stacked',
+        document: stack(note),
+      })
+    ).json();
+    expect(byEditor.revision.document.blocks[0].attrs.note).toBe('<b>Hi</b>');
+    const byAdmin = (
+      await admin.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Stacked raw',
+        document: stack(note),
+      })
+    ).json();
+    expect(byAdmin.revision.document.blocks[0].attrs.note).toBe(note);
+
+    await editor.post(`/api/v1/entries/${byEditor.id}/publish`);
+    const html = (await visitor.get('/stacked')).body;
+    expect(html).toContain(
+      '<div class="note"><b>Hi</b></div><ol><li><p>One</p></li><li><p>Two</p></li></ol>',
+    );
+  });
+
   it('validates the attributes of its blocks', async () => {
     const response = await editor.post('/api/v1/entries', {
       type: 'page',

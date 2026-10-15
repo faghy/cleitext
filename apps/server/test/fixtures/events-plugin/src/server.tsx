@@ -93,6 +93,27 @@ export default definePlugin({
       }),
     );
 
+    // A container wrapping each child on its own, with a raw HTML note.
+    ctx.blocks.register(
+      defineBlock<{ note: string }>({
+        type: 'events/stack',
+        title: 'Stack',
+        container: true,
+        html: ['note'],
+        attributes: [{ name: 'note', type: 'text', label: 'Note', multiline: true }],
+        render: ({ attrs, items }) => (
+          <div className="stack">
+            <div className="note" dangerouslySetInnerHTML={{ __html: attrs.note ?? '' }} />
+            <ol>
+              {items?.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ol>
+          </div>
+        ),
+      }),
+    );
+
     ctx.hooks.filter('render.blocks', (blocks, context) =>
       context.entry.type === 'event'
         ? [

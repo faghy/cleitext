@@ -23,6 +23,8 @@ export interface BlockDefinition {
   richAttributes?: string[];
   /** Container blocks keep nested blocks in `children`. */
   container?: boolean;
+  /** Attributes holding raw HTML, cleaned for authors without `unfiltered_html`. */
+  htmlAttributes?: string[];
   /** Migrations from older attribute versions: `{ 1: (attrs) => attrsV2 }`. */
   migrate?: Record<number, (attrs: Record<string, unknown>) => Record<string, unknown>>;
 }

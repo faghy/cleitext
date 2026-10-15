@@ -74,14 +74,25 @@ export function sanitizeHtmlBlock(html: string): string {
   return sanitizeHtml(html, OPTIONS);
 }
 
-/** The document with every `core/html` block sanitized (a new copy). */
-export function sanitizeDocument(document: CxdDocument): CxdDocument {
-  const clean = (block: CxdBlock): CxdBlock => ({
-    ...block,
-    ...(block.type === 'core/html' && typeof block.attrs.content === 'string'
-      ? { attrs: { ...block.attrs, content: sanitizeHtmlBlock(block.attrs.content) } }
-      : {}),
-    ...(block.children ? { children: block.children.map(clean) } : {}),
-  });
+/**
+ * The document with every raw HTML attribute sanitized (a new copy):
+ * `core/html` blocks, and plugin blocks' attributes declared as HTML.
+ */
+export function sanitizeDocument(
+  document: CxdDocument,
+  htmlAttributes: (type: string) => string[] | undefined = () => undefined,
+): CxdDocument {
+  const clean = (block: CxdBlock): CxdBlock => {
+    const keys = block.type === 'core/html' ? ['content'] : (htmlAttributes(block.type) ?? []);
+    const attrs = { ...block.attrs };
+    for (const key of keys) {
+      if (typeof attrs[key] === 'string') attrs[key] = sanitizeHtmlBlock(attrs[key]);
+    }
+    return {
+      ...block,
+      attrs,
+      ...(block.children ? { children: block.children.map(clean) } : {}),
+    };
+  };
   return { ...document, blocks: document.blocks.map(clean) };
 }

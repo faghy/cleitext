@@ -18,6 +18,7 @@ import {
 import { documentText, type CxdBlock, type CxdDocument } from '@cleitext/blocks';
 import type { RenderHookContext } from '@cleitext/plugin-sdk';
 import {
+  Block,
   collectMediaIds,
   collectPatternIds,
   documentExcerpt,
@@ -1489,7 +1490,14 @@ export class PublicService {
           data: loaded.get(instance.id),
           block: instance,
           context,
-          ...(block.container ? { children } : {}),
+          ...(block.container
+            ? {
+                children,
+                items: (instance.children ?? []).map((child) =>
+                  createElement(Block, { key: child.id, block: child }),
+                ),
+              }
+            : {}),
         });
         return block.wrapper === true
           ? createElement('div', { className: `wp-block-${instance.type.replace('/', '-')}` }, node)

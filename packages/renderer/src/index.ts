@@ -1,4 +1,10 @@
-export { Blocks, registerBlockRenderer, ResponsiveImage, type BlockRenderer } from './blocks.js';
+export {
+  Block,
+  Blocks,
+  registerBlockRenderer,
+  ResponsiveImage,
+  type BlockRenderer,
+} from './blocks.js';
 export {
   RenderContextReact,
   useRenderContext,

@@ -352,6 +352,8 @@ export interface PluginBlockDefinition<A extends object = FieldValues, D = undef
     block: CxdBlock;
     context: BlockRenderContext;
     children?: ReactNode;
+    /** Container blocks: each child rendered on its own (to wrap them one by one). */
+    items?: ReactNode[];
   }): ReactNode;
   /**
    * The block holds other blocks (`block.children`), rendered by Cleitext
@@ -364,6 +366,11 @@ export interface PluginBlockDefinition<A extends object = FieldValues, D = undef
    * flex and grid layouts). Default true, except for containers.
    */
   wrapper?: boolean;
+  /**
+   * Attributes holding raw HTML. When the author cannot publish unfiltered
+   * HTML, they are cleaned on save, like the Custom HTML block.
+   */
+  html?: string[];
   /** Media ids used by an instance, preloaded into `context.media`. */
   media?(attrs: A): string[];
   /**

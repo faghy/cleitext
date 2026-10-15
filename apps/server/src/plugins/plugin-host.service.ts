@@ -944,6 +944,7 @@ function registerBlockDefinition(
     category: block.category ?? 'widgets',
     attrs: fieldsValidator(block.attributes ?? []),
     ...(block.container ? { container: true } : {}),
+    ...(block.html?.length ? { htmlAttributes: block.html } : {}),
   });
 }
 
