@@ -6,8 +6,9 @@
  */
 import { api as coreApi, type EditorProps } from '@cleitext/admin-sdk';
 import type { CxdDocument } from '@cleitext/blocks';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setIconData, iconDataLoaded, type IconData } from '../core/icons.js';
+import { extensions } from '../core/extensions.js';
 import { normalizeKit } from '../core/kit.js';
 import type { FrescoNode, MenuItem, RenderMediaItem, Settings } from '../core/model.js';
 import { getElement } from '../core/registry.js';
@@ -17,7 +18,7 @@ import { saveTemplate } from './library.js';
 import { Panel } from './panel.js';
 import { createStore, useStore, type PanelView, type Store } from './store.js';
 import { EDITOR_CSS } from './styles.js';
-import { find } from './tree.js';
+import { find, placeOf } from './tree.js';
 
 const VIEWS: { view: PanelView; title: string; icon: string }[] = [
   {
@@ -382,6 +383,28 @@ function ContextMenu({
           node && window.prompt('Name of the template', getElement(node.type)?.title ?? '');
         if (node && name) void saveTemplate(name, 'section', [node]).catch(() => {});
       })}
+      {node &&
+        extensions()
+          .menuActions.filter((action) => !action.when || action.when(node))
+          .map((action) => (
+            <Fragment key={action.label}>
+              {item(action.label, () => {
+                void Promise.resolve(
+                  action.run(node, {
+                    replace: (next) => {
+                      const place = placeOf(store.get().blocks, node.id);
+                      if (!place) return;
+                      store.actions.remove(node.id);
+                      store.actions.insertNodes([next], place);
+                      store.actions.select(next.id);
+                    },
+                  }),
+                ).catch((error: unknown) =>
+                  window.alert(String(error instanceof Error ? error.message : error)),
+                );
+              })}
+            </Fragment>
+          ))}
       {item('Navigator', () => store.actions.setView('navigator'))}
       {item('Delete', () => store.actions.remove(menu.id), false, 'Del')}
     </div>

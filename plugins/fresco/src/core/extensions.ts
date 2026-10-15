@@ -31,8 +31,17 @@ export interface Extensions {
   fieldAddons: unknown[];
   /** Editor: extra sections of the page settings (e.g. a template's conditions). */
   pageSettings: unknown[];
+  /** Editor: more items of an element's right-click menu (e.g. "Save as global widget"). */
+  menuActions: MenuAction[];
   /** Editor: choices of `select` controls with a `source`, loaded when shown. */
   optionSources: Record<string, () => Promise<ControlOption[]>>;
+}
+
+export interface MenuAction {
+  label: string;
+  /** Shown only for some elements. */
+  when?: (node: FrescoNode) => boolean;
+  run: (node: FrescoNode, editor: { replace(node: FrescoNode): void }) => void | Promise<void>;
 }
 
 export interface ResolveContext {
@@ -58,6 +67,7 @@ export function extensions(): Extensions {
     resolve: [],
     fieldAddons: [],
     pageSettings: [],
+    menuActions: [],
     optionSources: {},
   });
 }
