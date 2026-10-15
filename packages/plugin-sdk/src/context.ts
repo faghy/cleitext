@@ -308,6 +308,20 @@ export interface BlockLoadContext {
 export interface BlockRenderContext {
   siteId: string;
   locale: string;
+  /** Media preloaded for the page (those listed by `media`), by id. */
+  media: ReadonlyMap<string, BlockMedia>;
+}
+
+/** A media file as blocks see it: the original and its resized variants. */
+export interface BlockMedia {
+  id: string;
+  url: string;
+  mime: string;
+  width: number | null;
+  height: number | null;
+  alt: string;
+  variants: { variant: string; format: string; url: string; width: number; height: number }[];
+  focalPoint?: { x: number; y: number } | null;
 }
 
 /**
@@ -328,8 +342,35 @@ export interface PluginBlockDefinition<A extends object = FieldValues, D = undef
   attributes?: FieldDefinition[];
   /** Loads data before rendering (rendering itself is synchronous). */
   load?(attrs: A, context: BlockLoadContext): Promise<D>;
-  /** Server-side render for the public site. No client JavaScript. */
-  render(props: { attrs: A; data: D; block: CxdBlock; context: BlockRenderContext }): ReactNode;
+  /**
+   * Server-side render for the public site. No client JavaScript. Container
+   * blocks get their rendered `children` to place.
+   */
+  render(props: {
+    attrs: A;
+    data: D;
+    block: CxdBlock;
+    context: BlockRenderContext;
+    children?: ReactNode;
+  }): ReactNode;
+  /**
+   * The block holds other blocks (`block.children`), rendered by Cleitext
+   * and passed to `render` as `children`. Such blocks, and those with
+   * `wrapper: false`, render inside the page: `render` must not throw.
+   */
+  container?: boolean;
+  /**
+   * Without the `<div class="wp-block-<plugin>-<name>">` wrapper (e.g. for
+   * flex and grid layouts). Default true, except for containers.
+   */
+  wrapper?: boolean;
+  /** Media ids used by an instance, preloaded into `context.media`. */
+  media?(attrs: A): string[];
+  /**
+   * CSS for one instance (e.g. its own colors and sizes, scoped by its id).
+   * The CSS of all instances on a page goes into one `<style>` in `<head>`.
+   */
+  css?(props: { attrs: A; block: CxdBlock; context: BlockRenderContext }): string;
 }
 
 export interface BlockApi {

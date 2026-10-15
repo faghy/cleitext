@@ -119,6 +119,8 @@ interface RequestScope {
   themeSettings?: Record<string, unknown>;
   /** Preview for a visual editor: the content is left to the editor (`PageContext.editorFrame`). */
   editorFrame?: boolean;
+  /** CSS of the plugin blocks on the page (`css`), added to `<head>`. */
+  blockCss?: string[];
 }
 
 /** Public site: routing, data loading and theme rendering (docs/ARCHITECTURE.md §12). */
@@ -954,7 +956,6 @@ export class PublicService {
         scope.siteId,
       );
       publicEntry.document = { ...publicEntry.document, blocks };
-      scope.blockRenderers = await this.pluginBlockRenderers(scope, publicEntry);
     }
 
     const alternates = [
@@ -1279,6 +1280,19 @@ export class PublicService {
     if (extraMedia.length > 0) {
       for (const [id, item] of await loadMedia(scope.tx, extraMedia, locale)) media.set(id, item);
     }
+    // Plugin blocks of the entry, the areas and the patterns.
+    if (scope.activePlugins.size > 0) {
+      scope.blockRenderers = await this.pluginBlockRenderers(
+        scope,
+        [
+          ...(props.kind === 'entry' ? [props.entry.document] : []),
+          ...Object.values(areas),
+          ...patternDocs.values(),
+        ],
+        props.kind === 'entry' ? { id: props.entry.id, type: props.entry.type } : undefined,
+        media,
+      );
+    }
     const locales: LocaleLink[] = data.locales.map((l) => ({
       code: l.code,
       name: l.name,
@@ -1316,6 +1330,7 @@ export class PublicService {
         }),
       }),
     );
+    if (scope.blockCss && scope.blockCss.length > 0) html = withBlockCss(html, scope.blockCss);
     if (scope.settings.backToTop) {
       html = withBackToTop(html, locale, {
         color: scope.settings.backToTopColor,
@@ -1353,12 +1368,16 @@ export class PublicService {
   }
 
   /**
-   * Plugin blocks are loaded and rendered one by one before the page: a
-   * failing block renders nothing instead of breaking the page.
+   * Plugin blocks are loaded, and leaf blocks rendered one by one, before
+   * the page: a failing block renders nothing instead of breaking the page.
+   * Containers (and blocks without wrapper) render inside the page, with
+   * their children.
    */
   private async pluginBlockRenderers(
     scope: RequestScope,
-    entry: PublicEntry,
+    documents: CxdDocument[],
+    entry: { id: string; type: string } | undefined,
+    media: Map<string, RenderMedia>,
   ): Promise<Map<string, BlockRenderer> | undefined> {
     const definitions = new Map(
       (await this.plugins.activePlugins(scope.siteId)).flatMap((plugin) =>
@@ -1366,21 +1385,49 @@ export class PublicService {
       ),
     );
     if (definitions.size === 0) return undefined;
-    const found: CxdBlock[] = [];
+    const found = new Map<string, CxdBlock>();
     const walk = (blocks: CxdBlock[]) => {
       for (const block of blocks) {
-        if (definitions.has(block.type)) found.push(block);
+        if (definitions.has(block.type)) found.set(block.id, block);
         if (block.children) walk(block.children);
       }
     };
-    walk(entry.document.blocks);
-    if (found.length === 0) return undefined;
+    for (const document of documents) walk(document.blocks);
+    if (found.size === 0) return undefined;
+
+    const attrsOf = (instance: CxdBlock) => {
+      const { block } = definitions.get(instance.type)!;
+      return { ...fieldDefaults(block.attributes ?? []), ...instance.attrs };
+    };
+    // Media the blocks use, preloaded with the page's.
+    const mediaIds = new Set<string>();
+    for (const instance of found.values()) {
+      const { plugin, block } = definitions.get(instance.type)!;
+      if (!block.media) continue;
+      try {
+        for (const id of block.media(attrsOf(instance))) {
+          if (typeof id === 'string' && !media.has(id)) mediaIds.add(id);
+        }
+      } catch (error) {
+        this.logger.warn(`Block ${block.type} of ${plugin}: media() failed: ${String(error)}`);
+      }
+    }
+    if (mediaIds.size > 0) {
+      for (const [id, item] of await loadMedia(scope.tx, [...mediaIds], scope.locale)) {
+        media.set(id, item);
+      }
+    }
+    const context = { siteId: scope.siteId, locale: scope.locale, media };
+    const inPage = (block: { container?: boolean; wrapper?: boolean }) =>
+      block.container === true || block.wrapper === false;
 
     const markup = new Map<string, string>();
+    const loaded = new Map<string, unknown>();
+    const css: string[] = [];
     await Promise.all(
-      found.map(async (instance) => {
+      [...found.values()].map(async (instance) => {
         const { plugin, block } = definitions.get(instance.type)!;
-        const attrs = { ...fieldDefaults(block.attributes ?? []), ...instance.attrs };
+        const attrs = attrsOf(instance);
         const outcome = await this.plugins.runHook(
           { plugin, name: `block ${block.type}`, siteId: scope.siteId },
           async () => {
@@ -1388,37 +1435,60 @@ export class PublicService {
               ? await block.load(attrs, {
                   siteId: scope.siteId,
                   locale: scope.locale,
-                  entry: { id: entry.id, type: entry.type },
+                  ...(entry ? { entry } : {}),
                   tag: (tag) => {
                     scope.tags.add(tag);
                   },
                 })
               : undefined;
-            return renderToStaticMarkup(
-              createElement(
-                Fragment,
-                null,
-                block.render({
-                  attrs,
-                  data,
-                  block: instance,
-                  context: { siteId: scope.siteId, locale: scope.locale },
-                }),
-              ),
-            );
+            const style = block.css ? block.css({ attrs, block: instance, context }) : '';
+            const html = inPage(block)
+              ? null
+              : renderToStaticMarkup(
+                  createElement(
+                    Fragment,
+                    null,
+                    block.render({ attrs, data, block: instance, context }),
+                  ),
+                );
+            return { data, style, html };
           },
         );
-        if (outcome.ok) markup.set(instance.id, outcome.value);
+        if (!outcome.ok) return;
+        loaded.set(instance.id, outcome.value.data);
+        if (outcome.value.style) css.push(outcome.value.style);
+        if (outcome.value.html !== null) markup.set(instance.id, outcome.value.html);
       }),
     );
-    const renderer: BlockRenderer = ({ block }) => {
-      const html = markup.get(block.id);
-      return html
-        ? createElement('div', {
-            className: `wp-block-${block.type.replace('/', '-')}`,
-            dangerouslySetInnerHTML: { __html: html },
-          })
-        : null;
+    if (css.length > 0) (scope.blockCss ??= []).push(...css);
+
+    const renderer: BlockRenderer = ({ block: instance, children }) => {
+      const { plugin, block } = definitions.get(instance.type)!;
+      if (!inPage(block)) {
+        const html = markup.get(instance.id);
+        return html
+          ? createElement('div', {
+              className: `wp-block-${instance.type.replace('/', '-')}`,
+              dangerouslySetInnerHTML: { __html: html },
+            })
+          : null;
+      }
+      if (!loaded.has(instance.id)) return null;
+      try {
+        const node = block.render({
+          attrs: attrsOf(instance),
+          data: loaded.get(instance.id),
+          block: instance,
+          context,
+          ...(block.container ? { children } : {}),
+        });
+        return block.wrapper === true
+          ? createElement('div', { className: `wp-block-${instance.type.replace('/', '-')}` }, node)
+          : node;
+      } catch (error) {
+        this.logger.warn(`Block ${block.type} of ${plugin} failed to render: ${String(error)}`);
+        return null;
+      }
     };
     return new Map([...definitions.keys()].map((type) => [type, renderer]));
   }
@@ -1567,4 +1637,12 @@ function splitHighlight(value: string): { text: string; match: boolean }[] {
     if (rest) parts.push({ text: rest, match: false });
   }
   return parts;
+}
+
+/** The CSS of the plugin blocks on a page, in one `<style>` at the end of `<head>`. */
+export function withBlockCss(html: string, css: string[]): string {
+  // The CSS cannot close the element.
+  const style = `<style data-cx-blocks>${css.join('\n').replace(/<\/style/gi, '<\\/style')}</style>`;
+  const at = html.indexOf('</head>');
+  return at === -1 ? style + html : html.slice(0, at) + style + html.slice(at);
 }

@@ -72,6 +72,22 @@ export default definePlugin({
       }),
     );
 
+    // A container: its children are rendered by Cleitext, its CSS goes to <head>.
+    ctx.blocks.register(
+      defineBlock<{ tone: string }>({
+        type: 'events/box',
+        title: 'Box',
+        container: true,
+        attributes: [{ name: 'tone', type: 'text', label: 'Tone', default: 'plain' }],
+        css: ({ attrs, block }) => `.box-${block.id}{border:1px solid ${attrs.tone}}`,
+        render: ({ attrs, block, children }) => (
+          <aside className={`box box-${block.id}`} data-tone={attrs.tone}>
+            {children}
+          </aside>
+        ),
+      }),
+    );
+
     ctx.hooks.filter('render.blocks', (blocks, context) =>
       context.entry.type === 'event'
         ? [

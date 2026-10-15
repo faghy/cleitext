@@ -228,6 +228,66 @@ describe('an active plugin', () => {
     expect(second.body).toContain('Summer fair');
   });
 
+  it('renders container blocks with their children, in pages and synced patterns', async () => {
+    const paragraph = (id: string, text: string) => ({
+      id,
+      type: 'core/paragraph',
+      v: 1,
+      attrs: {},
+      content: [{ text }],
+    });
+    const box = (id: string, tone: string, children: unknown[]) => ({
+      id,
+      type: 'events/box',
+      v: 1,
+      attrs: { tone },
+      children,
+    });
+    const pattern = (
+      await admin.post('/api/v1/patterns', {
+        title: 'Boxed note',
+        synced: true,
+        document: { schema: 1, blocks: [box('pb1', 'blue', [paragraph('pp1', 'From a pattern')])] },
+      })
+    ).json();
+    const created = await editor.post('/api/v1/entries', {
+      type: 'page',
+      title: 'Boxes',
+      document: {
+        schema: 1,
+        blocks: [
+          box('bx1', 'red', [
+            paragraph('p1', 'Inside'),
+            box('bx2', 'green', [paragraph('p2', 'Deeper')]),
+          ]),
+          { id: 'pt1', type: 'cleitext/pattern', v: 1, attrs: { ref: pattern.id } },
+        ],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    await editor.post(`/api/v1/entries/${created.json().id}/publish`);
+
+    const html = (await visitor.get('/boxes')).body;
+    // No wrapper: the container's own markup, with the children inside.
+    expect(html).toContain(
+      '<aside class="box box-bx1" data-tone="red"><p>Inside</p><aside class="box box-bx2" data-tone="green"><p>Deeper</p></aside></aside>',
+    );
+    expect(html).not.toContain('wp-block-events-box');
+    expect(html).toContain(
+      '<aside class="box box-pb1" data-tone="blue"><p>From a pattern</p></aside>',
+    );
+    // One <style> in <head> with the CSS of every instance.
+    const head = html.slice(0, html.indexOf('</head>'));
+    expect(head).toContain('<style data-cx-blocks>');
+    for (const css of [
+      '.box-bx1{border:1px solid red}',
+      '.box-bx2{border:1px solid green}',
+      '.box-pb1{border:1px solid blue}',
+    ]) {
+      expect(head).toContain(css);
+    }
+  });
+
   it('validates the attributes of its blocks', async () => {
     const response = await editor.post('/api/v1/entries', {
       type: 'page',

@@ -64,7 +64,6 @@ export function BlockArea({ name, className }: { name: string; className?: strin
           locale: page.locale,
           ...(page.blockRenderers ? { renderers: page.blockRenderers } : {}),
           ...(page.patterns ? { patterns: page.patterns } : {}),
-          ...(page.patterns ? { patterns: page.patterns } : {}),
         }}
       />
     </div>

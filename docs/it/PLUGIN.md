@@ -319,6 +319,15 @@ ctx.blocks.register(
 - L'output viene racchiuso in `<div class="wp-block-events-upcoming">`: dai stile al tuo markup dal tema o con un elemento `<style>` in `render`.
 - Gli attributi ricevono i loro valori `default`. Un blocco che lancia un errore (in `load` o `render`) non renderizza nulla, e la pagina viene comunque servita.
 - Quando il plugin è inattivo, i suoi blocchi restano nel contenuto ma non renderizzano nulla. L'editor li mostra come _non disponibili_ e li mantiene invariati.
+- I blocchi vengono disegnati ovunque si trovino: nella voce, nelle aree a blocchi del tema e nei pattern sincronizzati.
+
+**Contenitori, CSS e media.** I page builder hanno bisogno di blocchi che ne contengono altri e che si danno uno stile da sé:
+
+- `container: true`: il blocco può tenere altri blocchi in `children`. Cleitext li disegna e li passa a `render` come `children`.
+- `wrapper: false`: toglie il `<div class="wp-block-…">` intorno al blocco. I contenitori non ce l'hanno.
+- I contenitori e i blocchi senza wrapper vengono disegnati dentro la pagina, quindi il loro `render` non deve lanciare errori. Gli altri blocchi vengono prima disegnati a parte.
+- `css`: restituisce il CSS di un'istanza. Il CSS di tutte le istanze della pagina va in un unico `<style data-cx-blocks>` nel `<head>`.
+- `media`: elenca gli id dei media usati da un'istanza. Vengono precaricati in `context.media`, con `url`, dimensioni, `alt` e varianti ridimensionate (`variants`).
 
 ## 8. Route
 

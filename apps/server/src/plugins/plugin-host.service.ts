@@ -938,6 +938,7 @@ function registerBlockDefinition(
     title: labelText(block.title),
     category: block.category ?? 'widgets',
     attrs: fieldsValidator(block.attributes ?? []),
+    ...(block.container ? { container: true } : {}),
   });
 }
 

@@ -317,6 +317,37 @@ ctx.blocks.register(
 - The output is wrapped in `<div class="wp-block-events-upcoming">`: style your markup from the theme or with a `<style>` element in `render`.
 - Attributes get their `default` values. A block that throws (in `load` or `render`) renders nothing, and the page is still served.
 - When the plugin is inactive, its blocks stay in the content but render nothing. The editor shows them as _unavailable_ and keeps them unchanged.
+- Blocks render wherever they are: in the entry, in the theme's block areas and in synced patterns.
+
+**Containers, CSS and media.** Page builders need blocks that hold other blocks and style themselves:
+
+```tsx
+defineBlock<{ gap: number; image?: string }>({
+  type: 'builder/section',
+  title: 'Section',
+  container: true, // children are in block.children
+  attributes: [
+    { name: 'gap', type: 'number', label: 'Gap', default: 16 },
+    { name: 'image', type: 'media', label: 'Background' },
+  ],
+  media: (attrs) => (attrs.image ? [attrs.image] : []),
+  css: ({ attrs, block }) => `.s-${block.id}{display:flex;gap:${attrs.gap}px}`,
+  render: ({ attrs, block, children, context }) => (
+    <section
+      className={`s-${block.id}`}
+      style={{ backgroundImage: `url(${context.media.get(attrs.image ?? '')?.url ?? ''})` }}
+    >
+      {children}
+    </section>
+  ),
+});
+```
+
+- `container: true` lets the block keep blocks in `children`. Cleitext renders them and passes them to `render` as `children`.
+- `wrapper: false` drops the `<div class="wp-block-…">` wrapper. Containers have none.
+- Containers and blocks without wrapper render inside the page, so their `render` must not throw. Other blocks are rendered on their own first.
+- `css` returns the CSS of one instance. The CSS of every instance on the page goes into one `<style data-cx-blocks>` in `<head>`.
+- `media` lists the media ids an instance uses. They are preloaded into `context.media`, with their `url`, size, `alt` and resized `variants`.
 
 ## 8. Routes
 
