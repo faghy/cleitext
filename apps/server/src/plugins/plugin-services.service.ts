@@ -541,10 +541,7 @@ export class PluginServicesProvider implements PluginServices {
       }
       const touched = [...new Set([...changed, ...liked].map((r) => r.entryId))];
       if (touched.length > 0) {
-        await this.cache.invalidate(
-          siteId,
-          touched.map((id) => `entry:${id}`),
-        );
+        await this.cache.invalidate(siteId, [...touched.map((id) => `entry:${id}`), 'comments']);
       }
       return {
         removed: changed.length + liked.length,

@@ -1,6 +1,7 @@
 import { promisify } from 'node:util';
 import zlib from 'node:zlib';
 import {
+  comments,
   entries,
   entryTerms,
   patterns,
@@ -54,7 +55,7 @@ import { CommentsService } from '../community/comments.service.js';
 import { CommunityPublic, safePath, withQuery } from '../community/community-public.js';
 import { setSessionCookie } from '../auth/cookies.js';
 import { createHash } from 'node:crypto';
-import { and, count, eq, inArray, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createElement, Fragment } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -839,6 +840,62 @@ export class PublicService {
     };
   }
 
+  /** The latest approved comments on the site's published posts (RF-COM), as in WordPress. */
+  private async commentsFeed(scope: RequestScope): Promise<PublicResponse | null> {
+    const { tx, data, settings, locale } = scope;
+    const listed = and(isVisible(false), await this.listedIn(scope));
+    const rows = await tx
+      .select({
+        id: comments.id,
+        authorName: comments.authorName,
+        content: comments.content,
+        createdAt: comments.createdAt,
+        entry: entries,
+      })
+      .from(comments)
+      .innerJoin(entries, eq(entries.id, comments.entryId))
+      .where(and(eq(comments.status, 'approved'), listed))
+      .orderBy(desc(comments.createdAt))
+      .limit(Math.max(settings.postsPerPage, 20));
+    const absolute = (path: string) =>
+      /^https?:\/\//.test(path) ? path : `${scope.origin}${path}`;
+    const t = locale.startsWith('it')
+      ? { title: 'Commenti', on: (post: string, name: string) => `${name} su ${post}` }
+      : { title: 'Comments', on: (post: string, name: string) => `Comment on ${post} by ${name}` };
+    const items = rows
+      .map((row) =>
+        [
+          '<item>',
+          `<title>${xml(t.on(row.entry.title, row.authorName))}</title>`,
+          `<link>${xml(absolute(`${data.urls.entry(row.entry)}#comment-${row.id}`))}</link>`,
+          `<guid isPermaLink="false">${xml(row.id)}</guid>`,
+          `<pubDate>${row.createdAt.toUTCString()}</pubDate>`,
+          `<dc:creator>${xml(row.authorName)}</dc:creator>`,
+          `<description>${xml(row.content.slice(0, 2000))}</description>`,
+          '</item>',
+        ].join(''),
+      )
+      .join('');
+    const self = `${data.urls.home(locale).replace(/\/$/, '')}/comments/feed`;
+    return {
+      status: 200,
+      html:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">' +
+        '<channel>' +
+        `<title>${xml(`${t.title} – ${scope.siteTitle}`)}</title>` +
+        `<link>${xml(absolute(data.urls.home(locale)))}</link>` +
+        `<atom:link href="${xml(absolute(self))}" rel="self" type="application/rss+xml"/>` +
+        `<description>${xml(settings.tagline || scope.siteTitle)}</description>` +
+        `<language>${xml(locale)}</language>` +
+        (rows[0] ? `<lastBuildDate>${rows[0].createdAt.toUTCString()}</lastBuildDate>` : '') +
+        items +
+        '</channel></rss>',
+      contentType: 'application/rss+xml; charset=utf-8',
+      tags: ['site', 'comments'],
+    };
+  }
+
   // ---- Routing --------------------------------------------------------------------
 
   private async route(
@@ -871,8 +928,9 @@ export class PublicService {
     const account = /^\/account(?:\/(login|register|lost-password|reset-password))?$/.exec(rest);
     if (account) return this.renderAccount(scope, account[1] ?? '', query);
 
-    // RSS feeds (RF-THM-08): latest posts, and per category or tag.
+    // RSS feeds (RF-THM-08): latest posts, latest comments, and per category or tag.
     if (rest === '/feed') return this.feed(scope, null);
+    if (rest === '/comments/feed') return this.commentsFeed(scope);
     const termFeed = /^\/([a-z0-9-]+)\/([a-z0-9]+(?:-[a-z0-9]+)*)\/feed$/.exec(rest);
     if (termFeed && data.taxonomies.includes(termFeed[1]!)) {
       return this.feed(scope, { taxonomy: termFeed[1]!, slug: termFeed[2]! });

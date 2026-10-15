@@ -183,6 +183,11 @@ describe('comments', () => {
     const after = await guest.get(postPath);
     expect(after.body).toContain('First!');
     expect(after.body).toContain('1 comment');
+    // The comments feed lists it, as WordPress's /comments/feed.
+    const feed = await guest.get('/comments/feed');
+    expect(feed.headers['content-type']).toContain('application/rss+xml');
+    expect(feed.body).toContain('Comment on Talk to me by Gina');
+    expect(feed.body).toContain('First!');
   });
 
   it('publish at once the next comments of approved people, and threads replies', async () => {

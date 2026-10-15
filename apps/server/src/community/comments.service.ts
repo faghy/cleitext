@@ -472,7 +472,7 @@ export class CommentsService {
         .select({ title: entries.title })
         .from(entries)
         .where(eq(entries.id, row.entryId));
-      await this.cache.invalidate(siteId, [`entry:${row.entryId}`]);
+      await this.cache.invalidate(siteId, [`entry:${row.entryId}`, 'comments']);
       return this.view(row, entry?.title ?? '');
     });
   }
@@ -571,7 +571,7 @@ export class CommentsService {
       }
       await tx.update(entries).set({ commentStatus: status }).where(eq(entries.id, entryId));
     });
-    await this.cache.invalidate(siteId, [`entry:${entryId}`]);
+    await this.cache.invalidate(siteId, [`entry:${entryId}`, 'comments']);
   }
 
   // ---- Inside ------------------------------------------------------------------------------
@@ -629,7 +629,7 @@ export class CommentsService {
     from: string | null,
     origin: string,
   ): Promise<void> {
-    await this.cache.invalidate(siteId, [`entry:${row.entryId}`]);
+    await this.cache.invalidate(siteId, [`entry:${row.entryId}`, 'comments']);
     const event = {
       id: row.id,
       entryId: row.entryId,
