@@ -1338,7 +1338,6 @@ export class PublicService {
         }),
       }),
     );
-    if (scope.blockCss && scope.blockCss.length > 0) html = withBlockCss(html, scope.blockCss);
     if (scope.settings.backToTop) {
       html = withBackToTop(html, locale, {
         color: scope.settings.backToTopColor,
@@ -1354,6 +1353,8 @@ export class PublicService {
       html = await this.plugins.applyFilter('render.html', html, hookContext, scope.siteId);
       html = await this.withPluginAssets(scope, html, hookContext);
     }
+    // Last in <head>: each block's own CSS overrides the plugins' stylesheets.
+    if (scope.blockCss && scope.blockCss.length > 0) html = withBlockCss(html, scope.blockCss);
     return { status, html, tags: [...scope.tags], siteTitle: scope.siteTitle };
   }
 

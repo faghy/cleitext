@@ -210,6 +210,7 @@ function FrameTree({
 }) {
   const blocks = useStore(store, (s) => s.blocks);
   const readOnly = useStore(store, (s) => s.readOnly);
+  const active = useStore(store, (s) => s.active);
   // Elements edited inline are mounted again after the edit (their DOM was changed by hand).
   const [epoch, setEpoch] = useState<Record<string, number>>({});
   const renderContext: RenderContext = {
@@ -217,6 +218,7 @@ function FrameTree({
     locale: context.locale,
     editing: true,
     site: { title: '', tagline: '', home: '/' },
+    ui: { active: (id) => active[id] },
   };
 
   const elementAt = (target: EventTarget | null) =>
@@ -269,6 +271,14 @@ function FrameTree({
     if (!element) return;
     // Links and buttons of the page do nothing while editing.
     event.preventDefault();
+    // Titles of tabs and accordions switch the item shown.
+    const tab = target.closest<HTMLElement>('[data-fr-tab]');
+    if (tab && element.contains(tab)) {
+      const index = Number(tab.dataset.frTab);
+      const id = element.dataset.frId!;
+      const current = store.get().active[id];
+      store.actions.setActive(id, tab.tagName === 'SUMMARY' && current === index ? -1 : index);
+    }
     store.actions.select(element.dataset.frId!);
   };
 
@@ -592,6 +602,7 @@ export function startDrag(
             canvas.x,
             canvas.y,
             source.kind === 'move' ? source.id : null,
+            source.kind === 'new' ? source.type : (find(store.get().blocks, source.id)?.type ?? ''),
           )
         : null;
       showDropLine(target?.line ?? null);

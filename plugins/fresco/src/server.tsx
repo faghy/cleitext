@@ -46,6 +46,7 @@ function blockFor(
     category: 'design',
     container: definition.container === true,
     wrapper: false,
+    ...(definition.html ? { html: definition.html } : {}),
     // The kit (breakpoints) is needed by the CSS; it is cached per site.
     load: async (_attrs, context) => {
       context.tag(KIT_TAG);
@@ -58,11 +59,12 @@ function blockFor(
         block as FrescoNode,
         (kits.get(context.siteId)?.kit ?? normalizeKit(null)).breakpoints,
       ),
-    render: ({ attrs, block, children, context }) =>
+    render: ({ attrs, block, children, items, context }) =>
       definition.render({
         node: { ...(block as FrescoNode), attrs },
         settings: withDefaults(definition, attrs),
         children,
+        ...(items ? { items } : {}),
         context: contextOf(context),
       }),
   };
@@ -100,7 +102,12 @@ export default definePlugin({
       if (data.hideTitle === true) {
         const kit = await kitFor(ctx, context.siteId);
         const selector = safeSelector(kit.titleSelector);
-        if (selector) rules.push(`${selector}{display:none!important}`);
+        // Never Fresco's own headings.
+        const scoped = selector
+          ?.split(',')
+          .map((part) => `${part.trim()}:not(.fr-heading__title)`)
+          .join(',');
+        if (scoped) rules.push(`${scoped}{display:none!important}`);
       }
       const background = safeColor(data.background);
       if (background) rules.push(`body{background-color:${background}}`);

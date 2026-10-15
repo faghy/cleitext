@@ -209,7 +209,9 @@ function responsiveUtilities(bp: Breakpoints): string {
     `@media (min-width:${bp.mobile + 1}px) and (max-width:${bp.tablet}px){.fr-hide-tablet{display:none!important}}` +
     `@media (max-width:${bp.mobile}px){.fr-hide-mobile{display:none!important}}` +
     `@media (max-width:${bp.tablet}px){${device('tablet').join('')}}` +
-    `@media (max-width:${bp.mobile}px){${device('mobile').join('')}}`
+    `@media (max-width:${bp.mobile}px){${device('mobile').join('')}}` +
+    // Tabs become an accordion on phones (unless told otherwise).
+    `@media (max-width:${bp.mobile}px){.fr-tabs--accordion{flex-direction:column}.fr-tabs--accordion>.fr-tabs__nav{display:none}.fr-tabs--accordion>.fr-tabs__panels{padding:0}.fr-tabs--accordion .fr-tabs__panel[hidden]{display:block}.fr-tabs--accordion .fr-tabs__panel[hidden]>:not(.fr-tabs__mobile-title){display:none}.fr-tabs--accordion .fr-tabs__mobile-title{display:block}}`
   );
 }
 

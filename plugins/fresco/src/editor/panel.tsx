@@ -215,14 +215,96 @@ function ElementView({ store, media }: PanelProps) {
                 )}
                 {inSection
                   .filter((c) => !isHover || c.hover)
-                  .map((control) => (
-                    <ControlField key={control.name} control={control} env={env} />
-                  ))}
+                  .map((control) =>
+                    control.type === 'children' ? (
+                      <ItemsList
+                        key={control.name}
+                        store={store}
+                        node={node}
+                        label={definition.itemsLabel ?? 'Item'}
+                      />
+                    ) : (
+                      <ControlField key={control.name} control={control} env={env} />
+                    ),
+                  )}
               </div>
             )}
           </section>
         );
       })}
+    </div>
+  );
+}
+
+// ---- Items of tabs and accordions ------------------------------------------------------
+
+function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; label: string }) {
+  const active = useStore(store, (s) => s.active[node.id]);
+  const kids = node.children ?? [];
+  return (
+    <div className="fre-control">
+      <div className="fre-repeater">
+        {kids.map((child, index) => (
+          <div key={child.id} className={`fre-repeater__item${active === index ? ' is-on' : ''}`}>
+            <div className="fre-repeater__head">
+              <input
+                className="fre-input fre-repeater__name"
+                value={typeof child.attrs._title === 'string' ? child.attrs._title : ''}
+                placeholder={`${label} ${index + 1}`}
+                aria-label={`${label} ${index + 1} title`}
+                onFocus={() => store.actions.setActive(node.id, index)}
+                onChange={(e) =>
+                  store.actions.setSettings(child.id, { _title: e.target.value }, '_title')
+                }
+              />
+              <button
+                type="button"
+                className="fre-iconbtn"
+                title="Edit its content"
+                onClick={() => store.actions.select(child.id)}
+              >
+                <Svg path="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" size={12} />
+              </button>
+              <button
+                type="button"
+                className="fre-iconbtn"
+                title="Move up"
+                disabled={index === 0}
+                onClick={() => store.actions.move(child.id, { parent: node.id, index: index - 1 })}
+              >
+                <Svg path="M12 19V5 M6 11l6-6 6 6" size={12} />
+              </button>
+              <button
+                type="button"
+                className="fre-iconbtn"
+                title="Duplicate"
+                onClick={() => store.actions.duplicate(child.id)}
+              >
+                <Svg path="M8 8h12v12H8z M4 16V4h12" size={12} />
+              </button>
+              <button
+                type="button"
+                className="fre-iconbtn"
+                title="Remove"
+                disabled={kids.length <= 1}
+                onClick={() => {
+                  store.actions.remove(child.id);
+                  store.actions.select(node.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="fre-button"
+          onClick={() => store.actions.addItem(node.id, label)}
+        >
+          + Add {label.toLowerCase()}
+        </button>
+      </div>
     </div>
   );
 }

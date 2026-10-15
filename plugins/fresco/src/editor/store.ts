@@ -7,7 +7,7 @@
 import { useSyncExternalStore } from 'react';
 import { newId } from '../core/ids.js';
 import { DEFAULT_KIT, type Kit } from '../core/kit.js';
-import type { Device, FrescoNode, Settings, Tab } from '../core/model.js';
+import type { Device, FrescoNode, NewNode, Settings, Tab } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import * as tree from './tree.js';
 
@@ -27,6 +27,8 @@ export interface EditorState {
   /** Copied element (in this tab; also in localStorage for other pages). */
   clipboard: FrescoNode | null;
   readOnly: boolean;
+  /** Editor only: the item shown by tabs and accordions, by element id (-1: none). */
+  active: Record<string, number>;
 }
 
 interface Snapshot {
@@ -50,6 +52,7 @@ export function createStore(initial: { blocks: FrescoNode[]; page: Settings; rea
     kitDirty: false,
     clipboard: null,
     readOnly: initial.readOnly,
+    active: {},
   };
   const past: Snapshot[] = [];
   const future: Snapshot[] = [];
@@ -90,10 +93,37 @@ export function createStore(initial: { blocks: FrescoNode[]; page: Settings; rea
   const actions = {
     select(id: string | null) {
       if (id === state.selected && state.view === (id ? 'element' : state.view)) return;
+      // Inside tabs or an accordion, the item holding the element is shown.
+      let active = state.active;
+      if (id) {
+        const path = tree.pathTo(state.blocks, id);
+        for (let i = 0; i < path.length - 1; i++) {
+          const parent = tree.find(state.blocks, path[i]!);
+          if (parent && getElement(parent.type)?.itemsLabel) {
+            const index = (parent.children ?? []).findIndex((c) => c.id === path[i + 1]);
+            if (index >= 0 && active[parent.id] !== index)
+              active = { ...active, [parent.id]: index };
+          }
+        }
+      }
       set({
         selected: id,
+        active,
         view: id ? 'element' : state.view === 'element' ? 'elements' : state.view,
       });
+    },
+    setActive(id: string, index: number) {
+      set({ active: { ...state.active, [id]: index } });
+    },
+    /** Adds an item (a container with a title) to tabs-like elements. */
+    addItem(id: string, label: string) {
+      const parent = tree.find(state.blocks, id);
+      if (!parent) return;
+      const count = parent.children?.length ?? 0;
+      const child = create('fresco/container')!;
+      child.attrs = { _title: `${label} ${count + 1}`, content_width: 'full' };
+      change({ blocks: tree.insert(state.blocks, child, { parent: id, index: count }) });
+      set({ active: { ...state.active, [id]: count } });
     },
     hover(id: string | null) {
       if (id !== state.hovered) set({ hovered: id });
@@ -278,9 +308,11 @@ export function create(type: string): FrescoNode | null {
   const definition = getElement(type);
   if (!definition) return null;
   const made = definition.create?.();
-  const withIds = (node: Omit<FrescoNode, 'id'>): FrescoNode => ({
-    ...node,
+  const withIds = (node: NewNode): FrescoNode => ({
     id: newId(),
+    type: node.type,
+    v: node.v,
+    attrs: structuredClone(node.attrs),
     ...(node.children ? { children: node.children.map((child) => withIds(child)) } : {}),
   });
   if (made) return withIds(made);

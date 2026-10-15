@@ -22,6 +22,14 @@ export interface FrescoNode {
 
 export type Settings = Record<string, unknown>;
 
+/** A node before it gets ids (what `create` returns). */
+export interface NewNode {
+  type: string;
+  v: number;
+  attrs: Settings;
+  children?: NewNode[];
+}
+
 /** A length with its unit, e.g. `{ size: 24, unit: 'px' }`. */
 export interface SizeValue {
   size: number | '';
@@ -93,6 +101,7 @@ export type ControlType =
   | 'date'
   | 'repeater'
   | 'animation'
+  | 'children'
   | 'heading'
   | 'notice'
   | 'typography'
@@ -171,6 +180,8 @@ export interface RenderContext {
   editing: boolean;
   /** Site-wide values the elements may need (menus, site title…). */
   site: { title: string; tagline: string; home: string };
+  /** Editor only: which item of a tabs-like element is shown. */
+  ui?: { active(id: string): number | undefined };
 }
 
 export interface RenderMediaItem {
@@ -189,6 +200,8 @@ export interface RenderProps {
   settings: Settings;
   /** Rendered children of a container. */
   children?: ReactNode;
+  /** The same children, one node each (to wrap them one by one). */
+  items?: ReactNode[];
   context: RenderContext;
 }
 
@@ -216,9 +229,16 @@ export interface ElementDefinition {
   /** Name of the front-end handler (public/frontend.ts) that runs on it. */
   handler?: string;
   /** The element when dropped from the panel (e.g. children of tabs). */
-  create?: () => Omit<FrescoNode, 'id'>;
+  create?: () => NewNode;
   /** Pro elements need Fresco Pro. */
   pro?: boolean;
+  /** Settings holding raw HTML (cleaned on save for authors without unfiltered_html). */
+  html?: string[];
+  /**
+   * Its children are items with a title (`_title`), edited in the panel's
+   * Items list: tabs, accordions, carousels of containers.
+   */
+  itemsLabel?: string;
 }
 
 export function isGroup(control: Control): control is GroupControl {

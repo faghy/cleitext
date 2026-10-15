@@ -234,6 +234,11 @@ describe('an active plugin', () => {
     expect(js.headers['content-type']).toContain('text/javascript');
     expect(js.headers['cache-control']).toBe('public, max-age=31536000, immutable');
     expect(js.body).toContain('toUpperCase');
+    // Block CSS comes after the plugins' stylesheets, so it wins.
+    const head = first.body.slice(0, first.body.indexOf('</head>'));
+    if (head.includes('data-cx-blocks')) {
+      expect(head.indexOf('data-cx-blocks')).toBeGreaterThan(head.indexOf('events.css'));
+    }
     expect((await visitor.get('/plugin-assets/events/1.0.0/_label.js')).statusCode).toBe(404);
     expect((await visitor.get('/plugin-assets/events/0.9.0/events.js')).statusCode).toBe(404);
     expect((await visitor.get('/plugin-assets/events/1.0.0/../server.js')).statusCode).toBe(404);

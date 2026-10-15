@@ -4,6 +4,23 @@ import type { ElementDefinition } from '../core/model.js';
 import { button, divider, heading, image, spacer, text } from './basic.js';
 import { container } from './container.js';
 import { icon, iconBox, imageBox, video } from './general.js';
+import { accordionWidget, tabs, toggleWidget } from './nested.js';
+import {
+  alert,
+  audio,
+  counter,
+  gallery,
+  googleMaps,
+  html,
+  iconList,
+  imageCarousel,
+  menuAnchor,
+  progress,
+  socialIcons,
+  starRating,
+  testimonial,
+  textPath,
+} from './widgets.js';
 
 export const FREE_ELEMENTS: ElementDefinition[] = [
   container,
@@ -17,6 +34,23 @@ export const FREE_ELEMENTS: ElementDefinition[] = [
   icon,
   iconBox,
   imageBox,
+  iconList,
+  counter,
+  progress,
+  testimonial,
+  tabs,
+  accordionWidget,
+  toggleWidget,
+  socialIcons,
+  alert,
+  starRating,
+  html,
+  menuAnchor,
+  googleMaps,
+  textPath,
+  imageCarousel,
+  gallery,
+  audio,
 ];
 
 export function registerFreeElements(): void {

@@ -83,6 +83,8 @@ export function dropTarget(
   x: number,
   y: number,
   dragging: string | null,
+  /** Type of what is dragged, for containers that accept only some types. */
+  type: string,
 ): DropTarget | null {
   const win = doc.defaultView!;
   const scroll = { x: win.scrollX, y: win.scrollY };
@@ -103,7 +105,7 @@ export function dropTarget(
   if (!node) return null;
   const definition = getElement(node.type);
   const r = element.getBoundingClientRect();
-  if (definition?.container) {
+  if (definition?.container && (!definition.accepts || definition.accepts(type))) {
     const edge = Math.min(12, r.height / 4);
     const place = placeOf(blocks, id);
     // Near the top or bottom edge: next to the container, not inside it.
