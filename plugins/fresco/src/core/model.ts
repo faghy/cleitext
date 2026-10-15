@@ -9,6 +9,7 @@
  * - `padding@tablet`, `padding@mobile`: the value from that breakpoint down;
  * - `color:hover`: the value on hover.
  */
+import type { BlockPage } from '@cleitext/plugin-sdk';
 import type { ReactNode } from 'react';
 
 /** The CXD block of an element, as Fresco handles it. */
@@ -182,6 +183,8 @@ export interface RenderContext {
   site: { title: string; tagline: string; home: string };
   /** The site's menus, by theme location. */
   menus?: Readonly<Record<string, MenuItem[]>>;
+  /** On the page: what is shown (the entry, the archive…), for theme widgets. */
+  page?: BlockPage;
   /** Editor only: which item of a tabs-like element is shown. */
   ui?: { active(id: string): number | undefined };
 }

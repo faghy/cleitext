@@ -1,3 +1,4 @@
+import type { BlockPage } from '@cleitext/plugin-sdk';
 /**
  * How other plugins (Fresco Pro) extend every element: more controls, more
  * attributes on the root, more CSS, and conditions deciding whether an
@@ -28,6 +29,8 @@ export interface Extensions {
 export interface ResolveContext {
   siteId: string;
   locale: string;
+  /** The page being rendered (entry, archive, search). */
+  page?: BlockPage;
   /** The entry being shown, if any. */
   entry?: { id: string; type: string };
   /** Adds a page-cache tag. */

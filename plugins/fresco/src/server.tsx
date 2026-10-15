@@ -37,9 +37,11 @@ function blockFor(
     locale: string;
     media: RenderContext['media'];
     menus: NonNullable<RenderContext['menus']>;
+    page: NonNullable<RenderContext['page']>;
   }): RenderContext => ({
     media: context.media,
     menus: context.menus,
+    page: context.page,
     locale: context.locale,
     editing: false,
     site: { title: '', tagline: '', home: '/' },
@@ -60,6 +62,7 @@ function blockFor(
         resolveSettings(attrs, {
           siteId: context.siteId,
           locale: context.locale,
+          page: context.page,
           ...(context.entry ? { entry: context.entry } : {}),
           tag: context.tag,
         }),
