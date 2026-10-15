@@ -4,7 +4,9 @@ import type {
   AdminPageDefinition,
   AdminPageProps,
   AdminPluginDefinition,
+  EditorDefinition,
   EditorEntry,
+  EditorProps,
   ListColumnDefinition,
   ListRow,
 } from '@cleitext/admin-sdk';
@@ -177,6 +179,47 @@ function PluginEditorPanel({
         <Component {...props} entry={entry} navigate={(to) => void navigate({ to })} />
       </PluginErrorBoundary>
     </section>
+  );
+}
+
+/** An editor offered by an active plugin (`editors` in its admin entry). */
+export interface AvailableEditor {
+  plugin: LoadedAdminPlugin;
+  definition: EditorDefinition;
+}
+
+/**
+ * Editors of the active plugins for a content type. `loading` stays true
+ * until the plugins' admin entries are loaded, so a document made with a
+ * plugin editor is never opened in the block editor meanwhile.
+ */
+export function usePluginEditors(type: string): { editors: AvailableEditor[]; loading: boolean } {
+  const me = useMe();
+  const plugins = useQuery(pluginAdminQuery);
+  const editors = (plugins.data ?? []).flatMap((plugin) =>
+    (plugin.definition?.editors ?? [])
+      .filter(
+        (definition) =>
+          (!definition.types || definition.types.includes(type)) &&
+          (!definition.capability || me.capabilities.includes(definition.capability)),
+      )
+      .map((definition) => ({ plugin, definition })),
+  );
+  return { editors, loading: plugins.isPending };
+}
+
+/** Renders a plugin editor in the entry editor, with the props every plugin component gets. */
+export function PluginEditor({
+  editor,
+  ...props
+}: { editor: AvailableEditor } & Omit<EditorProps, keyof AdminPageProps | 'navigate'>) {
+  const pageProps = usePageProps(editor.plugin);
+  const navigate = useNavigate();
+  const Component = editor.definition.component;
+  return (
+    <PluginErrorBoundary name={editor.plugin.name}>
+      <Component {...pageProps} {...props} navigate={(to) => void navigate({ to })} />
+    </PluginErrorBoundary>
   );
 }
 

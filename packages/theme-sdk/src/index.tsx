@@ -29,6 +29,8 @@ export function usePage(): PageContext {
 /** The content of an entry, with the page's preloaded media. */
 export function EntryContent({ document }: { document: CxdDocument }) {
   const page = usePage();
+  // A visual editor (plugin) renders the content itself, in the site's own layout.
+  if (page.editorFrame) return <div data-cx-editor-canvas="" />;
   return (
     <Blocks
       document={document}

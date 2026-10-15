@@ -408,6 +408,9 @@ importers:
 
   packages/admin-sdk:
     dependencies:
+      '@cleitext/blocks':
+        specifier: workspace:*
+        version: link:../blocks
       '@cleitext/shared':
         specifier: workspace:*
         version: link:../shared

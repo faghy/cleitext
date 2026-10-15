@@ -26,7 +26,13 @@ import { Alert, Button } from '../components/ui';
 import { EntryStates } from '../components/entry-states';
 import { formatDate, STATUS_LABELS } from './entries-list';
 import { EntryTerms } from './entry-terms';
-import { contentTypesQuery, PluginEditorPanels } from '../plugins';
+import {
+  contentTypesQuery,
+  PluginEditor,
+  PluginEditorPanels,
+  usePluginEditors,
+  type AvailableEditor,
+} from '../plugins';
 import { descendantsOf, entryTree } from '../entry-tree';
 import { diffWords, documentLines, type DiffPart } from '../diff';
 import { zonedTimeToIso } from '../time';
@@ -91,6 +97,15 @@ function Editor({ initial }: { initial: EntryView }) {
   const [statsDocument, setStatsDocument] = useState<CxdDocument>(documentRef.current);
   const statsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dirtyRef = useRef(false);
+  // Editor of the document: null for the block editor, else a plugin editor's id.
+  const [editorId, setEditorId] = useState<string | null>(documentRef.current?.editor?.id ?? null);
+  // Changes to remount a plugin editor with new content (revision, autosave, switch).
+  const [editorMount, setEditorMount] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const pluginEditors = usePluginEditors(initial.type);
+  const activeEditor: AvailableEditor | undefined = editorId
+    ? pluginEditors.editors.find((e) => e.definition.id === editorId)
+    : undefined;
 
   const markDirty = useCallback(() => {
     dirtyRef.current = true;
@@ -123,6 +138,8 @@ function Editor({ initial }: { initial: EntryView }) {
 
   // Mount the editor adapter (lazy: Gutenberg is loaded only here).
   useEffect(() => {
+    // Documents of a plugin editor never open in the block editor.
+    if (editorId !== null) return;
     let cancelled = false;
     void Promise.all([
       import('@cleitext/editor-gutenberg'),
@@ -154,7 +171,7 @@ function Editor({ initial }: { initial: EntryView }) {
       editorRef.current?.destroy();
       editorRef.current = null;
     };
-  }, [initial.locale, markDirty, userLocale]);
+  }, [initial.locale, markDirty, userLocale, editorId]);
 
   // Warn before leaving with unsaved changes.
   useEffect(() => {
@@ -180,6 +197,45 @@ function Editor({ initial }: { initial: EntryView }) {
     }, AUTOSAVE_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [entry.id, entry.permissions.edit, title]);
+
+  /** New content from outside the editor (autosave, revision): remounts the right editor. */
+  const replaceDocument = (document: CxdDocument) => {
+    documentRef.current = document;
+    const next = document?.editor?.id ?? null;
+    if (next === null && editorId === null) editorRef.current?.setDocument(document);
+    setEditorId(next);
+    setEditorMount((n) => n + 1);
+  };
+
+  /** Switches between the block editor and a plugin editor (`null`: block editor). */
+  const switchEditor = (target: AvailableEditor | null) => {
+    const current = editorRef.current?.getDocument() ?? documentRef.current;
+    const from = activeEditor?.definition;
+    const convert = target ? target.definition.fromBlocks : from?.toBlocks;
+    if (current.blocks.length > 0 && !convert) {
+      const ok = window.confirm(
+        target
+          ? t(
+              'The page will start empty in {editor}. The current content stays in the revisions.',
+              { editor: labelText(target.definition.title, userLocale) },
+            )
+          : t(
+              'The page will start empty in the block editor. The current content stays in the revisions.',
+            ),
+      );
+      if (!ok) return;
+    }
+    const converted: CxdDocument = convert ? convert(current) : { schema: 1, blocks: [] };
+    const rest: CxdDocument = { schema: converted.schema, blocks: converted.blocks };
+    documentRef.current = target
+      ? { ...rest, editor: { ...converted.editor, id: target.definition.id } }
+      : rest;
+    setEditorId(target ? target.definition.id : null);
+    setEditorMount((n) => n + 1);
+    setSettingsOpen(false);
+    setTab('document');
+    markDirty();
+  };
 
   const apply = (view: EntryView) => {
     setEntry(view);
@@ -326,6 +382,16 @@ function Editor({ initial }: { initial: EntryView }) {
       ? t('Pages')
       : t('Posts');
 
+  const editorEntry = {
+    id: entry.id,
+    type: entry.type,
+    locale: entry.locale,
+    title: entry.title,
+    slug: entry.slug,
+    status: entry.status,
+    updatedAt: entry.updatedAt,
+  };
+
   return (
     <EditorShell>
       <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
@@ -365,6 +431,28 @@ function Editor({ initial }: { initial: EntryView }) {
         <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
           {t(STATUS_LABELS[entry.status])}
         </span>
+        {editorId === null &&
+          !readOnly &&
+          pluginEditors.editors.map((editor) => (
+            <Button
+              key={editor.definition.id}
+              variant="secondary"
+              onClick={() => switchEditor(editor)}
+            >
+              {t('Edit with {editor}', {
+                editor: labelText(editor.definition.title, userLocale),
+              })}
+            </Button>
+          ))}
+        {editorId !== null && (
+          <Button
+            variant="secondary"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((open) => !open)}
+          >
+            {t('Settings')}
+          </Button>
+        )}
         {!readOnly && !isPublished && (
           <Button
             variant="secondary"
@@ -423,8 +511,7 @@ function Editor({ initial }: { initial: EntryView }) {
           <Button
             variant="secondary"
             onClick={() => {
-              editorRef.current?.setDocument(recovery.document as CxdDocument);
-              documentRef.current = recovery.document as CxdDocument;
+              replaceDocument(recovery.document as CxdDocument);
               setTitle(recovery.title);
               fieldsRef.current = recovery.fields;
               setFields(recovery.fields);
@@ -448,31 +535,107 @@ function Editor({ initial }: { initial: EntryView }) {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
-        <div ref={canvasRef} className="min-w-0 flex-1" />
+      <div className="relative flex min-h-0 flex-1">
+        {editorId === null ? (
+          <div ref={canvasRef} className="min-w-0 flex-1" />
+        ) : (
+          <div className="flex min-w-0 flex-1 flex-col">
+            {pluginEditors.loading ? (
+              <p className="p-6 text-sm text-slate-600">{t('Loading…')}</p>
+            ) : !activeEditor ? (
+              <div className="space-y-3 p-6">
+                <Alert>
+                  {t(
+                    'This page was made with the {editor} editor, which is not active on the site. Activate its plugin to edit the page.',
+                    { editor: editorId },
+                  )}
+                </Alert>
+                {!readOnly && (
+                  <Button variant="secondary" onClick={() => switchEditor(null)}>
+                    {t('Use the block editor')}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <PluginEditor
+                key={editorMount}
+                editor={activeEditor}
+                entry={editorEntry}
+                document={documentRef.current}
+                readOnly={readOnly}
+                onChange={(document) => {
+                  documentRef.current = document;
+                  markDirty();
+                  clearTimeout(statsTimer.current);
+                  statsTimer.current = setTimeout(() => setStatsDocument(document), 400);
+                }}
+                frameUrl={async () => {
+                  const { url } = await api<{ url: string }>(
+                    'POST',
+                    `/entries/${entry.id}/preview`,
+                  );
+                  return `${url}&frame=1`;
+                }}
+                media={pluginMedia(initial.locale)}
+                openSettings={() => setSettingsOpen(true)}
+              />
+            )}
+          </div>
+        )}
         <aside
-          className="flex w-80 shrink-0 flex-col border-l border-slate-200 bg-white"
+          className={
+            editorId === null
+              ? 'flex w-80 shrink-0 flex-col border-l border-slate-200 bg-white'
+              : settingsOpen
+                ? 'absolute inset-y-0 right-0 z-30 flex w-80 flex-col border-l border-slate-200 bg-white shadow-xl'
+                : 'hidden'
+          }
           aria-label={t('Settings')}
         >
-          <div role="tablist" className="flex border-b border-slate-200 text-sm">
-            {(['document', 'block'] as const).map((name) => (
+          {editorId !== null && (
+            <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-sm">
+              {!readOnly ? (
+                <button
+                  type="button"
+                  className="text-sky-700 hover:underline"
+                  onClick={() => switchEditor(null)}
+                >
+                  {t('Use the block editor')}
+                </button>
+              ) : (
+                <span />
+              )}
               <button
-                key={name}
-                role="tab"
                 type="button"
-                aria-selected={tab === name}
-                onClick={() => setTab(name)}
-                className={`flex-1 px-3 py-2 ${tab === name ? 'border-b-2 border-sky-700 font-medium' : 'text-slate-600'}`}
+                className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100"
+                aria-label={t('Close')}
+                onClick={() => setSettingsOpen(false)}
               >
-                {name === 'block'
-                  ? t('Block')
-                  : entry.type === 'page'
-                    ? t('Page')
-                    : entry.type === 'article'
-                      ? t('Post')
-                      : t('Entry')}
+                ✕
               </button>
-            ))}
+            </div>
+          )}
+          <div role="tablist" className="flex border-b border-slate-200 text-sm">
+            {(editorId === null ? (['document', 'block'] as const) : (['document'] as const)).map(
+              (name) => (
+                <button
+                  key={name}
+                  role="tab"
+                  type="button"
+                  aria-selected={tab === name}
+                  onClick={() => setTab(name)}
+                  className={`flex-1 px-3 py-2 ${tab === name ? 'border-b-2 border-sky-700 font-medium' : 'text-slate-600'}`}
+                >
+                  {name === 'block'
+                    ? t('Block')
+                    : entry.type === 'page'
+                      ? t('Page')
+                      : entry.type === 'article'
+                        ? t('Post')
+                        : t('Entry')}
+                </button>
+              ),
+            )}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {tab === 'document' && contentType && (
@@ -510,8 +673,7 @@ function Editor({ initial }: { initial: EntryView }) {
                 onSaved={apply}
                 onRestored={(view) => {
                   apply(view);
-                  editorRef.current?.setDocument(view.revision?.document as CxdDocument);
-                  documentRef.current = view.revision?.document as CxdDocument;
+                  replaceDocument(view.revision?.document as CxdDocument);
                   setTitle(view.title);
                   fieldsRef.current = view.revision?.fields ?? {};
                   setFields(view.revision?.fields ?? {});
@@ -1056,6 +1218,12 @@ function EditorShell({ children }: { children: React.ReactNode }) {
 }
 
 /** Media services given to the editor adapter (upload and library). */
+/** The media library for plugin editors (`EditorProps.media`). */
+function pluginMedia(locale: string) {
+  const services = mediaServices(locale);
+  return { upload: services.uploadMedia!, list: services.listMedia! };
+}
+
 export function mediaServices(locale: string): EditorServices {
   const toRef = (m: MediaView): MediaRef => ({
     id: m.id,

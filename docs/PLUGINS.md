@@ -625,6 +625,42 @@ export default defineAdminPlugin({
 
 `entry` is `{ id, type, locale, title, slug, status }`; rows are `{ id, locale, title, status? }`. `navigate('/entries/<id>')` opens an admin address. `visible` hides a section or column, e.g. when the site has a single language.
 
+**Editors.** A plugin can offer an editor for entries instead of the block editor, such as a page builder. It takes the whole screen under the editor's top bar, which keeps the title, saving, preview and publishing:
+
+```tsx
+export default defineAdminPlugin({
+  editors: [
+    {
+      id: 'builder', // stored as document.editor.id
+      title: { en: 'Builder', it: 'Builder' },
+      types: ['page'], // all types when omitted
+      fromBlocks: (document) => convert(document), // optional
+      component: BuilderEditor,
+    },
+  ],
+});
+
+function BuilderEditor({
+  document,
+  onChange,
+  readOnly,
+  frameUrl,
+  media,
+  openSettings,
+}: EditorProps) {
+  // Show the site in an iframe: frameUrl() is the page in the theme's layout,
+  // with an empty [data-cx-editor-canvas] element where the content goes.
+  // Call onChange with the whole document after every change.
+}
+```
+
+- The top bar shows **Edit with …** for every editor that fits the entry's type. Switching converts the content with `fromBlocks` (and back with `toBlocks`). Without them, the page starts empty after a confirmation, and the old content stays in the revisions.
+- Documents the editor saves carry `editor: { id, data? }`. `data` holds page-level settings. Such documents always open with that editor; when its plugin is not active, the admin says so instead of opening them in the block editor.
+- Content blocks are ordinary CXD blocks, usually your plugin's own (§7). Revisions, autosaves, translations, export and the AI assistants keep working.
+- After a revision or an autosave is restored, the editor is mounted again with the new `document`.
+- `media.upload` and `media.list` give the media library. `openSettings()` opens the entry's settings (status, custom fields, revisions) over the editor.
+- In the frame, React portals (`createPortal` from `react-dom`) can render into the iframe's document, since it has the same origin.
+
 ### Shared modules
 
 These imports are provided by Cleitext at runtime and are not bundled. Do not install other versions of them:

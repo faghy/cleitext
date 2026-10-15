@@ -170,4 +170,9 @@ export interface PageContext {
   areas?: Readonly<Record<string, CxdDocument>>;
   /** Synced patterns used by the page (RF-EDT-07), by id. */
   patterns?: ReadonlyMap<string, CxdDocument>;
+  /**
+   * The page is shown inside a visual editor: `EntryContent` renders an
+   * empty `[data-cx-editor-canvas]` element that the editor fills.
+   */
+  editorFrame?: boolean;
 }

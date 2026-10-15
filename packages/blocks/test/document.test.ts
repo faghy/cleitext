@@ -67,6 +67,15 @@ describe('cxdDocumentSchema', () => {
     ).toBe(false);
   });
 
+  it('records the editor that made the document, with its page settings', () => {
+    const made = { ...doc, editor: { id: 'fresco', data: { hideTitle: true } } };
+    expect(cxdDocumentSchema.safeParse(made).success).toBe(true);
+    expect(cxdDocumentSchema.safeParse({ ...doc, editor: { id: 'Fresco!' } }).success).toBe(false);
+    expect(
+      cxdDocumentSchema.safeParse({ ...doc, editor: { id: 'fresco', other: 1 } }).success,
+    ).toBe(false);
+  });
+
   it('enforces nesting limits', () => {
     let block: CxdBlock = { id: 'leaf', type: 'core/group', v: 1, attrs: {} };
     for (let i = 0; i < CXD_LIMITS.maxDepth + 1; i++) {

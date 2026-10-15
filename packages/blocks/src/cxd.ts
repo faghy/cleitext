@@ -43,11 +43,25 @@ export interface CxdBlock {
 export interface CxdDocument {
   schema: typeof CXD_SCHEMA_VERSION;
   blocks: CxdBlock[];
+  /**
+   * The editor that made the document, when it is not the block editor
+   * (e.g. a page builder plugin), with its page-level settings. The admin
+   * opens the document with that editor.
+   */
+  editor?: CxdEditorInfo;
+}
+
+export interface CxdEditorInfo {
+  /** Editor id, e.g. `fresco`. */
+  id: string;
+  /** Settings of the whole page, kept by that editor. */
+  data?: Record<string, unknown>;
 }
 
 /** Safety limits for stored documents. */
 export const CXD_LIMITS = {
-  maxDepth: 12,
+  // Page builders nest containers deeply.
+  maxDepth: 32,
   maxBlocks: 5_000,
   maxTextLength: 200_000,
 } as const;
@@ -95,6 +109,13 @@ export const cxdDocumentSchema = z
   .object({
     schema: z.literal(CXD_SCHEMA_VERSION),
     blocks: z.array(cxdBlockSchema),
+    editor: z
+      .object({
+        id: z.string().regex(/^[a-z0-9-]{1,64}$/, 'Editor id: lowercase letters, digits, dashes'),
+        data: z.record(z.string(), z.unknown()).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((doc, ctx) => {

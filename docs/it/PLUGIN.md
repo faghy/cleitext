@@ -627,6 +627,35 @@ export default defineAdminPlugin({
 
 `entry` è `{ id, type, locale, title, slug, status }`; le righe sono `{ id, locale, title, status? }`. `navigate('/entries/<id>')` apre un indirizzo dell'admin. `visible` nasconde una sezione o una colonna, per esempio quando il sito ha una sola lingua.
 
+**Editor.** Un plugin può offrire un editor per le voci al posto dell'editor a blocchi, per esempio un page builder. Occupa tutto lo schermo sotto la barra superiore dell'editor, che mantiene titolo, salvataggio, anteprima e pubblicazione:
+
+```tsx
+export default defineAdminPlugin({
+  editors: [
+    {
+      id: 'builder', // salvato come document.editor.id
+      title: { en: 'Builder', it: 'Builder' },
+      types: ['page'], // tutti i tipi se omesso
+      fromBlocks: (document) => convert(document), // facoltativo
+      component: BuilderEditor,
+    },
+  ],
+});
+```
+
+- La barra superiore mostra **Modifica con …** per ogni editor adatto al tipo della voce. Il passaggio converte il contenuto con `fromBlocks` (e all'indietro con `toBlocks`). Senza, dopo una conferma la pagina riparte vuota, e il contenuto precedente resta nelle revisioni.
+- I documenti salvati dall'editor portano `editor: { id, data? }`. In `data` vanno le impostazioni della pagina intera. Questi documenti si aprono sempre con quell'editor; se il suo plugin non è attivo, l'admin lo dice invece di aprirli nell'editor a blocchi.
+- I blocchi del contenuto sono normali blocchi CXD, di solito quelli del plugin (§7). Revisioni, salvataggi automatici, traduzioni, esportazione e assistenti AI continuano a funzionare.
+- Props:
+  - `document`: il contenuto iniziale;
+  - `onChange(document)`: da chiamare con il documento intero a ogni modifica;
+  - `readOnly`;
+  - `frameUrl()`: la pagina nel layout del tema con un elemento vuoto `[data-cx-editor-canvas]` dove va il contenuto, per un iframe;
+  - `media.upload` e `media.list`: la libreria media;
+  - `openSettings()`: apre le impostazioni della voce sopra l'editor.
+- Dopo il ripristino di una revisione o di un salvataggio automatico, l'editor viene montato di nuovo con il nuovo `document`.
+- Nell'iframe, che ha la stessa origine, i portali React (`createPortal` di `react-dom`) possono disegnare nel documento della pagina.
+
 ### Moduli condivisi
 
 Questi import sono forniti da Cleitext a runtime e non finiscono nel bundle. Non installarne altre versioni:

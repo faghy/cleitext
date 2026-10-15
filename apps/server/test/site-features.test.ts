@@ -266,6 +266,39 @@ describe('previews', () => {
     expect((await visitor.get(`/__preview/${draft.id}`)).statusCode).toBe(404);
   });
 
+  it('leaves the content to a visual editor in frame mode', async () => {
+    const draft = (
+      await admin.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Built visually',
+        document: {
+          schema: 1,
+          blocks: [
+            {
+              id: 'p1',
+              type: 'core/paragraph',
+              v: 1,
+              attrs: {},
+              content: [{ text: 'Saved words' }],
+            },
+          ],
+          editor: { id: 'fresco', data: { layout: 'full' } },
+        },
+      })
+    ).json();
+    expect(draft.revision.document.editor).toEqual({ id: 'fresco', data: { layout: 'full' } });
+    const { url } = (await admin.post(`/api/v1/entries/${draft.id}/preview`)).json();
+    const page = (await visitor.get(url)).body;
+    expect(page).toContain('Saved words');
+    expect(page).not.toContain('data-cx-editor-canvas');
+    const frame = await visitor.get(`${url}&frame=1`);
+    expect(frame.statusCode).toBe(200);
+    // The site's layout and title, with an empty canvas instead of the content.
+    expect(frame.body).toContain('Built visually');
+    expect(frame.body).toContain('<div data-cx-editor-canvas=""></div>');
+    expect(frame.body).not.toContain('Saved words');
+  });
+
   it('is offered only to users who can edit the entry', async () => {
     const draft = (
       await admin.post('/api/v1/entries', { type: 'article', title: 'Admin draft' })

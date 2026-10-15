@@ -92,6 +92,14 @@ export const itContent: Messages = {
   Remove: 'Rimuovi',
   'Remove {name}': 'Rimuovi {name}',
   Restore: 'Ripristina',
+  'Edit with {editor}': 'Modifica con {editor}',
+  'Use the block editor': "Usa l'editor a blocchi",
+  'The page will start empty in {editor}. The current content stays in the revisions.':
+    'La pagina ripartirà vuota in {editor}. Il contenuto attuale resta nelle revisioni.',
+  'The page will start empty in the block editor. The current content stays in the revisions.':
+    "La pagina ripartirà vuota nell'editor a blocchi. Il contenuto attuale resta nelle revisioni.",
+  'This page was made with the {editor} editor, which is not active on the site. Activate its plugin to edit the page.':
+    "Questa pagina è stata fatta con l'editor {editor}, che non è attivo sul sito. Attiva il suo plugin per modificarla.",
   'Restore the autosave': 'Ripristina il salvataggio automatico',
   Revisions: 'Revisioni',
   Save: 'Salva',

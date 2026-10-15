@@ -20,6 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cleitext/blocks": "workspace:*",
     "@cleitext/shared": "workspace:*"
   },
   "peerDependencies": {

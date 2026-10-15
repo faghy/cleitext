@@ -117,6 +117,8 @@ interface RequestScope {
   blockRenderers?: ReadonlyMap<string, BlockRenderer>;
   /** Unsaved theme settings shown by the Customize preview (RF-THM-03). */
   themeSettings?: Record<string, unknown>;
+  /** Preview for a visual editor: the content is left to the editor (`PageContext.editorFrame`). */
+  editorFrame?: boolean;
 }
 
 /** Public site: routing, data loading and theme rendering (docs/ARCHITECTURE.md §12). */
@@ -465,8 +467,12 @@ export class PublicService {
       const preview = /^\/__preview\/([0-9a-f-]{36})$/.exec(path);
       if (preview) {
         return (
-          (await this.preview(scope, preview[1]!, query.get('token') ?? '')) ??
-          this.notFound(scope, 404)
+          (await this.preview(
+            scope,
+            preview[1]!,
+            query.get('token') ?? '',
+            query.get('frame') === '1',
+          )) ?? this.notFound(scope, 404)
         );
       }
       return (await this.route(scope, rest, query)) ?? this.notFound(scope, 404);
@@ -557,8 +563,10 @@ export class PublicService {
     scope: RequestScope,
     entryId: string,
     token: string,
+    frame = false,
   ): Promise<PublicResponse | null> {
     if (!verifyPreviewToken(this.config.appSecret, entryId, token)) return null;
+    if (frame) scope.editorFrame = true;
     const [row] = await scope.tx
       .select({
         entry: entries,
@@ -1295,6 +1303,7 @@ export class PublicService {
       themeSettings: themeValues,
       areas,
       patterns: patternDocs,
+      ...(scope.editorFrame ? { editorFrame: true } : {}),
     };
     const Template = resolveTemplate(theme, candidates);
     let html = renderHtmlDocument(

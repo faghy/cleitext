@@ -1,3 +1,4 @@
+import type { CxdDocument } from '@cleitext/blocks';
 import type { Label } from '@cleitext/shared';
 import type { ComponentType } from 'react';
 import type { Method } from './api.js';
@@ -75,6 +76,73 @@ export interface EditorPanelDefinition {
   component: ComponentType<EditorPanelProps>;
 }
 
+/** A file of the media library, as editors see it. */
+export interface EditorMedia {
+  id: string;
+  url: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  mime: string;
+  /** Small preview, when available. */
+  thumbnailUrl?: string;
+}
+
+/** What an editor receives (`editors`). */
+export interface EditorProps extends AdminPageProps {
+  entry: EditorEntry;
+  /**
+   * The content when the editor opens. After a revision or an autosave is
+   * restored, the editor is mounted again with the new content.
+   */
+  document: CxdDocument;
+  /** To be called with the whole document after every change; keep `document.editor`. */
+  onChange: (document: CxdDocument) => void;
+  /** True when the user may only look (no permission, or someone else is editing). */
+  readOnly: boolean;
+  /**
+   * A signed address (valid for one hour) of the page in the site's own
+   * layout, for an iframe: the theme leaves an empty `[data-cx-editor-canvas]`
+   * element where the content goes, for the editor to fill.
+   */
+  frameUrl: () => Promise<string>;
+  /** The media library. */
+  media: {
+    upload: (file: File) => Promise<EditorMedia>;
+    list: (query: { kind?: 'image'; search?: string }) => Promise<EditorMedia[]>;
+  };
+  /** Opens the entry's settings (status, custom fields, revisions…) over the editor. */
+  openSettings: () => void;
+  navigate: (to: string) => void;
+}
+
+/**
+ * An editor for entries instead of the block editor, e.g. a page builder.
+ * It takes the whole screen under the editor's top bar (title, save,
+ * publish). Documents it saves carry `editor: { id }`, so they always open
+ * with it.
+ */
+export interface EditorDefinition {
+  /** Stored as `document.editor.id`, e.g. `fresco`. */
+  id: string;
+  /** Shown in "Edit with …". */
+  title: Label;
+  /** Content types it can edit (all when omitted). */
+  types?: string[];
+  capability?: string;
+  /**
+   * Converts a block editor document when switching to this editor. Without
+   * it, the page starts empty (earlier revisions keep the old content).
+   */
+  fromBlocks?: (document: CxdDocument) => CxdDocument;
+  /**
+   * Converts back when switching to the block editor. Without it, the page
+   * starts empty (earlier revisions keep the old content).
+   */
+  toBlocks?: (document: CxdDocument) => CxdDocument;
+  component: ComponentType<EditorProps>;
+}
+
 /** A row of a list, as columns see it. */
 export interface ListRow {
   id: string;
@@ -112,6 +180,8 @@ export interface AdminPluginDefinition {
   pages?: AdminPageDefinition[];
   dashboardWidgets?: DashboardWidgetDefinition[];
   editorPanels?: EditorPanelDefinition[];
+  /** Editors for entries instead of the block editor (page builders). */
+  editors?: EditorDefinition[];
   /** Columns of the posts, pages and other content type lists. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each column has its own data type
   entryColumns?: ListColumnDefinition<any>[];
