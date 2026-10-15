@@ -4,9 +4,9 @@
  * kit (global colors and fonts) is added to pages that use Fresco.
  */
 import { definePlugin, type PluginBlockDefinition, type PluginContext } from '@cleitext/plugin-sdk';
-import { elementCss, withDefaults } from './core/css.js';
+import { elementCss, safeColor, withDefaults } from './core/css.js';
 import { setIconData, type IconData } from './core/icons.js';
-import { googleFontsUrl, kitCss, normalizeKit, type Kit } from './core/kit.js';
+import { googleFontsUrl, kitCss, normalizeKit, safeSelector, type Kit } from './core/kit.js';
 import type { ElementDefinition, FrescoNode, RenderContext } from './core/model.js';
 import { listElements } from './core/registry.js';
 import { registerFreeElements } from './elements/index.js';
@@ -89,6 +89,26 @@ export default definePlugin({
     ctx.assets.enqueue({
       file: 'frontend.js',
       when: ({ html }) => /data-fr-(anim|video|lightbox|handler)/.test(html),
+    });
+
+    // Page settings of Fresco pages: hidden title, page background.
+    ctx.hooks.filter('render.html', async (html, context) => {
+      const editor = context.entry?.document.editor;
+      if (editor?.id !== 'fresco' || !editor.data) return html;
+      const data = editor.data;
+      const rules: string[] = [];
+      if (data.hideTitle === true) {
+        const kit = await kitFor(ctx, context.siteId);
+        const selector = safeSelector(kit.titleSelector);
+        if (selector) rules.push(`${selector}{display:none!important}`);
+      }
+      const background = safeColor(data.background);
+      if (background) rules.push(`body{background-color:${background}}`);
+      if (rules.length === 0) return html;
+      const at = html.indexOf('</head>');
+      return at === -1
+        ? html
+        : `${html.slice(0, at)}<style id="fr-page">${rules.join('')}</style>${html.slice(at)}`;
     });
 
     // The kit: CSS variables of the global colors and fonts, on pages using Fresco.

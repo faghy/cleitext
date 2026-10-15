@@ -290,9 +290,15 @@ export class PublicService {
           stored,
         );
       } else {
-        // Signed-in visitors (never cached) get the toolbar leading to the admin.
+        // Signed-in visitors (never cached) get the toolbar leading to the admin,
+        // except inside a visual editor's frame.
+        const frame = /^\/__preview\/[^?]+\?(?:.*&)?frame=1(?:&|$)/.test(request.url);
         const page =
-          request.auth && !request.auth.apiToken && contentType === HTML && response.siteTitle
+          request.auth &&
+          !request.auth.apiToken &&
+          contentType === HTML &&
+          response.siteTitle &&
+          !frame
             ? withAdminBar(html, {
                 auth: request.auth,
                 siteName: response.siteTitle,

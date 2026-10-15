@@ -297,6 +297,9 @@ describe('previews', () => {
     expect(frame.body).toContain('Built visually');
     expect(frame.body).toContain('<div data-cx-editor-canvas=""></div>');
     expect(frame.body).not.toContain('<p>Saved words</p>');
+    // No admin toolbar inside the editor, even for the signed-in editor.
+    expect((await admin.get(`${url}&frame=1`)).body).not.toContain('cleitext-admin-bar');
+    expect((await admin.get(url)).body).toContain('cleitext-admin-bar');
   });
 
   it('is offered only to users who can edit the entry', async () => {

@@ -536,10 +536,11 @@ function Editor({ initial }: { initial: EntryView }) {
       )}
 
       <div className="relative flex min-h-0 flex-1">
+        {/* Distinct keys: the block editor's container is never reused (its teardown empties it). */}
         {editorId === null ? (
-          <div ref={canvasRef} className="min-w-0 flex-1" />
+          <div key="blocks" ref={canvasRef} className="min-w-0 flex-1" />
         ) : (
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div key="plugin" className="flex min-w-0 flex-1 flex-col">
             {pluginEditors.loading ? (
               <p className="p-6 text-sm text-slate-600">{t('Loading…')}</p>
             ) : !activeEditor ? (

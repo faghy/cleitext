@@ -41,6 +41,8 @@ export interface Kit {
   };
   /** Fonts to load from Google Fonts (family names). */
   googleFonts: string[];
+  /** The theme's page title, hidden by the page setting "Hide the page title". */
+  titleSelector?: string;
 }
 
 /** The four system colors and fonts, always there (they can be changed, not removed). */
@@ -64,7 +66,16 @@ export const DEFAULT_KIT: Kit = {
   gap: { size: 20, unit: 'px' },
   style: {},
   googleFonts: [],
+  titleSelector:
+    'h1.entry-title, .entry-title, .page-title, .entry-header h1, main h1:first-of-type',
 };
+
+/** A CSS selector list without anything that could end the rule. */
+export function safeSelector(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() && /^[\w\s.#,>:()*+~[\]="'-]{1,300}$/.test(value)
+    ? value.trim()
+    : null;
+}
 
 const ID = /^[a-z0-9-]{1,40}$/;
 
@@ -122,6 +133,7 @@ export function normalizeKit(value: unknown): Kit {
     style: Object.fromEntries(
       Object.entries(style).filter(([, v]) => safeColor(v) !== null),
     ) as Kit['style'],
+    titleSelector: safeSelector(input.titleSelector) ?? DEFAULT_KIT.titleSelector!,
     googleFonts: Array.isArray(input.googleFonts)
       ? input.googleFonts
           .filter((f) => typeof f === 'string' && /^[\w ]{1,60}$/.test(f))
