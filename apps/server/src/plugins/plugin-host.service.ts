@@ -915,6 +915,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         permalink: type.permalink ?? `/${type.slug}/{slug}`,
         fieldsSchema: { fields: type.fields ?? [] },
         source,
+        ...(type.public === false ? { supports: ['title', 'blocks', 'revisions', 'private'] } : {}),
       };
       // A permalink changed in the settings (RF-SET-03) is kept.
       if (existing)

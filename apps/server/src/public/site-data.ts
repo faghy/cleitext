@@ -58,7 +58,8 @@ export async function loadSiteData(
   locales: ContentLocale[],
 ): Promise<SiteData> {
   const types = (await tx.select().from(contentTypes))
-    .filter((t) => isTypeAvailable(t.source, activePlugins))
+    // Private types (a plugin's own templates) have no public address.
+    .filter((t) => isTypeAvailable(t.source, activePlugins) && !t.supports.includes('private'))
     .map((t) => ({
       slug: t.slug,
       permalink: t.permalink,

@@ -27,6 +27,8 @@ export default definePlugin({
         { name: 'venue', type: 'text', label: 'Venue', maxLength: 200 },
       ],
     });
+    // Templates the plugin uses itself: no public address.
+    ctx.content.registerType({ slug: 'event_template', name: 'Event templates', public: false });
     ctx.access.defineCapability('manage_events', {
       label: 'Manage events',
       roles: ['administrator', 'editor'],

@@ -141,7 +141,7 @@ describe('installation', () => {
       version: '1.0.0',
       active: false,
       status: 'loaded',
-      contributes: { types: ['event'], settings: true, admin: false },
+      contributes: { types: ['event', 'event_template'], settings: true, admin: false },
     });
     expect((await editor.get('/api/v1/plugins')).statusCode).toBe(403);
   });
@@ -347,6 +347,22 @@ describe('an active plugin', () => {
     const html = (await visitor.get('/stacked')).body;
     expect(html).toContain(
       '<div class="note"><b>Hi</b></div><ol><li><p>One</p></li><li><p>Two</p></li></ol>',
+    );
+  });
+
+  it('keeps private types out of the public site', async () => {
+    const created = await editor.post('/api/v1/entries', {
+      type: 'event_template',
+      title: 'Secret layout zebra',
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    await editor.post(`/api/v1/entries/${created.json().id}/publish`);
+    expect((await visitor.get('/event_template/secret-layout-zebra')).statusCode).toBe(404);
+    expect((await visitor.get('/search?q=zebra')).body).not.toContain('Secret layout');
+    expect((await visitor.get('/sitemap.xml')).body).not.toContain('event_template');
+    const types = (await admin.get('/api/v1/content-types')).json();
+    expect(types.find((t: { slug: string }) => t.slug === 'event_template').supports).toContain(
+      'private',
     );
   });
 

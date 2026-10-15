@@ -231,6 +231,7 @@ ctx.content.registerType({
 });
 ```
 
+- `public: false` (plugin API 1.11) makes a private type: its entries have no public address and stay out of sitemaps, search and the admin sidebar, for content the plugin uses itself, such as a theme builder's templates.
 - The type appears in the admin sidebar, with the usual list, editor, revisions, translations and scheduling. Fields appear in the editor sidebar under **Details** ([field types](#14-reference-field-types)).
 - Field values are validated when saving. `required` fields are checked when publishing, so a draft can be incomplete.
 - Entries are shown with the theme's templates. To add something to their page, use the `render.blocks` filter (for example a box with the date) and `render.head` (structured data).

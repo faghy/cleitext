@@ -91,7 +91,11 @@ export function usePluginMenu(): { types: PluginMenuItem[]; pages: PluginMenuIte
   return {
     types: (types.data ?? [])
       // Types of plugins and types made in Content structure.
-      .filter((t) => t.source.startsWith('plugin:') || t.source === 'user')
+      .filter(
+        (t) =>
+          (t.source.startsWith('plugin:') || t.source === 'user') &&
+          !t.supports.includes('private'),
+      )
       .map((t) => ({
         to: `/content/${t.slug}`,
         label: labelText(t.name, me.user.locale),

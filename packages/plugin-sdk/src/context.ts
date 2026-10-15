@@ -34,6 +34,11 @@ export interface ContentTypeDefinition {
   permalink?: string;
   /** Custom fields, edited in the entry sidebar and stored with the entry. */
   fields?: FieldDefinition[];
+  /**
+   * `false`: entries have no public address and stay out of sitemaps,
+   * search and the admin sidebar (e.g. templates the plugin uses itself).
+   */
+  public?: boolean;
 }
 
 /** Extra fields on existing content types, stored under `fields[<id>]`. */

@@ -861,6 +861,13 @@ export class PublicService {
    * (like WPML's "display as translated"). They keep their own address.
    */
   private async listedIn(scope: RequestScope) {
+    // Only types with public addresses (not private ones, not those of inactive plugins).
+    const types = scope.data.types.map((t) => t.slug);
+    const visible = types.length ? inArray(entries.typeSlug, types) : sql`false`;
+    return and(visible, await this.languageFilter(scope))!;
+  }
+
+  private async languageFilter(scope: RequestScope) {
     const own = eq(entries.locale, scope.locale);
     const defaultLocale = scope.data.locales[0]?.code;
     if (!defaultLocale || scope.locale === defaultLocale) return own;

@@ -233,6 +233,7 @@ ctx.content.registerType({
 });
 ```
 
+- `public: false` (API dei plugin 1.11) crea un tipo privato: le sue voci non hanno indirizzo pubblico e restano fuori da sitemap, ricerca e barra laterale dell'admin, per contenuti che il plugin usa da sé, come i modelli di un theme builder.
 - Il tipo compare nella barra laterale dell'admin, con i soliti elenco, editor, revisioni, traduzioni e programmazione. I campi compaiono nella barra laterale dell'editor sotto **Details** ([tipi di campo](#14-riferimento-tipi-di-campo)).
 - I valori dei campi vengono validati al salvataggio. I campi `required` vengono controllati alla pubblicazione, quindi una bozza può essere incompleta.
 - Le voci vengono mostrate con i template del tema. Per aggiungere qualcosa alla loro pagina, usa il filtro `render.blocks` (ad esempio un riquadro con la data) e `render.head` (dati strutturati).
