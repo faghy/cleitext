@@ -42,7 +42,8 @@ export async function startEmbeddedPostgres(
     password,
     authMethod: 'scram-sha-256',
     persistent,
-    initdbFlags: ['--encoding=UTF8', '--locale=C'],
+    // C everywhere: messages too, so the data folder works on any system locale.
+    initdbFlags: ['--encoding=UTF8', '--locale=C', '--lc-messages=C'],
     onLog: log,
     onError: log,
   });

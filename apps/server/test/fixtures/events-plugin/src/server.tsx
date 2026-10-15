@@ -125,9 +125,11 @@ export default definePlugin({
           }
         : head,
     );
-    // A failing filter is skipped; the page still renders.
-    ctx.hooks.filter('render.html', () => {
-      throw new Error('broken filter');
+    // A failing filter is skipped; the page still renders. It fails on the
+    // agenda only, so the failures stay under the deactivation limit.
+    ctx.hooks.filter('render.html', (html, context) => {
+      if (context.path === '/agenda') throw new Error('broken filter');
+      return html;
     });
     ctx.hooks.on('entry.published', ({ entry }) => {
       published.push(entry.id);
