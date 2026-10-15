@@ -1,4 +1,4 @@
-import { inlineText, type CxdBlock, type CxdDocument } from './cxd.js';
+import { inlineText, type CxdBlock, type CxdDocument, type CxdInline } from './cxd.js';
 
 export interface DocumentStats {
   words: number;
@@ -7,6 +7,25 @@ export interface DocumentStats {
   readingMinutes: number;
   /** Headings in order; `problem` explains a level that breaks the outline. */
   headings: { id: string; level: number; text: string; problem: 'h1' | 'skipped' | null }[];
+}
+
+/**
+ * Text and link nodes only: plugin blocks keep other lists in their
+ * attributes (form fields, slides) that may have a `type` of their own.
+ */
+function isInlineList(value: unknown): value is CxdInline[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((v) => {
+      if (typeof v !== 'object' || v === null) return false;
+      const node = v as Record<string, unknown>;
+      return 'type' in node
+        ? Array.isArray(node.children) &&
+            node.children.every((c) => typeof (c as { text?: unknown })?.text === 'string')
+        : typeof node.text === 'string';
+    })
+  );
 }
 
 /**
@@ -23,9 +42,7 @@ export function documentStats(doc: CxdDocument): DocumentStats {
       if (block.content) texts.push(inlineText(block.content));
       for (const value of Object.values(block.attrs)) {
         // Rich attributes (captions, citations) are arrays of inline nodes.
-        if (Array.isArray(value) && value.every((v) => typeof v === 'object' && v !== null)) {
-          texts.push(inlineText(value as never));
-        }
+        if (isInlineList(value)) texts.push(inlineText(value));
       }
       if (block.type === 'core/heading') {
         const level = Number(block.attrs.level) || 2;

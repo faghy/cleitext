@@ -29,6 +29,24 @@ describe('documentStats', () => {
     expect(documentStats({ schema: 1, blocks: [] })).toMatchObject({ words: 0, readingMinutes: 0 });
   });
 
+  it('skips lists in plugin attributes that are not text', () => {
+    const doc: CxdDocument = {
+      schema: 1,
+      blocks: [
+        {
+          id: 'f',
+          type: 'fresco-pro/form',
+          v: 1,
+          attrs: {
+            fields: [{ _id: 'a', type: 'text', label: 'Name' }],
+            note: [{ type: 'link', href: '/', children: [{ text: 'one two' }] }],
+          },
+        },
+      ],
+    };
+    expect(documentStats(doc)).toMatchObject({ words: 2 });
+  });
+
   it('flags H1 in the content and skipped heading levels', () => {
     const doc: CxdDocument = {
       schema: 1,
