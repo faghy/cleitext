@@ -195,7 +195,7 @@ ctx.hooks.filter(
 
 **Caches in front of Cleitext** (plugin API 1.9). `cache.headers` adds headers to the public responses the page cache keeps (never to signed-in visitors): computed once, stored with the page and sent on every hit, e.g. a `Cache-Control` with `s-maxage` and the page's tags for Varnish or a CDN. `cache.invalidated` is emitted once per change, outside the transaction that made it, with the tags whose pages changed: purge them there. The official **Edge cache** plugin does both for Varnish and Cloudflare.
 
-**Theme locations** (plugin API 1.11). `render.locations` lets a theme builder replace parts of the theme: return CXD documents for `header`, `footer`, `single` (entry pages) and `archive` (archives and search). They render like the content, with plugin blocks, media and patterns; themes mark the places with `<Location>`. In the `single` template, a `cleitext/entry-content` block shows the entry's own content:
+**Theme locations** (plugin API 1.11). `render.locations` lets a theme builder replace parts of the theme: return CXD documents for `header`, `footer`, `single` (entry pages), `archive` (archives and search) and `overlay` (popups and panels, added at the end of every page whatever the theme). They render like the content, with plugin blocks, media and patterns; themes mark the places with `<Location>`. In the `single` template, a `cleitext/entry-content` block shows the entry's own content:
 
 ```ts
 ctx.hooks.filter('render.locations', async (locations, context) =>

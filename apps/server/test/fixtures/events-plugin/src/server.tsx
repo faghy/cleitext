@@ -133,6 +133,18 @@ export default definePlugin({
                 },
               ],
             },
+            overlay: {
+              schema: 1,
+              blocks: [
+                {
+                  id: 'lo',
+                  type: 'core/paragraph',
+                  v: 1,
+                  attrs: {},
+                  content: [{ text: 'A popup' }],
+                },
+              ],
+            },
             single: {
               schema: 1,
               blocks: [

@@ -29,6 +29,7 @@ import {
 } from '@cleitext/renderer';
 import { fieldDefaults, type CoreSettings } from '@cleitext/shared';
 import {
+  Location,
   PageProvider,
   resolveTemplate,
   templateCandidates,
@@ -1269,7 +1270,7 @@ export class PublicService {
         hookContext,
         scope.siteId,
       );
-      for (const name of ['header', 'footer', 'single', 'archive'] as const) {
+      for (const name of ['header', 'footer', 'single', 'archive', 'overlay'] as const) {
         const parsed = cxdDocumentSchema.safeParse(given?.[name]);
         if (parsed.success) locations[name] = parsed.data;
       }
@@ -1365,6 +1366,17 @@ export class PublicService {
         }),
       }),
     );
+    // The overlay location: at the end of <body>, whatever the theme.
+    if (locations.overlay) {
+      const overlay = renderToStaticMarkup(
+        createElement(PageProvider, {
+          value: context,
+          children: createElement(Location, { name: 'overlay' }),
+        }),
+      );
+      const at = html.lastIndexOf('</body>');
+      html = at === -1 ? html + overlay : html.slice(0, at) + overlay + html.slice(at);
+    }
     if (scope.settings.backToTop) {
       html = withBackToTop(html, locale, {
         color: scope.settings.backToTopColor,

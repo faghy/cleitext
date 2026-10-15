@@ -156,8 +156,10 @@ export interface ThemeDefinition {
 /**
  * Parts of a page a theme builder can replace: the header, the footer, the
  * content of single entries, and the content of archives and search results.
+ * `overlay` (popups, off-canvas panels) is added by Cleitext at the end of
+ * the page, whatever the theme.
  */
-export type ThemeLocation = 'header' | 'footer' | 'single' | 'archive';
+export type ThemeLocation = 'header' | 'footer' | 'single' | 'archive' | 'overlay';
 
 export interface PageContext {
   site: SiteInfo;

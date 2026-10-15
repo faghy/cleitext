@@ -392,6 +392,8 @@ describe('an active plugin', () => {
     );
     expect(html).not.toContain('class="site-header"');
     expect(html).toMatch(/cx-location-single"><p>Before the content<\/p><p>The page itself<\/p>/);
+    // The overlay goes at the end of the page, whatever the theme.
+    expect(html).toMatch(/cx-location-overlay"><p>A popup<\/p><\/div>(<script[^]*)?<\/body>/);
     // The theme's own footer stays.
     expect(html).toContain('class="site-footer"');
     // Elsewhere, the theme's header.
