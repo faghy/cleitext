@@ -17,6 +17,10 @@ import { usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
 const ASSISTANTS_PATH: string = '/assistants';
 
+/** The arrow's own colour on the public pages, shown when none is chosen. */
+const DEFAULT_ARROW_COLOR = '#111827';
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
 const TIME_ZONES = ['UTC', ...Intl.supportedValuesOf('timeZone').filter((z) => z !== 'UTC')];
 
 /** Settings → General and Reading (RF-SET-01). */
@@ -288,8 +292,42 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
                 </span>
               </span>
             </label>
+            {values.backToTop && (
+              <div className="grid gap-4 pl-6 sm:grid-cols-2">
+                <ColorField
+                  label={t('Arrow colour')}
+                  value={values.backToTopColor}
+                  fallback={DEFAULT_ARROW_COLOR}
+                  onChange={(color) => set('backToTopColor', color)}
+                  resetLabel={t('Default')}
+                />
+                <label className="block space-y-1 text-sm">
+                  <span className="block font-medium text-slate-800">{t('Position')}</span>
+                  <select
+                    className={selectClass}
+                    value={values.backToTopPosition}
+                    onChange={(e) =>
+                      set('backToTopPosition', e.target.value as CoreSettings['backToTopPosition'])
+                    }
+                  >
+                    <option value="right">{t('Bottom right')}</option>
+                    <option value="left">{t('Bottom left')}</option>
+                  </select>
+                </label>
+              </div>
+            )}
           </div>
         </Card>
+        <div className="flex flex-wrap items-center justify-center gap-3 lg:col-span-2">
+          <Button type="submit" disabled={save.isPending}>
+            {t('Save changes')}
+          </Button>
+          {save.isSuccess && (
+            <span role="status" className="text-sm text-green-700">
+              {t('Settings saved.')}
+            </span>
+          )}
+        </div>
         <Card title={t('AI assistants (MCP)')}>
           <div className="space-y-3 text-sm">
             <label className="flex items-start gap-2">
@@ -327,5 +365,68 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
         {t('Save changes')}
       </Button>
     </form>
+  );
+}
+
+/** A colour: the browser's picker plus a hexadecimal field (`#rrggbb`); null is the default. */
+function ColorField({
+  label,
+  value,
+  fallback,
+  onChange,
+  resetLabel,
+}: {
+  label: string;
+  value: string | null;
+  fallback: string;
+  onChange: (color: string | null) => void;
+  resetLabel: string;
+}) {
+  const [draft, setDraft] = useState(value ?? '');
+  const [shown, setShown] = useState(value);
+  // Follows changes from outside (picker, reset, saved values).
+  if (value !== shown) {
+    setShown(value);
+    setDraft(value ?? '');
+  }
+  const invalid = draft !== '' && !HEX_COLOR.test(draft);
+  return (
+    <div className="space-y-1 text-sm">
+      <span className="block font-medium text-slate-800">{label}</span>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          aria-label={label}
+          className="h-9 w-11 shrink-0 cursor-pointer rounded border border-slate-300 bg-white p-0.5"
+          value={value ?? fallback}
+          onChange={(e) => onChange(e.target.value.toLowerCase())}
+        />
+        <input
+          type="text"
+          aria-label={`${label} (hex)`}
+          className={`w-28 rounded border px-2 py-2 font-mono text-sm ${invalid ? 'border-red-500' : 'border-slate-300'}`}
+          placeholder={fallback}
+          maxLength={7}
+          spellCheck={false}
+          value={draft}
+          onChange={(e) => {
+            let next = e.target.value.trim();
+            if (next && !next.startsWith('#')) next = `#${next}`;
+            setDraft(next);
+            if (next === '') onChange(null);
+            else if (HEX_COLOR.test(next)) onChange(next.toLowerCase());
+          }}
+        />
+        {value && (
+          <button
+            type="button"
+            className="text-xs text-slate-600 underline hover:text-slate-900"
+            onClick={() => onChange(null)}
+          >
+            {resetLabel}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

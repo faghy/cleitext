@@ -77,8 +77,10 @@ test('menus, settings, publishing and previews reach the public site', async ({
   // Settings → tagline.
   await page.goto('/admin/settings');
   await page.getByLabel('Tagline').fill(`Notes ${stamp}`);
-  await page.getByRole('button', { name: 'Save changes' }).click();
-  await expect(page.getByText('Settings saved.')).toBeVisible();
+  // The same button sits between the cards and at the bottom.
+  await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Save changes' }).first().click();
+  await expect(page.getByText('Settings saved.').first()).toBeVisible();
 
   // The public site, as an anonymous visitor.
   const visitor = await context.browser()!.newContext();

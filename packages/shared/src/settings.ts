@@ -24,6 +24,15 @@ const coreSettingsFields = {
   mcp: z.boolean(),
   /** An arrow on the public pages that scrolls back to the top. */
   backToTop: z.boolean(),
+  /** The arrow's colour (`#rrggbb`); a dark grey when null. */
+  backToTopColor: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-f]{6}$/i, 'A colour like #1e40af')
+    .transform((v) => v.toLowerCase())
+    .nullable(),
+  /** The corner the arrow sits in. */
+  backToTopPosition: z.enum(['right', 'left']),
 };
 
 /** A time zone known to the runtime (IANA name). */
@@ -49,6 +58,8 @@ export const CORE_SETTINGS_DEFAULTS = {
   dateStyle: 'long',
   mcp: false,
   backToTop: false,
+  backToTopColor: null,
+  backToTopPosition: 'right',
 } as const;
 
 export const coreSettingsSchema = z.object(coreSettingsFields);

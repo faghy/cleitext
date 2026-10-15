@@ -1307,7 +1307,12 @@ export class PublicService {
         }),
       }),
     );
-    if (scope.settings.backToTop) html = withBackToTop(html, locale);
+    if (scope.settings.backToTop) {
+      html = withBackToTop(html, locale, {
+        color: scope.settings.backToTopColor,
+        position: scope.settings.backToTopPosition,
+      });
+    }
     if (scope.activePlugins.size > 0) {
       html = await this.plugins.applyFilter(
         'render.html',

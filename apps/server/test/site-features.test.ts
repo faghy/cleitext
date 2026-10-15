@@ -6,6 +6,7 @@ import { sites, type DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { arrowColor } from '../src/public/back-to-top.js';
 import { createPreviewToken, verifyPreviewToken } from '../src/public/preview.js';
 import {
   ownerDatabase,
@@ -201,8 +202,35 @@ describe('robots.txt and sitemaps', () => {
     // Also on pages that are not found, and in the cache.
     expect((await visitor.get('/no-such-page')).body).toContain('class="cx-to-top"');
     expect((await visitor.get('/')).headers['x-cache']).toBe('HIT');
+
+    // Colour and corner.
+    const styled = await admin.request('PATCH', '/api/v1/settings/core', {
+      backToTopColor: '#FACC15',
+      backToTopPosition: 'left',
+    });
+    expect(styled.json()).toMatchObject({ backToTopColor: '#facc15', backToTopPosition: 'left' });
+    expect((await visitor.get('/')).body).toContain(
+      '<a class="cx-to-top is-left is-custom" href="#top" aria-label="Back to top" title="Back to top" style="--cx-to-top-bg:#facc15;--cx-to-top-fg:#111827" hidden>',
+    );
+    expect(
+      (await admin.request('PATCH', '/api/v1/settings/core', { backToTopColor: 'red' })).statusCode,
+    ).toBe(400);
+    await admin.request('PATCH', '/api/v1/settings/core', {
+      backToTopColor: null,
+      backToTopPosition: 'right',
+    });
+    expect((await visitor.get('/')).body).toContain('<a class="cx-to-top" href="#top"');
     await admin.request('PATCH', '/api/v1/settings/core', { backToTop: false });
     expect((await visitor.get('/')).body).not.toContain('cx-to-top');
+  });
+});
+
+describe('back to top colours', () => {
+  it('picks the arrow that reads better on the chosen colour', () => {
+    expect(arrowColor('#1e40af')).toBe('#fff');
+    expect(arrowColor('#000000')).toBe('#fff');
+    expect(arrowColor('#facc15')).toBe('#111827');
+    expect(arrowColor('#ffffff')).toBe('#111827');
   });
 });
 
