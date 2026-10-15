@@ -398,6 +398,26 @@ function PageView({ store }: { store: Store }) {
   return (
     <div className="fre-site">
       <h3 className="fre-view-title">Page settings</h3>
+      <div className="fre-control fre-control--inline">
+        <div className="fre-control__head">
+          <span className="fre-control__label">Layout</span>
+        </div>
+        <div className="fre-control__body">
+          <select
+            className="fre-input"
+            value={typeof page.layout === 'string' ? page.layout : ''}
+            onChange={(e) => store.actions.setPage({ layout: e.target.value || undefined })}
+          >
+            <option value="">Theme default</option>
+            <option value="full">Full width</option>
+            <option value="canvas">Canvas (no header and footer)</option>
+          </select>
+        </div>
+      </div>
+      <p className="fre-help">
+        Full width: top-level containers span the whole window. Canvas: also without the theme’s
+        header and footer. Seen on the page after saving.
+      </p>
       <label className="fre-checks">
         <input
           type="checkbox"

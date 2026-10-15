@@ -452,6 +452,7 @@ function Overlay({
                 font: '500 12px/24px system-ui, sans-serif',
                 borderRadius: '4px 4px 0 0',
                 overflow: 'hidden',
+                whiteSpace: 'nowrap',
                 pointerEvents: 'auto',
                 userSelect: 'none',
               }}

@@ -139,7 +139,20 @@ export default definePlugin({
       when: ({ html }) => /data-fr-(anim|video|lightbox|handler)/.test(html),
     });
 
-    // Page settings of Fresco pages: hidden title, page background.
+    // Canvas pages: the theme's header and footer give way to nothing.
+    ctx.hooks.filter('render.locations', (locations, context) => {
+      const editor = context.entry?.document.editor;
+      if (
+        editor?.id !== 'fresco' ||
+        (editor.data as Record<string, unknown> | undefined)?.layout !== 'canvas'
+      ) {
+        return locations;
+      }
+      const empty = { schema: 1 as const, blocks: [] };
+      return { ...locations, header: empty, footer: empty };
+    });
+
+    // Page settings of Fresco pages: layout, hidden title, page background.
     ctx.hooks.filter('render.html', async (html, context) => {
       const editor = context.entry?.document.editor;
       if (editor?.id !== 'fresco' || !editor.data) return html;
@@ -148,12 +161,18 @@ export default definePlugin({
       if (data.hideTitle === true) {
         const kit = await kitFor(ctx, context.siteId);
         const selector = safeSelector(kit.titleSelector);
-        // Never Fresco's own headings.
+        // Never headings of Fresco's elements.
         const scoped = selector
           ?.split(',')
-          .map((part) => `${part.trim()}:not(.fr-heading__title)`)
+          .map((part) => `${part.trim()}:not(.fr-e *)`)
           .join(',');
         if (scoped) rules.push(`${scoped}{display:none!important}`);
+      }
+      if (data.layout === 'full' || data.layout === 'canvas') {
+        // Top-level containers break out of the theme's content column.
+        rules.push(
+          '.fr-container:not(.fr-container .fr-container):not(.cx-location .fr-container){width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}html,body{overflow-x:clip}',
+        );
       }
       const background = safeColor(data.background);
       if (background) rules.push(`body{background-color:${background}}`);
