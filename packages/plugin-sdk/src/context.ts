@@ -3,7 +3,7 @@ import type { TransferDocumentInput } from '@cleitext/blocks/transfer';
 import type { FieldDefinition, FieldValues, Label } from '@cleitext/shared';
 import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
 import type { ReactNode } from 'react';
-import type { Pagination, PublicEntry, PublicEntrySummary } from '@cleitext/theme-sdk';
+import type { EntryAuthor, Pagination, PublicEntry, PublicEntrySummary } from '@cleitext/theme-sdk';
 import type { HookApi, RenderHookContext } from './hooks.js';
 
 /** A site, as plugins see it. */
@@ -320,6 +320,8 @@ export interface BlockPage {
     description?: string;
     term?: { taxonomy: string; slug: string; name: string; description: string | null };
     contentType?: string;
+    /** Author archives (plugin API 1.12). */
+    author?: EntryAuthor & { slug: string };
     entries: PublicEntrySummary[];
     pagination: Pagination;
   };

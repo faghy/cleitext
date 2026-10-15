@@ -1773,6 +1773,7 @@ export class PublicService {
               ...(props.description ? { description: props.description } : {}),
               ...(props.term ? { term: props.term } : {}),
               ...(props.contentType ? { contentType: props.contentType } : {}),
+              ...(props.author ? { author: props.author } : {}),
               entries: props.entries,
               pagination: props.pagination,
             },
