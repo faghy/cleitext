@@ -87,6 +87,11 @@ export interface PluginServices {
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
   /** What the core keeps about an email on a site: account, sessions, activity. */
   corePersonalData(siteId: string, email: string): Promise<PersonalDataGroup[]>;
+  /** Anonymizes the comments and removes the likes of an email (art. 17). */
+  eraseCommunityData(
+    siteId: string,
+    email: string,
+  ): Promise<{ removed: number; retained: number; messages?: string[] }>;
   importDocument(
     siteId: string,
     document: unknown,

@@ -338,6 +338,62 @@ describe('requests about personal data', () => {
     expect(erased.results[0].messages[0]).toContain('delete it from Users');
   });
 
+  it('exports comments, then anonymizes them and keeps their text', async () => {
+    const post = await publish('article', 'Comment on me');
+    const sent = await app.inject({
+      method: 'POST',
+      url: '/comments',
+      headers: {
+        host: site.host,
+        origin: `http://${site.host}`,
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      remoteAddress: '10.40.2.1',
+      payload: new URLSearchParams({
+        entry: post.id,
+        back: '/',
+        comment: 'A thoughtful remark.',
+        name: 'Carla',
+        email: 'carla@example.com',
+        url: 'https://carla.example',
+        ts: String(Date.now() - 5000),
+      }).toString(),
+    });
+    expect(sent.statusCode).toBe(303);
+
+    const exported = (
+      await admin.post('/api/v1/ext/privacy/requests', {
+        kind: 'export',
+        email: 'carla@example.com',
+      })
+    ).json();
+    const core = exported.data.find((s: { source: string }) => s.source === 'core');
+    expect(core.groups.map((g: { id: string }) => g.id)).toEqual(['core.comments']);
+    expect(core.groups[0].items[0]).toMatchObject({
+      on: 'Comment on me',
+      name: 'Carla',
+      website: 'https://carla.example',
+      content: 'A thoughtful remark.',
+      ip: '10.40.2.1',
+    });
+
+    const erased = (
+      await admin.post('/api/v1/ext/privacy/requests', {
+        kind: 'erase',
+        email: 'carla@example.com',
+      })
+    ).json();
+    const comments = erased.results.find((r: { source: string }) => r.source === 'core.comments');
+    expect(comments).toMatchObject({ removed: 1, retained: 0 });
+    const list = (await admin.get('/api/v1/comments?search=thoughtful')).json();
+    expect(list.items[0]).toMatchObject({
+      authorName: 'Anonymous',
+      authorEmail: '',
+      ip: null,
+      content: 'A thoughtful remark.',
+    });
+  });
+
   it('refuses invalid requests', async () => {
     expect(
       (await admin.post('/api/v1/ext/privacy/requests', { kind: 'export', email: 'nope' }))

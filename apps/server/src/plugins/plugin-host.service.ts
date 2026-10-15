@@ -386,7 +386,9 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   /** GDPR erasure request: each active plugin erases its data; accounts stay (Users). */
   async erasePersonalData(siteId: string, email: string) {
     const address = email.trim().toLowerCase();
-    const account = (await this.pluginServices.corePersonalData(siteId, address)).length > 0;
+    const account = (await this.pluginServices.corePersonalData(siteId, address)).some(
+      (group) => group.id === 'core.account',
+    );
     const results: ({ source: string; label: Label } & ErasureResult)[] = [
       {
         source: 'core',
@@ -396,6 +398,11 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         messages: account
           ? ['The user account is kept: delete it from Users if it should go too.']
           : [],
+      },
+      {
+        source: 'core.comments',
+        label: { en: 'Comments and likes', it: 'Commenti e mi piace' },
+        ...(await this.pluginServices.eraseCommunityData(siteId, address)),
       },
     ];
     for (const plugin of await this.activePlugins(siteId)) {

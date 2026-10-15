@@ -1,8 +1,10 @@
 import {
   apiTokens,
   auditLog,
+  comments,
   contentTypes,
   entries,
+  entryLikes,
   inTransaction,
   media,
   menus,
@@ -43,7 +45,7 @@ import {
   type FieldValues,
 } from '@cleitext/shared';
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { fetchPublic } from '../common/public-fetch.js';
 import type { AuthContext } from '../common/request-context.js';
 import { seal, unseal } from '../common/secrets.js';
@@ -382,7 +384,8 @@ export class PluginServicesProvider implements PluginServices {
           .limit(1000),
       };
     });
-    if (!found) return [];
+    const community = await this.communityPersonalData(siteId, email, found?.user.id ?? null);
+    if (!found) return community;
     const { user, admin, sessionRows, tokens, activity } = found;
     const date = (value: Date | null) => value?.toISOString() ?? null;
     return [
@@ -398,6 +401,9 @@ export class PluginServicesProvider implements PluginServices {
             lastSignIn: date(user.lastLoginAt),
             twoFactor: Boolean(user.totpConfirmedAt),
             superAdmin: admin,
+            bio: user.bio || null,
+            website: user.website,
+            authorPage: user.slug,
           },
         ],
       },
@@ -433,7 +439,121 @@ export class PluginServicesProvider implements PluginServices {
           date: date(row.createdAt),
         })),
       },
+      ...community,
     ];
+  }
+
+  /** Comments written with an email address or by its account, and its likes (RF-COM). */
+  private async communityPersonalData(
+    siteId: string,
+    email: string,
+    userId: string | null,
+  ): Promise<PersonalDataGroup[]> {
+    const { rows, likes } = await withContext(this.database.db, { siteId }, async (tx) => ({
+      rows: await tx
+        .select({ comment: comments, entryTitle: entries.title })
+        .from(comments)
+        .innerJoin(entries, eq(entries.id, comments.entryId))
+        .where(
+          userId
+            ? or(eq(comments.authorEmail, email), eq(comments.userId, userId))
+            : eq(comments.authorEmail, email),
+        )
+        .orderBy(asc(comments.createdAt)),
+      likes: userId
+        ? await tx
+            .select({ entryTitle: entries.title, createdAt: entryLikes.createdAt })
+            .from(entryLikes)
+            .innerJoin(entries, eq(entries.id, entryLikes.entryId))
+            .where(eq(entryLikes.liker, `user:${userId}`))
+        : [],
+    }));
+    const groups: PersonalDataGroup[] = [];
+    if (rows.length > 0) {
+      groups.push({
+        id: 'core.comments',
+        label: { en: 'Comments', it: 'Commenti' },
+        items: rows.map(({ comment, entryTitle }) => ({
+          on: entryTitle,
+          name: comment.authorName,
+          email: comment.authorEmail,
+          website: comment.authorUrl,
+          content: comment.content,
+          status: comment.status,
+          ip: comment.ip,
+          browser: comment.userAgent,
+          date: comment.createdAt.toISOString(),
+        })),
+      });
+    }
+    if (likes.length > 0) {
+      groups.push({
+        id: 'core.likes',
+        label: { en: 'Likes', it: 'Mi piace' },
+        items: likes.map((l) => ({ on: l.entryTitle, date: l.createdAt.toISOString() })),
+      });
+    }
+    return groups;
+  }
+
+  /**
+   * Erasure request (art. 17): comments are anonymized as WordPress does
+   * (their text stays, without name, email, website and address), likes go.
+   */
+  async eraseCommunityData(
+    siteId: string,
+    email: string,
+  ): Promise<{ removed: number; retained: number; messages?: string[] }> {
+    return withContext(this.database.db, { siteId }, async (tx) => {
+      const [user] = await tx.select({ id: users.id }).from(users).where(eq(users.email, email));
+      const changed = await tx
+        .update(comments)
+        .set({
+          authorName: 'Anonymous',
+          authorEmail: '',
+          authorUrl: null,
+          ip: null,
+          userAgent: null,
+          userId: null,
+          notifyReplies: false,
+          updatedAt: new Date(),
+        })
+        .where(
+          user
+            ? or(eq(comments.authorEmail, email), eq(comments.userId, user.id))
+            : eq(comments.authorEmail, email),
+        )
+        .returning({ entryId: comments.entryId });
+      const liked = user
+        ? await tx
+            .delete(entryLikes)
+            .where(eq(entryLikes.liker, `user:${user.id}`))
+            .returning({ entryId: entryLikes.entryId })
+        : [];
+      // Like counts follow.
+      for (const entryId of new Set(liked.map((l) => l.entryId))) {
+        await tx
+          .update(entries)
+          .set({
+            likeCount: sql`(SELECT count(*) FROM entry_likes WHERE entry_id = ${entryId})::int`,
+          })
+          .where(eq(entries.id, entryId));
+      }
+      const touched = [...new Set([...changed, ...liked].map((r) => r.entryId))];
+      if (touched.length > 0) {
+        await this.cache.invalidate(
+          siteId,
+          touched.map((id) => `entry:${id}`),
+        );
+      }
+      return {
+        removed: changed.length + liked.length,
+        retained: 0,
+        ...(changed.length > 0
+          ? { messages: [`${changed.length} comment(s) anonymized; their text stays on the site.`] }
+          : {}),
+      };
+    });
   }
 
   /**
