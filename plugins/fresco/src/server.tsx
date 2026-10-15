@@ -71,7 +71,10 @@ function blockFor(
         }),
       ]);
       const data = definition.load
-        ? await definition.load(withDefaults(definition, resolved), context)
+        ? await definition.load(withDefaults(definition, resolved), {
+            ...context,
+            breakpoints: kit.breakpoints,
+          })
         : undefined;
       return { kit, attrs: resolved, ...(data !== undefined ? { data } : {}) };
     },

@@ -28,6 +28,7 @@ import { Icon } from './core/icons.js';
 import { newId } from './core/ids.js';
 import { linkProps } from './core/links.js';
 import { FrImage, IMAGE_SIZES, isMedia, mediaIds } from './core/media.js';
+import { DEFAULT_BREAKPOINTS } from './core/model.js';
 import { getElement, listElements, registerElement, unregisterElement } from './core/registry.js';
 import { plainText, sanitizeRich } from './core/sanitize.js';
 import { videoEmbed } from './elements/general.js';
@@ -63,6 +64,7 @@ export function createApi() {
     elementClass,
     elementCss,
     documentCss,
+    DEFAULT_BREAKPOINTS,
     newId,
     videoEmbed,
   };

@@ -227,6 +227,11 @@ export interface RenderProps {
   data?: unknown;
 }
 
+/** What an element's `load` gets: Cleitext's block load context and the site's breakpoints. */
+export interface ElementLoadContext extends BlockLoadContext {
+  breakpoints: Breakpoints;
+}
+
 /**
  * An element type: its panel (controls), its markup and, optionally, the
  * script that brings it to life on the page (`handler`, in public/frontend).
@@ -250,7 +255,7 @@ export interface ElementDefinition {
    * On the server, before rendering: data the element needs (e.g. the
    * entries of a loop), with Cleitext's block load context.
    */
-  load?: (settings: Settings, context: BlockLoadContext) => Promise<unknown>;
+  load?: (settings: Settings, context: ElementLoadContext) => Promise<unknown>;
   /** Media ids its settings use (images, galleries, backgrounds). */
   media?: (settings: Settings) => string[];
   /** Name of the front-end handler (public/frontend.ts) that runs on it. */
