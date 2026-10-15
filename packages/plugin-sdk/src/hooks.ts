@@ -1,6 +1,6 @@
-import type { CxdBlock } from '@cleitext/blocks';
+import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import type { Label } from '@cleitext/shared';
-import type { HeadData, PublicEntry } from '@cleitext/theme-sdk';
+import type { HeadData, PublicEntry, ThemeLocation } from '@cleitext/theme-sdk';
 
 /**
  * Hook catalog (docs/SPECIFICATIONS.md §8). Plugins add their own hooks with
@@ -90,6 +90,15 @@ export interface Filters {
   'render.head': [head: HeadData, context: RenderHookContext];
   /** Blocks of an entry before rendering, e.g. to add a details box (needs `theme:hooks`). */
   'render.blocks': [blocks: CxdBlock[], context: RenderHookContext & { entry: PublicEntry }];
+  /**
+   * Content for the theme's locations (header, footer, single, archive),
+   * replacing what the theme shows there, e.g. templates of a theme builder
+   * (needs `theme:hooks`). Themes mark them with `<Location>`.
+   */
+  'render.locations': [
+    locations: Partial<Record<ThemeLocation, CxdDocument>>,
+    context: RenderHookContext,
+  ];
   /** Final HTML of a public page; use sparingly (needs `theme:hooks`). */
   'render.html': [html: string, context: RenderHookContext];
   /** Template names tried in order, e.g. `entry-event` (needs `theme:hooks`). */

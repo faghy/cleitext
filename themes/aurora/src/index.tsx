@@ -6,6 +6,7 @@ import {
   FormattedDate,
   HeadTags,
   Image,
+  Location,
   Menu,
   usePage,
   useThemeSettings,
@@ -75,67 +76,71 @@ function Layout({ head, css, children }: LayoutProps) {
         <a className="skip-link" href="#content">
           {t.skip}
         </a>
-        <header className="site-header">
-          <div className="container">
-            <a className="site-title" href={page.urls.home}>
-              {logo ? (
-                <img className="site-logo" src={logo.url} alt={page.site.title} />
-              ) : (
-                page.site.title
+        <Location name="header">
+          <header className="site-header">
+            <div className="container">
+              <a className="site-title" href={page.urls.home}>
+                {logo ? (
+                  <img className="site-logo" src={logo.url} alt={page.site.title} />
+                ) : (
+                  page.site.title
+                )}
+                {settings.showTagline !== false && page.site.tagline && (
+                  <span className="site-tagline">{page.site.tagline}</span>
+                )}
+              </a>
+              {(page.menus.primary?.length ?? 0) > 0 && (
+                <nav className="site-nav" aria-label={t.mainMenu}>
+                  <Menu items={page.menus.primary!} />
+                </nav>
               )}
-              {settings.showTagline !== false && page.site.tagline && (
-                <span className="site-tagline">{page.site.tagline}</span>
+              {settings.showSearch === true && (
+                <form className="search-form" role="search" action={page.urls.search} method="get">
+                  <label className="visually-hidden" htmlFor="search-q">
+                    {t.search}
+                  </label>
+                  <input id="search-q" type="search" name="q" placeholder={t.searchPlaceholder} />
+                  <button type="submit">{t.search}</button>
+                </form>
               )}
-            </a>
-            {(page.menus.primary?.length ?? 0) > 0 && (
-              <nav className="site-nav" aria-label={t.mainMenu}>
-                <Menu items={page.menus.primary!} />
-              </nav>
-            )}
-            {settings.showSearch === true && (
-              <form className="search-form" role="search" action={page.urls.search} method="get">
-                <label className="visually-hidden" htmlFor="search-q">
-                  {t.search}
-                </label>
-                <input id="search-q" type="search" name="q" placeholder={t.searchPlaceholder} />
-                <button type="submit">{t.search}</button>
-              </form>
-            )}
-            {page.locales.length > 1 && (
-              <nav className="languages" aria-label={t.languages}>
-                <ul>
-                  {page.locales.map((locale) => (
-                    <li key={locale.code}>
-                      <a
-                        href={locale.url}
-                        hrefLang={locale.code}
-                        lang={locale.code}
-                        aria-current={locale.current ? 'true' : undefined}
-                      >
-                        {locale.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-            )}
-          </div>
-        </header>
+              {page.locales.length > 1 && (
+                <nav className="languages" aria-label={t.languages}>
+                  <ul>
+                    {page.locales.map((locale) => (
+                      <li key={locale.code}>
+                        <a
+                          href={locale.url}
+                          hrefLang={locale.code}
+                          lang={locale.code}
+                          aria-current={locale.current ? 'true' : undefined}
+                        >
+                          {locale.name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              )}
+            </div>
+          </header>
+        </Location>
         <main id="content">{children}</main>
-        <footer className="site-footer">
-          <BlockArea name="footer" className="container footer-area" />
-          <div className="container">
-            {(page.menus.footer?.length ?? 0) > 0 && (
-              <nav className="footer-nav" aria-label={t.footerMenu}>
-                <Menu items={page.menus.footer!} />
-              </nav>
-            )}
-            <p>
-              {settings.footerText || `© ${new Date().getFullYear()} ${page.site.title}`} ·{' '}
-              {t.poweredBy} <a href="https://github.com/faghy/cleitext">Cleitext</a>
-            </p>
-          </div>
-        </footer>
+        <Location name="footer">
+          <footer className="site-footer">
+            <BlockArea name="footer" className="container footer-area" />
+            <div className="container">
+              {(page.menus.footer?.length ?? 0) > 0 && (
+                <nav className="footer-nav" aria-label={t.footerMenu}>
+                  <Menu items={page.menus.footer!} />
+                </nav>
+              )}
+              <p>
+                {settings.footerText || `© ${new Date().getFullYear()} ${page.site.title}`} ·{' '}
+                {t.poweredBy} <a href="https://github.com/faghy/cleitext">Cleitext</a>
+              </p>
+            </div>
+          </footer>
+        </Location>
       </body>
     </html>
   );
@@ -149,62 +154,68 @@ function Index(props: TemplateProps) {
       const { entry } = props;
       const isArticle = entry.type === 'article';
       return (
-        <article className="container">
-          <header className="page-header">
-            <h1>{entry.title}</h1>
-            {isArticle && entry.publishedAt && (
-              <p className="entry-meta">
-                <FormattedDate iso={entry.publishedAt} />
-                {entry.author && ` · ${entry.author.displayName}`}
-              </p>
-            )}
-          </header>
-          {entry.featuredImage && (
-            <figure className="entry-featured">
-              <Image media={entry.featuredImage} eager sizes="(min-width: 70rem) 70rem, 100vw" />
-            </figure>
-          )}
-          <div className="entry-content">
-            <EntryContent document={entry.document} />
-          </div>
-          {Object.keys(entry.terms).length > 0 && (
-            <footer className="entry-terms page-header">
-              {Object.entries(entry.terms).map(([taxonomy, terms]) => (
-                <p key={taxonomy}>
-                  {taxonomy === 'category' ? t.categories : t.tags}:{' '}
-                  {terms.map((term, i) => (
-                    <span key={term.slug}>
-                      {i > 0 && ', '}
-                      <a href={term.url}>{term.name}</a>
-                    </span>
-                  ))}
+        <Location name="single" entry={entry}>
+          <article className="container">
+            <header className="page-header">
+              <h1>{entry.title}</h1>
+              {isArticle && entry.publishedAt && (
+                <p className="entry-meta">
+                  <FormattedDate iso={entry.publishedAt} />
+                  {entry.author && ` · ${entry.author.displayName}`}
                 </p>
-              ))}
-            </footer>
-          )}
-        </article>
+              )}
+            </header>
+            {entry.featuredImage && (
+              <figure className="entry-featured">
+                <Image media={entry.featuredImage} eager sizes="(min-width: 70rem) 70rem, 100vw" />
+              </figure>
+            )}
+            <div className="entry-content">
+              <EntryContent document={entry.document} />
+            </div>
+            {Object.keys(entry.terms).length > 0 && (
+              <footer className="entry-terms page-header">
+                {Object.entries(entry.terms).map(([taxonomy, terms]) => (
+                  <p key={taxonomy}>
+                    {taxonomy === 'category' ? t.categories : t.tags}:{' '}
+                    {terms.map((term, i) => (
+                      <span key={term.slug}>
+                        {i > 0 && ', '}
+                        <a href={term.url}>{term.name}</a>
+                      </span>
+                    ))}
+                  </p>
+                ))}
+              </footer>
+            )}
+          </article>
+        </Location>
       );
     }
     case 'archive':
       return (
-        <div className="container">
-          <header className="page-header">
-            <h1>{props.title}</h1>
-            {props.term?.description && <p>{props.term.description}</p>}
-          </header>
-          <EntryList entries={props.entries} empty={t.nothingYet} />
-          <PageLinks pagination={props.pagination} />
-        </div>
+        <Location name="archive">
+          <div className="container">
+            <header className="page-header">
+              <h1>{props.title}</h1>
+              {props.term?.description && <p>{props.term.description}</p>}
+            </header>
+            <EntryList entries={props.entries} empty={t.nothingYet} />
+            <PageLinks pagination={props.pagination} />
+          </div>
+        </Location>
       );
     case 'search':
       return (
-        <div className="container">
-          <header className="page-header">
-            <h1>{props.query ? t.resultsFor(props.query) : t.search}</h1>
-          </header>
-          <EntryList entries={props.entries} empty={props.query ? t.noResults : t.typeToSearch} />
-          <PageLinks pagination={props.pagination} />
-        </div>
+        <Location name="archive">
+          <div className="container">
+            <header className="page-header">
+              <h1>{props.query ? t.resultsFor(props.query) : t.search}</h1>
+            </header>
+            <EntryList entries={props.entries} empty={props.query ? t.noResults : t.typeToSearch} />
+            <PageLinks pagination={props.pagination} />
+          </div>
+        </Location>
       );
     case '404':
       return (

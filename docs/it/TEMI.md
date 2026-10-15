@@ -53,6 +53,13 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 
 I template ricevono la pagina come props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) e leggono il resto con `usePage()`. Non interrogano mai il database.
 
+Avvolgi in `<Location>` le parti che un theme builder può sostituire: `header`, `footer`, `single` (il contenuto della pagina di una voce; passa `entry`) e `archive` (archivi e risultati di ricerca). Se nessun plugin le riempie, si vede il markup del tema:
+
+```tsx
+<Location name="header"><header className="site-header">…</header></Location>
+<Location name="single" entry={entry}><article>…</article></Location>
+```
+
 Il contenuto di una voce si mostra con `<EntryContent document={…} />`. Dentro un editor visuale (il page builder di un plugin) mostra invece un elemento vuoto `[data-cx-editor-canvas]` che l'editor riempie: così la pagina si modifica nel layout del tema.
 
 ## 4. Impostazioni

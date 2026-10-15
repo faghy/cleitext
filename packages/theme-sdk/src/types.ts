@@ -153,6 +153,12 @@ export interface ThemeDefinition {
 }
 
 /** Everything a template can read through `usePage()`. */
+/**
+ * Parts of a page a theme builder can replace: the header, the footer, the
+ * content of single entries, and the content of archives and search results.
+ */
+export type ThemeLocation = 'header' | 'footer' | 'single' | 'archive';
+
 export interface PageContext {
   site: SiteInfo;
   locale: string;
@@ -170,6 +176,8 @@ export interface PageContext {
   areas?: Readonly<Record<string, CxdDocument>>;
   /** Synced patterns used by the page (RF-EDT-07), by id. */
   patterns?: ReadonlyMap<string, CxdDocument>;
+  /** Content of the theme's locations given by plugins (theme builders). */
+  locations?: Partial<Record<ThemeLocation, CxdDocument>>;
   /**
    * The page is shown inside a visual editor: `EntryContent` renders an
    * empty `[data-cx-editor-canvas]` element that the editor fills.

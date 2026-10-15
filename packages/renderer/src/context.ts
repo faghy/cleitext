@@ -29,6 +29,11 @@ export interface RenderContext {
   imageCounter?: { n: number };
   /** Renderers for this page only (e.g. blocks of plugins active on the site). */
   renderers?: ReadonlyMap<string, BlockRenderer>;
+  /**
+   * The entry shown, for `cleitext/entry-content` blocks in templates of a
+   * theme builder (theme locations).
+   */
+  entry?: { document: CxdDocument };
 }
 
 const DEFAULT: RenderContext = { media: new Map(), locale: 'en', eagerFirstImage: true };

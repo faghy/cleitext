@@ -114,6 +114,40 @@ export default definePlugin({
       }),
     );
 
+    // A theme builder's templates, on one page only.
+    ctx.hooks.filter('render.locations', (locations, context) =>
+      context.path === '/located'
+        ? {
+            ...locations,
+            header: {
+              schema: 1,
+              blocks: [
+                {
+                  id: 'lh',
+                  type: 'core/paragraph',
+                  v: 1,
+                  attrs: {},
+                  content: [{ text: 'Plugin header' }],
+                },
+              ],
+            },
+            single: {
+              schema: 1,
+              blocks: [
+                {
+                  id: 'ls',
+                  type: 'core/paragraph',
+                  v: 1,
+                  attrs: {},
+                  content: [{ text: 'Before the content' }],
+                },
+                { id: 'lc', type: 'cleitext/entry-content', v: 1, attrs: {} },
+              ],
+            },
+          }
+        : locations,
+    );
+
     ctx.hooks.filter('render.blocks', (blocks, context) =>
       context.entry.type === 'event'
         ? [

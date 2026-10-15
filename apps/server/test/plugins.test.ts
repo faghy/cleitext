@@ -350,6 +350,38 @@ describe('an active plugin', () => {
     );
   });
 
+  it('fills the theme locations: header and the single template with the entry content', async () => {
+    const created = (
+      await editor.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Located',
+        document: {
+          schema: 1,
+          blocks: [
+            {
+              id: 'own',
+              type: 'core/paragraph',
+              v: 1,
+              attrs: {},
+              content: [{ text: 'The page itself' }],
+            },
+          ],
+        },
+      })
+    ).json();
+    await editor.post(`/api/v1/entries/${created.id}/publish`);
+    const html = (await visitor.get('/located')).body;
+    expect(html).toContain(
+      '<div class="cx-location cx-location-header"><p>Plugin header</p></div>',
+    );
+    expect(html).not.toContain('class="site-header"');
+    expect(html).toMatch(/cx-location-single"><p>Before the content<\/p><p>The page itself<\/p>/);
+    // The theme's own footer stays.
+    expect(html).toContain('class="site-footer"');
+    // Elsewhere, the theme's header.
+    expect((await visitor.get('/')).body).toContain('class="site-header"');
+  });
+
   it('validates the attributes of its blocks', async () => {
     const response = await editor.post('/api/v1/entries', {
       type: 'page',

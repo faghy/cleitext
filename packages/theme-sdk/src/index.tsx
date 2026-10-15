@@ -8,6 +8,7 @@ import type {
   TemplateProps,
   ThemeDefinition,
   TemplateComponent,
+  ThemeLocation,
 } from './types.js';
 
 export * from './types.js';
@@ -48,6 +49,39 @@ export function EntryContent({ document }: { document: CxdDocument }) {
 /** Values of the active theme's settings (RF-THM-03), defaults included. */
 export function useThemeSettings<T extends Record<string, unknown> = Record<string, unknown>>(): T {
   return (usePage().themeSettings ?? {}) as T;
+}
+
+/**
+ * A part of the page a plugin may replace (theme builders): what it gives
+ * for the location, or the theme's own markup (`children`).
+ */
+export function Location({
+  name,
+  entry,
+  children,
+}: {
+  name: ThemeLocation;
+  /** On single entries: their content, for the template's entry-content block. */
+  entry?: { document: CxdDocument };
+  children?: ReactNode;
+}) {
+  const page = usePage();
+  const document = page.locations?.[name];
+  if (!document) return <>{children}</>;
+  return (
+    <div className={`cx-location cx-location-${name}`}>
+      <Blocks
+        document={document}
+        context={{
+          media: page.media,
+          locale: page.locale,
+          ...(page.blockRenderers ? { renderers: page.blockRenderers } : {}),
+          ...(page.patterns ? { patterns: page.patterns } : {}),
+          ...(entry ? { entry } : {}),
+        }}
+      />
+    </div>
+  );
 }
 
 /** A block area of the theme (RF-THM-04); nothing when it is empty. */

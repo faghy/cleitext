@@ -15,7 +15,7 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import { documentText, type CxdBlock, type CxdDocument } from '@cleitext/blocks';
+import { cxdDocumentSchema, documentText, type CxdBlock, type CxdDocument } from '@cleitext/blocks';
 import type { RenderHookContext } from '@cleitext/plugin-sdk';
 import {
   Block,
@@ -37,6 +37,7 @@ import {
   type PageContext,
   type PublicEntry,
   type MenuItemView,
+  type ThemeLocation,
   type TemplateProps,
   type ThemeDefinition,
 } from '@cleitext/theme-sdk';
@@ -1240,6 +1241,7 @@ export class PublicService {
     status: number,
   ): Promise<PublicResponse> {
     const { data, theme, locale } = scope;
+    const locations: Partial<Record<ThemeLocation, CxdDocument>> = {};
     if (scope.activePlugins.size > 0) {
       const hookContext = this.hookContext(
         scope,
@@ -1253,6 +1255,17 @@ export class PublicService {
         scope.siteId,
       );
       head = await this.plugins.applyFilter('render.head', head, hookContext, scope.siteId);
+      // Theme builders: documents for the theme's locations (valid CXD only).
+      const given = await this.plugins.applyFilter(
+        'render.locations',
+        {},
+        hookContext,
+        scope.siteId,
+      );
+      for (const name of ['header', 'footer', 'single', 'archive'] as const) {
+        const parsed = cxdDocumentSchema.safeParse(given?.[name]);
+        if (parsed.success) locations[name] = parsed.data;
+      }
     }
     const menus = await loadMenus(
       scope.tx,
@@ -1268,9 +1281,11 @@ export class PublicService {
     // Synced patterns used by the entry or the areas (RF-EDT-07).
     const patternIds = [
       ...new Set(
-        [props.kind === 'entry' ? props.entry.document : null, ...Object.values(areas)].flatMap(
-          (doc) => collectPatternIds(doc),
-        ),
+        [
+          props.kind === 'entry' ? props.entry.document : null,
+          ...Object.values(areas),
+          ...Object.values(locations),
+        ].flatMap((doc) => collectPatternIds(doc)),
       ),
     ];
     const patternDocs = new Map<string, CxdDocument>();
@@ -1284,6 +1299,7 @@ export class PublicService {
     }
     const extraMedia = [
       ...themeMediaIds(theme, themeValues, areas),
+      ...Object.values(locations).flatMap((doc) => collectMediaIds(doc)),
       ...[...patternDocs.values()].flatMap((doc) => collectMediaIds(doc)),
     ].filter((id) => !media.has(id));
     if (extraMedia.length > 0) {
@@ -1296,6 +1312,7 @@ export class PublicService {
         [
           ...(props.kind === 'entry' ? [props.entry.document] : []),
           ...Object.values(areas),
+          ...Object.values(locations),
           ...patternDocs.values(),
         ],
         props.kind === 'entry' ? { id: props.entry.id, type: props.entry.type } : undefined,
@@ -1328,6 +1345,7 @@ export class PublicService {
       areas,
       patterns: patternDocs,
       ...(scope.editorFrame ? { editorFrame: true } : {}),
+      ...(Object.keys(locations).length ? { locations } : {}),
     };
     const Template = resolveTemplate(theme, candidates);
     let html = renderHtmlDocument(

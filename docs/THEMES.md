@@ -100,6 +100,13 @@ export default defineTheme({
 
 Templates receive the page as props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) and read the rest with `usePage()`: site, language, languages, menus, media, URLs. They never query the database.
 
+Wrap the parts a theme builder may replace in `<Location>`: `header`, `footer`, `single` (the content of an entry page; pass `entry`) and `archive` (archives and search results). Without a plugin filling them, the theme's own markup shows:
+
+```tsx
+<Location name="header"><header className="site-header">…</header></Location>
+<Location name="single" entry={entry}><article>…</article></Location>
+```
+
 Render an entry's content with `<EntryContent document={…} />`. Inside a visual editor (a plugin's page builder) it renders an empty `[data-cx-editor-canvas]` element instead, which the editor fills, so the page is edited in the theme's own layout.
 
 ## 4. Settings

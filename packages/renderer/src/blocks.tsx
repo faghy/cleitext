@@ -219,6 +219,23 @@ registerBlockRenderer('core/embed', ({ block }) => {
 /** A synced pattern: its blocks, from the pattern itself (one level deep). */
 registerBlockRenderer('cleitext/pattern', ({ block }) => <PatternBlock block={block} />);
 
+/** The content of the entry shown, inside a theme builder's template. */
+registerBlockRenderer('cleitext/entry-content', () => <EntryContentBlock />);
+
+function EntryContentBlock(): ReactNode {
+  const context = useRenderContext();
+  const document = context.entry?.document;
+  if (!document) return null;
+  // Without `entry`, so an entry-content block inside the entry renders nothing.
+  const rest = { ...context };
+  delete rest.entry;
+  return (
+    <RenderContextReact.Provider value={{ ...rest, imageCounter: { n: 0 } }}>
+      <BlockList blocks={document.blocks.filter((b) => b.type !== 'cleitext/entry-content')} />
+    </RenderContextReact.Provider>
+  );
+}
+
 function PatternBlock({ block }: { block: CxdBlock }): ReactNode {
   const context = useRenderContext();
   const document =
