@@ -117,6 +117,7 @@ export const itGeneral: Messages = {
   'Save {plugin} settings': 'Salva le impostazioni di {plugin}',
   'Saved.': 'Salvato.',
   'Send email': 'Inviare email',
+  'Send requests to other services': 'Inviare richieste ad altri servizi',
   'Send invitation': 'Invia invito',
   'Send reset link': 'Invia link di reimpostazione',
   'Send the invitation by email': "Invia l'invito via email",

@@ -71,6 +71,10 @@ export interface PublicFetchOptions {
   allowHttp?: boolean;
   accept?: string;
   userAgent?: string;
+  /** GET when left out. */
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  headers?: Record<string, string>;
+  body?: string | Buffer;
 }
 
 interface Answer {
@@ -135,9 +139,14 @@ function get(url: URL, options: PublicFetchOptions): Promise<Answer> {
       {
         lookup: safeLookup,
         timeout: options.timeoutMs ?? 20_000,
+        method: options.method ?? 'GET',
         headers: {
+          ...options.headers,
           'user-agent': options.userAgent ?? 'Cleitext/1.0',
-          accept: options.accept ?? '*/*',
+          accept: options.accept ?? options.headers?.accept ?? '*/*',
+          ...(options.body !== undefined
+            ? { 'content-length': String(Buffer.byteLength(options.body)) }
+            : {}),
         },
       },
       onResponse,
@@ -150,7 +159,7 @@ function get(url: URL, options: PublicFetchOptions): Promise<Answer> {
           : new PublicFetchError(`Download failed: ${error.message}`),
       ),
     );
-    req.end();
+    req.end(options.body);
   });
 }
 
@@ -175,4 +184,23 @@ export async function fetchPublic(
     return { url, type: res.type.split(';')[0]!.trim().toLowerCase(), data: res.data };
   }
   throw new PublicFetchError('Too many redirects.');
+}
+
+/**
+ * Sends a request to a public address (webhooks, mailing services) with the
+ * same protection as `fetchPublic`. Redirects are not followed; the answer
+ * is returned whatever its status.
+ */
+export async function sendPublic(
+  address: string,
+  options: PublicFetchOptions,
+): Promise<{ status: number; type: string; data: Buffer }> {
+  let url: URL;
+  try {
+    url = new URL(address);
+  } catch {
+    throw new PublicFetchError('Not a valid address.');
+  }
+  const res = await get(url, options);
+  return { status: res.status, type: res.type.split(';')[0]!.trim().toLowerCase(), data: res.data };
 }

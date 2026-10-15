@@ -36,6 +36,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   blocks: 'Add blocks',
   'theme:hooks': 'Change public pages',
   'mail:send': 'Send email',
+  network: 'Send requests to other services',
 };
 
 /** Plugins → Installed Plugins (RF-PLG-02). Installation is done with the CLI. */

@@ -20,6 +20,8 @@ export const PLUGIN_PERMISSIONS = [
   'privacy',
   /** Import content from other systems into a site (WordPress exports). */
   'import',
+  /** Send requests to other services on the internet (webhooks, mailing lists). */
+  'network',
 ] as const;
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 

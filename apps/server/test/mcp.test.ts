@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { sendPublic } from '../src/common/public-fetch.js';
 import { isPublicAddress } from '../src/mcp/fetch-public.js';
 import {
   ownerDatabase,
@@ -230,6 +231,12 @@ describe('MCP', () => {
     expect(isPublicAddress('93.184.216.34')).toBe(true);
     expect(isPublicAddress('::ffff:10.0.0.1')).toBe(false);
     expect(isPublicAddress('2a00:1450:4001:80b::200e')).toBe(true);
+    // Plugins' requests (webhooks) are held to the same rules.
+    const post = (url: string) =>
+      sendPublic(url, { method: 'POST', body: '{}', maxBytes: 1000, timeoutMs: 2000 });
+    await expect(post('http://example.com/hook')).rejects.toThrow('https');
+    await expect(post('https://127.0.0.1/hook')).rejects.toThrow('not public');
+    await expect(post('https://localhost/hook')).rejects.toThrow('not a public address');
   });
 });
 

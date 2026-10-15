@@ -485,6 +485,19 @@ Le pagine pubbliche sono in cache e vengono aggiornate tramite **tag**. Le pagin
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, replyTo? })`, inviata con le impostazioni di posta del server.
 
+### Richieste ad altri servizi
+
+`network` (API plugin 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` restituisce `{ status, type, text }`. Serve per webhook, liste di contatti e notifiche in chat. Sono accettati solo indirizzi `https` pubblici: i nomi che portano alla rete del server vengono rifiutati al momento della connessione, i reindirizzamenti non vengono seguiti, le risposte sono tagliate a 1 MB e le richieste durano 10 secondi se non indicato diversamente (30 al massimo).
+
+```ts
+const res = await ctx.http.send({
+  url: 'https://hooks.example.com/notify',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ text: 'Nuovo messaggio' }),
+});
+if (res.status >= 400) ctx.log.warn('Webhook rifiutato', { status: res.status });
+```
+
 ### Media
 
 `media:read`: `await ctx.media.get(siteId, id)` restituisce un elemento della libreria media (`url`, `mime`, `width`, `height`, `alt` per lingua), per esempio l'immagine scelta in un campo `media`. Le voci restituite da `ctx.content.find` / `get` hanno il loro `parentId`.
@@ -724,6 +737,7 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 | `languages`     | `ctx.languages` ([plugin delle lingue](#15-lingue-plugin-delle-lingue))      |
 | `theme:hooks`   | filtri `render.*` e `theme.*`                                                |
 | `mail:send`     | `ctx.mail.send`                                                              |
+| `network`       | `ctx.http.send`                                                              |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                       |
 | `media:read`    | `ctx.media.get`                                                              |
 | `import`        | `ctx.transfer.importDocument`                                                |

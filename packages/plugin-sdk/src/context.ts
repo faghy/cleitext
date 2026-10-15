@@ -549,6 +549,24 @@ export interface MailApi {
   }): Promise<void>;
 }
 
+/**
+ * Requests to other services (webhooks, mailing lists, chat notifications).
+ * Needs `network` (plugin API 1.11). Only public https addresses: the
+ * server's own network cannot be reached, redirects are not followed and
+ * answers are limited to 1 MB.
+ */
+export interface HttpApi {
+  send(request: {
+    url: string;
+    /** POST when left out. */
+    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    headers?: Record<string, string>;
+    body?: string;
+    /** 10 seconds when left out, 30 at most. */
+    timeoutMs?: number;
+  }): Promise<{ status: number; type: string; text: string }>;
+}
+
 // ---- Import -------------------------------------------------------------------------
 
 /** What an import did: counts by kind, and what was adapted or left out. */
@@ -713,6 +731,7 @@ export interface PluginContext {
   readonly db: PluginDatabase;
   readonly cache: CacheApi;
   readonly mail: MailApi;
+  readonly http: HttpApi;
   readonly media: MediaApi;
   readonly privacy: PrivacyApi;
   readonly transfer: TransferApi;

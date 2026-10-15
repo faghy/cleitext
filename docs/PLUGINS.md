@@ -507,6 +507,19 @@ Public pages are cached and refreshed through **tags**. Pages showing an entry c
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, replyTo? })`, sent with the server's mail settings.
 
+### Requests to other services
+
+`network` (plugin API 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` returns `{ status, type, text }`. Use it for webhooks, mailing lists and chat notifications. Only public `https` addresses are accepted: names resolving to the server's own network are refused when connecting, redirects are not followed, answers are cut at 1 MB and requests last 10 seconds by default (30 at most).
+
+```ts
+const res = await ctx.http.send({
+  url: 'https://hooks.example.com/notify',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ text: 'New message' }),
+});
+if (res.status >= 400) ctx.log.warn('Webhook refused', { status: res.status });
+```
+
 ### Media
 
 `media:read`: `await ctx.media.get(siteId, id)` returns an item of the media library (`url`, `mime`, `width`, `height`, `alt` by language), e.g. the image chosen in a `media` field. Entries returned by `ctx.content.find` / `get` carry their `parentId`.
@@ -753,6 +766,7 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 | `languages`     | `ctx.languages` ([language plugins](#15-languages-language-plugins))         |
 | `theme:hooks`   | filters `render.*` and `theme.*`                                             |
 | `mail:send`     | `ctx.mail.send`                                                              |
+| `network`       | `ctx.http.send`                                                              |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                       |
 | `media:read`    | `ctx.media.get`                                                              |
 | `import`        | `ctx.transfer.importDocument`                                                |

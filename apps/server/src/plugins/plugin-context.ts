@@ -20,6 +20,7 @@ import {
 import type { FieldDefinition, FieldValues } from '@cleitext/shared';
 import { Logger } from '@nestjs/common';
 import type { LoadedPlugin, PluginHost } from './plugin-host.service.js';
+import { sendPublic } from '../common/public-fetch.js';
 import { pluginAssetUrl } from './plugin-assets.js';
 
 /** What plugin contexts need from the core, implemented by `PluginServices`. */
@@ -374,6 +375,21 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       send(message) {
         require('mail:send');
         return services().sendMail(message);
+      },
+    },
+
+    http: {
+      async send(request) {
+        require('network');
+        const res = await sendPublic(request.url, {
+          method: request.method ?? 'POST',
+          ...(request.headers ? { headers: request.headers } : {}),
+          ...(request.body !== undefined ? { body: request.body } : {}),
+          maxBytes: 1024 * 1024,
+          timeoutMs: Math.min(Math.max(request.timeoutMs ?? 10_000, 1000), 30_000),
+          userAgent: `Cleitext-Plugin/${plugin.slug}`,
+        });
+        return { status: res.status, type: res.type, text: res.data.toString('utf8') };
       },
     },
 
