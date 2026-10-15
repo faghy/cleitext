@@ -305,6 +305,26 @@ register('carousel', (root) => {
   }
 });
 
+register('menu', (root) => {
+  const toggle = root.querySelector<HTMLElement>('[data-fr-toggle]');
+  toggle?.addEventListener('click', () => {
+    const open = root.classList.toggle('is-open');
+    toggle.setAttribute('aria-expanded', String(open));
+  });
+  root.addEventListener('click', (event) => {
+    const button = (event.target as Element).closest<HTMLElement>('[data-fr-expand]');
+    if (!button) return;
+    const item = button.closest('.fr-menu__item');
+    const open = item?.classList.toggle('is-open') ?? false;
+    button.setAttribute('aria-expanded', String(open));
+  });
+  root.addEventListener('keydown', (event) => {
+    if ((event as KeyboardEvent).key !== 'Escape') return;
+    root.classList.remove('is-open');
+    toggle?.setAttribute('aria-expanded', 'false');
+  });
+});
+
 // ---- Start --------------------------------------------------------------------------------
 
 document.documentElement.classList.add('fr-js');

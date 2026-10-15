@@ -34,8 +34,10 @@ function blockFor(
   const contextOf = (context: {
     locale: string;
     media: RenderContext['media'];
+    menus: NonNullable<RenderContext['menus']>;
   }): RenderContext => ({
     media: context.media,
+    menus: context.menus,
     locale: context.locale,
     editing: false,
     site: { title: '', tagline: '', home: '/' },

@@ -4,12 +4,12 @@
  * Every change is handed to Cleitext (`onChange`), which saves, autosaves and
  * publishes the entry as usual.
  */
-import type { EditorProps } from '@cleitext/admin-sdk';
+import { api as coreApi, type EditorProps } from '@cleitext/admin-sdk';
 import type { CxdDocument } from '@cleitext/blocks';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setIconData, iconDataLoaded, type IconData } from '../core/icons.js';
 import { normalizeKit } from '../core/kit.js';
-import type { FrescoNode, RenderMediaItem, Settings } from '../core/model.js';
+import type { FrescoNode, MenuItem, RenderMediaItem, Settings } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import { Canvas, startDrag, type CanvasApi } from './canvas.js';
 import { DEVICE_ICONS, Svg } from './controls.js';
@@ -58,6 +58,7 @@ export function FrescoEditor(props: EditorProps) {
   const [mediaMap] = useState(() => new Map<string, RenderMediaItem>());
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [iconsReady, setIconsReady] = useState(iconDataLoaded());
+  const [menus, setMenus] = useState<Record<string, MenuItem[]>>({});
   const assetsBase = `/plugin-assets/fresco/${encodeURIComponent(plugin.version)}`;
   const canManageKit = user.capabilities.includes('manage_fresco');
 
@@ -81,6 +82,36 @@ export function FrescoEditor(props: EditorProps) {
         })
         .catch(() => {});
     }
+    // The site's menus, for Nav menu widgets (only users who manage menus can read them).
+    type Node = {
+      id: string;
+      label: string | null;
+      displayLabel: string;
+      url: string | null;
+      target: '_blank' | null;
+      children: Node[];
+    };
+    const toItems = (nodes: Node[]): MenuItem[] =>
+      nodes.map((n) => ({
+        id: n.id,
+        label: n.label ?? n.displayLabel,
+        url: n.url ?? '#',
+        ...(n.target ? { target: n.target } : {}),
+        current: false,
+        children: toItems(n.children),
+      }));
+    void coreApi<{ location: string | null; items: Node[] }[]>(
+      'GET',
+      `/menus?locale=${encodeURIComponent(props.entry.locale)}`,
+    )
+      .then((list) =>
+        setMenus(
+          Object.fromEntries(
+            list.filter((m) => m.location).map((m) => [m.location!, toItems(m.items)]),
+          ),
+        ),
+      )
+      .catch(() => {});
     void api<unknown>('GET', '/kit')
       .then((kit) => store.actions.setKit(normalizeKit(kit), false))
       .catch(() => {});
@@ -188,7 +219,7 @@ export function FrescoEditor(props: EditorProps) {
           store={store}
           frameUrl={frameUrl}
           assetsBase={assetsBase}
-          context={{ media: mediaMap, locale: props.entry.locale }}
+          context={{ media: mediaMap, locale: props.entry.locale, menus }}
           onContextMenu={(id, position) => setMenu({ id, ...position })}
           api={canvas}
         />

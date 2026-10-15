@@ -1109,3 +1109,112 @@ a.fr-container {
     sans-serif;
   color: #475569;
 }
+
+/* ---- Nav menu ---- */
+
+.fr-menu__list,
+.fr-menu__sub {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fr-menu__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.fr-menu--vertical .fr-menu__list {
+  flex-direction: column;
+}
+.fr-menu__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.fr-menu__link {
+  display: block;
+  padding: 10px 14px;
+  color: var(--fr-c-secondary, inherit);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.fr-menu__link:hover,
+.fr-menu__item.is-current > .fr-menu__link {
+  color: var(--fr-c-primary, #1d4ed8);
+}
+.fr-menu__expand {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.fr-menu__sub {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  min-width: 200px;
+  padding: 6px 0;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition:
+    opacity 0.2s,
+    transform 0.2s,
+    visibility 0.2s;
+}
+.fr-menu__sub .fr-menu__sub {
+  top: 0;
+  left: 100%;
+}
+.fr-menu__item:hover > .fr-menu__sub,
+.fr-menu__item:focus-within > .fr-menu__sub,
+.fr-menu__item.is-open > .fr-menu__sub {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+.fr-menu__sub .fr-menu__item {
+  width: 100%;
+}
+.fr-menu__sub .fr-menu__link {
+  flex: 1;
+  padding: 8px 16px;
+}
+.fr-menu--vertical .fr-menu__sub {
+  position: static;
+  box-shadow: none;
+  display: none;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  padding-left: 14px;
+}
+.fr-menu--vertical .fr-menu__item {
+  flex-wrap: wrap;
+}
+.fr-menu--vertical .fr-menu__item.is-open > .fr-menu__sub {
+  display: block;
+}
+.fr-menu__toggle {
+  display: none;
+  padding: 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.fr-menu__empty {
+  margin: 0;
+  padding: 10px;
+  border: 1px dashed #94a3b8;
+  font:
+    13px system-ui,
+    sans-serif;
+  color: #64748b;
+}

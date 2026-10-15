@@ -180,8 +180,19 @@ export interface RenderContext {
   editing: boolean;
   /** Site-wide values the elements may need (menus, site title…). */
   site: { title: string; tagline: string; home: string };
+  /** The site's menus, by theme location. */
+  menus?: Readonly<Record<string, MenuItem[]>>;
   /** Editor only: which item of a tabs-like element is shown. */
   ui?: { active(id: string): number | undefined };
+}
+
+export interface MenuItem {
+  id: string;
+  label: string;
+  url: string;
+  target?: '_blank';
+  current: boolean;
+  children: MenuItem[];
 }
 
 export interface RenderMediaItem {

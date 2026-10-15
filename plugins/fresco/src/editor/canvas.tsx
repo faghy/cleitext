@@ -16,7 +16,7 @@ import {
 import { createPortal } from 'react-dom';
 import { documentCss, withDefaults } from '../core/css.js';
 import { googleFontsUrl, kitCss } from '../core/kit.js';
-import type { FrescoNode, RenderContext, RenderMediaItem } from '../core/model.js';
+import type { FrescoNode, MenuItem, RenderContext, RenderMediaItem } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import { plainText, sanitizeRich } from '../core/sanitize.js';
 import { dropTarget, trackPointer, type DropTarget } from './dnd.js';
@@ -52,6 +52,7 @@ const FRAME_STYLE = `
 export interface CanvasContext {
   media: Map<string, RenderMediaItem>;
   locale: string;
+  menus: Record<string, MenuItem[]>;
 }
 
 const NodeView = memo(function NodeView({
@@ -216,6 +217,7 @@ function FrameTree({
   const renderContext: RenderContext = {
     media: context.media,
     locale: context.locale,
+    menus: context.menus,
     editing: true,
     site: { title: '', tagline: '', home: '/' },
     ui: { active: (id) => active[id] },

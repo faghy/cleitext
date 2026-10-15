@@ -3,6 +3,7 @@ import { registerElement } from '../core/registry.js';
 import type { ElementDefinition } from '../core/model.js';
 import { button, divider, heading, image, spacer, text } from './basic.js';
 import { container } from './container.js';
+import { navMenu } from './menu.js';
 import { icon, iconBox, imageBox, video } from './general.js';
 import { accordionWidget, tabs, toggleWidget } from './nested.js';
 import {
@@ -51,6 +52,7 @@ export const FREE_ELEMENTS: ElementDefinition[] = [
   imageCarousel,
   gallery,
   audio,
+  navMenu,
 ];
 
 export function registerFreeElements(): void {
