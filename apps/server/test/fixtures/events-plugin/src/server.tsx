@@ -85,6 +85,29 @@ export default definePlugin({
       }),
     );
 
+    // A listing made with the public query: titles in order, and the total.
+    ctx.blocks.register(
+      defineBlock<{ limit: number }, { titles: string[]; total: number }>({
+        type: 'events/titles',
+        title: 'Event titles',
+        attributes: [{ name: 'limit', type: 'number', label: 'How many', default: 2 }],
+        async load(attrs, context) {
+          const { entries, total } = await context.query({
+            type: ['event', 'no-such-type'],
+            orderBy: 'title',
+            order: 'asc',
+            limit: attrs.limit,
+          });
+          return { titles: entries.map((e) => `${e.title}@${e.url}`), total };
+        },
+        render: ({ data }) => (
+          <p className="titles" data-total={data.total}>
+            {data.titles.join(' | ')}
+          </p>
+        ),
+      }),
+    );
+
     // Script and style only on pages that show the events block.
     for (const file of ['events.js', 'events.css']) {
       ctx.assets.enqueue({ file, when: ({ html }) => html.includes('class="events"') });

@@ -249,6 +249,29 @@ describe('an active plugin', () => {
     expect(second.body).toContain('Summer fair');
   });
 
+  it('lists published entries with the public query, refreshed when they change', async () => {
+    const page = (
+      await editor.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Titles',
+        document: doc({ id: 'tl', type: 'events/titles', v: 1, attrs: { limit: 2 } }),
+      })
+    ).json();
+    await editor.post(`/api/v1/entries/${page.id}/publish`);
+    const first = await visitor.get('/titles');
+    const total = Number(/data-total="(\d+)"/.exec(first.body)?.[1]);
+    expect(total).toBeGreaterThanOrEqual(2);
+    const titles = /<p class="titles"[^>]*>([^<]*)<\/p>/.exec(first.body)?.[1]?.split(' | ') ?? [];
+    expect(titles).toHaveLength(2);
+    expect([...titles].sort()).toEqual(titles);
+    expect(titles[0]).toMatch(/@\/events\//);
+    await createEvent('Aaa first by title', '2031-01-01');
+    const second = await visitor.get('/titles');
+    expect(second.headers['x-cache']).toBe('MISS');
+    expect(second.body).toContain('Aaa first by title@/events/aaa-first-by-title');
+    expect(second.body).toContain(`data-total="${total + 1}"`);
+  });
+
   it('renders container blocks with their children, in pages and synced patterns', async () => {
     const paragraph = (id: string, text: string) => ({
       id,

@@ -16,7 +16,7 @@ import {
   type SiteTransaction,
 } from '@cleitext/db';
 import { cxdDocumentSchema, documentText, type CxdBlock, type CxdDocument } from '@cleitext/blocks';
-import type { BlockPage, RenderHookContext } from '@cleitext/plugin-sdk';
+import type { BlockPage, PublicQuery, RenderHookContext } from '@cleitext/plugin-sdk';
 import {
   Block,
   collectMediaIds,
@@ -1533,6 +1533,7 @@ export class PublicService {
                   tag: (tag) => {
                     scope.tags.add(tag);
                   },
+                  query: (query) => this.queryEntries(scope, query),
                 })
               : undefined;
             const style = block.css ? block.css({ attrs, block: instance, context }) : '';
@@ -1744,6 +1745,115 @@ export class PublicService {
       : scope.siteTitle;
   }
 
+  /** Entries for plugin listings (BlockLoadContext.query), complete as on their own page. */
+  private async queryEntries(
+    scope: RequestScope,
+    query: PublicQuery,
+  ): Promise<{ entries: PublicEntry[]; total: number }> {
+    const { tx, data } = scope;
+    const listed = new Set(data.types.map((t) => t.slug));
+    const asked = query.type === undefined ? [...listed] : [query.type].flat();
+    const types = asked.filter((t) => listed.has(t));
+    if (types.length === 0) return { entries: [], total: 0 };
+    for (const type of types) scope.tags.add(`type:${type}`);
+    const uuids = (list: unknown) =>
+      Array.isArray(list)
+        ? list
+            .filter((id): id is string => typeof id === 'string' && UUID_RE.test(id))
+            .slice(0, 200)
+        : [];
+    const ids = uuids(query.ids);
+    const exclude = uuids(query.exclude);
+    let termFilter: ReturnType<typeof and> | undefined;
+    if (
+      query.terms &&
+      typeof query.terms.taxonomy === 'string' &&
+      Array.isArray(query.terms.slugs)
+    ) {
+      const slugs = query.terms.slugs.filter((v) => typeof v === 'string').slice(0, 50);
+      if (slugs.length === 0) return { entries: [], total: 0 };
+      const tagged = tx
+        .select({ id: entryTerms.entryId })
+        .from(entryTerms)
+        .innerJoin(terms, eq(terms.id, entryTerms.termId))
+        .innerJoin(taxonomies, eq(taxonomies.id, terms.taxonomyId))
+        .where(and(eq(taxonomies.slug, query.terms.taxonomy), inArray(terms.slug, slugs)));
+      termFilter = inArray(entries.id, tagged);
+    }
+    const where = and(
+      inArray(entries.typeSlug, types),
+      await this.languageFilter(scope),
+      ids.length ? inArray(entries.id, ids) : undefined,
+      exclude.length ? notInArray(entries.id, exclude) : undefined,
+      termFilter,
+    );
+    const limit = Math.min(Math.max(Math.trunc(Number(query.limit) || 10), 1), 100);
+    const offset = Math.min(Math.max(Math.trunc(Number(query.offset) || 0), 0), 10_000);
+    const [total, list] = await Promise.all([
+      this.count(scope, where),
+      loadPublished(tx, where, {
+        limit,
+        offset,
+        includePrivate: scope.includePrivate,
+        ...(query.orderBy ? { orderBy: query.orderBy } : {}),
+        ...(query.order ? { order: query.order } : {}),
+      }),
+    ]);
+    const media = await loadMedia(
+      tx,
+      list.flatMap((e) => {
+        const first = e.featuredMediaId ? null : firstImage(e.document);
+        return [e.featuredMediaId, first?.id].filter((id): id is string => Boolean(id));
+      }),
+      scope.locale,
+    );
+    const termRows = list.length
+      ? await tx
+          .select({ entryId: entryTerms.entryId, term: terms, taxonomy: taxonomies.slug })
+          .from(entryTerms)
+          .innerJoin(terms, eq(terms.id, entryTerms.termId))
+          .innerJoin(taxonomies, eq(taxonomies.id, terms.taxonomyId))
+          .where(
+            inArray(
+              entryTerms.entryId,
+              list.map((e) => e.row.id),
+            ),
+          )
+      : [];
+    const entriesOut = list.map((entry): PublicEntry => {
+      scope.tags.add(`entry:${entry.row.id}`);
+      const entryTermsMap: PublicEntry['terms'] = {};
+      for (const row of termRows) {
+        if (row.entryId !== entry.row.id) continue;
+        (entryTermsMap[row.taxonomy] ??= []).push({
+          name: row.term.name,
+          slug: row.term.slug,
+          url: data.urls.term(row.taxonomy, row.term.slug, row.term.locale),
+        });
+      }
+      const featured = entry.featuredMediaId ? (media.get(entry.featuredMediaId) ?? null) : null;
+      const image = featured ? { id: featured.id } : firstImage(entry.document);
+      return {
+        id: entry.row.id,
+        type: entry.row.typeSlug,
+        locale: entry.row.locale,
+        slug: entry.row.slug,
+        title: entry.row.title,
+        url: data.urls.entry(entry.row),
+        publishedAt: entry.row.publishedAt?.toISOString() ?? null,
+        excerpt: entry.excerpt || documentExcerpt(entry.document),
+        featuredImage: featured,
+        author: entry.authorName ? { displayName: entry.authorName } : null,
+        image: image?.id ? (media.get(image.id) ?? null) : null,
+        fields: entry.fields,
+        document: entry.document,
+        terms: entryTermsMap,
+        translations: [],
+      };
+    });
+    return { entries: entriesOut, total };
+  }
+
   private async count(scope: RequestScope, where: ReturnType<typeof and>): Promise<number> {
     const [row] = await scope.tx
       .select({ n: count() })
@@ -1761,6 +1871,8 @@ export class PublicService {
     return loadPublished(scope.tx, where, { ...options, includePrivate: scope.includePrivate });
   }
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function xml(value: string): string {
   return value.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);

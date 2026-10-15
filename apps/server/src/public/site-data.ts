@@ -20,7 +20,7 @@ import {
   type RenderMedia,
 } from '@cleitext/renderer';
 import type { MenuItemView, PublicEntrySummary } from '@cleitext/theme-sdk';
-import { and, asc, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { ContentLocale } from '@cleitext/plugin-sdk';
 import { UrlBuilder, type TypeInfo } from './urls.js';
 
@@ -112,8 +112,24 @@ export function isVisible(includePrivate: boolean) {
 export async function loadPublished(
   tx: SiteTransaction,
   where: ReturnType<typeof and>,
-  options: { limit?: number; offset?: number; includePrivate?: boolean } = {},
+  options: {
+    limit?: number;
+    offset?: number;
+    includePrivate?: boolean;
+    /** Newest first by default. */
+    orderBy?: 'date' | 'title' | 'modified' | 'random';
+    order?: 'asc' | 'desc';
+  } = {},
 ): Promise<PublishedEntry[]> {
+  const direction = options.order === 'asc' ? asc : desc;
+  const ordering =
+    options.orderBy === 'random'
+      ? [sql`random()`]
+      : options.orderBy === 'title'
+        ? [direction(revisions.title), desc(entries.id)]
+        : options.orderBy === 'modified'
+          ? [direction(entries.updatedAt), desc(entries.id)]
+          : [direction(entries.publishedAt), direction(entries.id)];
   let query = tx
     .select({
       row: entries,
@@ -128,7 +144,7 @@ export async function loadPublished(
     .innerJoin(revisions, eq(revisions.id, entries.publishedRevisionId))
     .leftJoin(users, eq(users.id, entries.authorId))
     .where(and(isVisible(options.includePrivate ?? false), where))
-    .orderBy(desc(entries.publishedAt), desc(entries.id))
+    .orderBy(...ordering)
     .$dynamic();
   if (options.limit !== undefined) query = query.limit(options.limit);
   if (options.offset) query = query.offset(options.offset);

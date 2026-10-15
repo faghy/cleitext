@@ -325,9 +325,31 @@ export interface BlockPage {
   search?: { query: string; entries: PublicEntrySummary[]; pagination: Pagination };
 }
 
+/** Published entries for a listing (loops, related posts), like `WP_Query`. */
+export interface PublicQuery {
+  /** Content types; all public ones when left out. */
+  type?: string | string[];
+  /** Entries with at least one of these terms. */
+  terms?: { taxonomy: string; slugs: string[] };
+  ids?: string[];
+  exclude?: string[];
+  /** Newest first by default. */
+  orderBy?: 'date' | 'title' | 'modified' | 'random';
+  order?: 'asc' | 'desc';
+  /** Default 10, at most 100. */
+  limit?: number;
+  offset?: number;
+}
+
 export interface BlockLoadContext {
   siteId: string;
   locale: string;
+  /**
+   * Published entries of the site in the page's language, as themes get
+   * them (plugin API 1.11). The page refreshes when entries of those types
+   * change. `total` counts all matches, for pagination.
+   */
+  query(query: PublicQuery): Promise<{ entries: PublicEntry[]; total: number }>;
   /** The page being rendered. */
   page: BlockPage;
   /** The entry being rendered, if any. */
