@@ -26,6 +26,7 @@ test('Ctrl+K opens the palette to navigate and find content', async ({ page }) =
   await page.keyboard.press('ControlOrMeta+k');
   const palette = page.getByRole('dialog', { name: 'Command palette' });
   await expect(palette).toBeVisible();
+  await expect(palette.getByRole('combobox')).toBeFocused();
   await page.keyboard.type('media');
   await expect(palette.getByRole('option').first()).toContainText('Media');
   await page.keyboard.press('Enter');
@@ -34,6 +35,7 @@ test('Ctrl+K opens the palette to navigate and find content', async ({ page }) =
 
   // Content found by the global search.
   await page.getByRole('button', { name: 'Open the command palette' }).click();
+  await expect(palette.getByRole('combobox')).toBeFocused();
   await page.keyboard.type(`Palette ${stamp}`);
   await expect(palette.getByRole('option', { name: new RegExp(`Palette ${stamp}`) })).toBeVisible();
   await page.keyboard.press('Enter');

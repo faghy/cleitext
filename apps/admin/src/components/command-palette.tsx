@@ -141,6 +141,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       >
         <input
           ref={input}
+          autoFocus
           role="combobox"
           aria-expanded="true"
           aria-controls="palette-results"
