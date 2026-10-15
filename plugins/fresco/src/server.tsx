@@ -9,7 +9,7 @@ import { setIconData, type IconData } from './core/icons.js';
 import { googleFontsUrl, kitCss, normalizeKit, safeSelector, type Kit } from './core/kit.js';
 import type { ElementDefinition, FrescoNode, RenderContext } from './core/model.js';
 import { installApi } from './api.js';
-import { isVisible, resolveSettings } from './core/extensions.js';
+import { isVisible, resetExtensions, resolveSettings } from './core/extensions.js';
 import { listElements } from './core/registry.js';
 import { registerFreeElements } from './elements/index.js';
 import icons from './public/icons.json';
@@ -99,6 +99,8 @@ function blockFor(
 export default definePlugin({
   setup(ctx) {
     setIconData(icons as unknown as IconData);
+    // Plugins load again after installs and updates: extensions start empty.
+    resetExtensions();
     registerFreeElements();
     // Fresco Pro (loaded after Fresco) builds and registers its elements with this.
     installApi({

@@ -75,8 +75,21 @@ export type FrescoApi = ReturnType<typeof createApi> & {
 
 const KEY = Symbol.for('cleitext.fresco');
 
+const QUEUE = Symbol.for('cleitext.fresco.queue');
+
 export function installApi(extra: Partial<FrescoApi> = {}): FrescoApi {
   const api: FrescoApi = { ...createApi(), ...extra };
-  (globalThis as unknown as Record<symbol, FrescoApi>)[KEY] = api;
+  const holder = globalThis as unknown as Record<symbol, unknown>;
+  holder[KEY] = api;
+  // Extensions loaded before Fresco (admin entries load in parallel) wait in a queue.
+  const queue = (holder[QUEUE] as ((api: FrescoApi) => void)[] | undefined) ?? [];
+  holder[QUEUE] = [];
+  for (const callback of queue) {
+    try {
+      callback(api);
+    } catch (error) {
+      console.error('Fresco: an extension failed to start', error);
+    }
+  }
   return api;
 }

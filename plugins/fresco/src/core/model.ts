@@ -243,6 +243,8 @@ export interface ElementDefinition {
   create?: () => NewNode;
   /** Pro elements need Fresco Pro. */
   pro?: boolean;
+  /** Not offered in the panel (placed by code, e.g. the popup wrapper). */
+  hidden?: boolean;
   /**
    * Atomic element: styled with style variants (`_styles`) and global
    * classes (`_classes`) instead of style controls.

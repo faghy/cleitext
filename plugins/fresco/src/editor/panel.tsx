@@ -82,7 +82,7 @@ function ElementsView({ store, onDragStart }: PanelProps) {
       />
       {CATEGORIES.map((category) => {
         const list = elements.filter(
-          (e) => e.category === category.id && matches(e.title, e.keywords),
+          (e) => !e.hidden && e.category === category.id && matches(e.title, e.keywords),
         );
         if (list.length === 0) return null;
         return (

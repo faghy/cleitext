@@ -49,6 +49,12 @@ export function extensions(): Extensions {
   });
 }
 
+/** Empties the lists: on the server, plugins set them up again when they reload. */
+export function resetExtensions(): void {
+  const all = extensions();
+  for (const list of Object.values(all)) (list as unknown[]).length = 0;
+}
+
 /** An element's controls, with those added by extensions. */
 export function controlsOf(definition: ElementDefinition): Control[] {
   const extra = extensions().controls.flatMap((fn) => {
