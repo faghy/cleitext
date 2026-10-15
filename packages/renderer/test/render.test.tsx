@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest';
 import {
   Blocks,
   collectMediaIds,
+  collectPatternIds,
   documentExcerpt,
   firstImage,
   Inline,
+  renderHtmlDocument,
   safeUrl,
   type RenderMedia,
 } from '../src/index.js';
@@ -324,5 +326,72 @@ describe('document helpers', () => {
         50,
       ),
     ).toMatch(/…$/);
+  });
+});
+
+describe('patterns, templates and pages', () => {
+  const para = (id: string, text: string) => ({
+    id,
+    type: 'core/paragraph',
+    v: 1,
+    attrs: {},
+    content: [{ text }],
+  });
+
+  it('expands synced patterns one level deep', () => {
+    const pattern = doc(para('pp', 'From the pattern'), {
+      id: 'nested',
+      type: 'cleitext/pattern',
+      v: 1,
+      attrs: { ref: 'p1' },
+    });
+    const page = doc(
+      { id: 'a', type: 'cleitext/pattern', v: 1, attrs: { ref: 'p1' } },
+      { id: 'b', type: 'cleitext/pattern', v: 1, attrs: { ref: 'missing' } },
+    );
+    expect(collectPatternIds(page)).toEqual(['p1', 'missing']);
+    expect(collectPatternIds(null)).toEqual([]);
+    const out = renderToStaticMarkup(
+      <Blocks
+        document={page}
+        context={{ media: new Map(), locale: 'en', patterns: new Map([['p1', pattern]]) }}
+      />,
+    );
+    expect(out).toBe('<p>From the pattern</p>');
+  });
+
+  it('shows the entry inside a template, never inside itself', () => {
+    const entry = doc(para('e', 'Entry text'), {
+      id: 'x',
+      type: 'cleitext/entry-content',
+      v: 1,
+      attrs: {},
+    });
+    const template = doc(para('t', 'Before'), {
+      id: 'c',
+      type: 'cleitext/entry-content',
+      v: 1,
+      attrs: {},
+    });
+    const render = (withEntry: boolean) =>
+      renderToStaticMarkup(
+        <Blocks
+          document={template}
+          context={{
+            media: new Map(),
+            locale: 'en',
+            ...(withEntry ? { entry: { document: entry } } : {}),
+          }}
+        />,
+      );
+    expect(render(true)).toBe('<p>Before</p><p>Entry text</p>');
+    expect(render(false)).toBe('<p>Before</p>');
+  });
+
+  it('finds no image in documents without one, and renders whole pages', () => {
+    expect(firstImage(doc(para('p', 'text')))).toBeNull();
+    expect(firstImage(null)).toBeNull();
+    expect(firstImage(doc({ id: 'i', type: 'core/image', v: 1, attrs: {} }))).toEqual({});
+    expect(renderHtmlDocument(<html lang="en" />)).toMatch(/^<!doctype html><html lang="en">/);
   });
 });
