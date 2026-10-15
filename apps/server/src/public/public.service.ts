@@ -36,6 +36,7 @@ import {
   type LocaleLink,
   type PageContext,
   type PublicEntry,
+  type MenuItemView,
   type TemplateProps,
   type ThemeDefinition,
 } from '@cleitext/theme-sdk';
@@ -1299,6 +1300,7 @@ export class PublicService {
         ],
         props.kind === 'entry' ? { id: props.entry.id, type: props.entry.type } : undefined,
         media,
+        menus,
       );
     }
     const locales: LocaleLink[] = data.locales.map((l) => ({
@@ -1389,6 +1391,7 @@ export class PublicService {
     documents: CxdDocument[],
     entry: { id: string; type: string } | undefined,
     media: Map<string, RenderMedia>,
+    menus: Record<string, MenuItemView[]>,
   ): Promise<Map<string, BlockRenderer> | undefined> {
     const definitions = new Map(
       (await this.plugins.activePlugins(scope.siteId)).flatMap((plugin) =>
@@ -1428,7 +1431,7 @@ export class PublicService {
         media.set(id, item);
       }
     }
-    const context = { siteId: scope.siteId, locale: scope.locale, media };
+    const context = { siteId: scope.siteId, locale: scope.locale, media, menus };
     const inPage = (block: { container?: boolean; wrapper?: boolean }) =>
       block.container === true || block.wrapper === false;
 

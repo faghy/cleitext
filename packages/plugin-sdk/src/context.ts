@@ -310,6 +310,19 @@ export interface BlockRenderContext {
   locale: string;
   /** Media preloaded for the page (those listed by `media`), by id. */
   media: ReadonlyMap<string, BlockMedia>;
+  /** The site's menus in the page's language, by theme location (e.g. `primary`). */
+  menus: Readonly<Record<string, BlockMenuItem[]>>;
+}
+
+/** A menu item as blocks see it. */
+export interface BlockMenuItem {
+  id: string;
+  label: string;
+  url: string;
+  target?: '_blank';
+  /** Points to the current page or one of its ancestors. */
+  current: boolean;
+  children: BlockMenuItem[];
 }
 
 /** A media file as blocks see it: the original and its resized variants. */

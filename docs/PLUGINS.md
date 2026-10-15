@@ -348,6 +348,7 @@ defineBlock<{ gap: number; image?: string }>({
 - `wrapper: false` drops the `<div class="wp-block-…">` wrapper. Containers have none.
 - Containers and blocks without wrapper render inside the page, so their `render` must not throw. Other blocks are rendered on their own first.
 - `css` returns the CSS of one instance. The CSS of every instance on the page goes into one `<style data-cx-blocks>` at the end of `<head>`, after the plugins' stylesheets, so it overrides them.
+- `context.menus` holds the site's menus in the page's language, by theme location (`{ id, label, url, target?, current, children }`), for navigation blocks.
 - `items` (containers): each child rendered on its own, to wrap them one by one (tabs, accordions, carousels).
 - `html` lists attributes holding raw HTML: for authors without `unfiltered_html` they are cleaned on save, like the Custom HTML block.
 - `media` lists the media ids an instance uses. They are preloaded into `context.media`, with their `url`, size, `alt` and resized `variants`.

@@ -328,6 +328,7 @@ ctx.blocks.register(
 - `wrapper: false`: toglie il `<div class="wp-block-…">` intorno al blocco. I contenitori non ce l'hanno.
 - I contenitori e i blocchi senza wrapper vengono disegnati dentro la pagina, quindi il loro `render` non deve lanciare errori. Gli altri blocchi vengono prima disegnati a parte.
 - `css`: restituisce il CSS di un'istanza. Il CSS di tutte le istanze della pagina va in un unico `<style data-cx-blocks>` nel `<head>`.
+- `context.menus` contiene i menu del sito nella lingua della pagina, per posizione del tema (`{ id, label, url, target?, current, children }`), per i blocchi di navigazione.
 - `items` (contenitori): ogni figlio disegnato a parte, per avvolgerli uno per uno (schede, accordion, caroselli).
 - `html`: elenca gli attributi che contengono HTML libero; per gli autori senza `unfiltered_html` vengono ripuliti al salvataggio, come il blocco HTML personalizzato.
 - `media`: elenca gli id dei media usati da un'istanza. Vengono precaricati in `context.media`, con `url`, dimensioni, `alt` e varianti ridimensionate (`variants`).
