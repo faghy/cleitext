@@ -54,10 +54,12 @@ const SEPARATE = [
   'edge-cache',
   'store',
 ];
+/** Plugins still being built: not published until they are ready. */
+const UNRELEASED = ['fresco'];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
   const source = join(root, 'plugins', slug);
-  if (!existsSync(join(source, 'cleitext.plugin.json'))) continue;
+  if (!existsSync(join(source, 'cleitext.plugin.json')) || UNRELEASED.includes(slug)) continue;
   const own = join(root, 'release', `plugin-${slug}`, slug);
   await rm(dirname(own), { recursive: true, force: true });
   separate.push(slug);

@@ -1,0 +1,29 @@
+{
+  "name": "@cleitext/plugin-fresco",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Official Cleitext plugin: Fresco, a visual page builder.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "cleitext plugin:build .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cleitext/admin-sdk": "workspace:*",
+    "@cleitext/blocks": "workspace:*",
+    "@cleitext/cli": "workspace:*",
+    "@cleitext/plugin-sdk": "workspace:*",
+    "@fortawesome/fontawesome-free": "^7.3.1",
+    "@tanstack/react-query": "^5.104.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "htmlparser2": "^12.0.0"
+  }
+}
