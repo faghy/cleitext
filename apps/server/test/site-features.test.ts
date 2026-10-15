@@ -289,14 +289,14 @@ describe('previews', () => {
     expect(draft.revision.document.editor).toEqual({ id: 'fresco', data: { layout: 'full' } });
     const { url } = (await admin.post(`/api/v1/entries/${draft.id}/preview`)).json();
     const page = (await visitor.get(url)).body;
-    expect(page).toContain('Saved words');
+    expect(page).toContain('<p>Saved words</p>');
     expect(page).not.toContain('data-cx-editor-canvas');
     const frame = await visitor.get(`${url}&frame=1`);
     expect(frame.statusCode).toBe(200);
     // The site's layout and title, with an empty canvas instead of the content.
     expect(frame.body).toContain('Built visually');
     expect(frame.body).toContain('<div data-cx-editor-canvas=""></div>');
-    expect(frame.body).not.toContain('Saved words');
+    expect(frame.body).not.toContain('<p>Saved words</p>');
   });
 
   it('is offered only to users who can edit the entry', async () => {
