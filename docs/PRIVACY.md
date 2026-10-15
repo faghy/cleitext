@@ -40,8 +40,8 @@ The **Forms** plugin's contact form has a _Privacy policy address_: when set, a 
 
 When someone asks for their data (GDPR art. 15 and 20) or to have it erased (art. 17), check who they are, then enter their email in **Privacy → Data requests**:
 
-- **Export** downloads a JSON file with what the site keeps about them: the account of a member of the site (sessions, tokens, activity) and the data of every plugin that registered an exporter, such as Forms messages.
-- **Erase** runs the erasers of the plugins (e.g. Forms messages are deleted). User accounts are kept: delete them from **Users** if needed.
+- **Export** downloads a JSON file with what the site keeps about them: the account of a member of the site (profile, sessions, tokens, activity), their comments and likes, and the data of every plugin that registered an exporter, such as Forms messages.
+- **Erase** anonymizes their comments as WordPress does (the text stays, without name, email, website and IP address), removes their likes and runs the erasers of the plugins (e.g. Forms messages are deleted). User accounts are kept: delete them from **Users** if needed.
 
 Every request is logged with its date and who handled it; erasures keep only a masked address.
 

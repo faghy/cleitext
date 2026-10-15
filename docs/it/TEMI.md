@@ -41,15 +41,16 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 
 `defineTheme({ … })` riceve:
 
-| Proprietà       | A cosa serve                                                                                                           |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `Layout`        | La pagina attorno a ogni template: `<html>`, `<head>` (con `<HeadTags>` per `head.tags`), intestazione, piè di pagina. |
-| `templates`     | Componenti per nome; `index` è obbligatorio. I nomi più specifici hanno la precedenza (ARCHITETTURA §12.2).            |
-| `css`           | Foglio di stile incluso in ogni pagina. Tienilo piccolo.                                                               |
-| `menuLocations` | Posizioni per i menu, assegnati in Aspetto → Menu; si leggono con `usePage().menus`.                                   |
-| `settings`      | Campi mostrati in Aspetto → Personalizza (§4).                                                                         |
-| `areas`         | Aree composte di blocchi (§5).                                                                                         |
-| `editorCss`     | CSS per l'editor a blocchi, perché i contenuti abbiano lo stesso aspetto del sito mentre si scrive.                    |
+| Proprietà       | A cosa serve                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Layout`        | La pagina attorno a ogni template: `<html>`, `<head>` (con `<HeadTags>` per `head.tags`), intestazione, piè di pagina.                        |
+| `templates`     | Componenti per nome; `index` è obbligatorio. I nomi più specifici hanno la precedenza (ARCHITETTURA §12.2).                                   |
+| `css`           | Foglio di stile incluso in ogni pagina. Tienilo piccolo.                                                                                      |
+| `menuLocations` | Posizioni per i menu, assegnati in Aspetto → Menu; si leggono con `usePage().menus`.                                                          |
+| `settings`      | Campi mostrati in Aspetto → Personalizza (§4).                                                                                                |
+| `areas`         | Aree composte di blocchi (§5).                                                                                                                |
+| `editorCss`     | CSS per l'editor a blocchi, perché i contenuti abbiano lo stesso aspetto del sito mentre si scrive.                                           |
+| `comments`      | `'auto'` (predefinito): commenti, mi piace e condivisione seguono `<EntryContent>` nelle voci che li hanno. `'manual'`: li posiziona il tema. |
 
 I template ricevono la pagina come props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) e leggono il resto con `usePage()`. Non interrogano mai il database.
 
@@ -61,6 +62,24 @@ Avvolgi in `<Location>` le parti che un theme builder può sostituire: `header`,
 ```
 
 Il contenuto di una voce si mostra con `<EntryContent document={…} />`. Dentro un editor visuale (il page builder di un plugin) mostra invece un elemento vuoto `[data-cx-editor-canvas]` che l'editor riempie: così la pagina si modifica nel layout del tema.
+
+### Commenti, mi piace, account e autori
+
+Il blog funziona come in WordPress senza codice nel tema: con `comments: 'auto'` (il predefinito) il box dell'autore (quando l'autore ha scritto una biografia), i pulsanti mi piace e condividi e i commenti con il loro modulo seguono `<EntryContent>` nelle voci il cui tipo ha i commenti, e le pagine dell'account (`/account`, `/account/login`, `/account/register`…) si mostrano dentro il layout del tema. Il markup usa classi `cx-` con un piccolo foglio di stile predefinito, aggiunto solo alle pagine che lo usano; il tema le ridefinisce nel suo CSS.
+
+Per posizionarli da sé, imposta `comments: 'manual'` e usa i componenti:
+
+| Componente                 | Cosa mostra                                                                                    |
+| -------------------------- | ---------------------------------------------------------------------------------------------- |
+| `<EntryCommunity />`       | Tutto quanto segue, nell'ordine predefinito.                                                   |
+| `<Comments />`             | I commenti (discussioni, pagine, avvisi) e il modulo; "i commenti sono chiusi" quando lo sono. |
+| `<EntryActions />`         | Pulsante mi piace e link di condivisione.                                                      |
+| `<AuthorBox />`            | Foto, nome, biografia e link dell'autore della voce; `variant="page"` negli archivi autore.    |
+| `<CommentText text={…} />` | Un commento o una biografia in paragrafi con i link.                                           |
+
+Leggono la voce da `usePage()`; passa `entry` per mostrarne un'altra. `usePage()` dà anche `viewer` (il visitatore che ha effettuato l'accesso, null nelle pagine in cache) e `urls` (`login`, `register`, `account`, `logout`). `entry.author` ha `displayName`, `url` (l'archivio dell'autore), `bio`, `website` e `avatarUrl`.
+
+Gli archivi autore (`/author/<slug>`) sono archivi con `props.author`; i template `author-<slug>` e `author` vengono provati prima di `archive`. Elencano gli articoli pubblicati della persona ed esistono solo per chi ne ha.
 
 ## 4. Impostazioni
 

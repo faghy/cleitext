@@ -40,8 +40,8 @@ Il modulo di contatto del plugin **Moduli** ha un _Indirizzo della privacy polic
 
 Quando qualcuno chiede i propri dati (artt. 15 e 20 GDPR) o di cancellarli (art. 17), verifica chi è, poi inserisci la sua email in **Privacy → Richieste sui dati**:
 
-- **Esporta** scarica un file JSON con ciò che il sito conserva su di lui: l'account di un membro del sito (sessioni, token, attività) e i dati di ogni plugin che ha registrato un exporter, come i messaggi di Moduli.
-- **Cancella** esegue gli eraser dei plugin (per esempio i messaggi di Moduli vengono eliminati). Gli account restano: eliminali da **Utenti** se serve.
+- **Esporta** scarica un file JSON con ciò che il sito conserva su di lui: l'account di un membro del sito (profilo, sessioni, token, attività), i suoi commenti e mi piace, e i dati di ogni plugin che ha registrato un exporter, come i messaggi di Moduli.
+- **Cancella** rende anonimi i suoi commenti come fa WordPress (il testo resta, senza nome, email, sito web e indirizzo IP), rimuove i suoi mi piace ed esegue gli eraser dei plugin (per esempio i messaggi di Moduli vengono eliminati). Gli account restano: eliminali da **Utenti** se serve.
 
 Ogni richiesta viene registrata con la data e chi l'ha gestita; per le cancellazioni resta solo un indirizzo mascherato.
 

@@ -177,8 +177,11 @@ ctx.hooks.filter(
 | `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue))     |
 | `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                         |
 | `cache.invalidated`                       | `{ tags }`: sono cambiate le pagine con questi tag (`site`: tutte), API 1.9 |
+| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                            |
+| `comment.created`                         | `{ comment }`, qualunque sia il suo stato, API 1.12                         |
+| `comment.status`                          | `{ comment, from }`: approvato, trattenuto, spam o cestinato, API 1.12      |
 
-`entry` è `{ id, siteId, type, locale, slug, title, status, fields }`, `term` è `{ id, siteId, taxonomy, locale, slug, name }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`. `term.created` viene emesso per i termini creati dalla schermata dei termini, dall'API e dai plugin (non per i tag digitati nell'editor).
+`entry` è `{ id, siteId, type, locale, slug, title, status, fields }`, `term` è `{ id, siteId, taxonomy, locale, slug, name }`, `comment` è `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`. `term.created` viene emesso per i termini creati dalla schermata dei termini, dall'API e dai plugin (non per i tag digitati nell'editor).
 
 **Filtri** (sito pubblico, richiedono il permesso `theme:hooks`):
 

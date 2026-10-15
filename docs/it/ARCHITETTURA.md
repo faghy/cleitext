@@ -50,7 +50,7 @@ All'inizio l'editor **è Gutenberg**, usato come libreria standalone. Il sistema
 | --- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P1  | **WordPress come modello, non come codice** | Stessi concetti ed esperienza d'uso, implementazione propria. Il core usa una nomenclatura propria (_entry_, non _post_).                                                                                                                |
 | P2  | **Editor sostituibile**                     | Gutenberg è un _adattatore_ dietro l'interfaccia `EditorAdapter`. I contenuti sono salvati nel formato Cleitext (**CXD**), non nel markup di Gutenberg. Cambiare editor significa scrivere un nuovo adattatore, non migrare i contenuti. |
-| P3  | **Core piccolo, tutto il resto plugin**     | Il core gestisce siti, utenti, contenuti, media, menu, temi e plugin. Form, SEO avanzata e commenti sono plugin.                                                                                                                         |
+| P3  | **Core piccolo, tutto il resto plugin**     | Il core gestisce siti, utenti, contenuti, media, menu, temi e plugin. Form e SEO avanzata sono plugin; commenti, registrazioni e pagine autore sono nel core, come in WordPress (ADR 018).                                               |
 | P4  | **L'API dei plugin è il prodotto**          | Contratto versionato con semver, documentato e testato. Romperlo ha un costo esplicito.                                                                                                                                                  |
 | P5  | **Sicuro per impostazione predefinita**     | Isolamento tra siti nel database, permessi granulari, upload non eseguibili, nessun segreto nel codice.                                                                                                                                  |
 | P6  | **PostgreSQL al massimo**                   | JSONB, full-text, RLS, LISTEN/NOTIFY, code dei job: niente Redis o Elasticsearch obbligatori.                                                                                                                                            |
@@ -1318,25 +1318,26 @@ PLUGINS_PATH, REGISTRY_URL, PLUGINS_INSTALL_FROM_UI=true|false, PLUGINS_ALLOW_UN
 
 ## 20. Registro delle decisioni (ADR)
 
-| ADR | Decisione                                                                                                               | Stato         |
-| --- | ----------------------------------------------------------------------------------------------------------------------- | ------------- |
-| 001 | TypeScript/Node invece di PHP                                                                                           | Accettata     |
-| 002 | NestJS con adapter Fastify                                                                                              | Accettata     |
-| 003 | Drizzle ORM su PostgreSQL                                                                                               | Accettata     |
-| 004 | Monolite modulare                                                                                                       | Accettata     |
-| 005 | Isolamento multi-sito con RLS PostgreSQL                                                                                | Proposta      |
-| 006 | Editor Gutenberg standalone dietro `EditorAdapter`, contenuti in formato proprio CXD                                    | **Accettata** |
-| 007 | Contenuti versionati con revisioni immutabili                                                                           | Proposta      |
-| 008 | Uno schema PostgreSQL per plugin                                                                                        | Proposta      |
-| 009 | Temi in React SSR senza idratazione di default                                                                          | **Accettata** |
-| 010 | Job su pg-boss, niente Redis obbligatorio                                                                               | Proposta      |
-| 011 | WordPress come modello concettuale, compatibilità solo tramite plugin `wp-*`                                            | **Accettata** |
-| 012 | Licenza GPL-2.0-or-later con modello plugin come WordPress (plugin GPL-compatibili, premium ammessi fuori dal registro) | **Accettata** |
-| 013 | Registro proprio per plugin e temi, con installazione dall'admin e pacchetti firmati                                    | **Accettata** |
-| 014 | Commenti come plugin separato (non nel core, non nella 1.0)                                                             | **Accettata** |
-| 015 | E-commerce previsto in futuro come plugin, non sviluppato ora                                                           | **Accettata** |
-| 016 | Registro di plugin e temi previsto per la fase pubblica, non sviluppato ora                                             | **Accettata** |
-| 017 | Niente Docker per ora; sviluppo e test usano i binari PostgreSQL embedded                                               | **Accettata** |
+| ADR | Decisione                                                                                                               | Stato                |
+| --- | ----------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| 001 | TypeScript/Node invece di PHP                                                                                           | Accettata            |
+| 002 | NestJS con adapter Fastify                                                                                              | Accettata            |
+| 003 | Drizzle ORM su PostgreSQL                                                                                               | Accettata            |
+| 004 | Monolite modulare                                                                                                       | Accettata            |
+| 005 | Isolamento multi-sito con RLS PostgreSQL                                                                                | Proposta             |
+| 006 | Editor Gutenberg standalone dietro `EditorAdapter`, contenuti in formato proprio CXD                                    | **Accettata**        |
+| 007 | Contenuti versionati con revisioni immutabili                                                                           | Proposta             |
+| 008 | Uno schema PostgreSQL per plugin                                                                                        | Proposta             |
+| 009 | Temi in React SSR senza idratazione di default                                                                          | **Accettata**        |
+| 010 | Job su pg-boss, niente Redis obbligatorio                                                                               | Proposta             |
+| 011 | WordPress come modello concettuale, compatibilità solo tramite plugin `wp-*`                                            | **Accettata**        |
+| 012 | Licenza GPL-2.0-or-later con modello plugin come WordPress (plugin GPL-compatibili, premium ammessi fuori dal registro) | **Accettata**        |
+| 013 | Registro proprio per plugin e temi, con installazione dall'admin e pacchetti firmati                                    | **Accettata**        |
+| 014 | Commenti come plugin separato (non nel core, non nella 1.0)                                                             | Sostituita dalla 018 |
+| 015 | E-commerce previsto in futuro come plugin, non sviluppato ora                                                           | **Accettata**        |
+| 016 | Registro di plugin e temi previsto per la fase pubblica, non sviluppato ora                                             | **Accettata**        |
+| 017 | Niente Docker per ora; sviluppo e test usano i binari PostgreSQL embedded                                               | **Accettata**        |
+| 018 | Blog nel core come in WordPress: registrazioni, commenti con moderazione, mi piace, condivisione, pagine autore         | **Accettata**        |
 
 Ogni ADR andrà dettagliato in `docs/adr/NNN-titolo.md` (contesto, decisione, conseguenze, alternative).
 
@@ -1370,7 +1371,7 @@ Ogni ADR andrà dettagliato in `docs/adr/NNN-titolo.md` (contesto, decisione, co
 | Plugin premium             | **Ammessi** come in WordPress: vendita esterna, upload e aggiornamenti dal server dello sviluppatore     |
 | Editor                     | **Gutenberg** standalone, progettato per essere sostituibile (§10)                                       |
 | Temi                       | **React SSR**                                                                                            |
-| Commenti                   | **Plugin separato**, non pianificato per ora                                                             |
+| Commenti                   | **Nel core**, come in WordPress (ADR 018)                                                                |
 | Plugin e temi              | **Installazione dall'admin**: upload ora, **registro proprio** nella fase pubblica (§11.9)               |
 | Distribuzione              | **Uso interno** per ora. Nessun dominio né registro pubblico finché non si decide di aprire il progetto. |
 | Nome                       | **cleitext** (scope npm `@cleitext/*`, CLI `cleitext`). Il dominio non serve per ora.                    |
@@ -1386,7 +1387,6 @@ Queste funzioni **non si sviluppano adesso**, ma l'architettura deve renderle po
 | ---------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Registro plugin e temi** (§11.9) | Servizio separato più modulo `registry-client`                                                 | Manifest con `license` e `updateSource`, installazione da pacchetto con switch atomico, `REGISTRY_URL` configurabile e vuoto per default                                                                                                      |
 | **E-commerce**                     | Plugin `commerce` (eventualmente più plugin: catalogo, carrello/ordini, pagamenti, spedizioni) | Tipi di contenuto personalizzati e campi (prodotti, prezzi, varianti), utenti registrati con ruolo _Cliente_, rotte pubbliche e API dei plugin, job ed email, hook su rendering e checkout, schema DB dedicato `plg_commerce` con transazioni |
-| **Commenti**                       | Plugin `comments`                                                                              | Hook sul rendering delle entry, utenti registrati, rate limit e anti-spam riutilizzabili                                                                                                                                                      |
 | **Compatibilità API WordPress**    | Plugin `wp-compat`                                                                             | API dei contenuti completa, permalink configurabili                                                                                                                                                                                           |
 
 > Quando si arriverà all'e-commerce, il vecchio Cleito CMS resta un riferimento funzionale per categorie, marchi, prezzi, corrieri, pagamenti e ordini.

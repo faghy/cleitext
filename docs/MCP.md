@@ -45,6 +45,9 @@ Each connection is an API token of your account: assistants connected with OAuth
 | `upload_image`              | Add an image from a public https address, with its alternative text                     | write   |
 | `set_menu`                  | Set the items of a menu location in a language                                          | write   |
 | `publish_entry`             | Publish                                                                                 | publish |
+| `list_comments`             | Comments waiting for approval, approved, spam or trashed (needs comment moderation)     | read    |
+| `moderate_comments`         | Approve, hold, mark as spam or trash comments                                           | publish |
+| `reply_to_comment`          | Publish a reply under a comment                                                         | publish |
 
 Content is sent as **WordPress block markup** (`<!-- wp:heading -->…`), plain HTML or Cleitext blocks; it is converted and validated like everything saved in the editor, so the result always opens in the block editor. Nothing is deleted by an assistant.
 

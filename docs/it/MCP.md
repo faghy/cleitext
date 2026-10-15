@@ -45,6 +45,9 @@ Ogni collegamento è un token API del tuo account: gli assistenti collegati con 
 | `upload_image`              | Aggiungere un'immagine da un indirizzo https pubblico, con il testo alternativo          | scrittura     |
 | `set_menu`                  | Impostare le voci di un menu in una lingua                                               | scrittura     |
 | `publish_entry`             | Pubblicare                                                                               | pubblicazione |
+| `list_comments`             | Commenti in attesa, approvati, spam o nel cestino (serve poter moderare i commenti)      | lettura       |
+| `moderate_comments`         | Approvare, trattenere, segnare come spam o cestinare commenti                            | pubblicazione |
+| `reply_to_comment`          | Pubblicare una risposta sotto un commento                                                | pubblicazione |
 
 I contenuti arrivano come **markup dei blocchi di WordPress** (`<!-- wp:heading -->…`), HTML semplice o blocchi di Cleitext; vengono convertiti e validati come tutto ciò che si salva nell'editor, quindi il risultato si apre sempre nell'editor a blocchi. Un assistente non cancella niente.
 

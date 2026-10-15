@@ -175,8 +175,11 @@ ctx.hooks.filter(
 | `languages.pending`                       | `{}` ([language data](#15-languages-language-plugins) arrived)   |
 | `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                              |
 | `cache.invalidated`                       | `{ tags }`: pages with these tags changed (`site`: all), API 1.9 |
+| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                 |
+| `comment.created`                         | `{ comment }`, whatever its status, API 1.12                     |
+| `comment.status`                          | `{ comment, from }`: approved, held, spam or trashed, API 1.12   |
 
-`entry` is `{ id, siteId, type, locale, slug, title, status, fields }`, `term` is `{ id, siteId, taxonomy, locale, slug, name }`. Scheduled entries published automatically do not emit `entry.published` yet. `term.created` is emitted for terms created from the terms screen, the API and plugins (not for tags typed in the editor).
+`entry` is `{ id, siteId, type, locale, slug, title, status, fields }`, `term` is `{ id, siteId, taxonomy, locale, slug, name }`, `comment` is `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Scheduled entries published automatically do not emit `entry.published` yet. `term.created` is emitted for terms created from the terms screen, the API and plugins (not for tags typed in the editor).
 
 **Filters** (public site, they need the `theme:hooks` permission):
 

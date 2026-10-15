@@ -88,15 +88,16 @@ export default defineTheme({
 });
 ```
 
-| Property        | What it does                                                                                                                  |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `Layout`        | The page around every template: `<html>`, `<head>` (render `head.tags` with `<HeadTags>`), header, footer.                    |
-| `templates`     | Components by name; `index` is required. More specific names win (`entry-page`, `archive-category`…, see ARCHITECTURE §12.2). |
-| `css`           | Stylesheet inlined in every page. Keep it small.                                                                              |
-| `menuLocations` | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                           |
-| `settings`      | Fields shown in Appearance → Customize (§4).                                                                                  |
-| `areas`         | Areas made of blocks (§5).                                                                                                    |
-| `editorCss`     | CSS for the block editor, so that content looks like the site while writing.                                                  |
+| Property        | What it does                                                                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Layout`        | The page around every template: `<html>`, `<head>` (render `head.tags` with `<HeadTags>`), header, footer.                                   |
+| `templates`     | Components by name; `index` is required. More specific names win (`entry-page`, `archive-category`…, see ARCHITECTURE §12.2).                |
+| `css`           | Stylesheet inlined in every page. Keep it small.                                                                                             |
+| `menuLocations` | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                                          |
+| `settings`      | Fields shown in Appearance → Customize (§4).                                                                                                 |
+| `areas`         | Areas made of blocks (§5).                                                                                                                   |
+| `editorCss`     | CSS for the block editor, so that content looks like the site while writing.                                                                 |
+| `comments`      | `'auto'` (default): comments, likes and sharing follow `<EntryContent>` on entries that have them. `'manual'`: the theme places them itself. |
 
 Templates receive the page as props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) and read the rest with `usePage()`: site, language, languages, menus, media, URLs. They never query the database.
 
@@ -108,6 +109,24 @@ Wrap the parts a theme builder may replace in `<Location>`: `header`, `footer`, 
 ```
 
 Render an entry's content with `<EntryContent document={…} />`. Inside a visual editor (a plugin's page builder) it renders an empty `[data-cx-editor-canvas]` element instead, which the editor fills, so the page is edited in the theme's own layout.
+
+### Comments, likes, accounts and authors
+
+Blogging works as in WordPress without theme code: with `comments: 'auto'` (the default) the author box (when the author wrote a bio), the like and share buttons and the comments with their form follow `<EntryContent>` on entries whose type has comments, and the account pages (`/account`, `/account/login`, `/account/register`…) render inside the theme's layout. The markup uses `cx-` classes with a small default stylesheet, added only to pages that use it; restyle them in the theme's CSS.
+
+To place them yourself, set `comments: 'manual'` and use the components:
+
+| Component                  | What it shows                                                                             |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| `<EntryCommunity />`       | Everything below, in the default order.                                                   |
+| `<Comments />`             | The comments (threads, pages, notices) and the form; "comments are closed" when they are. |
+| `<EntryActions />`         | Like button and share links.                                                              |
+| `<AuthorBox />`            | Picture, name, bio and links of the entry's author; `variant="page"` on author archives.  |
+| `<CommentText text={…} />` | A comment or bio as paragraphs with links.                                                |
+
+They read the entry from `usePage()`; pass `entry` to show another. `usePage()` also gives `viewer` (the signed-in visitor, null on cached pages) and `urls` (`login`, `register`, `account`, `logout`). `entry.author` has `displayName`, `url` (the author archive), `bio`, `website` and `avatarUrl`.
+
+Author archives (`/author/<slug>`) are archives with `props.author`; the templates `author-<slug>` and `author` are tried before `archive`. They list the person's published posts, and exist only for people who have some.
 
 ## 4. Settings
 

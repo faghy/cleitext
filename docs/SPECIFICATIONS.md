@@ -255,7 +255,7 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 | RF-PLG-16 | Open registry: developer accounts, `cleitext publish`, automated and manual review, GPL-compatible licenses only.                                                                                              | Public   |
 | RF-PLG-11 | Admin notifications for available updates and for versions revoked by the registry.                                                                                                                            | Public   |
 | RF-PLG-12 | Installation from the admin can be disabled via env (`PLUGINS_INSTALL_FROM_UI=false`).                                                                                                                         | 1.0      |
-| RF-PLG-08 | Official plugins at 1.0: `seo`, `forms`, `redirects-ui`, `wp-import`, `cleito-import`. `wp-compat` and `comments` afterwards.                                                                                  | 1.0      |
+| RF-PLG-08 | Official plugins at 1.0: `seo`, `forms`, `redirects-ui`, `wp-import`, `cleito-import`. `wp-compat` afterwards (comments are in the core since 0.26).                                                           | 1.0      |
 
 ### 4.10 Settings
 
@@ -786,7 +786,6 @@ export default function EntryTemplate({ entry, site, locale }: TemplateProps<'en
 
 - E-commerce: **planned for the future** as a plugin, not to be done now (see ARCHITECTURE §22.1).
 - Public plugin and theme registry: **planned for the future** (milestone M8), not to be done now.
-- Comments (separate plugin, not planned for now).
 - Real-time collaborative editing.
 - Free-form drag-and-drop visual page builder (beyond the block editor).
 - Running existing WordPress plugins or themes.
