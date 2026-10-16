@@ -36,6 +36,7 @@ export function routeRequest(
       : null,
     headers,
     cookies: pluginCookies(request, options.plugin),
+    origin: `${request.protocol}://${request.host}`,
     locale: options.locale ?? '',
     async file() {
       if (!request.isMultipart()) return null;

@@ -507,6 +507,8 @@ export interface RouteRequest {
    * `<slug>_…`, e.g. `shop_cart`. Others (the session among them) are never given.
    */
   cookies: Record<string, string>;
+  /** The site's address as the visitor reached it, e.g. `https://example.com` (plugin API 1.16). */
+  origin: string;
   /**
    * Public routes: the language of the address (plugin API 1.14). A route
    * `/cart` also answers `/it/cart` on a site with Italian, with `it` here.
@@ -801,6 +803,8 @@ export interface AssetsApi {
 
 export interface PluginContext {
   readonly plugin: { slug: string; version: string };
+  /** A site's name and languages (plugin API 1.16), e.g. for emails sent outside a request. */
+  site(siteId: string): Promise<PluginSite>;
   readonly assets: AssetsApi;
   readonly log: PluginLogger;
   readonly hooks: HookApi;

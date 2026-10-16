@@ -553,10 +553,11 @@ describe('an active plugin', () => {
     expect(first.headers['cache-control']).toBe('private, no-store');
     expect(first.body).toContain('<title>Your basket');
     expect(first.body).toContain(
-      '<div class="cx-plugin-page"><p class="basket">Visits: 1; cookies: ; language: en</p></div>',
+      '<div class="cx-plugin-page"><p class="basket">Visits: 1; cookies: ; language: en</p>',
     );
     // The theme's layout is around it, with noindex.
     expect(first.body).toMatch(/<meta name="robots" content="noindex/);
+    expect(first.body).toMatch(/<p class="where">[^<]+ at http:\/\/[^<]+<\/p>/);
     const cookie = first.cookies.find((c: { name: string }) => c.name === 'events_visits');
     expect(cookie).toMatchObject({ value: '1', httpOnly: true, sameSite: 'Lax', path: '/' });
     // The session cookie is never given to the plugin.

@@ -322,13 +322,14 @@ export default definePlugin({
     ctx.routes.public({
       method: 'GET',
       path: '/basket',
-      handler: (request) => {
+      handler: async (request) => {
         const visits = Number(request.cookies.events_visits ?? 0) + 1;
+        const site = await ctx.site(request.siteId);
         return {
           cookies: [{ name: 'events_visits', value: String(visits), maxAge: 3600 }],
           page: {
             title: 'Your basket',
-            html: `<p class="basket">Visits: ${visits}; cookies: ${Object.keys(request.cookies).join(' ')}; language: ${request.locale}</p>`,
+            html: `<p class="basket">Visits: ${visits}; cookies: ${Object.keys(request.cookies).join(' ')}; language: ${request.locale}</p><p class="where">${site.name} at ${request.origin}</p>`,
           },
         };
       },

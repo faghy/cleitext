@@ -135,6 +135,10 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
 
   return {
     plugin: { slug: plugin.slug, version: plugin.version },
+    site(siteId) {
+      assertSiteId(siteId);
+      return services().site(siteId);
+    },
     log: pluginLogger(plugin.slug),
 
     hooks: {
