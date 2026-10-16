@@ -311,6 +311,10 @@ describe('authors', () => {
     const post = (await visitor.get(postPath)).body;
     expect(post).toContain('class="cx-author cx-author--entry"');
     expect(post).toContain('href="/author/the-writer"');
+    // Cloudflare's email obfuscation leaves the share-by-email link alone.
+    expect(post).toMatch(
+      /<!--email_off--><a href="mailto:\?subject=[^"]*&amp;body=[^"]+" rel="noopener noreferrer">Email<\/a><!--\/email_off-->/,
+    );
     expect(post).toContain('https://writer.example');
 
     // Without a bio or a website the author page has nothing to add to its title.

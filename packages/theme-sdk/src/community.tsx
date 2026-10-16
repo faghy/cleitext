@@ -458,16 +458,23 @@ export function EntryActions({ entry }: { entry?: PublicEntry }) {
       {page.share && (
         <div className="cx-share" role="group" aria-label={t.share}>
           <span className="cx-share__label">{t.share}:</span>
-          {networks.map(([name, href]) => (
-            <a
-              key={name}
-              href={href}
-              target={name === 'Email' ? undefined : '_blank'}
-              rel="noopener noreferrer"
-            >
-              {name}
-            </a>
-          ))}
+          {networks.map(([name, href]) =>
+            name === 'Email' ? (
+              // Cloudflare's email obfuscation turns mailto: links into
+              // /cdn-cgi/l/email-protection addresses; these comments tell it not to.
+              <span
+                key={name}
+                className="cx-share__email"
+                dangerouslySetInnerHTML={{
+                  __html: `<!--email_off--><a href="${attribute(href)}" rel="noopener noreferrer">${name}</a><!--/email_off-->`,
+                }}
+              />
+            ) : (
+              <a key={name} href={href} target="_blank" rel="noopener noreferrer">
+                {name}
+              </a>
+            ),
+          )}
           <button type="button" data-cx-copy={url} data-cx-copied={t.copied} hidden>
             {t.copyLink}
           </button>
@@ -475,6 +482,11 @@ export function EntryActions({ entry }: { entry?: PublicEntry }) {
       )}
     </div>
   );
+}
+
+/** Text for an HTML attribute value. */
+function attribute(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
 /** Everything under an entry: like, share and comments. */
