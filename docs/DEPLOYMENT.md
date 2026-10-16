@@ -163,6 +163,8 @@ A site in more than one language needs the **Multilingual** plugin. It is not in
 
 The same from SSH: `bin/cleitext update` (`--check` only tells whether there is one). Updates come from `UPDATES_REPO` (default `faghy/cleitext`); an empty value turns the check off.
 
+**Automatic updates** (Cleitext 0.27 and later), as in WordPress: in **Updates → Automatic updates** super admins choose, for the whole server, whether Cleitext updates itself (**Off**, **Fix releases only**, such as 0.26.0 → 0.26.1, or **Every release**) and which plugins and themes from the catalog update by themselves. Everything is off until chosen. About twice a day Cleitext updates the chosen plugins and themes that work with the installed version (paid ones while their license includes the update), then the core as above; super admins get an email with what changed, and the page keeps the history. **Check and update now** runs it at once. Choices are kept in `auto-updates.json` next to the media folder.
+
 **By hand**, as before:
 
 ```bash

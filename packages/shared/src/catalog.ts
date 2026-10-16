@@ -56,3 +56,47 @@ export interface CatalogView {
   error: string | null;
   checkedAt: string | null;
 }
+
+// ---- Automatic updates (RF-SYS-UPD) ---------------------------------------------------
+
+/** Core releases updated automatically: none, fix releases (x.y.Z), or all. */
+export type CorePolicy = 'off' | 'patch' | 'all';
+
+export interface AutoUpdateItem {
+  type: 'plugin' | 'theme';
+  slug: string;
+}
+
+export interface AutoUpdateResult {
+  at: string;
+  type: 'plugin' | 'theme' | 'core';
+  slug: string;
+  name: string;
+  from: string;
+  to: string;
+  ok: boolean;
+  error?: string;
+}
+
+export interface AutoUpdatesView {
+  core: CorePolicy;
+  /** Plugins and themes updated automatically. */
+  items: AutoUpdateItem[];
+  lastRun: string | null;
+  nextRun: string | null;
+  /** The latest automatic updates, newest first. */
+  log: AutoUpdateResult[];
+}
+
+export const autoUpdatesRequestSchema = z
+  .object({
+    core: z.enum(['off', 'patch', 'all']).optional(),
+    item: z
+      .object({
+        type: z.enum(['plugin', 'theme']),
+        slug: z.string().regex(/^[a-z][a-z0-9-]{1,39}$/),
+        enabled: z.boolean(),
+      })
+      .optional(),
+  })
+  .refine((v) => v.core !== undefined || v.item !== undefined, 'Nothing to change.');

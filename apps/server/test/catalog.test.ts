@@ -1,6 +1,6 @@
 /** Plugins → Add New and Themes → Add New: the signed catalog (RF-PLG-07/09). */
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,9 @@ import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { strToU8, zipSync } from 'fflate';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { MailService } from '../src/mail/mail.service.js';
+import { allowed, AutoUpdatesService } from '../src/updates/auto-updates.service.js';
+import { UpdatesService } from '../src/updates/updates.service.js';
 import {
   ownerDatabase,
   seedSite,
@@ -217,5 +220,73 @@ describe('catalog', () => {
     expect(view.items[1]).toMatchObject({ compatible: false, update: true });
     expect((await root.post('/api/v1/catalog/theme/sparkle/install')).statusCode).toBe(400);
     expect((await root.post('/api/v1/catalog/plugin/missing/install')).statusCode).toBe(404);
+  });
+});
+
+describe('automatic updates', () => {
+  const stateFiles = () => {
+    const dir = join(app.get(UpdatesService).statusFile, '..');
+    return [join(dir, 'auto-updates.json'), join(dir, 'auto-updates.lock')];
+  };
+  beforeAll(async () => {
+    for (const file of stateFiles()) await rm(file, { force: true });
+  });
+  afterAll(async () => {
+    for (const file of stateFiles()) await rm(file, { force: true });
+  });
+
+  it('are off until chosen, by super admins only', async () => {
+    expect((await root.get('/api/v1/updates/auto')).json()).toMatchObject({
+      core: 'off',
+      items: [],
+    });
+    const denied = await admin.request('PUT', '/api/v1/updates/auto', { core: 'all' });
+    expect(denied.statusCode).toBe(403);
+    expect((await root.request('PUT', '/api/v1/updates/auto', {})).statusCode).toBe(400);
+  });
+
+  it('update the chosen plugins and themes that work here, and tell the super admins', async () => {
+    const chosen = await root.request('PUT', '/api/v1/updates/auto', {
+      item: { type: 'plugin', slug: 'tiny', enabled: true },
+    });
+    expect(chosen.json()).toMatchObject({ items: [{ type: 'plugin', slug: 'tiny' }] });
+    expect(chosen.json().nextRun).toBeTruthy();
+    // A newer tiny, and a newer sparkle that nobody chose (and that needs a newer Cleitext).
+    publish([
+      item('plugin', 'tiny', '1.3.0', pluginZip('1.3.0')),
+      item('theme', 'sparkle', '2.0.0', themeZip('2.0.0'), { requires: '>=99.0.0' }),
+    ]);
+    const outbox = app.get(MailService).outbox;
+    const before = outbox.length;
+    const results = (await root.post('/api/v1/updates/auto/run')).json();
+    expect(results).toMatchObject([
+      { type: 'plugin', slug: 'tiny', from: '1.1.0', to: '1.3.0', ok: true },
+    ]);
+    expect((await catalog()).items[0]).toMatchObject({ installed: '1.3.0', update: false });
+    const mail = outbox.slice(before).find((m) => m.to === 'root@catalog.test');
+    expect(mail?.subject).toBe('Cleitext: automatic updates done');
+    expect(mail?.text).toContain(': 1.1.0 → 1.3.0');
+    const view = (await root.get('/api/v1/updates/auto')).json();
+    expect(view.log[0]).toMatchObject({ slug: 'tiny', ok: true });
+    expect(view.lastRun).toBeTruthy();
+    // Nothing new: nothing done, no email.
+    const quiet = outbox.length;
+    expect((await root.post('/api/v1/updates/auto/run')).json()).toEqual([]);
+    expect(outbox.length).toBe(quiet);
+    // Turned off again.
+    const off = await root.request('PUT', '/api/v1/updates/auto', {
+      item: { type: 'plugin', slug: 'tiny', enabled: false },
+    });
+    expect(off.json().items).toEqual([]);
+    expect(app.get(AutoUpdatesService).view().items).toEqual([]);
+  });
+
+  it('take core releases by the chosen policy', () => {
+    expect(allowed('patch', '0.26.0', '0.26.1')).toBe(true);
+    expect(allowed('patch', '0.26.1', '0.27.0')).toBe(false);
+    expect(allowed('all', '0.26.1', '0.27.0')).toBe(true);
+    expect(allowed('all', '0.26.1', '0.27.0-beta.1')).toBe(false);
+    expect(allowed('off', '0.26.0', '0.26.1')).toBe(false);
+    expect(allowed('all', '0.27.0', '0.26.1')).toBe(false);
   });
 });

@@ -13,6 +13,7 @@ import { ChatController } from './mcp/chat.controller.js';
 import { ChatService } from './mcp/chat.service.js';
 import { OAuthController } from './mcp/oauth.controller.js';
 import { OAuthService } from './mcp/oauth.service.js';
+import { AutoUpdatesService } from './updates/auto-updates.service.js';
 import { UpdatesService } from './updates/updates.service.js';
 import { AuditService } from './audit/audit.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -165,6 +166,7 @@ export class AppModule {
         PatternsService,
         ThemesService,
         UpdatesService,
+        AutoUpdatesService,
         CatalogService,
         LicensesService,
         OAuthService,

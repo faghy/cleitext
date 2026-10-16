@@ -163,6 +163,8 @@ Un sito in più lingue ha bisogno del plugin **Multilingua**. Non è nel pacchet
 
 Lo stesso da SSH: `bin/cleitext update` (`--check` dice solo se ce n'è uno). Gli aggiornamenti arrivano da `UPDATES_REPO` (predefinito `faghy/cleitext`); un valore vuoto spegne il controllo.
 
+**Aggiornamenti automatici** (Cleitext 0.27 e successivi), come in WordPress: in **Aggiornamenti → Aggiornamenti automatici** i super amministratori scelgono, per tutto il server, se Cleitext si aggiorna da solo (**Spenti**, **Solo versioni di correzione**, come 0.26.0 → 0.26.1, o **Tutte le versioni**) e quali plugin e temi del catalogo si aggiornano da soli. Tutto è spento finché non si sceglie. Circa due volte al giorno Cleitext aggiorna i plugin e i temi scelti che funzionano con la versione installata (quelli a pagamento finché la licenza include l'aggiornamento), poi il core come sopra; i super amministratori ricevono un'email con quello che è cambiato e la pagina ne tiene lo storico. **Controlla e aggiorna ora** lo fa subito. Le scelte stanno in `auto-updates.json` accanto alla cartella dei media.
+
 **A mano**, come prima:
 
 ```bash

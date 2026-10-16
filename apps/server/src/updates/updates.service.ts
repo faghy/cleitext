@@ -158,6 +158,18 @@ export class UpdatesService implements OnModuleDestroy {
     if (!check.available || !check.latest) {
       throw new BadRequestException(check.error ?? `Cleitext ${check.current} is up to date.`);
     }
+    return this.launch(check.current, check.latest, { siteId, userId: auth.userId!, ip });
+  }
+
+  /**
+   * Starts `cleitext update --to <version>` detached; the admin's button and
+   * the automatic updates (with the user who turned them on) use it.
+   */
+  async launch(
+    from: string,
+    to: string,
+    actor: { siteId: string; userId: string; ip: string },
+  ): Promise<UpdateStatusView> {
     const cli = join(this.root, 'packages/cli/dist/bin.js');
     if (!existsSync(cli))
       throw new BadRequestException('The Cleitext CLI is missing on this server.');
@@ -170,7 +182,7 @@ export class UpdatesService implements OnModuleDestroy {
         cli,
         'update',
         '--to',
-        check.latest,
+        to,
         '--repo',
         this.config.updates.repo,
         '--status',
@@ -193,21 +205,21 @@ export class UpdatesService implements OnModuleDestroy {
       },
     );
     child.unref();
-    await withContext(this.database.db, { siteId, userId: auth.userId }, (tx) =>
+    await withContext(this.database.db, { siteId: actor.siteId, userId: actor.userId }, (tx) =>
       this.audit.record(tx, {
-        siteId,
-        userId: auth.userId,
+        siteId: actor.siteId,
+        userId: actor.userId,
         action: 'core.updated',
         targetType: 'core',
-        targetId: check.latest!,
-        ip,
+        targetId: to,
+        ip: actor.ip,
       }),
     );
     this.watchForRestart();
     return {
       state: 'running',
-      from: check.current,
-      to: check.latest,
+      from,
+      to,
       step: null,
       steps: [],
       startedAt: new Date().toISOString(),

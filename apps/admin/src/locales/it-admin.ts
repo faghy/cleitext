@@ -212,4 +212,28 @@ export const itAdmin: Messages = {
     'Rimuovere la licenza di {name} da questo sito? Il plugin continua a funzionare finché resta attivo, ma qui non si potrà riattivare senza licenza.',
   'This is the demo of a paid theme: enter a license key to activate it.':
     'Questa è la demo di un tema a pagamento: inserisci una chiave di licenza per attivarlo.',
+  // Automatic updates
+  'Automatic updates': 'Aggiornamenti automatici',
+  'You update Cleitext from this page.': 'Aggiorni Cleitext da questa pagina.',
+  'Fix releases only (recommended)': 'Solo versioni di correzione (consigliato)',
+  'Security and bug fixes, such as 0.26.0 → 0.26.1.':
+    'Correzioni di sicurezza e di errori, come 0.26.0 → 0.26.1.',
+  'Every release': 'Tutte le versioni',
+  'New features too, such as 0.26 → 0.27.': 'Anche le novità, come 0.26 → 0.27.',
+  'Cleitext looks for updates about twice a day and installs those you choose here, for every site of this server. Super admins get an email with what changed.':
+    'Cleitext cerca aggiornamenti circa due volte al giorno e installa quelli che scegli qui, per tutti i siti di questo server. I super amministratori ricevono un’email con quello che è cambiato.',
+  'No plugins or themes from the catalog are installed.':
+    'Non ci sono plugin o temi del catalogo installati.',
+  theme: 'tema',
+  plugin: 'plugin',
+  'Last check: {date}.': 'Ultimo controllo: {date}.',
+  'Next check: {date}.': 'Prossimo controllo: {date}.',
+  'Checking…': 'Controllo in corso…',
+  'Check and update now': 'Controlla e aggiorna ora',
+  'Latest automatic updates': 'Ultimi aggiornamenti automatici',
+  failed: 'non riuscito',
+  '{name} {version}: renew the license to get it.':
+    '{name} {version}: rinnova la licenza per averlo.',
+  '{name} {version} needs Cleitext {requires}: update Cleitext first.':
+    '{name} {version} richiede Cleitext {requires}: aggiorna prima Cleitext.',
 };
