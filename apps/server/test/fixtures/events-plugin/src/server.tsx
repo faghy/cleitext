@@ -164,6 +164,42 @@ export default definePlugin({
       }),
     );
 
+    // Where an archive's entries go: a plugin listing's own HTML (plugin API 1.20).
+    ctx.blocks.register(
+      defineBlock({
+        type: 'events/listing',
+        title: 'Archive listing',
+        render: ({ context }) => (
+          <div
+            className="listing"
+            data-archive={`${context.page.route}:${context.page.archive?.title ?? ''}:${context.page.archive?.term?.slug ?? ''}:${context.page.archive?.contentType ?? ''}`}
+            dangerouslySetInnerHTML={{ __html: context.page.archive?.html ?? '' }}
+          />
+        ),
+      }),
+    );
+    // A theme builder's archive template for event listings; its single template never applies there.
+    ctx.hooks.filter('render.locations', (locations, context) =>
+      context.route === 'archive' && context.archive?.type === 'event'
+        ? {
+            ...locations,
+            archive: {
+              schema: 1,
+              blocks: [
+                {
+                  id: 'aa',
+                  type: 'core/paragraph',
+                  v: 1,
+                  attrs: {},
+                  content: [{ text: `Archive template ${context.archive.term ?? 'all'}` }],
+                },
+                { id: 'al', type: 'events/listing', v: 1, attrs: {} },
+              ],
+            },
+            single: { schema: 1, blocks: [] },
+          }
+        : locations,
+    );
     // A theme builder's templates, on one page only.
     ctx.hooks.filter('render.locations', (locations, context) =>
       context.path === '/located'
@@ -345,6 +381,21 @@ export default definePlugin({
           html: `<p class="calendar">All the events</p><p class="tags">${(request.queryAll.tag ?? []).join(',')}</p>`,
           index: true,
           head: [{ tag: 'json-ld', data: { '@type': 'ItemList', name: 'Events' } }],
+        },
+      }),
+    });
+    // Listings of events, by tag: archives for theme builders (plugin API 1.20).
+    ctx.routes.public({
+      method: 'GET',
+      path: '/event-tag/:tag',
+      handler: (request) => ({
+        page: {
+          title: `Tagged ${request.params.tag ?? ''}`,
+          html: `<ul class="tagged"><li>${request.params.tag ?? ''} event</li></ul>`,
+          archive: {
+            type: 'event',
+            term: { taxonomy: 'event-tag', slug: request.params.tag ?? '', name: 'Tag' },
+          },
         },
       }),
     });

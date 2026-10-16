@@ -382,7 +382,7 @@ defineBlock<{ gap: number; image?: string }>({
 - `wrapper: false` drops the `<div class="wp-block-…">` wrapper. Containers have none.
 - Containers and blocks without wrapper render inside the page, so their `render` must not throw. Other blocks are rendered on their own first.
 - `css` returns the CSS of one instance. The CSS of every instance on the page goes into one `<style data-cx-blocks>` at the end of `<head>`, after the plugins' stylesheets, so it overrides them.
-- `context.page` (also in `load`) is the page being rendered: `route`, `site` (`title`, `tagline`, `home`), `params` (the query parameters of the address, e.g. a page number), and `entry` (the full public entry), `archive` (title, term, entries, pagination) or `search`, for blocks that show the page's own data, such as a theme builder's post title or archive list.
+- `context.page` (also in `load`) is the page being rendered: `route`, `site` (`title`, `tagline`, `home`), `params` (the query parameters of the address, e.g. a page number), and `entry` (the full public entry), `archive` (title, term, entries, pagination; `html` for plugin listings, API 1.20) or `search`, for blocks that show the page's own data, such as a theme builder's post title or archive list.
 - `context.query({ type, terms, ids, exclude, orderBy, order, limit, offset })` in `load` (plugin API 1.11) lists published entries in the page's language, complete as themes get them (excerpt, images, terms, fields), with the `total` for pagination; the page refreshes when entries of those types change. `orderBy` is `date` (default), `title`, `modified` or `random`; `terms` is `{ taxonomy, slugs }`; `limit` is at most 100. Loops, related posts and portfolios use it.
 - `context.menus` holds the site's menus in the page's language, by theme location (`{ id, label, url, target?, current, children }`), for navigation blocks.
 - `items` (containers): each child rendered on its own, to wrap them one by one (tabs, accordions, carousels).
@@ -448,6 +448,8 @@ ctx.routes.public({
   },
 });
 ```
+
+**Listings** (plugin API 1.20). A page that lists entries, such as a shop's catalog or one of its categories, says so with `archive: { type?, term?: { taxonomy, slug, name, description? } }` in `page`. Hooks then see an archive of that content type or term (`route: 'archive'`), so a theme builder applies its archive templates there, and blocks find the plugin's `html` in `context.page.archive.html` to show where an archive's entries go.
 
 **Calls from other servers** (plugin API 1.10): an API route with `webhook: true` is anonymous and skips the origin check, for payment webhooks or clients such as Cleitext sites. The session is ignored even when a cookie comes with the request, so the handler must check who is calling, e.g. an HMAC signature over `rawBody`:
 

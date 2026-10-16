@@ -387,6 +387,7 @@ Base: `/api/v1`. The format is JSON. Errors follow RFC 9457. Pagination is curso
 | GET                   | `/audit`                                                                       | Activity log.                                              |
 | GET                   | `/system/status`                                                               | System status.                                             |
 | GET                   | `/blocks`                                                                      | Registry of available blocks (for the editor).             |
+| POST                  | `/blocks/preview`                                                              | One plugin block rendered by the server, with its CSS.     |
 
 ### 6.5 Delivery (read-only, headless)
 

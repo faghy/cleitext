@@ -426,6 +426,11 @@ export interface BlockPage {
     author?: EntryAuthor & { slug: string };
     entries: PublicEntrySummary[];
     pagination: Pagination;
+    /**
+     * Archives of plugin pages (plugin API 1.20): the plugin's own listing,
+     * to show where an archive's entries go. `entries` is then empty.
+     */
+    html?: string;
   };
   /** Search results. */
   search?: { query: string; entries: PublicEntrySummary[]; pagination: Pagination };
@@ -637,6 +642,17 @@ export interface PluginPageContent {
   index?: boolean;
   /** Extra tags for the page's head, e.g. structured data (plugin API 1.17). */
   head?: HeadTag[];
+  /**
+   * The page lists entries like an archive (plugin API 1.20), e.g. a shop's
+   * catalog or one of its categories. Hooks see it as an archive of that
+   * term or content type, so theme builders apply their archive templates;
+   * blocks find `html` in `page.archive`.
+   */
+  archive?: {
+    term?: { taxonomy: string; slug: string; name: string; description?: string | null };
+    /** The content type listed, e.g. `product`. */
+    type?: string;
+  };
 }
 
 export type RouteHandler = (request: RouteRequest) => Promise<RouteResponse> | RouteResponse;

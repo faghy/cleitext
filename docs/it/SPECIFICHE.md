@@ -387,6 +387,7 @@ Base: `/api/v1`. Il formato è JSON. Gli errori seguono RFC 9457. La paginazione
 | GET                   | `/audit`                                                                       | Registro attività.                                        |
 | GET                   | `/system/status`                                                               | Stato del sistema.                                        |
 | GET                   | `/blocks`                                                                      | Registro dei blocchi disponibili (per l'editor).          |
+| POST                  | `/blocks/preview`                                                              | Un blocco di plugin reso dal server, con il suo CSS.      |
 
 ### 6.5 Delivery (sola lettura, headless)
 

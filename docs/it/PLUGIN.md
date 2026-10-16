@@ -360,7 +360,7 @@ ctx.blocks.register(
 - `wrapper: false`: toglie il `<div class="wp-block-…">` intorno al blocco. I contenitori non ce l'hanno.
 - I contenitori e i blocchi senza wrapper vengono disegnati dentro la pagina, quindi il loro `render` non deve lanciare errori. Gli altri blocchi vengono prima disegnati a parte.
 - `css`: restituisce il CSS di un'istanza. Il CSS di tutte le istanze della pagina va in un unico `<style data-cx-blocks>` nel `<head>`.
-- `context.page` (anche in `load`) è la pagina che si sta disegnando: `route`, `site` (`title`, `tagline`, `home`), `params` (i parametri dell’indirizzo, per esempio un numero di pagina) e `entry` (la voce pubblica completa), `archive` (titolo, termine, voci, paginazione) o `search`, per i blocchi che mostrano i dati della pagina, come il titolo della voce o l'elenco di un archivio di un theme builder.
+- `context.page` (anche in `load`) è la pagina che si sta disegnando: `route`, `site` (`title`, `tagline`, `home`), `params` (i parametri dell’indirizzo, per esempio un numero di pagina) e `entry` (la voce pubblica completa), `archive` (titolo, termine, voci, paginazione; `html` per gli elenchi dei plugin, API 1.20) o `search`, per i blocchi che mostrano i dati della pagina, come il titolo della voce o l'elenco di un archivio di un theme builder.
 - `context.query({ type, terms, ids, exclude, orderBy, order, limit, offset })` in `load` (API plugin 1.11) elenca le voci pubblicate nella lingua della pagina, complete come le ricevono i temi (estratto, immagini, termini, campi), con il `total` per la paginazione; la pagina si aggiorna quando cambiano voci di quei tipi. `orderBy` è `date` (predefinito), `title`, `modified` o `random`; `terms` è `{ taxonomy, slugs }`; `limit` vale al massimo 100. Servono a loop, articoli correlati e portfolio.
 - `context.menus` contiene i menu del sito nella lingua della pagina, per posizione del tema (`{ id, label, url, target?, current, children }`), per i blocchi di navigazione.
 - `items` (contenitori): ogni figlio disegnato a parte, per avvolgerli uno per uno (schede, accordion, caroselli).
@@ -426,6 +426,8 @@ ctx.routes.public({
   },
 });
 ```
+
+**Elenchi** (API dei plugin 1.20). Una pagina che elenca voci, come il catalogo di un negozio o una sua categoria, lo dichiara con `archive: { type?, term?: { taxonomy, slug, name, description? } }` in `page`. Gli hook vedono allora un archivio di quel tipo di contenuto o di quel termine (`route: 'archive'`): un theme builder vi applica i suoi modelli di archivio, e i blocchi trovano l'`html` del plugin in `context.page.archive.html`, da mostrare dove vanno le voci di un archivio.
 
 **Chiamate da altri server** (API dei plugin 1.10): una rotta API con `webhook: true` è anonima e salta il controllo dell'origine, per i webhook dei pagamenti o per client come i siti Cleitext. La sessione viene ignorata anche se la richiesta porta un cookie, quindi l'handler deve verificare chi chiama, per esempio con una firma HMAC su `rawBody`:
 

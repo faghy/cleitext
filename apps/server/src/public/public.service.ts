@@ -26,6 +26,7 @@ import type {
 } from '@cleitext/plugin-sdk';
 import {
   Block,
+  Blocks,
   collectMediaIds,
   collectPatternIds,
   documentExcerpt,
@@ -153,6 +154,12 @@ interface RequestScope {
   editorFrame?: boolean;
   /** CSS of the plugin blocks on the page (`css`), added to `<head>`. */
   blockCss?: string[];
+  /** A plugin page that lists entries like an archive (`PluginPageContent.archive`). */
+  pluginArchive?: NonNullable<PluginPageContent['archive']> & {
+    title: string;
+    description: string;
+    html: string;
+  };
 }
 
 /** Public site: routing, data loading and theme rendering (docs/ARCHITECTURE.md §12). */
@@ -1586,6 +1593,12 @@ export class PublicService {
         const parsed = cxdDocumentSchema.safeParse(given?.[name]);
         if (parsed.success) locations[name] = parsed.data;
       }
+      // A plugin's listing renders as a page: its archive template goes where the entry goes.
+      if (scope.pluginArchive) {
+        if (locations.archive) locations.single = locations.archive;
+        else delete locations.single;
+        delete locations.archive;
+      }
     }
     const menus = await loadMenus(
       scope.tx,
@@ -1747,6 +1760,24 @@ export class PublicService {
     entry?: PublicEntry,
     props?: TemplateProps,
   ): RenderHookContext {
+    // Plugin pages that list entries are archives for the hooks (theme builders).
+    const listing = scope.pluginArchive;
+    if (listing) {
+      return {
+        siteId: scope.siteId,
+        locale: scope.locale,
+        route: 'archive',
+        path: scope.path,
+        archive: {
+          ...(listing.term ? { taxonomy: listing.term.taxonomy, term: listing.term.slug } : {}),
+          ...(listing.type ? { type: listing.type } : {}),
+        },
+        ...(scope.editorFrame ? { editorFrame: true } : {}),
+        tag: (tag: string) => {
+          scope.tags.add(tag);
+        },
+      };
+    }
     return {
       siteId: scope.siteId,
       locale: scope.locale,
@@ -1849,6 +1880,28 @@ export class PublicService {
         ? { search: { query: props.query, entries: props.entries, pagination: props.pagination } }
         : {}),
     };
+    if (scope.pluginArchive) {
+      const { term, type, title, description, html } = scope.pluginArchive;
+      page.route = 'archive';
+      page.archive = {
+        title,
+        ...(description ? { description } : {}),
+        ...(term
+          ? {
+              term: {
+                taxonomy: term.taxonomy,
+                slug: term.slug,
+                name: term.name,
+                description: term.description ?? null,
+              },
+            }
+          : {}),
+        ...(type ? { contentType: type } : {}),
+        entries: [],
+        pagination: { page: 1, totalPages: 1, prevUrl: null, nextUrl: null },
+        html,
+      };
+    }
     const context = { siteId: scope.siteId, locale: scope.locale, media, menus, page };
     const inPage = (block: { container?: boolean; wrapper?: boolean }) =>
       block.container === true || block.wrapper === false;
@@ -2014,6 +2067,14 @@ export class PublicService {
   ): Promise<PublicResponse> {
     return withContext(this.database.db, { siteId }, async (tx) => {
       const { scope } = await this.scope(tx, siteId, origin, path);
+      if (page.archive) {
+        scope.pluginArchive = {
+          ...page.archive,
+          title: page.title,
+          description: page.description ?? '',
+          html: page.html,
+        };
+      }
       if (viewer?.userId) {
         scope.viewer = {
           id: viewer.userId,
@@ -2062,6 +2123,77 @@ export class PublicService {
       return cached
         ? response
         : { ...response, headers: { ...response.headers, 'cache-control': 'private, no-store' } };
+    });
+  }
+
+  /**
+   * One plugin block rendered on its own, with the CSS of its instance: the
+   * preview a visual editor shows for blocks it cannot draw itself (e.g. a
+   * shop's product grid inside a Fresco page). `null` when the type is not a
+   * block of an active plugin.
+   */
+  async renderBlock(
+    siteId: string,
+    origin: string,
+    input: { block: CxdBlock; locale?: string; entryId?: string },
+  ): Promise<{ html: string; css: string } | null> {
+    const active = await this.plugins.activePlugins(siteId);
+    if (!active.some((plugin) => plugin.blocks.some((b) => b.type === input.block.type))) {
+      return null;
+    }
+    return withContext(this.database.db, { siteId }, async (tx) => {
+      const { scope } = await this.scope(tx, siteId, origin, '/');
+      if (input.locale && scope.data.locales.some((l) => l.code === input.locale)) {
+        scope.locale = input.locale;
+      }
+      // The entry being edited, for blocks that show it (e.g. a product's summary).
+      const [row] = input.entryId
+        ? await tx
+            .select({ id: entries.id, type: entries.typeSlug })
+            .from(entries)
+            .where(eq(entries.id, input.entryId))
+        : [];
+      const entry: PublicEntry = {
+        id: row?.id ?? 'block-preview',
+        type: row?.type ?? 'page',
+        locale: scope.locale,
+        slug: 'preview',
+        title: '',
+        url: '/',
+        publishedAt: null,
+        excerpt: '',
+        author: null,
+        image: null,
+        document: { schema: 1, blocks: [] },
+        terms: {},
+        translations: [],
+        fields: {},
+        featuredImage: null,
+      };
+      const props: TemplateProps = { kind: 'entry', entry, isFrontPage: false };
+      const document: CxdDocument = { schema: 1, blocks: [input.block] };
+      const mediaIds = collectMediaIds(document);
+      const media =
+        mediaIds.length > 0
+          ? await loadMedia(tx, mediaIds, scope.locale)
+          : new Map<string, RenderMedia>();
+      const menus = await loadMenus(
+        tx,
+        scope.locale,
+        scope.data.urls,
+        '/',
+        new Set(scope.data.types.map((t) => t.slug)),
+      );
+      const renderers = await this.pluginBlockRenderers(scope, [document], props, media, menus);
+      const html = renderers
+        ? renderToStaticMarkup(
+            createElement(Blocks, {
+              document,
+              context: { media, locale: scope.locale, renderers },
+            }),
+          )
+        : '';
+      return { html, css: (scope.blockCss ?? []).join('\n') };
     });
   }
 

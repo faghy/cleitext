@@ -1,3 +1,4 @@
+import { cxdBlockSchema } from '@cleitext/blocks';
 import { settings, withContext, type DatabaseClient } from '@cleitext/db';
 import { labelText } from '@cleitext/plugin-sdk';
 import {
@@ -38,6 +39,15 @@ import path from 'node:path';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { assertCanUpload, packageRoot, runCli, unpackPackage } from './package-upload.js';
 import { PluginServicesProvider } from './plugin-services.service.js';
+import { parseBody } from '../common/problem.js';
+import { siteOrigin } from '../mcp/origin.js';
+import { PublicService } from '../public/public.service.js';
+
+const previewBlockBody = z.object({
+  block: cxdBlockSchema,
+  locale: z.string().max(35).optional(),
+  entryId: z.string().uuid().optional(),
+});
 
 /** Plugins on the current site (docs/SPECIFICATIONS.md §6.4, RF-PLG-02). */
 @Controller()
@@ -49,6 +59,7 @@ export class PluginsController {
     private readonly services: PluginServicesProvider,
     private readonly audit: AuditService,
     private readonly licenses: LicensesService,
+    private readonly publicService: PublicService,
   ) {}
 
   @Get('plugins')
@@ -288,6 +299,28 @@ export class PluginsController {
         attributes: block.attributes ?? [],
       })),
     );
+  }
+
+  /**
+   * One block of an active plugin rendered by the server, with its CSS: the
+   * preview of visual editors that cannot draw plugin blocks themselves.
+   */
+  @Post('blocks/preview')
+  @HttpCode(200)
+  @RequireCapability('edit_entries')
+  async previewBlock(
+    @CurrentSite() site: SiteContext,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<{ html: string; css: string }> {
+    const input = parseBody(previewBlockBody, body);
+    const result = await this.publicService.renderBlock(site.id, siteOrigin(request), {
+      block: input.block,
+      ...(input.locale ? { locale: input.locale } : {}),
+      ...(input.entryId ? { entryId: input.entryId } : {}),
+    });
+    if (!result) throw new NotFoundException('No active plugin has this block.');
+    return result;
   }
 
   // ---- Helpers --------------------------------------------------------------------

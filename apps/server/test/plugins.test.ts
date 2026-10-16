@@ -482,6 +482,42 @@ describe('an active plugin', () => {
     expect((await visitor.get('/')).body).toContain('class="site-header"');
   });
 
+  it('applies archive templates to its listings, which show where the entries go', async () => {
+    const html = (await visitor.get('/event-tag/jazz')).body;
+    expect(html).toContain('<p>Archive template jazz</p>');
+    expect(html).toMatch(
+      /data-archive="archive:Tagged jazz:jazz:event"><ul class="tagged"><li>jazz event<\/li><\/ul>/,
+    );
+    // The listing is shown once: the template takes the place of the page's content.
+    expect(html.match(/class="tagged"/g)).toHaveLength(1);
+    // Other plugin pages are no archives.
+    expect((await visitor.get('/basket')).body).not.toContain('Archive template');
+  });
+
+  it('previews one of its blocks for visual editors', async () => {
+    const preview = (block: object) =>
+      editor.post('/api/v1/blocks/preview', { block: { v: 1, ...block }, locale: 'en' });
+    const upcomingPreview = await preview({
+      id: 'p1',
+      type: 'events/upcoming',
+      attrs: { heading: 'Soon', limit: 1 },
+    });
+    expect(upcomingPreview.statusCode).toBe(200);
+    expect(upcomingPreview.json().html).toContain('<h2>Soon</h2>');
+    const box = (await preview({ id: 'b1', type: 'events/box', attrs: { tone: 'red' } })).json();
+    expect(box.html).toContain('data-tone="red"');
+    expect(box.css).toContain('.box-b1{border:1px solid red}');
+    // Only blocks of active plugins.
+    expect((await preview({ id: 'c1', type: 'core/paragraph', attrs: {} })).statusCode).toBe(404);
+    expect(
+      (
+        await visitor.post('/api/v1/blocks/preview', {
+          block: { id: 'x', type: 'events/box', v: 1, attrs: {} },
+        })
+      ).statusCode,
+    ).toBeGreaterThanOrEqual(400);
+  });
+
   it('validates the attributes of its blocks', async () => {
     const response = await editor.post('/api/v1/entries', {
       type: 'page',
