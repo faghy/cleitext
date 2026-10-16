@@ -329,3 +329,16 @@ export type ShippingZoneRow = typeof shippingZones.$inferSelect;
 export type ShippingMethodRow = typeof shippingMethods.$inferSelect;
 export type TaxRateRow = typeof taxRates.$inferSelect;
 export type CouponRow = typeof coupons.$inferSelect;
+
+// ---- Customers (migrations/0005_customers.sql) ---------------------------------------
+
+export const customers = pgTable('customers', {
+  siteId: uuid('site_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  email: text('email').notNull().default(''),
+  billing: jsonb('billing').$type<Address | null>(),
+  shipping: jsonb('shipping').$type<Address | null>(),
+  invoice: jsonb('invoice').$type<Invoice | null>(),
+  updatedAt: time('updated_at').notNull().defaultNow(),
+});
+export type CustomerRow = typeof customers.$inferSelect;

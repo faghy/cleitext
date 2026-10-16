@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { PluginTransaction } from '@cleitext/plugin-sdk';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { currentPrice, isOnSale } from './pricing';
 import {
   attributes,
@@ -75,6 +75,36 @@ export async function saveCoupons(
     .insert(carts)
     .values({ siteId, tokenHash: tokenHash(token), items: [], ...values })
     .onConflictDoUpdate({ target: [carts.siteId, carts.tokenHash], set: values });
+}
+
+/**
+ * A signed-in customer with an empty cart here gets the cart they left on
+ * another device (or before signing in elsewhere): it moves to this token.
+ */
+export async function adoptCart(
+  tx: PluginTransaction,
+  siteId: string,
+  token: string | undefined,
+  userId: string,
+): Promise<{ token: string; items: CartItem[] } | null> {
+  const [other] = await tx
+    .select()
+    .from(carts)
+    .where(
+      and(
+        eq(carts.userId, userId),
+        token ? ne(carts.tokenHash, tokenHash(token)) : undefined,
+        sql`jsonb_array_length(${carts.items}) > 0`,
+      ),
+    )
+    .orderBy(desc(carts.updatedAt))
+    .limit(1);
+  if (!other) return null;
+  const next = token && /^[A-Za-z0-9_-]{20,64}$/.test(token) ? token : newToken();
+  await saveCart(tx, siteId, next, other.items, userId);
+  await saveCoupons(tx, siteId, next, other.coupons, userId);
+  await tx.delete(carts).where(eq(carts.id, other.id));
+  return { token: next, items: other.items };
 }
 
 /** Adds an item, or more of one already there; one only for products sold individually. */

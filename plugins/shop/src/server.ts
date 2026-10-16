@@ -19,9 +19,12 @@ import { backfill, BRAND, CATEGORY, PRODUCT, syncProduct, watchEntries } from '.
 import { eq } from 'drizzle-orm';
 import { orderDetail } from './order-admin';
 import { orderMail, registerOrderRoutes } from './orders-routes';
-import { productTag, registerBuyBox } from './buy-box';
+import { productTags, registerBuyBox } from './buy-box';
 import { registerStorefront, type StoreSettings } from './storefront';
 import { COUNTRIES } from './address';
+import { registerAccount } from './account';
+import { registerCatalog } from './catalog-routes';
+import { registerStorefrontBlocks } from './storefront-blocks';
 import { registerRulesRoutes, TAXES_STORAGE, taxSettingsSchema } from './rules-routes';
 
 /**
@@ -334,19 +337,34 @@ export default definePlugin({
       const values = await ctx.settings.get(siteId);
       return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
     });
-    // Product pages get the buy box after their first block (usually the intro).
-    ctx.hooks.filter('render.blocks', (blocks, context) =>
-      context.entry.type === PRODUCT
-        ? [
-            ...blocks.slice(0, 1),
-            { id: 'shop-buy-box', type: 'shop/buy-box', v: 1, attrs: {} },
-            ...blocks.slice(1),
-          ]
-        : blocks,
-    );
+    const currency = async (siteId: string) => ({
+      currency: String((await ctx.settings.get(siteId)).currency ?? 'EUR'),
+    });
+    registerCatalog(ctx, currency);
+    registerAccount(ctx, store);
+    registerStorefrontBlocks(ctx, currency);
+    // Product pages: the path to them first, the buy box and the gallery after
+    // their first block (usually the intro), related products at the end.
+    ctx.hooks.filter('render.blocks', (blocks, context) => {
+      if (context.entry.type !== PRODUCT) return blocks;
+      const block = (type: string) => ({
+        id: `shop-${type}`,
+        type: `shop/${type}`,
+        v: 1,
+        attrs: {},
+      });
+      return [
+        block('breadcrumbs'),
+        ...blocks.slice(0, 1),
+        block('buy-box'),
+        block('gallery'),
+        ...blocks.slice(1),
+        block('related'),
+      ];
+    });
     /** Product pages show prices and stock: they refresh when those change. */
     const refresh = (siteId: string, ids: string[]) =>
-      ctx.cache.invalidate(siteId, ids.map(productTag));
+      ctx.cache.invalidate(siteId, productTags(ids));
 
     const api = (
       method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',

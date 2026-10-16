@@ -90,21 +90,21 @@ const variationPrice = (fn: 'min' | 'max') =>
   sql.raw(`(SELECT ${fn}(${CURRENT_PRICE_SQL('v.')}) FROM variations v
     WHERE v.site_id = products.site_id AND v.product_id = products.entry_id AND v.enabled)`);
 const ownPrice = sql.raw(CURRENT_PRICE_SQL('products.'));
-const priceMin = sql<
+export const priceMin = sql<
   string | null
 >`CASE WHEN ${products.kind} = 'variable' THEN ${variationPrice('min')} ELSE ${ownPrice} END`;
-const priceMax = sql<
+export const priceMax = sql<
   string | null
 >`CASE WHEN ${products.kind} = 'variable' THEN ${variationPrice('max')} ELSE ${ownPrice} END`;
 /** Variable products: the pieces of their variations, and whether any can be bought. */
 const variationStock = sql<number | null>`(SELECT sum(v.stock)::int FROM variations v
   WHERE v.site_id = products.site_id AND v.product_id = products.entry_id AND v.enabled AND v.manage_stock)`;
-const variationStatus = sql<string>`(SELECT CASE
+export const variationStatus = sql<string>`(SELECT CASE
     WHEN bool_or(v.stock_status = 'instock') THEN 'instock'
     WHEN bool_or(v.stock_status = 'onbackorder') THEN 'onbackorder'
     ELSE 'outofstock' END
   FROM variations v WHERE v.site_id = products.site_id AND v.product_id = products.entry_id AND v.enabled)`;
-const onSale = sql<boolean>`(CASE WHEN ${products.kind} = 'variable'
+export const onSale = sql<boolean>`(CASE WHEN ${products.kind} = 'variable'
   THEN EXISTS (SELECT 1 FROM variations v WHERE v.site_id = products.site_id
     AND v.product_id = products.entry_id AND v.enabled
     AND ${sql.raw(CURRENT_PRICE_SQL('v.'))} < v.regular_price)

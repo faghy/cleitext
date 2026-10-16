@@ -20,6 +20,10 @@ import { translator } from './strings';
  */
 
 export const productTag = (id: string) => `shop:product:${id}`;
+/** Pages listing products (the catalog, product blocks): they refresh with any product. */
+export const CATALOG_TAG = 'shop:catalog';
+/** What to refresh when products' prices or stock change. */
+export const productTags = (ids: string[]) => [...new Set(ids)].map(productTag).concat(CATALOG_TAG);
 
 interface Option {
   key: string;

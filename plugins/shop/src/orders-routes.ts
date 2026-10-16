@@ -1,7 +1,7 @@
 import { adminUrl, type PluginContext, type RouteRequest } from '@cleitext/plugin-sdk';
 import { desc } from 'drizzle-orm';
 import { z } from 'zod';
-import { productTag } from './buy-box';
+import { productTags } from './buy-box';
 import {
   EMAIL_IDS,
   EMAILS,
@@ -148,10 +148,7 @@ export function registerOrderRoutes(
     const detail = (await load(request.siteId, id))!;
     if (changed.from !== status) {
       if (changed.productIds.length)
-        await ctx.cache.invalidate(
-          request.siteId,
-          [...new Set(changed.productIds)].map(productTag),
-        );
+        await ctx.cache.invalidate(request.siteId, productTags(changed.productIds));
       for (const email of emailsForStatus(changed.from, status))
         await mail.send(request.siteId, request.origin, email, detail);
       await ctx.hooks.emit(
@@ -188,7 +185,7 @@ export function registerOrderRoutes(
       refund(tx, request.siteId, id, input, author(request)),
     );
     if (result.productIds.length)
-      await ctx.cache.invalidate(request.siteId, [...new Set(result.productIds)].map(productTag));
+      await ctx.cache.invalidate(request.siteId, productTags(result.productIds));
     const detail = (await load(request.siteId, id))!;
     await mail.send(request.siteId, request.origin, 'customer_refunded', detail, {
       amount: result.amount,

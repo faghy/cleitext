@@ -7,8 +7,9 @@ import {
   type Address,
   type Invoice,
 } from './address';
-import { productTag } from './buy-box';
+import { productTags } from './buy-box';
 import {
+  adoptCart,
   addItem,
   CART_COOKIE,
   CART_DAYS,
@@ -35,6 +36,7 @@ import {
   type PageUrls,
   type PaymentOption,
 } from './pages';
+import { customerOf, saveCustomer } from './account';
 import { couponOf, quote, type Quote, type QuoteInput } from './quote';
 import { coupons, products } from './schema';
 import type { Destination } from './shipping';
@@ -164,9 +166,18 @@ export function registerStorefront(
     t: Translate,
     options: Partial<Omit<QuoteInput, 'lines' | 'codes'>> = {},
   ) => {
-    const token = request.cookies[CART_COOKIE];
+    let token = request.cookies[CART_COOKIE];
     return ctx.db.transaction(request.siteId, async (tx) => {
-      const items = await loadCart(tx, token);
+      let items = await loadCart(tx, token);
+      // Signed in with an empty cart: the one left on another device.
+      let adopted: string | null = null;
+      if (items.length === 0 && request.user) {
+        const found = await adoptCart(tx, request.siteId, token, request.user.id);
+        if (found) {
+          ({ token, items } = found);
+          adopted = found.token;
+        }
+      }
       const priced = await priceCart(tx, items);
       const codes = await loadCoupons(tx, token);
       const quoted = await quote(tx, quoteSettings(store, t), {
@@ -186,7 +197,7 @@ export function registerStorefront(
           codes.filter((c) => !quoted.rejected.some((r) => r.code === c)),
           request.user?.id ?? null,
         );
-      return { token, ...priced, quote: quoted };
+      return { token, ...priced, quote: quoted, cookie: adopted };
     });
   };
 
@@ -230,6 +241,7 @@ export function registerStorefront(
           text: t('Sorry, “{name}” is not available in that quantity any more.', { name }),
         });
       return {
+        ...(cart.cookie ? { cookies: [cookieOf(cart.cookie)] } : {}),
         page: {
           title: t('Cart'),
           html: cartPage({
@@ -244,6 +256,24 @@ export function registerStorefront(
             needsShipping: cart.quote.shippingSetUp,
           }),
         },
+      };
+    },
+  });
+
+  /** How many items the cart holds, for the cart link on cached pages. */
+  ctx.routes.public({
+    method: 'GET',
+    path: '/cart/count',
+    async handler(request) {
+      const t = translator(request.locale);
+      const token = request.cookies[CART_COOKIE];
+      const items = token
+        ? await ctx.db.transaction(request.siteId, (tx) => loadCart(tx, token))
+        : [];
+      const count = items.reduce((sum, item) => sum + item.quantity, 0);
+      return {
+        body: { count, label: t('Cart: {n} items', { n: count }) },
+        headers: { 'cache-control': 'private, no-store' },
       };
     },
   });
@@ -458,6 +488,7 @@ export function registerStorefront(
     const prefix = prefixOf(request);
     if (cart.lines.length === 0) return { status: 303, headers: { location: `${prefix}/cart` } };
     return {
+      ...(cart.cookie ? { cookies: [cookieOf(cart.cookie)] } : {}),
       status: Object.keys(errors).length || notice ? 422 : 200,
       page: {
         title: t('Checkout'),
@@ -476,6 +507,11 @@ export function registerStorefront(
             ...(r.note ? { note: r.note } : {}),
           })),
           rate: cart.quote.rate?.id ?? null,
+          ...(request.user
+            ? {}
+            : {
+                loginUrl: `${prefix}/account/login?redirect=${encodeURIComponent(`${prefix}/checkout`)}`,
+              }),
           t,
           money,
           urls: await urlsFor(request, cart.lines),
@@ -493,23 +529,31 @@ export function registerStorefront(
   ctx.routes.public({
     method: 'GET',
     path: '/checkout',
-    handler: (request) =>
-      renderCheckout(
+    async handler(request) {
+      // Customers with an account find their latest addresses filled in.
+      const customer = request.user
+        ? await ctx.db.transaction(request.siteId, (tx) => customerOf(tx, request.user!.id))
+        : null;
+      const billing = customer?.billing ?? emptyAddress();
+      const shipping = customer?.shipping ?? billing;
+      const invoice = customer?.invoice ?? { taxCode: '', vatNumber: '', sdi: '', pec: '' };
+      return renderCheckout(
         request,
         {
-          email: '',
-          billing: emptyAddress(),
-          shipping: emptyAddress(),
-          differentShipping: false,
-          wantsInvoice: false,
-          invoice: { taxCode: '', vatNumber: '', sdi: '', pec: '' },
+          email: customer?.email ?? '',
+          billing,
+          shipping,
+          differentShipping: JSON.stringify(shipping) !== JSON.stringify(billing),
+          wantsInvoice: Object.values(invoice).some(Boolean),
+          invoice,
           note: '',
           payment: '',
           rate: '',
           terms: false,
         },
         {},
-      ),
+      );
+    },
   });
 
   ctx.routes.public({
@@ -602,6 +646,14 @@ export function registerStorefront(
             userAgent: request.headers['user-agent'] ?? '',
           });
           await saveCart(tx, request.siteId, token!, [], request.user?.id ?? null);
+          await saveCoupons(tx, request.siteId, token!, [], request.user?.id ?? null);
+          if (request.user)
+            await saveCustomer(tx, request.siteId, request.user.id, {
+              email: values.email.toLowerCase(),
+              billing,
+              shipping,
+              invoice: values.wantsInvoice ? values.invoice : null,
+            });
           return { order, products: priced.lines.map((l) => l.productId) };
         });
         if (placed && 'problem' in placed)
@@ -624,7 +676,7 @@ export function registerStorefront(
               }),
             },
           };
-        await ctx.cache.invalidate(request.siteId, [...new Set(placed.products)].map(productTag));
+        await ctx.cache.invalidate(request.siteId, productTags(placed.products));
         try {
           await onPlaced(request.siteId, placed.order.id, request.origin);
         } catch (error) {

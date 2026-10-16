@@ -84,6 +84,22 @@ products, and the catalog features of WooCommerce.
   surcharge (Settings → Shop), and the totals with discounts and taxes, in the
   order, its page and its emails.
 
-Next: the storefront (shop page, account), Stripe and PayPal.
+**Milestone 5, the storefront**:
+
+- `/shop` and the archives `/product-category/<slug>` (with its subcategories)
+  and `/brand/<slug>`: a grid of products with filters (brand, attributes,
+  price, on sale, in stock), sorting and pages, all without JavaScript.
+  Cached for visitors and refreshed when products change; filtered pages are
+  kept out of search engines.
+- Product pages: breadcrumbs, the gallery, related products (the up-sells,
+  or best sellers of the category) and structured data (Product, Offer,
+  BreadcrumbList).
+- Blocks: **Products** (latest, featured, on sale, best sellers or top rated,
+  of a category or brand) and **Cart link** with the number of items.
+- In the visitor's account: their orders and their details, and the
+  addresses that fill in the checkout. A signed-in customer finds their cart
+  on another device.
+
+Next: Stripe and PayPal, reviews.
 
 License: GPL-2.0-or-later.

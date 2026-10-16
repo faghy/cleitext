@@ -343,28 +343,18 @@ export interface PaymentOption {
   description: string;
 }
 
-export function checkoutPage(options: {
-  values: CheckoutValues;
-  errors: Record<string, string>;
-  lines: CartLine[];
-  totals: Totals;
+/** Fields of the checkout's forms (and of the account's addresses), with their errors. */
+export function formParts({
+  t,
+  errors,
+  locale,
+  phoneRequired,
+}: {
   t: Translate;
-  money: Money;
-  urls: PageUrls;
+  errors: Record<string, string>;
   locale: string;
-  includeTax: boolean;
-  payments: PaymentOption[];
-  termsUrl: string;
   phoneRequired: boolean;
-  notice?: string;
-  coupons: CouponView[];
-  needsShipping: boolean;
-  shippingSetUp: boolean;
-  rates: RateOption[];
-  /** The rate in the totals. */
-  rate: string | null;
-}): string {
-  const { values, errors, t, money, locale } = options;
+}) {
   const countries = [...COUNTRIES]
     .map((code) => ({ code, name: countryName(code, locale) }))
     .sort((a, b) =>
@@ -422,7 +412,41 @@ export function checkoutPage(options: {
       ${field(`${prefix}.postcode`, t('Postcode'), address.postcode, { autocomplete: `${autocomplete} postal-code`, required: true, inputmode: 'numeric' })}
       ${field(`${prefix}.city`, t('City'), address.city, { autocomplete: `${autocomplete} address-level2`, required: true })}
       ${field(`${prefix}.province`, t('Province / state'), address.province, { autocomplete: `${autocomplete} address-level1`, list: 'shop-provinces' })}
-      ${prefix === 'billing' ? field('billing.phone', t('Phone'), address.phone, { type: 'tel', autocomplete: 'billing tel', required: options.phoneRequired }) : ''}`;
+      ${prefix === 'billing' ? field('billing.phone', t('Phone'), address.phone, { type: 'tel', autocomplete: 'billing tel', required: phoneRequired }) : ''}`;
+
+  return { field, addressFields };
+}
+
+export function checkoutPage(options: {
+  values: CheckoutValues;
+  errors: Record<string, string>;
+  lines: CartLine[];
+  totals: Totals;
+  t: Translate;
+  money: Money;
+  urls: PageUrls;
+  locale: string;
+  includeTax: boolean;
+  payments: PaymentOption[];
+  termsUrl: string;
+  phoneRequired: boolean;
+  notice?: string;
+  coupons: CouponView[];
+  needsShipping: boolean;
+  shippingSetUp: boolean;
+  rates: RateOption[];
+  /** The rate in the totals. */
+  rate: string | null;
+  /** Visitors not signed in: where to sign in and come back. */
+  loginUrl?: string;
+}): string {
+  const { values, errors, t, money, locale } = options;
+  const { field, addressFields } = formParts({
+    t,
+    errors,
+    locale,
+    phoneRequired: options.phoneRequired,
+  });
 
   const summary = html`<div class="shop-box">
     <h2>${t('Your order')}</h2>
@@ -529,6 +553,7 @@ export function checkoutPage(options: {
 
   return page(
     html` ${options.notice ? html`<p class="shop-notice shop-notice--error" role="alert">${options.notice}</p>` : ''}
+      ${options.loginUrl ? html`<p class="shop-notice">${t('Returning customer?')} <a href="${options.loginUrl}">${t('Sign in')}</a></p>` : ''}
       <form method="post" action="${options.urls.checkout}" novalidate>
         <datalist id="shop-provinces">
           ${Object.entries(IT_PROVINCES).map(([code, name]) => html`<option value="${code}">${name}</option>`)}
@@ -577,11 +602,28 @@ ${values.note}</textarea>
   );
 }
 
+/** An order's status as customers read it. */
+export function statusLabel(t: Translate, status: string): string {
+  const labels: Record<string, string> = {
+    draft: 'Draft',
+    pending: 'Pending payment',
+    processing: 'Processing',
+    'on-hold': 'On hold',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    refunded: 'Refunded',
+    failed: 'Failed',
+  };
+  return t(labels[status] ?? status);
+}
+
 export function receivedPage(options: {
   order: OrderRow;
   items: OrderItemRow[];
   t: Translate;
   locale: string;
+  /** In the account: no thanks, the status instead, and a way back. */
+  account?: { back: string };
   bank: {
     accountName: string;
     iban: string;
@@ -603,12 +645,24 @@ export function receivedPage(options: {
   const includeTax = order.pricesIncludeTax;
   return page(
     html`<div class="shop-received">
-      <p class="shop-notice" role="status">${t('Thank you: we received your order.')}</p>
+      ${
+        options.account
+          ? html`<p><a href="${options.account.back}">← ${t('Your orders')}</a></p>`
+          : html`<p class="shop-notice" role="status">
+              ${t('Thank you: we received your order.')}
+            </p>`
+      }
       <dl>
         <dt>${t('Order number')}</dt>
         <dd>${order.number}</dd>
         <dt>${t('Date')}</dt>
         <dd>${date}</dd>
+        ${
+          options.account
+            ? html`<dt>${t('Status')}</dt>
+                <dd>${statusLabel(t, order.status)}</dd>`
+            : ''
+        }
         <dt>${t('Email')}</dt>
         <dd>${order.email}</dd>
         <dt>${t('Total')}</dt>
