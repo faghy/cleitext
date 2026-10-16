@@ -48,16 +48,21 @@ beforeAll(async () => {
   app = await startTestApp({ pluginsPath });
   site = await seedSite(owner, 'shop-catalog');
   await seedUser(owner, {
-    email: 'admin@catalog.test',
+    email: 'admin@shop-catalog.test',
     password: PASSWORD,
     site,
     role: 'administrator',
   });
-  await seedUser(owner, { email: 'author@catalog.test', password: PASSWORD, site, role: 'author' });
+  await seedUser(owner, {
+    email: 'author@shop-catalog.test',
+    password: PASSWORD,
+    site,
+    role: 'author',
+  });
   admin = new TestClient(app, site.host, '10.91.0.1');
-  await admin.login('admin@catalog.test', PASSWORD);
+  await admin.login('admin@shop-catalog.test', PASSWORD);
   author = new TestClient(app, site.host, '10.91.0.2');
-  await author.login('author@catalog.test', PASSWORD);
+  await author.login('author@shop-catalog.test', PASSWORD);
   expect((await admin.post('/api/v1/plugins/shop/activate')).statusCode).toBe(200);
 });
 

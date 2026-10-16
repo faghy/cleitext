@@ -106,7 +106,10 @@ export function AdminLayout() {
       ...(section.to === '/posts' ? taxonomiesOf('article') : []),
       ...(section.to === '/pages' ? taxonomiesOf('page') : []),
       ...(section.to === '/pages'
-        ? pluginMenu.types.flatMap((item) => [item, ...taxonomiesOf(item.to.slice('/content/'.length))])
+        ? pluginMenu.types.flatMap((item) => [
+            item,
+            ...taxonomiesOf(item.to.slice('/content/'.length)),
+          ])
         : []),
     ],
   );
