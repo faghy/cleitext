@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.15.0';
+export const SDK_VERSION = '1.16.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [

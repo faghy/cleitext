@@ -11,6 +11,8 @@ export interface MailMessage {
   to: string;
   subject: string;
   text: string;
+  /** An HTML version (plugin API 1.16); `text` stays for clients without HTML. */
+  html?: string;
   replyTo?: string;
 }
 

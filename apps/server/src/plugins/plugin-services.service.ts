@@ -793,6 +793,7 @@ export class PluginServicesProvider implements PluginServices {
     to: string;
     subject: string;
     text: string;
+    html?: string;
     replyTo?: string;
     siteId?: string;
   }): Promise<void> {

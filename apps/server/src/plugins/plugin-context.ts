@@ -81,6 +81,7 @@ export interface PluginServices {
     to: string;
     subject: string;
     text: string;
+    html?: string;
     replyTo?: string;
     siteId?: string;
   }): Promise<void>;

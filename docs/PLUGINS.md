@@ -541,7 +541,7 @@ Public pages are cached and refreshed through **tags**. Pages showing an entry c
 
 ### Mail
 
-`mail:send`: `await ctx.mail.send({ to, subject, text, replyTo? })`, sent with the server's mail settings.
+`mail:send`: `await ctx.mail.send({ to, subject, text, html?, replyTo?, siteId? })`, sent with the server's mail settings, or the site's own SMTP server with `siteId`. `html` (plugin API 1.16) is an HTML version of the message, such as an order confirmation; `text` stays for mail clients that show only text.
 
 ### Requests to other services
 

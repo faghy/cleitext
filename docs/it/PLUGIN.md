@@ -519,7 +519,7 @@ Le pagine pubbliche sono in cache e vengono aggiornate tramite **tag**. Le pagin
 
 ### Mail
 
-`mail:send`: `await ctx.mail.send({ to, subject, text, replyTo? })`, inviata con le impostazioni di posta del server.
+`mail:send`: `await ctx.mail.send({ to, subject, text, html?, replyTo?, siteId? })`, inviata con le impostazioni di posta del server, oppure con il server SMTP del sito indicando `siteId`. `html` (API dei plugin 1.16) è una versione HTML del messaggio, come una conferma d'ordine; `text` resta per i programmi di posta che mostrano solo testo.
 
 ### Richieste ad altri servizi
 

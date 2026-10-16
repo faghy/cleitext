@@ -627,6 +627,8 @@ export interface MailApi {
     to: string;
     subject: string;
     text: string;
+    /** An HTML version (plugin API 1.16), with `text` for clients without HTML. */
+    html?: string;
     replyTo?: string;
     siteId?: string;
   }): Promise<void>;
