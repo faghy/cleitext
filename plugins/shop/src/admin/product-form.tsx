@@ -295,8 +295,9 @@ export function ProductForm({
           saleTo: fromLocalInput(f.saleTo),
           taxStatus: f.taxStatus,
           taxClass: f.taxClass,
-          manageStock: f.manageStock,
-          stock: f.manageStock ? (num(f.stock) ?? 0) : null,
+          // Variations count their own stock.
+          manageStock: f.kind === 'simple' && f.manageStock,
+          stock: f.kind === 'simple' && f.manageStock ? (num(f.stock) ?? 0) : null,
           stockStatus: f.stockStatus,
           backorders: f.backorders,
           lowStock: num(f.lowStock),

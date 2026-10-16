@@ -1,6 +1,7 @@
 import { definePlugin, type PluginContext, type RouteRequest } from '@cleitext/plugin-sdk';
 import { z } from 'zod';
 import { EXAMPLE_RULES, pricingRulesSchema, quickEditSchema, type PricingRules } from './catalog';
+import { exportProducts, matchProducts } from './export';
 import { listProducts, listQuerySchema } from './list';
 import {
   attributeSchema,
@@ -207,6 +208,48 @@ export default definePlugin({
         listProducts(tx, query.data, { categories, brands, lowStock: values.lowStock }),
       );
       return { body: list };
+    });
+
+    /** The products matching the list's filters, as CSV. */
+    ctx.routes.api({
+      method: 'GET',
+      path: '/export.csv',
+      capability: CAPABILITY,
+      handler: async (request) => {
+        const query = listQuerySchema.safeParse(request.query);
+        if (!query.success) return invalid(query.error);
+        const site = request.siteId;
+        const locale = query.data.locale;
+        const [categories, brands, values] = await Promise.all([
+          ctx.terms.find(site, { taxonomy: CATEGORY, limit: 500, ...(locale ? { locale } : {}) }),
+          ctx.terms.find(site, { taxonomy: BRAND, limit: 500, ...(locale ? { locale } : {}) }),
+          settings(site),
+        ]);
+        const csv = await ctx.db.transaction(site, (tx) =>
+          exportProducts(tx, query.data, { categories, brands, lowStock: values.lowStock }),
+        );
+        return {
+          body: `\uFEFF${csv}`,
+          contentType: 'text/csv; charset=utf-8',
+          headers: { 'content-disposition': 'attachment; filename="products.csv"' },
+        };
+      },
+    });
+
+    /** Which rows of an import are products already in the shop (by id or code). */
+    api('POST', '/import/match', async (request) => {
+      const input = z
+        .object({
+          ids: z.array(z.uuid()).max(5000).default([]),
+          skus: z.array(z.string().trim().min(1).max(100)).max(5000).default([]),
+        })
+        .safeParse(request.body ?? {});
+      if (!input.success) return invalid(input.error);
+      return {
+        body: await ctx.db.transaction(request.siteId, (tx) =>
+          matchProducts(tx, input.data.ids, input.data.skus),
+        ),
+      };
     });
 
     api('GET', '/products/:id', async (request) => {

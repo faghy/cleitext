@@ -113,9 +113,10 @@ describe('setup', () => {
       permalink: '/product/{slug}',
     });
     const taxonomies = (await admin.get('/api/v1/taxonomies')).json();
-    expect(
-      taxonomies.find((t: { slug: string }) => t.slug === 'product-category'),
-    ).toMatchObject({ hierarchical: true, fields: [{ name: 'image' }] });
+    expect(taxonomies.find((t: { slug: string }) => t.slug === 'product-category')).toMatchObject({
+      hierarchical: true,
+      fields: [{ name: 'image' }],
+    });
     expect(taxonomies.find((t: { slug: string }) => t.slug === 'brand')).toMatchObject({
       fields: [{ name: 'logo' }, { name: 'website' }],
     });
@@ -171,10 +172,14 @@ describe('products', () => {
   });
 
   it('refuse a code used by another product, and wrong values', async () => {
-    const other = await product('Acme Two', { category: phones.id, brand: acme.id }, {
-      regularPrice: '150',
-      salePrice: '120',
-    });
+    const other = await product(
+      'Acme Two',
+      { category: phones.id, brand: acme.id },
+      {
+        regularPrice: '150',
+        salePrice: '120',
+      },
+    );
     const taken = await admin.request('PUT', ext(`/products/${other}`), {
       product: { sku: 'ac-1' },
     });
@@ -190,15 +195,24 @@ describe('products', () => {
   });
 
   it('are listed with filters that stack and the brands of the category', async () => {
-    await product('Zeta Book', { category: laptops.id, brand: zeta.id }, {
-      regularPrice: '999',
-      manageStock: true,
-      stock: 1,
-    });
-    await product('Zeta Phone', { category: smartphones.id, brand: zeta.id }, {
-      regularPrice: '199',
-      condition: 'used',
-    }, false);
+    await product(
+      'Zeta Book',
+      { category: laptops.id, brand: zeta.id },
+      {
+        regularPrice: '999',
+        manageStock: true,
+        stock: 1,
+      },
+    );
+    await product(
+      'Zeta Phone',
+      { category: smartphones.id, brand: zeta.id },
+      {
+        regularPrice: '199',
+        condition: 'used',
+      },
+      false,
+    );
 
     const list = async (query: string) => (await admin.get(ext(`/products?${query}`))).json();
     // Phones include Smartphones.
@@ -274,9 +288,13 @@ describe('variations', () => {
     });
     expect(created.statusCode).toBe(201);
     const colour = created.json().id as string;
-    const id = await product('Zeta Case', { category: phones.id, brand: zeta.id }, {
-      kind: 'variable',
-    });
+    const id = await product(
+      'Zeta Case',
+      { category: phones.id, brand: zeta.id },
+      {
+        kind: 'variable',
+      },
+    );
     const saved = await admin.request('PUT', ext(`/products/${id}`), {
       attributes: [{ attributeId: colour, values: ['red', 'blue'], variation: true }],
       variations: [
@@ -291,11 +309,43 @@ describe('variations', () => {
     const again = await admin.request('PUT', ext(`/products/${id}`), {
       variations: [{ ...view.variations[1], regularPrice: '22' }],
     });
-    expect(again.json().variations).toMatchObject([{ id: view.variations[1].id, regularPrice: '22.0000' }]);
+    expect(again.json().variations).toMatchObject([
+      { id: view.variations[1].id, regularPrice: '22.0000' },
+    ]);
     const list = (await admin.get(ext(`/products?q=Zeta Case`))).json();
-    expect(list.items[0]).toMatchObject({ kind: 'variable', price: '22.0000', priceMax: '22.0000' });
-    const taken = await admin.request('PUT', ext(`/products/${first}`), { product: { sku: 'zc-b' } });
+    expect(list.items[0]).toMatchObject({
+      kind: 'variable',
+      price: '22.0000',
+      priceMax: '22.0000',
+      stockStatus: 'instock',
+      stock: null,
+    });
+    const taken = await admin.request('PUT', ext(`/products/${first}`), {
+      product: { sku: 'zc-b' },
+    });
     expect(taken.statusCode).toBe(400);
+  });
+});
+
+describe('CSV', () => {
+  it('exports the filtered products with WooCommerce’s columns and ours', async () => {
+    const res = await admin.get(ext(`/export.csv?category=${laptops.id}`));
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    const [header, row, end] = res.body.replace(/^\uFEFF/, '').split('\r\n');
+    expect(header).toContain('ID,Type,SKU,"GTIN, UPC, EAN, or ISBN",Name,Published');
+    expect(header).toContain('Cost,List price,Condition,Categories,Brands');
+    expect(row).toContain('Zeta Book');
+    expect(row).toContain('Laptops');
+    expect(end).toBe('');
+  });
+
+  it('finds the products of an import by id and code', async () => {
+    const res = await admin.post(ext('/import/match'), {
+      ids: [first],
+      skus: ['ZC-B', 'AC-1', 'none'],
+    });
+    expect(res.json()).toEqual({ ids: [first], skus: { 'ac-1': first } });
   });
 });
 

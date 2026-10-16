@@ -2,6 +2,7 @@ import { Alert, errorMessage, useT, type AdminPageProps } from '@cleitext/admin-
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { ProductListItem } from '../list';
+import { ImportPanel } from './import';
 import { ProductForm } from './product-form';
 import {
   core,
@@ -90,6 +91,7 @@ function ProductListPage({
   const [selected, setSelected] = useState<string[]>([]);
   const [info, setInfo] = useState<string | null>(null);
   const [search, setSearch] = useState(params.get('q') ?? '');
+  const [importing, setImporting] = useState(false);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['shop', 'products'] });
 
   /** Changes filters; the page goes back to the first one. */
@@ -176,6 +178,17 @@ function ProductListPage({
               </select>
             </label>
           )}
+          <a className="sh-btn" href={`/api/v1/ext/shop/export.csv?${query}`} download>
+            {t('Export CSV')}
+          </a>
+          <button
+            type="button"
+            className="sh-btn"
+            aria-expanded={importing}
+            onClick={() => setImporting(!importing)}
+          >
+            {t('Import CSV')}
+          </button>
           <button
             type="button"
             className="sh-btn sh-btn-primary"
@@ -185,6 +198,8 @@ function ProductListPage({
           </button>
         </div>
       </div>
+
+      {importing && <ImportPanel api={api} site={site} onClose={() => setImporting(false)} />}
 
       <nav className="sh-tabs" aria-label={t('Status')}>
         <button type="button" aria-current={!statusFilter} onClick={() => filter({ status: null })}>

@@ -228,4 +228,26 @@ export const IT: Record<string, string> = {
   Width: 'Larghezza',
   'With variations': 'Con varianti',
   Zero: 'Zero',
+  'Export CSV': 'Esporta CSV',
+  'Import CSV': 'Importa CSV',
+  'Import products': 'Importa prodotti',
+  Import: 'Importa',
+  'CSV file': 'File CSV',
+  'The file has no products.': 'Il file non contiene prodotti.',
+  'The file needs a column with the name, the code (SKU) or the ID.':
+    'Il file deve avere una colonna con il nome, il codice (SKU) o l’ID.',
+  'A CSV file with a header row: the shop’s export, or a WooCommerce product export. Products are matched by ID, then by code (SKU).':
+    'Un file CSV con la riga di intestazione: l’esportazione del negozio o quella dei prodotti di WooCommerce. I prodotti si riconoscono dall’ID, poi dal codice (SKU).',
+  '{rows} products in {file}; {known} columns recognized.':
+    '{rows} prodotti in {file}; {known} colonne riconosciute.',
+  'Ignored columns:': 'Colonne ignorate:',
+  'Images are not downloaded: add them in each product.':
+    'Le immagini non vengono scaricate: aggiungile in ogni prodotto.',
+  'Update the products already in the shop': 'Aggiorna i prodotti già presenti',
+  'Add the new ones': 'Aggiungi quelli nuovi',
+  'Create missing categories and brands': 'Crea le categorie e i marchi mancanti',
+  'A new product needs a name.': 'Un nuovo prodotto deve avere un nome.',
+  'Added {created}, updated {updated}, skipped {skipped}, with errors {errors}.':
+    'Aggiunti {created}, aggiornati {updated}, saltati {skipped}, con errori {errors}.',
+  'Row {row}:': 'Riga {row}:',
 };

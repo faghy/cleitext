@@ -96,6 +96,14 @@ const priceMin = sql<
 const priceMax = sql<
   string | null
 >`CASE WHEN ${products.kind} = 'variable' THEN ${variationPrice('max')} ELSE ${ownPrice} END`;
+/** Variable products: the pieces of their variations, and whether any can be bought. */
+const variationStock = sql<number | null>`(SELECT sum(v.stock)::int FROM variations v
+  WHERE v.site_id = products.site_id AND v.product_id = products.entry_id AND v.enabled AND v.manage_stock)`;
+const variationStatus = sql<string>`(SELECT CASE
+    WHEN bool_or(v.stock_status = 'instock') THEN 'instock'
+    WHEN bool_or(v.stock_status = 'onbackorder') THEN 'onbackorder'
+    ELSE 'outofstock' END
+  FROM variations v WHERE v.site_id = products.site_id AND v.product_id = products.entry_id AND v.enabled)`;
 const onSale = sql<boolean>`(CASE WHEN ${products.kind} = 'variable'
   THEN EXISTS (SELECT 1 FROM variations v WHERE v.site_id = products.site_id
     AND v.product_id = products.entry_id AND v.enabled
@@ -150,7 +158,7 @@ export async function listProducts(
   }[query.sort];
 
   const rows = await tx
-    .select({ row: products, priceMin, priceMax, onSale, low })
+    .select({ row: products, priceMin, priceMax, onSale, low, variationStock, variationStatus })
     .from(products)
     .where(where())
     .orderBy(sql`${direction(order)} NULLS LAST`, asc(products.entryId))
@@ -173,34 +181,47 @@ export async function listProducts(
 
   const brandName = new Map(options.brands.map((b) => [b.id, b.name]));
   return {
-    items: rows.map(({ row, priceMin: min, priceMax: max, onSale: sale, low: isLow }) => ({
-      id: row.entryId,
-      title: row.title,
-      slug: row.slug,
-      status: row.status,
-      locale: row.locale,
-      kind: row.kind,
-      sku: row.sku,
-      condition: row.condition,
-      imageUrl: row.imageUrl,
-      categoryIds: row.categoryIds,
-      brandId: row.brandId,
-      cost: row.cost,
-      listPrice: row.listPrice,
-      regularPrice: row.regularPrice,
-      salePrice: row.salePrice,
-      price: min,
-      priceMax: max,
-      onSale: Boolean(sale),
-      margin: row.kind === 'simple' ? marginOf(row.cost, min) : null,
-      manageStock: row.manageStock,
-      stock: row.stock,
-      stockStatus: row.stockStatus,
-      low: Boolean(isLow),
-      featured: row.featured,
-      totalSales: row.totalSales,
-      updatedAt: row.updatedAt.toISOString(),
-    })),
+    items: rows.map(
+      ({
+        row,
+        priceMin: min,
+        priceMax: max,
+        onSale: sale,
+        low: isLow,
+        variationStock: vStock,
+        variationStatus: vStatus,
+      }) => {
+        const variable = row.kind === 'variable';
+        return {
+          id: row.entryId,
+          title: row.title,
+          slug: row.slug,
+          status: row.status,
+          locale: row.locale,
+          kind: row.kind,
+          sku: row.sku,
+          condition: row.condition,
+          imageUrl: row.imageUrl,
+          categoryIds: row.categoryIds,
+          brandId: row.brandId,
+          cost: row.cost,
+          listPrice: row.listPrice,
+          regularPrice: row.regularPrice,
+          salePrice: row.salePrice,
+          price: min,
+          priceMax: max,
+          onSale: Boolean(sale),
+          margin: row.kind === 'simple' ? marginOf(row.cost, min) : null,
+          manageStock: variable ? vStock !== null : row.manageStock,
+          stock: variable ? vStock : row.stock,
+          stockStatus: variable ? (vStatus ?? 'outofstock') : row.stockStatus,
+          low: Boolean(isLow),
+          featured: row.featured,
+          totalSales: row.totalSales,
+          updatedAt: row.updatedAt.toISOString(),
+        };
+      },
+    ),
     total: counted?.n ?? 0,
     statuses: Object.fromEntries(statusRows.map((r) => [r.status, r.n])),
     brands: brandRows

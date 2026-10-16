@@ -237,7 +237,12 @@ export async function saveProduct(
       stockStatus: stockStatusOf(merged),
       updatedAt: new Date(),
     };
-    if (!merged.manageStock) changes.stock = null;
+    // Variable products count the stock of their variations.
+    if (merged.kind === 'variable') {
+      changes.manageStock = false;
+      changes.stockStatus = 'instock';
+    }
+    if (!merged.manageStock || merged.kind === 'variable') changes.stock = null;
     await tx.update(products).set(changes).where(eq(products.entryId, id));
 
     if (input.attributes) {
