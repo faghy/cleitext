@@ -225,6 +225,8 @@ export async function importDocument(
         slug,
         name: term.name,
         description: term.description ?? null,
+        fields: term.fields ?? {},
+        position: term.position ?? 0,
       });
       termIds.set(term.ref, id);
       count(report, 'terms');

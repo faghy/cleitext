@@ -42,6 +42,24 @@ export interface ContentTypeDefinition {
   public?: boolean;
 }
 
+/**
+ * A taxonomy added by a plugin, like WordPress's `register_taxonomy`
+ * (plugin API 1.13): its archives are at `/<slug>/<term>`, and it is hidden
+ * while the plugin is not active.
+ */
+export interface TaxonomyDefinition {
+  /** e.g. `brand`. Unique on the site; also the first segment of its archives. */
+  slug: string;
+  /** Plural label, e.g. `{ en: 'Brands', it: 'Marchi' }`. */
+  name: Label;
+  /** Terms have parents (like categories). */
+  hierarchical?: boolean;
+  /** Content types whose entries take these terms. */
+  types: string[];
+  /** Custom fields of each term (e.g. an image), edited with the term. */
+  fields?: FieldDefinition[];
+}
+
 /** Extra fields on existing content types, stored under `fields[<id>]`. */
 export interface FieldGroupDefinition {
   /** Key of the stored values; must start with the plugin slug, e.g. `seo`. */
@@ -92,6 +110,11 @@ export interface PluginTerm {
   parentId: string | null;
   /** Public address of the term archive. */
   url: string;
+  description: string | null;
+  /** Values of the taxonomy's custom fields (plugin API 1.13). */
+  fields: FieldValues;
+  /** Manual order among siblings (plugin API 1.13). */
+  position: number;
 }
 
 export interface TermQuery {
@@ -113,6 +136,8 @@ export interface CopyOptions {
 export interface ContentApi {
   /** Adds a content type to the sites where the plugin is active (needs `content:write`). */
   registerType(definition: ContentTypeDefinition): void;
+  /** Adds a taxonomy to the sites where the plugin is active (needs `content:write`). */
+  registerTaxonomy(definition: TaxonomyDefinition): void;
   /** Adds fields to existing content types (needs `content:write`). */
   registerFieldGroup(definition: FieldGroupDefinition): void;
   /** Reads entries of a site, newest first (needs `content:read`). */

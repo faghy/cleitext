@@ -23,7 +23,13 @@ export interface PluginView {
   status: 'loaded' | 'error';
   error: string | null;
   /** What it adds, for transparency. */
-  contributes: { types: string[]; blocks: string[]; settings: boolean; admin: boolean };
+  contributes: {
+    types: string[];
+    taxonomies: string[];
+    blocks: string[];
+    settings: boolean;
+    admin: boolean;
+  };
   /** Time spent in hooks and errors since the server started (RF-PLG-06). */
   stats: { calls: number; errors: number; totalMs: number; lastError: string | null };
   /** Paid plugin (RF-CAT-03): where to buy it and this site's license; null when free. */

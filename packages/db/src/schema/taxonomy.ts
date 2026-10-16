@@ -22,6 +22,10 @@ export const taxonomies = pgTable(
     slug: text('slug').notNull(),
     name: jsonb('name').notNull(),
     hierarchical: boolean('hierarchical').notNull().default(false),
+    /** 'core' | 'user' | 'plugin:<slug>' */
+    source: text('source').notNull().default('user'),
+    /** Custom fields of the terms, e.g. `{ fields: [{ name: 'image', type: 'media' }] }`. */
+    fieldsSchema: jsonb('fields_schema').notNull().default({}),
     contentTypes: text('content_types')
       .array()
       .notNull()
@@ -45,6 +49,8 @@ export const terms = pgTable(
     name: text('name').notNull(),
     description: text('description'),
     fields: jsonb('fields').notNull().default({}),
+    /** Manual order among siblings; terms with the same position sort by name. */
+    position: integer('position').notNull().default(0),
   },
   (t) => [
     unique('terms_site_id_unique').on(t.siteId, t.id),

@@ -224,7 +224,7 @@ export class PluginServicesProvider implements PluginServices {
             ...(query.ids?.length ? [inArray(terms.id, query.ids)] : []),
           ),
         )
-        .orderBy(asc(terms.name))
+        .orderBy(asc(terms.position), asc(terms.name))
         .limit(Math.min(Math.max(query.limit ?? 100, 1), 500));
       return rows.map(({ term, taxonomy }) => ({
         id: term.id,
@@ -234,6 +234,9 @@ export class PluginServicesProvider implements PluginServices {
         name: term.name,
         parentId: term.parentId,
         url: data.urls.term(taxonomy, term.slug, term.locale),
+        description: term.description,
+        fields: term.fields as FieldValues,
+        position: term.position,
       }));
     });
   }

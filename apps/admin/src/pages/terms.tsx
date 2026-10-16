@@ -1,4 +1,5 @@
-import type { TaxonomyView, TermView } from '@cleitext/shared';
+import { FieldsForm } from '@cleitext/admin-sdk';
+import type { FieldValues, TaxonomyView, TermView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, errorMessage } from '../api';
@@ -64,7 +65,7 @@ export function TermsPage({ slug }: { slug: string }) {
         .filter((term) => `${term.name} ${term.slug}`.toLowerCase().includes(needle))
         .map((entry) => ({ entry, depth: 0 }))
     : taxonomy.hierarchical
-      ? entryTree(all.map((term) => ({ ...term, title: term.name, position: 0 })))
+      ? entryTree(all.map((term) => ({ ...term, title: term.name })))
       : all.map((entry) => ({ entry, depth: 0 }));
   const error = remove.error;
 
@@ -239,6 +240,8 @@ function TermForm({
   const [slug, setSlug] = useState(term?.slug ?? '');
   const [parentId, setParentId] = useState(term?.parentId ?? '');
   const [description, setDescription] = useState(term?.description ?? '');
+  // Custom fields of the taxonomy, e.g. an image (plugin taxonomies).
+  const [fields, setFields] = useState<FieldValues>((term?.fields ?? {}) as FieldValues);
 
   const save = useMutation({
     mutationFn: () => {
@@ -247,6 +250,7 @@ function TermForm({
         ...(slug.trim() ? { slug: slug.trim() } : {}),
         ...(taxonomy.hierarchical ? { parentId: parentId || null } : {}),
         description,
+        ...(taxonomy.fields.length > 0 ? { fields } : {}),
       };
       return term
         ? api<TermView>('PATCH', `/terms/${term.id}`, body)
@@ -257,6 +261,7 @@ function TermForm({
         setName('');
         setSlug('');
         setDescription('');
+        setFields({});
       }
       await onSaved(saved);
     },
@@ -280,7 +285,7 @@ function TermForm({
   const parents = entryTree(
     terms
       .filter((other) => !excluded.has(other.id))
-      .map((other) => ({ ...other, title: other.name, position: 0 })),
+      .map((other) => ({ ...other, title: other.name })),
   );
 
   return (
@@ -326,6 +331,9 @@ function TermForm({
           onChange={(e) => setDescription(e.target.value)}
         />
       </label>
+      {taxonomy.fields.length > 0 && (
+        <FieldsForm fields={taxonomy.fields} values={fields} locale={locale} onChange={setFields} />
+      )}
       {save.error && <Alert>{errorMessage(save.error)}</Alert>}
       <div className="flex gap-2">
         <Button type="submit" disabled={save.isPending || !name.trim()}>

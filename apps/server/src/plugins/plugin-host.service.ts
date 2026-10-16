@@ -4,9 +4,11 @@ import { pathToFileURL } from 'node:url';
 import {
   contentTypes,
   detached,
+  newId,
   plugins,
   settings,
   sitePlugins,
+  taxonomies,
   withContext,
   type DatabaseClient,
   type SiteTransaction,
@@ -37,6 +39,7 @@ import {
   type PluginDefinition,
   type PluginManifest,
   type PublicRoute,
+  type TaxonomyDefinition,
 } from '@cleitext/plugin-sdk';
 import { installServerSharedModules } from '@cleitext/plugin-sdk/host';
 import {
@@ -93,6 +96,7 @@ export interface LoadedPlugin {
   status: 'loaded' | 'error';
   error: string | null;
   types: ContentTypeDefinition[];
+  taxonomies: TaxonomyDefinition[];
   fieldGroups: FieldGroupDefinition[];
   blocks: PluginBlockDefinition<Record<string, unknown>, unknown>[];
   apiRoutes: (ApiRoute & { compiled: CompiledRoute })[];
@@ -232,6 +236,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       status: 'loaded',
       error: null,
       types: [],
+      taxonomies: [],
       fieldGroups: [],
       blocks: [],
       apiRoutes: [],
@@ -276,6 +281,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       // Nothing half-registered stays around.
       Object.assign(plugin, {
         types: [],
+        taxonomies: [],
         fieldGroups: [],
         blocks: [],
         apiRoutes: [],
@@ -437,6 +443,17 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     }
     fieldListSchema.parse(definition.fields ?? []);
     plugin.types.push(definition);
+  }
+
+  addTaxonomy(plugin: LoadedPlugin, definition: TaxonomyDefinition): void {
+    if (!/^[a-z][a-z0-9-]{0,63}$/.test(definition.slug)) {
+      throw new PluginError(`Invalid taxonomy slug "${definition.slug}"`);
+    }
+    if (['category', 'tag'].includes(definition.slug)) {
+      throw new PluginError(`The taxonomy "${definition.slug}" belongs to the core`);
+    }
+    fieldListSchema.parse(definition.fields ?? []);
+    plugin.taxonomies.push(definition);
   }
 
   addFieldGroup(plugin: LoadedPlugin, definition: FieldGroupDefinition): void {
@@ -931,6 +948,29 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
           .set({ ...values, permalink: existing.permalink })
           .where(eq(contentTypes.id, existing.id));
       else await tx.insert(contentTypes).values({ siteId, slug: type.slug, ...values });
+    }
+    for (const taxonomy of plugin.taxonomies) {
+      const [existing] = await tx
+        .select()
+        .from(taxonomies)
+        .where(eq(taxonomies.slug, taxonomy.slug));
+      const source = `plugin:${plugin.slug}`;
+      // One made in the admin (or imported from a site with the plugin) is taken over.
+      if (existing && existing.source !== source && existing.source !== 'user') {
+        throw new PluginError(
+          `A taxonomy "${taxonomy.slug}" already exists on this site (${existing.source}).`,
+        );
+      }
+      const values = {
+        name: typeof taxonomy.name === 'string' ? { en: taxonomy.name } : taxonomy.name,
+        hierarchical: taxonomy.hierarchical ?? false,
+        contentTypes: taxonomy.types,
+        fieldsSchema: { fields: taxonomy.fields ?? [] },
+        source,
+      };
+      if (existing) await tx.update(taxonomies).set(values).where(eq(taxonomies.id, existing.id));
+      else
+        await tx.insert(taxonomies).values({ id: newId(), siteId, slug: taxonomy.slug, ...values });
     }
   }
 

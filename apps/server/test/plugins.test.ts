@@ -141,7 +141,12 @@ describe('installation', () => {
       version: '1.0.0',
       active: false,
       status: 'loaded',
-      contributes: { types: ['event', 'event_template'], settings: true, admin: false },
+      contributes: {
+        types: ['event', 'event_template'],
+        taxonomies: ['event-series'],
+        settings: true,
+        admin: false,
+      },
     });
     expect((await editor.get('/api/v1/plugins')).statusCode).toBe(403);
   });
@@ -169,6 +174,32 @@ describe('an active plugin', () => {
     const type = types.find((t: { slug: string }) => t.slug === 'event');
     expect(type).toMatchObject({ source: 'plugin:events', permalink: '/events/{slug}' });
     expect(type.fields.map((f: { name: string }) => f.name)).toEqual(['startsAt', 'venue']);
+  });
+
+  it('adds its taxonomy, with custom fields and a manual order of its terms', async () => {
+    const taxonomies = (await admin.get('/api/v1/taxonomies')).json();
+    expect(taxonomies.find((t: { slug: string }) => t.slug === 'event-series')).toMatchObject({
+      source: 'plugin:events',
+      hierarchical: true,
+      contentTypes: ['event'],
+      fields: [{ name: 'poster' }, { name: 'season' }],
+    });
+    const add = (body: object) => admin.post('/api/v1/taxonomies/event-series/terms', body);
+    expect((await add({ name: 'Bad', fields: { season: 0 } })).statusCode).toBe(400);
+    const winter = (await add({ name: 'Winter', fields: { season: 2 }, position: 2 })).json();
+    expect(winter.fields).toEqual({ season: 2 });
+    await add({ name: 'Autumn', position: 1 });
+    const updated = await admin.request('PATCH', `/api/v1/terms/${winter.id}`, {
+      fields: { poster: null },
+    });
+    // Only the given fields change.
+    expect(updated.json().fields).toEqual({ season: 2, poster: null });
+    const terms = (await admin.get('/api/v1/taxonomies/event-series/terms')).json();
+    expect(terms.map((t: { name: string }) => t.name)).toEqual(['Autumn', 'Winter']);
+    // Its archive works like the core ones.
+    expect((await visitor.get('/event-series/winter')).statusCode).toBe(200);
+    // It cannot be deleted from the admin: it goes away with the plugin.
+    expect((await admin.request('DELETE', '/api/v1/taxonomies/event-series')).statusCode).toBe(400);
   });
 
   it('validates field values, and required fields when publishing', async () => {
@@ -542,6 +573,9 @@ describe('deactivation', () => {
     expect((await admin.get('/api/v1/ext/events/rsvps')).statusCode).toBe(404);
     const types = (await admin.get('/api/v1/content-types')).json();
     expect(types.map((t: { slug: string }) => t.slug)).not.toContain('event');
+    const taxonomies = (await admin.get('/api/v1/taxonomies')).json();
+    expect(taxonomies.map((t: { slug: string }) => t.slug)).not.toContain('event-series');
+    expect((await admin.get('/api/v1/taxonomies/event-series/terms')).statusCode).toBe(404);
     expect(
       (await editor.post('/api/v1/entries', { type: 'event', title: 'Later' })).statusCode,
     ).toBe(400);

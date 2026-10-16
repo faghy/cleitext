@@ -159,6 +159,10 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         require('content:write');
         host.addType(plugin, definition);
       },
+      registerTaxonomy(definition) {
+        require('content:write');
+        host.addTaxonomy(plugin, definition);
+      },
       registerFieldGroup(definition) {
         require('content:write');
         host.addFieldGroup(plugin, definition);

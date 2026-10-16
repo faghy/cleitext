@@ -27,6 +27,16 @@ export default definePlugin({
         { name: 'venue', type: 'text', label: 'Venue', maxLength: 200 },
       ],
     });
+    ctx.content.registerTaxonomy({
+      slug: 'event-series',
+      name: { en: 'Series', it: 'Rassegne' },
+      hierarchical: true,
+      types: ['event'],
+      fields: [
+        { name: 'poster', type: 'media', label: 'Poster' },
+        { name: 'season', type: 'number', label: 'Season', min: 1 },
+      ],
+    });
     // Templates the plugin uses itself: no public address.
     ctx.content.registerType({ slug: 'event_template', name: 'Event templates', public: false });
     ctx.routes.api({

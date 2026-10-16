@@ -33,6 +33,10 @@ export const transferTermSchema = z.object({
   slug,
   name: z.string().min(1).max(200),
   description: z.string().max(5_000).nullable().optional(),
+  /** Custom fields of the taxonomy (e.g. a plugin's term image). */
+  fields: z.record(z.string(), z.unknown()).optional(),
+  /** Manual order among siblings. */
+  position: z.number().int().min(0).max(1_000_000).optional(),
 });
 
 export const transferMediaSchema = z.object({

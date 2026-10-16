@@ -244,6 +244,10 @@ export interface TaxonomyView {
   name: Record<string, string>;
   hierarchical: boolean;
   contentTypes: string[];
+  /** `core`, `user` (made in the admin) or `plugin:<slug>`. */
+  source: string;
+  /** Custom fields of its terms (e.g. an image), edited with each term. */
+  fields: FieldDefinition[];
 }
 
 export interface TermView {
@@ -254,6 +258,10 @@ export interface TermView {
   slug: string;
   name: string;
   description: string | null;
+  /** Values of the taxonomy's custom fields. */
+  fields: Record<string, unknown>;
+  /** Manual order among siblings (then by name). */
+  position: number;
   /** Entries using the term (in lists). */
   count: number;
 }
@@ -264,6 +272,8 @@ export const createTermRequestSchema = z.object({
   parentId: z.uuid().nullable().optional(),
   locale: localeSchema.optional(),
   description: z.string().max(2_000).optional(),
+  fields: fieldsSchema.optional(),
+  position: z.number().int().min(0).max(1_000_000).optional(),
 });
 export type CreateTermRequest = z.input<typeof createTermRequestSchema>;
 

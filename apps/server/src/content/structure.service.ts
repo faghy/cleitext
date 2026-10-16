@@ -24,6 +24,7 @@ import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { entryPath, localePrefixes } from './paths.js';
+import { taxonomyView } from './terms.service.js';
 import { LanguagesService } from './languages.service.js';
 
 type TypeRow = typeof contentTypes.$inferSelect;
@@ -224,6 +225,8 @@ export class StructureService {
         name: input.name,
         hierarchical: input.hierarchical,
         contentTypes: types,
+        source: 'user',
+        fields: [],
       };
     });
     await this.cache.invalidate(siteId, ['site']);
@@ -248,12 +251,7 @@ export class StructureService {
         .where(eq(taxonomies.id, taxonomy.id))
         .returning();
       await this.record(tx, siteId, auth, 'taxonomy.updated', slug, ip);
-      return {
-        slug,
-        name: updated!.name as Record<string, string>,
-        hierarchical: updated!.hierarchical,
-        contentTypes: updated!.contentTypes,
-      };
+      return taxonomyView(updated!);
     });
     await this.cache.invalidate(siteId, ['site']);
     return view;
@@ -265,6 +263,11 @@ export class StructureService {
         throw new BadRequestException('Categories and tags cannot be deleted.');
       }
       const taxonomy = await this.taxonomy(tx, slug);
+      if (taxonomy.source.startsWith('plugin:')) {
+        throw new BadRequestException(
+          'This taxonomy belongs to a plugin: it goes away with the plugin.',
+        );
+      }
       const [used] = await tx
         .select({ n: count() })
         .from(terms)

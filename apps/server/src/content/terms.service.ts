@@ -9,7 +9,12 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import type { TaxonomyView, TermView } from '@cleitext/shared';
+import {
+  fieldsValidator,
+  type FieldDefinition,
+  type TaxonomyView,
+  type TermView,
+} from '@cleitext/shared';
 import {
   BadRequestException,
   ConflictException,
@@ -23,6 +28,7 @@ import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
+import { isTypeAvailable } from '../public/site-data.js';
 import { LanguagesService } from './languages.service.js';
 import { nextFreeSlug, slugify } from './slug.js';
 
@@ -49,13 +55,9 @@ export class TermsService {
 
   listTaxonomies(siteId: string, auth: AuthContext): Promise<TaxonomyView[]> {
     return this.run(siteId, auth, async (tx) => {
+      const active = await this.plugins.activeSlugs(siteId);
       const rows = await tx.select().from(taxonomies).orderBy(asc(taxonomies.slug));
-      return rows.map((t) => ({
-        slug: t.slug,
-        name: t.name as Record<string, string>,
-        hierarchical: t.hierarchical,
-        contentTypes: t.contentTypes,
-      }));
+      return rows.filter((t) => isTypeAvailable(t.source, active)).map(taxonomyView);
     });
   }
 
@@ -66,7 +68,7 @@ export class TermsService {
     locale?: string,
   ): Promise<TermView[]> {
     return this.run(siteId, auth, async (tx) => {
-      const taxonomy = await this.taxonomy(tx, taxonomySlug);
+      const taxonomy = await this.taxonomy(tx, taxonomySlug, siteId);
       const rows = await tx
         .select({
           term: terms,
@@ -76,7 +78,7 @@ export class TermsService {
         .where(
           and(eq(terms.taxonomyId, taxonomy.id), locale ? eq(terms.locale, locale) : undefined),
         )
-        .orderBy(asc(terms.name));
+        .orderBy(asc(terms.position), asc(terms.name));
       return rows.map(({ term, count }) => toView(term, taxonomy.slug, count));
     });
   }
@@ -91,10 +93,12 @@ export class TermsService {
       parentId?: string | null | undefined;
       locale?: string | undefined;
       description?: string | undefined;
+      fields?: Record<string, unknown> | undefined;
+      position?: number | undefined;
     },
   ): Promise<TermView> {
     const view = await this.run(siteId, auth, async (tx) => {
-      const taxonomy = await this.taxonomy(tx, taxonomySlug);
+      const taxonomy = await this.taxonomy(tx, taxonomySlug, siteId);
       this.assertCanCreate(auth, taxonomy);
       const locale = input.locale ?? (await this.defaultLocale(tx, siteId));
       await this.assertLocale(tx, siteId, locale);
@@ -133,6 +137,8 @@ export class TermsService {
         parentId: input.parentId ?? null,
         locale: input.locale,
         description: source.description ?? undefined,
+        fields: source.fields as Record<string, unknown>,
+        position: source.position,
       });
       return toView(term, taxonomy!.slug, 0);
     });
@@ -149,6 +155,8 @@ export class TermsService {
       slug?: string | undefined;
       parentId?: string | null | undefined;
       description?: string | undefined;
+      fields?: Record<string, unknown> | undefined;
+      position?: number | undefined;
     },
   ): Promise<TermView> {
     const view = await this.run(siteId, auth, async (tx) => {
@@ -162,6 +170,14 @@ export class TermsService {
       const changes: Partial<TermRow> = {};
       if (input.name !== undefined) changes.name = input.name;
       if (input.description !== undefined) changes.description = input.description;
+      if (input.position !== undefined) changes.position = input.position;
+      if (input.fields !== undefined) {
+        // Only the given fields change; the others keep their values.
+        changes.fields = validTermFields(taxonomy!, {
+          ...(term.fields as Record<string, unknown>),
+          ...input.fields,
+        });
+      }
       if (input.slug !== undefined && input.slug !== term.slug) {
         changes.slug = await this.uniqueSlug(tx, term.taxonomyId, term.locale, input.slug, term.id);
       }
@@ -252,7 +268,7 @@ export class TermsService {
     assignments: Record<string, (string | { name: string })[]>,
   ): Promise<void> {
     for (const [taxonomySlug, values] of Object.entries(assignments)) {
-      const taxonomy = await this.taxonomy(tx, taxonomySlug);
+      const taxonomy = await this.taxonomy(tx, taxonomySlug, siteId);
       if (!taxonomy.contentTypes.includes(entry.typeSlug)) {
         throw new BadRequestException(
           `${taxonomySlug} does not apply to ${entry.typeSlug} entries.`,
@@ -336,6 +352,8 @@ export class TermsService {
       parentId?: string | null | undefined;
       locale: string;
       description?: string | undefined;
+      fields?: Record<string, unknown> | undefined;
+      position?: number | undefined;
     },
   ): Promise<TermRow> {
     const name = input.name.trim();
@@ -358,6 +376,8 @@ export class TermsService {
         slug: await this.uniqueSlug(tx, taxonomy.id, input.locale, input.slug ?? name, null),
         name,
         description: input.description ?? null,
+        fields: validTermFields(taxonomy, input.fields ?? {}),
+        position: input.position ?? 0,
       })
       .returning();
     return term!;
@@ -383,9 +403,13 @@ export class TermsService {
     if (!allowed) throw new ForbiddenException(`You cannot add ${taxonomy.slug} terms.`);
   }
 
-  private async taxonomy(tx: SiteTransaction, slug: string): Promise<TaxonomyRow> {
+  private async taxonomy(tx: SiteTransaction, slug: string, siteId?: string): Promise<TaxonomyRow> {
     const [taxonomy] = await tx.select().from(taxonomies).where(eq(taxonomies.slug, slug));
-    if (!taxonomy) throw new NotFoundException(`Unknown taxonomy "${slug}".`);
+    // A plugin's taxonomy is only there while the plugin is active.
+    const available =
+      taxonomy &&
+      (!siteId || isTypeAvailable(taxonomy.source, await this.plugins.activeSlugs(siteId)));
+    if (!taxonomy || !available) throw new NotFoundException(`Unknown taxonomy "${slug}".`);
     return taxonomy;
   }
 
@@ -445,6 +469,36 @@ export class TermsService {
   }
 }
 
+export function taxonomyView(t: TaxonomyRow): TaxonomyView {
+  return {
+    slug: t.slug,
+    name: t.name as Record<string, string>,
+    hierarchical: t.hierarchical,
+    contentTypes: t.contentTypes,
+    source: t.source,
+    fields: taxonomyFields(t),
+  };
+}
+
+export function taxonomyFields(t: TaxonomyRow): FieldDefinition[] {
+  return ((t.fieldsSchema as { fields?: FieldDefinition[] }).fields ?? []) as FieldDefinition[];
+}
+
+/** Term fields checked against the taxonomy's definitions. */
+function validTermFields(
+  taxonomy: TaxonomyRow,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = fieldsValidator(taxonomyFields(taxonomy)).safeParse(values);
+  if (!result.success) {
+    throw new BadRequestException({
+      message: 'Some fields are not valid.',
+      errors: result.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })),
+    });
+  }
+  return result.data;
+}
+
 function toView(term: TermRow, taxonomy: string, count: number): TermView {
   return {
     id: term.id,
@@ -454,6 +508,8 @@ function toView(term: TermRow, taxonomy: string, count: number): TermView {
     slug: term.slug,
     name: term.name,
     description: term.description,
+    fields: term.fields as Record<string, unknown>,
+    position: term.position,
     count,
   };
 }

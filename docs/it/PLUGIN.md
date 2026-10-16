@@ -241,6 +241,25 @@ ctx.content.registerType({
 - I valori dei campi vengono validati al salvataggio. I campi `required` vengono controllati alla pubblicazione, quindi una bozza può essere incompleta.
 - Le voci vengono mostrate con i template del tema. Per aggiungere qualcosa alla loro pagina, usa il filtro `render.blocks` (ad esempio un riquadro con la data) e `render.head` (dati strutturati).
 
+Le **tassonomie** (API dei plugin 1.13) raggruppano le voci dei tuoi tipi, come `register_taxonomy` di WordPress:
+
+```ts
+ctx.content.registerTaxonomy({
+  slug: 'brand', // anche l'indirizzo dei suoi archivi: /brand/<termine>
+  name: { en: 'Brands', it: 'Marchi' },
+  hierarchical: false, // true: i termini hanno un genitore, come le categorie
+  types: ['product'],
+  fields: [
+    { name: 'logo', type: 'media', label: 'Logo' },
+    { name: 'website', type: 'url', label: 'Website' },
+  ],
+});
+```
+
+- Compare nell'admin sotto i suoi tipi, con il solito elenco dei termini; i suoi `fields` si modificano con ogni termine e vengono validati come i campi delle voci.
+- I termini hanno un ordine manuale (`position`, poi il nome), impostato dall'API (`PATCH /api/v1/terms/:id`).
+- Come i tipi, è nascosta finché il plugin non è attivo: termini e assegnazioni restano. Non si può eliminare dall'admin; una tassonomia con lo stesso slug creata nell'admin (o importata) viene presa in carico.
+
 I **gruppi di campi** aggiungono campi a tipi esistenti. I valori vengono salvati in `fields[<id>]`, e l'id deve iniziare con il tuo slug:
 
 ```ts
@@ -275,7 +294,7 @@ const copy = await ctx.content.copy(siteId, id, { userId: request.user!.id, loca
 
 ```ts
 const terms = await ctx.terms.find(siteId, { taxonomy: 'category', locale: 'en' });
-// { id, taxonomy, locale, slug, name, parentId, url }
+// { id, taxonomy, locale, slug, name, parentId, url, description, fields, position }
 const copy = await ctx.terms.copy(siteId, id, {
   userId,
   locale: 'it',
@@ -730,21 +749,21 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 
 ## 12. Permessi
 
-| Permesso        | Consente                                                                     |
-| --------------- | ---------------------------------------------------------------------------- |
-| `content:read`  | `ctx.content.find` / `get`, `ctx.terms.find`                                 |
-| `content:write` | `ctx.content.registerType` / `registerFieldGroup` / `copy`, `ctx.terms.copy` |
-| `blocks`        | `ctx.blocks.register`                                                        |
-| `routes:admin`  | `ctx.routes.api`                                                             |
-| `routes:public` | `ctx.routes.public`                                                          |
-| `settings:own`  | `ctx.settings.define` / `get`, `ctx.storage`                                 |
-| `languages`     | `ctx.languages` ([plugin delle lingue](#15-lingue-plugin-delle-lingue))      |
-| `theme:hooks`   | filtri `render.*` e `theme.*`                                                |
-| `mail:send`     | `ctx.mail.send`                                                              |
-| `network`       | `ctx.http.send`                                                              |
-| `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                       |
-| `media:read`    | `ctx.media.get`                                                              |
-| `import`        | `ctx.transfer.importDocument`                                                |
+| Permesso        | Consente                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| `content:read`  | `ctx.content.find` / `get`, `ctx.terms.find`                                                      |
+| `content:write` | `ctx.content.registerType` / `registerTaxonomy` / `registerFieldGroup` / `copy`, `ctx.terms.copy` |
+| `blocks`        | `ctx.blocks.register`                                                                             |
+| `routes:admin`  | `ctx.routes.api`                                                                                  |
+| `routes:public` | `ctx.routes.public`                                                                               |
+| `settings:own`  | `ctx.settings.define` / `get`, `ctx.storage`                                                      |
+| `languages`     | `ctx.languages` ([plugin delle lingue](#15-lingue-plugin-delle-lingue))                           |
+| `theme:hooks`   | filtri `render.*` e `theme.*`                                                                     |
+| `mail:send`     | `ctx.mail.send`                                                                                   |
+| `network`       | `ctx.http.send`                                                                                   |
+| `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
+| `media:read`    | `ctx.media.get`                                                                                   |
+| `import`        | `ctx.transfer.importDocument`                                                                     |
 
 Gli amministratori vedono i permessi richiesti in **Plugins → Details**. Le tue tabelle (`ctx.db`), gli hook sulle azioni, il logging, le capability e l'invalidazione della cache non richiedono permessi.
 

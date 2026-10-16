@@ -81,7 +81,9 @@ export async function loadSiteData(
       hierarchical: t.hierarchical,
       supports: t.supports,
     }));
-  const taxonomyRows = await tx.select({ slug: taxonomies.slug }).from(taxonomies);
+  const taxonomyRows = (
+    await tx.select({ slug: taxonomies.slug, source: taxonomies.source }).from(taxonomies)
+  ).filter((t) => isTypeAvailable(t.source, activePlugins));
 
   // Paths of hierarchical entries (pages), computed from their parents.
   const hierarchical = types.filter((t) => t.hierarchical).map((t) => t.slug);

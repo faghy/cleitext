@@ -374,6 +374,7 @@ function view(
     error: plugin.error,
     contributes: {
       types: plugin.types.map((t) => t.slug),
+      taxonomies: plugin.taxonomies.map((t) => t.slug),
       blocks: plugin.blocks.map((b) => `${b.type} (${labelText(b.title)})`),
       settings: Boolean(plugin.settings),
       admin: Boolean(manifest.admin),

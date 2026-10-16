@@ -168,6 +168,10 @@ export async function exportSite(
         slug: t.slug,
         name: t.name,
         description: t.description,
+        ...(Object.keys(t.fields as object).length > 0
+          ? { fields: t.fields as Record<string, unknown> }
+          : {}),
+        ...(t.position ? { position: t.position } : {}),
       })),
       media: mediaRows.map((m) => ({
         ref: m.id,
