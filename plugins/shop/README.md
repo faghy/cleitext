@@ -2,7 +2,7 @@
 
 Cleishop is the official Cleitext plugin for selling from your site (slug `shop`). It takes the product
 management of Cleito, built for shop managers who update hundreds of
-products, and the catalog features of WooCommerce.
+products, with the catalog features shops expect.
 
 **The catalog**:
 
@@ -18,7 +18,7 @@ products, and the catalog features of WooCommerce.
   - price and stock changed by clicking on them;
   - a quick look (images, prices, stock);
   - duplicate, trash and publish on many products at once;
-  - CSV export and import, with WooCommerce's columns.
+  - CSV export and import, with the usual column names of e-commerce platforms.
 - **The product form**, on one page or step by step (Settings → Cleishop):
   - category and brand;
   - description;
@@ -53,7 +53,7 @@ products, and the catalog features of WooCommerce.
 - notes, private or emailed to the customer;
 - full or partial refunds that put products back in stock;
 - printing, and sending emails again;
-- WooCommerce's emails, HTML and text:
+- the emails shops send, HTML and text:
   - to the shop: new, cancelled and failed orders;
   - to the customer: order received with the bank details, processing, completed, refunded, notes.
 
@@ -100,7 +100,7 @@ products, and the catalog features of WooCommerce.
   addresses that fill in the checkout. A signed-in customer finds their cart
   on another device.
 
-**Payments** (Cleishop → Payments, as in WooCommerce): the ways to pay switched
+**Payments** (Cleishop → Payments): the ways to pay switched
 on, ordered and set up one by one, each with its title, description and
 instructions for the order page and the emails:
 
