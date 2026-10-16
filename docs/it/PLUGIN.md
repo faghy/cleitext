@@ -411,7 +411,20 @@ ctx.routes.public({
 
 Le route pubbliche `POST` ricevono gli invii di moduli HTML (`application/x-www-form-urlencoded`, convertiti in un oggetto) e vengono rifiutate quando l'`Origin` è un altro sito. I percorsi che iniziano con `/api`, `/admin`, `/media` e `/__preview` sono riservati.
 
-`request` è `{ siteId, method, path, params, query, body, rawBody, ip, user, headers }`. `user` è `{ id, displayName, capabilities }` oppure `null`; `rawBody` è il corpo così come è arrivato (un `Buffer`, per JSON e moduli) oppure `null`. L'handler restituisce `{ status?, body?, contentType?, headers?, cacheTags? }`: un `body` stringa o `Buffer` (API dei plugin 1.10) viene inviato così com'è, qualsiasi altra cosa come JSON. Per un reindirizzamento, restituisci `{ status: 303, headers: { location: '/thanks' } }`.
+`request` è `{ siteId, method, path, params, query, body, rawBody, ip, user, headers, cookies, locale }`. `user` è `{ id, displayName, capabilities }` oppure `null`; `rawBody` è il corpo così come è arrivato (un `Buffer`, per JSON e moduli) oppure `null`. L'handler restituisce `{ status?, body?, contentType?, headers?, cacheTags?, cookies?, page? }`: un `body` stringa o `Buffer` (API dei plugin 1.10) viene inviato così com'è, qualsiasi altra cosa come JSON. Per un reindirizzamento, restituisci `{ status: 303, headers: { location: '/thanks' } }`.
+
+**Pagine nel tema e cookie** (API dei plugin 1.14). Una rotta pubblica può rispondere con `page: { title, html, description? }`: Cleitext mostra `html` (il markup del plugin) come contenuto di una pagina del tema attivo, con intestazione, menu e piè di pagina, mai in cache e con `noindex`. Una rotta risponde anche dietro il prefisso di una lingua (`/cart` a `/it/cart`), e `request.locale` è la lingua dell'indirizzo. `request.cookies` contiene solo i cookie del plugin, con nome `<slug>_…` (`-` nello slug diventa `_`); `cookies: [{ name, value, maxAge? }]` nella risposta li imposta, HTTP-only e `SameSite=Lax` (`maxAge: 0` ne elimina uno). Un carrello, per esempio:
+
+```ts
+ctx.routes.public({
+  method: 'GET',
+  path: '/cart',
+  handler: async (request) => {
+    const cart = await loadCart(request.siteId, request.cookies.shop_cart);
+    return { page: { title: 'Carrello', html: renderCart(cart, request.locale) } };
+  },
+});
+```
 
 **Chiamate da altri server** (API dei plugin 1.10): una rotta API con `webhook: true` è anonima e salta il controllo dell'origine, per i webhook dei pagamenti o per client come i siti Cleitext. La sessione viene ignorata anche se la richiesta porta un cookie, quindi l'handler deve verificare chi chiama, per esempio con una firma HMAC su `rawBody`:
 

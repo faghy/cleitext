@@ -503,6 +503,16 @@ export interface RouteRequest {
   user: { id: string; displayName: string; capabilities: string[] } | null;
   headers: Record<string, string | undefined>;
   /**
+   * The plugin's own cookies (plugin API 1.14): only those named
+   * `<slug>_…`, e.g. `shop_cart`. Others (the session among them) are never given.
+   */
+  cookies: Record<string, string>;
+  /**
+   * Public routes: the language of the address (plugin API 1.14). A route
+   * `/cart` also answers `/it/cart` on a site with Italian, with `it` here.
+   */
+  locale: string;
+  /**
    * The `file` field of a multipart/form-data request (the admin's `uploadFile`),
    * within the server's upload limit; null when the request has none.
    */
@@ -523,6 +533,24 @@ export interface RouteResponse {
   headers?: Record<string, string>;
   /** Public GET routes: cache tags; the response is cached when set. */
   cacheTags?: string[];
+  /**
+   * Cookies to set (plugin API 1.14): names must start with `<slug>_`. They
+   * are HTTP-only, `SameSite=Lax` and secure on HTTPS; `maxAge` 0 deletes one.
+   */
+  cookies?: { name: string; value: string; maxAge?: number }[];
+  /**
+   * Public routes: a page of the site in the active theme (plugin API 1.14),
+   * like a cart or a checkout, with `html` as its content (the plugin's own
+   * markup, trusted). Never cached; `noindex` for search engines.
+   */
+  page?: PluginPageContent;
+}
+
+export interface PluginPageContent {
+  title: string;
+  html: string;
+  /** Meta description. */
+  description?: string;
 }
 
 export type RouteHandler = (request: RouteRequest) => Promise<RouteResponse> | RouteResponse;

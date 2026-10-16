@@ -17,7 +17,13 @@ import {
   type SiteTransaction,
 } from '@cleitext/db';
 import { cxdDocumentSchema, documentText, type CxdBlock, type CxdDocument } from '@cleitext/blocks';
-import type { BlockPage, PublicQuery, RenderHookContext } from '@cleitext/plugin-sdk';
+import type {
+  BlockPage,
+  PluginPageContent,
+  PublicQuery,
+  RenderHookContext,
+  RouteResponse,
+} from '@cleitext/plugin-sdk';
 import {
   Block,
   collectMediaIds,
@@ -81,7 +87,8 @@ import {
 } from './site-data.js';
 import { verifySameOrigin } from '../auth/auth.guard.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
-import { routeRequest, sendRouteResponse } from '../plugins/plugin-routes.js';
+import { routeRequest, sendRouteResponse, setPluginCookies } from '../plugins/plugin-routes.js';
+import { pluginPageBlock } from './plugin-page.js';
 import { pluginAssetUrl } from '../plugins/plugin-assets.js';
 import { verifyPreviewToken } from './preview.js';
 import { themeFor } from './themes.js';
@@ -272,7 +279,10 @@ export class PublicService {
           },
           () =>
             pluginRoute.route.handler(
-              routeRequest(request, site.id, url.pathname, pluginRoute.params),
+              routeRequest(request, site.id, url.pathname, pluginRoute.params, {
+                plugin: pluginRoute.plugin.slug,
+                locale: pluginRoute.locale,
+              }),
             ),
         );
         if (!outcome.ok) {
@@ -281,7 +291,13 @@ export class PublicService {
         }
         const result = outcome.value;
         const status = result.status ?? 200;
-        if (cacheable && status === 200 && result.cacheTags && typeof result.body === 'string') {
+        if (
+          cacheable &&
+          status === 200 &&
+          result.cacheTags &&
+          !result.cookies?.length &&
+          typeof result.body === 'string'
+        ) {
           const contentType = result.contentType ?? 'text/plain; charset=utf-8';
           const tags = ['site', ...result.cacheTags];
           const headers = {
@@ -308,7 +324,14 @@ export class PublicService {
           );
         } else {
           void reply.header('x-cache', 'BYPASS').header('cache-control', 'private, no-cache');
-          await sendRouteResponse(reply, result);
+          await this.sendPluginResult(
+            request,
+            reply,
+            site.id,
+            pluginRoute.plugin.slug,
+            url.pathname,
+            result,
+          );
         }
         return;
       }
@@ -1905,17 +1928,121 @@ export class PublicService {
     return html;
   }
 
-  /** A public address of an active plugin (`ctx.routes.public`). */
+  /**
+   * A public address of an active plugin (`ctx.routes.public`), also behind
+   * a language prefix (`/it/cart` for `/cart`), with the address's language.
+   */
   async matchPluginRoute(siteId: string, method: string, path: string) {
     if (this.plugins.list().length === 0) return null;
-    for (const plugin of await this.plugins.activePlugins(siteId)) {
-      for (const route of plugin.publicRoutes) {
-        if (route.method !== method) continue;
-        const params = route.compiled.match(path);
-        if (params) return { plugin, route, params };
+    const plugins = await this.plugins.activePlugins(siteId);
+    const find = (candidate: string) => {
+      for (const plugin of plugins) {
+        for (const route of plugin.publicRoutes) {
+          if (route.method !== method) continue;
+          const params = route.compiled.match(candidate);
+          if (params) return { plugin, route, params };
+        }
       }
-    }
-    return null;
+      return null;
+    };
+    const direct = find(path);
+    const prefixed = /^\/([a-z]{2}(?:-[a-z]{2,4})?)(\/.*)$/i.exec(path);
+    if (!direct && !prefixed) return null;
+    const { defaultLocale, codes } = await this.localesOf(siteId);
+    if (direct) return { ...direct, locale: defaultLocale };
+    const locale = prefixed![1]!;
+    if (locale === defaultLocale || !codes.includes(locale)) return null;
+    const match = find(prefixed![2]!);
+    return match ? { ...match, locale } : null;
+  }
+
+  /** A plugin's page (cart, checkout…) in the active theme: never cached. */
+  private async renderPluginPage(
+    siteId: string,
+    origin: string,
+    path: string,
+    viewer: FastifyRequest['auth'] | null,
+    page: PluginPageContent,
+    status: number,
+  ): Promise<PublicResponse> {
+    return withContext(this.database.db, { siteId }, async (tx) => {
+      const { scope } = await this.scope(tx, siteId, origin, path);
+      if (viewer?.userId) {
+        scope.viewer = {
+          id: viewer.userId,
+          displayName: viewer.displayName ?? '',
+          avatarUrl: viewer.avatarUrl ?? null,
+          capabilities: viewer.capabilities,
+        };
+      }
+      const entry: PublicEntry = {
+        id: `plugin-page:${path}`,
+        type: 'page',
+        locale: scope.locale,
+        slug: path.split('/').filter(Boolean).at(-1) ?? 'page',
+        title: page.title,
+        url: path,
+        publishedAt: null,
+        excerpt: '',
+        author: null,
+        image: null,
+        document: { schema: 1, blocks: [pluginPageBlock(page.html)] },
+        terms: {},
+        translations: [],
+        fields: {},
+        featuredImage: null,
+      };
+      const props: TemplateProps = { kind: 'entry', entry, isFrontPage: false };
+      const head = this.head(scope, {
+        title: `${page.title} – ${scope.siteTitle}`,
+        description: page.description ?? '',
+        path,
+        alternates: [],
+        type: 'website',
+        image: null,
+        noindex: true,
+      });
+      const response = await this.render(
+        scope,
+        props,
+        templateCandidates(props),
+        head,
+        new Map(),
+        [],
+        status,
+      );
+      return {
+        ...response,
+        headers: { ...response.headers, 'cache-control': 'private, no-store' },
+      };
+    });
+  }
+
+  /** Sends what a plugin's public route answered: cookies, then a page or its body. */
+  private async sendPluginResult(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    siteId: string,
+    plugin: string,
+    path: string,
+    result: RouteResponse,
+  ): Promise<void> {
+    setPluginCookies(request, reply, plugin, result.cookies);
+    if (!result.page) return sendRouteResponse(reply, result);
+    const response = await this.renderPluginPage(
+      siteId,
+      `${request.protocol}://${request.host}`,
+      path,
+      request.auth ?? null,
+      result.page,
+      result.status ?? 200,
+    );
+    for (const [name, value] of Object.entries({ ...response.headers, ...result.headers }))
+      void reply.header(name, value);
+    await reply
+      .code(response.status)
+      .type(response.contentType ?? 'text/html; charset=utf-8')
+      .send(response.html ?? '');
   }
 
   /** POST to the public site: only plugin routes (e.g. form submissions) accept it. */
@@ -1947,14 +2074,20 @@ export class PublicService {
     }
     const outcome = await this.plugins.runHook(
       { plugin: match.plugin.slug, name: `POST ${match.route.path}`, siteId: site.id },
-      () => match.route.handler(routeRequest(request, site.id, path, match.params)),
+      () =>
+        match.route.handler(
+          routeRequest(request, site.id, path, match.params, {
+            plugin: match.plugin.slug,
+            locale: match.locale,
+          }),
+        ),
     );
     void reply.header('cache-control', 'private, no-cache').header('x-cache', 'BYPASS');
     if (!outcome.ok) {
       await reply.code(500).type('text/plain; charset=utf-8').send('Internal Server Error');
       return;
     }
-    await sendRouteResponse(reply, outcome.value);
+    await this.sendPluginResult(request, reply, site.id, match.plugin.slug, path, outcome.value);
   }
 
   private head(

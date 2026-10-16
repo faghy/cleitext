@@ -12,7 +12,7 @@ export function routeRequest(
   siteId: string,
   path: string,
   params: Record<string, string>,
-  options: { anonymous?: boolean } = {},
+  options: { anonymous?: boolean; plugin?: string; locale?: string } = {},
 ): RouteRequest {
   const url = new URL(request.url, 'http://local');
   const headers: Record<string, string | undefined> = {};
@@ -35,6 +35,8 @@ export function routeRequest(
       ? { id: auth.userId, displayName: auth.displayName, capabilities: [...auth.capabilities] }
       : null,
     headers,
+    cookies: pluginCookies(request, options.plugin),
+    locale: options.locale ?? '',
     async file() {
       if (!request.isMultipart()) return null;
       const part = await request.file();
@@ -46,6 +48,43 @@ export function routeRequest(
       }
     },
   };
+}
+
+/** A plugin's own cookies: named `<slug>_…` (never the session or another plugin's). */
+function pluginCookies(
+  request: FastifyRequest,
+  plugin: string | undefined,
+): Record<string, string> {
+  if (!plugin) return {};
+  const prefix = `${plugin.replace(/-/g, '_')}_`;
+  return Object.fromEntries(
+    Object.entries(request.cookies ?? {}).filter(
+      (entry): entry is [string, string] =>
+        entry[0].startsWith(prefix) && typeof entry[1] === 'string',
+    ),
+  );
+}
+
+/** Cookies a plugin sets: its own names only, HTTP-only, Lax, secure on HTTPS. */
+export function setPluginCookies(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  plugin: string,
+  cookies: RouteResponse['cookies'],
+): void {
+  const prefix = `${plugin.replace(/-/g, '_')}_`;
+  for (const cookie of cookies ?? []) {
+    if (!cookie.name.startsWith(prefix) || !/^[A-Za-z0-9_-]{1,64}$/.test(cookie.name)) {
+      throw new Error(`Plugins can only set cookies named "${prefix}…" (got "${cookie.name}")`);
+    }
+    void reply.setCookie(cookie.name, cookie.value.slice(0, 2048), {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: request.protocol === 'https',
+      ...(cookie.maxAge !== undefined ? { maxAge: Math.max(0, Math.floor(cookie.maxAge)) } : {}),
+    });
+  }
 }
 
 /** Sends a plugin handler result: a string or a Buffer as is, anything else as JSON. */
@@ -110,10 +149,14 @@ export class PluginRoutes {
         { plugin: slug, name: `${request.method} ${route.path}`, siteId: site.id },
         () =>
           route.handler(
-            routeRequest(request, site.id, path, params, { anonymous: route.webhook === true }),
+            routeRequest(request, site.id, path, params, {
+              anonymous: route.webhook === true,
+              plugin: plugin.slug,
+            }),
           ),
       );
       if (!outcome.ok) return problem(reply, 500, 'Internal Server Error');
+      if (!route.webhook) setPluginCookies(request, reply, slug, outcome.value.cookies);
       await sendRouteResponse(reply, outcome.value);
     } catch (error) {
       if (error instanceof HttpException) {

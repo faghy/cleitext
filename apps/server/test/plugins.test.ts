@@ -547,6 +547,24 @@ describe('an active plugin', () => {
     expect((await visitor.get('/events.ics')).headers['x-cache']).toBe('HIT');
   });
 
+  it('shows its pages in the theme, never cached, with its own cookies only', async () => {
+    const first = await admin.get('/basket');
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['cache-control']).toBe('private, no-store');
+    expect(first.body).toContain('<title>Your basket');
+    expect(first.body).toContain(
+      '<div class="cx-plugin-page"><p class="basket">Visits: 1; cookies: ; language: en</p></div>',
+    );
+    // The theme's layout is around it, with noindex.
+    expect(first.body).toMatch(/<meta name="robots" content="noindex/);
+    const cookie = first.cookies.find((c: { name: string }) => c.name === 'events_visits');
+    expect(cookie).toMatchObject({ value: '1', httpOnly: true, sameSite: 'Lax', path: '/' });
+    // The session cookie is never given to the plugin.
+    const second = await admin.get('/basket');
+    expect(second.body).toContain('Visits: 2; cookies: events_visits;');
+    expect((await admin.get('/bad-cookie')).statusCode).toBe(500);
+  });
+
   it('has settings, editable with the right capability', async () => {
     expect((await admin.get('/api/v1/plugins/events/settings')).json()).toEqual({
       icsName: 'Events',

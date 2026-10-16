@@ -433,7 +433,20 @@ ctx.routes.public({
 
 `POST` public routes receive HTML form posts (`application/x-www-form-urlencoded`, parsed into an object) and are refused when the `Origin` is another site. Paths starting with `/api`, `/admin`, `/media` and `/__preview` are reserved.
 
-`request` is `{ siteId, method, path, params, query, body, rawBody, ip, user, headers }`. `user` is `{ id, displayName, capabilities }` or `null`; `rawBody` is the body as received (a `Buffer`, for JSON and forms) or `null`. The handler returns `{ status?, body?, contentType?, headers?, cacheTags? }`: a string or a `Buffer` (plugin API 1.10) `body` is sent as is, anything else as JSON. To redirect, return `{ status: 303, headers: { location: '/thanks' } }`.
+`request` is `{ siteId, method, path, params, query, body, rawBody, ip, user, headers, cookies, locale }`. `user` is `{ id, displayName, capabilities }` or `null`; `rawBody` is the body as received (a `Buffer`, for JSON and forms) or `null`. The handler returns `{ status?, body?, contentType?, headers?, cacheTags?, cookies?, page? }`: a string or a `Buffer` (plugin API 1.10) `body` is sent as is, anything else as JSON. To redirect, return `{ status: 303, headers: { location: '/thanks' } }`.
+
+**Pages in the theme and cookies** (plugin API 1.14). A public route can answer with `page: { title, html, description? }`: Cleitext shows `html` (the plugin's own markup) as the content of a page of the active theme, with its header, menus and footer, never cached and with `noindex`. A route also answers behind a language prefix (`/cart` at `/it/cart`), and `request.locale` is the language of the address. `request.cookies` holds only the plugin's own cookies, named `<slug>_…` (`-` in the slug becomes `_`); `cookies: [{ name, value, maxAge? }]` in the answer sets them, HTTP-only and `SameSite=Lax` (`maxAge: 0` deletes one). A cart, for example:
+
+```ts
+ctx.routes.public({
+  method: 'GET',
+  path: '/cart',
+  handler: async (request) => {
+    const cart = await loadCart(request.siteId, request.cookies.shop_cart);
+    return { page: { title: 'Cart', html: renderCart(cart, request.locale) } };
+  },
+});
+```
 
 **Calls from other servers** (plugin API 1.10): an API route with `webhook: true` is anonymous and skips the origin check, for payment webhooks or clients such as Cleitext sites. The session is ignored even when a cookie comes with the request, so the handler must check who is calling, e.g. an HMAC signature over `rawBody`:
 
