@@ -54,6 +54,7 @@ const SEPARATE = [
   'edge-cache',
   'store',
   'fresco',
+  'shop',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
