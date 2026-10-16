@@ -244,6 +244,22 @@ describe('the catalog', () => {
     expect(js.body).toContain('/cart/count');
   });
 
+  it('shows the pictures beside the buy box, and only published changes', async () => {
+    const slug = (await admin.get(`/api/v1/entries/${ids.desk}`)).json().slug;
+    const page = await visitor().get(`/product/${slug}`);
+    expect(page.body).toMatch(/<div class="shop-summary[^"]*">/);
+    expect(page.body).toContain('shop-buy__form');
+    // A change not published yet stays in the admin.
+    await admin.request('PATCH', `/api/v1/entries/${ids.desk}`, { title: 'Desk lamp (draft)' });
+    expect((await admin.get(ext(`/products/${ids.desk}`))).json().title).toBe('Desk lamp (draft)');
+    expect(names((await visitor().get('/shop?orderby=title')).body)).toContain('Desk lamp');
+    expect(names((await visitor().get('/shop?orderby=title')).body)).not.toContain(
+      'Desk lamp (draft)',
+    );
+    await admin.post(`/api/v1/entries/${ids.desk}/publish`);
+    expect(names((await visitor().get('/shop?orderby=title')).body)).toContain('Desk lamp (draft)');
+  });
+
   it('counts the cart for the cart link', async () => {
     const anna = visitor();
     expect((await anna.get('/cart/count')).json()).toMatchObject({ count: 0 });

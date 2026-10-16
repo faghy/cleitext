@@ -315,7 +315,10 @@ export default definePlugin({
     });
     registerCatalog(ctx, currency);
     registerAccount(ctx, store);
-    registerStorefrontBlocks(ctx, currency);
+    registerStorefrontBlocks(ctx, currency, async (siteId) => {
+      const values = await ctx.settings.get(siteId);
+      return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
+    });
     registerReviews(ctx, async (siteId) => {
       const values = await ctx.settings.get(siteId);
       return {
@@ -324,8 +327,8 @@ export default definePlugin({
         ratingRequired: values.reviewsRatingRequired !== false,
       };
     });
-    // Product pages: the path to them first, the buy box and the gallery after
-    // their first block (usually the intro), related products at the end.
+    // Product pages: the path to them, the pictures beside the buy box, the
+    // description, reviews and related products.
     ctx.hooks.filter('render.blocks', (blocks, context) => {
       if (context.entry.type !== PRODUCT) return blocks;
       const block = (type: string) => ({
@@ -334,12 +337,11 @@ export default definePlugin({
         v: 1,
         attrs: {},
       });
+      // Pictures and buy box first, as shops do; then the description.
       return [
         block('breadcrumbs'),
-        ...blocks.slice(0, 1),
-        block('buy-box'),
-        block('gallery'),
-        ...blocks.slice(1),
+        block('summary'),
+        ...blocks,
         block('reviews'),
         block('related'),
       ];

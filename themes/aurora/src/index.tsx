@@ -185,19 +185,22 @@ function Index(props: TemplateProps) {
             <div className="entry-content">
               <EntryContent document={entry.document} />
             </div>
-            {Object.keys(entry.terms).length > 0 && (
+            {/* Categories and tags; plugins show their own taxonomies (a shop's path). */}
+            {Object.keys(entry.terms).some((x) => x === 'category' || x === 'tag') && (
               <footer className="entry-terms page-header">
-                {Object.entries(entry.terms).map(([taxonomy, terms]) => (
-                  <p key={taxonomy}>
-                    {taxonomy === 'category' ? t.categories : t.tags}:{' '}
-                    {terms.map((term, i) => (
-                      <span key={term.slug}>
-                        {i > 0 && ', '}
-                        <a href={term.url}>{term.name}</a>
-                      </span>
-                    ))}
-                  </p>
-                ))}
+                {Object.entries(entry.terms)
+                  .filter(([taxonomy]) => taxonomy === 'category' || taxonomy === 'tag')
+                  .map(([taxonomy, terms]) => (
+                    <p key={taxonomy}>
+                      {taxonomy === 'category' ? t.categories : t.tags}:{' '}
+                      {terms.map((term, i) => (
+                        <span key={term.slug}>
+                          {i > 0 && ', '}
+                          <a href={term.url}>{term.name}</a>
+                        </span>
+                      ))}
+                    </p>
+                  ))}
               </footer>
             )}
           </article>

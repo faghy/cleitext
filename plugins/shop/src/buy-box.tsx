@@ -1,4 +1,4 @@
-import { defineBlock, type PluginContext } from '@cleitext/plugin-sdk';
+import { defineBlock, type BlockLoadContext, type PluginContext } from '@cleitext/plugin-sdk';
 import { asc, eq } from 'drizzle-orm';
 import { currentPrice, isOnSale } from './pricing';
 import {
@@ -31,7 +31,7 @@ interface Option {
   values: { slug: string; name: string }[];
 }
 
-interface BuyBoxData {
+export interface BuyBoxData {
   product: Pick<ProductRow, 'entryId' | 'kind' | 'soldIndividually' | 'sku'> & {
     price: string | null;
     regularPrice: string | null;
@@ -57,6 +57,175 @@ function availabilityOf(
   return 'instock';
 }
 
+/** What the buy box shows for the product of a page. */
+export async function loadBuyBox(
+  ctx: PluginContext,
+  settings: (siteId: string) => Promise<{ currency: string; lowStock: number }>,
+  context: BlockLoadContext,
+): Promise<BuyBoxData | null> {
+  const id = context.entry?.id;
+  if (!id) return null;
+  context.tag(productTag(id));
+  const values = await settings(context.siteId);
+  // The cart of the page's language: `/it/cart/add` under `/it/`.
+  const base = context.page.site.home.replace(/^https?:\/\/[^/]+/, '').replace(/\/$/, '');
+  return ctx.db.transaction(context.siteId, async (tx) => {
+    const [product] = await tx.select().from(products).where(eq(products.entryId, id));
+    if (!product) return null;
+    const own = await tx
+      .select()
+      .from(productAttributes)
+      .where(eq(productAttributes.productId, id))
+      .orderBy(asc(productAttributes.position));
+    const variationRows: VariationRow[] =
+      product.kind === 'variable'
+        ? await tx
+            .select()
+            .from(variations)
+            .where(eq(variations.productId, id))
+            .orderBy(asc(variations.position))
+        : [];
+    const enabled = variationRows.filter((v) => v.enabled && currentPrice(v) !== null);
+    const shared = own.some((a) => a.attributeId) ? await tx.select().from(attributes) : [];
+    const sharedValues = shared.length ? await tx.select().from(attributeValues) : [];
+    const options: Option[] = own
+      .filter((a) => a.variation && product.kind === 'variable')
+      .map((a) => {
+        if (a.attributeId) {
+          const attribute = shared.find((s) => s.id === a.attributeId);
+          const list = sharedValues
+            .filter((v) => v.attributeId === a.attributeId && a.values.includes(v.slug))
+            .sort((x, y) =>
+              attribute?.sort === 'name' ? x.name.localeCompare(y.name) : x.position - y.position,
+            );
+          return {
+            key: attribute?.slug ?? '',
+            name: attribute?.name ?? '',
+            values: list.map((v) => ({ slug: v.slug, name: v.name })),
+          };
+        }
+        const key = a.name
+          .normalize('NFKD')
+          .replace(/[̀-ͯ]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        return { key, name: a.name, values: a.values.map((v) => ({ slug: v, name: v })) };
+      })
+      .filter((o) => o.key && o.values.length > 0);
+    const price = currentPrice(product);
+    return {
+      product: {
+        entryId: product.entryId,
+        kind: product.kind,
+        soldIndividually: product.soldIndividually,
+        sku: product.sku,
+        price,
+        regularPrice: product.regularPrice,
+        onSale: isOnSale(product),
+        availability: availabilityOf(product, values.lowStock),
+        stock: product.manageStock ? product.stock : null,
+      },
+      options,
+      prices: enabled.map((v) => Number(currentPrice(v))),
+      anyAvailable: enabled.some((v) => v.stockStatus !== 'outofstock'),
+      currency: values.currency,
+      action: `${base}/cart/add`,
+    };
+  });
+}
+
+/** The buy box: price, availability, options, quantity, "Add to cart". */
+export function BuyBoxView({ data, locale }: { data: BuyBoxData | null; locale: string }) {
+  const context = { locale };
+  if (!data) return null;
+  const t = translator(context.locale);
+  const money = (value: number | string) =>
+    new Intl.NumberFormat(context.locale, {
+      style: 'currency',
+      currency: data.currency,
+    }).format(Number(value));
+  const { product } = data;
+  const variable = product.kind === 'variable';
+  const min = data.prices.length ? Math.min(...data.prices) : null;
+  const max = data.prices.length ? Math.max(...data.prices) : null;
+  const buyable = variable
+    ? data.anyAvailable && min !== null
+    : product.price !== null && product.availability !== 'outofstock';
+  return (
+    <div className="shop-buy">
+      <p className="shop-buy__price">
+        {variable ? (
+          min === null ? null : min === max ? (
+            money(min)
+          ) : (
+            `${money(min)} – ${money(max!)}`
+          )
+        ) : product.price === null ? null : product.onSale ? (
+          <>
+            <del>{money(product.regularPrice!)}</del> <ins>{money(product.price)}</ins>{' '}
+            <span className="shop-badge">{t('Sale!')}</span>
+          </>
+        ) : (
+          money(product.price)
+        )}
+      </p>
+      {!variable && (
+        <p className={`shop-buy__stock shop-stock--${product.availability}`}>
+          {product.availability === 'outofstock'
+            ? t('Out of stock')
+            : product.availability === 'onbackorder'
+              ? t('Available on backorder')
+              : product.availability === 'low' && product.stock !== null
+                ? t('Only {n} left', { n: product.stock })
+                : t('In stock')}
+        </p>
+      )}
+      {buyable ? (
+        <form className="shop-buy__form" method="post" action={data.action}>
+          <input type="hidden" name="product" value={product.entryId} />
+          {data.options.map((option) => (
+            <p key={option.key} className="shop-field">
+              <label htmlFor={`shop-opt-${option.key}`}>{option.name}</label>
+              <select id={`shop-opt-${option.key}`} name={`attribute_${option.key}`} required>
+                <option value="">{t('Choose an option')}</option>
+                {option.values.map((value) => (
+                  <option key={value.slug} value={value.slug}>
+                    {value.name}
+                  </option>
+                ))}
+              </select>
+            </p>
+          ))}
+          <p className="shop-buy__actions">
+            {!product.soldIndividually && (
+              <>
+                <label htmlFor="shop-qty" className="shop-sr">
+                  {t('Quantity')}
+                </label>
+                <input
+                  id="shop-qty"
+                  type="number"
+                  name="quantity"
+                  defaultValue={1}
+                  min={1}
+                  max={9999}
+                  inputMode="numeric"
+                />
+              </>
+            )}
+            <button type="submit" className="shop-button">
+              {t('Add to cart')}
+            </button>
+          </p>
+        </form>
+      ) : (
+        variable && <p className="shop-buy__stock shop-stock--outofstock">{t('Out of stock')}</p>
+      )}
+    </div>
+  );
+}
+
 export function registerBuyBox(
   ctx: PluginContext,
   settings: (siteId: string) => Promise<{ currency: string; lowStock: number }>,
@@ -67,171 +236,9 @@ export function registerBuyBox(
       title: { en: 'Add to cart', it: 'Aggiungi al carrello' },
       icon: 'cart',
       attributes: [],
-      async load(_attrs, context) {
-        const id = context.entry?.id;
-        if (!id) return null;
-        context.tag(productTag(id));
-        const values = await settings(context.siteId);
-        // The cart of the page's language: `/it/cart/add` under `/it/`.
-        const base = context.page.site.home.replace(/^https?:\/\/[^/]+/, '').replace(/\/$/, '');
-        return ctx.db.transaction(context.siteId, async (tx) => {
-          const [product] = await tx.select().from(products).where(eq(products.entryId, id));
-          if (!product) return null;
-          const own = await tx
-            .select()
-            .from(productAttributes)
-            .where(eq(productAttributes.productId, id))
-            .orderBy(asc(productAttributes.position));
-          const variationRows: VariationRow[] =
-            product.kind === 'variable'
-              ? await tx
-                  .select()
-                  .from(variations)
-                  .where(eq(variations.productId, id))
-                  .orderBy(asc(variations.position))
-              : [];
-          const enabled = variationRows.filter((v) => v.enabled && currentPrice(v) !== null);
-          const shared = own.some((a) => a.attributeId) ? await tx.select().from(attributes) : [];
-          const sharedValues = shared.length ? await tx.select().from(attributeValues) : [];
-          const options: Option[] = own
-            .filter((a) => a.variation && product.kind === 'variable')
-            .map((a) => {
-              if (a.attributeId) {
-                const attribute = shared.find((s) => s.id === a.attributeId);
-                const list = sharedValues
-                  .filter((v) => v.attributeId === a.attributeId && a.values.includes(v.slug))
-                  .sort((x, y) =>
-                    attribute?.sort === 'name'
-                      ? x.name.localeCompare(y.name)
-                      : x.position - y.position,
-                  );
-                return {
-                  key: attribute?.slug ?? '',
-                  name: attribute?.name ?? '',
-                  values: list.map((v) => ({ slug: v.slug, name: v.name })),
-                };
-              }
-              const key = a.name
-                .normalize('NFKD')
-                .replace(/[̀-ͯ]/g, '')
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '');
-              return { key, name: a.name, values: a.values.map((v) => ({ slug: v, name: v })) };
-            })
-            .filter((o) => o.key && o.values.length > 0);
-          const price = currentPrice(product);
-          return {
-            product: {
-              entryId: product.entryId,
-              kind: product.kind,
-              soldIndividually: product.soldIndividually,
-              sku: product.sku,
-              price,
-              regularPrice: product.regularPrice,
-              onSale: isOnSale(product),
-              availability: availabilityOf(product, values.lowStock),
-              stock: product.manageStock ? product.stock : null,
-            },
-            options,
-            prices: enabled.map((v) => Number(currentPrice(v))),
-            anyAvailable: enabled.some((v) => v.stockStatus !== 'outofstock'),
-            currency: values.currency,
-            action: `${base}/cart/add`,
-          };
-        });
-      },
+      load: (_attrs, context) => loadBuyBox(ctx, settings, context),
       css: () => SHOP_CSS,
-      render({ data, context }) {
-        if (!data) return null;
-        const t = translator(context.locale);
-        const money = (value: number | string) =>
-          new Intl.NumberFormat(context.locale, {
-            style: 'currency',
-            currency: data.currency,
-          }).format(Number(value));
-        const { product } = data;
-        const variable = product.kind === 'variable';
-        const min = data.prices.length ? Math.min(...data.prices) : null;
-        const max = data.prices.length ? Math.max(...data.prices) : null;
-        const buyable = variable
-          ? data.anyAvailable && min !== null
-          : product.price !== null && product.availability !== 'outofstock';
-        return (
-          <div className="shop-buy">
-            <p className="shop-buy__price">
-              {variable ? (
-                min === null ? null : min === max ? (
-                  money(min)
-                ) : (
-                  `${money(min)} – ${money(max!)}`
-                )
-              ) : product.price === null ? null : product.onSale ? (
-                <>
-                  <del>{money(product.regularPrice!)}</del> <ins>{money(product.price)}</ins>{' '}
-                  <span className="shop-badge">{t('Sale!')}</span>
-                </>
-              ) : (
-                money(product.price)
-              )}
-            </p>
-            {!variable && (
-              <p className={`shop-buy__stock shop-stock--${product.availability}`}>
-                {product.availability === 'outofstock'
-                  ? t('Out of stock')
-                  : product.availability === 'onbackorder'
-                    ? t('Available on backorder')
-                    : product.availability === 'low' && product.stock !== null
-                      ? t('Only {n} left', { n: product.stock })
-                      : t('In stock')}
-              </p>
-            )}
-            {buyable ? (
-              <form className="shop-buy__form" method="post" action={data.action}>
-                <input type="hidden" name="product" value={product.entryId} />
-                {data.options.map((option) => (
-                  <p key={option.key} className="shop-field">
-                    <label htmlFor={`shop-opt-${option.key}`}>{option.name}</label>
-                    <select id={`shop-opt-${option.key}`} name={`attribute_${option.key}`} required>
-                      <option value="">{t('Choose an option')}</option>
-                      {option.values.map((value) => (
-                        <option key={value.slug} value={value.slug}>
-                          {value.name}
-                        </option>
-                      ))}
-                    </select>
-                  </p>
-                ))}
-                <p className="shop-buy__actions">
-                  {!product.soldIndividually && (
-                    <>
-                      <label htmlFor="shop-qty" className="shop-sr">
-                        {t('Quantity')}
-                      </label>
-                      <input
-                        id="shop-qty"
-                        type="number"
-                        name="quantity"
-                        defaultValue={1}
-                        min={1}
-                        max={9999}
-                        inputMode="numeric"
-                      />
-                    </>
-                  )}
-                  <button type="submit" className="shop-button">
-                    {t('Add to cart')}
-                  </button>
-                </p>
-              </form>
-            ) : (
-              variable && (
-                <p className="shop-buy__stock shop-stock--outofstock">{t('Out of stock')}</p>
-              )
-            )}
-          </div>
-        );
-      },
+      render: ({ data, context }) => <BuyBoxView data={data} locale={context.locale} />,
     }),
   );
 }

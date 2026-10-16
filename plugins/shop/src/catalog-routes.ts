@@ -56,14 +56,29 @@ export function readFilters(request: Pick<RouteRequest, 'query' | 'queryAll'>): 
   };
 }
 
-/** Product addresses by id, as the core builds them (language, permalink). */
+/**
+ * Product addresses by id, as the core builds them (language, permalink).
+ * The cards also get the published title and image: changes not published
+ * yet stay in the admin.
+ */
 export async function productUrls(
   ctx: PluginContext,
   siteId: string,
-  cards: Pick<ProductCard, 'id'>[],
+  cards: Pick<ProductCard, 'id' | 'title' | 'imageUrl'>[],
 ): Promise<Map<string, string>> {
   if (!cards.length) return new Map();
   const entries = await ctx.content.find(siteId, { ids: cards.map((c) => c.id), limit: 200 });
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const images = new Map<string, string | null>();
+  for (const card of cards) {
+    const entry = byId.get(card.id);
+    if (!entry) continue;
+    card.title = entry.title;
+    const mediaId = entry.featuredMediaId;
+    if (mediaId && !images.has(mediaId))
+      images.set(mediaId, (await ctx.media.get(siteId, mediaId))?.url ?? null);
+    card.imageUrl = mediaId ? (images.get(mediaId) ?? null) : null;
+  }
   return new Map(entries.map((e) => [e.id, e.url]));
 }
 

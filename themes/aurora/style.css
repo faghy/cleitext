@@ -444,6 +444,10 @@ code {
   max-width: var(--wide);
   margin: 0 auto 2rem;
 }
+/* Product pages show their pictures beside the buy box (the shop's summary). */
+body:has(.shop-summary) .entry-featured {
+  display: none;
+}
 .entry-featured img {
   width: 100%;
   height: auto;

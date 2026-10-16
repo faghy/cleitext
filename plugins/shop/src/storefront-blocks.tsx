@@ -1,6 +1,6 @@
 import { defineBlock, type PluginContext } from '@cleitext/plugin-sdk';
 import { eq } from 'drizzle-orm';
-import { CATALOG_TAG, productTag } from './buy-box';
+import { BuyBoxView, CATALOG_TAG, loadBuyBox, productTag, type BuyBoxData } from './buy-box';
 import {
   breadcrumbData,
   breadcrumbs,
@@ -22,6 +22,15 @@ import { BRAND, CATEGORY, PRODUCT } from './sync';
  * with its count, and on product pages the breadcrumbs, the gallery and
  * related products; plus the product's structured data.
  */
+
+const SUMMARY_CSS = `
+.shop-summary{display:grid;gap:1.5rem 2rem;margin:1.5rem 0 2rem;align-items:start}
+@media(min-width:760px){.shop-summary{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.shop-summary__main{display:block;border-radius:10px;overflow:hidden;background:rgba(127,127,127,.08)}
+.shop-summary__main img{display:block;width:100%;aspect-ratio:1;object-fit:contain}
+.shop-summary .shop-gallery{margin:.75rem 0 0}
+.shop-summary .shop-buy{margin:0}
+`;
 
 /** The language prefix of the page, from its home address (`/it`). */
 const prefixOf = (home: string) => home.replace(/^https?:\/\/[^/]+/, '').replace(/\/$/, '');
@@ -46,6 +55,7 @@ interface GridData {
 export function registerStorefrontBlocks(
   ctx: PluginContext,
   settings: (siteId: string) => Promise<{ currency: string }>,
+  buyBoxSettings: (siteId: string) => Promise<{ currency: string; lowStock: number }>,
 ): void {
   const cardsMarkup = (data: GridData, locale: string, heading: 'h2' | 'h3' = 'h3') =>
     productCards(data.cards, {
@@ -257,7 +267,10 @@ export function registerStorefrontBlocks(
         const longest = chains.sort((a, b) => b.length - a.length)[0] ?? [];
         for (const c of longest)
           crumbs.push({ name: c.name, url: c.url.replace(/^https?:\/\/[^/]+/, '') });
-        crumbs.push({ name: row.title, url: context.page.entry?.url ?? '' });
+        crumbs.push({
+          name: context.page.entry?.title ?? row.title,
+          url: context.page.entry?.url ?? '',
+        });
         return { crumbs, origin: context.page.site.home.replace(/^(https?:\/\/[^/]+).*$/, '$1') };
       },
       css: () => CATALOG_CSS,
@@ -277,6 +290,95 @@ export function registerStorefrontBlocks(
               }}
             />
           </>
+        );
+      },
+    }),
+  );
+
+  /**
+   * The top of a product page, as shops lay it out: the pictures (the main
+   * one, then the gallery) beside the buy box. Themes hide their own big
+   * featured image when the page has it (`.shop-summary`).
+   */
+  interface Picture {
+    url: string;
+    alt: string;
+    srcset?: string;
+  }
+  ctx.blocks.register(
+    defineBlock<Record<string, never>, { buy: BuyBoxData | null; pictures: Picture[] } | null>({
+      type: 'shop/summary',
+      title: { en: 'Product summary', it: 'Riepilogo del prodotto' },
+      icon: 'cart',
+      attributes: [],
+      async load(_attrs, context) {
+        const id = context.entry?.id;
+        if (!id) return null;
+        context.tag(productTag(id));
+        const buy = await loadBuyBox(ctx, buyBoxSettings, context);
+        const [row] = await ctx.db.transaction(context.siteId, (tx) =>
+          tx.select({ gallery: products.gallery }).from(products).where(eq(products.entryId, id)),
+        );
+        const pictures: Picture[] = [];
+        const main = context.page.entry?.featuredImage;
+        if (main) {
+          const webp = main.variants
+            .filter((v) => v.format === 'webp')
+            .sort((a, b) => a.width - b.width);
+          pictures.push({
+            url: main.url,
+            alt: main.alt || (context.page.entry?.title ?? ''),
+            ...(webp.length ? { srcset: webp.map((v) => `${v.url} ${v.width}w`).join(', ') } : {}),
+          });
+        }
+        for (const image of row?.gallery ?? [])
+          pictures.push({ url: image.url, alt: image.caption });
+        return { buy, pictures };
+      },
+      css: () => SHOP_CSS + CATALOG_CSS + SUMMARY_CSS,
+      render({ data, context }) {
+        if (!data) return null;
+        const t = translator(context.locale);
+        const [main, ...more] = data.pictures;
+        return (
+          <div className={`shop-summary${main ? '' : ' shop-summary--text'}`}>
+            {main && (
+              <div className="shop-summary__media">
+                <a href={main.url} className="shop-summary__main">
+                  <img
+                    src={main.url}
+                    {...(main.srcset
+                      ? { srcSet: main.srcset, sizes: '(min-width: 760px) 50vw, 100vw' }
+                      : {})}
+                    alt={main.alt}
+                    fetchPriority="high"
+                  />
+                </a>
+                {more.length > 0 && (
+                  <ul className="shop-gallery" aria-label={t('Product images')}>
+                    {more.map((image) => {
+                      const thumb = thumbnail(image.url);
+                      return (
+                        <li key={image.url}>
+                          <a href={image.url}>
+                            <img
+                              src={thumb?.src ?? image.url}
+                              alt={image.alt}
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className="shop-summary__info">
+              <BuyBoxView data={data.buy} locale={context.locale} />
+            </div>
+          </div>
         );
       },
     }),
@@ -433,7 +535,7 @@ export function registerStorefrontBlocks(
     const data = {
       '@context': 'https://schema.org',
       '@type': 'Product',
-      name: product.title,
+      name: entry.title,
       ...(entry.excerpt ? { description: entry.excerpt } : {}),
       ...(product.imageUrl
         ? {
