@@ -100,6 +100,15 @@ products, and the catalog features of WooCommerce.
   addresses that fill in the checkout. A signed-in customer finds their cart
   on another device.
 
+**Payments** (Shop → Payments, as in WooCommerce): the ways to pay switched
+on, ordered and set up one by one, each with its title, description and
+instructions for the order page and the emails:
+
+- direct bank transfer, with one or more bank accounts (the order number is
+  the reference; the order waits on hold);
+- cash on delivery, with its surcharge, only with some shipping methods if
+  you like, and for virtual products or not.
+
 Next: Stripe and PayPal, reviews.
 
 License: GPL-2.0-or-later.

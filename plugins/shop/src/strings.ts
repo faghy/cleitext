@@ -1,5 +1,7 @@
 /** Texts of the shop's public pages, in English and Italian. */
 const IT: Record<string, string> = {
+  'This way to pay is not available for this order: choose another.':
+    'Questo modo di pagare non è disponibile per questo ordine: scegline un altro.',
   Addresses: 'Indirizzi',
   'Addresses saved.': 'Indirizzi salvati.',
   Availability: 'Disponibilità',

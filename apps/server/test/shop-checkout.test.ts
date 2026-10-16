@@ -90,13 +90,22 @@ beforeAll(async () => {
   expect(
     (
       await admin.request('PATCH', '/api/v1/plugins/shop/settings', {
-        bankAccountName: 'Bottega Srl',
-        bankIban: 'it60 x054 2811 1010 0000 0123 456',
         termsUrl: 'http://shop-checkout.test/terms',
         notifyEmail: 'orders@shop-checkout.test',
       })
     ).statusCode,
   ).toBe(200);
+  // Shop → Payments: a bank transfer needs the account customers pay into.
+  const noAccount = await admin.request('PUT', ext('/payments'), { bacs: { enabled: true } });
+  expect(noAccount.statusCode).toBe(400);
+  const payments = await admin.request('PUT', ext('/payments'), {
+    bacs: {
+      enabled: true,
+      accounts: [{ accountName: 'Bottega Srl', iban: 'it60 x054 2811 1010 0000 0123 456' }],
+    },
+  });
+  expect(payments.statusCode).toBe(200);
+  expect(payments.json().bacs.accounts[0].iban).toBe('IT60 X054 2811 1010 0000 0123 456');
 
   mug = await product('Mug', { sku: 'MUG', regularPrice: '12.50', manageStock: true, stock: 3 });
   const colour = (

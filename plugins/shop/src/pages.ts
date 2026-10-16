@@ -8,6 +8,7 @@ import {
 } from './address';
 import type { CartLine } from './cart';
 import { html, raw, type Html } from './html';
+import type { BankAccount } from './payments';
 import type { OrderItemRow, OrderRow } from './schema';
 import type { Translate } from './strings';
 import type { Totals } from './totals';
@@ -602,6 +603,70 @@ ${values.note}</textarea>
   );
 }
 
+export interface PaymentInstructions {
+  method: string;
+  instructions: string;
+  /** Bank transfers: where to send the money. */
+  accounts: BankAccount[];
+}
+
+/** Bank details and instructions of an order's way to pay. */
+export function paymentBox(
+  t: Translate,
+  number: number,
+  payment: PaymentInstructions,
+): Html | string {
+  const accounts = payment.accounts.filter((a) => a.iban || a.accountName);
+  if (!accounts.length && !payment.instructions && payment.method !== 'bacs') return '';
+  return html`<div class="shop-box" style="margin:1.5rem 0">
+    ${
+      accounts.length
+        ? html`<h2>${t('Pay by bank transfer to:')}</h2>
+            ${accounts.map(
+              (a) =>
+                html`<dl>
+                  ${
+                    a.accountName
+                      ? html`<dt>${t('Account holder')}</dt>
+                          <dd>${a.accountName}</dd>`
+                      : ''
+                  }
+                  ${
+                    a.bankName
+                      ? html`<dt>${t('Bank')}</dt>
+                          <dd>${a.bankName}</dd>`
+                      : ''
+                  }
+                  ${
+                    a.iban
+                      ? html`<dt>IBAN</dt>
+                          <dd><strong>${a.iban}</strong></dd>`
+                      : ''
+                  }
+                  ${
+                    a.bic
+                      ? html`<dt>BIC / SWIFT</dt>
+                          <dd>${a.bic}</dd>`
+                      : ''
+                  }
+                </dl>`,
+            )}
+            <dl>
+              <dt>${t('Reference')}</dt>
+              <dd><strong>${t('Order {number}', { number })}</strong></dd>
+            </dl>`
+        : ''
+    }
+    ${
+      payment.instructions
+        ? html`<p>${payment.instructions}</p>`
+        : payment.method === 'bacs'
+          ? html`<p>${t('We ship your order when the payment arrives.')}</p>`
+          : ''
+    }
+  </div>`;
+}
+
 /** An order's status as customers read it. */
 export function statusLabel(t: Translate, status: string): string {
   const labels: Record<string, string> = {
@@ -624,13 +689,8 @@ export function receivedPage(options: {
   locale: string;
   /** In the account: no thanks, the status instead, and a way back. */
   account?: { back: string };
-  bank: {
-    accountName: string;
-    iban: string;
-    bic: string;
-    bankName: string;
-    instructions: string;
-  } | null;
+  /** What the customer does to pay: bank accounts while a transfer is awaited, instructions. */
+  payment: PaymentInstructions | null;
 }): string {
   const { order, items, t, locale } = options;
   const money = moneyFormatter(locale, order.currency);
@@ -670,42 +730,7 @@ export function receivedPage(options: {
         <dt>${t('Payment method')}</dt>
         <dd>${order.paymentTitle}</dd>
       </dl>
-      ${
-        options.bank
-          ? html`<div class="shop-box" style="margin:1.5rem 0">
-              <h2>${t('Pay by bank transfer to:')}</h2>
-              <dl>
-                ${
-                  options.bank.accountName
-                    ? html`<dt>${t('Account holder')}</dt>
-                        <dd>${options.bank.accountName}</dd>`
-                    : ''
-                }
-                ${
-                  options.bank.bankName
-                    ? html`<dt>${t('Bank')}</dt>
-                        <dd>${options.bank.bankName}</dd>`
-                    : ''
-                }
-                ${
-                  options.bank.iban
-                    ? html`<dt>IBAN</dt>
-                        <dd><strong>${options.bank.iban}</strong></dd>`
-                    : ''
-                }
-                ${
-                  options.bank.bic
-                    ? html`<dt>BIC / SWIFT</dt>
-                        <dd>${options.bank.bic}</dd>`
-                    : ''
-                }
-                <dt>${t('Reference')}</dt>
-                <dd><strong>${t('Order {number}', { number: order.number })}</strong></dd>
-              </dl>
-              ${options.bank.instructions ? html`<p>${options.bank.instructions}</p>` : html`<p>${t('We ship your order when the payment arrives.')}</p>`}
-            </div>`
-          : ''
-      }
+      ${options.payment ? paymentBox(t, order.number, options.payment) : ''}
       <h2>${t('Your order')}</h2>
       <table class="shop-table">
         <tbody>

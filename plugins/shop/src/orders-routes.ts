@@ -26,7 +26,7 @@ import {
   type OrderDetail,
 } from './order-admin';
 import { orders, type OrderStatus } from './schema';
-import type { StoreSettings } from './storefront';
+import { paymentInstructions, type StoreSettings } from './storefront';
 
 declare module '@cleitext/plugin-sdk' {
   interface Actions {
@@ -65,10 +65,7 @@ export function orderMail(
         siteName: site.name,
         origin,
         prefix: order.locale === site.defaultLocale ? '' : `/${order.locale}`,
-        bank:
-          order.paymentMethod === 'bacs' && ['on-hold', 'pending'].includes(order.status)
-            ? settings.bank
-            : null,
+        payment: paymentInstructions(settings, order),
         adminUrl: `${origin}${adminUrl(`/ext/shop/orders?order=${order.id}`)}`,
         ...extra,
       },

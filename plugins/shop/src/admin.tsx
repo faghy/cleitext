@@ -5,6 +5,7 @@ import { OrdersPage } from './admin/orders';
 import { IT } from './admin/it';
 import { ProductsPage } from './admin/products';
 import { CouponsPage } from './admin/coupons';
+import { PaymentsPage } from './admin/payments';
 import { ShippingPage } from './admin/shipping';
 import { TaxesPage } from './admin/taxes';
 import { BrandsPage, CategoriesPage } from './admin/terms';
@@ -35,6 +36,13 @@ export default defineAdminPlugin({
       icon: 'M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z M10 7v10',
       capability,
       component: CouponsPage,
+    },
+    {
+      path: 'payments',
+      title: { en: 'Payments', it: 'Pagamenti' },
+      icon: 'M3 6h18v12H3z M3 10h18 M7 15h3',
+      capability,
+      component: PaymentsPage,
     },
     {
       path: 'shipping',

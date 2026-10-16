@@ -196,7 +196,7 @@ export function registerAccount(
             items: found.items,
             t,
             locale: request.locale,
-            bank: null,
+            payment: null,
             account: { back: `${prefix}/account/orders` },
           }),
         },

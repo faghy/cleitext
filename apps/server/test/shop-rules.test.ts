@@ -87,10 +87,16 @@ beforeAll(async () => {
   expect(
     (
       await admin.request('PATCH', '/api/v1/plugins/shop/settings', {
-        codEnabled: true,
-        codFee: '4,90',
-        codInstructions: 'Pay the courier.',
         notifyEmail: 'orders@shop-rules.test',
+      })
+    ).statusCode,
+  ).toBe(200);
+  expect(
+    (
+      await admin.request('PUT', ext('/payments'), {
+        order: ['cod', 'bacs'],
+        bacs: { enabled: false },
+        cod: { enabled: true, fee: '4,90', description: 'Pay the courier.', virtual: true },
       })
     ).statusCode,
   ).toBe(200);
@@ -356,6 +362,38 @@ describe('buying with the rules', () => {
       billing('carla@example.test', { payment: 'cod' }),
     );
     expect(placed.statusCode).toBe(303);
+  });
+
+  it('offers cash on delivery only with the shipping methods chosen for it', async () => {
+    await admin.request('PUT', ext('/payments'), {
+      cod: { enabled: true, fee: '4.90', shippingMethods: [rate.Pickup!] },
+      bacs: { enabled: true, accounts: [{ iban: 'IT60X0542811101000000123456' }] },
+    });
+    const eva = visitor();
+    await eva.postForm('/cart/add', { product: mug, quantity: '1' });
+    const courier = await eva.postForm('/checkout', {
+      ...billing('eva@example.test'),
+      rate: rate.Courier!,
+      refresh: '1',
+    });
+    expect(courier.body).not.toContain('value="cod"');
+    expect(courier.body).toContain('value="bacs"');
+    const refused = await eva.postForm('/checkout', {
+      ...billing('eva@example.test'),
+      rate: rate.Courier!,
+    });
+    expect(refused.statusCode).toBe(422);
+    expect(refused.body).toContain('This way to pay is not available for this order');
+    const pickup = await eva.postForm('/checkout', {
+      ...billing('eva@example.test'),
+      rate: rate.Pickup!,
+      refresh: '1',
+    });
+    expect(pickup.body).toContain('value="cod"');
+    await admin.request('PUT', ext('/payments'), {
+      cod: { enabled: true, fee: '4.90', virtual: true },
+      bacs: { enabled: false },
+    });
   });
 
   it('works out taxes for the country it ships to', async () => {

@@ -1,3 +1,4 @@
+import type { PaymentInstructions } from './pages';
 import type { PluginContext } from '@cleitext/plugin-sdk';
 import { z } from 'zod';
 import { addressLines } from './address';
@@ -172,14 +173,8 @@ export interface EmailContext {
   origin: string;
   /** Prefix of the order's language in addresses: '' or `/it`. */
   prefix: string;
-  /** Bank details, shown while a bank transfer is awaited. */
-  bank: {
-    accountName: string;
-    iban: string;
-    bic: string;
-    bankName: string;
-    instructions: string;
-  } | null;
+  /** How to pay: bank details while a transfer is awaited, the method's instructions. */
+  payment: PaymentInstructions | null;
   /** The note (customer_note) or the refunded amount (customer_refunded). */
   note?: string;
   amount?: string;
@@ -282,22 +277,33 @@ export function renderEmail(
     : [];
   const box = (inner: string) =>
     `<div style="margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb">${inner}</div>`;
+  const pay = context.payment && !shopEmail ? context.payment : null;
+  const accounts = (pay?.accounts ?? []).filter((a) => a.iban || a.accountName);
+  const accountLines = accounts.map(
+    (a) =>
+      [
+        a.accountName && `${t('Account holder')}: ${a.accountName}`,
+        a.bankName && `${t('Bank')}: ${a.bankName}`,
+        a.iban && `IBAN: ${a.iban}`,
+        a.bic && `BIC / SWIFT: ${a.bic}`,
+      ].filter(Boolean) as string[],
+  );
+  const reference = `${t('Reference')}: ${t('Order {number}', { number: order.number })}`;
   const bank =
-    context.bank && !shopEmail
+    pay && (accounts.length || pay.instructions)
       ? box(
-          `<p style="margin:0 0 8px;font-weight:700">${escape(t('Pay by bank transfer to:'))}</p>` +
-            [
-              context.bank.accountName && `${t('Account holder')}: ${context.bank.accountName}`,
-              context.bank.bankName && `${t('Bank')}: ${context.bank.bankName}`,
-              context.bank.iban && `IBAN: ${context.bank.iban}`,
-              context.bank.bic && `BIC / SWIFT: ${context.bank.bic}`,
-              `${t('Reference')}: ${t('Order {number}', { number: order.number })}`,
-            ]
-              .filter(Boolean)
-              .map((line) => `<div>${escape(line as string)}</div>`)
-              .join('') +
-            (context.bank.instructions
-              ? `<p style="margin:8px 0 0">${escape(context.bank.instructions)}</p>`
+          (accounts.length
+            ? `<p style="margin:0 0 8px;font-weight:700">${escape(t('Pay by bank transfer to:'))}</p>` +
+              accountLines
+                .map(
+                  (lines) =>
+                    `<div style="margin:0 0 8px">${lines.map((l) => `<div>${escape(l)}</div>`).join('')}</div>`,
+                )
+                .join('') +
+              `<div>${escape(reference)}</div>`
+            : '') +
+            (pay.instructions
+              ? `<p style="margin:${accounts.length ? '8px' : '0'} 0 0">${escape(pay.instructions)}</p>`
               : ''),
         )
       : '';
@@ -329,19 +335,10 @@ ${order.customerNote ? box(`<strong>${escape(t('Customer note'))}</strong><br>${
     '',
     intro,
     ...(context.note ? ['', context.note] : []),
-    ...(context.bank && !shopEmail
-      ? [
-          '',
-          t('Pay by bank transfer to:'),
-          ...[
-            context.bank.accountName && `${t('Account holder')}: ${context.bank.accountName}`,
-            context.bank.bankName && `${t('Bank')}: ${context.bank.bankName}`,
-            context.bank.iban && `IBAN: ${context.bank.iban}`,
-            context.bank.bic && `BIC / SWIFT: ${context.bank.bic}`,
-            `${t('Reference')}: ${t('Order {number}', { number: order.number })}`,
-          ].filter(Boolean),
-        ]
+    ...(accounts.length
+      ? ['', t('Pay by bank transfer to:'), ...accountLines.flatMap((l) => [...l, '']), reference]
       : []),
+    ...(pay?.instructions ? ['', pay.instructions] : []),
     '',
     `${t('Order {number}', { number: order.number })} · ${date}`,
     ...products.map(

@@ -25,6 +25,7 @@ import { COUNTRIES } from './address';
 import { registerAccount } from './account';
 import { registerCatalog } from './catalog-routes';
 import { registerStorefrontBlocks } from './storefront-blocks';
+import { loadPayments } from './rules-routes';
 import { registerRulesRoutes, TAXES_STORAGE, taxSettingsSchema } from './rules-routes';
 
 /**
@@ -207,74 +208,6 @@ export default definePlugin({
             it: 'Il suo indirizzo: i clienti li accettano prima di ordinare. Vuoto: nessuna casella.',
           },
         },
-        {
-          name: 'bankEnabled',
-          type: 'boolean',
-          label: { en: 'Accept bank transfers', it: 'Accetta bonifici bancari' },
-          default: true,
-        },
-        {
-          name: 'bankAccountName',
-          type: 'text',
-          label: { en: 'Bank transfer: account holder', it: 'Bonifico: intestatario del conto' },
-          maxLength: 200,
-        },
-        {
-          name: 'bankIban',
-          type: 'text',
-          label: { en: 'Bank transfer: IBAN', it: 'Bonifico: IBAN' },
-          maxLength: 40,
-        },
-        {
-          name: 'bankBic',
-          type: 'text',
-          label: { en: 'Bank transfer: BIC / SWIFT', it: 'Bonifico: BIC / SWIFT' },
-          maxLength: 20,
-        },
-        {
-          name: 'bankName',
-          type: 'text',
-          label: { en: 'Bank transfer: bank', it: 'Bonifico: banca' },
-          maxLength: 200,
-        },
-        {
-          name: 'bankInstructions',
-          type: 'text',
-          multiline: true,
-          label: { en: 'Bank transfer: instructions', it: 'Bonifico: istruzioni' },
-          help: {
-            en: 'Shown at checkout and on the order page, e.g. “We ship when the payment arrives.”',
-            it: 'Mostrate alla cassa e nella pagina dell’ordine, es. “Spediamo all’arrivo del pagamento.”',
-          },
-          maxLength: 1000,
-        },
-        {
-          name: 'codEnabled',
-          type: 'boolean',
-          label: { en: 'Accept cash on delivery', it: 'Accetta il contrassegno' },
-          default: false,
-        },
-        {
-          name: 'codFee',
-          type: 'text',
-          label: { en: 'Cash on delivery: surcharge', it: 'Contrassegno: supplemento' },
-          help: {
-            en: 'Added to orders paid this way, e.g. 4.90 (like prices, with or without taxes). Empty: none.',
-            it: 'Aggiunto agli ordini pagati così, es. 4,90 (come i prezzi, con o senza tasse). Vuoto: nessuno.',
-          },
-          maxLength: 12,
-        },
-        {
-          name: 'codInstructions',
-          type: 'text',
-          multiline: true,
-          label: { en: 'Cash on delivery: instructions', it: 'Contrassegno: istruzioni' },
-          help: {
-            en: 'Shown at checkout, e.g. “Pay the courier in cash or by card.”',
-            it: 'Mostrate alla cassa, es. “Paghi il corriere in contanti o con carta.”',
-          },
-          maxLength: 1000,
-        },
       ],
       { title: { en: 'Shop', it: 'Negozio' }, capability: CAPABILITY },
     );
@@ -294,21 +227,7 @@ export default definePlugin({
         termsUrl: str('termsUrl'),
         baseCountry: str('baseCountry') || 'IT',
         taxesEnabled: (await taxSettings(siteId)).enabled,
-        cod: {
-          enabled: values.codEnabled === true,
-          fee: /^\d{1,6}([.,]\d{1,2})?$/.test(str('codFee').trim())
-            ? str('codFee').trim().replace(',', '.')
-            : '0',
-          instructions: str('codInstructions'),
-        },
-        bank: {
-          enabled: values.bankEnabled !== false,
-          accountName: str('bankAccountName'),
-          iban: str('bankIban').replace(/\s+/g, ' ').toUpperCase(),
-          bic: str('bankBic').toUpperCase(),
-          bankName: str('bankName'),
-          instructions: str('bankInstructions'),
-        },
+        payments: await loadPayments(ctx, siteId),
       };
     };
     const storeWithNotify = async (siteId: string) => {

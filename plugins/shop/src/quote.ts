@@ -30,7 +30,15 @@ export interface QuoteSettings {
   pricesIncludeTax: boolean;
   taxesEnabled: boolean;
   /** Cash on delivery: its fee as entered, when the customer pays that way. */
-  cod: { enabled: boolean; fee: string; title: string };
+  cod: {
+    enabled: boolean;
+    fee: string;
+    title: string;
+    taxable: boolean;
+    /** Shipping methods it is offered with (empty: all), and for virtual-only carts. */
+    shippingMethods: string[];
+    virtual: boolean;
+  };
 }
 
 export interface QuoteInput {
@@ -196,8 +204,14 @@ export async function quote(
     rates: ratesFor(taxRows, input.to),
     shipping: rate ? { cost: (rate.cost / 100).toFixed(2), taxable: rate.taxable } : null,
     fees:
-      input.payment === 'cod' && settings.cod.enabled && Number(settings.cod.fee) > 0
-        ? [{ name: settings.cod.title, amount: settings.cod.fee, taxable: true }]
+      input.payment === 'cod' &&
+      settings.cod.enabled &&
+      Number(settings.cod.fee) > 0 &&
+      (needsShipping
+        ? !settings.cod.shippingMethods.length ||
+          (!!rate && settings.cod.shippingMethods.includes(rate.id))
+        : settings.cod.virtual)
+        ? [{ name: settings.cod.title, amount: settings.cod.fee, taxable: settings.cod.taxable }]
         : [],
     discounts: applied.discounts,
   });

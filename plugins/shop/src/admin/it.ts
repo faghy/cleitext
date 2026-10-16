@@ -444,4 +444,39 @@ export const IT: Record<string, string> = {
     'Senza un’ultima fascia aperta, i carrelli più pesanti non hanno questo metodo.',
   Zone: 'Zona',
   'Zone name': 'Nome della zona',
+  'Account details': 'Dati del conto',
+  'Account holder': 'Intestatario',
+  'Add account': 'Aggiungi conto',
+  'Added to orders paid this way, like prices (with or without taxes).':
+    'Aggiunto agli ordini pagati così, come i prezzi (con o senza imposte).',
+  'Also for orders with nothing to deliver (virtual products)':
+    'Anche per ordini senza nulla da consegnare (prodotti virtuali)',
+  Bank: 'Banca',
+  'Bank transfer': 'Bonifico bancario',
+  'Cash on delivery': 'Contrassegno',
+  'Customers pay into your bank account; the order waits on hold until the money arrives.':
+    'I clienti pagano sul tuo conto; l’ordine resta in attesa finché arriva il denaro.',
+  'Customers pay the courier when the order arrives, with a surcharge if you like.':
+    'I clienti pagano il corriere alla consegna, con un supplemento se vuoi.',
+  'Direct bank transfer': 'Bonifico bancario anticipato',
+  Instructions: 'Istruzioni',
+  Manage: 'Gestisci',
+  Method: 'Metodo',
+  'No shipping methods yet: it is offered with any.':
+    'Ancora nessun metodo di spedizione: è offerto con tutti.',
+  'None checked: with every shipping method.':
+    'Nessuno selezionato: con tutti i metodi di spedizione.',
+  'On the order page and in the emails.': 'Nella pagina dell’ordine e nelle email.',
+  'Only with these shipping methods': 'Solo con questi metodi di spedizione',
+  Payments: 'Pagamenti',
+  'Shown to customers after ordering, with the order number as the reference.':
+    'Mostrati ai clienti dopo l’ordine, con il numero d’ordine come causale.',
+  Surcharge: 'Supplemento',
+  'The surcharge is taxable': 'Il supplemento è soggetto a imposte',
+  'The ways customers can pay, in the order shown at checkout. Card payments (Stripe, PayPal) will be added here.':
+    'I modi in cui i clienti possono pagare, nell’ordine mostrato alla cassa. I pagamenti con carta (Stripe, PayPal) si aggiungeranno qui.',
+  Title: 'Titolo',
+  'Under the title at checkout.': 'Sotto il titolo, alla cassa.',
+  'What customers see at checkout. Empty: the default, in their language.':
+    'Quello che i clienti vedono alla cassa. Vuoto: quello predefinito, nella loro lingua.',
 };

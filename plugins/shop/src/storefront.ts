@@ -37,6 +37,8 @@ import {
   type PaymentOption,
 } from './pages';
 import { customerOf, saveCustomer } from './account';
+import type { PaymentInstructions } from './pages';
+import { availablePayments, type PaymentContext, type PaymentId, type Payments } from './payments';
 import { couponOf, quote, type Quote, type QuoteInput } from './quote';
 import { coupons, products } from './schema';
 import type { Destination } from './shipping';
@@ -51,16 +53,27 @@ export interface StoreSettings {
   /** Where the shop is: taxes until the customer gives an address. */
   baseCountry: string;
   taxesEnabled: boolean;
-  /** Cash on delivery, with its fee as entered. */
-  cod: { enabled: boolean; fee: string; instructions: string };
-  bank: {
-    enabled: boolean;
-    accountName: string;
-    iban: string;
-    bic: string;
-    bankName: string;
-    instructions: string;
-  };
+  /** Ways to pay (Shop → Payments). */
+  payments: Payments;
+}
+
+/** The default name of a way to pay, in the customer's language. */
+export const paymentTitle = (store: Pick<StoreSettings, 'payments'>, id: PaymentId, t: Translate) =>
+  store.payments[id].title || t(id === 'bacs' ? 'Bank transfer' : 'Cash on delivery');
+
+/** What an order's page and emails tell the customer about paying. */
+export function paymentInstructions(
+  store: Pick<StoreSettings, 'payments'>,
+  order: { paymentMethod: string; status: string },
+): PaymentInstructions | null {
+  if (order.paymentMethod === 'bacs') {
+    const awaited = ['on-hold', 'pending'].includes(order.status);
+    const { instructions, accounts } = store.payments.bacs;
+    return awaited ? { method: 'bacs', instructions, accounts } : null;
+  }
+  if (order.paymentMethod === 'cod' && ['processing', 'on-hold'].includes(order.status))
+    return { method: 'cod', instructions: store.payments.cod.instructions, accounts: [] };
+  return null;
 }
 
 const text = (body: Record<string, unknown>, name: string, max = 200) => {
@@ -127,27 +140,25 @@ export function registerStorefront(
     };
   };
 
-  const payments = (values: StoreSettings, t: Translate, money: Money): PaymentOption[] => [
-    ...(values.bank.enabled
-      ? [{ id: 'bacs', title: t('Bank transfer'), description: values.bank.instructions }]
-      : []),
-    ...(values.cod.enabled
-      ? [
-          {
-            id: 'cod',
-            title: t('Cash on delivery'),
-            description: [
-              values.cod.instructions,
-              Number(values.cod.fee) > 0
-                ? t('Surcharge: {amount}.', { amount: money.of(values.cod.fee) })
-                : '',
-            ]
-              .filter(Boolean)
-              .join(' '),
-          },
-        ]
-      : []),
-  ];
+  /** The ways to pay this cart, as the checkout lists them. */
+  const payments = (
+    values: StoreSettings,
+    t: Translate,
+    money: Money,
+    cart: PaymentContext,
+  ): PaymentOption[] =>
+    availablePayments(values.payments, cart).map((id) => ({
+      id,
+      title: paymentTitle(values, id, t),
+      description: [
+        values.payments[id].description,
+        id === 'cod' && Number(values.payments.cod.fee) > 0
+          ? t('Surcharge: {amount}.', { amount: money.of(values.payments.cod.fee) })
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    }));
 
   const base = (store: StoreSettings): Destination => ({
     country: store.baseCountry,
@@ -204,7 +215,14 @@ export function registerStorefront(
   const quoteSettings = (store: StoreSettings, t: Translate) => ({
     pricesIncludeTax: store.pricesIncludeTax,
     taxesEnabled: store.taxesEnabled,
-    cod: { ...store.cod, enabled: store.cod.enabled, title: t('Cash on delivery') },
+    cod: {
+      enabled: store.payments.cod.enabled,
+      fee: store.payments.cod.fee || '0',
+      taxable: store.payments.cod.feeTaxable,
+      title: paymentTitle(store, 'cod', t),
+      shippingMethods: store.payments.cod.shippingMethods,
+      virtual: store.payments.cod.virtual,
+    },
   });
 
   const couponViews = (quoted: Quote) =>
@@ -517,7 +535,10 @@ export function registerStorefront(
           urls: await urlsFor(request, cart.lines),
           locale: request.locale,
           includeTax: store.pricesIncludeTax,
-          payments: payments(store, t, money),
+          payments: payments(store, t, money, {
+            needsShipping: cart.quote.needsShipping,
+            rateId: cart.quote.rate?.id ?? null,
+          }),
           termsUrl: store.termsUrl,
           phoneRequired: store.phoneRequired,
           ...(notice ? { notice } : {}),
@@ -579,10 +600,12 @@ export function registerStorefront(
           errors[`shipping.${key}`] = message!;
       for (const [key, message] of Object.entries(checkInvoice(values.invoice)))
         errors[`invoice.${key}`] = message!;
-      const methods = payments(store, t, moneyFormatter(request.locale, store.currency));
-      const method =
-        methods.find((m) => m.id === values.payment) ??
-        (methods.length === 1 ? methods[0] : undefined);
+      // Switched on now; whether it suits this cart is checked with its shipping, below.
+      const enabled = store.payments.order.filter((id) => store.payments[id].enabled);
+      const chosen =
+        enabled.find((id) => id === values.payment) ??
+        (enabled.length === 1 ? enabled[0] : undefined);
+      const method = chosen ? { id: chosen, title: paymentTitle(store, chosen, t) } : undefined;
       if (!method) errors.payment = 'Choose a way to pay.';
       if (store.termsUrl && !values.terms) errors.terms = 'Accept the terms to place the order.';
       if (Object.keys(errors).length > 0)
@@ -618,6 +641,14 @@ export function registerStorefront(
           });
           const rejected = quoted.rejected[0];
           if (rejected) return { problem: couponMessage(t, rejected.code, rejected.problem) };
+          const allowed = availablePayments(store.payments, {
+            needsShipping: quoted.needsShipping,
+            rateId: quoted.rate?.id ?? null,
+          });
+          if (!allowed.includes(method!.id))
+            return {
+              problem: t('This way to pay is not available for this order: choose another.'),
+            };
           // The rates depend on the address: a rate not offered for it is chosen again.
           if (quoted.shippingSetUp && quoted.rate?.id !== values.rate)
             return { rate: quoted.rates.length ? 'Choose a shipping method.' : 'No shipping' };
@@ -739,11 +770,7 @@ export function registerStorefront(
             items: found.items,
             t: translator(found.order.locale),
             locale: found.order.locale,
-            bank:
-              found.order.paymentMethod === 'bacs' &&
-              ['on-hold', 'pending'].includes(found.order.status)
-                ? store.bank
-                : null,
+            payment: paymentInstructions(store, found.order),
           }),
         },
       };

@@ -2,6 +2,7 @@ import type { PluginContext, RouteRequest } from '@cleitext/plugin-sdk';
 import { and, asc, desc, eq, ilike, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { couponInputSchema } from './coupons';
+import { legacyPayments, paymentsSchema, PAYMENTS_STORAGE, type Payments } from './payments';
 import { couponOf } from './quote';
 import {
   couponUses,
@@ -78,6 +79,36 @@ const methodView = (m: ShippingMethodRow) => ({
   taxable: m.taxable,
   settings: m.settings,
 });
+
+/** The ways to pay, set up in Shop → Payments (or still the old settings). */
+export async function loadPayments(ctx: PluginContext, siteId: string): Promise<Payments> {
+  const raw = await ctx.storage.get(siteId, PAYMENTS_STORAGE);
+  const stored = paymentsSchema.safeParse(raw);
+  if (raw !== null && stored.success) {
+    // Ways to pay added later come last, switched off.
+    const order = [...new Set([...stored.data.order, ...paymentsSchema.parse({}).order])];
+    return { ...stored.data, order };
+  }
+  // Before Shop → Payments they were settings; their values stay in the plugin's storage.
+  const legacy: Record<string, unknown> = {};
+  for (const key of LEGACY_KEYS) {
+    const value = await ctx.storage.get(siteId, key);
+    if (value !== null) legacy[key] = value;
+  }
+  return legacyPayments(legacy);
+}
+
+const LEGACY_KEYS = [
+  'bankEnabled',
+  'bankAccountName',
+  'bankIban',
+  'bankBic',
+  'bankName',
+  'bankInstructions',
+  'codEnabled',
+  'codFee',
+  'codInstructions',
+];
 
 export function registerRulesRoutes(ctx: PluginContext, capability: string): void {
   const api = (
@@ -182,6 +213,23 @@ export function registerRulesRoutes(ctx: PluginContext, capability: string): voi
         };
       }),
     };
+  });
+
+  // ---- Payments ----------------------------------------------------------------------
+
+  api('GET', '/payments', async (request) => ({
+    body: await loadPayments(ctx, request.siteId),
+  }));
+
+  api('PUT', '/payments', async (request) => {
+    const input = paymentsSchema.safeParse(request.body);
+    if (!input.success) return invalid(input.error);
+    if (input.data.bacs.enabled && !input.data.bacs.accounts.some((a) => a.iban))
+      return problem(400, 'Some values are not valid.', [
+        { path: 'bacs.accounts', message: 'Add the account customers pay into.' },
+      ]);
+    await ctx.storage.set(request.siteId, PAYMENTS_STORAGE, input.data);
+    return { body: await loadPayments(ctx, request.siteId) };
   });
 
   // ---- Taxes -------------------------------------------------------------------------
