@@ -247,7 +247,7 @@ describe('the catalog', () => {
   it('counts the cart for the cart link', async () => {
     const anna = visitor();
     expect((await anna.get('/cart/count')).json()).toMatchObject({ count: 0 });
-    await anna.postForm('/cart/add', { product: ids.desk, quantity: '2' });
+    await anna.postForm('/cart/add', { product: ids.desk!, quantity: '2' });
     const counted = await anna.get('/cart/count');
     expect(counted.json()).toMatchObject({ count: 2 });
     expect(counted.headers['cache-control']).toContain('no-store');
@@ -282,7 +282,7 @@ describe('the account', () => {
   });
 
   it('keeps the addresses of an order and fills the next checkout', async () => {
-    await gina.postForm('/cart/add', { product: ids.desk, quantity: '1' });
+    await gina.postForm('/cart/add', { product: ids.desk!, quantity: '1' });
     const first = await gina.get('/checkout');
     expect(first.body).not.toContain('Returning customer?');
     const placed = await gina.postForm('/checkout', billing);
@@ -302,13 +302,13 @@ describe('the account', () => {
     await ugo.login('ugo@shop-front.test', PASSWORD);
     expect((await ugo.get(`/account/orders/${number}`)).statusCode).toBe(404);
 
-    await gina.postForm('/cart/add', { product: ids.floor, quantity: '1' });
+    await gina.postForm('/cart/add', { product: ids.floor!, quantity: '1' });
     const next = await gina.get('/checkout');
     expect(next.body).toContain('value="Via Garibaldi 5"');
     expect(next.body).toContain('value="gina@shop-front.test"');
     // Visitors are offered to sign in.
     const guest = new TestClient(app, site.host, '10.94.0.23');
-    await guest.postForm('/cart/add', { product: ids.desk });
+    await guest.postForm('/cart/add', { product: ids.desk! });
     expect((await guest.get('/checkout')).body).toContain('Returning customer?');
   });
 
