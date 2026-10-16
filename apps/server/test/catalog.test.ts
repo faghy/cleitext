@@ -53,14 +53,15 @@ function pluginZip(version: string, apiVersion = '^1.0') {
   );
 }
 
-function themeZip(version: string) {
+/** The code says `codeVersion` (themes left it behind): theme.json is what counts. */
+function themeZip(version: string, codeVersion = version) {
   return Buffer.from(
     zipSync({
       'sparkle/theme.json': strToU8(JSON.stringify({ slug: 'sparkle', name: 'Sparkle', version })),
       'sparkle/dist/index.js': strToU8(
         `const { createElement: h } = globalThis.__cleitextShared.react;
 const sdk = globalThis.__cleitextShared['@cleitext/theme-sdk'];
-export default sdk.defineTheme({ slug: 'sparkle', name: 'Sparkle', version: '${version}', menuLocations: {},
+export default sdk.defineTheme({ slug: 'sparkle', name: 'Sparkle', version: '${codeVersion}', menuLocations: {},
   templates: { index: () => h('main', null, 'sparkle') }, Layout: ({ children }) => h('html', null, h('body', null, children)), css: '' });`,
       ),
     }),
@@ -170,7 +171,7 @@ describe('catalog', () => {
   it('installs a plugin and a theme after checking their SHA-256', async () => {
     publish([
       item('plugin', 'tiny', '1.0.0', pluginZip('1.0.0')),
-      item('theme', 'sparkle', '1.0.0', themeZip('1.0.0'), { requires: '>=0.1.0' }),
+      item('theme', 'sparkle', '1.0.0', themeZip('1.0.0', '0.9.0'), { requires: '>=0.1.0' }),
     ]);
     await catalog();
     const plugin = await root.post('/api/v1/catalog/plugin/tiny/install');

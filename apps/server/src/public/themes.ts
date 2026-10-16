@@ -82,7 +82,9 @@ export async function loadThemes(dir: string): Promise<void> {
       }
       if (theme.slug !== manifest.slug)
         throw new Error('The bundle slug does not match theme.json');
-      next.set(theme.slug, theme);
+      // theme.json is the version that was installed: the one written in the
+      // code may be left behind (themes did), and updates would be offered forever.
+      next.set(theme.slug, { ...theme, version: manifest.version });
       if (manifest.paid) nextPaid.set(theme.slug, manifest.paid);
     } catch (error) {
       errors.set(folder.name, error instanceof Error ? error.message : String(error));
