@@ -1,9 +1,9 @@
 {
   "slug": "shop",
-  "name": "Shop",
-  "version": "0.1.0",
+  "name": "Cleishop",
+  "version": "1.0.0",
   "apiVersion": "^1.19",
-  "description": "Sell products from your Cleitext site: a fast catalog for shop managers (categories, brands, three prices, stock, variations), then cart, checkout, orders, payments and shipping.",
+  "description": "Cleishop: sell from your Cleitext site. A fast catalog for shop managers (categories, brands, three prices, stock, variations), cart and checkout, orders and emails, shipping zones, taxes, coupons, bank transfer, cash on delivery, Stripe and PayPal, reviews and the customer account.",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",

@@ -1,8 +1,8 @@
 {
   "name": "@cleitext/plugin-shop",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Official Cleitext plugin: e-commerce.",
+  "description": "Official Cleitext plugin: Cleishop, e-commerce.",
   "license": "GPL-2.0-or-later",
   "type": "module",
   "scripts": {

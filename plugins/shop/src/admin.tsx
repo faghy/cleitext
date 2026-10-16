@@ -19,7 +19,7 @@ export default defineAdminPlugin({
   pages: [
     {
       path: '',
-      title: { en: 'Shop', it: 'Negozio' },
+      title: { en: 'Cleishop', it: 'Cleishop' },
       icon: 'M5 8h14l-1.2 12H6.2z M9 8V6a3 3 0 0 1 6 0v2',
       capability,
       component: ProductsPage,

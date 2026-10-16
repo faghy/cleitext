@@ -54,7 +54,7 @@ export function TaxesPage({ api, user }: AdminPageProps) {
           : t(
               'Prices are entered without taxes: the tax of the country customers ship to is added at checkout.',
             )}{' '}
-        {t('Change this in Settings → Shop.')}
+        {t('Change this in Settings → Cleishop.')}
       </p>
       <section className="sh-card sh-stack">
         <label className="sh-check">

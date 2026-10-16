@@ -53,7 +53,7 @@ export function EmailsPage({ api, user }: AdminPageProps) {
       <p className="sh-small">
         {list.data.notifyEmails.length
           ? t('The shop’s emails go to {emails}.', { emails: list.data.notifyEmails.join(', ') })
-          : t('The shop’s emails go nowhere yet: add an address in Settings → Shop.')}
+          : t('The shop’s emails go nowhere yet: add an address in Settings → Cleishop.')}
       </p>
       {list.data.emails.map((email) => {
         const value = values[email.id];

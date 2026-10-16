@@ -207,8 +207,8 @@ export default definePlugin({
           type: 'boolean',
           label: { en: 'Product reviews', it: 'Recensioni dei prodotti' },
           help: {
-            en: 'Customers rate products from 1 to 5 stars and write a review; you approve them in Shop → Reviews.',
-            it: 'I clienti valutano i prodotti da 1 a 5 stelle e scrivono una recensione; le approvi in Negozio → Recensioni.',
+            en: 'Customers rate products from 1 to 5 stars and write a review; you approve them in Cleishop → Reviews.',
+            it: 'I clienti valutano i prodotti da 1 a 5 stelle e scrivono una recensione; le approvi in Cleishop → Recensioni.',
           },
           default: true,
         },
@@ -237,7 +237,7 @@ export default definePlugin({
           },
         },
       ],
-      { title: { en: 'Shop', it: 'Negozio' }, capability: CAPABILITY },
+      { title: { en: 'Cleishop', it: 'Cleishop' }, capability: CAPABILITY },
     );
 
     watchEntries(ctx);

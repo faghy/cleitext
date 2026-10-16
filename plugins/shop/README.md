@@ -1,17 +1,17 @@
-# Shop
+# Cleishop
 
-Official Cleitext plugin for selling from your site. It takes the product
+Cleishop is the official Cleitext plugin for selling from your site (slug `shop`). It takes the product
 management of Cleito, built for shop managers who update hundreds of
 products, and the catalog features of WooCommerce.
 
-**Milestone 1, the catalog** (this version):
+**The catalog**:
 
 - Products are Cleitext entries of type `product` (blocks for the description,
   revisions, translations, SEO, search), at `/product/<slug>`. Their commercial
   data lives in the plugin's tables.
 - Product categories (a tree, with an image) and brands (logo, website) are
   taxonomies, with archives at `/product-category/<slug>` and `/brand/<slug>`.
-- **Shop → Products**:
+- **Cleishop → Products**:
   - filters that stack: category with its subcategories, then the brands present
     there with their counts, status, stock, condition, on sale;
   - rows coloured by status;
@@ -19,7 +19,7 @@ products, and the catalog features of WooCommerce.
   - a quick look (images, prices, stock);
   - duplicate, trash and publish on many products at once;
   - CSV export and import, with WooCommerce's columns.
-- **The product form**, on one page or step by step (Settings → Shop):
+- **The product form**, on one page or step by step (Settings → Cleishop):
   - category and brand;
   - description;
   - three prices (cost, list price, selling price) with the margin, computed
@@ -34,7 +34,7 @@ products, and the catalog features of WooCommerce.
   (bands of cost with their markup, a surcharge, the discount from the list
   price, rounding).
 
-**Milestone 2, buying**:
+**Buying**:
 
 - a buy box on product pages (price, availability, variation, quantity);
 - the cart at `/cart`, in a cookie;
@@ -45,7 +45,7 @@ products, and the catalog features of WooCommerce.
   - bank transfer;
 - the order, with its stock taken safely, and its page with the bank details.
 
-**Milestone 3, orders** (Shop → Orders and Shop emails):
+**Orders** (Cleishop → Orders and Shop emails):
 
 - orders by status, found by number, email or name;
 - the order with its products, addresses, invoice details and history;
@@ -59,9 +59,9 @@ products, and the catalog features of WooCommerce.
 
   Their texts can be changed, with a preview.
 
-**Milestone 4, shipping, taxes and coupons**:
+**Shipping, taxes and coupons**:
 
-- **Shop → Shipping**: zones of countries, provinces and postcodes (`20*`,
+- **Cleishop → Shipping**: zones of countries, provinces and postcodes (`20*`,
   `00118...00199`), the first matching one from the top, and "Everywhere
   else"; each with its methods:
   - flat rate, with a formula (`3 + 1.5 * [qty]`) and costs per shipping class;
@@ -72,19 +72,19 @@ products, and the catalog features of WooCommerce.
   Without any method, orders ship for free. A tester shows the rates of an
   address.
 
-- **Shop → Taxes**: rates by class (standard, reduced, second reduced,
+- **Cleishop → Taxes**: rates by class (standard, reduced, second reduced,
   super-reduced, zero), country and province, the Italian ones in one click.
   The shipping address chooses them; with prices entered with taxes, what
   customers pay stays the same.
-- **Shop → Coupons**: a percentage, an amount off the cart or off each item,
+- **Cleishop → Coupons**: a percentage, an amount off the cart or off each item,
   free shipping; minimum and maximum spend, products and categories (and
   exclusions), sale items, emails, expiry, uses in all and per customer,
   individual use. The discount is spread over the lines, before taxes.
 - At checkout: the shipping methods of the address, cash on delivery with its
-  surcharge (Settings → Shop), and the totals with discounts and taxes, in the
+  surcharge (Settings → Cleishop), and the totals with discounts and taxes, in the
   order, its page and its emails.
 
-**Milestone 5, the storefront**:
+**The storefront**:
 
 - `/shop` and the archives `/product-category/<slug>` (with its subcategories)
   and `/brand/<slug>`: a grid of products with filters (brand, attributes,
@@ -100,7 +100,7 @@ products, and the catalog features of WooCommerce.
   addresses that fill in the checkout. A signed-in customer finds their cart
   on another device.
 
-**Payments** (Shop → Payments, as in WooCommerce): the ways to pay switched
+**Payments** (Cleishop → Payments, as in WooCommerce): the ways to pay switched
 on, ordered and set up one by one, each with its title, description and
 instructions for the order page and the emails:
 
@@ -122,8 +122,8 @@ instructions for the order page and the emails:
 on the product page (no JavaScript). Reviews are comments of type `review`
 for the core: the comment moderation, spam checks and notifications apply.
 "Verified owner" marks customers who bought the product; reviews can be kept
-to them, and the rating can be optional (Settings → Shop). Shop → Reviews
+to them, and the rating can be optional (Settings → Cleishop). Cleishop → Reviews
 lists them for moderation. The average shows on the product page, in the
 catalog and in the structured data.
 
-License: GPL-2.0-or-later.
+Requires Cleitext 0.28 or later. License: GPL-2.0-or-later.

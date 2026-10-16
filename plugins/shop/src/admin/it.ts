@@ -302,8 +302,8 @@ export const IT: Record<string, string> = {
   'Tax ({rate}%)': 'IVA ({rate}%)',
   'The emails the shop sends. Leave a text empty to use the default one, in the language of the order. You can use {number}, {name}, {site} and, in refunds, {amount}.':
     'Le email che il negozio invia. Lascia vuoto un testo per usare quello predefinito, nella lingua dell’ordine. Puoi usare {number}, {name}, {site} e, nei rimborsi, {amount}.',
-  'The shop’s emails go nowhere yet: add an address in Settings → Shop.':
-    'Le email del negozio non arrivano ancora a nessuno: aggiungi un indirizzo in Impostazioni → Negozio.',
+  'The shop’s emails go nowhere yet: add an address in Settings → Cleishop.':
+    'Le email del negozio non arrivano ancora a nessuno: aggiungi un indirizzo in Impostazioni → Cleishop.',
   'The shop’s emails go to {emails}.': 'Le email del negozio arrivano a {emails}.',
   Total: 'Totale',
   'to the customer': 'al cliente',
@@ -349,7 +349,7 @@ export const IT: Record<string, string> = {
     'Un importo, o una formula con [qty] (pezzi), [cost] (totale dei prodotti) e [weight] (peso): es. 5, oppure 3 + 1.5 * [qty].',
   'Any country': 'Qualsiasi paese',
   'By weight': 'A peso',
-  'Change this in Settings → Shop.': 'Si cambia in Impostazioni → Negozio.',
+  'Change this in Settings → Cleishop.': 'Si cambia in Impostazioni → Cleishop.',
   'Charge taxes': 'Applica le imposte',
   Check: 'Verifica',
   Country: 'Paese',
