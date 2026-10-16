@@ -689,6 +689,8 @@ export function receivedPage(options: {
   locale: string;
   /** In the account: no thanks, the status instead, and a way back. */
   account?: { back: string };
+  /** Online payments not confirmed yet: where to pay. */
+  unpaid?: { payUrl: string };
   /** What the customer does to pay: bank accounts while a transfer is awaited, instructions. */
   payment: PaymentInstructions | null;
 }): string {
@@ -711,6 +713,16 @@ export function receivedPage(options: {
           : html`<p class="shop-notice" role="status">
               ${t('Thank you: we received your order.')}
             </p>`
+      }
+      ${
+        options.unpaid
+          ? html`<div class="shop-notice shop-notice--error" role="alert">
+              <p style="margin:0 0 .5rem">
+                ${t('Your payment has not been confirmed yet. If you did not complete it, you can pay now.')}
+              </p>
+              <a class="shop-button" href="${options.unpaid.payUrl}">${t('Pay now')}</a>
+            </div>`
+          : ''
       }
       <dl>
         <dt>${t('Order number')}</dt>

@@ -1,14 +1,25 @@
 import { z } from 'zod';
 
 /**
- * Ways to pay (WooCommerce's payment gateways): bank transfer in advance and
- * cash on delivery for now, each switched on, ordered and set up in Shop →
- * Payments. Stored in the plugin's storage under `payments`.
+ * Ways to pay (WooCommerce's payment gateways): bank transfer in advance,
+ * cash on delivery, cards with Stripe and PayPal, each switched on, ordered
+ * and set up in Shop → Payments. Stored in the plugin's storage under
+ * `payments`; the providers' secret keys in the plugin's secrets.
  */
 
 export const PAYMENTS_STORAGE = 'payments';
-export const PAYMENT_IDS = ['bacs', 'cod'] as const;
+export const PAYMENT_IDS = ['bacs', 'cod', 'stripe', 'paypal'] as const;
 export type PaymentId = (typeof PAYMENT_IDS)[number];
+/** Paid on the provider's pages: the order waits as pending until it confirms. */
+export const ONLINE: readonly PaymentId[] = ['stripe', 'paypal'];
+
+/** Names of the secrets, set from Shop → Payments and never shown again. */
+export const SECRETS = {
+  stripeSecretKey: 'stripe-secret-key',
+  stripeWebhookSecret: 'stripe-webhook-secret',
+  paypalSecret: 'paypal-secret',
+} as const;
+export type SecretName = keyof typeof SECRETS;
 
 const text = (max: number) => z.string().trim().max(max).default('');
 const amount = z
@@ -44,9 +55,13 @@ const common = {
   instructions: text(2000),
 };
 
+const off = { enabled: false, title: '', description: '', instructions: '' };
+
 export const paymentsSchema = z.object({
   /** The order at checkout. */
   order: z.array(z.enum(PAYMENT_IDS)).default([...PAYMENT_IDS]),
+  /** Unpaid online orders are cancelled after this long, giving their stock back. */
+  holdMinutes: z.number().int().min(10).max(10_080).default(60),
   bacs: z
     .object({ ...common, accounts: z.array(bankAccountSchema).max(10).default([]) })
     .default({ enabled: false, title: '', description: '', instructions: '', accounts: [] }),
@@ -71,6 +86,17 @@ export const paymentsSchema = z.object({
       shippingMethods: [],
       virtual: false,
     }),
+  stripe: z.object({ ...common }).default(off),
+  paypal: z
+    .object({
+      ...common,
+      /** PayPal's sandbox, for trying it out. */
+      sandbox: z.boolean().default(false),
+      clientId: text(200),
+      /** The webhook's id in PayPal, to check its notifications. */
+      webhookId: text(100),
+    })
+    .default({ ...off, sandbox: false, clientId: '', webhookId: '' }),
 });
 export type Payments = z.output<typeof paymentsSchema>;
 
@@ -104,12 +130,15 @@ export interface PaymentContext {
   needsShipping: boolean;
   /** The shipping rate chosen, if any. */
   rateId: string | null;
+  /** Online methods with their keys set (the others cannot take payments). */
+  ready?: Partial<Record<PaymentId, boolean>>;
 }
 
 /** The ways to pay this cart, in the shop's order. */
 export function availablePayments(payments: Payments, cart: PaymentContext): PaymentId[] {
   return payments.order.filter((id) => {
     if (!payments[id].enabled) return false;
+    if (ONLINE.includes(id) && !cart.ready?.[id]) return false;
     if (id === 'cod') {
       const cod = payments.cod;
       if (!cart.needsShipping) return cod.virtual;

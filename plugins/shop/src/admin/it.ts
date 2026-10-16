@@ -473,10 +473,51 @@ export const IT: Record<string, string> = {
     'Mostrati ai clienti dopo l’ordine, con il numero d’ordine come causale.',
   Surcharge: 'Supplemento',
   'The surcharge is taxable': 'Il supplemento è soggetto a imposte',
-  'The ways customers can pay, in the order shown at checkout. Card payments (Stripe, PayPal) will be added here.':
-    'I modi in cui i clienti possono pagare, nell’ordine mostrato alla cassa. I pagamenti con carta (Stripe, PayPal) si aggiungeranno qui.',
+  'The ways customers can pay, in the order shown at checkout. Cards and PayPal are paid on Stripe’s and PayPal’s secure pages: card data never reaches this site.':
+    'I modi in cui i clienti possono pagare, nell’ordine mostrato alla cassa. Carte e PayPal si pagano sulle pagine sicure di Stripe e PayPal: i dati delle carte non arrivano mai a questo sito.',
   Title: 'Titolo',
   'Under the title at checkout.': 'Sotto il titolo, alla cassa.',
   'What customers see at checkout. Empty: the default, in their language.':
     'Quello che i clienti vedono alla cassa. Vuoto: quello predefinito, nella loro lingua.',
+  'A PayPal account, or a card through PayPal.': 'Un conto PayPal, o una carta tramite PayPal.',
+  'Add it in Stripe (Developers → Webhooks) with the events checkout.session.completed, checkout.session.async_payment_succeeded and checkout.session.async_payment_failed. Payments are also confirmed when customers come back to the site.':
+    'Aggiungilo in Stripe (Sviluppatori → Webhook) con gli eventi checkout.session.completed, checkout.session.async_payment_succeeded e checkout.session.async_payment_failed. I pagamenti si confermano anche quando i clienti tornano sul sito.',
+  'Add it to your PayPal app (Webhooks) with the events Checkout order approved and Payment capture completed. Payments are also confirmed when customers come back to the site.':
+    'Aggiungilo alla tua app PayPal (Webhooks) con gli eventi Checkout order approved e Payment capture completed. I pagamenti si confermano anche quando i clienti tornano sul sito.',
+  'Add the account customers pay into.': 'Aggiungi il conto su cui pagano i clienti.',
+  'Add the client id and the secret of your PayPal app.':
+    'Aggiungi il client ID e il secret della tua app PayPal.',
+  'Add the client id and the secret.': 'Aggiungi il client ID e il secret.',
+  'Add the secret key to take card payments.': 'Aggiungi la chiave segreta per accettare le carte.',
+  'Add the secret key.': 'Aggiungi la chiave segreta.',
+  'Cancel unpaid online orders after (minutes)':
+    'Annulla gli ordini online non pagati dopo (minuti)',
+  'Cards, Apple Pay, Google Pay and more, on Stripe’s secure page.':
+    'Carte, Apple Pay, Google Pay e altro, sulla pagina sicura di Stripe.',
+  'Check the keys': 'Verifica le chiavi',
+  'Client id': 'Client ID',
+  'Credit or debit card': 'Carta di credito o di debito',
+  'Give the money back through {provider}': 'Restituisci il denaro tramite {provider}',
+  'In PayPal’s developer dashboard: Apps & Credentials, an app for this site.':
+    'Nella dashboard sviluppatori di PayPal: Apps & Credentials, un’app per questo sito.',
+  'In Stripe’s dashboard: Developers → API keys. A test key (sk_test_…) takes no real money.':
+    'Nella dashboard di Stripe: Sviluppatori → Chiavi API. Una chiave di test (sk_test_…) non incassa denaro vero.',
+  'Orders paid by card or PayPal keep their products for this long, then their stock goes back.':
+    'Gli ordini pagati con carta o PayPal tengono i prodotti per questo tempo, poi le scorte tornano disponibili.',
+  PayPal: 'PayPal',
+  'Sandbox (test payments, no real money)': 'Sandbox (pagamenti di prova, senza denaro vero)',
+  'Save first: the check uses the saved keys.': 'Prima salva: la verifica usa le chiavi salvate.',
+  'Key saved': 'Chiave salvata',
+  'Saved: type a new one to replace it': 'Salvata: scrivine una nuova per sostituirla',
+  Secret: 'Secret',
+  'Secret key': 'Chiave segreta',
+  Stripe: 'Stripe',
+  'The keys do not work.': 'Le chiavi non funzionano.',
+  'The keys work.': 'Le chiavi funzionano.',
+  'The money goes back to the customer through {provider}: up to {amount}.':
+    'Il denaro torna al cliente tramite {provider}: fino a {amount}.',
+  'This does not look like the right key.': 'Non sembra la chiave giusta.',
+  'Webhook address': 'Indirizzo del webhook',
+  'Webhook id': 'ID del webhook',
+  'Webhook signing secret': 'Segreto di firma del webhook',
 };

@@ -188,7 +188,7 @@ async function moveStock(
   return { name: item.name, from: (row.stock ?? 0) - delta, to: row.stock ?? 0 };
 }
 
-async function note(
+export async function note(
   tx: PluginTransaction,
   siteId: string,
   orderId: string,
@@ -289,6 +289,8 @@ export const refundSchema = z.object({
     .array(z.object({ item: z.uuid(), quantity: z.number().int().min(1).max(1_000_000) }))
     .max(500)
     .default([]),
+  /** Online orders: give the money back through Stripe or PayPal too (default), or only record it. */
+  gateway: z.boolean().default(true),
 });
 
 /**
@@ -302,6 +304,8 @@ export async function refund(
   id: string,
   input: z.output<typeof refundSchema>,
   author: string,
+  /** Gives the money back through the order's provider (online payments); its refund id. */
+  gateway?: (order: OrderRow, amount: string) => Promise<string | null>,
 ): Promise<{ full: boolean; amount: string; productIds: string[] }> {
   const detail = await orderDetail(tx, id);
   if (!detail) throw new OrderError('This order does not exist.');
@@ -326,9 +330,19 @@ export async function refund(
     if (item.productId) productIds.push(item.productId);
   }
   const amount = (cents / 100).toFixed(2);
+  // Last, inside the transaction: if the provider refuses, nothing is recorded.
+  const gatewayRef = gateway ? ((await gateway(detail.order, amount)) ?? '') : '';
   await tx
     .insert(refunds)
-    .values({ siteId, orderId: id, amount, reason: input.reason, restocked, author });
+    .values({ siteId, orderId: id, amount, reason: input.reason, restocked, author, gatewayRef });
+  if (gatewayRef)
+    await note(
+      tx,
+      siteId,
+      id,
+      `Money given back through the payment provider (${gatewayRef}).`,
+      author,
+    );
   await note(
     tx,
     siteId,

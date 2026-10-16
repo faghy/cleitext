@@ -621,11 +621,21 @@ function Refund({
   const [amount, setAmount] = useState(detail.refundable);
   const [reason, setReason] = useState('');
   const [restock, setRestock] = useState<Record<string, number>>({});
+  // Paid online: the money goes back through the provider, unless given back otherwise.
+  const provider =
+    detail.order.transactionId &&
+    (detail.order.paymentMethod === 'stripe' || detail.order.paymentMethod === 'paypal')
+      ? detail.order.paymentMethod === 'stripe'
+        ? 'Stripe'
+        : 'PayPal'
+      : null;
+  const [gateway, setGateway] = useState(true);
   const save = useMutation({
     mutationFn: () =>
       api<OrderDetail>('POST', `/orders/${detail.order.id}/refunds`, {
         amount,
         reason,
+        gateway: !!provider && gateway,
         restock: Object.entries(restock)
           .filter(([, q]) => q > 0)
           .map(([item, quantity]) => ({ item, quantity })),
@@ -653,6 +663,7 @@ function Refund({
         <p key={r.id} className="sh-small" style={{ margin: 0 }}>
           −{money(r.amount)} · {new Date(r.createdAt).toLocaleDateString()}{' '}
           {r.reason ? `· ${r.reason}` : ''}
+          {r.gatewayRef ? ` · ${r.gatewayRef}` : ''}
         </p>
       ))}
       {open && (
@@ -664,13 +675,28 @@ function Refund({
           }}
         >
           <p className="sh-small sh-muted">
-            {t(
-              'Give the money back to the customer (for example with a bank transfer), then record it here: up to {amount}.',
-              {
-                amount: money(detail.refundable),
-              },
-            )}
+            {provider && gateway
+              ? t('The money goes back to the customer through {provider}: up to {amount}.', {
+                  provider,
+                  amount: money(detail.refundable),
+                })
+              : t(
+                  'Give the money back to the customer (for example with a bank transfer), then record it here: up to {amount}.',
+                  {
+                    amount: money(detail.refundable),
+                  },
+                )}
           </p>
+          {provider && (
+            <label className="sh-check">
+              <input
+                type="checkbox"
+                checked={gateway}
+                onChange={(e) => setGateway(e.target.checked)}
+              />
+              {t('Give the money back through {provider}', { provider })}
+            </label>
+          )}
           <div className="sh-grid">
             <label className="sh-field">
               <span>{t('Amount')}</span>

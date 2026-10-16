@@ -197,6 +197,7 @@ export const orders = pgTable('orders', {
   paymentMethod: text('payment_method').notNull().default(''),
   paymentTitle: text('payment_title').notNull().default(''),
   transactionId: text('transaction_id').notNull().default(''),
+  paymentRef: text('payment_ref').notNull().default(''),
   shippingMethod: text('shipping_method').notNull().default(''),
   shippingRate: text('shipping_rate').notNull().default(''),
   coupons: jsonb('coupons').$type<{ code: string; discount: string }[]>().notNull().default([]),
@@ -257,6 +258,7 @@ export const refunds = pgTable('refunds', {
   amount: amount('amount').notNull(),
   reason: text('reason').notNull().default(''),
   restocked: jsonb('restocked').$type<{ item: string; quantity: number }[]>().notNull().default([]),
+  gatewayRef: text('gateway_ref').notNull().default(''),
   author: text('author').notNull().default(''),
   createdAt: time('created_at').notNull().defaultNow(),
 });

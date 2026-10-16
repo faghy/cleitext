@@ -19,7 +19,7 @@ export const CSS = `
 .sh-field > span { font-weight: 500; color: var(--color-slate-800); }
 .sh-field small { color: var(--sh-muted); }
 .sh-field .sh-error, .sh-error { color: var(--color-red-700); font-size: .75rem; }
-.sh input[type=text], .sh input[type=search], .sh input[type=number], .sh input[type=datetime-local], .sh input[type=url],
+.sh input[type=text], .sh input[type=search], .sh input[type=password], .sh input[type=date], .sh input[type=number], .sh input[type=datetime-local], .sh input[type=url],
 .sh select, .sh textarea {
   border: 1px solid var(--color-slate-300); border-radius: .375rem; padding: .4rem .55rem;
   background: var(--sh-card); color: inherit; font: inherit; min-width: 0;

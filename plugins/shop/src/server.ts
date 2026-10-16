@@ -24,6 +24,8 @@ import { registerStorefront, type StoreSettings } from './storefront';
 import { COUNTRIES } from './address';
 import { registerAccount } from './account';
 import { registerCatalog } from './catalog-routes';
+import { emailsForStatus } from './emails';
+import { onlinePayments } from './online-payments';
 import { registerStorefrontBlocks } from './storefront-blocks';
 import { loadPayments } from './rules-routes';
 import { registerRulesRoutes, TAXES_STORAGE, taxSettingsSchema } from './rules-routes';
@@ -214,6 +216,25 @@ export default definePlugin({
 
     watchEntries(ctx);
 
+    // Stripe and PayPal: emails go out once the provider confirms the payment.
+    const online = onlinePayments(ctx, {
+      payments: (siteId) => loadPayments(ctx, siteId),
+      siteName: async (siteId) => (await ctx.site(siteId)).name,
+      paid: async (siteId, origin, orderId, from) => {
+        const detail = await ctx.db.transaction(siteId, (tx) => orderDetail(tx, orderId));
+        if (!detail) return;
+        await mail.send(siteId, origin, 'new_order', detail);
+        for (const email of emailsForStatus(from, detail.order.status))
+          await mail.send(siteId, origin, email, detail);
+        await ctx.hooks.emit(
+          'shop.order.status',
+          { orderId, number: detail.order.number, from, to: detail.order.status },
+          { siteId },
+        );
+      },
+    });
+    online.register();
+    online.registerAdmin(CAPABILITY);
     const taxSettings = async (siteId: string) =>
       taxSettingsSchema.parse((await ctx.storage.get(siteId, TAXES_STORAGE)) ?? {});
     const store = async (siteId: string): Promise<StoreSettings> => {
@@ -228,6 +249,7 @@ export default definePlugin({
         baseCountry: str('baseCountry') || 'IT',
         taxesEnabled: (await taxSettings(siteId)).enabled,
         payments: await loadPayments(ctx, siteId),
+        ready: await online.ready(siteId),
       };
     };
     const storeWithNotify = async (siteId: string) => {
@@ -239,18 +261,24 @@ export default definePlugin({
       return { ...(await store(siteId)), notifyEmails };
     };
     const mail = orderMail(ctx, storeWithNotify);
-    registerStorefront(ctx, store, async (siteId, orderId, origin) => {
-      const detail = await ctx.db.transaction(siteId, (tx) => orderDetail(tx, orderId));
-      if (!detail) return;
-      await mail.send(siteId, origin, 'new_order', detail);
-      await mail.send(
-        siteId,
-        origin,
-        detail.order.status === 'processing' ? 'customer_processing' : 'customer_on_hold',
-        detail,
-      );
-    });
-    registerOrderRoutes(ctx, CAPABILITY, storeWithNotify);
+    registerStorefront(
+      ctx,
+      store,
+      async (siteId, orderId, origin) => {
+        const detail = await ctx.db.transaction(siteId, (tx) => orderDetail(tx, orderId));
+        // Online payments: nothing is sent before the provider confirms.
+        if (!detail || detail.order.status === 'pending') return;
+        await mail.send(siteId, origin, 'new_order', detail);
+        await mail.send(
+          siteId,
+          origin,
+          detail.order.status === 'processing' ? 'customer_processing' : 'customer_on_hold',
+          detail,
+        );
+      },
+      online,
+    );
+    registerOrderRoutes(ctx, CAPABILITY, storeWithNotify, online);
     registerRulesRoutes(ctx, CAPABILITY);
     registerBuyBox(ctx, async (siteId) => {
       const values = await ctx.settings.get(siteId);

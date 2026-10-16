@@ -109,6 +109,15 @@ instructions for the order page and the emails:
 - cash on delivery, with its surcharge, only with some shipping methods if
   you like, and for virtual products or not.
 
-Next: Stripe and PayPal, reviews.
+- Stripe (cards, Apple Pay, Google Pay… on Stripe's Checkout page) and
+  PayPal: the customer pays on the provider's pages, so card data never
+  reaches the site. The order waits as pending and becomes processing when
+  the provider confirms, when the customer comes back or through the signed
+  webhook. Unpaid orders are cancelled after a while (60 minutes by default)
+  and their stock goes back. Refunds from the order give the money back
+  through the provider. The secret keys are stored encrypted and never shown
+  again.
+
+Next: reviews.
 
 License: GPL-2.0-or-later.

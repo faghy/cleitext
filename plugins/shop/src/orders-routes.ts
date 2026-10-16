@@ -25,7 +25,8 @@ import {
   refundSchema,
   type OrderDetail,
 } from './order-admin';
-import { orders, type OrderStatus } from './schema';
+import { GatewayError } from './gateways';
+import { orders, type OrderRow, type OrderStatus } from './schema';
 import { paymentInstructions, type StoreSettings } from './storefront';
 
 declare module '@cleitext/plugin-sdk' {
@@ -89,6 +90,8 @@ export function registerOrderRoutes(
   ctx: PluginContext,
   capability: string,
   store: (siteId: string) => Promise<StoreSettings & { notifyEmails: string[] }>,
+  /** Refunds of online orders through their provider. */
+  online?: { refund: (siteId: string, order: OrderRow, amount: string) => Promise<string | null> },
 ): void {
   const mail = orderMail(ctx, store);
   const api = (
@@ -178,9 +181,24 @@ export function registerOrderRoutes(
     const input = refundSchema.parse(request.body ?? {});
     const id = request.params.id!;
     if (!UUID_RE.test(id)) return problem(404, 'This order does not exist.');
-    const result = await ctx.db.transaction(request.siteId, (tx) =>
-      refund(tx, request.siteId, id, input, author(request)),
-    );
+    let result: Awaited<ReturnType<typeof refund>>;
+    try {
+      result = await ctx.db.transaction(request.siteId, (tx) =>
+        refund(
+          tx,
+          request.siteId,
+          id,
+          input,
+          author(request),
+          input.gateway && online
+            ? (order, amount) => online.refund(request.siteId, order, amount)
+            : undefined,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof GatewayError) return problem(400, error.message);
+      throw error;
+    }
     if (result.productIds.length)
       await ctx.cache.invalidate(request.siteId, productTags(result.productIds));
     const detail = (await load(request.siteId, id))!;

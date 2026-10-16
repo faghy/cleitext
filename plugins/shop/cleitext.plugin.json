@@ -2,7 +2,7 @@
   "slug": "shop",
   "name": "Shop",
   "version": "0.1.0",
-  "apiVersion": "^1.17",
+  "apiVersion": "^1.18",
   "description": "Sell products from your Cleitext site: a fast catalog for shop managers (categories, brands, three prices, stock, variations), then cart, checkout, orders, payments and shipping.",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
@@ -17,7 +17,8 @@
     "settings:own",
     "blocks",
     "theme:hooks",
-    "mail:send"
+    "mail:send",
+    "network"
   ],
   "capabilities": ["manage_shop"]
 }

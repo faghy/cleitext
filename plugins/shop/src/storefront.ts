@@ -40,7 +40,7 @@ import { customerOf, saveCustomer } from './account';
 import type { PaymentInstructions } from './pages';
 import { availablePayments, type PaymentContext, type PaymentId, type Payments } from './payments';
 import { couponOf, quote, type Quote, type QuoteInput } from './quote';
-import { coupons, products } from './schema';
+import { coupons, products, type OrderRow } from './schema';
 import type { Destination } from './shipping';
 import { translator, type Translate } from './strings';
 
@@ -55,11 +55,20 @@ export interface StoreSettings {
   taxesEnabled: boolean;
   /** Ways to pay (Shop → Payments). */
   payments: Payments;
+  /** Online ways to pay whose keys are set. */
+  ready: Partial<Record<PaymentId, boolean>>;
 }
+
+const DEFAULT_TITLES: Record<PaymentId, string> = {
+  bacs: 'Bank transfer',
+  cod: 'Cash on delivery',
+  stripe: 'Credit or debit card',
+  paypal: 'PayPal',
+};
 
 /** The default name of a way to pay, in the customer's language. */
 export const paymentTitle = (store: Pick<StoreSettings, 'payments'>, id: PaymentId, t: Translate) =>
-  store.payments[id].title || t(id === 'bacs' ? 'Bank transfer' : 'Cash on delivery');
+  store.payments[id].title || t(DEFAULT_TITLES[id]);
 
 /** What an order's page and emails tell the customer about paying. */
 export function paymentInstructions(
@@ -119,6 +128,10 @@ export function registerStorefront(
   settings: (siteId: string) => Promise<StoreSettings>,
   /** After an order is placed: its emails. Failures are logged, the order stays. */
   onPlaced: (siteId: string, orderId: string, origin: string) => Promise<void> = async () => {},
+  /** Online payments: the provider's page where the customer pays a pending order. */
+  online?: {
+    start: (siteId: string, origin: string, prefix: string, order: OrderRow) => Promise<string>;
+  },
 ): void {
   const cookieOf = (token: string) => ({
     name: CART_COOKIE,
@@ -538,6 +551,7 @@ export function registerStorefront(
           payments: payments(store, t, money, {
             needsShipping: cart.quote.needsShipping,
             rateId: cart.quote.rate?.id ?? null,
+            ready: store.ready,
           }),
           termsUrl: store.termsUrl,
           phoneRequired: store.phoneRequired,
@@ -644,6 +658,7 @@ export function registerStorefront(
           const allowed = availablePayments(store.payments, {
             needsShipping: quoted.needsShipping,
             rateId: quoted.rate?.id ?? null,
+            ready: store.ready,
           });
           if (!allowed.includes(method!.id))
             return {
@@ -671,8 +686,14 @@ export function registerStorefront(
             customerNote: values.note,
             customerId: request.user?.id ?? null,
             payment: { method: method!.id, title: method!.title },
-            // A bank transfer is waiting for the money; cash on delivery ships now.
-            status: method!.id === 'cod' ? 'processing' : 'on-hold',
+            // A bank transfer waits for the money, online payments for the provider;
+            // cash on delivery ships now.
+            status:
+              method!.id === 'cod'
+                ? 'processing'
+                : method!.id === 'stripe' || method!.id === 'paypal'
+                  ? 'pending'
+                  : 'on-hold',
             ip: request.ip,
             userAgent: request.headers['user-agent'] ?? '',
           });
@@ -721,6 +742,20 @@ export function registerStorefront(
           { orderId: placed.order.id, number: placed.order.number },
           { siteId: request.siteId },
         );
+        // Online payments: on to the provider's page.
+        if (placed.order.status === 'pending' && online) {
+          const pay = `${prefix}/checkout/pay/${placed.order.number}?key=${encodeURIComponent(placed.order.key)}`;
+          try {
+            const url = await online.start(request.siteId, request.origin, prefix, placed.order);
+            return { status: 303, headers: { location: url } };
+          } catch (error) {
+            ctx.log.error('An online payment could not start', {
+              order: placed.order.number,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            return { status: 303, headers: { location: `${pay}&error=1` } };
+          }
+        }
         return {
           status: 303,
           headers: {
@@ -771,6 +806,14 @@ export function registerStorefront(
             t: translator(found.order.locale),
             locale: found.order.locale,
             payment: paymentInstructions(store, found.order),
+            ...(['pending', 'failed'].includes(found.order.status) &&
+            ['stripe', 'paypal'].includes(found.order.paymentMethod)
+              ? {
+                  unpaid: {
+                    payUrl: `${prefixOf(request)}/checkout/pay/${found.order.number}?key=${encodeURIComponent(found.order.key)}`,
+                  },
+                }
+              : {}),
           }),
         },
       };

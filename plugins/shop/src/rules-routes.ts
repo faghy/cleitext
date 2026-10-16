@@ -215,23 +215,6 @@ export function registerRulesRoutes(ctx: PluginContext, capability: string): voi
     };
   });
 
-  // ---- Payments ----------------------------------------------------------------------
-
-  api('GET', '/payments', async (request) => ({
-    body: await loadPayments(ctx, request.siteId),
-  }));
-
-  api('PUT', '/payments', async (request) => {
-    const input = paymentsSchema.safeParse(request.body);
-    if (!input.success) return invalid(input.error);
-    if (input.data.bacs.enabled && !input.data.bacs.accounts.some((a) => a.iban))
-      return problem(400, 'Some values are not valid.', [
-        { path: 'bacs.accounts', message: 'Add the account customers pay into.' },
-      ]);
-    await ctx.storage.set(request.siteId, PAYMENTS_STORAGE, input.data);
-    return { body: await loadPayments(ctx, request.siteId) };
-  });
-
   // ---- Taxes -------------------------------------------------------------------------
 
   const loadTaxes = async (siteId: string) => {

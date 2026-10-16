@@ -1,5 +1,18 @@
 /** Texts of the shop's public pages, in English and Italian. */
 const IT: Record<string, string> = {
+  Card: 'Carta',
+  'Credit or debit card': 'Carta di credito o di debito',
+  'Pay for your order': 'Paga il tuo ordine',
+  'Pay now': 'Paga ora',
+  'Pay with {method}': 'Paga con {method}',
+  PayPal: 'PayPal',
+  'The payment could not start: try again in a moment.':
+    'Il pagamento non è partito: riprova tra un momento.',
+  'The payment was not completed: you can try again.':
+    'Il pagamento non è stato completato: puoi riprovare.',
+  'This order cannot be paid any more.': 'Questo ordine non si può più pagare.',
+  'Your payment has not been confirmed yet. If you did not complete it, you can pay now.':
+    'Il tuo pagamento non è ancora confermato. Se non l’hai completato, puoi pagare ora.',
   'This way to pay is not available for this order: choose another.':
     'Questo modo di pagare non è disponibile per questo ordine: scegline un altro.',
   Addresses: 'Indirizzi',
