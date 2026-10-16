@@ -3,7 +3,13 @@ import type { TransferDocumentInput } from '@cleitext/blocks/transfer';
 import type { FieldDefinition, FieldValues, Label } from '@cleitext/shared';
 import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
 import type { ReactNode } from 'react';
-import type { EntryAuthor, Pagination, PublicEntry, PublicEntrySummary } from '@cleitext/theme-sdk';
+import type {
+  EntryAuthor,
+  HeadTag,
+  Pagination,
+  PublicEntry,
+  PublicEntrySummary,
+} from '@cleitext/theme-sdk';
 import type { HookApi, RenderHookContext } from './hooks.js';
 
 /** A site, as plugins see it. */
@@ -533,7 +539,10 @@ export interface RouteResponse {
   body?: unknown;
   contentType?: string;
   headers?: Record<string, string>;
-  /** Public GET routes: cache tags; the response is cached when set. */
+  /**
+   * Public GET routes: cache tags; the response is cached when set, a `page`
+   * too (plugin API 1.17) for visitors who are not signed in.
+   */
   cacheTags?: string[];
   /**
    * Cookies to set (plugin API 1.14): names must start with `<slug>_`. They
@@ -543,7 +552,8 @@ export interface RouteResponse {
   /**
    * Public routes: a page of the site in the active theme (plugin API 1.14),
    * like a cart or a checkout, with `html` as its content (the plugin's own
-   * markup, trusted). Never cached; `noindex` for search engines.
+   * markup, trusted). Not cached unless it has `cacheTags`; `noindex` for
+   * search engines unless `index` is set.
    */
   page?: PluginPageContent;
 }
@@ -553,6 +563,10 @@ export interface PluginPageContent {
   html: string;
   /** Meta description. */
   description?: string;
+  /** Shown in search engines (plugin API 1.17), e.g. a shop's catalog. */
+  index?: boolean;
+  /** Extra tags for the page's head, e.g. structured data (plugin API 1.17). */
+  head?: HeadTag[];
 }
 
 export type RouteHandler = (request: RouteRequest) => Promise<RouteResponse> | RouteResponse;

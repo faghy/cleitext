@@ -334,6 +334,26 @@ export default definePlugin({
         };
       },
     });
+    // A catalog page: cached and indexed (plugin API 1.17).
+    ctx.routes.public({
+      method: 'GET',
+      path: '/calendar',
+      handler: () => ({
+        cacheTags: ['type:event'],
+        page: {
+          title: 'Calendar',
+          html: '<p class="calendar">All the events</p>',
+          index: true,
+          head: [{ tag: 'json-ld', data: { '@type': 'ItemList', name: 'Events' } }],
+        },
+      }),
+    });
+    // A link on visitors' account page (plugin API 1.17).
+    ctx.hooks.filter('account.links', (links, context) => [
+      ...links,
+      { label: 'My RSVPs', url: `${context.base}/rsvps` },
+      { label: 'Elsewhere', url: 'https://example.com/' },
+    ]);
     ctx.routes.public({
       method: 'GET',
       path: '/bad-cookie',

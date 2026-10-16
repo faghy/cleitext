@@ -566,6 +566,22 @@ describe('an active plugin', () => {
     expect((await admin.get('/bad-cookie')).statusCode).toBe(500);
   });
 
+  it('can have cached pages for search engines, and links on the account page', async () => {
+    const first = await visitor.get('/calendar');
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['x-cache']).toBe('MISS');
+    expect(first.body).toContain('<p class="calendar">All the events</p>');
+    expect(first.body).not.toMatch(/<meta name="robots" content="noindex/);
+    expect(first.body).toContain('"@type":"ItemList"');
+    expect((await visitor.get('/calendar')).headers['x-cache']).toBe('HIT');
+    // Signed in, it is not cached.
+    expect((await admin.get('/calendar')).headers['x-cache']).toBe('BYPASS');
+
+    const account = await admin.get('/account');
+    expect(account.body).toContain('<a href="/account/rsvps">My RSVPs</a>');
+    expect(account.body).not.toContain('Elsewhere');
+  });
+
   it('has settings, editable with the right capability', async () => {
     expect((await admin.get('/api/v1/plugins/events/settings')).json()).toEqual({
       icsName: 'Events',

@@ -22,6 +22,8 @@ export interface AccountAttrs {
   challenge?: string;
   registration?: boolean;
   termsUrl?: string | null;
+  /** Pages of plugins for the signed-in visitor, e.g. a shop's orders (the `account.links` filter). */
+  links?: { label: string; url: string }[];
   profile?: {
     displayName: string;
     email: string;
@@ -64,6 +66,7 @@ const EN = {
     'Your account is removed from this site. Your comments stay, with your name. This cannot be undone.',
   deleteButton: 'Delete my account',
   admin: 'Site administration',
+  yourAccount: 'Your account',
 };
 const IT: typeof EN = {
   email: 'Email',
@@ -97,6 +100,7 @@ const IT: typeof EN = {
     'Il tuo account viene rimosso da questo sito. I tuoi commenti restano, con il tuo nome. Non si può annullare.',
   deleteButton: 'Elimina il mio account',
   admin: 'Amministrazione del sito',
+  yourAccount: 'Il tuo account',
 };
 
 export function accountStrings(locale: string) {
@@ -332,6 +336,17 @@ export function AccountForms({ attrs }: { attrs: AccountAttrs }) {
       return (
         <div className="cx-account cx-account--profile">
           {notice}
+          {attrs.links && attrs.links.length > 0 && (
+            <nav className="cx-account-links" aria-label={t.yourAccount}>
+              <ul>
+                {attrs.links.map((link) => (
+                  <li key={link.url}>
+                    <a href={link.url}>{link.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )}
           <form className="cx-form" method="post" action={a('profile')}>
             <Field
               id="cx-name"

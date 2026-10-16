@@ -605,6 +605,7 @@ export const COMMUNITY_CSS = `
 .cx-account{margin-block-end:3rem}.cx-account>*{max-width:28rem}.cx-account__links{font-size:.95em}.cx-account h2{margin-top:2.5rem;font-size:1.2em}
 .cx-button--quiet{background:transparent;color:inherit;border:1px solid currentColor}.cx-button--danger{background:#dc2626}
 .cx-danger{margin-top:2.5rem;padding:1rem;border:1px solid rgba(220,38,38,.4);border-radius:6px}.cx-danger summary{cursor:pointer;font-weight:600}
+.cx-account-links ul{display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;list-style:none;margin:0 0 1.5rem;padding:0 0 1rem;border-bottom:1px solid rgba(127,127,127,.25)}.cx-account-links a{font-weight:600}
 `;
 
 /** Small script: replies in place, remembered name and email, likes without reloading, copy link. */

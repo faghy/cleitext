@@ -154,6 +154,15 @@ export interface Filters {
    * page. Signed-in visitors never get them: their pages are not cached.
    */
   'cache.headers': [headers: Record<string, string>, context: CacheHeadersContext];
+  /**
+   * Links on a visitor's account page (plugin API 1.17), e.g. a shop's
+   * orders and addresses: `[...links, { label: 'Orders', url: \`${context.base}/orders\` }]`.
+   * `base` is the account's address in the page's language (`/it/account`).
+   */
+  'account.links': [
+    links: { label: string; url: string }[],
+    context: { siteId: string; locale: string; userId: string; base: string },
+  ];
   /** Content types and taxonomies that get an XML sitemap (all by default). */
   'sitemap.sources': [sources: SitemapSource[], context: { siteId: string }];
   /** The addresses of one XML sitemap: remove pages kept out of search, add images… */

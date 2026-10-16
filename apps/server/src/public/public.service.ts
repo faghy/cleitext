@@ -296,17 +296,33 @@ export class PublicService {
           status === 200 &&
           result.cacheTags &&
           !result.cookies?.length &&
-          typeof result.body === 'string'
+          (typeof result.body === 'string' || result.page)
         ) {
-          const contentType = result.contentType ?? 'text/plain; charset=utf-8';
-          const tags = ['site', ...result.cacheTags];
+          // A page in the theme (a shop's catalog) is cached like the theme's own pages.
+          const rendered = result.page
+            ? await this.renderPluginPage(
+                site.id,
+                `${request.protocol}://${request.host}`,
+                url.pathname,
+                null,
+                result.page,
+                status,
+                true,
+              )
+            : null;
+          const body = rendered ? (rendered.html ?? '') : (result.body as string);
+          const contentType = rendered
+            ? (rendered.contentType ?? HTML)
+            : (result.contentType ?? 'text/plain; charset=utf-8');
+          const tags = ['site', ...result.cacheTags, ...(rendered?.tags ?? [])];
           const headers = {
+            ...rendered?.headers,
             ...result.headers,
             ...(await this.cacheHeaders(site.id, request.hostname, url.pathname, status, tags)),
           };
           const stored = this.cache.set(key, site.id, {
             status,
-            html: result.body,
+            html: body,
             contentType,
             tags,
             headers,
@@ -316,7 +332,7 @@ export class PublicService {
             request,
             reply,
             status,
-            result.body,
+            body,
             stored.etag,
             'MISS',
             contentType,
@@ -1983,7 +1999,10 @@ export class PublicService {
     return match ? { ...match, locale } : null;
   }
 
-  /** A plugin's page (cart, checkout…) in the active theme: never cached. */
+  /**
+   * A plugin's page (cart, checkout…) in the active theme: not cached, unless
+   * the route gave cache tags (`cached`, for visitors who are not signed in).
+   */
   private async renderPluginPage(
     siteId: string,
     origin: string,
@@ -1991,6 +2010,7 @@ export class PublicService {
     viewer: FastifyRequest['auth'] | null,
     page: PluginPageContent,
     status: number,
+    cached = false,
   ): Promise<PublicResponse> {
     return withContext(this.database.db, { siteId }, async (tx) => {
       const { scope } = await this.scope(tx, siteId, origin, path);
@@ -2027,8 +2047,9 @@ export class PublicService {
         alternates: [],
         type: 'website',
         image: null,
-        noindex: true,
+        noindex: !page.index,
       });
+      if (page.head?.length) head.tags = [...(head.tags ?? []), ...page.head];
       const response = await this.render(
         scope,
         props,
@@ -2038,10 +2059,9 @@ export class PublicService {
         [],
         status,
       );
-      return {
-        ...response,
-        headers: { ...response.headers, 'cache-control': 'private, no-store' },
-      };
+      return cached
+        ? response
+        : { ...response, headers: { ...response.headers, 'cache-control': 'private, no-store' } };
     });
   }
 
@@ -2215,10 +2235,30 @@ export class PublicService {
       const [profile] = await scope.tx.select().from(users).where(eq(users.id, scope.viewer.id));
       if (!profile) return { status: 303, redirect: data.urls.account(locale, 'login'), tags: [] };
       title = L('Your account', 'Il tuo account');
+      // Pages of plugins (a shop's orders…), with well-formed local links only.
+      const links = (
+        await this.plugins.applyFilter(
+          'account.links',
+          [],
+          { siteId: scope.siteId, locale, userId: scope.viewer.id, base },
+          scope.siteId,
+        )
+      )
+        .filter(
+          (l) =>
+            l &&
+            typeof l.label === 'string' &&
+            typeof l.url === 'string' &&
+            l.url.startsWith('/') &&
+            !l.url.startsWith('//'),
+        )
+        .slice(0, 20)
+        .map((l) => ({ label: l.label.slice(0, 80), url: l.url.slice(0, 300) }));
       attrs = {
         view: query.get('verified') ? 'verified' : 'profile',
         locale,
         base,
+        ...(links.length ? { links } : {}),
         ...(notice
           ? { notice }
           : query.get('welcome')
