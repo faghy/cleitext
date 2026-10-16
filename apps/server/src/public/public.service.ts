@@ -978,6 +978,25 @@ export class PublicService {
       return this.renderTermArchive(scope, taxonomy[1]!, taxonomy[2]!, Number(taxonomy[3] ?? 1));
     }
 
+    // Later pages of the page that lists the posts: /{postsPage}/page/N.
+    const paged = /^(.+)\/page\/(\d+)$/.exec(rest);
+    if (paged && settings.postsPage) {
+      const posts = await this.settingPage(scope, settings.postsPage);
+      const base = posts ? data.urls.entry(posts.row) : null;
+      if (posts && base === scope.path.replace(/\/page\/\d+$/, '')) {
+        const page = Number(paged[2]);
+        if (page < 2) return null;
+        return this.renderArchive(scope, {
+          where: eq(entries.typeSlug, 'article'),
+          title: posts.row.title,
+          base,
+          page,
+          isHome: false,
+          tag: 'type:article',
+        });
+      }
+    }
+
     // Entries by permalink.
     const match = matchPermalink(rest, data.types);
     if (!match) return null;
@@ -993,6 +1012,14 @@ export class PublicService {
     if (!entry) return null;
     // The full URL must match (parents, year): one canonical address per entry.
     if (data.urls.entry(entry.row) !== scope.path) return null;
+
+    // The front page lives at the home address only (no duplicate at its slug).
+    if (
+      settings.frontPage &&
+      entry.row.id === (await this.settingPage(scope, settings.frontPage))?.row.id
+    ) {
+      return { status: 301, redirect: data.urls.home(locale), tags: [] };
+    }
 
     // The page that lists the posts, when a static front page is used.
     if (

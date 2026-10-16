@@ -210,7 +210,23 @@ describe('home and archives', () => {
     expect(home.html).toContain('Hello visitors.');
     expect(home.html).toContain('<link rel="canonical" href="http://public.test/"/>');
     expect((await page('/blog')).html).toContain('Listed post 1');
-    await admin.request('PATCH', '/api/v1/settings/core', { frontPage: null, postsPage: null });
+    // The posts page has later pages too.
+    await admin.request('PATCH', '/api/v1/settings/core', { postsPerPage: 2 });
+    const blogPage = await page('/blog');
+    expect(blogPage.html).toContain('href="/blog/page/2"');
+    const second = await page('/blog/page/2');
+    expect(second.status).toBe(200);
+    expect(second.html).toContain('Listed post 1');
+    expect((await page('/blog/page/1')).status).toBe(404);
+    // The front page does not answer at its own slug: one address, the home.
+    const own = await page('/welcome');
+    expect(own.status).toBe(301);
+    expect(own.headers.location).toBe('/');
+    await admin.request('PATCH', '/api/v1/settings/core', {
+      frontPage: null,
+      postsPage: null,
+      postsPerPage: 10,
+    });
   });
 
   it('lists the posts of a category', async () => {
