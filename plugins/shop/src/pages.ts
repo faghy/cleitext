@@ -17,7 +17,7 @@ import type { Totals } from './totals';
 
 /** Styles of the shop's pages and buy box: neutral, they take the theme's fonts and colours. */
 export const SHOP_CSS = `
-.shop-page{--shop-line:rgba(127,127,127,.3);--shop-soft:rgba(127,127,127,.08)}
+.shop-page,.shop-buy,.shop-cart-link{--shop-line:rgba(127,127,127,.3);--shop-soft:rgba(127,127,127,.08);--shop-accent-bg:var(--shop-accent,var(--cx-accent,#1f2937));--shop-accent-fg:var(--shop-on-accent,var(--cx-on-accent,#fff))}
 .shop-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .shop-notice{padding:.75rem 1rem;border-radius:6px;background:var(--shop-soft);border-left:4px solid currentColor;margin:0 0 1.25rem}
 .shop-notice--error{border-color:#b42318}
@@ -25,13 +25,13 @@ export const SHOP_CSS = `
 .shop-table th,.shop-table td{padding:.6rem .5rem;border-bottom:1px solid var(--shop-line);text-align:left;vertical-align:middle}
 .shop-table .num{text-align:right;white-space:nowrap}
 .shop-table img{width:64px;height:64px;object-fit:cover;border-radius:4px;display:block}
-.shop-table input[type=number]{width:5rem}
+.shop-table input[type=number]{width:5rem;font:inherit;padding:.4rem .5rem;border:1px solid var(--shop-line);border-radius:6px;background:transparent;color:inherit}
 .shop-meta{display:block;font-size:.85em;opacity:.8}
 .shop-totals{margin-left:auto;max-width:24rem}
 .shop-totals th{font-weight:normal}
 .shop-totals tr.shop-total th,.shop-totals tr.shop-total td{font-weight:bold;font-size:1.1em}
 .shop-actions{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:space-between;align-items:center;margin:1rem 0}
-.shop-button{display:inline-block;padding:.7rem 1.4rem;border:0;border-radius:6px;background:#1f2937;color:#fff;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
+.shop-button{display:inline-block;padding:.7rem 1.4rem;border:0;border-radius:6px;background:var(--shop-accent-bg,#1f2937);color:var(--shop-accent-fg,#fff);font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
 .shop-button:hover{filter:brightness(1.15)}
 .shop-button--secondary{background:transparent;color:inherit;border:1px solid var(--shop-line)}
 .shop-link{background:none;border:0;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}

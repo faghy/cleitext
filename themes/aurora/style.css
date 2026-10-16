@@ -5,6 +5,9 @@
   --muted: #5f6b7a;
   --accent: #0b5cad;
   --accent-contrast: #ffffff;
+  /* Buttons of the core and plugins (comments, account, shop) follow the accent. */
+  --cx-accent: var(--accent);
+  --cx-on-accent: var(--accent-contrast);
   --border: #dde3ea;
   --surface: #f5f7fa;
   --content: 44rem;
