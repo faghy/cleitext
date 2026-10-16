@@ -179,7 +179,7 @@ ctx.hooks.filter(
 | `comment.created`                         | `{ comment }`, whatever its status, API 1.12                     |
 | `comment.status`                          | `{ comment, from }`: approved, held, spam or trashed, API 1.12   |
 
-`entry` is `{ id, siteId, type, locale, slug, title, status, fields }`, `term` is `{ id, siteId, taxonomy, locale, slug, name }`, `comment` is `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Scheduled entries published automatically do not emit `entry.published` yet. `term.created` is emitted for terms created from the terms screen, the API and plugins (not for tags typed in the editor).
+`entry` is `{ id, siteId, type, locale, slug, title, status, fields }`, plus (API 1.13), when the change knows them, `terms` (term ids by taxonomy slug) and `featuredMediaId`, so a plugin can keep its own copy of entries up to date; `term` is `{ id, siteId, taxonomy, locale, slug, name }`, `comment` is `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Scheduled entries published automatically do not emit `entry.published` yet. `term.created` is emitted for terms created from the terms screen, the API and plugins (not for tags typed in the editor).
 
 **Filters** (public site, they need the `theme:hooks` permission):
 
@@ -277,7 +277,7 @@ ctx.content.registerFieldGroup({
 ```ts
 const events = await ctx.content.find(siteId, { type: 'event', locale: 'en', limit: 20 });
 const one = await ctx.content.get(siteId, id); // any status, or null
-// { id, type, locale, slug, title, status, url, publishedAt, fields }
+// { id, type, locale, slug, title, status, url, publishedAt, fields, terms, featuredMediaId }
 ```
 
 With `withDocument: true` each entry also has its block `document` (the published one; the latest with `status: 'any'`). Entries of private types (`public: false`) are found too, with an empty `url`.

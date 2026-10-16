@@ -196,6 +196,19 @@ describe('an active plugin', () => {
     expect(updated.json().fields).toEqual({ season: 2, poster: null });
     const terms = (await admin.get('/api/v1/taxonomies/event-series/terms')).json();
     expect(terms.map((t: { name: string }) => t.name)).toEqual(['Autumn', 'Winter']);
+    // Entries carry their terms to plugins, in hooks and queries.
+    const draft = await createEvent('Winter gala', '2031-01-10', false);
+    const assigned = await editor.request('PATCH', `/api/v1/entries/${draft.id}`, {
+      terms: { 'event-series': [winter.id] },
+    });
+    expect(assigned.statusCode).toBe(200);
+    const seen = (await admin.get(`/api/v1/ext/events/saved/${draft.id}`)).json();
+    expect(seen.event).toMatchObject({ terms: { 'event-series': [winter.id] } });
+    expect(seen.found[0]).toMatchObject({
+      terms: { 'event-series': [winter.id] },
+      featuredMediaId: null,
+    });
+    await editor.request('DELETE', `/api/v1/entries/${draft.id}`);
     // Its archive works like the core ones.
     expect((await visitor.get('/event-series/winter')).statusCode).toBe(200);
     // It cannot be deleted from the admin: it goes away with the plugin.

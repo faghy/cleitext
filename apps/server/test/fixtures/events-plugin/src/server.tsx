@@ -251,6 +251,25 @@ export default definePlugin({
     ctx.hooks.on('entry.published', ({ entry }) => {
       published.push(entry.id);
     });
+    // The last save of each entry, as plugins that keep a copy of it get it.
+    const saved = new Map<string, unknown>();
+    ctx.hooks.on('entry.saved', ({ entry }) => {
+      saved.set(entry.id, entry);
+    });
+    ctx.routes.api({
+      method: 'GET',
+      path: '/saved/:id',
+      capability: 'manage_events',
+      handler: async (request) => ({
+        body: {
+          event: saved.get(request.params.id!) ?? null,
+          found: await ctx.content.find(request.siteId, {
+            ids: [request.params.id!],
+            status: 'any',
+          }),
+        },
+      }),
+    });
 
     ctx.routes.api({
       method: 'POST',

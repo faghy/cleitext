@@ -5,6 +5,7 @@ import {
   contentTypes,
   entries,
   entryLikes,
+  entryTerms,
   inTransaction,
   media,
   menus,
@@ -663,6 +664,7 @@ export class PluginServicesProvider implements PluginServices {
           title: revisions.title,
           fields: revisions.fields,
           document: revisions.document,
+          featuredMediaId: revisions.featuredMediaId,
         })
         .from(entries)
         .innerJoin(
@@ -672,7 +674,32 @@ export class PluginServicesProvider implements PluginServices {
         .where(and(...conditions))
         .orderBy(desc(entries.publishedAt), desc(entries.createdAt))
         .limit(Math.min(Math.max(query.limit ?? 50, 1), 200));
-      return rows.map(({ row, title, fields, document }) => ({
+      const termRows =
+        rows.length > 0
+          ? await tx
+              .select({
+                entryId: entryTerms.entryId,
+                termId: entryTerms.termId,
+                taxonomy: taxonomies.slug,
+              })
+              .from(entryTerms)
+              .innerJoin(terms, eq(terms.id, entryTerms.termId))
+              .innerJoin(taxonomies, eq(taxonomies.id, terms.taxonomyId))
+              .where(
+                inArray(
+                  entryTerms.entryId,
+                  rows.map((r) => r.row.id),
+                ),
+              )
+              .orderBy(asc(entryTerms.position))
+          : [];
+      const termsOf = new Map<string, Record<string, string[]>>();
+      for (const t of termRows) {
+        const own = termsOf.get(t.entryId) ?? {};
+        (own[t.taxonomy] ??= []).push(t.termId);
+        termsOf.set(t.entryId, own);
+      }
+      return rows.map(({ row, title, fields, document, featuredMediaId }) => ({
         id: row.id,
         type: row.typeSlug,
         locale: row.locale,
@@ -683,6 +710,8 @@ export class PluginServicesProvider implements PluginServices {
         parentId: row.parentId ?? null,
         publishedAt: row.publishedAt?.toISOString() ?? null,
         fields: (fields as FieldValues) ?? {},
+        terms: termsOf.get(row.id) ?? {},
+        featuredMediaId: featuredMediaId ?? null,
         ...(query.withDocument ? { document: document as PluginEntry['document'] } : {}),
       }));
     });

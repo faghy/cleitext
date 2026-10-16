@@ -83,6 +83,10 @@ export interface PluginEntry {
   parentId: string | null;
   publishedAt: string | null;
   fields: FieldValues;
+  /** Ids of its terms by taxonomy slug (plugin API 1.13). */
+  terms: Record<string, string[]>;
+  /** Its featured image (plugin API 1.13). */
+  featuredMediaId: string | null;
   /** The block document (with `withDocument` in the query): the published one, or the latest. */
   document?: CxdDocument;
 }

@@ -181,7 +181,7 @@ ctx.hooks.filter(
 | `comment.created`                         | `{ comment }`, qualunque sia il suo stato, API 1.12                         |
 | `comment.status`                          | `{ comment, from }`: approvato, trattenuto, spam o cestinato, API 1.12      |
 
-`entry` è `{ id, siteId, type, locale, slug, title, status, fields }`, `term` è `{ id, siteId, taxonomy, locale, slug, name }`, `comment` è `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`. `term.created` viene emesso per i termini creati dalla schermata dei termini, dall'API e dai plugin (non per i tag digitati nell'editor).
+`entry` è `{ id, siteId, type, locale, slug, title, status, fields }`, più (API 1.13), quando la modifica li conosce, `terms` (id dei termini per slug di tassonomia) e `featuredMediaId`, così un plugin può tenere aggiornata la sua copia delle voci; `term` è `{ id, siteId, taxonomy, locale, slug, name }`, `comment` è `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`. `term.created` viene emesso per i termini creati dalla schermata dei termini, dall'API e dai plugin (non per i tag digitati nell'editor).
 
 **Filtri** (sito pubblico, richiedono il permesso `theme:hooks`):
 
@@ -279,7 +279,7 @@ ctx.content.registerFieldGroup({
 ```ts
 const events = await ctx.content.find(siteId, { type: 'event', locale: 'en', limit: 20 });
 const one = await ctx.content.get(siteId, id); // any status, or null
-// { id, type, locale, slug, title, status, url, publishedAt, fields }
+// { id, type, locale, slug, title, status, url, publishedAt, fields, terms, featuredMediaId }
 ```
 
 **Copia delle voci** (`content:write`). Una bozza con contenuto, campi, riassunto e immagine in evidenza, fatta per conto di un utente: valgono i suoi permessi e il registro attività lo riporta. In un'altra lingua, il genitore e i termini diventano le loro traduzioni, quando il plugin delle lingue le conosce:

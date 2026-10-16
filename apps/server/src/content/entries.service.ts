@@ -143,10 +143,11 @@ export class EntriesService {
       | 'entry.unpublished'
       | 'entry.trashed'
       | 'entry.deleted',
-    view: Pick<EntryView, 'id' | 'type' | 'locale' | 'slug' | 'title' | 'status'> & {
-      fields?: Record<string, unknown>;
-      revision?: { fields: Record<string, unknown> } | null;
-    },
+    view: Pick<EntryView, 'id' | 'type' | 'locale' | 'slug' | 'title' | 'status'> &
+      Partial<Pick<EntryView, 'terms'>> & {
+        fields?: Record<string, unknown>;
+        revision?: { fields: Record<string, unknown>; featuredMediaId?: string | null } | null;
+      },
     userId?: string,
   ): Promise<void> {
     await this.plugins.emit(
@@ -161,6 +162,19 @@ export class EntriesService {
           title: view.title,
           status: view.status,
           fields: view.revision?.fields ?? view.fields ?? {},
+          ...(view.terms
+            ? {
+                terms: Object.fromEntries(
+                  Object.entries(view.terms).map(([taxonomy, list]) => [
+                    taxonomy,
+                    list.map((term) => term.id),
+                  ]),
+                ),
+              }
+            : {}),
+          ...(view.revision?.featuredMediaId !== undefined
+            ? { featuredMediaId: view.revision.featuredMediaId }
+            : {}),
         },
       },
       siteId,

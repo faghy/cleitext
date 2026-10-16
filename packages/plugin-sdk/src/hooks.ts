@@ -23,6 +23,10 @@ export interface EntryEvent {
   title: string;
   status: string;
   fields: Record<string, unknown>;
+  /** Ids of its terms by taxonomy slug, when known (plugin API 1.13). */
+  terms?: Record<string, string[]>;
+  /** Its featured image, when known (plugin API 1.13). */
+  featuredMediaId?: string | null;
 }
 
 /** A taxonomy term as hooks see it. */
