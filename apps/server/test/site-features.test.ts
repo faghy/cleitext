@@ -155,7 +155,7 @@ describe('robots.txt and sitemaps', () => {
     const robots = await visitor.get('/robots.txt');
     expect(robots.statusCode).toBe(200);
     expect(robots.headers['content-type']).toContain('text/plain');
-    expect(robots.body).toContain('Disallow: /admin');
+    expect(robots.body).toContain('Disallow: /cl-admin');
     expect(robots.body).toContain(`Sitemap: http://${site.host}/sitemap.xml`);
   });
 
