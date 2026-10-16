@@ -499,7 +499,10 @@ export interface RouteRequest {
   method: string;
   path: string;
   params: Record<string, string>;
+  /** Query parameters; the last one when a name repeats. */
   query: Record<string, string>;
+  /** Every value of each query parameter (plugin API 1.17), e.g. `?brand=a&brand=b`. */
+  queryAll: Record<string, string[]>;
   /** Parsed JSON or form body. */
   body: unknown;
   /** The body as received (JSON and forms), e.g. to check a webhook signature. */

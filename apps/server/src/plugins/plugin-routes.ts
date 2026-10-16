@@ -28,6 +28,10 @@ export function routeRequest(
     path,
     params,
     query: Object.fromEntries(url.searchParams),
+    queryAll: [...url.searchParams].reduce<Record<string, string[]>>((all, [key, value]) => {
+      (all[key] ??= []).push(value);
+      return all;
+    }, {}),
     body: request.body ?? null,
     rawBody: raw === undefined ? null : Buffer.isBuffer(raw) ? raw : Buffer.from(raw),
     ip: request.ip,

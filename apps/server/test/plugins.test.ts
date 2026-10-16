@@ -574,6 +574,8 @@ describe('an active plugin', () => {
     expect(first.body).not.toMatch(/<meta name="robots" content="noindex/);
     expect(first.body).toContain('"@type":"ItemList"');
     expect((await visitor.get('/calendar')).headers['x-cache']).toBe('HIT');
+    // Every value of a repeated parameter (plugin API 1.17).
+    expect((await visitor.get('/calendar?tag=a&tag=b')).body).toContain('<p class="tags">a,b</p>');
     // Signed in, it is not cached.
     expect((await admin.get('/calendar')).headers['x-cache']).toBe('BYPASS');
 

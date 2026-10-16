@@ -338,11 +338,11 @@ export default definePlugin({
     ctx.routes.public({
       method: 'GET',
       path: '/calendar',
-      handler: () => ({
+      handler: (request) => ({
         cacheTags: ['type:event'],
         page: {
           title: 'Calendar',
-          html: '<p class="calendar">All the events</p>',
+          html: `<p class="calendar">All the events</p><p class="tags">${(request.queryAll.tag ?? []).join(',')}</p>`,
           index: true,
           head: [{ tag: 'json-ld', data: { '@type': 'ItemList', name: 'Events' } }],
         },
