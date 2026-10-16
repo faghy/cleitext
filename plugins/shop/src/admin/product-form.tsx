@@ -14,6 +14,7 @@ import {
   type ProductView,
   type Setup,
   type Term,
+  TAX_CLASS_OPTIONS,
 } from './shared';
 import {
   AttributesEditor,
@@ -922,9 +923,11 @@ function Prices({
         </Field>
         <Field label={t('Tax rate')}>
           <select value={form.taxClass} onChange={(e) => set({ taxClass: e.target.value })}>
-            <option value="">{t('Standard')}</option>
-            <option value="reduced">{t('Reduced')}</option>
-            <option value="zero">{t('Zero')}</option>
+            {TAX_CLASS_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {t(label)}
+              </option>
+            ))}
           </select>
         </Field>
       </div>
@@ -1143,7 +1146,7 @@ function More({
 }
 
 /** Products chosen by name or code. */
-function ProductPicker({
+export function ProductPicker({
   api,
   label,
   ids,

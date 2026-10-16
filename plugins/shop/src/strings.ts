@@ -1,5 +1,31 @@
 /** Texts of the shop's public pages, in English and Italian. */
 const IT: Record<string, string> = {
+  'Coupon: {code}': 'Coupon: {code}',
+  'Coupon code': 'Codice coupon',
+  'Apply coupon': 'Applica il coupon',
+  'Calculated at checkout': 'Calcolata alla cassa',
+  'We do not ship to this address: check it, or write to us.':
+    'Non spediamo a questo indirizzo: controllalo, oppure scrivici.',
+  'Update shipping and totals': 'Aggiorna spedizione e totali',
+  'Cash on delivery': 'Contrassegno',
+  'Surcharge: {amount}.': 'Supplemento: {amount}.',
+  'Coupon applied: {code}.': 'Coupon applicato: {code}.',
+  'Enter a coupon code.': 'Inserisci un codice coupon.',
+  'Choose a shipping method.': 'Scegli un metodo di spedizione.',
+  'Please choose how to ship your order.': 'Scegli come spedire il tuo ordine.',
+  'Coupon “{code}” does not exist.': 'Il coupon “{code}” non esiste.',
+  'Coupon “{code}” has expired.': 'Il coupon “{code}” è scaduto.',
+  'Coupon “{code}” has been used up.': 'Il coupon “{code}” è esaurito.',
+  'You have already used coupon “{code}”.': 'Hai già usato il coupon “{code}”.',
+  'Coupon “{code}” needs a larger order.': 'Il coupon “{code}” richiede un ordine più alto.',
+  'Coupon “{code}” is for smaller orders.': 'Il coupon “{code}” vale per ordini più bassi.',
+  'Coupon “{code}” does not apply to the products in your cart.':
+    'Il coupon “{code}” non vale per i prodotti nel carrello.',
+  'Coupon “{code}” is not valid for your email address.':
+    'Il coupon “{code}” non vale per il tuo indirizzo email.',
+  'Coupon “{code}” cannot be used together with other coupons.':
+    'Il coupon “{code}” non si può usare insieme ad altri coupon.',
+  'Coupon “{code}” is already applied.': 'Il coupon “{code}” è già applicato.',
   Cart: 'Carrello',
   Checkout: 'Cassa',
   'Order received': 'Ordine ricevuto',

@@ -1,4 +1,5 @@
 import type { Address, Invoice } from './address';
+import type { MethodSettings } from './shipping';
 import {
   bigint,
   boolean,
@@ -153,6 +154,7 @@ export const carts = pgTable('carts', {
   tokenHash: text('token_hash').notNull(),
   userId: uuid('user_id'),
   items: jsonb('items').$type<CartItem[]>().notNull().default([]),
+  coupons: jsonb('coupons').$type<string[]>().notNull().default([]),
   createdAt: time('created_at').notNull().defaultNow(),
   updatedAt: time('updated_at').notNull().defaultNow(),
 });
@@ -196,6 +198,8 @@ export const orders = pgTable('orders', {
   paymentTitle: text('payment_title').notNull().default(''),
   transactionId: text('transaction_id').notNull().default(''),
   shippingMethod: text('shipping_method').notNull().default(''),
+  shippingRate: text('shipping_rate').notNull().default(''),
+  coupons: jsonb('coupons').$type<{ code: string; discount: string }[]>().notNull().default([]),
   customerId: uuid('customer_id'),
   email: text('email').notNull(),
   billing: jsonb('billing').$type<Address>().notNull(),
@@ -224,6 +228,7 @@ export const orderItems = pgTable('order_items', {
   attributes: jsonb('attributes').$type<{ name: string; value: string }[]>().notNull().default([]),
   quantity: integer('quantity').notNull().default(1),
   subtotal: amount('subtotal').notNull().default('0'),
+  subtotalTax: amount('subtotal_tax').notNull().default('0'),
   total: amount('total').notNull().default('0'),
   tax: amount('tax').notNull().default('0'),
   taxRate: numeric('tax_rate', { precision: 6, scale: 3 }).notNull().default('0'),
@@ -258,3 +263,69 @@ export const refunds = pgTable('refunds', {
 
 export type RefundRow = typeof refunds.$inferSelect;
 export type OrderNoteRow = typeof orderNotes.$inferSelect;
+
+// ---- Shipping, taxes, coupons (migrations/0004_shipping_taxes_coupons.sql) ----------
+
+export const shippingZones = pgTable('shipping_zones', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  name: text('name').notNull(),
+  position: integer('position').notNull().default(0),
+  regions: jsonb('regions').$type<{ country: string; province: string }[]>().notNull().default([]),
+  postcodes: jsonb('postcodes').$type<string[]>().notNull().default([]),
+});
+
+export const shippingMethods = pgTable('shipping_methods', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  zoneId: uuid('zone_id'),
+  position: integer('position').notNull().default(0),
+  title: text('title').notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  taxable: boolean('taxable').notNull().default(true),
+  settings: jsonb('settings').$type<MethodSettings>().notNull(),
+});
+
+export const taxRates = pgTable('tax_rates', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  country: text('country').notNull().default(''),
+  province: text('province').notNull().default(''),
+  taxClass: text('tax_class').notNull().default(''),
+  rate: numeric('rate', { precision: 6, scale: 3 }).notNull(),
+  name: text('name').notNull().default(''),
+  position: integer('position').notNull().default(0),
+});
+
+export const coupons = pgTable('coupons', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  code: text('code').notNull(),
+  kind: text('kind')
+    .$type<'percent' | 'fixed_cart' | 'fixed_product'>()
+    .notNull()
+    .default('percent'),
+  amount: amount('amount').notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  expiresAt: time('expires_at'),
+  usageLimit: integer('usage_limit'),
+  usageCount: integer('usage_count').notNull().default(0),
+  settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: time('created_at').notNull().defaultNow(),
+  updatedAt: time('updated_at').notNull().defaultNow(),
+});
+
+export const couponUses = pgTable('coupon_uses', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  couponId: uuid('coupon_id').notNull(),
+  orderId: uuid('order_id').notNull(),
+  email: text('email').notNull(),
+  userId: uuid('user_id'),
+  createdAt: time('created_at').notNull().defaultNow(),
+});
+
+export type ShippingZoneRow = typeof shippingZones.$inferSelect;
+export type ShippingMethodRow = typeof shippingMethods.$inferSelect;
+export type TaxRateRow = typeof taxRates.$inferSelect;
+export type CouponRow = typeof coupons.$inferSelect;

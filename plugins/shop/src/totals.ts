@@ -1,7 +1,8 @@
 /**
- * The totals of a cart or an order, in cents: lines, shipping, fees and
- * taxes (WooCommerce's rules: prices entered with or without taxes, taxes
- * rounded per line). Pure: the cart, the checkout and the order use it alike.
+ * The totals of a cart or an order, in cents: lines, discounts, shipping,
+ * fees and taxes (WooCommerce's rules: prices entered with or without taxes,
+ * discounts before taxes, taxes rounded per line). Pure: the cart, the
+ * checkout and the order use it alike.
  */
 
 export interface TotalsLine {
@@ -23,12 +24,17 @@ export interface TotalsInput {
   shipping?: { cost: string; taxable: boolean } | null;
   /** Fees such as the cash-on-delivery surcharge, as entered. */
   fees?: { name: string; amount: string; taxable: boolean }[];
+  /** Discounts (coupons) in cents by line key, on the same basis as the prices. */
+  discounts?: Record<string, number>;
 }
 
 export interface LineTotals {
   key: string;
   quantity: number;
-  /** Without taxes. */
+  /** Before the discount, without and with taxes. */
+  subtotalNet: number;
+  subtotalGross: number;
+  /** After the discount, without taxes. */
   net: number;
   tax: number;
   /** With taxes. */
@@ -38,9 +44,12 @@ export interface LineTotals {
 
 export interface Totals {
   lines: LineTotals[];
-  /** Sum of the lines without and with taxes. */
+  /** Sum of the lines before discounts, without and with taxes. */
   subtotalNet: number;
   subtotalGross: number;
+  /** Discounts, without and with taxes. */
+  discountNet: number;
+  discountGross: number;
   shippingNet: number;
   shippingTax: number;
   fees: { name: string; net: number; tax: number }[];
@@ -70,14 +79,30 @@ export function computeTotals(input: TotalsInput): Totals {
     if (amount !== 0) byRate.set(rate, (byRate.get(rate) ?? 0) + amount);
   };
 
+  let subtotalNet = 0;
+  let subtotalGross = 0;
   const lines = input.lines.map((line) => {
     const rate = line.taxStatus === 'taxable' ? rateOf(line.taxClass) : 0;
-    const { net, tax } = split(cents(line.unitPrice) * line.quantity, rate, input.pricesIncludeTax);
+    const before = cents(line.unitPrice) * line.quantity;
+    const discount = Math.min(before, Math.max(0, input.discounts?.[line.key] ?? 0));
+    const full = split(before, rate, input.pricesIncludeTax);
+    subtotalNet += full.net;
+    subtotalGross += full.net + full.tax;
+    const { net, tax } = split(before - discount, rate, input.pricesIncludeTax);
     addTax(rate, tax);
-    return { key: line.key, quantity: line.quantity, net, tax, gross: net + tax, rate };
+    return {
+      key: line.key,
+      quantity: line.quantity,
+      subtotalNet: full.net,
+      subtotalGross: full.net + full.tax,
+      net,
+      tax,
+      gross: net + tax,
+      rate,
+    };
   });
-  const subtotalNet = lines.reduce((sum, l) => sum + l.net, 0);
-  const subtotalGross = lines.reduce((sum, l) => sum + l.gross, 0);
+  const afterNet = lines.reduce((sum, l) => sum + l.net, 0);
+  const afterGross = lines.reduce((sum, l) => sum + l.gross, 0);
 
   // Shipping is taxed at the standard rate (WooCommerce's default "based on cart items" is a later option).
   const shippingRate = input.shipping?.taxable ? rateOf('') : 0;
@@ -97,11 +122,13 @@ export function computeTotals(input: TotalsInput): Totals {
     .sort((a, b) => b[0] - a[0])
     .map(([rate, amount]) => ({ rate, amount }));
   const taxTotal = taxes.reduce((sum, t) => sum + t.amount, 0);
-  const total = subtotalNet + shipping.net + fees.reduce((sum, f) => sum + f.net, 0) + taxTotal;
+  const total = afterNet + shipping.net + fees.reduce((sum, f) => sum + f.net, 0) + taxTotal;
   return {
     lines,
     subtotalNet,
     subtotalGross,
+    discountNet: subtotalNet - afterNet,
+    discountGross: subtotalGross - afterGross,
     shippingNet: shipping.net,
     shippingTax: shipping.tax,
     fees,

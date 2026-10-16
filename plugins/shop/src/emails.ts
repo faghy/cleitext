@@ -216,6 +216,11 @@ export function renderEmail(
   const shopEmail = EMAILS[id].to === 'shop';
   const includeTax = order.pricesIncludeTax;
   const gross = (item: OrderItemRow) => Number(item.total) + (includeTax ? Number(item.tax) : 0);
+  /** A line as listed, before its discount (orders before coupons have the same amounts). */
+  const listed = (item: OrderItemRow) =>
+    item.subtotal === item.total
+      ? gross(item)
+      : Number(item.subtotal) + (includeTax ? Number(item.subtotalTax) : 0);
   const date = new Date(order.createdAt).toLocaleDateString(locale, { dateStyle: 'long' });
   const products = items.filter((i) => i.kind === 'product');
   const shipping = Number(order.shippingTotal) + (includeTax ? Number(order.shippingTax) : 0);
@@ -230,11 +235,18 @@ export function renderEmail(
   const rows = products
     .map((item) => {
       const attrs = item.attributes.map((a) => `${escape(a.name)}: ${escape(a.value)}`).join(' · ');
-      return `<tr><td style="${cell}">${escape(item.name)}${attrs ? `<br><small style="color:#6b7280">${attrs}</small>` : ''}${item.sku ? `<br><small style="color:#6b7280">${escape(item.sku)}</small>` : ''}</td><td style="${num}">× ${item.quantity}</td><td style="${num}">${escape(amount(gross(item)))}</td></tr>`;
+      return `<tr><td style="${cell}">${escape(item.name)}${attrs ? `<br><small style="color:#6b7280">${attrs}</small>` : ''}${item.sku ? `<br><small style="color:#6b7280">${escape(item.sku)}</small>` : ''}</td><td style="${num}">× ${item.quantity}</td><td style="${num}">${escape(amount(listed(item)))}</td></tr>`;
     })
     .join('');
   const totals: [string, string][] = [
-    [t('Shipping'), shipping === 0 ? t('Free') : amount(shipping)],
+    ...order.coupons.map((coupon): [string, string] => [
+      t('Coupon: {code}', { code: coupon.code }),
+      `−${amount(coupon.discount)}`,
+    ]),
+    [
+      order.shippingMethod ? `${t('Shipping')} (${order.shippingMethod})` : t('Shipping'),
+      shipping === 0 ? t('Free') : amount(shipping),
+    ],
     ...items
       .filter((i) => i.kind === 'fee')
       .map((fee): [string, string] => [fee.name, amount(gross(fee))]),
@@ -334,7 +346,7 @@ ${order.customerNote ? box(`<strong>${escape(t('Customer note'))}</strong><br>${
     `${t('Order {number}', { number: order.number })} · ${date}`,
     ...products.map(
       (item) =>
-        `- ${item.name}${item.attributes.length ? ` (${item.attributes.map((a) => `${a.name}: ${a.value}`).join(', ')})` : ''} × ${item.quantity}: ${amount(gross(item))}`,
+        `- ${item.name}${item.attributes.length ? ` (${item.attributes.map((a) => `${a.name}: ${a.value}`).join(', ')})` : ''} × ${item.quantity}: ${amount(listed(item))}`,
     ),
     ...totals.map(([label, value]) => `${label}: ${value}`),
     '',

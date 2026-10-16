@@ -6,6 +6,8 @@ import type { CartLine } from './cart';
 import { stockStatusOf } from './pricing';
 import {
   counters,
+  couponUses,
+  coupons,
   orderItems,
   orderNotes,
   orders,
@@ -24,6 +26,12 @@ export class StockError extends Error {
   }
 }
 
+export class CouponError extends Error {
+  constructor(readonly code: string) {
+    super(`The coupon ${code} cannot be used any more`);
+  }
+}
+
 export interface NewOrder {
   locale: string;
   currency: string;
@@ -37,6 +45,10 @@ export interface NewOrder {
   customerNote: string;
   customerId: string | null;
   payment: { method: string; title: string };
+  /** The shipping rate chosen (src/shipping.ts), null when nothing is shipped. */
+  shippingRate: { id: string; title: string } | null;
+  /** Coupons applied, with the cents each took off. */
+  coupons: { id: string; code: string; discount: number }[];
   /** The status once placed: on-hold for bank transfers (waiting for the money). */
   status: OrderStatus;
   ip: string;
@@ -142,6 +154,7 @@ export async function placeOrder(
       currency: order.currency,
       pricesIncludeTax: order.pricesIncludeTax,
       subtotal: decimal(totals.subtotalNet),
+      discountTotal: decimal(totals.discountNet),
       shippingTotal: decimal(totals.shippingNet),
       shippingTax: decimal(totals.shippingTax),
       feeTotal: decimal(totals.fees.reduce((sum, f) => sum + f.net, 0)),
@@ -150,6 +163,9 @@ export async function placeOrder(
       taxes: totals.taxes.map((t) => ({ rate: t.rate, amount: decimal(t.amount) })),
       paymentMethod: order.payment.method,
       paymentTitle: order.payment.title,
+      shippingMethod: order.shippingRate?.title ?? '',
+      shippingRate: order.shippingRate?.id ?? '',
+      coupons: order.coupons.map((c) => ({ code: c.code, discount: decimal(c.discount) })),
       customerId: order.customerId,
       email: order.email,
       billing: order.billing,
@@ -176,7 +192,8 @@ export async function placeOrder(
       sku: line.sku,
       attributes: line.attributes,
       quantity: line.quantity,
-      subtotal: decimal(computed.net),
+      subtotal: decimal(computed.subtotalNet),
+      subtotalTax: decimal(computed.subtotalGross - computed.subtotalNet),
       total: decimal(computed.net),
       tax: decimal(computed.tax),
       taxRate: String(computed.rate),
@@ -191,7 +208,7 @@ export async function placeOrder(
       kind: 'shipping',
       productId: null,
       variationId: null,
-      name: 'Shipping',
+      name: order.shippingRate?.title || 'Shipping',
       sku: '',
       attributes: [],
       quantity: 1,
@@ -222,6 +239,27 @@ export async function placeOrder(
     });
   }
   await tx.insert(orderItems).values(items);
+  for (const coupon of order.coupons) {
+    // Counted in the same update that checks the limit: two checkouts cannot both take the last use.
+    const [counted] = await tx
+      .update(coupons)
+      .set({ usageCount: sql`${coupons.usageCount} + 1` })
+      .where(
+        and(
+          eq(coupons.id, coupon.id),
+          sql`(${coupons.usageLimit} IS NULL OR ${coupons.usageCount} < ${coupons.usageLimit})`,
+        ),
+      )
+      .returning({ id: coupons.id });
+    if (!counted) throw new CouponError(coupon.code);
+    await tx.insert(couponUses).values({
+      siteId,
+      couponId: coupon.id,
+      orderId: placed.id,
+      email: order.email.toLowerCase(),
+      userId: order.customerId,
+    });
+  }
   if (changes.length > 0) {
     await tx
       .insert(orderNotes)

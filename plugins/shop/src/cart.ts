@@ -50,6 +50,33 @@ export async function saveCart(
     .onConflictDoUpdate({ target: [carts.siteId, carts.tokenHash], set: values });
 }
 
+/** The coupon codes on a cart. */
+export async function loadCoupons(
+  tx: PluginTransaction,
+  token: string | undefined,
+): Promise<string[]> {
+  if (!token || !/^[A-Za-z0-9_-]{20,64}$/.test(token)) return [];
+  const [row] = await tx
+    .select({ coupons: carts.coupons })
+    .from(carts)
+    .where(eq(carts.tokenHash, tokenHash(token)));
+  return row?.coupons ?? [];
+}
+
+export async function saveCoupons(
+  tx: PluginTransaction,
+  siteId: string,
+  token: string,
+  codes: string[],
+  userId: string | null,
+): Promise<void> {
+  const values = { coupons: codes.slice(0, 20), userId, updatedAt: new Date() };
+  await tx
+    .insert(carts)
+    .values({ siteId, tokenHash: tokenHash(token), items: [], ...values })
+    .onConflictDoUpdate({ target: [carts.siteId, carts.tokenHash], set: values });
+}
+
 /** Adds an item, or more of one already there; one only for products sold individually. */
 export function addItem(items: CartItem[], item: CartItem, soldIndividually: boolean): CartItem[] {
   const index = items.findIndex(
@@ -91,6 +118,8 @@ export interface CartLine {
   onSale: boolean;
   taxStatus: 'taxable' | 'shipping' | 'none';
   taxClass: string;
+  shippingClass: string;
+  categoryIds: string[];
   manageStock: boolean;
   stock: number | null;
   backorders: 'no' | 'notify' | 'yes';
@@ -188,6 +217,8 @@ function lineOf(
     onSale: isOnSale(priced, now),
     taxStatus: product.taxStatus,
     taxClass: product.taxClass,
+    shippingClass: product.shippingClass,
+    categoryIds: product.categoryIds,
     manageStock: stockOwner.manageStock,
     stock: stockOwner.stock,
     backorders: stockOwner.backorders,

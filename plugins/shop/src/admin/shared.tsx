@@ -144,3 +144,12 @@ export function productCount(
 ) {
   return count === 1 ? t('1 product') : t('{count} products', { count });
 }
+
+/** Tax classes of products, with their labels (Italy's rates as a hint). */
+export const TAX_CLASS_OPTIONS: [string, string][] = [
+  ['', 'Standard'],
+  ['reduced', 'Reduced (e.g. 10%)'],
+  ['second-reduced', 'Second reduced (e.g. 5%)'],
+  ['super-reduced', 'Super-reduced (e.g. 4%)'],
+  ['zero', 'Zero'],
+];

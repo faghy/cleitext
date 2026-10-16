@@ -59,6 +59,31 @@ products, and the catalog features of WooCommerce.
 
   Their texts can be changed, with a preview.
 
-Next: shipping, taxes and coupons, the storefront, Stripe and PayPal.
+**Milestone 4, shipping, taxes and coupons**:
+
+- **Shop → Shipping**: zones of countries, provinces and postcodes (`20*`,
+  `00118...00199`), the first matching one from the top, and "Everywhere
+  else"; each with its methods:
+  - flat rate, with a formula (`3 + 1.5 * [qty]`) and costs per shipping class;
+  - free shipping, over an amount, with a coupon, either or both;
+  - local pickup, with where and when;
+  - by weight, in bands (the last one open or not).
+
+  Without any method, orders ship for free. A tester shows the rates of an
+  address.
+
+- **Shop → Taxes**: rates by class (standard, reduced, second reduced,
+  super-reduced, zero), country and province, the Italian ones in one click.
+  The shipping address chooses them; with prices entered with taxes, what
+  customers pay stays the same.
+- **Shop → Coupons**: a percentage, an amount off the cart or off each item,
+  free shipping; minimum and maximum spend, products and categories (and
+  exclusions), sale items, emails, expiry, uses in all and per customer,
+  individual use. The discount is spread over the lines, before taxes.
+- At checkout: the shipping methods of the address, cash on delivery with its
+  surcharge (Settings → Shop), and the totals with discounts and taxes, in the
+  order, its page and its emails.
+
+Next: the storefront (shop page, account), Stripe and PayPal.
 
 License: GPL-2.0-or-later.

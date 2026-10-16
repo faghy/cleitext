@@ -289,6 +289,11 @@ function OrderView({
   const includeTax = order.pricesIncludeTax;
   const gross = (i: { total: string; tax: string }) =>
     Number(i.total) + (includeTax ? Number(i.tax) : 0);
+  /** A line as listed, before its discount. */
+  const listed = (i: (typeof items)[number]) =>
+    i.subtotal === i.total
+      ? gross(i)
+      : Number(i.subtotal) + (includeTax ? Number(i.subtotalTax) : 0);
   const products = items.filter((i) => i.kind === 'product');
   const errors = changeStatus.error ?? addNote.error ?? resend.error ?? print.error;
   return (
@@ -342,7 +347,15 @@ function OrderView({
                       {item.sku && <div className="sh-small sh-muted">{item.sku}</div>}
                     </td>
                     <td className="num">× {item.quantity}</td>
-                    <td className="num">{money(gross(item))}</td>
+                    <td className="num">{money(listed(item))}</td>
+                  </tr>
+                ))}
+                {order.coupons.map((coupon) => (
+                  <tr key={coupon.code} style={{ cursor: 'default' }}>
+                    <td colSpan={2} className="sh-muted">
+                      {t('Coupon: {code}', { code: coupon.code })}
+                    </td>
+                    <td className="num">−{money(coupon.discount)}</td>
                   </tr>
                 ))}
                 {items
@@ -350,7 +363,9 @@ function OrderView({
                   .map((item) => (
                     <tr key={item.id} style={{ cursor: 'default' }}>
                       <td colSpan={2} className="sh-muted">
-                        {item.kind === 'shipping' ? t('Shipping') : item.name}
+                        {item.kind === 'shipping'
+                          ? `${t('Shipping')}${order.shippingMethod ? ` (${order.shippingMethod})` : ''}`
+                          : item.name}
                       </td>
                       <td className="num">{gross(item) === 0 ? t('Free') : money(gross(item))}</td>
                     </tr>

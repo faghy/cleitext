@@ -21,6 +21,8 @@ import { orderDetail } from './order-admin';
 import { orderMail, registerOrderRoutes } from './orders-routes';
 import { productTag, registerBuyBox } from './buy-box';
 import { registerStorefront, type StoreSettings } from './storefront';
+import { COUNTRIES } from './address';
+import { registerRulesRoutes, TAXES_STORAGE, taxSettingsSchema } from './rules-routes';
 
 /**
  * Shop (official plugin): products are entries of type `product`, with
@@ -36,6 +38,7 @@ declare module '@cleitext/plugin-sdk' {
 }
 
 const CAPABILITY = 'manage_shop';
+
 const PRICING = 'pricing';
 
 /** Errors as problem details (RFC 9457), as the admin reads them. */
@@ -118,6 +121,17 @@ export default definePlugin({
             'CZK',
           ].map((code) => ({ value: code, label: code })),
           default: 'EUR',
+        },
+        {
+          name: 'baseCountry',
+          type: 'select',
+          label: { en: 'Shop country', it: 'Paese del negozio' },
+          help: {
+            en: 'Taxes are worked out for it until the customer gives an address.',
+            it: 'Le tasse si calcolano per questo paese finché il cliente non dà un indirizzo.',
+          },
+          options: COUNTRIES.map((code) => ({ value: code, label: code })),
+          default: 'IT',
         },
         {
           name: 'pricesIncludeTax',
@@ -231,12 +245,41 @@ export default definePlugin({
           },
           maxLength: 1000,
         },
+        {
+          name: 'codEnabled',
+          type: 'boolean',
+          label: { en: 'Accept cash on delivery', it: 'Accetta il contrassegno' },
+          default: false,
+        },
+        {
+          name: 'codFee',
+          type: 'text',
+          label: { en: 'Cash on delivery: surcharge', it: 'Contrassegno: supplemento' },
+          help: {
+            en: 'Added to orders paid this way, e.g. 4.90 (like prices, with or without taxes). Empty: none.',
+            it: 'Aggiunto agli ordini pagati così, es. 4,90 (come i prezzi, con o senza tasse). Vuoto: nessuno.',
+          },
+          maxLength: 12,
+        },
+        {
+          name: 'codInstructions',
+          type: 'text',
+          multiline: true,
+          label: { en: 'Cash on delivery: instructions', it: 'Contrassegno: istruzioni' },
+          help: {
+            en: 'Shown at checkout, e.g. “Pay the courier in cash or by card.”',
+            it: 'Mostrate alla cassa, es. “Paghi il corriere in contanti o con carta.”',
+          },
+          maxLength: 1000,
+        },
       ],
       { title: { en: 'Shop', it: 'Negozio' }, capability: CAPABILITY },
     );
 
     watchEntries(ctx);
 
+    const taxSettings = async (siteId: string) =>
+      taxSettingsSchema.parse((await ctx.storage.get(siteId, TAXES_STORAGE)) ?? {});
     const store = async (siteId: string): Promise<StoreSettings> => {
       const values = await ctx.settings.get(siteId);
       const str = (name: string) =>
@@ -246,6 +289,15 @@ export default definePlugin({
         pricesIncludeTax: values.pricesIncludeTax !== false,
         phoneRequired: values.phoneRequired !== false,
         termsUrl: str('termsUrl'),
+        baseCountry: str('baseCountry') || 'IT',
+        taxesEnabled: (await taxSettings(siteId)).enabled,
+        cod: {
+          enabled: values.codEnabled === true,
+          fee: /^\d{1,6}([.,]\d{1,2})?$/.test(str('codFee').trim())
+            ? str('codFee').trim().replace(',', '.')
+            : '0',
+          instructions: str('codInstructions'),
+        },
         bank: {
           enabled: values.bankEnabled !== false,
           accountName: str('bankAccountName'),
@@ -269,9 +321,15 @@ export default definePlugin({
       const detail = await ctx.db.transaction(siteId, (tx) => orderDetail(tx, orderId));
       if (!detail) return;
       await mail.send(siteId, origin, 'new_order', detail);
-      await mail.send(siteId, origin, 'customer_on_hold', detail);
+      await mail.send(
+        siteId,
+        origin,
+        detail.order.status === 'processing' ? 'customer_processing' : 'customer_on_hold',
+        detail,
+      );
     });
     registerOrderRoutes(ctx, CAPABILITY, storeWithNotify);
+    registerRulesRoutes(ctx, CAPABILITY);
     registerBuyBox(ctx, async (siteId) => {
       const values = await ctx.settings.get(siteId);
       return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };

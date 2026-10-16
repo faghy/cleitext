@@ -4,6 +4,9 @@ import { EmailsPage } from './admin/emails';
 import { OrdersPage } from './admin/orders';
 import { IT } from './admin/it';
 import { ProductsPage } from './admin/products';
+import { CouponsPage } from './admin/coupons';
+import { ShippingPage } from './admin/shipping';
+import { TaxesPage } from './admin/taxes';
 import { BrandsPage, CategoriesPage } from './admin/terms';
 
 addMessages('it', IT);
@@ -25,6 +28,27 @@ export default defineAdminPlugin({
       icon: 'M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6',
       capability,
       component: OrdersPage,
+    },
+    {
+      path: 'coupons',
+      title: { en: 'Coupons', it: 'Coupon' },
+      icon: 'M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z M10 7v10',
+      capability,
+      component: CouponsPage,
+    },
+    {
+      path: 'shipping',
+      title: { en: 'Shipping', it: 'Spedizioni' },
+      icon: 'M3 7h11v9H3z M14 10h4l3 3v3h-7 M7 18.5a1.5 1.5 0 1 0 0-.01 M17 18.5a1.5 1.5 0 1 0 0-.01',
+      capability,
+      component: ShippingPage,
+    },
+    {
+      path: 'taxes',
+      title: { en: 'Taxes', it: 'Imposte' },
+      icon: 'M6 3h12v18H6z M9 8h6 M9 12h6 M9 16h3',
+      capability,
+      component: TaxesPage,
     },
     {
       path: 'categories',

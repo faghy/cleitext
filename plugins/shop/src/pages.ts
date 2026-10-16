@@ -51,6 +51,10 @@ details.shop-more{margin:1rem 0}
 details.shop-more summary{cursor:pointer;font-weight:600}
 .shop-pay{border:1px solid var(--shop-line);border-radius:6px;padding:.75rem;margin:.5rem 0}
 .shop-pay p{margin:.4rem 0 0 1.6rem;font-size:.9em}
+.shop-fieldset{border:0;padding:0;margin:0 0 1rem}
+.shop-inline{display:inline;margin-left:.5rem}
+.shop-coupon-form{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 1.5rem}
+.shop-coupon-form input{font:inherit;padding:.55rem .65rem;border:1px solid var(--shop-line);border-radius:6px;background:transparent;color:inherit}
 .shop-received dl{display:grid;grid-template-columns:max-content 1fr;gap:.35rem 1rem}
 .shop-received dt{font-weight:600}
 .shop-addresses{display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))}
@@ -93,24 +97,59 @@ function page(content: Html): string {
     <div class="shop-page">${content}</div>`.value;
 }
 
+export interface CouponView {
+  code: string;
+  /** Cents off, as prices are entered. */
+  discount: number;
+}
+
 function totalsRows(
   totals: Totals,
   money: Money,
   t: Translate,
   includeTax: boolean,
-  shippingLabel: Html | string,
+  options: {
+    /** What the shipping row says when it costs nothing; null: no row (nothing to ship). */
+    shipping: Html | string | null;
+    coupons: CouponView[];
+    /** The cart's address for the coupons' remove buttons. */
+    removeCoupon?: string;
+  },
 ): Html {
   const shippingGross = totals.shippingNet + totals.shippingTax;
   return html` <tr>
       <th scope="row">${t('Subtotal')}</th>
       <td class="num">${money(includeTax ? totals.subtotalGross : totals.subtotalNet)}</td>
     </tr>
-    <tr>
-      <th scope="row">${t('Shipping')}</th>
-      <td class="num">
-        ${shippingGross === 0 ? shippingLabel : money(includeTax ? shippingGross : totals.shippingNet)}
-      </td>
-    </tr>
+    ${options.coupons.map(
+      (coupon) =>
+        html`<tr class="shop-coupon">
+          <th scope="row">
+            ${t('Coupon: {code}', { code: coupon.code })}
+            ${
+              options.removeCoupon
+                ? html`<form method="post" action="${options.removeCoupon}" class="shop-inline">
+                    <input type="hidden" name="remove" value="${coupon.code}" />
+                    <button class="shop-link" type="submit">
+                      ${t('Remove')}<span class="shop-sr"> ${coupon.code}</span>
+                    </button>
+                  </form>`
+                : ''
+            }
+          </th>
+          <td class="num">−${money(coupon.discount)}</td>
+        </tr>`,
+    )}
+    ${
+      options.shipping === null
+        ? ''
+        : html`<tr>
+            <th scope="row">${t('Shipping')}</th>
+            <td class="num">
+              ${shippingGross === 0 ? options.shipping : money(includeTax ? shippingGross : totals.shippingNet)}
+            </td>
+          </tr>`
+    }
     ${totals.fees.map(
       (fee) =>
         html`<tr>
@@ -159,6 +198,8 @@ export function cartPage(options: {
   urls: PageUrls;
   includeTax: boolean;
   notices: { kind: 'ok' | 'error'; text: string }[];
+  coupons: CouponView[];
+  needsShipping: boolean;
 }): string {
   const { lines, totals, t, money, urls } = options;
   const notices = options.notices.map(
@@ -183,7 +224,9 @@ export function cartPage(options: {
   }
   const unit = (line: CartLine) => {
     const computed = totals.lines.find((l) => l.key === line.key)!;
-    return Math.round((options.includeTax ? computed.gross : computed.net) / line.quantity);
+    return Math.round(
+      (options.includeTax ? computed.subtotalGross : computed.subtotalNet) / line.quantity,
+    );
   };
   return page(
     html`${notices}
@@ -211,7 +254,9 @@ export function cartPage(options: {
                 <td>
                   ${line.soldIndividually ? html`1<input type="hidden" name="qty_${line.key}" value="1" />` : html`<label class="shop-sr" for="qty-${line.key}">${t('Quantity')}</label><input id="qty-${line.key}" type="number" name="qty_${line.key}" value="${line.quantity}" min="0" max="9999" inputmode="numeric" />`}
                 </td>
-                <td class="num">${money(options.includeTax ? computed.gross : computed.net)}</td>
+                <td class="num">
+                  ${money(options.includeTax ? computed.subtotalGross : computed.subtotalNet)}
+                </td>
                 <td>
                   <button class="shop-link" type="submit" name="remove" value="${line.key}">
                     ${t('Remove')}<span class="shop-sr"> ${line.title}</span>
@@ -228,9 +273,27 @@ export function cartPage(options: {
           </button>
         </div>
       </form>
+      <form method="post" action="${urls.cart}/coupon" class="shop-coupon-form">
+        <label class="shop-sr" for="shop-coupon">${t('Coupon code')}</label>
+        <input
+          id="shop-coupon"
+          name="code"
+          type="text"
+          maxlength="60"
+          placeholder="${t('Coupon code')}"
+          autocomplete="off"
+        />
+        <button class="shop-button shop-button--secondary" type="submit">
+          ${t('Apply coupon')}
+        </button>
+      </form>
       <table class="shop-table shop-totals">
         <tbody>
-          ${totalsRows(totals, money, t, options.includeTax, t('Free'))}
+          ${totalsRows(totals, money, t, options.includeTax, {
+            shipping: options.needsShipping ? t('Calculated at checkout') : null,
+            coupons: options.coupons,
+            removeCoupon: `${urls.cart}/coupon`,
+          })}
         </tbody>
       </table>
       <p class="shop-actions" style="justify-content:flex-end">
@@ -248,6 +311,8 @@ export interface CheckoutValues {
   invoice: Invoice;
   note: string;
   payment: string;
+  /** The shipping rate chosen. */
+  rate: string;
   terms: boolean;
 }
 
@@ -263,6 +328,14 @@ export const emptyAddress = (country = 'IT'): Address => ({
   country,
   phone: '',
 });
+
+export interface RateOption {
+  id: string;
+  title: string;
+  /** Cents as shown (with or without taxes, like the prices). */
+  cost: number;
+  note?: string;
+}
 
 export interface PaymentOption {
   id: string;
@@ -284,6 +357,12 @@ export function checkoutPage(options: {
   termsUrl: string;
   phoneRequired: boolean;
   notice?: string;
+  coupons: CouponView[];
+  needsShipping: boolean;
+  shippingSetUp: boolean;
+  rates: RateOption[];
+  /** The rate in the totals. */
+  rate: string | null;
 }): string {
   const { values, errors, t, money, locale } = options;
   const countries = [...COUNTRIES]
@@ -353,13 +432,60 @@ export function checkoutPage(options: {
           const computed = options.totals.lines.find((l) => l.key === line.key)!;
           return html`<tr>
             <td>${lineName(line)} × ${line.quantity}</td>
-            <td class="num">${money(options.includeTax ? computed.gross : computed.net)}</td>
+            <td class="num">
+              ${money(options.includeTax ? computed.subtotalGross : computed.subtotalNet)}
+            </td>
           </tr>`;
         })}
-        ${totalsRows(options.totals, money, t, options.includeTax, t('Free'))}
+        ${totalsRows(options.totals, money, t, options.includeTax, {
+          shipping: options.needsShipping ? t('Free') : null,
+          coupons: options.coupons,
+        })}
       </tbody>
     </table>
-    <fieldset style="border:0;padding:0;margin:0">
+    ${
+      options.shippingSetUp
+        ? html`<fieldset class="shop-fieldset">
+            <legend><strong>${t('Shipping')}</strong></legend>
+            ${
+              options.rates.length
+                ? options.rates.map(
+                    (rate) =>
+                      html`<div class="shop-pay">
+                        <label class="shop-check" style="margin:0"
+                          ><input
+                            type="radio"
+                            name="rate"
+                            value="${rate.id}"
+                            ${rate.id === options.rate ? raw(' checked') : ''}
+                            required
+                          />
+                          <span
+                            >${rate.title}:
+                            <strong>${rate.cost === 0 ? t('Free') : money(rate.cost)}</strong></span
+                          ></label
+                        >${rate.note ? html`<p>${rate.note}</p>` : ''}
+                      </div>`,
+                  )
+                : html`<p class="shop-error">
+                    ${t('We do not ship to this address: check it, or write to us.')}
+                  </p>`
+            }
+            ${errors.rate ? html`<span class="shop-error">${t(errors.rate)}</span>` : ''}
+            <p>
+              <button
+                class="shop-button shop-button--secondary"
+                type="submit"
+                name="refresh"
+                value="1"
+              >
+                ${t('Update shipping and totals')}
+              </button>
+            </p>
+          </fieldset>`
+        : ''
+    }
+    <fieldset class="shop-fieldset">
       <legend><strong>${t('Payment')}</strong></legend>
       ${options.payments.map(
         (p) =>
@@ -468,6 +594,12 @@ export function receivedPage(options: {
   const money = moneyFormatter(locale, order.currency);
   const date = new Date(order.createdAt).toLocaleDateString(locale, { dateStyle: 'long' });
   const gross = (item: OrderItemRow) => Number(item.total) + Number(item.tax);
+  const listed = (item: OrderItemRow) =>
+    item.subtotal === item.total
+      ? includeTax
+        ? gross(item)
+        : Number(item.total)
+      : Number(item.subtotal) + (includeTax ? Number(item.subtotalTax) : 0);
   const includeTax = order.pricesIncludeTax;
   return page(
     html`<div class="shop-received">
@@ -532,11 +664,20 @@ export function receivedPage(options: {
                     ${item.name}${item.attributes.length ? html`<span class="shop-meta">${item.attributes.map((a) => `${a.name}: ${a.value}`).join(' · ')}</span>` : ''}
                     × ${item.quantity}
                   </td>
-                  <td class="num">${money.of(includeTax ? gross(item) : Number(item.total))}</td>
+                  <td class="num">${money.of(listed(item))}</td>
                 </tr>`,
             )}
+          ${order.coupons.map(
+            (coupon) =>
+              html`<tr>
+                <th scope="row">${t('Coupon: {code}', { code: coupon.code })}</th>
+                <td class="num">−${money.of(coupon.discount)}</td>
+              </tr>`,
+          )}
           <tr>
-            <th scope="row">${t('Shipping')}</th>
+            <th scope="row">
+              ${t('Shipping')}${order.shippingMethod ? html`<span class="shop-meta">${order.shippingMethod}</span>` : ''}
+            </th>
             <td class="num">
               ${Number(order.shippingTotal) + Number(order.shippingTax) === 0 ? t('Free') : money.of(Number(order.shippingTotal) + (includeTax ? Number(order.shippingTax) : 0))}
             </td>

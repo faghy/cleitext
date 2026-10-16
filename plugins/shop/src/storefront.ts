@@ -1,5 +1,5 @@
 import type { PluginContext, RouteRequest, RouteResponse } from '@cleitext/plugin-sdk';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   checkAddress,
   checkInvoice,
@@ -15,12 +15,15 @@ import {
   findVariation,
   itemKey,
   loadCart,
+  loadCoupons,
   newToken,
   priceCart,
   saveCart,
+  saveCoupons,
   type CartLine,
 } from './cart';
-import { orderByNumber, placeOrder, StockError } from './orders';
+import type { CouponProblem } from './coupons';
+import { CouponError, orderByNumber, placeOrder, StockError } from './orders';
 import {
   cartPage,
   checkoutPage,
@@ -28,12 +31,14 @@ import {
   moneyFormatter,
   receivedPage,
   type CheckoutValues,
+  type Money,
   type PageUrls,
   type PaymentOption,
 } from './pages';
-import { products } from './schema';
-import { translator } from './strings';
-import { computeTotals } from './totals';
+import { couponOf, quote, type Quote, type QuoteInput } from './quote';
+import { coupons, products } from './schema';
+import type { Destination } from './shipping';
+import { translator, type Translate } from './strings';
 
 /** What the storefront needs from the shop's settings. */
 export interface StoreSettings {
@@ -41,6 +46,11 @@ export interface StoreSettings {
   pricesIncludeTax: boolean;
   phoneRequired: boolean;
   termsUrl: string;
+  /** Where the shop is: taxes until the customer gives an address. */
+  baseCountry: string;
+  taxesEnabled: boolean;
+  /** Cash on delivery, with its fee as entered. */
+  cod: { enabled: boolean; fee: string; instructions: string };
   bank: {
     enabled: boolean;
     accountName: string;
@@ -56,6 +66,27 @@ const text = (body: Record<string, unknown>, name: string, max = 200) => {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** What the customer reads when a coupon does not apply. */
+export function couponMessage(
+  t: Translate,
+  code: string,
+  problem: CouponProblem | 'unknown',
+): string {
+  const messages: Record<CouponProblem | 'unknown', string> = {
+    unknown: 'Coupon “{code}” does not exist.',
+    expired: 'Coupon “{code}” has expired.',
+    used_up: 'Coupon “{code}” has been used up.',
+    used_up_by_you: 'You have already used coupon “{code}”.',
+    min_spend: 'Coupon “{code}” needs a larger order.',
+    max_spend: 'Coupon “{code}” is for smaller orders.',
+    not_applicable: 'Coupon “{code}” does not apply to the products in your cart.',
+    email: 'Coupon “{code}” is not valid for your email address.',
+    individual: 'Coupon “{code}” cannot be used together with other coupons.',
+    already: 'Coupon “{code}” is already applied.',
+  };
+  return t(messages[problem], { code });
+}
 
 /** The language prefix of a public address: `/it` for `/it/cart`, '' for the default language. */
 const prefixOf = (request: RouteRequest) =>
@@ -94,36 +125,79 @@ export function registerStorefront(
     };
   };
 
-  const payments = (values: StoreSettings, t: ReturnType<typeof translator>): PaymentOption[] =>
-    values.bank.enabled
+  const payments = (values: StoreSettings, t: Translate, money: Money): PaymentOption[] => [
+    ...(values.bank.enabled
       ? [{ id: 'bacs', title: t('Bank transfer'), description: values.bank.instructions }]
-      : [];
+      : []),
+    ...(values.cod.enabled
+      ? [
+          {
+            id: 'cod',
+            title: t('Cash on delivery'),
+            description: [
+              values.cod.instructions,
+              Number(values.cod.fee) > 0
+                ? t('Surcharge: {amount}.', { amount: money.of(values.cod.fee) })
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' '),
+          },
+        ]
+      : []),
+  ];
 
-  /** The cart priced now; items that changed are written back. */
-  const currentCart = async (request: RouteRequest) => {
+  const base = (store: StoreSettings): Destination => ({
+    country: store.baseCountry,
+    province: '',
+    postcode: '',
+  });
+
+  /**
+   * The cart priced now, with its coupons, shipping and taxes; items that
+   * changed are written back, and coupons that no longer apply dropped
+   * (only on the cart page: at checkout the customer is told).
+   */
+  const currentCart = async (
+    request: RouteRequest,
+    store: StoreSettings,
+    t: Translate,
+    options: Partial<Omit<QuoteInput, 'lines' | 'codes'>> = {},
+  ) => {
     const token = request.cookies[CART_COOKIE];
     return ctx.db.transaction(request.siteId, async (tx) => {
       const items = await loadCart(tx, token);
       const priced = await priceCart(tx, items);
+      const codes = await loadCoupons(tx, token);
+      const quoted = await quote(tx, quoteSettings(store, t), {
+        lines: priced.lines,
+        codes,
+        to: options.to ?? base(store),
+        shipping: options.shipping ?? false,
+        ...options,
+      });
       if (token && (priced.dropped.length || priced.lowered.length))
         await saveCart(tx, request.siteId, token, priced.items, request.user?.id ?? null);
-      return { token, ...priced };
+      if (token && quoted.rejected.length && !options.customer)
+        await saveCoupons(
+          tx,
+          request.siteId,
+          token,
+          codes.filter((c) => !quoted.rejected.some((r) => r.code === c)),
+          request.user?.id ?? null,
+        );
+      return { token, ...priced, quote: quoted };
     });
   };
 
-  const totalsOf = (lines: CartLine[], values: StoreSettings) =>
-    computeTotals({
-      lines: lines.map((l) => ({
-        key: l.key,
-        unitPrice: l.unitPrice,
-        quantity: l.quantity,
-        taxStatus: l.taxStatus,
-        taxClass: l.taxClass,
-      })),
-      pricesIncludeTax: values.pricesIncludeTax,
-      // Tax rates arrive with the taxes milestone: prices are what customers pay.
-      rates: {},
-    });
+  const quoteSettings = (store: StoreSettings, t: Translate) => ({
+    pricesIncludeTax: store.pricesIncludeTax,
+    taxesEnabled: store.taxesEnabled,
+    cod: { ...store.cod, enabled: store.cod.enabled, title: t('Cash on delivery') },
+  });
+
+  const couponViews = (quoted: Quote) =>
+    quoted.coupons.map((c) => ({ code: c.coupon.code, discount: c.discount }));
 
   // ---- Cart ------------------------------------------------------------------------
 
@@ -133,7 +207,7 @@ export function registerStorefront(
     async handler(request) {
       const t = translator(request.locale);
       const values = await settings(request.siteId);
-      const cart = await currentCart(request);
+      const cart = await currentCart(request, values, t);
       const notices: { kind: 'ok' | 'error'; text: string }[] = [];
       if (request.query.added)
         notices.push({
@@ -143,6 +217,13 @@ export function registerStorefront(
       if (request.query.updated) notices.push({ kind: 'ok', text: t('Cart updated.') });
       if (request.query.error)
         notices.push({ kind: 'error', text: request.query.error.slice(0, 300) });
+      if (request.query.coupon)
+        notices.push({
+          kind: 'ok',
+          text: t('Coupon applied: {code}.', { code: request.query.coupon.slice(0, 60) }),
+        });
+      for (const r of cart.quote.rejected)
+        notices.push({ kind: 'error', text: couponMessage(t, r.code, r.problem) });
       for (const name of [...cart.dropped, ...cart.lowered])
         notices.push({
           kind: 'error',
@@ -153,12 +234,14 @@ export function registerStorefront(
           title: t('Cart'),
           html: cartPage({
             lines: cart.lines,
-            totals: totalsOf(cart.lines, values),
+            totals: cart.quote.totals,
             t,
             money: moneyFormatter(request.locale, values.currency),
             urls: await urlsFor(request, cart.lines),
             includeTax: values.pricesIncludeTax,
             notices,
+            coupons: couponViews(cart.quote),
+            needsShipping: cart.quote.shippingSetUp,
           }),
         },
       };
@@ -251,6 +334,67 @@ export function registerStorefront(
     },
   });
 
+  ctx.routes.public({
+    method: 'POST',
+    path: '/cart/coupon',
+    async handler(request) {
+      const t = translator(request.locale);
+      const store = await settings(request.siteId);
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const prefix = prefixOf(request);
+      const token = request.cookies[CART_COOKIE] || newToken();
+      const remove = text(body, 'remove', 60).toLowerCase();
+      const code = text(body, 'code', 60).toLowerCase();
+      const back = (params: Record<string, string>) => ({
+        status: 303,
+        cookies: [cookieOf(token)],
+        headers: { location: withQuery(`${prefix}/cart`, params) },
+      });
+      if (!remove && !code) return back({ error: t('Enter a coupon code.') });
+      const outcome = await ctx.db.transaction(request.siteId, async (tx) => {
+        const codes = await loadCoupons(tx, token);
+        const userId = request.user?.id ?? null;
+        if (remove) {
+          await saveCoupons(
+            tx,
+            request.siteId,
+            token,
+            codes.filter((c) => c !== remove),
+            userId,
+          );
+          return { removed: true };
+        }
+        if (codes.includes(code)) return { error: couponMessage(t, code, 'already') };
+        const [row] = await tx
+          .select()
+          .from(coupons)
+          .where(and(eq(coupons.code, code), eq(coupons.enabled, true)));
+        // A coupon for individual use replaces the others (WooCommerce does the same).
+        const next = row && couponOf(row).individualUse ? [code] : [...codes, code];
+        const priced = await priceCart(tx, await loadCart(tx, token));
+        const quoted = await quote(tx, quoteSettings(store, t), {
+          lines: priced.lines,
+          codes: next,
+          to: base(store),
+          shipping: false,
+        });
+        const problem = quoted.rejected.find((r) => r.code === code);
+        if (problem) return { error: couponMessage(t, code, problem.problem) };
+        await saveCoupons(
+          tx,
+          request.siteId,
+          token,
+          next.filter((c) => !quoted.rejected.some((r) => r.code === c)),
+          userId,
+        );
+        return { applied: code };
+      });
+      if ('error' in outcome) return back({ error: outcome.error! });
+      if ('applied' in outcome) return back({ coupon: outcome.applied! });
+      return back({ updated: '1' });
+    },
+  });
+
   // ---- Checkout ----------------------------------------------------------------------
 
   const readValues = (body: Record<string, unknown>): CheckoutValues => {
@@ -281,7 +425,18 @@ export function registerStorefront(
       invoice,
       note: text(body, 'note', 2000),
       payment: text(body, 'payment', 40),
+      rate: text(body, 'rate', 40),
       terms: text(body, 'terms', 1) === '1',
+    };
+  };
+
+  /** Where the order goes: the shipping address, or the billing one. */
+  const destinationOf = (values: CheckoutValues, store: StoreSettings): Destination => {
+    const address = values.differentShipping ? values.shipping : values.billing;
+    return {
+      country: address.country || store.baseCountry,
+      province: address.province,
+      postcode: address.postcode,
     };
   };
 
@@ -293,7 +448,13 @@ export function registerStorefront(
   ): Promise<RouteResponse> => {
     const t = translator(request.locale);
     const store = await settings(request.siteId);
-    const cart = await currentCart(request);
+    const money = moneyFormatter(request.locale, store.currency);
+    const cart = await currentCart(request, store, t, {
+      to: destinationOf(values, store),
+      shipping: true,
+      rateId: values.rate,
+      payment: values.payment,
+    });
     const prefix = prefixOf(request);
     if (cart.lines.length === 0) return { status: 303, headers: { location: `${prefix}/cart` } };
     return {
@@ -301,16 +462,26 @@ export function registerStorefront(
       page: {
         title: t('Checkout'),
         html: checkoutPage({
-          values,
+          values: { ...values, rate: cart.quote.rate?.id ?? '' },
           errors,
           lines: cart.lines,
-          totals: totalsOf(cart.lines, store),
+          totals: cart.quote.totals,
+          coupons: couponViews(cart.quote),
+          needsShipping: cart.quote.needsShipping,
+          shippingSetUp: cart.quote.shippingSetUp,
+          rates: cart.quote.rates.map((r) => ({
+            id: r.id,
+            title: r.title,
+            cost: r.cost,
+            ...(r.note ? { note: r.note } : {}),
+          })),
+          rate: cart.quote.rate?.id ?? null,
           t,
-          money: moneyFormatter(request.locale, store.currency),
+          money,
           urls: await urlsFor(request, cart.lines),
           locale: request.locale,
           includeTax: store.pricesIncludeTax,
-          payments: payments(store, t),
+          payments: payments(store, t, money),
           termsUrl: store.termsUrl,
           phoneRequired: store.phoneRequired,
           ...(notice ? { notice } : {}),
@@ -334,6 +505,7 @@ export function registerStorefront(
           invoice: { taxCode: '', vatNumber: '', sdi: '', pec: '' },
           note: '',
           payment: '',
+          rate: '',
           terms: false,
         },
         {},
@@ -346,7 +518,10 @@ export function registerStorefront(
     async handler(request) {
       const t = translator(request.locale);
       const store = await settings(request.siteId);
-      const values = readValues((request.body ?? {}) as Record<string, unknown>);
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const values = readValues(body);
+      // "Update shipping and totals": the page again with the new address.
+      if (text(body, 'refresh', 1) === '1') return renderCheckout(request, values, {});
       const errors: Record<string, string> = {};
       if (!EMAIL_RE.test(values.email)) errors.email = 'Not a valid email address';
       for (const [key, message] of Object.entries(
@@ -360,7 +535,7 @@ export function registerStorefront(
           errors[`shipping.${key}`] = message!;
       for (const [key, message] of Object.entries(checkInvoice(values.invoice)))
         errors[`invoice.${key}`] = message!;
-      const methods = payments(store, t);
+      const methods = payments(store, t, moneyFormatter(request.locale, store.currency));
       const method =
         methods.find((m) => m.id === values.payment) ??
         (methods.length === 1 ? methods[0] : undefined);
@@ -388,12 +563,32 @@ export function registerStorefront(
               await saveCart(tx, request.siteId, token, priced.items, request.user?.id ?? null);
             return null;
           }
+          const quoted = await quote(tx, quoteSettings(store, t), {
+            lines: priced.lines,
+            codes: await loadCoupons(tx, token),
+            to: destinationOf(values, store),
+            shipping: true,
+            rateId: values.rate,
+            payment: method!.id,
+            customer: { email: values.email, userId: request.user?.id ?? null },
+          });
+          const rejected = quoted.rejected[0];
+          if (rejected) return { problem: couponMessage(t, rejected.code, rejected.problem) };
+          // The rates depend on the address: a rate not offered for it is chosen again.
+          if (quoted.shippingSetUp && quoted.rate?.id !== values.rate)
+            return { rate: quoted.rates.length ? 'Choose a shipping method.' : 'No shipping' };
           const order = await placeOrder(tx, request.siteId, {
             locale: request.locale,
             currency: store.currency,
             pricesIncludeTax: store.pricesIncludeTax,
             lines: priced.lines,
-            totals: totalsOf(priced.lines, store),
+            totals: quoted.totals,
+            shippingRate: quoted.rate ? { id: quoted.rate.id, title: quoted.rate.title } : null,
+            coupons: quoted.coupons.map((c) => ({
+              id: c.coupon.id,
+              code: c.coupon.code,
+              discount: c.discount,
+            })),
             email: values.email.toLowerCase(),
             billing,
             shipping,
@@ -401,14 +596,25 @@ export function registerStorefront(
             customerNote: values.note,
             customerId: request.user?.id ?? null,
             payment: { method: method!.id, title: method!.title },
-            // A bank transfer is waiting for the money.
-            status: 'on-hold',
+            // A bank transfer is waiting for the money; cash on delivery ships now.
+            status: method!.id === 'cod' ? 'processing' : 'on-hold',
             ip: request.ip,
             userAgent: request.headers['user-agent'] ?? '',
           });
           await saveCart(tx, request.siteId, token!, [], request.user?.id ?? null);
           return { order, products: priced.lines.map((l) => l.productId) };
         });
+        if (placed && 'problem' in placed)
+          return renderCheckout(request, values, {}, placed.problem);
+        if (placed && 'rate' in placed)
+          return renderCheckout(
+            request,
+            values,
+            placed.rate === 'No shipping' ? {} : { rate: placed.rate! },
+            placed.rate === 'No shipping'
+              ? t('We do not ship to this address: check it, or write to us.')
+              : t('Please choose how to ship your order.'),
+          );
         if (!placed)
           return {
             status: 303,
@@ -439,6 +645,8 @@ export function registerStorefront(
           },
         };
       } catch (error) {
+        if (error instanceof CouponError)
+          return renderCheckout(request, values, {}, couponMessage(t, error.code, 'used_up'));
         if (error instanceof StockError)
           return {
             status: 303,
