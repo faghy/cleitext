@@ -287,15 +287,20 @@ describe('WordPress import', () => {
     expect(visitor).toBeTruthy();
   });
 
-  it('can be imported twice without overwriting', async () => {
+  it('can be imported twice: nothing is added or overwritten', async () => {
     const { document } = await wordpressDocument();
     const uploads = fileReader(join(fixtures, 'uploads'));
     const again = await runImport(wordpress.id, document, (file) =>
       uploads(decodeURIComponent(/\/wp-content\/uploads\/(.+)$/.exec(file)![1]!)),
     );
     expect(again.errors).toEqual([]);
-    expect(again.skipped).toMatchObject({ terms: 3, users: 1 });
-    expect(again.warnings.join('\n')).toContain('"about-2" used instead');
+    expect(again.skipped).toMatchObject({ terms: 3, users: 1, entries: 5, comments: 3, menus: 1 });
+    expect(again.created.entries ?? 0).toBe(0);
+    expect(again.created.comments ?? 0).toBe(0);
+    expect(again.created.menus ?? 0).toBe(0);
+    expect(again.warnings.join('\n')).not.toContain('used instead');
+    const visitor = new TestClient(app, wordpress.host, '10.11.0.2');
+    expect((await visitor.get('/2024/a-morning-at-the-harbour')).body).toContain('2 comments');
   });
 });
 
@@ -322,8 +327,8 @@ describe('Cleitext export and import', () => {
     expect((await visitor.get('/about/team')).statusCode).toBe(200);
     // Redirects and comments travel too.
     expect((await visitor.get('/2024/05/a-morning-at-the-harbour')).statusCode).toBe(301);
-    // The source has the WordPress post twice (imported twice above).
-    expect(result.created.comments).toBe(6);
+    // The second WordPress import above added nothing: the post and its comments once.
+    expect(result.created.comments).toBe(3);
     expect(page.body).toContain('Thank you &amp; see you there.');
   });
 

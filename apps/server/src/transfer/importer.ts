@@ -268,6 +268,19 @@ export async function importDocument(
   for (const [index, entry] of ordered.entries()) {
     if (index % 50 === 0) progress(`Entries ${index + 1}/${ordered.length}`);
     try {
+      // Imported before (the same file again, or a later export of the same site):
+      // kept as it is, only the comments it lacks are added.
+      const already = await run((tx) => findImported(tx, entry));
+      if (already) {
+        entryIds.set(entry.ref, already);
+        if (entry.comments?.length) {
+          await run((tx) =>
+            insertComments(tx, siteId, already.id, entry.comments!, userIds, report, true),
+          );
+        }
+        count(report, 'entries', 'skipped');
+        continue;
+      }
       const result = await run((tx) =>
         insertEntry(tx, siteId, entry, {
           author: (entry.authorRef && userIds.get(entry.authorRef)) || options.asUserId,
@@ -313,7 +326,17 @@ export async function importDocument(
     }
 
     const takenMenus = new Set((await tx.select().from(menus)).map((m) => `${m.locale}|${m.slug}`));
+    const menuNames = new Set(
+      (await tx.select({ name: menus.name, locale: menus.locale }).from(menus)).map(
+        (m) => `${m.locale}|${m.name.trim().toLowerCase()}`,
+      ),
+    );
     for (const menu of doc.menus) {
+      // The same menu imported before: kept as it is.
+      if (menuNames.has(`${menu.locale}|${menu.name.trim().toLowerCase()}`)) {
+        count(report, 'menus', 'skipped');
+        continue;
+      }
       const slug = nextFreeSlug(
         slugify(menu.name) || 'menu',
         new Set(
@@ -453,9 +476,35 @@ async function insertComments(
   list: TransferComment[],
   userIds: Map<string, string>,
   report: ImportReport,
+  /** Comments already on the entry (same author, time and text) are not added again. */
+  skipExisting = false,
 ): Promise<void> {
-  const ids = new Map(list.map((c) => [c.ref, newId()]));
-  const rows = list.map((c) => {
+  const key = (name: string, at: Date, content: string) =>
+    `${name.trim().toLowerCase()}|${at.getTime()}|${content.trim()}`;
+  const present = new Map<string, string>();
+  if (skipExisting) {
+    for (const c of await tx
+      .select({
+        id: comments.id,
+        authorName: comments.authorName,
+        createdAt: comments.createdAt,
+        content: comments.content,
+      })
+      .from(comments)
+      .where(eq(comments.entryId, entryId))) {
+      present.set(key(c.authorName, c.createdAt, c.content), c.id);
+    }
+  }
+  const ids = new Map<string, string>();
+  const fresh = list.filter((c) => {
+    const found = present.get(
+      key(c.authorName.slice(0, 120) || 'Anonymous', new Date(c.createdAt), c.content),
+    );
+    ids.set(c.ref, found ?? newId());
+    if (found) count(report, 'comments', 'skipped');
+    return !found;
+  });
+  const rows = fresh.map((c) => {
     const ip = c.ip && isIP(c.ip) ? c.ip : null;
     const url = c.authorUrl && /^https?:\/\/\S+$/i.test(c.authorUrl) ? c.authorUrl : null;
     return {
@@ -478,10 +527,37 @@ async function insertComments(
     await tx.insert(comments).values(rows.slice(i, i + 500));
   }
   for (let i = 0; i < rows.length; i++) count(report, 'comments');
+  const [approved] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(comments)
+    .where(and(eq(comments.entryId, entryId), eq(comments.status, 'approved')));
   await tx
     .update(entries)
-    .set({ commentCount: rows.filter((r) => r.status === 'approved').length })
+    .set({ commentCount: approved?.n ?? 0 })
     .where(eq(entries.id, entryId));
+}
+
+/** An entry imported before: same type, language, address and title, not in the trash. */
+async function findImported(
+  tx: SiteTransaction,
+  entry: TransferEntry,
+): Promise<{ id: string } | null> {
+  const slug = slugify(entry.slug) || slugify(entry.title);
+  if (!slug) return null;
+  const [found] = await tx
+    .select({ id: entries.id })
+    .from(entries)
+    .where(
+      and(
+        eq(entries.typeSlug, entry.type),
+        eq(entries.locale, entry.locale),
+        eq(entries.slug, slug),
+        eq(entries.title, entry.title),
+        ne(entries.status, 'trashed'),
+      ),
+    )
+    .limit(1);
+  return found ?? null;
 }
 
 async function insertEntry(

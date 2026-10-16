@@ -70,6 +70,8 @@ async function run(
     await ctx.storage.set(siteId, JOB, job);
   };
   try {
+    // Parsing a large export takes seconds: only after the upload has been answered.
+    await new Promise((resolve) => setImmediate(resolve));
     const { document, warnings } = wxrToDocument(options.xml, {
       locale: job.locale,
       authorRole: options.authorRole,
