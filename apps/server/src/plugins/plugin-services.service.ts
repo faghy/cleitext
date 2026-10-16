@@ -47,7 +47,7 @@ import {
 } from '@cleitext/shared';
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, ne, or, sql } from 'drizzle-orm';
-import { fetchPublic } from '../common/public-fetch.js';
+import { fetchPublic, sendPublic } from '../common/public-fetch.js';
 import type { AuthContext } from '../common/request-context.js';
 import { seal, unseal } from '../common/secrets.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
@@ -609,6 +609,27 @@ export class PluginServicesProvider implements PluginServices {
       onLanguagesPending: () => this.host.emit('languages.pending', {}, siteId),
       ...(options.onProgress ? { onProgress: options.onProgress } : {}),
     });
+  }
+
+  async httpSend(
+    plugin: LoadedPlugin,
+    request: {
+      url: string;
+      method: string;
+      headers?: Record<string, string>;
+      body?: string;
+      timeoutMs: number;
+    },
+  ): Promise<{ status: number; type: string; text: string }> {
+    const res = await sendPublic(request.url, {
+      method: request.method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+      ...(request.headers ? { headers: request.headers } : {}),
+      ...(request.body !== undefined ? { body: request.body } : {}),
+      maxBytes: 1024 * 1024,
+      timeoutMs: request.timeoutMs,
+      userAgent: `Cleitext-Plugin/${plugin.slug}`,
+    });
+    return { status: res.status, type: res.type, text: res.data.toString('utf8') };
   }
 
   async mediaItem(siteId: string, id: string): Promise<PluginMedia | null> {

@@ -20,7 +20,6 @@ import {
 import type { FieldDefinition, FieldValues } from '@cleitext/shared';
 import { Logger } from '@nestjs/common';
 import type { LoadedPlugin, PluginHost } from './plugin-host.service.js';
-import { sendPublic } from '../common/public-fetch.js';
 import { pluginAssetUrl } from './plugin-assets.js';
 
 /** What plugin contexts need from the core, implemented by `PluginServices`. */
@@ -86,6 +85,17 @@ export interface PluginServices {
     siteId?: string;
   }): Promise<void>;
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
+  /** A request to a public address for a plugin (`ctx.http.send`); tests replace it. */
+  httpSend(
+    plugin: LoadedPlugin,
+    request: {
+      url: string;
+      method: string;
+      headers?: Record<string, string>;
+      body?: string;
+      timeoutMs: number;
+    },
+  ): Promise<{ status: number; type: string; text: string }>;
   /** What the core keeps about an email on a site: account, sessions, activity. */
   corePersonalData(siteId: string, email: string): Promise<PersonalDataGroup[]>;
   /** Anonymizes the comments and removes the likes of an email (art. 17). */
@@ -395,15 +405,13 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
     http: {
       async send(request) {
         require('network');
-        const res = await sendPublic(request.url, {
+        return services().httpSend(plugin, {
+          url: request.url,
           method: request.method ?? 'POST',
           ...(request.headers ? { headers: request.headers } : {}),
           ...(request.body !== undefined ? { body: request.body } : {}),
-          maxBytes: 1024 * 1024,
           timeoutMs: Math.min(Math.max(request.timeoutMs ?? 10_000, 1000), 30_000),
-          userAgent: `Cleitext-Plugin/${plugin.slug}`,
         });
-        return { status: res.status, type: res.type, text: res.data.toString('utf8') };
       },
     },
 
