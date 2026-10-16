@@ -12,7 +12,7 @@ export const CSS = `
 .sh-muted { color: var(--sh-muted); }
 .sh-small { font-size: .75rem; }
 .sh-card { background: var(--sh-card); border: 1px solid var(--sh-line); border-radius: .5rem; padding: 1rem; }
-.sh-card > h2 { font-size: 1rem; font-weight: 600; margin: 0 0 .75rem; }
+.sh-card > h2, .sh-card .sh-row > h2 { font-size: 1rem; font-weight: 600; margin: 0 0 .75rem; }
 .sh-grid { display: grid; gap: .75rem 1rem; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }
 .sh-grid-2 { display: grid; gap: .75rem 1rem; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); }
 .sh-field { display: flex; flex-direction: column; gap: .25rem; }
