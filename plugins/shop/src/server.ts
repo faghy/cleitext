@@ -24,6 +24,7 @@ import { registerStorefront, type StoreSettings } from './storefront';
 import { COUNTRIES } from './address';
 import { registerAccount } from './account';
 import { registerCatalog } from './catalog-routes';
+import { registerReviews } from './reviews';
 import { emailsForStatus } from './emails';
 import { onlinePayments } from './online-payments';
 import { registerStorefrontBlocks } from './storefront-blocks';
@@ -202,6 +203,31 @@ export default definePlugin({
           default: true,
         },
         {
+          name: 'reviewsEnabled',
+          type: 'boolean',
+          label: { en: 'Product reviews', it: 'Recensioni dei prodotti' },
+          help: {
+            en: 'Customers rate products from 1 to 5 stars and write a review; you approve them in Shop → Reviews.',
+            it: 'I clienti valutano i prodotti da 1 a 5 stelle e scrivono una recensione; le approvi in Negozio → Recensioni.',
+          },
+          default: true,
+        },
+        {
+          name: 'reviewsVerifiedOnly',
+          type: 'boolean',
+          label: {
+            en: 'Reviews only from customers who bought the product',
+            it: 'Recensioni solo da chi ha acquistato il prodotto',
+          },
+          default: false,
+        },
+        {
+          name: 'reviewsRatingRequired',
+          type: 'boolean',
+          label: { en: 'The star rating is required', it: 'Il voto in stelle è obbligatorio' },
+          default: true,
+        },
+        {
           name: 'termsUrl',
           type: 'url',
           label: { en: 'Terms and conditions page', it: 'Pagina dei termini e condizioni' },
@@ -290,6 +316,14 @@ export default definePlugin({
     registerCatalog(ctx, currency);
     registerAccount(ctx, store);
     registerStorefrontBlocks(ctx, currency);
+    registerReviews(ctx, async (siteId) => {
+      const values = await ctx.settings.get(siteId);
+      return {
+        enabled: values.reviewsEnabled !== false,
+        verifiedOnly: values.reviewsVerifiedOnly === true,
+        ratingRequired: values.reviewsRatingRequired !== false,
+      };
+    });
     // Product pages: the path to them first, the buy box and the gallery after
     // their first block (usually the intro), related products at the end.
     ctx.hooks.filter('render.blocks', (blocks, context) => {
@@ -306,6 +340,7 @@ export default definePlugin({
         block('buy-box'),
         block('gallery'),
         ...blocks.slice(1),
+        block('reviews'),
         block('related'),
       ];
     });

@@ -520,4 +520,15 @@ export const IT: Record<string, string> = {
   'Webhook address': 'Indirizzo del webhook',
   'Webhook id': 'ID del webhook',
   'Webhook signing secret': 'Segreto di firma del webhook',
+  Approve: 'Approva',
+  'No reviews here.': 'Nessuna recensione qui.',
+  Pending: 'In attesa',
+  Rating: 'Voto',
+  Review: 'Recensione',
+  Reviews: 'Recensioni',
+  Spam: 'Spam',
+  'Verified owner': 'Acquirente verificato',
+  'What customers say about your products, with their rating. New reviews follow the comment moderation settings; “Verified owner” means they bought the product.':
+    'Cosa dicono i clienti dei tuoi prodotti, con il loro voto. Le nuove recensioni seguono le impostazioni di moderazione dei commenti; “Acquirente verificato” significa che hanno acquistato il prodotto.',
+  '{n} stars': '{n} stelle',
 };

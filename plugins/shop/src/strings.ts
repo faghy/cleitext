@@ -1,5 +1,27 @@
 /** Texts of the shop's public pages, in English and Italian. */
 const IT: Record<string, string> = {
+  'Add a review': 'Aggiungi una recensione',
+  'Be the first to review this product': 'Scrivi tu la prima recensione di questo prodotto',
+  'Choose a rating.': 'Scegli un voto.',
+  Name: 'Nome',
+  'Only customers who bought this product can review it.':
+    'Solo chi ha acquistato questo prodotto può recensirlo.',
+  'Ratings by stars': 'Voti per numero di stelle',
+  'Reviews ({n})': 'Recensioni ({n})',
+  'Reviews are closed.': 'Le recensioni sono chiuse.',
+  'Signed in? You can leave name and email empty. Your email is not published.':
+    'Hai fatto l’accesso? Puoi lasciare vuoti nome ed email. La tua email non viene pubblicata.',
+  'Submit review': 'Invia la recensione',
+  'Thank you for your review.': 'Grazie per la tua recensione.',
+  'Thank you: your review will appear once approved.':
+    'Grazie: la tua recensione comparirà dopo l’approvazione.',
+  'There are no reviews yet.': 'Non ci sono ancora recensioni.',
+  'Verified owner': 'Acquirente verificato',
+  'Your rating': 'Il tuo voto',
+  'Your review': 'La tua recensione',
+  '1 rating': '1 voto',
+  '{n} ratings': '{n} voti',
+  '{n} stars': '{n} stelle',
   Card: 'Carta',
   'Credit or debit card': 'Carta di credito o di debito',
   'Pay for your order': 'Paga il tuo ordine',

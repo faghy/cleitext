@@ -6,6 +6,7 @@ import { IT } from './admin/it';
 import { ProductsPage } from './admin/products';
 import { CouponsPage } from './admin/coupons';
 import { PaymentsPage } from './admin/payments';
+import { ReviewsPage } from './admin/reviews';
 import { ShippingPage } from './admin/shipping';
 import { TaxesPage } from './admin/taxes';
 import { BrandsPage, CategoriesPage } from './admin/terms';
@@ -29,6 +30,13 @@ export default defineAdminPlugin({
       icon: 'M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6',
       capability,
       component: OrdersPage,
+    },
+    {
+      path: 'reviews',
+      title: { en: 'Reviews', it: 'Recensioni' },
+      icon: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
+      capability,
+      component: ReviewsPage,
     },
     {
       path: 'coupons',
