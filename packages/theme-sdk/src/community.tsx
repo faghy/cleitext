@@ -580,11 +580,11 @@ export const COMMUNITY_CSS = `
 .cx-button{padding:.65em 1.4em;border:0;border-radius:6px;background:var(--cx-accent,#1d4ed8);color:#fff;font:inherit;font-weight:600;cursor:pointer}
 .cx-notice{padding:.75rem 1rem;border-radius:6px;background:rgba(22,163,74,.12)}.cx-notice--error{background:rgba(220,38,38,.12)}
 .cx-hp{position:absolute!important;left:-9999px;width:1px;height:1px;overflow:hidden}.cx-required{color:#dc2626}
-.cx-author{display:flex;gap:1rem;align-items:flex-start;margin:0 0 1.5rem;padding:1.25rem;border-radius:8px;background:rgba(127,127,127,.08)}
+.cx-author{display:flex;gap:1rem;align-items:flex-start;margin-block:0 1.5rem;padding:1.25rem;border-radius:8px;background:rgba(127,127,127,.08)}
 .cx-author__avatar{width:72px;height:72px;font-size:1.2em}.cx-author__name{margin:0 0 .4rem;font-size:1.05em}.cx-author__bio p{margin:.3rem 0}
 .cx-author__links{display:flex;flex-wrap:wrap;gap:.25rem 1rem;margin:.5rem 0 0;font-size:.9em}
 .cx-comments__pages{display:flex;justify-content:space-between;margin:1rem 0}
-.cx-account{max-width:28rem;margin:0 auto 3rem}.cx-account__links{font-size:.95em}.cx-account h2{margin-top:2.5rem;font-size:1.2em}
+.cx-account{margin-block-end:3rem}.cx-account>*{max-width:28rem}.cx-account__links{font-size:.95em}.cx-account h2{margin-top:2.5rem;font-size:1.2em}
 .cx-button--quiet{background:transparent;color:inherit;border:1px solid currentColor}.cx-button--danger{background:#dc2626}
 .cx-danger{margin-top:2.5rem;padding:1rem;border:1px solid rgba(220,38,38,.4);border-radius:6px}.cx-danger summary{cursor:pointer;font-weight:600}
 `;

@@ -203,7 +203,8 @@ main {
   padding-block: clamp(2rem, 6vw, 4rem);
 }
 .entry-content > *,
-.page-header {
+.page-header,
+.cx-author--page {
   max-width: var(--content);
   margin-inline: auto;
 }
