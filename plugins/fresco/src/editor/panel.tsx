@@ -16,6 +16,7 @@ import { ColorPicker, ControlField, Svg, type ControlEnv } from './controls.js';
 import { AtomicStyle } from './atomic-style.js';
 import { controlsOf, extensions } from '../core/extensions.js';
 import { LibraryView } from './library.js';
+import { PluginBlockFields, pluginBlockTitle } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
 
@@ -25,6 +26,7 @@ const CATEGORIES: { id: ElementCategory; title: string }[] = [
   { id: 'general', title: 'General' },
   { id: 'media', title: 'Media' },
   { id: 'site', title: 'Site' },
+  { id: 'plugins', title: 'Plugins' },
   { id: 'pro', title: 'Pro' },
   { id: 'atomic', title: 'Atomic' },
 ];
@@ -131,6 +133,7 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
   const kit = useStore(store, (s) => s.kit);
   const readOnly = useStore(store, (s) => s.readOnly);
   const contentOnly = useStore(store, (s) => s.contentOnly);
+  const locale = useStore(store, (s) => s.entry.locale);
   const [hover, setHover] = useState<Record<string, boolean>>({});
   const [openSection, setOpenSection] = useState<Record<string, string | null>>({});
   const node = selected ? find(blocks, selected) : null;
@@ -151,7 +154,7 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
       <nav className="fre-crumbs" aria-label="Element path">
         {path.map((id, i) => {
           const item = find(blocks, id);
-          const title = item ? (getElement(item.type)?.title ?? item.type) : id;
+          const title = item ? elementTitle(item, locale) : id;
           return (
             <span key={id}>
               {i > 0 && <span aria-hidden="true"> › </span>}
@@ -237,7 +240,15 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
                 {inSection
                   .filter((c) => !isHover || c.hover)
                   .map((control) =>
-                    control.type === 'children' ? (
+                    control.type === 'pluginBlock' ? (
+                      <PluginBlockFields
+                        key={control.name}
+                        store={store}
+                        node={node}
+                        locale={locale}
+                        readOnly={readOnly}
+                      />
+                    ) : control.type === 'children' ? (
                       <ItemsList
                         key={control.name}
                         store={store}
@@ -332,17 +343,24 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
 
 // ---- Navigator -------------------------------------------------------------------------------
 
+/** An element's name in the panel; a plugin block goes by the block it holds. */
+function elementTitle(node: FrescoNode, locale: string): string {
+  const inner = node.type === 'fresco/block' ? node.children?.[0] : undefined;
+  if (inner) return pluginBlockTitle(inner.type, locale);
+  return getElement(node.type)?.title ?? node.type;
+}
+
 function Navigator({ store }: { store: Store }) {
   const blocks = useStore(store, (s) => s.blocks);
   const selected = useStore(store, (s) => s.selected);
+  const locale = useStore(store, (s) => s.entry.locale);
   const [closed, setClosed] = useState<Record<string, boolean>>({});
   const item = (node: FrescoNode, depth: number) => {
     const definition = getElement(node.type);
     const title =
-      (typeof node.attrs._title === 'string' && node.attrs._title) ||
-      definition?.title ||
-      node.type;
-    const kids = node.children ?? [];
+      (typeof node.attrs._title === 'string' && node.attrs._title) || elementTitle(node, locale);
+    // The block inside a plugin block is not an element of its own.
+    const kids = node.type === 'fresco/block' ? [] : (node.children ?? []);
     return (
       <li key={node.id}>
         <div

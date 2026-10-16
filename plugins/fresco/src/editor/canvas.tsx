@@ -20,6 +20,7 @@ import type { FrescoNode, MenuItem, RenderContext, RenderMediaItem } from '../co
 import { getElement } from '../core/registry.js';
 import { plainText, sanitizeRich } from '../core/sanitize.js';
 import { dropTarget, trackPointer, type DropTarget } from './dnd.js';
+import { PluginBlockPreview } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
 import { find } from './tree.js';
 
@@ -214,6 +215,7 @@ function FrameTree({
   const active = useStore(store, (s) => s.active);
   // Elements edited inline are mounted again after the edit (their DOM was changed by hand).
   const [epoch, setEpoch] = useState<Record<string, number>>({});
+  const entry = useStore(store, (s) => s.entry);
   const renderContext: RenderContext = {
     media: context.media,
     locale: context.locale,
@@ -221,6 +223,7 @@ function FrameTree({
     editing: true,
     site: { title: '', tagline: '', home: '/' },
     ui: { active: (id) => active[id] },
+    pluginBlock: (block) => <PluginBlockPreview block={block} entry={entry} />,
   };
 
   const elementAt = (target: EventTarget | null) =>

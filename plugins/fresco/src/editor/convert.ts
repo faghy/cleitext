@@ -158,7 +158,11 @@ function fromBlock(block: CxdBlock): FrescoNode[] {
         el('container', { content_width: 'full' }, (block.children ?? []).flatMap(fromBlock)),
       ];
     default: {
-      // Unknown blocks (plugins): their text, so nothing disappears.
+      // Blocks of plugins go into a plugin block element, unchanged.
+      if (!block.type.startsWith('core/') && block.type.includes('/')) {
+        return [el('block', {}, [block as unknown as FrescoNode])];
+      }
+      // Unknown blocks: their text, so nothing disappears.
       const text = inlineText(block.content);
       return text ? [el('text', { content: `<p>${escape(text)}</p>` })] : [];
     }
@@ -249,6 +253,9 @@ function toBlock(node: FrescoNode): CxdBlock[] {
       const space = a.space as { size?: number } | undefined;
       return [block('core/spacer', { height: `${space?.size ?? 50}px` })];
     }
+    case 'fresco/block':
+      // The plugin's block, as it was.
+      return (node.children ?? []) as unknown as CxdBlock[];
     case 'fresco/video':
       return typeof a.url === 'string' && a.url ? [block('core/embed', { url: a.url })] : [];
     default:

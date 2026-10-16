@@ -5,6 +5,7 @@ import { button, divider, heading, image, spacer, text } from './basic.js';
 import { ATOMIC_ELEMENTS } from './atomic.js';
 import { container } from './container.js';
 import { navMenu } from './menu.js';
+import { pluginBlock } from './plugin-block.js';
 import { icon, iconBox, imageBox, video } from './general.js';
 import { accordionWidget, tabs, toggleWidget } from './nested.js';
 import {
@@ -54,6 +55,7 @@ export const FREE_ELEMENTS: ElementDefinition[] = [
   gallery,
   audio,
   navMenu,
+  pluginBlock,
   ...ATOMIC_ELEMENTS,
 ];
 

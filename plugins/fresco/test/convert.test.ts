@@ -97,6 +97,15 @@ describe('conversion', () => {
     ]);
   });
 
+  it('keeps blocks of other plugins, inside a plugin block element', () => {
+    const products = { id: 'sp', type: 'shop/products', v: 1, attrs: { limit: 4 } };
+    const fresco = fromBlocks({ schema: 1, blocks: [products] });
+    const wrapper = (fresco.blocks[0]!.children ?? [])[0]!;
+    expect(wrapper.type).toBe('fresco/block');
+    expect(wrapper.children).toEqual([products]);
+    expect(toBlocks(fresco).blocks).toEqual([products]);
+  });
+
   it('escapes text', () => {
     expect(inlineHtml([{ text: '<script>' }])).toBe('&lt;script&gt;');
   });

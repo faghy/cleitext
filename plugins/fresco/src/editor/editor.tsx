@@ -16,6 +16,7 @@ import { Canvas, startDrag, type CanvasApi } from './canvas.js';
 import { DEVICE_ICONS, Svg } from './controls.js';
 import { saveTemplate } from './library.js';
 import { Panel } from './panel.js';
+import { loadPluginBlocks } from './plugin-blocks.js';
 import { createStore, useStore, type PanelView, type Store } from './store.js';
 import { EDITOR_CSS } from './styles.js';
 import { find, placeOf } from './tree.js';
@@ -80,6 +81,8 @@ export function FrescoEditor(props: EditorProps) {
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [iconsReady, setIconsReady] = useState(iconDataLoaded());
   const [menus, setMenus] = useState<Record<string, MenuItem[]>>({});
+  // Bumped when the other plugins' blocks are known: the panel shows their tiles.
+  const [, setPluginBlocks] = useState(0);
   const assetsBase = `/plugin-assets/fresco/${encodeURIComponent(plugin.version)}`;
   const canManageKit = user.capabilities.includes('manage_fresco');
 
@@ -132,6 +135,10 @@ export function FrescoEditor(props: EditorProps) {
           ),
         ),
       )
+      .catch(() => {});
+    // Blocks of the other plugins, offered in the panel.
+    void loadPluginBlocks(props.entry.locale)
+      .then(() => setPluginBlocks((n) => n + 1))
       .catch(() => {});
     void api<unknown>('GET', '/kit')
       .then((kit) => store.actions.setKit(normalizeKit(kit), false))

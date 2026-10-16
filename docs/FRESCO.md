@@ -27,6 +27,8 @@ Heading, Text, Image, Button, Video, Divider, Spacer, Icon, Icon box, Image box,
 
 Tabs, accordions and toggles hold containers, so anything can go inside them.
 
+**Blocks of other plugins**: the **Plugins** group of the panel has the blocks of the other active plugins, such as Cleishop's product grid and cart link. Their settings are the ones of the block editor, the canvas shows them as the page will, and the Advanced tab works on them like on any widget.
+
 ## Site settings
 
 The **Site settings** (the kit) apply to every Fresco page:
@@ -68,7 +70,7 @@ Fresco Pro needs Fresco. It installs without a license as a demo; activating it 
 | Section        | A part to reuse with the **Template** element                                              |
 | Loop item      | One item of a Loop grid or carousel                                                        |
 
-Each template has **conditions**: include or exclude the entire site, the home page, entries of a type, one entry, entries with a term, archives, a taxonomy, search results, the 404 page. When several templates match, the most specific wins; the Theme Builder warns about overlaps. Themes show templates where they mark their locations (Canvas, Pulsar, Vitality and Aurora do).
+Each template has **conditions**: include or exclude the entire site, the home page, entries of a type, one entry, entries with a term, archives, a taxonomy, search results, the 404 page. When several templates match, the most specific wins; the Theme Builder warns about overlaps. Themes show templates where they mark their locations (Canvas, Pulsar, Vitality and Aurora do). Archive templates also apply to the listings of plugins: Cleishop's shop page is the archive of the `product` type, its categories and brands are archives of the `product-category` and `brand` taxonomies, and the **Archive posts** element shows their products with filters and pagination.
 
 **Theme widgets**: site logo, site title, tagline, post title, excerpt, post content, featured image, post info, archive title, archive posts, breadcrumbs, search form, author box, post navigation and sitemap.
 

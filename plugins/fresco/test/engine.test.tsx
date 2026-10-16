@@ -7,6 +7,7 @@ import { sanitizeRich } from '../src/core/sanitize.js';
 import { button, heading, text } from '../src/elements/basic.js';
 import { container } from '../src/elements/container.js';
 import { videoEmbed } from '../src/elements/general.js';
+import { pluginBlock } from '../src/elements/plugin-block.js';
 
 const node = (
   type: string,
@@ -183,6 +184,33 @@ describe('rendering', () => {
     expect(html).toContain('data-fr-id="abc123"');
     expect(html).toContain('<span>Line one</span><span><br/>Line two</span>');
     expect(html).not.toContain('javascript');
+  });
+
+  it('wraps a plugin block: rendered by Cleitext on the page, by the editor in the canvas', () => {
+    const inner = node('shop/products', { limit: 4 });
+    const block = node('fresco/block', { _css_classes: 'grid' }, [inner]);
+    const settings = withDefaults(pluginBlock, block.attrs);
+    const page = renderToStaticMarkup(
+      pluginBlock.render({ node: block, settings, children: <ul>products</ul>, context }),
+    );
+    expect(page).toContain('fr-block grid');
+    expect(page).toContain('<ul>products</ul>');
+    const editing = renderToStaticMarkup(
+      pluginBlock.render({
+        node: block,
+        settings,
+        children: <p>not used</p>,
+        context: {
+          ...context,
+          editing: true,
+          pluginBlock: (b) => <em>{`preview of ${b.type}`}</em>,
+        },
+      }),
+    );
+    expect(editing).toContain('<em>preview of shop/products</em>');
+    expect(editing).not.toContain('not used');
+    // Nothing can be dropped into it.
+    expect(pluginBlock.accepts?.('fresco/heading')).toBe(false);
   });
 
   it('sanitizes rich text', () => {

@@ -113,7 +113,8 @@ export type ControlType =
   | 'border'
   | 'shadow'
   | 'textShadow'
-  | 'filters';
+  | 'filters'
+  | 'pluginBlock';
 
 export type Tab = 'content' | 'style' | 'advanced';
 
@@ -179,7 +180,8 @@ export interface GroupControl extends Control {
 
 // ---- Elements --------------------------------------------------------------------------
 
-export type ElementCategory = 'layout' | 'basic' | 'general' | 'media' | 'site' | 'pro' | 'atomic';
+export type ElementCategory =
+  'layout' | 'basic' | 'general' | 'media' | 'site' | 'plugins' | 'pro' | 'atomic';
 
 export interface RenderContext {
   /** Media preloaded for the page, by id. */
@@ -195,6 +197,8 @@ export interface RenderContext {
   page?: BlockPage;
   /** Editor only: which item of a tabs-like element is shown. */
   ui?: { active(id: string): number | undefined };
+  /** Editor only: the preview of another plugin's block (rendered by the server). */
+  pluginBlock?: (block: FrescoNode) => ReactNode;
 }
 
 export interface MenuItem {
