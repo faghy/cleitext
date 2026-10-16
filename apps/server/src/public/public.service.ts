@@ -34,7 +34,7 @@ import {
   type BlockRenderer,
   type RenderMedia,
 } from '@cleitext/renderer';
-import { ADMIN_PATH, type CoreSettings, fieldDefaults, LEGACY_ADMIN_PATH } from '@cleitext/shared';
+import { ADMIN_PATH, type CoreSettings, fieldDefaults } from '@cleitext/shared';
 import {
   type AccountAttrs,
   COMMUNITY_CSS,
@@ -727,7 +727,6 @@ export class PublicService {
           'User-agent: *',
           'Allow: /',
           `Disallow: ${ADMIN_PATH}`,
-          `Disallow: ${LEGACY_ADMIN_PATH}`,
           'Disallow: /api/',
           'Disallow: /__preview/',
           'Disallow: /search',

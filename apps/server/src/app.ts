@@ -6,8 +6,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
-import { ADMIN_PATH, LEGACY_ADMIN_PATH } from '@cleitext/shared';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import { ADMIN_PATH } from '@cleitext/shared';
+import type { FastifyReply } from 'fastify';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
@@ -112,11 +112,6 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
     instance.get(ADMIN_PATH, sendAdmin);
     instance.get(`${ADMIN_PATH}/*`, sendAdmin);
   }
-  // The admin's old address: bookmarks and links keep working.
-  const legacyAdmin = (request: FastifyRequest, reply: FastifyReply) =>
-    reply.redirect(`${ADMIN_PATH}${request.url.slice(LEGACY_ADMIN_PATH.length)}`, 301);
-  app.getHttpAdapter().getInstance().get(LEGACY_ADMIN_PATH, legacyAdmin);
-  app.getHttpAdapter().getInstance().get(`${LEGACY_ADMIN_PATH}/*`, legacyAdmin);
 
   app
     .getHttpAdapter()

@@ -1,4 +1,4 @@
-import { ADMIN_PATH, LEGACY_ADMIN_PATH } from '@cleitext/shared';
+import { ADMIN_PATH } from '@cleitext/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { SESSION_COOKIE } from '../auth/cookies.js';
 import type { ApiTokenService } from '../auth/api-token.service.js';
@@ -52,7 +52,6 @@ export function createRequestHook({
       !(
         isPage &&
         !request.url.startsWith(ADMIN_PATH) &&
-        !request.url.startsWith(LEGACY_ADMIN_PATH) &&
         (await languages.isLanguageHost(resolution.siteId, request.hostname))
       ) &&
       resolution.primaryHost;

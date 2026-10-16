@@ -345,13 +345,10 @@ export interface ProblemDetails {
 export const CSRF_HEADER = 'x-csrf-token';
 
 /**
- * Address of the admin (plugin API 1.15): `/cl-admin`. The old `/admin`
- * redirects here. Use `adminUrl()` (admin SDK) for links to admin screens.
+ * Address of the admin (plugin API 1.15): `/cl-admin`. Use `adminUrl()`
+ * (admin SDK) for links to admin screens.
  */
 export const ADMIN_PATH = '/cl-admin';
-
-/** The old address of the admin, redirected to `ADMIN_PATH`. */
-export const LEGACY_ADMIN_PATH = '/admin';
 
 /** A screen of the admin, e.g. `adminUrl('/entries/<id>')`. */
 export function adminUrl(path = '/'): string {

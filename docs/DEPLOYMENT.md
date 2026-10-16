@@ -25,7 +25,7 @@ The easiest way, as with WordPress: nothing to build, no configuration file to w
       Either way the wizard then creates the application user, generates the secrets and writes `cleitext-shared/.env` (mode 600, next to the `cleitext` folder), with the `media`, `plugins`, `themes` and `backups` folders.
 
    4. **Site and administrator**: site name, domain, language, the super admin's email and password.
-6. **Sign in** at `/cl-admin/` (the old `/admin/` redirects there). The official SEO and Forms plugins are installed but not active; Hi John is active, on the dashboard.
+6. **Sign in** at `/cl-admin/`. The official SEO and Forms plugins are installed but not active; Hi John is active, on the dashboard.
 
 **Install right after enabling Node.js**: until the wizard is completed, whoever opens the site first can complete it with their own database and administrator. To require a setup token as well, set `CLEITEXT_SETUP_TOKEN=true` in the environment of the Node.js application before enabling it: the wizard then asks for the token printed in the domain's **Logs** and kept in `cleitext/tmp/setup-token`.
 

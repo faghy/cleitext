@@ -25,7 +25,7 @@ Il modo più semplice, come con WordPress: niente da compilare, nessun file di c
       In entrambi i casi la procedura crea poi l'utente dell'applicazione, genera i segreti e scrive `cleitext-shared/.env` (permessi 600, accanto alla cartella `cleitext`), con le cartelle `media`, `plugins`, `themes` e `backups`.
 
    4. **Sito e amministratore**: nome del sito, dominio, lingua, email e password del super amministratore.
-6. **Accedi** da `/cl-admin/` (il vecchio `/admin/` rimanda lì). I plugin ufficiali SEO e Moduli sono installati ma non attivi; Hi John è attivo, nella bacheca.
+6. **Accedi** da `/cl-admin/`. I plugin ufficiali SEO e Moduli sono installati ma non attivi; Hi John è attivo, nella bacheca.
 
 **Installa subito dopo aver abilitato Node.js**: finché la procedura non è completata, chi apre il sito per primo può completarla con un suo database e un suo amministratore. Per chiedere anche un codice di setup, imposta `CLEITEXT_SETUP_TOKEN=true` nelle variabili d'ambiente dell'applicazione Node.js prima di abilitarla: la procedura chiede allora il codice scritto nei **Log** del dominio e in `cleitext/tmp/setup-token`.
 

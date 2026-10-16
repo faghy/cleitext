@@ -49,7 +49,7 @@ unset resp.http.x-cleitext-tags;
 unset resp.http.x-cleitext-host;
 ```
 
-Do not remove the `cleitext_session` and `cleitext_csrf` cookies, and do not cache `/api/` or `/cl-admin` (the admin; `/admin` redirects there): the login and the admin would stop working.
+Do not remove the `cleitext_session` and `cleitext_csrf` cookies, and do not cache `/api/` or `/cl-admin` (the admin): the login and the admin would stop working.
 
 ## Cloudflare
 

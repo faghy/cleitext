@@ -50,16 +50,15 @@ describe('built admin', () => {
     }
   });
 
-  it('sends the old /admin addresses to /cl-admin, with their path and query', async () => {
-    for (const [from, to] of [
-      ['/admin', '/cl-admin'],
-      ['/admin/', '/cl-admin/'],
-      ['/admin/entries/123?tab=seo', '/cl-admin/entries/123?tab=seo'],
-    ]) {
-      const res = await get(from!);
-      expect(res.statusCode).toBe(301);
-      expect(res.headers.location).toBe(to);
+  it('is not at the old /admin address: that is a page of the site like any other', async () => {
+    for (const url of ['/admin', '/admin/entries/123']) {
+      const res = await get(url);
+      expect(res.statusCode).toBe(404);
+      expect(res.headers.location).toBeUndefined();
+      expect(res.body).not.toContain('Cleitext admin');
     }
+    // Only the site's own rule for a trailing slash, never towards the admin.
+    expect((await get('/admin/')).headers.location).toBe('/admin');
   });
 
   it('sends a content security policy allowing only its own scripts', async () => {
