@@ -197,3 +197,18 @@ describe('transfer document', () => {
     ).toBe(false);
   });
 });
+
+describe('code in <pre>', () => {
+  it('keeps HTML and PHP written unescaped, without the markup of highlighters', () => {
+    const doc = htmlToCxd(
+      '<pre class="lang:php">&lt;?php echo "a"; ?&gt;\n<?php if ($a > 1) { ?>\n<div class="box">Hi</div>\n<?php } ?></pre>' +
+        '<pre><code class="language-js"><span class="kw">const</span> a = 1;<br>a &lt; 2;</code></pre>',
+    );
+    expect(
+      doc.blocks.map((b) => (b.content?.[0] && 'text' in b.content[0] ? b.content[0].text : '')),
+    ).toEqual([
+      '<?php echo "a"; ?>\n<?php if ($a > 1) { ?>\n<div class="box">Hi</div>\n<?php } ?>',
+      'const a = 1;\na < 2;',
+    ]);
+  });
+});

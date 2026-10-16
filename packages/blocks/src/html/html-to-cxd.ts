@@ -440,12 +440,18 @@ function pick(source: Record<string, unknown>, keys: string[]): Record<string, u
   return Object.fromEntries(keys.filter((k) => source[k] !== undefined).map((k) => [k, source[k]]));
 }
 
+/** Markup that highlighters and editors put around code: removed, its text kept. */
+const CODE_MARKUP =
+  /<\/?(?:code|span|b|strong|i|em|u|mark|kbd|samp|var|font|small|big|sub|sup|a)(?:\s[^<>]*)?>/gi;
+
 /**
- * The text of a <pre>: the parser keeps its content raw, so markup inside
- * (`<pre><code>`, the usual WordPress code block) is removed before decoding.
+ * The text of a <pre>: the parser keeps its content raw. The markup around
+ * the code (`<pre><code>`, the spans of highlighters) is removed and `<br>`
+ * becomes a line break; anything else is the code itself, kept as written:
+ * plugins such as SyntaxHighlighter store `<?php … ?>` or `<div>` unescaped.
  */
 function preText(raw: string): string {
-  return decode(raw.replace(/<[^>]*>/g, ''));
+  return decode(raw.replace(/<br\s*\/?>/gi, '\n').replace(CODE_MARKUP, ''));
 }
 
 function decode(text: string): string {
