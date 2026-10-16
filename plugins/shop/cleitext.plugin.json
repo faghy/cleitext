@@ -19,7 +19,5 @@
     "theme:hooks",
     "mail:send"
   ],
-  "capabilities": [
-    "manage_shop"
-  ]
+  "capabilities": ["manage_shop"]
 }
