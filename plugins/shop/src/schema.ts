@@ -242,3 +242,19 @@ export const orderNotes = pgTable('order_notes', {
 
 export type OrderRow = typeof orders.$inferSelect;
 export type OrderItemRow = typeof orderItems.$inferSelect;
+
+// ---- Refunds (migrations/0003_refunds.sql) -------------------------------------------
+
+export const refunds = pgTable('refunds', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  orderId: uuid('order_id').notNull(),
+  amount: amount('amount').notNull(),
+  reason: text('reason').notNull().default(''),
+  restocked: jsonb('restocked').$type<{ item: string; quantity: number }[]>().notNull().default([]),
+  author: text('author').notNull().default(''),
+  createdAt: time('created_at').notNull().defaultNow(),
+});
+
+export type RefundRow = typeof refunds.$inferSelect;
+export type OrderNoteRow = typeof orderNotes.$inferSelect;

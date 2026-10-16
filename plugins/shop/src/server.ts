@@ -14,9 +14,11 @@ import {
   saveProduct,
   saveProductSchema,
 } from './products';
-import { attributes, orders } from './schema';
+import { attributes } from './schema';
 import { backfill, BRAND, CATEGORY, PRODUCT, syncProduct, watchEntries } from './sync';
-import { desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { orderDetail } from './order-admin';
+import { orderMail, registerOrderRoutes } from './orders-routes';
 import { productTag, registerBuyBox } from './buy-box';
 import { registerStorefront, type StoreSettings } from './storefront';
 
@@ -161,6 +163,16 @@ export default definePlugin({
           default: false,
         },
         {
+          name: 'notifyEmail',
+          type: 'text',
+          label: { en: 'Emails for new orders', it: 'Email per i nuovi ordini' },
+          help: {
+            en: 'Where the shop’s emails go (new, cancelled and failed orders); several separated by commas. Empty: none.',
+            it: 'Dove arrivano le email del negozio (ordini nuovi, annullati e non riusciti); più indirizzi separati da virgole. Vuoto: nessuna.',
+          },
+          maxLength: 500,
+        },
+        {
           name: 'phoneRequired',
           type: 'boolean',
           label: {
@@ -244,7 +256,22 @@ export default definePlugin({
         },
       };
     };
-    registerStorefront(ctx, store);
+    const storeWithNotify = async (siteId: string) => {
+      const values = await ctx.settings.get(siteId);
+      const notifyEmails = String(values.notifyEmail ?? '')
+        .split(/[,;\s]+/)
+        .map((e) => e.trim())
+        .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+      return { ...(await store(siteId)), notifyEmails };
+    };
+    const mail = orderMail(ctx, storeWithNotify);
+    registerStorefront(ctx, store, async (siteId, orderId, origin) => {
+      const detail = await ctx.db.transaction(siteId, (tx) => orderDetail(tx, orderId));
+      if (!detail) return;
+      await mail.send(siteId, origin, 'new_order', detail);
+      await mail.send(siteId, origin, 'customer_on_hold', detail);
+    });
+    registerOrderRoutes(ctx, CAPABILITY, storeWithNotify);
     registerBuyBox(ctx, async (siteId) => {
       const values = await ctx.settings.get(siteId);
       return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
@@ -410,26 +437,6 @@ export default definePlugin({
       await ctx.db.transaction(request.siteId, (tx) => copyProduct(tx, id, copy.id));
       return { status: 201, body: { id: copy.id } };
     });
-
-    /** Orders, newest first (the full orders screen comes with the next milestone). */
-    api('GET', '/orders', async (request) => ({
-      body: await ctx.db.transaction(request.siteId, (tx) =>
-        tx
-          .select({
-            id: orders.id,
-            number: orders.number,
-            status: orders.status,
-            total: orders.total,
-            currency: orders.currency,
-            email: orders.email,
-            paymentMethod: orders.paymentMethod,
-            createdAt: orders.createdAt,
-          })
-          .from(orders)
-          .orderBy(desc(orders.number))
-          .limit(100),
-      ),
-    }));
 
     api('GET', '/pricing', async (request) => ({ body: await pricing(request.siteId) }));
     api('PUT', '/pricing', async (request) => {

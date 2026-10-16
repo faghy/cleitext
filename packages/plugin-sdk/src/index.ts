@@ -43,3 +43,5 @@ export function defineBlock<A extends object = FieldValues, D = undefined>(
   return definition;
 }
 export type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
+/** The admin's address and links to its screens (plugin API 1.16). */
+export { ADMIN_PATH, adminUrl } from '@cleitext/shared';

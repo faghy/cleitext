@@ -87,6 +87,9 @@ const IT: Record<string, string> = {
   'Back to the cart': 'Torna al carrello',
   'This product cannot be bought now.': 'Questo prodotto non si può acquistare ora.',
   'Sale!': 'In offerta!',
+  'Open the order': 'Apri l’ordine',
+  'View your order': 'Vedi il tuo ordine',
+  'Customer note': 'Nota del cliente',
 };
 
 export type Translate = (text: string, values?: Record<string, string | number>) => string;

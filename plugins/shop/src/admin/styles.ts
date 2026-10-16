@@ -100,5 +100,7 @@ export const CSS = `
 .sh-tree-row.drop-after { box-shadow: inset 0 -3px 0 var(--color-sky-600); }
 .sh-tree-row img { width: 28px; height: 28px; object-fit: cover; border-radius: .25rem; }
 .sh-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sh-order { display: grid; gap: 1rem; align-items: start; }
+@media (min-width: 1000px) { .sh-order { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); } }
 @media (max-width: 720px) { .sh-hide-sm { display: none; } }
 `;

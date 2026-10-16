@@ -1,5 +1,7 @@
 import { addMessages, defineAdminPlugin } from '@cleitext/admin-sdk';
 import { AttributesPage, PricingPage } from './admin/attributes';
+import { EmailsPage } from './admin/emails';
+import { OrdersPage } from './admin/orders';
 import { IT } from './admin/it';
 import { ProductsPage } from './admin/products';
 import { BrandsPage, CategoriesPage } from './admin/terms';
@@ -16,6 +18,13 @@ export default defineAdminPlugin({
       icon: 'M5 8h14l-1.2 12H6.2z M9 8V6a3 3 0 0 1 6 0v2',
       capability,
       component: ProductsPage,
+    },
+    {
+      path: 'orders',
+      title: { en: 'Orders', it: 'Ordini' },
+      icon: 'M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6',
+      capability,
+      component: OrdersPage,
     },
     {
       path: 'categories',
@@ -37,6 +46,13 @@ export default defineAdminPlugin({
       icon: 'M4 7h10 M18 7h2 M4 17h4 M12 17h8 M14 5v4 M8 15v4',
       capability,
       component: AttributesPage,
+    },
+    {
+      path: 'emails',
+      title: { en: 'Shop emails', it: 'Email del negozio' },
+      icon: 'M4 6h16v12H4z M4 7l8 6 8-6',
+      capability,
+      component: EmailsPage,
     },
     {
       path: 'pricing',

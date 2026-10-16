@@ -71,6 +71,8 @@ function withQuery(path: string, params: Record<string, string>): string {
 export function registerStorefront(
   ctx: PluginContext,
   settings: (siteId: string) => Promise<StoreSettings>,
+  /** After an order is placed: its emails. Failures are logged, the order stays. */
+  onPlaced: (siteId: string, orderId: string, origin: string) => Promise<void> = async () => {},
 ): void {
   const cookieOf = (token: string) => ({
     name: CART_COOKIE,
@@ -417,6 +419,14 @@ export function registerStorefront(
             },
           };
         await ctx.cache.invalidate(request.siteId, [...new Set(placed.products)].map(productTag));
+        try {
+          await onPlaced(request.siteId, placed.order.id, request.origin);
+        } catch (error) {
+          ctx.log.error('The emails of an order could not be sent', {
+            order: placed.order.number,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
         await ctx.hooks.emit(
           'shop.order.created',
           { orderId: placed.order.id, number: placed.order.number },

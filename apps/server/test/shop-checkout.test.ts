@@ -11,6 +11,7 @@ import { buildPlugin, installPlugin } from '@cleitext/cli';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { MailService } from '../src/mail/mail.service.js';
 import {
   ownerDatabase,
   seedSite,
@@ -92,6 +93,7 @@ beforeAll(async () => {
         bankAccountName: 'Bottega Srl',
         bankIban: 'it60 x054 2811 1010 0000 0123 456',
         termsUrl: 'http://shop-checkout.test/terms',
+        notifyEmail: 'orders@shop-checkout.test',
       })
     ).statusCode,
   ).toBe(200);
@@ -191,6 +193,17 @@ describe('buying', () => {
     const location = String(placed.headers.location);
     expect(location).toMatch(/^\/order-received\/1\?key=order_/);
 
+    // The shop and the customer get an email, HTML and text.
+    const outbox = app.get(MailService).outbox;
+    const toShop = outbox.find((m) => m.to === 'orders@shop-checkout.test');
+    expect(toShop?.subject).toMatch(/New order #1$/);
+    expect(toShop?.replyTo).toBe('anna@example.test');
+    const toAnna = outbox.find((m) => m.to === 'anna@example.test');
+    expect(toAnna?.subject).toContain('has been received');
+    expect(toAnna?.html).toContain('IT60 X054 2811 1010 0000 0123 456');
+    expect(toAnna?.html).toContain('/order-received/1?key=order_');
+    expect(toAnna?.text).toContain('Mug × 2');
+
     const received = await anna.get(location);
     expect(received.statusCode).toBe(200);
     expect(received.body).toContain('Thank you: we received your order.');
@@ -200,7 +213,7 @@ describe('buying', () => {
     // Without the key, the order is nobody's business.
     expect((await visitor().get('/order-received/1')).statusCode).toBe(404);
 
-    const orders = (await admin.get(ext('/orders'))).json();
+    const orders = (await admin.get(ext('/orders'))).json().items;
     expect(orders[0]).toMatchObject({
       number: 1,
       status: 'on-hold',
@@ -229,5 +242,117 @@ describe('buying', () => {
       stock: 0,
       stockStatus: 'outofstock',
     });
+  });
+});
+
+describe('managing orders', () => {
+  const outbox = () => app.get(MailService).outbox;
+  const order = async (number: number) => {
+    const list = (await admin.get(ext(`/orders?q=${number}`))).json();
+    return (await admin.get(ext(`/orders/${list.items[0].id}`))).json();
+  };
+
+  it('lists orders by status and finds them by number, email or name', async () => {
+    const all = (await admin.get(ext('/orders'))).json();
+    expect(all.total).toBe(2);
+    expect(all.statuses).toMatchObject({ 'on-hold': 2 });
+    expect((await admin.get(ext('/orders?q=rossi'))).json().total).toBe(2);
+    expect((await admin.get(ext('/orders?q=nobody'))).json().total).toBe(0);
+    expect((await admin.get(ext('/orders?status=completed'))).json().total).toBe(0);
+  });
+
+  it('changes status, with the stock and the emails that go with it', async () => {
+    const first = await order(1);
+    const before = outbox().length;
+    const paid = await admin.request('PATCH', ext(`/orders/${first.order.id}/status`), {
+      status: 'processing',
+    });
+    expect(paid.statusCode).toBe(200);
+    expect(paid.json().order).toMatchObject({ status: 'processing' });
+    expect(paid.json().order.paidAt).toBeTruthy();
+    expect(
+      outbox()
+        .slice(before)
+        .map((m) => m.subject),
+    ).toEqual([expect.stringContaining('is being processed')]);
+
+    // Cancelling the second order gives its mug back.
+    const second = await order(2);
+    await admin.request('PATCH', ext(`/orders/${second.order.id}/status`), { status: 'cancelled' });
+    expect((await admin.get(ext(`/products/${mug}`))).json()).toMatchObject({
+      stock: 1,
+      stockStatus: 'instock',
+    });
+    const cancelled = await order(2);
+    expect(cancelled.notes.map((n: { note: string }) => n.note).join('\n')).toContain(
+      'Stock given back',
+    );
+    expect(outbox().at(-1)).toMatchObject({ to: 'orders@shop-checkout.test' });
+    expect(outbox().at(-1)?.subject).toContain('cancelled');
+    // Back to on-hold: the stock is taken again.
+    await admin.request('PATCH', ext(`/orders/${second.order.id}/status`), { status: 'on-hold' });
+    expect((await admin.get(ext(`/products/${mug}`))).json()).toMatchObject({ stock: 0 });
+  });
+
+  it('keeps notes, private or sent to the customer', async () => {
+    const first = await order(1);
+    const before = outbox().length;
+    await admin.post(ext(`/orders/${first.order.id}/notes`), { note: 'Packed with care.' });
+    expect(outbox().length).toBe(before);
+    await admin.post(ext(`/orders/${first.order.id}/notes`), {
+      note: 'Your parcel leaves today.',
+      customer: true,
+    });
+    expect(outbox().at(-1)).toMatchObject({ to: 'anna@example.test' });
+    expect(outbox().at(-1)?.text).toContain('Your parcel leaves today.');
+    const notes = (await order(1)).notes;
+    expect(notes[0]).toMatchObject({ note: 'Your parcel leaves today.', customer: true });
+  });
+
+  it('refunds part and then all, putting products back in stock', async () => {
+    const first = await order(1);
+    const mugItem = first.items.find((i: { name: string }) => i.name === 'Mug');
+    const partial = await admin.post(ext(`/orders/${first.order.id}/refunds`), {
+      amount: '12,90',
+      reason: 'One mug broken',
+      restock: [{ item: mugItem.id, quantity: 1 }],
+    });
+    expect(partial.statusCode).toBe(201);
+    expect(partial.json()).toMatchObject({ refunded: '12.90', refundable: '32.90' });
+    expect(partial.json().order.status).toBe('processing');
+    expect((await admin.get(ext(`/products/${mug}`))).json()).toMatchObject({ stock: 1 });
+    expect(outbox().at(-1)?.subject).toContain('has been refunded');
+    const tooMuch = await admin.post(ext(`/orders/${first.order.id}/refunds`), { amount: 100 });
+    expect(tooMuch.statusCode).toBe(400);
+    const rest = await admin.post(ext(`/orders/${first.order.id}/refunds`), { amount: '32.90' });
+    expect(rest.json()).toMatchObject({ refundable: '0.00' });
+    expect(rest.json().order.status).toBe('refunded');
+  });
+
+  it('has editable emails with a preview, and sends them again', async () => {
+    const list = (await admin.get(ext('/emails'))).json();
+    expect(list.emails.map((e: { id: string }) => e.id)).toContain('customer_completed');
+    expect(list.notifyEmails).toEqual(['orders@shop-checkout.test']);
+    const saved = await admin.request('PUT', ext('/emails'), {
+      customer_on_hold: {
+        enabled: true,
+        subject: 'Order {number} at {site}: thanks!',
+        heading: '',
+        intro: '',
+      },
+      failed_order: { enabled: false },
+    });
+    expect(saved.statusCode).toBe(200);
+    const preview = await admin.post(ext('/emails/customer_on_hold/preview'), {
+      subject: 'Order {number} at {site}: thanks!',
+    });
+    expect(preview.json().subject).toMatch(/^Order 2 at .+: thanks!$/);
+    expect(preview.json().html).toContain('<html');
+    const second = await order(2);
+    const again = await admin.post(ext(`/orders/${second.order.id}/emails/customer_on_hold`));
+    expect(again.statusCode).toBe(200);
+    expect(outbox().at(-1)?.subject).toMatch(/^Order 2 at .+: thanks!$/);
+    const off = await admin.post(ext(`/orders/${second.order.id}/emails/failed_order`));
+    expect(off.statusCode).toBe(400);
   });
 });

@@ -34,7 +34,31 @@ products, and the catalog features of WooCommerce.
   (bands of cost with their markup, a surcharge, the discount from the list
   price, rounding).
 
-Next: cart and checkout, orders and emails, shipping, taxes and coupons,
-the storefront, Stripe and PayPal.
+**Milestone 2, buying**:
+
+- a buy box on product pages (price, availability, variation, quantity);
+- the cart at `/cart`, in a cookie;
+- the checkout at `/checkout`:
+  - addresses with Italian provinces and postcodes;
+  - invoice details (codice fiscale, partita IVA, SDI or PEC);
+  - terms and the right of withdrawal;
+  - bank transfer;
+- the order, with its stock taken safely, and its page with the bank details.
+
+**Milestone 3, orders** (Shop → Orders and Shop emails):
+
+- orders by status, found by number, email or name;
+- the order with its products, addresses, invoice details and history;
+- status changes that give the stock back or take it again;
+- notes, private or emailed to the customer;
+- full or partial refunds that put products back in stock;
+- printing, and sending emails again;
+- WooCommerce's emails, HTML and text:
+  - to the shop: new, cancelled and failed orders;
+  - to the customer: order received with the bank details, processing, completed, refunded, notes.
+
+  Their texts can be changed, with a preview.
+
+Next: shipping, taxes and coupons, the storefront, Stripe and PayPal.
 
 License: GPL-2.0-or-later.
