@@ -1,4 +1,6 @@
+import type { Address, Invoice } from './address';
 import {
+  bigint,
   boolean,
   integer,
   jsonb,
@@ -136,3 +138,107 @@ export const variations = pgTable('variations', {
 
 export type ProductRow = typeof products.$inferSelect;
 export type VariationRow = typeof variations.$inferSelect;
+
+// ---- Carts and orders (migrations/0002_orders.sql) ------------------------------------
+
+export interface CartItem {
+  product: string;
+  variation: string | null;
+  quantity: number;
+}
+
+export const carts = pgTable('carts', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  tokenHash: text('token_hash').notNull(),
+  userId: uuid('user_id'),
+  items: jsonb('items').$type<CartItem[]>().notNull().default([]),
+  createdAt: time('created_at').notNull().defaultNow(),
+  updatedAt: time('updated_at').notNull().defaultNow(),
+});
+
+export const counters = pgTable('counters', {
+  siteId: uuid('site_id').notNull(),
+  name: text('name').notNull(),
+  value: bigint('value', { mode: 'number' }).notNull().default(0),
+});
+
+export type OrderStatus =
+  | 'draft'
+  | 'pending'
+  | 'processing'
+  | 'on-hold'
+  | 'completed'
+  | 'cancelled'
+  | 'refunded'
+  | 'failed';
+
+const amount = (name: string) => numeric(name, { precision: 14, scale: 2 });
+
+export const orders = pgTable('orders', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  number: bigint('number', { mode: 'number' }).notNull(),
+  key: text('key').notNull(),
+  status: text('status').$type<OrderStatus>().notNull().default('pending'),
+  locale: text('locale').notNull().default('en'),
+  currency: text('currency').notNull(),
+  pricesIncludeTax: boolean('prices_include_tax').notNull(),
+  subtotal: amount('subtotal').notNull().default('0'),
+  discountTotal: amount('discount_total').notNull().default('0'),
+  shippingTotal: amount('shipping_total').notNull().default('0'),
+  shippingTax: amount('shipping_tax').notNull().default('0'),
+  feeTotal: amount('fee_total').notNull().default('0'),
+  taxTotal: amount('tax_total').notNull().default('0'),
+  total: amount('total').notNull().default('0'),
+  taxes: jsonb('taxes').$type<{ rate: number; amount: string }[]>().notNull().default([]),
+  paymentMethod: text('payment_method').notNull().default(''),
+  paymentTitle: text('payment_title').notNull().default(''),
+  transactionId: text('transaction_id').notNull().default(''),
+  shippingMethod: text('shipping_method').notNull().default(''),
+  customerId: uuid('customer_id'),
+  email: text('email').notNull(),
+  billing: jsonb('billing').$type<Address>().notNull(),
+  shipping: jsonb('shipping').$type<Address>().notNull(),
+  invoice: jsonb('invoice').$type<Invoice | null>(),
+  customerNote: text('customer_note').notNull().default(''),
+  ip: text('ip'),
+  userAgent: text('user_agent'),
+  stockReduced: boolean('stock_reduced').notNull().default(false),
+  paidAt: time('paid_at'),
+  completedAt: time('completed_at'),
+  createdAt: time('created_at').notNull().defaultNow(),
+  updatedAt: time('updated_at').notNull().defaultNow(),
+});
+
+export const orderItems = pgTable('order_items', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  orderId: uuid('order_id').notNull(),
+  position: integer('position').notNull().default(0),
+  kind: text('kind').$type<'product' | 'shipping' | 'fee'>().notNull().default('product'),
+  productId: uuid('product_id'),
+  variationId: uuid('variation_id'),
+  name: text('name').notNull(),
+  sku: text('sku').notNull().default(''),
+  attributes: jsonb('attributes').$type<{ name: string; value: string }[]>().notNull().default([]),
+  quantity: integer('quantity').notNull().default(1),
+  subtotal: amount('subtotal').notNull().default('0'),
+  total: amount('total').notNull().default('0'),
+  tax: amount('tax').notNull().default('0'),
+  taxRate: numeric('tax_rate', { precision: 6, scale: 3 }).notNull().default('0'),
+  stockReduced: integer('stock_reduced').notNull().default(0),
+});
+
+export const orderNotes = pgTable('order_notes', {
+  siteId: uuid('site_id').notNull(),
+  id: uuid('id').notNull().defaultRandom(),
+  orderId: uuid('order_id').notNull(),
+  note: text('note').notNull(),
+  customer: boolean('customer').notNull().default(false),
+  author: text('author').notNull().default(''),
+  createdAt: time('created_at').notNull().defaultNow(),
+});
+
+export type OrderRow = typeof orders.$inferSelect;
+export type OrderItemRow = typeof orderItems.$inferSelect;

@@ -14,15 +14,24 @@ import {
   saveProduct,
   saveProductSchema,
 } from './products';
-import { attributes } from './schema';
+import { attributes, orders } from './schema';
 import { backfill, BRAND, CATEGORY, PRODUCT, syncProduct, watchEntries } from './sync';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
+import { productTag, registerBuyBox } from './buy-box';
+import { registerStorefront, type StoreSettings } from './storefront';
 
 /**
  * Shop (official plugin): products are entries of type `product`, with
  * categories and brands as taxonomies; their commercial data lives in the
  * plugin's tables. Admin pages under Shop; the API is `/api/v1/ext/shop/…`.
  */
+
+declare module '@cleitext/plugin-sdk' {
+  interface Actions {
+    /** An order was placed at the checkout. */
+    'shop.order.created': { orderId: string; number: number };
+  }
+}
 
 const CAPABILITY = 'manage_shop';
 const PRICING = 'pricing';
@@ -151,11 +160,108 @@ export default definePlugin({
           },
           default: false,
         },
+        {
+          name: 'phoneRequired',
+          type: 'boolean',
+          label: {
+            en: 'Phone number required at checkout',
+            it: 'Telefono obbligatorio alla cassa',
+          },
+          default: true,
+        },
+        {
+          name: 'termsUrl',
+          type: 'url',
+          label: { en: 'Terms and conditions page', it: 'Pagina dei termini e condizioni' },
+          help: {
+            en: 'Its address: customers accept it before ordering. Empty: no checkbox.',
+            it: 'Il suo indirizzo: i clienti li accettano prima di ordinare. Vuoto: nessuna casella.',
+          },
+        },
+        {
+          name: 'bankEnabled',
+          type: 'boolean',
+          label: { en: 'Accept bank transfers', it: 'Accetta bonifici bancari' },
+          default: true,
+        },
+        {
+          name: 'bankAccountName',
+          type: 'text',
+          label: { en: 'Bank transfer: account holder', it: 'Bonifico: intestatario del conto' },
+          maxLength: 200,
+        },
+        {
+          name: 'bankIban',
+          type: 'text',
+          label: { en: 'Bank transfer: IBAN', it: 'Bonifico: IBAN' },
+          maxLength: 40,
+        },
+        {
+          name: 'bankBic',
+          type: 'text',
+          label: { en: 'Bank transfer: BIC / SWIFT', it: 'Bonifico: BIC / SWIFT' },
+          maxLength: 20,
+        },
+        {
+          name: 'bankName',
+          type: 'text',
+          label: { en: 'Bank transfer: bank', it: 'Bonifico: banca' },
+          maxLength: 200,
+        },
+        {
+          name: 'bankInstructions',
+          type: 'text',
+          multiline: true,
+          label: { en: 'Bank transfer: instructions', it: 'Bonifico: istruzioni' },
+          help: {
+            en: 'Shown at checkout and on the order page, e.g. “We ship when the payment arrives.”',
+            it: 'Mostrate alla cassa e nella pagina dell’ordine, es. “Spediamo all’arrivo del pagamento.”',
+          },
+          maxLength: 1000,
+        },
       ],
       { title: { en: 'Shop', it: 'Negozio' }, capability: CAPABILITY },
     );
 
     watchEntries(ctx);
+
+    const store = async (siteId: string): Promise<StoreSettings> => {
+      const values = await ctx.settings.get(siteId);
+      const str = (name: string) =>
+        typeof values[name] === 'string' ? (values[name] as string) : '';
+      return {
+        currency: str('currency') || 'EUR',
+        pricesIncludeTax: values.pricesIncludeTax !== false,
+        phoneRequired: values.phoneRequired !== false,
+        termsUrl: str('termsUrl'),
+        bank: {
+          enabled: values.bankEnabled !== false,
+          accountName: str('bankAccountName'),
+          iban: str('bankIban').replace(/\s+/g, ' ').toUpperCase(),
+          bic: str('bankBic').toUpperCase(),
+          bankName: str('bankName'),
+          instructions: str('bankInstructions'),
+        },
+      };
+    };
+    registerStorefront(ctx, store);
+    registerBuyBox(ctx, async (siteId) => {
+      const values = await ctx.settings.get(siteId);
+      return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
+    });
+    // Product pages get the buy box after their first block (usually the intro).
+    ctx.hooks.filter('render.blocks', (blocks, context) =>
+      context.entry.type === PRODUCT
+        ? [
+            ...blocks.slice(0, 1),
+            { id: 'shop-buy-box', type: 'shop/buy-box', v: 1, attrs: {} },
+            ...blocks.slice(1),
+          ]
+        : blocks,
+    );
+    /** Product pages show prices and stock: they refresh when those change. */
+    const refresh = (siteId: string, ids: string[]) =>
+      ctx.cache.invalidate(siteId, ids.map(productTag));
 
     const api = (
       method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
@@ -279,6 +385,7 @@ export default definePlugin({
           await syncProduct(ctx, request.siteId, entry);
         }
         await saveProduct(ctx, request.siteId, id, input.data);
+        await refresh(request.siteId, [id]);
         return { body: await ctx.db.transaction(request.siteId, (tx) => getProduct(tx, id)) };
       }),
     );
@@ -290,6 +397,7 @@ export default definePlugin({
       const done = UUID_RE.test(id)
         ? await ctx.db.transaction(request.siteId, (tx) => quickEdit(tx, id, input.data))
         : false;
+      if (done) await refresh(request.siteId, [id]);
       return done ? { status: 204 } : fail(404, 'Not found.');
     });
 
@@ -302,6 +410,26 @@ export default definePlugin({
       await ctx.db.transaction(request.siteId, (tx) => copyProduct(tx, id, copy.id));
       return { status: 201, body: { id: copy.id } };
     });
+
+    /** Orders, newest first (the full orders screen comes with the next milestone). */
+    api('GET', '/orders', async (request) => ({
+      body: await ctx.db.transaction(request.siteId, (tx) =>
+        tx
+          .select({
+            id: orders.id,
+            number: orders.number,
+            status: orders.status,
+            total: orders.total,
+            currency: orders.currency,
+            email: orders.email,
+            paymentMethod: orders.paymentMethod,
+            createdAt: orders.createdAt,
+          })
+          .from(orders)
+          .orderBy(desc(orders.number))
+          .limit(100),
+      ),
+    }));
 
     api('GET', '/pricing', async (request) => ({ body: await pricing(request.siteId) }));
     api('PUT', '/pricing', async (request) => {

@@ -2,12 +2,21 @@
   "slug": "shop",
   "name": "Shop",
   "version": "0.1.0",
-  "apiVersion": "^1.13",
+  "apiVersion": "^1.14",
   "description": "Sell products from your Cleitext site: a fast catalog for shop managers (categories, brands, three prices, stock, variations), then cart, checkout, orders, payments and shipping.",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
   "admin": "dist/admin.js",
-  "permissions": ["content:read", "content:write", "media:read", "routes:admin", "settings:own"],
+  "permissions": [
+    "content:read",
+    "content:write",
+    "media:read",
+    "routes:admin",
+    "routes:public",
+    "settings:own",
+    "blocks",
+    "theme:hooks"
+  ],
   "capabilities": ["manage_shop"]
 }
