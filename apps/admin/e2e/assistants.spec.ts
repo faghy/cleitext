@@ -16,9 +16,9 @@ async function signIn(page: Page) {
 test('an assistant is connected from the admin and disconnected', async ({ page, browser }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await signIn(page);
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 
   await page.getByRole('link', { name: 'AI assistants', exact: true }).click();
   // The browser tab names the screen and the site.
@@ -51,9 +51,9 @@ test('an assistant is connected from the admin and disconnected', async ({ page,
       route.fulfill({ status: 200, contentType: 'text/plain', body: 'connected' }),
     );
     await user.goto(`/oauth/authorize?${query}`);
-    await user.waitForURL('**/admin/login**');
+    await user.waitForURL('**/cl-admin/login**');
     await signIn(user);
-    await user.waitForURL('**/admin/connect?**');
+    await user.waitForURL('**/cl-admin/connect?**');
     await expect(user.getByText('E2E assistant wants to work on')).toBeVisible();
     await user.getByRole('button', { name: 'Allow' }).click();
     await user.waitForURL(/^https:\/\/assistant\.example\/callback\?/);
@@ -128,9 +128,9 @@ test("the chat writes a draft with the site's AI provider", async ({ page }) => 
   const provider = fakeProvider();
   await new Promise<void>((resolve) => provider.listen(0, '127.0.0.1', resolve));
   const port = (provider.address() as AddressInfo).port;
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await signIn(page);
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
   const providerNow = () =>
     page.evaluate(async () => (await fetch('/api/v1/assistants/provider')).json());
   // A clean start, even after an interrupted run.
@@ -141,7 +141,7 @@ test("the chat writes a draft with the site's AI provider", async ({ page }) => 
       headers: { 'x-csrf-token': token },
     });
   });
-  await page.goto('/admin/assistants');
+  await page.goto('/cl-admin/assistants');
   await expect(page.getByText('To chat here, set up an AI provider')).toBeVisible();
 
   await page.getByLabel('API address').fill(`http://127.0.0.1:${port}/v1`);
@@ -156,9 +156,9 @@ test("the chat writes a draft with the site's AI provider", async ({ page }) => 
     await expect(page.locator('strong', { hasText: 'Chat page' })).toBeVisible();
 
     // The conversation survives moving around the admin.
-    await page.goto('/admin/pages');
+    await page.goto('/cl-admin/pages');
     await expect(page.getByRole('link', { name: 'Chat page' }).first()).toBeVisible();
-    await page.goto('/admin/assistants');
+    await page.goto('/cl-admin/assistants');
     await expect(page.getByText('is a draft.')).toBeVisible();
     await page.getByRole('button', { name: 'New conversation' }).click();
   } finally {

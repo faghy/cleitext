@@ -124,7 +124,7 @@ function schedule(ctx: PluginContext, siteId: string, tags: string[]): void {
 
 /** The VCL rules the server needs for Cleitext sites (the README explains them). */
 export const VCL = `# vcl_recv — Cleitext: never cache the admin, the API, previews and signed-in users
-if (req.url ~ "^/(api/|admin|__preview)" || req.http.Cookie ~ "cleitext_session=") {
+if (req.url ~ "^/(api/|admin|cl-admin|__preview)" || req.http.Cookie ~ "cleitext_session=") {
     return (pass);
 }
 if (req.method == "BAN") {

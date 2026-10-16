@@ -8,11 +8,11 @@ const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
 const sample = readFileSync(new URL('./fixtures/sample.jpg', import.meta.url));
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 test('a profile picture can be set and removed', async ({ page }) => {
@@ -20,7 +20,7 @@ test('a profile picture can be set and removed', async ({ page }) => {
   page.on('pageerror', (e) => errors.push(e.message));
 
   await signIn(page);
-  await page.goto('/admin/profile');
+  await page.goto('/cl-admin/profile');
   const card = page.getByRole('heading', { name: 'Profile picture' }).locator('..');
   await page
     .getByLabel('Profile picture file')

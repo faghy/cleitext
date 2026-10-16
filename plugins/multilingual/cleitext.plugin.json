@@ -1,8 +1,8 @@
 {
   "slug": "multilingual",
   "name": "Multilingual",
-  "version": "1.4.1",
-  "apiVersion": "^1.1",
+  "version": "1.4.2",
+  "apiVersion": "^1.15",
   "description": "Several languages on a site: translations of content, categories and tags, language addresses, hreflang and a language switcher.",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",

@@ -431,7 +431,7 @@ ctx.routes.public({
 });
 ```
 
-`POST` public routes receive HTML form posts (`application/x-www-form-urlencoded`, parsed into an object) and are refused when the `Origin` is another site. Paths starting with `/api`, `/admin`, `/media` and `/__preview` are reserved.
+`POST` public routes receive HTML form posts (`application/x-www-form-urlencoded`, parsed into an object) and are refused when the `Origin` is another site. Paths starting with `/api`, `/admin`, `/cl-admin`, `/media` and `/__preview` are reserved.
 
 `request` is `{ siteId, method, path, params, query, body, rawBody, ip, user, headers, cookies, locale }`. `user` is `{ id, displayName, capabilities }` or `null`; `rawBody` is the body as received (a `Buffer`, for JSON and forms) or `null`. The handler returns `{ status?, body?, contentType?, headers?, cacheTags?, cookies?, page? }`: a string or a `Buffer` (plugin API 1.10) `body` is sent as is, anything else as JSON. To redirect, return `{ status: 303, headers: { location: '/thanks' } }`.
 
@@ -674,7 +674,7 @@ Always pass `siteId` when inserting: the database refuses rows of another site.
 
 ## 11. The admin entry
 
-The admin entry adds pages to the admin. They are listed in the sidebar and served at `/admin/ext/<slug>/<path>`:
+The admin entry adds pages to the admin. They are listed in the sidebar and served at `/cl-admin/ext/<slug>/<path>` (`adminUrl(path)` from the admin SDK, plugin API 1.15, links to any admin screen):
 
 ```tsx
 import { Button, Card, defineAdminPlugin, type AdminPageProps } from '@cleitext/admin-sdk';

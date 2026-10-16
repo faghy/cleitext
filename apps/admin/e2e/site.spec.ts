@@ -13,11 +13,11 @@ const SITE =
   process.env.CLEITEXT_SERVER_URL?.replace('127.0.0.1', 'localhost') ?? 'http://localhost:3000';
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 /** Calls the API from the signed-in admin page (with the CSRF token). */
@@ -57,7 +57,7 @@ test('menus, settings, publishing and previews reach the public site', async ({
   await publish(page, 'page', `About ${stamp}`);
 
   // Appearance → Menus: a page and a custom link nested under it.
-  await page.goto('/admin/appearance');
+  await page.goto('/cl-admin/appearance');
   await page.getByRole('tab', { name: 'Menus' }).click();
   await page.getByLabel('New menu').fill(`Main ${stamp}`);
   await page.getByRole('button', { name: 'Create' }).click();
@@ -75,7 +75,7 @@ test('menus, settings, publishing and previews reach the public site', async ({
   await expect(page.getByText('Menu saved.')).toBeVisible();
 
   // Settings → tagline.
-  await page.goto('/admin/settings');
+  await page.goto('/cl-admin/settings');
   await page.getByLabel('Tagline').fill(`Notes ${stamp}`);
   // The same button sits between the cards and at the bottom.
   await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(2);
@@ -110,7 +110,7 @@ test('menus, settings, publishing and previews reach the public site', async ({
     type: 'article',
     title: `Draft ${stamp}`,
   });
-  await page.goto(`/admin/entries/${draft.id}`);
+  await page.goto(`/cl-admin/entries/${draft.id}`);
   const [preview] = await Promise.all([
     context.waitForEvent('page'),
     page.getByRole('button', { name: 'Preview' }).click(),

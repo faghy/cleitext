@@ -1,3 +1,4 @@
+import { ADMIN_PATH } from '@cleitext/shared';
 import type { MeResponse, TwoFactorChallenge } from '@cleitext/shared';
 import { PASSWORD_MIN_LENGTH } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -26,7 +27,7 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
     // Connecting an AI assistant: a full load keeps its query exactly as sent.
     const target = safeRedirect(redirect);
     if (target.startsWith('/connect?')) {
-      window.location.assign(`/admin${target}`);
+      window.location.assign(`${ADMIN_PATH}${target}`);
       return;
     }
     await navigate({ to: target });

@@ -12,22 +12,22 @@ const SITE =
   process.env.CLEITEXT_SERVER_URL?.replace('127.0.0.1', 'localhost') ?? 'http://localhost:3000';
 
 const ADMIN_SCREENS = [
-  '/admin/',
-  '/admin/posts',
-  '/admin/pages',
-  '/admin/taxonomies/category',
-  '/admin/media',
-  '/admin/comments',
-  '/admin/appearance',
-  '/admin/plugins',
-  '/admin/users',
-  '/admin/profile',
-  '/admin/settings',
-  '/admin/redirects',
-  '/admin/structure',
-  '/admin/activity',
-  '/admin/system',
-  '/admin/sites',
+  '/cl-admin/',
+  '/cl-admin/posts',
+  '/cl-admin/pages',
+  '/cl-admin/taxonomies/category',
+  '/cl-admin/media',
+  '/cl-admin/comments',
+  '/cl-admin/appearance',
+  '/cl-admin/plugins',
+  '/cl-admin/users',
+  '/cl-admin/profile',
+  '/cl-admin/settings',
+  '/cl-admin/redirects',
+  '/cl-admin/structure',
+  '/cl-admin/activity',
+  '/cl-admin/system',
+  '/cl-admin/sites',
 ];
 
 async function violations(page: Page, exclude: string[] = []) {
@@ -42,18 +42,18 @@ async function violations(page: Page, exclude: string[] = []) {
 }
 
 test('the sign-in screen', async ({ page }) => {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   expect(await violations(page)).toEqual([]);
 });
 
 test('the admin screens', async ({ page }) => {
   test.setTimeout(240_000);
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 
   const found: Record<string, unknown> = {};
   for (const screen of ADMIN_SCREENS) {
@@ -66,9 +66,9 @@ test('the admin screens', async ({ page }) => {
   expect(found).toEqual({});
 
   // The editor around the canvas (the canvas is Gutenberg's own iframe).
-  await page.goto('/admin/posts');
+  await page.goto('/cl-admin/posts');
   await page.getByRole('button', { name: 'Add New' }).click();
-  await page.waitForURL('**/admin/entries/**');
+  await page.waitForURL('**/cl-admin/entries/**');
   await expect(page.frameLocator('iframe[name="editor-canvas"]').locator('body')).toBeVisible();
   expect(await violations(page, ['iframe[name="editor-canvas"]'])).toEqual([]);
 });

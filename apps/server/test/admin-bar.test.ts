@@ -72,8 +72,8 @@ describe('public toolbar', () => {
   it('leads editors to the admin and to the editor of the page', async () => {
     const { body } = await editor.get(path);
     const bar = /<nav id="cleitext-admin-bar"[\s\S]*?<\/nav>/.exec(body)![0];
-    expect(bar).toContain('href="/admin/"');
-    expect(bar).toContain(`href="/admin/entries/${entryId}"`);
+    expect(bar).toContain('href="/cl-admin/"');
+    expect(bar).toContain(`href="/cl-admin/entries/${entryId}"`);
     expect(bar).toContain('Edit page');
     // Escaped user data.
     expect(bar).toContain('Ada &lt;Editor&gt;');
@@ -85,8 +85,8 @@ describe('public toolbar', () => {
   it('shows subscribers who they are, with their account instead of the admin', async () => {
     const { body } = await subscriber.get(path);
     expect(body).toContain('id="cleitext-admin-bar"');
-    expect(body).not.toContain('/admin/entries/');
-    expect(body).not.toContain('href="/admin/');
+    expect(body).not.toContain('/cl-admin/entries/');
+    expect(body).not.toContain('href="/cl-admin/');
     expect(body).toContain('href="/account"');
     expect(body).toContain('action="/account/logout"');
   });

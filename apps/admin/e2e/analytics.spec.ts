@@ -57,11 +57,11 @@ test.afterAll(async ({ browser }) => {
 });
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 async function call<T>(page: Page, method: string, path: string, body?: unknown): Promise<T> {

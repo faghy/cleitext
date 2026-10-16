@@ -1,3 +1,4 @@
+import { ADMIN_PATH } from '@cleitext/shared';
 import {
   comments,
   contentTypes,
@@ -692,7 +693,7 @@ export class CommentsService {
       return { entry, siteName: site?.name ?? 'Cleitext', author, moderators, parent };
     });
     if (!info.entry) return;
-    const link = `${origin}/admin/comments?status=${row.status === 'pending' ? 'pending' : 'all'}`;
+    const link = `${origin}${ADMIN_PATH}/comments?status=${row.status === 'pending' ? 'pending' : 'all'}`;
     const quote = row.content.length > 600 ? `${row.content.slice(0, 600)}…` : row.content;
     // Moderators: a comment is waiting.
     for (const m of info.moderators) {

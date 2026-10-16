@@ -1,3 +1,4 @@
+import { ADMIN_PATH } from '@cleitext/shared';
 import { createHmac } from 'node:crypto';
 import { createDatabase, isInstalled } from '@cleitext/db';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -99,13 +100,13 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
 
   app.get('/health/live', () => ({ status: 'ok' }));
   app.get('/install', (request, reply) => {
-    if (installed) return reply.redirect('/admin/');
+    if (installed) return reply.redirect(`${ADMIN_PATH}/`);
     rememberLang(request, reply);
     return page(request, reply, 200, form(langOf(request), defaults(request), [], known(request)));
   });
 
   app.post('/install', async (request, reply) => {
-    if (installed) return reply.redirect('/admin/', 303);
+    if (installed) return reply.redirect(`${ADMIN_PATH}/`, 303);
     const body = (request.body ?? {}) as Record<string, string | undefined>;
     const values: FormValues = {
       token: (body.token ?? '').trim(),
@@ -190,7 +191,7 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
       `<h1>${t('Cleitext is installed')}</h1>
 <p>${translate(lang, 'Sign in as {email} once the server has restarted.', { email: `<strong>${escape(values.adminEmail)}</strong>` })}</p>
 <p>${t('The official plugins SEO and Forms are installed: turn them on in Plugins when you need them. Hi John is already active: look at the dashboard.')}</p>
-<p><a class="button" href="/admin/">${t('Go to the admin')}</a></p>`,
+<p><a class="button" href="${ADMIN_PATH}/">${t('Go to the admin')}</a></p>`,
     );
   });
 

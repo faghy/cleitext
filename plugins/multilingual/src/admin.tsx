@@ -1,16 +1,17 @@
 import {
   addMessages,
+  type AdminPageProps,
+  adminUrl,
   Alert,
   Button,
   Card,
   defineAdminPlugin,
-  errorMessage,
-  TextField,
-  useT,
-  type AdminPageProps,
   type EditorPanelProps,
+  errorMessage,
   type ListCellProps,
   type ListRow,
+  TextField,
+  useT,
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
@@ -587,7 +588,7 @@ function MachineSettings({ api }: { api: AdminPageProps['api'] }) {
 function OverviewPage({ api, site, user }: AdminPageProps) {
   const { t } = useT();
   // Admin addresses, opened as links (pages get no router).
-  const open = (id: string) => window.location.assign(`/admin/entries/${id}`);
+  const open = (id: string) => window.location.assign(adminUrl(`/entries/${id}`));
   const [type, setType] = useState('article');
   const list = useQuery({
     queryKey: ['multilingual', 'overview', type],
@@ -646,7 +647,7 @@ function OverviewPage({ api, site, user }: AdminPageProps) {
               <tr key={row.id} className="border-b border-slate-100">
                 <td className="py-2">
                   <a
-                    href={`/admin/entries/${row.id}`}
+                    href={adminUrl(`/entries/${row.id}`)}
                     className="font-medium text-sky-700 hover:underline"
                   >
                     {row.title || t('(no title)')}
@@ -659,7 +660,7 @@ function OverviewPage({ api, site, user }: AdminPageProps) {
                     <td key={l.code} className="py-2">
                       {link ? (
                         <a
-                          href={`/admin/entries/${link.id}`}
+                          href={adminUrl(`/entries/${link.id}`)}
                           className="text-sky-700 hover:underline"
                         >
                           {link.title || t('(no title)')}
@@ -776,7 +777,7 @@ function TranslationsPanel({ api, entry, site, navigate }: EditorPanelProps) {
           {links.map((link) => (
             <li key={link.id}>
               <a
-                href={`/admin/entries/${link.id}`}
+                href={adminUrl(`/entries/${link.id}`)}
                 className="text-sky-700 hover:underline"
                 onClick={(e) => {
                   e.preventDefault();
@@ -862,7 +863,7 @@ function EntryTranslationsCell({ api, row, data, site, navigate }: ListCellProps
           <li key={l.code}>
             {link ? (
               <a
-                href={`/admin/entries/${link.id}`}
+                href={adminUrl(`/entries/${link.id}`)}
                 className="rounded bg-sky-50 px-1 font-medium text-sky-800 uppercase hover:underline"
                 title={`${l.name}: ${link.title || t('(no title)')}${statusLabel(link.status, t)}`}
                 onClick={(e) => {

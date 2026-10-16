@@ -38,11 +38,11 @@ test.afterAll(async ({ browser }) => {
 });
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 /** Calls the API from the signed-in admin page (with the CSRF token). */
@@ -66,7 +66,7 @@ async function call<T>(page: Page, method: string, path: string, body?: unknown)
 }
 
 async function setActive(page: Page, active: boolean) {
-  await page.goto('/admin/plugins');
+  await page.goto('/cl-admin/plugins');
   const card = page.getByRole('listitem', { name: 'Multilingual' });
   await expect(card).toBeVisible();
   const button = card.getByRole('button', {
@@ -82,7 +82,7 @@ async function setActive(page: Page, active: boolean) {
   // Only an active plugin links to its options: here the Languages page.
   const settings = card.getByRole('link', { name: 'Settings Multilingual' });
   if (active) {
-    await expect(settings).toHaveAttribute('href', '/admin/ext/multilingual');
+    await expect(settings).toHaveAttribute('href', '/cl-admin/ext/multilingual');
   } else {
     await expect(settings).toHaveCount(0);
   }
@@ -97,7 +97,7 @@ test('languages are added, and content and categories translated', async ({ page
   await signIn(page);
   await setActive(page, true);
   // Settings → Languages.
-  await page.goto('/admin/');
+  await page.goto('/cl-admin/');
   await page
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name: 'Languages' })
@@ -115,7 +115,7 @@ test('languages are added, and content and categories translated', async ({ page
     type: 'article',
     title: `Weekend in Rome ${stamp}`,
   });
-  await page.goto(`/admin/entries/${post.id}`);
+  await page.goto(`/cl-admin/entries/${post.id}`);
   const panel = page.getByRole('region', { name: 'Translations' });
   await expect(panel.getByText('Written in English.')).toBeVisible();
   await panel.getByLabel('Add translation').selectOption('it');
@@ -134,7 +134,7 @@ test('languages are added, and content and categories translated', async ({ page
   ).toBeVisible();
 
   // The list: the English row links its Italian version.
-  await page.goto('/admin/posts');
+  await page.goto('/cl-admin/posts');
   await page.getByRole('searchbox', { name: 'Search posts' }).fill(stamp);
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   const row = page.getByRole('row').filter({ hasText: `Weekend in Rome ${stamp}` });
@@ -144,7 +144,7 @@ test('languages are added, and content and categories translated', async ({ page
 
   // Categories: a translation from the list.
   await call(page, 'POST', '/taxonomies/category/terms', { name: `Travel ${stamp}` });
-  await page.goto('/admin/taxonomies/category');
+  await page.goto('/cl-admin/taxonomies/category');
   page.once('dialog', (dialog) => dialog.accept(`Viaggi ${stamp}`));
   await page
     .getByRole('row')
@@ -159,7 +159,7 @@ test('languages are added, and content and categories translated', async ({ page
   ).toBeVisible();
 
   // The overview: originals and their translations, per language.
-  await page.goto('/admin/ext/multilingual/overview');
+  await page.goto('/cl-admin/ext/multilingual/overview');
   await expect(page.getByRole('heading', { name: 'Translations', level: 1 })).toBeVisible();
   await expect(
     page

@@ -32,6 +32,7 @@ type TypeRow = typeof contentTypes.$inferSelect;
 /** First path segments that belong to Cleitext itself. */
 const RESERVED = new Set([
   'admin',
+  'cl-admin',
   'admin-plugins',
   'plugin-assets',
   'api',

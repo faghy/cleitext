@@ -55,11 +55,11 @@ test.afterAll(async ({ browser }) => {
 });
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 async function call<T>(page: Page, method: string, path: string, body?: unknown): Promise<T> {
@@ -166,7 +166,7 @@ test('the admin page writes a privacy policy as a draft made of blocks', async (
   const link = page.getByRole('link', { name: /Privacy policy — open in the editor/ });
   await expect(link).toBeVisible();
   await link.click();
-  await page.waitForURL('**/admin/entries/**');
+  await page.waitForURL('**/cl-admin/entries/**');
   // Ordinary blocks in the editor: the controller's name, headings, paragraphs.
   const canvas = page.frameLocator('iframe[name="editor-canvas"]');
   await expect(canvas.getByText('Example Ltd').first()).toBeVisible({ timeout: 15_000 });

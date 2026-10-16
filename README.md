@@ -32,10 +32,10 @@ Requirements: **Node.js 22+** and **pnpm 12** (`npm i -g pnpm@12`). No PostgreSQ
 
 ```bash
 pnpm install
-pnpm dev          # local database + server and public site (http://localhost:3000) + admin (http://localhost:5173/admin/)
+pnpm dev          # local database + server and public site (http://localhost:3000) + admin (http://localhost:5173/cl-admin/)
 ```
 
-On first start, `pnpm dev` creates a local database in `.cleitext-dev/`, writes a `.env` file (see `.env.example`) and creates a **Development** site answering on `localhost`. Sign in at http://localhost:5173/admin/ with `admin@example.com` / `cleitext-admin` (local development only). Emails are printed in the server log.
+On first start, `pnpm dev` creates a local database in `.cleitext-dev/`, writes a `.env` file (see `.env.example`) and creates a **Development** site answering on `localhost`. Sign in at http://localhost:5173/cl-admin/ with `admin@example.com` / `cleitext-admin` (local development only). Emails are printed in the server log.
 
 | Command                                       | What it does                                                                                                                                                                                                                                              |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

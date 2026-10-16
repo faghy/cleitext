@@ -9,7 +9,12 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import { effectiveCapabilities, type InviteUserRequest, type MemberView } from '@cleitext/shared';
+import {
+  ADMIN_PATH,
+  effectiveCapabilities,
+  type InviteUserRequest,
+  type MemberView,
+} from '@cleitext/shared';
 import {
   BadRequestException,
   ConflictException,
@@ -160,7 +165,7 @@ export class UsersService {
           text: [
             `${auth.displayName} created an account for you on ${result.siteName} (${result.role.name}).`,
             '',
-            `Sign in at ${client.origin}/admin/ with this email address and the password you were given.`,
+            `Sign in at ${client.origin}${ADMIN_PATH}/ with this email address and the password you were given.`,
             'You can change it from your profile.',
           ].join('\n'),
         },
@@ -181,7 +186,7 @@ export class UsersService {
             `${auth.displayName} invited you to join ${result.siteName} as ${result.role.name}.`,
             '',
             'To accept and choose your password, open this link within 7 days:',
-            `${client.origin}/admin/accept-invite?token=${token}`,
+            `${client.origin}${ADMIN_PATH}/accept-invite?token=${token}`,
           ].join('\n'),
         },
         siteId,
@@ -194,7 +199,7 @@ export class UsersService {
           text: [
             `${auth.displayName} added you to ${result.siteName} as ${result.role.name}.`,
             '',
-            `Sign in with your existing account: ${client.origin}/admin/`,
+            `Sign in with your existing account: ${client.origin}${ADMIN_PATH}/`,
           ].join('\n'),
         },
         siteId,

@@ -34,10 +34,10 @@ Requisiti: **Node.js 22+** e **pnpm 12** (`npm i -g pnpm@12`). Non serve install
 
 ```bash
 pnpm install
-pnpm dev          # database locale + server e sito pubblico (http://localhost:3000) + admin (http://localhost:5173/admin/)
+pnpm dev          # database locale + server e sito pubblico (http://localhost:3000) + admin (http://localhost:5173/cl-admin/)
 ```
 
-Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/`, scrive un file `.env` (vedi `.env.example`) e crea un sito **Development** che risponde su `localhost`. Accedi a http://localhost:5173/admin/ con `admin@example.com` / `cleitext-admin` (solo per lo sviluppo locale). Le email vengono stampate nel log del server.
+Al primo avvio `pnpm dev` crea un database locale in `.cleitext-dev/`, scrive un file `.env` (vedi `.env.example`) e crea un sito **Development** che risponde su `localhost`. Accedi a http://localhost:5173/cl-admin/ con `admin@example.com` / `cleitext-admin` (solo per lo sviluppo locale). Le email vengono stampate nel log del server.
 
 | Comando                                       | Cosa fa                                                                                                                                                                                                                                                   |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

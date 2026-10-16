@@ -18,7 +18,7 @@ export interface AdminPageProps {
 }
 
 export interface AdminPageDefinition {
-  /** Address under `/admin/ext/<slug>/`, e.g. `rsvps` (empty for the plugin's main page). */
+  /** Address under `/cl-admin/ext/<slug>/`, e.g. `rsvps` (empty for the plugin's main page). */
   path: string;
   title: Label;
   /** Shown in the sidebar (default `true`). */

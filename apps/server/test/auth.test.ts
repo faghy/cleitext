@@ -61,9 +61,9 @@ describe('site resolution', () => {
 
   it('redirects pages on aliases to the primary domain, but serves the API', async () => {
     const alias = new TestClient(app, 'www.acme.test');
-    const page = await alias.get('/admin/');
+    const page = await alias.get('/cl-admin/');
     expect(page.statusCode).toBe(301);
-    expect(page.headers.location).toBe('http://acme.test/admin/');
+    expect(page.headers.location).toBe('http://acme.test/cl-admin/');
     expect((await alias.get('/api/v1/auth/csrf')).statusCode).toBe(200);
   });
 
@@ -416,7 +416,9 @@ describe('password reset (RF-USR-02)', () => {
     const guest = new TestClient(app, acme.host, '10.0.4.2');
     expect((await guest.post('/api/v1/auth/password/forgot', { email })).statusCode).toBe(202);
     const token = tokenFromMail(mail.outbox, email);
-    expect(mail.outbox.at(-1)?.text).toContain(`http://${acme.host}/admin/reset-password?token=`);
+    expect(mail.outbox.at(-1)?.text).toContain(
+      `http://${acme.host}/cl-admin/reset-password?token=`,
+    );
 
     // A breached password is refused and the link still works.
     const breached = await guest.post('/api/v1/auth/password/reset', {

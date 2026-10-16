@@ -23,11 +23,11 @@ test('a synced pattern is inserted, and a selection saved as a pattern', async (
   page.on('pageerror', (e) => errors.push(e.message));
   const stamp = Date.now().toString(36);
 
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill('admin@example.com');
   await page.getByLabel('Password').fill('cleitext-admin');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
   await call(page, 'POST', '/patterns', {
     title: `Notice ${stamp}`,
     synced: true,
@@ -49,7 +49,7 @@ test('a synced pattern is inserted, and a selection saved as a pattern', async (
     title: `Patterns ${stamp}`,
   });
 
-  await page.goto(`/admin/entries/${entry.id}`);
+  await page.goto(`/cl-admin/entries/${entry.id}`);
   const canvas = page.frameLocator('iframe[name="editor-canvas"]');
   await canvas
     .locator(

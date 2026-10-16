@@ -19,7 +19,7 @@ function totp(secret: string, offset = 0): string {
 }
 
 async function signIn(page: Page, email: string, password: string) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -32,7 +32,7 @@ test('a user turns on 2FA and signs in with a code', async ({ page, browser }) =
 
   // An administrator adds the user with a password.
   await signIn(page, 'admin@example.com', 'cleitext-admin');
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
   await page.evaluate(
     async ({ email, password }) => {
       const { token } = await (await fetch('/api/v1/auth/csrf')).json();
@@ -49,8 +49,8 @@ test('a user turns on 2FA and signs in with a code', async ({ page, browser }) =
   const context = await browser.newContext();
   const user = await context.newPage();
   await signIn(user, email, PASSWORD);
-  await user.waitForURL('**/admin/');
-  await user.goto('/admin/profile');
+  await user.waitForURL('**/cl-admin/');
+  await user.goto('/cl-admin/profile');
   await user.getByRole('button', { name: 'Set up two-factor authentication' }).click();
   await expect(user.getByRole('img', { name: 'QR code for the authenticator app' })).toBeVisible();
   const secret = (await user.getByTestId('totp-secret').textContent())!.trim();
@@ -64,7 +64,7 @@ test('a user turns on 2FA and signs in with a code', async ({ page, browser }) =
 
   // Sign out and back in: the code is asked after the password.
   await user.getByRole('button', { name: 'Sign out' }).click();
-  await user.waitForURL('**/admin/login');
+  await user.waitForURL('**/cl-admin/login');
   await signIn(user, email, PASSWORD);
   await expect(user.getByRole('heading', { name: 'Two-factor authentication' })).toBeVisible();
   await user.getByLabel('Authentication code').fill('000000');
@@ -72,7 +72,7 @@ test('a user turns on 2FA and signs in with a code', async ({ page, browser }) =
   await expect(user.getByText('The code is not correct.')).toBeVisible();
   await user.getByLabel('Authentication code').fill(recovery!);
   await user.getByRole('button', { name: 'Verify' }).click();
-  await user.waitForURL('**/admin/');
+  await user.waitForURL('**/cl-admin/');
   await context.close();
 
   expect(appErrors(errors)).toEqual([]);

@@ -1,4 +1,4 @@
-import { Alert, errorMessage, useT, type AdminPageProps } from '@cleitext/admin-sdk';
+import { type AdminPageProps, adminUrl, Alert, errorMessage, useT } from '@cleitext/admin-sdk';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { ProductListItem } from '../list';
@@ -917,7 +917,7 @@ function InfoDrawer({
               <button type="button" className="sh-btn sh-btn-primary" onClick={onEdit}>
                 {t('Edit')}
               </button>
-              <a className="sh-btn" href={`/admin/entries/${id}`}>
+              <a className="sh-btn" href={adminUrl(`/entries/${id}`)}>
                 {t('Description in the block editor')}
               </a>
             </div>

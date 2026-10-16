@@ -10,11 +10,11 @@ test('the site name opens the site, whose toolbar leads back to the editor', asy
   page.on('pageerror', (e) => errors.push(e.message));
   const stamp = Date.now().toString(36);
 
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 
   // A published page to visit.
   const id = await page.evaluate(async (title) => {
@@ -43,7 +43,7 @@ test('the site name opens the site, whose toolbar leads back to the editor', asy
   await expect(sidebar.getByRole('link', { name: 'Visit site' })).toHaveAttribute('href', '/');
   await banner.getByRole('link', { name: 'Development' }).hover();
   await banner.locator('.group').getByRole('link', { name: 'Visit site' }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith('/admin'));
+  await page.waitForURL((url) => !url.pathname.startsWith('/cl-admin'));
 
   const toolbar = page.getByRole('navigation', { name: 'Toolbar' });
   await expect(toolbar).toBeVisible();
@@ -51,7 +51,7 @@ test('the site name opens the site, whose toolbar leads back to the editor', asy
 
   await page.goto(`/toolbar-${stamp}`);
   await toolbar.getByRole('link', { name: 'Edit page' }).click();
-  await page.waitForURL(`**/admin/entries/${id}`);
+  await page.waitForURL(`**/cl-admin/entries/${id}`);
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue(`Toolbar ${stamp}`);
 
   // Signed out, the site shows no toolbar.

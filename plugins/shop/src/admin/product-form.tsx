@@ -1,4 +1,4 @@
-import { Alert, errorMessage, useT, type AdminPageProps } from '@cleitext/admin-sdk';
+import { type AdminPageProps, adminUrl, Alert, errorMessage, useT } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { marginOf, parseMoney, pricesFromCost } from '../pricing';
@@ -446,7 +446,7 @@ export function ProductForm({
           )}
         </div>
         {id && (
-          <a className="sh-link" href={`/admin/entries/${id}`}>
+          <a className="sh-link" href={adminUrl(`/entries/${id}`)}>
             {t('Open in the block editor (description, SEO, translations)')}
           </a>
         )}
@@ -612,7 +612,7 @@ function Belongs({
       {categories.length === 0 && (
         <Alert>
           {t('There are no product categories yet.')}{' '}
-          <a href="/admin/ext/shop/categories">{t('Add them in Shop → Categories.')}</a>
+          <a href={adminUrl('/ext/shop/categories')}>{t('Add them in Shop → Categories.')}</a>
         </Alert>
       )}
       <div className="sh-grid-2">
@@ -745,7 +745,7 @@ function Description({ form, set, id }: { form: Form; set: Setter; id: string | 
         <p>
           {t('The description was made in the block editor.')}{' '}
           {id && (
-            <a className="sh-link" href={`/admin/entries/${id}`}>
+            <a className="sh-link" href={adminUrl(`/entries/${id}`)}>
               {t('Edit it there')}
             </a>
           )}

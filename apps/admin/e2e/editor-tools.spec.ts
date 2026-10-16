@@ -5,11 +5,11 @@ import { appErrors } from './fixtures/errors.js';
 const PASSWORD = 'correct horse battery staple';
 
 async function signIn(page: Page, email: string, password: string) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 async function call<T>(page: Page, method: string, path: string, body?: unknown): Promise<T> {
@@ -54,7 +54,7 @@ test('statistics, outline and revision diff in the editor', async ({ page }) => 
   });
   await call(page, 'PATCH', `/entries/${entry.id}`, { document: paragraph('one four three') });
 
-  await page.goto(`/admin/entries/${entry.id}`);
+  await page.goto(`/cl-admin/entries/${entry.id}`);
   const stats = page.getByRole('region', { name: 'Statistics' });
   await expect(stats).toContainText('5 words');
   await stats.getByText('Outline').click();
@@ -89,7 +89,7 @@ test('duplicates and the editing lock', async ({ page, browser }) => {
   });
 
   // Duplicate from the list.
-  await page.goto('/admin/pages');
+  await page.goto('/cl-admin/pages');
   await page.getByLabel(/^Search pages/).fill(`Locked ${stamp}`);
   await page.getByRole('button', { name: 'Search' }).click();
   await page.getByRole('button', { name: `Duplicate Locked ${stamp}` }).click();
@@ -99,7 +99,7 @@ test('duplicates and the editing lock', async ({ page, browser }) => {
   const other = await browser.newContext();
   const lucia = await other.newPage();
   await signIn(lucia, email, PASSWORD);
-  await lucia.goto(`/admin/entries/${entry.id}`);
+  await lucia.goto(`/cl-admin/entries/${entry.id}`);
   await expect(lucia.locator('#entry-title')).toHaveValue(`Locked ${stamp}`);
   // Her editor takes the lock just after it shows the entry (in development
   // React mounts it twice: take, release, take again).
@@ -115,7 +115,7 @@ test('duplicates and the editing lock', async ({ page, browser }) => {
     })
     .toBe(`Lucia ${stamp}`);
 
-  await page.goto(`/admin/entries/${entry.id}`);
+  await page.goto(`/cl-admin/entries/${entry.id}`);
   await expect(page.getByText(`Lucia ${stamp} is editing this entry`)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save draft' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Take over' }).click();

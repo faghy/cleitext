@@ -25,7 +25,7 @@ The easiest way, as with WordPress: nothing to build, no configuration file to w
       Either way the wizard then creates the application user, generates the secrets and writes `cleitext-shared/.env` (mode 600, next to the `cleitext` folder), with the `media`, `plugins`, `themes` and `backups` folders.
 
    4. **Site and administrator**: site name, domain, language, the super admin's email and password.
-6. **Sign in** at `/admin/`. The official SEO and Forms plugins are installed but not active; Hi John is active, on the dashboard.
+6. **Sign in** at `/cl-admin/` (the old `/admin/` redirects there). The official SEO and Forms plugins are installed but not active; Hi John is active, on the dashboard.
 
 **Install right after enabling Node.js**: until the wizard is completed, whoever opens the site first can complete it with their own database and administrator. To require a setup token as well, set `CLEITEXT_SETUP_TOKEN=true` in the environment of the Node.js application before enabling it: the wizard then asks for the token printed in the domain's **Logs** and kept in `cleitext/tmp/setup-token`.
 
@@ -142,7 +142,7 @@ cd /var/www/vhosts/example.com/cleitext
 bin/cleitext install --domain example.com --site-name "Example" --site-slug main --locale it
 ```
 
-The command applies the migrations, creates the site and asks for the super admin's email and password; with `--official-plugins` it also installs SEO and Forms (not active) and Hi John (active), as the wizard does. Then **Enable** the application in Plesk and open `https://example.com/admin/`.
+The command applies the migrations, creates the site and asks for the super admin's email and password; with `--official-plugins` it also installs SEO and Forms (not active) and Hi John (active), as the wizard does. Then **Enable** the application in Plesk and open `https://example.com/cl-admin/`.
 
 **Or install from the browser** (RF-SIT-02): with `DATABASE_ADMIN_URL` in `.env`, enable the application on an empty database (without any `.env`, the full setup wizard starts instead, see the top of this guide). The server then answers only `/install` and shows a form for the site and the super admin (with `CLEITEXT_SETUP_TOKEN=true` it also asks for a setup token, printed in its log: Plesk **Logs** of the domain, systemd `journalctl -u cleitext`): the installation runs the same command in a separate process, then the server restarts in normal mode. The token is derived from `APP_SECRET`, so every process shows the same one.
 

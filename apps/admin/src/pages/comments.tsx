@@ -1,3 +1,4 @@
+import { adminUrl } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, errorMessage } from '../api';
@@ -231,7 +232,7 @@ export function CommentsPage() {
                       {t('on')}{' '}
                       <a
                         className="text-sky-700 underline"
-                        href={`/admin/entries/${comment.entryId}`}
+                        href={adminUrl(`/entries/${comment.entryId}`)}
                       >
                         {comment.entryTitle}
                       </a>

@@ -6,7 +6,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
-import type { FastifyReply } from 'fastify';
+import { ADMIN_PATH, LEGACY_ADMIN_PATH } from '@cleitext/shared';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
@@ -75,21 +76,21 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
     },
   });
   // The built admin (production): hashed assets cached for a year, and the
-  // single-page app answering every other /admin address.
+  // single-page app answering every other address under ADMIN_PATH (/cl-admin).
   if (config.admin.path) {
     await app.register(fastifyStatic, {
       root: join(config.admin.path, 'assets'),
-      prefix: '/admin/assets/',
+      prefix: `${ADMIN_PATH}/assets/`,
       decorateReply: false,
       index: false,
       maxAge: '365d',
       immutable: true,
     });
-    // The Cleitext logo files (apps/admin/public/brand), e.g. /admin/brand/logo.svg.
+    // The Cleitext logo files (apps/admin/public/brand), e.g. /cl-admin/brand/logo.svg.
     if (existsSync(join(config.admin.path, 'brand'))) {
       await app.register(fastifyStatic, {
         root: join(config.admin.path, 'brand'),
-        prefix: '/admin/brand/',
+        prefix: `${ADMIN_PATH}/brand/`,
         decorateReply: false,
         index: false,
         maxAge: '1d',
@@ -108,9 +109,14 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
         .type('text/html; charset=utf-8')
         .send(indexHtml);
     const instance = app.getHttpAdapter().getInstance();
-    instance.get('/admin', sendAdmin);
-    instance.get('/admin/*', sendAdmin);
+    instance.get(ADMIN_PATH, sendAdmin);
+    instance.get(`${ADMIN_PATH}/*`, sendAdmin);
   }
+  // The admin's old address: bookmarks and links keep working.
+  const legacyAdmin = (request: FastifyRequest, reply: FastifyReply) =>
+    reply.redirect(`${ADMIN_PATH}${request.url.slice(LEGACY_ADMIN_PATH.length)}`, 301);
+  app.getHttpAdapter().getInstance().get(LEGACY_ADMIN_PATH, legacyAdmin);
+  app.getHttpAdapter().getInstance().get(`${LEGACY_ADMIN_PATH}/*`, legacyAdmin);
 
   app
     .getHttpAdapter()
@@ -158,7 +164,13 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
     .getHttpAdapter()
     .getInstance()
     .get('/*', (request, reply) => {
-      if (request.url.startsWith('/api/') || request.url.startsWith('/admin')) {
+      if (
+        request.url.startsWith('/api/') ||
+        request.url.startsWith('/admin-plugins/') ||
+        request.url === ADMIN_PATH ||
+        request.url.startsWith(`${ADMIN_PATH}/`) ||
+        request.url.startsWith(`${ADMIN_PATH}?`)
+      ) {
         return reply.callNotFound();
       }
       return publicService.handle(request, reply);

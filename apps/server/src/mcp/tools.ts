@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- JSON answers of the REST API, read field by field. */
+import { ADMIN_PATH } from '@cleitext/shared';
 import type { CxdBlock } from '@cleitext/blocks';
 import { htmlToCxd } from '@cleitext/blocks/html';
 import { BLOCK_GUIDE } from './guide.js';
@@ -96,7 +97,7 @@ function entrySummary(ctx: ToolContext, entry: EntryView) {
     slug: entry.slug,
     status: entry.status,
     published_at: entry.publishedAt,
-    edit_url: `${ctx.origin}/admin/entries/${entry.id}`,
+    edit_url: `${ctx.origin}${ADMIN_PATH}/entries/${entry.id}`,
   };
 }
 

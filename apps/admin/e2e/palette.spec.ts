@@ -7,11 +7,11 @@ test('Ctrl+K opens the palette to navigate and find content', async ({ page }) =
   page.on('pageerror', (e) => errors.push(e.message));
   const stamp = Date.now().toString(36);
 
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill('admin@example.com');
   await page.getByLabel('Password').fill('cleitext-admin');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
   const entry = await page.evaluate(async (stamp) => {
     const { token } = await (await fetch('/api/v1/auth/csrf')).json();
     const res = await fetch('/api/v1/entries', {
@@ -30,7 +30,7 @@ test('Ctrl+K opens the palette to navigate and find content', async ({ page }) =
   await page.keyboard.type('media');
   await expect(palette.getByRole('option').first()).toContainText('Media');
   await page.keyboard.press('Enter');
-  await page.waitForURL('**/admin/media');
+  await page.waitForURL('**/cl-admin/media');
   await expect(palette).toHaveCount(0);
 
   // Content found by the global search.
@@ -39,7 +39,7 @@ test('Ctrl+K opens the palette to navigate and find content', async ({ page }) =
   await page.keyboard.type(`Palette ${stamp}`);
   await expect(palette.getByRole('option', { name: new RegExp(`Palette ${stamp}`) })).toBeVisible();
   await page.keyboard.press('Enter');
-  await page.waitForURL(`**/admin/entries/${entry.id}`);
+  await page.waitForURL(`**/cl-admin/entries/${entry.id}`);
 
   expect(appErrors(errors)).toEqual([]);
 });

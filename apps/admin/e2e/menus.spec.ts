@@ -6,11 +6,11 @@ import { appErrors } from './fixtures/errors.js';
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 /** Drags the row's handle to `target`, moved by `dx` pixels sideways. */
@@ -31,7 +31,7 @@ test('menu items can be dragged to a new place and level', async ({ page }) => {
   const stamp = Date.now().toString(36);
 
   await signIn(page);
-  await page.goto('/admin/appearance');
+  await page.goto('/cl-admin/appearance');
   await page.getByRole('tab', { name: 'Menus' }).click();
   await page.getByLabel('New menu').fill(`Drag ${stamp}`);
   await page.getByRole('button', { name: 'Create' }).click();

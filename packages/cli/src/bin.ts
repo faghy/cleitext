@@ -165,7 +165,7 @@ program
         await announcePluginChange(db);
       }
       console.log(
-        `Installed. Sign in at ${opts.https ? 'https' : 'http'}://${domain}/admin/ as ${adminEmail}.`,
+        `Installed. Sign in at ${opts.https ? 'https' : 'http'}://${domain}/cl-admin/ as ${adminEmail}.`,
       );
     });
   });

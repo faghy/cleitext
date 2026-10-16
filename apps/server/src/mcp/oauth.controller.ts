@@ -1,3 +1,4 @@
+import { ADMIN_PATH } from '@cleitext/shared';
 import { withContext, type DatabaseClient } from '@cleitext/db';
 import { Controller, Get, Inject, Options, Post, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -122,7 +123,7 @@ export class OAuthController {
   async authorize(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
     if (!(await this.enabled(request))) return this.notFound(reply);
     const query = request.url.includes('?') ? request.url.slice(request.url.indexOf('?')) : '';
-    return reply.header('cache-control', 'no-store').redirect(`/admin/connect${query}`, 302);
+    return reply.header('cache-control', 'no-store').redirect(`${ADMIN_PATH}/connect${query}`, 302);
   }
 
   @Post('oauth/token')

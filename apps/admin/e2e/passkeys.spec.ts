@@ -24,13 +24,13 @@ test('a passkey is added in the profile and signs in without a password', async 
     },
   });
 
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill('admin@example.com');
   await page.getByLabel('Password').fill('cleitext-admin');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 
-  await page.goto('/admin/profile');
+  await page.goto('/cl-admin/profile');
   await page.getByLabel('Passkey name').fill(name);
   await page.getByRole('button', { name: 'Add a passkey' }).click();
   const list = page.getByRole('list', { name: 'Your passkeys' });
@@ -38,12 +38,12 @@ test('a passkey is added in the profile and signs in without a password', async 
   await expect(list.getByText('localhost · never used').first()).toBeVisible();
 
   await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click();
-  await page.waitForURL('**/admin/login');
+  await page.waitForURL('**/cl-admin/login');
   await page.getByRole('button', { name: 'Use a passkey' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 
   // Clean up: the passkey of this run is removed.
-  await page.goto('/admin/profile');
+  await page.goto('/cl-admin/profile');
   page.once('dialog', (dialog) => dialog.accept());
   await list.getByRole('button', { name: `Remove ${name}` }).click();
   await expect(list.getByRole('paragraph').filter({ hasText: name })).toHaveCount(0);

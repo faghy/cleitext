@@ -1,4 +1,6 @@
 import {
+  type AdminPageProps,
+  adminUrl,
   Alert,
   api as coreApi,
   Button,
@@ -7,7 +9,6 @@ import {
   errorMessage,
   labelText,
   TextField,
-  type AdminPageProps,
 } from '@cleitext/admin-sdk';
 import type { TrackerDeclaration } from '@cleitext/plugin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -722,7 +723,7 @@ function PoliciesTab({
         {created && (
           <Alert kind="success">
             {tr('Draft created: ', 'Bozza creata: ')}
-            <a className="font-medium underline" href={`/admin/entries/${created.id}`}>
+            <a className="font-medium underline" href={adminUrl(`/entries/${created.id}`)}>
               {created.title} — {tr('open in the editor', 'apri nell’editor')}
             </a>
           </Alert>
@@ -757,7 +758,7 @@ function PoliciesTab({
                         : tr('Create cookie policy', 'Crea cookie policy')}
                     </Button>
                     {existing && (
-                      <a className="text-sky-700 underline" href={`/admin/entries/${existing}`}>
+                      <a className="text-sky-700 underline" href={adminUrl(`/entries/${existing}`)}>
                         {tr('open', 'apri')}
                       </a>
                     )}

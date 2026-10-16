@@ -486,7 +486,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     if (kind === 'api') {
       plugin.apiRoutes.push({ ...(route as ApiRoute), compiled: compileRoute(route.path) });
     } else {
-      if (/^\/(api|admin|media|__preview)(\/|$)/.test(route.path)) {
+      if (/^\/(api|admin|cl-admin|media|__preview)(\/|$)/.test(route.path)) {
         throw new PluginError(`The public path ${route.path} is reserved`);
       }
       plugin.publicRoutes.push({ ...(route as PublicRoute), compiled: compileRoute(route.path) });

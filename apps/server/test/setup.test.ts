@@ -123,7 +123,7 @@ describe('setup wizard with the token (CLEITEXT_SETUP_TOKEN)', () => {
     expect(italian.body).toContain('Codice di setup');
 
     // Any other address leads here.
-    expect((await wizard.inject({ url: '/admin/' })).headers.location).toBe('/install');
+    expect((await wizard.inject({ url: '/cl-admin/' })).headers.location).toBe('/install');
   });
 
   it('refuses a wrong token and opens a session with the right one', async () => {

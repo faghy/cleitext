@@ -16,17 +16,17 @@ async function setLocale(page: Page, locale: string) {
 }
 
 test.afterEach(async ({ page }) => {
-  if (page.url().includes('/admin')) await setLocale(page, 'en');
+  if (page.url().includes('/cl-admin')) await setLocale(page, 'en');
 });
 
 test('switches the admin to Italian and back', async ({ page }) => {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 
-  await page.goto('/admin/profile');
+  await page.goto('/cl-admin/profile');
   await page.getByLabel('Admin language').selectOption('it');
   await page
     .locator('form', { has: page.getByLabel('Admin language') })
@@ -43,7 +43,7 @@ test('switches the admin to Italian and back', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Aggiungi nuovo sito' })).toBeVisible();
 
   // Back to English for the other tests.
-  await page.goto('/admin/profile');
+  await page.goto('/cl-admin/profile');
   await page.getByLabel('Lingua della bacheca').selectOption('en');
   await page
     .locator('form', { has: page.getByLabel('Lingua della bacheca') })

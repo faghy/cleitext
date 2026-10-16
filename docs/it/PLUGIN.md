@@ -409,7 +409,7 @@ ctx.routes.public({
 });
 ```
 
-Le route pubbliche `POST` ricevono gli invii di moduli HTML (`application/x-www-form-urlencoded`, convertiti in un oggetto) e vengono rifiutate quando l'`Origin` è un altro sito. I percorsi che iniziano con `/api`, `/admin`, `/media` e `/__preview` sono riservati.
+Le route pubbliche `POST` ricevono gli invii di moduli HTML (`application/x-www-form-urlencoded`, convertiti in un oggetto) e vengono rifiutate quando l'`Origin` è un altro sito. I percorsi che iniziano con `/api`, `/admin`, `/cl-admin`, `/media` e `/__preview` sono riservati.
 
 `request` è `{ siteId, method, path, params, query, body, rawBody, ip, user, headers, cookies, locale }`. `user` è `{ id, displayName, capabilities }` oppure `null`; `rawBody` è il corpo così come è arrivato (un `Buffer`, per JSON e moduli) oppure `null`. L'handler restituisce `{ status?, body?, contentType?, headers?, cacheTags?, cookies?, page? }`: un `body` stringa o `Buffer` (API dei plugin 1.10) viene inviato così com'è, qualsiasi altra cosa come JSON. Per un reindirizzamento, restituisci `{ status: 303, headers: { location: '/thanks' } }`.
 
@@ -652,7 +652,7 @@ Passa sempre `siteId` negli inserimenti: il database rifiuta le righe di un altr
 
 ## 11. Il punto di ingresso dell'admin
 
-Il punto di ingresso dell'admin aggiunge pagine all'amministrazione. Sono elencate nella barra laterale e servite su `/admin/ext/<slug>/<path>`:
+Il punto di ingresso dell'admin aggiunge pagine all'amministrazione. Sono elencate nella barra laterale e servite su `/cl-admin/ext/<slug>/<path>` (`adminUrl(path)` della SDK admin, API dei plugin 1.15, crea i link a qualsiasi schermata dell’admin):
 
 ```tsx
 import { Button, Card, defineAdminPlugin, type AdminPageProps } from '@cleitext/admin-sdk';

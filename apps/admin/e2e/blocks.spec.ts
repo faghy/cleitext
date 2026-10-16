@@ -8,11 +8,11 @@ const SITE =
   process.env.CLEITEXT_SERVER_URL?.replace('127.0.0.1', 'localhost') ?? 'http://localhost:3000';
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 test('embed and HTML blocks are edited, saved and published', async ({ page, context }) => {
@@ -21,9 +21,9 @@ test('embed and HTML blocks are edited, saved and published', async ({ page, con
   const stamp = Date.now().toString(36);
 
   await signIn(page);
-  await page.goto('/admin/pages');
+  await page.goto('/cl-admin/pages');
   await page.getByRole('button', { name: 'Add New' }).click();
-  await page.waitForURL('**/admin/entries/**');
+  await page.waitForURL('**/cl-admin/entries/**');
   await page.locator('#entry-title').fill(`Media page ${stamp}`);
 
   const canvas = page.frameLocator('iframe[name="editor-canvas"]');

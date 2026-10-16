@@ -1,3 +1,4 @@
+import { adminUrl } from '@cleitext/shared';
 import { documentStats, type CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance, EditorServices, EmbedPreview, MediaRef } from '@cleitext/editor-core';
 import { FieldsForm, useT } from '@cleitext/admin-sdk';
@@ -734,7 +735,7 @@ function DiscussionPanel({
         {t('Allow comments')}
       </label>
       {(comments?.count ?? 0) > 0 && (
-        <a className="text-sky-700 hover:underline" href={`/admin/comments?entry=${entryId}`}>
+        <a className="text-sky-700 hover:underline" href={adminUrl(`/comments?entry=${entryId}`)}>
           {t('{count} comments', { count: comments!.count })}
         </a>
       )}

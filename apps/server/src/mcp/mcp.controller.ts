@@ -1,3 +1,4 @@
+import { adminUrl } from '@cleitext/shared';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { withContext, type DatabaseClient } from '@cleitext/db';
@@ -104,7 +105,7 @@ export class McpController {
   @Get()
   get(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
     if (/text\/html/.test(request.headers.accept ?? '')) {
-      return reply.redirect('/admin/assistants', 302);
+      return reply.redirect(adminUrl('/assistants'), 302);
     }
     return reply.code(405).header('allow', 'POST').send();
   }

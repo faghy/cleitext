@@ -32,7 +32,16 @@ const CODE_RE = /^[a-z]{2,3}(-[A-Z]{2})?$/;
 const PREFIX_RE = /^\/[a-z0-9-]{1,20}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Addresses the core uses for itself. */
-const RESERVED = new Set(['/admin', '/api', '/media', '/feed', '/search', '/page', '/health']);
+const RESERVED = new Set([
+  '/admin',
+  '/cl-admin',
+  '/api',
+  '/media',
+  '/feed',
+  '/search',
+  '/page',
+  '/health',
+]);
 
 /** The language's own name, e.g. `Italiano` for `it`. */
 export function nativeName(code: string): string {

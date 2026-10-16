@@ -6,11 +6,11 @@ import { appErrors } from './fixtures/errors.js';
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 test('categories are managed from their own screen', async ({ page }) => {

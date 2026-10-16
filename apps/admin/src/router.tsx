@@ -1,3 +1,4 @@
+import { ADMIN_PATH } from '@cleitext/shared';
 import { useT } from '@cleitext/admin-sdk';
 import { labelText } from '@cleitext/shared';
 import { useQuery, type QueryClient } from '@tanstack/react-query';
@@ -216,7 +217,7 @@ const routeTree = rootRoute.addChildren([
 export function createAdminRouter(queryClient: QueryClient) {
   return createRouter({
     routeTree,
-    basepath: '/admin',
+    basepath: ADMIN_PATH,
     context: { queryClient },
     defaultPreload: 'intent',
   });

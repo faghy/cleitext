@@ -19,7 +19,7 @@ The VCL used by the site needs these rules (they leave other sites alone: they o
 
 ```vcl
 # vcl_recv — Cleitext: never cache the admin, the API, previews and signed-in users
-if (req.url ~ "^/(api/|admin|__preview)" || req.http.Cookie ~ "cleitext_session=") {
+if (req.url ~ "^/(api/|admin|cl-admin|__preview)" || req.http.Cookie ~ "cleitext_session=") {
     return (pass);
 }
 if (req.method == "BAN") {
@@ -49,10 +49,10 @@ unset resp.http.x-cleitext-tags;
 unset resp.http.x-cleitext-host;
 ```
 
-Do not remove the `cleitext_session` and `cleitext_csrf` cookies, and do not cache `/api/` or `/admin`: the login and the admin would stop working.
+Do not remove the `cleitext_session` and `cleitext_csrf` cookies, and do not cache `/api/` or `/cl-admin` (the admin; `/admin` redirects there): the login and the admin would stop working.
 
 ## Cloudflare
 
-Cloudflare does not cache HTML by default. In **Caching → Cache Rules** create a rule with the expression shown in **Edge cache** (the site's hosts, without `/api/`, `/admin`, `/__preview` and signed-in visitors), then **Eligible for cache**, Edge TTL **Use cache-control header if present**, Browser TTL **Respect origin**.
+Cloudflare does not cache HTML by default. In **Caching → Cache Rules** create a rule with the expression shown in **Edge cache** (the site's hosts, without `/api/`, `/admin`, `/cl-admin`, `/__preview` and signed-in visitors), then **Eligible for cache**, Edge TTL **Use cache-control header if present**, Browser TTL **Respect origin**.
 
 Plugin API 1.9: the `cache.headers` filter (`theme:hooks`) and the `cache.invalidated` action; settings and the encrypted token (`settings:own`); the Edge cache page (`routes:admin`).

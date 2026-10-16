@@ -103,5 +103,5 @@ export function cloudflareRule(hosts: string[]): string {
     hosts.length === 1
       ? `http.host eq "${hosts[0]}"`
       : `http.host in {${hosts.map((h) => `"${h}"`).join(' ')}}`;
-  return `(${host} and not starts_with(http.request.uri.path, "/api/") and not starts_with(http.request.uri.path, "/admin") and not starts_with(http.request.uri.path, "/__preview") and not http.cookie contains "cleitext_session")`;
+  return `(${host} and not starts_with(http.request.uri.path, "/api/") and not starts_with(http.request.uri.path, "/admin") and not starts_with(http.request.uri.path, "/cl-admin") and not starts_with(http.request.uri.path, "/__preview") and not http.cookie contains "cleitext_session")`;
 }

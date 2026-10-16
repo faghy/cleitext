@@ -1,3 +1,4 @@
+import { ADMIN_PATH } from '@cleitext/shared';
 import type { AuthContext } from '../common/request-context.js';
 
 /**
@@ -80,11 +81,11 @@ export function adminBar({
     return `${STYLE}<nav id="cleitext-admin-bar" aria-label="${escape(t.toolbar)}"><a class="cab-site" href="/">${escape(siteName)}</a><a class="cab-user" href="${escape(account)}"><span class="cab-label">${escape(t.signedIn)} ${escape(auth.displayName)}</span>${avatar}</a>${out}</nav>`;
   }
   const links = [
-    `<a class="cab-site" href="/admin/" title="${escape(t.dashboard)}">${icon('M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z')}<span class="cab-label">${escape(siteName)}</span></a>`,
+    `<a class="cab-site" href="${ADMIN_PATH}/" title="${escape(t.dashboard)}">${icon('M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z')}<span class="cab-label">${escape(siteName)}</span></a>`,
     canEdit && entry
-      ? `<a href="/admin/entries/${encodeURIComponent(entry.id)}">${icon('M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z')}<span class="cab-label">${escape(editLabel)}</span></a>`
+      ? `<a href="${ADMIN_PATH}/entries/${encodeURIComponent(entry.id)}">${icon('M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z')}<span class="cab-label">${escape(editLabel)}</span></a>`
       : '',
-    `<a class="cab-user" href="/admin/profile"><span class="cab-label">${escape(t.signedIn)} ${escape(auth.displayName)}</span>${avatar}</a>`,
+    `<a class="cab-user" href="${ADMIN_PATH}/profile"><span class="cab-label">${escape(t.signedIn)} ${escape(auth.displayName)}</span>${avatar}</a>`,
   ];
   return `${STYLE}<nav id="cleitext-admin-bar" aria-label="${escape(t.toolbar)}">${links.join('')}</nav>`;
 }

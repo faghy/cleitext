@@ -162,7 +162,7 @@ flowchart LR
 cleitext/
 ├─ apps/
 │  ├─ server/              # NestJS+Fastify bootstrap, module composition, config
-│  ├─ admin/               # React SPA (Vite) — served from /admin
+│  ├─ admin/               # React SPA (Vite) — served from /cl-admin
 │  └─ worker/              # job worker entrypoint (same code, different role)
 ├─ packages/
 │  ├─ core/                # core modules (sites, users, content, media, menus, settings…)

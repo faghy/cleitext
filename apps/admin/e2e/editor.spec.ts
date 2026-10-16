@@ -13,11 +13,11 @@ const sample = fileURLToPath(new URL('./fixtures/sample.jpg', import.meta.url));
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 async function entry(page: Page, id: string) {
@@ -32,14 +32,14 @@ test('write, classify, revise, translate and schedule a post', async ({ page }) 
   await signIn(page);
 
   // An image in the media library.
-  await page.goto('/admin/media');
+  await page.goto('/cl-admin/media');
   await page.locator('input[type=file]').setInputFiles(sample);
   await expect(page.locator('ul img').first()).toBeVisible();
 
   // 1. Write and save.
-  await page.goto('/admin/posts');
+  await page.goto('/cl-admin/posts');
   await page.getByRole('button', { name: 'Add New' }).click();
-  await page.waitForURL('**/admin/entries/**');
+  await page.waitForURL('**/cl-admin/entries/**');
   const id = page.url().split('/').pop()!;
   await page.locator('#entry-title').fill(`A weekend in Rome ${stamp}`);
 
@@ -107,7 +107,7 @@ test('write, classify, revise, translate and schedule a post', async ({ page }) 
   expect(JSON.stringify(saved.revision.document)).not.toContain('got lost');
 
   // 4. Schedule the English post.
-  await page.goto(`/admin/entries/${id}`);
+  await page.goto(`/cl-admin/entries/${id}`);
   const when = new Date(Date.now() + 2 * 86_400_000);
   const local = new Date(when.getTime() - when.getTimezoneOffset() * 60_000)
     .toISOString()

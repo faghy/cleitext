@@ -30,16 +30,16 @@ test.beforeAll(() => {
 });
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 /** Sets the plugin state from the Plugins screen. */
 async function setActive(page: Page, active: boolean) {
-  await page.goto('/admin/plugins');
+  await page.goto('/cl-admin/plugins');
   const card = page.getByRole('listitem', { name: 'Events' });
   await expect(card).toBeVisible();
   const button = card.getByRole('button', {
@@ -74,7 +74,7 @@ test('a plugin adds a type, a block, an admin page and its table; deactivating i
   await sidebar.getByRole('link', { name: 'Events', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Events' })).toBeVisible();
   await page.getByRole('button', { name: 'Add New' }).click();
-  await page.waitForURL('**/admin/entries/**');
+  await page.waitForURL('**/cl-admin/entries/**');
   await page.locator('#entry-title').fill(`Open day ${stamp}`);
   const fields = page.getByRole('region', { name: 'Details' });
   await page.getByRole('button', { name: 'Publish' }).click();
@@ -86,9 +86,9 @@ test('a plugin adds a type, a block, an admin page and its table; deactivating i
   await expect(page.getByText('Published', { exact: true })).toBeVisible();
 
   // 2. The block, inserted in a page with the Gutenberg editor.
-  await page.goto('/admin/pages');
+  await page.goto('/cl-admin/pages');
   await page.getByRole('button', { name: 'Add New' }).click();
-  await page.waitForURL('**/admin/entries/**');
+  await page.waitForURL('**/cl-admin/entries/**');
   await page.locator('#entry-title').fill(`What's on ${stamp}`);
   const canvas = page.frameLocator('iframe[name="editor-canvas"]');
   await canvas
@@ -119,7 +119,7 @@ test('a plugin adds a type, a block, an admin page and its table; deactivating i
   await expect(site.getByRole('status')).toHaveText('Thank you, your place is booked.');
 
   // 4. The admin page, reading the plugin's own table.
-  await page.goto('/admin/');
+  await page.goto('/cl-admin/');
   await sidebar.getByRole('link', { name: 'RSVPs' }).click();
   await expect(page.getByRole('heading', { name: 'RSVPs' })).toBeVisible();
   await expect(page.getByText(`ada-${stamp}@example.com`)).toBeVisible();
@@ -135,7 +135,7 @@ test('a plugin adds a type, a block, an admin page and its table; deactivating i
   expect(event?.status()).toBe(404);
   // The editor keeps the block as "unavailable".
   await page.goBack();
-  await page.goto('/admin/pages');
+  await page.goto('/cl-admin/pages');
   // Pages pile up across runs: search instead of relying on the first page.
   await page.getByRole('searchbox', { name: 'Search pages' }).fill(stamp);
   await page.getByRole('button', { name: 'Search', exact: true }).click();

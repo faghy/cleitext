@@ -5,7 +5,8 @@ import { defineConfig } from 'vite';
 const serverUrl = process.env.CLEITEXT_SERVER_URL ?? 'http://127.0.0.1:3000';
 
 export default defineConfig({
-  base: '/admin/',
+  // ADMIN_PATH of @cleitext/shared.
+  base: '/cl-admin/',
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
@@ -18,7 +19,7 @@ export default defineConfig({
       '/__preview': { target: serverUrl, xfwd: true },
       '/admin-plugins': { target: serverUrl, xfwd: true },
       // The public site, so that "Visit site" and the toolbar work in development too.
-      '^/(?!admin(/|$)|api/|health|media/|__preview|admin-plugins)': {
+      '^/(?!cl-admin(/|$)|api/|health|media/|__preview|admin-plugins)': {
         target: serverUrl,
         xfwd: true,
       },

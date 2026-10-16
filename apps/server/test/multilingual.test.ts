@@ -553,9 +553,9 @@ describe('a domain per language', () => {
     expect(page.body).toContain('hrefLang="en" href="http://domains.test/about"');
     expect((await german.get('/about')).statusCode).toBe(404);
     // The admin stays on the primary domain.
-    const admin = await german.get('/admin/');
+    const admin = await german.get('/cl-admin/');
     expect(admin.statusCode).toBe(301);
-    expect(admin.headers.location).toBe('http://domains.test/admin/');
+    expect(admin.headers.location).toBe('http://domains.test/cl-admin/');
 
     const english = await new TestClient(app, domains.host, '10.50.7.3').get('/about');
     expect(english.body).toContain('hrefLang="de" href="http://domains.de/ueber-uns"');

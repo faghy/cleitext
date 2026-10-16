@@ -1,11 +1,12 @@
 import {
+  type AdminPageProps,
+  adminUrl,
   Alert,
   Button,
   Card,
   defineAdminPlugin,
   errorMessage,
   uploadFile,
-  type AdminPageProps,
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
@@ -249,7 +250,7 @@ function Result({ job, tr, onReset }: { job: Job; tr: Tr; onReset: () => void })
       )}
       <div className="flex flex-wrap gap-3">
         <a
-          href="/admin/content/article"
+          href={adminUrl('/content/article')}
           className="rounded bg-sky-700 px-3 py-2 text-sm font-medium text-white hover:bg-sky-800"
         >
           {tr('See the posts', 'Vai agli articoli')}

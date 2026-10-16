@@ -6,11 +6,11 @@ import { appErrors } from './fixtures/errors.js';
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 test('undo, save and the shortcuts help work from the keyboard', async ({ page }) => {
@@ -18,9 +18,9 @@ test('undo, save and the shortcuts help work from the keyboard', async ({ page }
   page.on('pageerror', (e) => errors.push(e.message));
 
   await signIn(page);
-  await page.goto('/admin/posts');
+  await page.goto('/cl-admin/posts');
   await page.getByRole('button', { name: 'Add New' }).click();
-  await page.waitForURL('**/admin/entries/**');
+  await page.waitForURL('**/cl-admin/entries/**');
   const id = page.url().split('/').pop()!;
 
   const canvas = page.frameLocator('iframe[name="editor-canvas"]');

@@ -10,12 +10,12 @@ test('the theme is customized with a live preview and a footer area', async ({ p
   page.on('pageerror', (e) => errors.push(e.message));
   const stamp = Date.now().toString(36);
 
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill('admin@example.com');
   await page.getByLabel('Password').fill('cleitext-admin');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
-  await page.goto('/admin/appearance');
+  await page.waitForURL('**/cl-admin/');
+  await page.goto('/cl-admin/appearance');
 
   // Appearance opens on Themes; the active theme leads to its options.
   await expect(page.getByRole('tab', { name: 'Themes' })).toHaveAttribute('aria-selected', 'true');

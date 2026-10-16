@@ -11,7 +11,9 @@ const LIMIT = 500 * 1024;
 const dist = join(dirname(fileURLToPath(import.meta.url)), '../../apps/admin/dist');
 const html = await readFile(join(dist, 'index.html'), 'utf8');
 const files = [
-  ...html.matchAll(/<(?:script[^>]*\ssrc|link[^>]*\shref)="\/admin\/(assets\/[^"]+\.(?:js|css))"/g),
+  ...html.matchAll(
+    /<(?:script[^>]*\ssrc|link[^>]*\shref)="\/cl-admin\/(assets\/[^"]+\.(?:js|css))"/g,
+  ),
 ].map((match) => match[1]);
 
 let total = gzipSync(html).length;

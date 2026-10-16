@@ -5,11 +5,11 @@ import { expect, test, type Page } from '@playwright/test';
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 const background = (page: Page) =>
@@ -27,7 +27,7 @@ test('the color scheme follows the system and can be chosen', async ({ page }) =
   expect(dark).not.toBe(light);
 
   // Chosen in the profile: applied at once and kept after a reload.
-  await page.goto('/admin/profile');
+  await page.goto('/cl-admin/profile');
   await page.getByLabel('Color scheme').selectOption('dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();

@@ -25,7 +25,7 @@ Il modo più semplice, come con WordPress: niente da compilare, nessun file di c
       In entrambi i casi la procedura crea poi l'utente dell'applicazione, genera i segreti e scrive `cleitext-shared/.env` (permessi 600, accanto alla cartella `cleitext`), con le cartelle `media`, `plugins`, `themes` e `backups`.
 
    4. **Sito e amministratore**: nome del sito, dominio, lingua, email e password del super amministratore.
-6. **Accedi** da `/admin/`. I plugin ufficiali SEO e Moduli sono installati ma non attivi; Hi John è attivo, nella bacheca.
+6. **Accedi** da `/cl-admin/` (il vecchio `/admin/` rimanda lì). I plugin ufficiali SEO e Moduli sono installati ma non attivi; Hi John è attivo, nella bacheca.
 
 **Installa subito dopo aver abilitato Node.js**: finché la procedura non è completata, chi apre il sito per primo può completarla con un suo database e un suo amministratore. Per chiedere anche un codice di setup, imposta `CLEITEXT_SETUP_TOKEN=true` nelle variabili d'ambiente dell'applicazione Node.js prima di abilitarla: la procedura chiede allora il codice scritto nei **Log** del dominio e in `cleitext/tmp/setup-token`.
 
@@ -142,7 +142,7 @@ cd /var/www/vhosts/example.com/cleitext
 bin/cleitext install --domain example.com --site-name "Example" --site-slug main --locale it
 ```
 
-Il comando applica le migrazioni, crea il sito e chiede email e password del super amministratore; con `--official-plugins` installa anche SEO e Moduli (non attivi) e Hi John (attivo), come la procedura guidata. Poi attiva l'applicazione in Plesk con **Enable** e apri `https://example.com/admin/`.
+Il comando applica le migrazioni, crea il sito e chiede email e password del super amministratore; con `--official-plugins` installa anche SEO e Moduli (non attivi) e Hi John (attivo), come la procedura guidata. Poi attiva l'applicazione in Plesk con **Enable** e apri `https://example.com/cl-admin/`.
 
 **Oppure installa dal browser** (RF-SIT-02): con `DATABASE_ADMIN_URL` nel `.env`, attiva l'applicazione su un database vuoto (senza alcun `.env` parte invece la procedura guidata completa, vedi l'inizio di questa guida). Il server risponde solo su `/install` con un modulo per il sito e il super amministratore (con `CLEITEXT_SETUP_TOKEN=true` chiede anche un codice di setup, scritto nel log: Plesk **Log** del dominio, systemd `journalctl -u cleitext`): l'installazione esegue lo stesso comando in un processo separato, poi il server riparte in modalità normale. Il token deriva da `APP_SECRET`, quindi ogni processo mostra lo stesso.
 

@@ -107,7 +107,7 @@ describe('MCP', () => {
       headers: { host: site.host, accept: 'text/html,application/xhtml+xml' },
     });
     expect(browser.statusCode).toBe(302);
-    expect(browser.headers.location).toBe('/admin/assistants');
+    expect(browser.headers.location).toBe('/cl-admin/assistants');
     expect((await app.inject({ url: '/mcp', headers: { host: site.host } })).statusCode).toBe(405);
     expect((await admin.get('/api/v1/assistants')).json().enabled).toBe(true);
   });
@@ -353,7 +353,7 @@ describe('OAuth for AI assistants', () => {
     // The consent is in the admin, which asks to sign in first.
     const authorize = await get(`/oauth/authorize?${query}`);
     expect(authorize.statusCode).toBe(302);
-    expect(authorize.headers.location).toBe(`/admin/connect?${query}`);
+    expect(authorize.headers.location).toBe(`/cl-admin/connect?${query}`);
     const params = Object.fromEntries(query);
     expect((await get(`/api/v1/oauth/consent?${query}`)).statusCode).toBe(401);
 

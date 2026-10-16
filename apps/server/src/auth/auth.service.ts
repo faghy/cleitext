@@ -1,3 +1,4 @@
+import { ADMIN_PATH } from '@cleitext/shared';
 import { findLogin, sites, users, withContext, type DatabaseClient } from '@cleitext/db';
 import {
   ForbiddenException,
@@ -215,7 +216,7 @@ export class AuthService {
     email: string,
     client: ClientInfo,
     /** Page where the link leads: the admin's, or the site's own account page. */
-    resetUrl = `${client.origin}/admin/reset-password`,
+    resetUrl = `${client.origin}${ADMIN_PATH}/reset-password`,
   ): Promise<void> {
     const login = await findLogin(this.database.db, email);
     if (!login || login.status !== 'active') return;

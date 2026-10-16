@@ -6,11 +6,11 @@ import { appErrors } from './fixtures/errors.js';
 const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 async function createPage(page: Page, title: string): Promise<void> {
@@ -34,7 +34,7 @@ test('list tables sort, edit inline and apply bulk actions', async ({ page }) =>
   await createPage(page, `Beta ${stamp}`);
   await createPage(page, `Alpha ${stamp}`);
 
-  await page.goto('/admin/pages');
+  await page.goto('/cl-admin/pages');
   await page.getByLabel(/^Search pages/).fill(stamp);
   await page.getByRole('button', { name: 'Search' }).click();
   const rows = page.getByRole('row');
@@ -115,7 +115,7 @@ test('pages are listed as a tree and ordered from the editor', async ({ page }) 
   }, stamp);
 
   // In the editor: "C child" (order 0) moves after "B child" (order 1).
-  await page.goto(`/admin/entries/${ids.first}`);
+  await page.goto(`/cl-admin/entries/${ids.first}`);
   await expect(page.getByLabel('Parent page')).toHaveValue(ids.parent);
   const saved = page.waitForResponse(
     (r) => r.url().endsWith(`/entries/${ids.first}`) && r.request().method() === 'PATCH',
@@ -124,12 +124,12 @@ test('pages are listed as a tree and ordered from the editor', async ({ page }) 
   await page.getByLabel('Order', { exact: true }).blur();
   expect((await saved).ok()).toBe(true);
   // The parent cannot be moved under its own child.
-  await page.goto(`/admin/entries/${ids.parent}`);
+  await page.goto(`/cl-admin/entries/${ids.parent}`);
   await expect(
     page.getByLabel('Parent page').locator('option', { hasText: `C child ${stamp}` }),
   ).toHaveCount(0);
 
-  await page.goto('/admin/pages');
+  await page.goto('/cl-admin/pages');
   const ours = page.getByRole('row').filter({ hasText: stamp });
   await expect(ours).toHaveCount(3);
   const titles = await ours.getByRole('link').allTextContents();

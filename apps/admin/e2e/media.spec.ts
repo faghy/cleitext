@@ -8,11 +8,11 @@ const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
 const sample = readFileSync(new URL('./fixtures/sample.jpg', import.meta.url));
 
 async function signIn(page: Page) {
-  await page.goto('/admin/login');
+  await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/admin/');
+  await page.waitForURL('**/cl-admin/');
 }
 
 test('upload, describe, search and filter media', async ({ page }) => {
@@ -22,7 +22,7 @@ test('upload, describe, search and filter media', async ({ page }) => {
   const name = `photo-${stamp}.jpg`;
 
   await signIn(page);
-  await page.goto('/admin/media');
+  await page.goto('/cl-admin/media');
   // Bytes after the end of the JPEG make this file unique (duplicates are reused).
   const unique = Buffer.concat([sample, Buffer.from(stamp)]);
   await page.locator('input[type=file]').setInputFiles({
