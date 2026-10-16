@@ -303,6 +303,17 @@ export interface LanguagesApi {
  * Secrets of the plugin per site, e.g. an API key (needs `settings:own`).
  * Encrypted in the database with a key derived from the server's APP_SECRET.
  */
+/**
+ * Work done again and again (plugin API 1.18), e.g. cancelling unpaid
+ * orders: `ctx.schedule.every('cancel-unpaid', 15, async (siteId) => …)`.
+ * The handler runs for each site where the plugin is active, about every
+ * `minutes` (at least 1), in every server process: it must be harmless when
+ * two run at once.
+ */
+export interface ScheduleApi {
+  every(name: string, minutes: number, handler: (siteId: string) => Promise<void> | void): void;
+}
+
 export interface SecretsApi {
   set(siteId: string, name: string, value: string): Promise<void>;
   /** The value, or null when unset (or APP_SECRET changed). */
@@ -830,6 +841,7 @@ export interface PluginContext {
   readonly languages: LanguagesApi;
   readonly storage: StorageApi;
   readonly secrets: SecretsApi;
+  readonly schedule: ScheduleApi;
   readonly blocks: BlockApi;
   readonly routes: RouteApi;
   readonly settings: SettingsApi;

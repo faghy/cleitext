@@ -584,6 +584,18 @@ describe('an active plugin', () => {
     expect(account.body).not.toContain('Elsewhere');
   });
 
+  it('runs its scheduled tasks on the sites where it is active', async () => {
+    const host = app.get(PluginHost);
+    const now = Date.now();
+    expect(await host.runSchedules(now)).toBeGreaterThan(0);
+    expect((await visitor.get('/ticks')).body).toBe('1');
+    // Not again before 5 minutes.
+    await host.runSchedules(now + 60_000);
+    expect((await visitor.get('/ticks')).body).toBe('1');
+    await host.runSchedules(now + 5 * 60_000);
+    expect((await visitor.get('/ticks')).body).toBe('2');
+  });
+
   it('has settings, editable with the right capability', async () => {
     expect((await admin.get('/api/v1/plugins/events/settings')).json()).toEqual({
       icsName: 'Events',

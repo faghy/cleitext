@@ -416,6 +416,16 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       },
     },
 
+    schedule: {
+      every(name, minutes, handler) {
+        if (!/^[a-z0-9-]{1,60}$/.test(name)) throw new Error(`Invalid task name: ${name}`);
+        if (plugin.schedules.some((t) => t.name === name))
+          throw new Error(`Task ${name} is already scheduled`);
+        if (typeof handler !== 'function') throw new Error('A scheduled task needs a handler');
+        plugin.schedules.push({ name, minutes: Math.max(1, Math.floor(minutes) || 1), handler });
+      },
+    },
+
     privacy: {
       declareTrackers(provider) {
         plugin.trackerProviders.push(provider);

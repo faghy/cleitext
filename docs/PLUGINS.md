@@ -544,6 +544,10 @@ Public pages are cached and refreshed through **tags**. Pages showing an entry c
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, html?, replyTo?, siteId? })`, sent with the server's mail settings, or the site's own SMTP server with `siteId`. `html` (plugin API 1.16) is an HTML version of the message, such as an order confirmation; `text` stays for mail clients that show only text.
 
+### Scheduled tasks
+
+`ctx.schedule.every(name, minutes, handler)` (plugin API 1.18) runs `handler(siteId)` about every `minutes` (at least 1) for each site where the plugin is active, e.g. to cancel unpaid orders or send a digest. No permission is needed. Tasks run in every server process, so a task must be harmless when two run at once (update rows with conditions, not by reading then writing).
+
 ### Requests to other services
 
 `network` (plugin API 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` returns `{ status, type, text }`. Use it for webhooks, mailing lists and chat notifications. Only public `https` addresses are accepted: names resolving to the server's own network are refused when connecting, redirects are not followed, answers are cut at 1 MB and requests last 10 seconds by default (30 at most).

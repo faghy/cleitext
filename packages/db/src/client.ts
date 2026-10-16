@@ -257,6 +257,14 @@ export async function purgeTrash(db: Database): Promise<number> {
   return Number(rows[0]?.n ?? 0);
 }
 
+/** Sites and the plugins active on them (network and must-use ones included). */
+export async function pluginSites(db: Database): Promise<{ siteId: string; slug: string }[]> {
+  const rows = await db.execute<{ site_id: string; plugin_slug: string }>(
+    sql`select * from cleitext_plugin_sites()`,
+  );
+  return rows.map((r) => ({ siteId: r.site_id, slug: r.plugin_slug }));
+}
+
 /** Checks that the database answers. Throws when it does not. */
 export async function ping(db: Database): Promise<void> {
   await db.execute(sql`select 1`);

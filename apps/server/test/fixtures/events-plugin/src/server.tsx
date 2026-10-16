@@ -348,6 +348,18 @@ export default definePlugin({
         },
       }),
     });
+    // Work done every 5 minutes (plugin API 1.18).
+    ctx.schedule.every('count-ticks', 5, async (siteId) => {
+      const ticks = Number((await ctx.storage.get(siteId, 'ticks')) ?? 0);
+      await ctx.storage.set(siteId, 'ticks', ticks + 1);
+    });
+    ctx.routes.public({
+      method: 'GET',
+      path: '/ticks',
+      handler: async (request) => ({
+        body: String((await ctx.storage.get(request.siteId, 'ticks')) ?? 0),
+      }),
+    });
     // A link on visitors' account page (plugin API 1.17).
     ctx.hooks.filter('account.links', (links, context) => [
       ...links,

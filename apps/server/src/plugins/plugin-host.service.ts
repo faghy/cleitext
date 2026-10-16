@@ -6,6 +6,7 @@ import {
   detached,
   newId,
   plugins,
+  pluginSites,
   settings,
   sitePlugins,
   taxonomies,
@@ -113,6 +114,8 @@ export interface LoadedPlugin {
   trackerProviders: ((siteId: string) => TrackerDeclaration[] | Promise<TrackerDeclaration[]>)[];
   /** Files of the `public` folder added to public pages (`ctx.assets.enqueue`). */
   assets: PublicAsset[];
+  /** Registered with `ctx.schedule.every` (plugin API 1.18). */
+  schedules: { name: string; minutes: number; handler: (siteId: string) => Promise<void> | void }[];
   stats: PluginStats;
 }
 
@@ -140,6 +143,9 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   /** Recent failures per plugin and site (`slug:siteId`), for RF-PLG-05. */
   private readonly failures = new Map<string, number[]>();
   private readonly disabling = new Set<string>();
+  private ticker: NodeJS.Timeout | undefined;
+  /** When each scheduled task last ran, by `slug:name:siteId`. */
+  private readonly lastRuns = new Map<string, number>();
 
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
@@ -155,6 +161,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
 
   onApplicationShutdown(): void {
     clearTimeout(this.retry);
+    clearInterval(this.ticker);
   }
 
   onApplicationBootstrap(): void {
@@ -168,11 +175,47 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       if (this.loaded.size === 0) return;
       detached(() => setImmediate(() => void this.emit('cache.invalidated', { tags }, siteId)));
     });
+    const seconds = this.config.schedulerIntervalSeconds;
+    if (seconds > 0) {
+      this.ticker = setInterval(() => void this.runSchedules(), Math.max(seconds, 30) * 1000);
+      this.ticker.unref();
+    }
     this.cache.onSiteChange(() => {
       this.active.clear();
       // A plugin activated for the whole network adds its types on every site.
       this.synced.clear();
     });
+  }
+
+  /**
+   * Runs the plugins' scheduled tasks that are due (`ctx.schedule.every`),
+   * for each site where their plugin is active. Returns how many ran.
+   */
+  async runSchedules(now = Date.now()): Promise<number> {
+    const scheduled = [...this.loaded.values()].filter(
+      (p) => p.status === 'loaded' && p.schedules.length > 0,
+    );
+    if (scheduled.length === 0) return 0;
+    let ran = 0;
+    try {
+      const pairs = await pluginSites(this.database.db);
+      for (const plugin of scheduled) {
+        for (const { siteId } of pairs.filter((p) => p.slug === plugin.slug)) {
+          for (const task of plugin.schedules) {
+            const key = `${plugin.slug}:${task.name}:${siteId}`;
+            if (now - (this.lastRuns.get(key) ?? 0) < task.minutes * 60_000) continue;
+            this.lastRuns.set(key, now);
+            ran++;
+            await this.runHook({ plugin: plugin.slug, name: `schedule ${task.name}`, siteId }, () =>
+              task.handler(siteId),
+            );
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Scheduled tasks failed: ${describeError(error)}`);
+    }
+    return ran;
   }
 
   // ---- Loading ------------------------------------------------------------------------
@@ -249,6 +292,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       erasers: [],
       trackerProviders: [],
       assets: [],
+      schedules: [],
       stats: { calls: 0, errors: 0, totalMs: 0, lastError: null },
     };
     try {
@@ -293,6 +337,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         erasers: [],
         trackerProviders: [],
         assets: [],
+        schedules: [],
       });
       plugin.capabilities.clear();
       this.logger.error(`Plugin ${slug} could not be loaded: ${plugin.error}`);

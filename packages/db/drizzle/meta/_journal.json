@@ -155,6 +155,13 @@
       "when": 1792131444234,
       "tag": "0021_taxonomy_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792131544234,
+      "tag": "0022_plugin_sites",
+      "breakpoints": true
     }
   ]
 }

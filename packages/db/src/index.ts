@@ -8,6 +8,7 @@ export {
   isInstalled,
   listMySites,
   ping,
+  pluginSites,
   publishDueEntries,
   purgeTrash,
   seedSiteDefaults,

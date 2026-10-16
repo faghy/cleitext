@@ -522,6 +522,10 @@ Le pagine pubbliche sono in cache e vengono aggiornate tramite **tag**. Le pagin
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, html?, replyTo?, siteId? })`, inviata con le impostazioni di posta del server, oppure con il server SMTP del sito indicando `siteId`. `html` (API dei plugin 1.16) è una versione HTML del messaggio, come una conferma d'ordine; `text` resta per i programmi di posta che mostrano solo testo.
 
+### Attività periodiche
+
+`ctx.schedule.every(name, minutes, handler)` (API dei plugin 1.18) esegue `handler(siteId)` circa ogni `minutes` minuti (almeno 1) per ogni sito in cui il plugin è attivo, per esempio per annullare gli ordini non pagati o inviare un riepilogo. Non serve alcun permesso. Le attività girano in ogni processo del server: un'attività deve restare innocua se due partono insieme (aggiornare le righe con condizioni, non leggerle e poi scriverle).
+
 ### Richieste ad altri servizi
 
 `network` (API plugin 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` restituisce `{ status, type, text }`. Serve per webhook, liste di contatti e notifiche in chat. Sono accettati solo indirizzi `https` pubblici: i nomi che portano alla rete del server vengono rifiutati al momento della connessione, i reindirizzamenti non vengono seguiti, le risposte sono tagliate a 1 MB e le richieste durano 10 secondi se non indicato diversamente (30 al massimo).
