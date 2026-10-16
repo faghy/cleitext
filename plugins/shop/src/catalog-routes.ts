@@ -174,6 +174,20 @@ export function registerCatalog(
           Object.keys(filters.attributes).length === 0 &&
           filters.sort === 'default',
         head: [{ tag: 'json-ld', data: breadcrumbData(request.origin, crumbs) }],
+        // An archive of products (of the category or brand): theme builders' archive templates apply.
+        archive: {
+          type: 'product',
+          ...(term && scope
+            ? {
+                term: {
+                  taxonomy: scope.taxonomy,
+                  slug: term.slug,
+                  name: term.name,
+                  description: term.description ?? null,
+                },
+              }
+            : {}),
+        },
         html: catalogPage({
           t,
           money,
