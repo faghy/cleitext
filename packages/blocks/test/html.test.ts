@@ -202,13 +202,17 @@ describe('code in <pre>', () => {
   it('keeps HTML and PHP written unescaped, without the markup of highlighters', () => {
     const doc = htmlToCxd(
       '<pre class="lang:php">&lt;?php echo "a"; ?&gt;\n<?php if ($a > 1) { ?>\n<div class="box">Hi</div>\n<?php } ?></pre>' +
-        '<pre><code class="language-js"><span class="kw">const</span> a = 1;<br>a &lt; 2;</code></pre>',
+        '<pre><code class="language-js"><span class="kw">const</span> a = 1;<br>a &lt; 2;</code></pre>' +
+        '<pre>&lt;div&gt;ciao&lt;/div&gt; &lt;span&gt;x&lt;/span&gt; it&#8217;s &#x27;q&#x27;</pre>' +
+        '<!-- wp:code --><pre class="wp-block-code"><code>&lt;?php echo &quot;b&quot;; ?&gt;</code></pre><!-- /wp:code -->',
     );
     expect(
       doc.blocks.map((b) => (b.content?.[0] && 'text' in b.content[0] ? b.content[0].text : '')),
     ).toEqual([
       '<?php echo "a"; ?>\n<?php if ($a > 1) { ?>\n<div class="box">Hi</div>\n<?php } ?>',
       'const a = 1;\na < 2;',
+      "<div>ciao</div> <span>x</span> it’s 'q'",
+      '<?php echo "b"; ?>',
     ]);
   });
 });

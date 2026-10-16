@@ -160,12 +160,10 @@ function fromWpBlock(
     case 'core/code':
     case 'core/preformatted':
     case 'core/verse': {
-      const code = parse(html).querySelector('code,pre');
-      return [
-        make('core/code', common, [
-          { text: preText(code?.textContent ?? parse(html).textContent) },
-        ]),
-      ];
+      const root = parse(html);
+      // The <pre> (code, preformatted, verse); a bare <code> otherwise.
+      const code = root.querySelector('pre') ?? root.querySelector('code') ?? root;
+      return [make('core/code', common, [{ text: preText(code.innerHTML) }])];
     }
     case 'core/more':
     case 'core/nextpage':
@@ -311,7 +309,7 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
             blocks.push(imageBlock(node, {}, undefined, options));
           break;
         case 'PRE':
-          blocks.push(make('core/code', {}, [{ text: preText(node.textContent) }]));
+          blocks.push(make('core/code', {}, [{ text: preText(node.innerHTML) }]));
           break;
         case 'HR':
           blocks.push(make('core/separator', {}));
@@ -445,7 +443,9 @@ const CODE_MARKUP =
   /<\/?(?:code|span|b|strong|i|em|u|mark|kbd|samp|var|font|small|big|sub|sup|a)(?:\s[^<>]*)?>/gi;
 
 /**
- * The text of a <pre>: the parser keeps its content raw. The markup around
+ * The text of a <pre>, from its HTML as written: escaped code (`&lt;div&gt;`)
+ * is decoded only after the markup is removed, so it never loses its tags.
+ * The markup around
  * the code (`<pre><code>`, the spans of highlighters) is removed and `<br>`
  * becomes a line break; anything else is the code itself, kept as written:
  * plugins such as SyntaxHighlighter store `<?php … ?>` or `<div>` unescaped.
@@ -456,6 +456,8 @@ function preText(raw: string): string {
 
 function decode(text: string): string {
   return text
+    .replace(/&#(\d{1,7});/g, (_, n: string) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]{1,6});/gi, (_, n: string) => String.fromCodePoint(parseInt(n, 16)))
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
