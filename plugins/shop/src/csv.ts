@@ -18,7 +18,7 @@ export function toCsv(rows: (string | number | boolean | null | undefined)[][]):
 
 /** Rows of a CSV text (comma or semicolon, as spreadsheets in Italy save it). */
 export function parseCsv(text: string): string[][] {
-  const source = text.replace(/^﻿/, '');
+  const source = text.replace(/^\uFEFF/, '');
   const firstLine = source.slice(0, source.search(/\r?\n|$/));
   const separator =
     (firstLine.match(/;/g) ?? []).length > (firstLine.match(/,/g) ?? []).length ? ';' : ',';
