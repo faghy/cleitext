@@ -14,7 +14,8 @@
     "routes:admin",
     "routes:public",
     "settings:own",
-    "theme:hooks"
+    "theme:hooks",
+    "comments"
   ],
   "capabilities": ["manage_events"]
 }

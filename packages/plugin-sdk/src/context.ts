@@ -314,6 +314,62 @@ export interface ScheduleApi {
   every(name: string, minutes: number, handler: (siteId: string) => Promise<void> | void): void;
 }
 
+/** A comment as plugins see it (plugin API 1.19). */
+export interface PluginComment {
+  id: string;
+  entryId: string;
+  parentId: string | null;
+  /** `comment`, or a plugin's own type such as `review`. */
+  type: string;
+  status: 'pending' | 'approved' | 'spam' | 'trash';
+  userId: string | null;
+  authorName: string;
+  /** Plain text. */
+  content: string;
+  /** The plugin's data, e.g. `{ rating: 5 }`. */
+  meta: Record<string, unknown>;
+  createdAt: string;
+}
+
+/**
+ * Comments of a site (needs `comments`, plugin API 1.19): reviews, questions…
+ * Plugins post comments of their own type for the visitor of a request, with
+ * the core's moderation, spam checks, limits and notifications. Comments of
+ * other types than `comment` never appear in the entries' comment threads.
+ */
+export interface CommentsApi {
+  find(
+    siteId: string,
+    query: {
+      entryId?: string;
+      type?: string;
+      /** Default `approved`. */
+      status?: PluginComment['status'] | 'any';
+      userId?: string;
+      authorEmail?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<PluginComment[]>;
+  /**
+   * Posts a comment of the plugin's type for the visitor of `request` (signed
+   * in or a guest with name and email). The entry must be published; whether
+   * it takes comments is the plugin's call. Fails with an error whose message
+   * the visitor can read (in their language) and a `status` (400, 403, 429).
+   */
+  post(
+    request: RouteRequest,
+    input: {
+      entryId: string;
+      type: string;
+      content: string;
+      meta?: Record<string, unknown>;
+      authorName?: string;
+      authorEmail?: string;
+    },
+  ): Promise<{ id: string; status: PluginComment['status'] }>;
+}
+
 export interface SecretsApi {
   set(siteId: string, name: string, value: string): Promise<void>;
   /** The value, or null when unset (or APP_SECRET changed). */
@@ -842,6 +898,7 @@ export interface PluginContext {
   readonly storage: StorageApi;
   readonly secrets: SecretsApi;
   readonly schedule: ScheduleApi;
+  readonly comments: CommentsApi;
   readonly blocks: BlockApi;
   readonly routes: RouteApi;
   readonly settings: SettingsApi;

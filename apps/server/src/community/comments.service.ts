@@ -162,6 +162,8 @@ export class CommentsService {
     input: NewComment,
     who: Commenter | null,
     client: { ip: string; userAgent: string | null; locale: string; origin: string },
+    /** Plugins: their own type and data, on entries whose comments they manage. */
+    options: { type?: string; meta?: Record<string, unknown>; anyEntry?: boolean } = {},
   ): Promise<{ id: string; status: CommentStatus }> {
     const L = (en: string, it: string) => say(client.locale, en, it);
     const settings = await this.settings.getCore(siteId);
@@ -210,7 +212,7 @@ export class CommentsService {
         const { entry, open } = await this.openFor(tx, input.entryId, settings);
         if (!entry)
           throw new NotFoundException(L('This entry does not exist.', 'Questa voce non esiste.'));
-        if (!open)
+        if (!open && !options.anyEntry)
           throw new ForbiddenException(L('Comments are closed.', 'I commenti sono chiusi.'));
         let parentId: string | null = null;
         if (input.parentId) {
@@ -257,6 +259,8 @@ export class CommentsService {
             ip: client.ip,
             userAgent: client.userAgent?.slice(0, 300) ?? null,
             notifyReplies: input.notifyReplies === true && Boolean(authorEmail),
+            ...(options.type ? { type: options.type } : {}),
+            ...(options.meta ? { meta: options.meta } : {}),
           })
           .returning();
         if (status === 'approved') await this.recount(tx, entry.id);
@@ -641,6 +645,7 @@ export class CommentsService {
       authorName: row.authorName,
       authorEmail: row.authorEmail,
       content: row.content,
+      meta: row.meta,
     };
     if (from === null)
       await this.plugins.emit(

@@ -7,6 +7,9 @@ import {
   type PersonalDataGroup,
   type PluginContext,
   type PluginMedia,
+  type CommentsApi,
+  type PluginComment,
+  type RouteRequest,
   type PluginEntry,
   type PluginLogger,
   type PluginPermission,
@@ -85,6 +88,11 @@ export interface PluginServices {
     siteId?: string;
   }): Promise<void>;
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
+  findComments(siteId: string, query: Parameters<CommentsApi['find']>[1]): Promise<PluginComment[]>;
+  postComment(
+    request: RouteRequest,
+    input: Parameters<CommentsApi['post']>[1],
+  ): Promise<{ id: string; status: PluginComment['status'] }>;
   /** A request to a public address for a plugin (`ctx.http.send`); tests replace it. */
   httpSend(
     plugin: LoadedPlugin,
@@ -421,6 +429,21 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         assertSiteId(siteId);
         if (!UUID_RE.test(id)) return null;
         return services().mediaItem(siteId, id);
+      },
+    },
+
+    comments: {
+      async find(siteId, query) {
+        require('comments');
+        assertSiteId(siteId);
+        return services().findComments(siteId, query);
+      },
+      async post(request, input) {
+        require('comments');
+        assertSiteId(request.siteId);
+        if (!/^[a-z][a-z0-9-]{0,39}$/.test(input.type) || input.type === 'comment')
+          throw new Error(`Plugins post comments of their own type, not "${input.type}"`);
+        return services().postComment(request, input);
       },
     },
 

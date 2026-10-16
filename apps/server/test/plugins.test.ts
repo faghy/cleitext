@@ -596,6 +596,36 @@ describe('an active plugin', () => {
     expect((await visitor.get('/ticks')).body).toBe('2');
   });
 
+  it('posts and reads comments of its own type, outside the comment threads', async () => {
+    const created = (
+      await editor.post('/api/v1/entries', {
+        type: 'event',
+        title: 'Noted',
+        fields: { startsAt: '2027-01-01' },
+      })
+    ).json();
+    await editor.post(`/api/v1/entries/${created.id}/publish`);
+    const posted = await admin.postForm('/event-notes', {
+      entry: created.id,
+      text: 'Great evening',
+      stars: '5',
+    });
+    expect(posted.statusCode).toBe(200);
+    expect(posted.json().status).toBe('approved');
+    const empty = await visitor.postForm('/event-notes', {
+      entry: created.id,
+      text: '',
+      name: 'Gino',
+      email: 'gino@example.test',
+    });
+    expect(empty.statusCode).toBe(400);
+    expect(empty.json().error).toBe('Write a comment.');
+    const notes = (await visitor.get(`/event-notes/${created.id}`)).json();
+    expect(notes).toEqual([
+      expect.objectContaining({ type: 'note', content: 'Great evening', meta: { stars: 5 } }),
+    ]);
+  });
+
   it('has settings, editable with the right capability', async () => {
     expect((await admin.get('/api/v1/plugins/events/settings')).json()).toEqual({
       icsName: 'Events',

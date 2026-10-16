@@ -35,7 +35,9 @@ import {
   type ImportReport,
   type PersonalDataGroup,
   type PluginMedia,
+  type PluginComment,
   type PluginTransaction,
+  type RouteRequest,
   type TermQuery,
   type DocumentImportOptions,
 } from '@cleitext/plugin-sdk';
@@ -45,8 +47,15 @@ import {
   type FieldDefinition,
   type FieldValues,
 } from '@cleitext/shared';
-import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { and, asc, desc, eq, inArray, ne, or, sql } from 'drizzle-orm';
+import { CommentsService } from '../community/comments.service.js';
 import { fetchPublic, sendPublic } from '../common/public-fetch.js';
 import type { AuthContext } from '../common/request-context.js';
 import { seal, unseal } from '../common/secrets.js';
@@ -79,6 +88,7 @@ export class PluginServicesProvider implements PluginServices {
     private readonly termsService: TermsService,
     private readonly identity: IdentityService,
     private readonly media: MediaService,
+    private readonly commentsService: CommentsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {
     host.bind(this);
@@ -609,6 +619,108 @@ export class PluginServicesProvider implements PluginServices {
       onLanguagesPending: () => this.host.emit('languages.pending', {}, siteId),
       ...(options.onProgress ? { onProgress: options.onProgress } : {}),
     });
+  }
+
+  async findComments(
+    siteId: string,
+    query: {
+      entryId?: string;
+      type?: string;
+      status?: PluginComment['status'] | 'any';
+      userId?: string;
+      authorEmail?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<PluginComment[]> {
+    const uuid = /^[0-9a-f-]{36}$/i;
+    if ((query.entryId && !uuid.test(query.entryId)) || (query.userId && !uuid.test(query.userId)))
+      return [];
+    const status = query.status ?? 'approved';
+    const rows = await withContext(this.database.db, { siteId }, (tx) =>
+      tx
+        .select()
+        .from(comments)
+        .where(
+          and(
+            query.entryId ? eq(comments.entryId, query.entryId) : undefined,
+            query.type ? eq(comments.type, query.type) : undefined,
+            status === 'any' ? undefined : eq(comments.status, status),
+            query.userId ? eq(comments.userId, query.userId) : undefined,
+            query.authorEmail
+              ? eq(comments.authorEmail, query.authorEmail.trim().toLowerCase())
+              : undefined,
+          ),
+        )
+        .orderBy(desc(comments.createdAt))
+        .limit(Math.min(Math.max(query.limit ?? 100, 1), 1000))
+        .offset(Math.max(query.offset ?? 0, 0)),
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      entryId: r.entryId,
+      parentId: r.parentId,
+      type: r.type,
+      status: r.status,
+      userId: r.userId,
+      authorName: r.authorName,
+      content: r.content,
+      meta: r.meta,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async postComment(
+    request: RouteRequest,
+    input: {
+      entryId: string;
+      type: string;
+      content: string;
+      meta?: Record<string, unknown>;
+      authorName?: string;
+      authorEmail?: string;
+    },
+  ): Promise<{ id: string; status: PluginComment['status'] }> {
+    const who = request.user
+      ? await withContext(this.database.db, { siteId: request.siteId }, async (tx) => {
+          const [user] = await tx
+            .select({ email: users.email })
+            .from(users)
+            .where(eq(users.id, request.user!.id));
+          return user
+            ? {
+                userId: request.user!.id,
+                displayName: request.user!.displayName,
+                email: user.email,
+                capabilities: request.user!.capabilities,
+              }
+            : null;
+        })
+      : null;
+    try {
+      return await this.commentsService.post(
+        request.siteId,
+        {
+          entryId: input.entryId,
+          content: input.content,
+          ...(input.authorName !== undefined ? { authorName: input.authorName } : {}),
+          ...(input.authorEmail !== undefined ? { authorEmail: input.authorEmail } : {}),
+        },
+        who,
+        {
+          ip: request.ip,
+          userAgent: request.headers['user-agent'] ?? null,
+          locale: request.locale,
+          origin: request.origin,
+        },
+        { type: input.type, meta: input.meta ?? {}, anyEntry: true },
+      );
+    } catch (error) {
+      // The visitor's message, as the core says it, with its status.
+      if (error instanceof HttpException)
+        throw Object.assign(new Error(error.message), { status: error.getStatus() });
+      throw error;
+    }
   }
 
   async httpSend(

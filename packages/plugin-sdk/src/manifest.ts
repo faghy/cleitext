@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.18.0';
+export const SDK_VERSION = '1.19.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -22,6 +22,8 @@ export const PLUGIN_PERMISSIONS = [
   'import',
   /** Send requests to other services on the internet (webhooks, mailing lists). */
   'network',
+  /** Read comments and post comments of its own type for visitors, e.g. reviews (API 1.19). */
+  'comments',
 ] as const;
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 

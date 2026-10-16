@@ -544,6 +544,10 @@ Public pages are cached and refreshed through **tags**. Pages showing an entry c
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, html?, replyTo?, siteId? })`, sent with the server's mail settings, or the site's own SMTP server with `siteId`. `html` (plugin API 1.16) is an HTML version of the message, such as an order confirmation; `text` stays for mail clients that show only text.
 
+### Comments of a plugin
+
+`comments` (plugin API 1.19): `ctx.comments.post(request, { entryId, type, content, meta?, authorName?, authorEmail? })` posts a comment of the plugin's own type (a review, a question) for the visitor of a public request, signed in or a guest, with the core's moderation, spam checks, limits and notifications; `meta` holds the plugin's data, such as a rating. The entry must be published; whether it takes them is the plugin's call. Errors carry a message for the visitor and a `status`. `ctx.comments.find(siteId, { entryId?, type?, status?, userId?, authorEmail?, limit?, offset? })` reads them (approved ones by default). They are moderated in Comments like the others, never shown in the entries' comment threads, and the `comment.created` and `comment.status` actions carry their `meta`.
+
 ### Scheduled tasks
 
 `ctx.schedule.every(name, minutes, handler)` (plugin API 1.18) runs `handler(siteId)` about every `minutes` (at least 1) for each site where the plugin is active, e.g. to cancel unpaid orders or send a digest. No permission is needed. Tasks run in every server process, so a task must be harmless when two run at once (update rows with conditions, not by reading then writing).

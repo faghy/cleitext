@@ -348,6 +348,41 @@ export default definePlugin({
         },
       }),
     });
+    // Notes on events, as comments of the plugin's own type (plugin API 1.19).
+    ctx.routes.public({
+      method: 'POST',
+      path: '/event-notes',
+      async handler(request) {
+        const body = (request.body ?? {}) as Record<string, string>;
+        try {
+          const posted = await ctx.comments.post(request, {
+            entryId: body.entry ?? '',
+            type: 'note',
+            content: body.text ?? '',
+            meta: { stars: Number(body.stars) },
+            authorName: body.name ?? '',
+            authorEmail: body.email ?? '',
+          });
+          return { body: posted };
+        } catch (error) {
+          return {
+            status: (error as { status?: number }).status ?? 500,
+            body: { error: (error as Error).message },
+          };
+        }
+      },
+    });
+    ctx.routes.public({
+      method: 'GET',
+      path: '/event-notes/:entry',
+      handler: async (request) => ({
+        body: await ctx.comments.find(request.siteId, {
+          entryId: request.params.entry ?? '',
+          type: 'note',
+          status: 'any',
+        }),
+      }),
+    });
     // Work done every 5 minutes (plugin API 1.18).
     ctx.schedule.every('count-ticks', 5, async (siteId) => {
       const ticks = Number((await ctx.storage.get(siteId, 'ticks')) ?? 0);

@@ -79,6 +79,8 @@ export interface CommentEvent {
   authorName: string;
   authorEmail: string;
   content: string;
+  /** Plugin data of the comment, e.g. a review's rating (plugin API 1.19). */
+  meta?: Record<string, unknown>;
 }
 
 /** Context of the `cache.headers` filter: a public response going into the page cache. */

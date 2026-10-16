@@ -522,6 +522,10 @@ Le pagine pubbliche sono in cache e vengono aggiornate tramite **tag**. Le pagin
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, html?, replyTo?, siteId? })`, inviata con le impostazioni di posta del server, oppure con il server SMTP del sito indicando `siteId`. `html` (API dei plugin 1.16) è una versione HTML del messaggio, come una conferma d'ordine; `text` resta per i programmi di posta che mostrano solo testo.
 
+### Commenti di un plugin
+
+`comments` (API dei plugin 1.19): `ctx.comments.post(request, { entryId, type, content, meta?, authorName?, authorEmail? })` pubblica un commento di un tipo del plugin (una recensione, una domanda) per il visitatore di una richiesta pubblica, connesso o ospite, con la moderazione, i controlli antispam, i limiti e le notifiche del core; `meta` contiene i dati del plugin, come un voto. La voce deve essere pubblicata; se li accetta lo decide il plugin. Gli errori hanno un messaggio per il visitatore e uno `status`. `ctx.comments.find(siteId, { entryId?, type?, status?, userId?, authorEmail?, limit?, offset? })` li legge (per default quelli approvati). Si moderano in Commenti come gli altri, non compaiono mai nelle discussioni delle voci e le azioni `comment.created` e `comment.status` ne portano il `meta`.
+
 ### Attività periodiche
 
 `ctx.schedule.every(name, minutes, handler)` (API dei plugin 1.18) esegue `handler(siteId)` circa ogni `minutes` minuti (almeno 1) per ogni sito in cui il plugin è attivo, per esempio per annullare gli ordini non pagati o inviare un riepilogo. Non serve alcun permesso. Le attività girano in ogni processo del server: un'attività deve restare innocua se due partono insieme (aggiornare le righe con condizioni, non leggerle e poi scriverle).
