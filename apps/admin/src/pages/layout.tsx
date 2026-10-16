@@ -87,17 +87,27 @@ export function AdminLayout() {
     ...taxonomiesQuery,
     enabled: me.capabilities.includes('manage_terms'),
   });
-  // Taxonomies of posts appear under Posts, as Categories and Tags in WordPress.
-  const taxonomyItems = (taxonomies.data ?? []).map((taxonomy) => ({
-    to: `/taxonomies/${taxonomy.slug}`,
-    label: taxonomyLabel(taxonomy, me.user.locale),
-    sub: true,
-  }));
+  // Taxonomies appear under their content type, as Categories and Tags under
+  // Posts in WordPress; those of several types under Posts when it is one of them.
+  const taxonomiesOf = (type: string) =>
+    (taxonomies.data ?? [])
+      .filter((taxonomy) => {
+        const types = taxonomy.contentTypes;
+        return (types.includes('article') || types.length === 0 ? 'article' : types[0]) === type;
+      })
+      .map((taxonomy) => ({
+        to: `/taxonomies/${taxonomy.slug}`,
+        label: taxonomyLabel(taxonomy, me.user.locale),
+        sub: true,
+      }));
   const items: (PluginMenuItem & { exact?: boolean; sub?: boolean })[] = sections.flatMap(
     (section) => [
       { to: section.to, label: t(section.label), icon: section.icon, exact: section.to === '/' },
-      ...(section.to === '/posts' ? taxonomyItems : []),
-      ...(section.to === '/pages' ? pluginMenu.types : []),
+      ...(section.to === '/posts' ? taxonomiesOf('article') : []),
+      ...(section.to === '/pages' ? taxonomiesOf('page') : []),
+      ...(section.to === '/pages'
+        ? pluginMenu.types.flatMap((item) => [item, ...taxonomiesOf(item.to.slice('/content/'.length))])
+        : []),
     ],
   );
   items.push(...pluginMenu.pages);
