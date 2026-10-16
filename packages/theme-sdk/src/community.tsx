@@ -506,6 +506,10 @@ export function AuthorBox({
   if (!author) return null;
   const t = communityStrings(page.locale);
   const full = variant === 'entry';
+  // On the author's page the name is already the title: without a bio or a
+  // website there is nothing to add.
+  if (!full && !author.bio && !author.website) return null;
+  const links = (full && author.url) || author.website;
   return (
     <section className={`cx-author cx-author--${variant}`} aria-label={t.author}>
       {author.avatarUrl ? (
@@ -531,18 +535,20 @@ export function AuthorBox({
             <CommentText text={author.bio} />
           </div>
         )}
-        <p className="cx-author__links">
-          {full && author.url && (
-            <a href={author.url} rel="author">
-              {fill(t.allPosts, { name: author.displayName })}
-            </a>
-          )}
-          {author.website && (
-            <a href={author.website} rel="me nofollow noopener">
-              {t.website}
-            </a>
-          )}
-        </p>
+        {links && (
+          <p className="cx-author__links">
+            {full && author.url && (
+              <a href={author.url} rel="author">
+                {fill(t.allPosts, { name: author.displayName })}
+              </a>
+            )}
+            {author.website && (
+              <a href={author.website} rel="me nofollow noopener">
+                {t.website}
+              </a>
+            )}
+          </p>
+        )}
       </div>
     </section>
   );

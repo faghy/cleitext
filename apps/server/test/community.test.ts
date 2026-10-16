@@ -312,6 +312,15 @@ describe('authors', () => {
     expect(post).toContain('class="cx-author cx-author--entry"');
     expect(post).toContain('href="/author/the-writer"');
     expect(post).toContain('https://writer.example');
+
+    // Without a bio or a website the author page has nothing to add to its title.
+    await admin.request('PATCH', '/api/v1/profile', { bio: '', website: '' });
+    const bare = (await visitor.get('/author/the-writer')).body;
+    expect(bare).not.toContain('class="cx-author cx-author--page"');
+    await admin.request('PATCH', '/api/v1/profile', {
+      bio: 'Writes about gardens.',
+      website: 'https://writer.example',
+    });
   });
 
   it('exist only for people with published posts', async () => {
