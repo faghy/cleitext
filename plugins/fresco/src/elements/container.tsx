@@ -185,6 +185,24 @@ const controls: Control[] = [
   }),
   groups.background('background', 'Background', 'Background', '{{el}}'),
   groups.background('background_hover', 'Background on hover', 'Background', '{{el}}:hover'),
+  {
+    name: 'background_video',
+    type: 'media',
+    label: 'Video (MP4 or WebM)',
+    tab: 'style',
+    section: 'Background video',
+    accept: 'video',
+    noCss: true,
+    help: 'Plays muted, in a loop, behind the content. The background image shows while it loads, and instead of it on phones and for visitors who prefer less motion.',
+  },
+  {
+    name: 'background_video_mobile',
+    type: 'switch',
+    label: 'Play on phones too',
+    tab: 'style',
+    section: 'Background video',
+    noCss: true,
+  },
   style.color('overlay_color', 'Overlay color', 'Background overlay', {
     selectors: {
       '{{el}}::before':
@@ -220,15 +238,30 @@ export const container: ElementDefinition = {
     const link = tag === 'a' ? linkProps(settings.link) : null;
     const name = `fr-container fr-container--${grid ? 'grid' : 'flex'} fr-container--${boxed ? 'boxed' : 'full'}`;
     const empty = !node.children || node.children.length === 0;
+    const video = (settings.background_video as { url?: string } | undefined)?.url;
+    const videoUrl = video && /^(https?:\/\/|\/(?!\/))[^\s"'<>]*$/.test(video) ? video : null;
     return (
       <ElementRoot
         node={node}
         settings={settings}
-        name={name}
+        name={videoUrl ? `${name} fr-has-video` : name}
         editing={context.editing}
         tag={tag === 'a' && !link ? 'div' : tag}
         extra={link ? { href: link.href, target: link.target, rel: link.rel } : undefined}
       >
+        {videoUrl && (
+          <video
+            className={`fr-bg-video${settings.background_video_mobile === true ? '' : ' fr-bg-video--wide'}`}
+            src={videoUrl}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            tabIndex={-1}
+          />
+        )}
         <div className="fr-container__in">
           {children}
           {empty && context.editing ? <div className="fr-empty" data-fr-empty="" /> : null}

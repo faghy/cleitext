@@ -977,7 +977,7 @@ export class PublicService {
     // RSS feeds (RF-THM-08): latest posts, latest comments, and per category or tag.
     if (rest === '/feed') return this.feed(scope, null);
     if (rest === '/comments/feed') return this.commentsFeed(scope);
-    const termFeed = /^\/([a-z0-9-]+)\/([a-z0-9]+(?:-[a-z0-9]+)*)\/feed$/.exec(rest);
+    const termFeed = /^\/([a-z][a-z0-9_-]*)\/([a-z0-9]+(?:-[a-z0-9]+)*)\/feed$/.exec(rest);
     if (termFeed && data.taxonomies.includes(termFeed[1]!)) {
       return this.feed(scope, { taxonomy: termFeed[1]!, slug: termFeed[2]! });
     }
@@ -995,7 +995,9 @@ export class PublicService {
     if (author) return this.renderAuthorArchive(scope, author[1]!, Number(author[2] ?? 1));
 
     // Category and tag archives: /{taxonomy}/{slug}[/page/N]
-    const taxonomy = /^\/([a-z0-9-]+)\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/page\/(\d+))?$/.exec(rest);
+    const taxonomy = /^\/([a-z][a-z0-9_-]*)\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/page\/(\d+))?$/.exec(
+      rest,
+    );
     if (taxonomy && data.taxonomies.includes(taxonomy[1]!)) {
       return this.renderTermArchive(scope, taxonomy[1]!, taxonomy[2]!, Number(taxonomy[3] ?? 1));
     }

@@ -170,6 +170,33 @@ describe('rendering', () => {
     expect(html).not.toContain('data-fr-id');
   });
 
+  it('plays a background video behind the content, muted', () => {
+    const settings = withDefaults(container, {
+      background_video: { id: 'v1', url: '/media/clip.mp4' },
+    });
+    const html = renderToStaticMarkup(
+      container.render({
+        node: node('fresco/container', {}),
+        settings,
+        children: <p>over it</p>,
+        context,
+      }),
+    );
+    expect(html).toContain('fr-has-video');
+    expect(html).toMatch(
+      /<video class="fr-bg-video fr-bg-video--wide" src="\/media\/clip.mp4"[^>]* muted=""/,
+    );
+    expect(html).toContain('<div class="fr-container__in"><p>over it</p></div>');
+    const unsafe = renderToStaticMarkup(
+      container.render({
+        node: node('fresco/container', {}),
+        settings: withDefaults(container, { background_video: { url: 'javascript:alert(1)' } }),
+        context,
+      }),
+    );
+    expect(unsafe).not.toContain('<video');
+  });
+
   it('marks elements for the editor only when editing', () => {
     const html = renderToStaticMarkup(
       heading.render({

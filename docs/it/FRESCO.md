@@ -20,7 +20,7 @@ Le icone sopra la pagina passano tra **desktop, tablet e mobile**: i valori di s
 
 ## Struttura
 
-- **Contenitore**: flex (riga o colonna) o griglia, in riquadro o a tutta larghezza, con sfondo (colore, sfumatura, immagine, video), velatura, bordo, ombra, divisori sagomati e link. I contenitori si annidano liberamente.
+- **Contenitore**: flex (riga o colonna) o griglia, in riquadro o a tutta larghezza, con sfondo (colore, sfumatura, immagine, un video della libreria che scorre muto dietro il contenuto), velatura, bordo, ombra, divisori sagomati e link. I contenitori si annidano liberamente.
 - Larghezza, margini, spaziature interne, posizione e livello di ogni elemento stanno nella scheda **Advanced**, con le animazioni d'ingresso, id e classi CSS e la possibilità di nasconderlo per dispositivo.
 
 ## Widget (Fresco)
@@ -73,6 +73,8 @@ Fresco Pro richiede Fresco. Si installa senza licenza come demo; per attivarlo s
 | Elemento del loop | Un elemento di una Griglia o di un Carosello di loop                                             |
 
 Ogni modello ha delle **condizioni**: includere o escludere tutto il sito, la home, le voci di un tipo, una voce, le voci con un termine, gli archivi, una tassonomia, i risultati di ricerca, la pagina 404. Quando più modelli corrispondono vince il più specifico; il Theme Builder segnala le sovrapposizioni. I temi mostrano i modelli dove segnano le loro posizioni (Canvas, Pulsar, Vitality e Aurora lo fanno). I modelli di archivio valgono anche per gli elenchi dei plugin: la pagina del negozio di Cleishop è l'archivio del tipo `product`, le sue categorie e i suoi marchi sono archivi delle tassonomie `product-category` e `brand`, e l'elemento **Voci dell'archivio** mostra i loro prodotti con filtri e paginazione.
+
+Con il plugin Multilingual un modello si traduce come una pagina: su una pagina in una lingua si usa la sua versione in quella lingua; se non c'è, l'originale.
 
 **Widget del tema**: logo, titolo e motto del sito, titolo, estratto, contenuto, immagine in evidenza e informazioni della voce, titolo e voci dell'archivio, briciole di pane, modulo di ricerca, box dell'autore, navigazione tra le voci e mappa del sito.
 

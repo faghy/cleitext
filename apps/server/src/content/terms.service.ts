@@ -190,6 +190,8 @@ export class TermsService {
           term.id,
         );
       }
+      // Nothing new (e.g. the same slug again): the term as it is.
+      if (Object.keys(changes).length === 0) return toView(term, taxonomy!.slug, 0);
       const [updated] = await tx.update(terms).set(changes).where(eq(terms.id, id)).returning();
       return toView(updated!, taxonomy!.slug, 0);
     });

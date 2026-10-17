@@ -20,7 +20,7 @@ The icons above the page switch between **desktop, tablet and mobile**: style va
 
 ## Layout
 
-- **Container**: flex (row or column) or grid, boxed or full width, with background (color, gradient, image, video), overlay, border, shadow, shape dividers and a link. Containers nest freely.
+- **Container**: flex (row or column) or grid, boxed or full width, with background (color, gradient, image, a video from the media library playing muted behind the content), overlay, border, shadow, shape dividers and a link. Containers nest freely.
 - Width, margin, padding, position and z-index of every element are in the **Advanced** tab, with entrance animations, CSS id and classes, and hiding per device.
 
 ## Widgets (Fresco)
@@ -73,6 +73,8 @@ Fresco Pro needs Fresco. It installs without a license as a demo; activating it 
 | Loop item      | One item of a Loop grid or carousel                                                        |
 
 Each template has **conditions**: include or exclude the entire site, the home page, entries of a type, one entry, entries with a term, archives, a taxonomy, search results, the 404 page. When several templates match, the most specific wins; the Theme Builder warns about overlaps. Themes show templates where they mark their locations (Canvas, Pulsar, Vitality and Aurora do). Archive templates also apply to the listings of plugins: Cleishop's shop page is the archive of the `product` type, its categories and brands are archives of the `product-category` and `brand` taxonomies, and the **Archive posts** element shows their products with filters and pagination.
+
+With the Multilingual plugin, translate a template like a page: on a page in a language, its version in that language is used; without one, the original.
 
 **Theme widgets**: site logo, site title, tagline, post title, excerpt, post content, featured image, post info, archive title, archive posts, breadcrumbs, search form, author box, post navigation and sitemap.
 

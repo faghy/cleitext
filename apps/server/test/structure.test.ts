@@ -144,6 +144,30 @@ describe('taxonomies from the admin', () => {
     ).toBe(400);
   });
 
+  it('serves the archives of taxonomies with _ in their slug', async () => {
+    await admin.post('/api/v1/taxonomies', {
+      slug: 'dish_kind',
+      name: { en: 'Dish kinds' },
+      contentTypes: ['recipe'],
+    });
+    const term = (await admin.post('/api/v1/taxonomies/dish_kind/terms', { name: 'Pasta' })).json();
+    const entry = (
+      await admin.post('/api/v1/entries', { type: 'recipe', title: 'Carbonara' })
+    ).json();
+    await admin.request('PATCH', `/api/v1/entries/${entry.id}`, {
+      terms: { dish_kind: [term.id] },
+    });
+    await admin.post(`/api/v1/entries/${entry.id}/publish`);
+    const archive = await visitor.get('/dish_kind/pasta');
+    expect(archive.statusCode).toBe(200);
+    expect(archive.body).toContain('Carbonara');
+    expect((await visitor.get('/dish_kind/pasta/feed')).statusCode).toBe(200);
+    // Saving a term unchanged answers with the term.
+    const same = await admin.request('PATCH', `/api/v1/terms/${term.id}`, { slug: 'pasta' });
+    expect(same.statusCode).toBe(200);
+    expect(same.json()).toMatchObject({ slug: 'pasta', name: 'Pasta' });
+  });
+
   it('updates the types it applies to, and deletes it when empty', async () => {
     const updated = await admin.request('PATCH', '/api/v1/taxonomies/cuisine', {
       contentTypes: ['recipe', 'article'],
