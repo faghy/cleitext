@@ -14,6 +14,8 @@ Una pagina di Fresco è una normale voce di Cleitext: revisioni, traduzioni, esp
 
 La barra in cima al pannello apre gli elementi (**Elements**), la libreria dei modelli (**Templates**), il **Navigator** (l'albero della pagina), le impostazioni della pagina (**Page settings**) e del sito (**Site settings**). L'editor di Fresco, per ora, ha le etichette in inglese. Ci sono anche annulla e ripeti (Ctrl+Z, Ctrl+Maiusc+Z).
 
+Le **impostazioni della pagina** scelgono il layout (quello del tema, **Full width**, a tutta larghezza, o **Canvas**, senza intestazione e piè di pagina del tema), nascondono il titolo del tema, nascondono l'immagine in evidenza e danno uno sfondo alla pagina. L'immagine in evidenza nascosta resta negli archivi, nei loop e nelle anteprime social; le pagine Full width e Canvas non la mostrano mai. Per un'anteprima social senza immagine in evidenza usa il campo **Immagine social** del plugin SEO.
+
 Le icone sopra la pagina passano tra **desktop, tablet e mobile**: i valori di stile impostati su un dispositivo valgono da quel dispositivo in giù. Il clic destro su un elemento offre copia, incolla, incolla stile, ripristina stile, duplica, salva come modello ed elimina.
 
 ## Struttura

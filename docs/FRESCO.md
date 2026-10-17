@@ -14,6 +14,8 @@ A Fresco page is an ordinary Cleitext entry: revisions, translations, export, se
 
 The toolbar at the top of the panel opens the **Elements**, the **Templates** library, the **Navigator** (the tree of the page), the **Page settings** and the **Site settings**. Undo and redo are there too (Ctrl+Z, Ctrl+Shift+Z).
 
+**Page settings** set the page's layout (the theme's, **Full width** or **Canvas**, without the theme's header and footer), hide the theme's title, hide the featured image and give the page a background. A hidden featured image still shows in archives, loops and social previews; Full width and Canvas pages never show it. For a social preview without a featured image, use the **Social image** field of the SEO plugin.
+
 The icons above the page switch between **desktop, tablet and mobile**: style values set on a device apply from that device down. Right-click an element for copy, paste, paste style, reset style, duplicate, save as template and delete.
 
 ## Layout

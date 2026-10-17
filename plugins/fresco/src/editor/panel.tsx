@@ -413,6 +413,7 @@ function Navigator({ store }: { store: Store }) {
 function PageView({ store }: { store: Store }) {
   const page = useStore(store, (s) => s.page);
   const kit = useStore(store, (s) => s.kit);
+  const wide = page.layout === 'full' || page.layout === 'canvas';
   return (
     <div className="fre-site">
       <h3 className="fre-view-title">Page settings</h3>
@@ -446,6 +447,20 @@ function PageView({ store }: { store: Store }) {
       </label>
       <p className="fre-help">
         Hides the theme's title of this page (Site settings → Layout says which element that is).
+      </p>
+      <label className="fre-checks">
+        <input
+          type="checkbox"
+          checked={page.hideFeatured === true || wide}
+          disabled={wide}
+          onChange={(e) => store.actions.setPage({ hideFeatured: e.target.checked || undefined })}
+        />
+        Hide the featured image
+      </label>
+      <p className="fre-help">
+        {wide
+          ? 'Full width and Canvas pages never show the theme’s featured image.'
+          : 'The theme does not show it above the page; archives, loops and social previews still use it.'}
       </p>
       <div className="fre-control fre-control--inline">
         <div className="fre-control__head">
