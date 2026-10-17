@@ -2,17 +2,19 @@ import { Alert, errorMessage, useT, type AdminPageProps } from '@cleitext/admin-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ITALY_PRESET, type TaxRateInput } from '../tax-rates';
+import type { Texts } from '../texts';
+import { Translations } from './translations';
 import { fieldErrors, TAX_CLASS_OPTIONS, useSetup } from './shared';
 import { CountrySelect } from './shipping';
 import { CSS } from './styles';
 
 interface Taxes {
   enabled: boolean;
-  rates: TaxRateInput[];
+  rates: (TaxRateInput & { translations?: Texts })[];
 }
 
 /** Shop → Taxes: rates by class and place, chosen by the shipping address. */
-export function TaxesPage({ api, user }: AdminPageProps) {
+export function TaxesPage({ api, user, site }: AdminPageProps) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const setup = useSetup(api);
@@ -35,7 +37,7 @@ export function TaxesPage({ api, user }: AdminPageProps) {
     save.reset();
     setData(next);
   };
-  const setRate = (index: number, changes: Partial<TaxRateInput>) =>
+  const setRate = (index: number, changes: Partial<Taxes['rates'][number]>) =>
     change({
       ...data,
       rates: data.rates.map((r, i) => (i === index ? { ...r, ...changes } : r)),
@@ -145,6 +147,19 @@ export function TaxesPage({ api, user }: AdminPageProps) {
                       placeholder={t('e.g. VAT 22%')}
                       aria-label={t('Name on receipts')}
                       onChange={(e) => setRate(index, { name: e.target.value })}
+                    />
+                    <Translations
+                      site={site}
+                      value={rate.translations}
+                      onChange={(translations) => setRate(index, { translations })}
+                      fields={[
+                        {
+                          key: 'name',
+                          label: t('Name on receipts'),
+                          original: rate.name,
+                          maxLength: 60,
+                        },
+                      ]}
                     />
                   </td>
                   <td>

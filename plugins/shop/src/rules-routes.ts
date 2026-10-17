@@ -78,6 +78,7 @@ const methodView = (m: ShippingMethodRow) => ({
   enabled: m.enabled,
   taxable: m.taxable,
   settings: m.settings,
+  translations: m.translations,
 });
 
 /** The ways to pay, set up in Shop → Payments (or still the old settings). */
@@ -162,6 +163,7 @@ export function registerRulesRoutes(ctx: PluginContext, capability: string): voi
           enabled: m.enabled,
           taxable: m.taxable,
           settings: m.settings,
+          translations: m.translations,
         }));
       for (const [position, zone] of input.data.zones.entries()) {
         const [row] = await tx
@@ -230,6 +232,7 @@ export function registerRulesRoutes(ctx: PluginContext, capability: string): voi
         taxClass: r.taxClass,
         rate: Number(r.rate),
         name: r.name,
+        translations: r.translations,
       })),
     };
   };
@@ -250,6 +253,7 @@ export function registerRulesRoutes(ctx: PluginContext, capability: string): voi
             taxClass: r.taxClass,
             rate: String(r.rate),
             name: r.name,
+            translations: r.translations,
             position,
           })),
         );

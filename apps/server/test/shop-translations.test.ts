@@ -12,6 +12,7 @@ import { withContext, type DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { MailService } from '../src/mail/mail.service.js';
 import { PluginHost } from '../src/plugins/plugin-host.service.js';
 import {
   ownerDatabase,
@@ -229,5 +230,104 @@ describe('products in several languages', () => {
       regularPrice: '12.0000',
       groupId: vase.id,
     });
+  });
+
+  it('shows the texts entered in the admin in the customer’s language', async () => {
+    // A shared attribute and a product's own one, with their Italian names.
+    const colour = await admin.post(ext('/attributes'), {
+      name: 'Colour',
+      translations: { it: { name: 'Colore' } },
+      values: [
+        { name: 'Red', translations: { it: { name: 'Rosso' } } },
+        { name: 'Blue', translations: { it: { name: 'Blu' } } },
+      ],
+    });
+    expect(colour.statusCode, colour.body).toBe(201);
+    const mug = (await admin.post('/api/v1/entries', { type: 'product', title: 'Mug' })).json();
+    await save(mug.id, {
+      product: { kind: 'variable' },
+      attributes: [
+        { attributeId: colour.json().id, values: ['red', 'blue'], variation: true },
+        {
+          name: 'Size',
+          values: ['S', 'M'],
+          variation: true,
+          translations: { it: { name: 'Taglia', 'value:S': 'Piccola' } },
+        },
+      ],
+      variations: [
+        { attributes: { colour: 'red', size: 'S' }, regularPrice: '9' },
+        { attributes: { colour: 'blue', size: 'M' }, regularPrice: '9' },
+      ],
+    });
+    await admin.post(`/api/v1/entries/${mug.id}/publish`);
+    const mugIt = await translate(mug.id);
+    const visitor = new TestClient(app, site.host, '10.97.0.9');
+    const slugOf = async (id: string) => (await admin.get(`/api/v1/entries/${id}`)).json().slug;
+    const italian = (await visitor.get(`/it/product/${await slugOf(mugIt)}`)).body;
+    for (const text of ['Colore', 'Rosso', 'Blu', 'Taglia', 'Piccola'])
+      expect(italian).toContain(text);
+    const english = (await visitor.get(`/product/${await slugOf(mug.id)}`)).body;
+    for (const text of ['Colour', 'Red', 'Size']) expect(english).toContain(text);
+    expect(english).not.toContain('Colore');
+
+    // Payment, shipping, taxes and an email, with their Italian texts.
+    await admin.request('PUT', ext('/payments'), {
+      bacs: {
+        enabled: true,
+        accounts: [{ iban: 'IT60X0542811101000000123456' }],
+        title: 'Bank transfer',
+        instructions: 'Pay within a week.',
+        translations: {
+          it: { title: 'Bonifico bancario', instructions: 'Paga entro una settimana.' },
+        },
+      },
+    });
+    const shipping = await admin.request('PUT', ext('/shipping'), {
+      zones: [],
+      rest: [
+        {
+          title: 'Courier',
+          settings: { kind: 'flat', cost: '5', classCosts: {}, calculation: 'class' },
+          translations: { it: { title: 'Corriere' } },
+        },
+      ],
+    });
+    expect(shipping.statusCode, shipping.body).toBe(200);
+    await admin.request('PUT', ext('/taxes'), {
+      enabled: true,
+      rates: [{ country: 'IT', rate: 22, name: 'VAT', translations: { it: { name: 'IVA' } } }],
+    });
+    await admin.request('PUT', ext('/emails'), {
+      customer_on_hold: {
+        subject: 'Thanks for order #{number}',
+        translations: { it: { subject: 'Grazie per l’ordine #{number}' } },
+      },
+    });
+    const buyer = new TestClient(app, site.host, '10.97.0.10');
+    await buyer.postForm('/it/cart/add', { product: ids.lampIt!, quantity: '1' });
+    const checkout = (await buyer.get('/it/checkout')).body;
+    expect(checkout.match(/value="bacs"[^]{0,400}/)?.[0]).toContain('Bonifico bancario');
+    const placed = await buyer.postForm('/it/checkout', {
+      email: 'ugo@example.test',
+      'billing.firstName': 'Ugo',
+      'billing.lastName': 'Neri',
+      'billing.address1': 'Via Po 2',
+      'billing.city': 'Torino',
+      'billing.postcode': '10121',
+      'billing.province': 'TO',
+      'billing.country': 'IT',
+      'billing.phone': '011 654321',
+      payment: 'bacs',
+      rate: shipping.json().rest[0].id,
+    });
+    expect(
+      placed.statusCode,
+      (placed.body.match(/role="alert"[^]{0,300}/g) ?? []).join(' | '),
+    ).toBe(303);
+    const mail = app.get(MailService).outbox.find((m) => m.to === 'ugo@example.test');
+    expect(mail?.subject).toMatch(/^Grazie per l’ordine #\d+$/);
+    for (const text of ['Bonifico bancario', 'Paga entro una settimana.', 'Corriere', 'IVA'])
+      expect(mail?.html).toContain(text);
   });
 });

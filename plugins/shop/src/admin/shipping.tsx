@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { COUNTRIES, countryName } from '../address';
 import type { MethodSettings, Rate } from '../shipping';
+import type { Texts } from '../texts';
+import { Translations, type Site } from './translations';
 import { fieldErrors, formatMoney, useSetup } from './shared';
 import { CSS } from './styles';
 
@@ -12,6 +14,7 @@ interface Method {
   enabled: boolean;
   taxable: boolean;
   settings: MethodSettings;
+  translations?: Texts;
 }
 interface Zone {
   id?: string;
@@ -54,7 +57,7 @@ const newMethod = (kind: MethodSettings['kind'], title: string): Method => ({
 });
 
 /** Shop → Shipping: zones by place, each with its methods, and a tester. */
-export function ShippingPage({ api, user }: AdminPageProps) {
+export function ShippingPage({ api, user, site }: AdminPageProps) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const setup = useSetup(api);
@@ -169,6 +172,7 @@ export function ShippingPage({ api, user }: AdminPageProps) {
             </small>
           </label>
           <Methods
+            site={site}
             methods={zone.methods}
             classes={data.classes}
             currency={currency}
@@ -207,6 +211,7 @@ export function ShippingPage({ api, user }: AdminPageProps) {
           {t('For addresses in no zone. Without methods here, the shop does not ship there.')}
         </p>
         <Methods
+          site={site}
           methods={data.rest}
           classes={data.classes}
           currency={currency}
@@ -328,6 +333,7 @@ function Regions({
 }
 
 function Methods({
+  site,
   methods,
   classes,
   currency,
@@ -336,6 +342,7 @@ function Methods({
   path,
   onChange,
 }: {
+  site: Site;
   methods: Method[];
   classes: string[];
   currency: string;
@@ -415,6 +422,19 @@ function Methods({
                 </button>
               </div>
             </div>
+            <Translations
+              site={site}
+              value={method.translations}
+              onChange={(translations) => set(index, { ...method, translations })}
+              fields={[
+                {
+                  key: 'title',
+                  label: t('Name shown to customers'),
+                  original: method.title,
+                  maxLength: 120,
+                },
+              ]}
+            />
             {s.kind === 'flat' && (
               <div className="sh-stack">
                 <label className="sh-field">

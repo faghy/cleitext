@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { textsSchema } from './texts';
 
 /**
  * Shipping (WooCommerce's zones and methods, and Cleito's weight bands).
@@ -123,6 +124,8 @@ export const methodInputSchema = z.object({
   enabled: z.boolean().default(true),
   taxable: z.boolean().default(true),
   settings: methodSettingsSchema,
+  /** The title in other languages: `{ it: { title } }`. */
+  translations: textsSchema,
 });
 export type MethodInput = z.output<typeof methodInputSchema>;
 

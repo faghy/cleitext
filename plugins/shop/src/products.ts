@@ -1,6 +1,7 @@
 import type { PluginContext, PluginTransaction } from '@cleitext/plugin-sdk';
 import { and, asc, eq, ne, notInArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { textsSchema, type Texts } from './texts';
 import { shareProduct, versionsOf } from './translations';
 import { parseMoney, productInputSchema, stockStatusOf, type ProductInput } from './catalog';
 import {
@@ -32,6 +33,7 @@ export interface ProductAttributeView {
   values: string[];
   visible: boolean;
   variation: boolean;
+  translations: Texts;
 }
 export interface VariationView extends Omit<
   VariationRow,
@@ -84,6 +86,7 @@ export async function getProduct(tx: PluginTransaction, id: string): Promise<Pro
       values: a.values,
       visible: a.visible,
       variation: a.variation,
+      translations: a.translations,
     })),
     variations: variationRows.map(({ siteId: _s, productId: _p, ...v }) => ({
       ...v,
@@ -109,6 +112,8 @@ export const attributeInputSchema = z.object({
   values: z.array(z.string().trim().min(1).max(120)).max(200),
   visible: z.boolean().default(true),
   variation: z.boolean().default(false),
+  /** Own attributes in other languages: `{ it: { name, "value:<value>": … } }`. */
+  translations: textsSchema,
 });
 
 export const variationInputSchema = z.object({
@@ -394,7 +399,15 @@ export interface AttributeView {
   name: string;
   kind: 'select' | 'color';
   sort: 'position' | 'name';
-  values: { id: string; slug: string; name: string; color: string | null }[];
+  /** The name in the site's other languages: `{ it: { name } }`. */
+  translations: Texts;
+  values: {
+    id: string;
+    slug: string;
+    name: string;
+    color: string | null;
+    translations: Texts;
+  }[];
 }
 
 export async function listAttributes(tx: PluginTransaction): Promise<AttributeView[]> {
@@ -415,7 +428,14 @@ export async function listAttributes(tx: PluginTransaction): Promise<AttributeVi
       name: a.name,
       kind: a.kind,
       sort: a.sort,
-      values: own.map((v) => ({ id: v.id, slug: v.slug, name: v.name, color: v.color })),
+      translations: a.translations,
+      values: own.map((v) => ({
+        id: v.id,
+        slug: v.slug,
+        name: v.name,
+        color: v.color,
+        translations: v.translations,
+      })),
     };
   });
 }
@@ -425,6 +445,7 @@ export const attributeSchema = z.object({
   slug: z.string().trim().max(60).optional(),
   kind: z.enum(['select', 'color']).default('select'),
   sort: z.enum(['position', 'name']).default('position'),
+  translations: textsSchema,
   values: z
     .array(
       z.object({
@@ -436,6 +457,7 @@ export const attributeSchema = z.object({
           .regex(/^#[0-9a-f]{6}$/i)
           .nullable()
           .optional(),
+        translations: textsSchema,
       }),
     )
     .max(500)
@@ -470,14 +492,27 @@ export async function saveAttribute(
   if (attributeId) {
     const updated = await tx
       .update(attributes)
-      .set({ slug, name: input.name, kind: input.kind, sort: input.sort })
+      .set({
+        slug,
+        name: input.name,
+        kind: input.kind,
+        sort: input.sort,
+        translations: input.translations,
+      })
       .where(eq(attributes.id, attributeId))
       .returning({ id: attributes.id });
     if (updated.length === 0) throw new InputError('This attribute does not exist.');
   } else {
     const [created] = await tx
       .insert(attributes)
-      .values({ siteId, slug, name: input.name, kind: input.kind, sort: input.sort })
+      .values({
+        siteId,
+        slug,
+        name: input.name,
+        kind: input.kind,
+        sort: input.sort,
+        translations: input.translations,
+      })
       .returning({ id: attributes.id });
     attributeId = created!.id;
   }
@@ -496,7 +531,13 @@ export async function saveAttribute(
     if (!valueSlug || seen.has(valueSlug))
       throw new InputError(`The value "${value.name}" is repeated or has no letters or digits.`);
     seen.add(valueSlug);
-    const values = { slug: valueSlug, name: value.name, color: value.color ?? null, position };
+    const values = {
+      slug: valueSlug,
+      name: value.name,
+      color: value.color ?? null,
+      position,
+      translations: value.translations,
+    };
     const updated = value.id
       ? await tx
           .update(attributeValues)

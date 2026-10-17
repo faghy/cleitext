@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { formatMoney, useSetup, type AttributeView, type PricingRules } from './shared';
 import { pricesFromCost } from '../pricing';
 import { CSS } from './styles';
+import type { Texts } from '../texts';
+import { Translations, type Site } from './translations';
 
 /** Shop → Attributes: colour, size… shared by products, with their values. */
-export function AttributesPage({ api }: AdminPageProps) {
+export function AttributesPage({ api, site }: AdminPageProps) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const list = useQuery({
@@ -38,6 +40,7 @@ export function AttributesPage({ api }: AdminPageProps) {
       </p>
       {editing === 'new' && (
         <AttributeEditor
+          site={site}
           api={api}
           onDone={async () => {
             setEditing(null);
@@ -49,6 +52,7 @@ export function AttributesPage({ api }: AdminPageProps) {
       {list.data?.map((attribute) =>
         editing === attribute.id ? (
           <AttributeEditor
+            site={site}
             key={attribute.id}
             api={api}
             attribute={attribute}
@@ -104,10 +108,12 @@ export function AttributesPage({ api }: AdminPageProps) {
 
 function AttributeEditor({
   api,
+  site,
   attribute,
   onDone,
 }: {
   api: AdminPageProps['api'];
+  site: Site;
   attribute?: AttributeView;
   onDone: () => void;
 }) {
@@ -115,17 +121,49 @@ function AttributeEditor({
   const [name, setName] = useState(attribute?.name ?? '');
   const [kind, setKind] = useState<'select' | 'color'>(attribute?.kind ?? 'select');
   const [sort, setSort] = useState<'position' | 'name'>(attribute?.sort ?? 'position');
-  const [values, setValues] = useState<{ id?: string; name: string; color: string | null }[]>(
-    attribute?.values.map((v) => ({ id: v.id, name: v.name, color: v.color })) ?? [
-      { name: '', color: null },
-    ],
+  const [translations, setTranslations] = useState<Texts>(attribute?.translations ?? {});
+  const [values, setValues] = useState<
+    { id?: string; name: string; color: string | null; translations?: Texts }[]
+  >(
+    attribute?.values.map((v) => ({
+      id: v.id,
+      name: v.name,
+      color: v.color,
+      translations: v.translations,
+    })) ?? [{ name: '', color: null }],
   );
+  // One "Translations" box for the name and the values: `name`, then `value:<index>`.
+  const combined: Texts = {};
+  const add = (locale: string, key: string, text: string | undefined) => {
+    if (text) combined[locale] = { ...(combined[locale] ?? {}), [key]: text };
+  };
+  for (const [locale, fields] of Object.entries(translations)) add(locale, 'name', fields.name);
+  values.forEach((v, i) => {
+    for (const [locale, fields] of Object.entries(v.translations ?? {}))
+      add(locale, `value:${i}`, fields.name);
+  });
+  const splitTranslations = (next: Texts) => {
+    const own: Texts = {};
+    const ofValue = values.map((): Texts => ({}));
+    for (const [locale, fields] of Object.entries(next)) {
+      for (const [key, text] of Object.entries(fields)) {
+        if (key === 'name') own[locale] = { name: text };
+        else if (key.startsWith('value:')) {
+          const index = Number(key.slice(6));
+          if (ofValue[index]) ofValue[index][locale] = { name: text };
+        }
+      }
+    }
+    setTranslations(own);
+    setValues(values.map((v, i) => ({ ...v, translations: ofValue[i] ?? {} })));
+  };
   const save = useMutation({
     mutationFn: () => {
       const body = {
         name,
         kind,
         sort,
+        translations,
         values: values
           .filter((v) => v.name.trim())
           .map((v) => ({ ...v, color: kind === 'color' ? (v.color ?? '#000000') : null })),
@@ -219,6 +257,26 @@ function AttributeEditor({
           </button>
         </div>
       </fieldset>
+      <Translations
+        site={site}
+        value={combined}
+        onChange={splitTranslations}
+        fields={[
+          { key: 'name', label: t('Name'), original: name, maxLength: 120 },
+          ...values.flatMap((v, i) =>
+            v.name.trim()
+              ? [
+                  {
+                    key: `value:${i}`,
+                    label: t('Value: {value}', { value: v.name }),
+                    original: v.name,
+                    maxLength: 120,
+                  },
+                ]
+              : [],
+          ),
+        ]}
+      />
       {save.error && <Alert>{errorMessage(save.error)}</Alert>}
       <div className="sh-row">
         <button

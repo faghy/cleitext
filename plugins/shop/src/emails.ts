@@ -6,6 +6,7 @@ import { escape } from './html';
 import type { OrderDetail } from './order-admin';
 import type { OrderItemRow } from './schema';
 import { translator } from './strings';
+import { localize, textsSchema } from './texts';
 
 /**
  * The shop's emails (WooCommerce's set): to the shop when an order arrives,
@@ -162,6 +163,8 @@ export const emailSettingsSchema = z.partialRecord(
     subject: z.string().trim().max(200).default(''),
     heading: z.string().trim().max(200).default(''),
     intro: z.string().trim().max(2000).default(''),
+    /** Subject, heading and introduction in other languages: `{ it: { subject } }`. */
+    translations: textsSchema,
   }),
 );
 export type EmailSettings = z.output<typeof emailSettingsSchema>;
@@ -205,9 +208,15 @@ export function renderEmail(
     name,
     amount: context.amount ? amount(context.amount) : '',
   };
-  const subject = fill(custom?.subject || defaults.subject, values);
-  const heading = fill(custom?.heading || defaults.heading, values);
-  const intro = fill(custom?.intro || defaults.intro, values);
+  // The order's language: its own texts, then the shop's, then the defaults in that language.
+  const own = localize(
+    { subject: custom?.subject ?? '', heading: custom?.heading ?? '', intro: custom?.intro ?? '' },
+    custom?.translations,
+    locale,
+  );
+  const subject = fill(own.subject || defaults.subject, values);
+  const heading = fill(own.heading || defaults.heading, values);
+  const intro = fill(own.intro || defaults.intro, values);
   const shopEmail = EMAILS[id].to === 'shop';
   const includeTax = order.pricesIncludeTax;
   const gross = (item: OrderItemRow) => Number(item.total) + (includeTax ? Number(item.tax) : 0);

@@ -16,6 +16,11 @@ export const CSS = `
 .sh-grid { display: grid; gap: .75rem 1rem; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }
 .sh-grid-2 { display: grid; gap: .75rem 1rem; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); }
 .sh-field { display: flex; flex-direction: column; gap: .25rem; }
+.sh-translations { border: 1px dashed var(--color-slate-300); border-radius: .5rem; padding: .5rem .75rem; }
+.sh-translations > summary { cursor: pointer; font-weight: 500; color: var(--color-slate-700); }
+.sh-translations[open] > summary { margin-bottom: .5rem; }
+.sh-translations fieldset { border: 0; margin: 0 0 .75rem; padding: 0; }
+.sh-translations legend { font-weight: 600; margin-bottom: .25rem; }
 .sh-field > span { font-weight: 500; color: var(--color-slate-800); }
 .sh-field small { color: var(--sh-muted); }
 .sh-field .sh-error, .sh-error { color: var(--color-red-700); font-size: .75rem; }

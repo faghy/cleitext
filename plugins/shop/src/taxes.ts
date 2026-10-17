@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { TAX_CLASSES } from './tax-rates';
+import { textsSchema } from './texts';
 
 /** Tax rates as the admin sends them; the rules are in `tax-rates.ts`. */
 
@@ -11,4 +12,6 @@ export const taxRateInputSchema = z.object({
   taxClass: z.enum(TAX_CLASSES).default(''),
   rate: z.number().min(0).max(100),
   name: z.string().trim().max(60).default(''),
+  /** The name in other languages: `{ it: { name } }`. */
+  translations: textsSchema,
 });

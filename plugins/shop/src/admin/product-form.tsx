@@ -394,6 +394,7 @@ export function ProductForm({
         body: (
           <div className="sh-stack">
             <AttributesEditor
+              site={site}
               rows={f.attributes}
               shared={data.attributes}
               variable={f.kind === 'variable'}

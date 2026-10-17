@@ -1,5 +1,6 @@
 import type { Address, Invoice } from './address';
 import type { MethodSettings } from './shipping';
+import type { Texts } from './texts';
 import {
   bigint,
   boolean,
@@ -89,6 +90,8 @@ export const attributes = pgTable('attributes', {
   kind: text('kind').$type<'select' | 'color'>().notNull().default('select'),
   sort: text('sort').$type<'position' | 'name'>().notNull().default('position'),
   position: integer('position').notNull().default(0),
+  /** The texts in other languages (0008). */
+  translations: jsonb('translations').$type<Texts>().notNull().default({}),
 });
 
 export const attributeValues = pgTable('attribute_values', {
@@ -99,6 +102,8 @@ export const attributeValues = pgTable('attribute_values', {
   name: text('name').notNull(),
   color: text('color'),
   position: integer('position').notNull().default(0),
+  /** The texts in other languages (0008). */
+  translations: jsonb('translations').$type<Texts>().notNull().default({}),
 });
 
 export const productAttributes = pgTable('product_attributes', {
@@ -110,6 +115,8 @@ export const productAttributes = pgTable('product_attributes', {
   values: text('values').array().notNull().default([]),
   visible: boolean('visible').notNull().default(true),
   variation: boolean('variation').notNull().default(false),
+  /** The texts in other languages (0008). */
+  translations: jsonb('translations').$type<Texts>().notNull().default({}),
 });
 
 export const variations = pgTable('variations', {
@@ -290,6 +297,8 @@ export const shippingMethods = pgTable('shipping_methods', {
   enabled: boolean('enabled').notNull().default(true),
   taxable: boolean('taxable').notNull().default(true),
   settings: jsonb('settings').$type<MethodSettings>().notNull(),
+  /** The texts in other languages (0008). */
+  translations: jsonb('translations').$type<Texts>().notNull().default({}),
 });
 
 export const taxRates = pgTable('tax_rates', {
@@ -301,6 +310,8 @@ export const taxRates = pgTable('tax_rates', {
   rate: numeric('rate', { precision: 6, scale: 3 }).notNull(),
   name: text('name').notNull().default(''),
   position: integer('position').notNull().default(0),
+  /** The texts in other languages (0008). */
+  translations: jsonb('translations').$type<Texts>().notNull().default({}),
 });
 
 export const coupons = pgTable('coupons', {

@@ -1,4 +1,5 @@
 import type { PluginTerm, PluginTransaction } from '@cleitext/plugin-sdk';
+import { textIn } from './texts';
 import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { onSale, priceMax, priceMin, variationStatus, withDescendants } from './list';
 import { attributes, attributeValues, productAttributes, products } from './schema';
@@ -194,14 +195,20 @@ export async function queryCatalog(
       const present = new Set(
         used.filter((u) => u.attributeId === attribute.id).flatMap((u) => u.values),
       );
+      // Names in the catalog's language.
       const list = values
         .filter((v) => v.attributeId === attribute.id && present.has(v.slug))
+        .map((v) => ({ ...v, name: textIn(v.translations, query.locale, 'name', v.name) }))
         .sort((a, b) =>
           attribute.sort === 'name' ? a.name.localeCompare(b.name) : a.position - b.position,
         )
         .map((v) => ({ slug: v.slug, name: v.name }));
       if (list.length)
-        attributeFacets.push({ slug: attribute.slug, name: attribute.name, values: list });
+        attributeFacets.push({
+          slug: attribute.slug,
+          name: textIn(attribute.translations, query.locale, 'name', attribute.name),
+          values: list,
+        });
     }
   }
 

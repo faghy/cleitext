@@ -1,5 +1,9 @@
 /** Italian texts of the shop's admin pages (keys: the English texts in the code). */
 export const IT: Record<string, string> = {
+  Translations: 'Traduzioni',
+  'Empty: the text in the main language, or the default in the customer’s language.':
+    'Vuoto: il testo nella lingua principale, o quello predefinito nella lingua del cliente.',
+  'Value: {value}': 'Valore: {value}',
   Add: 'Aggiungi',
   'Add an attribute': 'Aggiungi un attributo',
   'Add an attribute…': 'Aggiungi un attributo…',

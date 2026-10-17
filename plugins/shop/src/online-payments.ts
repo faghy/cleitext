@@ -23,6 +23,7 @@ import {
   type PaymentId,
   type Payments,
   type SecretName,
+  localizePayments,
 } from './payments';
 import { orders, type OrderRow } from './schema';
 import { translator } from './strings';
@@ -201,7 +202,7 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
     message?: string,
   ): Promise<RouteResponse> => {
     const t = translator(request.locale);
-    const payments = await hooks.payments(request.siteId);
+    const payments = localizePayments(await hooks.payments(request.siteId), request.locale);
     const money = moneyFormatter(request.locale, order.currency);
     const method = order.paymentMethod as PaymentId;
     const title = payments[method]?.title || (method === 'stripe' ? t('Card') : 'PayPal');

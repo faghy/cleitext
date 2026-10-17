@@ -131,8 +131,14 @@ its prices, codes, stock, shipping data, gallery, attributes and variations:
 a change in one language reaches the others, and an order in any language
 takes from the same stock. Titles, descriptions, categories, purchase notes,
 variation descriptions and reviews stay in each language. Duplicating a
-product copies its data without the codes. Attribute names and values are
-shared, not translated.
+product copies its data without the codes.
+
+The texts written in the admin have their translations too, under
+"Translations": attribute names and values (shared and a product's own),
+shipping methods, tax names, the title, description and instructions of the
+ways to pay, and the emails' subject, heading and introduction. Customers
+see them in their language; an empty translation shows the text itself, or
+the default text in their language.
 
 **Privacy**: with the Privacy plugin, requests to export or erase a
 customer's data include their orders and saved addresses. Erasing deletes the

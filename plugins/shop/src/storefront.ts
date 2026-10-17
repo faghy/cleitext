@@ -38,7 +38,13 @@ import {
 } from './pages';
 import { customerOf, saveCustomer } from './account';
 import type { PaymentInstructions } from './pages';
-import { availablePayments, type PaymentContext, type PaymentId, type Payments } from './payments';
+import {
+  availablePayments,
+  localizePayments,
+  type PaymentContext,
+  type PaymentId,
+  type Payments,
+} from './payments';
 import { couponOf, quote, type Quote, type QuoteInput } from './quote';
 import { coupons, products, type OrderRow } from './schema';
 import type { Destination } from './shipping';
@@ -65,6 +71,15 @@ const DEFAULT_TITLES: Record<PaymentId, string> = {
   stripe: 'Credit or debit card',
   paypal: 'PayPal',
 };
+
+/** The store's settings with the texts of the ways to pay in a language. */
+export const inLanguage = <S extends Pick<StoreSettings, 'payments'>>(
+  store: S,
+  locale: string,
+): S => ({
+  ...store,
+  payments: localizePayments(store.payments, locale),
+});
 
 /** The default name of a way to pay, in the customer's language. */
 export const paymentTitle = (store: Pick<StoreSettings, 'payments'>, id: PaymentId, t: Translate) =>
@@ -202,9 +217,10 @@ export function registerStorefront(
           adopted = found.token;
         }
       }
-      const priced = await priceCart(tx, items);
+      const priced = await priceCart(tx, items, request.locale);
       const codes = await loadCoupons(tx, token);
       const quoted = await quote(tx, quoteSettings(store, t), {
+        locale: request.locale,
         lines: priced.lines,
         codes,
         to: options.to ?? base(store),
@@ -248,7 +264,7 @@ export function registerStorefront(
     path: '/cart',
     async handler(request) {
       const t = translator(request.locale);
-      const values = await settings(request.siteId);
+      const values = inLanguage(await settings(request.siteId), request.locale);
       const cart = await currentCart(request, values, t);
       const notices: { kind: 'ok' | 'error'; text: string }[] = [];
       if (request.query.added)
@@ -342,7 +358,7 @@ export function registerStorefront(
           { product: product.entryId, variation: variation?.id ?? null, quantity },
           product.soldIndividually,
         );
-        const priced = await priceCart(tx, items);
+        const priced = await priceCart(tx, items, request.locale);
         const line = priced.lines.find(
           (l) => l.key === itemKey({ product: product.entryId, variation: variation?.id ?? null }),
         );
@@ -387,7 +403,7 @@ export function registerStorefront(
               };
             })
             .filter((item) => item.quantity > 0 && itemKey(item) !== remove);
-          const priced = await priceCart(tx, items);
+          const priced = await priceCart(tx, items, request.locale);
           await saveCart(tx, request.siteId, token, priced.items, request.user?.id ?? null);
         });
       }
@@ -400,7 +416,7 @@ export function registerStorefront(
     path: '/cart/coupon',
     async handler(request) {
       const t = translator(request.locale);
-      const store = await settings(request.siteId);
+      const store = inLanguage(await settings(request.siteId), request.locale);
       const body = (request.body ?? {}) as Record<string, unknown>;
       const prefix = prefixOf(request);
       const token = request.cookies[CART_COOKIE] || newToken();
@@ -432,8 +448,9 @@ export function registerStorefront(
           .where(and(eq(coupons.code, code), eq(coupons.enabled, true)));
         // A coupon for individual use replaces the others (WooCommerce does the same).
         const next = row && couponOf(row).individualUse ? [code] : [...codes, code];
-        const priced = await priceCart(tx, await loadCart(tx, token));
+        const priced = await priceCart(tx, await loadCart(tx, token), request.locale);
         const quoted = await quote(tx, quoteSettings(store, t), {
+          locale: request.locale,
           lines: priced.lines,
           codes: next,
           to: base(store),
@@ -508,7 +525,7 @@ export function registerStorefront(
     notice?: string,
   ): Promise<RouteResponse> => {
     const t = translator(request.locale);
-    const store = await settings(request.siteId);
+    const store = inLanguage(await settings(request.siteId), request.locale);
     const money = moneyFormatter(request.locale, store.currency);
     const cart = await currentCart(request, store, t, {
       to: destinationOf(values, store),
@@ -596,7 +613,7 @@ export function registerStorefront(
     path: '/checkout',
     async handler(request) {
       const t = translator(request.locale);
-      const store = await settings(request.siteId);
+      const store = inLanguage(await settings(request.siteId), request.locale);
       const body = (request.body ?? {}) as Record<string, unknown>;
       const values = readValues(body);
       // "Update shipping and totals": the page again with the new address.
@@ -637,7 +654,7 @@ export function registerStorefront(
       try {
         const placed = await ctx.db.transaction(request.siteId, async (tx) => {
           const items = await loadCart(tx, token);
-          const priced = await priceCart(tx, items);
+          const priced = await priceCart(tx, items, request.locale);
           // Prices or stock changed since the page was shown: the customer looks again.
           if (priced.lines.length === 0 || priced.dropped.length || priced.lowered.length) {
             if (token)
@@ -645,6 +662,7 @@ export function registerStorefront(
             return null;
           }
           const quoted = await quote(tx, quoteSettings(store, t), {
+            locale: request.locale,
             lines: priced.lines,
             codes: await loadCoupons(tx, token),
             to: destinationOf(values, store),
@@ -796,7 +814,7 @@ export function registerStorefront(
           status: 404,
           page: { title: t('Order received'), html: `<p>${t('This order does not exist.')}</p>` },
         };
-      const store = await settings(request.siteId);
+      const store = inLanguage(await settings(request.siteId), request.locale);
       return {
         page: {
           title: t('Order received'),

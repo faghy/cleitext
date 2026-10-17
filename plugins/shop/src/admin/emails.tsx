@@ -2,12 +2,16 @@ import { Alert, errorMessage, useT, type AdminPageProps } from '@cleitext/admin-
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { EmailId } from '../emails';
+import type { Texts as Translated } from '../texts';
+import { Translations } from './translations';
 import { CSS } from './styles';
 
 interface Texts {
   subject: string;
   heading: string;
   intro: string;
+  /** In the site's other languages. */
+  translations?: Translated;
 }
 interface EmailView {
   id: EmailId;
@@ -18,7 +22,7 @@ interface EmailView {
 }
 
 /** Shop → Emails: what the shop sends, with its texts and a preview. */
-export function EmailsPage({ api, user }: AdminPageProps) {
+export function EmailsPage({ api, user, site }: AdminPageProps) {
   const { t } = useT();
   const list = useQuery({
     queryKey: ['shop', 'emails'],
@@ -116,6 +120,31 @@ export function EmailsPage({ api, user }: AdminPageProps) {
                     onChange={(e) => set(email.id, { intro: e.target.value })}
                   />
                 </label>
+                <Translations
+                  site={site}
+                  value={value.translations}
+                  onChange={(translations) => set(email.id, { translations })}
+                  fields={[
+                    {
+                      key: 'subject',
+                      label: t('Subject'),
+                      original: value.subject || defaults.subject,
+                      maxLength: 200,
+                    },
+                    {
+                      key: 'heading',
+                      label: t('Heading'),
+                      original: value.heading || defaults.heading,
+                      maxLength: 200,
+                    },
+                    {
+                      key: 'intro',
+                      label: t('Introduction'),
+                      original: value.intro || defaults.intro,
+                      multiline: true,
+                    },
+                  ]}
+                />
                 <div className="sh-row">
                   <button
                     type="button"

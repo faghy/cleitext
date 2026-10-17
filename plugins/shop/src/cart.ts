@@ -1,3 +1,4 @@
+import { textIn } from './texts';
 import { createHash, randomBytes } from 'node:crypto';
 import type { PluginTransaction } from '@cleitext/plugin-sdk';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
@@ -171,6 +172,8 @@ export type LineProblem = 'gone' | 'stock';
 export async function priceCart(
   tx: PluginTransaction,
   items: CartItem[],
+  /** The language of the page: attribute names are shown in it. */
+  locale = 'en',
   now = new Date(),
 ): Promise<{ lines: CartLine[]; items: CartItem[]; dropped: string[]; lowered: string[] }> {
   if (items.length === 0) return { lines: [], items: [], dropped: [], lowered: [] };
@@ -185,6 +188,7 @@ export async function priceCart(
   const names = await attributeNames(
     tx,
     productRows.map((p) => p.entryId),
+    locale,
   );
   const byProduct = new Map(productRows.map((p) => [p.entryId, p]));
   const byVariation = new Map(variationRows.map((v) => [v.id, v]));
@@ -265,6 +269,7 @@ type AttributeNames = Map<string, { name: string; values: Map<string, string> }>
 async function attributeNames(
   tx: PluginTransaction,
   productIds: string[],
+  locale: string,
 ): Promise<AttributeNames> {
   const names: AttributeNames = new Map();
   if (productIds.length === 0) return names;
@@ -276,9 +281,11 @@ async function attributeNames(
   const values = shared.length ? await tx.select().from(attributeValues) : [];
   for (const attribute of shared) {
     names.set(attribute.slug, {
-      name: attribute.name,
+      name: textIn(attribute.translations, locale, 'name', attribute.name),
       values: new Map(
-        values.filter((v) => v.attributeId === attribute.id).map((v) => [v.slug, v.name]),
+        values
+          .filter((v) => v.attributeId === attribute.id)
+          .map((v) => [v.slug, textIn(v.translations, locale, 'name', v.name)]),
       ),
     });
   }
@@ -290,8 +297,10 @@ async function attributeNames(
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
     names.set(`${row.productId}:${key}`, {
-      name: row.name,
-      values: new Map(row.values.map((v) => [v, v])),
+      name: textIn(row.translations, locale, 'name', row.name),
+      values: new Map(
+        row.values.map((v) => [v, textIn(row.translations, locale, `value:${v}`, v)]),
+      ),
     });
   }
   return names;

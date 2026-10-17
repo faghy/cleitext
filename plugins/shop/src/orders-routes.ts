@@ -27,7 +27,7 @@ import {
 } from './order-admin';
 import { GatewayError } from './gateways';
 import { orders, type OrderRow, type OrderStatus } from './schema';
-import { paymentInstructions, type StoreSettings } from './storefront';
+import { inLanguage, paymentInstructions, type StoreSettings } from './storefront';
 
 declare module '@cleitext/plugin-sdk' {
   interface Actions {
@@ -66,7 +66,7 @@ export function orderMail(
         siteName: site.name,
         origin,
         prefix: order.locale === site.defaultLocale ? '' : `/${order.locale}`,
-        payment: paymentInstructions(settings, order),
+        payment: paymentInstructions(inLanguage(settings, order.locale), order),
         adminUrl: `${origin}${adminUrl(`/ext/shop/orders?order=${order.id}`)}`,
         ...extra,
       },
@@ -240,6 +240,7 @@ export function registerOrderRoutes(
             subject: '',
             heading: '',
             intro: '',
+            translations: {},
           },
         })),
       },
@@ -262,6 +263,11 @@ export function registerOrderRoutes(
         heading: z.string().max(200).default(''),
         intro: z.string().max(2000).default(''),
         order: z.uuid().optional(),
+        /** The texts given are in this language (a translation being written). */
+        locale: z
+          .string()
+          .regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/)
+          .optional(),
       })
       .parse(request.body ?? {});
     const id =
@@ -271,13 +277,22 @@ export function registerOrderRoutes(
           tx.select({ id: orders.id }).from(orders).orderBy(desc(orders.number)).limit(1),
         )
       )[0]?.id;
-    const detail = id ? await load(request.siteId, id) : null;
-    if (!detail) return problem(404, 'There is no order yet to show the email with.');
+    const found = id ? await load(request.siteId, id) : null;
+    if (!found) return problem(404, 'There is no order yet to show the email with.');
+    const detail = input.locale
+      ? { ...found, order: { ...found.order, locale: input.locale } }
+      : found;
     const { context } = await mail.context(request.siteId, request.origin, detail, {
       note: email === 'customer_note' ? 'Your parcel leaves today.' : undefined,
       amount: email === 'customer_refunded' ? detail.order.total : undefined,
     } as { note?: string; amount?: string });
-    const message = renderEmail(email, detail, context, { enabled: true, ...input });
+    const message = renderEmail(email, detail, context, {
+      enabled: true,
+      subject: input.subject,
+      heading: input.heading,
+      intro: input.intro,
+      translations: {},
+    });
     return { body: { subject: message.subject, html: message.html } };
   });
 }

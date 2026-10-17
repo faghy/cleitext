@@ -1,3 +1,4 @@
+import { Translations } from './translations';
 import { Alert, errorMessage, useT, type AdminPageProps } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -42,7 +43,7 @@ interface ShippingList {
 }
 
 /** Shop → Payments: the ways to pay, switched on, ordered and set up (WooCommerce's). */
-export function PaymentsPage({ api }: AdminPageProps) {
+export function PaymentsPage({ api, site }: AdminPageProps) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const setup = useSetup(api);
@@ -134,6 +135,32 @@ export function PaymentsPage({ api }: AdminPageProps) {
         />
         <small>{t('On the order page and in the emails.')}</small>
       </label>
+      <Translations
+        site={site}
+        value={data[id].translations}
+        onChange={(translations) => set(id, { translations })}
+        fields={[
+          {
+            key: 'title',
+            label: t('Title'),
+            original: data[id].title || t(DEFAULT_TITLE[id]),
+            maxLength: 120,
+          },
+          {
+            key: 'description',
+            label: t('Description'),
+            original: data[id].description,
+            multiline: true,
+            maxLength: 1000,
+          },
+          {
+            key: 'instructions',
+            label: t('Instructions'),
+            original: data[id].instructions,
+            multiline: true,
+          },
+        ]}
+      />
     </>
   );
 

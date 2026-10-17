@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { localize, textsSchema } from './texts';
 
 /**
  * Ways to pay (WooCommerce's payment gateways): bank transfer in advance,
@@ -53,9 +54,11 @@ const common = {
   description: text(1000),
   /** On the order page and in the emails. */
   instructions: text(2000),
+  /** Title, description and instructions in other languages: `{ it: { title } }`. */
+  translations: textsSchema,
 };
 
-const off = { enabled: false, title: '', description: '', instructions: '' };
+const off = { enabled: false, title: '', description: '', instructions: '', translations: {} };
 
 export const paymentsSchema = z.object({
   /** The order at checkout. */
@@ -64,7 +67,7 @@ export const paymentsSchema = z.object({
   holdMinutes: z.number().int().min(10).max(10_080).default(60),
   bacs: z
     .object({ ...common, accounts: z.array(bankAccountSchema).max(10).default([]) })
-    .default({ enabled: false, title: '', description: '', instructions: '', accounts: [] }),
+    .default({ ...off, accounts: [] }),
   cod: z
     .object({
       ...common,
@@ -77,10 +80,7 @@ export const paymentsSchema = z.object({
       virtual: z.boolean().default(false),
     })
     .default({
-      enabled: false,
-      title: '',
-      description: '',
-      instructions: '',
+      ...off,
       fee: '',
       feeTaxable: true,
       shippingMethods: [],
@@ -150,4 +150,15 @@ export function availablePayments(payments: Payments, cart: PaymentContext): Pay
     }
     return true;
   });
+}
+
+/** The ways to pay with their texts in a language (the customer's, or an order's). */
+export function localizePayments(payments: Payments, locale: string): Payments {
+  return {
+    ...payments,
+    bacs: localize(payments.bacs, payments.bacs.translations, locale),
+    cod: localize(payments.cod, payments.cod.translations, locale),
+    stripe: localize(payments.stripe, payments.stripe.translations, locale),
+    paypal: localize(payments.paypal, payments.paypal.translations, locale),
+  };
 }

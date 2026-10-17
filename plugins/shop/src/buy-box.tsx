@@ -1,3 +1,4 @@
+import { textIn } from './texts';
 import { defineBlock, type BlockLoadContext, type PluginContext } from '@cleitext/plugin-sdk';
 import { asc, eq } from 'drizzle-orm';
 import { currentPrice, isOnSale } from './pricing';
@@ -93,14 +94,18 @@ export async function loadBuyBox(
       .map((a) => {
         if (a.attributeId) {
           const attribute = shared.find((s) => s.id === a.attributeId);
+          // Names in the page's language.
           const list = sharedValues
             .filter((v) => v.attributeId === a.attributeId && a.values.includes(v.slug))
+            .map((v) => ({ ...v, name: textIn(v.translations, context.locale, 'name', v.name) }))
             .sort((x, y) =>
               attribute?.sort === 'name' ? x.name.localeCompare(y.name) : x.position - y.position,
             );
           return {
             key: attribute?.slug ?? '',
-            name: attribute?.name ?? '',
+            name: attribute
+              ? textIn(attribute.translations, context.locale, 'name', attribute.name)
+              : '',
             values: list.map((v) => ({ slug: v.slug, name: v.name })),
           };
         }
@@ -110,7 +115,14 @@ export async function loadBuyBox(
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-+|-+$/g, '');
-        return { key, name: a.name, values: a.values.map((v) => ({ slug: v, name: v })) };
+        return {
+          key,
+          name: textIn(a.translations, context.locale, 'name', a.name),
+          values: a.values.map((v) => ({
+            slug: v,
+            name: textIn(a.translations, context.locale, `value:${v}`, v),
+          })),
+        };
       })
       .filter((o) => o.key && o.values.length > 0);
     const price = currentPrice(product);

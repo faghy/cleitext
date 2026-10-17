@@ -1,4 +1,5 @@
 import type { PluginTransaction } from '@cleitext/plugin-sdk';
+import { textIn } from './texts';
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { CartLine } from './cart';
 import {
@@ -53,6 +54,8 @@ export interface QuoteInput {
   /** Known at checkout: for the coupons' email and per-customer limits. */
   customer?: { email: string; userId: string | null };
   now?: Date;
+  /** The customer's language: names of shipping methods and taxes are shown in it. */
+  locale?: string;
 }
 
 export interface Quote {
@@ -179,7 +182,12 @@ export async function quote(
       classes,
       freeShippingCoupon: applied.freeShipping,
     };
-    rates = methods.flatMap((m) => rateFor(m.id, m, pack) ?? []);
+    const locale = input.locale ?? '';
+    rates = methods.flatMap(
+      (m) =>
+        rateFor(m.id, { ...m, title: textIn(m.translations, locale, 'title', m.title) }, pack) ??
+        [],
+    );
   }
   const rate = rates.find((r) => r.id === input.rateId) ?? rates[0] ?? null;
 
@@ -189,7 +197,7 @@ export async function quote(
         province: r.province,
         taxClass: r.taxClass as TaxRateInput['taxClass'],
         rate: Number(r.rate),
-        name: r.name,
+        name: textIn(r.translations, input.locale ?? '', 'name', r.name),
       }))
     : [];
   const totals = computeTotals({

@@ -1,6 +1,8 @@
 import { useT } from '@cleitext/admin-sdk';
 import { useState } from 'react';
 import type { AttributeView } from './shared';
+import type { Texts } from '../texts';
+import { Translations, type Site } from './translations';
 
 /** A product's attribute: a shared one (with some of its values) or its own. */
 export interface AttributeRow {
@@ -9,6 +11,8 @@ export interface AttributeRow {
   values: string[];
   visible: boolean;
   variation: boolean;
+  /** Own attributes: name and values in other languages (`name`, `value:<value>`). */
+  translations?: Texts;
 }
 
 /** A variation as the form edits it: amounts as typed. */
@@ -77,11 +81,13 @@ const same = (a: Record<string, string>, b: Record<string, string>) =>
   Object.entries(a).every(([k, v]) => b[k] === v);
 
 export function AttributesEditor({
+  site,
   rows,
   shared,
   variable,
   onChange,
 }: {
+  site: Site;
   rows: AttributeRow[];
   shared: AttributeView[];
   variable: boolean;
@@ -151,7 +157,23 @@ export function AttributesEditor({
                 </button>
               </fieldset>
             ) : (
-              <ValuesInput values={row.values} onChange={(values) => set(index, { values })} />
+              <>
+                <ValuesInput values={row.values} onChange={(values) => set(index, { values })} />
+                <Translations
+                  site={site}
+                  value={row.translations}
+                  onChange={(translations) => set(index, { translations })}
+                  fields={[
+                    { key: 'name', label: t('Name'), original: row.name, maxLength: 120 },
+                    ...row.values.map((v) => ({
+                      key: `value:${v}`,
+                      label: t('Value: {value}', { value: v }),
+                      original: v,
+                      maxLength: 120,
+                    })),
+                  ]}
+                />
+              </>
             )}
             <div className="sh-row">
               <label className="sh-check">
