@@ -5,7 +5,9 @@ import type {
   PluginTransaction,
 } from '@cleitext/plugin-sdk';
 import { and, eq } from 'drizzle-orm';
+import { copyProduct } from './products';
 import { products } from './schema';
+import { groupTranslations, joinGroup } from './translations';
 
 /** Content type and taxonomies of the shop. */
 export const PRODUCT = 'product';
@@ -67,6 +69,11 @@ export async function backfill(ctx: PluginContext, siteId: string): Promise<numb
     limit: 200,
   });
   for (const entry of entries) await syncProduct(ctx, siteId, entry);
+  await groupTranslations(
+    ctx,
+    siteId,
+    entries.map((e) => e.id),
+  );
   return entries.length;
 }
 
@@ -82,4 +89,14 @@ export function watchEntries(ctx: PluginContext): void {
   ctx.hooks.on('entry.deleted', ({ entry }) =>
     entry.type === PRODUCT ? forgetProduct(ctx, entry.siteId, entry.id) : undefined,
   );
+  // A copy of a product: a translation shares the original's data, a duplicate gets a copy.
+  ctx.hooks.on('entry.copied', async ({ entry, from }) => {
+    if (entry.type !== PRODUCT) return;
+    await syncProduct(ctx, entry.siteId, entry);
+    await ctx.db.transaction(entry.siteId, (tx) =>
+      entry.locale !== from.locale
+        ? joinGroup(tx, from.id, entry.id)
+        : copyProduct(tx, from.id, entry.id),
+    );
+  });
 }

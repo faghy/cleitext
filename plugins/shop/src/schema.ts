@@ -75,6 +75,8 @@ export const products = pgTable('products', {
   totalSales: integer('total_sales').notNull().default(0),
   rating: numeric('rating', { precision: 3, scale: 2 }).notNull().default('0'),
   ratingCount: integer('rating_count').notNull().default(0),
+  /** Translations share a group (the entry first translated): prices, codes, stock (0007). */
+  groupId: uuid('group_id'),
   createdAt: time('created_at').notNull().defaultNow(),
   updatedAt: time('updated_at').notNull().defaultNow(),
 });
@@ -135,6 +137,8 @@ export const variations = pgTable('variations', {
   imageId: uuid('image_id'),
   imageUrl: text('image_url'),
   description: text('description').notNull().default(''),
+  /** The same variation in the product's translations (0007). */
+  groupId: uuid('group_id'),
 });
 
 export type ProductRow = typeof products.$inferSelect;

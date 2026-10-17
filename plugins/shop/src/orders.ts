@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { Address, Invoice } from './address';
 import type { CartLine } from './cart';
 import { stockStatusOf } from './pricing';
+import { sameProductGroup, sameVariationGroup } from './translations';
 import {
   counters,
   couponUses,
@@ -82,40 +83,43 @@ async function takeStock(
   const status = (stock: number, backorders: 'no' | 'notify' | 'yes') =>
     stockStatusOf({ manageStock: true, stock, backorders, stockStatus: 'instock' });
   let row: { stock: number | null; backorders: 'no' | 'notify' | 'yes' } | undefined;
+  // The stock of the product's versions in other languages moves with it.
   if (line.variationId) {
-    [row] = await tx
+    const rows = await tx
       .update(variations)
       .set({ stock: sql`${variations.stock} - ${line.quantity}` })
       .where(
         and(
-          eq(variations.id, line.variationId),
+          sameVariationGroup(line.variationId),
           eq(variations.manageStock, true),
           sql`(${variations.backorders} <> 'no' OR ${variations.stock} >= ${line.quantity})`,
         ),
       )
-      .returning({ stock: variations.stock, backorders: variations.backorders });
+      .returning({ id: variations.id, stock: variations.stock, backorders: variations.backorders });
+    row = rows.find((r) => r.id === line.variationId);
     if (row)
       await tx
         .update(variations)
         .set({ stockStatus: status(row.stock ?? 0, row.backorders) })
-        .where(eq(variations.id, line.variationId));
+        .where(sameVariationGroup(line.variationId));
   } else {
-    [row] = await tx
+    const rows = await tx
       .update(products)
       .set({ stock: sql`${products.stock} - ${line.quantity}` })
       .where(
         and(
-          eq(products.entryId, line.productId),
+          sameProductGroup(line.productId),
           eq(products.manageStock, true),
           sql`(${products.backorders} <> 'no' OR ${products.stock} >= ${line.quantity})`,
         ),
       )
-      .returning({ stock: products.stock, backorders: products.backorders });
+      .returning({ id: products.entryId, stock: products.stock, backorders: products.backorders });
+    row = rows.find((r) => r.id === line.productId);
     if (row)
       await tx
         .update(products)
         .set({ stockStatus: status(row.stock ?? 0, row.backorders) })
-        .where(eq(products.entryId, line.productId));
+        .where(sameProductGroup(line.productId));
   }
   if (!row) throw new StockError(line.title);
   const to = row.stock ?? 0;
@@ -139,7 +143,7 @@ export async function placeOrder(
     await tx
       .update(products)
       .set({ totalSales: sql`${products.totalSales} + ${line.quantity}` })
-      .where(eq(products.entryId, line.productId));
+      .where(sameProductGroup(line.productId));
   }
 
   const { totals } = order;

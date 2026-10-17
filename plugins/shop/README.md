@@ -126,9 +126,17 @@ to them, and the rating can be optional (Settings → Cleishop). Cleishop → Re
 lists them for moderation. The average shows on the product page, in the
 catalog and in the structured data.
 
+**Languages**: with the Multilingual plugin, a product's translations share
+its prices, codes, stock, shipping data, gallery, attributes and variations:
+a change in one language reaches the others, and an order in any language
+takes from the same stock. Titles, descriptions, categories, purchase notes,
+variation descriptions and reviews stay in each language. Duplicating a
+product copies its data without the codes. Attribute names and values are
+shared, not translated.
+
 **Privacy**: with the Privacy plugin, requests to export or erase a
 customer's data include their orders and saved addresses. Erasing deletes the
 saved addresses and carts and anonymizes orders that never became a sale;
 sales are kept for tax and accounting records, without IP address and browser.
 
-Requires Cleitext 0.29 or later. License: GPL-2.0-or-later.
+Requires Cleitext 0.30 or later. License: GPL-2.0-or-later.

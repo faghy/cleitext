@@ -5,7 +5,6 @@ import { exportProducts, matchProducts } from './export';
 import { listProducts, listQuerySchema } from './list';
 import {
   attributeSchema,
-  copyProduct,
   getProduct,
   InputError,
   listAttributes,
@@ -26,6 +25,7 @@ import { registerAccount } from './account';
 import { registerCatalog } from './catalog-routes';
 import { registerReviews } from './reviews';
 import { registerPrivacy } from './privacy';
+import { groupTranslations } from './translations';
 import { emailsForStatus } from './emails';
 import { onlinePayments } from './online-payments';
 import { registerStorefrontBlocks } from './storefront-blocks';
@@ -45,6 +45,8 @@ declare module '@cleitext/plugin-sdk' {
   }
 }
 
+/** Storage key: the products translated before 1.1 were grouped. */
+const GROUPED = 'translations-grouped';
 const CAPABILITY = 'manage_shop';
 
 const PRICING = 'pricing';
@@ -321,6 +323,17 @@ export default definePlugin({
       return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
     });
     registerPrivacy(ctx);
+    // Once per site: products translated before the shop kept groups share their data.
+    ctx.schedule.every('group-translations', 5, async (siteId) => {
+      if (await ctx.storage.get(siteId, GROUPED)) return;
+      const entries = await ctx.content.find(siteId, { type: PRODUCT, status: 'any', limit: 200 });
+      await groupTranslations(
+        ctx,
+        siteId,
+        entries.map((e) => e.id),
+      );
+      await ctx.storage.set(siteId, GROUPED, true);
+    });
     registerReviews(ctx, async (siteId) => {
       const values = await ctx.settings.get(siteId);
       return {
@@ -494,9 +507,8 @@ export default definePlugin({
     api('POST', '/products/:id/duplicate', async (request) => {
       const id = request.params.id!;
       if (!UUID_RE.test(id) || !request.user) return fail(404, 'Not found.');
+      // The shop copies its data when the core says the entry was copied (entry.copied).
       const copy = await ctx.content.copy(request.siteId, id, { userId: request.user.id });
-      await syncProduct(ctx, request.siteId, copy);
-      await ctx.db.transaction(request.siteId, (tx) => copyProduct(tx, id, copy.id));
       return { status: 201, body: { id: copy.id } };
     });
 

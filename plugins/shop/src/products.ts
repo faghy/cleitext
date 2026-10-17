@@ -1,6 +1,7 @@
 import type { PluginContext, PluginTransaction } from '@cleitext/plugin-sdk';
 import { and, asc, eq, ne, notInArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { shareProduct, versionsOf } from './translations';
 import { parseMoney, productInputSchema, stockStatusOf, type ProductInput } from './catalog';
 import {
   attributes,
@@ -151,13 +152,15 @@ async function assertFreeSku(
   owner: { product?: string; variation?: string },
 ): Promise<void> {
   if (!sku) return;
+  // The versions of a product in other languages share its codes.
+  const versions = owner.product ? await versionsOf(tx, [owner.product]) : [];
   const [product] = await tx
     .select({ id: products.entryId })
     .from(products)
     .where(
       and(
         sql`lower(${products.sku}) = lower(${sku})`,
-        owner.product ? ne(products.entryId, owner.product) : undefined,
+        versions.length > 0 ? notInArray(products.entryId, versions) : undefined,
       ),
     );
   const [variation] = await tx
@@ -167,6 +170,7 @@ async function assertFreeSku(
       and(
         sql`lower(${variations.sku}) = lower(${sku})`,
         owner.variation ? ne(variations.id, owner.variation) : undefined,
+        versions.length > 0 ? notInArray(variations.productId, versions) : undefined,
       ),
     );
   if (product || variation) {
@@ -307,6 +311,7 @@ export async function saveProduct(
           await tx.insert(variations).values({ siteId, productId: id, ...values });
       }
     }
+    await shareProduct(tx, id);
   });
 }
 
@@ -332,6 +337,7 @@ export async function quickEdit(
       updatedAt: new Date(),
     })
     .where(eq(products.entryId, id));
+  await shareProduct(tx, id);
   return true;
 }
 
@@ -354,6 +360,8 @@ export async function copyProduct(tx: PluginTransaction, from: string, to: strin
     'totalSales',
     'rating',
     'ratingCount',
+    // A duplicate is another product, not a version of this one.
+    'groupId',
   ]);
   await tx
     .update(products)
@@ -367,11 +375,15 @@ export async function copyProduct(tx: PluginTransaction, from: string, to: strin
     await tx.insert(productAttributes).values(attributeRows.map((a) => ({ ...a, productId: to })));
   const variationRows = await tx.select().from(variations).where(eq(variations.productId, from));
   if (variationRows.length > 0)
-    await tx
-      .insert(variations)
-      .values(
-        variationRows.map(({ id: _v, ...v }) => ({ ...v, productId: to, sku: '', gtin: '' })),
-      );
+    await tx.insert(variations).values(
+      variationRows.map(({ id: _v, ...v }) => ({
+        ...v,
+        productId: to,
+        sku: '',
+        gtin: '',
+        groupId: null,
+      })),
+    );
 }
 
 // ---- Shared attributes ---------------------------------------------------------------

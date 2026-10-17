@@ -105,7 +105,9 @@ export async function matchProducts(
     ? await tx
         .select({ id: products.entryId, sku: products.sku })
         .from(products)
-        .where(sql`lower(${products.sku}) = ANY(${sql.param(lower)}::text[])`)
+        .where(
+          sql`lower(${products.sku}) = ANY(${sql.param(lower)}::text[]) AND (${products.groupId} IS NULL OR ${products.groupId} = ${products.entryId})`,
+        )
     : [];
   return {
     ids: found.map((f) => f.id),

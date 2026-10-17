@@ -2,6 +2,7 @@ import type { PluginTransaction } from '@cleitext/plugin-sdk';
 import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { stockStatusOf } from './pricing';
+import { sameProductGroup, sameVariationGroup } from './translations';
 import {
   orderItems,
   orderNotes,
@@ -162,29 +163,34 @@ async function moveStock(
   if (!item.productId || delta === 0) return null;
   const status = (stock: number, backorders: 'no' | 'notify' | 'yes') =>
     stockStatusOf({ manageStock: true, stock, backorders, stockStatus: 'instock' });
+  // The stock of the product's versions in other languages moves with it.
   if (item.variationId) {
-    const [row] = await tx
+    const variationId = item.variationId;
+    const rows = await tx
       .update(variations)
       .set({ stock: sql`${variations.stock} + ${delta}` })
-      .where(and(eq(variations.id, item.variationId), eq(variations.manageStock, true)))
-      .returning({ stock: variations.stock, backorders: variations.backorders });
+      .where(and(sameVariationGroup(variationId), eq(variations.manageStock, true)))
+      .returning({ id: variations.id, stock: variations.stock, backorders: variations.backorders });
+    const row = rows.find((r) => r.id === variationId);
     if (!row) return null;
     await tx
       .update(variations)
       .set({ stockStatus: status(row.stock ?? 0, row.backorders) })
-      .where(eq(variations.id, item.variationId));
+      .where(sameVariationGroup(variationId));
     return { name: item.name, from: (row.stock ?? 0) - delta, to: row.stock ?? 0 };
   }
-  const [row] = await tx
+  const productId = item.productId;
+  const rows = await tx
     .update(products)
     .set({ stock: sql`${products.stock} + ${delta}` })
-    .where(and(eq(products.entryId, item.productId), eq(products.manageStock, true)))
-    .returning({ stock: products.stock, backorders: products.backorders });
+    .where(and(sameProductGroup(productId), eq(products.manageStock, true)))
+    .returning({ id: products.entryId, stock: products.stock, backorders: products.backorders });
+  const row = rows.find((r) => r.id === productId);
   if (!row) return null;
   await tx
     .update(products)
     .set({ stockStatus: status(row.stock ?? 0, row.backorders) })
-    .where(eq(products.entryId, item.productId));
+    .where(sameProductGroup(productId));
   return { name: item.name, from: (row.stock ?? 0) - delta, to: row.stock ?? 0 };
 }
 
