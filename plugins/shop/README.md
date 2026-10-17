@@ -126,4 +126,9 @@ to them, and the rating can be optional (Settings → Cleishop). Cleishop → Re
 lists them for moderation. The average shows on the product page, in the
 catalog and in the structured data.
 
-Requires Cleitext 0.28 or later. License: GPL-2.0-or-later.
+**Privacy**: with the Privacy plugin, requests to export or erase a
+customer's data include their orders and saved addresses. Erasing deletes the
+saved addresses and carts and anonymizes orders that never became a sale;
+sales are kept for tax and accounting records, without IP address and browser.
+
+Requires Cleitext 0.29 or later. License: GPL-2.0-or-later.

@@ -198,9 +198,22 @@ describe('the catalog', () => {
     expect(page.body).toMatch(
       /<a href="\/shop">Shop<\/a><\/li>\s*<li><a href="\/product-category\/home">Home<\/a><\/li>\s*<li><a href="\/product-category\/lamps">Lamps<\/a>/,
     );
-    const data = [...page.body.matchAll(/<script type="application\/ld\+json">(.+?)<\/script>/g)]
-      .map((m) => JSON.parse(m[1]!))
-      .find((d) => d['@type'] === 'Product');
+    const all = [
+      ...page.body.matchAll(/<script type="application\/ld\+json">(.+?)<\/script>/g),
+    ].map((m) => JSON.parse(m[1]!));
+    const data = all.find((d) => d['@type'] === 'Product');
+    // One trail, with absolute addresses (the last item is the product itself).
+    const trails = all.filter((d) => d['@type'] === 'BreadcrumbList');
+    expect(trails).toHaveLength(1);
+    expect(
+      trails[0].itemListElement.map((i: { name: string; item: string }) => [i.name, i.item]),
+    ).toEqual([
+      ['Home', `http://${site.host}/`],
+      ['Shop', `http://${site.host}/shop`],
+      ['Home', `http://${site.host}/product-category/home`],
+      ['Lamps', `http://${site.host}/product-category/lamps`],
+      ['Floor lamp', `http://${site.host}/product/${slug}`],
+    ]);
     expect(data).toMatchObject({
       name: 'Floor lamp',
       sku: 'LAMP-2',

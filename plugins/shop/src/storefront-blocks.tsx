@@ -221,9 +221,54 @@ export function registerStorefrontBlocks(
 
   // ---- Product pages: breadcrumbs, gallery, related ----------------------------------
 
+  /** Home › Shop › the deepest of the product's categories › the product. */
+  async function productCrumbs(
+    siteId: string,
+    locale: string,
+    prefix: string,
+    entryId: string,
+    title: string | undefined,
+    url: string | undefined,
+  ): Promise<Crumb[] | null> {
+    const t = translator(locale);
+    const [row] = await ctx.db.transaction(siteId, (tx) =>
+      tx
+        .select({ categoryIds: products.categoryIds, title: products.title })
+        .from(products)
+        .where(eq(products.entryId, entryId)),
+    );
+    if (!row) return null;
+    const categories = await ctx.terms.find(siteId, {
+      taxonomy: CATEGORY,
+      locale: locale,
+      limit: 500,
+    });
+    const crumbs: Crumb[] = [
+      { name: t('Home'), url: `${prefix}/` },
+      { name: t('Shop'), url: `${prefix}/shop` },
+    ];
+    // The deepest of its categories, with the ones above it.
+    const chains = row.categoryIds.map((cid) => {
+      const chain = [];
+      for (let at = categories.find((c) => c.id === cid); at && chain.length < 20;) {
+        chain.unshift(at);
+        const parent: string | null = at.parentId;
+        at = parent ? categories.find((c) => c.id === parent) : undefined;
+      }
+      return chain;
+    });
+    const longest = chains.sort((a, b) => b.length - a.length)[0] ?? [];
+    for (const c of longest)
+      crumbs.push({ name: c.name, url: c.url.replace(/^https?:\/\/[^/]+/, '') });
+    crumbs.push({
+      name: title ?? row.title,
+      url: url ?? '',
+    });
+    return crumbs;
+  }
+
   interface ProductPageData {
     crumbs: Crumb[];
-    origin: string;
   }
 
   ctx.blocks.register(
@@ -236,61 +281,21 @@ export function registerStorefrontBlocks(
         const id = context.entry?.id;
         if (!id) return null;
         context.tag(productTag(id));
-        const t = translator(context.locale);
-        const prefix = prefixOf(context.page.site.home);
-        const [row] = await ctx.db.transaction(context.siteId, (tx) =>
-          tx
-            .select({ categoryIds: products.categoryIds, title: products.title })
-            .from(products)
-            .where(eq(products.entryId, id)),
+        const crumbs = await productCrumbs(
+          context.siteId,
+          context.locale,
+          prefixOf(context.page.site.home),
+          id,
+          context.page.entry?.title,
+          context.page.entry?.url,
         );
-        if (!row) return null;
-        const categories = await ctx.terms.find(context.siteId, {
-          taxonomy: CATEGORY,
-          locale: context.locale,
-          limit: 500,
-        });
-        const crumbs: Crumb[] = [
-          { name: t('Home'), url: `${prefix}/` },
-          { name: t('Shop'), url: `${prefix}/shop` },
-        ];
-        // The deepest of its categories, with the ones above it.
-        const chains = row.categoryIds.map((cid) => {
-          const chain = [];
-          for (let at = categories.find((c) => c.id === cid); at && chain.length < 20;) {
-            chain.unshift(at);
-            const parent: string | null = at.parentId;
-            at = parent ? categories.find((c) => c.id === parent) : undefined;
-          }
-          return chain;
-        });
-        const longest = chains.sort((a, b) => b.length - a.length)[0] ?? [];
-        for (const c of longest)
-          crumbs.push({ name: c.name, url: c.url.replace(/^https?:\/\/[^/]+/, '') });
-        crumbs.push({
-          name: context.page.entry?.title ?? row.title,
-          url: context.page.entry?.url ?? '',
-        });
-        return { crumbs, origin: context.page.site.home.replace(/^(https?:\/\/[^/]+).*$/, '$1') };
+        return crumbs ? { crumbs } : null;
       },
       css: () => CATALOG_CSS,
       render({ data, context }) {
         if (!data) return null;
         const t = translator(context.locale);
-        return (
-          <>
-            <Raw markup={breadcrumbs(t, data.crumbs).value} />
-            <script
-              type="application/ld+json"
-              dangerouslySetInnerHTML={{
-                __html: JSON.stringify(breadcrumbData(data.origin, data.crumbs)).replace(
-                  /</g,
-                  '\\u003c',
-                ),
-              }}
-            />
-          </>
-        );
+        return <Raw markup={breadcrumbs(t, data.crumbs).value} />;
       },
     }),
   );
@@ -477,87 +482,121 @@ export function registerStorefrontBlocks(
 
   // ---- Structured data of product pages (Product, Offer) -----------------------------
 
-  ctx.hooks.filter('render.head', async (head, context) => {
-    const entry = context.entry;
-    if (!entry || entry.type !== PRODUCT) return head;
-    context.tag(productTag(entry.id));
-    const store = await settings(context.siteId);
-    const found = await ctx.db.transaction(context.siteId, async (tx) => {
-      const [product] = await tx.select().from(products).where(eq(products.entryId, entry.id));
-      if (!product) return null;
-      const own =
+  ctx.hooks.filter(
+    'render.head',
+    async (head, context) => {
+      const entry = context.entry;
+      if (!entry || entry.type !== PRODUCT) return head;
+      context.tag(productTag(entry.id));
+      const store = await settings(context.siteId);
+      const found = await ctx.db.transaction(context.siteId, async (tx) => {
+        const [product] = await tx.select().from(products).where(eq(products.entryId, entry.id));
+        if (!product) return null;
+        const own =
+          product.kind === 'variable'
+            ? await tx.select().from(variations).where(eq(variations.productId, entry.id))
+            : [];
+        return { product, variations: own };
+      });
+      if (!found) return head;
+      const { product } = found;
+      const brands = product.brandId
+        ? await ctx.terms.find(context.siteId, { taxonomy: BRAND, ids: [product.brandId] })
+        : [];
+      const url = head.canonical ?? '';
+      const availability = (status: string) =>
+        `https://schema.org/${status === 'outofstock' ? 'OutOfStock' : status === 'onbackorder' ? 'BackOrder' : 'InStock'}`;
+      const prices = found.variations
+        .filter((v) => v.enabled)
+        .map((v) => currentPrice(v))
+        .filter((p): p is string => p !== null)
+        .map(Number);
+      const price = currentPrice(product);
+      const offers =
         product.kind === 'variable'
-          ? await tx.select().from(variations).where(eq(variations.productId, entry.id))
-          : [];
-      return { product, variations: own };
-    });
-    if (!found) return head;
-    const { product } = found;
-    const brands = product.brandId
-      ? await ctx.terms.find(context.siteId, { taxonomy: BRAND, ids: [product.brandId] })
-      : [];
-    const url = head.canonical ?? '';
-    const availability = (status: string) =>
-      `https://schema.org/${status === 'outofstock' ? 'OutOfStock' : status === 'onbackorder' ? 'BackOrder' : 'InStock'}`;
-    const prices = found.variations
-      .filter((v) => v.enabled)
-      .map((v) => currentPrice(v))
-      .filter((p): p is string => p !== null)
-      .map(Number);
-    const price = currentPrice(product);
-    const offers =
-      product.kind === 'variable'
-        ? prices.length
+          ? prices.length
+            ? {
+                '@type': 'AggregateOffer',
+                priceCurrency: store.currency,
+                lowPrice: Math.min(...prices).toFixed(2),
+                highPrice: Math.max(...prices).toFixed(2),
+                offerCount: prices.length,
+                availability: availability(
+                  found.variations.some((v) => v.enabled && v.stockStatus !== 'outofstock')
+                    ? 'instock'
+                    : 'outofstock',
+                ),
+              }
+            : undefined
+          : price !== null
+            ? {
+                '@type': 'Offer',
+                url,
+                priceCurrency: store.currency,
+                price: Number(price).toFixed(2),
+                availability: availability(product.stockStatus),
+                itemCondition: `https://schema.org/${product.condition === 'used' ? 'UsedCondition' : product.condition === 'refurbished' ? 'RefurbishedCondition' : 'NewCondition'}`,
+              }
+            : undefined;
+      const origin = url.replace(/^(https?:\/\/[^/]+).*$/, '$1');
+      const data = {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: entry.title,
+        ...(entry.excerpt ? { description: entry.excerpt } : {}),
+        ...(product.imageUrl
           ? {
-              '@type': 'AggregateOffer',
-              priceCurrency: store.currency,
-              lowPrice: Math.min(...prices).toFixed(2),
-              highPrice: Math.max(...prices).toFixed(2),
-              offerCount: prices.length,
-              availability: availability(
-                found.variations.some((v) => v.enabled && v.stockStatus !== 'outofstock')
-                  ? 'instock'
-                  : 'outofstock',
+              image: [product.imageUrl, ...product.gallery.map((g) => g.url)].map((u) =>
+                u.startsWith('http') ? u : `${origin}${u}`,
               ),
             }
-          : undefined
-        : price !== null
+          : {}),
+        ...(product.sku ? { sku: product.sku } : {}),
+        ...(product.gtin ? { gtin: product.gtin } : {}),
+        ...(brands[0] ? { brand: { '@type': 'Brand', name: brands[0].name } } : {}),
+        ...(offers ? { offers } : {}),
+        ...(product.ratingCount > 0
           ? {
-              '@type': 'Offer',
-              url,
-              priceCurrency: store.currency,
-              price: Number(price).toFixed(2),
-              availability: availability(product.stockStatus),
-              itemCondition: `https://schema.org/${product.condition === 'used' ? 'UsedCondition' : product.condition === 'refurbished' ? 'RefurbishedCondition' : 'NewCondition'}`,
+              aggregateRating: {
+                '@type': 'AggregateRating',
+                ratingValue: Number(product.rating).toFixed(1),
+                reviewCount: product.ratingCount,
+              },
             }
-          : undefined;
-    const origin = url.replace(/^(https?:\/\/[^/]+).*$/, '$1');
-    const data = {
-      '@context': 'https://schema.org',
-      '@type': 'Product',
-      name: entry.title,
-      ...(entry.excerpt ? { description: entry.excerpt } : {}),
-      ...(product.imageUrl
-        ? {
-            image: [product.imageUrl, ...product.gallery.map((g) => g.url)].map((u) =>
-              u.startsWith('http') ? u : `${origin}${u}`,
-            ),
-          }
-        : {}),
-      ...(product.sku ? { sku: product.sku } : {}),
-      ...(product.gtin ? { gtin: product.gtin } : {}),
-      ...(brands[0] ? { brand: { '@type': 'Brand', name: brands[0].name } } : {}),
-      ...(offers ? { offers } : {}),
-      ...(product.ratingCount > 0
-        ? {
-            aggregateRating: {
-              '@type': 'AggregateRating',
-              ratingValue: Number(product.rating).toFixed(1),
-              reviewCount: product.ratingCount,
-            },
-          }
-        : {}),
-    };
-    return { ...head, tags: [...(head.tags ?? []), { tag: 'json-ld', data }] };
-  });
+          : {}),
+      };
+      const tags = [...(head.tags ?? []), { tag: 'json-ld' as const, data }];
+      // The breadcrumbs, with absolute addresses (blocks only know the relative ones).
+      if (url) {
+        const address = new URL(url);
+        const prefix = address.pathname.startsWith(`/${context.locale}/`)
+          ? `/${context.locale}`
+          : '';
+        const crumbs = await productCrumbs(
+          context.siteId,
+          context.locale,
+          prefix,
+          entry.id,
+          entry.title,
+          address.pathname,
+        );
+        if (crumbs) {
+          const list = breadcrumbData(address.origin, crumbs);
+          // An SEO plugin's schema graph (run before this filter) gets the shop's trail in its
+          // own BreadcrumbList, so the page has one; otherwise the shop adds it.
+          const node = tags
+            .flatMap((tag) =>
+              tag.tag === 'json-ld' && Array.isArray((tag.data as { '@graph'?: unknown })['@graph'])
+                ? ((tag.data as { '@graph': Record<string, unknown>[] })['@graph'] ?? [])
+                : [],
+            )
+            .find((n) => n['@type'] === 'BreadcrumbList');
+          if (node) node.itemListElement = list.itemListElement;
+          else tags.push({ tag: 'json-ld', data: list });
+        }
+      }
+      return { ...head, tags };
+    },
+    { priority: 20 },
+  );
 }

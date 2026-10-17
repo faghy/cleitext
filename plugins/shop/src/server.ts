@@ -25,6 +25,7 @@ import { COUNTRIES } from './address';
 import { registerAccount } from './account';
 import { registerCatalog } from './catalog-routes';
 import { registerReviews } from './reviews';
+import { registerPrivacy } from './privacy';
 import { emailsForStatus } from './emails';
 import { onlinePayments } from './online-payments';
 import { registerStorefrontBlocks } from './storefront-blocks';
@@ -319,6 +320,7 @@ export default definePlugin({
       const values = await ctx.settings.get(siteId);
       return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
     });
+    registerPrivacy(ctx);
     registerReviews(ctx, async (siteId) => {
       const values = await ctx.settings.get(siteId);
       return {

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPlugin, installPlugin } from '@cleitext/cli';
+import { PluginHost } from '../src/plugins/plugin-host.service.js';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
@@ -147,6 +148,26 @@ describe('reviews', () => {
       verified: true,
       rating: 5,
     });
+  });
+
+  it('exports and erases a customer’s data for GDPR requests, keeping sales', async () => {
+    const host = app.get(PluginHost);
+    const exported = await host.exportPersonalData(site.id, 'Ivo@Example.test');
+    const shop = exported.find((e) => e.source === 'shop');
+    expect(shop?.groups[0]).toMatchObject({
+      id: 'shop.orders',
+      items: [expect.objectContaining({ status: 'processing', email: 'ivo@example.test' })],
+    });
+    expect(String(shop?.groups[0]?.items[0]?.billing)).toContain('Via Po 1');
+    const erased = (await host.erasePersonalData(site.id, 'ivo@example.test')).find(
+      (e) => e.source === 'shop',
+    );
+    // A paid order is kept for the records, without IP address and browser.
+    expect(erased).toMatchObject({ removed: 0, retained: 1 });
+    const again = (await host.exportPersonalData(site.id, 'ivo@example.test')).find(
+      (e) => e.source === 'shop',
+    );
+    expect(again?.groups[0]?.items[0]).toMatchObject({ ip: null, browser: null });
   });
 
   it('can be limited to buyers, or turned off', async () => {
