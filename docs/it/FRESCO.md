@@ -36,7 +36,7 @@ Le impostazioni del sito (**Site settings**, il kit) valgono per tutte le pagine
 - **Colori e font globali**: si scelgono in qualunque controllo di colore o font; cambiandoli una volta si cambia lo stile del sito.
 - **Stile del tema**: titoli, pulsanti, immagini e campi dei moduli.
 - **Layout**: larghezza dei contenuti, spaziature, breakpoint.
-- **Selettore del titolo della pagina**, perché le pagine possano nascondere il titolo del tema.
+- **Selettore del titolo della pagina**, perché le pagine possano nascondere il titolo del tema. Aurora, Canvas, Pulsar e Vitality lo tolgono da soli dalla pagina, così non compare mai due volte.
 - Impostazioni della **lightbox**.
 
 ## Modalità atomica

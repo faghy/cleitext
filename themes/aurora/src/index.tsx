@@ -154,29 +154,34 @@ function Index(props: TemplateProps) {
     case 'entry': {
       const { entry } = props;
       const isArticle = entry.type === 'article';
+      // A visual editor (Fresco) may hide the title: then no header, and no second h1.
+      const hideTitle =
+        (entry.document.editor?.data as { hideTitle?: unknown } | undefined)?.hideTitle === true;
       return (
         <Location name="single" entry={entry}>
           <article className="container">
-            <header className="page-header">
-              <h1>{entry.title}</h1>
-              {isArticle && entry.publishedAt && (
-                <p className="entry-meta">
-                  <FormattedDate iso={entry.publishedAt} />
-                  {entry.author && (
-                    <>
-                      {' · '}
-                      {entry.author.url ? (
-                        <a href={entry.author.url} rel="author">
-                          {entry.author.displayName}
-                        </a>
-                      ) : (
-                        entry.author.displayName
-                      )}
-                    </>
-                  )}
-                </p>
-              )}
-            </header>
+            {!hideTitle && (
+              <header className="page-header">
+                <h1>{entry.title}</h1>
+                {isArticle && entry.publishedAt && (
+                  <p className="entry-meta">
+                    <FormattedDate iso={entry.publishedAt} />
+                    {entry.author && (
+                      <>
+                        {' · '}
+                        {entry.author.url ? (
+                          <a href={entry.author.url} rel="author">
+                            {entry.author.displayName}
+                          </a>
+                        ) : (
+                          entry.author.displayName
+                        )}
+                      </>
+                    )}
+                  </p>
+                )}
+              </header>
+            )}
             {entry.featuredImage && (
               <figure className="entry-featured">
                 <Image media={entry.featuredImage} eager sizes="(min-width: 70rem) 70rem, 100vw" />

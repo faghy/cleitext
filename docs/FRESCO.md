@@ -36,7 +36,7 @@ The **Site settings** (the kit) apply to every Fresco page:
 - **Global colors and fonts**: pick them in any color or font control; change them once to restyle the site.
 - **Theme style**: headings, buttons, images and form fields.
 - **Layout**: content width, gaps, breakpoints.
-- **Page title selector**, so pages can hide the theme's title.
+- **Page title selector**, so pages can hide the theme's title. Aurora, Canvas, Pulsar and Vitality leave the title out of the page by themselves, so it never shows twice.
 - **Lightbox** settings.
 
 ## Atomic mode

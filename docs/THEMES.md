@@ -108,7 +108,7 @@ Wrap the parts a theme builder may replace in `<Location>`: `header`, `footer`, 
 <Location name="single" entry={entry}><article>…</article></Location>
 ```
 
-Render an entry's content with `<EntryContent document={…} />`. Inside a visual editor (a plugin's page builder) it renders an empty `[data-cx-editor-canvas]` element instead, which the editor fills, so the page is edited in the theme's own layout.
+Render an entry's content with `<EntryContent document={…} />`. Inside a visual editor (a plugin's page builder) it renders an empty `[data-cx-editor-canvas]` element instead, which the editor fills, so the page is edited in the theme's own layout. When the editor hides the title (`entry.document.editor?.data?.hideTitle === true`, as Fresco's page setting does), leave out the entry's title header, so the page has a single `h1`.
 
 ### Comments, likes, accounts and authors
 

@@ -37,8 +37,9 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-/* A container inside another fills the parent's width; in a row, siblings share it. */
-.fr-container .fr-container {
+/* A container inside another fills the parent's width; in a row, siblings share it.
+   Without specificity, so its own padding (Advanced tab) wins. */
+:where(.fr-container) .fr-container {
   padding: 0;
 }
 .fr-container__in > .fr-e:not(.fr-container) {
