@@ -170,6 +170,7 @@ ctx.hooks.filter(
 | `entry.created` · `entry.saved`           | `{ entry }`                                                      |
 | `entry.published` · `entry.unpublished`   | `{ entry }`                                                      |
 | `entry.trashed` · `entry.deleted`         | `{ entry }`                                                      |
+| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; see below)          |
 | `term.created` · `term.deleted`           | `{ term }`                                                       |
 | `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                         |
 | `languages.pending`                       | `{}` ([language data](#15-languages-language-plugins) arrived)   |
@@ -288,6 +289,8 @@ With `withDocument: true` each entry also has its block `document` (the publishe
 ```ts
 const copy = await ctx.content.copy(siteId, id, { userId: request.user!.id, locale: 'it' });
 ```
+
+Every copy, this one or the admin's **Duplicate**, ends with the action `entry.copied` (plugin API 1.21): `entry` is the copy and `from` the original. Plugins keeping their own data of entries copy it there: a translation has another `locale` than `from.locale`, a duplicate the same. `ctx.content.translations(siteId, id)` (`content:read`) lists the other versions of an entry, `[{ id, locale }]`, as the language plugin knows them (none without one): a shop shares the prices and the stock of a product's translations this way.
 
 **Updating entries** (`content:write`). `ctx.content.update(siteId, id, { title, excerpt, document, fields }, { userId })` saves a new revision as that user (the document is validated like one from the editor); `ctx.content.revision(siteId, id)` reads the latest saved version. `@cleitext/plugin-sdk` also exports `inlineToHtml` and `htmlToInline`, to work on the rich text of blocks.
 

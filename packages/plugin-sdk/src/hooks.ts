@@ -47,6 +47,12 @@ export interface Actions {
   'entry.unpublished': { entry: EntryEvent };
   'entry.trashed': { entry: EntryEvent };
   'entry.deleted': { entry: EntryEvent };
+  /**
+   * An entry was copied (plugin API 1.21): duplicated in its language, or
+   * copied into another one as a translation (`entry.locale !== from.locale`).
+   * Emitted after `entry.created`, once the copy has its terms.
+   */
+  'entry.copied': { entry: EntryEvent; from: { id: string; locale: string } };
   'term.created': { term: TermEvent };
   'term.deleted': { term: TermEvent };
   /** Languages and translations were imported for the site: see `ctx.languages.pending`. */

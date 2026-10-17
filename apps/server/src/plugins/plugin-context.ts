@@ -18,6 +18,7 @@ import {
   type PluginTransaction,
   type EntryQuery,
   type TermQuery,
+  type TranslationLink,
   type DocumentImportOptions,
 } from '@cleitext/plugin-sdk';
 import type { FieldDefinition, FieldValues } from '@cleitext/shared';
@@ -30,6 +31,7 @@ export interface PluginServices {
   site(siteId: string): Promise<PluginSite>;
   findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]>;
   copyEntry(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry>;
+  entryTranslations(siteId: string, id: string): Promise<TranslationLink[]>;
   updateFields(
     siteId: string,
     id: string,
@@ -200,6 +202,12 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         assertSiteId(siteId);
         if (!UUID_RE.test(id) || !UUID_RE.test(options.userId)) throw new TypeError('Invalid id');
         return services().copyEntry(siteId, id, options);
+      },
+      async translations(siteId, id) {
+        require('content:read');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id)) throw new TypeError('Invalid id');
+        return services().entryTranslations(siteId, id);
       },
       async updateFields(siteId, id, values, options) {
         require('content:write');

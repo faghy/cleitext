@@ -172,6 +172,7 @@ ctx.hooks.filter(
 | `entry.created` · `entry.saved`           | `{ entry }`                                                                 |
 | `entry.published` · `entry.unpublished`   | `{ entry }`                                                                 |
 | `entry.trashed` · `entry.deleted`         | `{ entry }`                                                                 |
+| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; vedi sotto)                    |
 | `term.created` · `term.deleted`           | `{ term }`                                                                  |
 | `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                    |
 | `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue))     |
@@ -288,6 +289,8 @@ const one = await ctx.content.get(siteId, id); // any status, or null
 ```ts
 const copy = await ctx.content.copy(siteId, id, { userId: request.user!.id, locale: 'it' });
 ```
+
+Ogni copia, questa o il **Duplica** dell'admin, termina con l'azione `entry.copied` (API dei plugin 1.21): `entry` è la copia e `from` l'originale. I plugin che tengono dati propri delle voci li copiano lì: una traduzione ha un `locale` diverso da `from.locale`, un duplicato lo stesso. `ctx.content.translations(siteId, id)` (`content:read`) elenca le altre versioni di una voce, `[{ id, locale }]`, come le conosce il plugin delle lingue (nessuna senza): un negozio condivide così prezzi e scorte delle traduzioni di un prodotto.
 
 **Aggiornare le voci** (`content:write`). `ctx.content.update(siteId, id, { title, excerpt, document, fields }, { userId })` salva una nuova revisione per conto di quell'utente (il documento viene validato come uno salvato dall'editor); `ctx.content.revision(siteId, id)` legge l'ultima versione salvata. `@cleitext/plugin-sdk` esporta anche `inlineToHtml` e `htmlToInline`, per lavorare sul testo ricco dei blocchi.
 

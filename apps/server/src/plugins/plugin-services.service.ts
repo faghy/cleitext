@@ -39,6 +39,7 @@ import {
   type PluginTransaction,
   type RouteRequest,
   type TermQuery,
+  type TranslationLink,
   type DocumentImportOptions,
 } from '@cleitext/plugin-sdk';
 import {
@@ -132,6 +133,11 @@ export class PluginServicesProvider implements PluginServices {
     );
     const [entry] = await this.findEntries(siteId, { ids: [copy.id], status: 'any', limit: 1 });
     return entry!;
+  }
+
+  async entryTranslations(siteId: string, id: string): Promise<TranslationLink[]> {
+    const links = await this.languages.translations(siteId, 'entry', [id]);
+    return (links.get(id) ?? []).map((l) => ({ id: l.id, locale: l.locale }));
   }
 
   async updateFields(

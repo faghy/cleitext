@@ -154,6 +154,11 @@ export interface ContentApi {
   find(siteId: string, query?: EntryQuery): Promise<PluginEntry[]>;
   get(siteId: string, id: string): Promise<PluginEntry | null>;
   /**
+   * The other versions of an entry in other languages, from the site's
+   * language plugin; none without one (plugin API 1.21, needs `content:read`).
+   */
+  translations(siteId: string, id: string): Promise<TranslationLink[]>;
+  /**
    * Copies an entry as a new draft, with its content, fields, excerpt and
    * featured image, e.g. into another language (needs `content:write`).
    * The parent becomes the parent's copy in that language, when there is one.

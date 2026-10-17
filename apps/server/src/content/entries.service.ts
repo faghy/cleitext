@@ -137,6 +137,7 @@ export class EntriesService {
   private async emitEntry(
     siteId: string,
     action:
+      | 'entry.copied'
       | 'entry.created'
       | 'entry.saved'
       | 'entry.published'
@@ -149,10 +150,12 @@ export class EntriesService {
         revision?: { fields: Record<string, unknown>; featuredMediaId?: string | null } | null;
       },
     userId?: string,
+    from?: { id: string; locale: string },
   ): Promise<void> {
     await this.plugins.emit(
       action,
       {
+        ...(from ? { from } : {}),
         entry: {
           id: view.id,
           siteId,
@@ -381,8 +384,15 @@ export class EntriesService {
     const terms = Object.fromEntries(
       Object.entries(source.terms).map(([taxonomy, list]) => [taxonomy, list.map((t) => t.id)]),
     );
-    if (Object.keys(terms).length === 0 && source.position === 0) return copy;
-    return this.update(siteId, auth, copy.id, { terms, position: source.position }, ip);
+    const done =
+      Object.keys(terms).length === 0 && source.position === 0
+        ? copy
+        : await this.update(siteId, auth, copy.id, { terms, position: source.position }, ip);
+    await this.emitEntry(siteId, 'entry.copied', done, auth.userId, {
+      id: source.id,
+      locale: source.locale,
+    });
+    return done;
   }
 
   async create(
@@ -897,14 +907,22 @@ export class EntriesService {
       ]),
     );
     const hasTerms = Object.values(terms).some((list) => list.length > 0);
-    if (!hasTerms && source.position === 0) return copy;
-    return this.update(
-      siteId,
-      auth,
-      copy.id,
-      { ...(hasTerms ? { terms } : {}), position: source.position },
-      ip,
-    );
+    const done =
+      !hasTerms && source.position === 0
+        ? copy
+        : await this.update(
+            siteId,
+            auth,
+            copy.id,
+            { ...(hasTerms ? { terms } : {}), position: source.position },
+            ip,
+          );
+    // Plugins copy their own data of the entry (e.g. a product's prices).
+    await this.emitEntry(siteId, 'entry.copied', done, auth.userId, {
+      id: source.id,
+      locale: source.locale,
+    });
+    return done;
   }
 
   // ---- Internals ------------------------------------------------------------------
