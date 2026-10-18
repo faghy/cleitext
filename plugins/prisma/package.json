@@ -1,0 +1,30 @@
+{
+  "name": "@cleitext/plugin-prisma",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Official Cleitext plugin: Prisma, a library of design blocks for the block editor.",
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "cleitext plugin:build .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cleitext/cli": "workspace:*",
+    "@cleitext/design": "workspace:*",
+    "@cleitext/plugin-sdk": "workspace:*",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@wordpress/block-editor": "^18.1.0",
+    "@wordpress/blocks": "^16.2.0",
+    "@wordpress/components": "^42.0.0",
+    "@wordpress/compose": "^8.10.0",
+    "@wordpress/data": "^10.57.0",
+    "@wordpress/element": "^9.0.0",
+    "@wordpress/i18n": "^6.30.0",
+    "@wordpress/icons": "^18.0.0",
+    "react": "^19.3.0",
+    "vitest": "^5.0.3"
+  }
+}

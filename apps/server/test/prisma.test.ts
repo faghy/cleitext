@@ -1,0 +1,227 @@
+/**
+ * Prisma, the design blocks library (official plugin): blocks drawn on the
+ * site with their CSS, the site-wide defaults, and pages built with Spectra
+ * imported from WordPress as Prisma blocks.
+ */
+import { cp, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { buildPlugin, installPlugin } from '@cleitext/cli';
+import type { DatabaseClient } from '@cleitext/db';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import {
+  ownerDatabase,
+  seedSite,
+  seedUser,
+  startTestApp,
+  TestClient,
+  type SeededSite,
+} from './helpers.js';
+
+const PASSWORD = 'correct horse battery staple';
+const pluginsRoot = fileURLToPath(new URL('../../../plugins', import.meta.url));
+
+let app: NestFastifyApplication;
+let owner: DatabaseClient;
+let site: SeededSite;
+let admin: TestClient;
+let visitor: TestClient;
+
+async function install(slug: string, pluginsPath: string) {
+  const source = join(await mkdtemp(join(tmpdir(), `${slug}-src-`)), slug);
+  await buildPlugin(join(pluginsRoot, slug));
+  await cp(join(pluginsRoot, slug), source, {
+    recursive: true,
+    filter: (file) => !file.includes('node_modules'),
+  });
+  await installPlugin(owner.db, {
+    source,
+    pluginsPath,
+    appRole: new URL(inject('appUrl')).username,
+  });
+}
+
+async function page(title: string, blocks: unknown[]): Promise<string> {
+  const created = await admin.post('/api/v1/entries', {
+    type: 'page',
+    title,
+    document: { schema: 1, blocks },
+  });
+  expect(created.statusCode, created.body).toBe(201);
+  const published = await admin.post(`/api/v1/entries/${created.json().id}/publish`);
+  return (await visitor.get(`/${published.json().slug as string}`)).body;
+}
+
+beforeAll(async () => {
+  owner = ownerDatabase();
+  const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
+  await install('prisma', pluginsPath);
+  await install('wordpress-importer', pluginsPath);
+  app = await startTestApp({ pluginsPath });
+  site = await seedSite(owner, 'prisma');
+  await seedUser(owner, {
+    email: 'admin@prisma.test',
+    password: PASSWORD,
+    site,
+    role: 'administrator',
+  });
+  admin = new TestClient(app, site.host, '10.73.0.1');
+  visitor = new TestClient(app, site.host, '10.73.0.2');
+  await admin.login('admin@prisma.test', PASSWORD);
+  for (const slug of ['prisma', 'wordpress-importer']) {
+    expect((await admin.post(`/api/v1/plugins/${slug}/activate`)).statusCode).toBe(200);
+  }
+});
+
+afterAll(async () => {
+  await app?.close();
+  await owner?.close();
+});
+
+describe('Prisma blocks', () => {
+  it('draws a full-width container with boxed content, its children and its CSS', async () => {
+    const html = await page('Container', [
+      {
+        id: 'c1',
+        type: 'prisma/container',
+        v: 1,
+        attrs: {
+          blockId: 'abc12345',
+          isBlockRootParent: true,
+          directionDesktop: 'row',
+          topPaddingMobile: 40,
+          backgroundType: 'color',
+          backgroundColor: '#123456',
+          bottomType: 'waves',
+          bottomColor: '#ffffff',
+        },
+        children: [
+          { id: 'p1', type: 'core/paragraph', v: 1, attrs: {}, content: [{ text: 'Inside' }] },
+        ],
+      },
+    ]);
+    expect(html).toMatch(
+      /<div class="wp-block-prisma-container pr-container pr-block-abc12345 alignfull pr-is-root"><div class="pr-container__shape pr-container__shape-bottom pr-container__shape-above pr-container__invert"><svg[^>]*viewBox="0 0 1000 100"[^>]*>[\s\S]*?<\/svg><\/div><div class="pr-container__inner"><p>Inside<\/p><\/div><\/div>/,
+    );
+    // The site's defaults: content width, padding and gaps.
+    expect(html).toContain(
+      '.pr-container.pr-is-root.alignfull.pr-block-abc12345 > .pr-container__inner{--inner-content-custom-width:min(100%, 1140px);max-width:var(--inner-content-custom-width);width:100%;flex-direction:row;align-items:center;justify-content:center;flex-wrap:nowrap;row-gap:20px;column-gap:20px}',
+    );
+    expect(html).toContain('padding-top:10px');
+    expect(html).toContain('background-color:#123456');
+    expect(html).toContain('fill:rgba(255,255,255,1)');
+    expect(html).toMatch(
+      /@media \(max-width:767px\)\{[^@]*\.pr-block-abc12345\.pr-container\{padding-top:40px/,
+    );
+    expect(html).toContain('<link rel="stylesheet" href="/plugin-assets/prisma/');
+
+    // Changing the defaults changes the containers left at default.
+    const saved = await admin.request('PATCH', '/api/v1/plugins/prisma/settings', {
+      contentWidth: 1200,
+      containerPadding: 0,
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    const again = await page('Container again', [
+      {
+        id: 'c2',
+        type: 'prisma/container',
+        v: 1,
+        attrs: { blockId: 'def67890', isBlockRootParent: true },
+        children: [],
+      },
+    ]);
+    expect(again).toContain('--inner-content-custom-width:min(100%, 1200px)');
+    expect(again).toContain('padding-top:0');
+  });
+
+  it('draws an image with a mask, an overlay heading and a link', async () => {
+    const html = await page('Image', [
+      {
+        id: 'i1',
+        type: 'prisma/image',
+        v: 1,
+        attrs: {
+          blockId: 'img00001',
+          url: 'https://example.com/a.jpg',
+          alt: 'A lake',
+          width: 600,
+          layout: 'overlay',
+          heading: [{ text: 'Lake ' }, { text: 'Como', marks: ['bold'] }],
+          href: 'https://example.com/lake',
+          maskShape: 'circle',
+          imageBorderStyle: 'solid',
+          imageBorderTopWidth: 2,
+          imageBorderColor: '#000000',
+        },
+      },
+    ]);
+    expect(html).toContain(
+      'class="wp-block-prisma-image pr-image pr-block-img00001 pr-image--layout-overlay pr-image--effect-static pr-image--align-none"',
+    );
+    expect(html).toMatch(
+      /<a href="https:\/\/example\.com\/lake" rel="noopener"><img src="https:\/\/example\.com\/a\.jpg" alt="A lake" width="600"/,
+    );
+    expect(html).toContain('<h2 class="pr-image__heading">Lake <strong>Como</strong></h2>');
+    expect(html).toContain('mask-image:url("data:image/svg+xml,');
+    expect(html).toContain('border-top-width:2px');
+    expect(html).toContain('width:600px');
+  });
+
+  it('imports pages built with Spectra as Prisma blocks', async () => {
+    const content = [
+      '<!-- wp:uagb/container {"block_id":"9ccf5722","innerContentWidth":"alignfull","minHeightDesktop":700,"backgroundType":"image","backgroundImageDesktop":{"id":309,"url":"https://old.example.com/wp-content/uploads/2025/04/18-1024x768.webp","sizes":{"full":{"url":"x"}}},"backgroundImageColor":"#000000","overlayType":"color","overlayOpacity":0.6,"isBlockRootParent":true,"UAGAnimationType":"zoom-in","UAGHideMob":true} -->',
+      '<div class="wp-block-uagb-container uagb-block-9ccf5722 alignfull uagb-is-root-container">',
+      '<!-- wp:uagb/image {"block_id":"f61fd18f","url":"https://old.example.com/wp-content/uploads/2025/04/pic.jpg","layout":"overlay","maskShape":"hexagon"} -->',
+      '<div class="wp-block-uagb-image uagb-block-f61fd18f"><figure class="wp-block-uagb-image__figure"><img src="https://old.example.com/wp-content/uploads/2025/04/pic.jpg" alt="Rooms"/><div class="wp-block-uagb-image--layout-overlay__color-wrapper"></div><div class="wp-block-uagb-image--layout-overlay__inner center-center"><h2 class="uagb-image-heading">Pernottamento</h2></div></figure></div>',
+      '<!-- /wp:uagb/image -->',
+      '<!-- wp:paragraph --><p>Welcome</p><!-- /wp:paragraph -->',
+      '</div>',
+      '<!-- /wp:uagb/container -->',
+      '<!-- wp:uagb/unknown-thing --><div>Kept</div><!-- /wp:uagb/unknown-thing -->',
+    ].join('');
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel><title>Old</title><link>https://old.example.com</link><wp:wxr_version>1.2</wp:wxr_version><wp:base_site_url>https://old.example.com</wp:base_site_url>
+<item><title>Home</title><link>https://old.example.com/</link><dc:creator><![CDATA[admin]]></dc:creator>
+<content:encoded><![CDATA[${content}]]></content:encoded><wp:post_id>7</wp:post_id><wp:post_date>2025-04-15 10:00:00</wp:post_date><wp:post_date_gmt>2025-04-15 10:00:00</wp:post_date_gmt><wp:post_name>home</wp:post_name><wp:status>publish</wp:status><wp:post_type>page</wp:post_type></item>
+</channel></rss>`;
+    const started = await admin.upload(
+      '/api/v1/ext/wordpress-importer/imports?locale=en',
+      'export.xml',
+      Buffer.from(xml),
+      'text/xml',
+    );
+    expect(started.statusCode, started.body).toBe(202);
+    let job: { status: string; report?: { warnings: string[]; errors: string[] } } = {
+      status: 'running',
+    };
+    for (let i = 0; i < 200 && job.status === 'running'; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      job = (await admin.get('/api/v1/ext/wordpress-importer/status')).json().job;
+    }
+    expect(job.status, JSON.stringify(job)).toBe('done');
+    expect(job.report!.warnings.join('\n')).toContain(
+      'Block uagb/unknown-thing has no equivalent (1×)',
+    );
+
+    const html = (await visitor.get('/home')).body;
+    expect(html).toContain(
+      'class="wp-block-prisma-container pr-container pr-block-9ccf5722 alignfull pr-is-root"',
+    );
+    expect(html).toContain(
+      'class="wp-block-prisma-image pr-image pr-block-f61fd18f pr-image--layout-overlay',
+    );
+    expect(html).toContain('<h2 class="pr-image__heading">Pernottamento</h2>');
+    expect(html).toContain('alt="Rooms"');
+    expect(html).toContain('<p>Welcome</p>');
+    expect(html).toContain('<p>Kept</p>');
+    // The overlay of the background, and the mask.
+    expect(html).toMatch(
+      /\.pr-block-9ccf5722::before\{content:"";position:absolute;pointer-events:none;top:-0px;left:-0px;width:calc\(100% \+ 0px\);height:calc\(100% \+ 0px\)[^}]*background:#000000;opacity:0\.6\}/,
+    );
+    expect(html).toContain('min-height:700px');
+    expect(html).not.toContain('uagb');
+  });
+});
