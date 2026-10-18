@@ -26,7 +26,13 @@ export function Inline({ nodes }: { nodes: CxdInline[] | undefined }): ReactNode
         .filter(Boolean)
         .join(' ');
       return (
-        <a key={index} href={href} target={external ? '_blank' : undefined} rel={rel || undefined}>
+        <a
+          key={index}
+          href={href}
+          target={external ? '_blank' : undefined}
+          rel={rel || undefined}
+          style={node.color ? { color: node.color } : undefined}
+        >
           {children}
         </a>
       );
@@ -46,6 +52,17 @@ function Text({ node }: { node: CxdText }): ReactNode {
   for (const mark of node.marks ?? []) {
     const Tag = MARK_TAGS[mark];
     content = <Tag>{content}</Tag>;
+  }
+  if (node.color) {
+    // As WordPress writes a text color.
+    content = (
+      <mark
+        className="has-inline-color"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0)', color: node.color }}
+      >
+        {content}
+      </mark>
+    );
   }
   return content;
 }

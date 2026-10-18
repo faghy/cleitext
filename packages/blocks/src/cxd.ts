@@ -19,10 +19,19 @@ export const MARKS = [
 ] as const;
 export type Mark = (typeof MARKS)[number];
 
+/**
+ * Colors allowed in rich text (`color` of a run or a link): hex, rgb(a),
+ * hsl(a) or a CSS variable of the theme's palette.
+ */
+export const INLINE_COLOR =
+  /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]{1,60}\)|hsla?\([\d\s.,%deg]{1,60}\)|var\(--[a-z0-9-]{1,60}\))$/i;
+
 /** A run of text with the same formatting. `\n` is a line break. */
 export interface CxdText {
   text: string;
   marks?: Mark[];
+  /** Text color (WordPress's "Text color" format). */
+  color?: string;
 }
 
 export interface CxdLink {
@@ -30,6 +39,8 @@ export interface CxdLink {
   href: string;
   target?: '_blank';
   rel?: string;
+  /** Color of the link, its underline included. */
+  color?: string;
   children: CxdText[];
 }
 
@@ -81,6 +92,7 @@ export const cxdTextSchema = z
   .object({
     text: z.string().max(CXD_LIMITS.maxTextLength),
     marks: z.array(markSchema).max(MARKS.length).optional(),
+    color: z.string().max(80).regex(INLINE_COLOR).optional(),
   })
   .strict();
 
@@ -95,6 +107,7 @@ export const cxdLinkSchema = z
       .refine((href) => SAFE_HREF.test(href.trim()), 'Unsupported link protocol'),
     target: z.literal('_blank').optional(),
     rel: z.string().max(200).optional(),
+    color: z.string().max(80).regex(INLINE_COLOR).optional(),
     children: z.array(cxdTextSchema),
   })
   .strict();

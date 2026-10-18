@@ -701,7 +701,7 @@ The **stored format** is neither Gutenberg markup nor the internal state of any 
 }
 ```
 
-- `content`: inline text as an array of spans with `marks` (bold, italic, link, code…), in the style of Portable Text.
+- `content`: inline text as an array of spans with `marks` (bold, italic, code, highlight…) and an optional text `color`, and links (which may have their own `color`), in the style of Portable Text. Colors are hex, `rgb()`/`hsl()` or a palette variable (`var(--name)`).
 - `children`: nested blocks, for container blocks.
 - `v`: version of the attribute schema **of the individual block**, used for migrations.
 

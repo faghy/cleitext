@@ -1,12 +1,21 @@
-import { MARKS, type CxdInline, type CxdLink, type CxdText, type Mark } from './cxd.js';
+import {
+  INLINE_COLOR,
+  MARKS,
+  type CxdInline,
+  type CxdLink,
+  type CxdText,
+  type Mark,
+} from './cxd.js';
 
 /**
  * Conversion between rich-text HTML (as produced by editors) and CXD inline
  * nodes. Dependency-free and DOM-free: works in browsers, Node and workers.
  *
  * Only a small, safe subset is kept: bold, italic, underline, strike, code,
- * superscript, subscript, highlight (`<mark>`), links and line breaks. Every other tag is dropped
- * but its text is kept; scripts, styles and comments are dropped entirely.
+ * superscript, subscript, highlight (`<mark>`), text colors (WordPress's
+ * `<mark class="has-inline-color" style="color:…">`, or any tag's inline `color`),
+ * links and line breaks. Every other tag is dropped but its text is kept;
+ * scripts, styles and comments are dropped entirely.
  */
 
 const TAG_MARKS: Record<string, Mark> = {
@@ -77,6 +86,14 @@ interface OpenLink {
   href: string;
   target?: '_blank';
   rel?: string;
+  color?: string;
+}
+
+/** The `color` of an inline `style`, when it is a color rich text allows. */
+function styleColor(style: string | undefined): string | undefined {
+  const match = /(?:^|;)\s*color\s*:\s*([^;]+?)\s*(?:!important\s*)?(?:;|$)/i.exec(style ?? '');
+  const color = match?.[1]?.trim();
+  return color && INLINE_COLOR.test(color) ? color : undefined;
 }
 
 const TOKEN =
@@ -94,7 +111,7 @@ function parseAttributes(source: string): Record<string, string> {
 /** Rich-text HTML → CXD inline nodes (normalized). */
 export function htmlToInline(html: string): CxdInline[] {
   const result: CxdInline[] = [];
-  const markStack: { tag: string; mark: Mark | null }[] = [];
+  const markStack: { tag: string; mark: Mark | null; color?: string }[] = [];
   let link: (OpenLink & { children: CxdText[] }) | null = null;
   let dropDepth = 0;
 
@@ -104,10 +121,14 @@ export function htmlToInline(html: string): CxdInline[] {
     return MARKS.filter((m) => set.has(m));
   };
 
+  const activeColor = (): string | undefined => markStack.findLast((entry) => entry.color)?.color;
+
   const pushText = (text: string) => {
     if (!text) return;
     const marks = activeMarks();
     const node: CxdText = marks.length ? { text, marks } : { text };
+    const color = activeColor();
+    if (color) node.color = color;
     if (link) link.children.push(node);
     else result.push(node);
   };
@@ -154,6 +175,8 @@ export function htmlToInline(html: string): CxdInline[] {
           link = { href, children: [] };
           if (attributes.target === '_blank') link.target = '_blank';
           if (attributes.rel) link.rel = attributes.rel;
+          const color = styleColor(attributes.style);
+          if (color) link.color = color;
         }
       }
       continue;
@@ -163,14 +186,28 @@ export function htmlToInline(html: string): CxdInline[] {
       const index = markStack.map((e) => e.tag).lastIndexOf(tag);
       if (index !== -1) markStack.splice(index, 1);
     } else if (!selfClosing) {
-      markStack.push({ tag, mark: TAG_MARKS[tag] ?? null });
+      const attributes = parseAttributes(rawAttributes);
+      // WordPress's text color is a <mark> too: a color, not a highlight.
+      const textColor = tag === 'mark' && /\bhas-inline-color\b/.test(attributes.class ?? '');
+      // A highlight keeps no attributes; other tags may carry a text color.
+      const color = tag === 'mark' && !textColor ? undefined : styleColor(attributes.style);
+      markStack.push({
+        tag,
+        mark: textColor ? null : (TAG_MARKS[tag] ?? null),
+        ...(color ? { color } : {}),
+      });
     }
   }
   closeLink();
   return normalizeInline(result);
 }
 
-/** CXD inline nodes → HTML (canonical tag order: links outermost, then marks). */
+/**
+ * CXD inline nodes → HTML for editors (canonical tag order: links outermost,
+ * then the color, then marks). A link's color is written on its text, as
+ * WordPress's text color, since editors keep no style on links;
+ * `normalizeInline` puts it back on the link.
+ */
 export function inlineToHtml(nodes: CxdInline[]): string {
   return nodes
     .map((node) => {
@@ -178,7 +215,10 @@ export function inlineToHtml(nodes: CxdInline[]): string {
         const attributes = [`href="${escapeHtml(node.href)}"`];
         if (node.target) attributes.push(`target="${node.target}"`);
         if (node.rel) attributes.push(`rel="${escapeHtml(node.rel)}"`);
-        return `<a ${attributes.join(' ')}>${node.children.map(textToHtml).join('')}</a>`;
+        const children = node.children.map((child) =>
+          textToHtml(node.color && !child.color ? { ...child, color: node.color } : child),
+        );
+        return `<a ${attributes.join(' ')}>${children.join('')}</a>`;
       }
       return textToHtml(node);
     })
@@ -189,6 +229,9 @@ function textToHtml(node: CxdText): string {
   let html = escapeHtml(node.text).replace(/\n/g, '<br>');
   const marks = [...(node.marks ?? [])].sort((a, b) => MARKS.indexOf(b) - MARKS.indexOf(a));
   for (const mark of marks) html = `<${MARK_TAGS[mark]}>${html}</${MARK_TAGS[mark]}>`;
+  if (node.color) {
+    html = `<mark style="background-color:rgba(0, 0, 0, 0);color:${escapeHtml(node.color)}" class="has-inline-color">${html}</mark>`;
+  }
   return html;
 }
 
@@ -200,11 +243,24 @@ export function normalizeInline(nodes: CxdInline[]): CxdInline[] {
   const out: CxdInline[] = [];
   for (const node of nodes) {
     if ('type' in node) {
-      const children = mergeTexts(node.children.map(normalizeText));
+      let children = mergeTexts(node.children.map(normalizeText));
       if (children.length === 0) continue;
+      // One color for all its text is the link's color.
+      const shared = children.every((c) => c.color && c.color === children[0]!.color)
+        ? children[0]!.color
+        : undefined;
+      const color = validColor(node.color) ?? shared;
+      if (color) {
+        children = mergeTexts(
+          children.map(({ color: own, ...rest }) =>
+            own && own !== color ? { ...rest, color: own } : rest,
+          ),
+        );
+      }
       const normalized: CxdLink = { type: 'link', href: node.href, children };
       if (node.target) normalized.target = node.target;
       if (node.rel) normalized.rel = node.rel;
+      if (color) normalized.color = color;
       const previous = out.at(-1);
       if (previous && 'type' in previous && sameLink(previous, normalized)) {
         previous.children = mergeTexts([...previous.children, ...normalized.children]);
@@ -227,7 +283,14 @@ export function normalizeInline(nodes: CxdInline[]): CxdInline[] {
 
 function normalizeText(node: CxdText): CxdText {
   const marks = MARKS.filter((m) => node.marks?.includes(m));
-  return marks.length ? { text: node.text, marks } : { text: node.text };
+  const text: CxdText = marks.length ? { text: node.text, marks } : { text: node.text };
+  const color = validColor(node.color);
+  if (color) text.color = color;
+  return text;
+}
+
+function validColor(color: string | undefined): string | undefined {
+  return color && INLINE_COLOR.test(color) ? color : undefined;
 }
 
 function mergeTexts(nodes: CxdText[]): CxdText[] {
@@ -235,9 +298,9 @@ function mergeTexts(nodes: CxdText[]): CxdText[] {
 }
 
 function sameMarks(a: CxdText, b: CxdText): boolean {
-  return (a.marks ?? []).join() === (b.marks ?? []).join();
+  return (a.marks ?? []).join() === (b.marks ?? []).join() && a.color === b.color;
 }
 
 function sameLink(a: CxdLink, b: CxdLink): boolean {
-  return a.href === b.href && a.target === b.target && a.rel === b.rel;
+  return a.href === b.href && a.target === b.target && a.rel === b.rel && a.color === b.color;
 }

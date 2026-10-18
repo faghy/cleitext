@@ -708,7 +708,7 @@ Il **formato salvato** non è il markup di Gutenberg né lo stato interno di nes
 }
 ```
 
-- `content`: testo inline come array di span con `marks` (bold, italic, link, code…), in stile Portable Text.
+- `content`: testo inline come array di span con `marks` (bold, italic, code, highlight…) e un `color` facoltativo del testo, e link (che possono avere un proprio `color`), in stile Portable Text. I colori sono esadecimali, `rgb()`/`hsl()` o una variabile della palette (`var(--nome)`).
 - `children`: blocchi annidati, per i blocchi contenitore.
 - `v`: versione dello schema degli attributi **del singolo blocco**, usata per le migrazioni.
 

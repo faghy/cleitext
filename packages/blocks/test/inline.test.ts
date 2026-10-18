@@ -27,6 +27,38 @@ describe('htmlToInline', () => {
     expect(inlineToHtml(nodes)).toBe('Dal <mark>1974</mark>');
   });
 
+  it('keeps text colors and link colors, as WordPress writes them', () => {
+    const nodes = htmlToInline(
+      'A <mark style="background-color:rgba(0, 0, 0, 0);color:#c06e52" class="has-inline-color">red <b>bold</b></mark>' +
+        ' <span style="color: var(--ast-global-color-1) !important">var</span>' +
+        ' <a href="tel:+39" style="color:#4A4A4A;">call</a>' +
+        ' <span style="color:url(javascript:x)">bad</span>',
+    );
+    expect(nodes).toEqual([
+      { text: 'A ' },
+      { text: 'red ', color: '#c06e52' },
+      { text: 'bold', marks: ['bold'], color: '#c06e52' },
+      { text: ' ' },
+      { text: 'var', color: 'var(--ast-global-color-1)' },
+      { text: ' ' },
+      { type: 'link', href: 'tel:+39', color: '#4A4A4A', children: [{ text: 'call' }] },
+      { text: ' bad' },
+    ]);
+  });
+
+  it('writes colors for editors and reads them back unchanged', () => {
+    const nodes = [
+      { text: 'red', color: '#ff0000' },
+      { type: 'link' as const, href: '/x', color: '#4A4A4A', children: [{ text: 'go' }] },
+    ];
+    const html = inlineToHtml(nodes);
+    expect(html).toBe(
+      '<mark style="background-color:rgba(0, 0, 0, 0);color:#ff0000" class="has-inline-color">red</mark>' +
+        '<a href="/x"><mark style="background-color:rgba(0, 0, 0, 0);color:#4A4A4A" class="has-inline-color">go</mark></a>',
+    );
+    expect(htmlToInline(html)).toEqual(nodes);
+  });
+
   it('parses links with safe attributes only', () => {
     expect(
       htmlToInline(
