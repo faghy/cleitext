@@ -24,7 +24,7 @@ export default tseslint.config(
             {
               group: ['@wordpress/*'],
               message:
-                'Gutenberg packages are allowed only in packages/editor-gutenberg, *.gutenberg.tsx files and plugins\' block editor entries (src/editor.tsx, src/editor/**).',
+                "Gutenberg packages are allowed only in packages/editor-gutenberg, *.gutenberg.tsx files and plugins' block editor entries (src/editor.tsx, src/editor/**).",
             },
           ],
         },
