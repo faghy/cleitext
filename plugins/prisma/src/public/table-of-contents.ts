@@ -145,10 +145,13 @@ function setup(wrap: HTMLElement) {
     anchor.className = 'pr-toc__anchor';
     element.prepend(anchor);
   }
-  listWrap.innerHTML = renderList(
-    found.map((f) => f.heading),
-    { collapsible: config.list, depth: config.depth },
-  );
+  // The site usually builds the list already (with the headings' anchors).
+  if (!listWrap.querySelector('.pr-toc__list')) {
+    listWrap.innerHTML = renderList(
+      found.map((f) => f.heading),
+      { collapsible: config.list, depth: config.depth },
+    );
+  }
   listWrap.addEventListener('click', (e) => {
     const link = (e.target as Element).closest<HTMLAnchorElement>('a.pr-toc__link');
     const id = link?.getAttribute('href')?.slice(1);

@@ -1,3 +1,4 @@
+import { inlineToHtml, type CxdInline } from '@cleitext/blocks/inline';
 import { InnerBlocks, RichText, useBlockProps, useInnerBlocksProps } from '@wordpress/block-editor';
 import { getCategories, registerBlockType, setCategories } from '@wordpress/blocks';
 import {
@@ -263,11 +264,20 @@ const EXTENSION_DEFAULTS = {
 /** Gutenberg's attribute types, from the defaults. */
 function attributeTypes(
   defaults: Attrs,
+  rich: string[] = [],
 ): Record<string, { type?: string | string[]; default?: unknown }> {
   const types: Record<string, { type?: string | string[]; default?: unknown }> = {
     blockId: { type: 'string', default: '' },
   };
   for (const [name, value] of Object.entries(defaults)) {
+    // Rich text is HTML in the editor (stored as CXD inline nodes).
+    if (rich.includes(name)) {
+      types[name] = {
+        type: 'string',
+        default: Array.isArray(value) ? inlineToHtml(value as CxdInline[]) : '',
+      };
+      continue;
+    }
     types[name] = {
       type:
         typeof value === 'number'
@@ -301,7 +311,10 @@ export function registerPrismaBlocks(
       category: 'prisma',
       ...(iconOf(block.name) ? { icon: { src: iconOf(block.name), foreground: ACCENT } } : {}),
       keywords: block.keywords ?? [],
-      attributes: attributeTypes({ ...EXTENSION_DEFAULTS, ...block.defaults }),
+      attributes: attributeTypes(
+        { ...EXTENSION_DEFAULTS, ...block.defaults },
+        block.richAttributes,
+      ),
       ...(block.parent ? { parent: block.parent.map((p) => `prisma/${p}`) } : {}),
       supports: { html: false, className: true, anchor: true },
       edit: makeEdit(block, settings[block.name]),

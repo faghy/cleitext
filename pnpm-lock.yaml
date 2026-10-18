@@ -957,6 +957,9 @@ importers:
       lottie-web:
         specifier: 5.12.2
         version: 5.12.2
+      node-html-parser:
+        specifier: ^9.0.4
+        version: 9.0.4
       react:
         specifier: ^19.3.0
         version: 19.3.0

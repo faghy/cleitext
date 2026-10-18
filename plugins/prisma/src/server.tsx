@@ -10,6 +10,7 @@ import { BLOCKS } from './blocks';
 import { blockCss, withDefaults } from './lib/css';
 import { DEFAULT_GLOBALS, normalizeGlobals, variablesCss, type Globals } from './lib/globals';
 import { FORM_SETTINGS, registerFormRoutes } from './blocks/form/route';
+import { buildTablesOfContents } from './blocks/table-of-contents/server';
 import { fromSpectra } from './import';
 import { extensionProps, googleFontsLink } from './lib/extensions';
 import { setIconData, type IconData } from './lib/icons';
@@ -186,8 +187,10 @@ export default definePlugin({
       when: ({ html }) => html.includes('pr-block-'),
     });
     // The Google fonts the page's blocks chose, and the color variables.
-    ctx.hooks.filter('render.html', async (html, context) => {
-      if (!html.includes('pr-block-')) return html;
+    ctx.hooks.filter('render.html', async (page, context) => {
+      if (!page.includes('pr-block-')) return page;
+      // Tables of contents: their lists and the headings' anchors, in the page.
+      const html = buildTablesOfContents(page);
       const at = html.indexOf('</head>');
       if (at === -1) return html;
       const fonts = html.includes('data-pr-fonts=') ? googleFontsLink(html) : null;
