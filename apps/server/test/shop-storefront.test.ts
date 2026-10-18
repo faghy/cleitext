@@ -185,7 +185,12 @@ describe('the catalog', () => {
   });
 
   it('refreshes when a price changes', async () => {
-    expect((await visitor().get('/shop')).headers['x-cache']).toBe('HIT');
+    // Cached first: other test files share the database and may refresh every page meanwhile.
+    let cached = '';
+    for (let i = 0; i < 5 && cached !== 'HIT'; i++) {
+      cached = String((await visitor().get('/shop')).headers['x-cache']);
+    }
+    expect(cached).toBe('HIT');
     await admin.request('PATCH', ext(`/products/${ids.pot}/quick`), { regularPrice: '17' });
     const after = await visitor().get('/shop');
     expect(after.headers['x-cache']).toBe('MISS');
