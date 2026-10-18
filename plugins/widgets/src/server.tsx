@@ -31,6 +31,8 @@ const TEXTS = {
     on: 'on',
     by: 'by',
     posts: (n: number) => (n === 1 ? '1 post' : `${n} posts`),
+    all: 'All',
+    more: (name: string) => `More in ${name}`,
   },
   it: {
     recentPosts: 'Articoli recenti',
@@ -44,6 +46,8 @@ const TEXTS = {
     on: 'su',
     by: 'di',
     posts: (n: number) => (n === 1 ? '1 articolo' : `${n} articoli`),
+    all: 'Tutti',
+    more: (name: string) => `Altro in ${name}`,
   },
 };
 
@@ -74,8 +78,9 @@ function formatDate(iso: string | null, locale: string): string {
   }
 }
 
-function Title({ text }: { text: string }) {
-  return text ? <h2 className="cxw-widget__title">{text}</h2> : null;
+function Title({ text, url }: { text: string; url?: string | null }) {
+  if (!text) return null;
+  return <h2 className="cxw-widget__title">{url ? <a href={url}>{text}</a> : text}</h2>;
 }
 
 /** The title the author wrote, the default one when empty, none with "-". */
@@ -99,6 +104,23 @@ interface PostsAttrs {
   author: boolean;
   excerpt: boolean;
   excludeCurrent: boolean;
+  tabs: boolean;
+}
+
+interface PostTab {
+  id: string;
+  name: string;
+  /** The term's archive, none for "All". */
+  url: string | null;
+  posts: PostItem[];
+}
+
+interface PostsData {
+  posts: PostItem[];
+  /** The archive of the only category or tag chosen, for the title. */
+  link: string | null;
+  /** A tab per category or tag, after "All" (with `tabs`). */
+  tabs: PostTab[] | null;
 }
 
 interface PostItem {
@@ -148,33 +170,56 @@ function pictureOf(
   };
 }
 
-async function loadPosts(attrs: PostsAttrs, context: BlockLoadContext): Promise<PostItem[]> {
+async function loadPosts(
+  ctx: PluginContext,
+  attrs: PostsAttrs,
+  context: BlockLoadContext,
+): Promise<PostsData> {
   const count = clamp(attrs.count, 1, 24, 5);
-  const slugs = attrs.filter === 'category' || attrs.filter === 'tag' ? slugList(attrs.terms) : [];
+  const taxonomy = attrs.filter === 'category' || attrs.filter === 'tag' ? attrs.filter : null;
+  const slugs = taxonomy ? slugList(attrs.terms) : [];
   const current = attrs.excludeCurrent !== false ? context.entry?.id : undefined;
-  const { entries } = await context.query({
-    type: 'article',
-    limit: count,
-    orderBy: attrs.orderBy ?? 'date',
-    ...(slugs.length ? { terms: { taxonomy: attrs.filter, slugs } } : {}),
-    ...(current ? { exclude: [current] } : {}),
-  });
   const layout = attrs.layout ?? 'list';
-  return entries.map((entry, i) => ({
-    id: entry.id,
-    title: entry.title,
-    url: entry.url,
-    date: formatDate(entry.publishedAt, context.locale),
-    author: entry.author?.displayName ?? '',
-    excerpt: entry.excerpt,
-    image:
-      attrs.image === false
-        ? null
-        : pictureOf(
-            entry.image,
-            layout === 'list' ? 160 : layout === 'magazine' && i === 0 ? 960 : 640,
-          ),
-  }));
+  const query = async (only: string[]) => {
+    const { entries } = await context.query({
+      type: 'article',
+      limit: count,
+      orderBy: attrs.orderBy ?? 'date',
+      ...(taxonomy && only.length ? { terms: { taxonomy, slugs: only } } : {}),
+      ...(current ? { exclude: [current] } : {}),
+    });
+    return entries.map((entry, i) => ({
+      id: entry.id,
+      title: entry.title,
+      url: entry.url,
+      date: formatDate(entry.publishedAt, context.locale),
+      author: entry.author?.displayName ?? '',
+      excerpt: entry.excerpt,
+      image:
+        attrs.image === false
+          ? null
+          : pictureOf(
+              entry.image,
+              layout === 'list' ? 160 : layout === 'magazine' && i === 0 ? 960 : 640,
+            ),
+    }));
+  };
+  const posts = await query(slugs);
+  if (!taxonomy || slugs.length === 0) return { posts, link: null, tabs: null };
+  context.tag('site');
+  const found = await ctx.terms.find(context.siteId, {
+    taxonomy,
+    locale: context.locale,
+    limit: 500,
+  });
+  const terms = slugs.flatMap((slug) => found.filter((term) => term.slug === slug));
+  const link = slugs.length === 1 ? (terms[0]?.url ?? null) : null;
+  if (!attrs.tabs || terms.length < 2) return { posts, link, tabs: null };
+  const tabs: PostTab[] = [{ id: 'all', name: '', url: null, posts }];
+  for (const term of terms) {
+    tabs.push({ id: term.slug, name: term.name, url: term.url, posts: await query([term.slug]) });
+  }
+  return { posts, link, tabs };
 }
 
 function Post({
@@ -378,7 +423,7 @@ export default definePlugin({
     });
 
     ctx.blocks.register(
-      defineBlock<PostsAttrs, PostItem[]>({
+      defineBlock<PostsAttrs, PostsData>({
         type: 'widgets/recent-posts',
         title: { en: 'Recent posts', it: 'Articoli recenti' },
         description: {
@@ -473,36 +518,79 @@ export default definePlugin({
             },
             default: true,
           },
+          {
+            name: 'tabs',
+            type: 'boolean',
+            label: {
+              en: 'A tab for each category or tag',
+              it: 'Una scheda per ogni categoria o tag',
+            },
+            help: {
+              en: 'With two or more slugs: "All" first, then a tab for each.',
+              it: 'Con due o più slug: prima "Tutti", poi una scheda per ciascuno.',
+            },
+          },
         ],
-        load: loadPosts,
-        render({ attrs, data, context }) {
+        load: (attrs, context) => loadPosts(ctx, attrs, context),
+        render({ attrs, data, block, context }) {
           const t = texts(context.locale);
           const layout = ['grid', 'magazine'].includes(attrs.layout) ? attrs.layout : 'list';
           const columns = clamp(attrs.columns, 1, 4, 3);
+          const list = (posts: PostItem[]) =>
+            posts.length === 0 ? (
+              <p className="cxw-widget__empty">{t.noPosts}</p>
+            ) : (
+              <ul
+                className="cxw-posts__list"
+                style={
+                  layout === 'grid'
+                    ? ({ '--cxw-columns': columns } as Record<string, number>)
+                    : undefined
+                }
+              >
+                {posts.map((post, i) => (
+                  <Post
+                    key={post.id}
+                    post={post}
+                    attrs={attrs}
+                    t={t}
+                    lead={layout === 'magazine' && i === 0}
+                  />
+                ))}
+              </ul>
+            );
+          const name = `cxw-tabs-${block.id}`;
           return (
             <section className={`cxw-widget cxw-posts cxw-posts--${layout}`}>
-              <Title text={titleOf(attrs.title, t.recentPosts)} />
-              {data.length === 0 ? (
-                <p className="cxw-widget__empty">{t.noPosts}</p>
-              ) : (
-                <ul
-                  className="cxw-posts__list"
-                  style={
-                    layout === 'grid'
-                      ? ({ '--cxw-columns': columns } as Record<string, number>)
-                      : undefined
-                  }
-                >
-                  {data.map((post, i) => (
-                    <Post
-                      key={post.id}
-                      post={post}
-                      attrs={attrs}
-                      t={t}
-                      lead={layout === 'magazine' && i === 0}
-                    />
+              <Title text={titleOf(attrs.title, t.recentPosts)} url={data.link} />
+              {data.tabs ? (
+                // Tabs without JavaScript: each radio shows the panel after its label.
+                <div className="cxw-tabs">
+                  {data.tabs.map((tab, i) => (
+                    <div key={tab.id} className="cxw-tabs__tab">
+                      <input
+                        type="radio"
+                        name={name}
+                        id={`${name}-${tab.id}`}
+                        defaultChecked={i === 0}
+                        className="cxw-tabs__radio"
+                      />
+                      <label htmlFor={`${name}-${tab.id}`} className="cxw-tabs__label">
+                        {tab.name || t.all}
+                      </label>
+                      <div className="cxw-tabs__panel">
+                        {list(tab.posts)}
+                        {tab.url ? (
+                          <p className="cxw-tabs__more">
+                            <a href={tab.url}>{`${t.more(tab.name)} →`}</a>
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
+              ) : (
+                list(data.posts)
               )}
             </section>
           );

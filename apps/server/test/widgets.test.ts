@@ -178,6 +178,34 @@ describe('Widgets', () => {
     expect(magazine).not.toContain('Rome trip');
   });
 
+  it('links the title to the only category, and shows a tab for each one', async () => {
+    const page = await entry('page', 'Tabs', [
+      widget('t1', 'recent-posts', { filter: 'category', terms: 'italy', title: 'Italia' }),
+      widget('t2', 'recent-posts', {
+        layout: 'magazine',
+        filter: 'tag',
+        terms: 'rome, food, nope',
+        tabs: true,
+      }),
+    ]);
+    const html = (await visitor.get(page.path)).body;
+    expect(html).toMatch(
+      /<h2 class="cxw-widget__title"><a href="[^"]*\/category\/travel\/italy">Italia<\/a><\/h2>/,
+    );
+    const tabs = html.slice(html.indexOf('class="cxw-tabs"'));
+    expect([...tabs.matchAll(/class="cxw-tabs__label">([^<]+)</g)].map((m) => m[1])).toEqual([
+      'All',
+      'Rome',
+      'Food',
+    ]);
+    expect(tabs).toMatch(/<input type="radio" id="cxw-tabs-t2-all"[^>]*name="cxw-tabs-t2" checked/);
+    const panels = tabs.split('class="cxw-tabs__panel"').slice(1);
+    expect(panels[1]).toContain('Rome trip');
+    expect(panels[1]).not.toContain('Pasta night');
+    expect(panels[2]).toContain('Pasta night');
+    expect(panels[2]).toContain('More in Food →');
+  });
+
   it('shows approved comments with their post, and a search form', async () => {
     const page = await entry('page', 'More', [
       widget('c1', 'recent-comments'),
