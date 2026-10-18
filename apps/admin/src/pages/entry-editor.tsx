@@ -98,7 +98,12 @@ function Editor({ initial }: { initial: EntryView }) {
   const statsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dirtyRef = useRef(false);
   // Editor of the document: null for the block editor, else a plugin editor's id.
-  const [editorId, setEditorId] = useState<string | null>(documentRef.current?.editor?.id ?? null);
+  const [editorId, setEditorId] = useState<string | null>(editorIdOf(documentRef.current));
+  // Settings the block editor keeps for the theme (`editor.data`, e.g. hideFeatured).
+  const blockEditorMeta = useRef(blockEditorMetaOf(documentRef.current));
+  /** A document from the block editor, with the settings it keeps for the theme. */
+  const withMeta = (document: CxdDocument): CxdDocument =>
+    blockEditorMeta.current ? { ...document, editor: blockEditorMeta.current } : document;
   // Changes to remount a plugin editor with new content (revision, autosave, switch).
   const [editorMount, setEditorMount] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -161,7 +166,7 @@ function Editor({ initial }: { initial: EntryView }) {
         // Like WordPress: a selected block shows its settings, none shows the page's.
         onSelectionChange: (selected) => setTab(selected ? 'block' : 'document'),
         onChange: (document) => {
-          documentRef.current = document;
+          documentRef.current = withMeta(document);
           markDirty();
           // Statistics follow the text, at most a few times a second.
           clearTimeout(statsTimer.current);
@@ -204,7 +209,8 @@ function Editor({ initial }: { initial: EntryView }) {
   /** New content from outside the editor (autosave, revision): remounts the right editor. */
   const replaceDocument = (document: CxdDocument) => {
     documentRef.current = document;
-    const next = document?.editor?.id ?? null;
+    blockEditorMeta.current = blockEditorMetaOf(document);
+    const next = editorIdOf(document);
     if (next === null && editorId === null) editorRef.current?.setDocument(document);
     setEditorId(next);
     setEditorMount((n) => n + 1);
@@ -215,7 +221,9 @@ function Editor({ initial }: { initial: EntryView }) {
     const current = editorRef.current?.getDocument() ?? documentRef.current;
     const from = activeEditor?.definition;
     const convert = target ? target.definition.fromBlocks : from?.toBlocks;
-    if (current.blocks.length > 0 && !convert) {
+    // From an editor whose plugin is not active: its blocks stay, shown as they are.
+    const keep = !target && !activeEditor;
+    if (current.blocks.length > 0 && !convert && !keep) {
       const ok = window.confirm(
         target
           ? t(
@@ -228,7 +236,11 @@ function Editor({ initial }: { initial: EntryView }) {
       );
       if (!ok) return;
     }
-    const converted: CxdDocument = convert ? convert(current) : { schema: 1, blocks: [] };
+    const converted: CxdDocument = convert
+      ? convert(current)
+      : keep
+        ? current
+        : { schema: 1, blocks: [] };
     const rest: CxdDocument = { schema: converted.schema, blocks: converted.blocks };
     documentRef.current = target
       ? { ...rest, editor: { ...converted.editor, id: target.definition.id } }
@@ -253,7 +265,7 @@ function Editor({ initial }: { initial: EntryView }) {
     setSaveState('saving');
     const view = await api<EntryView>('PATCH', `/entries/${entry.id}`, {
       title,
-      document: editorRef.current?.getDocument() ?? documentRef.current,
+      document: editorRef.current ? withMeta(editorRef.current.getDocument()) : documentRef.current,
       fields: fieldsRef.current,
       ...summaryRef.current,
     });
@@ -1304,4 +1316,16 @@ export function mediaServices(locale: string): EditorServices {
       }
     },
   };
+}
+
+/** The editor of a document: null for the block editor (also when it names itself `blocks`). */
+function editorIdOf(document: CxdDocument | undefined): string | null {
+  const id = document?.editor?.id;
+  return id && id !== 'blocks' ? id : null;
+}
+
+/** What a block editor document keeps in `editor` for the theme (e.g. hide the featured image). */
+function blockEditorMetaOf(document: CxdDocument | undefined): CxdDocument['editor'] | undefined {
+  const editor = document?.editor;
+  return editor && editorIdOf(document) === null && editor.data ? editor : undefined;
 }
