@@ -8,7 +8,7 @@ import {
 import { createElement, type ReactNode } from 'react';
 import { BLOCKS } from './blocks';
 import { blockCss, withDefaults } from './lib/css';
-import { DEFAULT_GLOBALS, normalizeGlobals, type Globals } from './lib/globals';
+import { DEFAULT_GLOBALS, normalizeGlobals, variablesCss, type Globals } from './lib/globals';
 import { fromSpectra } from './import';
 import { extensionProps, googleFontsLink } from './lib/extensions';
 import { setIconData, type IconData } from './lib/icons';
@@ -145,6 +145,17 @@ export default definePlugin({
           default: DEFAULT_GLOBALS.containerPadding,
         },
         {
+          name: 'cssVariables',
+          type: 'text',
+          multiline: true,
+          maxLength: 4000,
+          label: { en: 'Color variables', it: 'Variabili di colore' },
+          help: {
+            en: 'One per line, e.g. "--ast-global-color-0: #c7a16f": the palette of the former theme of imported pages.',
+            it: 'Una per riga, es. "--ast-global-color-0: #c7a16f": la palette del tema precedente delle pagine importate.',
+          },
+        },
+        {
           name: 'elementsGap',
           type: 'number',
           label: { en: 'Space between elements (px)', it: 'Spazio tra gli elementi (px)' },
@@ -166,13 +177,20 @@ export default definePlugin({
       file: 'prisma.css',
       when: ({ html }) => html.includes('pr-block-'),
     });
-    // The Google fonts the page's blocks chose.
-    ctx.hooks.filter('render.html', (html) => {
-      const fonts = html.includes('data-pr-fonts=') ? googleFontsLink(html) : null;
+    // The Google fonts the page's blocks chose, and the color variables.
+    ctx.hooks.filter('render.html', async (html, context) => {
+      if (!html.includes('pr-block-')) return html;
       const at = html.indexOf('</head>');
-      if (!fonts || at === -1) return html;
-      const link = `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${fonts.replace(/&/g, '&amp;')}">`;
-      return html.slice(0, at) + link + html.slice(at);
+      if (at === -1) return html;
+      const fonts = html.includes('data-pr-fonts=') ? googleFontsLink(html) : null;
+      const variables = variablesCss(
+        siteGlobals.get(context.siteId) ?? (await loadGlobals(ctx, context.siteId)),
+      );
+      const head =
+        (fonts
+          ? `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${fonts.replace(/&/g, '&amp;')}">`
+          : '') + (variables ? `<style id="pr-variables">${variables}</style>` : '');
+      return html.slice(0, at) + head + html.slice(at);
     });
     ctx.assets.enqueue({
       file: 'animations.css',

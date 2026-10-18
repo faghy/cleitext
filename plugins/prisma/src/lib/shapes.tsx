@@ -96,7 +96,7 @@ const SHAPES: Record<string, Shape> = {
   tilt_opacity: {
     viewBox: '0 0 2600 131.1',
     aspect: 'none',
-    paths: [['M0 0h2600L0 26z'], ['M0 0h2600v66L0 4z', 0.5], ['M0 0h2600L0 131.1z', 0.25]],
+    paths: [['M0 0h2600v69L0 0z'], ['M0 0h2600v69H0z', 0.5], ['M0 0h2600v69L0 131.1z', 0.25]],
   },
   fan_opacity: {
     viewBox: '0 0 283.5 19.6',

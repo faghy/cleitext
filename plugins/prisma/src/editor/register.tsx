@@ -10,7 +10,7 @@ import {
 import { iconsLoaded, onIconData } from '../lib/icons';
 import { ExtensionBind } from './controls/extensions';
 import { blockCss, withDefaults } from '../lib/css';
-import { DEFAULT_GLOBALS, type Globals } from '../lib/globals';
+import { DEFAULT_GLOBALS, variablesCss, type Globals } from '../lib/globals';
 import { safeTag } from '../lib/tags';
 import type { Attrs, PrismaBlock } from '../lib/types';
 
@@ -101,7 +101,7 @@ function makeEdit(block: PrismaBlock, Settings: Inspector | undefined) {
     const attrs = withDefaults(block, props.attributes);
     return (
       <>
-        <style>{blockCss(block, props.attributes, id, globals)}</style>
+        <style>{variablesCss(globals) + blockCss(block, props.attributes, id, globals)}</style>
         <ExtensionBind.Provider
           value={{
             attributes: props.attributes,
