@@ -62,6 +62,28 @@ export interface EditorPanelProps extends AdminPageProps {
   entry: EditorEntry;
   /** Opens an admin address, e.g. `/entries/<id>`, without reloading the page. */
   navigate: (to: string) => void;
+  /**
+   * The entry as it is being edited, before it is saved: the panel renders
+   * again a moment after each change (API 1.24; absent on older sites).
+   */
+  draft?: EditorDraft;
+  /**
+   * Changes the values of one of the entry's field groups (e.g. the plugin's
+   * own), saved with the entry like the fields of the sidebar (API 1.24).
+   */
+  setFields?: (group: string, values: Record<string, unknown>) => void;
+}
+
+/** The unsaved state of an entry, as editor panels see it. */
+export interface EditorDraft {
+  title: string;
+  /** The saved address part (changed in the sidebar, it is saved at once). */
+  slug: string;
+  excerpt: string | null;
+  featuredMediaId: string | null;
+  document: CxdDocument;
+  /** Custom fields: `{ <group id>: { <name>: value } }` and the type's own fields. */
+  fields: Record<string, unknown>;
 }
 
 /** A section of the editor sidebar, under the core ones. */

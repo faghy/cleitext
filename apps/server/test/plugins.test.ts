@@ -681,6 +681,30 @@ describe('an active plugin', () => {
     );
   });
 
+  it('adds to robots.txt, hears about pages not found and puts fields on every type (API 1.24)', async () => {
+    const robots = await visitor.get('/robots.txt');
+    expect(robots.body).toContain('Sitemap: ');
+    expect(robots.body).toContain('Disallow: /private-events/');
+
+    // Twice: the second answer comes from the page cache, and is heard too.
+    expect((await visitor.get('/no-such-page?from=mail')).statusCode).toBe(404);
+    expect((await visitor.get('/no-such-page?from=mail')).headers['x-cache']).toBe('HIT');
+    await eventually(async () => {
+      const log = JSON.parse((await visitor.get('/missing-log')).body) as string[];
+      return log.filter((line) => line === '/no-such-page?from=mail').length === 2;
+    });
+
+    const types = (await admin.get('/api/v1/content-types')).json() as {
+      slug: string;
+      fieldGroups: { id: string }[];
+    }[];
+    for (const slug of ['page', 'article', 'event']) {
+      expect(types.find((t) => t.slug === slug)?.fieldGroups.map((g) => g.id)).toContain(
+        'events-everywhere',
+      );
+    }
+  });
+
   it('grants its capabilities to the configured roles', async () => {
     expect((await editor.get('/api/v1/auth/me')).json().capabilities).toContain('manage_events');
     expect((await author.get('/api/v1/auth/me')).json().capabilities).not.toContain(

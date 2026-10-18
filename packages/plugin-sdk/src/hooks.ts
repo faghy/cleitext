@@ -73,6 +73,17 @@ export interface Actions {
   'comment.created': { comment: CommentEvent };
   /** A comment changed status: approved, spam, trash… (plugin API 1.12). */
   'comment.status': { comment: CommentEvent; from: string };
+  /**
+   * A visitor got a "not found" page (API 1.24), also when it came from the
+   * page cache: e.g. for a 404 log. Emitted after the response is sent.
+   */
+  'request.notFound': {
+    path: string;
+    /** The query string without the `?` (at most 500 characters). */
+    query: string;
+    referrer: string | null;
+    userAgent: string | null;
+  };
 }
 
 export interface CommentEvent {
@@ -207,6 +218,15 @@ export interface Filters {
   'sitemap.urls': [
     urls: SitemapUrl[],
     context: { siteId: string; kind: SitemapSource['kind']; slug: string; locale: string },
+  ];
+  /**
+   * The text of /robots.txt (API 1.24), e.g. rules written by the site's
+   * owner in an SEO plugin. When the site asks search engines to stay away,
+   * the text is `Disallow: /` whatever the filters return.
+   */
+  'robots.txt': [
+    text: string,
+    context: { siteId: string; origin: string; sitemap: string; discourageSearchEngines: boolean },
   ];
 }
 

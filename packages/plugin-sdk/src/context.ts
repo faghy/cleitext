@@ -71,7 +71,7 @@ export interface FieldGroupDefinition {
   /** Key of the stored values; must start with the plugin slug, e.g. `seo`. */
   id: string;
   title: Label;
-  /** Content types that show the group. */
+  /** Content types that show the group; `'*'` for all of them (API 1.24). */
   types: string[];
   fields: FieldDefinition[];
 }

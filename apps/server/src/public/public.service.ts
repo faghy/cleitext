@@ -258,6 +258,7 @@ export class PublicService {
       if (cacheable) {
         const hit = this.cache.get(key);
         if (hit) {
+          if (hit.status === 404) this.notFoundEvent(site.id, request, url);
           for (const [name, value] of Object.entries(hit.headers ?? {}))
             void reply.header(name, value);
           await this.sendPage(
@@ -373,6 +374,7 @@ export class PublicService {
       }
       const html = response.html ?? '';
       const contentType = response.contentType ?? HTML;
+      if (response.status === 404) this.notFoundEvent(site.id, request, url);
       const store = cacheable && (response.status === 200 || response.status === 404);
       const headers = {
         ...response.headers,
@@ -430,6 +432,29 @@ export class PublicService {
       this.logger.error(error);
       await reply.code(500).type('text/plain; charset=utf-8').send('Internal Server Error');
     }
+  }
+
+  /** Tells plugins about a "not found" page (a 404 log), after the response, never failing it. */
+  private notFoundEvent(siteId: string, request: FastifyRequest, url: URL): void {
+    if (request.method !== 'GET') return;
+    const header = (name: string, max: number) => {
+      const value = request.headers[name];
+      return typeof value === 'string' && value ? value.slice(0, max) : null;
+    };
+    setImmediate(() => {
+      void this.plugins
+        .emit(
+          'request.notFound',
+          {
+            path: url.pathname.slice(0, 1000),
+            query: url.search.slice(1, 501),
+            referrer: header('referer', 500),
+            userAgent: header('user-agent', 300),
+          },
+          siteId,
+        )
+        .catch(() => {});
+    });
   }
 
   /**
@@ -590,7 +615,7 @@ export class PublicService {
       if (customize?.themeSettings) scope.themeSettings = customize.themeSettings;
 
       if (redirect?.status === 410) return this.notFound(scope, 410);
-      if (path === '/robots.txt') return this.robots(scope);
+      if (path === '/robots.txt') return await this.robots(scope);
       // The addresses of WordPress and Yoast SEO, for sites moved from there.
       if (path === '/sitemap_index.xml' || path === '/wp-sitemap.xml') {
         return { status: 301, redirect: '/sitemap.xml', tags: [] };
@@ -753,8 +778,10 @@ export class PublicService {
     return { ...response, headers: { 'x-robots-tag': 'noindex, nofollow' } };
   }
 
-  private robots(scope: RequestScope): PublicResponse {
-    const lines = scope.settings.discourageSearchEngines
+  private async robots(scope: RequestScope): Promise<PublicResponse> {
+    const discourage = Boolean(scope.settings.discourageSearchEngines);
+    const sitemap = `${scope.origin}/sitemap.xml`;
+    const lines = discourage
       ? ['User-agent: *', 'Disallow: /']
       : [
           'User-agent: *',
@@ -764,11 +791,26 @@ export class PublicService {
           'Disallow: /__preview/',
           'Disallow: /search',
           '',
-          `Sitemap: ${scope.origin}/sitemap.xml`,
+          `Sitemap: ${sitemap}`,
         ];
+    const base = `${lines.join('\n')}\n`;
+    // A site kept out of search stays out, whatever plugins write.
+    const text = discourage
+      ? base
+      : await this.plugins
+          .applyFilter(
+            'robots.txt',
+            base,
+            { siteId: scope.siteId, origin: scope.origin, sitemap, discourageSearchEngines: false },
+            scope.siteId,
+          )
+          .then((value) =>
+            typeof value === 'string' && value.trim() ? value.slice(0, 100_000) : base,
+          )
+          .catch(() => base);
     return {
       status: 200,
-      html: `${lines.join('\n')}\n`,
+      html: text.endsWith('\n') ? text : `${text}\n`,
       contentType: 'text/plain; charset=utf-8',
       tags: ['site'],
     };

@@ -1,7 +1,7 @@
 import { adminUrl } from '@cleitext/shared';
 import { documentStats, type CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance, EditorServices, EmbedPreview, MediaRef } from '@cleitext/editor-core';
-import { FieldsForm, useT } from '@cleitext/admin-sdk';
+import { FieldsForm, useT, type EditorDraft } from '@cleitext/admin-sdk';
 import {
   fieldDefaults,
   labelText,
@@ -721,6 +721,17 @@ function Editor({ initial }: { initial: EntryView }) {
             {tab === 'document' && statsDocument && <StatsPanel document={statsDocument} />}
             {tab === 'document' && (
               <DocumentPanel
+                draft={{
+                  title,
+                  slug: entry.slug,
+                  excerpt: (summary.excerpt as string | null) ?? null,
+                  featuredMediaId: (summary.featuredMediaId as string | null) ?? null,
+                  document: statsDocument,
+                  fields,
+                }}
+                setFields={(group, values) =>
+                  changeFields({ ...fieldsRef.current, [group]: values })
+                }
                 visibility={visibility}
                 onVisibility={(value) => {
                   setVisibility(value);
@@ -1032,6 +1043,8 @@ function RevisionDiff({
 }
 
 function DocumentPanel({
+  draft,
+  setFields,
   visibility,
   onVisibility,
   entry,
@@ -1041,6 +1054,8 @@ function DocumentPanel({
   onSaved,
   onRestored,
 }: {
+  draft: EditorDraft;
+  setFields: (group: string, values: Record<string, unknown>) => void;
   visibility: 'public' | 'private';
   onVisibility: (value: 'public' | 'private') => void;
   entry: EntryView;
@@ -1237,6 +1252,8 @@ function DocumentPanel({
           status: entry.status,
           updatedAt: entry.updatedAt,
         }}
+        draft={draft}
+        setFields={setFields}
       />
 
       <section className="space-y-2">

@@ -67,20 +67,21 @@ my-plugin/
 }
 ```
 
-| Field                               | Required | Description                                                                                                                           |
-| ----------------------------------- | :------: | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `slug`                              |    ✅    | `^[a-z][a-z0-9-]{1,39}$`. Also names the database schema (`plg_<slug>`, dashes become `_`) and prefixes your blocks and field groups. |
-| `name`                              |    ✅    | Shown in the admin.                                                                                                                   |
-| `version`                           |    ✅    | Semantic version. Installing a lower version than the installed one is refused.                                                       |
-| `apiVersion`                        |    ✅    | Semver range of the plugin API you support, e.g. `^1.0`.                                                                              |
-| `license`                           |    ✅    | SPDX identifier of a GPL-compatible license: `GPL-2.0-or-later`, `GPL-3.0-or-later`, `MIT`, `Apache-2.0`, `BSD-3-Clause`, `ISC`…      |
-| `server`                            |          | Path of the built server entry. Its source is the same path under `src/` (`dist/server.js` ← `src/server.ts` or `.tsx`, `.js`).       |
-| `admin`                             |          | Path of the built admin entry, same rule.                                                                                             |
-| `public`                            |          | Folder of files for the public site, e.g. `dist/public` (§9, Public scripts and styles).                                              |
-| `requires.plugins`                  |          | Plugins that must be installed (and active on the site) first: `{ "slug": "semver range" }`.                                          |
-| `permissions`                       |          | What the plugin uses ([§12](#12-permissions)). Using something not listed throws `PluginPermissionError`.                             |
-| `capabilities`                      |          | Capabilities the plugin defines ([§9](#capabilities)).                                                                                |
-| `description`, `author`, `homepage` |          | Shown in Plugins.                                                                                                                     |
+| Field                               | Required | Description                                                                                                                                                  |
+| ----------------------------------- | :------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `slug`                              |    ✅    | `^[a-z][a-z0-9-]{1,39}$`. Also names the database schema (`plg_<slug>`, dashes become `_`) and prefixes your blocks and field groups.                        |
+| `name`                              |    ✅    | Shown in the admin.                                                                                                                                          |
+| `version`                           |    ✅    | Semantic version. Installing a lower version than the installed one is refused.                                                                              |
+| `apiVersion`                        |    ✅    | Semver range of the plugin API you support, e.g. `^1.0`.                                                                                                     |
+| `license`                           |    ✅    | SPDX identifier of a GPL-compatible license: `GPL-2.0-or-later`, `GPL-3.0-or-later`, `MIT`, `Apache-2.0`, `BSD-3-Clause`, `ISC`…                             |
+| `server`                            |          | Path of the built server entry. Its source is the same path under `src/` (`dist/server.js` ← `src/server.ts` or `.tsx`, `.js`).                              |
+| `admin`                             |          | Path of the built admin entry, same rule.                                                                                                                    |
+| `public`                            |          | Folder of files for the public site, e.g. `dist/public` (§9, Public scripts and styles).                                                                     |
+| `requires.plugins`                  |          | Plugins that must be installed (and active on the site) first: `{ "slug": "semver range" }`.                                                                 |
+| `conflicts`                         |          | Plugins that cannot be active on the same site, e.g. `["seo"]` for another SEO plugin (API 1.24). Activating one while the other is active fails, both ways. |
+| `permissions`                       |          | What the plugin uses ([§12](#12-permissions)). Using something not listed throws `PluginPermissionError`.                                                    |
+| `capabilities`                      |          | Capabilities the plugin defines ([§9](#capabilities)).                                                                                                       |
+| `description`, `author`, `homepage` |          | Shown in Plugins.                                                                                                                                            |
 
 ## 3. Build, install, activate
 
@@ -165,38 +166,40 @@ ctx.hooks.filter(
 
 **Actions** (they run after the change is saved):
 
-| Name                                      | Payload                                                          |
-| ----------------------------------------- | ---------------------------------------------------------------- |
-| `entry.created` · `entry.saved`           | `{ entry }`                                                      |
-| `entry.published` · `entry.unpublished`   | `{ entry }`                                                      |
-| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                      |
-| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; see below)          |
-| `term.created` · `term.deleted`           | `{ term }`                                                       |
-| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                         |
-| `languages.pending`                       | `{}` ([language data](#15-languages-language-plugins) arrived)   |
-| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                              |
-| `cache.invalidated`                       | `{ tags }`: pages with these tags changed (`site`: all), API 1.9 |
-| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                 |
-| `comment.created`                         | `{ comment }`, whatever its status, API 1.12                     |
-| `comment.status`                          | `{ comment, from }`: approved, held, spam or trashed, API 1.12   |
+| Name                                      | Payload                                                                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `entry.created` · `entry.saved`           | `{ entry }`                                                                                                                       |
+| `entry.published` · `entry.unpublished`   | `{ entry }`                                                                                                                       |
+| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                                                                                       |
+| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; see below)                                                                           |
+| `term.created` · `term.deleted`           | `{ term }`                                                                                                                        |
+| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                                                                          |
+| `languages.pending`                       | `{}` ([language data](#15-languages-language-plugins) arrived)                                                                    |
+| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                                                                               |
+| `cache.invalidated`                       | `{ tags }`: pages with these tags changed (`site`: all), API 1.9                                                                  |
+| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                                                                                  |
+| `comment.created`                         | `{ comment }`, whatever its status, API 1.12                                                                                      |
+| `comment.status`                          | `{ comment, from }`: approved, held, spam or trashed, API 1.12                                                                    |
+| `request.notFound`                        | `{ path, query, referrer, userAgent }`: a visitor got a “not found” page, also from the page cache (after the response), API 1.24 |
 
 `entry` is `{ id, siteId, type, locale, slug, title, status, fields }`, plus (API 1.13), when the change knows them, `terms` (term ids by taxonomy slug) and `featuredMediaId`, so a plugin can keep its own copy of entries up to date; `term` is `{ id, siteId, taxonomy, locale, slug, name }`, `comment` is `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Scheduled entries published automatically do not emit `entry.published` yet. `term.created` is emitted for terms created from the terms screen, the API and plugins (not for tags typed in the editor).
 
 **Filters** (public site, they need the `theme:hooks` permission):
 
-| Name                       | Value                                                                                      | Context                                   |
-| -------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                    | `RenderHookContext`                       |
-| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                          | `RenderHookContext` with `entry`          |
-| `render.html`              | the final HTML string                                                                      | `RenderHookContext`                       |
-| `theme.templateCandidates` | template names tried in order                                                              | `RenderHookContext`                       |
-| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission       | `{ siteId, ids }`                         |
-| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)          | `{ siteId, locale, userId, base }`        |
-| `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)  | `{ siteId, name, attrs, html, children }` |
-| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                          | `{ siteId, locale, siteTitle, term }`     |
-| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                      | `{ siteId }`                              |
-| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`) | `{ siteId, kind, slug, locale }`          |
-| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                         | `{ siteId, host, path, status, tags }`    |
+| Name                       | Value                                                                                                                                           | Context                                                |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                         | `RenderHookContext`                                    |
+| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                                                                               | `RenderHookContext` with `entry`                       |
+| `render.html`              | the final HTML string                                                                                                                           | `RenderHookContext`                                    |
+| `theme.templateCandidates` | template names tried in order                                                                                                                   | `RenderHookContext`                                    |
+| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                            | `{ siteId, ids }`                                      |
+| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                               | `{ siteId, locale, userId, base }`                     |
+| `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)                                                       | `{ siteId, name, attrs, html, children }`              |
+| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                                                                               | `{ siteId, locale, siteTitle, term }`                  |
+| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                                                                           | `{ siteId }`                                           |
+| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`)                                                      | `{ siteId, kind, slug, locale }`                       |
+| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                                                                              | `{ siteId, host, path, status, tags }`                 |
+| `robots.txt`               | the text of `/robots.txt`, with its `Sitemap:` line; no permission. A site that asks search engines to stay away keeps `Disallow: /` (API 1.24) | `{ siteId, origin, sitemap, discourageSearchEngines }` |
 
 `RenderHookContext` is `{ siteId, locale, route, path, entry?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
 
@@ -275,6 +278,8 @@ ctx.content.registerFieldGroup({
 });
 // later, in a filter: context.entry?.fields.seo?.description
 ```
+
+`types: ['*']` shows the group on every content type, including those of other plugins (API 1.24).
 
 **Reading entries** (`content:read`). The newest come first, and only published entries are returned unless `status: 'any'`:
 
@@ -822,7 +827,7 @@ export default defineAdminPlugin({
 });
 ```
 
-`entry` is `{ id, type, locale, title, slug, status }`; rows are `{ id, locale, title, status? }`. `navigate('/entries/<id>')` opens an admin address. `visible` hides a section or column, e.g. when the site has a single language.
+`entry` is `{ id, type, locale, title, slug, status }`; rows are `{ id, locale, title, status? }`. From API 1.24 an editor section also gets `draft`, the entry as it is being edited, before it is saved (`title`, `slug`, `excerpt`, `featuredMediaId`, `document`, `fields`; it renders again a moment after each change, e.g. for a live SEO analysis), and `setFields(group, values)`, which changes a field group's values like the sidebar's fields (saved with the entry). On older sites both are missing: check before using them. `navigate('/entries/<id>')` opens an admin address. `visible` hides a section or column, e.g. when the site has a single language.
 
 **Editors** (plugin API 1.11). A plugin can offer an editor for entries instead of the block editor, such as a page builder. It takes the whole screen under the editor's top bar, which keeps the title, saving, preview and publishing:
 

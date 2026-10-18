@@ -446,6 +446,25 @@ export default definePlugin({
         body: String((await ctx.storage.get(request.siteId, 'ticks')) ?? 0),
       }),
     });
+    // API 1.24: rules added to robots.txt, a log of "not found" pages, fields on every type.
+    ctx.hooks.filter('robots.txt', (text) => `${text}Disallow: /private-events/\n`);
+    ctx.hooks.on('request.notFound', async (event, context) => {
+      const seen = ((await ctx.storage.get(context.siteId, 'missing')) as string[] | null) ?? [];
+      await ctx.storage.set(context.siteId, 'missing', [...seen, `${event.path}?${event.query}`]);
+    });
+    ctx.routes.public({
+      method: 'GET',
+      path: '/missing-log',
+      handler: async (request) => ({
+        body: JSON.stringify((await ctx.storage.get(request.siteId, 'missing')) ?? []),
+      }),
+    });
+    ctx.content.registerFieldGroup({
+      id: 'events-everywhere',
+      title: 'Everywhere',
+      types: ['*'],
+      fields: [{ name: 'note', type: 'text', label: 'Note' }],
+    });
     // A link on visitors' account page (plugin API 1.17).
     ctx.hooks.filter('account.links', (links, context) => [
       ...links,

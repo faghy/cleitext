@@ -69,20 +69,21 @@ my-plugin/
 }
 ```
 
-| Campo                               | Obbligatorio | Descrizione                                                                                                                                                      |
-| ----------------------------------- | :----------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `slug`                              |      ✅      | `^[a-z][a-z0-9-]{1,39}$`. Dà anche il nome allo schema del database (`plg_<slug>`, i trattini diventano `_`) e fa da prefisso ai tuoi blocchi e gruppi di campi. |
-| `name`                              |      ✅      | Mostrato nell'admin.                                                                                                                                             |
-| `version`                           |      ✅      | Versione semantica. L'installazione di una versione inferiore a quella già installata viene rifiutata.                                                           |
-| `apiVersion`                        |      ✅      | Intervallo semver dell'API dei plugin che supporti, ad esempio `^1.0`.                                                                                           |
-| `license`                           |      ✅      | Identificatore SPDX di una licenza compatibile con la GPL: `GPL-2.0-or-later`, `GPL-3.0-or-later`, `MIT`, `Apache-2.0`, `BSD-3-Clause`, `ISC`…                   |
-| `server`                            |              | Percorso del punto di ingresso del server compilato. Il sorgente è lo stesso percorso sotto `src/` (`dist/server.js` ← `src/server.ts` o `.tsx`, `.js`).         |
-| `admin`                             |              | Percorso del punto di ingresso dell'admin compilato, con la stessa regola.                                                                                       |
-| `public`                            |              | Cartella dei file per il sito pubblico, per esempio `dist/public` (§9, Script e stili pubblici).                                                                 |
-| `requires.plugins`                  |              | Plugin che devono essere installati (e attivi sul sito) prima: `{ "slug": "semver range" }`.                                                                     |
-| `permissions`                       |              | Ciò che il plugin usa ([§12](#12-permessi)). Usare qualcosa che non è elencato lancia `PluginPermissionError`.                                                   |
-| `capabilities`                      |              | Capability definite dal plugin ([§9](#capability)).                                                                                                              |
-| `description`, `author`, `homepage` |              | Mostrati in Plugins.                                                                                                                                             |
+| Campo                               | Obbligatorio | Descrizione                                                                                                                                                                      |
+| ----------------------------------- | :----------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `slug`                              |      ✅      | `^[a-z][a-z0-9-]{1,39}$`. Dà anche il nome allo schema del database (`plg_<slug>`, i trattini diventano `_`) e fa da prefisso ai tuoi blocchi e gruppi di campi.                 |
+| `name`                              |      ✅      | Mostrato nell'admin.                                                                                                                                                             |
+| `version`                           |      ✅      | Versione semantica. L'installazione di una versione inferiore a quella già installata viene rifiutata.                                                                           |
+| `apiVersion`                        |      ✅      | Intervallo semver dell'API dei plugin che supporti, ad esempio `^1.0`.                                                                                                           |
+| `license`                           |      ✅      | Identificatore SPDX di una licenza compatibile con la GPL: `GPL-2.0-or-later`, `GPL-3.0-or-later`, `MIT`, `Apache-2.0`, `BSD-3-Clause`, `ISC`…                                   |
+| `server`                            |              | Percorso del punto di ingresso del server compilato. Il sorgente è lo stesso percorso sotto `src/` (`dist/server.js` ← `src/server.ts` o `.tsx`, `.js`).                         |
+| `admin`                             |              | Percorso del punto di ingresso dell'admin compilato, con la stessa regola.                                                                                                       |
+| `public`                            |              | Cartella dei file per il sito pubblico, per esempio `dist/public` (§9, Script e stili pubblici).                                                                                 |
+| `requires.plugins`                  |              | Plugin che devono essere installati (e attivi sul sito) prima: `{ "slug": "semver range" }`.                                                                                     |
+| `conflicts`                         |              | Plugin che non possono essere attivi sullo stesso sito, es. `["seo"]` per un altro plugin SEO (API 1.24). Attivarne uno mentre l'altro è attivo non riesce, in entrambi i sensi. |
+| `permissions`                       |              | Ciò che il plugin usa ([§12](#12-permessi)). Usare qualcosa che non è elencato lancia `PluginPermissionError`.                                                                   |
+| `capabilities`                      |              | Capability definite dal plugin ([§9](#capability)).                                                                                                                              |
+| `description`, `author`, `homepage` |              | Mostrati in Plugins.                                                                                                                                                             |
 
 ## 3. Build, installazione, attivazione
 
@@ -167,38 +168,40 @@ ctx.hooks.filter(
 
 **Azioni** (vengono eseguite dopo che la modifica è stata salvata):
 
-| Nome                                      | Payload                                                                     |
-| ----------------------------------------- | --------------------------------------------------------------------------- |
-| `entry.created` · `entry.saved`           | `{ entry }`                                                                 |
-| `entry.published` · `entry.unpublished`   | `{ entry }`                                                                 |
-| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                                 |
-| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; vedi sotto)                    |
-| `term.created` · `term.deleted`           | `{ term }`                                                                  |
-| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                    |
-| `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue))     |
-| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                         |
-| `cache.invalidated`                       | `{ tags }`: sono cambiate le pagine con questi tag (`site`: tutte), API 1.9 |
-| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                            |
-| `comment.created`                         | `{ comment }`, qualunque sia il suo stato, API 1.12                         |
-| `comment.status`                          | `{ comment, from }`: approvato, trattenuto, spam o cestinato, API 1.12      |
+| Nome                                      | Payload                                                                                                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entry.created` · `entry.saved`           | `{ entry }`                                                                                                                                          |
+| `entry.published` · `entry.unpublished`   | `{ entry }`                                                                                                                                          |
+| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                                                                                                          |
+| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; vedi sotto)                                                                                             |
+| `term.created` · `term.deleted`           | `{ term }`                                                                                                                                           |
+| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                                                                                             |
+| `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue))                                                                              |
+| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                                                                                                  |
+| `cache.invalidated`                       | `{ tags }`: sono cambiate le pagine con questi tag (`site`: tutte), API 1.9                                                                          |
+| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                                                                                                     |
+| `comment.created`                         | `{ comment }`, qualunque sia il suo stato, API 1.12                                                                                                  |
+| `comment.status`                          | `{ comment, from }`: approvato, trattenuto, spam o cestinato, API 1.12                                                                               |
+| `request.notFound`                        | `{ path, query, referrer, userAgent }`: un visitatore ha avuto una pagina “non trovata”, anche dalla cache delle pagine (dopo la risposta), API 1.24 |
 
 `entry` è `{ id, siteId, type, locale, slug, title, status, fields }`, più (API 1.13), quando la modifica li conosce, `terms` (id dei termini per slug di tassonomia) e `featuredMediaId`, così un plugin può tenere aggiornata la sua copia delle voci; `term` è `{ id, siteId, taxonomy, locale, slug, name }`, `comment` è `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`. `term.created` viene emesso per i termini creati dalla schermata dei termini, dall'API e dai plugin (non per i tag digitati nell'editor).
 
 **Filtri** (sito pubblico, richiedono il permesso `theme:hooks`):
 
-| Nome                       | Valore                                                                                         | Contesto                                  |
-| -------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                        | `RenderHookContext`                       |
-| `render.blocks`            | i blocchi della voce (`CxdBlock[]`)                                                            | `RenderHookContext` con `entry`           |
-| `render.html`              | la stringa HTML finale                                                                         | `RenderHookContext`                       |
-| `theme.templateCandidates` | nomi dei template provati in ordine                                                            | `RenderHookContext`                       |
-| `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso   | `{ siteId, ids }`                         |
-| `account.links`            | link nella pagina account dei visitatori (`{ label, url }[]`, indirizzi locali; API 1.17)      | `{ siteId, locale, userId, base }`        |
-| `import.block`             | un blocco WordPress senza equivalente all'import: al suo posto i blocchi del plugin (API 1.23) | `{ siteId, name, attrs, html, children }` |
-| `feed.title`               | titolo di un feed RSS (quello del sito, o `<termine> – <sito>`; API 1.22)                      | `{ siteId, locale, siteTitle, term }`     |
-| `sitemap.sources`          | tipi di contenuto e tassonomie con una sitemap XML (`{ kind, slug }[]`)                        | `{ siteId }`                              |
-| `sitemap.urls`             | gli indirizzi di una sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` o `term`)      | `{ siteId, kind, slug, locale }`          |
-| `cache.headers`            | header in più delle risposte pubbliche tenute dalla cache delle pagine, API 1.9                | `{ siteId, host, path, status, tags }`    |
+| Nome                       | Valore                                                                                                                                               | Contesto                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                              | `RenderHookContext`                                    |
+| `render.blocks`            | i blocchi della voce (`CxdBlock[]`)                                                                                                                  | `RenderHookContext` con `entry`                        |
+| `render.html`              | la stringa HTML finale                                                                                                                               | `RenderHookContext`                                    |
+| `theme.templateCandidates` | nomi dei template provati in ordine                                                                                                                  | `RenderHookContext`                                    |
+| `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso                                                         | `{ siteId, ids }`                                      |
+| `account.links`            | link nella pagina account dei visitatori (`{ label, url }[]`, indirizzi locali; API 1.17)                                                            | `{ siteId, locale, userId, base }`                     |
+| `import.block`             | un blocco WordPress senza equivalente all'import: al suo posto i blocchi del plugin (API 1.23)                                                       | `{ siteId, name, attrs, html, children }`              |
+| `feed.title`               | titolo di un feed RSS (quello del sito, o `<termine> – <sito>`; API 1.22)                                                                            | `{ siteId, locale, siteTitle, term }`                  |
+| `sitemap.sources`          | tipi di contenuto e tassonomie con una sitemap XML (`{ kind, slug }[]`)                                                                              | `{ siteId }`                                           |
+| `sitemap.urls`             | gli indirizzi di una sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` o `term`)                                                            | `{ siteId, kind, slug, locale }`                       |
+| `cache.headers`            | header in più delle risposte pubbliche tenute dalla cache delle pagine, API 1.9                                                                      | `{ siteId, host, path, status, tags }`                 |
+| `robots.txt`               | il testo di `/robots.txt`, con la sua riga `Sitemap:`; nessun permesso. Un sito che chiede ai motori di restare fuori tiene `Disallow: /` (API 1.24) | `{ siteId, origin, sitemap, discourageSearchEngines }` |
 
 `RenderHookContext` è `{ siteId, locale, route, path, entry?, tag(tag) }`. `route` è `entry`, `archive`, `search`, `404` o `maintenance`. `entry` è la voce pubblica: `{ id, type, title, url, fields, document, terms, … }`. Chiama `tag('type:event')` quando ciò che aggiungi dipende da altri dati (vedi [cache](#cache)).
 
@@ -277,6 +280,8 @@ ctx.content.registerFieldGroup({
 });
 // later, in a filter: context.entry?.fields.seo?.description
 ```
+
+`types: ['*']` mostra il gruppo su tutti i tipi di contenuto, anche quelli di altri plugin (API 1.24).
 
 **Lettura delle voci** (`content:read`). Le più recenti vengono per prime, e vengono restituite solo le voci pubblicate a meno di `status: 'any'`:
 
@@ -749,7 +754,7 @@ export default defineAdminPlugin({
 });
 ```
 
-`entry` è `{ id, type, locale, title, slug, status }`; le righe sono `{ id, locale, title, status? }`. `navigate('/entries/<id>')` apre un indirizzo dell'admin. `visible` nasconde una sezione o una colonna, per esempio quando il sito ha una sola lingua.
+`entry` è `{ id, type, locale, title, slug, status }`; le righe sono `{ id, locale, title, status? }`. Dall'API 1.24 una sezione dell'editor riceve anche `draft`, la voce com'è mentre la si modifica, prima del salvataggio (`title`, `slug`, `excerpt`, `featuredMediaId`, `document`, `fields`; si aggiorna poco dopo ogni modifica, per esempio per un'analisi SEO dal vivo), e `setFields(group, values)`, che cambia i valori di un gruppo di campi come i campi della barra laterale (salvati con la voce). Sui siti più vecchi mancano entrambi: controlla prima di usarli. `navigate('/entries/<id>')` apre un indirizzo dell'admin. `visible` nasconde una sezione o una colonna, per esempio quando il sito ha una sola lingua.
 
 **Editor** (API dei plugin 1.11). Un plugin può offrire un editor per le voci al posto dell'editor a blocchi, per esempio un page builder. Occupa tutto lo schermo sotto la barra superiore dell'editor, che mantiene titolo, salvataggio, anteprima e pubblicazione:
 

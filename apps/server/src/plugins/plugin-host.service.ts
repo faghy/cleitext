@@ -626,7 +626,9 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       : undefined;
     const fields =
       owner?.types.find((t) => t.slug === type.slug)?.fields ?? (parsed.success ? parsed.data : []);
-    const groups = active.flatMap((p) => p.fieldGroups.filter((g) => g.types.includes(type.slug)));
+    const groups = active.flatMap((p) =>
+      p.fieldGroups.filter((g) => g.types.includes('*') || g.types.includes(type.slug)),
+    );
     return { fields, groups };
   }
 
@@ -905,6 +907,18 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       const loaded = this.loaded.get(dependency);
       if (!loaded || !active.has(dependency) || !semver.satisfies(loaded.version, range)) {
         throw new PluginError(`Activate ${dependency} (${range}) first: ${slug} requires it.`);
+      }
+    }
+    // Both ways: the new plugin's conflicts, and the active ones that name it.
+    for (const other of active) {
+      const loaded = this.loaded.get(other);
+      if (
+        other !== slug &&
+        (plugin.manifest.conflicts?.includes(other) || loaded?.manifest.conflicts?.includes(slug))
+      ) {
+        throw new PluginError(
+          `Deactivate ${loaded?.manifest.name ?? other} first: it does the same work as ${plugin.manifest.name}.`,
+        );
       }
     }
     const site = await this.services!.site(siteId);

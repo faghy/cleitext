@@ -141,7 +141,15 @@ function shown(
 }
 
 /** Sidebar sections of the editor added by plugins, under the core ones. */
-export function PluginEditorPanels({ entry }: { entry: EditorEntry }) {
+export function PluginEditorPanels({
+  entry,
+  draft,
+  setFields,
+}: {
+  entry: EditorEntry;
+  draft: adminSdk.EditorDraft;
+  setFields: (group: string, values: Record<string, unknown>) => void;
+}) {
   const plugins = usePluginAdmin();
   return (
     <>
@@ -152,6 +160,8 @@ export function PluginEditorPanels({ entry }: { entry: EditorEntry }) {
             plugin={plugin}
             panel={panel}
             entry={entry}
+            draft={draft}
+            setFields={setFields}
           />
         )),
       )}
@@ -163,10 +173,14 @@ function PluginEditorPanel({
   plugin,
   panel,
   entry,
+  draft,
+  setFields,
 }: {
   plugin: LoadedAdminPlugin;
   panel: adminSdk.EditorPanelDefinition;
   entry: EditorEntry;
+  draft: adminSdk.EditorDraft;
+  setFields: (group: string, values: Record<string, unknown>) => void;
 }) {
   const props = usePageProps(plugin);
   const me = useMe();
@@ -180,7 +194,13 @@ function PluginEditorPanel({
     >
       <h3 className="mb-2 text-sm font-semibold">{labelText(panel.title, me.user.locale)}</h3>
       <PluginErrorBoundary name={plugin.name}>
-        <Component {...props} entry={entry} navigate={(to) => void navigate({ to })} />
+        <Component
+          {...props}
+          entry={entry}
+          navigate={(to) => void navigate({ to })}
+          draft={draft}
+          setFields={setFields}
+        />
       </PluginErrorBoundary>
     </section>
   );

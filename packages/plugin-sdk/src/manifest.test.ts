@@ -30,6 +30,13 @@ describe('plugin manifest', () => {
     expect(pluginManifestSchema.safeParse({ ...valid, permissions: ['root'] }).success).toBe(false);
   });
 
+  it('names the plugins it cannot run with (API 1.24)', () => {
+    expect(pluginManifestSchema.parse({ ...valid, conflicts: ['seo'] }).conflicts).toEqual(['seo']);
+    expect(pluginManifestSchema.safeParse({ ...valid, conflicts: ['Not A Slug'] }).success).toBe(
+      false,
+    );
+  });
+
   it('derives PostgreSQL names from the slug', () => {
     expect(pluginSchemaName('my-forms')).toBe('plg_my_forms');
   });
