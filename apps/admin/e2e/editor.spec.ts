@@ -83,6 +83,8 @@ test('write, classify, revise, translate and schedule a post', async ({ page }) 
   expect(saved.slug).toBe(`a-weekend-in-rome-${stamp}`);
 
   // 2. Category and tags.
+  // A selected block shows its settings: back to the post's.
+  await page.getByRole('tab', { name: 'Post' }).click();
   await page.getByLabel('Add new to Categories').fill(`Travel ${stamp}`);
   await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.getByLabel(`Travel ${stamp}`)).toBeChecked();
