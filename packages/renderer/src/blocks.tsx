@@ -65,8 +65,8 @@ const str = (value: unknown): string | undefined =>
   typeof value === 'string' && value ? value : undefined;
 
 /** The block's spacing, custom colors and text size (WordPress's `style`), as inline style. */
-function blockStyle(block: CxdBlock): CSSProperties | undefined {
-  return blockStyleCss(block.attrs.style) as CSSProperties | undefined;
+function blockStyle(block: CxdBlock, flex = false): CSSProperties | undefined {
+  return blockStyleCss(block.attrs.style, { flex }) as CSSProperties | undefined;
 }
 
 function classes(...names: (string | false | null | undefined)[]): string | undefined {
@@ -511,7 +511,7 @@ registerBlockRenderer('core/buttons', ({ block, children }) => (
   <div
     id={anchor(block)}
     className={classes('wp-block-buttons', extraClass(block))}
-    style={blockStyle(block)}
+    style={blockStyle(block, true)}
   >
     {children}
   </div>
@@ -552,7 +552,7 @@ registerBlockRenderer('core/columns', ({ block, children }) => (
       block.attrs.isStackedOnMobile !== false && 'is-stacked-on-mobile',
       extraClass(block),
     )}
-    style={blockStyle(block)}
+    style={blockStyle(block, true)}
   >
     {children}
   </div>
