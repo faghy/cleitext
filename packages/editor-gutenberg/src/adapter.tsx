@@ -165,12 +165,47 @@ function GutenbergEditor({
   const onChangeRef = useRef(options.onChange);
   onChangeRef.current = options.onChange;
   const first = useRef(true);
+  // Blocks may adjust their own attributes when they load (derived data, defaults):
+  // until the person types, clicks or drags, those are not edits. They are kept in the
+  // document anyway (getDocument) and saved with the first real change.
+  const acted = useRef(false);
+  useEffect(() => {
+    const act = () => {
+      acted.current = true;
+    };
+    const targets: EventTarget[] = [document];
+    const frame = () =>
+      document.querySelector<HTMLIFrameElement>('iframe[name="editor-canvas"]')?.contentDocument;
+    const attach = () => {
+      const inner = frame();
+      if (inner && !targets.includes(inner)) targets.push(inner);
+      for (const t of targets) {
+        t.addEventListener('keydown', act, true);
+        t.addEventListener('pointerdown', act, true);
+        t.addEventListener('drop', act, true);
+        t.addEventListener('paste', act, true);
+      }
+    };
+    attach();
+    // The canvas iframe appears after the first render.
+    const timer = setTimeout(attach, 1500);
+    return () => {
+      clearTimeout(timer);
+      for (const t of targets) {
+        t.removeEventListener('keydown', act, true);
+        t.removeEventListener('pointerdown', act, true);
+        t.removeEventListener('drop', act, true);
+        t.removeEventListener('paste', act, true);
+      }
+    };
+  }, []);
   useEffect(() => {
     if (first.current || skipChange.current) {
       first.current = false;
       skipChange.current = false;
       return;
     }
+    if (!acted.current) return;
     onChangeRef.current(toCxd(value.blocks));
   }, [value.blocks]);
 
