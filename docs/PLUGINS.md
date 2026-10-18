@@ -192,6 +192,7 @@ ctx.hooks.filter(
 | `theme.templateCandidates` | template names tried in order                                                              | `RenderHookContext`                    |
 | `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission       | `{ siteId, ids }`                      |
 | `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)          | `{ siteId, locale, userId, base }`     |
+| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                          | `{ siteId, locale, siteTitle, term }`  |
 | `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                      | `{ siteId }`                           |
 | `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`) | `{ siteId, kind, slug, locale }`       |
 | `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                         | `{ siteId, host, path, status, tags }` |

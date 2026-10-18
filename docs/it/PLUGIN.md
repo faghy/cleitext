@@ -194,6 +194,7 @@ ctx.hooks.filter(
 | `theme.templateCandidates` | nomi dei template provati in ordine                                                          | `RenderHookContext`                    |
 | `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso | `{ siteId, ids }`                      |
 | `account.links`            | link nella pagina account dei visitatori (`{ label, url }[]`, indirizzi locali; API 1.17)    | `{ siteId, locale, userId, base }`     |
+| `feed.title`               | titolo di un feed RSS (quello del sito, o `<termine> – <sito>`; API 1.22)                    | `{ siteId, locale, siteTitle, term }`  |
 | `sitemap.sources`          | tipi di contenuto e tassonomie con una sitemap XML (`{ kind, slug }[]`)                      | `{ siteId }`                           |
 | `sitemap.urls`             | gli indirizzi di una sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` o `term`)    | `{ siteId, kind, slug, locale }`       |
 | `cache.headers`            | header in più delle risposte pubbliche tenute dalla cache delle pagine, API 1.9              | `{ siteId, host, path, status, tags }` |

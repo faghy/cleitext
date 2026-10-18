@@ -830,6 +830,7 @@ export class PublicService {
     const { tx, data, settings, locale } = scope;
     let where = and(eq(entries.typeSlug, 'article'), await this.listedIn(scope));
     let title = scope.siteTitle;
+    let named: { taxonomy: string; slug: string; name: string } | null = null;
     let link = data.urls.home(locale);
     let self = data.urls.feed(locale);
     const tags = ['type:article'];
@@ -852,10 +853,17 @@ export class PublicService {
         .where(eq(entryTerms.termId, row.term.id));
       where = and(where, inArray(entries.id, ids));
       title = `${row.term.name} – ${scope.siteTitle}`;
+      named = { ...term, name: row.term.name };
       link = data.urls.term(term.taxonomy, term.slug, locale);
       self = `${link}/feed`;
       tags.push(`term:${row.term.id}`);
     }
+    title = await this.plugins.applyFilter(
+      'feed.title',
+      title,
+      { siteId: scope.siteId, locale, siteTitle: scope.siteTitle, term: named },
+      scope.siteId,
+    );
     const list = await loadPublished(tx, where, { limit: Math.max(settings.postsPerPage, 20) });
     const { summaries } = await summarize(tx, list, data.urls, locale);
     const absolute = (path: string) =>

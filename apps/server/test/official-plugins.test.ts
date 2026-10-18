@@ -129,6 +129,11 @@ describe('SEO', () => {
     await admin.request('PATCH', '/api/v1/settings/core', { frontPage: home.id });
     await admin.request('PATCH', '/api/v1/plugins/seo/settings', { separator: '⋆' });
     expect((await visitor.get('/')).body).toContain('<title>Web agency ⋆ Site official</title>');
+    // Feeds of a category use it too.
+    const term = (await admin.post('/api/v1/taxonomies/category/terms', { name: 'Feeds' })).json();
+    expect((await visitor.get(`/category/${term.slug as string}/feed`)).body).toContain(
+      '<title>Feeds ⋆ Site official</title>',
+    );
     await admin.request('PATCH', '/api/v1/settings/core', { frontPage: null });
     await admin.request('PATCH', '/api/v1/plugins/seo/settings', { separator: '|' });
   });

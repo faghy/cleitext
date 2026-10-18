@@ -210,6 +210,14 @@ export default definePlugin({
         .map((url) => (cfg.sitemapImages ? url : { ...url, images: [] }));
     });
 
+    // ---- Feeds: "<term> <separator> <site>", as the pages' titles -----------------------
+
+    ctx.hooks.filter('feed.title', async (title, context) => {
+      if (!context.term) return title;
+      const separator = String((await ctx.settings.get(context.siteId)).separator ?? '–');
+      return `${context.term.name} ${separator} ${context.siteTitle}`;
+    });
+
     // ---- The <head> of public pages ---------------------------------------------------
 
     ctx.hooks.filter(

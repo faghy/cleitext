@@ -171,6 +171,19 @@ export interface Filters {
     links: { label: string; url: string }[],
     context: { siteId: string; locale: string; userId: string; base: string },
   ];
+  /**
+   * Title of an RSS feed (plugin API 1.22): the site's, or "<term> – <site>"
+   * for a category's or tag's, e.g. with an SEO plugin's separator.
+   */
+  'feed.title': [
+    title: string,
+    context: {
+      siteId: string;
+      locale: string;
+      siteTitle: string;
+      term: { taxonomy: string; slug: string; name: string } | null;
+    },
+  ];
   /** Content types and taxonomies that get an XML sitemap (all by default). */
   'sitemap.sources': [sources: SitemapSource[], context: { siteId: string }];
   /** The addresses of one XML sitemap: remove pages kept out of search, add images… */
