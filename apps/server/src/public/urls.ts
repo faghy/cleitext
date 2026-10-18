@@ -159,6 +159,16 @@ export interface PermalinkMatch {
  * or dates are tried before catch-all `{path}` patterns.
  */
 export function matchPermalink(path: string, types: TypeInfo[]): PermalinkMatch | null {
+  return matchPermalinks(path, types)[0] ?? null;
+}
+
+/**
+ * Every type whose permalink matches a path, the most specific first: types
+ * may share one (articles and pages both at /{slug}, as WordPress sites with
+ * /%postname%/), and the entry that exists decides.
+ */
+export function matchPermalinks(path: string, types: TypeInfo[]): PermalinkMatch[] {
+  const found: PermalinkMatch[] = [];
   const ordered = [...types].sort((a, b) => specificity(b.permalink) - specificity(a.permalink));
   for (const type of ordered) {
     const regex = patternToRegex(type.permalink);
@@ -167,19 +177,18 @@ export function matchPermalink(path: string, types: TypeInfo[]): PermalinkMatch 
     const { path: fullPath, slug, year, month } = match.groups;
     if (fullPath) {
       const segments = fullPath.split('/');
-      return { type: type.slug, slug: segments.at(-1)!, parents: segments.slice(0, -1) };
-    }
-    if (slug) {
-      return {
+      found.push({ type: type.slug, slug: segments.at(-1)!, parents: segments.slice(0, -1) });
+    } else if (slug) {
+      found.push({
         type: type.slug,
         slug,
         parents: [],
         ...(year ? { year: Number(year) } : {}),
         ...(month ? { month: Number(month) } : {}),
-      };
+      });
     }
   }
-  return null;
+  return found;
 }
 
 const SEGMENT = '[a-z0-9]+(?:-[a-z0-9]+)*';

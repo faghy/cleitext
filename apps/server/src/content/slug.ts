@@ -17,6 +17,11 @@ export function slugify(input: string, maxLength = 80): string {
   return slug;
 }
 
+/** What a permalink looks like, placeholders aside: types with the same one share addresses. */
+export function permalinkShape(permalink: string): string {
+  return permalink.replace(/\{(slug|path)\}/g, '{x}').replace(/\{(year|month)\}/g, '{n}');
+}
+
 /** First free slug among `base`, `base-2`, `base-3`… */
 export function nextFreeSlug(base: string, taken: ReadonlySet<string>): string {
   if (!taken.has(base)) return base;

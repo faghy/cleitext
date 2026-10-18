@@ -96,7 +96,7 @@ import { themeFor } from './themes.js';
 import { PUBLIC_CSP } from '../common/security-headers.js';
 import { themeAreas, themeMediaIds, themeSettings } from './theme-data.js';
 import { SITEMAP_RE, SITEMAP_XSL, sitemap, sitemapIndex, type SitemapContext } from './sitemaps.js';
-import { matchPermalink } from './urls.js';
+import { matchPermalinks } from './urls.js';
 
 const HTML = 'text/html; charset=utf-8';
 /** ts_headline settings: matches between \u0001 and \u0002 (never found in text). */
@@ -1030,21 +1030,25 @@ export class PublicService {
       }
     }
 
-    // Entries by permalink.
-    const match = matchPermalink(rest, data.types);
-    if (!match) return null;
-    const [entry] = await this.published(
-      scope,
-      and(
-        eq(entries.typeSlug, match.type),
-        eq(entries.locale, locale),
-        eq(entries.slug, match.slug),
-      ),
-      { limit: 1 },
-    );
+    // Entries by permalink: of the types whose permalink matches, the entry that exists.
+    let entry: Awaited<ReturnType<typeof this.published>>[number] | undefined;
+    for (const match of matchPermalinks(rest, data.types)) {
+      const [found] = await this.published(
+        scope,
+        and(
+          eq(entries.typeSlug, match.type),
+          eq(entries.locale, locale),
+          eq(entries.slug, match.slug),
+        ),
+        { limit: 1 },
+      );
+      // The full URL must match (parents, year): one canonical address per entry.
+      if (found && data.urls.entry(found.row) === scope.path) {
+        entry = found;
+        break;
+      }
+    }
     if (!entry) return null;
-    // The full URL must match (parents, year): one canonical address per entry.
-    if (data.urls.entry(entry.row) !== scope.path) return null;
 
     // The front page lives at the home address only (no duplicate at its slug).
     if (

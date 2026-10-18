@@ -18,12 +18,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, count, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray, ne } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { entryPath, localePrefixes } from './paths.js';
+import { permalinkShape } from './slug.js';
 import { taxonomyView } from './terms.service.js';
 import { LanguagesService } from './languages.service.js';
 
@@ -286,7 +287,7 @@ export class StructureService {
    * A permalink (RF-SET-03): segments of letters, digits and dashes, or the
    * placeholders {year} and {month}, ending with {slug} — {path} for
    * hierarchical types, which includes the parents. It must not take a
-   * reserved address, a taxonomy's or another type's.
+   * reserved address or a taxonomy's; types sharing one must not share slugs.
    */
   private async assertPermalink(
     tx: SiteTransaction,
@@ -321,10 +322,36 @@ export class StructureService {
         throw new BadRequestException(`Addresses starting with /${first}/ are already used.`);
       }
     }
-    const others = await tx.select().from(contentTypes);
-    const clash = others.find((t) => t.id !== selfId && shape(t.permalink) === shape(permalink));
-    if (clash) {
-      throw new ConflictException(`The permalink matches the one of "${clash.slug}".`);
+    // Types may share a kind of address (articles and pages at /{slug}): the
+    // entry that exists answers, so no two entries may then have one address.
+    const types = await tx.select().from(contentTypes);
+    const self = types.find((t) => t.id === selfId);
+    const sharing = types.filter(
+      (t) => t.id !== selfId && permalinkShape(t.permalink) === permalinkShape(permalink),
+    );
+    if (self && sharing.length > 0) {
+      const live = (slugs: string[]) =>
+        tx
+          .select({ slug: entries.slug, locale: entries.locale })
+          .from(entries)
+          .where(and(inArray(entries.typeSlug, slugs), ne(entries.status, 'trashed')));
+      const theirs = new Set(
+        (await live(sharing.map((t) => t.slug))).map((e) => `${e.locale}:${e.slug}`),
+      );
+      const clashes = [
+        ...new Set(
+          (await live([self.slug]))
+            .filter((e) => theirs.has(`${e.locale}:${e.slug}`))
+            .map((e) => e.slug),
+        ),
+      ];
+      if (clashes.length > 0) {
+        throw new ConflictException(
+          `Entries of "${self.slug}" and of "${sharing.map((t) => t.slug).join('", "')}" would share these addresses: ${clashes
+            .slice(0, 5)
+            .join(', ')}${clashes.length > 5 ? '…' : ''}. Change their slugs first.`,
+        );
+      }
     }
   }
 
@@ -415,6 +442,3 @@ function firstLiteral(permalink: string): string | null {
 }
 
 /** Two permalinks with the same shape would match the same addresses. */
-function shape(permalink: string): string {
-  return permalink.replace(/\{(slug|path)\}/g, '{x}').replace(/\{(year|month)\}/g, '{n}');
-}

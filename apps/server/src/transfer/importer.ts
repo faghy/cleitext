@@ -25,9 +25,9 @@ import {
   type SiteTransaction,
 } from '@cleitext/db';
 import { CAPABILITIES } from '@cleitext/shared';
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
-import { nextFreeSlug, slugify } from '../content/slug.js';
+import { nextFreeSlug, permalinkShape, slugify } from '../content/slug.js';
 import type { MediaService } from '../media/media.service.js';
 import type { PageCacheService } from '../public/page-cache.service.js';
 import { loadSiteData } from '../public/site-data.js';
@@ -573,14 +573,19 @@ async function insertEntry(
     report: ImportReport;
   },
 ): Promise<{ id: string }> {
-  const [type] = await tx.select().from(contentTypes).where(eq(contentTypes.slug, entry.type));
+  const types = await tx.select().from(contentTypes);
+  const type = types.find((t) => t.slug === entry.type);
   if (!type) throw new Error(`unknown content type "${entry.type}"`);
+  // Types with the same kind of address (articles and pages at /{slug}) share slugs.
+  const sharing = types
+    .filter((t) => permalinkShape(t.permalink) === permalinkShape(type.permalink))
+    .map((t) => t.slug);
   const taken = new Set(
     (
       await tx
         .select({ slug: entries.slug })
         .from(entries)
-        .where(and(eq(entries.typeSlug, entry.type), eq(entries.locale, entry.locale)))
+        .where(and(inArray(entries.typeSlug, sharing), eq(entries.locale, entry.locale)))
     ).map((e) => e.slug),
   );
   const wanted = slugify(entry.slug) || slugify(entry.title) || 'entry';

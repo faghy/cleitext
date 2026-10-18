@@ -42,7 +42,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { canDelete, canEdit, canPublish, canRead } from './entry-permissions.js';
-import { nextFreeSlug, slugify } from './slug.js';
+import { nextFreeSlug, permalinkShape, slugify } from './slug.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { createPreviewToken } from '../public/preview.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
@@ -1036,12 +1036,21 @@ export class EntriesService {
     excludeId: string | null,
   ): Promise<string> {
     const base = slugify(wanted) || 'untitled';
+    // Types with the same kind of address (articles and pages both at /{slug}) share slugs.
+    const types = await tx
+      .select({ slug: contentTypes.slug, permalink: contentTypes.permalink })
+      .from(contentTypes);
+    const shape = permalinkShape(types.find((t) => t.slug === type)?.permalink ?? '');
+    const sharing = types.filter((t) => t.slug === type || permalinkShape(t.permalink) === shape);
     const rows = await tx
       .select({ slug: entries.slug })
       .from(entries)
       .where(
         and(
-          eq(entries.typeSlug, type),
+          inArray(
+            entries.typeSlug,
+            sharing.map((t) => t.slug),
+          ),
           eq(entries.locale, locale),
           or(eq(entries.slug, base), ilike(entries.slug, `${escapeLike(base)}-%`)),
           excludeId ? ne(entries.id, excludeId) : undefined,

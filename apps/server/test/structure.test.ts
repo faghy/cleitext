@@ -102,11 +102,35 @@ describe('content types from the admin', () => {
       '/{slug}/x',
       '/api/{slug}',
       '/category/{slug}',
-      '/news/{slug}',
     ]) {
       const res = await admin.request('PATCH', '/api/v1/content-types/recipe', { permalink });
       expect([400, 409], permalink).toContain(res.statusCode);
     }
+  });
+
+  it('lets articles and pages share /{slug}, as WordPress sites do, without sharing a slug', async () => {
+    const page = await publish('page', 'Twin');
+    const post = await publish('article', 'Twin');
+    expect(post.slug).toBe('twin');
+    const refused = await admin.request('PATCH', '/api/v1/content-types/article', {
+      permalink: '/{slug}',
+    });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().detail).toContain('twin');
+    await admin.request('PATCH', `/api/v1/entries/${post.id}`, { slug: 'twin-post' });
+    const shared = await admin.request('PATCH', '/api/v1/content-types/article', {
+      permalink: '/{slug}',
+    });
+    expect(shared.statusCode, shared.body).toBe(200);
+    expect((await visitor.get('/twin')).body).toContain('Twin');
+    expect((await visitor.get('/twin-post')).statusCode).toBe(200);
+    expect((await visitor.get(`/${page.slug}`)).statusCode).toBe(200);
+    // A new article cannot take the page's address.
+    const another = (
+      await admin.post('/api/v1/entries', { type: 'article', title: 'Twin' })
+    ).json();
+    expect(another.slug).toBe('twin-2');
+    await admin.request('PATCH', '/api/v1/content-types/article', { permalink: '/news/{slug}' });
   });
 
   it('deletes only unused types made in the admin', async () => {
