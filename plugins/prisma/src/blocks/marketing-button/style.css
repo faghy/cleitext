@@ -1,0 +1,63 @@
+/* ---- Marketing Button ----------------------------------------------------------------- */
+.pr-marketing-button {
+  display: flex;
+}
+.pr-marketing-button p:empty {
+  display: none;
+}
+.pr-marketing-button .pr-marketing-button__title,
+.pr-marketing-button p.pr-marketing-button__prefix {
+  margin-bottom: 0;
+}
+.pr-marketing-button .pr-marketing-button__link {
+  z-index: 1;
+  display: inline-block;
+  position: relative;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.pr-marketing-button .pr-marketing-button__link.wp-block-button__link {
+  width: auto;
+}
+.pr-marketing-button svg {
+  fill: currentColor;
+  width: 20px;
+  height: 20px;
+  z-index: 1;
+  vertical-align: middle;
+}
+.pr-marketing-button .pr-marketing-button__title,
+.pr-marketing-button svg {
+  display: inline;
+  vertical-align: middle;
+}
+.pr-marketing-button.pr-marketing-button--align-center,
+.pr-marketing-button.pr-marketing-button--text-center .pr-marketing-button__link {
+  justify-content: center;
+  text-align: center;
+}
+.pr-marketing-button.pr-marketing-button--align-left,
+.pr-marketing-button.pr-marketing-button--text-left .pr-marketing-button__link {
+  justify-content: flex-start;
+  text-align: left;
+}
+.pr-marketing-button.pr-marketing-button--align-right,
+.pr-marketing-button.pr-marketing-button--text-right .pr-marketing-button__link {
+  justify-content: flex-end;
+  text-align: right;
+}
+.pr-marketing-button.pr-marketing-button--align-full .pr-marketing-button__link {
+  width: 100%;
+}
+.pr-marketing-button.pr-marketing-button--text-center .pr-marketing-button__prefix {
+  text-align: center;
+}
+.pr-marketing-button.pr-marketing-button--text-left .pr-marketing-button__prefix {
+  text-align: left;
+}
+.pr-marketing-button.pr-marketing-button--text-right .pr-marketing-button__prefix {
+  text-align: right;
+}
+.pr-marketing-button.pr-marketing-button--icon-after svg {
+  order: 2;
+}

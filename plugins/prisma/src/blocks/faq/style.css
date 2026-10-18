@@ -1,0 +1,56 @@
+/* FAQ: items with a question row (icons and text) and an answer. */
+.pr-faq {
+  width: 100%;
+}
+.pr-faq.pr-faq--layout-accordion .pr-faq-item .pr-faq-item__question {
+  cursor: pointer;
+}
+.pr-faq .pr-faq-item__content {
+  margin-bottom: 0;
+}
+.pr-faq .pr-faq-item__content p {
+  margin: auto;
+}
+.pr-faq--layout-grid.pr-faq--equal-height .pr-faq-item {
+  height: 100%;
+}
+.pr-faq-item {
+  overflow: hidden;
+}
+.pr-faq-item .pr-faq-item__question {
+  display: flex;
+  align-items: center;
+}
+.pr-faq-item .pr-faq-item__question .pr-faq-item__icon-wrap {
+  display: flex;
+  align-items: center;
+}
+.pr-faq-item .pr-faq-item__question .pr-faq-item__text {
+  width: 100%;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.pr-faq-item .pr-faq-item__icon svg,
+.pr-faq-item .pr-faq-item__icon-active svg {
+  width: 15px;
+  height: 15px;
+  font-size: 15px;
+}
+/* The closed icon while closed, the open one while open. */
+.pr-faq-item .pr-faq-item__icon-active,
+.pr-faq-item.pr-faq-item--active .pr-faq-item__icon {
+  display: none;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+.pr-faq-item .pr-faq-item__icon,
+.pr-faq-item.pr-faq-item--active .pr-faq-item__icon-active {
+  display: flex;
+  width: auto;
+  height: auto;
+}
+.pr-faq--layout-grid .pr-faq-item .pr-faq-item__icon,
+.pr-faq--layout-grid .pr-faq-item .pr-faq-item__icon-active {
+  display: none;
+}

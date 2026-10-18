@@ -5,6 +5,7 @@ import { border, borderDefaults, clean, DEVICES, emit, numeric, px, suffix } fro
 import type { Globals } from '../../lib/globals';
 import { ShapeSvg } from '../../lib/shapes';
 import type { Attrs, PrismaBlock, ViewProps } from '../../lib/types';
+import { legacySpectra } from './legacy';
 
 const D = (device: Device) =>
   device === 'desktop' ? 'Desktop' : device === 'tablet' ? 'Tablet' : 'Mobile';
@@ -603,4 +604,5 @@ export const container: PrismaBlock = {
     ]
       .map((m) => (m && typeof m === 'object' ? (m as { id?: unknown }).id : null))
       .filter((m): m is string => typeof m === 'string'),
+  spectra: legacySpectra,
 };

@@ -1,0 +1,6 @@
+.pr-icon svg {
+  width: 30px;
+}
+.pr-icon .pr-icon__wrap {
+  transition: box-shadow 0.2s ease;
+}

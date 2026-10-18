@@ -1,0 +1,63 @@
+.pr-separator {
+  text-align: center;
+  box-sizing: border-box;
+  line-height: 0;
+}
+.pr-separator__inner {
+  display: inline-block;
+}
+/* A plain line: the inner element's top border, patterned by a mask. */
+.pr-separator:not(.pr-separator--text):not(.pr-separator--icon) .pr-separator__inner {
+  border-top-style: solid;
+  -webkit-mask: var(--pr-separator-mask);
+  -webkit-mask-size: 38px 100%;
+  -webkit-mask-repeat: repeat-x;
+}
+/* With a text or an icon: a line on each side of it. */
+.pr-separator--text .pr-separator__inner,
+.pr-separator--icon .pr-separator__inner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+}
+.pr-separator--text .pr-separator__inner::before,
+.pr-separator--icon .pr-separator__inner::before,
+.pr-separator--text .pr-separator__inner::after,
+.pr-separator--icon .pr-separator__inner::after {
+  display: block;
+  content: '';
+  border-bottom: 0;
+  flex-grow: 1;
+  border-top-color: #333;
+  border-top-style: solid;
+  -webkit-mask: var(--pr-separator-mask);
+  -webkit-mask-size: 38px 100%;
+  -webkit-mask-repeat: repeat-x;
+}
+.pr-separator--icon .pr-separator__element svg {
+  font-size: 30px;
+  color: #333;
+  fill: #333;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  max-width: none;
+}
+.pr-separator--text .pr-separator__element .pr-separator__text {
+  word-break: initial;
+  margin: 0;
+}
+/* Patterns, each a tile repeated along the line. */
+.pr-separator--rectangles {
+  --pr-separator-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M6 0h10l-6 16H0z'/%3E%3C/svg%3E");
+}
+.pr-separator--parallelogram {
+  --pr-separator-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='16' viewBox='0 0 8 16'%3E%3Cpath d='M0 0h8v16H0z'/%3E%3C/svg%3E");
+}
+.pr-separator--slash {
+  --pr-separator-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M-1 16 16-1M7 17 17 7M-1 8 8-1M15 17l2-2' stroke='%23000' fill='none'/%3E%3C/svg%3E");
+}
+.pr-separator--leaves {
+  --pr-separator-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cg stroke='%23000' fill='none'%3E%3Cpath d='M1.5 1.5c4.4 0 5.5 1.1 5.5 5.5-4.4 0-5.5-1.1-5.5-5.5zM14.5 1.5c-4.4 0-5.5 1.1-5.5 5.5 4.4 0 5.5-1.1 5.5-5.5zM1.5 14.5c4.4 0 5.5-1.1 5.5-5.5-4.4 0-5.5 1.1-5.5 5.5zM14.5 14.5c-4.4 0-5.5-1.1-5.5-5.5 4.4 0 5.5 1.1 5.5 5.5z'/%3E%3C/g%3E%3C/svg%3E");
+}

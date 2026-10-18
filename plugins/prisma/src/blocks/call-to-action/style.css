@@ -1,0 +1,38 @@
+/* ---- Call To Action ------------------------------------------------------------------- */
+.pr-call-to-action {
+  position: relative;
+}
+.pr-call-to-action .pr-call-to-action__buttons {
+  display: inline-flex;
+}
+.pr-call-to-action .wp-block-button__link {
+  fill: currentColor;
+  justify-content: center;
+}
+.pr-call-to-action__button,
+.pr-call-to-action__second {
+  display: inline-flex;
+  align-items: center;
+  word-break: keep-all;
+  width: 100%;
+}
+.pr-call-to-action__title {
+  padding: 0;
+  margin: 0;
+  display: block;
+}
+.pr-call-to-action__button svg {
+  width: 20px;
+  height: 20px;
+}
+.pr-call-to-action a.pr-call-to-action__link-all {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 11;
+}
+.pr-call-to-action__desc p:last-child {
+  margin-bottom: 0;
+}

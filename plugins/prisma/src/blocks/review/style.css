@@ -1,0 +1,66 @@
+.pr-review__block {
+  padding: 25px 40px 35px 40px;
+  margin: 30px auto;
+}
+.pr-review__block a.pr-review__link {
+  color: inherit;
+  text-decoration: none;
+}
+.pr-review__block .pr-review__image {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.pr-review__block .pr-review__entry {
+  display: flex;
+  padding: 10px 0 10px 0;
+  border-bottom: 1px solid #e9e9e9;
+}
+.pr-review__block .pr-review__entry-stars {
+  margin-left: auto;
+  min-width: 100px;
+}
+.pr-review--multi .pr-review__block .pr-review__entry-stars {
+  min-width: 120px;
+}
+.pr-review__block .pr-review__summary-title {
+  margin: 23px 0 13px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+.pr-review__block .pr-review__summary .pr-review__overall {
+  flex-basis: 75%;
+}
+.pr-review__block .pr-review__average {
+  display: inline-flex;
+}
+.pr-review__block .pr-review__rating {
+  text-align: right;
+  font-size: 40px;
+}
+.pr-review__stars {
+  display: flex;
+}
+.pr-review__star-wrap {
+  display: inline-block;
+}
+.pr-review__stars svg {
+  pointer-events: none;
+}
+.pr-review__block .pr-review__average-stars {
+  display: flex;
+  grid-area: auto;
+  justify-self: self-end;
+  height: 50px;
+  line-height: 60px;
+  margin-left: 10px;
+  margin-top: 25px;
+}
+/* Editor only: what the structured data misses. */
+.pr-review__notice {
+  padding: 8px 10px;
+  background-color: #fff8e5;
+  border-left: 5px solid #ffb901;
+  color: #32373c;
+  font-size: 13px;
+  line-height: 20px;
+}

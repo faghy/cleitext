@@ -1,0 +1,36 @@
+.pr-lottie--left {
+  margin-right: auto !important;
+  margin-left: 0 !important;
+}
+.pr-lottie--right {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+.pr-lottie--center {
+  margin: 0 auto !important;
+}
+.pr-lottie__player {
+  width: 100%;
+  height: 100%;
+}
+.pr-lottie__player[data-pr-lottie-play='click'] {
+  cursor: pointer;
+}
+.pr-lottie__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  height: 100%;
+  padding: 16px;
+  border: 1px dashed currentColor;
+  opacity: 0.6;
+  font-size: 13px;
+  text-align: center;
+  word-break: break-all;
+}
+.pr-lottie__placeholder svg {
+  fill: currentColor;
+}

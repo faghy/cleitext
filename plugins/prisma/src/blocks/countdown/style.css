@@ -1,0 +1,70 @@
+.pr-countdown {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+.pr-countdown .pr-countdown__box {
+  transition: box-shadow 0.2s ease;
+}
+.pr-countdown__box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 155px;
+  height: 155px;
+  aspect-ratio: 1;
+  justify-content: center;
+}
+.pr-countdown__time {
+  font-size: 52px;
+}
+.pr-countdown__label {
+  font-size: 14px;
+}
+@media (max-width: 976px) {
+  .pr-countdown__box {
+    width: 100px;
+    height: 100px;
+  }
+  .pr-countdown__time {
+    font-size: 32px;
+  }
+  .pr-countdown__label {
+    font-size: 12px;
+  }
+}
+@media (max-width: 767px) {
+  .pr-countdown__box {
+    width: 65px;
+    height: 65px;
+  }
+}
+.pr-countdown__box:not(:last-child) {
+  margin-right: 38px;
+}
+.pr-countdown__box:not(:last-child) .pr-countdown__time::after {
+  position: absolute;
+  right: 0;
+}
+/* The message shown at the end comes after the boxes: no separator nor space after the seconds. */
+.pr-countdown__box--seconds .pr-countdown__time--seconds::after {
+  display: none;
+}
+.pr-countdown > .pr-countdown__box--seconds:not(:last-child) {
+  margin-right: unset;
+}
+.pr-countdown__content {
+  display: none;
+  text-align: initial;
+}
+/* Time is up: the message replaces the boxes, or the timer is hidden. */
+.pr-countdown--ended.pr-countdown--end-content .pr-countdown__box {
+  display: none;
+}
+.pr-countdown--ended.pr-countdown--end-content .pr-countdown__content,
+.pr-countdown--editing .pr-countdown__content {
+  display: block;
+}
+.pr-countdown--ended.pr-countdown--end-hide {
+  display: none;
+}

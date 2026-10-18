@@ -325,3 +325,6 @@ function init() {
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
 else init();
+
+// A module: its functions stay its own.
+export {};

@@ -1,0 +1,176 @@
+.pr-form .pr-form__input,
+.pr-form .pr-form__input::placeholder,
+.pr-form .pr-form__label,
+.pr-form .pr-form__submit,
+.pr-form .pr-form__success,
+.pr-form .pr-form__failed {
+  transition-property: color, background-color, border-color;
+  transition-duration: 0.15s;
+}
+.pr-form .pr-form__form .pr-form__input {
+  min-height: 0 !important;
+}
+.pr-form .pr-form__form .pr-form__input::-webkit-input-placeholder {
+  overflow: unset;
+}
+.pr-form .pr-form__form input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.pr-form .pr-form__form textarea,
+.pr-form .pr-form__form select {
+  width: 100%;
+  box-sizing: border-box;
+}
+.pr-form .pr-form__form .pr-form-phone__flex {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+}
+.pr-form .pr-form__form .pr-form-phone__flex .pr-form-phone__country {
+  width: 25%;
+  margin-right: 5px;
+}
+.pr-form .pr-form__form .pr-form-phone__flex .pr-form-phone__input {
+  width: 75% !important;
+}
+.pr-form .pr-form__form .is-required::after {
+  color: red;
+  content: ' *';
+}
+.pr-form .pr-form__form .pr-form__hidden-data,
+.pr-form .pr-form-hidden {
+  display: none;
+}
+/* The field people never see, bots fill. */
+.pr-form .pr-form__hp {
+  position: absolute !important;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.pr-form .pr-form__form .pr-form__submit-wrap .pr-form__submit.wp-block-button__link {
+  width: auto;
+}
+.pr-form .pr-form__submit[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.7;
+}
+.pr-form .pr-form__message--hide:not(:target) {
+  display: none;
+}
+.pr-form .pr-form__success,
+.pr-form .pr-form__failed {
+  padding: 20px;
+}
+.pr-form .pr-form__error {
+  margin-top: 4px;
+  color: #cc1818;
+  font-size: 0.875em;
+}
+.pr-form .pr-form-phone__country {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 4l4.5 4.5L10.5 4' fill='none' stroke='%23222' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  -moz-appearance: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+.pr-form .pr-form__input.pr-form-phone__country {
+  background-color: #fff;
+}
+.pr-form-select__box,
+.pr-form-phone__country,
+.pr-form-phone__flex .pr-form-phone__input {
+  height: auto;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Switch */
+.pr-form .pr-form__switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 25px;
+}
+.pr-form .pr-form__switch input {
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+.pr-form .pr-form__slider {
+  position: absolute;
+  inset: 0;
+  background-color: #fff;
+  cursor: pointer;
+  transition: 0.4s;
+}
+.pr-form .pr-form__switch .pr-form__slider::before {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background-color: #000;
+  transition: 0.4s;
+  content: '';
+}
+.pr-form .pr-form__switch input:checked + .pr-form__slider::before {
+  background-color: #fff;
+}
+.pr-form .pr-form__slider.is-round::before {
+  border-radius: 50% !important;
+}
+.pr-form .pr-form__switch input:focus-visible + .pr-form__slider {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* Checkboxes and radios: the box is drawn before the label */
+.pr-form-radio input[type='radio'],
+.pr-form-checkbox input[type='checkbox'],
+.pr-form-accept input[type='checkbox'] {
+  opacity: 0;
+}
+.pr-form-radio input[type='radio'] + label::before,
+.pr-form-checkbox input[type='checkbox'] + label::before,
+.pr-form-accept input[type='checkbox'] + label::before {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 10px;
+  margin-bottom: 5px;
+  box-sizing: content-box;
+  text-align: center;
+  line-height: 1.2;
+  content: ' ';
+}
+.pr-form-radio input[type='radio']:checked + label::before {
+  content: ' ';
+}
+.pr-form-radio input[type='radio'].is-round + label::before {
+  border-radius: 100% !important;
+}
+.pr-form-checkbox input[type='checkbox']:checked + label::before,
+.pr-form-accept input[type='checkbox']:checked + label::before {
+  content: '✔';
+}
+.pr-form-radio input:focus-visible + label::before,
+.pr-form-checkbox input:focus-visible + label::before,
+.pr-form-accept input:focus-visible + label::before {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.pr-form-hide-badge .grecaptcha-badge {
+  visibility: hidden;
+}
+
+/* In the editor: the hidden field as a row */
+.block-editor-block-list__layout .pr-form-hidden {
+  display: block;
+}
+.pr-form-hidden__preview {
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px dashed #bbb;
+  font-size: 13px;
+}
+.pr-form-hidden__preview span:first-child {
+  font-weight: 600;
+}

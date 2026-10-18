@@ -1,0 +1,467 @@
+/* Tabs: the list of titles and the body, laid out by the layout classes of each device. */
+.pr-tabs {
+  display: flex;
+}
+.pr-tabs ul.pr-tabs__panel {
+  margin: 0;
+  list-style-type: none;
+  display: inherit;
+}
+.pr-tabs ul.pr-tabs__panel.pr-tabs__panel--align-center {
+  justify-content: center;
+}
+.pr-tabs ul.pr-tabs__panel.pr-tabs__panel--align-left {
+  justify-content: flex-start;
+}
+.pr-tabs ul.pr-tabs__panel.pr-tabs__panel--align-right {
+  justify-content: flex-end;
+}
+.pr-tabs ul.pr-tabs__panel.pr-tabs__panel--align-right .pr-tabs__tab:last-child {
+  margin-right: 0;
+}
+.pr-tabs ul.pr-tabs__panel li.pr-tabs__tab a {
+  position: relative;
+  padding: 6px 12px;
+  display: inline-flex;
+  color: inherit;
+}
+.pr-tabs ul.pr-tabs__panel li.pr-tabs__tab a.pr-tabs__link--icon-top,
+.pr-tabs ul.pr-tabs__panel li.pr-tabs__tab a.pr-tabs__link--icon-bottom,
+.pr-tabs ul.pr-tabs__panel li.pr-tabs__tab a.pr-tabs__link--icon-top .pr-tabs__icon,
+.pr-tabs ul.pr-tabs__panel li.pr-tabs__tab a.pr-tabs__link--icon-bottom .pr-tabs__icon {
+  display: block;
+}
+.pr-tabs ul.pr-tabs__panel p {
+  margin: 0;
+}
+.pr-tabs ul.pr-tabs__panel .pr-tabs__icon {
+  vertical-align: text-top;
+}
+.pr-tabs ul.pr-tabs__panel .pr-tabs__link--icon-left {
+  display: block;
+  align-items: center;
+}
+.pr-tabs ul.pr-tabs__panel .pr-tabs__link--icon-right {
+  display: block;
+}
+.pr-tabs ul.pr-tabs__panel .pr-tabs__link--icon-left .pr-tabs__icon,
+.pr-tabs ul.pr-tabs__panel .pr-tabs__link--icon-right .pr-tabs__icon {
+  display: flex;
+  align-self: center;
+}
+.pr-tabs .pr-tabs__body {
+  position: relative;
+  max-width: 100%;
+  padding: 10px;
+}
+.pr-tabs .pr-tab {
+  padding: 10px 15px;
+  display: none;
+}
+.pr-tabs .pr-tab.pr-tab--active {
+  display: block;
+}
+
+/* Horizontal layouts (1–5) on desktop. */
+.pr-tabs.pr-tabs--hstyle1-desktop,
+.pr-tabs.pr-tabs--hstyle2-desktop,
+.pr-tabs.pr-tabs--hstyle3-desktop,
+.pr-tabs.pr-tabs--hstyle4-desktop,
+.pr-tabs.pr-tabs--hstyle5-desktop {
+  flex-direction: column;
+}
+.pr-tabs.pr-tabs--hstyle1-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--hstyle2-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--hstyle3-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--hstyle4-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--hstyle5-desktop ul.pr-tabs__panel {
+  margin-bottom: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.pr-tabs.pr-tabs--hstyle1-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--hstyle2-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--hstyle3-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--hstyle4-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--hstyle5-desktop .pr-tabs__body {
+  max-width: 100%;
+}
+.pr-tabs.pr-tabs--hstyle1-desktop .pr-tabs__tab,
+.pr-tabs.pr-tabs--hstyle4-desktop .pr-tabs__tab {
+  margin: 10px 10px 10px 0;
+}
+.pr-tabs.pr-tabs--hstyle2-desktop .pr-tabs__tab {
+  margin: 10px 10px -1px 0;
+}
+.pr-tabs.pr-tabs--hstyle2-desktop .pr-tabs__body {
+  border: none;
+}
+.pr-tabs.pr-tabs--hstyle3-desktop .pr-tabs__tab {
+  margin: 10px 10px 0 0;
+}
+.pr-tabs.pr-tabs--hstyle5-desktop ul.pr-tabs__panel {
+  justify-content: space-between;
+  margin: 0;
+}
+.pr-tabs.pr-tabs--hstyle5-desktop .pr-tabs__tab {
+  margin: 10px;
+  text-align: center;
+}
+
+/* Vertical layouts (6–10) on desktop. */
+.pr-tabs.pr-tabs--vstyle6-desktop,
+.pr-tabs.pr-tabs--vstyle7-desktop,
+.pr-tabs.pr-tabs--vstyle8-desktop,
+.pr-tabs.pr-tabs--vstyle9-desktop,
+.pr-tabs.pr-tabs--vstyle10-desktop {
+  flex-direction: row;
+}
+.pr-tabs.pr-tabs--vstyle6-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--vstyle7-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--vstyle8-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--vstyle9-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--vstyle10-desktop ul.pr-tabs__panel {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  flex-wrap: wrap;
+}
+.pr-tabs.pr-tabs--vstyle6-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--vstyle7-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--vstyle8-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--vstyle9-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--vstyle10-desktop .pr-tabs__body {
+  flex-grow: 3;
+}
+.pr-tabs.pr-tabs--vstyle6-desktop .pr-tabs__link,
+.pr-tabs.pr-tabs--vstyle7-desktop .pr-tabs__link,
+.pr-tabs.pr-tabs--vstyle8-desktop .pr-tabs__link,
+.pr-tabs.pr-tabs--vstyle9-desktop .pr-tabs__link,
+.pr-tabs.pr-tabs--vstyle10-desktop .pr-tabs__link {
+  width: -webkit-fill-available;
+  justify-content: center;
+}
+.pr-tabs.pr-tabs--vstyle6-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--vstyle7-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--vstyle9-desktop ul.pr-tabs__panel,
+.pr-tabs.pr-tabs--vstyle10-desktop ul.pr-tabs__panel {
+  min-width: 24%;
+  max-width: 24%;
+  margin: 0;
+}
+.pr-tabs.pr-tabs--vstyle6-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--vstyle7-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--vstyle8-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--vstyle9-desktop .pr-tabs__body,
+.pr-tabs.pr-tabs--vstyle10-desktop .pr-tabs__body {
+  max-width: 75%;
+}
+.pr-tabs.pr-tabs--vstyle6-desktop .pr-tabs__tab,
+.pr-tabs.pr-tabs--vstyle9-desktop .pr-tabs__tab {
+  margin: 0 10px 10px 0;
+}
+.pr-tabs.pr-tabs--vstyle7-desktop .pr-tabs__tab {
+  margin: 10px 10px 0 0;
+}
+.pr-tabs.pr-tabs--vstyle8-desktop ul.pr-tabs__panel {
+  min-width: 25%;
+  max-width: 25%;
+}
+.pr-tabs.pr-tabs--vstyle10-desktop .pr-tabs__tab {
+  margin: 10px;
+  text-align: center;
+}
+
+@media (max-width: 1023px) {
+  .pr-tabs.pr-tabs--hstyle1-tablet,
+  .pr-tabs.pr-tabs--hstyle2-tablet,
+  .pr-tabs.pr-tabs--hstyle3-tablet,
+  .pr-tabs.pr-tabs--hstyle4-tablet,
+  .pr-tabs.pr-tabs--hstyle5-tablet {
+    flex-direction: column;
+  }
+  .pr-tabs.pr-tabs--hstyle1-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--hstyle2-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--hstyle3-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--hstyle4-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--hstyle5-tablet ul.pr-tabs__panel {
+    margin-bottom: 0;
+    padding: 0;
+    max-width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .pr-tabs.pr-tabs--hstyle1-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle2-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle3-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle4-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle5-tablet .pr-tabs__body {
+    max-width: 100%;
+  }
+  .pr-tabs.pr-tabs--hstyle1-tablet .pr-tabs__tab,
+  .pr-tabs.pr-tabs--hstyle4-tablet .pr-tabs__tab {
+    margin: 10px 10px 10px 0;
+  }
+  .pr-tabs.pr-tabs--hstyle2-tablet .pr-tabs__tab {
+    margin: 10px 10px -1px 0;
+  }
+  .pr-tabs.pr-tabs--hstyle3-tablet .pr-tabs__tab {
+    margin: 10px 10px 0 0;
+  }
+  .pr-tabs.pr-tabs--hstyle5-tablet ul.pr-tabs__panel {
+    justify-content: flex-start;
+    margin: 0;
+  }
+  .pr-tabs.pr-tabs--hstyle5-tablet .pr-tabs__tab {
+    margin: 10px;
+    text-align: center;
+  }
+  .pr-tabs.pr-tabs--vstyle6-tablet,
+  .pr-tabs.pr-tabs--vstyle7-tablet,
+  .pr-tabs.pr-tabs--vstyle8-tablet,
+  .pr-tabs.pr-tabs--vstyle9-tablet,
+  .pr-tabs.pr-tabs--vstyle10-tablet {
+    flex-direction: row;
+  }
+  .pr-tabs.pr-tabs--vstyle6-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle7-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle8-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle9-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle10-tablet ul.pr-tabs__panel {
+    margin-bottom: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+  .pr-tabs.pr-tabs--vstyle6-tablet .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--vstyle7-tablet .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--vstyle8-tablet .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--vstyle9-tablet .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--vstyle10-tablet .pr-tabs__tab p {
+    margin: 0;
+  }
+  .pr-tabs.pr-tabs--vstyle6-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle7-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle8-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle9-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle10-tablet .pr-tabs__body {
+    flex-grow: 3;
+  }
+  .pr-tabs.pr-tabs--vstyle6-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle7-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle9-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle10-tablet ul.pr-tabs__panel {
+    min-width: 24%;
+    max-width: 24%;
+  }
+  .pr-tabs.pr-tabs--vstyle6-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle7-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle9-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle10-tablet .pr-tabs__body {
+    max-width: 75%;
+  }
+  .pr-tabs.pr-tabs--vstyle6-tablet .pr-tabs__tab {
+    margin: 0 10px 10px 0;
+  }
+  .pr-tabs.pr-tabs--vstyle7-tablet ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle10-tablet ul.pr-tabs__panel {
+    margin: 0;
+  }
+  .pr-tabs.pr-tabs--vstyle7-tablet ul.pr-tabs__panel .pr-tabs__tab {
+    margin: 10px 10px 0 0;
+  }
+  .pr-tabs.pr-tabs--vstyle7-tablet .pr-tabs__body {
+    border: none;
+  }
+  .pr-tabs.pr-tabs--vstyle8-tablet ul.pr-tabs__panel {
+    margin-bottom: 0;
+    min-width: 25%;
+    max-width: 25%;
+    justify-content: normal;
+  }
+  .pr-tabs.pr-tabs--vstyle9-tablet ul.pr-tabs__panel {
+    margin-bottom: 0;
+  }
+  .pr-tabs.pr-tabs--vstyle9-tablet ul.pr-tabs__panel .pr-tabs__tab {
+    margin: 0 10px 10px 0;
+  }
+  .pr-tabs.pr-tabs--vstyle10-tablet ul.pr-tabs__panel .pr-tabs__tab {
+    margin: 10px;
+    text-align: center;
+  }
+  /* A full-width desktop row keeps no frame on tablets with an other layout. */
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--hstyle3-tablet,
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--hstyle4-tablet,
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--hstyle3-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--hstyle4-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--vstyle6-tablet,
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--vstyle8-tablet,
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--vstyle9-tablet,
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--vstyle6-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--vstyle8-tablet .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle5-desktop.pr-tabs--vstyle9-tablet .pr-tabs__body {
+    border-style: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .pr-tabs.pr-tabs--hstyle1-mobile,
+  .pr-tabs.pr-tabs--hstyle2-mobile,
+  .pr-tabs.pr-tabs--hstyle3-mobile,
+  .pr-tabs.pr-tabs--hstyle4-mobile,
+  .pr-tabs.pr-tabs--hstyle5-mobile {
+    flex-direction: column;
+    border-style: none;
+  }
+  .pr-tabs.pr-tabs--hstyle1-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--hstyle2-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--hstyle3-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--hstyle4-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--hstyle5-mobile ul.pr-tabs__panel {
+    margin-bottom: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: row;
+    flex-grow: 1;
+    max-width: 100%;
+  }
+  .pr-tabs.pr-tabs--hstyle1-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle2-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle3-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle4-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--hstyle5-mobile .pr-tabs__body {
+    flex-direction: row;
+    max-width: 100%;
+  }
+  .pr-tabs.pr-tabs--vstyle6-mobile,
+  .pr-tabs.pr-tabs--vstyle7-mobile,
+  .pr-tabs.pr-tabs--vstyle8-mobile,
+  .pr-tabs.pr-tabs--vstyle9-mobile,
+  .pr-tabs.pr-tabs--vstyle10-mobile {
+    flex-direction: row;
+    border-style: none;
+  }
+  .pr-tabs.pr-tabs--vstyle6-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle7-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle8-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle9-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle10-mobile ul.pr-tabs__panel {
+    margin-bottom: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-width: 24%;
+    max-width: 24%;
+  }
+  .pr-tabs.pr-tabs--vstyle6-mobile .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--vstyle7-mobile .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--vstyle8-mobile .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--vstyle9-mobile .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--vstyle10-mobile .pr-tabs__tab p {
+    margin: 0;
+  }
+  .pr-tabs.pr-tabs--vstyle6-mobile .pr-tabs__tab .pr-tabs__link,
+  .pr-tabs.pr-tabs--vstyle7-mobile .pr-tabs__tab .pr-tabs__link,
+  .pr-tabs.pr-tabs--vstyle8-mobile .pr-tabs__tab .pr-tabs__link,
+  .pr-tabs.pr-tabs--vstyle9-mobile .pr-tabs__tab .pr-tabs__link,
+  .pr-tabs.pr-tabs--vstyle10-mobile .pr-tabs__tab .pr-tabs__link {
+    width: -webkit-fill-available;
+    justify-content: center;
+  }
+  .pr-tabs.pr-tabs--vstyle6-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle7-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle8-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle9-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--vstyle10-mobile .pr-tabs__body {
+    flex-grow: 3;
+    max-width: 75%;
+  }
+  .pr-tabs.pr-tabs--hstyle1-mobile .pr-tabs__tab,
+  .pr-tabs.pr-tabs--hstyle4-mobile .pr-tabs__tab {
+    margin: 10px 10px 10px 0;
+  }
+  .pr-tabs.pr-tabs--hstyle2-mobile .pr-tabs__tab {
+    margin: 10px 10px -1px 0;
+  }
+  .pr-tabs.pr-tabs--hstyle3-mobile .pr-tabs__tab {
+    margin: 10px 10px 0 0;
+  }
+  .pr-tabs.pr-tabs--hstyle5-mobile ul.pr-tabs__panel {
+    justify-content: flex-start;
+    margin: 0;
+  }
+  .pr-tabs.pr-tabs--hstyle5-mobile .pr-tabs__tab {
+    margin: 10px;
+    text-align: center;
+  }
+  .pr-tabs.pr-tabs--vstyle6-mobile ul.pr-tabs__panel .pr-tabs__tab,
+  .pr-tabs.pr-tabs--vstyle8-mobile ul.pr-tabs__panel .pr-tabs__tab,
+  .pr-tabs.pr-tabs--vstyle9-mobile ul.pr-tabs__panel .pr-tabs__tab {
+    margin: 0 10px 10px 0;
+  }
+  .pr-tabs.pr-tabs--vstyle7-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--vstyle10-mobile ul.pr-tabs__panel {
+    margin: 0;
+  }
+  .pr-tabs.pr-tabs--vstyle7-mobile ul.pr-tabs__panel .pr-tabs__tab {
+    margin: 10px 10px 0 0;
+  }
+  .pr-tabs.pr-tabs--vstyle10-mobile ul.pr-tabs__panel .pr-tabs__tab {
+    margin: 10px;
+    text-align: center;
+  }
+  /* Stacked layouts: the titles above the body, full width. */
+  .pr-tabs.pr-tabs--stack1-mobile,
+  .pr-tabs.pr-tabs--stack2-mobile,
+  .pr-tabs.pr-tabs--stack3-mobile,
+  .pr-tabs.pr-tabs--stack4-mobile {
+    display: block;
+  }
+  .pr-tabs.pr-tabs--stack1-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--stack2-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--stack3-mobile ul.pr-tabs__panel,
+  .pr-tabs.pr-tabs--stack4-mobile ul.pr-tabs__panel {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    flex-grow: unset;
+  }
+  .pr-tabs.pr-tabs--stack1-mobile ul.pr-tabs__panel .pr-tabs__tab,
+  .pr-tabs.pr-tabs--stack2-mobile ul.pr-tabs__panel .pr-tabs__tab,
+  .pr-tabs.pr-tabs--stack3-mobile ul.pr-tabs__panel .pr-tabs__tab,
+  .pr-tabs.pr-tabs--stack4-mobile ul.pr-tabs__panel .pr-tabs__tab {
+    width: 100%;
+    margin: 0 0 10px 0;
+  }
+  .pr-tabs.pr-tabs--stack1-mobile ul.pr-tabs__panel .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--stack2-mobile ul.pr-tabs__panel .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--stack3-mobile ul.pr-tabs__panel .pr-tabs__tab p,
+  .pr-tabs.pr-tabs--stack4-mobile ul.pr-tabs__panel .pr-tabs__tab p {
+    margin: 0;
+  }
+  .pr-tabs.pr-tabs--stack1-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--stack2-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--stack3-mobile .pr-tabs__body,
+  .pr-tabs.pr-tabs--stack4-mobile .pr-tabs__body {
+    max-width: 100%;
+  }
+  .pr-tabs.pr-tabs--stack3-mobile ul.pr-tabs__panel .pr-tabs__tab {
+    padding: 6px 12px;
+  }
+  .pr-tabs.pr-tabs--stack4-mobile {
+    margin: auto;
+  }
+  .pr-tabs.pr-tabs--stack4-mobile ul.pr-tabs__panel .pr-tabs__tab {
+    text-align: center;
+  }
+}

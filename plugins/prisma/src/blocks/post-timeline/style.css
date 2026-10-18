@@ -1,0 +1,234 @@
+/* Post timeline: cards on one or both sides of a connector line. */
+.pr-post-timeline {
+  position: relative;
+}
+.pr-post-timeline__item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+}
+.pr-post-timeline__item:not(:last-child) {
+  margin-bottom: 20px;
+}
+.pr-post-timeline__item a {
+  text-decoration: none;
+}
+.pr-post-timeline__image {
+  position: relative;
+  display: block;
+  max-width: 100%;
+}
+.pr-post-timeline__image img {
+  display: inline-block;
+  box-sizing: content-box;
+  max-width: 100%;
+  height: auto;
+}
+.pr-post-timeline__date {
+  display: block;
+}
+.pr-post-timeline__author {
+  text-transform: capitalize;
+}
+.pr-post-timeline__author-icon svg {
+  width: 1em;
+  height: 1em;
+  margin-right: 4px;
+  fill: currentColor;
+  vertical-align: -0.125em;
+}
+.pr-post-timeline__link {
+  display: inline-block;
+}
+.pr-post-timeline .pr-post-timeline__cta .pr-post-timeline__link.wp-block-button__link {
+  width: auto;
+}
+.pr-post-timeline__heading {
+  word-break: break-word;
+}
+.pr-post-timeline__desc {
+  word-break: break-word;
+}
+
+/* The connector, filled while scrolling. */
+.pr-post-timeline__line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: #eee;
+  transform: translateX(-50%);
+}
+.pr-post-timeline__line-inner {
+  width: 100%;
+  height: 0;
+  background-color: #0693e3;
+}
+.pr-post-timeline__marker {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  align-items: center;
+  min-width: 3em;
+  min-height: 3em;
+  border-radius: 999px;
+  background-color: #eee;
+  line-height: 48px;
+  transition: all 0.2s ease-in-out;
+}
+.pr-post-timeline__icon svg {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+/* The card and its arrow. */
+.pr-post-timeline__card {
+  position: relative;
+  border-radius: 4px;
+  transition: background 0.2s ease-in-out;
+}
+.pr-post-timeline__arrow {
+  position: absolute;
+  top: 0;
+  width: 10px;
+  height: 40px;
+}
+.pr-post-timeline__arrow::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  display: inline;
+  width: 0;
+  height: 0;
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  transform: translateY(-50%);
+  transition: border-color 0.2s ease-in-out;
+}
+.pr-post-timeline__day--right .pr-post-timeline__arrow::after {
+  right: 0;
+  border-left: 13px solid var(--pr-post-timeline-card, #eee);
+}
+.pr-post-timeline__day--left .pr-post-timeline__arrow::after {
+  left: 0;
+  border-right: 13px solid var(--pr-post-timeline-card, #eee);
+}
+.pr-post-timeline--arrow-center .pr-post-timeline__item {
+  align-items: center;
+}
+.pr-post-timeline--arrow-center .pr-post-timeline__arrow {
+  top: 50%;
+  transform: translateY(-50%);
+}
+.pr-post-timeline--arrow-bottom .pr-post-timeline__item {
+  align-items: flex-end;
+}
+.pr-post-timeline--arrow-bottom .pr-post-timeline__arrow {
+  top: 100%;
+  transform: translateY(-100%);
+}
+
+/* Both sides. */
+.pr-post-timeline--center {
+  text-align: center;
+}
+.pr-post-timeline--center .pr-post-timeline__marker {
+  order: 1;
+}
+.pr-post-timeline--center .pr-post-timeline__date--inner {
+  display: none;
+}
+.pr-post-timeline--center .pr-post-timeline__item--right {
+  flex-direction: row-reverse;
+}
+.pr-post-timeline--center .pr-post-timeline__day,
+.pr-post-timeline--center .pr-post-timeline__date--outer {
+  position: relative;
+  display: block;
+  flex: 1 1 50%;
+  max-width: 100%;
+}
+.pr-post-timeline--center .pr-post-timeline__item .pr-post-timeline__day {
+  order: 2;
+}
+.pr-post-timeline--center .pr-post-timeline__item--right .pr-post-timeline__date--outer {
+  display: flex;
+  justify-content: flex-start;
+}
+.pr-post-timeline--center .pr-post-timeline__item--left .pr-post-timeline__date--outer {
+  display: flex;
+  justify-content: flex-end;
+}
+.pr-post-timeline--center .pr-post-timeline__item--right .pr-post-timeline__arrow {
+  right: -10px;
+}
+.pr-post-timeline--center .pr-post-timeline__item--left .pr-post-timeline__arrow {
+  left: -10px;
+}
+.pr-post-timeline--center .pr-post-timeline__line {
+  left: 50%;
+  right: auto;
+}
+
+/* All on the left of the connector... */
+.pr-post-timeline--left {
+  text-align: left;
+}
+.pr-post-timeline--left .pr-post-timeline__date--outer,
+.pr-post-timeline--right .pr-post-timeline__date--outer {
+  display: none;
+}
+.pr-post-timeline--left .pr-post-timeline__line {
+  inset-inline-start: 20px;
+  inset-inline-end: auto;
+}
+.pr-post-timeline--left .pr-post-timeline__marker {
+  order: 0;
+}
+.pr-post-timeline--left .pr-post-timeline__day {
+  position: relative;
+  flex-grow: 1;
+  order: 1;
+  max-width: 100%;
+  margin-left: 14px;
+}
+.pr-post-timeline--left .pr-post-timeline__card {
+  text-align: left;
+}
+.pr-post-timeline--left .pr-post-timeline__item--right .pr-post-timeline__arrow {
+  left: -10px;
+}
+.pr-post-timeline--left .pr-post-timeline__item--left .pr-post-timeline__arrow {
+  left: -12px;
+}
+
+/* ...or on the right. */
+.pr-post-timeline--right .pr-post-timeline__item {
+  flex-direction: row-reverse;
+}
+.pr-post-timeline--right .pr-post-timeline__line {
+  inset-inline-end: 1.5em;
+  transform: translateX(50%);
+}
+.pr-post-timeline--right .pr-post-timeline__day {
+  position: relative;
+  flex-grow: 1;
+  max-width: 100%;
+  margin-right: 14px;
+}
+.pr-post-timeline--right .pr-post-timeline__card {
+  text-align: right;
+}
+.pr-post-timeline--right .pr-post-timeline__item--right .pr-post-timeline__arrow {
+  right: -12px;
+}
+.pr-post-timeline--right .pr-post-timeline__item--left .pr-post-timeline__arrow {
+  right: -10px;
+}
+.pr-post-timeline__empty {
+  margin: 0;
+}

@@ -1,0 +1,99 @@
+.pr-counter .pr-counter__icon,
+.pr-counter .pr-counter__image-wrap {
+  display: inline-block;
+  line-height: 0;
+}
+.pr-counter--number .pr-counter__number {
+  font-size: 52px;
+  color: #3a3a3a;
+}
+.pr-counter--number .pr-counter__icon {
+  margin-bottom: 10px;
+}
+.pr-counter--bars {
+  display: flex;
+  flex-direction: column;
+}
+.pr-counter--bars .pr-counter__bar {
+  width: 100%;
+  background-color: #eaeaea;
+}
+.pr-counter--bars .pr-counter__bar .pr-counter__number {
+  width: 0%;
+  min-height: 5px;
+  text-align: right;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  background: #007cba;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.rtl .pr-counter--bars .pr-counter__bar .pr-counter__number {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+.pr-counter--bars .pr-counter__bar .pr-counter__number > :last-child {
+  margin-right: 5px;
+}
+.pr-counter--bars .pr-counter__title {
+  margin-top: 15px;
+}
+.pr-counter--bars .pr-counter__number {
+  color: #fff;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.pr-counter--circle .pr-counter__circle {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+.pr-counter--circle .pr-counter__circle .pr-counter__icon svg {
+  width: 30px;
+}
+.pr-counter--circle .pr-counter__circle svg {
+  pointer-events: none;
+}
+.pr-counter--circle .pr-counter__circle > svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+.pr-counter--circle .pr-counter__circle > svg circle {
+  stroke: #eaeaea;
+  stroke-width: 1em;
+  fill: rgba(0, 0, 0, 0);
+}
+.pr-counter--circle .pr-counter__circle > svg .pr-counter__progress {
+  stroke: #007cba;
+}
+.pr-counter--circle .pr-counter__circle-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  z-index: 1;
+}
+.pr-counter--circle .pr-counter__number {
+  margin-top: 5px;
+  font-size: 52px;
+  color: #3a3a3a;
+}
+.pr-counter--circle .pr-counter__title {
+  margin-top: 5px;
+}
+.pr-counter__icon svg {
+  width: 30px;
+}
+.pr-counter__title {
+  margin-top: 10px;
+  margin-bottom: 17px;
+  font-size: 16px;
+}

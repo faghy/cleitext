@@ -1,0 +1,187 @@
+/* Post carousel: the posts of .pr-post-grid on a sliding track. */
+.pr-post-grid--carousel {
+  width: 100%;
+}
+.pr-post-grid--slider {
+  padding: 30px;
+}
+.pr-post-carousel__viewport {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.pr-post-carousel__track {
+  display: flex;
+  align-items: flex-start;
+  will-change: transform;
+}
+.pr-post-grid--equal-height .pr-post-carousel__track {
+  align-items: stretch;
+}
+.pr-post-grid--carousel .pr-post {
+  flex: 0 0 auto;
+}
+.pr-post-grid--carousel.pr-post-grid--cols-1 .pr-post {
+  width: 100%;
+}
+.pr-post-grid--carousel.pr-post-grid--cols-2 .pr-post {
+  width: 50%;
+}
+.pr-post-grid--carousel.pr-post-grid--cols-3 .pr-post {
+  width: 33.3333%;
+}
+.pr-post-grid--carousel.pr-post-grid--cols-4 .pr-post {
+  width: 25%;
+}
+.pr-post-grid--carousel.pr-post-grid--cols-5 .pr-post {
+  width: 20%;
+}
+.pr-post-grid--carousel.pr-post-grid--cols-6 .pr-post {
+  width: 16.6666%;
+}
+.pr-post-grid--carousel.pr-post-grid--cols-7 .pr-post {
+  width: 14.2857%;
+}
+.pr-post-grid--carousel.pr-post-grid--cols-8 .pr-post {
+  width: 12.5%;
+}
+
+/* Arrows. */
+.pr-post-carousel__arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: block;
+  padding: 7px;
+  border: 0 solid #aaa;
+  border-radius: 0;
+  background: transparent;
+  color: #aaa;
+  font-size: 0;
+  line-height: 0;
+  cursor: pointer;
+  transform: translate(0, -50%);
+}
+.pr-post-carousel__arrow svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+.pr-post-carousel__arrow[hidden] {
+  display: none;
+}
+.pr-post-grid--arrows-outside .pr-post-carousel__arrow--prev {
+  left: -45px;
+}
+.pr-post-grid--arrows-outside .pr-post-carousel__arrow--next {
+  right: -45px;
+}
+
+/* Dots. */
+.pr-post-carousel__dots {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+}
+.pr-post-carousel__dots li {
+  position: relative;
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+}
+.pr-post-carousel__dot {
+  display: block;
+  width: 20px;
+  height: 20px;
+  padding: 5px;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  font-size: 0;
+  line-height: 0;
+  cursor: pointer;
+}
+.pr-post-carousel__dot::before {
+  content: '•';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  color: #000;
+  font-size: 30px;
+  line-height: 20px;
+  text-align: center;
+  opacity: 0.25;
+}
+.pr-post-carousel__dot.is-active::before {
+  opacity: 0.75;
+}
+
+@media (max-width: 976px) {
+  .pr-post-grid--slider {
+    padding: 0;
+  }
+  .pr-post-grid--arrows-outside .pr-post-carousel__arrow--prev {
+    left: 15px;
+  }
+  .pr-post-grid--arrows-outside .pr-post-carousel__arrow--next {
+    right: 15px;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-tab-1 .pr-post {
+    width: 100%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-tab-2 .pr-post {
+    width: 50%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-tab-3 .pr-post {
+    width: 33.3333%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-tab-4 .pr-post {
+    width: 25%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-tab-5 .pr-post {
+    width: 20%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-tab-6 .pr-post {
+    width: 16.6666%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-tab-7 .pr-post {
+    width: 14.2857%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-tab-8 .pr-post {
+    width: 12.5%;
+  }
+}
+@media (max-width: 767px) {
+  .pr-post-grid--carousel.pr-post-grid--cols-mob-1 .pr-post {
+    width: 100%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-mob-2 .pr-post {
+    width: 50%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-mob-3 .pr-post {
+    width: 33.3333%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-mob-4 .pr-post {
+    width: 25%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-mob-5 .pr-post {
+    width: 20%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-mob-6 .pr-post {
+    width: 16.6666%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-mob-7 .pr-post {
+    width: 14.2857%;
+  }
+  .pr-post-grid--carousel.pr-post-grid--cols-mob-8 .pr-post {
+    width: 12.5%;
+  }
+}

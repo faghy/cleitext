@@ -1,0 +1,112 @@
+/* ---- Table of contents ---------------------------------------------------------------- */
+.pr-toc .pr-toc__wrap {
+  display: inline-block;
+  box-sizing: border-box;
+  max-width: -moz-available;
+  max-width: -webkit-fill-available;
+  max-width: stretch;
+}
+.pr-toc .pr-toc__title {
+  display: flex;
+  align-items: center;
+}
+.pr-toc svg {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-left: 10px;
+  cursor: pointer;
+}
+.pr-toc .pr-toc__list {
+  margin-top: 0;
+}
+.pr-toc ul.pr-toc__list,
+.pr-toc ol.pr-toc__list {
+  list-style-position: inside;
+  margin-bottom: 0;
+  margin-left: 2.2em;
+  padding-left: 0;
+}
+.pr-toc li.pr-toc__item {
+  margin: 0;
+  padding-top: 10px;
+}
+.pr-toc ul li:empty {
+  display: none;
+}
+.pr-toc ol.pr-toc__list > li {
+  list-style-type: disc;
+}
+.pr-toc ol.pr-toc__list ul {
+  list-style-type: circle;
+}
+.pr-toc.pr-toc--collapsed .pr-toc__list-wrap {
+  display: none;
+}
+.pr-toc.pr-toc--collapsible-list ul.pr-toc__list,
+.pr-toc.pr-toc--collapsible-list ol.pr-toc__list {
+  padding-left: 2px;
+}
+.pr-toc ol.pr-toc__list li.pr-toc__item--expandable {
+  list-style-type: none !important;
+}
+.pr-toc ul.pr-toc__list.is-closed {
+  padding-top: 0 !important;
+}
+.pr-toc ul.pr-toc__list.is-hidden {
+  display: none !important;
+}
+.pr-toc .pr-toc__list.is-animated {
+  transition:
+    max-height 300ms ease-in-out,
+    padding-top 300ms ease-in-out;
+}
+.pr-toc__toggle {
+  display: inline-block;
+  margin-left: -0.5px;
+  margin-right: 0.5em;
+  cursor: pointer;
+  outline: none;
+}
+.pr-toc__toggle::before {
+  content: '▼' / '';
+  display: inline-block;
+  transform: scale(0.7) translateX(-50%);
+  transition: transform 0.3s ease;
+}
+.pr-toc__toggle[aria-expanded='false']::before {
+  transform: scale(0.7) rotate(-90deg) translate(-84%, 6%);
+}
+[dir='rtl'] .pr-toc__toggle::before {
+  transform: scale(0.7) translateX(50%);
+}
+[dir='rtl'] .pr-toc__toggle[aria-expanded='false']::before {
+  transform: scale(0.7) rotate(90deg) translate(84%, 6%);
+}
+.pr-toc__toggle:focus-visible {
+  outline: 1px dotted currentColor;
+}
+.pr-toc__scroll-top {
+  position: fixed;
+  right: 50px;
+  bottom: 50px;
+  z-index: 99;
+  display: none;
+  padding: 10px;
+  border: 0;
+  background: #ccd0d4;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1.8571428571;
+}
+.pr-toc__scroll-top svg {
+  display: block;
+  width: 1.6em;
+  height: 0.6em;
+  margin-left: 0;
+  fill: currentColor;
+  transform: translate(0, -20%) rotate(180deg);
+}
+.pr-toc__scroll-top.is-visible {
+  display: inline-table;
+}

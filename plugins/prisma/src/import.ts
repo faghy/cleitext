@@ -138,7 +138,18 @@ export function fromSpectra(
   const a = convertAttrs(attrs);
   switch (name) {
     case 'uagb/container':
-      return [block('container', a, children)];
+      // Old sections and columns inside it are no longer roots.
+      return [
+        block(
+          'container',
+          a,
+          children.map((child) =>
+            child.type === 'prisma/container' && child.attrs.isBlockRootParent
+              ? { ...child, attrs: { ...child.attrs, isBlockRootParent: false } }
+              : child,
+          ),
+        ),
+      ];
     case 'uagb/image': {
       // Texts and the image's own attributes, as saved.
       const caption = inner(html, 'figcaption', 'uagb-image-caption');

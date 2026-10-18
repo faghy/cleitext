@@ -1,0 +1,138 @@
+/* Modal: the trigger in the page, the popup over it (moved to the end of the page when opened). */
+body.pr-modal-open {
+  overflow: hidden;
+}
+.pr-modal {
+  width: 100%;
+}
+.pr-modal__popup {
+  visibility: hidden;
+  position: fixed;
+}
+.pr-modal__popup.is-active {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  visibility: visible;
+}
+.pr-modal__popup .pr-modal__close {
+  display: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+.pr-modal__popup.is-active .pr-modal__close {
+  opacity: 1;
+  display: flex;
+  align-items: center;
+  position: absolute;
+  text-align: center;
+  cursor: pointer;
+  fill: #fff;
+}
+.pr-modal__popup.is-active .pr-modal__close svg {
+  transition-property: filter, transform;
+  transition-duration: 250ms;
+}
+.pr-modal__popup.is-active .pr-modal__close:focus svg {
+  transform: scale(1.2);
+}
+/* Close buttons at the corners of the window. */
+.pr-modal__popup.is-active .pr-modal__close--window-top-left {
+  top: 15px;
+  left: 15px;
+}
+.pr-modal__popup.is-active .pr-modal__close--window-top-right {
+  top: 15px;
+  right: 15px;
+}
+.pr-modal__popup .pr-modal__content {
+  padding: 35px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  height: 100%;
+}
+.pr-modal__popup .pr-modal__wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  width: 700px;
+  height: 450px;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  color: #333;
+  position: relative;
+}
+.pr-modal__popup .pr-modal__wrap .pr-modal__content::-webkit-scrollbar {
+  width: 5px;
+}
+.pr-modal__popup .pr-modal__wrap .pr-modal__content::-webkit-scrollbar-thumb {
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+  border-radius: 100px;
+}
+.pr-modal__popup--effect-default .pr-modal__wrap {
+  opacity: 0;
+}
+.pr-modal__popup--effect-default.is-active .pr-modal__wrap {
+  opacity: 1;
+  transition: all 0.3s;
+}
+.pr-modal a.pr-modal__button {
+  text-decoration: inherit;
+  align-items: center;
+}
+.pr-modal__trigger:not(img) {
+  display: flex;
+}
+.pr-modal__trigger:not(img) svg {
+  font-size: 30px;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  cursor: pointer;
+}
+img.pr-modal__trigger {
+  cursor: pointer;
+  height: auto;
+  max-width: 100%;
+}
+div.pr-modal__button-wrap {
+  line-height: 1;
+}
+div.pr-modal__button-wrap .pr-modal__button.pr-modal__trigger {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+div.pr-modal__button-wrap .pr-modal__button.pr-modal__trigger svg {
+  fill: currentColor;
+  font-style: normal;
+  vertical-align: top;
+  width: 15px;
+  height: 15px;
+  font-size: 15px;
+}
+/* In the editor the popup shows under its trigger, to edit what it holds. */
+.pr-modal__popup.pr-modal__popup--preview {
+  position: relative;
+  z-index: auto !important;
+  margin-top: 16px;
+  padding: 40px 20px;
+}
+.pr-modal__popup--preview .pr-modal__wrap {
+  z-index: auto !important;
+  opacity: 1;
+}
+.pr-modal__popup--preview .pr-modal__close {
+  pointer-events: none;
+}
+.pr-modal__popup--preview .pr-modal__close--window-top-left,
+.pr-modal__popup--preview .pr-modal__close--window-top-right {
+  top: 8px;
+}

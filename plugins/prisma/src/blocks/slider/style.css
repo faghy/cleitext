@@ -1,0 +1,106 @@
+/* ---- Slider --------------------------------------------------------------------------- */
+.pr-slider {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  transition: box-shadow 0.2s ease;
+}
+.pr-slider__viewport {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  margin-left: auto;
+  margin-right: auto;
+}
+.pr-slider__track {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  box-sizing: content-box;
+  transition-property: transform;
+}
+.pr-slider__track > .pr-slide {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
+  transition-property: transform, opacity;
+}
+.pr-slider--fade .pr-slider__track > .pr-slide,
+.pr-slider--flip .pr-slider__track > .pr-slide {
+  backface-visibility: hidden;
+}
+.pr-slider--fade .pr-slider__track > .pr-slide:not(.is-active),
+.pr-slider--flip .pr-slider__track > .pr-slide:not(.is-active) {
+  pointer-events: none;
+}
+.pr-slider--flip .pr-slider__viewport {
+  overflow: visible;
+}
+.pr-slider--flip .pr-slider__track {
+  perspective: 1200px;
+}
+.pr-slider__viewport.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+.pr-slider__arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-style: none;
+  background: #efefef;
+  color: #333;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.pr-slider__arrow svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.pr-slider__arrow:disabled {
+  opacity: 0.35;
+  cursor: auto;
+}
+.pr-slider__dots {
+  position: absolute;
+  left: 0;
+  bottom: 8px;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  line-height: 0;
+  pointer-events: none;
+}
+.pr-slider__dot {
+  width: 8px;
+  height: 8px;
+  margin: 0 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #000;
+  opacity: 0.2;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.pr-slider__dot.is-active {
+  opacity: 1;
+}
+/* In the editor the chosen slide is shown (no script there). */
+.pr-slider--editing .pr-slider__track {
+  transform: translateX(calc(var(--pr-slider-index, 0) * -100%));
+  transition: transform 0.3s ease;
+}

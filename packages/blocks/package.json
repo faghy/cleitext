@@ -19,6 +19,10 @@
     "./transfer": {
       "types": "./dist/transfer.d.ts",
       "default": "./dist/transfer.js"
+    },
+    "./inline": {
+      "types": "./dist/inline-entry.d.ts",
+      "default": "./dist/inline-entry.js"
     }
   },
   "scripts": {

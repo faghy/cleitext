@@ -1,0 +1,15 @@
+.pr-star-rating {
+  display: flex;
+}
+.pr-star-rating .pr-star-rating__title {
+  margin: 0;
+}
+.pr-star-rating .pr-star-rating__stars {
+  display: flex;
+  align-items: center;
+}
+.pr-star-rating .pr-star-rating__star {
+  color: #ccd6df;
+  display: inline-block;
+  line-height: 0.75em;
+}

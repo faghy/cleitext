@@ -9,6 +9,7 @@ import { createElement, type ReactNode } from 'react';
 import { BLOCKS } from './blocks';
 import { blockCss, withDefaults } from './lib/css';
 import { DEFAULT_GLOBALS, normalizeGlobals, variablesCss, type Globals } from './lib/globals';
+import { FORM_SETTINGS, registerFormRoutes } from './blocks/form/route';
 import { fromSpectra } from './import';
 import { extensionProps, googleFontsLink } from './lib/extensions';
 import { setIconData, type IconData } from './lib/icons';
@@ -167,10 +168,13 @@ export default definePlugin({
           max: 400,
           default: DEFAULT_GLOBALS.elementsGap,
         },
+        // Where forms send their messages, and the reCAPTCHA keys.
+        ...FORM_SETTINGS,
       ],
       { title: { en: 'Prisma', it: 'Prisma' } },
     );
     for (const block of BLOCKS) ctx.blocks.register(register(ctx, block));
+    registerFormRoutes(ctx);
     // Pages built with Spectra, on WordPress import (plugin API 1.23).
     ctx.hooks.filter(
       'import.block',

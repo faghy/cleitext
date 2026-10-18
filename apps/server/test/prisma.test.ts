@@ -197,7 +197,7 @@ describe('Prisma blocks', () => {
     expect(html).toContain('alt="One"');
     expect(html).toContain('First');
     expect(html).toContain('class="pr-lightbox"');
-    expect(html).toContain('/plugin-assets/prisma/0.1.4/gallery.js');
+    expect(html).toContain('/plugin-assets/prisma/0.2.0/gallery.js');
   });
 
   it('imports pages built with Spectra as Prisma blocks', async () => {
@@ -288,7 +288,7 @@ describe('Prisma blocks', () => {
       /<div class="pr-buttons__wrap">[\s\S]*?<a class="pr-button__link wp-block-button__link" href="tel:3454674236" rel="noopener"><span class="pr-button__text">Contattaci<\/span><\/a>/,
     );
     expect(html).toContain('data-pr-animation="fade-right"');
-    expect(html).toContain('/plugin-assets/prisma/0.1.4/animations.js');
+    expect(html).toContain('/plugin-assets/prisma/0.2.0/animations.js');
     expect(html).toContain('gap:90px');
     expect(html).toContain('pr-gallery pr-gallery--masonry');
     expect(html).toContain('alt="Pool"');

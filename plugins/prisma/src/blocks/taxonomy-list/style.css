@@ -1,0 +1,24 @@
+/* Taxonomy list: boxes or a list of the terms. */
+.pr-taxonomy-list {
+  margin-bottom: 20px;
+}
+.pr-taxonomy-list__box {
+  box-sizing: border-box;
+}
+.pr-taxonomy-list__link {
+  text-decoration: none;
+}
+.pr-taxonomy-list__link .pr-taxonomy-list__title {
+  margin-top: unset;
+}
+.pr-taxonomy-list--list .pr-taxonomy-list__list {
+  margin-left: 10px;
+}
+.pr-taxonomy-list__children {
+  margin-bottom: 0;
+}
+.pr-taxonomy-list__empty {
+  padding: 10px;
+  border: 1px solid;
+  text-align: center;
+}

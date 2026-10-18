@@ -1,0 +1,119 @@
+/* ---- Team ----------------------------------------------------------------------------- */
+.pr-team {
+  display: flex;
+}
+.pr-team .pr-team__content {
+  width: 100%;
+}
+.pr-team .pr-team__title {
+  display: block;
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+.pr-team .pr-team__image {
+  display: inline;
+  max-width: 100%;
+  width: inherit;
+  box-sizing: content-box;
+  border-radius: inherit;
+}
+.pr-team .pr-team__image--circle {
+  border-radius: 100%;
+}
+.pr-team .pr-team__image--square {
+  border-radius: 0;
+}
+.pr-team .pr-team__social-icon a,
+.pr-team .pr-team__social-icon > span {
+  display: block;
+  width: 20px;
+  height: 20px;
+  color: #333;
+  font-size: 20px;
+}
+.pr-team .pr-team__social-icon {
+  margin-right: 20px;
+  margin-left: 0;
+}
+.pr-team .pr-team__social-list {
+  padding: 0;
+  margin: 0;
+}
+.pr-team.pr-team--image-above.pr-team--align-center,
+.pr-team.pr-team--image-above.pr-team--align-center .pr-team__content {
+  text-align: center;
+}
+.pr-team.pr-team--image-above.pr-team--align-left,
+.pr-team.pr-team--image-above.pr-team--align-left .pr-team__content {
+  text-align: left;
+}
+.pr-team.pr-team--image-above.pr-team--align-right,
+.pr-team.pr-team--image-above.pr-team--align-right .pr-team__content {
+  text-align: right;
+}
+.pr-team.pr-team--image-above ul.pr-team__social-list {
+  display: flex;
+  list-style: none;
+}
+.pr-team.pr-team--image-left ul.pr-team__social-list {
+  display: flex;
+  list-style: none;
+  justify-content: flex-start;
+}
+.pr-team.pr-team--image-left .pr-team__content {
+  text-align: left;
+}
+.pr-team.pr-team--image-left li {
+  margin-right: 5px;
+}
+.pr-team.pr-team--image-right ul.pr-team__social-list {
+  display: flex;
+  list-style: none;
+  justify-content: flex-end;
+}
+.pr-team.pr-team--image-right .pr-team__content {
+  text-align: right;
+}
+.pr-team.pr-team--image-right li {
+  margin-left: 5px;
+}
+@media (max-width: 976px) {
+  .pr-team.pr-team--image-left ul.pr-team__social-list,
+  .pr-team.pr-team--image-right ul.pr-team__social-list {
+    justify-content: center;
+  }
+  .pr-team.pr-team--stack-tablet {
+    text-align: center;
+    display: block;
+  }
+  .pr-team.pr-team--stack-tablet .pr-team__content {
+    text-align: center;
+  }
+  .pr-team.pr-team--stack-tablet .pr-team__image {
+    margin-right: auto !important;
+    margin-left: auto !important;
+  }
+}
+@media (max-width: 767px) {
+  .pr-team.pr-team--image-left ul.pr-team__social-list,
+  .pr-team.pr-team--image-right ul.pr-team__social-list {
+    justify-content: center;
+  }
+  .pr-team.pr-team--stack-mobile {
+    text-align: center;
+    display: block;
+  }
+  .pr-team.pr-team--stack-mobile .pr-team__content {
+    text-align: center;
+  }
+}
+html[dir='rtl'] .pr-team.pr-team--image-above.pr-team--align-left,
+html[dir='rtl'] .pr-team.pr-team--image-above.pr-team--align-left .pr-team__content,
+html[dir='rtl'] .pr-team.pr-team--image-left .pr-team__content {
+  text-align: right;
+}
+html[dir='rtl'] .pr-team.pr-team--image-above.pr-team--align-right,
+html[dir='rtl'] .pr-team.pr-team--image-above.pr-team--align-right .pr-team__content,
+html[dir='rtl'] .pr-team.pr-team--image-right .pr-team__content {
+  text-align: left;
+}

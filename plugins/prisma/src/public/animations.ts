@@ -30,3 +30,6 @@
     observer.observe(item);
   }
 })();
+
+// A module: its functions stay its own.
+export {};

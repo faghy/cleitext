@@ -6,12 +6,15 @@ Its blocks are edited in the block editor with a live preview. The settings are 
 
 ## The blocks
 
-- **Container**: lays out other blocks in a row, a column or a grid, full width or boxed. Backgrounds can be a color, a gradient, an image or a video, with an overlay. It also takes a minimum height, a border, a shadow and shape dividers at the top and bottom (waves, curves, tilts, triangles…). Containers nest inside each other.
-- **Heading**: a heading with a description, a separator and highlighted words, with its typography, colors, text shadow and background.
-- **Image**: an image with a mask (circle, hexagon, blob…), a caption or a heading over it, hover effects and a link.
-- **Info Box**: an icon or image, a prefix, a title, a description, a separator and a call to action (a link or a button).
-- **Buttons**: buttons side by side or stacked, each with its icon, colors and hover colors, border and shadow.
-- **Image Gallery**: images as a grid, a masonry, a carousel or tiles. Captions can show over the image or as a bar, and pagination or "load more" are available. A click can open the images in a lightbox, with thumbnails and a count.
+**Layout and basics.** Container (rows, columns or grids with backgrounds, overlays and shape dividers), Heading, Image (with masks), Image Gallery (grid, masonry, carousel, tiles, lightbox), Info Box, Buttons, Icon, Icon List, Separator.
+
+**Content.** Call to Action, Marketing Button, Blockquote (with a share link), Counter (number, bar or circle), Countdown (to a date, or per visitor), Star Rating, Inline Notice (can be closed), Tabs, FAQ (accordion or grid, with FAQ structured data), Modal (opened by text, icon, image, button or automatically), Slider, Content Timeline, Table of Contents.
+
+**People and business.** Testimonials (columns or carousel), Team, Social Share, Price List, Review (with review structured data), How-To (with HowTo structured data), Google Map, Lottie animation.
+
+**Posts.** Post Grid (also as masonry), Post Carousel, Post Timeline and Taxonomy List, from the site's posts and categories.
+
+**Forms.** A form with name, email, phone, URL, text, select, radio, checkbox, toggle, date, hidden, upload and consent fields. Messages are sent by email to the addresses of the form, with a honeypot, a time check, a rate limit and optional reCAPTCHA v2/v3 against spam.
 
 Every block can also have an **entrance animation**, be **hidden on desktop, tablet or mobile**, and use **Google Fonts**.
 
@@ -20,10 +23,11 @@ Every block can also have an **entrance animation**, be **hidden on desktop, tab
 - the content width of boxed containers;
 - the padding of containers;
 - the gap between elements;
-- CSS variables, such as a color palette the blocks can use with `var(--name)`.
+- CSS variables, such as a color palette the blocks can use with `var(--name)`;
+- the address that receives the forms' messages when a form names none, and the reCAPTCHA keys.
 
 ## WordPress
 
-The WordPress importer turns the Spectra blocks _Container_, _Heading_, _Image_, _Info Box_, _Buttons_ and _Image Gallery_ into these blocks, keeping their settings. Activate this plugin **before** importing.
+The WordPress importer turns the Spectra blocks into these blocks, keeping their settings, including the older Section, Columns and Column layouts (as containers). Activate this plugin **before** importing.
 
-Plugin API 1.23: blocks with their own editor (`blocks`), the stylesheets and scripts of the site (`theme:hooks`), its own settings (`settings:own`) and media (`content:read`).
+Plugin API 1.23: blocks with their own editor (`blocks`), the stylesheets and scripts of the site (`theme:hooks`), its own settings (`settings:own`), posts and media (`content:read`), comment counts (`comments`), the form's address (`routes:public`), its emails (`mail:send`) and the reCAPTCHA check (`network`).

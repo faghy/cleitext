@@ -1,0 +1,350 @@
+/* Posts of the post grid and the post carousel (both .pr-post-grid). */
+.pr-post-grid {
+  position: relative;
+  margin: 0 auto;
+}
+.pr-post-grid .pr-post {
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+.pr-post-grid:not(.pr-post-grid--grid) .pr-post {
+  background-clip: content-box !important;
+}
+.pr-post-grid--grid {
+  display: grid;
+}
+.pr-post-grid--grid .pr-post {
+  height: max-content;
+}
+.pr-post-grid--grid.pr-post-grid--equal-height .pr-post {
+  height: auto;
+}
+@media (max-width: 600px) {
+  .pr-post-grid--grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Image. */
+.pr-post-grid .pr-post__image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+.pr-post-grid--grid.pr-post-grid--image-top .pr-post__ratio {
+  position: relative;
+  display: block;
+  height: 0;
+  overflow: hidden;
+}
+.pr-post-grid--grid.pr-post-grid--image-top .pr-post__ratio--1-1 {
+  padding-bottom: 67%;
+}
+.pr-post-grid--grid.pr-post-grid--image-top .pr-post__ratio--2-3 {
+  padding-bottom: 66%;
+}
+.pr-post-grid--grid.pr-post-grid--image-top .pr-post__ratio--9-16 {
+  padding-bottom: 56.25%;
+}
+.pr-post-grid--grid.pr-post-grid--image-top .pr-post__ratio--1-2 {
+  padding-bottom: 50%;
+}
+.pr-post-grid--grid.pr-post-grid--image-top .pr-post__ratio:not(.pr-post__ratio--inherit) > img {
+  position: absolute;
+  height: 100%;
+  object-fit: cover;
+}
+.pr-post-grid--grid.pr-post-grid--image-top .pr-post__ratio--inherit {
+  height: auto;
+  padding-bottom: 0;
+}
+
+/* Title, meta, taxonomy, excerpt, read more. */
+.pr-post-grid .pr-post__title {
+  margin-top: 0;
+  margin-bottom: 0;
+  word-break: break-word;
+}
+.pr-post-grid .pr-post__title a,
+.pr-post-grid .pr-post__title a:focus,
+.pr-post-grid .pr-post__title a:active {
+  color: inherit;
+  font-size: inherit;
+  box-shadow: none;
+  text-decoration: none;
+  transition: 0.3s ease;
+}
+.pr-post-grid .pr-post__meta,
+.pr-post-grid .pr-post__taxonomy {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 23px;
+  text-transform: capitalize;
+  text-decoration: none;
+}
+.pr-post-grid .pr-post__meta > * {
+  margin-right: 10px;
+}
+.pr-post-grid .pr-post__meta a,
+.pr-post-grid .pr-post__meta a:focus,
+.pr-post-grid .pr-post__meta a:active {
+  color: inherit;
+  font-size: inherit;
+  text-decoration: none;
+}
+.pr-post-grid .pr-post__author,
+.pr-post-grid .pr-post__date,
+.pr-post-grid .pr-post__comments {
+  display: inline-block;
+  word-break: break-all;
+}
+.pr-post-grid .pr-post__author:not(:last-child)::after,
+.pr-post-grid .pr-post__date:not(:last-child)::after,
+.pr-post-grid .pr-post__comments:not(:last-child)::after {
+  content: '·';
+  margin: 0 5px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.pr-post-grid .pr-post__author a {
+  box-shadow: none;
+}
+.pr-post-grid .pr-post__author a:hover {
+  color: inherit;
+  box-shadow: 0 -1px 0 inset;
+}
+.pr-post-grid .pr-post__icon {
+  width: 1em;
+  height: 1em;
+  margin-right: 4px;
+  fill: currentColor;
+  vertical-align: -0.125em;
+}
+.pr-post-grid .pr-post .pr-post__taxonomy {
+  display: inline-block;
+}
+.pr-post-grid .pr-post .pr-post__taxonomy a {
+  color: inherit;
+  text-decoration: none;
+}
+.pr-post-grid .pr-post .pr-post__taxonomy--default {
+  margin: 5px 5px 5px 0;
+}
+.pr-post-grid .pr-post .pr-post__taxonomy--highlighted {
+  margin-right: 5px;
+  margin-bottom: 20px;
+  padding: 6px 8px;
+  border-radius: 2px;
+  background: #444;
+  color: #fff;
+  line-height: 1;
+}
+.pr-post-grid .pr-post .pr-post__taxonomy--highlighted a {
+  color: #fff;
+}
+.pr-post-grid .pr-post__excerpt {
+  word-break: break-word;
+}
+.pr-post-grid .pr-post__excerpt p {
+  color: inherit;
+}
+.pr-post-grid .pr-post p:last-of-type {
+  margin-bottom: 0;
+}
+.pr-post-grid .pr-post__cta {
+  display: inline-block;
+  border: none;
+  background: none;
+}
+.pr-post-grid a {
+  text-decoration: none;
+}
+
+/* Read more buttons in one line at the bottom. */
+.pr-post-grid--grid.pr-post-grid--inline-buttons .pr-post {
+  position: relative;
+}
+.pr-post-grid--grid.pr-post-grid--inline-buttons.pr-post-grid--image-top
+  .pr-post__text:nth-last-child(2) {
+  padding-bottom: 100px;
+}
+.pr-post-grid--grid.pr-post-grid--inline-buttons.pr-post-grid--image-top .pr-post__text:last-child {
+  position: absolute;
+  bottom: 20px;
+}
+.pr-post-grid--grid.pr-post-grid--inline-buttons.pr-post-grid--image-background
+  .pr-post__text:nth-last-child(3) {
+  padding-bottom: 100px;
+}
+.pr-post-grid--grid.pr-post-grid--inline-buttons.pr-post-grid--image-background
+  .pr-post__text:nth-last-child(2) {
+  position: absolute;
+  bottom: 20px;
+}
+
+/* Image behind the post. */
+.pr-post-grid--image-background .pr-post {
+  position: relative;
+  width: 100%;
+}
+.pr-post-grid--image-background .pr-post__text {
+  position: relative;
+  z-index: 10;
+  overflow: hidden;
+  opacity: 1;
+}
+.pr-post-grid--image-background.pr-post-grid--image-on .pr-post__text {
+  color: #fff;
+}
+.pr-post-grid--image-background .pr-post .pr-post__taxonomy {
+  position: relative;
+  z-index: 999;
+}
+.pr-post-grid--image-background .pr-post__image {
+  position: absolute;
+  top: 0;
+  left: var(--pr-post-gap, 0);
+  z-index: 2;
+  width: calc(100% - 2 * var(--pr-post-gap, 0px));
+  height: 100%;
+  overflow: hidden;
+  text-align: center;
+}
+.pr-post-grid--image-background .pr-post__image::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  background-color: hsla(0, 0%, 100%, 0.5);
+}
+.pr-post-grid--image-background .pr-post__image img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: auto;
+  height: auto;
+  min-width: 100%;
+  min-height: 100%;
+  max-width: none;
+  transform: translate(-50%, -50%);
+}
+.pr-post-grid--image-background .pr-post__box-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 11;
+  width: 100%;
+  height: 100%;
+}
+
+/* Masonry: posts in columns. */
+.pr-post-grid--masonry {
+  display: block;
+  column-gap: 0;
+}
+.pr-post-grid--masonry .pr-post {
+  display: inline-block;
+  width: 100%;
+  height: auto;
+  break-inside: avoid;
+}
+.pr-post-grid--masonry.pr-post-grid--cols-1 {
+  column-count: 1;
+}
+.pr-post-grid--masonry.pr-post-grid--cols-2 {
+  column-count: 2;
+}
+.pr-post-grid--masonry.pr-post-grid--cols-3 {
+  column-count: 3;
+}
+.pr-post-grid--masonry.pr-post-grid--cols-4 {
+  column-count: 4;
+}
+.pr-post-grid--masonry.pr-post-grid--cols-5 {
+  column-count: 5;
+}
+.pr-post-grid--masonry.pr-post-grid--cols-6 {
+  column-count: 6;
+}
+.pr-post-grid--masonry.pr-post-grid--cols-7 {
+  column-count: 7;
+}
+.pr-post-grid--masonry.pr-post-grid--cols-8 {
+  column-count: 8;
+}
+@media (max-width: 976px) {
+  .pr-post-grid--masonry.pr-post-grid--cols-tab-1 {
+    column-count: 1;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-tab-2 {
+    column-count: 2;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-tab-3 {
+    column-count: 3;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-tab-4 {
+    column-count: 4;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-tab-5 {
+    column-count: 5;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-tab-6 {
+    column-count: 6;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-tab-7 {
+    column-count: 7;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-tab-8 {
+    column-count: 8;
+  }
+}
+@media (max-width: 767px) {
+  .pr-post-grid--masonry.pr-post-grid--cols-mob-1 {
+    column-count: 1;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-mob-2 {
+    column-count: 2;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-mob-3 {
+    column-count: 3;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-mob-4 {
+    column-count: 4;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-mob-5 {
+    column-count: 5;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-mob-6 {
+    column-count: 6;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-mob-7 {
+    column-count: 7;
+  }
+  .pr-post-grid--masonry.pr-post-grid--cols-mob-8 {
+    column-count: 8;
+  }
+}
+
+/* Page links. */
+.pr-post-grid__pagination {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  width: 100%;
+  column-span: all;
+}
+.pr-post-grid__pagination a.pr-post-grid__page,
+.pr-post-grid__pagination .pr-post-grid__page--current {
+  display: flex;
+  margin: 0 4px 5px 0;
+  padding: 5px 10px;
+}
+.pr-post-grid__empty {
+  grid-column: 1 / -1;
+}

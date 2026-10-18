@@ -1,14 +1,23 @@
 {
   "slug": "prisma",
   "name": "Prisma",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "apiVersion": "^1.23",
-  "description": "Design blocks for the block editor: containers with backgrounds and shape dividers, headings with highlights, images with masks, info boxes, buttons and image galleries with a lightbox, each with responsive settings, entrance animations and visibility by device. Converts Spectra blocks on WordPress import.",
+  "description": "Design blocks for the block editor, with the features of Spectra: containers, headings, images, galleries, info boxes, buttons, icons and lists, call to action, counters, countdowns, tabs, FAQ, sliders, timelines, testimonials, team, reviews, price lists, posts, forms and more, each with responsive settings, entrance animations and visibility by device. Converts Spectra blocks on WordPress import.",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
   "editor": "dist/editor.js",
   "public": "dist/public",
   "editorStyles": ["prisma.css"],
-  "permissions": ["blocks", "theme:hooks", "settings:own", "content:read"]
+  "permissions": [
+    "blocks",
+    "theme:hooks",
+    "settings:own",
+    "content:read",
+    "comments",
+    "routes:public",
+    "mail:send",
+    "network"
+  ]
 }

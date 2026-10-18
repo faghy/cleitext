@@ -1,0 +1,10 @@
+.pr-google-map {
+  display: flex;
+}
+.pr-google-map .pr-google-map__frame {
+  width: 100%;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+}

@@ -5,7 +5,7 @@ import {
   type CxdLink,
   type CxdText,
   type Mark,
-} from './cxd.js';
+} from './marks.js';
 
 /**
  * Conversion between rich-text HTML (as produced by editors) and CXD inline

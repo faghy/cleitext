@@ -1,0 +1,84 @@
+.pr-restaurant-menu {
+  display: grid;
+  position: relative;
+}
+.pr-restaurant-menu--desktop-1 {
+  grid-template-columns: auto;
+}
+.pr-restaurant-menu--desktop-2 {
+  grid-template-columns: auto auto;
+}
+.pr-restaurant-menu--desktop-3 {
+  grid-template-columns: auto auto auto;
+}
+.pr-restaurant-menu--desktop-4 {
+  grid-template-columns: auto auto auto auto;
+}
+@media (max-width: 976px) {
+  .pr-restaurant-menu--tablet-1 {
+    grid-template-columns: auto;
+  }
+  .pr-restaurant-menu--tablet-2 {
+    grid-template-columns: auto auto;
+  }
+  .pr-restaurant-menu--tablet-3 {
+    grid-template-columns: auto auto auto;
+  }
+  .pr-restaurant-menu--tablet-4 {
+    grid-template-columns: auto auto auto auto;
+  }
+}
+@media (max-width: 767px) {
+  .pr-restaurant-menu--mobile-1 {
+    grid-template-columns: auto;
+  }
+  .pr-restaurant-menu--mobile-2 {
+    grid-template-columns: auto auto;
+  }
+  .pr-restaurant-menu--mobile-3 {
+    grid-template-columns: auto auto auto;
+  }
+  .pr-restaurant-menu--mobile-4 {
+    grid-template-columns: auto auto auto auto;
+  }
+}
+.pr-restaurant-menu-item {
+  position: relative;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+.pr-restaurant-menu-item__content {
+  position: relative;
+  display: table;
+  width: 100%;
+  padding: 15px;
+  box-sizing: border-box;
+  border-radius: inherit;
+  text-align: left;
+  word-break: break-word;
+  overflow: hidden;
+}
+.pr-restaurant-menu-item__details {
+  display: table;
+  width: 100%;
+}
+.pr-restaurant-menu-item__title {
+  display: block;
+  margin-top: 0;
+  margin-bottom: 5px;
+  word-break: normal;
+}
+.pr-restaurant-menu-item__price {
+  min-width: fit-content;
+  word-break: normal;
+}
+.pr-restaurant-menu-item__desc {
+  margin-bottom: 15px;
+}
+.pr-restaurant-menu-item__content img {
+  display: inline-block;
+  box-sizing: content-box;
+}
+.pr-restaurant-menu-item__image {
+  height: auto;
+}

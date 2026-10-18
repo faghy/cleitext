@@ -1,0 +1,51 @@
+.pr-inline-notice {
+  width: 100%;
+  position: relative;
+}
+.pr-inline-notice.pr-inline-notice--hidden {
+  display: none;
+}
+.pr-inline-notice--align-left {
+  text-align: left;
+}
+.pr-inline-notice--align-center {
+  text-align: center;
+}
+.pr-inline-notice--align-right {
+  text-align: right;
+}
+.pr-inline-notice .pr-inline-notice__title {
+  margin: 0;
+  width: -moz-available;
+  width: -webkit-fill-available;
+  width: stretch;
+  display: inline-block;
+}
+.pr-inline-notice .pr-inline-notice__text {
+  margin-top: -3px;
+  margin-bottom: 0;
+}
+.pr-inline-notice .pr-inline-notice__text p:last-child {
+  margin-bottom: 0;
+}
+.pr-inline-notice .pr-inline-notice__text p:first-child {
+  margin-top: 0 !important;
+}
+/* The close button, in the title's corner (the left one when the notice is right-aligned). */
+.pr-inline-notice .pr-inline-notice__close {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  cursor: pointer;
+  opacity: 0.8;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  line-height: 0;
+  transition: 0.3s ease;
+}
+.pr-inline-notice--align-right .pr-inline-notice__close {
+  right: auto;
+  left: 13px;
+}
