@@ -1,0 +1,12 @@
+{
+  "slug": "widgets",
+  "name": "Widgets",
+  "version": "1.0.0",
+  "apiVersion": "^1.22",
+  "description": "Blog widgets for pages, sidebars and footers: recent posts (list, grid or magazine, by category or tag), recent comments, a tag cloud, categories with their counts and a search form.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "public": "dist/public",
+  "permissions": ["blocks", "content:read", "comments", "theme:hooks"]
+}
