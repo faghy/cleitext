@@ -1,4 +1,4 @@
-import type { CxdBlock, CxdInline } from '@cleitext/plugin-sdk';
+import type { BlockLoadContext, CxdBlock, CxdInline, PluginContext } from '@cleitext/plugin-sdk';
 import type { ReactNode } from 'react';
 import type { Sheet } from '@cleitext/design';
 import type { Globals } from './globals';
@@ -39,6 +39,11 @@ export interface ViewProps {
   editing: boolean;
   /** The site's defaults (Settings → Prisma). */
   globals: Globals;
+  /**
+   * What the block's `load` read on the site (posts, terms…). In the editor
+   * the block fetches the same through the API and passes it here.
+   */
+  data?: unknown;
   /** Media of the page, by id (site only): addresses and sizes. */
   media?: (id: unknown) => { url: string; width: number | null; height: number | null } | null;
 }
@@ -72,6 +77,11 @@ export interface PrismaBlock {
    * loaded only on pages whose HTML contains `marker`.
    */
   script?: { file: string; marker: string };
+  /**
+   * Data the block shows from the site (posts, terms…), read before the page
+   * is drawn and given to `View` as `data` (permission `content:read`).
+   */
+  load?(attrs: Attrs, context: BlockLoadContext, ctx: PluginContext): Promise<unknown>;
   /** Spectra blocks it replaces on WordPress import, by name (`uagb/review`). */
   spectra?: Record<string, SpectraImporter>;
 }

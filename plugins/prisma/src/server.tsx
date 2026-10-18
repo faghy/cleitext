@@ -52,7 +52,7 @@ async function loadGlobals(ctx: PluginContext, siteId: string): Promise<Globals>
 }
 
 function register(ctx: PluginContext, block: PrismaBlock) {
-  return defineBlock<Attrs, Globals>({
+  return defineBlock<Attrs, { globals: Globals; data: unknown }>({
     type: `prisma/${block.name}`,
     title: block.title,
     description: block.description,
@@ -62,7 +62,10 @@ function register(ctx: PluginContext, block: PrismaBlock) {
     ...(block.container ? { container: true } : {}),
     ...(block.richAttributes?.length ? { richAttributes: block.richAttributes } : {}),
     ...(block.media ? { media: (attrs: Attrs) => block.media!(withDefaults(block, attrs)) } : {}),
-    load: (_attrs, context) => loadGlobals(ctx, context.siteId),
+    load: async (attrs, context) => ({
+      globals: await loadGlobals(ctx, context.siteId),
+      data: block.load ? await block.load(withDefaults(block, attrs), context, ctx) : undefined,
+    }),
     css: ({ attrs, block: cxd, context }) =>
       blockCss(
         block,
@@ -77,7 +80,8 @@ function register(ctx: PluginContext, block: PrismaBlock) {
           attrs={all}
           id={idOf(attrs, cxd.id)}
           editing={false}
-          globals={data ?? DEFAULT_GLOBALS}
+          globals={data?.globals ?? DEFAULT_GLOBALS}
+          data={data?.data}
           text={(name, props) =>
             createElement(safeTag(props.tagName, 'div'), {
               ...(props.className ? { className: props.className } : {}),
