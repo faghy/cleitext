@@ -227,6 +227,47 @@ describe('tables and galleries', () => {
   });
 });
 
+describe('blog widgets', () => {
+  it('turns WordPress latest posts, comments, tag cloud, categories and search into widgets', () => {
+    const { blocks, warnings } = convert(
+      '<!-- wp:latest-posts {"postsToShow":3,"displayPostDate":true,"postLayout":"grid","columns":2,"displayFeaturedImage":true} /-->' +
+        '<!-- wp:latest-comments {"commentsToShow":4,"displayAvatar":false} /-->' +
+        '<!-- wp:tag-cloud {"numberOfTags":20,"showTagCounts":true} /-->' +
+        '<!-- wp:categories {"showPostCounts":true,"showHierarchy":true} /-->' +
+        '<!-- wp:search {"label":"Cerca","buttonText":"Vai","placeholder":"Parole…"} /-->',
+    );
+    expect(blocks.map((b) => [b.type, b.attrs])).toEqual([
+      [
+        'widgets/recent-posts',
+        {
+          title: '-',
+          layout: 'grid',
+          count: 3,
+          columns: 2,
+          orderBy: 'date',
+          image: true,
+          date: true,
+          author: false,
+          excerpt: false,
+          excludeCurrent: false,
+        },
+      ],
+      ['widgets/recent-comments', { title: '-', count: 4, excerpt: true, date: true }],
+      ['widgets/tag-cloud', { title: '-', taxonomy: 'tag', count: 20, counts: true }],
+      [
+        'widgets/categories',
+        { title: '-', taxonomy: 'category', counts: true, hierarchy: true, hideEmpty: true },
+      ],
+      [
+        'widgets/search',
+        { label: 'Cerca', showLabel: true, placeholder: 'Parole…', button: 'Vai' },
+      ],
+    ]);
+    expect(warnings).toHaveLength(5);
+    expect(warnings[0]).toContain('Widgets plugin');
+  });
+});
+
 describe('transfer document', () => {
   it('fills the defaults and refuses invalid records', () => {
     const minimal = {

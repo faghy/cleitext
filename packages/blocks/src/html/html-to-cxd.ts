@@ -200,6 +200,15 @@ function fromWpBlock(
       warn(`Shortcode left as text: ${html.trim().slice(0, 60)}`);
       return [make('core/paragraph', {}, [{ text: html.trim() }])];
     }
+    case 'core/latest-posts':
+    case 'core/latest-comments':
+    case 'core/tag-cloud':
+    case 'core/categories':
+    case 'core/search': {
+      const widget = wpWidget(name, attrs);
+      warn(`Block ${name} became ${widget.type}: it is shown with the Widgets plugin.`);
+      return [widget];
+    }
     default: {
       // Unknown blocks (plugins, themes): keep their text.
       const nested = children();
@@ -500,6 +509,60 @@ function galleryShortcode(text: string, options: ConvertOptions): CxdBlock | nul
     ...make('core/gallery', columns >= 1 && columns <= 8 ? { columns } : {}),
     children: refs.map((ref) => make('core/image', { id: ref, alt: '' })),
   };
+}
+
+/**
+ * WordPress's dynamic blog blocks → the blocks of the Widgets plugin, with
+ * WordPress's defaults (no title, the same things shown).
+ */
+function wpWidget(name: string, a: Record<string, unknown>): CxdBlock {
+  const num = (v: unknown) => (typeof v === 'number' && v > 0 ? { value: v } : null);
+  const taxonomy = (v: unknown, fallback: string) =>
+    v === 'post_tag' ? 'tag' : v === 'category' ? 'category' : fallback;
+  switch (name) {
+    case 'core/latest-posts':
+      return make('widgets/recent-posts', {
+        title: '-',
+        layout: a.postLayout === 'grid' ? 'grid' : 'list',
+        count: num(a.postsToShow)?.value ?? 5,
+        ...(num(a.columns) ? { columns: a.columns } : {}),
+        orderBy: a.orderBy === 'title' ? 'title' : 'date',
+        image: a.displayFeaturedImage === true,
+        date: a.displayPostDate === true,
+        author: a.displayAuthor === true,
+        excerpt: a.displayPostContent === true,
+        excludeCurrent: false,
+      });
+    case 'core/latest-comments':
+      return make('widgets/recent-comments', {
+        title: '-',
+        count: num(a.commentsToShow)?.value ?? 5,
+        excerpt: a.displayExcerpt !== false,
+        date: a.displayDate !== false,
+      });
+    case 'core/tag-cloud':
+      return make('widgets/tag-cloud', {
+        title: '-',
+        taxonomy: taxonomy(a.taxonomy, 'tag'),
+        count: num(a.numberOfTags)?.value ?? 45,
+        counts: a.showTagCounts === true,
+      });
+    case 'core/categories':
+      return make('widgets/categories', {
+        title: '-',
+        taxonomy: taxonomy(a.taxonomy, 'category'),
+        counts: a.showPostCounts === true,
+        hierarchy: a.showHierarchy === true,
+        hideEmpty: a.showEmpty !== true,
+      });
+    default:
+      return make('widgets/search', {
+        label: typeof a.label === 'string' ? a.label : '',
+        showLabel: a.showLabel !== false,
+        placeholder: typeof a.placeholder === 'string' ? a.placeholder : '',
+        button: typeof a.buttonText === 'string' ? a.buttonText : '',
+      });
+  }
 }
 
 function make(type: string, attrs: Record<string, unknown>, content?: CxdInline[]): CxdBlock {
