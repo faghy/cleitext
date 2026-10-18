@@ -209,11 +209,13 @@ function css(a: Attrs, B: string, sheet: Sheet): void {
     });
     emit(sheet, device, `${G}--grid, ${G}--tiled`, { gap: px(g, unit) });
     emit(sheet, device, `${G}--masonry`, { '--pr-gap': px(g, unit) });
+    // As Spectra: half the gap on each side on desktop, the whole gap on tablets and phones.
+    const side = device === 'desktop' ? g / 2 : g;
     emit(sheet, device, `${G}--carousel .pr-gallery__item`, {
-      padding: `0 ${px(g / 2, unit) || '0'}`,
+      padding: `0 ${px(side, unit) || '0'}`,
     });
     emit(sheet, device, `${G}--carousel .pr-gallery__viewport`, {
-      margin: `0 ${px(-g / 2, unit) || '0'}`,
+      margin: `0 ${px(-side, unit) || '0'}`,
     });
     emit(sheet, device, `${B} .pr-gallery__media`, border(a, 'image', device));
     emit(sheet, device, `${B} .pr-gallery__caption`, typography(a, 'caption', device));
