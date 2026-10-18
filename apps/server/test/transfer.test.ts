@@ -255,8 +255,10 @@ describe('WordPress import', () => {
     const old = await visitor.get('/2024/05/a-morning-at-the-harbour');
     expect(old.statusCode).toBe(301);
     expect(old.headers.location).toBe('/2024/a-morning-at-the-harbour');
+    // WordPress's addresses by id, /?p=21, too.
     const byId = await visitor.get('/?p=21');
-    expect(byId.statusCode).toBe(200); // query strings are not part of redirects yet
+    expect(byId.statusCode).toBe(301);
+    expect(byId.headers.location).toBe('/2019/old-classic-post');
   });
 
   it('rebuilds menus with nested items, terms and external links', async () => {
