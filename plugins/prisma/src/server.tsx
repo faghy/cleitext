@@ -192,10 +192,12 @@ export default definePlugin({
           : '') + (variables ? `<style id="pr-variables">${variables}</style>` : '');
       return html.slice(0, at) + head + html.slice(at);
     });
-    ctx.assets.enqueue({
-      file: 'gallery.js',
-      when: ({ html }) => html.includes('data-pr-gallery'),
-    });
+    // Each block's script, only on the pages that show the block.
+    for (const block of BLOCKS) {
+      const script = block.script;
+      if (script)
+        ctx.assets.enqueue({ file: script.file, when: ({ html }) => html.includes(script.marker) });
+    }
     ctx.assets.enqueue({
       file: 'animations.css',
       when: ({ html }) => html.includes('data-pr-animation'),

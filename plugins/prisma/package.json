@@ -6,18 +6,21 @@
   "license": "GPL-2.0-or-later",
   "type": "module",
   "scripts": {
-    "build": "cleitext plugin:build .",
+    "build": "node scripts/css.mjs && cleitext plugin:build .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "icons": "node scripts/icons.mjs"
+    "icons": "node scripts/icons.mjs",
+    "css": "node scripts/css.mjs"
   },
   "devDependencies": {
+    "@cleitext/blocks": "workspace:*",
     "@cleitext/cli": "workspace:*",
     "@cleitext/design": "workspace:*",
     "@cleitext/plugin-sdk": "workspace:*",
     "@fortawesome/fontawesome-free": "^7.3.1",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@wordpress/block-editor": "^18.1.0",
     "@wordpress/blocks": "^16.2.0",
     "@wordpress/components": "^42.0.0",
@@ -28,7 +31,7 @@
     "@wordpress/icons": "^18.0.0",
     "@wordpress/rich-text": "^7.57.0",
     "react": "^19.3.0",
-    "vitest": "^5.0.3",
-    "@cleitext/blocks": "workspace:*"
+    "react-dom": "^19.3.0",
+    "vitest": "^5.0.3"
   }
 }

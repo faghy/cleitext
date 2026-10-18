@@ -1,3 +1,4 @@
+import type { CxdBlock, CxdInline } from '@cleitext/plugin-sdk';
 import type { ReactNode } from 'react';
 import type { Sheet } from '@cleitext/design';
 import type { Globals } from './globals';
@@ -66,4 +67,29 @@ export interface PrismaBlock {
   View(props: ViewProps): ReactNode;
   /** Media ids its attributes use, preloaded on the site. */
   media?(attrs: Attrs): string[];
+  /**
+   * Its script on the site (a file of `src/public`, built to `dist/public`),
+   * loaded only on pages whose HTML contains `marker`.
+   */
+  script?: { file: string; marker: string };
+  /** Spectra blocks it replaces on WordPress import, by name (`uagb/review`). */
+  spectra?: Record<string, SpectraImporter>;
+}
+
+/** A Spectra block → Prisma blocks, on WordPress import. */
+export type SpectraImporter = (attrs: Attrs, source: SpectraSource) => CxdBlock[];
+
+export interface SpectraSource {
+  /** The block's saved HTML. */
+  html: string;
+  /** Its inner blocks, already converted. */
+  children: CxdBlock[];
+  /** A Prisma block (`review` → `prisma/review`); its rich text attributes given as HTML become rich text. */
+  block(name: string, attrs: Attrs, children?: CxdBlock[]): CxdBlock;
+  /** HTML → rich text, with WordPress's typography. */
+  rich(html: string): CxdInline[];
+  /** The inner HTML of the first `<tag class="… className …">`, or ''. */
+  inner(tag: string, className: string): string;
+  /** The same, for any tag. */
+  innerAny(className: string): string;
 }

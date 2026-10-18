@@ -1,6 +1,7 @@
 import { texturizeHtml } from '@cleitext/blocks/html';
 import { htmlToInline, type CxdBlock, type CxdInline } from '@cleitext/plugin-sdk';
-import type { Attrs } from './lib/types';
+import { BLOCKS } from './blocks';
+import type { Attrs, SpectraImporter } from './lib/types';
 
 /**
  * WordPress pages built with Spectra (`uagb/*` blocks) become Prisma blocks
@@ -108,16 +109,14 @@ const rich = (html: string): CxdInline[] => (html ? htmlToInline(texturizeHtml(h
 let counter = 0;
 const newId = () => `p${Date.now().toString(36)}${(counter++).toString(36)}`;
 
-/** Text attributes of each block: plain HTML strings become rich text. */
-const RICH: Record<string, string[]> = {
-  image: ['caption', 'heading'],
-  heading: ['headingTitle', 'headingDesc'],
-  'info-box': ['prefixTitle', 'infoBoxTitle', 'headingDesc', 'ctaText'],
-  button: ['label'],
-};
+/** The blocks' Spectra importers, by Spectra block name. */
+const IMPORTERS = new Map<string, SpectraImporter>(
+  BLOCKS.flatMap((b) => Object.entries(b.spectra ?? {})),
+);
 
 function block(name: string, attrs: Attrs, children?: CxdBlock[]): CxdBlock {
-  for (const key of RICH[name] ?? []) {
+  // Text attributes given as HTML strings become rich text.
+  for (const key of BLOCKS.find((b) => b.name === name)?.richAttributes ?? []) {
     if (typeof attrs[key] === 'string') attrs[key] = rich(attrs[key] as string);
   }
   return {
@@ -206,8 +205,19 @@ export function fromSpectra(
       const label = innerAny(html, 'uagb-button__link');
       return [block('button', { ...a, ...(label ? { label: rich(label) } : {}) })];
     }
-    default:
-      return null;
+    default: {
+      const importer = IMPORTERS.get(name);
+      return importer
+        ? importer(a, {
+            html,
+            children,
+            block,
+            rich,
+            inner: (tag, className) => inner(html, tag, className),
+            innerAny: (className) => innerAny(html, className),
+          })
+        : null;
+    }
   }
 }
 

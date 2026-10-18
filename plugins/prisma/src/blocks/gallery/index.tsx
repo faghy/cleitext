@@ -665,6 +665,7 @@ export const gallery: PrismaBlock = {
   name: 'gallery',
   title: 'Image Gallery',
   description: 'Images in a grid, a masonry, a carousel or tiles, with captions and a lightbox.',
+  script: { file: 'gallery.js', marker: 'data-pr-gallery' },
   keywords: ['gallery', 'images', 'carousel', 'slider', 'masonry', 'lightbox'],
   defaults: DEFAULTS,
   css,

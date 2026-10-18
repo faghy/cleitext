@@ -9,7 +9,8 @@
     "types": ["node"],
     "noEmit": true,
     "declaration": false,
-    "declarationMap": false
+    "declarationMap": false,
+    "resolveJsonModule": true
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }
