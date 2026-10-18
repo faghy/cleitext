@@ -154,6 +154,7 @@ describe('Prisma blocks', () => {
           imageBorderStyle: 'solid',
           imageBorderTopWidth: 2,
           imageBorderColor: '#000000',
+          height: 500,
         },
       },
     ]);
@@ -167,6 +168,8 @@ describe('Prisma blocks', () => {
     expect(html).toContain('mask-image:url("data:image/svg+xml,');
     expect(html).toContain('border-top-width:2px');
     expect(html).toContain('width:600px');
+    // Lazy images keep their attributes' proportions, as with WordPress's sizes="auto".
+    expect(html).toContain('aspect-ratio:600 / 500');
   });
 
   it('draws a gallery carousel with its lightbox and its script', async () => {
@@ -194,7 +197,7 @@ describe('Prisma blocks', () => {
     expect(html).toContain('alt="One"');
     expect(html).toContain('First');
     expect(html).toContain('class="pr-lightbox"');
-    expect(html).toContain('/plugin-assets/prisma/0.1.0/gallery.js');
+    expect(html).toContain('/plugin-assets/prisma/0.1.1/gallery.js');
   });
 
   it('imports pages built with Spectra as Prisma blocks', async () => {
@@ -204,7 +207,8 @@ describe('Prisma blocks', () => {
       '<!-- wp:uagb/image {"block_id":"f61fd18f","url":"https://old.example.com/wp-content/uploads/2025/04/pic.jpg","layout":"overlay","maskShape":"hexagon"} -->',
       '<div class="wp-block-uagb-image uagb-block-f61fd18f"><figure class="wp-block-uagb-image__figure"><img src="https://old.example.com/wp-content/uploads/2025/04/pic.jpg" alt="Rooms"/><div class="wp-block-uagb-image--layout-overlay__color-wrapper"></div><div class="wp-block-uagb-image--layout-overlay__inner center-center"><h2 class="uagb-image-heading">Pernottamento</h2></div></figure></div>',
       '<!-- /wp:uagb/image -->',
-      '<!-- wp:paragraph --><p>Welcome</p><!-- /wp:paragraph -->',
+      '<!-- wp:paragraph {"textColor":"ast-global-color-0"} --><p class="has-ast-global-color-0-color has-text-color">Welcome <a style="color:#4A4A4A;" href="tel:+39">+39</a></p><!-- /wp:paragraph -->',
+      '<!-- wp:html --><iframe src="https://www.google.com/maps/embed?pb=1" width="600" height="450"></iframe><!-- /wp:html -->',
       '<!-- wp:uagb/advanced-heading {"block_id":"54dbe4be","classMigrate":true,"headingAlign":"center","headFontFamily":"Poiret One","headLoadGoogleFonts":true} -->',
       '<div class="wp-block-uagb-advanced-heading uagb-block-54dbe4be"><h2 class="uagb-heading-text">Cocktails <mark class="uagb-highlight">twist</mark></h2></div>',
       '<!-- /wp:uagb/advanced-heading -->',
@@ -256,7 +260,11 @@ describe('Prisma blocks', () => {
     );
     expect(html).toContain('<h2 class="pr-image__heading">Pernottamento</h2>');
     expect(html).toContain('alt="Rooms"');
-    expect(html).toContain('<p>Welcome</p>');
+    // Palette colors, inline link colors and custom HTML (a map) of the core blocks.
+    expect(html).toContain(
+      '<p class="has-ast-global-color-0-color has-text-color">Welcome <a href="tel:+39" style="color:#4A4A4A">+39</a></p>',
+    );
+    expect(html).toContain('<iframe src="https://www.google.com/maps/embed?pb=1"');
     expect(html).toContain('<p>Kept</p>');
     // The overlay of the background, and the mask.
     expect(html).toMatch(
@@ -280,7 +288,7 @@ describe('Prisma blocks', () => {
       /<div class="pr-buttons__wrap">[\s\S]*?<a class="pr-button__link wp-block-button__link" href="tel:3454674236" rel="noopener"><span class="pr-button__text">Contattaci<\/span><\/a>/,
     );
     expect(html).toContain('data-pr-animation="fade-right"');
-    expect(html).toContain('/plugin-assets/prisma/0.1.0/animations.js');
+    expect(html).toContain('/plugin-assets/prisma/0.1.1/animations.js');
     expect(html).toContain('gap:90px');
     expect(html).toContain('pr-gallery pr-gallery--masonry');
     expect(html).toContain('alt="Pool"');

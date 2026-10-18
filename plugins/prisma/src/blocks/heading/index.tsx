@@ -148,14 +148,16 @@ function css(a: Attrs, B: string, sheet: Sheet): void {
     ...(gradient ? { '-webkit-text-fill-color': a.linkHColor } : {}),
   });
   emit(sheet, 'desktop', `${R} .pr-heading__desc`, { color: a.subHeadingColor });
-  emit(sheet, 'desktop', `${R} mark`, {
+  emit(sheet, 'desktop', `${R} mark:not(.has-inline-color)`, {
     background: a.highLightBackground,
     color: a.highLightColor,
     '-webkit-text-fill-color': a.highLightColor,
   });
-  emit(sheet, 'desktop', `${R} mark:hover`, { 'border-color': a.highLightBorderHColor });
+  emit(sheet, 'desktop', `${R} mark:not(.has-inline-color):hover`, {
+    'border-color': a.highLightBorderHColor,
+  });
   for (const selection of ['::-moz-selection', '::selection']) {
-    emit(sheet, 'desktop', `${R} mark${selection}`, {
+    emit(sheet, 'desktop', `${R} mark:not(.has-inline-color)${selection}`, {
       color: a.highLightColor,
       background: a.highLightBackground,
       '-webkit-text-fill-color': a.highLightColor,
@@ -185,7 +187,7 @@ function css(a: Attrs, B: string, sheet: Sheet): void {
         ? { 'margin-bottom': px(a[`headSpace${s}`], device === 'desktop' ? 'px' : a.headSpaceType) }
         : {}),
     });
-    emit(sheet, device, `${R} mark`, {
+    emit(sheet, device, `${R} mark:not(.has-inline-color)`, {
       ...sidesCss(a, 'highLight', 'Padding', device),
       ...border(a, 'highLight', device),
       ...typography(a, 'highLight', device),

@@ -6,6 +6,7 @@ import {
   boxShadow,
   DEVICES,
   emit,
+  numeric,
   px,
   suffix,
   typography,
@@ -200,6 +201,9 @@ function css(a: Attrs, B: string, sheet: Parameters<PrismaBlock['css']>[2]): voi
       'object-fit': a[`objectFit${s}`],
       width: px(width),
       height: customHeight ? px(height) : 'auto',
+      // WordPress gives lazy images `sizes="auto"`, so browsers size them by their width and
+      // height attributes, not by the file: an automatic height keeps the block's proportions.
+      ...(device === 'desktop' ? { 'aspect-ratio': attributeRatio(a) } : {}),
     });
     emit(sheet, device, `${B} .pr-image__figure figcaption`, {
       ...(device === 'desktop' ? { color: a.captionColor } : {}),
@@ -303,6 +307,14 @@ function safeUrl(value: unknown): string {
   return typeof value === 'string' && /^(https?:\/\/|\/(?!\/)|#|mailto:|tel:)/i.test(value.trim())
     ? value.trim()
     : '';
+}
+
+/** `width / height` of the image's attributes, for lazy images (see `css`). */
+function attributeRatio(a: Attrs): string {
+  if (a.disableLazyLoad) return '';
+  const w = numeric(a.width || a.naturalWidth);
+  const h = numeric(a.height || a.naturalHeight);
+  return w && h ? `${w} / ${h}` : '';
 }
 
 function View({ attrs: a, id, text, editing, root }: ViewProps) {
