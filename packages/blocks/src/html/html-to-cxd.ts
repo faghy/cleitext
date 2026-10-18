@@ -129,7 +129,12 @@ function fromWpBlock(
     }
     case 'core/table': {
       const table = parse(html).querySelector('table');
-      return table ? [tableBlock(table, common, parse(html).querySelector('figcaption'))] : [];
+      if (!table) return [];
+      return (
+        layoutTable(table, options, warn) ?? [
+          tableBlock(table, common, parse(html).querySelector('figcaption')),
+        ]
+      );
     }
     case 'core/buttons':
       return [{ ...make('core/buttons', common), children: children() }];
@@ -347,7 +352,7 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
           blocks.push(make('core/separator', {}));
           break;
         case 'TABLE':
-          blocks.push(tableBlock(node, {}, null));
+          blocks.push(...(layoutTable(node, options, warn) ?? [tableBlock(node, {}, null)]));
           break;
         case 'IFRAME': {
           const src = node.getAttribute('src');
@@ -439,6 +444,37 @@ function imageBlock(
 }
 
 /** An HTML table: its head, body and foot rows, cells with their text, spans and alignment. */
+/**
+ * Tables used for layout, with pictures or videos side by side (old
+ * WordPress pages): table cells hold text only, so each row becomes columns
+ * with the cells' content. Null for data tables.
+ */
+function layoutTable(
+  table: HTMLElement,
+  options: ConvertOptions,
+  warn: (m: string) => void,
+): CxdBlock[] | null {
+  if (!table.querySelector('img, iframe, video, figure')) return null;
+  const rows = table
+    .querySelectorAll('tr')
+    // Rows of this table, not of tables inside its cells.
+    .filter((row) => row.closest('table') === table);
+  const blocks: CxdBlock[] = [];
+  for (const row of rows) {
+    const cells = row.childNodes.filter(
+      (c): c is HTMLElement => c instanceof HTMLElement && /^T[HD]$/.test(c.tagName),
+    );
+    const columns = cells.map((cell) => ({
+      ...make('core/column', {}),
+      children: fromClassic(cell.innerHTML, options, warn),
+    }));
+    if (columns.every((c) => c.children.length === 0)) continue;
+    blocks.push({ ...make('core/columns', {}), children: columns });
+  }
+  if (blocks.length > 0) warn('A table with pictures became rows of columns.');
+  return blocks;
+}
+
 function tableBlock(
   table: HTMLElement,
   base: Record<string, unknown>,

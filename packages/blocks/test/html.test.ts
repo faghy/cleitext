@@ -227,6 +227,28 @@ describe('tables and galleries', () => {
   });
 });
 
+describe('layout tables', () => {
+  it('turns tables of pictures side by side into rows of columns', () => {
+    const { blocks, warnings } = convert(
+      '<!-- wp:table --><figure class="wp-block-table"><table><tbody><tr>' +
+        '<td><figure><a href="/a"><img src="https://old.example/a.jpg" alt="A"></a></figure></td>' +
+        '<td><a href="/b"><img src="https://old.example/b.jpg" alt="B"></a><br>Caption B</td>' +
+        '</tr></tbody></table></figure><!-- /wp:table -->' +
+        '<table><tr><td>Plain</td><td>data</td></tr></table>',
+    );
+    expect(types(blocks)).toEqual(['core/columns', 'core/table']);
+    const columns = blocks[0]!.children!;
+    expect(columns.map((c) => c.type)).toEqual(['core/column', 'core/column']);
+    const inside = columns.flatMap((c) => c.children ?? []);
+    expect(inside.filter((b) => b.type === 'core/image').map((b) => b.attrs.alt)).toEqual([
+      'A',
+      'B',
+    ]);
+    expect(JSON.stringify(inside)).toContain('Caption B');
+    expect(warnings).toContain('A table with pictures became rows of columns.');
+  });
+});
+
 describe('blog widgets', () => {
   it('turns WordPress latest posts, comments, tag cloud, categories and search into widgets', () => {
     const { blocks, warnings } = convert(
