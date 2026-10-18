@@ -1,7 +1,7 @@
 {
   "slug": "prisma",
   "name": "Prisma",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "apiVersion": "^1.23",
   "description": "Design blocks for the block editor: containers with backgrounds and shape dividers, headings with highlights, images with masks, info boxes, buttons and image galleries with a lightbox, each with responsive settings, entrance animations and visibility by device. Converts Spectra blocks on WordPress import.",
   "author": "Cleitext",

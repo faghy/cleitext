@@ -1,3 +1,4 @@
+import { texturizeHtml } from '@cleitext/blocks/html';
 import { htmlToInline, type CxdBlock, type CxdInline } from '@cleitext/plugin-sdk';
 import type { Attrs } from './lib/types';
 
@@ -101,7 +102,8 @@ function innerAny(html: string, className: string): string {
 }
 
 /** Rich text from saved HTML, as CXD inline nodes. */
-const rich = (html: string): CxdInline[] => (html ? htmlToInline(html) : []);
+// With WordPress's typography (curly quotes, dashes), as the page showed them.
+const rich = (html: string): CxdInline[] => (html ? htmlToInline(texturizeHtml(html)) : []);
 
 let counter = 0;
 const newId = () => `p${Date.now().toString(36)}${(counter++).toString(36)}`;

@@ -903,6 +903,9 @@ importers:
 
   plugins/prisma:
     devDependencies:
+      '@cleitext/blocks':
+        specifier: workspace:*
+        version: link:../../packages/blocks
       '@cleitext/cli':
         specifier: workspace:*
         version: link:../../packages/cli

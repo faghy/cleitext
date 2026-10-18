@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import { htmlToCxd } from '@cleitext/blocks/html';
+import { htmlToCxd, texturizeHtml, texturizeText } from '@cleitext/blocks/html';
 import { elementorToFresco } from './elementor.js';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
 
@@ -187,8 +187,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     if (!status) continue; // trash, auto-draft, inherit
     const id = Number(text(item['wp:post_id']));
     const entryType = type === 'post' ? 'article' : type === 'page' ? 'page' : (custom as string);
-    const title = decode(text(item.title));
-    const content = text(item['content:encoded']);
+    // WordPress shows titles and content with curly quotes and dashes (wptexturize).
+    const title = texturizeText(decode(text(item.title)));
+    const content = texturizeHtml(text(item['content:encoded']));
     let document = htmlToCxd(content, {
       // Blocks of other plugins (e.g. block libraries) are left to active plugins.
       keepUnknown: true,
@@ -305,7 +306,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       type: entryType,
       locale,
       ...(parent ? { parentRef: `post:${parent}` } : {}),
-      slug: decodeURIComponent(text(item['wp:post_name'])) || title,
+      slug: decodeURIComponent(text(item['wp:post_name'])) || decode(text(item.title)),
       title,
       status,
       authorRef: `user:${text(item['dc:creator'])}`,
@@ -386,7 +387,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         const kind = meta(item, '_menu_item_type');
         const object = meta(item, '_menu_item_object');
         const objectId = Number(meta(item, '_menu_item_object_id') ?? 0);
-        const label = decode(text(item.title)) || null;
+        const label = texturizeText(decode(text(item.title))) || null;
         const children = build(text(item['wp:post_id']));
         const target = meta(item, '_menu_item_target') === '_blank' ? ('_blank' as const) : null;
         if (kind === 'post_type' && entryRefs.has(objectId)) {
