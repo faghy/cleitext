@@ -197,6 +197,10 @@ function GutenbergEditor({
       ).getSelectedBlockClientIds(),
     [],
   );
+  const hasSelection = selectedClientIds.length > 0;
+  useEffect(() => {
+    options.onSelectionChange?.(hasSelection);
+  }, [hasSelection]);
   const saveAsPattern = async () => {
     const editor = select(blockEditorStore) as unknown as {
       getBlocksByClientId(ids: string[]): Block[];

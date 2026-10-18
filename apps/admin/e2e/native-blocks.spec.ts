@@ -73,6 +73,8 @@ test('a block of a plugin is edited with its own editor and published', async ({
   // The plugin's own edit, with the plugin's canvas styles.
   const box = canvas.locator('section.nb-box').first();
   await expect(box).toBeVisible();
+  // Like WordPress, the selected block shows its settings in the sidebar.
+  await expect(page.getByRole('tab', { name: 'Block' })).toHaveAttribute('aria-selected', 'true');
   await expect(box).toHaveCSS('border-top-color', 'rgb(124, 58, 237)');
   // The preview device: the canvas takes the tablet's width, then back.
   await page.getByRole('button', { name: 'Tablet preview' }).click();

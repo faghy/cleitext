@@ -38,6 +38,11 @@ export interface EditorMountOptions {
   hostShortcuts?: HostShortcut[];
   /** Called with the full document after every change. */
   onChange(document: CxdDocument): void;
+  /**
+   * Called when blocks get selected (`true`) or the selection is cleared
+   * (`false`), so the host can show the block's settings, as WordPress does.
+   */
+  onSelectionChange?(selected: boolean): void;
 }
 
 export interface HostShortcut {

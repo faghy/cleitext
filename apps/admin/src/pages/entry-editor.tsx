@@ -158,6 +158,8 @@ function Editor({ initial }: { initial: EntryView }) {
         fieldBlocks: extensions.fieldBlocks,
         styleUrls: extensions.styleUrls,
         hostShortcuts: [{ description: 'Save your changes.', modifier: 'primary', character: 's' }],
+        // Like WordPress: a selected block shows its settings, none shows the page's.
+        onSelectionChange: (selected) => setTab(selected ? 'block' : 'document'),
         onChange: (document) => {
           documentRef.current = document;
           markDirty();
