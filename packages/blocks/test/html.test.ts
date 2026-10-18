@@ -174,6 +174,27 @@ describe('block markup', () => {
   });
 });
 
+describe('colors and custom HTML', () => {
+  it('keeps palette colors as WordPress classes, inline colors and custom HTML', () => {
+    const doc = htmlToCxd(
+      '<!-- wp:paragraph {"textColor":"ast-global-color-0","backgroundColor":"bad slug!","className":"lead"} -->' +
+        '<p class="lead has-ast-global-color-0-color has-text-color">Immerso <a style="color:#4A4A4A;" href="tel:+39">+39</a></p><!-- /wp:paragraph -->' +
+        '<!-- wp:html --><iframe src="https://www.google.com/maps/embed?pb=1" width="600"></iframe><!-- /wp:html -->',
+    );
+    expect(doc.blocks[0]!.attrs.className).toBe('lead has-ast-global-color-0-color has-text-color');
+    expect(doc.blocks[0]!.content).toEqual([
+      { text: 'Immerso ' },
+      { type: 'link', href: 'tel:+39', color: '#4A4A4A', children: [{ text: '+39' }] },
+    ]);
+    expect(doc.blocks[1]).toMatchObject({
+      type: 'core/html',
+      attrs: {
+        content: '<iframe src="https://www.google.com/maps/embed?pb=1" width="600"></iframe>',
+      },
+    });
+  });
+});
+
 describe('tables and galleries', () => {
   it('keeps WordPress tables, with head, formatted cells, alignment, spans and caption', () => {
     const { blocks } = convert(

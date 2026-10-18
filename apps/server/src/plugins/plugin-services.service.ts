@@ -1,3 +1,4 @@
+import type { CxdDocument } from '@cleitext/blocks';
 import {
   apiTokens,
   auditLog,
@@ -71,6 +72,8 @@ import { MediaService } from '../media/media.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { isPublished, isTypeAvailable, loadSiteData } from '../public/site-data.js';
 import { importDocument } from '../transfer/importer.js';
+import { blockRegistry } from '../content/block-registry.js';
+import { sanitizeDocument } from '../content/html-sanitize.js';
 import { transferDocumentSchema } from '../transfer/model.js';
 import type { PluginServices } from './plugin-context.js';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
@@ -605,9 +608,8 @@ export class PluginServicesProvider implements PluginServices {
     input: unknown,
     options: DocumentImportOptions,
   ): Promise<ImportReport> {
-    if (!(await this.identity.load(siteId, options.userId, ''))) {
-      throw new ForbiddenException('This user cannot import into the site.');
-    }
+    const auth = await this.identity.load(siteId, options.userId, '');
+    if (!auth) throw new ForbiddenException('This user cannot import into the site.');
     const parsed = transferDocumentSchema.safeParse(input);
     if (!parsed.success) {
       throw new BadRequestException(
@@ -632,6 +634,13 @@ export class PluginServicesProvider implements PluginServices {
         this.host.applyFilter('import.block', null, { siteId, ...block }, siteId),
       siteId,
       asUserId: options.userId,
+      // As when saving from the editor: raw HTML only for those who may publish it.
+      ...(auth.capabilities.includes('unfiltered_html')
+        ? {}
+        : {
+            sanitize: (document: CxdDocument) =>
+              sanitizeDocument(document, (type) => blockRegistry.get(type)?.htmlAttributes),
+          }),
       media: this.media,
       cache: this.cache,
       readFile: async (file) => {

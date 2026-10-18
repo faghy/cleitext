@@ -75,6 +75,11 @@ export interface ImportOptions {
     html: string;
     children: CxdBlock[];
   }): Promise<CxdBlock[] | null>;
+  /**
+   * Cleans each document before it is written (raw HTML of users without
+   * `unfiltered_html`), after the blocks of other plugins were converted.
+   */
+  sanitize?(document: CxdDocument): CxdDocument;
 }
 
 interface MediaTarget {
@@ -105,6 +110,9 @@ export async function importDocument(
   const { db, siteId } = options;
   const progress = options.onProgress ?? (() => {});
   await resolveImportedBlocks(doc.entries, options, report);
+  if (options.sanitize) {
+    for (const entry of doc.entries) entry.document = options.sanitize(entry.document);
+  }
   const run = <T>(fn: (tx: SiteTransaction) => Promise<T>) =>
     withContext(db, { siteId, userId: options.asUserId }, fn);
 

@@ -52,7 +52,7 @@ function fromWpBlock(
   const attrs = block.attrs ?? {};
   const html = block.innerHTML ?? '';
   const children = () => block.innerBlocks.flatMap((b) => fromWpBlock(b, options, warn));
-  const common = pick(attrs, ['anchor', 'className', 'align']);
+  const common = withPaletteClasses(pick(attrs, ['anchor', 'className', 'align']), attrs);
   if (!name) return html.trim() ? fromClassic(html, options, warn) : [];
 
   switch (name) {
@@ -194,6 +194,9 @@ function fromWpBlock(
       const code = root.querySelector('pre') ?? root.querySelector('code') ?? root;
       return [make('core/code', common, [{ text: preText(code.innerHTML) }])];
     }
+    case 'core/html':
+      // Kept as it is (maps, forms, widgets of other services): sanitized when shown.
+      return html.trim() ? [make('core/html', { content: html.trim() })] : [];
     case 'core/more':
     case 'core/nextpage':
       return [];
@@ -249,6 +252,29 @@ function fromWpBlock(
       return text ? fromClassic(html, options, () => {}) : [];
     }
   }
+}
+
+/**
+ * Colors picked from the theme's palette, kept as WordPress's classes
+ * (`has-<slug>-color`), which the theme's stylesheet colors.
+ */
+function withPaletteClasses(
+  common: Record<string, unknown>,
+  attrs: Record<string, unknown>,
+): Record<string, unknown> {
+  const slug = (value: unknown) =>
+    typeof value === 'string' && /^[a-z0-9-]{1,60}$/.test(value) ? value : null;
+  const text = slug(attrs.textColor);
+  const background = slug(attrs.backgroundColor);
+  const gradient = slug(attrs.gradient);
+  const classes = [
+    ...(typeof common.className === 'string' ? common.className.split(/\s+/) : []),
+    ...(text ? [`has-${text}-color`, 'has-text-color'] : []),
+    ...(background ? [`has-${background}-background-color`, 'has-background'] : []),
+    ...(gradient ? [`has-${gradient}-gradient-background`, 'has-background'] : []),
+  ].filter(Boolean);
+  const unique = [...new Set(classes)].join(' ');
+  return unique ? { ...common, className: unique } : common;
 }
 
 // ---- Classic content -------------------------------------------------------------------
