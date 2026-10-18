@@ -248,7 +248,7 @@ export async function importDocument(
 
   // ---- Media -----------------------------------------------------------------------
   const mediaTargets = new Map<string, MediaTarget>();
-  const urlMap = new Map<string, string>();
+  const urlMap = new Map<string, MediaTarget>();
   const auth = importAuth(options.asUserId);
   for (const [index, item] of doc.media.entries()) {
     if (index % 25 === 0) progress(`Media ${index + 1}/${doc.media.length}`);
@@ -267,7 +267,11 @@ export async function importDocument(
         });
       }
       mediaTargets.set(item.ref, { id: view.id, url: view.url });
-      for (const url of item.urls ?? []) urlMap.set(url, view.url);
+      for (const url of item.urls ?? []) {
+        urlMap.set(url, { id: view.id, url: view.url });
+        // WordPress's resized copies and scaled originals point to it too.
+        urlMap.set(mediaUrlKey(url), { id: view.id, url: view.url });
+      }
       count(report, 'media');
     } catch (error) {
       report.errors.push(`Media "${item.filename}" not imported: ${message(error)}`);
@@ -397,7 +401,7 @@ export async function importDocument(
             kind,
             entryId: kind === 'entry' ? entry!.id : null,
             termId: kind === 'term' ? term! : null,
-            url: kind === 'url' ? (urlMap.get(item.url!) ?? item.url!) : null,
+            url: kind === 'url' ? (urlMap.get(item.url!)?.url ?? item.url!) : null,
             label: item.label?.trim() || (kind === 'url' || kind === 'custom' ? 'Link' : null),
             target: item.target ?? null,
           });
@@ -582,7 +586,7 @@ async function insertEntry(
     parent: string | undefined;
     terms: Map<string, string>;
     media: Map<string, MediaTarget>;
-    urls: Map<string, string>;
+    urls: Map<string, MediaTarget>;
     report: ImportReport;
   },
 ): Promise<{ id: string }> {
@@ -690,7 +694,7 @@ async function insertEntry(
 function remapMedia(
   document: CxdDocument,
   media: Map<string, MediaTarget>,
-  urls: Map<string, string>,
+  urls: Map<string, MediaTarget>,
   report: ImportReport,
   title: string,
 ): CxdDocument {
@@ -702,9 +706,7 @@ function remapMedia(
           (typeof attrs.id === 'string' || typeof attrs.id === 'number'
             ? media.get(String(attrs.id))
             : undefined) ??
-          (typeof attrs.url === 'string' && urls.has(attrs.url)
-            ? { id: undefined, url: urls.get(attrs.url)! }
-            : undefined);
+          (typeof attrs.url === 'string' ? mediaByUrl(urls, attrs.url) : undefined);
         if (target) {
           attrs = { ...attrs, url: target.url, ...(target.id ? { id: target.id } : {}) };
           if (!target.id) delete attrs.id;
@@ -731,7 +733,7 @@ function remapMedia(
 function remapMediaValues(
   value: unknown,
   media: Map<string, MediaTarget>,
-  urls: Map<string, string>,
+  urls: Map<string, MediaTarget>,
 ): unknown {
   if (Array.isArray(value)) return value.map((v) => remapMediaValues(v, media, urls));
   if (!value || typeof value !== 'object') return value;
@@ -743,14 +745,30 @@ function remapMediaValues(
       typeof object.id === 'string' || typeof object.id === 'number'
         ? media.get(String(object.id))
         : undefined;
-    if (target) {
-      out.url = target.url;
-      out.id = target.id ?? null;
-    } else if (typeof object.url === 'string' && urls.has(object.url)) {
-      out.url = urls.get(object.url);
+    const found =
+      target ?? (typeof object.url === 'string' ? mediaByUrl(urls, object.url) : undefined);
+    if (found) {
+      out.url = found.url;
+      out.id = found.id ?? null;
     }
   }
   return out;
+}
+
+/**
+ * The address of a media file without what WordPress adds to its copies:
+ * the size of a resized copy (`photo-1024x768.webp`), `-scaled`, the query.
+ */
+function mediaUrlKey(url: string): string {
+  return url
+    .replace(/[?#].*$/, '')
+    .replace(/^https?:\/\/[^/]+/i, '')
+    .replace(/-(?:\d+x\d+|scaled)(\.[a-z0-9]+)$/i, '$1');
+}
+
+/** An imported media file by an old address, or by the address of one of its copies. */
+function mediaByUrl(urls: Map<string, MediaTarget>, url: string): MediaTarget | undefined {
+  return urls.get(url) ?? urls.get(mediaUrlKey(url));
 }
 
 // ---- Helpers --------------------------------------------------------------------------

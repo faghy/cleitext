@@ -210,6 +210,14 @@ describe('WordPress import', () => {
                     images: [{ id: 'att:10', url: oldUrl, alt: 'Boats' }],
                     background: { id: null, url: oldUrl },
                     unknown: { id: 'att:99', url: 'https://elsewhere.test/x.jpg' },
+                    // WordPress ids and resized or scaled copies: found by address.
+                    resized: {
+                      id: 10,
+                      url: 'https://old.example.com/wp-content/uploads/2024/05/harbour-1024x768.jpg',
+                    },
+                    scaled: {
+                      url: 'https://old.example.com/wp-content/uploads/2024/05/harbour-scaled.jpg',
+                    },
                   },
                 },
               ],
@@ -240,6 +248,9 @@ describe('WordPress import', () => {
     expect(image.url).toContain(`/media/${site.id}/`);
     expect(attrs.background!.url).toContain(`/media/${site.id}/`);
     expect(attrs.unknown!.url).toBe('https://elsewhere.test/x.jpg');
+    expect(attrs.resized!.url).toBe(image.url);
+    expect(attrs.resized!.id).toBe(image.id);
+    expect(attrs.scaled!.url).toBe(image.url);
   });
 
   it('keeps hierarchy, dates, drafts and the featured image', async () => {
