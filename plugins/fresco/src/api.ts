@@ -73,6 +73,23 @@ export function createApi() {
 export type FrescoApi = ReturnType<typeof createApi> & {
   /** Server only: the plugin block of an element, for `ctx.blocks.register`. */
   blockFor?: unknown;
+  /**
+   * Admin only: the editor's parts, for other editors over Fresco's elements
+   * (`ControlField` with a `ControlEnv`, the pickers, the editor’s CSS).
+   */
+  ui?: {
+    ControlField: unknown;
+    ColorPicker: unknown;
+    MediaPicker: unknown;
+    Svg: unknown;
+    EDITOR_CSS: string;
+    normalizeKit: unknown;
+    /** Block editor documents to Fresco elements and back. */
+    fromBlocks: unknown;
+    toBlocks: unknown;
+    /** Loads the icons of the icon picker (once). */
+    loadIcons: () => Promise<void>;
+  };
 };
 
 const KEY = Symbol.for('cleitext.fresco');
