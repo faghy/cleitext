@@ -1,8 +1,15 @@
 /** Content types and taxonomies from the admin, permalink settings (RF-CNT-02, RF-TAX-02, RF-SET-03). */
-import type { DatabaseClient } from '@cleitext/db';
+import { redirects, withContext, type DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
+import {
+  ownerDatabase,
+  seedSite,
+  seedUser,
+  startTestApp,
+  TestClient,
+  type SeededSite,
+} from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
 
@@ -11,11 +18,12 @@ let owner: DatabaseClient;
 let admin: TestClient;
 let editor: TestClient;
 let visitor: TestClient;
+let site: SeededSite;
 
 beforeAll(async () => {
   app = await startTestApp();
   owner = ownerDatabase();
-  const site = await seedSite(owner, 'structure');
+  site = await seedSite(owner, 'structure');
   await seedUser(owner, {
     email: 'admin@structure.test',
     password: PASSWORD,
@@ -274,6 +282,28 @@ describe('taxonomies from the admin', () => {
     const older = await visitor.get('/category/copywriting/storytelling');
     expect([older.statusCode, older.headers.location]).toEqual([301, '/copywriting/storytelling']);
     await admin.request('PATCH', '/api/v1/taxonomies/category', { base: null });
+  });
+
+  it('heals redirects saved when subcategories had no parent in their address', async () => {
+    const parent = (
+      await admin.post('/api/v1/taxonomies/category/terms', { name: 'Loops' })
+    ).json();
+    await admin.post('/api/v1/taxonomies/category/terms', { name: 'Spiral', parentId: parent.id });
+    // As 0.31 left them: the address with the parent pointing to the one without.
+    await withContext(owner.db, { siteId: site.id }, (tx) =>
+      tx.insert(redirects).values([
+        { siteId: site.id, fromPath: '/category/loops/spiral', toPath: '/category/spiral' },
+        { siteId: site.id, fromPath: '/old/spiral', toPath: '/category/spiral' },
+      ]),
+    );
+    const first = await visitor.get('/category/loops/spiral');
+    expect([first.statusCode, first.headers.location]).toEqual([301, '/category/spiral']);
+    const back = await visitor.get('/category/spiral');
+    expect([back.statusCode, back.headers.location]).toEqual([301, '/category/loops/spiral']);
+    // No loop, and no chain.
+    expect((await visitor.get('/category/loops/spiral')).statusCode).toBe(200);
+    const old = await visitor.get('/old/spiral');
+    expect([old.statusCode, old.headers.location]).toEqual([301, '/category/loops/spiral']);
   });
 
   it('updates the types it applies to, and deletes it when empty', async () => {

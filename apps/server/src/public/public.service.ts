@@ -1114,7 +1114,15 @@ export class PublicService {
       if (!found) continue;
       const canonical = scope.data.urls.term(taxonomy, slug, scope.locale);
       if (`${canonical}${suffix}` !== scope.path && found.status === 200) {
-        return { status: 301, redirect: `${canonical}${suffix}`, tags: [] };
+        const target = `${canonical}${suffix}`;
+        // Redirects saved when terms lived elsewhere (0.31: /parent/child → /child)
+        // would loop with this one, or chain to it: they go.
+        await scope.tx.delete(redirects).where(eq(redirects.fromPath, target));
+        await scope.tx
+          .update(redirects)
+          .set({ toPath: target })
+          .where(eq(redirects.toPath, scope.path));
+        return { status: 301, redirect: target, tags: [] };
       }
       return found;
     }
