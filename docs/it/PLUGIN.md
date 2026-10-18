@@ -833,7 +833,7 @@ Usati dai campi dei tipi di contenuto, dai gruppi di campi, dagli attributi dei 
 | `datetime` | ISO 8601            | `default`                                                                                                                   |
 | `select`   | stringa             | `options: [{ value, label }]`, `default`                                                                                    |
 | `media`    | id del media (uuid) | un'immagine della libreria media                                                                                            |
-| `color`    | `#rrggbb`           | `alpha` (anche `#rrggbbaa`), `default`                                                                                        |
+| `color`    | `#rrggbb`           | `alpha` (anche `#rrggbbaa`), `default`                                                                                      |
 | `choice`   | stringa             | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                                          |
 | `code`     | stringa             | `language: 'css'`, `default`. Fino a 100.000 caratteri, mai `</style`                                                       |
 | `list`     | array di oggetti    | `fields` (ogni tipo tranne `list`), `itemLabel` (il campo che dà il nome a un elemento), `max` (predefinito 200), `default` |
