@@ -190,6 +190,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     const title = decode(text(item.title));
     const content = text(item['content:encoded']);
     let document = htmlToCxd(content, {
+      // Blocks of other plugins (e.g. block libraries) are left to active plugins.
+      keepUnknown: true,
       mediaRef: (attachment) => attachmentRefs.get(attachment),
       warn: (message) => warnings.push(`${title || `#${id}`}: ${message}`),
     });

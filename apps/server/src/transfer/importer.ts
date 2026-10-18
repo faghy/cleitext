@@ -1,6 +1,7 @@
 import { newCommentStatus } from '../community/defaults.js';
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import { documentText } from '@cleitext/blocks';
+import { IMPORTED_BLOCK } from '@cleitext/blocks/html';
 import { isIP } from 'node:net';
 import {
   comments,
@@ -63,6 +64,17 @@ export interface ImportOptions {
    */
   onLanguagesPending?(): Promise<void>;
   onProgress?(message: string): void;
+  /**
+   * Blocks of other WordPress plugins (`core/imported` placeholders): their
+   * replacement by an active plugin (the `import.block` filter), or null to
+   * keep their content.
+   */
+  importBlock?(block: {
+    name: string;
+    attrs: Record<string, unknown>;
+    html: string;
+    children: CxdBlock[];
+  }): Promise<CxdBlock[] | null>;
 }
 
 interface MediaTarget {
@@ -92,6 +104,7 @@ export async function importDocument(
   const doc = parsed.data;
   const { db, siteId } = options;
   const progress = options.onProgress ?? (() => {});
+  await resolveImportedBlocks(doc.entries, options, report);
   const run = <T>(fn: (tx: SiteTransaction) => Promise<T>) =>
     withContext(db, { siteId, userId: options.asUserId }, fn);
 
@@ -813,4 +826,56 @@ export async function importUser(db: Database, email?: string): Promise<string> 
     );
   }
   return user.id;
+}
+
+/**
+ * Blocks of other WordPress plugins, kept as `core/imported` placeholders by
+ * the conversion: replaced by an active plugin's blocks (inner blocks first),
+ * or by their content, with a warning for each kind left.
+ */
+async function resolveImportedBlocks(
+  entries: { document: CxdDocument }[],
+  options: Pick<ImportOptions, 'importBlock'>,
+  report: ImportReport,
+): Promise<void> {
+  const left = new Map<string, number>();
+  const resolve = async (blocks: CxdBlock[]): Promise<CxdBlock[]> => {
+    const out: CxdBlock[] = [];
+    for (const block of blocks) {
+      const children = block.children ? await resolve(block.children) : undefined;
+      if (block.type !== IMPORTED_BLOCK) {
+        out.push(children ? { ...block, children } : block);
+        continue;
+      }
+      const { name, attrs, html, fallback } = block.attrs as {
+        name?: string;
+        attrs?: Record<string, unknown>;
+        html?: string;
+        fallback?: CxdBlock[];
+      };
+      const converted = options.importBlock
+        ? await options.importBlock({
+            name: String(name ?? ''),
+            attrs: attrs ?? {},
+            html: html ?? '',
+            children: children ?? [],
+          })
+        : null;
+      if (converted) {
+        out.push(...converted);
+        continue;
+      }
+      left.set(String(name), (left.get(String(name)) ?? 0) + 1);
+      out.push(...(children?.length ? children : (fallback ?? [])));
+    }
+    return out;
+  };
+  for (const entry of entries) {
+    entry.document = { ...entry.document, blocks: await resolve(entry.document.blocks) };
+  }
+  for (const [name, count] of left) {
+    report.warnings.push(
+      `Block ${name} has no equivalent (${count}×): its content was kept. A plugin may add it.`,
+    );
+  }
 }

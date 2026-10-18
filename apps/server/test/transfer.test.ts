@@ -149,6 +149,8 @@ describe('WordPress import', () => {
     expect(warnings).not.toContain('shortcodes');
     expect(warnings).not.toContain('table');
     expect(warnings).toContain('without a password');
+    // A block of another plugin: no active plugin takes it, its text stays.
+    expect(warnings).toContain('Block some-plugin/map has no equivalent (1×)');
   });
 
   it('converts block content and points images to the imported media', async () => {

@@ -15,7 +15,17 @@ export interface ConvertOptions {
   mediaRef?(attachmentId: number): string | undefined;
   /** Collects what could not be converted exactly. */
   warn?(message: string): void;
+  /**
+   * Keep blocks without an equivalent as `core/imported` placeholders, with
+   * their name, attributes, HTML, converted inner blocks (`children`) and
+   * text (`attrs.fallback`): the import turns them into plugin blocks (the
+   * `import.block` filter, plugin API 1.23) or into that text.
+   */
+  keepUnknown?: boolean;
 }
+
+/** Placeholder of a WordPress block without an equivalent, during an import. */
+export const IMPORTED_BLOCK = 'core/imported';
 
 /**
  * WordPress post content → CXD (RF-IMP-01). Block markup (`<!-- wp:… -->`)
@@ -217,6 +227,20 @@ function fromWpBlock(
     default: {
       // Unknown blocks (plugins, themes): keep their text.
       const nested = children();
+      if (options.keepUnknown) {
+        const text = parse(html).textContent.trim();
+        return [
+          {
+            ...make(IMPORTED_BLOCK, {
+              name,
+              attrs,
+              html,
+              fallback: nested.length || !text ? [] : fromClassic(html, options, () => {}),
+            }),
+            children: nested,
+          },
+        ];
+      }
       const text = parse(html).textContent.trim();
       warn(
         `Block ${name} has no equivalent: ${nested.length ? 'its content' : 'its text'} was kept.`,

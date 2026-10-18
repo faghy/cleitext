@@ -120,4 +120,57 @@ describe('blocks with their own editor', () => {
     });
     expect(huge.statusCode).toBe(400);
   });
+
+  it('turns blocks of other WordPress plugins into its own on import', async () => {
+    const imported = (type: string, attrs: Record<string, unknown>, children: unknown[] = []) => ({
+      id: `i${Math.random().toString(36).slice(2, 8)}`,
+      type: 'core/imported',
+      v: 1,
+      attrs: { name: type, attrs, html: '<div>old</div>', fallback: [] },
+      children,
+    });
+    const paragraph = (text: string) => ({
+      id: `p${Math.random().toString(36).slice(2, 8)}`,
+      type: 'core/paragraph',
+      v: 1,
+      attrs: {},
+      content: [{ text }],
+    });
+    const res = await admin.post('/api/v1/ext/native/import', {
+      format: 'cleitext-transfer',
+      version: 1,
+      source: { kind: 'wordpress', exportedAt: '2026-10-18T10:00:00Z' },
+      entries: [
+        {
+          ref: 'post:1',
+          type: 'page',
+          locale: 'en',
+          slug: 'legacy',
+          title: 'Legacy',
+          status: 'published',
+          publishedAt: '2026-10-18T10:00:00Z',
+          document: {
+            schema: 1,
+            blocks: [
+              imported('legacy/box', { title: 'Outer', space: 30 }, [
+                // Inner blocks are converted first.
+                imported('legacy/box', { title: 'Inner' }, [paragraph('Deep')]),
+              ]),
+              imported('other/thing', {}, [paragraph('Kept text')]),
+            ],
+          },
+        },
+      ],
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().warnings).toContain(
+      'Block other/thing has no equivalent (1×): its content was kept. A plugin may add it.',
+    );
+    const html = (await visitor.get('/legacy')).body;
+    expect(html).toMatch(
+      /<section class="nb-box nb-imported-\w+"><h2>Outer<\/h2><section class="nb-box nb-imported-\w+"><h2>Inner<\/h2><p>Deep<\/p>/,
+    );
+    expect(html).toContain('<p>Kept text</p>');
+    expect(html).not.toContain('core/imported');
+  });
 });

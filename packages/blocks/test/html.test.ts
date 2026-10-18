@@ -249,6 +249,34 @@ describe('layout tables', () => {
   });
 });
 
+describe('blocks of other plugins', () => {
+  it('keeps them as placeholders for the import, with attributes, HTML and text', () => {
+    const warnings: string[] = [];
+    const doc = htmlToCxd(
+      '<!-- wp:uagb/container {"block_id":"a1","topPaddingDesktop":40} --><div class="wp-block-uagb-container">' +
+        '<!-- wp:paragraph --><p>Inside</p><!-- /wp:paragraph --></div><!-- /wp:uagb/container -->' +
+        '<!-- wp:uagb/advanced-heading {"headingTitle":"Hi"} --><div class="uagb-heading"><h2>Hi</h2></div><!-- /wp:uagb/advanced-heading -->',
+      { keepUnknown: true, warn: (m) => warnings.push(m) },
+    );
+    expect(doc.blocks.map((b) => b.type)).toEqual(['core/imported', 'core/imported']);
+    expect(doc.blocks[0]!.attrs).toMatchObject({
+      name: 'uagb/container',
+      attrs: { block_id: 'a1', topPaddingDesktop: 40 },
+      fallback: [],
+    });
+    expect(doc.blocks[0]!.children!.map((b) => b.type)).toEqual(['core/paragraph']);
+    expect(doc.blocks[1]!.attrs.html).toContain('<h2>Hi</h2>');
+    expect((doc.blocks[1]!.attrs.fallback as { type: string }[]).map((b) => b.type)).toEqual([
+      'core/heading',
+    ]);
+    // Without the option, their text as before.
+    expect(htmlToCxd('<!-- wp:x/y --><p>T</p><!-- /wp:x/y -->').blocks[0]!.type).toBe(
+      'core/paragraph',
+    );
+    expect(warnings).toEqual([]);
+  });
+});
+
 describe('blog widgets', () => {
   it('turns WordPress latest posts, comments, tag cloud, categories and search into widgets', () => {
     const { blocks, warnings } = convert(

@@ -184,18 +184,19 @@ ctx.hooks.filter(
 
 **Filters** (public site, they need the `theme:hooks` permission):
 
-| Name                       | Value                                                                                      | Context                                |
-| -------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                    | `RenderHookContext`                    |
-| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                          | `RenderHookContext` with `entry`       |
-| `render.html`              | the final HTML string                                                                      | `RenderHookContext`                    |
-| `theme.templateCandidates` | template names tried in order                                                              | `RenderHookContext`                    |
-| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission       | `{ siteId, ids }`                      |
-| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)          | `{ siteId, locale, userId, base }`     |
-| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                          | `{ siteId, locale, siteTitle, term }`  |
-| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                      | `{ siteId }`                           |
-| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`) | `{ siteId, kind, slug, locale }`       |
-| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                         | `{ siteId, host, path, status, tags }` |
+| Name                       | Value                                                                                      | Context                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                    | `RenderHookContext`                       |
+| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                          | `RenderHookContext` with `entry`          |
+| `render.html`              | the final HTML string                                                                      | `RenderHookContext`                       |
+| `theme.templateCandidates` | template names tried in order                                                              | `RenderHookContext`                       |
+| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission       | `{ siteId, ids }`                         |
+| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)          | `{ siteId, locale, userId, base }`        |
+| `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)  | `{ siteId, name, attrs, html, children }` |
+| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                          | `{ siteId, locale, siteTitle, term }`     |
+| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                      | `{ siteId }`                              |
+| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`) | `{ siteId, kind, slug, locale }`          |
+| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                         | `{ siteId, host, path, status, tags }`    |
 
 `RenderHookContext` is `{ siteId, locale, route, path, entry?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
 

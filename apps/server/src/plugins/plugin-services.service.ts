@@ -627,6 +627,9 @@ export class PluginServicesProvider implements PluginServices {
     }
     return importDocument(parsed.data, {
       db: this.database.db,
+      // WordPress blocks without an equivalent: active plugins may convert them.
+      importBlock: (block) =>
+        this.host.applyFilter('import.block', null, { siteId, ...block }, siteId),
       siteId,
       asUserId: options.userId,
       media: this.media,

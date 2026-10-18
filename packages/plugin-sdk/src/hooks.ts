@@ -172,6 +172,23 @@ export interface Filters {
     context: { siteId: string; locale: string; userId: string; base: string },
   ];
   /**
+   * A WordPress block that Cleitext has no equivalent for, during an import
+   * (plugin API 1.23): return blocks of the plugin to use instead, e.g. a
+   * block library's own. `attrs` are the block comment's JSON, `html` its
+   * markup, `children` its inner blocks already converted. Without an
+   * answer, its text is kept. Inner blocks come first.
+   */
+  'import.block': [
+    blocks: CxdBlock[] | null,
+    context: {
+      siteId: string;
+      name: string;
+      attrs: Record<string, unknown>;
+      html: string;
+      children: CxdBlock[];
+    },
+  ];
+  /**
    * Title of an RSS feed (plugin API 1.22): the site's, or "<term> – <site>"
    * for a category's or tag's, e.g. with an SEO plugin's separator.
    */
