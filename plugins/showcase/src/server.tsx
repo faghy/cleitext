@@ -40,6 +40,23 @@ interface Item {
 
 interface Attrs {
   kind: 'plugin' | 'theme' | 'all';
+  /** Address of each item's own page, `{slug}` replaced (e.g. `/plugins/{slug}`). */
+  link?: string;
+  /** Page slugs that differ from the catalog's: `shop=cleishop, …`. */
+  aliases?: string;
+}
+
+/** The page of an item, when the block has a link pattern. */
+function itemPage(attrs: Attrs, slug: string): string | null {
+  const pattern = typeof attrs.link === 'string' ? attrs.link.trim() : '';
+  if (!pattern.includes('{slug}') || !/^(\/(?!\/)|https?:\/\/)/.test(pattern)) return null;
+  const aliases = new Map(
+    String(attrs.aliases ?? '')
+      .split(',')
+      .map((pair) => pair.split('=').map((part) => part.trim()))
+      .filter((pair): pair is [string, string] => pair.length === 2 && Boolean(pair[0] && pair[1])),
+  );
+  return pattern.replace('{slug}', encodeURIComponent(aliases.get(slug) ?? slug));
 }
 
 const indexes = new Map<string, { items: Item[]; generatedAt: string; at: number }>();
@@ -117,7 +134,12 @@ const TEXTS = {
 };
 
 const STYLE = `.cx-catalog{list-style:none;padding:0;display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fill,minmax(min(100%,19rem),1fr));margin:1.5rem 0;text-align:left}
-.cx-catalog__card{display:flex;flex-direction:column;background:#fff;color:#1f2937;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06)}
+.cx-catalog__card{position:relative;display:flex;flex-direction:column;background:#fff;color:#1f2937;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06);transition:transform .15s,box-shadow .15s}
+.cx-catalog__card:has(.cx-catalog__link):hover{transform:translateY(-3px);box-shadow:0 2px 6px rgba(15,23,42,.08),0 16px 32px rgba(15,23,42,.12)}
+.cx-catalog__link{color:inherit;text-decoration:none}
+.cx-catalog__link::after{content:"";position:absolute;inset:0;z-index:1}
+.cx-catalog__link:focus-visible{outline:none}
+.cx-catalog__card:has(.cx-catalog__link:focus-visible){outline:3px solid #0f4c81;outline-offset:2px}
 .cx-catalog__shot{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;object-position:top;border-bottom:1px solid #e5e7eb}
 .cx-catalog__body{display:flex;flex-direction:column;gap:.75rem;padding:1.25rem;flex:1}
 .cx-catalog__head{display:flex;gap:.85rem;align-items:center}
@@ -130,7 +152,7 @@ const STYLE = `.cx-catalog{list-style:none;padding:0;display:grid;gap:1.5rem;gri
 .cx-catalog__how{margin:0;font-size:.8rem;color:#6b7280}
 .cx-catalog__price{margin:0;font-size:.95rem}
 .cx-catalog__price strong{font-size:1.2rem}
-.cx-catalog__actions{display:flex;gap:.5rem;flex-wrap:wrap}
+.cx-catalog__actions{position:relative;z-index:2;display:flex;gap:.5rem;flex-wrap:wrap}
 .cx-catalog__button{display:inline-block;padding:.55rem 1rem;border-radius:.5rem;font-weight:600;font-size:.9rem;text-decoration:none;border:2px solid #0f4c81;background:#0f4c81;color:#fff}
 .cx-catalog__button--plain{background:transparent;color:#0f4c81}
 .cx-catalog__button:hover{filter:brightness(1.1)}`;
@@ -175,6 +197,26 @@ export default definePlugin({
             ],
             default: 'plugin',
           },
+          {
+            name: 'link',
+            type: 'text',
+            label: { en: 'Page of each item', it: 'Pagina di ogni elemento' },
+            help: {
+              en: 'Optional: the address of its page, with {slug} (e.g. /plugins/{slug}). The whole box then opens it.',
+              it: 'Facoltativo: l’indirizzo della sua pagina, con {slug} (es. /plugin/{slug}). Tutto il riquadro la apre.',
+            },
+            maxLength: 200,
+          },
+          {
+            name: 'aliases',
+            type: 'text',
+            label: { en: 'Different page names', it: 'Nomi di pagina diversi' },
+            help: {
+              en: 'Optional: slug=page, separated by commas (e.g. shop=cleishop).',
+              it: 'Facoltativo: slug=pagina, separati da virgole (es. shop=cleishop).',
+            },
+            maxLength: 500,
+          },
         ],
         async load(attrs, context) {
           context.tag(CACHE_TAG);
@@ -191,7 +233,7 @@ export default definePlugin({
             (item) => attrs.kind === 'all' || item.type === (attrs.kind ?? 'plugin'),
           );
         },
-        render({ data, context }) {
+        render({ data, context, attrs }) {
           const it = context.locale.toLowerCase().startsWith('it');
           const t = it ? TEXTS.it : TEXTS.en;
           if (!data || data.length === 0) return <p>{t.empty}</p>;
@@ -199,87 +241,98 @@ export default definePlugin({
             <>
               <style>{STYLE}</style>
               <ul className="cx-catalog">
-                {data.map((item) => (
-                  <li key={`${item.type}-${item.slug}`} className="cx-catalog__card">
-                    {item.screenshots[0] && (
-                      <img
-                        className="cx-catalog__shot"
-                        src={item.screenshots[0]}
-                        alt=""
-                        loading="lazy"
-                        width={1280}
-                        height={800}
-                      />
-                    )}
-                    <div className="cx-catalog__body">
-                      <div className="cx-catalog__head">
-                        {item.icon && (
-                          <img
-                            className="cx-catalog__icon"
-                            src={item.icon}
-                            alt=""
-                            width={48}
-                            height={48}
-                          />
+                {data.map((item) => {
+                  const page = itemPage(attrs, item.slug);
+                  return (
+                    <li key={`${item.type}-${item.slug}`} className="cx-catalog__card">
+                      {item.screenshots[0] && (
+                        <img
+                          className="cx-catalog__shot"
+                          src={item.screenshots[0]}
+                          alt=""
+                          loading="lazy"
+                          width={1280}
+                          height={800}
+                        />
+                      )}
+                      <div className="cx-catalog__body">
+                        <div className="cx-catalog__head">
+                          {item.icon && (
+                            <img
+                              className="cx-catalog__icon"
+                              src={item.icon}
+                              alt=""
+                              width={48}
+                              height={48}
+                            />
+                          )}
+                          <div>
+                            <h3 className="cx-catalog__name">
+                              {page ? (
+                                <a className="cx-catalog__link" href={page}>
+                                  {item.name}
+                                </a>
+                              ) : (
+                                item.name
+                              )}
+                            </h3>
+                            <p className="cx-catalog__meta">
+                              {item.type === 'plugin' ? t.plugin : t.theme} · {t.version}{' '}
+                              {item.version} · {t.by} {item.author}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="cx-catalog__summary">
+                          {item.summary[it ? 'it' : 'en'] ?? item.summary.en}
+                        </p>
+                        {item.tags.length > 0 && (
+                          <ul className="cx-catalog__tags">
+                            {item.tags.map((tag) => (
+                              <li key={tag}>{tag}</li>
+                            ))}
+                          </ul>
                         )}
-                        <div>
-                          <h3 className="cx-catalog__name">{item.name}</h3>
-                          <p className="cx-catalog__meta">
-                            {item.type === 'plugin' ? t.plugin : t.theme} · {t.version}{' '}
-                            {item.version} · {t.by} {item.author}
+                        {item.paid && (
+                          <p className="cx-catalog__price">
+                            <strong>
+                              {new Intl.NumberFormat(it ? 'it-IT' : 'en-GB', {
+                                style: 'currency',
+                                currency: item.paid.price.currency,
+                                maximumFractionDigits: item.paid.price.amount % 1 === 0 ? 0 : 2,
+                              }).format(item.paid.price.amount)}
+                            </strong>{' '}
+                            {t.perSite}
+                            {item.paid.updatesMonths > 0 &&
+                              ` · ${item.paid.updatesMonths} ${t.monthsOfUpdates}`}
                           </p>
+                        )}
+                        <p className="cx-catalog__how">
+                          {item.paid ? t.demo : item.type === 'plugin' ? t.install : t.installTheme}
+                          {item.requires ? ` ${t.needs} ${item.requires.replace('>=', '≥ ')}.` : ''}
+                        </p>
+                        <div className="cx-catalog__actions">
+                          {item.paid ? (
+                            <a className="cx-catalog__button" href={item.paid.purchaseUrl}>
+                              {t.buy}
+                            </a>
+                          ) : (
+                            <a className="cx-catalog__button" href={item.download}>
+                              {t.download} ({Math.max(1, Math.round(item.size / 1024))} KB)
+                            </a>
+                          )}
+                          {(page ?? item.homepage) && (
+                            <a
+                              className="cx-catalog__button cx-catalog__button--plain"
+                              href={page ?? item.homepage}
+                            >
+                              {t.details}
+                            </a>
+                          )}
                         </div>
                       </div>
-                      <p className="cx-catalog__summary">
-                        {item.summary[it ? 'it' : 'en'] ?? item.summary.en}
-                      </p>
-                      {item.tags.length > 0 && (
-                        <ul className="cx-catalog__tags">
-                          {item.tags.map((tag) => (
-                            <li key={tag}>{tag}</li>
-                          ))}
-                        </ul>
-                      )}
-                      {item.paid && (
-                        <p className="cx-catalog__price">
-                          <strong>
-                            {new Intl.NumberFormat(it ? 'it-IT' : 'en-GB', {
-                              style: 'currency',
-                              currency: item.paid.price.currency,
-                              maximumFractionDigits: item.paid.price.amount % 1 === 0 ? 0 : 2,
-                            }).format(item.paid.price.amount)}
-                          </strong>{' '}
-                          {t.perSite}
-                          {item.paid.updatesMonths > 0 &&
-                            ` · ${item.paid.updatesMonths} ${t.monthsOfUpdates}`}
-                        </p>
-                      )}
-                      <p className="cx-catalog__how">
-                        {item.paid ? t.demo : item.type === 'plugin' ? t.install : t.installTheme}
-                        {item.requires ? ` ${t.needs} ${item.requires.replace('>=', '≥ ')}.` : ''}
-                      </p>
-                      <div className="cx-catalog__actions">
-                        {item.paid ? (
-                          <a className="cx-catalog__button" href={item.paid.purchaseUrl}>
-                            {t.buy}
-                          </a>
-                        ) : (
-                          <a className="cx-catalog__button" href={item.download}>
-                            {t.download} ({Math.max(1, Math.round(item.size / 1024))} KB)
-                          </a>
-                        )}
-                        {item.homepage && (
-                          <a
-                            className="cx-catalog__button cx-catalog__button--plain"
-                            href={item.homepage}
-                          >
-                            {t.details}
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </>
           );

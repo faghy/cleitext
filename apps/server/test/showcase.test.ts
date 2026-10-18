@@ -148,14 +148,14 @@ afterAll(async () => {
   server?.close();
 });
 
-async function pageWith(kind: string) {
+async function pageWith(kind: string, extra: Record<string, string> = {}) {
   const created = (
     await admin.post('/api/v1/entries', {
       type: 'page',
-      title: `Catalog ${kind}`,
+      title: `Catalog ${kind} ${Object.keys(extra).join(' ')}`,
       document: {
         schema: 1,
-        blocks: [{ id: `cat-${kind}`, type: 'showcase/catalog', v: 1, attrs: { kind } }],
+        blocks: [{ id: `cat-${kind}`, type: 'showcase/catalog', v: 1, attrs: { kind, ...extra } }],
       },
     })
   ).json();
@@ -170,6 +170,15 @@ describe('catalog showcase', () => {
     expect(html).toContain('href="https://example.com/privacy.zip"');
     expect(html).toContain('Plugins → Add New');
     expect(html).not.toContain('Canvas');
+  });
+
+  it('opens the page of each item from its whole box', async () => {
+    const page = await pageWith('plugin', { link: '/plugins/{slug}', aliases: 'privacy=gdpr' });
+    const html = (await visitor.get(`/${page.slug}`)).body;
+    expect(html).toContain(
+      '<h3 class="cx-catalog__name"><a class="cx-catalog__link" href="/plugins/gdpr">Privacy &amp; GDPR</a></h3>',
+    );
+    expect(html).toContain('href="/plugins/gdpr">Details</a>');
   });
 
   it('shows the themes with their screenshot', async () => {
