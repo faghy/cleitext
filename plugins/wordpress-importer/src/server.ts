@@ -60,7 +60,7 @@ async function run(
   ctx: PluginContext,
   siteId: string,
   job: Job,
-  options: { xml: string; userId: string; authorRole: string },
+  options: { xml: string; userId: string; authorRole: string; locales: string[] },
 ): Promise<void> {
   let saved = 0;
   const save = async (force = false) => {
@@ -75,6 +75,7 @@ async function run(
     const { document, warnings } = wxrToDocument(options.xml, {
       locale: job.locale,
       authorRole: options.authorRole,
+      locales: options.locales,
     });
     const report = await ctx.transfer.importDocument(siteId, document, {
       userId: options.userId,
@@ -136,6 +137,12 @@ export default definePlugin({
         if (!/^[a-z]{2,3}(-[A-Z]{2})?$/.test(locale)) {
           return problem(400, 'Choose the language of the content.');
         }
+        // The site's other languages, to recognise pages translated with WPML.
+        const locales = (request.query.languages ?? '')
+          .split(',')
+          .map((l) => l.trim())
+          .filter((l) => /^[a-z]{2,3}(-[A-Z]{2})?$/.test(l))
+          .slice(0, 8);
         const authorRole = ROLES.includes(request.query.authorRole ?? '')
           ? request.query.authorRole!
           : 'author';
@@ -151,7 +158,12 @@ export default definePlugin({
         };
         await ctx.storage.set(request.siteId, JOB, job);
         // Not awaited: the import goes on after the answer.
-        void run(ctx, request.siteId, job, { xml, userId: request.user!.id, authorRole });
+        void run(ctx, request.siteId, job, {
+          xml,
+          userId: request.user!.id,
+          authorRole,
+          locales,
+        });
         return { status: 202, body: { job } };
       },
     });

@@ -1,6 +1,8 @@
 import { XMLParser } from 'fast-xml-parser';
-import { htmlToCxd, texturizeHtml, texturizeText } from '@cleitext/blocks/html';
+import { htmlToCxd, IMPORTED_BLOCK, texturizeHtml, texturizeText } from '@cleitext/blocks/html';
+import { assignLanguages } from './wpml';
 import { elementorToFresco } from './elementor.js';
+import type { CxdBlock } from '@cleitext/blocks';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
 
 type Node = Record<string, unknown>;
@@ -34,6 +36,12 @@ export interface WxrOptions {
    * page (default), `content` keeps only the HTML WordPress exported.
    */
   elementor?: 'fresco' | 'content';
+  /**
+   * The site's languages, when it has more than one: pages translated with
+   * WPML are recognised (they share their address in the export) and imported
+   * in their language, as translations of each other.
+   */
+  locales?: string[];
 }
 
 export interface WxrResult {
@@ -159,6 +167,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
 
   // ---- Posts and pages ------------------------------------------------------------------
   const entries: NonNullable<TransferDocumentInput['entries']> = [];
+  // Address and text of each entry, to recognise WPML translations at the end.
+  const sources = new Map<string, { link: string; text: string }>();
   const skippedTypes = new Map<string, number>();
   let pingbacks = 0;
   let trashedComments = 0;
@@ -196,6 +206,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       mediaRef: (attachment) => attachmentRefs.get(attachment),
       warn: (message) => warnings.push(`${title || `#${id}`}: ${message}`),
     });
+    termIdsToSlugs(document.blocks, channel);
     // Elementor pages: their layout, as a Fresco page.
     const elementorData = meta(item, '_elementor_data');
     if (
@@ -301,6 +312,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       );
     }
     const seo = seoFields(item);
+    sources.set(ref, { link, text: `${title} ${content}` });
     entries.push({
       ref,
       type: entryType,
@@ -329,6 +341,12 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         : {}),
       ...(comments.length ? { comments } : {}),
     });
+  }
+  const translated = recogniseTranslations(entries, sources, locale, options.locales ?? []);
+  if (translated > 0) {
+    warnings.push(
+      `${translated} page(s) or post(s) were recognised as WPML translations, with their language guessed from their text: check them in each language.`,
+    );
   }
   for (const [type, n] of skippedTypes) {
     warnings.push(
@@ -447,6 +465,38 @@ function meta(item: Node, key: string): string | undefined {
     (m) => text(m['wp:meta_key']) === key,
   );
   return entry ? text(entry['wp:meta_value']) : undefined;
+}
+
+/** Spectra's post blocks of other plugins, filtered by WordPress term ids. */
+const POST_BLOCKS = new Set([
+  'uagb/post-grid',
+  'uagb/post-carousel',
+  'uagb/post-timeline',
+  'uagb/post-masonry',
+]);
+
+/**
+ * Blocks of other plugins that filter posts by category or tag keep WordPress's
+ * term ids, which mean nothing on the new site: they become the terms' slugs.
+ */
+function termIdsToSlugs(blocks: CxdBlock[], channel: Node): void {
+  for (const block of blocks) {
+    if (block.type === IMPORTED_BLOCK && POST_BLOCKS.has(String(block.attrs.name))) {
+      const attrs = (block.attrs.attrs ?? {}) as Record<string, unknown>;
+      const raw = attrs.categories;
+      const ids = (Array.isArray(raw) ? raw : String(raw ?? '').split(','))
+        .map((v) => String(v).trim())
+        .filter((v) => /^\d+$/.test(v));
+      if (ids.length > 0) {
+        const taxonomy = String(attrs.taxonomyType || 'category');
+        const slugs = ids
+          .map((id) => findTermRef(channel, taxonomy, Number(id))?.split(':')[1])
+          .filter((slug): slug is string => Boolean(slug));
+        block.attrs = { ...block.attrs, attrs: { ...attrs, categories: slugs.join(',') } };
+      }
+    }
+    if (block.children) termIdsToSlugs(block.children, channel);
+  }
 }
 
 function findTermRef(channel: Node, taxonomy: string, id: number): string | undefined {
@@ -606,4 +656,46 @@ function decode(value: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&');
+}
+
+/**
+ * WPML translations (see wpml.ts): each group gets its languages, a shared
+ * translation reference, and only the main-language entry keeps the old
+ * address. Returns how many entries got another language.
+ */
+function recogniseTranslations(
+  entries: NonNullable<TransferDocumentInput['entries']>,
+  sources: Map<string, { link: string; text: string }>,
+  main: string,
+  locales: string[],
+): number {
+  const candidates = [...new Set([main, ...locales])];
+  if (candidates.length < 2) return 0;
+  const groups = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    const link = sources.get(entry.ref)?.link;
+    if (!link) continue;
+    const key = `${entry.type}|${link}`;
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
+  }
+  let moved = 0;
+  for (const [key, group] of groups) {
+    if (group.length < 2) continue;
+    const languages = assignLanguages(
+      group.map((e) => sources.get(e.ref)!.text),
+      candidates,
+    );
+    if (languages.every((l) => l === null)) continue;
+    group.forEach((entry, i) => {
+      const language = languages[i];
+      if (!language) return;
+      entry.locale = language;
+      entry.translationRef = `wpml:${key}`;
+      if (language !== main) {
+        delete entry.oldPaths;
+        moved++;
+      }
+    });
+  }
+  return moved;
 }

@@ -68,7 +68,14 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   const [sent, setSent] = useState(0);
   const start = useMutation({
     mutationFn: () => {
-      const query = new URLSearchParams({ locale, authorRole: role });
+      const query = new URLSearchParams({
+        locale,
+        authorRole: role,
+        // All the site's languages: pages translated with WPML go into theirs.
+        ...(site.locales.length > 1
+          ? { languages: site.locales.map((l) => l.code).join(',') }
+          : {}),
+      });
       return uploadFile(file!, {
         path: `/ext/wordpress-importer/imports?${query.toString()}`,
         onProgress: setSent,
@@ -127,6 +134,12 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
                     </option>
                   ))}
                 </select>
+                <p className="text-xs text-slate-500">
+                  {tr(
+                    'Pages translated with WPML are recognised and go into their own language.',
+                    'Le pagine tradotte con WPML vengono riconosciute e vanno nella loro lingua.',
+                  )}
+                </p>
               </div>
             )}
             <div className="space-y-1">
