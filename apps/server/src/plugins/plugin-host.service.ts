@@ -254,9 +254,17 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     if (summary.length) this.logger.log(`Plugins: ${summary.join(', ')}`);
   }
 
+  /**
+   * Reloads one after the other: one started earlier (e.g. on another
+   * process's notice) never ends after a later one with the plugins of before.
+   */
+  private reloads: Promise<void> = Promise.resolve();
+
   /** Reloads plugins after an install, update or uninstall (in every process). */
   async reload(): Promise<void> {
-    await this.load();
+    const run = this.reloads.then(() => this.load());
+    this.reloads = run.catch(() => {});
+    await run;
     this.cache.clearLocal();
   }
 

@@ -72,6 +72,8 @@ export class ThemesController {
         version?: string;
       };
       const message = await runCli(['theme:install', root], this.config);
+      // Ready when the answer comes, not when the notice reaches this process.
+      await this.themes.reload();
       await this.themes.recordUpload(site.id, auth, String(manifest.slug), request.ip);
       return { slug: String(manifest.slug), version: String(manifest.version), message };
     } finally {
@@ -91,6 +93,7 @@ export class ThemesController {
   ): Promise<void> {
     if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(slug)) throw new NotFoundException('Theme not found.');
     await runCli(['theme:uninstall', slug], this.config);
+    await this.themes.reload();
     await this.themes.record(site.id, auth, 'theme.deleted', slug, request.ip);
   }
 

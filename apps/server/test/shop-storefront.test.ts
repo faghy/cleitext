@@ -136,6 +136,17 @@ afterAll(async () => {
 
 describe('the catalog', () => {
   const visitor = () => new TestClient(app, site.host, '10.94.0.9');
+  /**
+   * The page as cached: other test files share the database, and their plugin
+   * installs empty every process's cache, so it is asked again until cached.
+   */
+  const cachedState = async (path: string) => {
+    let state = '';
+    for (let i = 0; i < 5 && state !== 'HIT'; i++) {
+      state = String((await visitor().get(path)).headers['x-cache']);
+    }
+    return state;
+  };
 
   it('lists the shop with filters and counts, cached and indexed', async () => {
     const shop = await visitor().get('/shop');
@@ -150,7 +161,7 @@ describe('the catalog', () => {
     expect(shop.body).toMatch(
       /href="\/product-category\/home">Home <span class="shop-count">\(2\)/,
     );
-    expect((await visitor().get('/shop')).headers['x-cache']).toBe('HIT');
+    expect(await cachedState('/shop')).toBe('HIT');
 
     const filtered = (path: string) =>
       visitor()
@@ -185,12 +196,7 @@ describe('the catalog', () => {
   });
 
   it('refreshes when a price changes', async () => {
-    // Cached first: other test files share the database and may refresh every page meanwhile.
-    let cached = '';
-    for (let i = 0; i < 5 && cached !== 'HIT'; i++) {
-      cached = String((await visitor().get('/shop')).headers['x-cache']);
-    }
-    expect(cached).toBe('HIT');
+    expect(await cachedState('/shop')).toBe('HIT');
     await admin.request('PATCH', ext(`/products/${ids.pot}/quick`), { regularPrice: '17' });
     const after = await visitor().get('/shop');
     expect(after.headers['x-cache']).toBe('MISS');

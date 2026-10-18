@@ -169,6 +169,8 @@ export class PluginsController {
         await readFile(path.join(root, 'cleitext.plugin.json'), 'utf8'),
       ) as { slug?: string; version?: string };
       const message = await runCli(['plugin:install', root], this.config);
+      // Ready when the answer comes, not when the notice reaches this process.
+      await this.host.reload();
       await this.record(site.id, auth, 'plugin.uploaded', String(manifest.slug), request.ip);
       return { slug: String(manifest.slug), version: String(manifest.version), message };
     } finally {
@@ -191,6 +193,7 @@ export class PluginsController {
   ): Promise<void> {
     this.plugin(slug);
     await runCli(['plugin:uninstall', slug, '--yes', '--only-inactive'], this.config);
+    await this.host.reload();
     await this.record(site.id, auth, 'plugin.deleted', slug, request.ip);
   }
 

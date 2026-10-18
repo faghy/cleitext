@@ -47,8 +47,21 @@ export function isThemeAvailable(slug: string): boolean {
   return bundled.has(slug) || installed.has(slug);
 }
 
+/**
+ * Reloads run one after the other: one started earlier (e.g. on another
+ * process's notice) never ends after a later one, putting back the themes
+ * of before an installation.
+ */
+let reloads: Promise<void> = Promise.resolve();
+
 /** (Re)loads the themes of a folder; a broken theme is reported, not fatal. */
-export async function loadThemes(dir: string): Promise<void> {
+export function loadThemes(dir: string): Promise<void> {
+  const run = reloads.then(() => load(dir));
+  reloads = run.catch(() => {});
+  return run;
+}
+
+async function load(dir: string): Promise<void> {
   const shared = (globalThis as Record<string, unknown>)['__cleitextShared'] as
     Record<string, unknown> | undefined;
   const target = shared ?? ((globalThis as Record<string, unknown>)['__cleitextShared'] = {});

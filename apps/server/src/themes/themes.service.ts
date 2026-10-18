@@ -55,7 +55,8 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     });
   }
 
-  private async reload(): Promise<void> {
+  /** Reloads the installed themes: after an installation, before answering. */
+  async reload(): Promise<void> {
     await loadThemes(this.config.themes.path);
     for (const [slug, error] of themeFailures()) {
       this.logger.error(`Theme ${slug} could not be loaded: ${error}`);

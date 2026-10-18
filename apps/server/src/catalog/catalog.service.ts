@@ -23,7 +23,7 @@ import type { AuthContext } from '../common/request-context.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { packageRoot, runCli, unpackPackage } from '../plugins/package-upload.js';
-import { installedThemes, themePaid } from '../public/themes.js';
+import { installedThemes, loadThemes, themePaid } from '../public/themes.js';
 import { UpdatesService } from '../updates/updates.service.js';
 import { LicensesService } from './licenses.service.js';
 
@@ -187,6 +187,9 @@ export class CatalogService {
       if (manifest.slug !== slug)
         throw new BadRequestException('The package is not the one expected.');
       const message = await runCli([`${type}:install`, root], this.config);
+      // Ready when the answer comes, not when the notice reaches this process.
+      if (type === 'plugin') await this.plugins.reload();
+      else await loadThemes(this.config.themes.path);
       return { version: item.version, message };
     } finally {
       await rm(dir, { recursive: true, force: true });
