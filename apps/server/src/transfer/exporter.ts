@@ -207,6 +207,7 @@ export async function exportSite(
             position: e.position,
             fields: revision.fields as Record<string, unknown>,
             document: revision.document as CxdDocument,
+            ...(revision.featuredMediaId ? { featuredMediaRef: revision.featuredMediaId } : {}),
             terms: termsOf,
             commentStatus: e.commentStatus === 'open' ? ('open' as const) : ('closed' as const),
             ...(commentsOf.has(e.id)

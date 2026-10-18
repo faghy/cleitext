@@ -3,7 +3,7 @@
     "A morning at the harbour: Block some-plugin/map has no equivalent: its text was kept.",
     "Old classic post: A table became text (tables are not supported yet).",
     "Old classic post: contains shortcodes, left as text.",
-    "1 item(s) of the custom type \"product\" were not imported.",
+    "1 item(s) of the shop type \"product\" were not imported: import products into Cleishop from a CSV export.",
     "1 pingback(s) and trackback(s) were not imported."
   ],
   "document": {
@@ -13,7 +13,7 @@
       "kind": "wordpress",
       "name": "Seaside Notes",
       "url": "https://old.example.com",
-      "exportedAt": "2026-10-11T19:53:33.852Z"
+      "exportedAt": "2026-10-18T07:19:52.074Z"
     },
     "site": {
       "title": "Seaside Notes",
@@ -27,6 +27,8 @@
         "role": "author"
       }
     ],
+    "contentTypes": [],
+    "taxonomies": [],
     "terms": [
       {
         "ref": "category:travel",
@@ -83,7 +85,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mv48qs9h016zv9d1",
+              "id": "b_mvdhwhl301nerefc",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -113,7 +115,7 @@
               ]
             },
             {
-              "id": "b_mv48qs9j02krwksc",
+              "id": "b_mvdhwhl402pj9c0d",
               "type": "core/image",
               "v": 1,
               "attrs": {
@@ -129,7 +131,7 @@
               }
             },
             {
-              "id": "b_mv48qs9j03a5fcc4",
+              "id": "b_mvdhwhl403g173zd",
               "type": "core/heading",
               "v": 1,
               "attrs": {
@@ -142,13 +144,13 @@
               ]
             },
             {
-              "id": "b_mv48qs9k067l5e0c",
+              "id": "b_mvdhwhl406688z5e",
               "type": "core/list",
               "v": 1,
               "attrs": {},
               "children": [
                 {
-                  "id": "b_mv48qs9k04eae11o",
+                  "id": "b_mvdhwhl4049fh0bi",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -159,7 +161,7 @@
                   ]
                 },
                 {
-                  "id": "b_mv48qs9k05vpzd0z",
+                  "id": "b_mvdhwhl405n4d47g",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -172,7 +174,7 @@
               ]
             },
             {
-              "id": "b_mv48qs9k08u7shu2",
+              "id": "b_mvdhwhl508irrgi8",
               "type": "core/quote",
               "v": 1,
               "attrs": {
@@ -184,7 +186,7 @@
               },
               "children": [
                 {
-                  "id": "b_mv48qs9k07j927xu",
+                  "id": "b_mvdhwhl50719u13j",
                   "type": "core/paragraph",
                   "v": 1,
                   "attrs": {},
@@ -197,19 +199,19 @@
               ]
             },
             {
-              "id": "b_mv48qs9k09u6w6tj",
+              "id": "b_mvdhwhl509p27lmw",
               "type": "core/columns",
               "v": 1,
               "attrs": {},
               "children": [
                 {
-                  "id": "b_mv48qs9k0ahzmjyb",
+                  "id": "b_mvdhwhl50av2a8et",
                   "type": "core/column",
                   "v": 1,
                   "attrs": {},
                   "children": [
                     {
-                      "id": "b_mv48qs9k0b9jom5l",
+                      "id": "b_mvdhwhl50bk7kca1",
                       "type": "core/paragraph",
                       "v": 1,
                       "attrs": {},
@@ -222,13 +224,13 @@
                   ]
                 },
                 {
-                  "id": "b_mv48qs9k0cly4taa",
+                  "id": "b_mvdhwhl50cna55bw",
                   "type": "core/column",
                   "v": 1,
                   "attrs": {},
                   "children": [
                     {
-                      "id": "b_mv48qs9l0dtly9jj",
+                      "id": "b_mvdhwhl50dd1w9jx",
                       "type": "core/paragraph",
                       "v": 1,
                       "attrs": {},
@@ -243,13 +245,13 @@
               ]
             },
             {
-              "id": "b_mv48qs9l0ezrrh3j",
+              "id": "b_mvdhwhl50eaxnok8",
               "type": "core/separator",
               "v": 1,
               "attrs": {}
             },
             {
-              "id": "b_mv48qs9l0fi0k65j",
+              "id": "b_mvdhwhl50fyjg7rj",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -313,7 +315,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mv48qs9m0g4evkws",
+              "id": "b_mvdhwhl50gdc2m46",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -331,7 +333,7 @@
               ]
             },
             {
-              "id": "b_mv48qs9m0h9pjtpv",
+              "id": "b_mvdhwhl50h9kxaz2",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -342,7 +344,7 @@
               ]
             },
             {
-              "id": "b_mv48qs9m0ivmi8qe",
+              "id": "b_mvdhwhl50i6mq6e9",
               "type": "core/heading",
               "v": 1,
               "attrs": {
@@ -355,7 +357,7 @@
               ]
             },
             {
-              "id": "b_mv48qs9m0jfp058n",
+              "id": "b_mvdhwhl50jndzqxb",
               "type": "core/list",
               "v": 1,
               "attrs": {
@@ -363,7 +365,7 @@
               },
               "children": [
                 {
-                  "id": "b_mv48qs9m0kmy09u0",
+                  "id": "b_mvdhwhl50k242ip5",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -374,7 +376,7 @@
                   ]
                 },
                 {
-                  "id": "b_mv48qs9m0nn12os3",
+                  "id": "b_mvdhwhl50ns1tndq",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -385,13 +387,13 @@
                   ],
                   "children": [
                     {
-                      "id": "b_mv48qs9m0le7w0di",
+                      "id": "b_mvdhwhl50lmit1sb",
                       "type": "core/list",
                       "v": 1,
                       "attrs": {},
                       "children": [
                         {
-                          "id": "b_mv48qs9m0mqbthjv",
+                          "id": "b_mvdhwhl50m4faerw",
                           "type": "core/list-item",
                           "v": 1,
                           "attrs": {},
@@ -408,7 +410,7 @@
               ]
             },
             {
-              "id": "b_mv48qs9n0ojxog62",
+              "id": "b_mvdhwhl60opqh6ce",
               "type": "core/image",
               "v": 1,
               "attrs": {
@@ -418,7 +420,7 @@
               }
             },
             {
-              "id": "b_mv48qs9n0pim3x90",
+              "id": "b_mvdhwhl60p2a8evm",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -429,7 +431,7 @@
               ]
             },
             {
-              "id": "b_mv48qs9n0q3v14fv",
+              "id": "b_mvdhwhl60q3qm6iq",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -441,6 +443,7 @@
             }
           ]
         },
+        "featuredMediaRef": "att:10",
         "terms": {
           "category": ["category:travel"],
           "tag": []
@@ -462,7 +465,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mv48qs9n0rdfylki",
+              "id": "b_mvdhwhl60rbtv1kh",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -496,7 +499,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mv48qs9o0slwnidc",
+              "id": "b_mvdhwhl60srtmasy",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -527,7 +530,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mv48qs9o0t2dk919",
+              "id": "b_mvdhwhl60tc75whs",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},

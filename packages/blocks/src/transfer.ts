@@ -82,6 +82,8 @@ export const transferEntrySchema = z.object({
   fields: z.record(z.string(), z.unknown()).optional(),
   /** Image blocks refer to media with `attrs.id` = media `ref`. */
   document: cxdDocumentSchema,
+  /** Featured image: a media `ref`. */
+  featuredMediaRef: ref.optional(),
   /** Term refs by taxonomy slug. */
   terms: z.record(z.string(), z.array(ref)).optional(),
   /** Old public paths, redirected to the new address. */

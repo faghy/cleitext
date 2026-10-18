@@ -144,7 +144,7 @@ describe('WordPress import', () => {
     });
     const warnings = report.warnings.join('\n');
     expect(warnings).toContain('1 pingback(s)');
-    expect(warnings).toContain('custom type "product"');
+    expect(warnings).toContain('shop type "product"');
     expect(warnings).toContain('shortcodes');
     expect(warnings).toContain('A table became text');
     expect(warnings).toContain('without a password');
@@ -244,8 +244,9 @@ describe('WordPress import', () => {
     const classic = await visitor.get('/2019/old-classic-post');
     expect(classic.statusCode).toBe(200);
     expect(classic.body).toMatch(/datetime="2019-03-10/i);
-    // The featured image is already in the content: not added twice.
-    expect(classic.body.match(/<picture/g)).toHaveLength(1);
+    // The featured image above the post, and the same picture where the text has it,
+    // as WordPress themes show them (only one when it opens the text).
+    expect(classic.body.match(/<picture/g)).toHaveLength(2);
     expect(classic.body).toContain('<ol');
     expect((await visitor.get('/search?q=unfinished')).body).not.toContain('Unfinished draft');
   });
@@ -332,6 +333,9 @@ describe('Cleitext export and import', () => {
     // The second WordPress import above added nothing: the post and its comments once.
     expect(result.created.comments).toBe(3);
     expect(page.body).toContain('Thank you &amp; see you there.');
+    // The featured image travels too.
+    const classic = (await visitor.get('/2019/old-classic-post')).body;
+    expect(classic.match(/<picture/g)).toHaveLength(2);
   });
 
   it('refuses archives with unsafe paths or invalid documents', async () => {

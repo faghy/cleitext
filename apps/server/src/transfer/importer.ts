@@ -630,6 +630,9 @@ async function insertEntry(
     kind: 'import',
     title: entry.title,
     fields: entry.fields ?? {},
+    featuredMediaId: entry.featuredMediaRef
+      ? (context.media.get(entry.featuredMediaRef)?.id ?? null)
+      : null,
     document,
     schemaVersion: document.schema,
     authorId: context.author,

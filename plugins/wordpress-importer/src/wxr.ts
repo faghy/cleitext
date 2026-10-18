@@ -1,5 +1,3 @@
-import type { CxdBlock } from '@cleitext/blocks';
-import { newBlockId } from '@cleitext/blocks';
 import { XMLParser } from 'fast-xml-parser';
 import { htmlToCxd } from '@cleitext/blocks/html';
 import { elementorToFresco } from './elementor.js';
@@ -104,10 +102,33 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     });
   }
   const menuNames = new Map<string, string>();
+  /** Taxonomies of themes and plugins (portfolio categories…): WordPress slug → Cleitext's. */
+  const customTaxonomies = new Map<string, { slug: string; hierarchical: boolean }>();
   for (const t of (channel['wp:term'] as Node[] | undefined) ?? []) {
-    if (text(t['wp:term_taxonomy']) === 'nav_menu') {
+    const taxonomy = text(t['wp:term_taxonomy']);
+    if (taxonomy === 'nav_menu') {
       menuNames.set(text(t['wp:term_slug']), decode(text(t['wp:term_name'])));
+      continue;
     }
+    if (INTERNAL_TAXONOMIES.has(taxonomy) || SHOP_TAXONOMIES.has(taxonomy)) continue;
+    const own = structureSlug(taxonomy);
+    if (!own) continue;
+    const slug = text(t['wp:term_slug']);
+    const parent = text(t['wp:term_parent']);
+    const known = customTaxonomies.get(taxonomy);
+    customTaxonomies.set(taxonomy, {
+      slug: own,
+      hierarchical: Boolean(known?.hierarchical || parent),
+    });
+    terms.push({
+      ref: `${taxonomy}:${slug}`,
+      taxonomy: own,
+      locale,
+      slug,
+      name: decode(text(t['wp:term_name'])) || slug,
+      description: text(t['wp:term_description']) || null,
+      ...(parent ? { parentRef: `${taxonomy}:${parent}` } : {}),
+    });
   }
 
   // ---- Attachments ------------------------------------------------------------------------
@@ -143,31 +164,29 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   let trashedComments = 0;
   let elementorPages = 0;
   const entryRefs = new Map<number, string>();
+  /** Types of themes and plugins (portfolio…): WordPress slug → Cleitext's, and an address. */
+  const customTypes = new Map<string, { slug: string; permalink: string | null }>();
+  /** The content types each taxonomy is used by. */
+  const taxonomyTypes = new Map<string, Set<string>>();
   for (const item of items) {
     const type = text(item['wp:post_type']);
     const status = STATUS[text(item['wp:status'])];
     if (type === 'attachment' || type === 'nav_menu_item') continue;
-    if (type !== 'post' && type !== 'page') {
-      if (
-        ![
-          'revision',
-          'wp_navigation',
-          'wp_template',
-          'wp_template_part',
-          'wp_global_styles',
-          'customize_changeset',
-          'oembed_cache',
-          'custom_css',
-          'wp_block',
-          'user_request',
-        ].includes(type)
-      ) {
-        skippedTypes.set(type, (skippedTypes.get(type) ?? 0) + 1);
-      }
+    const custom =
+      type !== 'post' &&
+      type !== 'page' &&
+      !INTERNAL_TYPES.has(type) &&
+      !SHOP_TYPES.has(type) &&
+      structureSlug(type);
+    if (custom && !customTypes.has(type)) customTypes.set(type, { slug: custom, permalink: null });
+    if (type !== 'post' && type !== 'page' && !custom) {
+      // WordPress's own records are not content; shop items and odd names are reported.
+      if (!INTERNAL_TYPES.has(type)) skippedTypes.set(type, (skippedTypes.get(type) ?? 0) + 1);
       continue;
     }
     if (!status) continue; // trash, auto-draft, inherit
     const id = Number(text(item['wp:post_id']));
+    const entryType = type === 'post' ? 'article' : type === 'page' ? 'page' : (custom as string);
     const title = decode(text(item.title));
     const content = text(item['content:encoded']);
     let document = htmlToCxd(content, {
@@ -190,16 +209,17 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         elementorPages++;
       }
     }
-    // The featured image opens the content, unless it is already there.
-    const thumbnail = Number(meta(item, '_thumbnail_id') ?? NaN);
-    const thumbnailRef = attachmentRefs.get(thumbnail);
+    // The featured image stays the featured image; when it also opens the content,
+    // only once (themes show it above the content).
+    const thumbnailRef = attachmentRefs.get(Number(meta(item, '_thumbnail_id') ?? NaN));
+    const first = document.blocks[0];
     if (
       thumbnailRef &&
       !document.editor &&
-      !JSON.stringify(document.blocks).includes(`"${thumbnailRef}"`)
+      first?.type === 'core/image' &&
+      first.attrs.id === thumbnailRef
     ) {
-      const file = media.find((m) => m.ref === thumbnailRef)!;
-      document.blocks.unshift(imageBlock(thumbnailRef, file.file, file.alt?.[locale] ?? ''));
+      document.blocks.shift();
     }
     const gmt = text(item['wp:post_date_gmt']);
     const date = gmt && !gmt.startsWith('0000') ? `${gmt.replace(' ', 'T')}Z` : undefined;
@@ -257,9 +277,29 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     entryRefs.set(id, ref);
     const link = text(item.link);
     const parent = Number(text(item['wp:post_parent']) || 0);
+    // A custom type keeps the addresses it had: /portfolio/{slug} from /portfolio/my-work/.
+    const slugOfItem = decodeURIComponent(text(item['wp:post_name']));
+    const typeInfo = customTypes.get(type);
+    if (typeInfo && !typeInfo.permalink && link && slugOfItem) {
+      const path = relativeTo(link, baseUrl).replace(/\/+$/, '');
+      if (path.endsWith(`/${slugOfItem}`) && path.startsWith('/')) {
+        typeInfo.permalink = `${path.slice(0, -slugOfItem.length)}{slug}`;
+      }
+    }
+    const ownTerms: Record<string, string[]> = {};
+    for (const c of categories) {
+      const taxonomy = customTaxonomies.get(c.domain);
+      if (!taxonomy) continue;
+      (ownTerms[taxonomy.slug] ??= []).push(`${c.domain}:${c.slug}`);
+      taxonomyTypes.set(
+        taxonomy.slug,
+        (taxonomyTypes.get(taxonomy.slug) ?? new Set()).add(entryType),
+      );
+    }
+    const seo = seoFields(item);
     entries.push({
       ref,
-      type: type === 'post' ? 'article' : 'page',
+      type: entryType,
       locale,
       ...(parent ? { parentRef: `post:${parent}` } : {}),
       slug: decodeURIComponent(text(item['wp:post_name'])) || title,
@@ -270,11 +310,14 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       ...(status === 'scheduled' && date ? { scheduledAt: date } : {}),
       position: Number(text(item['wp:menu_order']) || 0),
       document,
+      ...(thumbnailRef ? { featuredMediaRef: thumbnailRef } : {}),
+      ...(seo ? { fields: { seo } } : {}),
       terms: {
         category: categories
           .filter((c) => c.domain === 'category')
           .map((c) => `category:${c.slug}`),
         tag: categories.filter((c) => c.domain === 'post_tag').map((c) => `tag:${c.slug}`),
+        ...ownTerms,
       },
       ...(link && status === 'published' ? { oldPaths: [link, ...(id ? [`/?p=${id}`] : [])] } : {}),
       ...(text(item['wp:comment_status'])
@@ -284,8 +327,24 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     });
   }
   for (const [type, n] of skippedTypes) {
-    warnings.push(`${n} item(s) of the custom type "${type}" were not imported.`);
+    warnings.push(
+      SHOP_TYPES.has(type)
+        ? `${n} item(s) of the shop type "${type}" were not imported: import products into Cleishop from a CSV export.`
+        : `${n} item(s) of the custom type "${type}" were not imported.`,
+    );
   }
+  const contentTypes = [...customTypes.entries()].map(([wp, t]) => ({
+    slug: t.slug,
+    name: { [locale.split('-')[0]!]: label(wp) },
+    hierarchical: false,
+    permalink: t.permalink ?? `/${t.slug}/{slug}`,
+  }));
+  const taxonomies = [...customTaxonomies.entries()].map(([wp, t]) => ({
+    slug: t.slug,
+    name: { [locale.split('-')[0]!]: label(wp) },
+    hierarchical: t.hierarchical,
+    contentTypes: [...(taxonomyTypes.get(t.slug) ?? [])],
+  }));
   if (elementorPages) {
     warnings.push(
       `${elementorPages} page(s) built with Elementor were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
@@ -321,8 +380,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         if (kind === 'post_type' && entryRefs.has(objectId)) {
           return { kind: 'entry', entryRef: entryRefs.get(objectId), label, target, children };
         }
-        if (kind === 'taxonomy' && (object === 'category' || object === 'post_tag')) {
-          const term = findTermRef(channel, object, objectId);
+        if (kind === 'taxonomy') {
+          const term = findTermRef(channel, object ?? '', objectId);
           if (term) return { kind: 'term', termRef: term, label, target, children };
         }
         const url = meta(item, '_menu_item_url');
@@ -349,6 +408,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         ...(text(channel.description) ? { tagline: decode(text(channel.description)) } : {}),
       },
       users: authors.filter((a) => a.email),
+      contentTypes,
+      taxonomies,
       terms,
       media,
       entries,
@@ -376,6 +437,12 @@ function meta(item: Node, key: string): string | undefined {
 }
 
 function findTermRef(channel: Node, taxonomy: string, id: number): string | undefined {
+  if (taxonomy !== 'category' && taxonomy !== 'post_tag') {
+    const found = ((channel['wp:term'] as Node[] | undefined) ?? []).find(
+      (t) => text(t['wp:term_taxonomy']) === taxonomy && Number(text(t['wp:term_id'])) === id,
+    );
+    return found ? `${taxonomy}:${text(found['wp:term_slug'])}` : undefined;
+  }
   const list =
     (channel[taxonomy === 'category' ? 'wp:category' : 'wp:tag'] as Node[] | undefined) ?? [];
   const found = list.find((t) => Number(text(t['wp:term_id'])) === id);
@@ -385,14 +452,131 @@ function findTermRef(channel: Node, taxonomy: string, id: number): string | unde
     : `tag:${text(found['wp:tag_slug'])}`;
 }
 
+/** WordPress's own types and taxonomies, never content. */
+const INTERNAL_TYPES = new Set([
+  'revision',
+  'wp_navigation',
+  'wp_template',
+  'wp_template_part',
+  'wp_global_styles',
+  'wp_font_family',
+  'wp_font_face',
+  'customize_changeset',
+  'oembed_cache',
+  'custom_css',
+  'wp_block',
+  'user_request',
+  'elementor_library',
+  'elementor_snippet',
+  'elementor_font',
+  'elementor_icons',
+  'e-landing-page',
+  'acf-field-group',
+  'acf-field',
+  'wpcf7_contact_form',
+  'rank_math_schema',
+  'scheduled-action',
+]);
+const INTERNAL_TAXONOMIES = new Set([
+  'category',
+  'post_tag',
+  'nav_menu',
+  'post_format',
+  'link_category',
+  'wp_theme',
+  'wp_template_part_area',
+  'wp_pattern_category',
+  'elementor_library_type',
+  'elementor_library_category',
+  'elementor_font_type',
+  'translation_priority',
+  'language',
+  'post_translations',
+  'term_language',
+  'term_translations',
+]);
+/** WooCommerce: products go to Cleishop through its CSV import. */
+const SHOP_TYPES = new Set([
+  'product',
+  'product_variation',
+  'shop_order',
+  'shop_coupon',
+  'shop_order_refund',
+]);
+const SHOP_TAXONOMIES = new Set([
+  'product_cat',
+  'product_tag',
+  'product_type',
+  'product_visibility',
+  'product_shipping_class',
+]);
+/** Addresses that belong to Cleitext itself or its default types. */
+const RESERVED = new Set([
+  'admin',
+  'cl-admin',
+  'admin-plugins',
+  'plugin-assets',
+  'api',
+  'media',
+  'health',
+  'feed',
+  'search',
+  'page',
+  'author',
+  'account',
+  'article',
+  'category',
+  'tag',
+  'robots',
+  'sitemap',
+]);
+
+/** A WordPress type or taxonomy name as a Cleitext one (letters, digits, - and _), or null. */
+function structureSlug(name: string): string | null {
+  let slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[^a-z]+/, '')
+    .slice(0, 32);
+  if (!slug) return null;
+  if (RESERVED.has(slug)) slug = `wp-${slug}`.slice(0, 32);
+  return /^[a-z][a-z0-9_-]{0,31}$/.test(slug) ? slug : null;
+}
+
+/** "portfolio_category" → "Portfolio category". */
+function label(name: string): string {
+  const words = name.replace(/[_-]+/g, ' ').trim();
+  return (words.charAt(0).toUpperCase() + words.slice(1)).slice(0, 100) || name;
+}
+
+/** Search title, description, keyphrase, indexing and canonical from Yoast SEO or Rank Math. */
+function seoFields(item: Node): Record<string, unknown> | null {
+  // Rank Math writes %title%, Yoast and Cleitext %%title%%.
+  const rankVars = (value: string) => value.replace(/(?<!%)%([a-z_]+)%(?!%)/g, '%%$1%%');
+  const title = meta(item, '_yoast_wpseo_title') || rankVars(meta(item, 'rank_math_title') ?? '');
+  const description =
+    meta(item, '_yoast_wpseo_metadesc') || rankVars(meta(item, 'rank_math_description') ?? '');
+  const keyphrase =
+    meta(item, '_yoast_wpseo_focuskw') ||
+    (meta(item, 'rank_math_focus_keyword') ?? '').split(',')[0]!.trim();
+  const noindex =
+    meta(item, '_yoast_wpseo_meta-robots-noindex') === '1' ||
+    /"noindex"/.test(meta(item, 'rank_math_robots') ?? '');
+  const canonical = meta(item, '_yoast_wpseo_canonical') || meta(item, 'rank_math_canonical_url');
+  const seo: Record<string, unknown> = {
+    ...(title ? { title: decode(title).slice(0, 70) } : {}),
+    ...(description ? { description: decode(description).slice(0, 160) } : {}),
+    ...(keyphrase ? { keyphrase: decode(keyphrase).slice(0, 100) } : {}),
+    ...(noindex ? { noindex: true } : {}),
+    ...(canonical && /^https?:\/\//.test(canonical) ? { canonical } : {}),
+  };
+  return Object.keys(seo).length > 0 ? seo : null;
+}
+
 /** Links to the old site become relative, so they follow the new domain. */
 function relativeTo(url: string, base: string): string {
   if (base && url.startsWith(base)) return url.slice(base.replace(/\/+$/, '').length) || '/';
   return url;
-}
-
-function imageBlock(ref: string, url: string, alt: string): CxdBlock {
-  return { id: newBlockId(), type: 'core/image', v: 1, attrs: { id: ref, url, alt } };
 }
 
 function stripTags(html: string): string {
