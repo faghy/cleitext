@@ -1,5 +1,6 @@
 import {
   CXD_SCHEMA_VERSION,
+  cleanBlockStyle,
   htmlToInline,
   inlineText,
   newBlockId,
@@ -53,6 +54,9 @@ function fromWpBlock(
   const html = block.innerHTML ?? '';
   const children = () => block.innerBlocks.flatMap((b) => fromWpBlock(b, options, warn));
   const common = withPaletteClasses(pick(attrs, ['anchor', 'className', 'align']), attrs);
+  // Spacing, custom colors and text size set on the block in WordPress.
+  const blockStyle = cleanBlockStyle(attrs.style);
+  if (blockStyle) common.style = blockStyle;
   if (!name) return html.trim() ? fromClassic(html, options, warn) : [];
 
   switch (name) {

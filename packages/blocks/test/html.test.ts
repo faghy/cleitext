@@ -177,11 +177,12 @@ describe('block markup', () => {
 describe('colors and custom HTML', () => {
   it('keeps palette colors as WordPress classes, inline colors and custom HTML', () => {
     const doc = htmlToCxd(
-      '<!-- wp:paragraph {"textColor":"ast-global-color-0","backgroundColor":"bad slug!","className":"lead"} -->' +
+      '<!-- wp:paragraph {"textColor":"ast-global-color-0","backgroundColor":"bad slug!","className":"lead","style":{"spacing":{"margin":{"top":"0","bottom":"0"}},"color":{"text":"expression(x)"}}} -->' +
         '<p class="lead has-ast-global-color-0-color has-text-color">Immerso <a style="color:#4A4A4A;" href="tel:+39">+39</a></p><!-- /wp:paragraph -->' +
         '<!-- wp:html --><iframe src="https://www.google.com/maps/embed?pb=1" width="600"></iframe><!-- /wp:html -->',
     );
     expect(doc.blocks[0]!.attrs.className).toBe('lead has-ast-global-color-0-color has-text-color');
+    expect(doc.blocks[0]!.attrs.style).toEqual({ spacing: { margin: { top: '0', bottom: '0' } } });
     expect(doc.blocks[0]!.content).toEqual([
       { text: 'Immerso ' },
       { type: 'link', href: 'tel:+39', color: '#4A4A4A', children: [{ text: '+39' }] },

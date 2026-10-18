@@ -702,6 +702,7 @@ The **stored format** is neither Gutenberg markup nor the internal state of any 
 ```
 
 - `content`: inline text as an array of spans with `marks` (bold, italic, code, highlight…) and an optional text `color`, and links (which may have their own `color`), in the style of Portable Text. Colors are hex, `rgb()`/`hsl()` or a palette variable (`var(--name)`).
+- `attrs.style` (core blocks): spacing (margin, padding), custom text and background colors and text size, as WordPress saves them; only safe values are shown, as the block's inline style.
 - `children`: nested blocks, for container blocks.
 - `v`: version of the attribute schema **of the individual block**, used for migrations.
 

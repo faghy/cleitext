@@ -126,6 +126,41 @@ describe('core blocks', () => {
     expect(out).toContain('<pre class="wp-block-code"><code>a &lt; b</code></pre>');
   });
 
+  it('shows the spacing, colors and text size set on blocks, and only safe values', () => {
+    expect(
+      html(
+        doc(
+          {
+            id: 'p',
+            type: 'core/paragraph',
+            v: 1,
+            attrs: {
+              style: {
+                spacing: { margin: { top: '0', bottom: 'var:preset|spacing|20' } },
+                color: { text: '#4a4a4a', background: 'url(javascript:x)' },
+                typography: { fontSize: '18px', lineHeight: '1.4' },
+              },
+            },
+            content: [
+              { text: 'Hi' },
+              { type: 'link', href: '/x', color: '#c06e52', children: [{ text: 'go' }] },
+            ],
+          },
+          {
+            id: 'b',
+            type: 'core/button',
+            v: 1,
+            attrs: { url: '/book', style: { spacing: { padding: { left: '2rem' } } } },
+            content: [{ text: 'Book' }],
+          },
+        ),
+      ),
+    ).toBe(
+      '<p style="margin-top:0;margin-bottom:var(--wp--preset--spacing--20);color:#4a4a4a;font-size:18px;line-height:1.4">Hi<a href="/x" style="color:#c06e52">go</a></p>' +
+        '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" style="padding-left:2rem" href="/book">Book</a></div>',
+    );
+  });
+
   it('skips empty paragraphs and unknown blocks', () => {
     expect(
       html(

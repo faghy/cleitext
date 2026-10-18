@@ -1,4 +1,10 @@
-import { resolveEmbed, type CxdBlock, type CxdDocument, type CxdInline } from '@cleitext/blocks';
+import {
+  blockStyleCss,
+  resolveEmbed,
+  type CxdBlock,
+  type CxdDocument,
+  type CxdInline,
+} from '@cleitext/blocks';
 import type { CSSProperties, ReactNode } from 'react';
 import {
   RenderContextReact,
@@ -58,6 +64,11 @@ export function Block({ block }: { block: CxdBlock }): ReactNode {
 const str = (value: unknown): string | undefined =>
   typeof value === 'string' && value ? value : undefined;
 
+/** The block's spacing, custom colors and text size (WordPress's `style`), as inline style. */
+function blockStyle(block: CxdBlock): CSSProperties | undefined {
+  return blockStyleCss(block.attrs.style) as CSSProperties | undefined;
+}
+
 function classes(...names: (string | false | null | undefined)[]): string | undefined {
   const value = names.filter(Boolean).join(' ');
   return value || undefined;
@@ -97,6 +108,7 @@ registerBlockRenderer('core/paragraph', ({ block }) => {
         block.attrs.dropCap === true && 'has-drop-cap',
         extraClass(block),
       )}
+      style={blockStyle(block)}
     >
       <Inline nodes={block.content} />
     </p>
@@ -110,6 +122,7 @@ registerBlockRenderer('core/heading', ({ block }) => {
     <Tag
       id={anchor(block)}
       className={classes('wp-block-heading', textAlignClass(block), extraClass(block))}
+      style={blockStyle(block)}
     >
       <Inline nodes={block.content} />
     </Tag>
@@ -124,27 +137,32 @@ registerBlockRenderer('core/list', ({ block, children }) => {
     <ol
       id={anchor(block)}
       className={className}
+      style={blockStyle(block)}
       start={start}
       reversed={block.attrs.reversed === true || undefined}
     >
       {children}
     </ol>
   ) : (
-    <ul id={anchor(block)} className={className}>
+    <ul id={anchor(block)} className={className} style={blockStyle(block)}>
       {children}
     </ul>
   );
 });
 
 registerBlockRenderer('core/list-item', ({ block, children }) => (
-  <li className={extraClass(block)}>
+  <li className={extraClass(block)} style={blockStyle(block)}>
     <Inline nodes={block.content} />
     {children}
   </li>
 ));
 
 registerBlockRenderer('core/quote', ({ block, children }) => (
-  <blockquote id={anchor(block)} className={classes('wp-block-quote', extraClass(block))}>
+  <blockquote
+    id={anchor(block)}
+    className={classes('wp-block-quote', extraClass(block))}
+    style={blockStyle(block)}
+  >
     {children}
     {hasText(rich(block, 'citation')) && (
       <cite>
@@ -155,7 +173,11 @@ registerBlockRenderer('core/quote', ({ block, children }) => (
 ));
 
 registerBlockRenderer('core/code', ({ block }) => (
-  <pre id={anchor(block)} className={classes('wp-block-code', extraClass(block))}>
+  <pre
+    id={anchor(block)}
+    className={classes('wp-block-code', extraClass(block))}
+    style={blockStyle(block)}
+  >
     <code>
       <Inline nodes={block.content} />
     </code>
@@ -189,6 +211,7 @@ registerBlockRenderer('core/embed', ({ block }) => {
         embed?.type === 'video' && 'wp-embed-aspect-16-9 wp-has-aspect-ratio',
         extraClass(block),
       )}
+      style={blockStyle(block)}
     >
       <div className="wp-block-embed__wrapper">
         {embed ? (
@@ -303,6 +326,7 @@ registerBlockRenderer('core/table', ({ block }) => {
     <figure
       id={anchor(block)}
       className={classes('wp-block-table', alignClass(block), extraClass(block))}
+      style={blockStyle(block)}
     >
       <table className={block.attrs.hasFixedLayout !== false ? 'has-fixed-layout' : undefined}>
         {head.length > 0 && <thead>{head}</thead>}
@@ -334,6 +358,7 @@ registerBlockRenderer('core/gallery', ({ block, children }) => {
         alignClass(block),
         extraClass(block),
       )}
+      style={blockStyle(block)}
     >
       {children}
       {hasText(caption) && (
@@ -412,6 +437,7 @@ function ImageBlock({ block }: { block: CxdBlock }): ReactNode {
         sizeSlug && `size-${sizeSlug}`,
         extraClass(block),
       )}
+      style={blockStyle(block)}
     >
       {href ? <a href={href}>{image}</a> : image}
       {hasText(caption) && (
@@ -482,7 +508,11 @@ export function ResponsiveImage({
 }
 
 registerBlockRenderer('core/buttons', ({ block, children }) => (
-  <div id={anchor(block)} className={classes('wp-block-buttons', extraClass(block))}>
+  <div
+    id={anchor(block)}
+    className={classes('wp-block-buttons', extraClass(block))}
+    style={blockStyle(block)}
+  >
     {children}
   </div>
 ));
@@ -499,6 +529,7 @@ registerBlockRenderer('core/button', ({ block }) => {
       {href ? (
         <a
           className="wp-block-button__link wp-element-button"
+          style={blockStyle(block)}
           href={href}
           target={newTab ? '_blank' : undefined}
           rel={rel || undefined}
@@ -521,6 +552,7 @@ registerBlockRenderer('core/columns', ({ block, children }) => (
       block.attrs.isStackedOnMobile !== false && 'is-stacked-on-mobile',
       extraClass(block),
     )}
+    style={blockStyle(block)}
   >
     {children}
   </div>
@@ -531,7 +563,7 @@ registerBlockRenderer('core/column', ({ block, children }) => {
   return (
     <div
       className={classes('wp-block-column', extraClass(block))}
-      style={basis ? { flexBasis: basis } : undefined}
+      style={basis ? { ...blockStyle(block), flexBasis: basis } : blockStyle(block)}
     >
       {children}
     </div>
@@ -547,6 +579,7 @@ registerBlockRenderer('core/group', ({ block, children }) => {
     <Tag
       id={anchor(block)}
       className={classes('wp-block-group', alignClass(block), extraClass(block))}
+      style={blockStyle(block)}
     >
       {children}
     </Tag>
@@ -554,13 +587,16 @@ registerBlockRenderer('core/group', ({ block, children }) => {
 });
 
 registerBlockRenderer('core/separator', ({ block }) => (
-  <hr className={classes('wp-block-separator', 'has-alpha-channel-opacity', extraClass(block))} />
+  <hr
+    className={classes('wp-block-separator', 'has-alpha-channel-opacity', extraClass(block))}
+    style={blockStyle(block)}
+  />
 ));
 
 registerBlockRenderer('core/spacer', ({ block }) => (
   <div
     className={classes('wp-block-spacer', extraClass(block))}
-    style={{ height: cssLength(block.attrs.height) ?? '100px' }}
+    style={{ ...blockStyle(block), height: cssLength(block.attrs.height) ?? '100px' }}
     aria-hidden="true"
   />
 ));

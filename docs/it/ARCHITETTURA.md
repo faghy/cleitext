@@ -709,6 +709,7 @@ Il **formato salvato** non è il markup di Gutenberg né lo stato interno di nes
 ```
 
 - `content`: testo inline come array di span con `marks` (bold, italic, code, highlight…) e un `color` facoltativo del testo, e link (che possono avere un proprio `color`), in stile Portable Text. I colori sono esadecimali, `rgb()`/`hsl()` o una variabile della palette (`var(--nome)`).
+- `attrs.style` (blocchi core): spaziature (margini, padding), colori personalizzati di testo e sfondo e dimensione del testo, come li salva WordPress; si mostrano solo i valori sicuri, come stile inline del blocco.
 - `children`: blocchi annidati, per i blocchi contenitore.
 - `v`: versione dello schema degli attributi **del singolo blocco**, usata per le migrazioni.
 

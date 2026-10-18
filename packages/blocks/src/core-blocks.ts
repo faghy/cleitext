@@ -13,7 +13,13 @@ const align = z.enum(['left', 'center', 'right', 'wide', 'full']).optional();
 const anchor = z.string().max(100).optional();
 const className = z.string().max(500).optional();
 
-const common = { anchor, className };
+/** WordPress's block supports (spacing, colors, text size); cleaned when shown (block-style.ts). */
+const style = z
+  .record(z.string(), z.unknown())
+  .refine((value) => JSON.stringify(value).length <= 2000, 'Style too large')
+  .optional();
+
+const common = { anchor, className, style };
 
 /** A table cell: rich text (inline nodes), header or data, alignment and spans. */
 const tableCell = z
