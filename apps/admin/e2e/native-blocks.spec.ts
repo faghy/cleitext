@@ -74,6 +74,10 @@ test('a block of a plugin is edited with its own editor and published', async ({
   const box = canvas.locator('section.nb-box').first();
   await expect(box).toBeVisible();
   await expect(box).toHaveCSS('border-top-color', 'rgb(124, 58, 237)');
+  // The preview device: the canvas takes the tablet's width, then back.
+  await page.getByRole('button', { name: 'Tablet preview' }).click();
+  await expect(page.locator('.cleitext-gutenberg__frame')).toHaveCSS('width', '780px');
+  await page.getByRole('button', { name: 'Desktop preview' }).click();
   await box.getByRole('textbox', { name: 'Box heading' }).click();
   await page.keyboard.type(`Heading ${stamp}`);
   await page.getByRole('button', { name: 'Save draft' }).click();

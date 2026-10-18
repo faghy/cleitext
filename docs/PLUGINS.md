@@ -458,6 +458,7 @@ defineBlock<{ heading?: CxdInline[]; padding?: number }>({
 - The entry imports `@wordpress/block-editor`, `blocks`, `components`, `compose`, `data`, `element`, `hooks`, `i18n`, `icons`, `keycodes`, `primitives` and `rich-text`, plus React: `cleitext plugin:build` gives it the editor's own instances, never copies.
 - `editorStyles` are stylesheets of the `public` folder loaded in the canvas, after the theme's, so blocks look there as on the site.
 - Nothing is saved as markup: `save` is not used. Attributes may come from any version of the editor entry, so `render` must not trust them: escape what it prints, as above.
+- The editor's preview device is in the `cleitext/editor` data store: `select('cleitext/editor').getDeviceType()` (`Desktop`, `Tablet`, `Mobile`) and `dispatch('cleitext/editor').setDeviceType('Tablet')`. The canvas takes the device's width, so its media queries apply; responsive settings of blocks should show and edit that device's value.
 - The entry runs in the entries' editor and in the theme's areas. Without it (an error, or the plugin turned off), the block shows as unavailable and its content is kept.
 
 ## 8. Routes

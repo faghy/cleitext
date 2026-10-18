@@ -385,6 +385,7 @@ ctx.blocks.register(
 - Lo script importa `@wordpress/block-editor`, `blocks`, `components`, `compose`, `data`, `element`, `hooks`, `i18n`, `icons`, `keycodes`, `primitives` e `rich-text`, più React: `cleitext plugin:build` gli passa le istanze dell'editor, mai copie.
 - `editorStyles` sono fogli di stile della cartella `public` caricati nel canvas dopo quelli del tema, così i blocchi appaiono come sul sito.
 - Non si salva HTML: `save` non è usato. Gli attributi possono venire da qualsiasi versione dello script, quindi `render` non deve fidarsi: fai l'escape di ciò che stampa.
+- Il dispositivo dell'anteprima è nello store `cleitext/editor`: `select('cleitext/editor').getDeviceType()` (`Desktop`, `Tablet`, `Mobile`) e `dispatch('cleitext/editor').setDeviceType('Tablet')`. Il canvas prende la larghezza del dispositivo, così le sue media query valgono; le impostazioni responsive dei blocchi dovrebbero mostrare e modificare il valore di quel dispositivo.
 - Lo script gira nell'editor delle voci e nelle aree del tema. Senza (un errore, o il plugin spento) il blocco appare come non disponibile e il suo contenuto resta.
 
 ## 8. Route

@@ -41,6 +41,22 @@
   background: #f0f0f0;
 }
 
+.cleitext-gutenberg__frame {
+  height: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  transition: width 0.2s ease;
+}
+
+.cleitext-gutenberg__canvas:not([data-device='desktop']) .cleitext-gutenberg__frame {
+  box-shadow: 0 0 0 1px #ddd;
+}
+
+.cleitext-gutenberg__devices {
+  display: flex;
+  margin-left: auto;
+}
+
 .cleitext-gutenberg__canvas iframe {
   width: 100%;
   height: 100%;

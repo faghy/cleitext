@@ -20,14 +20,17 @@ import { useStateWithHistory } from '@wordpress/compose';
 import { select, useDispatch, useSelect } from '@wordpress/data';
 import { store as keyboardShortcutsStore, useShortcut } from '@wordpress/keyboard-shortcuts';
 import {
+  desktop as desktopIcon,
   keyboard,
   listView,
+  mobile as mobileIcon,
   plus,
+  tablet as tabletIcon,
   redo as redoIcon,
   symbol,
   undo as undoIcon,
 } from '@wordpress/icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { fromGutenberg, toGutenberg } from './convert';
@@ -35,6 +38,7 @@ import { buildBlocks, defaultsOf, isRegistered } from './gutenberg-tree';
 import { registerMediaUpload, setMediaServices } from './media-upload';
 import { registerFieldBlocks } from './field-blocks';
 import { registerCoreBlocks } from './register-blocks';
+import { DEVICE_WIDTHS, editorStore, registerEditorStore, type DeviceType } from './device';
 import { EDITOR_SHORTCUTS, ShortcutsHelp } from './shortcuts';
 import { inserterPatterns, PATTERN_CATEGORIES, setPatterns } from './patterns';
 import blockEditorContentCss from '@wordpress/block-editor/build-style/content.css?inline';
@@ -103,6 +107,7 @@ export const gutenbergAdapter: EditorAdapter = {
   id: 'gutenberg',
   mount(options: EditorMountOptions): EditorInstance {
     registerCoreBlocks();
+    registerEditorStore();
     registerMediaUpload();
     setMediaServices(options.services);
     registerFieldBlocks(options.fieldBlocks ?? [], registry, options.locale);
@@ -333,6 +338,7 @@ function GutenbergEditor({
               onClick={() => setHelpOpen(true)}
               size="compact"
             />
+            <DeviceSwitcher />
           </div>
           <div className="cleitext-gutenberg__body">
             {listOpen && (
@@ -341,9 +347,9 @@ function GutenbergEditor({
                 <ListView />
               </aside>
             )}
-            <div className="cleitext-gutenberg__canvas">
+            <DeviceCanvas>
               <BlockCanvas height="100%" />
-            </div>
+            </DeviceCanvas>
           </div>
         </div>
         {options.targets.inspector && createPortal(<BlockInspector />, options.targets.inspector)}
@@ -355,6 +361,52 @@ function GutenbergEditor({
         <Popover.Slot />
       </BlockEditorProvider>
     </SlotFillProvider>
+  );
+}
+
+const DEVICES: { type: DeviceType; label: string; icon: typeof desktopIcon }[] = [
+  { type: 'Desktop', label: 'Desktop preview', icon: desktopIcon },
+  { type: 'Tablet', label: 'Tablet preview', icon: tabletIcon },
+  { type: 'Mobile', label: 'Mobile preview', icon: mobileIcon },
+];
+
+/** Preview on desktop, tablet or mobile: responsive settings follow (plugin API 1.23). */
+function DeviceSwitcher() {
+  const deviceType = useSelect(
+    (s) => (s(editorStore) as { getDeviceType(): DeviceType }).getDeviceType(),
+    [],
+  );
+  const { setDeviceType } = useDispatch(editorStore) as {
+    setDeviceType(type: DeviceType): void;
+  };
+  return (
+    <div className="cleitext-gutenberg__devices" role="group" aria-label="Preview device">
+      {DEVICES.map((device) => (
+        <Button
+          key={device.type}
+          icon={device.icon}
+          label={device.label}
+          isPressed={deviceType === device.type}
+          onClick={() => setDeviceType(device.type)}
+          size="compact"
+        />
+      ))}
+    </div>
+  );
+}
+
+/** The canvas at the width of the preview device, so its media queries apply. */
+function DeviceCanvas({ children }: { children: ReactNode }) {
+  const deviceType = useSelect(
+    (s) => (s(editorStore) as { getDeviceType(): DeviceType }).getDeviceType(),
+    [],
+  );
+  return (
+    <div className="cleitext-gutenberg__canvas" data-device={deviceType.toLowerCase()}>
+      <div className="cleitext-gutenberg__frame" style={{ width: DEVICE_WIDTHS[deviceType] }}>
+        {children}
+      </div>
+    </div>
   );
 }
 
