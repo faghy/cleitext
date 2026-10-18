@@ -39,7 +39,7 @@ function carousel(gallery: HTMLElement, config: Config) {
   const perView = () => Math.max(1, Math.min(columnsNow(config.columns), count));
   const maxIndex = () => Math.max(0, count - perView());
   const dots = document.createElement('ul');
-  dots.className = 'pr-gallery__dots';
+  dots.className = 'pr-gallery__dots pr-gallery__dots--carousel';
   const render = (animate = true) => {
     const n = perView();
     for (const item of items) item.style.width = `${100 / n}%`;

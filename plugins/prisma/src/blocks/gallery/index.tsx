@@ -368,6 +368,10 @@ function css(a: Attrs, B: string, sheet: Sheet): void {
   emit(sheet, 'desktop', `${B} .pr-gallery__dots`, {
     'margin-top': px(dd, a.paginateDotDistanceUnit),
   });
+  emit(sheet, 'desktop', `${B} .pr-gallery__dots--carousel`, {
+    'margin-top': 0,
+    top: px(dd, a.paginateDotDistanceUnit),
+  });
   emit(sheet, 'desktop', `${B} .pr-gallery__dot::before`, { color: dc });
   emit(sheet, 'desktop', `${B} .pr-gallery__dot:hover::before`, { color: a.paginateColorHover });
   emit(sheet, 'desktop', `${B} .pr-gallery__more`, {

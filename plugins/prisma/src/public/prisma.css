@@ -792,6 +792,14 @@ a.pr-info-box__link-all {
   margin: 0;
   padding: 0;
 }
+/* Below the carousel as Slick draws them: moved down by the distance and their own height. */
+.pr-gallery__dots--carousel {
+  position: relative;
+  height: 30px;
+  align-items: center;
+  transform: translateY(100%);
+  margin-bottom: 30px;
+}
 .pr-gallery__dot {
   width: 20px;
   height: 20px;
@@ -861,6 +869,9 @@ a.pr-info-box__link-all {
   inset: 0;
   width: 100vw !important;
   height: 100vh !important;
+  /* Themes limit the width of what sits in the content column. */
+  max-width: none !important;
+  margin: 0 !important;
   display: flex;
   flex-direction: column;
   opacity: 0;
