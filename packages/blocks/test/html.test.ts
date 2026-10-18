@@ -65,12 +65,18 @@ describe('classic content', () => {
       '<table><tr><th>A</th><td>B</td></tr><tr><td></td></tr></table><iframe src="https://v.test/1"></iframe>' +
         '<script>x()</script><div><p>Inside</p></div>',
     );
-    expect(types(blocks)).toEqual(['core/paragraph', 'core/paragraph', 'core/paragraph']);
-    expect(blocks[0]!.content).toEqual([{ text: 'A · B' }]);
+    expect(types(blocks)).toEqual(['core/table', 'core/paragraph', 'core/paragraph']);
+    expect(blocks[0]!.attrs.body).toEqual([
+      {
+        cells: [
+          { content: [{ text: 'A' }], tag: 'th' },
+          { content: [{ text: 'B' }], tag: 'td' },
+        ],
+      },
+      { cells: [{ content: [], tag: 'td' }] },
+    ]);
     expect(blocks[1]!.content![0]).toMatchObject({ type: 'link', href: 'https://v.test/1' });
-    expect(warnings.join('\n')).toMatch(
-      /table became text[\s\S]*frame became a link[\s\S]*<script>/,
-    );
+    expect(warnings.join('\n')).toMatch(/frame became a link[\s\S]*<script>/);
   });
 });
 
@@ -123,7 +129,7 @@ describe('block markup', () => {
       'core/quote',
       'core/quote',
       'core/image',
-      'core/group',
+      'core/gallery',
       'core/buttons',
       'core/columns',
       'core/group',
@@ -132,7 +138,7 @@ describe('block markup', () => {
       'core/code',
       'core/paragraph',
       'core/paragraph',
-      'core/paragraph',
+      'core/gallery',
       'core/paragraph',
       'core/paragraph',
       'core/paragraph',
@@ -152,21 +158,72 @@ describe('block markup', () => {
     expect(blocks[14]!.content).toEqual([{ text: 'let a = 1 > 0;' }]);
     expect(blocks[15]!.content![0]).toMatchObject({ type: 'link', href: 'https://v.test/2' });
     expect(blocks[16]!.content![0]).toMatchObject({ href: 'https://v.test/3.mp4' });
-    expect(blocks[17]!.content).toEqual([{ text: '[gallery ids="1"]' }]);
+    expect(blocks[17]!.children!.map((c) => c.attrs)).toEqual([{ id: 'att:1', alt: '' }]);
     expect(blocks[18]!.content).toEqual([{ text: 'Kept' }]);
     expect(blocks[19]!.content).toEqual([{ text: 'Just text' }]);
     const all = warnings.join('\n');
     for (const expected of [
       'Pull quotes became quotes',
-      'gallery became a group',
       'media-text block became a group',
       'embed block became a link',
-      'Shortcode left as text',
       'acme/box has no equivalent: its content',
       'acme/note has no equivalent: its text',
     ]) {
       expect(all).toContain(expected);
     }
+  });
+});
+
+describe('tables and galleries', () => {
+  it('keeps WordPress tables, with head, formatted cells, alignment, spans and caption', () => {
+    const { blocks } = convert(
+      '<!-- wp:table {"hasFixedLayout":true} --><figure class="wp-block-table"><table class="has-fixed-layout"><thead><tr><th>Day</th><th class="has-text-align-right" data-align="right">Hours</th></tr></thead>' +
+        '<tbody><tr><td><strong>Mon</strong></td><td class="has-text-align-right" data-align="right">9–18</td></tr><tr><td colspan="2">Closed on <a href="/sundays">Sundays</a></td></tr></tbody></table>' +
+        '<figcaption class="wp-element-caption">Opening hours</figcaption></figure><!-- /wp:table -->',
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]!.attrs).toEqual({
+      head: [
+        {
+          cells: [
+            { content: [{ text: 'Day' }], tag: 'th' },
+            { content: [{ text: 'Hours' }], tag: 'th', align: 'right' },
+          ],
+        },
+      ],
+      body: [
+        {
+          cells: [
+            { content: [{ text: 'Mon', marks: ['bold'] }], tag: 'td' },
+            { content: [{ text: '9–18' }], tag: 'td', align: 'right' },
+          ],
+        },
+        {
+          cells: [
+            {
+              content: [
+                { text: 'Closed on ' },
+                { type: 'link', href: '/sundays', children: [{ text: 'Sundays' }] },
+              ],
+              tag: 'td',
+              colspan: 2,
+            },
+          ],
+        },
+      ],
+      hasFixedLayout: true,
+      caption: [{ text: 'Opening hours' }],
+    });
+  });
+
+  it('turns the [gallery] shortcode of classic posts into a gallery', () => {
+    const { blocks } = convert(
+      'Our trip:\n\n[gallery columns="2" ids="3,4,99"]\n\nThe end.',
+      (id) => (id === 99 ? undefined : `att:${id}`),
+    );
+    expect(types(blocks)).toEqual(['core/paragraph', 'core/gallery', 'core/paragraph']);
+    expect(blocks[1]!.attrs).toEqual({ columns: 2 });
+    expect(blocks[1]!.children!.map((c) => c.attrs.id)).toEqual(['att:3', 'att:4']);
   });
 });
 

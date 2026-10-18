@@ -1,8 +1,6 @@
 {
   "warnings": [
     "A morning at the harbour: Block some-plugin/map has no equivalent: its text was kept.",
-    "Old classic post: A table became text (tables are not supported yet).",
-    "Old classic post: contains shortcodes, left as text.",
     "1 item(s) of the shop type \"product\" were not imported: import products into Cleishop from a CSV export.",
     "1 pingback(s) and trackback(s) were not imported."
   ],
@@ -13,7 +11,7 @@
       "kind": "wordpress",
       "name": "Seaside Notes",
       "url": "https://old.example.com",
-      "exportedAt": "2026-10-18T07:19:52.074Z"
+      "exportedAt": "2026-10-18T07:52:55.611Z"
     },
     "site": {
       "title": "Seaside Notes",
@@ -85,7 +83,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdhwhl301nerefc",
+              "id": "b_mvdj303701kay6u5",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -115,7 +113,7 @@
               ]
             },
             {
-              "id": "b_mvdhwhl402pj9c0d",
+              "id": "b_mvdj3039026y1mzu",
               "type": "core/image",
               "v": 1,
               "attrs": {
@@ -131,7 +129,7 @@
               }
             },
             {
-              "id": "b_mvdhwhl403g173zd",
+              "id": "b_mvdj303a03tir5cg",
               "type": "core/heading",
               "v": 1,
               "attrs": {
@@ -144,13 +142,13 @@
               ]
             },
             {
-              "id": "b_mvdhwhl406688z5e",
+              "id": "b_mvdj303b069hqg96",
               "type": "core/list",
               "v": 1,
               "attrs": {},
               "children": [
                 {
-                  "id": "b_mvdhwhl4049fh0bi",
+                  "id": "b_mvdj303a04017dc4",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -161,7 +159,7 @@
                   ]
                 },
                 {
-                  "id": "b_mvdhwhl405n4d47g",
+                  "id": "b_mvdj303b05x3cl9x",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -174,7 +172,7 @@
               ]
             },
             {
-              "id": "b_mvdhwhl508irrgi8",
+              "id": "b_mvdj303b08atdp8k",
               "type": "core/quote",
               "v": 1,
               "attrs": {
@@ -186,7 +184,7 @@
               },
               "children": [
                 {
-                  "id": "b_mvdhwhl50719u13j",
+                  "id": "b_mvdj303b07cdfb38",
                   "type": "core/paragraph",
                   "v": 1,
                   "attrs": {},
@@ -199,19 +197,19 @@
               ]
             },
             {
-              "id": "b_mvdhwhl509p27lmw",
+              "id": "b_mvdj303b09chdsbu",
               "type": "core/columns",
               "v": 1,
               "attrs": {},
               "children": [
                 {
-                  "id": "b_mvdhwhl50av2a8et",
+                  "id": "b_mvdj303b0aec4wjf",
                   "type": "core/column",
                   "v": 1,
                   "attrs": {},
                   "children": [
                     {
-                      "id": "b_mvdhwhl50bk7kca1",
+                      "id": "b_mvdj303b0b2xlksg",
                       "type": "core/paragraph",
                       "v": 1,
                       "attrs": {},
@@ -224,13 +222,13 @@
                   ]
                 },
                 {
-                  "id": "b_mvdhwhl50cna55bw",
+                  "id": "b_mvdj303b0chkih68",
                   "type": "core/column",
                   "v": 1,
                   "attrs": {},
                   "children": [
                     {
-                      "id": "b_mvdhwhl50dd1w9jx",
+                      "id": "b_mvdj303b0dpceyvj",
                       "type": "core/paragraph",
                       "v": 1,
                       "attrs": {},
@@ -245,13 +243,13 @@
               ]
             },
             {
-              "id": "b_mvdhwhl50eaxnok8",
+              "id": "b_mvdj303b0ekh7m9t",
               "type": "core/separator",
               "v": 1,
               "attrs": {}
             },
             {
-              "id": "b_mvdhwhl50fyjg7rj",
+              "id": "b_mvdj303c0fvouxdo",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -315,7 +313,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdhwhl50gdc2m46",
+              "id": "b_mvdj303d0gy87ugy",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -333,7 +331,7 @@
               ]
             },
             {
-              "id": "b_mvdhwhl50h9kxaz2",
+              "id": "b_mvdj303d0hl4mojc",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -344,7 +342,7 @@
               ]
             },
             {
-              "id": "b_mvdhwhl50i6mq6e9",
+              "id": "b_mvdj303d0ixv4iqw",
               "type": "core/heading",
               "v": 1,
               "attrs": {
@@ -357,7 +355,7 @@
               ]
             },
             {
-              "id": "b_mvdhwhl50jndzqxb",
+              "id": "b_mvdj303d0jqlplhg",
               "type": "core/list",
               "v": 1,
               "attrs": {
@@ -365,7 +363,7 @@
               },
               "children": [
                 {
-                  "id": "b_mvdhwhl50k242ip5",
+                  "id": "b_mvdj303d0kk8370p",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -376,7 +374,7 @@
                   ]
                 },
                 {
-                  "id": "b_mvdhwhl50ns1tndq",
+                  "id": "b_mvdj303d0n3l35hs",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -387,13 +385,13 @@
                   ],
                   "children": [
                     {
-                      "id": "b_mvdhwhl50lmit1sb",
+                      "id": "b_mvdj303d0lh7kxx0",
                       "type": "core/list",
                       "v": 1,
                       "attrs": {},
                       "children": [
                         {
-                          "id": "b_mvdhwhl50m4faerw",
+                          "id": "b_mvdj303d0mei413m",
                           "type": "core/list-item",
                           "v": 1,
                           "attrs": {},
@@ -410,7 +408,7 @@
               ]
             },
             {
-              "id": "b_mvdhwhl60opqh6ce",
+              "id": "b_mvdj303e0o8hdy1m",
               "type": "core/image",
               "v": 1,
               "attrs": {
@@ -420,26 +418,51 @@
               }
             },
             {
-              "id": "b_mvdhwhl60p2a8evm",
-              "type": "core/paragraph",
+              "id": "b_mvdj303e0pm7vhqs",
+              "type": "core/gallery",
               "v": 1,
               "attrs": {},
-              "content": [
+              "children": [
                 {
-                  "text": "[gallery ids=\"10\"]"
+                  "id": "b_mvdj303e0qj8gz1c",
+                  "type": "core/image",
+                  "v": 1,
+                  "attrs": {
+                    "id": "att:10",
+                    "alt": ""
+                  }
                 }
               ]
             },
             {
-              "id": "b_mvdhwhl60q3qm6iq",
-              "type": "core/paragraph",
+              "id": "b_mvdj303e0rv64h74",
+              "type": "core/table",
               "v": 1,
-              "attrs": {},
-              "content": [
-                {
-                  "text": "Day · Hours"
-                }
-              ]
+              "attrs": {
+                "body": [
+                  {
+                    "cells": [
+                      {
+                        "content": [
+                          {
+                            "text": "Day"
+                          }
+                        ],
+                        "tag": "td"
+                      },
+                      {
+                        "content": [
+                          {
+                            "text": "Hours"
+                          }
+                        ],
+                        "tag": "td"
+                      }
+                    ]
+                  }
+                ],
+                "hasFixedLayout": false
+              }
             }
           ]
         },
@@ -465,7 +488,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdhwhl60rbtv1kh",
+              "id": "b_mvdj303e0so2ydng",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -499,7 +522,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdhwhl60srtmasy",
+              "id": "b_mvdj303f0taeh7fm",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -530,7 +553,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdhwhl60tc75whs",
+              "id": "b_mvdj303f0uyhpmgp",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},

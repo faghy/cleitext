@@ -145,8 +145,9 @@ describe('WordPress import', () => {
     const warnings = report.warnings.join('\n');
     expect(warnings).toContain('1 pingback(s)');
     expect(warnings).toContain('shop type "product"');
-    expect(warnings).toContain('shortcodes');
-    expect(warnings).toContain('A table became text');
+    // The table and the [gallery] of the classic post are a table and a gallery now.
+    expect(warnings).not.toContain('shortcodes');
+    expect(warnings).not.toContain('table');
     expect(warnings).toContain('without a password');
   });
 
@@ -244,9 +245,14 @@ describe('WordPress import', () => {
     const classic = await visitor.get('/2019/old-classic-post');
     expect(classic.statusCode).toBe(200);
     expect(classic.body).toMatch(/datetime="2019-03-10/i);
-    // The featured image above the post, and the same picture where the text has it,
-    // as WordPress themes show them (only one when it opens the text).
-    expect(classic.body.match(/<picture/g)).toHaveLength(2);
+    // The featured image above the post, and the same picture where the text has it
+    // and in its gallery, as WordPress themes show them (only one when it opens the text).
+    expect(classic.body.match(/<picture/g)).toHaveLength(3);
+    expect(classic.body).toContain('class="wp-block-gallery');
+    expect(classic.body).toMatch(
+      /<figure class="wp-block-table"><table><tbody><tr><td>Day<\/td><td>Hours<\/td>/,
+    );
+    expect(classic.body).toContain('data-cx-core-blocks');
     expect(classic.body).toContain('<ol');
     expect((await visitor.get('/search?q=unfinished')).body).not.toContain('Unfinished draft');
   });
@@ -335,7 +341,7 @@ describe('Cleitext export and import', () => {
     expect(page.body).toContain('Thank you &amp; see you there.');
     // The featured image travels too.
     const classic = (await visitor.get('/2019/old-classic-post')).body;
-    expect(classic.match(/<picture/g)).toHaveLength(2);
+    expect(classic.match(/<picture/g)).toHaveLength(3);
   });
 
   it('refuses archives with unsafe paths or invalid documents', async () => {

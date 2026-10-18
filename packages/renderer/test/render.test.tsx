@@ -11,6 +11,7 @@ import {
   Inline,
   renderHtmlDocument,
   safeUrl,
+  withCoreBlockCss,
   type RenderMedia,
 } from '../src/index.js';
 
@@ -407,5 +408,68 @@ describe('patterns, templates and pages', () => {
     expect(firstImage(null)).toBeNull();
     expect(firstImage(doc({ id: 'i', type: 'core/image', v: 1, attrs: {} }))).toEqual({});
     expect(renderHtmlDocument(<html lang="en" />)).toMatch(/^<!doctype html><html lang="en">/);
+  });
+
+  describe('tables and galleries', () => {
+    it('render a table with head, cells that span and align, and a caption', () => {
+      const cell = (text: string, extra: object = {}) => ({ content: [{ text }], ...extra });
+      const out = html(
+        doc({
+          id: 't',
+          type: 'core/table',
+          v: 1,
+          attrs: {
+            head: [
+              { cells: [cell('Day', { tag: 'th', scope: 'col' }), cell('Hours', { tag: 'th' })] },
+            ],
+            body: [
+              { cells: [cell('Mon'), cell('9–18', { align: 'right' })] },
+              { cells: [cell('Closed on Sundays', { colspan: 2, align: 'javascript' })] },
+            ],
+            hasFixedLayout: false,
+            caption: [{ text: 'Opening hours' }],
+          },
+        }),
+      );
+      expect(out).toBe(
+        '<figure class="wp-block-table"><table><thead><tr><th scope="col">Day</th><th>Hours</th></tr></thead>' +
+          '<tbody><tr><td>Mon</td><td class="has-text-align-right">9–18</td></tr><tr><td colSpan="2">Closed on Sundays</td></tr></tbody></table>' +
+          '<figcaption class="wp-element-caption">Opening hours</figcaption></figure>',
+      );
+      expect(html(doc({ id: 'e', type: 'core/table', v: 1, attrs: {} }))).toBe('');
+    });
+
+    it('render a gallery of images in columns, cropped by default', () => {
+      const image = (id: string) => ({
+        id,
+        type: 'core/image',
+        v: 1,
+        attrs: { url: `/m/${id}.jpg`, alt: id },
+      });
+      const out = html(
+        doc({
+          id: 'g',
+          type: 'core/gallery',
+          v: 1,
+          attrs: { columns: 2 },
+          children: [image('a'), image('b')],
+        }),
+      );
+      expect(out).toContain(
+        '<figure class="wp-block-gallery has-nested-images columns-2 is-cropped"><figure class="wp-block-image">',
+      );
+      expect(out.match(/<img/g)).toHaveLength(2);
+      expect(html(doc({ id: 'x', type: 'core/gallery', v: 1, attrs: {}, children: [] }))).toBe('');
+    });
+
+    it('adds their base styles to pages that have one, before the theme’s', () => {
+      const page =
+        '<html><head><meta charset="utf-8"><style>theme</style></head><body><figure class="wp-block-table"></figure></body></html>';
+      const out = withCoreBlockCss(page);
+      expect(out.indexOf('data-cx-core-blocks')).toBeLessThan(out.indexOf('<style>theme'));
+      expect(withCoreBlockCss('<html><head></head><body><p>x</p></body></html>')).not.toContain(
+        'data-cx-core-blocks',
+      );
+    });
   });
 });

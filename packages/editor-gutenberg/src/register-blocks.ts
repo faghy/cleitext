@@ -16,6 +16,8 @@ import * as paragraphBlock from '@wordpress/block-library/build-module/paragraph
 import * as quoteBlock from '@wordpress/block-library/build-module/quote/index.mjs';
 import * as separatorBlock from '@wordpress/block-library/build-module/separator/index.mjs';
 import * as spacerBlock from '@wordpress/block-library/build-module/spacer/index.mjs';
+import * as tableBlock from '@wordpress/block-library/build-module/table/index.mjs';
+import * as galleryBlock from '@wordpress/block-library/build-module/gallery/index.mjs';
 import apiFetch from '@wordpress/api-fetch';
 import { setDefaultBlockName } from '@wordpress/blocks';
 import '@wordpress/format-library';
@@ -31,6 +33,8 @@ const CORE_BLOCKS = [
   listItemBlock,
   quoteBlock,
   imageBlock,
+  galleryBlock,
+  tableBlock,
   buttonsBlock,
   buttonBlock,
   columnsBlock,

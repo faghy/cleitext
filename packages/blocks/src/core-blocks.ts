@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cxdInlineSchema } from './cxd.js';
 import { BlockRegistry, type BlockDefinition } from './registry.js';
 
 /**
@@ -13,6 +14,19 @@ const anchor = z.string().max(100).optional();
 const className = z.string().max(500).optional();
 
 const common = { anchor, className };
+
+/** A table cell: rich text (inline nodes), header or data, alignment and spans. */
+const tableCell = z
+  .object({
+    content: z.array(cxdInlineSchema).max(2_000).default([]),
+    tag: z.enum(['td', 'th']).default('td'),
+    scope: z.enum(['row', 'col', 'rowgroup', 'colgroup']).optional(),
+    align: z.enum(['left', 'center', 'right']).optional(),
+    colspan: z.number().int().min(1).max(100).optional(),
+    rowspan: z.number().int().min(1).max(1_000).optional(),
+  })
+  .loose();
+const tableRows = z.array(z.object({ cells: z.array(tableCell).max(100) }).loose()).max(5_000);
 
 export const CORE_BLOCKS: BlockDefinition[] = [
   {
@@ -93,6 +107,43 @@ export const CORE_BLOCKS: BlockDefinition[] = [
         height: z.union([z.string(), z.number()]).optional(),
         sizeSlug: z.string().optional(),
         href: z.string().max(2_000).optional(),
+      })
+      .loose(),
+  },
+  {
+    /** A table: head, body and foot rows of cells with rich text (Gutenberg's core/table). */
+    type: 'core/table',
+    version: 1,
+    title: 'Table',
+    category: 'text',
+    richAttributes: ['caption'],
+    attrs: z
+      .object({
+        ...common,
+        head: tableRows.optional(),
+        body: tableRows.optional(),
+        foot: tableRows.optional(),
+        hasFixedLayout: z.boolean().optional(),
+        align,
+      })
+      .loose(),
+  },
+  {
+    /** Pictures in a grid: its children are core/image blocks (Gutenberg's core/gallery). */
+    type: 'core/gallery',
+    version: 1,
+    title: 'Gallery',
+    category: 'media',
+    container: true,
+    richAttributes: ['caption'],
+    attrs: z
+      .object({
+        ...common,
+        columns: z.number().int().min(1).max(8).optional(),
+        imageCrop: z.boolean().optional(),
+        linkTo: z.enum(['none', 'media', 'attachment']).optional(),
+        sizeSlug: z.string().optional(),
+        align,
       })
       .loose(),
   },

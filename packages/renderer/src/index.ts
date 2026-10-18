@@ -1,6 +1,8 @@
 export {
   Block,
   Blocks,
+  CORE_BLOCK_CSS,
+  withCoreBlockCss,
   registerBlockRenderer,
   ResponsiveImage,
   type BlockRenderer,

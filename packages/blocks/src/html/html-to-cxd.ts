@@ -108,14 +108,28 @@ function fromWpBlock(
         ),
       ];
     case 'core/gallery': {
-      warn('A gallery became a group of images.');
+      const root = parse(html);
       const images = block.innerBlocks.length
         ? children()
-        : // Each image once, with its nearest figure (and caption).
-          parse(html)
+        : // Older galleries: each image once, with its nearest figure (and caption).
+          root
             .querySelectorAll('img')
             .map((img) => imageBlock(img.closest('figure') ?? img, {}, undefined, options));
-      return [{ ...make('core/group', { className: 'wp-block-gallery' }), children: images }];
+      const caption = root.querySelector('.blocks-gallery-caption');
+      return [
+        {
+          ...make('core/gallery', {
+            ...common,
+            ...pick(attrs, ['columns', 'imageCrop', 'linkTo', 'sizeSlug']),
+            ...(caption?.textContent.trim() ? { caption: inline(caption.innerHTML) } : {}),
+          }),
+          children: images,
+        },
+      ];
+    }
+    case 'core/table': {
+      const table = parse(html).querySelector('table');
+      return table ? [tableBlock(table, common, parse(html).querySelector('figcaption'))] : [];
     }
     case 'core/buttons':
       return [{ ...make('core/buttons', common), children: children() }];
@@ -180,9 +194,12 @@ function fromWpBlock(
       warn(`A ${name.slice(5)} block became a link.`);
       return url ? [make('core/paragraph', {}, [linkTo(url)])] : [];
     }
-    case 'core/shortcode':
+    case 'core/shortcode': {
+      const gallery = galleryShortcode(html.trim(), options);
+      if (gallery) return [gallery];
       warn(`Shortcode left as text: ${html.trim().slice(0, 60)}`);
       return [make('core/paragraph', {}, [{ text: html.trim() }])];
+    }
     default: {
       // Unknown blocks (plugins, themes): keep their text.
       const nested = children();
@@ -235,6 +252,12 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
   const flush = () => {
     // Like WordPress's wpautop: blank lines separate paragraphs, single newlines are breaks.
     for (const chunk of pending.split(/\n\s*\n/)) {
+      // [gallery ids="1,2,3" columns="3"] alone on its line: a gallery.
+      const gallery = galleryShortcode(chunk.trim(), options);
+      if (gallery) {
+        blocks.push(gallery);
+        continue;
+      }
       const content = inline(chunk.trim().replace(/\n/g, '<br>'));
       if (hasText(content)) blocks.push(make('core/paragraph', {}, content));
     }
@@ -315,15 +338,7 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
           blocks.push(make('core/separator', {}));
           break;
         case 'TABLE':
-          warn('A table became text (tables are not supported yet).');
-          for (const row of node.querySelectorAll('tr')) {
-            const cells = row
-              .querySelectorAll('th,td')
-              .map((c) => c.textContent.trim())
-              .filter(Boolean);
-            if (cells.length)
-              blocks.push(make('core/paragraph', {}, [{ text: cells.join(' · ') }]));
-          }
+          blocks.push(tableBlock(node, {}, null));
           break;
         case 'IFRAME': {
           const src = node.getAttribute('src');
@@ -412,6 +427,79 @@ function imageBlock(
     ...(href && href !== src && !/\.(jpe?g|png|gif|webp|avif)$/i.test(href) ? { href } : {}),
     ...(caption && caption.textContent.trim() ? { caption: inline(caption.innerHTML) } : {}),
   });
+}
+
+/** An HTML table: its head, body and foot rows, cells with their text, spans and alignment. */
+function tableBlock(
+  table: HTMLElement,
+  base: Record<string, unknown>,
+  figcaption: HTMLElement | null,
+): CxdBlock {
+  const rowsOf = (rows: HTMLElement[]) =>
+    rows
+      .map((row) => ({
+        cells: row.childNodes
+          .filter((c): c is HTMLElement => c instanceof HTMLElement && /^T[HD]$/.test(c.tagName))
+          .map((cell) => {
+            const span = (name: string) => {
+              const n = Number(cell.getAttribute(name));
+              return Number.isInteger(n) && n > 1 ? n : undefined;
+            };
+            const align =
+              /text-align:\s*(left|center|right)/i.exec(cell.getAttribute('style') ?? '')?.[1] ??
+              /has-text-align-(left|center|right)/.exec(cell.getAttribute('class') ?? '')?.[1] ??
+              (/^(left|center|right)$/i.test(cell.getAttribute('align') ?? '')
+                ? cell.getAttribute('align')
+                : undefined);
+            const scope = cell.getAttribute('scope');
+            return {
+              content: inline(cell.innerHTML),
+              tag: cell.tagName === 'TH' ? 'th' : 'td',
+              ...(scope && /^(row|col|rowgroup|colgroup)$/.test(scope) ? { scope } : {}),
+              ...(align ? { align: align.toLowerCase() } : {}),
+              ...(span('colspan') ? { colspan: span('colspan') } : {}),
+              ...(span('rowspan') ? { rowspan: span('rowspan') } : {}),
+            };
+          }),
+      }))
+      .filter((row) => row.cells.length > 0);
+  const elements = (node: HTMLElement) =>
+    node.childNodes.filter((c): c is HTMLElement => c instanceof HTMLElement);
+  const section = (tag: string) =>
+    elements(table)
+      .filter((c) => c.tagName === tag.toUpperCase())
+      .flatMap((c) => elements(c).filter((r) => r.tagName === 'TR'));
+  // Rows straight under <table> (classic editors) belong to the body.
+  const loose = elements(table).filter((c) => c.tagName === 'TR');
+  const head = rowsOf(section('thead'));
+  const body = rowsOf([...section('tbody'), ...loose]);
+  const foot = rowsOf(section('tfoot'));
+  const caption = figcaption ?? table.querySelector('caption');
+  return make('core/table', {
+    ...base,
+    ...(head.length ? { head } : {}),
+    ...(body.length ? { body } : {}),
+    ...(foot.length ? { foot } : {}),
+    hasFixedLayout: /\bhas-fixed-layout\b/.test(table.getAttribute('class') ?? ''),
+    ...(caption?.textContent.trim() ? { caption: inline(caption.innerHTML) } : {}),
+  });
+}
+
+/** WordPress's [gallery ids="…"] shortcode, when its attachments are known. */
+function galleryShortcode(text: string, options: ConvertOptions): CxdBlock | null {
+  const match = /^\[gallery\b([^\]]*)\]$/i.exec(text);
+  if (!match) return null;
+  const ids = /ids\s*=\s*["']([\d,\s]+)["']/i.exec(match[1]!)?.[1];
+  const refs = (ids ?? '')
+    .split(',')
+    .map((id) => options.mediaRef?.(Number(id.trim())))
+    .filter((ref): ref is string => Boolean(ref));
+  if (refs.length === 0) return null;
+  const columns = Number(/columns\s*=\s*["']?(\d)/i.exec(match[1]!)?.[1]);
+  return {
+    ...make('core/gallery', columns >= 1 && columns <= 8 ? { columns } : {}),
+    children: refs.map((ref) => make('core/image', { id: ref, alt: '' })),
+  };
 }
 
 function make(type: string, attrs: Record<string, unknown>, content?: CxdInline[]): CxdBlock {

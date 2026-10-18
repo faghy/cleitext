@@ -61,6 +61,11 @@ function toCxdBlock(node: GutenbergNode, options: ConvertOptions): CxdBlock {
 
   for (const [key, raw] of Object.entries(node.attributes)) {
     if (raw === undefined) continue;
+    if (node.name === 'core/table' && TABLE_SECTIONS.has(key)) {
+      const rows = tableRows(raw, (html) => htmlToInline(richTextToHtml(html)));
+      if (rows.length > 0) attrs[key] = rows;
+      continue;
+    }
     if (key === contentKey) {
       content = htmlToInline(richTextToHtml(raw));
       continue;
@@ -108,7 +113,11 @@ export function toGutenberg(
     for (const [key, value] of Object.entries(block.attrs)) {
       attributes[key] = richKeys.has(key)
         ? inlineToHtml(value as CxdInline[])
-        : structuredClone(value);
+        : block.type === 'core/table' && TABLE_SECTIONS.has(key)
+          ? tableRows(value, (inline) =>
+              inlineToHtml(Array.isArray(inline) ? (inline as CxdInline[]) : []),
+            )
+          : structuredClone(value);
     }
     if (definition?.contentAttribute) {
       attributes[definition.contentAttribute] = inlineToHtml(block.content ?? []);
@@ -121,6 +130,26 @@ export function toGutenberg(
     };
   };
   return doc.blocks.map(convert);
+}
+
+/** Rows of core/table: each cell's content is rich text, converted one way or the other. */
+const TABLE_SECTIONS = new Set(['head', 'body', 'foot']);
+const CELL_KEYS = ['tag', 'scope', 'align', 'colspan', 'rowspan'] as const;
+
+function tableRows(value: unknown, content: (raw: unknown) => unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((row) => {
+    const cells = Array.isArray((row as { cells?: unknown }).cells)
+      ? ((row as { cells: Record<string, unknown>[] }).cells ?? [])
+      : [];
+    return {
+      cells: cells.map((cell) => {
+        const out: Record<string, unknown> = { content: content(cell.content ?? '') };
+        for (const key of CELL_KEYS) if (cell[key] !== undefined) out[key] = toJson(cell[key]);
+        return out;
+      }),
+    };
+  });
 }
 
 /** Gutenberg rich-text values are strings or RichTextData objects. */

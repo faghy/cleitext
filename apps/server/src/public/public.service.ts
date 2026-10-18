@@ -32,6 +32,7 @@ import {
   documentExcerpt,
   firstImage,
   renderHtmlDocument,
+  withCoreBlockCss,
   type BlockRenderer,
   type RenderMedia,
 } from '@cleitext/renderer';
@@ -1780,6 +1781,8 @@ export class PublicService {
       html = await this.withPluginAssets(scope, html, hookContext);
     }
     // Last in <head>: each block's own CSS overrides the plugins' stylesheets.
+    // Base styles of tables and galleries, before the plugins' (themes may restyle them).
+    html = withCoreBlockCss(html);
     if (scope.blockCss && scope.blockCss.length > 0) html = withBlockCss(html, scope.blockCss);
     return {
       status,

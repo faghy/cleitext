@@ -106,6 +106,44 @@ describe('conversion', () => {
     expect(toBlocks(fresco).blocks).toEqual([products]);
   });
 
+  it('turns galleries into Fresco galleries and tables into HTML, and back', () => {
+    const gallery = {
+      id: 'g',
+      type: 'core/gallery',
+      v: 1,
+      attrs: { columns: 2 },
+      children: [
+        { id: 'i', type: 'core/image', v: 1, attrs: { id: 'm1', url: '/a.jpg', alt: 'A' } },
+      ],
+    };
+    const table = {
+      id: 't',
+      type: 'core/table',
+      v: 1,
+      attrs: {
+        body: [{ cells: [{ content: [{ text: 'x', marks: ['bold'] }], tag: 'td', colspan: 2 }] }],
+      },
+    };
+    const fresco = fromBlocks({ schema: 1, blocks: [gallery, table] });
+    const [g, t] = (fresco.blocks[0]!.children ?? []) as {
+      type: string;
+      attrs: Record<string, unknown>;
+    }[];
+    expect(g).toMatchObject({
+      type: 'fresco/gallery',
+      attrs: { images: [{ id: 'm1', url: '/a.jpg', alt: 'A' }], columns: 2 },
+    });
+    expect(t).toMatchObject({
+      type: 'fresco/html',
+      attrs: {
+        code: '<table><tbody><tr><td colspan="2"><strong>x</strong></td></tr></tbody></table>',
+      },
+    });
+    const back = toBlocks(fresco).blocks;
+    expect(back[0]).toMatchObject({ type: 'core/gallery', attrs: { columns: 2 } });
+    expect(back[0]!.children![0]!.attrs).toEqual({ id: 'm1', url: '/a.jpg', alt: 'A' });
+  });
+
   it('escapes text', () => {
     expect(inlineHtml([{ text: '<script>' }])).toBe('&lt;script&gt;');
   });

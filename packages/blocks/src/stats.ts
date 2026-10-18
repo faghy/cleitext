@@ -1,4 +1,4 @@
-import { inlineText, type CxdBlock, type CxdDocument, type CxdInline } from './cxd.js';
+import { inlineText, tableText, type CxdBlock, type CxdDocument, type CxdInline } from './cxd.js';
 
 export interface DocumentStats {
   words: number;
@@ -40,6 +40,7 @@ export function documentStats(doc: CxdDocument): DocumentStats {
   const walk = (blocks: CxdBlock[]) => {
     for (const block of blocks) {
       if (block.content) texts.push(inlineText(block.content));
+      texts.push(...tableText(block));
       for (const value of Object.values(block.attrs)) {
         // Rich attributes (captions, citations) are arrays of inline nodes.
         if (isInlineList(value)) texts.push(inlineText(value));

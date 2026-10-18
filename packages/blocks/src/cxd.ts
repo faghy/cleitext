@@ -154,11 +154,26 @@ export function newBlockId(): string {
 }
 
 /** Plain text of a document, for search indexing and excerpts. */
+/** The text of a table's cells, row by row (core/table keeps it in its attributes). */
+export function tableText(block: CxdBlock): string[] {
+  if (block.type !== 'core/table') return [];
+  const rows = ['head', 'body', 'foot'].flatMap(
+    (section) =>
+      (block.attrs[section] as { cells?: { content?: CxdInline[] }[] }[] | undefined) ?? [],
+  );
+  return rows.map((row) =>
+    (row.cells ?? [])
+      .map((cell) => inlineText(Array.isArray(cell.content) ? cell.content : []))
+      .join(' '),
+  );
+}
+
 export function documentText(doc: CxdDocument): string {
   const parts: string[] = [];
   const walk = (blocks: CxdBlock[]) => {
     for (const block of blocks) {
       if (block.content) parts.push(inlineText(block.content));
+      parts.push(...tableText(block));
       if (block.children) walk(block.children);
     }
   };

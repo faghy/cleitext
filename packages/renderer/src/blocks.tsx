@@ -254,6 +254,131 @@ function PatternBlock({ block }: { block: CxdBlock }): ReactNode {
 
 registerBlockRenderer('core/image', ({ block }) => <ImageBlock block={block} />);
 
+// ---- Tables and galleries -------------------------------------------------------------
+
+interface TableCell {
+  content?: CxdInline[];
+  tag?: string;
+  scope?: string;
+  align?: string;
+  colspan?: number;
+  rowspan?: number;
+}
+
+const SCOPES = new Set(['row', 'col', 'rowgroup', 'colgroup']);
+const ALIGNS = new Set(['left', 'center', 'right']);
+
+function tableRows(block: CxdBlock, section: 'head' | 'body' | 'foot'): ReactNode[] {
+  const rows = block.attrs[section];
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row, r) => (
+    <tr key={r}>
+      {((row as { cells?: TableCell[] }).cells ?? []).map((cell, c) => {
+        const Tag = cell.tag === 'th' ? 'th' : 'td';
+        return (
+          <Tag
+            key={c}
+            scope={Tag === 'th' && cell.scope && SCOPES.has(cell.scope) ? cell.scope : undefined}
+            colSpan={Number.isInteger(cell.colspan) && cell.colspan! > 1 ? cell.colspan : undefined}
+            rowSpan={Number.isInteger(cell.rowspan) && cell.rowspan! > 1 ? cell.rowspan : undefined}
+            className={
+              cell.align && ALIGNS.has(cell.align) ? `has-text-align-${cell.align}` : undefined
+            }
+          >
+            <Inline nodes={Array.isArray(cell.content) ? cell.content : []} />
+          </Tag>
+        );
+      })}
+    </tr>
+  ));
+}
+
+registerBlockRenderer('core/table', ({ block }) => {
+  const head = tableRows(block, 'head');
+  const body = tableRows(block, 'body');
+  const foot = tableRows(block, 'foot');
+  if (head.length + body.length + foot.length === 0) return null;
+  const caption = rich(block, 'caption');
+  return (
+    <figure
+      id={anchor(block)}
+      className={classes('wp-block-table', alignClass(block), extraClass(block))}
+    >
+      <table className={block.attrs.hasFixedLayout !== false ? 'has-fixed-layout' : undefined}>
+        {head.length > 0 && <thead>{head}</thead>}
+        {body.length > 0 && <tbody>{body}</tbody>}
+        {foot.length > 0 && <tfoot>{foot}</tfoot>}
+      </table>
+      {hasText(caption) && (
+        <figcaption className="wp-element-caption">
+          <Inline nodes={caption} />
+        </figcaption>
+      )}
+    </figure>
+  );
+});
+
+/** A gallery: its images (core/image children) in a grid. */
+registerBlockRenderer('core/gallery', ({ block, children }) => {
+  if (!block.children?.length) return null;
+  const columns = Number(block.attrs.columns);
+  const caption = rich(block, 'caption');
+  return (
+    <figure
+      id={anchor(block)}
+      className={classes(
+        'wp-block-gallery',
+        'has-nested-images',
+        columns >= 1 && columns <= 8 ? `columns-${columns}` : 'columns-default',
+        block.attrs.imageCrop !== false && 'is-cropped',
+        alignClass(block),
+        extraClass(block),
+      )}
+    >
+      {children}
+      {hasText(caption) && (
+        <figcaption className="blocks-gallery-caption wp-element-caption">
+          <Inline nodes={caption} />
+        </figcaption>
+      )}
+    </figure>
+  );
+});
+
+/**
+ * Base styles of tables and galleries, added to pages that have one (themes
+ * may restyle them): borders and room in tables, a grid in galleries.
+ */
+export const CORE_BLOCK_CSS = [
+  '.wp-block-table{overflow-x:auto;margin:1.5em 0}',
+  '.wp-block-table table{border-collapse:collapse;width:100%}',
+  '.wp-block-table .has-fixed-layout{table-layout:fixed}',
+  '.wp-block-table th,.wp-block-table td{border:1px solid rgb(127 127 127/.35);padding:.5em .75em;text-align:left;vertical-align:top}',
+  '.wp-block-table thead{border-bottom:2px solid rgb(127 127 127/.6)}',
+  '.wp-block-table .has-text-align-center{text-align:center}.wp-block-table .has-text-align-right{text-align:right}',
+  '.wp-block-table figcaption,.wp-block-gallery>figcaption{font-size:.875em;opacity:.8;margin-top:.5em;text-align:center}',
+  '.wp-block-gallery{--cx-gallery-columns:3;display:grid;gap:.75em;grid-template-columns:repeat(var(--cx-gallery-columns),minmax(0,1fr));margin:1.5em 0;padding:0}',
+  ...[1, 2, 3, 4, 5, 6, 7, 8].map(
+    (n) => `.wp-block-gallery.columns-${n}{--cx-gallery-columns:${n}}`,
+  ),
+  '@media (max-width:600px){.wp-block-gallery:not(.columns-1){--cx-gallery-columns:2}}',
+  '.wp-block-gallery>.wp-block-image{margin:0}',
+  '.wp-block-gallery>.wp-block-image img{width:100%;height:auto;display:block}',
+  '.wp-block-gallery.is-cropped>.wp-block-image img{aspect-ratio:1;height:100%;object-fit:cover}',
+  '.wp-block-gallery>figcaption{grid-column:1/-1}',
+].join('');
+
+/** Adds the base styles of tables and galleries to a page that has one, before the theme's. */
+export function withCoreBlockCss(html: string): string {
+  if (!/class="wp-block-(table|gallery)\b/.test(html)) return html;
+  // Before the theme's styles, which may restyle them.
+  const head = html.indexOf('</head>');
+  const first = html.search(/<style|<link[^>]+rel="stylesheet"/);
+  const at = first !== -1 && (head === -1 || first < head) ? first : head;
+  const style = `<style data-cx-core-blocks>${CORE_BLOCK_CSS}</style>`;
+  return at === -1 ? style + html : html.slice(0, at) + style + html.slice(at);
+}
+
 function ImageBlock({ block }: { block: CxdBlock }): ReactNode {
   const context = useRenderContext();
   const media = typeof block.attrs.id === 'string' ? context.media.get(block.attrs.id) : undefined;

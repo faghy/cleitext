@@ -138,6 +138,22 @@ function fromBlock(block: CxdBlock): FrescoNode[] {
     }
     case 'core/html':
       return [el('html', { code: typeof a.content === 'string' ? a.content : '' })];
+    case 'core/gallery': {
+      const images = (block.children ?? [])
+        .filter((c) => c.type === 'core/image')
+        .map((c) => ({
+          id: typeof c.attrs.id === 'string' ? c.attrs.id : null,
+          url: typeof c.attrs.url === 'string' ? c.attrs.url : '',
+          ...(typeof c.attrs.alt === 'string' ? { alt: c.attrs.alt } : {}),
+        }));
+      const columns = Number(a.columns);
+      return images.length
+        ? [el('gallery', { images, ...(columns >= 1 && columns <= 8 ? { columns } : {}) })]
+        : [];
+    }
+    case 'core/table':
+      // A table keeps its cells as HTML.
+      return [el('html', { code: tableHtml(block) })];
     case 'core/columns':
       return [
         el(
@@ -167,6 +183,29 @@ function fromBlock(block: CxdBlock): FrescoNode[] {
       return text ? [el('text', { content: `<p>${escape(text)}</p>` })] : [];
     }
   }
+}
+
+/** A core/table as HTML: its sections, rows and cells. */
+function tableHtml(table: CxdBlock): string {
+  const cell = (c: Record<string, unknown>) => {
+    const tag = c.tag === 'th' ? 'th' : 'td';
+    const span = (name: string) => (Number(c[name]) > 1 ? ` ${name}="${Number(c[name])}"` : '');
+    const align = /^(left|center|right)$/.test(String(c.align))
+      ? ` style="text-align:${c.align}"`
+      : '';
+    return `<${tag}${span('colspan')}${span('rowspan')}${align}>${inlineHtml(Array.isArray(c.content) ? (c.content as CxdInline[]) : [])}</${tag}>`;
+  };
+  const section = (name: string, tag: string) => {
+    const rows = table.attrs[name];
+    if (!Array.isArray(rows) || rows.length === 0) return '';
+    return `<${tag}>${rows
+      .map(
+        (r) =>
+          `<tr>${((r as { cells?: Record<string, unknown>[] }).cells ?? []).map(cell).join('')}</tr>`,
+      )
+      .join('')}</${tag}>`;
+  };
+  return `<table>${section('head', 'thead')}${section('body', 'tbody')}${section('foot', 'tfoot')}</table>`;
 }
 
 /** A block editor document as a Fresco page: top-level widgets go into containers. */
@@ -217,6 +256,27 @@ function toBlock(node: FrescoNode): CxdBlock[] {
       return [block('core/html', { content: text(a.content) })];
     case 'fresco/html':
       return [block('core/html', { content: text(a.code) })];
+    case 'fresco/gallery': {
+      const images = (Array.isArray(a.images) ? a.images : []) as {
+        id?: string | null;
+        url?: string;
+        alt?: string;
+      }[];
+      const columns = Number(a.columns);
+      return images.length
+        ? [
+            block('core/gallery', columns >= 1 && columns <= 8 ? { columns } : {}, {
+              children: images.map((image) =>
+                block('core/image', {
+                  ...(image.id ? { id: image.id } : {}),
+                  ...(image.url ? { url: image.url } : {}),
+                  alt: image.alt ?? '',
+                }),
+              ),
+            }),
+          ]
+        : [];
+    }
     case 'fresco/image': {
       const image = a.image as { id?: string | null; url?: string; alt?: string } | undefined;
       return image?.url

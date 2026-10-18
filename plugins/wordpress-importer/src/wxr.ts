@@ -266,7 +266,11 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         ...(ip ? { ip } : {}),
       });
     }
-    if (/\[[a-z_-]+[^\]]*\]/i.test(content) && !/<!--\s+wp:shortcode/.test(content)) {
+    // Galleries become galleries; other shortcodes stay as text.
+    if (
+      /\[(?!gallery\b)[a-z_-]+[^\]]*\]/i.test(content) &&
+      !/<!--\s+wp:shortcode/.test(content)
+    ) {
       warnings.push(`${title || `#${id}`}: contains shortcodes, left as text.`);
     }
     const categories = ((item.category as Node[] | undefined) ?? []).map((c) => ({

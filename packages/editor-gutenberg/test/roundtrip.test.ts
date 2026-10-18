@@ -209,3 +209,66 @@ describe('Gutenberg round trip', () => {
     );
   });
 });
+
+describe('tables and galleries', () => {
+  it('keep cells with formatted text, headers, spans and the caption', () => {
+    const doc: CxdDocument = {
+      schema: 1,
+      blocks: [
+        {
+          id: 't',
+          type: 'core/table',
+          v: 1,
+          attrs: {
+            head: [
+              {
+                cells: [
+                  { content: [{ text: 'Day' }], tag: 'th' },
+                  { content: [{ text: 'Hours' }], tag: 'th' },
+                ],
+              },
+            ],
+            body: [
+              {
+                cells: [
+                  { content: [{ text: 'Mon', marks: ['bold'] }], tag: 'td' },
+                  {
+                    content: [{ type: 'link', href: '/hours', children: [{ text: '9–18' }] }],
+                    tag: 'td',
+                    align: 'right',
+                  },
+                ],
+              },
+              { cells: [{ content: [{ text: 'Sundays closed' }], tag: 'td', colspan: 2 }] },
+            ],
+            hasFixedLayout: false,
+            caption: [{ text: 'Opening hours' }],
+          },
+        },
+      ],
+    };
+    expect(roundTrip(doc)).toEqual(doc);
+  });
+
+  it('keep a gallery as images inside it', () => {
+    const image = (id: string) => ({
+      id,
+      type: 'core/image',
+      v: 1,
+      attrs: { id: `m-${id}`, url: `/media/${id}.jpg`, alt: id },
+    });
+    const doc: CxdDocument = {
+      schema: 1,
+      blocks: [
+        {
+          id: 'g',
+          type: 'core/gallery',
+          v: 1,
+          attrs: { columns: 2 },
+          children: [image('a'), image('b')],
+        },
+      ],
+    };
+    expect(roundTrip(doc)).toEqual(doc);
+  });
+});
