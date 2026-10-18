@@ -177,6 +177,18 @@ describe('Prisma blocks', () => {
       '<div class="wp-block-uagb-image uagb-block-f61fd18f"><figure class="wp-block-uagb-image__figure"><img src="https://old.example.com/wp-content/uploads/2025/04/pic.jpg" alt="Rooms"/><div class="wp-block-uagb-image--layout-overlay__color-wrapper"></div><div class="wp-block-uagb-image--layout-overlay__inner center-center"><h2 class="uagb-image-heading">Pernottamento</h2></div></figure></div>',
       '<!-- /wp:uagb/image -->',
       '<!-- wp:paragraph --><p>Welcome</p><!-- /wp:paragraph -->',
+      '<!-- wp:uagb/advanced-heading {"block_id":"54dbe4be","classMigrate":true,"headingAlign":"center","headFontFamily":"Poiret One","headLoadGoogleFonts":true} -->',
+      '<div class="wp-block-uagb-advanced-heading uagb-block-54dbe4be"><h2 class="uagb-heading-text">Cocktails <mark class="uagb-highlight">twist</mark></h2></div>',
+      '<!-- /wp:uagb/advanced-heading -->',
+      '<!-- wp:uagb/info-box {"classMigrate":true,"headingTag":"h1","headFontSize":100,"headFontSizeMobile":60,"block_id":"4599409c","seperatorStyle":"solid","seperatorColor":"#c06e52","seperatorWidth":12,"showIcon":false,"showPrefix":true} -->',
+      '<div class="wp-block-uagb-info-box uagb-block-4599409c uagb-infobox__content-wrap  uagb-infobox-icon-above-title uagb-infobox-image-valign-top"><div class="uagb-ifb-content"><div class="uagb-ifb-title-wrap"><span class="uagb-ifb-title-prefix">Al</span><h1 class="uagb-ifb-title">Duomo</h1></div><div class="uagb-ifb-separator"></div><p class="uagb-ifb-desc">Atmosfera senza tempo</p></div></div>',
+      '<!-- /wp:uagb/info-box -->',
+      '<!-- wp:uagb/buttons {"block_id":"c8e849a6","classMigrate":true,"childMigrate":true,"gap":90} -->',
+      '<div class="wp-block-uagb-buttons uagb-buttons__outer-wrap uagb-btn__default-btn uagb-block-c8e849a6"><div class="uagb-buttons__wrap uagb-buttons-layout-wrap ">',
+      '<!-- wp:uagb/buttons-child {"block_id":"a5590b23","label":"Contattaci","link":"tel:3454674236","btnBorderTopLeftRadius":12,"btnBorderStyle":"solid","UAGAnimationType":"fade-right"} -->',
+      '<div class="wp-block-uagb-buttons-child uagb-buttons__outer-wrap uagb-block-a5590b23 wp-block-button"><div class="uagb-button__wrapper"><a class="uagb-buttons-repeater wp-block-button__link" href="tel:3454674236" rel="follow noopener" target="_self" role="button"><div class="uagb-button__link">Contattaci</div></a></div></div>',
+      '<!-- /wp:uagb/buttons-child -->',
+      '</div></div><!-- /wp:uagb/buttons -->',
       '</div>',
       '<!-- /wp:uagb/container -->',
       '<!-- wp:uagb/unknown-thing --><div>Kept</div><!-- /wp:uagb/unknown-thing -->',
@@ -222,6 +234,23 @@ describe('Prisma blocks', () => {
       /\.pr-block-9ccf5722::before\{content:"";position:absolute;pointer-events:none;top:-0px;left:-0px;width:calc\(100% \+ 0px\);height:calc\(100% \+ 0px\)[^}]*background:#000000;opacity:0\.6\}/,
     );
     expect(html).toContain('min-height:700px');
+    // Heading with its highlight, info box, buttons with an entrance animation.
+    expect(html).toContain('<h2 class="pr-heading__text">Cocktails <mark>twist</mark></h2>');
+    expect(html).toContain('font-family:"Poiret One"');
+    expect(html).toContain('href="https://fonts.googleapis.com/css2?family=Poiret+One:wght@400;700&amp;display=swap"');
+    expect(html).toContain(
+      '<span class="pr-info-box__prefix">Al</span><h1 class="pr-info-box__title">Duomo</h1>',
+    );
+    expect(html).toContain(
+      '<div class="pr-info-box__separator"></div><p class="pr-info-box__desc">Atmosfera senza tempo</p>',
+    );
+    expect(html).toContain('font-size:100px');
+    expect(html).toMatch(
+      /<div class="pr-buttons__wrap">[\s\S]*?<a class="pr-button__link wp-block-button__link" href="tel:3454674236" rel="noopener"><span class="pr-button__text">Contattaci<\/span><\/a>/,
+    );
+    expect(html).toContain('data-pr-animation="fade-right"');
+    expect(html).toContain('/plugin-assets/prisma/0.1.0/animations.js');
+    expect(html).toContain('gap:90px');
     expect(html).not.toContain('uagb');
   });
 });

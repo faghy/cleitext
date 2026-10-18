@@ -23,6 +23,14 @@ const CSS = `
 .pr-media__preview{border:0;padding:0;background:none;cursor:pointer}
 .pr-media__preview img{max-width:100%;max-height:140px;display:block}
 .pr-choice .components-toggle-group-control{margin-top:6px}
+
+.pr-icon-picker__toggle.components-button{width:36px;height:36px;justify-content:center;border:1px solid #ddd}
+.pr-icon-picker__toggle svg{width:20px;height:20px}
+.pr-icon-picker__popover{padding:12px;width:300px}
+.pr-icon-picker__grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;max-height:280px;overflow:auto;margin:8px 0}
+.pr-icon-picker__grid button{border:1px solid #eee;background:#fff;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.pr-icon-picker__grid button.is-selected{border-color:var(--wp-admin-theme-color,#3858e9)}
+.pr-icon-picker__grid svg{width:18px;height:18px}
 .pr-typography__popover{padding:12px;width:280px;display:grid;gap:4px}
 `;
 

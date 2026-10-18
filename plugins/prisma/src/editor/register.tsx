@@ -1,6 +1,14 @@
 import { InnerBlocks, RichText, useBlockProps, useInnerBlocksProps } from '@wordpress/block-editor';
 import { getCategories, registerBlockType, setCategories } from '@wordpress/blocks';
-import { createElement, useEffect, type ComponentType, type ReactNode } from 'react';
+import {
+  createElement,
+  useEffect,
+  useSyncExternalStore,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
+import { iconsLoaded, onIconData } from '../lib/icons';
+import { ExtensionBind } from './controls/extensions';
 import { blockCss, withDefaults } from '../lib/css';
 import { DEFAULT_GLOBALS, type Globals } from '../lib/globals';
 import { safeTag } from '../lib/tags';
@@ -87,12 +95,22 @@ function Root({
 
 function makeEdit(block: PrismaBlock, Settings: Inspector | undefined) {
   return function Edit(props: EditProps) {
+    // Icons arrive after the first draw: drawn again then.
+    useSyncExternalStore(onIconData, iconsLoaded);
     const id = useBlockId(props);
     const attrs = withDefaults(block, props.attributes);
     return (
       <>
         <style>{blockCss(block, props.attributes, id, globals)}</style>
-        {Settings && <Settings {...props} block={block} />}
+        <ExtensionBind.Provider
+          value={{
+            attributes: props.attributes,
+            setAttributes: props.setAttributes,
+            defaults: { ...EXTENSION_DEFAULTS, ...block.defaults },
+          }}
+        >
+          {Settings && <Settings {...props} block={block} />}
+        </ExtensionBind.Provider>
         <block.View
           attrs={attrs}
           id={id}
@@ -107,7 +125,13 @@ function makeEdit(block: PrismaBlock, Settings: Inspector | undefined) {
               }
               onChange={(value: string) => props.setAttributes({ [name]: value })}
               placeholder={text.placeholder}
-              allowedFormats={['core/bold', 'core/italic', 'core/link', 'core/strikethrough']}
+              allowedFormats={[
+                'core/bold',
+                'core/italic',
+                'core/link',
+                'core/strikethrough',
+                'prisma/highlight',
+              ]}
             />
           )}
           inner={(inner) => (
@@ -131,6 +155,19 @@ function makeEdit(block: PrismaBlock, Settings: Inspector | undefined) {
     );
   };
 }
+
+/** Attributes every block has (visibility, animation). */
+const EXTENSION_DEFAULTS = {
+  hideDesktop: false,
+  hideTablet: false,
+  hideMobile: false,
+  responsiveConditions: false,
+  animationType: '',
+  animationTime: 400,
+  animationDelay: 0,
+  animationEasing: 'ease',
+  animationRepeat: false,
+};
 
 /** Gutenberg's attribute types, from the defaults. */
 function attributeTypes(
@@ -172,7 +209,7 @@ export function registerPrismaBlocks(
       description: block.description,
       category: 'prisma',
       keywords: block.keywords ?? [],
-      attributes: attributeTypes(block.defaults),
+      attributes: attributeTypes({ ...EXTENSION_DEFAULTS, ...block.defaults }),
       ...(block.parent ? { parent: block.parent.map((p) => `prisma/${p}`) } : {}),
       supports: { html: false, className: true, anchor: true },
       edit: makeEdit(block, settings[block.name]),

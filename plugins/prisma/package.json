@@ -8,12 +8,14 @@
   "scripts": {
     "build": "cleitext plugin:build .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "icons": "node scripts/icons.mjs"
   },
   "devDependencies": {
     "@cleitext/cli": "workspace:*",
     "@cleitext/design": "workspace:*",
     "@cleitext/plugin-sdk": "workspace:*",
+    "@fortawesome/fontawesome-free": "^7.3.1",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@wordpress/block-editor": "^18.1.0",
@@ -24,6 +26,7 @@
     "@wordpress/element": "^9.0.0",
     "@wordpress/i18n": "^6.30.0",
     "@wordpress/icons": "^18.0.0",
+    "@wordpress/rich-text": "^7.57.0",
     "react": "^19.3.0",
     "vitest": "^5.0.3"
   }

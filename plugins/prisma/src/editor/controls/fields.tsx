@@ -14,6 +14,7 @@ import { brush, cog, link, linkOff, settings } from '@wordpress/icons';
 import { useState, type ReactNode } from 'react';
 import { value, type Bind, type DeviceKeys } from './bind';
 import { DeviceSwitch, useDevice } from './device';
+import { ExtensionPanels } from './extensions';
 
 // ---- Tabs and panels -------------------------------------------------------------------
 
@@ -56,6 +57,7 @@ export function InspectorTabs(props: {
       </div>
       <div className="pr-tabs__panel" role="tabpanel">
         {props[tab]}
+        {tab === 'advanced' && <ExtensionPanels />}
       </div>
     </InspectorControls>
   );

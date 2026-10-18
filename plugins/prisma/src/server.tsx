@@ -10,6 +10,9 @@ import { BLOCKS } from './blocks';
 import { blockCss, withDefaults } from './lib/css';
 import { DEFAULT_GLOBALS, normalizeGlobals, type Globals } from './lib/globals';
 import { fromSpectra } from './import';
+import { extensionProps, googleFontsLink } from './lib/extensions';
+import { setIconData, type IconData } from './lib/icons';
+import icons from './public/icons.json';
 import { safeTag } from './lib/tags';
 import type { Attrs, PrismaBlock } from './lib/types';
 
@@ -24,6 +27,19 @@ function idOf(attrs: Attrs, fallback: string): string {
   return typeof attrs.blockId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(attrs.blockId)
     ? attrs.blockId
     : fallback;
+}
+
+/** `--a:1;--b:2` → React's style object (custom properties kept as they are). */
+function styleObject(css: string): Record<string, string> {
+  return Object.fromEntries(
+    css
+      .split(';')
+      .filter(Boolean)
+      .map((part) => {
+        const [name, ...value] = part.split(':');
+        return [name!.trim(), value.join(':').trim()];
+      }),
+  );
 }
 
 /** The site's defaults, read before the page's blocks are drawn (`load`). */
@@ -77,9 +93,22 @@ function register(ctx: PluginContext, block: PrismaBlock) {
               children,
             )
           }
-          root={(tag, props, content, holdsChildren) =>
-            createElement(safeTag(tag, 'div'), props, content, holdsChildren ? children : null)
-          }
+          root={(tag, props, content, holdsChildren) => {
+            // Visibility by device and entrance animation, on the block's root.
+            const extension = extensionProps(all);
+            const { style, ...data } = extension.data;
+            return createElement(
+              safeTag(tag, 'div'),
+              {
+                ...props,
+                className: [props.className, extension.className].filter(Boolean).join(' '),
+                ...data,
+                ...(style ? { style: styleObject(style) } : {}),
+              },
+              content,
+              holdsChildren ? children : null,
+            );
+          }}
           media={(id) => {
             const found = typeof id === 'string' ? context.media.get(id) : undefined;
             return found ? { url: found.url, width: found.width, height: found.height } : null;
@@ -92,6 +121,7 @@ function register(ctx: PluginContext, block: PrismaBlock) {
 
 export default definePlugin({
   setup(ctx) {
+    setIconData(icons as unknown as IconData);
     ctx.settings.define(
       [
         {
@@ -135,6 +165,22 @@ export default definePlugin({
     ctx.assets.enqueue({
       file: 'prisma.css',
       when: ({ html }) => html.includes('pr-block-'),
+    });
+    // The Google fonts the page's blocks chose.
+    ctx.hooks.filter('render.html', (html) => {
+      const fonts = html.includes('data-pr-fonts=') ? googleFontsLink(html) : null;
+      const at = html.indexOf('</head>');
+      if (!fonts || at === -1) return html;
+      const link = `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${fonts.replace(/&/g, '&amp;')}">`;
+      return html.slice(0, at) + link + html.slice(at);
+    });
+    ctx.assets.enqueue({
+      file: 'animations.css',
+      when: ({ html }) => html.includes('data-pr-animation'),
+    });
+    ctx.assets.enqueue({
+      file: 'animations.js',
+      when: ({ html }) => html.includes('data-pr-animation'),
     });
   },
 });

@@ -85,10 +85,19 @@ export function convertAttrs(attrs: Record<string, unknown>): Attrs {
 /** The inner HTML of the first element with a class, or ''. */
 function inner(html: string, tag: string, className: string): string {
   const match = new RegExp(
-    `<${tag}\\b[^>]*class="[^"]*\\b${className}\\b[^"]*"[^>]*>([\\s\\S]*?)</${tag}>`,
+    `<${tag}\\b[^>]*class="(?:[^"]*\\s)?${className}(?:\\s[^"]*)?"[^>]*>([\\s\\S]*?)</${tag}>`,
     'i',
   ).exec(html);
   return match?.[1]?.trim() ?? '';
+}
+
+/** The inner HTML of the first element (any tag) with a class, or ''. */
+function innerAny(html: string, className: string): string {
+  const match = new RegExp(
+    `<(h[1-6]|p|div|span|header)\\b[^>]*class="(?:[^"]*\\s)?${className}(?:\\s[^"]*)?"[^>]*>([\\s\\S]*?)</\\1>`,
+    'i',
+  ).exec(html);
+  return match?.[2]?.trim() ?? '';
 }
 
 /** Rich text from saved HTML, as CXD inline nodes. */
@@ -97,7 +106,18 @@ const rich = (html: string): CxdInline[] => (html ? htmlToInline(html) : []);
 let counter = 0;
 const newId = () => `p${Date.now().toString(36)}${(counter++).toString(36)}`;
 
+/** Text attributes of each block: plain HTML strings become rich text. */
+const RICH: Record<string, string[]> = {
+  image: ['caption', 'heading'],
+  heading: ['headingTitle', 'headingDesc'],
+  'info-box': ['prefixTitle', 'infoBoxTitle', 'headingDesc', 'ctaText'],
+  button: ['label'],
+};
+
 function block(name: string, attrs: Attrs, children?: CxdBlock[]): CxdBlock {
+  for (const key of RICH[name] ?? []) {
+    if (typeof attrs[key] === 'string') attrs[key] = rich(attrs[key] as string);
+  }
   return {
     id: newId(),
     type: `prisma/${name}`,
@@ -142,6 +162,45 @@ export function fromSpectra(
           ...(heading.trim() ? { heading: rich(heading.trim()) } : {}),
         }),
       ];
+    }
+    case 'uagb/advanced-heading': {
+      const title = innerAny(html, 'uagb-heading-text');
+      const desc = inner(html, 'p', 'uagb-desc-text');
+      return [
+        block('heading', {
+          ...a,
+          ...(title ? { headingTitle: rich(title) } : {}),
+          ...(desc ? { headingDesc: rich(desc) } : {}),
+        }),
+      ];
+    }
+    case 'uagb/info-box': {
+      const prefix = innerAny(html, 'uagb-ifb-title-prefix');
+      const title = innerAny(html, 'uagb-ifb-title');
+      const desc = innerAny(html, 'uagb-ifb-desc');
+      const cta = inner(html, 'span', 'uagb-inline-editing');
+      const img = /<div class="uagb-ifb-image-content">\s*<img\b[^>]*\ssrc="([^"]*)"/i.exec(
+        html,
+      )?.[1];
+      return [
+        block('info-box', {
+          ...a,
+          ...(prefix ? { prefixTitle: rich(prefix) } : {}),
+          ...(title ? { infoBoxTitle: rich(title) } : {}),
+          ...(desc ? { headingDesc: rich(desc) } : {}),
+          ...(cta ? { ctaText: rich(cta) } : {}),
+          // The size shown on the page, when the saved object has another.
+          ...(img && a.iconImage && typeof a.iconImage === 'object'
+            ? { iconImage: { ...(a.iconImage as object), url: img } }
+            : {}),
+        }),
+      ];
+    }
+    case 'uagb/buttons':
+      return [block('buttons', a, children)];
+    case 'uagb/buttons-child': {
+      const label = innerAny(html, 'uagb-button__link');
+      return [block('button', { ...a, ...(label ? { label: rich(label) } : {}) })];
     }
     default:
       return null;
