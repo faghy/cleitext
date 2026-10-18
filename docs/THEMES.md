@@ -88,16 +88,19 @@ export default defineTheme({
 });
 ```
 
-| Property        | What it does                                                                                                                                 |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Layout`        | The page around every template: `<html>`, `<head>` (render `head.tags` with `<HeadTags>`), header, footer.                                   |
-| `templates`     | Components by name; `index` is required. More specific names win (`entry-page`, `archive-category`…, see ARCHITECTURE §12.2).                |
-| `css`           | Stylesheet inlined in every page. Keep it small.                                                                                             |
-| `menuLocations` | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                                          |
-| `settings`      | Fields shown in Appearance → Customize (§4).                                                                                                 |
-| `areas`         | Areas made of blocks (§5).                                                                                                                   |
-| `editorCss`     | CSS for the block editor, so that content looks like the site while writing.                                                                 |
-| `comments`      | `'auto'` (default): comments, likes and sharing follow `<EntryContent>` on entries that have them. `'manual'`: the theme places them itself. |
+| Property           | What it does                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Layout`           | The page around every template: `<html>`, `<head>` (render `head.tags` with `<HeadTags>`), header, footer.                                   |
+| `templates`        | Components by name; `index` is required. More specific names win (`entry-page`, `archive-category`…, see ARCHITECTURE §12.2).                |
+| `css`              | Stylesheet inlined in every page. Keep it small.                                                                                             |
+| `menuLocations`    | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                                          |
+| `settings`         | Fields shown in Appearance → Customize (§4).                                                                                                 |
+| `areas`            | Areas made of blocks (§5).                                                                                                                   |
+| `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description? }]`; a field goes in one with `section` (§4).                                    |
+| `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                   |
+| `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                             |
+| `editorCss`        | CSS for the block editor, so that content looks like the site while writing. A string, or a function of the settings.                        |
+| `comments`         | `'auto'` (default): comments, likes and sharing follow `<EntryContent>` on entries that have them. `'manual'`: the theme places them itself. |
 
 Templates receive the page as props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) and read the rest with `usePage()`: site, language, languages, menus, media, URLs. They never query the database.
 
@@ -139,6 +142,29 @@ settings: [
 ```
 
 Fields use the same types as custom fields ([PLUGINS.md §14](PLUGINS.md#14-reference-field-types)). Administrators change them in **Appearance → Customize** with a live preview; values are checked against the schema. Read them with `useThemeSettings()`; media fields hold an id, and the media is preloaded in `usePage().media`.
+
+With many settings, group them like a theme panel:
+
+```tsx
+settingsSections: [
+  { id: 'header', label: 'Header' },
+  { id: 'colors', label: 'Colors', description: 'The colors of each area of the site.' },
+],
+settings: [
+  { name: 'headerLayout', type: 'choice', section: 'header', label: 'Layout', display: 'buttons',
+    options: [{ value: 'left', label: 'Logo left' }, { value: 'center', label: 'Centered' }], default: 'left' },
+  { name: 'sticky', type: 'boolean', section: 'header', label: 'Sticky header', default: true },
+  { name: 'shrink', type: 'boolean', section: 'header', label: 'Shrink on scroll', showIf: { field: 'sticky', equals: true } },
+  { name: 'accent', type: 'color', section: 'colors', group: 'Main area', label: 'Accent', default: '#0f766e' },
+],
+presets: [{ id: 'dark', label: 'Dark', values: { accent: '#38bdf8' } }],
+```
+
+Customize shows one tab per section (fields without one go in "Other"), a search box across all options, the ready-made styles, export and import as JSON, and "Reset this section". Nothing reaches the site until **Publish**.
+
+`entryFields` adds options to single pages (for example a sidebar or a transparent header per page). Editors set them in the Document tab of the block editor; they are saved with the entry in `document.editor.data` and the theme reads them from `entry.document.editor?.data`. `types` limits them to some entry types (`['page']`).
+
+`editorCss` may be a function, `(settings) => string`, so the editor follows the colors and fonts chosen in Customize.
 
 ## 5. Block areas
 

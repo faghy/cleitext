@@ -1,4 +1,4 @@
-import type { FieldDefinition } from '@cleitext/shared';
+import type { FieldDefinition, Label } from '@cleitext/shared';
 import type { CxdDocument } from '@cleitext/blocks';
 import type { BlockRenderer, RenderMedia } from '@cleitext/renderer';
 import type { ComponentType, ReactNode } from 'react';
@@ -185,6 +185,15 @@ export interface LayoutProps {
   children: ReactNode;
 }
 
+/** A tab of a theme's options panel. */
+export interface ThemeSettingsSection {
+  id: string;
+  label: Label;
+  description?: Label;
+  /** A simple icon name (e.g. `palette`, `layout`, `header`) shown before the label. */
+  icon?: string;
+}
+
 export interface ThemeDefinition {
   slug: string;
   name: string;
@@ -198,12 +207,31 @@ export interface ThemeDefinition {
    */
   settings?: FieldDefinition[];
   /**
+   * The tabs of the theme's options, in order: fields name theirs in
+   * `section`. Without sections, the settings are one list.
+   */
+  settingsSections?: ThemeSettingsSection[];
+  /**
+   * Ready-made sets of settings (skins): applied from the options panel,
+   * over the current values.
+   */
+  presets?: { id: string; label: Label; values: Record<string, unknown> }[];
+  /**
+   * Options of each page or post (layout, sidebar, header…), shown in the
+   * editor's sidebar for these content types and stored in the document's
+   * `editor.data`, where templates read them.
+   */
+  entryFields?: { types?: string[]; fields: FieldDefinition[] };
+  /**
    * Areas made of blocks (RF-THM-04), e.g. `{ footer: 'Footer' }`, edited in
    * Appearance → Areas and rendered with `<BlockArea name="footer" />`.
    */
   areas?: Record<string, string>;
-  /** CSS for the block editor's canvas, so that content looks like the site. */
-  editorCss?: string;
+  /**
+   * CSS for the block editor's canvas, so that content looks like the site;
+   * a function gets the settings' values (the chosen colors and fonts).
+   */
+  editorCss?: string | ((settings: Record<string, unknown>) => string);
   /**
    * How to build pages with this theme, for AI assistants connected through
    * MCP (Markdown): its sections, classes and when to use them.

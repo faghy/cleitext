@@ -5,7 +5,8 @@ import { Fragment, type PointerEvent, useEffect, useRef, useState } from 'react'
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card, TextField } from '../components/ui';
-import { AreasTab, CustomizeTab, PatternsTab, ThemesTab } from './theme-tabs';
+import { ThemeOptions } from './theme-options';
+import { AreasTab, PatternsTab, ThemesTab } from './theme-tabs';
 import {
   block,
   canIndent,
@@ -77,7 +78,7 @@ export function AppearancePage() {
           }
         />
       )}
-      {current === 'customize' && <CustomizeTab />}
+      {current === 'customize' && <ThemeOptions />}
       {current === 'areas' && <AreasTab />}
       {current === 'menus' && <MenusTab />}
       {current === 'patterns' && <PatternsTab />}

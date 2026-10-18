@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { FieldDefinition } from './fields.js';
+import type { FieldDefinition, Label } from './fields.js';
 import type { LicenseView } from './licenses.js';
 
 /** `theme.json` of an installable theme package (RF-THM-01). */
@@ -35,6 +35,12 @@ export interface ThemeView {
   menuLocations: Record<string, string>;
   areas: Record<string, string>;
   settings: FieldDefinition[];
+  /** Tabs of the options panel (fields name theirs in `section`). */
+  settingsSections: { id: string; label: Label; description?: Label; icon?: string }[];
+  /** Ready-made sets of settings. */
+  presets: { id: string; label: Label; values: Record<string, unknown> }[];
+  /** Options of each page or post, shown in the editor (stored in `editor.data`). */
+  entryFields: { types?: string[]; fields: FieldDefinition[] } | null;
   /** Paid themes: where to buy a license, and this site's license (null without). */
   paid: { purchaseUrl: string | null; license: LicenseView | null } | null;
   /** Set when an installed theme could not be loaded. */

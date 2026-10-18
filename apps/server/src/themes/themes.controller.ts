@@ -238,6 +238,13 @@ export class ThemesController {
     return this.themes.aiGuide(site.id, auth);
   }
 
+  /** The active theme's options for each page or post, shown in the editor. */
+  @Get('active/entry-fields')
+  @RequireCapability('edit_entries')
+  entryFields(@CurrentSite() site: SiteContext, @CurrentAuth() auth: AuthContext) {
+    return this.themes.entryFields(site.id, auth);
+  }
+
   /** CSS of the active theme for the editor's canvas (RF-THM-03, editor styles). */
   @Get('active/editor-styles')
   @RequireCapability('edit_entries')

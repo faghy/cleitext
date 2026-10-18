@@ -41,16 +41,19 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 
 `defineTheme({ … })` riceve:
 
-| Proprietà       | A cosa serve                                                                                                                                  |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Layout`        | La pagina attorno a ogni template: `<html>`, `<head>` (con `<HeadTags>` per `head.tags`), intestazione, piè di pagina.                        |
-| `templates`     | Componenti per nome; `index` è obbligatorio. I nomi più specifici hanno la precedenza (ARCHITETTURA §12.2).                                   |
-| `css`           | Foglio di stile incluso in ogni pagina. Tienilo piccolo.                                                                                      |
-| `menuLocations` | Posizioni per i menu, assegnati in Aspetto → Menu; si leggono con `usePage().menus`.                                                          |
-| `settings`      | Campi mostrati in Aspetto → Personalizza (§4).                                                                                                |
-| `areas`         | Aree composte di blocchi (§5).                                                                                                                |
-| `editorCss`     | CSS per l'editor a blocchi, perché i contenuti abbiano lo stesso aspetto del sito mentre si scrive.                                           |
-| `comments`      | `'auto'` (predefinito): commenti, mi piace e condivisione seguono `<EntryContent>` nelle voci che li hanno. `'manual'`: li posiziona il tema. |
+| Proprietà          | A cosa serve                                                                                                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Layout`           | La pagina attorno a ogni template: `<html>`, `<head>` (con `<HeadTags>` per `head.tags`), intestazione, piè di pagina.                              |
+| `templates`        | Componenti per nome; `index` è obbligatorio. I nomi più specifici hanno la precedenza (ARCHITETTURA §12.2).                                         |
+| `css`              | Foglio di stile incluso in ogni pagina. Tienilo piccolo.                                                                                            |
+| `menuLocations`    | Posizioni per i menu, assegnati in Aspetto → Menu; si leggono con `usePage().menus`.                                                                |
+| `settings`         | Campi mostrati in Aspetto → Personalizza (§4).                                                                                                      |
+| `areas`            | Aree composte di blocchi (§5).                                                                                                                      |
+| `settingsSections` | Schede di Aspetto → Personalizza: `[{ id, label, description? }]`; un campo ci va con `section` (§4).                                               |
+| `presets`          | Stili pronti: `[{ id, label, values }]`, applicati in Personalizza prima di pubblicare (§4).                                                        |
+| `entryFields`      | Opzioni per pagina, `{ types?, fields }`, mostrate nella scheda Documento dell'editor (§4).                                                         |
+| `editorCss`        | CSS per l'editor a blocchi, perché i contenuti abbiano lo stesso aspetto del sito mentre si scrive. Una stringa, o una funzione delle impostazioni. |
+| `comments`         | `'auto'` (predefinito): commenti, mi piace e condivisione seguono `<EntryContent>` nelle voci che li hanno. `'manual'`: li posiziona il tema.       |
 
 I template ricevono la pagina come props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) e leggono il resto con `usePage()`. Non interrogano mai il database.
 
@@ -84,6 +87,29 @@ Gli archivi autore (`/author/<slug>`) sono archivi con `props.author`; i templat
 ## 4. Impostazioni
 
 I campi usano gli stessi tipi dei campi personalizzati ([PLUGIN.md §14](PLUGIN.md#14-riferimento-tipi-di-campo)). Gli amministratori li modificano in **Aspetto → Personalizza** con l'anteprima dal vivo; i valori vengono controllati sullo schema. Si leggono con `useThemeSettings()`; i campi media contengono un id e il file è precaricato in `usePage().media`.
+
+Con molte impostazioni, raggruppale come un pannello del tema:
+
+```tsx
+settingsSections: [
+  { id: 'header', label: 'Intestazione' },
+  { id: 'colors', label: 'Colori', description: 'I colori di ogni area del sito.' },
+],
+settings: [
+  { name: 'headerLayout', type: 'choice', section: 'header', label: 'Disposizione', display: 'buttons',
+    options: [{ value: 'left', label: 'Logo a sinistra' }, { value: 'center', label: 'Centrato' }], default: 'left' },
+  { name: 'sticky', type: 'boolean', section: 'header', label: 'Intestazione fissa', default: true },
+  { name: 'shrink', type: 'boolean', section: 'header', label: 'Si riduce scorrendo', showIf: { field: 'sticky', equals: true } },
+  { name: 'accent', type: 'color', section: 'colors', group: 'Area principale', label: 'Accento', default: '#0f766e' },
+],
+presets: [{ id: 'dark', label: 'Scuro', values: { accent: '#38bdf8' } }],
+```
+
+Personalizza mostra una scheda per sezione (i campi senza sezione vanno in "Altro"), una ricerca su tutte le opzioni, gli stili pronti, esportazione e importazione in JSON e "Ripristina questa sezione". Niente arriva al sito finché non premi **Pubblica**.
+
+`entryFields` aggiunge opzioni alle singole pagine (per esempio una barra laterale o un'intestazione trasparente per pagina). Chi scrive le imposta nella scheda Documento dell'editor a blocchi; sono salvate con il contenuto in `document.editor.data` e il tema le legge da `entry.document.editor?.data`. `types` le limita ad alcuni tipi di contenuto (`['page']`).
+
+`editorCss` può essere una funzione, `(settings) => string`, così l'editor segue i colori e i caratteri scelti in Personalizza.
 
 ## 5. Aree di blocchi
 

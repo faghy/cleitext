@@ -1,6 +1,5 @@
 import type { CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance } from '@cleitext/editor-core';
-import { FieldsForm } from '@cleitext/admin-sdk';
 import { labelText, type PatternView, type ThemeView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -242,98 +241,6 @@ function LivePreview({
         srcDoc={html}
         className="h-[75vh] w-full rounded border border-slate-200 bg-white"
       />
-    </div>
-  );
-}
-
-/** Appearance → Customize (RF-THM-03): the theme's settings with a live preview. */
-export function CustomizeTab() {
-  const { t } = useT();
-  const me = useMe();
-  const queryClient = useQueryClient();
-  const active = useQuery({
-    queryKey: ACTIVE_KEY,
-    queryFn: () => api<ActiveTheme>('GET', '/themes/active'),
-  });
-  const [values, setValues] = useState<Record<string, unknown> | null>(null);
-  const [html, setHtml] = useState('');
-  const [path, setPath] = useState('/');
-  useEffect(() => {
-    if (active.data && values === null) setValues(active.data.values);
-  }, [active.data, values]);
-
-  // The preview follows the form, a moment after the last change.
-  useEffect(() => {
-    if (!values) return;
-    const timer = setTimeout(() => {
-      void api<string>('POST', '/themes/active/preview', { path, values }, { text: true })
-        .then((page) => setHtml(page))
-        .catch(() => setHtml(''));
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [values, path]);
-
-  const save = useMutation({
-    mutationFn: () =>
-      api<Record<string, unknown>>('PUT', '/themes/active/settings', { values: values ?? {} }),
-    onSuccess: (saved) => {
-      setValues(saved);
-      queryClient.setQueryData<ActiveTheme>(ACTIVE_KEY, (data) =>
-        data ? { ...data, values: saved } : data,
-      );
-    },
-  });
-  const theme = active.data?.theme;
-  const fields = theme?.settings ?? [];
-
-  return (
-    <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
-      <Card title={theme ? t('Customize {name}', { name: theme.name }) : t('Customize')}>
-        {active.error && <Alert>{errorMessage(active.error)}</Alert>}
-        {fields.length === 0 && theme && (
-          <p className="text-sm text-slate-600">{t('This theme has no settings.')}</p>
-        )}
-        {values && fields.length > 0 && (
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              save.mutate();
-            }}
-          >
-            <FieldsForm
-              fields={fields}
-              values={values}
-              onChange={setValues}
-              locale={me.user.locale}
-            />
-            {save.error && <Alert>{errorMessage(save.error)}</Alert>}
-            {save.isSuccess && <Alert kind="success">{t('Saved.')}</Alert>}
-            <Button type="submit" disabled={save.isPending}>
-              {t('Publish')}
-            </Button>
-          </form>
-        )}
-      </Card>
-      <div className="space-y-2">
-        <label className="flex items-center gap-2 text-sm">
-          <span className="font-medium">{t('Preview of')}</span>
-          <input
-            className="flex-1 rounded border border-slate-300 px-2 py-1"
-            value={path}
-            onChange={(e) =>
-              setPath(e.target.value.startsWith('/') ? e.target.value : `/${e.target.value}`)
-            }
-          />
-        </label>
-        <iframe
-          title={t('Site preview')}
-          // No scripts, no same-origin access: the page is only shown.
-          sandbox=""
-          srcDoc={html}
-          className="h-[70vh] w-full rounded border border-slate-200 bg-white"
-        />
-      </div>
     </div>
   );
 }

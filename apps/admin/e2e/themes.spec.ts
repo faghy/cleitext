@@ -32,7 +32,7 @@ test('the theme is customized with a live preview and a footer area', async ({ p
   const preview = page.frameLocator('iframe[title="Site preview"]');
   await expect(preview.getByText(`Footer ${stamp}`)).toBeVisible();
   await page.getByRole('button', { name: 'Publish' }).click();
-  await expect(page.getByText('Saved.')).toBeVisible();
+  await expect(page.getByText('Published.')).toBeVisible();
 
   // Areas: a paragraph in the footer, written with the block editor.
   await page.getByRole('tab', { name: 'Areas' }).click();

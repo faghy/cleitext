@@ -3,6 +3,7 @@ import { documentStats, type CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance, EditorServices, EmbedPreview, MediaRef } from '@cleitext/editor-core';
 import { FieldsForm, useT } from '@cleitext/admin-sdk';
 import {
+  fieldDefaults,
   labelText,
   type ContentTypeView,
   type EntryListResponse,
@@ -104,6 +105,26 @@ function Editor({ initial }: { initial: EntryView }) {
   /** A document from the block editor, with the settings it keeps for the theme. */
   const withMeta = (document: CxdDocument): CxdDocument =>
     blockEditorMeta.current ? { ...document, editor: blockEditorMeta.current } : document;
+  // The theme's options of this page (stored in editor.data), as shown in the sidebar.
+  const [pageOptions, setPageOptions] = useState<FieldValues>(
+    () => (blockEditorMeta.current?.data as FieldValues | undefined) ?? {},
+  );
+  const themeEntryFields = useQuery({
+    queryKey: ['themes', 'entry-fields'],
+    queryFn: () =>
+      api<{ types?: string[]; fields: FieldDefinition[] } | null>(
+        'GET',
+        '/themes/active/entry-fields',
+      ),
+    staleTime: 60_000,
+  });
+  const changePageOptions = (values: FieldValues) => {
+    setPageOptions(values);
+    blockEditorMeta.current = { id: 'blocks', data: values };
+    const current = editorRef.current?.getDocument() ?? documentRef.current;
+    documentRef.current = withMeta(current);
+    markDirty();
+  };
   // Changes to remount a plugin editor with new content (revision, autosave, switch).
   const [editorMount, setEditorMount] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -210,6 +231,7 @@ function Editor({ initial }: { initial: EntryView }) {
   const replaceDocument = (document: CxdDocument) => {
     documentRef.current = document;
     blockEditorMeta.current = blockEditorMetaOf(document);
+    setPageOptions((blockEditorMeta.current?.data as FieldValues | undefined) ?? {});
     const next = editorIdOf(document);
     if (next === null && editorId === null) editorRef.current?.setDocument(document);
     setEditorId(next);
@@ -664,6 +686,25 @@ function Editor({ initial }: { initial: EntryView }) {
                 onChange={changeSummary}
               />
             )}
+            {tab === 'document' &&
+              editorId === null &&
+              themeEntryFields.data &&
+              (!themeEntryFields.data.types ||
+                themeEntryFields.data.types.includes(entry.type)) && (
+                <section className="space-y-3 border-b border-slate-200 p-4">
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    {entry.type === 'page' ? t('Page options') : t('Layout options')}
+                  </h2>
+                  <FieldsForm
+                    fields={themeEntryFields.data.fields}
+                    values={pageOptions}
+                    defaults={fieldDefaults(themeEntryFields.data.fields)}
+                    onChange={changePageOptions}
+                    locale={userLocale}
+                    disabled={readOnly}
+                  />
+                </section>
+              )}
             {tab === 'document' && contentType?.supports.includes('comments') && entry && (
               <DiscussionPanel entryId={entry.id} comments={entry.comments} readOnly={readOnly} />
             )}

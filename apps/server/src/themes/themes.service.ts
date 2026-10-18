@@ -1,6 +1,11 @@
 import type { CxdDocument } from '@cleitext/blocks';
 import { settings, sites, withContext, type DatabaseClient } from '@cleitext/db';
-import { fieldsValidator, type LicenseView, type ThemeView } from '@cleitext/shared';
+import {
+  fieldsValidator,
+  type FieldDefinition,
+  type LicenseView,
+  type ThemeView,
+} from '@cleitext/shared';
 import {
   BadRequestException,
   HttpException,
@@ -88,6 +93,9 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       menuLocations: theme.menuLocations,
       areas: theme.areas ?? {},
       settings: theme.settings ?? [],
+      settingsSections: theme.settingsSections ?? [],
+      presets: theme.presets ?? [],
+      entryFields: theme.entryFields ?? null,
       paid: paidView(theme.slug, licenses),
       error: null,
     }));
@@ -102,6 +110,9 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
         menuLocations: {},
         areas: {},
         settings: [],
+        settingsSections: [],
+        presets: [],
+        entryFields: null,
         paid: null,
         error,
       });
@@ -276,8 +287,23 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     return { slug: theme.slug, name: theme.name, guide: theme.aiGuide ?? null };
   }
 
+  async entryFields(
+    siteId: string,
+    auth: AuthContext,
+  ): Promise<{ types?: string[]; fields: FieldDefinition[] } | null> {
+    return themeFor(await this.activeSlug(siteId, auth)).entryFields ?? null;
+  }
+
   async editorCss(siteId: string, auth: AuthContext): Promise<string> {
-    return themeFor(await this.activeSlug(siteId, auth)).editorCss ?? '';
+    const theme = themeFor(await this.activeSlug(siteId, auth));
+    if (typeof theme.editorCss !== 'function') return theme.editorCss ?? '';
+    // The chosen colors and fonts, as on the site.
+    const values = await this.run(siteId, auth, (tx) => themeSettings(tx, theme));
+    try {
+      return theme.editorCss(values);
+    } catch {
+      return '';
+    }
   }
 
   private async assertArea(siteId: string, auth: AuthContext, name: string): Promise<void> {
