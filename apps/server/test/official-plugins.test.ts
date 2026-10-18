@@ -122,6 +122,15 @@ describe('SEO', () => {
     expect(page).toContain('<meta name="description" content="A site about things."/>');
     expect(page).toContain('<meta name="twitter:site" content="@example"/>');
     expect((await visitor.get('/')).body).toContain('"@type":"WebSite"');
+    // The home page's own search title, with variables; Rank Math's separators too.
+    const home = await publish('page', 'Welcome', {
+      fields: { seo: { title: 'Web agency %%sep%% %%sitename%%' } },
+    });
+    await admin.request('PATCH', '/api/v1/settings/core', { frontPage: home.id });
+    await admin.request('PATCH', '/api/v1/plugins/seo/settings', { separator: '⋆' });
+    expect((await visitor.get('/')).body).toContain('<title>Web agency ⋆ Site official</title>');
+    await admin.request('PATCH', '/api/v1/settings/core', { frontPage: null });
+    await admin.request('PATCH', '/api/v1/plugins/seo/settings', { separator: '|' });
   });
 
   it('keeps out of the sitemaps what is kept out of search', async () => {

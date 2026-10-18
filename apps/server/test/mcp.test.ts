@@ -289,6 +289,11 @@ describe('MCP', () => {
     expect(isPublicAddress('93.184.216.34')).toBe(true);
     expect(isPublicAddress('::ffff:10.0.0.1')).toBe(false);
     expect(isPublicAddress('2a00:1450:4001:80b::200e')).toBe(true);
+    // NAT64 (DNS64 resolvers): the IPv4 address inside decides.
+    expect(isPublicAddress('64:ff9b::59a3:87b2')).toBe(true);
+    expect(isPublicAddress('64:ff9b::93.184.216.34')).toBe(true);
+    expect(isPublicAddress('64:ff9b::a00:1')).toBe(false);
+    expect(isPublicAddress('64:ff9b::7f00:1')).toBe(false);
     // Plugins' requests (webhooks) are held to the same rules.
     const post = (url: string) =>
       sendPublic(url, { method: 'POST', body: '{}', maxBytes: 1000, timeoutMs: 2000 });

@@ -74,6 +74,12 @@ describe('redirects', () => {
     await admin.post('/api/v1/redirects', { from: '/gone', to: '', status: 410 });
     expect((await visitor.get('/gone')).statusCode).toBe(410);
 
+    // Old addresses with a query, as WordPress's /?p=123.
+    await admin.post('/api/v1/redirects', { from: '/?p=123', to: '/new-page' });
+    const query = await visitor.get('/?p=123');
+    expect([query.statusCode, query.headers.location]).toEqual([301, '/new-page']);
+    expect((await visitor.get('/?p=124')).statusCode).toBe(200);
+
     expect((await admin.request('DELETE', `/api/v1/redirects/${id}`)).statusCode).toBe(204);
     expect((await visitor.get('/old-page')).statusCode).toBe(404);
   });

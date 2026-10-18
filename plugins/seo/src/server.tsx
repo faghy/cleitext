@@ -68,7 +68,8 @@ async function trail(
   ];
 }
 
-const SEPARATORS = ['–', '|', '·', '—'] as const;
+// As Yoast SEO and Rank Math offer them.
+const SEPARATORS = ['–', '|', '·', '—', '-', '•', '*', '⋆', '~', '«', '»'] as const;
 /** As Yoast SEO: large image previews and full snippets for indexed pages. */
 const INDEX_ROBOTS = 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
 
@@ -238,6 +239,17 @@ export default definePlugin({
               })
             : `${pageTitle} ${separator} ${siteName}`;
           next.og['og:title'] = pageTitle;
+        } else if (entry && seo.title?.trim()) {
+          // The home page's own search title, as written (variables allowed).
+          next.title = applyTemplate(seo.title.trim(), {
+            title: entry.title,
+            sep: separator,
+            sitename: siteName,
+            excerpt: entry.excerpt ?? '',
+            category: '',
+            currentyear: String(new Date().getFullYear()),
+          });
+          next.og['og:title'] = next.title;
         } else if (separator !== '–') {
           next.title = head.title.replace(' – ', ` ${separator} `);
         }

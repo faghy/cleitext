@@ -553,7 +553,16 @@ export class PublicService {
     }
 
     return withContext(this.database.db, { siteId }, async (tx) => {
-      const [redirect] = await tx.select().from(redirects).where(eq(redirects.fromPath, path));
+      // Old addresses may have a query, as WordPress's /?p=123: that exact one first.
+      const search = query.toString();
+      const candidates = search ? [`${path}?${search}`, path] : [path];
+      const found = await tx
+        .select()
+        .from(redirects)
+        .where(inArray(redirects.fromPath, candidates));
+      const redirect = found.sort(
+        (a, b) => candidates.indexOf(a.fromPath) - candidates.indexOf(b.fromPath),
+      )[0];
       if (redirect) {
         await tx
           .update(redirects)

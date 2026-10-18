@@ -32,7 +32,6 @@ for (const [net, prefix] of [
 for (const [net, prefix] of [
   ['::', 128],
   ['::1', 128],
-  ['64:ff9b::', 96],
   ['fc00::', 7],
   ['fe80::', 10],
   ['ff00::', 8],
@@ -40,10 +39,40 @@ for (const [net, prefix] of [
   PRIVATE.addSubnet(net, prefix, 'ipv6');
 }
 
+/** NAT64 (RFC 6052): a DNS64 resolver gives IPv6-only servers 64:ff9b::<IPv4>. */
+const NAT64 = new BlockList();
+NAT64.addSubnet('64:ff9b::', 96, 'ipv6');
+
+/** The 8 groups of an IPv6 address, as numbers (an IPv4 tail counts as two). */
+function ipv6Groups(address: string): number[] | null {
+  let text = address.toLowerCase();
+  const v4 = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(text);
+  if (v4) {
+    const [a, b, c, d] = v4.slice(1).map(Number) as [number, number, number, number];
+    text = `${text.slice(0, v4.index)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head, tail] = text.split('::') as [string, string | undefined];
+  const left = head ? head.split(':') : [];
+  const right = tail ? tail.split(':') : [];
+  const groups = [
+    ...left,
+    ...Array(Math.max(0, 8 - left.length - right.length)).fill('0'),
+    ...right,
+  ].map((g) => parseInt(g || '0', 16));
+  return groups.length === 8 && groups.every((g) => g >= 0 && g <= 0xffff) ? groups : null;
+}
+
 export function isPublicAddress(address: string): boolean {
   // IPv4 inside IPv6 (::ffff:10.0.0.1) is checked as the IPv4 address it is.
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
   if (mapped) return isPublicAddress(mapped[1]!);
+  // So is the IPv4 address inside a NAT64 one: 64:ff9b::59a3:87b2 is 89.163.135.178.
+  if (isIP(address) === 6 && NAT64.check(address, 'ipv6')) {
+    const groups = ipv6Groups(address);
+    if (!groups) return false;
+    const [hi, lo] = [groups[6]!, groups[7]!];
+    return isPublicAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+  }
   const family = isIP(address);
   if (family === 0) return false;
   return !PRIVATE.check(address, family === 4 ? 'ipv4' : 'ipv6');
