@@ -345,6 +345,15 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     hierarchical: t.hierarchical,
     contentTypes: [...(taxonomyTypes.get(t.slug) ?? [])],
   }));
+  // Posts at the root (/%postname%/): Cleitext puts them at /{year}/{slug} unless told.
+  const postPaths = items
+    .filter((i) => text(i['wp:post_type']) === 'post' && text(i['wp:status']) === 'publish')
+    .map((i) => relativeTo(text(i.link), baseUrl));
+  if (postPaths.length > 0 && postPaths.every((p) => /^\/[^/?]+\/?$/.test(p))) {
+    warnings.push(
+      'Posts had addresses like /my-post: to keep them, set the permalink of Posts to /{slug} in Content structure before importing (otherwise the old addresses redirect).',
+    );
+  }
   if (elementorPages) {
     warnings.push(
       `${elementorPages} page(s) built with Elementor were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
