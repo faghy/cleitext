@@ -26,7 +26,7 @@ export const loginRequestSchema = z.object({
 });
 export type LoginRequest = z.input<typeof loginRequestSchema>;
 
-/** Answer to a correct password when the account uses 2FA (RF-USR-10). */
+/** Answer to a correct password when the account uses 2FA (RF-USR-04). */
 export interface TwoFactorChallenge {
   twoFactorRequired: true;
   /** Single-use, valid for a few minutes: sent back with the code. */
@@ -315,7 +315,7 @@ export interface ProfileAboutView {
 }
 export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
 
-/** A member's account, as administrators edit it (RF-USR-10). */
+/** A member's account, as administrators edit it (RF-USR-12). */
 export interface MemberAccountView extends MemberView {
   locale: string;
   bio: string;
@@ -332,7 +332,7 @@ export interface MemberAccountView extends MemberView {
   locked: 'self' | 'role' | 'shared' | 'super_admin' | null;
 }
 
-/** Administrators change a member's account (RF-USR-10): name, email, profile, password. */
+/** Administrators change a member's account (RF-USR-12): name, email, profile, password. */
 export const updateMemberAccountRequestSchema = updateProfileRequestSchema
   .omit({ locale: true })
   .extend({

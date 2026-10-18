@@ -1,5 +1,5 @@
 -- How far an account reaches beyond the current site, for administrators
--- editing members' accounts (RF-USR-10): accounts are global, so a site's
+-- editing members' accounts (RF-USR-12): accounts are global, so a site's
 -- administrator may change them only when they belong to that site alone
 -- and are not super admins. Memberships of other sites are hidden by RLS
 -- (forced on the owner too): each site is looked at in its own context, and

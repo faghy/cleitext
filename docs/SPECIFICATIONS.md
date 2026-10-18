@@ -142,9 +142,9 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 | RF-USR-07 | User profile: name, avatar, admin language, active sessions (with revocation).                                                                        | MVP      |
 | RF-USR-08 | API tokens with scopes and expiry, created by the user or by the administrator.                                                                       | 1.0      |
 | RF-USR-09 | Rate limiting and progressive lockout on login, with auditing of attempts.                                                                            | MVP      |
-| RF-USR-10 | Administrators edit members' accounts (name, email, profile, password), for accounts of their site alone; the person is signed out and told by email. | 1.0      |
 | RF-USR-10 | Public user registration (optional per site).                                                                                                         | Later    |
 | RF-USR-11 | OIDC SSO (Google, Microsoft, Keycloak) as a plugin.                                                                                                   | Later    |
+| RF-USR-12 | Administrators edit members' accounts (name, email, profile, password), for accounts of their site alone; the person is signed out and told by email. | 1.0      |
 
 ### 4.3 Content
 

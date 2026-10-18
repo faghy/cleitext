@@ -145,7 +145,7 @@ const taxonomyRoute = createRoute({
   },
 });
 
-/** Users → Edit (RF-USR-10). */
+/** Users → Edit (RF-USR-12). */
 const userRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/users/$id',

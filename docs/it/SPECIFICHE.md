@@ -142,9 +142,9 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 | RF-USR-07 | Profilo utente: nome, avatar, lingua dell'admin, sessioni attive (con revoca).                                                                                               | MVP      |
 | RF-USR-08 | Token API con scope e scadenza, creati dall'utente o dall'amministratore.                                                                                                    | 1.0      |
 | RF-USR-09 | Rate limit e blocco progressivo sul login, con audit dei tentativi.                                                                                                          | MVP      |
-| RF-USR-10 | Gli amministratori modificano gli account dei membri (nome, email, profilo, password), se appartengono solo al loro sito; la persona viene disconnessa e avvisata via email. | 1.0      |
 | RF-USR-10 | Registrazione pubblica degli utenti (opzionale per sito).                                                                                                                    | Poi      |
 | RF-USR-11 | SSO OIDC (Google, Microsoft, Keycloak) come plugin.                                                                                                                          | Poi      |
+| RF-USR-12 | Gli amministratori modificano gli account dei membri (nome, email, profilo, password), se appartengono solo al loro sito; la persona viene disconnessa e avvisata via email. | 1.0      |
 
 ### 4.3 Contenuti
 

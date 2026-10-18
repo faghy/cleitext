@@ -497,7 +497,7 @@ export const itGeneral: Messages = {
   'Shown in author boxes and on your author page.':
     'Appare nel box autore e nella tua pagina autore.',
   'Author page address': 'Indirizzo della pagina autore',
-  // Users → Edit (RF-USR-10)
+  // Users → Edit (RF-USR-12)
   Account: 'Account',
   'Edit {name}': 'Modifica {name}',
   'Two-factor authentication on': 'Verifica in due passaggi attiva',

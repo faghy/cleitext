@@ -60,7 +60,7 @@ export class UsersController {
     return this.usersService.changeRole(site.id, auth, id, role, clientInfo(request));
   }
 
-  /** A member's account (RF-USR-10), and whether it can be edited here. */
+  /** A member's account (RF-USR-12), and whether it can be edited here. */
   @Get('users/:id')
   @RequireCapability('manage_users')
   account(

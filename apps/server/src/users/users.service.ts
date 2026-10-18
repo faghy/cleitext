@@ -255,7 +255,7 @@ export class UsersService {
   }
 
   /**
-   * A member's account, for administrators (RF-USR-10), with whether they
+   * A member's account, for administrators (RF-USR-12), with whether they
    * may change it here: accounts are shared by every site they belong to.
    */
   async account(siteId: string, auth: AuthContext, memberId: string): Promise<MemberAccountView> {
@@ -277,7 +277,7 @@ export class UsersService {
   }
 
   /**
-   * Changes a member's name, email, profile or password (RF-USR-10), as
+   * Changes a member's name, email, profile or password (RF-USR-12), as
    * WordPress's "Edit User". Only for accounts of this site alone, with no
    * more permissions than the administrator's; super admins edit any.
    * A new password ends the person's sessions; the person is told by email.

@@ -1,4 +1,4 @@
-/** Users → Edit (RF-USR-10): an administrator changes a member's details and password. */
+/** Users → Edit (RF-USR-12): an administrator changes a member's details and password. */
 import { expect, test } from '@playwright/test';
 import { appErrors } from './fixtures/errors.js';
 

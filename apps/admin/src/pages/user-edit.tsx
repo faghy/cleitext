@@ -10,7 +10,7 @@ import { Alert, Button, Card, TextField, useT } from '../components/ui';
 const USERS: string = '/users';
 const PROFILE: string = '/profile';
 
-/** Users → Edit: a member's account, as WordPress's "Edit User" (RF-USR-10). */
+/** Users → Edit: a member's account, as WordPress's "Edit User" (RF-USR-12). */
 export function UserEditPage({ id }: { id: string }) {
   const { t } = useT();
   const account = useQuery({

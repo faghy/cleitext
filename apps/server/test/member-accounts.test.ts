@@ -1,5 +1,5 @@
 /**
- * Administrators edit members' accounts (RF-USR-10): name, email, profile
+ * Administrators edit members' accounts (RF-USR-12): name, email, profile
  * and password, only for accounts of their site alone.
  */
 import type { DatabaseClient } from '@cleitext/db';
