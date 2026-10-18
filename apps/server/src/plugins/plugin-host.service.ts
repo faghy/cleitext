@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { z } from 'zod';
 import {
   contentTypes,
   detached,
@@ -1033,6 +1034,13 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   }
 }
 
+/** Attributes of blocks with their own editor (plugin API 1.23): any JSON object, bounded. */
+const JSON_ATTRS = z
+  .record(z.string(), z.unknown())
+  .refine((attrs) => JSON.stringify(attrs).length <= 65_536, {
+    message: 'Block attributes are larger than 64 KB.',
+  });
+
 /** Adds a plugin block to the shared registry, so documents validate its attributes. */
 function registerBlockDefinition(
   block: PluginBlockDefinition<Record<string, unknown>, unknown>,
@@ -1043,7 +1051,8 @@ function registerBlockDefinition(
     version: block.version ?? 1,
     title: labelText(block.title),
     category: block.category ?? 'widgets',
-    attrs: fieldsValidator(block.attributes ?? []),
+    attrs: block.schema === 'json' ? JSON_ATTRS : fieldsValidator(block.attributes ?? []),
+    ...(block.richAttributes?.length ? { richAttributes: block.richAttributes } : {}),
     ...(block.container ? { container: true } : {}),
     ...(block.html?.length ? { htmlAttributes: block.html } : {}),
   });

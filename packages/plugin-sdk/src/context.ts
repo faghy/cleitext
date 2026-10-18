@@ -528,6 +528,18 @@ export interface PluginBlockDefinition<A extends object = FieldValues, D = undef
   /** Attribute schema version, for future migrations. Default 1. */
   version?: number;
   attributes?: FieldDefinition[];
+  /**
+   * `json` (plugin API 1.23): a block with its own editor, registered by the
+   * plugin's `editor` entry with `registerBlockType`. Its attributes are any
+   * JSON object (at most 64 KB), as the editor saves them, instead of
+   * `attributes` fields; `render` must accept whatever it finds.
+   */
+  schema?: 'fields' | 'json';
+  /**
+   * Attributes edited as rich text (`RichText` in the editor), stored as CXD
+   * inline nodes: render them with `inlineToHtml` (plugin API 1.23).
+   */
+  richAttributes?: string[];
   /** Loads data before rendering (rendering itself is synchronous). */
   load?(attrs: A, context: BlockLoadContext): Promise<D>;
   /**

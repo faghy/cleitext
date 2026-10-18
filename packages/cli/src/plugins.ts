@@ -33,6 +33,7 @@ import {
   pluginSchemaName,
   SDK_VERSION,
   SHARED_ADMIN_MODULES,
+  SHARED_EDITOR_MODULES,
   SHARED_MODULES_GLOBAL,
   SHARED_SERVER_MODULES,
   type PluginDefinition,
@@ -107,7 +108,7 @@ function sharedModulesPlugin(shared: readonly string[], target: string): esbuild
     setup(build) {
       build.onResolve({ filter: /^[@a-z]/ }, (args) => {
         if (shared.includes(args.path)) return { path: args.path, namespace: 'cleitext-shared' };
-        const hostOnly = [...SHARED_SERVER_MODULES, ...SHARED_ADMIN_MODULES];
+        const hostOnly = [...SHARED_SERVER_MODULES, ...SHARED_EDITOR_MODULES];
         if (hostOnly.includes(args.path as never)) {
           return { errors: [{ text: `"${args.path}" is not available in the ${target} entry.` }] };
         }
@@ -142,6 +143,12 @@ export async function buildPlugin(dir: string): Promise<BuildResult> {
       platform: 'browser' as const,
       shared: SHARED_ADMIN_MODULES,
       name: 'admin',
+    },
+    {
+      entry: manifest.editor,
+      platform: 'browser' as const,
+      shared: SHARED_EDITOR_MODULES,
+      name: 'editor',
     },
   ];
   for (const target of targets) {

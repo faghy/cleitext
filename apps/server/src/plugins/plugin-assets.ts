@@ -44,12 +44,20 @@ export async function servePluginAsset(
   const file = params['*'] ?? '';
   const type = TYPES[path.extname(file)];
   // Public files: the manifest's `public` folder, served to the site's visitors.
-  const folder =
+  // Admin files: the folders of the admin entry and of the block editor entry.
+  const folders = (
     kind === 'admin'
-      ? plugin?.manifest.admin && path.dirname(plugin.manifest.admin)
-      : plugin?.manifest.public;
-  const root = plugin && folder ? path.join(plugin.dir, folder) : null;
-  const target = root ? path.resolve(kind === 'admin' ? plugin!.dir : root, file) : '';
+      ? [plugin?.manifest.admin, plugin?.manifest.editor].map((e) => e && path.dirname(e))
+      : [plugin?.manifest.public]
+  ).filter((folder): folder is string => Boolean(folder));
+  const base =
+    plugin && kind === 'public' && folders[0] ? path.join(plugin.dir, folders[0]) : plugin?.dir;
+  const target = base ? path.resolve(base, file) : '';
+  const root = plugin
+    ? (folders
+        .map((folder) => path.join(plugin.dir, folder))
+        .find((dir) => target.startsWith(`${dir}${path.sep}`)) ?? null)
+    : null;
   if (
     !plugin ||
     !root ||

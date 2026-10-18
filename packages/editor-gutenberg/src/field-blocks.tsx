@@ -31,10 +31,14 @@ export function registerFieldBlocks(
         version: definition.version,
         title: definition.title,
         category: definition.category,
-        attrs: fieldsValidator(definition.attributes),
+        // Blocks with their own editor: any attributes (the server bounds them).
+        attrs: fieldsValidator(definition.native ? [] : definition.attributes),
+        ...(definition.richAttributes?.length ? { richAttributes: definition.richAttributes } : {}),
+        ...(definition.container ? { container: true } : {}),
       });
     }
-    if (getBlockType(definition.type)) continue;
+    // The plugin's editor entry registered it in Gutenberg, with its own edit.
+    if (definition.native || getBlockType(definition.type)) continue;
     registerBlockType(definition.type, {
       apiVersion: 3,
       title: definition.title,

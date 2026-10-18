@@ -246,13 +246,20 @@ function GutenbergEditor({
       bodyPlaceholder: 'Type / to choose a block',
       __experimentalBlockPatterns: inserterPatterns(patterns),
       __experimentalBlockPatternCategories: PATTERN_CATEGORIES,
-      __unstableResolvedAssets: options.styles
-        ? {
-            ...RESOLVED_ASSETS,
-            // The theme's editor styles (RF-THM-03), after the defaults.
-            styles: `${RESOLVED_ASSETS.styles}<style>${options.styles.replace(/<\/style/gi, '<\\/style')}</style>`,
-          }
-        : RESOLVED_ASSETS,
+      __unstableResolvedAssets: {
+        ...RESOLVED_ASSETS,
+        styles: [
+          RESOLVED_ASSETS.styles,
+          // The theme's editor styles (RF-THM-03), after the defaults.
+          options.styles
+            ? `<style>${options.styles.replace(/<\/style/gi, '<\\/style')}</style>`
+            : '',
+          // Plugins' block styles (plugin API 1.23), as on the site.
+          ...(options.styleUrls ?? []).map(
+            (url) => `<link rel="stylesheet" href="${url.replace(/["<>]/g, '')}">`,
+          ),
+        ].join(''),
+      },
       ...(options.services.uploadMedia ? { mediaUpload: makeMediaUpload(options) } : {}),
     }),
     [options, patterns],

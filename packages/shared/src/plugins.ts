@@ -43,6 +43,10 @@ export interface PluginAdminInfo {
   version: string;
   /** URL of the admin entry (ESM), if any. */
   adminUrl: string | null;
+  /** URL of the block editor entry (ESM, plugin API 1.23), if any. */
+  editorUrl?: string | null;
+  /** Styles for the block editor's canvas (plugin API 1.23). */
+  editorStyles?: string[];
   /** Settings form, when the user may edit it. */
   settings: { title: Label; fields: FieldDefinition[] } | null;
 }
@@ -57,6 +61,10 @@ export interface PluginBlockView {
   category: 'text' | 'media' | 'design' | 'widgets' | 'embed';
   version: number;
   attributes: FieldDefinition[];
+  /** Edited by the plugin's own editor entry (`schema: 'json'`, plugin API 1.23). */
+  native?: boolean;
+  richAttributes?: string[];
+  container?: boolean;
 }
 
 /** A field group shown on entries of some content types. */

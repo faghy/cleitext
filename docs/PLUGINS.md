@@ -395,6 +395,70 @@ defineBlock<{ gap: number; image?: string }>({
 - `html` lists attributes holding raw HTML: for authors without `unfiltered_html` they are cleaned on save, like the Custom HTML block.
 - `media` lists the media ids an instance uses. They are preloaded into `context.media`, with their `url`, size, `alt` and resized `variants`.
 
+**Blocks with their own editor** (plugin API 1.23). A form of fields is enough for most blocks. Design blocks need more: a live preview in the canvas, settings in the sidebar, nested blocks. Such a plugin ships a block editor entry and registers its blocks in Gutenberg itself:
+
+```json
+{ "editor": "dist/editor.js", "public": "dist/public", "editorStyles": ["blocks.css"] }
+```
+
+```tsx
+// src/editor.tsx: runs with the block editor, before the document opens.
+import { InnerBlocks, InspectorControls, RichText, useBlockProps } from '@wordpress/block-editor';
+import { registerBlockType } from '@wordpress/blocks';
+import { PanelBody, RangeControl } from '@wordpress/components';
+
+registerBlockType('acme/box', {
+  apiVersion: 3,
+  title: 'Box',
+  category: 'design',
+  attributes: { heading: { type: 'string' }, padding: { type: 'number', default: 24 } },
+  edit: ({ attributes, setAttributes }) => (
+    <section {...useBlockProps({ className: 'acme-box', style: { padding: attributes.padding } })}>
+      <InspectorControls>
+        <PanelBody title="Spacing">
+          <RangeControl
+            label="Padding"
+            value={attributes.padding}
+            onChange={(padding) => setAttributes({ padding })}
+          />
+        </PanelBody>
+      </InspectorControls>
+      <RichText
+        tagName="h2"
+        value={attributes.heading}
+        onChange={(heading) => setAttributes({ heading })}
+      />
+      <InnerBlocks />
+    </section>
+  ),
+  save: () => <InnerBlocks.Content />,
+});
+```
+
+On the server the block is declared with `schema: 'json'`, so its attributes are whatever the editor saves (any JSON object, at most 64 KB), plus `richAttributes` for the text edited with `RichText` (stored as CXD inline nodes; render them with `inlineToHtml`) and `container: true` for `InnerBlocks`:
+
+```tsx
+defineBlock<{ heading?: CxdInline[]; padding?: number }>({
+  type: 'acme/box',
+  title: 'Box',
+  schema: 'json',
+  richAttributes: ['heading'],
+  container: true,
+  css: ({ attrs, block }) => `.acme-${block.id}{padding:${Number(attrs.padding ?? 24)}px}`,
+  render: ({ attrs, block, children }) => (
+    <section className={`acme-box acme-${block.id}`}>
+      <h2 dangerouslySetInnerHTML={{ __html: inlineToHtml(attrs.heading ?? []) }} />
+      {children}
+    </section>
+  ),
+});
+```
+
+- The entry imports `@wordpress/block-editor`, `blocks`, `components`, `compose`, `data`, `element`, `hooks`, `i18n`, `icons`, `keycodes`, `primitives` and `rich-text`, plus React: `cleitext plugin:build` gives it the editor's own instances, never copies.
+- `editorStyles` are stylesheets of the `public` folder loaded in the canvas, after the theme's, so blocks look there as on the site.
+- Nothing is saved as markup: `save` is not used. Attributes may come from any version of the editor entry, so `render` must not trust them: escape what it prints, as above.
+- The entry runs in the entries' editor and in the theme's areas. Without it (an error, or the plugin turned off), the block shows as unavailable and its content is kept.
+
 ## 8. Routes
 
 **API endpoints** (`routes:admin`), served at `/api/v1/ext/<slug><path>`:

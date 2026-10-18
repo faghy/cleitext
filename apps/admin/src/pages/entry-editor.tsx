@@ -2,7 +2,6 @@ import { adminUrl } from '@cleitext/shared';
 import { documentStats, type CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance, EditorServices, EmbedPreview, MediaRef } from '@cleitext/editor-core';
 import { FieldsForm, useT } from '@cleitext/admin-sdk';
-import type { FieldBlockDefinition } from '@cleitext/editor-core';
 import {
   labelText,
   type ContentTypeView,
@@ -13,7 +12,6 @@ import {
   type MediaListResponse,
   type MediaView,
   type PatternView,
-  type PluginBlockView,
   type RevisionSummary,
   type RevisionView,
   type EntryLockView,
@@ -22,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, errorMessage, uploadFile } from '../api';
+import { editorExtensions } from '../editor-plugins';
 import { useMe } from '../auth';
 import { Alert, Button } from '../components/ui';
 import { EntryStates } from '../components/entry-states';
@@ -144,11 +143,11 @@ function Editor({ initial }: { initial: EntryView }) {
     let cancelled = false;
     void Promise.all([
       import('@cleitext/editor-gutenberg'),
-      // Blocks of the plugins active on the site.
-      api<PluginBlockView[]>('GET', '/blocks').catch(() => [] as PluginBlockView[]),
+      // Blocks of the plugins active on the site, and their editor entries.
+      editorExtensions(userLocale),
       // The theme's styles for the canvas.
       api<{ css: string }>('GET', '/themes/active/editor-styles').catch(() => ({ css: '' })),
-    ]).then(([{ gutenbergAdapter }, blocks, styles]) => {
+    ]).then(([{ gutenbergAdapter }, extensions, styles]) => {
       if (cancelled || !canvasRef.current) return;
       editorRef.current = gutenbergAdapter.mount({
         styles: styles.css,
@@ -156,7 +155,8 @@ function Editor({ initial }: { initial: EntryView }) {
         targets: { canvas: canvasRef.current, inspector: inspectorRef.current },
         services: mediaServices(initial.locale),
         locale: initial.locale,
-        fieldBlocks: blocks.map((block) => toFieldBlock(block, userLocale)),
+        fieldBlocks: extensions.fieldBlocks,
+        styleUrls: extensions.styleUrls,
         hostShortcuts: [{ description: 'Save your changes.', modifier: 'primary', character: 's' }],
         onChange: (document) => {
           documentRef.current = document;
@@ -856,18 +856,6 @@ function FieldsPanel({
       ))}
     </div>
   );
-}
-
-function toFieldBlock(block: PluginBlockView, locale: string): FieldBlockDefinition {
-  return {
-    type: block.type,
-    title: labelText(block.title, locale),
-    ...(block.description ? { description: labelText(block.description, locale) } : {}),
-    ...(block.icon ? { icon: block.icon } : {}),
-    category: block.category,
-    version: block.version,
-    attributes: block.attributes,
-  };
 }
 
 /** Word count, reading time and heading outline (RF-EDT-10). */

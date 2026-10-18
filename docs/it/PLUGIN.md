@@ -373,6 +373,19 @@ ctx.blocks.register(
 - `html`: elenca gli attributi che contengono HTML libero; per gli autori senza `unfiltered_html` vengono ripuliti al salvataggio, come il blocco HTML personalizzato.
 - `media`: elenca gli id dei media usati da un'istanza. Vengono precaricati in `context.media`, con `url`, dimensioni, `alt` e varianti ridimensionate (`variants`).
 
+**Blocchi con un editor proprio** (API dei plugin 1.23). Per la maggior parte dei blocchi basta un modulo di campi. I blocchi di design chiedono di più: anteprima dal vivo nel canvas, impostazioni nella barra laterale, blocchi annidati. Un plugin così fornisce uno script per l'editor a blocchi e registra lui stesso i suoi blocchi in Gutenberg:
+
+```json
+{ "editor": "dist/editor.js", "public": "dist/public", "editorStyles": ["blocks.css"] }
+```
+
+`src/editor.tsx` chiama `registerBlockType` dei pacchetti `@wordpress/*` con un suo `edit` (`InspectorControls`, `RichText`, `InnerBlocks`…), come in WordPress. Sul server il blocco si dichiara con `schema: 'json'`: gli attributi sono quelli che l'editor salva (qualsiasi oggetto JSON, al massimo 64 KB). Ci sono poi `richAttributes`, per i testi modificati con `RichText` (salvati come nodi inline CXD: si mostrano con `inlineToHtml`), e `container: true` per `InnerBlocks`. L'esempio completo è nella guida inglese.
+
+- Lo script importa `@wordpress/block-editor`, `blocks`, `components`, `compose`, `data`, `element`, `hooks`, `i18n`, `icons`, `keycodes`, `primitives` e `rich-text`, più React: `cleitext plugin:build` gli passa le istanze dell'editor, mai copie.
+- `editorStyles` sono fogli di stile della cartella `public` caricati nel canvas dopo quelli del tema, così i blocchi appaiono come sul sito.
+- Non si salva HTML: `save` non è usato. Gli attributi possono venire da qualsiasi versione dello script, quindi `render` non deve fidarsi: fai l'escape di ciò che stampa.
+- Lo script gira nell'editor delle voci e nelle aree del tema. Senza (un errore, o il plugin spento) il blocco appare come non disponibile e il suo contenuto resta.
+
 ## 8. Route
 
 **Endpoint API** (`routes:admin`), serviti su `/api/v1/ext/<slug><path>`:

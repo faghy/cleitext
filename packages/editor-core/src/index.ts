@@ -29,6 +29,8 @@ export interface EditorMountOptions {
   fieldBlocks?: FieldBlockDefinition[];
   /** CSS of the site's theme for the canvas, so content looks like the site. */
   styles?: string;
+  /** Stylesheets of plugins' blocks for the canvas (plugin API 1.23), after the theme's. */
+  styleUrls?: string[];
   /**
    * Shortcuts handled by the host page (e.g. save), listed in the editor's
    * keyboard shortcuts help next to the editor's own (RF-EDT-06).
@@ -112,4 +114,11 @@ export interface FieldBlockDefinition {
   category: 'text' | 'media' | 'design' | 'widgets' | 'embed';
   version: number;
   attributes: FieldDefinition[];
+  /**
+   * Registered by the plugin's own editor entry (plugin API 1.23): only its
+   * CXD conversion is set up here, never a generated form.
+   */
+  native?: boolean;
+  richAttributes?: string[];
+  container?: boolean;
 }

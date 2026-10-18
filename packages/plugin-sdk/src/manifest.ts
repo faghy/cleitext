@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.22.0';
+export const SDK_VERSION = '1.23.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -68,6 +68,26 @@ export const pluginManifestSchema = z.object({
   /** Admin entry point (ESM), relative to the plugin folder. */
   admin: z.string().regex(RELATIVE_PATH_RE).optional(),
   /**
+   * Block editor entry point (ESM, plugin API 1.23), e.g. `dist/editor.js`:
+   * loaded with the block editor, it registers the plugin's own Gutenberg
+   * blocks (`registerBlockType` with an `edit`) with the editor's
+   * `@wordpress/*` packages. Their blocks use `schema: 'json'`.
+   */
+  editor: z.string().regex(RELATIVE_PATH_RE).optional(),
+  /**
+   * Styles of the `public` folder loaded in the block editor's canvas
+   * (plugin API 1.23), e.g. `["blocks.css"]`, so blocks look as on the site.
+   */
+  editorStyles: z
+    .array(
+      z
+        .string()
+        .regex(/^(?!\/)(?!.*\.\.)[\w./-]+\.css$/)
+        .max(200),
+    )
+    .max(20)
+    .optional(),
+  /**
    * Folder of files for the public site (scripts, styles, fonts), e.g.
    * `dist/public`, served at `/plugin-assets/<slug>/<version>/<file>`.
    * `plugin:build` bundles `src/public` into it.
@@ -128,6 +148,27 @@ export const SHARED_ADMIN_MODULES = [
   'react/jsx-runtime',
   'react-dom',
   '@tanstack/react-query',
+] as const;
+
+/**
+ * Modules a block editor entry gets from the editor (plugin API 1.23): the
+ * admin's ones and the block editor's `@wordpress/*` packages, the same
+ * instances Gutenberg uses, so plugin blocks register in it.
+ */
+export const SHARED_EDITOR_MODULES = [
+  ...SHARED_ADMIN_MODULES,
+  '@wordpress/block-editor',
+  '@wordpress/blocks',
+  '@wordpress/components',
+  '@wordpress/compose',
+  '@wordpress/data',
+  '@wordpress/element',
+  '@wordpress/hooks',
+  '@wordpress/i18n',
+  '@wordpress/icons',
+  '@wordpress/keycodes',
+  '@wordpress/primitives',
+  '@wordpress/rich-text',
 ] as const;
 
 /** PostgreSQL schema of a plugin's tables. */

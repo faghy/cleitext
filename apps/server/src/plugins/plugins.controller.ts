@@ -33,6 +33,7 @@ import { LicensesService } from '../catalog/licenses.service.js';
 import { CurrentAuth, CurrentSite, RequireCapability } from '../common/decorators.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
+import { pluginAssetUrl } from './plugin-assets.js';
 import { PluginError, PluginHost, type LoadedPlugin } from './plugin-host.service.js';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -211,6 +212,14 @@ export class PluginsController {
       adminUrl: plugin.manifest.admin
         ? `/admin-plugins/${plugin.slug}/${plugin.version}/${plugin.manifest.admin}`
         : null,
+      editorUrl: plugin.manifest.editor
+        ? `/admin-plugins/${plugin.slug}/${plugin.version}/${plugin.manifest.editor}`
+        : null,
+      editorStyles: plugin.manifest.public
+        ? (plugin.manifest.editorStyles ?? []).map((file) =>
+            pluginAssetUrl(plugin.slug, plugin.version, file),
+          )
+        : [],
       settings:
         plugin.settings && auth.capabilities.includes(settingsCapability(plugin))
           ? { title: plugin.settings.title ?? plugin.manifest.name, fields: plugin.settings.fields }
@@ -300,6 +309,9 @@ export class PluginsController {
         category: block.category ?? 'widgets',
         version: block.version ?? 1,
         attributes: block.attributes ?? [],
+        ...(block.schema === 'json' ? { native: true } : {}),
+        ...(block.richAttributes?.length ? { richAttributes: block.richAttributes } : {}),
+        ...(block.container ? { container: true } : {}),
       })),
     );
   }

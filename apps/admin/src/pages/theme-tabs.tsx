@@ -5,6 +5,7 @@ import { labelText, type PatternView, type ThemeView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
+import { editorExtensions } from '../editor-plugins';
 import { useMe } from '../auth';
 import { Alert, Button, Card, useT } from '../components/ui';
 import { mediaServices } from './entry-editor';
@@ -429,7 +430,9 @@ function DocumentEditor({
       import('@cleitext/editor-gutenberg'),
       load(),
       api<{ css: string }>('GET', '/themes/active/editor-styles').catch(() => ({ css: '' })),
-    ]).then(([{ gutenbergAdapter }, document, styles]) => {
+      // Plugins' blocks in theme areas too (sidebars, footers).
+      editorExtensions(locale),
+    ]).then(([{ gutenbergAdapter }, document, styles, extensions]) => {
       if (cancelled || !canvasRef.current) return;
       editorRef.current = gutenbergAdapter.mount({
         document,
@@ -437,6 +440,8 @@ function DocumentEditor({
         services: mediaServices(locale),
         locale,
         styles: styles.css,
+        fieldBlocks: extensions.fieldBlocks,
+        styleUrls: extensions.styleUrls,
         onChange: () => save.reset(),
       });
       setReady(true);
