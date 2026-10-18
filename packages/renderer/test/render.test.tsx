@@ -515,6 +515,16 @@ describe('patterns, templates and pages', () => {
       expect(html(doc({ id: 'x', type: 'core/gallery', v: 1, attrs: {}, children: [] }))).toBe('');
     });
 
+    it('puts the block gap of stacked blocks after the theme’s styles, as WordPress does', () => {
+      const out = withCoreBlockCss(
+        '<html><head><style>theme</style></head><body><div class="wp-block-column cx-flow-gap"></div></body></html>',
+      );
+      expect(out).toMatch(
+        /<style>theme<\/style>[\s\S]*<style data-cx-block-supports>\.cx-flow-gap>\*\{[^<]*<\/style><\/body>/,
+      );
+      expect(out).not.toContain('data-cx-core-blocks');
+    });
+
     it('adds their base styles to pages that have one, before the theme’s', () => {
       const page =
         '<html><head><meta charset="utf-8"><style>theme</style></head><body><figure class="wp-block-table"></figure></body></html>';

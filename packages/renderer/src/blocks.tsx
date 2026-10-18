@@ -373,8 +373,7 @@ registerBlockRenderer('core/gallery', ({ block, children }) => {
 
 /**
  * Base styles of tables and galleries, added to pages that have one (themes
- * may restyle them): borders and room in tables, a grid in galleries, and the
- * block gap of stacked blocks.
+ * may restyle them): borders and room in tables, a grid in galleries.
  */
 export const CORE_BLOCK_CSS = [
   '.wp-block-table{overflow-x:auto;margin:1.5em 0}',
@@ -393,14 +392,28 @@ export const CORE_BLOCK_CSS = [
   '.wp-block-gallery>.wp-block-image img{width:100%;height:auto;display:block}',
   '.wp-block-gallery.is-cropped>.wp-block-image img{aspect-ratio:1;height:100%;object-fit:cover}',
   '.wp-block-gallery>figcaption{grid-column:1/-1}',
-  // The block gap of stacked blocks (WordPress's flow layout).
-  '.cx-flow-gap>*{margin-block-start:0;margin-block-end:0}',
-  '.cx-flow-gap>*+*{margin-block-start:var(--cx-block-gap)}',
 ].join('');
 
-/** Adds the base styles of tables and galleries to a page that has one, before the theme's. */
+/**
+ * The block gap of stacked blocks (WordPress's flow layout). As in WordPress,
+ * after the theme's styles, so that it wins over the theme's margins of the
+ * same weight.
+ */
+export const BLOCK_SUPPORTS_CSS =
+  '.cx-flow-gap>*{margin-block-start:0;margin-block-end:0}' +
+  '.cx-flow-gap>*+*{margin-block-start:var(--cx-block-gap);margin-block-end:0}';
+
+/**
+ * Adds the base styles of tables and galleries to a page that has one, before
+ * the theme's, and the block gap of stacked blocks at the end of the page.
+ */
 export function withCoreBlockCss(html: string): string {
-  if (!/class="wp-block-(table|gallery)\b|\bcx-flow-gap\b/.test(html)) return html;
+  if (/\bcx-flow-gap\b/.test(html)) {
+    const style = `<style data-cx-block-supports>${BLOCK_SUPPORTS_CSS}</style>`;
+    const end = html.lastIndexOf('</body>');
+    html = end === -1 ? html + style : html.slice(0, end) + style + html.slice(end);
+  }
+  if (!/class="wp-block-(table|gallery)\b/.test(html)) return html;
   // Before the theme's styles, which may restyle them.
   const head = html.indexOf('</head>');
   const first = html.search(/<style|<link[^>]+rel="stylesheet"/);

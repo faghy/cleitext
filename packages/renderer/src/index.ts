@@ -1,6 +1,7 @@
 export {
   Block,
   Blocks,
+  BLOCK_SUPPORTS_CSS,
   CORE_BLOCK_CSS,
   withCoreBlockCss,
   registerBlockRenderer,
