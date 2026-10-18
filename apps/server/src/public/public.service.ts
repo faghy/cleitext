@@ -995,12 +995,6 @@ export class PublicService {
     // RSS feeds (RF-THM-08): latest posts, latest comments, and per category or tag.
     if (rest === '/feed') return this.feed(scope, null);
     if (rest === '/comments/feed') return this.commentsFeed(scope);
-    // /{base}/{slug}/feed: the base is the taxonomy's slug unless it has another.
-    const termFeed = /^\/([a-z][a-z0-9_-]*)\/([a-z0-9]+(?:-[a-z0-9]+)*)\/feed$/.exec(rest);
-    for (const taxonomy of termFeed ? (data.taxonomyByBase.get(termFeed[1]!) ?? []) : []) {
-      const feed = await this.feed(scope, { taxonomy, slug: termFeed![2]! });
-      if (feed) return feed;
-    }
 
     if (rest === '/search') {
       return this.renderSearch(
@@ -1014,17 +1008,12 @@ export class PublicService {
     const author = /^\/author\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/page\/(\d+))?$/.exec(rest);
     if (author) return this.renderAuthorArchive(scope, author[1]!, Number(author[2] ?? 1));
 
-    // Category and tag archives: /{taxonomy}/{slug}[/page/N]
-    const taxonomy = /^\/([a-z][a-z0-9_-]*)\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/page\/(\d+))?$/.exec(
-      rest,
-    );
-    for (const slug of taxonomy ? (data.taxonomyByBase.get(taxonomy[1]!) ?? []) : []) {
-      const archive = await this.renderTermArchive(
-        scope,
-        slug,
-        taxonomy![2]!,
-        Number(taxonomy![3] ?? 1),
-      );
+    // Category and tag archives and feeds: /{base}/{parents…}/{slug}[/page/N | /feed].
+    // The base is the taxonomy's slug unless it has another.
+    const base = /^\/([a-z][a-z0-9_-]*)(\/.+)$/.exec(rest);
+    const byBase = base ? data.taxonomyByBase.get(base[1]!) : undefined;
+    if (byBase?.length) {
+      const archive = await this.termRoute(scope, byBase, base![2]!);
       if (archive) return archive;
     }
 
@@ -1048,7 +1037,7 @@ export class PublicService {
     }
 
     // Entries by permalink: of the types whose permalink matches, the entry that exists.
-    let entry: Awaited<ReturnType<typeof this.published>>[number] | undefined;
+    let entry: PublishedEntry | undefined;
     for (const match of matchPermalinks(rest, data.types)) {
       const [found] = await this.published(
         scope,
@@ -1099,13 +1088,35 @@ export class PublicService {
   private async rootTermArchive(scope: RequestScope, rest: string): Promise<PublicResponse | null> {
     const taxonomies = scope.data.taxonomyByBase.get('') ?? [];
     if (taxonomies.length === 0) return null;
-    const match = /^\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/page\/(\d+)|\/(feed))?$/.exec(rest);
+    return this.termRoute(scope, taxonomies, rest);
+  }
+
+  /**
+   * A term's archive or feed from the address after the taxonomy's base:
+   * /{parents…}/{slug}[/page/N | /feed]. Terms with parents live under them
+   * (WordPress's /category/parent/child); other paths ending with the slug,
+   * such as the old /category/child, redirect there.
+   */
+  private async termRoute(
+    scope: RequestScope,
+    taxonomies: string[],
+    path: string,
+  ): Promise<PublicResponse | null> {
+    const match = /^((?:\/[a-z0-9]+(?:-[a-z0-9]+)*){1,10}?)(?:\/page\/(\d+)|\/(feed))?$/.exec(path);
     if (!match) return null;
+    const slug = match[1]!.slice(match[1]!.lastIndexOf('/') + 1);
+    const page = Number(match[2] ?? 1);
+    const suffix = match[3] ? '/feed' : page > 1 ? `/page/${page}` : '';
     for (const taxonomy of taxonomies) {
       const found = match[3]
-        ? await this.feed(scope, { taxonomy, slug: match[1]! })
-        : await this.renderTermArchive(scope, taxonomy, match[1]!, Number(match[2] ?? 1));
-      if (found) return found;
+        ? await this.feed(scope, { taxonomy, slug })
+        : await this.renderTermArchive(scope, taxonomy, slug, page);
+      if (!found) continue;
+      const canonical = scope.data.urls.term(taxonomy, slug, scope.locale);
+      if (`${canonical}${suffix}` !== scope.path && found.status === 200) {
+        return { status: 301, redirect: `${canonical}${suffix}`, tags: [] };
+      }
+      return found;
     }
     return null;
   }

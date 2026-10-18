@@ -189,8 +189,15 @@ describe('the catalog', () => {
     expect(home.statusCode).toBe(200);
     expect(names(home.body).sort()).toEqual(['Desk lamp', 'Floor lamp']);
     expect(home.body).toContain('<a href="/shop">Shop</a>');
-    const lamps = await visitor().get('/product-category/lamps');
+    // A subcategory lives under its parent, as in WooCommerce.
+    const lamps = await visitor().get('/product-category/home/lamps');
+    expect(lamps.statusCode).toBe(200);
     expect(lamps.body).toContain('<a href="/product-category/home">Home</a>');
+    const flat = await visitor().get('/product-category/lamps?sort=price');
+    expect([flat.statusCode, flat.headers.location]).toEqual([
+      301,
+      '/product-category/home/lamps?sort=price',
+    ]);
     expect(names((await visitor().get('/brand/verde')).body)).toEqual(['Clay pot']);
     expect((await visitor().get('/product-category/nothing')).statusCode).toBe(404);
   });
@@ -207,7 +214,7 @@ describe('the catalog', () => {
     const slug = (await admin.get(`/api/v1/entries/${ids.floor}`)).json().slug;
     const page = await visitor().get(`/product/${slug}`);
     expect(page.body).toMatch(
-      /<a href="\/shop">Shop<\/a><\/li>\s*<li><a href="\/product-category\/home">Home<\/a><\/li>\s*<li><a href="\/product-category\/lamps">Lamps<\/a>/,
+      /<a href="\/shop">Shop<\/a><\/li>\s*<li><a href="\/product-category\/home">Home<\/a><\/li>\s*<li><a href="\/product-category\/home\/lamps">Lamps<\/a>/,
     );
     const all = [
       ...page.body.matchAll(/<script type="application\/ld\+json">(.+?)<\/script>/g),
@@ -222,7 +229,7 @@ describe('the catalog', () => {
       ['Home', `http://${site.host}/`],
       ['Shop', `http://${site.host}/shop`],
       ['Home', `http://${site.host}/product-category/home`],
-      ['Lamps', `http://${site.host}/product-category/lamps`],
+      ['Lamps', `http://${site.host}/product-category/home/lamps`],
       ['Floor lamp', `http://${site.host}/product/${slug}`],
     ]);
     expect(data).toMatchObject({

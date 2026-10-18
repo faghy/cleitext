@@ -107,6 +107,14 @@ export function registerCatalog(
         status: 404,
         page: { title: t('Not found'), html: `<p>${t('This page does not exist.')}</p>` },
       };
+    // Subcategories live under their parents (/product-category/home/lamps).
+    const own = term?.url.replace(/^https?:\/\/[^/]+/, '');
+    if (own && request.path !== own) {
+      const query = new URLSearchParams(
+        Object.entries(request.queryAll).flatMap(([k, values]) => values.map((v) => [k, v])),
+      ).toString();
+      return { status: 301, headers: { location: query ? `${own}?${query}` : own } };
+    }
 
     const filters = readFilters(request);
     const brandBySlug = new Map(brands.map((b) => [b.slug, b]));
@@ -212,11 +220,19 @@ export function registerCatalog(
   };
 
   ctx.routes.public({ method: 'GET', path: '/shop', handler: (request) => render(request, null) });
-  ctx.routes.public({
-    method: 'GET',
-    path: '/product-category/:slug',
-    handler: (request) => render(request, { taxonomy: CATEGORY, slug: request.params.slug ?? '' }),
-  });
+  for (const path of [
+    '/product-category/:slug',
+    '/product-category/:a/:slug',
+    '/product-category/:a/:b/:slug',
+    '/product-category/:a/:b/:c/:slug',
+  ]) {
+    ctx.routes.public({
+      method: 'GET',
+      path,
+      handler: (request) =>
+        render(request, { taxonomy: CATEGORY, slug: request.params.slug ?? '' }),
+    });
+  }
   ctx.routes.public({
     method: 'GET',
     path: '/brand/:slug',

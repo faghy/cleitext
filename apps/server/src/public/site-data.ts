@@ -22,7 +22,7 @@ import {
 import type { MenuItemView, PublicEntrySummary } from '@cleitext/theme-sdk';
 import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { ContentLocale } from '@cleitext/plugin-sdk';
-import { UrlBuilder, type TypeInfo } from './urls.js';
+import { termKey, UrlBuilder, type TypeInfo } from './urls.js';
 
 /** Published entry with its published revision. */
 export interface PublishedEntry {
@@ -85,7 +85,13 @@ export async function loadSiteData(
     }));
   const taxonomyRows = (
     await tx
-      .select({ slug: taxonomies.slug, source: taxonomies.source, base: taxonomies.base })
+      .select({
+        id: taxonomies.id,
+        slug: taxonomies.slug,
+        source: taxonomies.source,
+        base: taxonomies.base,
+        hierarchical: taxonomies.hierarchical,
+      })
       .from(taxonomies)
   ).filter((t) => isTypeAvailable(t.source, activePlugins));
 
@@ -110,6 +116,40 @@ export async function loadSiteData(
     paths.set(row.id, segments);
   }
 
+  // Paths of the terms with parents (categories), as WordPress builds them.
+  const nested = taxonomyRows.filter((t) => t.hierarchical);
+  const termRows =
+    nested.length > 0
+      ? await tx
+          .select({
+            id: terms.id,
+            slug: terms.slug,
+            locale: terms.locale,
+            parentId: terms.parentId,
+            taxonomyId: terms.taxonomyId,
+          })
+          .from(terms)
+          .where(
+            inArray(
+              terms.taxonomyId,
+              nested.map((t) => t.id),
+            ),
+          )
+      : [];
+  const termsById = new Map(termRows.map((r) => [r.id, r]));
+  const taxonomySlugs = new Map(nested.map((t) => [t.id, t.slug]));
+  const termPaths = new Map<string, string[]>();
+  for (const row of termRows) {
+    if (!row.parentId) continue;
+    const segments = [row.slug];
+    let parent = termsById.get(row.parentId);
+    for (let depth = 0; parent && depth < 10; depth++) {
+      segments.unshift(parent.slug);
+      parent = parent.parentId ? termsById.get(parent.parentId) : undefined;
+    }
+    termPaths.set(termKey(taxonomySlugs.get(row.taxonomyId)!, row.locale, row.slug), segments);
+  }
+
   return {
     locales,
     types,
@@ -123,6 +163,7 @@ export async function loadSiteData(
       new Map(types.map((t) => [t.slug, t])),
       paths,
       new Map(taxonomyRows.flatMap((t) => (t.base !== null ? [[t.slug, t.base] as const] : []))),
+      termPaths,
     ),
   };
 }

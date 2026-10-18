@@ -209,7 +209,7 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 | RF-TAX-01 | Default `category` (hierarchical) and `tag` taxonomies for `article`.                                            | MVP      |
 | RF-TAX-02 | Custom taxonomies from the admin and from plugins; archives under their slug, another word or no base (`/news`). | 1.0      |
 | RF-TAX-03 | Translated terms, with per-language slug, description and custom fields (official Multilingual plugin, M7).      | MVP      |
-| RF-TAX-04 | Public archives per term (`/category/news`).                                                                     | MVP      |
+| RF-TAX-04 | Public archives per term (`/category/news`), subcategories under their parents (`/category/news/local`).         | MVP      |
 
 ### 4.7 Menus and navigation
 

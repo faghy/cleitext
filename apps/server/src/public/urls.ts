@@ -33,6 +33,11 @@ export interface UrlOrigin {
   scheme: string;
 }
 
+/** Key of a term in `UrlBuilder`'s term paths. */
+export function termKey(taxonomy: string, locale: string, slug: string): string {
+  return `${taxonomy}\u0000${locale}\u0000${slug}`;
+}
+
 export class UrlBuilder {
   private origin: UrlOrigin | null = null;
 
@@ -43,6 +48,11 @@ export class UrlBuilder {
     private readonly paths: Map<string, string[]>,
     /** First part of a taxonomy's archives, when not its slug ('' for none). */
     private readonly taxonomyBases: Map<string, string> = new Map(),
+    /**
+     * Slugs of the parents and the term itself, for terms with parents
+     * (`termKey`), as WordPress's /category/parent/child.
+     */
+    private readonly termPaths: Map<string, string[]> = new Map(),
   ) {}
 
   get defaultLocale(): string {
@@ -107,7 +117,8 @@ export class UrlBuilder {
 
   term(taxonomy: string, slug: string, locale: string): string {
     const base = this.taxonomyBases.get(taxonomy) ?? taxonomy;
-    return base ? `${this.base(locale)}/${base}/${slug}` : `${this.base(locale)}/${slug}`;
+    const path = (this.termPaths.get(termKey(taxonomy, locale, slug)) ?? [slug]).join('/');
+    return base ? `${this.base(locale)}/${base}/${path}` : `${this.base(locale)}/${path}`;
   }
 
   entry(entry: EntryRef): string {

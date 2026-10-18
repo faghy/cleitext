@@ -143,7 +143,7 @@ describe('Widgets', () => {
     const html = (await visitor.get(page.path)).body;
     // Travel holds Pasta night, Italy holds Rome trip; Empty only a draft.
     expect(html).toMatch(
-      /<a href="[^"]*\/category\/travel">Travel<\/a><span class="cxw-terms__count" title="1 post"> \(1\)<\/span><ul><li><a href="[^"]*\/category\/italy">Italy<\/a><span class="cxw-terms__count" title="1 post"> \(1\)<\/span>/,
+      /<a href="[^"]*\/category\/travel">Travel<\/a><span class="cxw-terms__count" title="1 post"> \(1\)<\/span><ul><li><a href="[^"]*\/category\/travel\/italy">Italy<\/a><span class="cxw-terms__count" title="1 post"> \(1\)<\/span>/,
     );
     expect(html).not.toContain('>Empty<');
     // Food has two posts: the largest; Rome one: the smallest.

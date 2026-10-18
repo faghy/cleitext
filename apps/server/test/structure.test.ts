@@ -232,6 +232,50 @@ describe('taxonomies from the admin', () => {
     expect((await visitor.get('/category/web-marketing')).statusCode).toBe(200);
   });
 
+  it('puts subcategories under their parents, as WordPress', async () => {
+    const parent = (
+      await admin.post('/api/v1/taxonomies/category/terms', { name: 'Copywriting' })
+    ).json();
+    const child = (
+      await admin.post('/api/v1/taxonomies/category/terms', {
+        name: 'Storytelling',
+        parentId: parent.id,
+      })
+    ).json();
+    const draft = (
+      await admin.post('/api/v1/entries', { type: 'article', title: 'Once upon a time' })
+    ).json();
+    await admin.request('PATCH', `/api/v1/entries/${draft.id}`, {
+      terms: { category: [child.id] },
+    });
+    await admin.post(`/api/v1/entries/${draft.id}/publish`);
+
+    const archive = await visitor.get('/category/copywriting/storytelling');
+    expect(archive.statusCode).toBe(200);
+    expect(archive.body).toContain('Once upon a time');
+    expect((await visitor.get('/category/copywriting/storytelling/feed')).statusCode).toBe(200);
+    // The address without the parent, and wrong parents, lead there.
+    for (const path of ['/category/storytelling', '/category/web-marketing/storytelling']) {
+      const old = await visitor.get(path);
+      expect([old.statusCode, old.headers.location]).toEqual([
+        301,
+        '/category/copywriting/storytelling',
+      ]);
+    }
+    const paged = await visitor.get('/category/storytelling/page/2');
+    expect(paged.headers.location ?? '').not.toContain('/page/2/');
+
+    // Without a base: /copywriting/storytelling, and the old address follows.
+    await admin.request('PATCH', '/api/v1/taxonomies/category', { base: '' });
+    expect((await visitor.get('/copywriting/storytelling')).statusCode).toBe(200);
+    expect((await visitor.get('/copywriting/storytelling/feed')).statusCode).toBe(200);
+    const flat = await visitor.get('/storytelling');
+    expect([flat.statusCode, flat.headers.location]).toEqual([301, '/copywriting/storytelling']);
+    const older = await visitor.get('/category/copywriting/storytelling');
+    expect([older.statusCode, older.headers.location]).toEqual([301, '/copywriting/storytelling']);
+    await admin.request('PATCH', '/api/v1/taxonomies/category', { base: null });
+  });
+
   it('updates the types it applies to, and deletes it when empty', async () => {
     const updated = await admin.request('PATCH', '/api/v1/taxonomies/cuisine', {
       contentTypes: ['recipe', 'article'],

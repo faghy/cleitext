@@ -435,26 +435,41 @@ export class StructureService {
     base: string | null,
   ): Promise<void> {
     const rows = await tx
-      .select({ slug: terms.slug, locale: terms.locale })
+      .select({ id: terms.id, slug: terms.slug, locale: terms.locale, parentId: terms.parentId })
       .from(terms)
       .where(eq(terms.taxonomyId, taxonomy.id))
       .limit(MAX_REDIRECTS);
     const prefixes = localePrefixes(await this.languages.localesIn(tx, siteId));
-    const path = (b: string, slug: string) => (b ? `/${b}/${slug}` : `/${slug}`);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    // Terms with parents live under them (/category/parent/child).
+    const segments = (term: (typeof rows)[number]) => {
+      const list = [term.slug];
+      let parent = term.parentId ? byId.get(term.parentId) : undefined;
+      for (let depth = 0; parent && depth < 10; depth++) {
+        list.unshift(parent.slug);
+        parent = parent.parentId ? byId.get(parent.parentId) : undefined;
+      }
+      return list.join('/');
+    };
+    const path = (b: string, rest: string) => (b ? `/${b}/${rest}` : `/${rest}`);
     for (const term of rows) {
       const prefix = prefixes.get(term.locale) ?? '';
-      const from = prefix + path(taxonomy.base ?? taxonomy.slug, term.slug);
-      const to = prefix + path(base ?? taxonomy.slug, term.slug);
-      if (from === to) continue;
-      await tx.delete(redirects).where(eq(redirects.fromPath, to));
-      await tx
-        .insert(redirects)
-        .values({ siteId, fromPath: from, toPath: to, status: 301 })
-        .onConflictDoUpdate({
-          target: [redirects.siteId, redirects.fromPath],
-          set: { toPath: to },
-        });
-      await tx.update(redirects).set({ toPath: to }).where(eq(redirects.toPath, from));
+      const to = prefix + path(base ?? taxonomy.slug, segments(term));
+      // The old address, and the one without parents that older versions used.
+      const old = taxonomy.base ?? taxonomy.slug;
+      const sources = new Set([prefix + path(old, segments(term)), prefix + path(old, term.slug)]);
+      for (const from of sources) {
+        if (from === to) continue;
+        await tx.delete(redirects).where(eq(redirects.fromPath, to));
+        await tx
+          .insert(redirects)
+          .values({ siteId, fromPath: from, toPath: to, status: 301 })
+          .onConflictDoUpdate({
+            target: [redirects.siteId, redirects.fromPath],
+            set: { toPath: to },
+          });
+        await tx.update(redirects).set({ toPath: to }).where(eq(redirects.toPath, from));
+      }
     }
   }
 

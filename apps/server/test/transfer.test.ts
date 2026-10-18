@@ -163,7 +163,8 @@ describe('WordPress import', () => {
     expect(page.body).toContain('A sailor');
     expect(page.body).toContain('wp-block-columns');
     expect(page.body).toContain('Map of the coast');
-    expect(page.body).toContain('href="/category/harbours"');
+    // A subcategory, under its parent as in WordPress.
+    expect(page.body).toContain('href="/category/travel/harbours"');
     // Comments come along, threaded; spam stays out of sight.
     expect(page.body).toContain('2 comments');
     expect(page.body).toMatch(

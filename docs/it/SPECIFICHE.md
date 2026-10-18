@@ -204,12 +204,12 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 
 ### 4.6 Tassonomie
 
-| ID        | Requisito                                                                                                           | Priorità |
-| --------- | ------------------------------------------------------------------------------------------------------------------- | -------- |
-| RF-TAX-01 | Tassonomie `category` (gerarchica) e `tag` predefinite per `article`.                                               | MVP      |
-| RF-TAX-02 | Tassonomie personalizzate da admin e da plugin; archivi sotto il loro slug, un'altra parola o senza base (`/news`). | 1.0      |
-| RF-TAX-03 | Termini tradotti, con slug per lingua, descrizione e campi personalizzati (plugin ufficiale Multilingua, M7).       | MVP      |
-| RF-TAX-04 | Archivi pubblici per termine (`/categoria/notizie`).                                                                | MVP      |
+| ID        | Requisito                                                                                                              | Priorità |
+| --------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
+| RF-TAX-01 | Tassonomie `category` (gerarchica) e `tag` predefinite per `article`.                                                  | MVP      |
+| RF-TAX-02 | Tassonomie personalizzate da admin e da plugin; archivi sotto il loro slug, un'altra parola o senza base (`/news`).    | 1.0      |
+| RF-TAX-03 | Termini tradotti, con slug per lingua, descrizione e campi personalizzati (plugin ufficiale Multilingua, M7).          | MVP      |
+| RF-TAX-04 | Archivi pubblici per termine (`/categoria/notizie`), sottocategorie sotto le principali (`/categoria/notizie/locali`). | MVP      |
 
 ### 4.7 Menu e navigazione
 
