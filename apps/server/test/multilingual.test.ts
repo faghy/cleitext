@@ -636,8 +636,11 @@ describe('language data waiting for the plugin', () => {
         },
       });
     });
-    await owner2.post('/api/v1/plugins/multilingual/activate');
-    const list = (await owner2.get(`${EXT}/languages`)).json();
+    const activated = await owner2.post('/api/v1/plugins/multilingual/activate');
+    expect(activated.statusCode, activated.body).toBe(200);
+    const languages = await owner2.get(`${EXT}/languages`);
+    expect(languages.statusCode, languages.body).toBe(200);
+    const list = languages.json();
     expect(list.map((l: { code: string; prefix: string }) => [l.code, l.prefix])).toEqual([
       ['en', ''],
       ['it', '/ita'],
