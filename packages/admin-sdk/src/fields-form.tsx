@@ -218,15 +218,20 @@ function Field({
         />
       );
       break;
-    case 'select':
+    case 'select': {
+      // With a default, an unset field shows it (no empty choice); without, "—" means none.
+      const fallback =
+        typeof placeholder === 'string' && field.options.some((o) => o.value === placeholder)
+          ? placeholder
+          : '';
       control = (
         <select
           {...common}
           className={inputClass}
-          value={text}
+          value={text || fallback}
           onChange={(e) => onChange(empty(e.target.value))}
         >
-          <option value="">—</option>
+          {!fallback && <option value="">—</option>}
           {field.options.map((option) => (
             <option key={option.value} value={option.value}>
               {labelText(option.label, locale)}
@@ -235,6 +240,7 @@ function Field({
         </select>
       );
       break;
+    }
     case 'media':
       control = (
         <MediaPicker id={id} value={text || null} disabled={disabled} onChange={onChange} />
@@ -242,19 +248,33 @@ function Field({
       break;
     case 'color': {
       const shown = text || (typeof placeholder === 'string' ? placeholder : '');
+      const known = /^#[0-9a-f]{6}/i.test(shown);
       control = (
         <div className="flex items-center gap-2">
-          <input
-            type="color"
-            aria-label={label}
-            disabled={disabled}
-            className="h-8 w-10 cursor-pointer rounded border border-slate-300 bg-white p-0.5"
-            value={/^#[0-9a-f]{6}/i.test(shown) ? shown.slice(0, 7) : '#000000'}
-            onChange={(e) =>
-              // The alpha of a typed #rrggbbaa stays when the swatch changes the color.
-              onChange(e.target.value + (field.alpha && text.length === 9 ? text.slice(7) : ''))
-            }
-          />
+          <span className="relative inline-flex">
+            <input
+              type="color"
+              aria-label={label}
+              disabled={disabled}
+              className="h-8 w-10 cursor-pointer rounded border border-slate-300 bg-white p-0.5"
+              value={known ? shown.slice(0, 7) : '#000000'}
+              onChange={(e) =>
+                // The alpha of a typed #rrggbbaa stays when the swatch changes the color.
+                onChange(e.target.value + (field.alpha && text.length === 9 ? text.slice(7) : ''))
+              }
+            />
+            {/* No color yet: a crossed swatch, not a black one that looks like a choice. */}
+            {!known && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0.5 rounded-sm border border-slate-200 bg-white"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to top right, transparent calc(50% - 1px), #dc2626 calc(50% - 1px), #dc2626 calc(50% + 1px), transparent calc(50% + 1px))',
+                }}
+              />
+            )}
+          </span>
           <input
             {...common}
             className={`${inputClass} w-32 font-mono`}

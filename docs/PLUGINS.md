@@ -913,7 +913,7 @@ Used by content type fields, field groups, block attributes and settings.
 | `datetime` | ISO 8601         | `default`                                                                                                  |
 | `select`   | string           | `options: [{ value, label }]`, `default`                                                                   |
 | `media`    | media id (uuid)  | an image of the media library                                                                              |
-| `color`    | `#rrggbb`        | `alpha` (also `rgba(…)`), `default`                                                                        |
+| `color`    | `#rrggbb`        | `alpha` (also `#rrggbbaa`), `default`                                                                        |
 | `choice`   | string           | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                         |
 | `code`     | string           | `language: 'css'`, `default`. Up to 100,000 characters, never `</style`                                    |
 | `list`     | array of objects | `fields` (any type but `list`), `itemLabel` (the field that names an item), `max` (default 200), `default` |
