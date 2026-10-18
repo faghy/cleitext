@@ -169,6 +169,13 @@
       "when": 1792131644234,
       "tag": "0023_taxonomy_base",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792218044234,
+      "tag": "0024_member_accounts",
+      "breakpoints": true
     }
   ]
 }

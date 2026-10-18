@@ -1,6 +1,8 @@
 import {
   inviteUserRequestSchema,
+  updateMemberAccountRequestSchema,
   updateMemberRequestSchema,
+  type MemberAccountView,
   type MemberView,
 } from '@cleitext/shared';
 import {
@@ -56,6 +58,30 @@ export class UsersController {
   ): Promise<MemberView> {
     const { role } = parseBody(updateMemberRequestSchema, body);
     return this.usersService.changeRole(site.id, auth, id, role, clientInfo(request));
+  }
+
+  /** A member's account (RF-USR-10), and whether it can be edited here. */
+  @Get('users/:id')
+  @RequireCapability('manage_users')
+  account(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<MemberAccountView> {
+    return this.usersService.account(site.id, auth, id);
+  }
+
+  @Patch('users/:id/account')
+  @RequireCapability('manage_users', 'promote_users')
+  updateAccount(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<MemberAccountView> {
+    const input = parseBody(updateMemberAccountRequestSchema, body);
+    return this.usersService.updateAccount(site.id, auth, id, input, clientInfo(request));
   }
 
   @Delete('users/:id')

@@ -131,19 +131,20 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 
 ### 4.2 Users and access
 
-| ID        | Requirement                                                                                            | Priority |
-| --------- | ------------------------------------------------------------------------------------------------------ | -------- |
-| RF-USR-01 | Login with email and password, cookie-based session, logout and "remember me" (configurable duration). | MVP      |
-| RF-USR-02 | Password reset via email, with a short-lived single-use token.                                         | MVP      |
-| RF-USR-03 | Inviting a user to a site with a role: the user sets their password on first access.                   | MVP      |
-| RF-USR-04 | TOTP 2FA with recovery codes, optional for every user (turned on in the profile).                      | 1.0      |
-| RF-USR-05 | Passkey login (WebAuthn).                                                                              | 1.0      |
-| RF-USR-06 | Role and capability management from the admin.                                                         | 1.0      |
-| RF-USR-07 | User profile: name, avatar, admin language, active sessions (with revocation).                         | MVP      |
-| RF-USR-08 | API tokens with scopes and expiry, created by the user or by the administrator.                        | 1.0      |
-| RF-USR-09 | Rate limiting and progressive lockout on login, with auditing of attempts.                             | MVP      |
-| RF-USR-10 | Public user registration (optional per site).                                                          | Later    |
-| RF-USR-11 | OIDC SSO (Google, Microsoft, Keycloak) as a plugin.                                                    | Later    |
+| ID        | Requirement                                                                                                                                           | Priority |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| RF-USR-01 | Login with email and password, cookie-based session, logout and "remember me" (configurable duration).                                                | MVP      |
+| RF-USR-02 | Password reset via email, with a short-lived single-use token.                                                                                        | MVP      |
+| RF-USR-03 | Inviting a user to a site with a role: the user sets their password on first access.                                                                  | MVP      |
+| RF-USR-04 | TOTP 2FA with recovery codes, optional for every user (turned on in the profile).                                                                     | 1.0      |
+| RF-USR-05 | Passkey login (WebAuthn).                                                                                                                             | 1.0      |
+| RF-USR-06 | Role and capability management from the admin.                                                                                                        | 1.0      |
+| RF-USR-07 | User profile: name, avatar, admin language, active sessions (with revocation).                                                                        | MVP      |
+| RF-USR-08 | API tokens with scopes and expiry, created by the user or by the administrator.                                                                       | 1.0      |
+| RF-USR-09 | Rate limiting and progressive lockout on login, with auditing of attempts.                                                                            | MVP      |
+| RF-USR-10 | Administrators edit members' accounts (name, email, profile, password), for accounts of their site alone; the person is signed out and told by email. | 1.0      |
+| RF-USR-10 | Public user registration (optional per site).                                                                                                         | Later    |
+| RF-USR-11 | OIDC SSO (Google, Microsoft, Keycloak) as a plugin.                                                                                                   | Later    |
 
 ### 4.3 Content
 

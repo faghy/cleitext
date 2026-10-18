@@ -34,6 +34,7 @@ import { ActivityPage } from './pages/activity';
 import { SystemPage } from './pages/system';
 import { UpdatesPage } from './pages/updates';
 import { UsersPage } from './pages/users';
+import { UserEditPage } from './pages/user-edit';
 import { TermsPage } from './pages/terms';
 import { StructurePage } from './pages/structure';
 import { CommentsPage } from './pages/comments';
@@ -144,6 +145,18 @@ const taxonomyRoute = createRoute({
   },
 });
 
+/** Users → Edit (RF-USR-10). */
+const userRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/users/$id',
+  component: function User() {
+    const { id } = userRoute.useParams();
+    const { me } = appRoute.useRouteContext();
+    if (!me.capabilities.includes('manage_users')) return <ForbiddenPage />;
+    return <UserEditPage key={id} id={id} />;
+  },
+});
+
 /** Admin pages of plugins: /ext/<slug>/<path>. */
 const pluginPageRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -207,6 +220,7 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/connect', ConnectPage),
     contentRoute,
     taxonomyRoute,
+    userRoute,
     pluginPageRoute,
     ...SECTIONS.filter((s) => !s.ready).map((s) =>
       sectionRoute(s.to, () => <PlaceholderPage path={s.to} />),

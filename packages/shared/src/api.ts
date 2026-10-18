@@ -26,7 +26,7 @@ export const loginRequestSchema = z.object({
 });
 export type LoginRequest = z.input<typeof loginRequestSchema>;
 
-/** Answer to a correct password when the account uses 2FA (RF-USR-04). */
+/** Answer to a correct password when the account uses 2FA (RF-USR-10). */
 export interface TwoFactorChallenge {
   twoFactorRequired: true;
   /** Single-use, valid for a few minutes: sent back with the code. */
@@ -314,6 +314,36 @@ export interface ProfileAboutView {
   slug: string;
 }
 export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
+
+/** A member's account, as administrators edit it (RF-USR-10). */
+export interface MemberAccountView extends MemberView {
+  locale: string;
+  bio: string;
+  website: string;
+  slug: string;
+  /** Signs in with a password (else passkeys only). */
+  hasPassword: boolean;
+  twoFactor: boolean;
+  /**
+   * Why the account cannot be edited here, if so: `self` (use the profile),
+   * `role` (more permissions than yours), `shared` (also on other sites),
+   * `super_admin`. Super admins edit any account.
+   */
+  locked: 'self' | 'role' | 'shared' | 'super_admin' | null;
+}
+
+/** Administrators change a member's account (RF-USR-10): name, email, profile, password. */
+export const updateMemberAccountRequestSchema = updateProfileRequestSchema
+  .omit({ locale: true })
+  .extend({
+    email: emailSchema.optional(),
+    locale: localeSchema.optional(),
+    /** A new password: the person's sessions end. */
+    password: passwordSchema.optional(),
+    /** Tell the person by email what changed. Default true. */
+    notify: z.boolean().optional(),
+  });
+export type UpdateMemberAccountRequest = z.input<typeof updateMemberAccountRequestSchema>;
 
 export const changePasswordRequestSchema = z.object({
   currentPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH),

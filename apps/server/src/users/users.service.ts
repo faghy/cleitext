@@ -13,7 +13,9 @@ import {
   ADMIN_PATH,
   effectiveCapabilities,
   type InviteUserRequest,
+  type MemberAccountView,
   type MemberView,
+  type UpdateMemberAccountRequest,
 } from '@cleitext/shared';
 import {
   BadRequestException,
@@ -23,10 +25,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
 import type { ClientInfo } from '../auth/auth.service.js';
-import { UserTokenService } from '../auth/session.service.js';
+import { SessionService, UserTokenService } from '../auth/session.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { hashPassword } from '../auth/crypto.js';
 import { assertPasswordNotBreached } from '../auth/password-policy.js';
@@ -35,6 +37,14 @@ import { avatarUrl } from '../profile/avatar.js';
 import { MailService } from '../mail/mail.service.js';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const LOCK_MESSAGES = {
+  self: 'Change your own account from your profile.',
+  role: 'This person has permissions you do not have.',
+  shared:
+    'This person also belongs to other sites: only they or a super admin can change their account.',
+  super_admin: 'Only super admins can change the account of a super admin.',
+} as const;
 
 type RoleRow = typeof roles.$inferSelect;
 
@@ -46,6 +56,7 @@ export class UsersService {
     private readonly tokens: UserTokenService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly sessions: SessionService,
   ) {}
 
   async listMembers(siteId: string, auth: AuthContext): Promise<MemberView[]> {
@@ -241,6 +252,148 @@ export class UsersService {
     });
     const members = await this.listMembers(siteId, auth);
     return members.find((m) => m.id === memberId)!;
+  }
+
+  /**
+   * A member's account, for administrators (RF-USR-10), with whether they
+   * may change it here: accounts are shared by every site they belong to.
+   */
+  async account(siteId: string, auth: AuthContext, memberId: string): Promise<MemberAccountView> {
+    const member = (await this.listMembers(siteId, auth)).find((m) => m.id === memberId);
+    if (!member) throw new NotFoundException('This person is not a member of the site.');
+    return withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
+      const [user] = await tx.select().from(users).where(eq(users.id, memberId));
+      return {
+        ...member,
+        locale: user!.locale,
+        bio: user!.bio,
+        website: user!.website ?? '',
+        slug: user!.slug ?? '',
+        hasPassword: Boolean(user!.passwordHash),
+        twoFactor: Boolean(user!.totpConfirmedAt),
+        locked: await this.accountLock(tx, siteId, auth, memberId),
+      };
+    });
+  }
+
+  /**
+   * Changes a member's name, email, profile or password (RF-USR-10), as
+   * WordPress's "Edit User". Only for accounts of this site alone, with no
+   * more permissions than the administrator's; super admins edit any.
+   * A new password ends the person's sessions; the person is told by email.
+   */
+  async updateAccount(
+    siteId: string,
+    auth: AuthContext,
+    memberId: string,
+    input: UpdateMemberAccountRequest,
+    client: ClientInfo,
+  ): Promise<MemberAccountView> {
+    if (input.password) assertPasswordNotBreached(input.password);
+    const passwordHash = input.password ? await hashPassword(input.password) : null;
+    // Before the transaction: the lookup takes its own connection.
+    const taken = input.email ? await findLogin(this.database.db, input.email) : null;
+    if (taken && taken.userId !== memberId) {
+      throw new ConflictException('Another account uses this email address.');
+    }
+    const before = await withContext(
+      this.database.db,
+      { siteId, userId: auth.userId },
+      async (tx) => {
+        const locked = await this.accountLock(tx, siteId, auth, memberId);
+        if (locked) throw new ForbiddenException(LOCK_MESSAGES[locked]);
+        const [user] = await tx.select().from(users).where(eq(users.id, memberId));
+        if (!user) throw new NotFoundException('This person is not a member of the site.');
+        await tx
+          .update(users)
+          .set({
+            ...(input.displayName ? { displayName: input.displayName } : {}),
+            ...(input.email ? { email: input.email } : {}),
+            ...(input.locale ? { locale: input.locale } : {}),
+            ...(input.bio !== undefined ? { bio: input.bio } : {}),
+            ...(input.website !== undefined ? { website: input.website || null } : {}),
+            ...(input.slug ? { slug: input.slug } : {}),
+            // An account invited and given a password can sign in.
+            ...(passwordHash
+              ? { passwordHash, ...(user.status === 'invited' ? { status: 'active' } : {}) }
+              : {}),
+          })
+          .where(eq(users.id, memberId))
+          .catch((error: unknown) => {
+            const cause = (error as { cause?: { constraint_name?: string } }).cause;
+            if (cause?.constraint_name?.includes('slug'))
+              throw new ConflictException('That author page address is taken: choose another one.');
+            if (cause?.constraint_name?.includes('email'))
+              throw new ConflictException('Another account uses this email address.');
+            throw error;
+          });
+        const changed = [
+          ...(input.displayName && input.displayName !== user.displayName ? ['name'] : []),
+          ...(input.email && input.email.toLowerCase() !== user.email.toLowerCase()
+            ? ['email']
+            : []),
+          ...(passwordHash ? ['password'] : []),
+        ];
+        await this.audit.record(tx, {
+          siteId,
+          userId: auth.userId,
+          action: passwordHash ? 'member.password.changed' : 'member.account.changed',
+          targetType: 'user',
+          targetId: memberId,
+          meta: { fields: Object.keys(input).filter((k) => k !== 'password' && k !== 'notify') },
+          ip: client.ip,
+        });
+        const [site] = await tx
+          .select({ name: sites.name })
+          .from(sites)
+          .where(eq(sites.id, siteId));
+        return { user, changed, siteName: site?.name ?? '' };
+      },
+    );
+    // Signed in elsewhere with the old password: those sessions end.
+    if (passwordHash) await this.sessions.revokeAll(memberId);
+    if (input.notify !== false && before.changed.some((c) => c !== 'name')) {
+      const what = before.changed
+        .filter((c) => c !== 'name')
+        .map((c) => (c === 'email' ? `your email address (now ${input.email})` : 'your password'))
+        .join(' and ');
+      const text = [
+        `${auth.displayName} changed ${what} on ${before.siteName}.`,
+        '',
+        ...(passwordHash
+          ? ['You have been signed out: sign in again with the new password you were given.']
+          : []),
+        `Sign in at ${client.origin}${ADMIN_PATH}/`,
+        '',
+        'If you did not expect this, contact the site administrators.',
+      ].join('\n');
+      // The old address hears about a change of address too.
+      const recipients = new Set([before.user.email, ...(input.email ? [input.email] : [])]);
+      for (const to of recipients) {
+        await this.mail.send({ to, subject: `Your account on ${before.siteName}`, text }, siteId);
+      }
+    }
+    return this.account(siteId, auth, memberId);
+  }
+
+  /** Why an administrator may not edit an account, or null. */
+  private async accountLock(
+    tx: SiteTransaction,
+    siteId: string,
+    auth: AuthContext,
+    memberId: string,
+  ): Promise<MemberAccountView['locked']> {
+    if (memberId === auth.userId) return 'self';
+    const role = await this.memberRole(tx, siteId, memberId);
+    if (auth.isSuperAdmin) return null;
+    const granted = effectiveCapabilities(role.capabilities, false);
+    if (granted.some((c) => !auth.capabilities.includes(c))) return 'role';
+    const [reach] = (await tx.execute(
+      sql`select * from cleitext_app_account_reach(${memberId}::uuid)`,
+    )) as unknown as { other_sites: number; is_super_admin: boolean }[];
+    if (reach?.is_super_admin) return 'super_admin';
+    if ((reach?.other_sites ?? 0) > 0) return 'shared';
+    return null;
   }
 
   /** Removes a member from the site; the global account is kept. */

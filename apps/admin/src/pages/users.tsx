@@ -1,5 +1,6 @@
 import type { MemberView, RoleView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 import { api, ApiError, errorMessage } from '../api';
 import { useMe } from '../auth';
@@ -208,7 +209,17 @@ function MemberRow({
         <span className="flex items-center gap-2">
           <Avatar name={member.displayName} url={member.avatarUrl} />
           <span>
-            {member.displayName}
+            {isSelf ? (
+              member.displayName
+            ) : (
+              <Link
+                to="/users/$id"
+                params={{ id: member.id }}
+                className="font-medium text-sky-700 hover:underline"
+              >
+                {member.displayName}
+              </Link>
+            )}
             {isSelf && <span className="ml-1 text-slate-500">{t('(you)')}</span>}
           </span>
         </span>
@@ -232,6 +243,15 @@ function MemberRow({
         {member.status === 'invited' ? t('Invitation pending') : t(member.status)}
       </td>
       <td className="py-2 text-right">
+        {!isSelf && (
+          <Link
+            to="/users/$id"
+            params={{ id: member.id }}
+            className="mr-2 inline-block rounded px-2 py-1 text-sm text-sky-700 hover:underline"
+          >
+            {t('Edit')}
+          </Link>
+        )}
         {!isSelf && (
           <Button
             variant="danger"

@@ -497,4 +497,25 @@ export const itGeneral: Messages = {
   'Shown in author boxes and on your author page.':
     'Appare nel box autore e nella tua pagina autore.',
   'Author page address': 'Indirizzo della pagina autore',
+  // Users → Edit (RF-USR-10)
+  Account: 'Account',
+  'Edit {name}': 'Modifica {name}',
+  'Two-factor authentication on': 'Verifica in due passaggi attiva',
+  'This is your account: change it from your profile.':
+    'È il tuo account: modificalo dal tuo profilo.',
+  'This person has permissions you do not have: you cannot change their account.':
+    'Questa persona ha permessi che tu non hai: non puoi modificarne l’account.',
+  'This person also belongs to other sites: only they, or a super admin, can change their account.':
+    'Questa persona appartiene anche ad altri siti: solo lei, o un super admin, può modificarne l’account.',
+  'Only super admins can change the account of a super admin.':
+    'Solo i super admin possono modificare l’account di un super admin.',
+  'Tell the person at the old and the new address':
+    'Avvisa la persona al vecchio e al nuovo indirizzo',
+  'Set a new password: the person is signed out everywhere and signs in with it.':
+    'Imposta una nuova password: la persona viene disconnessa ovunque e accede con questa.',
+  'This person signs in without a password (passkeys or invitation): you can set one.':
+    'Questa persona accede senza password (passkey o invito): puoi impostarne una.',
+  'Tell the person by email (the password is not sent)':
+    'Avvisa la persona via email (la password non viene inviata)',
+  'Set password': 'Imposta password',
 };
