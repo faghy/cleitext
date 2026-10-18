@@ -33,6 +33,33 @@ export function gateHtml(html: string, category: Category): string {
     );
 }
 
+/**
+ * Iframes of other sites in the page (videos, maps, posts), held until
+ * consent to marketing, with a notice inside them until then. Those
+ * already held (plugins' own, `data-cx-src`) stay as they are.
+ */
+export function gateEmbeds(html: string, notice: (host: string) => string): string {
+  const start = html.search(/<body\b/i);
+  if (start < 0) return html;
+  const body = html
+    .slice(start)
+    .replace(
+      /<iframe\b([^>]*?)\ssrc\s*=\s*(["'])((?:https?:)?\/\/[^"']+)\2([^>]*)>/gi,
+      (match, before: string, _q, src: string, after: string) => {
+        if (/\bsrcdoc\s*=/i.test(before + after)) return match;
+        let host: string;
+        try {
+          host = new URL(src, 'https://x.invalid').hostname.replace(/^www\./, '');
+        } catch {
+          return match;
+        }
+        const doc = `<p style="font:15px/1.5 system-ui,sans-serif;margin:0;padding:1.5em;color:#333;background:#f3f3f3;min-height:100vh;box-sizing:border-box">${escape(notice(host))}</p>`;
+        return `<iframe${before} data-cx-category="marketing" data-cx-src="${src}" srcdoc="${escape(doc)}"${after}>`;
+      },
+    );
+  return html.slice(0, start) + body;
+}
+
 /** Google Consent Mode v2 defaults, before any Google tag: everything denied until chosen. */
 export function consentModeScript(version: string): string {
   return `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}(function(){var g={ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'denied',personalization_storage:'denied',security_storage:'granted',wait_for_update:500};try{var m=document.cookie.match(/(?:^|; )cx_consent=([^;]*)/);var c=m&&JSON.parse(decodeURIComponent(m[1]));if(c&&c.v===${JSON.stringify(version)}){var k=c.c||[];if(k.indexOf('statistics')>=0)g.analytics_storage='granted';if(k.indexOf('marketing')>=0){g.ad_storage='granted';g.ad_user_data='granted';g.ad_personalization='granted';}if(k.indexOf('preferences')>=0){g.functionality_storage='granted';g.personalization_storage='granted';}}}catch(e){}gtag('consent','default',g);})();</script>`;
@@ -137,7 +164,7 @@ try{fetch('CONSENT_PATH',{method:'POST',headers:{'content-type':'application/jso
 return c;}
 function apply(c){var ok=c?c.c:[];
 Array.prototype.forEach.call(document.querySelectorAll('script[type="text/plain"][data-cx-category]'),function(s){if(ok.indexOf(s.getAttribute('data-cx-category'))<0)return;var n=document.createElement('script');for(var i=0;i<s.attributes.length;i++){var a=s.attributes[i];if(a.name!=='type'&&a.name!=='data-cx-category'&&a.name!=='data-cx-type')n.setAttribute(a.name,a.value);}var t=s.getAttribute('data-cx-type');if(t)n.type=t;n.text=s.text;s.parentNode.replaceChild(n,s);});
-Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][data-cx-category]'),function(f){if(ok.indexOf(f.getAttribute('data-cx-category'))>=0&&!f.getAttribute('src'))f.setAttribute('src',f.getAttribute('data-cx-src'));});
+Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][data-cx-category]'),function(f){if(ok.indexOf(f.getAttribute('data-cx-category'))>=0&&!f.getAttribute('src')){f.removeAttribute('srcdoc');f.setAttribute('src',f.getAttribute('data-cx-src'));}});
 if(CM&&typeof window.gtag==='function'){var has=function(k){return ok.indexOf(k)>=0?'granted':'denied';};window.gtag('consent','update',{analytics_storage:has('statistics'),ad_storage:has('marketing'),ad_user_data:has('marketing'),ad_personalization:has('marketing'),functionality_storage:has('preferences'),personalization_storage:has('preferences')});}
 window.cleitextConsent.categories=ok.slice();
 try{document.dispatchEvent(new CustomEvent('cleitext:consent',{detail:{categories:ok.slice()}}));}catch(e){}}

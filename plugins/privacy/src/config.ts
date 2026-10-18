@@ -136,6 +136,8 @@ export const TEXTS = {
     marketing: 'Marketing',
     marketingHelp:
       'Show personalized ads, or content of other sites such as videos, maps and social posts.',
+    embedNotice: (host: string) =>
+      `This content of ${host} is shown after you accept the “Marketing” cookies (cookie preferences, at the bottom of the page).`,
     table: {
       name: 'Name',
       provider: 'Provider',
@@ -170,6 +172,8 @@ export const TEXTS = {
     marketing: 'Marketing',
     marketingHelp:
       'Mostrano pubblicità personalizzata, o contenuti di altri siti come video, mappe e post social.',
+    embedNotice: (host: string) =>
+      `Questo contenuto di ${host} viene mostrato dopo che accetti i cookie “Marketing” (preferenze dei cookie, in fondo alla pagina).`,
     table: {
       name: 'Nome',
       provider: 'Fornitore',

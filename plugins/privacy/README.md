@@ -18,7 +18,7 @@ Services added by other plugins, such as **Analytics** (Matomo, Google Analytics
 
 ### Scripts held until consent
 
-In **Privacy → Cookie banner**, paste the code of analytics, ads or pixels into its category: it reaches the page inert (`<script type="text/plain">`, iframes without `src`) and runs only after the visitor accepts that category. In pages and themes, write scripts as `<script type="text/plain" data-cx-category="statistics">` and iframes with `data-cx-src="…" data-cx-category="marketing"` to get the same behavior.
+In **Privacy → Cookie banner**, paste the code of analytics, ads or pixels into its category: it reaches the page inert (`<script type="text/plain">`, iframes without `src`) and runs only after the visitor accepts that category. In pages and themes, write scripts as `<script type="text/plain" data-cx-category="statistics">` and iframes with `data-cx-src="…" data-cx-category="marketing"` to get the same behavior. Videos, maps and posts of other sites in the pages (YouTube, also `youtube-nocookie.com`, Vimeo, embeds…) wait for the **Marketing** category when the banner offers it, with a notice in their place until then.
 
 **Google Consent Mode v2**: when on, Google tags start with everything _denied_ and follow the choice (`statistics` → `analytics_storage`, `marketing` → `ad_storage`, `ad_user_data`, `ad_personalization`, `preferences` → `functionality_storage`, `personalization_storage`).
 

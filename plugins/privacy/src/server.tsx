@@ -6,7 +6,7 @@ import {
   type TrackerDeclaration,
 } from '@cleitext/plugin-sdk';
 import { count, desc, eq, lt, sql } from 'drizzle-orm';
-import { bannerHtml, CONSENT_PATH, consentModeScript } from './banner';
+import { bannerHtml, CONSENT_PATH, consentModeScript, gateEmbeds } from './banner';
 import {
   CATEGORIES,
   categoryLabel,
@@ -274,6 +274,10 @@ export default definePlugin({
       }
       // With only technical cookies there is nothing to ask (Garante 2021).
       if (!bannerShown(e)) return out;
+      // Videos, maps and posts of other sites wait for consent, as the policies say.
+      if (cfg.banner.categories.includes('marketing')) {
+        out = gateEmbeds(out, textsFor(context.locale).embedNotice);
+      }
       const links = await policyLinks(ctx, context.siteId, cfg, context.locale);
       const banner = bannerHtml(cfg, context.locale, links, e.version);
       const end = out.lastIndexOf('</body>');

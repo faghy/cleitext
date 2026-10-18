@@ -143,6 +143,29 @@ describe('cookie banner', () => {
     expect(html).toMatch(/<head[^>]*><script>window\.dataLayer/);
   });
 
+  it('holds videos of other sites until consent to marketing, with a notice', async () => {
+    const page = await publish('page', 'Video', {
+      document: {
+        schema: 1,
+        blocks: [
+          {
+            id: 'yt1',
+            type: 'core/embed',
+            v: 1,
+            attrs: { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+          },
+        ],
+      },
+    });
+    const html = (await visitor.get(`/${page.slug}`)).body;
+    expect(html).toMatch(
+      /<iframe data-cx-category="marketing" data-cx-src="https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ[^"]*" srcdoc="[^"]*youtube-nocookie\.com is shown after you accept/,
+    );
+    expect(html).not.toMatch(/<iframe[^>]*\ssrc="https:\/\/www\.youtube/);
+    // The consent script swaps the notice for the video.
+    expect(html).toContain("f.removeAttribute('srcdoc')");
+  });
+
   it('asks again when categories or cookies change', async () => {
     const current = await config();
     const saved = (

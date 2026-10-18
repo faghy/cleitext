@@ -20,7 +20,7 @@ I servizi aggiunti da altri plugin, come **Analytics** (Matomo, Google Analytics
 
 ### Script bloccati fino al consenso
 
-In **Privacy → Banner cookie** incolla il codice di statistiche, pubblicità o pixel nella sua categoria: arriva nella pagina inattivo (`<script type="text/plain">`, iframe senza `src`) e parte solo dopo che il visitatore ha accettato quella categoria. Nelle pagine e nei temi, scrivi gli script come `<script type="text/plain" data-cx-category="statistics">` e gli iframe con `data-cx-src="…" data-cx-category="marketing"` per lo stesso comportamento.
+In **Privacy → Banner cookie** incolla il codice di statistiche, pubblicità o pixel nella sua categoria: arriva nella pagina inattivo (`<script type="text/plain">`, iframe senza `src`) e parte solo dopo che il visitatore ha accettato quella categoria. Nelle pagine e nei temi, scrivi gli script come `<script type="text/plain" data-cx-category="statistics">` e gli iframe con `data-cx-src="…" data-cx-category="marketing"` per lo stesso comportamento. Video, mappe e post di altri siti nelle pagine (YouTube, anche `youtube-nocookie.com`, Vimeo, incorporamenti…) aspettano la categoria **Marketing** quando il banner la propone, con un avviso al loro posto fino ad allora.
 
 **Google Consent Mode v2**: se attiva, i tag di Google partono con tutto _negato_ e seguono la scelta (`statistics` → `analytics_storage`, `marketing` → `ad_storage`, `ad_user_data`, `ad_personalization`, `preferences` → `functionality_storage`, `personalization_storage`).
 
