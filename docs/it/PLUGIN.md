@@ -307,6 +307,8 @@ const copy = await ctx.terms.copy(siteId, id, {
 });
 ```
 
+Con `withCounts: true` (API dei plugin 1.22) ogni termine ha anche `count`, il numero delle sue voci pubblicate, per nuvole di tag ed elenchi di categorie.
+
 ## 7. Blocchi
 
 Un blocco ha **attributi descritti tramite campi**. Ogni editor costruisce da questi il modulo di modifica (in Gutenberg, un modulo all'interno del blocco). Poi il server lo renderizza con la tua funzione `render`. Richiede il permesso `blocks`.

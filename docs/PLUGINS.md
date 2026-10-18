@@ -307,6 +307,8 @@ const copy = await ctx.terms.copy(siteId, id, {
 });
 ```
 
+With `withCounts: true` (plugin API 1.22) each term also has `count`, the number of its published entries, for tag clouds and category lists.
+
 ## 7. Blocks
 
 A block has **attributes described with fields**. Every editor builds the editing form from them (in Gutenberg, a form inside the block). Then the server renders it with your `render` function. It needs the `blocks` permission.

@@ -55,7 +55,7 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
 import { CommentsService } from '../community/comments.service.js';
 import { fetchPublic, sendPublic } from '../common/public-fetch.js';
 import type { AuthContext } from '../common/request-context.js';
@@ -243,6 +243,26 @@ export class PluginServicesProvider implements PluginServices {
         )
         .orderBy(asc(terms.position), asc(terms.name))
         .limit(Math.min(Math.max(query.limit ?? 100, 1), 500));
+      // Published entries of each term (a tag cloud, a category list).
+      const counts = new Map<string, number>();
+      if (query.withCounts && rows.length > 0) {
+        const found = await tx
+          .select({ termId: entryTerms.termId, n: count() })
+          .from(entryTerms)
+          .innerJoin(entries, eq(entries.id, entryTerms.entryId))
+          .where(
+            and(
+              inArray(
+                entryTerms.termId,
+                rows.map((r) => r.term.id),
+              ),
+              eq(entries.status, 'published'),
+              isNotNull(entries.publishedRevisionId),
+            ),
+          )
+          .groupBy(entryTerms.termId);
+        for (const row of found) counts.set(row.termId, Number(row.n));
+      }
       return rows.map(({ term, taxonomy }) => ({
         id: term.id,
         taxonomy,
@@ -254,6 +274,7 @@ export class PluginServicesProvider implements PluginServices {
         description: term.description,
         fields: term.fields as FieldValues,
         position: term.position,
+        ...(query.withCounts ? { count: counts.get(term.id) ?? 0 } : {}),
       }));
     });
   }

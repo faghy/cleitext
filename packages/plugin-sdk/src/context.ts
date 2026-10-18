@@ -125,6 +125,8 @@ export interface PluginTerm {
   fields: FieldValues;
   /** Manual order among siblings (plugin API 1.13). */
   position: number;
+  /** Published entries with the term, with `withCounts` (plugin API 1.22). */
+  count?: number;
 }
 
 export interface TermQuery {
@@ -133,6 +135,8 @@ export interface TermQuery {
   ids?: string[];
   /** Default 100, at most 500. */
   limit?: number;
+  /** Also count the published entries of each term (plugin API 1.22), e.g. for a tag cloud. */
+  withCounts?: boolean;
 }
 
 /** Options of a copy made on behalf of a user, whose permissions apply. */
