@@ -23,13 +23,20 @@
   white-space: nowrap;
 }
 
-/* Recent posts */
+/* Recent posts: laid out by the width of their box (a sidebar, a column, a page). */
+.cxw-posts {
+  container-type: inline-size;
+}
 .cxw-posts__list {
   display: grid;
   gap: 1.25em;
 }
 .cxw-posts__item {
   min-width: 0;
+}
+.cxw-posts__body {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .cxw-posts__image {
   display: block;
@@ -67,48 +74,107 @@
   font-size: 0.92em;
   margin: 0.4em 0 0;
 }
-.cxw-posts--list .cxw-posts__item {
+
+/* Small pictures beside the titles: the list, and a magazine's compact list. */
+.cxw-posts--list .cxw-posts__item,
+.cxw-posts--compact .cxw-posts__item:not(.cxw-posts__item--lead) {
   display: grid;
   grid-template-columns: 5.5em 1fr;
   gap: 0.85em;
   align-items: start;
 }
-.cxw-posts--list .cxw-posts__item:not(:has(.cxw-posts__image)) {
+.cxw-posts--list .cxw-posts__item:not(:has(.cxw-posts__image)),
+.cxw-posts--compact .cxw-posts__item:not(.cxw-posts__item--lead):not(:has(.cxw-posts__image)) {
   grid-template-columns: 1fr;
 }
-.cxw-posts--list .cxw-posts__image img {
+.cxw-posts--list .cxw-posts__image img,
+.cxw-posts--compact .cxw-posts__item:not(.cxw-posts__item--lead) .cxw-posts__image img {
   aspect-ratio: 1;
 }
+
+/* Grid: the columns chosen, fewer in narrow boxes. */
 .cxw-posts--grid .cxw-posts__list {
-  grid-template-columns: repeat(var(--cxw-columns, 3), minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+}
+@container (min-width: 480px) {
+  .cxw-posts--grid .cxw-posts__list {
+    grid-template-columns: repeat(var(--cxw-columns-mid, 2), minmax(0, 1fr));
+  }
+}
+@container (min-width: 720px) {
+  .cxw-posts--grid .cxw-posts__list {
+    grid-template-columns: repeat(var(--cxw-columns, 3), minmax(0, 1fr));
+  }
 }
 .cxw-posts--grid .cxw-posts__body,
-.cxw-posts--magazine .cxw-posts__body {
+.cxw-posts--magazine .cxw-posts__item--lead .cxw-posts__body,
+.cxw-posts--magazine:not(.cxw-posts--compact) .cxw-posts__body {
   margin-top: 0.6em;
 }
+
+/* Magazine: a large first post, then the others as cards or a compact list. */
 .cxw-posts--magazine .cxw-posts__list {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.cxw-posts--magazine .cxw-posts__item--lead {
-  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr);
 }
 .cxw-posts--magazine .cxw-posts__item--lead .cxw-posts__title {
-  font-size: 1.5em;
+  font-size: 1.35em;
 }
-@media (min-width: 900px) {
-  .cxw-posts--magazine .cxw-posts__list {
+/* Narrow boxes (a column of a third): cards become the compact list too. */
+@container (max-width: 479px) {
+  .cxw-posts--magazine:not(.cxw-posts--compact) .cxw-posts__item:not(.cxw-posts__item--lead) {
+    display: grid;
+    grid-template-columns: 5.5em 1fr;
+    gap: 0.85em;
+    align-items: start;
+  }
+  .cxw-posts--magazine:not(.cxw-posts--compact)
+    .cxw-posts__item:not(.cxw-posts__item--lead)
+    .cxw-posts__image
+    img {
+    aspect-ratio: 1;
+  }
+  .cxw-posts--magazine:not(.cxw-posts--compact)
+    .cxw-posts__item:not(.cxw-posts__item--lead)
+    .cxw-posts__body {
+    margin-top: 0;
+  }
+  .cxw-posts--magazine .cxw-posts__item:not(.cxw-posts__item--lead) .cxw-posts__excerpt {
+    display: none;
+  }
+}
+@container (min-width: 480px) {
+  .cxw-posts--magazine:not(.cxw-posts--compact) .cxw-posts__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cxw-posts--magazine:not(.cxw-posts--compact) .cxw-posts__item--lead {
+    grid-column: 1 / -1;
+  }
+  .cxw-posts--lead-left .cxw-posts__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .cxw-posts--lead-left .cxw-posts__item--lead {
+    grid-row: span var(--cxw-rest, 4);
+  }
+}
+@container (min-width: 900px) {
+  .cxw-posts--magazine:not(.cxw-posts--compact) .cxw-posts__list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .cxw-posts--magazine .cxw-posts__item--lead {
+  .cxw-posts--magazine:not(.cxw-posts--compact) .cxw-posts__item--lead {
     grid-column: span 2;
     grid-row: span 2;
   }
-}
-@media (max-width: 700px) {
-  .cxw-posts--grid .cxw-posts__list,
-  .cxw-posts--magazine .cxw-posts__list {
-    grid-template-columns: minmax(0, 1fr);
+  .cxw-posts--magazine .cxw-posts__item--lead .cxw-posts__title {
+    font-size: 1.5em;
   }
+}
+
+/* Tab panels and titles: long words and addresses wrap. */
+.cxw-tabs__panel,
+.cxw-widget__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Recent comments */

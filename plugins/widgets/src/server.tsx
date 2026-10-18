@@ -83,6 +83,13 @@ function Title({ text, url }: { text: string; url?: string | null }) {
   return <h2 className="cxw-widget__title">{url ? <a href={url}>{text}</a> : text}</h2>;
 }
 
+/** A link the author wrote: a path of the site or an http(s) address. */
+function safeLink(value: unknown): string | null {
+  const text = String(value ?? '').trim();
+  if (/^\/(?!\/)/.test(text)) return text;
+  return /^https?:\/\/[^\s]+$/i.test(text) ? text : null;
+}
+
 /** The title the author wrote, the default one when empty, none with "-". */
 function titleOf(value: unknown, fallback: string): string {
   const text = String(value ?? '').trim();
@@ -105,6 +112,12 @@ interface PostsAttrs {
   excerpt: boolean;
   excludeCurrent: boolean;
   tabs: boolean;
+  /** Magazine: the other posts as cards or a compact list (plugin 1.2). */
+  rest: 'grid' | 'list';
+  /** Magazine with a compact list: the first post above it or beside it. */
+  lead: 'top' | 'left';
+  /** Where the title leads, instead of the only category's archive. */
+  titleUrl: string;
 }
 
 interface PostTab {
@@ -200,7 +213,11 @@ async function loadPosts(
           ? null
           : pictureOf(
               entry.image,
-              layout === 'list' ? 160 : layout === 'magazine' && i === 0 ? 960 : 640,
+              layout === 'magazine' && i === 0
+                ? 960
+                : layout === 'list' || (layout === 'magazine' && attrs.rest === 'list')
+                  ? 160
+                  : 640,
             ),
     }));
   };
@@ -227,11 +244,14 @@ function Post({
   attrs,
   t,
   lead,
+  compact,
 }: {
   post: PostItem;
   attrs: PostsAttrs;
   t: Texts;
   lead?: boolean;
+  /** In a magazine's compact list: no excerpt. */
+  compact?: boolean;
 }) {
   const meta: ReactNode[] = [];
   if (attrs.date !== false && post.date) meta.push(<time key="d">{post.date}</time>);
@@ -258,7 +278,7 @@ function Post({
           <a href={post.url}>{post.title}</a>
         </Heading>
         {meta.length ? <p className="cxw-posts__meta">{meta}</p> : null}
-        {(attrs.excerpt || lead) && post.excerpt ? (
+        {(lead || (attrs.excerpt && !compact)) && post.excerpt ? (
           <p className="cxw-posts__excerpt">{post.excerpt}</p>
         ) : null}
       </div>
@@ -452,6 +472,39 @@ export default definePlugin({
             default: 'list',
           },
           {
+            name: 'rest',
+            type: 'select',
+            label: { en: 'Magazine: the other posts', it: 'Rivista: gli altri articoli' },
+            options: [
+              { value: 'grid', label: { en: 'Cards in a grid', it: 'Schede in griglia' } },
+              {
+                value: 'list',
+                label: {
+                  en: 'Compact list with small pictures',
+                  it: 'Elenco compatto con miniature',
+                },
+              },
+            ],
+            default: 'grid',
+          },
+          {
+            name: 'lead',
+            type: 'select',
+            label: {
+              en: 'Magazine with compact list: the first post',
+              it: 'Rivista con elenco compatto: il primo articolo',
+            },
+            help: {
+              en: 'Beside the list only where there is room; above it otherwise.',
+              it: 'Accanto all’elenco solo se c’è spazio; altrimenti sopra.',
+            },
+            options: [
+              { value: 'top', label: { en: 'Above the list', it: 'Sopra l’elenco' } },
+              { value: 'left', label: { en: 'On the left', it: 'A sinistra' } },
+            ],
+            default: 'top',
+          },
+          {
             name: 'count',
             type: 'number',
             label: { en: 'Number of posts', it: 'Numero di articoli' },
@@ -508,7 +561,15 @@ export default definePlugin({
           },
           { name: 'date', type: 'boolean', label: { en: 'Date', it: 'Data' }, default: true },
           { name: 'author', type: 'boolean', label: { en: 'Author', it: 'Autore' } },
-          { name: 'excerpt', type: 'boolean', label: { en: 'Excerpt', it: 'Riassunto' } },
+          {
+            name: 'excerpt',
+            type: 'boolean',
+            label: { en: 'Excerpt', it: 'Riassunto' },
+            help: {
+              en: 'In a magazine the first post always has it, the compact list never.',
+              it: 'Nella rivista il primo articolo lo ha sempre, l’elenco compatto mai.',
+            },
+          },
           {
             name: 'excludeCurrent',
             type: 'boolean',
@@ -517,6 +578,16 @@ export default definePlugin({
               it: 'Escludi l’articolo che si sta leggendo',
             },
             default: true,
+          },
+          {
+            name: 'titleUrl',
+            type: 'text',
+            maxLength: 500,
+            label: { en: 'Title link', it: 'Link del titolo' },
+            help: {
+              en: 'An address, e.g. /category/news. Empty: the archive of the only category or tag chosen.',
+              it: 'Un indirizzo, es. /category/notizie. Vuoto: l’archivio dell’unica categoria o tag scelto.',
+            },
           },
           {
             name: 'tabs',
@@ -536,6 +607,7 @@ export default definePlugin({
           const t = texts(context.locale);
           const layout = ['grid', 'magazine'].includes(attrs.layout) ? attrs.layout : 'list';
           const columns = clamp(attrs.columns, 1, 4, 3);
+          const compact = layout === 'magazine' && attrs.rest === 'list';
           const list = (posts: PostItem[]) =>
             posts.length === 0 ? (
               <p className="cxw-widget__empty">{t.noPosts}</p>
@@ -544,8 +616,13 @@ export default definePlugin({
                 className="cxw-posts__list"
                 style={
                   layout === 'grid'
-                    ? ({ '--cxw-columns': columns } as Record<string, number>)
-                    : undefined
+                    ? ({
+                        '--cxw-columns': columns,
+                        '--cxw-columns-mid': Math.min(columns, 2),
+                      } as Record<string, number>)
+                    : compact
+                      ? ({ '--cxw-rest': Math.max(posts.length - 1, 1) } as Record<string, number>)
+                      : undefined
                 }
               >
                 {posts.map((post, i) => (
@@ -555,14 +632,24 @@ export default definePlugin({
                     attrs={attrs}
                     t={t}
                     lead={layout === 'magazine' && i === 0}
+                    compact={compact && i > 0}
                   />
                 ))}
               </ul>
             );
           const name = `cxw-tabs-${block.id}`;
           return (
-            <section className={`cxw-widget cxw-posts cxw-posts--${layout}`}>
-              <Title text={titleOf(attrs.title, t.recentPosts)} url={data.link} />
+            <section
+              className={`cxw-widget cxw-posts cxw-posts--${layout}${
+                compact
+                  ? ` cxw-posts--compact cxw-posts--lead-${attrs.lead === 'left' ? 'left' : 'top'}`
+                  : ''
+              }`}
+            >
+              <Title
+                text={titleOf(attrs.title, t.recentPosts)}
+                url={safeLink(attrs.titleUrl) ?? data.link}
+              />
               {data.tabs ? (
                 // Tabs without JavaScript: each radio shows the panel after its label.
                 <div className="cxw-tabs">

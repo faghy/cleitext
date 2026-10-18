@@ -170,7 +170,7 @@ describe('Widgets', () => {
     expect(list!.match(/class="cxw-posts__title"><a href="[^"]+">([^<]+)</g)).toHaveLength(3);
     expect(list).toMatch(/Hello world[\s\S]*Pasta night[\s\S]*Rome trip/);
     expect(list).not.toContain('Secret draft');
-    expect(grid).toContain('style="--cxw-columns:2"');
+    expect(grid).toContain('style="--cxw-columns:2;--cxw-columns-mid:2"');
     expect(grid).toContain('Rome trip');
     expect(grid).not.toContain('Pasta night');
     expect(grid).not.toContain('cxw-widget__title');
@@ -204,6 +204,33 @@ describe('Widgets', () => {
     expect(panels[1]).not.toContain('Pasta night');
     expect(panels[2]).toContain('Pasta night');
     expect(panels[2]).toContain('More in Food →');
+  });
+
+  it('lays out a magazine with a compact list, the first post on the left', async () => {
+    const page = await entry('page', 'Compact', [
+      widget('m1', 'recent-posts', {
+        layout: 'magazine',
+        rest: 'list',
+        lead: 'left',
+        excerpt: true,
+        title: 'From the blog',
+        titleUrl: '/category/travel',
+      }),
+      widget('m2', 'recent-posts', { title: 'Bad link', titleUrl: 'javascript:alert(1)' }),
+    ]);
+    const html = (await visitor.get(page.path)).body;
+    expect(html).toContain(
+      'class="cxw-widget cxw-posts cxw-posts--magazine cxw-posts--compact cxw-posts--lead-left"',
+    );
+    expect(html).toMatch(/<ul class="cxw-posts__list" style="--cxw-rest:\d+">/);
+    expect(html).toContain(
+      '<h2 class="cxw-widget__title"><a href="/category/travel">From the blog</a></h2>',
+    );
+    // Only the first post has its excerpt.
+    const magazine = html.slice(html.indexOf('cxw-posts--compact'), html.indexOf('Bad link'));
+    expect(magazine.match(/cxw-posts__excerpt/g)?.length ?? 0).toBeLessThanOrEqual(1);
+    expect(html).toContain('<h2 class="cxw-widget__title">Bad link</h2>');
+    expect(html).not.toContain('javascript:alert');
   });
 
   it('shows approved comments with their post, and a search form', async () => {
