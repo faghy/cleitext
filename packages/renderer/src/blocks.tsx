@@ -1,5 +1,6 @@
 import {
   blockStyleCss,
+  hasFlowGap,
   resolveEmbed,
   type CxdBlock,
   type CxdDocument,
@@ -372,7 +373,8 @@ registerBlockRenderer('core/gallery', ({ block, children }) => {
 
 /**
  * Base styles of tables and galleries, added to pages that have one (themes
- * may restyle them): borders and room in tables, a grid in galleries.
+ * may restyle them): borders and room in tables, a grid in galleries, and the
+ * block gap of stacked blocks.
  */
 export const CORE_BLOCK_CSS = [
   '.wp-block-table{overflow-x:auto;margin:1.5em 0}',
@@ -391,11 +393,14 @@ export const CORE_BLOCK_CSS = [
   '.wp-block-gallery>.wp-block-image img{width:100%;height:auto;display:block}',
   '.wp-block-gallery.is-cropped>.wp-block-image img{aspect-ratio:1;height:100%;object-fit:cover}',
   '.wp-block-gallery>figcaption{grid-column:1/-1}',
+  // The block gap of stacked blocks (WordPress's flow layout).
+  '.cx-flow-gap>*{margin-block-start:0;margin-block-end:0}',
+  '.cx-flow-gap>*+*{margin-block-start:var(--cx-block-gap)}',
 ].join('');
 
 /** Adds the base styles of tables and galleries to a page that has one, before the theme's. */
 export function withCoreBlockCss(html: string): string {
-  if (!/class="wp-block-(table|gallery)\b/.test(html)) return html;
+  if (!/class="wp-block-(table|gallery)\b|\bcx-flow-gap\b/.test(html)) return html;
   // Before the theme's styles, which may restyle them.
   const head = html.indexOf('</head>');
   const first = html.search(/<style|<link[^>]+rel="stylesheet"/);
@@ -562,7 +567,11 @@ registerBlockRenderer('core/column', ({ block, children }) => {
   const basis = cssLength(block.attrs.width);
   return (
     <div
-      className={classes('wp-block-column', extraClass(block))}
+      className={classes(
+        'wp-block-column',
+        hasFlowGap(block.attrs.style) && 'cx-flow-gap',
+        extraClass(block),
+      )}
       style={basis ? { ...blockStyle(block), flexBasis: basis } : blockStyle(block)}
     >
       {children}
@@ -578,7 +587,12 @@ registerBlockRenderer('core/group', ({ block, children }) => {
   return (
     <Tag
       id={anchor(block)}
-      className={classes('wp-block-group', alignClass(block), extraClass(block))}
+      className={classes(
+        'wp-block-group',
+        alignClass(block),
+        hasFlowGap(block.attrs.style) && 'cx-flow-gap',
+        extraClass(block),
+      )}
       style={blockStyle(block)}
     >
       {children}

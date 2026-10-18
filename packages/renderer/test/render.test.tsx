@@ -156,6 +156,13 @@ describe('core blocks', () => {
             children: [],
           },
           {
+            id: 'col',
+            type: 'core/column',
+            v: 1,
+            attrs: { style: { spacing: { blockGap: '8px' } } },
+            children: [],
+          },
+          {
             id: 'b',
             type: 'core/button',
             v: 1,
@@ -167,6 +174,7 @@ describe('core blocks', () => {
     ).toBe(
       '<p style="margin-top:0;margin-bottom:var(--wp--preset--spacing--20);color:#4a4a4a;font-size:18px;line-height:1.4">Hi<a href="/x" style="color:#c06e52">go</a></p>' +
         '<div class="wp-block-columns is-stacked-on-mobile" style="row-gap:80px;column-gap:var(--wp--preset--spacing--60)"></div>' +
+        '<div class="wp-block-column cx-flow-gap" style="--cx-block-gap:8px"></div>' +
         '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" style="padding-left:2rem" href="/book">Book</a></div>',
     );
   });

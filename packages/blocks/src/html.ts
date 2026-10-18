@@ -5,3 +5,4 @@
  */
 export { htmlToCxd, IMPORTED_BLOCK, type ConvertOptions } from './html/html-to-cxd.js';
 export { parseBlocks, type WpBlock } from './html/wp-blocks.js';
+export { texturizeHtml, texturizeText } from './html/texturize.js';

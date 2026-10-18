@@ -116,10 +116,23 @@ export function blockStyleCss(
       if (gap.top) css.rowGap = cssValue(gap.top);
       if (gap.left) css.columnGap = cssValue(gap.left);
     }
+  } else if (gap) {
+    // Blocks stacked one under the other: the space between them (see `hasFlowGap`).
+    const top = typeof gap === 'string' ? gap : gap.top;
+    if (top) css['--cx-block-gap'] = cssValue(top);
   }
   if (style.color?.text) css.color = style.color.text;
   if (style.color?.background) css.backgroundColor = style.color.background;
   if (style.typography?.fontSize) css.fontSize = cssValue(style.typography.fontSize);
   if (style.typography?.lineHeight) css.lineHeight = style.typography.lineHeight;
   return Object.keys(css).length ? css : undefined;
+}
+
+/**
+ * Whether a block that stacks its children has a block gap: it then gets the
+ * `cx-flow-gap` class, whose rule puts the gap between its children.
+ */
+export function hasFlowGap(value: unknown): boolean {
+  const gap = cleanBlockStyle(value)?.spacing?.blockGap;
+  return typeof gap === 'string' || Boolean(gap?.top);
 }
