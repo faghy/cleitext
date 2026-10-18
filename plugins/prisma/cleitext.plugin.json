@@ -3,7 +3,7 @@
   "name": "Prisma",
   "version": "0.1.0",
   "apiVersion": "^1.23",
-  "description": "A library of design blocks for the block editor: containers with backgrounds and shape dividers, headings, images with masks, info boxes, buttons, galleries, sliders, forms and more, each with responsive settings, animations and display conditions.",
+  "description": "Design blocks for the block editor: containers with backgrounds and shape dividers, headings with highlights, images with masks, info boxes, buttons and image galleries with a lightbox, each with responsive settings, entrance animations and visibility by device. Converts Spectra blocks on WordPress import.",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
