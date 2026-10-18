@@ -12,6 +12,8 @@ const BROWSER_NOISE = [
   /^null is not an object \(evaluating 'node\.ownerDocument\.defaultView\.getSelection'\)$/,
   // The same in Chromium.
   /^Cannot read properties of null \(reading 'getSelection'\)$/,
+  // Firefox: messages from another site's frame (an embed preview) read by the editor.
+  /^Permission denied to access property "type"$/,
 ];
 
 export function appErrors(errors: string[]): string[] {
