@@ -7,6 +7,15 @@ import {
   type ComponentType,
   type ReactNode,
 } from 'react';
+import {
+  button as buttonIcon,
+  buttons as buttonsIcon,
+  gallery as galleryIcon,
+  heading as headingIcon,
+  image as imageIcon,
+  info as infoIcon,
+  layout as layoutIcon,
+} from '@wordpress/icons';
 import { iconsLoaded, onIconData } from '../lib/icons';
 import { ExtensionBind } from './controls/extensions';
 import { blockCss, withDefaults } from '../lib/css';
@@ -20,6 +29,18 @@ export interface EditProps {
   clientId: string;
   isSelected: boolean;
 }
+
+/** Each block's icon in the inserter, toolbar and sidebar, in Prisma's color. */
+const ICONS: Record<string, unknown> = {
+  container: layoutIcon,
+  heading: headingIcon,
+  image: imageIcon,
+  gallery: galleryIcon,
+  'info-box': infoIcon,
+  buttons: buttonsIcon,
+  button: buttonIcon,
+};
+const ACCENT = '#6d28d9';
 
 /** The settings of a block in the sidebar (General / Style / Advanced). */
 export type Inspector = ComponentType<EditProps & { block: PrismaBlock }>;
@@ -208,6 +229,7 @@ export function registerPrismaBlocks(
       title: block.title,
       description: block.description,
       category: 'prisma',
+      ...(ICONS[block.name] ? { icon: { src: ICONS[block.name], foreground: ACCENT } } : {}),
       keywords: block.keywords ?? [],
       attributes: attributeTypes({ ...EXTENSION_DEFAULTS, ...block.defaults }),
       ...(block.parent ? { parent: block.parent.map((p) => `prisma/${p}`) } : {}),
