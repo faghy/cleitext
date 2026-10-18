@@ -204,12 +204,12 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 
 ### 4.6 Taxonomies
 
-| ID        | Requirement                                                                                                 | Priority |
-| --------- | ----------------------------------------------------------------------------------------------------------- | -------- |
-| RF-TAX-01 | Default `category` (hierarchical) and `tag` taxonomies for `article`.                                       | MVP      |
-| RF-TAX-02 | Custom taxonomies from the admin and from plugins.                                                          | 1.0      |
-| RF-TAX-03 | Translated terms, with per-language slug, description and custom fields (official Multilingual plugin, M7). | MVP      |
-| RF-TAX-04 | Public archives per term (`/category/news`).                                                                | MVP      |
+| ID        | Requirement                                                                                                      | Priority |
+| --------- | ---------------------------------------------------------------------------------------------------------------- | -------- |
+| RF-TAX-01 | Default `category` (hierarchical) and `tag` taxonomies for `article`.                                            | MVP      |
+| RF-TAX-02 | Custom taxonomies from the admin and from plugins; archives under their slug, another word or no base (`/news`). | 1.0      |
+| RF-TAX-03 | Translated terms, with per-language slug, description and custom fields (official Multilingual plugin, M7).      | MVP      |
+| RF-TAX-04 | Public archives per term (`/category/news`).                                                                     | MVP      |
 
 ### 4.7 Menus and navigation
 
@@ -259,12 +259,12 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 
 ### 4.10 Settings
 
-| ID        | Requirement                                                                                                                                                           | Priority |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| RF-SET-01 | General settings: site name, tagline, default language (more languages with the Multilingual plugin), time zone, date format, home page, 404 page, articles per page. | MVP      |
-| RF-SET-02 | Per-site email (SMTP) settings, with a test email.                                                                                                                    | MVP      |
-| RF-SET-03 | Permalinks per content type (pattern with `{slug}`, `{year}`, `{month}`, `{parent}`, `{term:category}` placeholders).                                                 | 1.0      |
-| RF-SET-04 | Plugin settings on pages generated from the schema.                                                                                                                   | MVP      |
+| ID        | Requirement                                                                                                                                                                                 | Priority |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| RF-SET-01 | General settings: site name, tagline, default language (more languages with the Multilingual plugin), time zone, date format, home page, 404 page, articles per page.                       | MVP      |
+| RF-SET-02 | Per-site email (SMTP) settings, with a test email.                                                                                                                                          | MVP      |
+| RF-SET-03 | Permalinks per content type (pattern with `{slug}`, `{year}`, `{month}`, `{parent}`, `{term:category}` placeholders); types may share one (posts and pages at `/{slug}`) with unique slugs. | 1.0      |
+| RF-SET-04 | Plugin settings on pages generated from the schema.                                                                                                                                         | MVP      |
 
 ### 4.11 Import, export and migration
 

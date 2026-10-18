@@ -30,6 +30,8 @@ export const taxonomies = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** First part of its archives' addresses: null the slug, '' none (0023). */
+    base: text('base'),
   },
   (t) => [
     unique('taxonomies_site_id_unique').on(t.siteId, t.id),

@@ -204,12 +204,12 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 
 ### 4.6 Tassonomie
 
-| ID        | Requisito                                                                                                     | Priorità |
-| --------- | ------------------------------------------------------------------------------------------------------------- | -------- |
-| RF-TAX-01 | Tassonomie `category` (gerarchica) e `tag` predefinite per `article`.                                         | MVP      |
-| RF-TAX-02 | Tassonomie personalizzate da admin e da plugin.                                                               | 1.0      |
-| RF-TAX-03 | Termini tradotti, con slug per lingua, descrizione e campi personalizzati (plugin ufficiale Multilingua, M7). | MVP      |
-| RF-TAX-04 | Archivi pubblici per termine (`/categoria/notizie`).                                                          | MVP      |
+| ID        | Requisito                                                                                                           | Priorità |
+| --------- | ------------------------------------------------------------------------------------------------------------------- | -------- |
+| RF-TAX-01 | Tassonomie `category` (gerarchica) e `tag` predefinite per `article`.                                               | MVP      |
+| RF-TAX-02 | Tassonomie personalizzate da admin e da plugin; archivi sotto il loro slug, un'altra parola o senza base (`/news`). | 1.0      |
+| RF-TAX-03 | Termini tradotti, con slug per lingua, descrizione e campi personalizzati (plugin ufficiale Multilingua, M7).       | MVP      |
+| RF-TAX-04 | Archivi pubblici per termine (`/categoria/notizie`).                                                                | MVP      |
 
 ### 4.7 Menu e navigazione
 
@@ -259,12 +259,12 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 
 ### 4.10 Impostazioni
 
-| ID        | Requisito                                                                                                                                                                               | Priorità |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| RF-SET-01 | Impostazioni generali: nome del sito, slogan, lingua predefinita (altre lingue con il plugin Multilingua), fuso orario, formato data, pagina iniziale, pagina 404, articoli per pagina. | MVP      |
-| RF-SET-02 | Impostazioni email (SMTP) per sito, con email di test.                                                                                                                                  | MVP      |
-| RF-SET-03 | Permalink per tipo di contenuto (pattern con segnaposto `{slug}`, `{year}`, `{month}`, `{parent}`, `{term:category}`).                                                                  | 1.0      |
-| RF-SET-04 | Impostazioni dei plugin in pagine generate dallo schema.                                                                                                                                | MVP      |
+| ID        | Requisito                                                                                                                                                                                                 | Priorità |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| RF-SET-01 | Impostazioni generali: nome del sito, slogan, lingua predefinita (altre lingue con il plugin Multilingua), fuso orario, formato data, pagina iniziale, pagina 404, articoli per pagina.                   | MVP      |
+| RF-SET-02 | Impostazioni email (SMTP) per sito, con email di test.                                                                                                                                                    | MVP      |
+| RF-SET-03 | Permalink per tipo di contenuto (pattern con segnaposto `{slug}`, `{year}`, `{month}`, `{parent}`, `{term:category}`); più tipi possono condividerne uno (articoli e pagine in `/{slug}`) con slug unici. | 1.0      |
+| RF-SET-04 | Impostazioni dei plugin in pagine generate dallo schema.                                                                                                                                                  | MVP      |
 
 ### 4.11 Import, export e migrazione
 

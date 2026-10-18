@@ -159,6 +159,17 @@ export const createTaxonomyRequestSchema = z.object({
 export const updateTaxonomyRequestSchema = z.object({
   name: labels.optional(),
   contentTypes: z.array(z.string().min(1).max(64)).max(50).optional(),
+  /**
+   * First part of the archives' addresses: null the taxonomy's slug
+   * (/category/news), '' none (/news), or a word (/topics/news).
+   */
+  base: z
+    .string()
+    .trim()
+    .regex(/^([a-z0-9]+(?:-[a-z0-9]+)*)?$/, 'Lowercase letters, digits and dashes')
+    .max(60)
+    .nullable()
+    .optional(),
 });
 
 /** Concurrent editing lock (RF-CNT-15). */
@@ -248,6 +259,8 @@ export interface TaxonomyView {
   source: string;
   /** Custom fields of its terms (e.g. an image), edited with each term. */
   fields: FieldDefinition[];
+  /** First part of its archives' addresses: null its slug, '' none. */
+  base: string | null;
 }
 
 export interface TermView {

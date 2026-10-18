@@ -192,6 +192,46 @@ describe('taxonomies from the admin', () => {
     expect(same.json()).toMatchObject({ slug: 'pasta', name: 'Pasta' });
   });
 
+  it('puts archives without a base, or under another word, redirecting the old addresses', async () => {
+    const term = (
+      await admin.post('/api/v1/taxonomies/category/terms', { name: 'Web marketing' })
+    ).json();
+    const draft = (
+      await admin.post('/api/v1/entries', { type: 'article', title: 'Funnels' })
+    ).json();
+    await admin.request('PATCH', `/api/v1/entries/${draft.id}`, { terms: { category: [term.id] } });
+    const post = (await admin.post(`/api/v1/entries/${draft.id}/publish`)).json();
+    expect((await visitor.get('/category/web-marketing')).statusCode).toBe(200);
+
+    // Without a base, as WordPress sites with the category base stripped.
+    const bare = await admin.request('PATCH', '/api/v1/taxonomies/category', { base: '' });
+    expect(bare.statusCode, bare.body).toBe(200);
+    expect(bare.json().base).toBe('');
+    const archive = await visitor.get('/web-marketing');
+    expect(archive.statusCode).toBe(200);
+    expect(archive.body).toContain('Funnels');
+    expect((await visitor.get('/web-marketing/feed')).statusCode).toBe(200);
+    const old = await visitor.get('/category/web-marketing');
+    expect([old.statusCode, old.headers.location]).toEqual([301, '/web-marketing']);
+    // Entries come first, and an unknown slug is still not found.
+    expect((await visitor.get(`/${post.slug}`)).statusCode).not.toBe(500);
+    expect((await visitor.get('/no-such-thing')).statusCode).toBe(404);
+
+    // Under another word: older addresses follow.
+    await admin.request('PATCH', '/api/v1/taxonomies/category', { base: 'topics' });
+    expect((await visitor.get('/topics/web-marketing')).statusCode).toBe(200);
+    const older = await visitor.get('/category/web-marketing');
+    expect([older.statusCode, older.headers.location]).toEqual([301, '/topics/web-marketing']);
+    expect(
+      (await admin.request('PATCH', '/api/v1/taxonomies/category', { base: 'api' })).statusCode,
+    ).toBe(409);
+    expect(
+      (await admin.request('PATCH', '/api/v1/taxonomies/category', { base: 'tag' })).statusCode,
+    ).toBe(409);
+    await admin.request('PATCH', '/api/v1/taxonomies/category', { base: null });
+    expect((await visitor.get('/category/web-marketing')).statusCode).toBe(200);
+  });
+
   it('updates the types it applies to, and deletes it when empty', async () => {
     const updated = await admin.request('PATCH', '/api/v1/taxonomies/cuisine', {
       contentTypes: ['recipe', 'article'],

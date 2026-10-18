@@ -986,9 +986,11 @@ export class PublicService {
     // RSS feeds (RF-THM-08): latest posts, latest comments, and per category or tag.
     if (rest === '/feed') return this.feed(scope, null);
     if (rest === '/comments/feed') return this.commentsFeed(scope);
+    // /{base}/{slug}/feed: the base is the taxonomy's slug unless it has another.
     const termFeed = /^\/([a-z][a-z0-9_-]*)\/([a-z0-9]+(?:-[a-z0-9]+)*)\/feed$/.exec(rest);
-    if (termFeed && data.taxonomies.includes(termFeed[1]!)) {
-      return this.feed(scope, { taxonomy: termFeed[1]!, slug: termFeed[2]! });
+    for (const taxonomy of termFeed ? (data.taxonomyByBase.get(termFeed[1]!) ?? []) : []) {
+      const feed = await this.feed(scope, { taxonomy, slug: termFeed![2]! });
+      if (feed) return feed;
     }
 
     if (rest === '/search') {
@@ -1007,8 +1009,14 @@ export class PublicService {
     const taxonomy = /^\/([a-z][a-z0-9_-]*)\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/page\/(\d+))?$/.exec(
       rest,
     );
-    if (taxonomy && data.taxonomies.includes(taxonomy[1]!)) {
-      return this.renderTermArchive(scope, taxonomy[1]!, taxonomy[2]!, Number(taxonomy[3] ?? 1));
+    for (const slug of taxonomy ? (data.taxonomyByBase.get(taxonomy[1]!) ?? []) : []) {
+      const archive = await this.renderTermArchive(
+        scope,
+        slug,
+        taxonomy![2]!,
+        Number(taxonomy![3] ?? 1),
+      );
+      if (archive) return archive;
     }
 
     // Later pages of the page that lists the posts: /{postsPage}/page/N.
@@ -1048,7 +1056,7 @@ export class PublicService {
         break;
       }
     }
-    if (!entry) return null;
+    if (!entry) return this.rootTermArchive(scope, rest);
 
     // The front page lives at the home address only (no duplicate at its slug).
     if (
@@ -1073,6 +1081,24 @@ export class PublicService {
       });
     }
     return this.renderEntry(scope, entry, { isFrontPage: false });
+  }
+
+  /**
+   * Archives of taxonomies without a base (/news, /news/page/2, /news/feed, as
+   * WordPress sites with the category base stripped): after the entries.
+   */
+  private async rootTermArchive(scope: RequestScope, rest: string): Promise<PublicResponse | null> {
+    const taxonomies = scope.data.taxonomyByBase.get('') ?? [];
+    if (taxonomies.length === 0) return null;
+    const match = /^\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/page\/(\d+)|\/(feed))?$/.exec(rest);
+    if (!match) return null;
+    for (const taxonomy of taxonomies) {
+      const found = match[3]
+        ? await this.feed(scope, { taxonomy, slug: match[1]! })
+        : await this.renderTermArchive(scope, taxonomy, match[1]!, Number(match[2] ?? 1));
+      if (found) return found;
+    }
+    return null;
   }
 
   /**

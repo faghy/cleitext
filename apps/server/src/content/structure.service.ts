@@ -229,6 +229,7 @@ export class StructureService {
         contentTypes: types,
         source: 'user',
         fields: [],
+        base: null,
       };
     });
     await this.cache.invalidate(siteId, ['site']);
@@ -239,7 +240,11 @@ export class StructureService {
     siteId: string,
     auth: AuthContext,
     slug: string,
-    input: { name?: Record<string, string> | undefined; contentTypes?: string[] | undefined },
+    input: {
+      name?: Record<string, string> | undefined;
+      contentTypes?: string[] | undefined;
+      base?: string | null | undefined;
+    },
     ip: string,
   ): Promise<TaxonomyView> {
     const view = await this.run(siteId, auth, async (tx) => {
@@ -247,6 +252,18 @@ export class StructureService {
       const changes: Partial<typeof taxonomies.$inferInsert> = {};
       if (input.name) changes.name = input.name;
       if (input.contentTypes) changes.contentTypes = await this.knownTypes(tx, input.contentTypes);
+      // The first part of its archives' addresses; the old ones redirect.
+      // Its own slug as base is the default (null).
+      const base = input.base === undefined ? undefined : input.base === slug ? null : input.base;
+      if (base !== undefined && base !== taxonomy.base) {
+        if (taxonomy.source.startsWith('plugin:')) {
+          throw new BadRequestException('The addresses of this taxonomy belong to its plugin.');
+        }
+        if (base) await this.assertTaxonomyBase(tx, siteId, base, taxonomy.id);
+        changes.base = base;
+        await this.redirectTerms(tx, siteId, taxonomy, base);
+      }
+      if (Object.keys(changes).length === 0) return taxonomyView(taxonomy);
       const [updated] = await tx
         .update(taxonomies)
         .set(changes)
@@ -388,6 +405,57 @@ export class StructureService {
       made++;
     }
     return made;
+  }
+
+  /** A taxonomy's own first part of addresses: free, not reserved, not a type's. */
+  private async assertTaxonomyBase(
+    tx: SiteTransaction,
+    siteId: string,
+    base: string,
+    selfId: string,
+  ): Promise<void> {
+    const prefixes = [...localePrefixes(await this.languages.localesIn(tx, siteId)).values()];
+    const others = await tx.select().from(taxonomies);
+    const types = await tx.select({ permalink: contentTypes.permalink }).from(contentTypes);
+    if (
+      RESERVED.has(base) ||
+      prefixes.includes(`/${base}`) ||
+      others.some((t) => t.id !== selfId && (t.base ?? t.slug) === base) ||
+      types.some((t) => firstLiteral(t.permalink) === base)
+    ) {
+      throw new ConflictException(`Addresses starting with /${base}/ are already used.`);
+    }
+  }
+
+  /** 301 redirects from the old to the new addresses of a taxonomy's archives. */
+  private async redirectTerms(
+    tx: SiteTransaction,
+    siteId: string,
+    taxonomy: typeof taxonomies.$inferSelect,
+    base: string | null,
+  ): Promise<void> {
+    const rows = await tx
+      .select({ slug: terms.slug, locale: terms.locale })
+      .from(terms)
+      .where(eq(terms.taxonomyId, taxonomy.id))
+      .limit(MAX_REDIRECTS);
+    const prefixes = localePrefixes(await this.languages.localesIn(tx, siteId));
+    const path = (b: string, slug: string) => (b ? `/${b}/${slug}` : `/${slug}`);
+    for (const term of rows) {
+      const prefix = prefixes.get(term.locale) ?? '';
+      const from = prefix + path(taxonomy.base ?? taxonomy.slug, term.slug);
+      const to = prefix + path(base ?? taxonomy.slug, term.slug);
+      if (from === to) continue;
+      await tx.delete(redirects).where(eq(redirects.fromPath, to));
+      await tx
+        .insert(redirects)
+        .values({ siteId, fromPath: from, toPath: to, status: 301 })
+        .onConflictDoUpdate({
+          target: [redirects.siteId, redirects.fromPath],
+          set: { toPath: to },
+        });
+      await tx.update(redirects).set({ toPath: to }).where(eq(redirects.toPath, from));
+    }
   }
 
   private async knownTypes(tx: SiteTransaction, slugs: string[]): Promise<string[]> {

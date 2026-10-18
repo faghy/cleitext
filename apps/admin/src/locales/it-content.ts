@@ -227,6 +227,12 @@ export const itContent: Messages = {
   Source: 'Origine',
   Taxonomies: 'Tassonomie',
   'Used by': 'Usata da',
+  'Archive addresses': 'Indirizzi degli archivi',
+  'without a base, as WordPress sites with the category base stripped':
+    'senza base, come i siti WordPress con la base delle categorie rimossa',
+  'Another word': 'Un’altra parola',
+  'The old addresses redirect to the new ones. Without a base, pages and posts with the same address come first.':
+    'I vecchi indirizzi rimandano ai nuovi. Senza base, pagine e articoli con lo stesso indirizzo hanno la precedenza.',
   'Web address': 'Indirizzo web',
   'Yes / no': 'Sì / no',
   '{count} old addresses now redirect to the new ones.':

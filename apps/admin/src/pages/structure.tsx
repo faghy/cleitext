@@ -457,7 +457,9 @@ function TaxonomiesCard() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p>
                     <span className="font-medium">{labelText(taxonomy.name, me.user.locale)}</span>{' '}
-                    <span className="font-mono text-xs text-slate-500">/{taxonomy.slug}/…</span>
+                    <span className="font-mono text-xs text-slate-500">
+                      {taxonomy.base === '' ? '/…' : `/${taxonomy.base ?? taxonomy.slug}/…`}
+                    </span>
                     <span className="block text-xs text-slate-600">
                       {taxonomy.hierarchical ? t('Hierarchical') : t('Flat')} ·{' '}
                       {taxonomy.contentTypes.map(typeName).join(', ') || t('No content types')}
@@ -520,11 +522,20 @@ function TaxonomyForm({
   const [names, setNames] = useState<Record<string, string>>(taxonomy?.name ?? {});
   const [hierarchical, setHierarchical] = useState(taxonomy?.hierarchical ?? false);
   const [linked, setLinked] = useState<string[]>(taxonomy?.contentTypes ?? []);
+  // Archives' addresses: under the slug (default), without a base, or under another word.
+  const [base, setBase] = useState<'slug' | 'none' | 'word'>(
+    taxonomy?.base === '' ? 'none' : taxonomy?.base ? 'word' : 'slug',
+  );
+  const [word, setWord] = useState(taxonomy?.base ?? '');
+  const ownAddresses = taxonomy && !taxonomy.source.startsWith('plugin:');
   const save = useMutation({
     mutationFn: () => {
       const name = Object.fromEntries(Object.entries(names).filter(([, v]) => v.trim()));
+      const addresses = ownAddresses
+        ? { base: base === 'slug' ? null : base === 'none' ? '' : word.trim() }
+        : {};
       return taxonomy
-        ? api('PATCH', `/taxonomies/${taxonomy.slug}`, { name, contentTypes: linked })
+        ? api('PATCH', `/taxonomies/${taxonomy.slug}`, { name, contentTypes: linked, ...addresses })
         : api('POST', '/taxonomies', { slug, name, hierarchical, contentTypes: linked });
     },
     onSuccess: onDone,
@@ -565,6 +576,42 @@ function TaxonomyForm({
           />
           {t('Hierarchical (terms can have a parent, like categories)')}
         </label>
+      )}
+      {ownAddresses && (
+        <fieldset className="space-y-2">
+          <legend className="mb-1 font-medium text-slate-800">{t('Archive addresses')}</legend>
+          <label className="flex items-center gap-2">
+            <input type="radio" checked={base === 'slug'} onChange={() => setBase('slug')} />
+            <span className="font-mono text-xs">/{taxonomy.slug}/news</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" checked={base === 'none'} onChange={() => setBase('none')} />
+            <span>
+              <span className="font-mono text-xs">/news</span>{' '}
+              <span className="text-xs text-slate-600">
+                {t('without a base, as WordPress sites with the category base stripped')}
+              </span>
+            </span>
+          </label>
+          <label className="flex flex-wrap items-center gap-2">
+            <input type="radio" checked={base === 'word'} onChange={() => setBase('word')} />
+            <span className="font-mono text-xs">/</span>
+            <input
+              type="text"
+              className="w-40 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+              aria-label={t('Another word')}
+              value={word}
+              onFocus={() => setBase('word')}
+              onChange={(e) => setWord(e.target.value.toLowerCase())}
+            />
+            <span className="font-mono text-xs">/news</span>
+          </label>
+          <p className="text-xs text-slate-600">
+            {t(
+              'The old addresses redirect to the new ones. Without a base, pages and posts with the same address come first.',
+            )}
+          </p>
+        </fieldset>
       )}
       <fieldset className="flex flex-wrap gap-4">
         <legend className="mb-1 font-medium text-slate-800">{t('Used by')}</legend>

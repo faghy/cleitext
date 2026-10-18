@@ -41,6 +41,8 @@ export class UrlBuilder {
     private readonly types: Map<string, TypeInfo>,
     /** Path segments of hierarchical entries by id (e.g. ['about', 'team']). */
     private readonly paths: Map<string, string[]>,
+    /** First part of a taxonomy's archives, when not its slug ('' for none). */
+    private readonly taxonomyBases: Map<string, string> = new Map(),
   ) {}
 
   get defaultLocale(): string {
@@ -104,7 +106,8 @@ export class UrlBuilder {
   }
 
   term(taxonomy: string, slug: string, locale: string): string {
-    return `${this.base(locale)}/${taxonomy}/${slug}`;
+    const base = this.taxonomyBases.get(taxonomy) ?? taxonomy;
+    return base ? `${this.base(locale)}/${base}/${slug}` : `${this.base(locale)}/${slug}`;
   }
 
   entry(entry: EntryRef): string {

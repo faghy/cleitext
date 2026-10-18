@@ -56,6 +56,8 @@ export interface SiteData {
   locales: ContentLocale[];
   types: TypeInfo[];
   taxonomies: string[];
+  /** Taxonomy by the first part of its archives' addresses; '' for those without one. */
+  taxonomyByBase: Map<string, string[]>;
   urls: UrlBuilder;
 }
 
@@ -82,7 +84,9 @@ export async function loadSiteData(
       supports: t.supports,
     }));
   const taxonomyRows = (
-    await tx.select({ slug: taxonomies.slug, source: taxonomies.source }).from(taxonomies)
+    await tx
+      .select({ slug: taxonomies.slug, source: taxonomies.source, base: taxonomies.base })
+      .from(taxonomies)
   ).filter((t) => isTypeAvailable(t.source, activePlugins));
 
   // Paths of hierarchical entries (pages), computed from their parents.
@@ -110,7 +114,16 @@ export async function loadSiteData(
     locales,
     types,
     taxonomies: taxonomyRows.map((t) => t.slug),
-    urls: new UrlBuilder(locales, new Map(types.map((t) => [t.slug, t])), paths),
+    taxonomyByBase: taxonomyRows.reduce((map, t) => {
+      const base = t.base ?? t.slug;
+      return map.set(base, [...(map.get(base) ?? []), t.slug]);
+    }, new Map<string, string[]>()),
+    urls: new UrlBuilder(
+      locales,
+      new Map(types.map((t) => [t.slug, t])),
+      paths,
+      new Map(taxonomyRows.flatMap((t) => (t.base !== null ? [[t.slug, t.base] as const] : []))),
+    ),
   };
 }
 

@@ -479,6 +479,7 @@ export function taxonomyView(t: TaxonomyRow): TaxonomyView {
     contentTypes: t.contentTypes,
     source: t.source,
     fields: taxonomyFields(t),
+    base: t.base,
   };
 }
 
