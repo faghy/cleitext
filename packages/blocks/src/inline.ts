@@ -5,7 +5,7 @@ import { MARKS, type CxdInline, type CxdLink, type CxdText, type Mark } from './
  * nodes. Dependency-free and DOM-free: works in browsers, Node and workers.
  *
  * Only a small, safe subset is kept: bold, italic, underline, strike, code,
- * superscript, subscript, links and line breaks. Every other tag is dropped
+ * superscript, subscript, highlight (`<mark>`), links and line breaks. Every other tag is dropped
  * but its text is kept; scripts, styles and comments are dropped entirely.
  */
 
@@ -22,6 +22,7 @@ const TAG_MARKS: Record<string, Mark> = {
   kbd: 'code',
   sup: 'sup',
   sub: 'sub',
+  mark: 'highlight',
 };
 
 const MARK_TAGS: Record<Mark, string> = {
@@ -32,6 +33,7 @@ const MARK_TAGS: Record<Mark, string> = {
   code: 'code',
   sup: 'sup',
   sub: 'sub',
+  highlight: 'mark',
 };
 
 /** Tags whose whole content is discarded. */

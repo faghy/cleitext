@@ -2,7 +2,7 @@ import type { CxdInline, CxdText, Mark } from '@cleitext/blocks';
 import { Fragment, type ReactNode } from 'react';
 import { safeUrl } from './url.js';
 
-const MARK_TAGS: Record<Mark, 'strong' | 'em' | 'u' | 's' | 'code' | 'sup' | 'sub'> = {
+const MARK_TAGS: Record<Mark, 'strong' | 'em' | 'u' | 's' | 'code' | 'sup' | 'sub' | 'mark'> = {
   bold: 'strong',
   italic: 'em',
   underline: 'u',
@@ -10,6 +10,7 @@ const MARK_TAGS: Record<Mark, 'strong' | 'em' | 'u' | 's' | 'code' | 'sup' | 'su
   code: 'code',
   sup: 'sup',
   sub: 'sub',
+  highlight: 'mark',
 };
 
 /** Rich text (CXD inline nodes) as React elements. React escapes all text. */

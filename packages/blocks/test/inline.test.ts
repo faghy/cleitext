@@ -21,6 +21,12 @@ describe('htmlToInline', () => {
     ]);
   });
 
+  it('keeps highlighted text (<mark>), without its attributes', () => {
+    const nodes = htmlToInline('Dal <mark class="uagb-highlight" style="color:red">1974</mark>');
+    expect(nodes).toEqual([{ text: 'Dal ' }, { text: '1974', marks: ['highlight'] }]);
+    expect(inlineToHtml(nodes)).toBe('Dal <mark>1974</mark>');
+  });
+
   it('parses links with safe attributes only', () => {
     expect(
       htmlToInline(

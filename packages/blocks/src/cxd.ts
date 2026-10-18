@@ -7,7 +7,16 @@ import { z } from 'zod';
 
 export const CXD_SCHEMA_VERSION = 1;
 
-export const MARKS = ['bold', 'italic', 'underline', 'strike', 'code', 'sup', 'sub'] as const;
+export const MARKS = [
+  'bold',
+  'italic',
+  'underline',
+  'strike',
+  'code',
+  'sup',
+  'sub',
+  'highlight',
+] as const;
 export type Mark = (typeof MARKS)[number];
 
 /** A run of text with the same formatting. `\n` is a line break. */

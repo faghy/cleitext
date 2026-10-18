@@ -18,6 +18,7 @@ const TAG: Record<string, string> = {
   code: 'code',
   sup: 'sup',
   sub: 'sub',
+  highlight: 'mark',
 };
 
 /** CXD inline nodes as HTML. */

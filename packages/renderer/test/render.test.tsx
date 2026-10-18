@@ -273,7 +273,7 @@ describe('security', () => {
             <Inline nodes={nodes as CxdInline[]} />
           </p>,
         );
-        expect(out).not.toMatch(/<(?!\/?(p|strong|em|u|s|code|sup|sub|a|br)\b)/);
+        expect(out).not.toMatch(/<(?!\/?(p|strong|em|u|s|code|sup|sub|mark|a|br)\b)/);
         expect(out).not.toMatch(/href="\s*(javascript|data|vbscript):/i);
       }),
       { numRuns: 1_000 },
