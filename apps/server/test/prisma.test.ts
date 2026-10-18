@@ -169,6 +169,34 @@ describe('Prisma blocks', () => {
     expect(html).toContain('width:600px');
   });
 
+  it('draws a gallery carousel with its lightbox and its script', async () => {
+    const html = await page('Gallery', [
+      {
+        id: 'g1',
+        type: 'prisma/gallery',
+        v: 1,
+        attrs: {
+          blockId: 'gal00001',
+          feedLayout: 'carousel',
+          imageClickEvent: 'lightbox',
+          imageDisplayCaption: true,
+          mediaGallery: [
+            { id: 1, url: 'https://example.com/1.jpg', alt: 'One', caption: 'First' },
+            { id: 2, url: 'https://example.com/2.jpg', alt: 'Two', caption: '' },
+          ],
+        },
+      },
+    ]);
+    expect(html).toContain('class="wp-block-prisma-gallery pr-gallery-block pr-block-gal00001"');
+    expect(html).toContain('pr-gallery pr-gallery--carousel');
+    expect(html).toContain('data-pr-gallery=');
+    expect(html).toContain('<div class="pr-gallery__track">');
+    expect(html).toContain('alt="One"');
+    expect(html).toContain('First');
+    expect(html).toContain('class="pr-lightbox"');
+    expect(html).toContain('/plugin-assets/prisma/0.1.0/gallery.js');
+  });
+
   it('imports pages built with Spectra as Prisma blocks', async () => {
     const content = [
       '<!-- wp:uagb/container {"block_id":"9ccf5722","innerContentWidth":"alignfull","minHeightDesktop":700,"backgroundType":"image","backgroundImageDesktop":{"id":309,"url":"https://old.example.com/wp-content/uploads/2025/04/18-1024x768.webp","sizes":{"full":{"url":"x"}}},"backgroundImageColor":"#000000","overlayType":"color","overlayOpacity":0.6,"isBlockRootParent":true,"UAGAnimationType":"zoom-in","UAGHideMob":true} -->',
@@ -191,6 +219,7 @@ describe('Prisma blocks', () => {
       '</div></div><!-- /wp:uagb/buttons -->',
       '</div>',
       '<!-- /wp:uagb/container -->',
+      '<!-- wp:uagb/image-gallery {"block_id":"0a1b2c3d","mediaGallery":[{"id":41,"url":"https://old.example.com/wp-content/uploads/2025/04/g1.jpg","alt":"Pool","caption":"La piscina"}],"mediaIDs":[41],"feedLayout":"masonry","imageClickEvent":"lightbox","readyToRender":true} /-->',
       '<!-- wp:uagb/unknown-thing --><div>Kept</div><!-- /wp:uagb/unknown-thing -->',
     ].join('');
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -253,6 +282,8 @@ describe('Prisma blocks', () => {
     expect(html).toContain('data-pr-animation="fade-right"');
     expect(html).toContain('/plugin-assets/prisma/0.1.0/animations.js');
     expect(html).toContain('gap:90px');
+    expect(html).toContain('pr-gallery pr-gallery--masonry');
+    expect(html).toContain('alt="Pool"');
     expect(html).not.toContain('uagb');
   });
 });

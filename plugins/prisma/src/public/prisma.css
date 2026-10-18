@@ -577,3 +577,558 @@ a.pr-info-box__link-all {
     display: none !important;
   }
 }
+
+/* ---- Image Gallery -------------------------------------------------------------------- */
+.pr-gallery-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.pr-gallery,
+.pr-gallery * {
+  box-sizing: border-box;
+}
+.pr-gallery {
+  width: 100%;
+  position: relative;
+}
+.pr-gallery__item--later {
+  display: none !important;
+}
+.pr-gallery--grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.pr-gallery--grid .pr-gallery__media {
+  aspect-ratio: 1;
+}
+.pr-gallery--grid .pr-gallery__img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+.pr-gallery--tiled {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: dense;
+}
+.pr-gallery--tiled .pr-gallery__item {
+  position: relative;
+  min-width: 0;
+}
+.pr-gallery--tiled .pr-gallery__item--wide {
+  grid-column: span 2;
+}
+.pr-gallery--tiled .pr-gallery__item--tall {
+  grid-row: span 2;
+}
+.pr-gallery--tiled .pr-gallery__item--focus {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.pr-gallery--tiled .pr-gallery__media {
+  aspect-ratio: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.pr-gallery--tiled .pr-gallery__item--wide .pr-gallery__media,
+.pr-gallery--tiled .pr-gallery__item--tall .pr-gallery__media,
+.pr-gallery--tiled .pr-gallery__item--focus .pr-gallery__media {
+  aspect-ratio: auto;
+  width: 100%;
+  height: 100%;
+}
+.pr-gallery--tiled picture {
+  width: 100%;
+  height: 100%;
+}
+.pr-gallery--tiled .pr-gallery__img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+.pr-gallery__sizer {
+  aspect-ratio: 1;
+}
+/* Masonry: columns until the script places the images (shortest column first). */
+.pr-gallery--masonry {
+  column-gap: var(--pr-gap, 8px);
+  columns: 3;
+}
+.pr-gallery--masonry .pr-gallery__item {
+  break-inside: avoid;
+  margin-bottom: var(--pr-gap, 8px);
+}
+.pr-gallery--masonry.is-positioned {
+  columns: auto;
+}
+.pr-gallery--masonry.is-positioned .pr-gallery__item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+}
+.pr-gallery--masonry .pr-gallery__media,
+.pr-gallery--masonry .pr-gallery__img {
+  width: 100%;
+}
+.pr-gallery--carousel .pr-gallery__viewport {
+  overflow: hidden;
+}
+.pr-gallery--carousel .pr-gallery__track {
+  display: flex;
+  align-items: center;
+}
+.pr-gallery--carousel .pr-gallery__item {
+  flex: 0 0 auto;
+  width: 33.333%;
+}
+.pr-gallery--carousel .pr-gallery__media,
+.pr-gallery--carousel .pr-gallery__img {
+  width: 100%;
+}
+.pr-gallery__media {
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.25s;
+}
+.pr-gallery__img {
+  display: block;
+  vertical-align: middle;
+  transition:
+    filter 0.5s,
+    transform 0.5s;
+}
+.pr-gallery__blurrer {
+  position: absolute;
+  inset: 0;
+  transition:
+    box-shadow 0.25s,
+    backdrop-filter 0.25s;
+}
+.pr-gallery__caption {
+  transition:
+    color 0.25s,
+    background-color 0.25s,
+    border-color 0.25s;
+}
+.pr-gallery__caption--overlay {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 1em;
+}
+.pr-gallery__caption--bar-inside {
+  width: 100%;
+  max-height: 90%;
+  padding: 1em;
+}
+.pr-gallery__caption--bar-outside {
+  width: 100%;
+  padding: 1em;
+}
+.pr-gallery__overlay--overlay,
+.pr-gallery__overlay--bar-inside {
+  position: absolute;
+  inset: 0;
+}
+.pr-gallery__overlay--bar-inside {
+  display: flex;
+}
+.pr-gallery__outside {
+  position: relative;
+  width: 100%;
+}
+.pr-gallery__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: 0.25s;
+}
+.pr-gallery__arrow svg {
+  width: 24px;
+  height: 24px;
+  fill: #007cba;
+}
+.pr-gallery__arrow--prev {
+  left: -24px;
+}
+.pr-gallery__arrow--next {
+  right: -24px;
+}
+.pr-gallery__pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.pr-gallery__arrow--pager {
+  position: static;
+  transform: none;
+}
+.pr-gallery__arrow--pager:hover {
+  transform: scale(1.5);
+}
+.pr-gallery__arrow:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+.pr-gallery__dots {
+  display: flex;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pr-gallery__dot {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.25s;
+}
+.pr-gallery__dot::before {
+  content: '•';
+  font-size: 30px;
+  line-height: 20px;
+  color: #007cba;
+  opacity: 0.25;
+}
+.pr-gallery__dot.is-active::before {
+  opacity: 0.75;
+}
+.pr-gallery__dot:hover {
+  transform: scale(1.5);
+}
+.pr-gallery__more {
+  cursor: pointer;
+  transition: 0.25s;
+}
+.pr-gallery__loader {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  width: 160px;
+  min-height: 58px;
+  align-items: center;
+}
+.pr-gallery__loader span {
+  width: 18px;
+  height: 18px;
+  border-radius: 100%;
+  background: #007cba;
+  animation: pr-bounce 1.4s infinite ease-in-out both;
+}
+.pr-gallery__loader span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.pr-gallery__loader span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+@keyframes pr-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+.pr-gallery__empty {
+  padding: 2em;
+  border: 1px dashed #999;
+  text-align: center;
+  font-size: 13px;
+}
+.pr-lightbox {
+  position: fixed !important;
+  inset: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity 0.25s;
+  z-index: 999999999 !important;
+  outline: 0;
+}
+.pr-lightbox.is-open {
+  opacity: 1;
+}
+.pr-lightbox[hidden] {
+  display: none;
+}
+.pr-lightbox__stage {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  min-height: 0;
+}
+.pr-lightbox__slide {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.pr-lightbox__slide[hidden] {
+  display: none;
+}
+.pr-lightbox__slide img {
+  display: block;
+  max-height: 70%;
+  max-width: 80%;
+}
+.pr-lightbox__caption {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1em;
+}
+.pr-lightbox__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  z-index: 999;
+  padding: 8px;
+}
+.pr-lightbox__thumbs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  height: 150px;
+  align-items: center;
+  overflow-x: auto;
+  padding: 8px;
+}
+.pr-lightbox__thumb {
+  border: 0;
+  padding: 0;
+  background: none;
+  opacity: 0.5;
+  transform: scale(0.75);
+  transition: 0.25s;
+  cursor: pointer;
+}
+.pr-lightbox__thumb.is-active {
+  opacity: 1;
+  transform: scale(1);
+}
+.pr-lightbox__thumb img {
+  height: 110px;
+  width: auto;
+  border-radius: 3px;
+  display: block;
+}
+.pr-lightbox__count {
+  position: absolute;
+  z-index: 999;
+}
+.pr-lightbox__close {
+  position: absolute;
+  background: transparent;
+  border: 0;
+  z-index: 999;
+  cursor: pointer;
+  transition: transform 0.5s;
+}
+.pr-lightbox__close:hover,
+.pr-lightbox__close:focus {
+  transform: scale(1.25);
+}
+.pr-gallery--grid.pr-gallery--col-1,
+.pr-gallery--tiled.pr-gallery--col-1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+.pr-gallery--masonry.pr-gallery--col-1 {
+  columns: 1;
+}
+.pr-gallery--grid.pr-gallery--col-2,
+.pr-gallery--tiled.pr-gallery--col-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.pr-gallery--masonry.pr-gallery--col-2 {
+  columns: 2;
+}
+.pr-gallery--grid.pr-gallery--col-3,
+.pr-gallery--tiled.pr-gallery--col-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.pr-gallery--masonry.pr-gallery--col-3 {
+  columns: 3;
+}
+.pr-gallery--grid.pr-gallery--col-4,
+.pr-gallery--tiled.pr-gallery--col-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.pr-gallery--masonry.pr-gallery--col-4 {
+  columns: 4;
+}
+.pr-gallery--grid.pr-gallery--col-5,
+.pr-gallery--tiled.pr-gallery--col-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.pr-gallery--masonry.pr-gallery--col-5 {
+  columns: 5;
+}
+.pr-gallery--grid.pr-gallery--col-6,
+.pr-gallery--tiled.pr-gallery--col-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.pr-gallery--masonry.pr-gallery--col-6 {
+  columns: 6;
+}
+.pr-gallery--grid.pr-gallery--col-7,
+.pr-gallery--tiled.pr-gallery--col-7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.pr-gallery--masonry.pr-gallery--col-7 {
+  columns: 7;
+}
+.pr-gallery--grid.pr-gallery--col-8,
+.pr-gallery--tiled.pr-gallery--col-8 {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+.pr-gallery--masonry.pr-gallery--col-8 {
+  columns: 8;
+}
+@media (max-width: 976px) {
+  .pr-gallery--grid.pr-gallery--col-tab-1,
+  .pr-gallery--tiled.pr-gallery--col-tab-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-tab-1 {
+    columns: 1;
+  }
+  .pr-gallery--grid.pr-gallery--col-tab-2,
+  .pr-gallery--tiled.pr-gallery--col-tab-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-tab-2 {
+    columns: 2;
+  }
+  .pr-gallery--grid.pr-gallery--col-tab-3,
+  .pr-gallery--tiled.pr-gallery--col-tab-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-tab-3 {
+    columns: 3;
+  }
+  .pr-gallery--grid.pr-gallery--col-tab-4,
+  .pr-gallery--tiled.pr-gallery--col-tab-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-tab-4 {
+    columns: 4;
+  }
+  .pr-gallery--grid.pr-gallery--col-tab-5,
+  .pr-gallery--tiled.pr-gallery--col-tab-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-tab-5 {
+    columns: 5;
+  }
+  .pr-gallery--grid.pr-gallery--col-tab-6,
+  .pr-gallery--tiled.pr-gallery--col-tab-6 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-tab-6 {
+    columns: 6;
+  }
+  .pr-gallery--grid.pr-gallery--col-tab-7,
+  .pr-gallery--tiled.pr-gallery--col-tab-7 {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-tab-7 {
+    columns: 7;
+  }
+  .pr-gallery--grid.pr-gallery--col-tab-8,
+  .pr-gallery--tiled.pr-gallery--col-tab-8 {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-tab-8 {
+    columns: 8;
+  }
+}
+@media (max-width: 767px) {
+  .pr-gallery--grid.pr-gallery--col-mob-1,
+  .pr-gallery--tiled.pr-gallery--col-mob-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-mob-1 {
+    columns: 1;
+  }
+  .pr-gallery--grid.pr-gallery--col-mob-2,
+  .pr-gallery--tiled.pr-gallery--col-mob-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-mob-2 {
+    columns: 2;
+  }
+  .pr-gallery--grid.pr-gallery--col-mob-3,
+  .pr-gallery--tiled.pr-gallery--col-mob-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-mob-3 {
+    columns: 3;
+  }
+  .pr-gallery--grid.pr-gallery--col-mob-4,
+  .pr-gallery--tiled.pr-gallery--col-mob-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-mob-4 {
+    columns: 4;
+  }
+  .pr-gallery--grid.pr-gallery--col-mob-5,
+  .pr-gallery--tiled.pr-gallery--col-mob-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-mob-5 {
+    columns: 5;
+  }
+  .pr-gallery--grid.pr-gallery--col-mob-6,
+  .pr-gallery--tiled.pr-gallery--col-mob-6 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-mob-6 {
+    columns: 6;
+  }
+  .pr-gallery--grid.pr-gallery--col-mob-7,
+  .pr-gallery--tiled.pr-gallery--col-mob-7 {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-mob-7 {
+    columns: 7;
+  }
+  .pr-gallery--grid.pr-gallery--col-mob-8,
+  .pr-gallery--tiled.pr-gallery--col-mob-8 {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+  .pr-gallery--masonry.pr-gallery--col-mob-8 {
+    columns: 8;
+  }
+}

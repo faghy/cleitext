@@ -196,6 +196,8 @@ export function fromSpectra(
         }),
       ];
     }
+    case 'uagb/image-gallery':
+      return [block('gallery', a)];
     case 'uagb/buttons':
       return [block('buttons', a, children)];
     case 'uagb/buttons-child': {

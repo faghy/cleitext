@@ -193,6 +193,10 @@ export default definePlugin({
       return html.slice(0, at) + head + html.slice(at);
     });
     ctx.assets.enqueue({
+      file: 'gallery.js',
+      when: ({ html }) => html.includes('data-pr-gallery'),
+    });
+    ctx.assets.enqueue({
       file: 'animations.css',
       when: ({ html }) => html.includes('data-pr-animation'),
     });
