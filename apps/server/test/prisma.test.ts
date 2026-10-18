@@ -237,7 +237,9 @@ describe('Prisma blocks', () => {
     // Heading with its highlight, info box, buttons with an entrance animation.
     expect(html).toContain('<h2 class="pr-heading__text">Cocktails <mark>twist</mark></h2>');
     expect(html).toContain('font-family:"Poiret One"');
-    expect(html).toContain('href="https://fonts.googleapis.com/css2?family=Poiret+One:wght@400;700&amp;display=swap"');
+    expect(html).toContain(
+      'href="https://fonts.googleapis.com/css2?family=Poiret+One:wght@400;700&amp;display=swap"',
+    );
     expect(html).toContain(
       '<span class="pr-info-box__prefix">Al</span><h1 class="pr-info-box__title">Duomo</h1>',
     );
