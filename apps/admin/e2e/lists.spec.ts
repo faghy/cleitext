@@ -132,8 +132,12 @@ test('pages are listed as a tree and ordered from the editor', async ({ page }) 
   await page.goto('/cl-admin/pages');
   const ours = page.getByRole('row').filter({ hasText: stamp });
   await expect(ours).toHaveCount(3);
-  const titles = await ours.getByRole('link').allTextContents();
-  expect(titles).toEqual([`0 Parent ${stamp}`, `— 0 B child ${stamp}`, `— 0 C child ${stamp}`]);
+  // Waits for the tree: the rows may still show the list before ordering.
+  await expect(ours.getByRole('link')).toHaveText([
+    `0 Parent ${stamp}`,
+    `— 0 B child ${stamp}`,
+    `— 0 C child ${stamp}`,
+  ]);
 
   expect(appErrors(errors)).toEqual([]);
 });
