@@ -19,10 +19,13 @@ test('categories are managed from their own screen', async ({ page }) => {
   const stamp = Date.now().toString(36);
 
   await signIn(page);
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .getByRole('link', { name: 'Categories' })
-    .click();
+  // As in WordPress: hovering Posts opens its submenu beside the sidebar.
+  const main = page.getByRole('navigation', { name: 'Main' });
+  await expect(main.getByRole('link', { name: 'Categories', exact: true })).toBeHidden();
+  await main.getByRole('link', { name: 'Posts', exact: true }).hover();
+  await main.getByRole('link', { name: 'Categories', exact: true }).click();
+  // Now Posts is the current section: its submenu stays open below it.
+  await expect(main.getByRole('link', { name: 'All posts' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Categories', level: 1 })).toBeVisible();
 
   const add = page.getByRole('form', { name: 'Add new' });

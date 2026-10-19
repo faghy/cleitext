@@ -26,6 +26,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'orders',
+      parent: '',
       title: { en: 'Orders', it: 'Ordini' },
       icon: 'M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6',
       capability,
@@ -33,6 +34,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'reviews',
+      parent: '',
       title: { en: 'Reviews', it: 'Recensioni' },
       icon: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
       capability,
@@ -40,6 +42,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'coupons',
+      parent: '',
       title: { en: 'Coupons', it: 'Coupon' },
       icon: 'M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z M10 7v10',
       capability,
@@ -47,6 +50,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'payments',
+      parent: '',
       title: { en: 'Payments', it: 'Pagamenti' },
       icon: 'M3 6h18v12H3z M3 10h18 M7 15h3',
       capability,
@@ -54,6 +58,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'shipping',
+      parent: '',
       title: { en: 'Shipping', it: 'Spedizioni' },
       icon: 'M3 7h11v9H3z M14 10h4l3 3v3h-7 M7 18.5a1.5 1.5 0 1 0 0-.01 M17 18.5a1.5 1.5 0 1 0 0-.01',
       capability,
@@ -61,6 +66,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'taxes',
+      parent: '',
       title: { en: 'Taxes', it: 'Imposte' },
       icon: 'M6 3h12v18H6z M9 8h6 M9 12h6 M9 16h3',
       capability,
@@ -68,6 +74,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'categories',
+      parent: '',
       title: { en: 'Shop categories', it: 'Categorie negozio' },
       icon: 'M4 5h6v5H4z M14 14h6v5h-6z M7 10v6.5h7',
       capability,
@@ -75,6 +82,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'brands',
+      parent: '',
       title: { en: 'Brands', it: 'Marchi' },
       icon: 'M3 12l9-9h8v8l-9 9z M15.5 8.5h.01',
       capability,
@@ -82,6 +90,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'attributes',
+      parent: '',
       title: { en: 'Attributes', it: 'Attributi' },
       icon: 'M4 7h10 M18 7h2 M4 17h4 M12 17h8 M14 5v4 M8 15v4',
       capability,
@@ -89,6 +98,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'emails',
+      parent: '',
       title: { en: 'Shop emails', it: 'Email del negozio' },
       icon: 'M4 6h16v12H4z M4 7l8 6 8-6',
       capability,
@@ -96,6 +106,7 @@ export default defineAdminPlugin({
     },
     {
       path: 'pricing',
+      parent: '',
       title: { en: 'Pricing rules', it: 'Regole di prezzo' },
       icon: 'M6 18L18 6 M7.5 8.5a1 1 0 1 0 0-.01 M16.5 15.5a1 1 0 1 0 0-.01',
       capability,

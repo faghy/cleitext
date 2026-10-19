@@ -545,4 +545,6 @@ export const itGeneral: Messages = {
   'Options imported: check them, then publish.': 'Opzioni importate: controllale, poi pubblica.',
   'This file does not hold theme options.': 'Questo file non contiene opzioni del tema.',
   '(changed)': '(modificata)',
+  'All posts': 'Tutti gli articoli',
+  'All pages': 'Tutte le pagine',
 };

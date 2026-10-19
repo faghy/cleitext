@@ -82,7 +82,7 @@ export function MembershipCard({
     enabled: me.capabilities.includes('manage_users'),
   });
   return (
-    <Card title={t('Membership')}>
+    <Card id="membership" title={t('Membership')}>
       <div className="space-y-4">
         <Check
           checked={values.registration}
@@ -150,7 +150,7 @@ export function DiscussionCard({ values, set }: { values: CoreSettings; set: Set
     />
   );
   return (
-    <Card title={t('Discussion')}>
+    <Card id="discussion" title={t('Discussion')}>
       <div className="space-y-4">
         <Check
           checked={values.commentsDefault}

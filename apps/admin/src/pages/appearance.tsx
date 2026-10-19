@@ -1,4 +1,5 @@
 import type { EntryListResponse, MenuView, ThemeInfo } from '@cleitext/shared';
+import { useTabParam } from '../components/use-tab';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useT } from '@cleitext/admin-sdk';
 import { Fragment, type PointerEvent, useEffect, useRef, useState } from 'react';
@@ -42,7 +43,7 @@ type Tab = 'menus' | 'themes' | 'customize' | 'areas' | 'patterns';
 export function AppearancePage() {
   const { t } = useT();
   const me = useMe();
-  const [tab, setTab] = useState<Tab>('themes');
+  const [tab, setTab] = useTabParam<Tab>('themes');
   const tabs: { id: Tab; label: string; capability: string }[] = [
     { id: 'themes', label: 'Themes', capability: 'manage_themes' },
     { id: 'customize', label: 'Customize', capability: 'edit_theme_settings' },

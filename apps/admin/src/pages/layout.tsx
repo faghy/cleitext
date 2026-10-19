@@ -10,7 +10,8 @@ import { LogoMark } from '@cleitext/admin-sdk';
 import { taxonomiesQuery, taxonomyLabel } from './terms';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
-import { usePluginMenu, type PluginMenuItem } from '../plugins';
+import { usePluginMenu } from '../plugins';
+import { currentTop, itemActive, withPluginPages, type MenuNode } from '../admin-menu';
 import { MenuIcon } from '../components/menu-icons';
 import { UPDATES_QUERY } from './updates';
 import { useCatalogUpdates } from '../components/catalog';
@@ -100,23 +101,103 @@ export function AdminLayout() {
         label: taxonomyLabel(taxonomy, me.user.locale),
         sub: true,
       }));
-  const items: (PluginMenuItem & { exact?: boolean; sub?: boolean })[] = sections.flatMap(
-    (section) => [
-      { to: section.to, label: t(section.label), icon: section.icon, exact: section.to === '/' },
-      ...(section.to === '/posts' ? taxonomiesOf('article') : []),
-      ...(section.to === '/pages' ? taxonomiesOf('page') : []),
-      ...(section.to === '/pages'
-        ? pluginMenu.types.flatMap((item) => [
-            item,
-            ...taxonomiesOf(item.to.slice('/content/'.length)),
-          ])
-        : []),
-    ],
-  );
-  items.push(...pluginMenu.pages);
+  const can = (capability: string) => me.capabilities.includes(capability);
+  // As in WordPress: each section with its submenu (Posts → All posts, Categories, Tags…).
+  const submenu = (to: string): MenuNode[] => {
+    const leaf = (item: { to: string; label: string; tab?: string; hash?: string }): MenuNode => ({
+      ...item,
+      children: [],
+    });
+    const listed = (taxonomies: { to: string; label: string }[], all: string) =>
+      taxonomies.length > 0 ? [leaf({ to, label: all }), ...taxonomies.map(leaf)] : [];
+    switch (to) {
+      case '/posts':
+        return listed(taxonomiesOf('article'), t('All posts'));
+      case '/pages':
+        return listed(taxonomiesOf('page'), t('All pages'));
+      case '/appearance':
+        return [
+          ...(can('manage_themes') ? [leaf({ to, label: t('Themes') })] : []),
+          ...(can('edit_theme_settings')
+            ? [
+                leaf({ to, label: t('Customize'), tab: 'customize' }),
+                leaf({ to, label: t('Areas'), tab: 'areas' }),
+              ]
+            : []),
+          ...(can('manage_menus') ? [leaf({ to, label: t('Menus'), tab: 'menus' })] : []),
+          ...(can('edit_entries') ? [leaf({ to, label: t('Patterns'), tab: 'patterns' })] : []),
+        ];
+      case '/plugins':
+        return can('manage_plugins')
+          ? [
+              leaf({ to, label: t('Installed plugins') }),
+              leaf({ to, label: t('Add New'), tab: 'add' }),
+            ]
+          : [];
+      case '/settings':
+        return [
+          leaf({ to, label: t('General'), hash: 'general' }),
+          leaf({ to, label: t('Reading'), hash: 'reading' }),
+          leaf({ to, label: t('Discussion'), hash: 'discussion' }),
+          leaf({ to, label: t('Membership'), hash: 'membership' }),
+          leaf({ to, label: t('Email'), hash: 'email' }),
+          leaf({ to, label: t('AI assistants (MCP)'), hash: 'assistants' }),
+        ];
+      default:
+        return [];
+    }
+  };
+  const top: MenuNode[] = sections.flatMap((section) => [
+    {
+      to: section.to,
+      label: t(section.label),
+      icon: section.icon,
+      exact: section.to === '/',
+      children: submenu(section.to),
+    },
+    // Content types of plugins and of Content structure come after Pages, with their taxonomies.
+    ...(section.to === '/pages'
+      ? pluginMenu.types.map((item) => {
+          const taxonomies = taxonomiesOf(item.to.slice('/content/'.length));
+          return {
+            to: item.to,
+            label: item.label,
+            ...(item.icon ? { icon: item.icon } : {}),
+            children:
+              taxonomies.length > 0
+                ? [
+                    { to: item.to, label: item.label, children: [] },
+                    ...taxonomies.map((tax) => ({ ...tax, children: [] })),
+                  ]
+                : [],
+          };
+        })
+      : []),
+  ]);
+  const menu = withPluginPages(top, pluginMenu.pages);
+  const items = menu.flatMap((node) => [node, ...node.children]);
 
   // The browser tab names the screen and the site, as in WordPress: "Pages ‹ My site".
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const tabParam = useRouterState({
+    select: (state) => (state.location.search as Record<string, unknown>).tab,
+  });
+  const tab = typeof tabParam === 'string' ? tabParam : undefined;
+  const hash = useRouterState({ select: (state) => state.location.hash });
+  const open = currentTop(menu, pathname);
+  // A submenu item for a box of the screen (Settings → Reading): scrolled into view once it is there.
+  useEffect(() => {
+    if (!hash) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      const target = document.getElementById(hash);
+      if (target || ++tries > 20) {
+        clearInterval(timer);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+    return () => clearInterval(timer);
+  }, [pathname, hash]);
   const current = items
     .filter((item) =>
       item.to === '/'
@@ -156,39 +237,90 @@ export function AdminLayout() {
         </div>
         <nav aria-label={t('Main')}>
           <ul>
-            {items.map((section) => (
-              <li key={section.to}>
-                <Link
-                  to={section.to}
-                  activeOptions={{ exact: Boolean(section.exact) }}
-                  className={`block py-2 text-sm hover:bg-slate-800/70 ${section.sub ? 'pr-4 pl-11 text-xs' : 'px-4'}`}
-                  activeProps={{ className: 'bg-sky-700 text-white', 'aria-current': 'page' }}
-                >
-                  <span className="flex items-center gap-2.5">
-                    {section.icon && <MenuIcon path={section.icon} />}
-                    <span className="min-w-0 flex-1">{section.label}</span>
-                    {badge(section.to) > 0 && (
-                      // As in WordPress: counts on Dashboard, Updates, Plugins and Appearance.
-                      <span
-                        className="rounded-full bg-amber-500 px-1.5 text-xs leading-5 font-semibold text-slate-900"
-                        aria-label={
-                          section.to === '/comments'
-                            ? t('{count} comments waiting', { count: badge(section.to) })
-                            : t('{count} updates available', { count: badge(section.to) })
-                        }
-                        title={
-                          section.to === '/comments'
-                            ? t('{count} comments waiting', { count: badge(section.to) })
-                            : t('{count} updates available', { count: badge(section.to) })
-                        }
-                      >
-                        {badge(section.to)}
-                      </span>
-                    )}
-                  </span>
-                </Link>
-              </li>
-            ))}
+            {menu.map((section) => {
+              const isOpen = section === open;
+              const children = section.children;
+              return (
+                <li key={section.to} className="group/menu relative">
+                  <Link
+                    to={section.to}
+                    activeOptions={{ exact: true, includeSearch: false }}
+                    className={`block px-4 py-2 text-sm ${isOpen ? 'bg-sky-700 text-white' : 'hover:bg-slate-800/70 hover:text-sky-200'}`}
+                    aria-current={isOpen && !children.length ? 'page' : undefined}
+                    {...(children.length && !isOpen ? { 'aria-haspopup': 'true' as const } : {})}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      {section.icon && <MenuIcon path={section.icon} />}
+                      <span className="min-w-0 flex-1">{section.label}</span>
+                      {badge(section.to) > 0 && (
+                        // As in WordPress: counts on Dashboard, Updates, Plugins and Appearance.
+                        <span
+                          className="rounded-full bg-amber-500 px-1.5 text-xs leading-5 font-semibold text-slate-900"
+                          aria-label={
+                            section.to === '/comments'
+                              ? t('{count} comments waiting', { count: badge(section.to) })
+                              : t('{count} updates available', { count: badge(section.to) })
+                          }
+                          title={
+                            section.to === '/comments'
+                              ? t('{count} comments waiting', { count: badge(section.to) })
+                              : t('{count} updates available', { count: badge(section.to) })
+                          }
+                        >
+                          {badge(section.to)}
+                        </span>
+                      )}
+                    </span>
+                  </Link>
+                  {children.length > 0 &&
+                    (isOpen ? (
+                      // The current section: its submenu open below it.
+                      <ul className="bg-slate-900 py-1.5">
+                        {children.map((child) => {
+                          const active =
+                            itemActive(child, pathname, tab, children) ||
+                            (child.hash !== undefined && child.hash === hash);
+                          return (
+                            <li key={`${child.to}|${child.tab ?? ''}|${child.hash ?? ''}`}>
+                              <Link
+                                to={child.to}
+                                {...(child.tab
+                                  ? { search: { tab: child.tab } as never }
+                                  : { search: {} as never })}
+                                {...(child.hash ? { hash: child.hash } : {})}
+                                className={`block py-1.5 pr-4 pl-11 text-[13px] ${active ? 'font-semibold text-white' : 'text-slate-300 hover:text-sky-200'}`}
+                                aria-current={active ? 'page' : undefined}
+                              >
+                                {child.label}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      // The others: beside the sidebar, on hover or keyboard focus, as in WordPress.
+                      <div className="absolute top-0 left-full z-50 hidden pl-0.5 group-focus-within/menu:block group-hover/menu:block">
+                        <ul className="min-w-44 rounded-r border-l-4 border-sky-700 bg-slate-800 py-1.5 shadow-xl">
+                          {children.map((child) => (
+                            <li key={`${child.to}|${child.tab ?? ''}|${child.hash ?? ''}`}>
+                              <Link
+                                to={child.to}
+                                {...(child.tab
+                                  ? { search: { tab: child.tab } as never }
+                                  : { search: {} as never })}
+                                {...(child.hash ? { hash: child.hash } : {})}
+                                className="block px-3 py-1.5 text-[13px] whitespace-nowrap text-slate-200 hover:text-sky-200 focus-visible:text-sky-200"
+                              >
+                                {child.label}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                </li>
+              );
+            })}
           </ul>
         </nav>
       </aside>

@@ -74,9 +74,17 @@ export function Alert({
   );
 }
 
-export function Card({ title, children }: { title?: string; children: ReactNode }) {
+export function Card({
+  title,
+  id,
+  children,
+}: {
+  title?: string;
+  id?: string;
+  children: ReactNode;
+}) {
   return (
-    <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+    <section id={id} className="scroll-mt-4 rounded border border-slate-200 bg-white p-4 shadow-sm">
       {title && <h2 className="mb-3 text-base font-semibold">{title}</h2>}
       {children}
     </section>

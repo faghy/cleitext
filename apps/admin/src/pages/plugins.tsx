@@ -1,4 +1,5 @@
 import type { PluginView } from '@cleitext/shared';
+import { useTabParam } from '../components/use-tab';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { api, errorMessage } from '../api';
@@ -7,7 +8,6 @@ import { Alert, Button, useT } from '../components/ui';
 import { PackageUpload } from '../components/package-upload';
 import { CatalogBrowser, CatalogUpdateButton } from '../components/catalog';
 import { LicenseBox } from '../components/license';
-import { useState } from 'react';
 import { pagePath, usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
 /** Where an active plugin is configured: its first admin page, or its card in Settings. */
@@ -91,7 +91,9 @@ export function PluginsPage() {
     'Install plugins on the server with {command}, then activate them here for this site.',
   ).split('{command}');
   // Plugins → Add New: the catalog and the upload, as in WordPress.
-  const [adding, setAdding] = useState(false);
+  const [view, setView] = useTabParam<'installed' | 'add'>('installed');
+  const adding = view === 'add';
+  const setAdding = (on: boolean) => setView(on ? 'add' : 'installed');
   if (adding) {
     return (
       <div className="space-y-4">

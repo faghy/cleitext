@@ -24,6 +24,13 @@ export interface AdminPageDefinition {
   /** Shown in the sidebar (default `true`). */
   menu?: boolean;
   /**
+   * Shown as a submenu item (API 1.25): under another page of the plugin
+   * (its `path`, e.g. `''` for the main page), or under a section of the
+   * admin (`/appearance`, `/settings`, `/users`, `/posts`, `/pages`, `/media`,
+   * `/plugins`). As in WordPress, submenus open on hover beside the sidebar.
+   */
+  parent?: string;
+  /**
    * Sidebar icon: SVG path data on a 24×24 grid, drawn as an outline
    * (stroke 1.75, round ends, no fill), e.g. `'M4 6h16v12H4z M4 7l8 6 8-6'`.
    * Without it, or when it is not path data, a puzzle piece.

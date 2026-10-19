@@ -67,7 +67,7 @@ export function MailCard() {
 
   return (
     <section aria-label={t('Email')}>
-      <Card title={t('Email')}>
+      <Card id="email" title={t('Email')}>
         <p className="mb-4 text-sm text-slate-600">
           {current.data?.configured
             ? t('This site sends email through its own SMTP server.')

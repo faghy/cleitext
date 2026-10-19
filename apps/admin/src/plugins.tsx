@@ -80,6 +80,8 @@ export interface PluginMenuItem {
   label: string;
   /** SVG path data (components/menu-icons.tsx); none for sub-entries. */
   icon?: string;
+  /** The entry it belongs under (a submenu item). */
+  parent?: string;
 }
 
 /** Sidebar entries added by plugins: their content types and their pages. */
@@ -108,6 +110,13 @@ export function usePluginMenu(): { types: PluginMenuItem[]; pages: PluginMenuIte
           to: pagePath(plugin.slug, page.path),
           label: labelText(page.title, me.user.locale),
           icon: pluginIcon(page.icon),
+          ...(page.parent !== undefined
+            ? {
+                parent: page.parent.startsWith('/')
+                  ? page.parent
+                  : pagePath(plugin.slug, page.parent),
+              }
+            : {}),
         })),
     ),
   };

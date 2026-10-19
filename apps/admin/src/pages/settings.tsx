@@ -172,7 +172,7 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
       }}
     >
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title={t('General')}>
+        <Card id="general" title={t('General')}>
           <div className="space-y-4">
             <TextField
               label={t('Site title')}
@@ -224,7 +224,7 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
           </div>
         </Card>
 
-        <Card title={t('Reading')}>
+        <Card id="reading" title={t('Reading')}>
           <div className="space-y-4">
             {pageSelect('frontPage', t('Home page'), t('Latest posts'))}
             {values.frontPage &&
@@ -335,7 +335,7 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
           pages={(pages.data?.items ?? []).map((p) => ({ id: p.id, title: p.title }))}
         />
         <DiscussionCard values={values} set={set} />
-        <Card title={t('AI assistants (MCP)')}>
+        <Card id="assistants" title={t('AI assistants (MCP)')}>
           <div className="space-y-3 text-sm">
             <label className="flex items-start gap-2">
               <input
