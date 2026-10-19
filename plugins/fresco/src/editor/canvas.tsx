@@ -132,6 +132,8 @@ const NodeView = memo(function NodeView({
       node,
       settings: withDefaults(definition, node.attrs),
       children,
+      // One node per child, as on the page: tabs and accordions wrap them one by one.
+      ...(children ? { items: children } : {}),
       context,
     });
   } catch (error) {
