@@ -1,0 +1,11 @@
+{
+  "slug": "layout-import",
+  "name": "Layout Import",
+  "version": "1.0.0",
+  "apiVersion": "^1.26",
+  "description": "Turn pages of a WordPress site laid out with [av_…] shortcodes of the old theme's layout builder into native blocks of the block editor: sections, columns, texts, headings, images, galleries, buttons, tables and more. From the WordPress export, or from pages already imported where the shortcodes stayed as text. Each page gets a new revision, undone from Revisions.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "admin": "dist/admin.js",
+  "permissions": []
+}

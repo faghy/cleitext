@@ -1,0 +1,22 @@
+{
+  "name": "@cleitext/plugin-layout-import",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Official Cleitext plugin: Layout Import, turns pages laid out with [av_…] shortcodes into native blocks.",
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "cleitext plugin:build .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cleitext/admin-sdk": "workspace:*",
+    "@cleitext/blocks": "workspace:*",
+    "@cleitext/cli": "workspace:*",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.0",
+    "vitest": "^5.0.3"
+  }
+}

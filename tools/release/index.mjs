@@ -60,6 +60,7 @@ const SEPARATE = [
   'vetta',
   'classic-editor',
   'editor-convert',
+  'layout-import',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
