@@ -160,9 +160,10 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
 
   /**
    * The plugins that come with themes: the new theme's are activated on the
-   * site, the previous theme's deactivated (their data is kept). A plugin
-   * that cannot start (a missing dependency) does not stop the theme: the
-   * reason is returned for the admin to show.
+   * site, and those the previous theme activated are deactivated (their data
+   * is kept). A plugin already active before the theme (Fresco used on its
+   * own, say) stays active. A plugin that cannot start (a missing dependency)
+   * does not stop the theme: the reason is returned for the admin to show.
    */
   private async switchPlugins(
     siteId: string,
@@ -171,16 +172,27 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     next: string,
   ): Promise<string[]> {
     const wanted = themePlugins(next);
-    const leaving = themePlugins(previous).filter((p) => !wanted.includes(p));
+    const switchedOn =
+      previous && previous !== next ? await this.themeSwitched(siteId, auth, previous) : [];
+    const leaving = switchedOn.filter((p) => !wanted.includes(p));
     if (wanted.length === 0 && leaving.length === 0) return [];
     const warnings: string[] = [];
     const active = await this.plugins.activeSlugs(siteId);
-    for (const plugin of leaving) {
+    // Dependents first: the theme lists a plugin after those it needs.
+    for (const plugin of [...leaving].reverse()) {
       if (!active.has(plugin)) continue;
       await this.plugins.deactivate(siteId, auth.userId, plugin).catch((error: unknown) => {
         warnings.push(error instanceof Error ? error.message : String(error));
       });
     }
+    if (previous && previous !== next && switchedOn.length > 0) {
+      await this.saveThemeSwitched(siteId, auth, previous, []);
+    }
+    // Kept: what this theme switched on before (inherited from a previous theme too).
+    const mine = new Set([
+      ...(await this.themeSwitched(siteId, auth, next)),
+      ...switchedOn.filter((p) => wanted.includes(p)),
+    ]);
     for (const plugin of wanted) {
       if (active.has(plugin)) continue;
       if (!this.plugins.get(plugin)) {
@@ -189,11 +201,50 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
         );
         continue;
       }
-      await this.plugins.activate(siteId, auth.userId, plugin).catch((error: unknown) => {
-        warnings.push(error instanceof Error ? error.message : String(error));
-      });
+      await this.plugins.activate(siteId, auth.userId, plugin).then(
+        () => mine.add(plugin),
+        (error: unknown) => {
+          warnings.push(error instanceof Error ? error.message : String(error));
+        },
+      );
     }
+    await this.saveThemeSwitched(
+      siteId,
+      auth,
+      next,
+      wanted.filter((p) => mine.has(p)),
+    );
     return warnings;
+  }
+
+  /** The plugins a theme activated on the site itself (to deactivate them when it leaves). */
+  private async themeSwitched(siteId: string, auth: AuthContext, theme: string): Promise<string[]> {
+    const [row] = await this.run(siteId, auth, (tx) =>
+      tx
+        .select({ value: settings.value })
+        .from(settings)
+        .where(and(eq(settings.namespace, themeNamespace(theme)), eq(settings.key, 'plugins'))),
+    );
+    return Array.isArray(row?.value)
+      ? (row.value as unknown[]).filter((v): v is string => typeof v === 'string')
+      : [];
+  }
+
+  private async saveThemeSwitched(
+    siteId: string,
+    auth: AuthContext,
+    theme: string,
+    slugs: string[],
+  ): Promise<void> {
+    await this.run(siteId, auth, (tx) =>
+      tx
+        .insert(settings)
+        .values({ siteId, namespace: themeNamespace(theme), key: 'plugins', value: slugs })
+        .onConflictDoUpdate({
+          target: [settings.siteId, settings.namespace, settings.key],
+          set: { value: slugs },
+        }),
+    );
   }
 
   /** Values of the active theme's settings, defaults included. */

@@ -259,12 +259,16 @@ export interface InstallOptions {
   link?: boolean;
   /** Must-use: always active on every site (RF-PLG-15). */
   required?: boolean;
+  /** A copy shipped with a theme: leaves alone the same or a newer version already installed. */
+  keepNewer?: boolean;
 }
 
 export interface InstallResult {
   manifest: PluginManifest;
   previousVersion: string | null;
   migrations: string[];
+  /** Nothing done: the same or a newer version was installed (keepNewer). */
+  skipped?: boolean;
 }
 
 /** Installs or updates a plugin: files, migrations, registration (RF-PLG-01/03). */
@@ -280,6 +284,9 @@ export async function installPlugin(db: Database, options: InstallOptions): Prom
     }
   }
   const [existing] = await db.select().from(plugins).where(eq(plugins.slug, manifest.slug));
+  if (existing && options.keepNewer && !semver.gt(manifest.version, existing.version)) {
+    return { manifest, previousVersion: existing.version, migrations: [], skipped: true };
+  }
   if (existing && semver.lt(manifest.version, existing.version)) {
     throw new OperationError(
       `${manifest.slug} ${existing.version} is installed; refusing to downgrade to ${manifest.version}.`,

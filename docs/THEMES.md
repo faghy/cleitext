@@ -54,7 +54,7 @@ Such a theme can be installed and tried with Live Preview without a license (the
 "plugins": ["my-theme-builder"]
 ```
 
-`theme:install` (and so Upload Theme and the catalog) installs them with the theme. When a site activates the theme, they are activated there too, and when it chooses another theme they are deactivated, their data kept. A plugin that cannot start (for example because it needs another plugin that is not installed) does not stop the theme: **Appearance → Themes** says why.
+`theme:install` (and so Upload Theme and the catalog) installs them with the theme. A plugin the theme needs, such as Fresco for a builder made on it, can come in the package too, listed before the plugins that need it; a copy already installed in the same or a newer version is left as it is. When a site activates the theme, they are activated there too, and when it chooses another theme the ones the theme activated are deactivated, their data kept (a plugin the site used before the theme stays active). A plugin that cannot start does not stop the theme: **Appearance → Themes** says why.
 
 ## 3. The theme definition
 

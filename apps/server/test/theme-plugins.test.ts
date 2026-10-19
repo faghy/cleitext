@@ -87,6 +87,14 @@ describe('plugins that come with a theme', () => {
     expect(await active()).toBe(false);
   });
 
+  it('stay active when the site used them before the theme', async () => {
+    expect((await admin.post('/api/v1/plugins/events/activate')).statusCode).toBeLessThan(300);
+    await admin.post('/api/v1/themes/builder-theme/activate');
+    await admin.post('/api/v1/themes/other-theme/activate');
+    expect(await active()).toBe(true);
+    await admin.post('/api/v1/plugins/events/deactivate');
+  });
+
   it('do not stop the theme when one is missing', async () => {
     const result = await admin.post('/api/v1/themes/lost-theme/activate');
     expect(result.statusCode).toBe(200);

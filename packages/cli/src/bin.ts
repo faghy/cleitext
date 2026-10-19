@@ -449,8 +449,13 @@ program
             pluginsPath: pluginsPath(),
             appRole,
             link: Boolean(opts.link),
+            keepNewer: true,
           });
-          console.log(`  with the plugin ${result.manifest.slug} ${result.manifest.version}`);
+          console.log(
+            result.skipped
+              ? `  with the plugin ${result.manifest.slug} (${result.previousVersion} already installed)`
+              : `  with the plugin ${result.manifest.slug} ${result.manifest.version}`,
+          );
         }
         await announcePluginChange(db);
       });

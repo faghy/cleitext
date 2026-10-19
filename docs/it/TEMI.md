@@ -43,7 +43,7 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 "plugins": ["mio-tema-builder"]
 ```
 
-`theme:install` (e quindi Carica tema e il catalogo) li installa con il tema. Quando un sito attiva il tema, si attivano anche lì; quando sceglie un altro tema si disattivano, tenendo i loro dati. Un plugin che non può partire (per esempio perché richiede un altro plugin non installato) non ferma il tema: **Aspetto → Temi** dice perché.
+`theme:install` (e quindi Carica tema e il catalogo) li installa con il tema. Anche un plugin di cui il tema ha bisogno, per esempio Fresco per un builder fatto su di esso, può stare nel pacchetto, elencato prima dei plugin che lo richiedono; una copia già installata nella stessa versione o in una più recente resta com'è. Quando un sito attiva il tema, si attivano anche lì; quando sceglie un altro tema si disattivano quelli attivati dal tema, tenendo i loro dati (un plugin che il sito usava già prima del tema resta attivo). Un plugin che non può partire non ferma il tema: **Aspetto → Temi** dice perché.
 
 ## 3. La definizione del tema
 
