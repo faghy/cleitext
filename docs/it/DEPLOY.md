@@ -167,6 +167,15 @@ Plugin e temi funzionano allo stesso modo. Un aggiornamento dal catalogo conserv
 
 Lo stesso da SSH: `bin/cleitext update` (`--check` dice solo se ce n'è uno). Gli aggiornamenti arrivano da `UPDATES_REPO` (predefinito `faghy/cleitext`); un valore vuoto spegne il controllo.
 
+**Resoconto delle installazioni.** Come WordPress comunica a wordpress.org cosa usa un sito, circa una volta al giorno ogni sito visitato invia a cleitext.com:
+
+- il suo indirizzo;
+- la versione di Cleitext;
+- il tema in uso e i temi e plugin installati, con le versioni e se sono attivi;
+- un identificativo casuale del server, che raggruppa i siti di una stessa installazione.
+
+Non viene inviato nulla su contenuti, utenti o visitatori. I manutentori usano questo registro per sapere quali versioni sono in uso prima di un rilascio, e per avvisare i siti colpiti da un aggiornamento difettoso. `INSTALL_REPORT_URL` cambia la destinazione; un valore vuoto lo spegne.
+
 **Aggiornamenti automatici** (Cleitext 0.27 e successivi), come in WordPress: in **Aggiornamenti → Aggiornamenti automatici** i super amministratori scelgono, per tutto il server, se Cleitext si aggiorna da solo (**Spenti**, **Solo versioni di correzione**, come 0.26.0 → 0.26.1, o **Tutte le versioni**) e quali plugin e temi del catalogo si aggiornano da soli. Tutto è spento finché non si sceglie. Circa due volte al giorno Cleitext aggiorna i plugin e i temi scelti che funzionano con la versione installata (quelli a pagamento finché la licenza include l'aggiornamento), poi il core come sopra; i super amministratori ricevono un'email con quello che è cambiato e la pagina ne tiene lo storico. **Controlla e aggiorna ora** lo fa subito. Le scelte stanno in `auto-updates.json` accanto alla cartella dei media.
 
 **A mano**, come prima:

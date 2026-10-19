@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const products = pgTable('products', {
   siteId: uuid('site_id').notNull(),
@@ -56,6 +56,25 @@ export const downloads = pgTable('downloads', {
   siteOrigin: text('site_origin'),
   ip: text('ip'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export interface ReportedPlugin {
+  slug: string;
+  version: string;
+  active: boolean;
+}
+
+export const installs = pgTable('installs', {
+  siteId: uuid('site_id').notNull(),
+  origin: text('origin').notNull(),
+  installId: text('install_id').notNull(),
+  coreVersion: text('core_version').notNull(),
+  themeSlug: text('theme_slug'),
+  themeVersion: text('theme_version'),
+  plugins: jsonb('plugins').$type<ReportedPlugin[]>().notNull().default([]),
+  themes: jsonb('themes').$type<{ slug: string; version: string }[]>().notNull().default([]),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type Product = typeof products.$inferSelect;

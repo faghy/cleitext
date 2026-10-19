@@ -457,6 +457,29 @@ describe('Store', () => {
     expect(listed[0]).not.toHaveProperty('keyHash');
   });
 
+  it('keeps the reports of the sites: plugins and themes by version and site', async () => {
+    const report = {
+      installId: '0b6f2a8e-3c1d-4e5f-8a9b-0c1d2e3f4a5b',
+      origin: 'https://customer.test',
+      core: '0.37.0',
+      theme: { slug: 'vivid', version: '1.0.0' },
+      plugins: [{ slug: 'seo', version: '1.3.0', active: true }],
+      themes: [{ slug: 'vivid', version: '1.0.0' }],
+    };
+    expect((await call('POST', '/report', report)).status).toBe(204);
+    expect((await call('POST', '/report', { ...report, core: '0.37.1' })).status).toBe(204);
+    expect((await call('POST', '/report', { origin: 'https://x.test' })).status).toBe(400);
+    const rows = (await shopAdmin.get(ext('/admin/installs'))).json();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      origin: 'https://customer.test',
+      coreVersion: '0.37.1',
+      themeSlug: 'vivid',
+      plugins: [{ slug: 'seo', version: '1.3.0', active: true }],
+    });
+    expect((await root.get(ext('/admin/installs'))).statusCode).toBe(404);
+  });
+
   it('keeps the admin API for store managers only', async () => {
     expect((await root.get(ext('/admin/overview'))).statusCode).toBe(404);
     const visitor = new TestClient(app, shop.host, '10.90.0.9');

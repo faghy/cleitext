@@ -681,6 +681,251 @@ function StorePage({ api, user }: AdminPageProps) {
   );
 }
 
+interface InstallRow {
+  origin: string;
+  installId: string;
+  coreVersion: string;
+  themeSlug: string | null;
+  themeVersion: string | null;
+  plugins: { slug: string; version: string; active: boolean }[];
+  themes: { slug: string; version: string }[];
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+const I = {
+  en: {
+    title: 'Installations',
+    intro:
+      'What Cleitext sites run, as they report it about once a day: the version of Cleitext, the theme and the plugins. Sites with INSTALL_REPORT_URL empty do not report.',
+    byItem: 'By plugin and theme',
+    bySite: 'By site',
+    seen: 'Seen in the last',
+    days: 'days',
+    filter: 'Filter',
+    none: 'No reports yet.',
+    core: 'Cleitext',
+    plugin: 'plugin',
+    theme: 'theme',
+    inUse: 'in use',
+    installedOnly: 'installed, not active',
+    sites: 'sites',
+    server: 'server',
+    lastSeen: 'last report',
+    forget: 'Forget',
+    confirmForget: 'Forget this site? It comes back with its next report.',
+  },
+  it: {
+    title: 'Installazioni',
+    intro:
+      'Cosa usano i siti Cleitext, come lo comunicano circa una volta al giorno: la versione di Cleitext, il tema e i plugin. I siti con INSTALL_REPORT_URL vuoto non inviano nulla.',
+    byItem: 'Per plugin e tema',
+    bySite: 'Per sito',
+    seen: 'Visti negli ultimi',
+    days: 'giorni',
+    filter: 'Filtra',
+    none: 'Nessun resoconto ancora.',
+    core: 'Cleitext',
+    plugin: 'plugin',
+    theme: 'tema',
+    inUse: 'in uso',
+    installedOnly: 'installato, non attivo',
+    sites: 'siti',
+    server: 'server',
+    lastSeen: 'ultimo resoconto',
+    forget: 'Dimentica',
+    confirmForget: 'Dimenticare questo sito? Ricompare con il prossimo resoconto.',
+  },
+};
+
+interface Usage {
+  key: string;
+  kind: 'core' | 'plugin' | 'theme';
+  slug: string;
+  versions: Map<string, { origin: string; active: boolean }[]>;
+}
+
+/** Plugin or theme → version → sites (in use first). */
+function usageOf(rows: InstallRow[]): Usage[] {
+  const all = new Map<string, Usage>();
+  const add = (
+    kind: Usage['kind'],
+    slug: string,
+    version: string,
+    origin: string,
+    active: boolean,
+  ) => {
+    const key = `${kind}:${slug}`;
+    const usage = all.get(key) ?? { key, kind, slug, versions: new Map() };
+    all.set(key, usage);
+    const list = usage.versions.get(version || '?') ?? [];
+    list.push({ origin, active });
+    usage.versions.set(version || '?', list);
+  };
+  for (const row of rows) {
+    add('core', 'cleitext', row.coreVersion, row.origin, true);
+    for (const p of row.plugins) add('plugin', p.slug, p.version, row.origin, p.active);
+    for (const t of row.themes) {
+      add('theme', t.slug, t.version, row.origin, t.slug === row.themeSlug);
+    }
+    if (row.themeSlug && !row.themes.some((t) => t.slug === row.themeSlug)) {
+      add('theme', row.themeSlug, row.themeVersion ?? '', row.origin, true);
+    }
+  }
+  const order = { core: 0, theme: 1, plugin: 2 };
+  return [...all.values()].sort(
+    (a, b) => order[a.kind] - order[b.kind] || a.slug.localeCompare(b.slug),
+  );
+}
+
+const byVersion = (a: string, b: string) =>
+  b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
+
+function InstallationsPage({ api, user }: AdminPageProps) {
+  const t = user.locale.startsWith('it') ? I.it : I.en;
+  const locale = user.locale;
+  const client = useQueryClient();
+  const [days, setDays] = useState(90);
+  const [view, setView] = useState<'items' | 'sites'>('items');
+  const [q, setQ] = useState('');
+  const rows = useQuery({
+    queryKey: ['store', 'installs', days],
+    queryFn: () => api<InstallRow[]>('GET', `/admin/installs?days=${days}`),
+  });
+  const forget = useMutation({
+    mutationFn: (origin: string) => api('DELETE', '/admin/installs', { origin }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['store', 'installs'] }),
+  });
+  const needle = q.trim().toLowerCase();
+  const data = rows.data ?? [];
+  const usages = usageOf(data).filter((u) => !needle || u.slug.includes(needle));
+  const sites = data.filter(
+    (r) =>
+      !needle ||
+      r.origin.includes(needle) ||
+      r.plugins.some((p) => p.slug.includes(needle)) ||
+      (r.themeSlug ?? '').includes(needle),
+  );
+  const tab = (id: 'items' | 'sites', label: string) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={view === id}
+      className={`-mb-px border-b-2 px-3 py-2 text-sm ${view === id ? 'border-sky-700 font-medium text-sky-800' : 'border-transparent text-slate-600 hover:text-slate-900'}`}
+      onClick={() => setView(id)}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="max-w-5xl space-y-6">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold">{t.title}</h1>
+        <p className="text-sm text-slate-600">{t.intro}</p>
+      </div>
+      {rows.error && <Alert>{errorMessage(rows.error)}</Alert>}
+      {forget.error && <Alert>{errorMessage(forget.error)}</Alert>}
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="block space-y-1 text-sm">
+          <span className="block font-medium text-slate-800">{t.seen}</span>
+          <select
+            className="rounded border border-slate-300 bg-white px-2 py-2"
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+          >
+            {[7, 30, 90, 365].map((d) => (
+              <option key={d} value={d}>
+                {d} {t.days}
+              </option>
+            ))}
+          </select>
+        </label>
+        <TextField label={t.filter} value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="flex gap-1 border-b border-slate-200" role="tablist">
+        {tab('items', t.byItem)}
+        {tab('sites', `${t.bySite} (${data.length})`)}
+      </div>
+      {rows.data && data.length === 0 && <p className="text-sm text-slate-600">{t.none}</p>}
+      {view === 'items' &&
+        usages.map((u) => {
+          const total = new Set([...u.versions.values()].flat().map((s) => s.origin)).size;
+          return (
+            <Card
+              key={u.key}
+              title={`${u.kind === 'core' ? t.core : u.slug} · ${u.kind === 'core' ? '' : `${t[u.kind]} · `}${total} ${t.sites}`}
+            >
+              <table className="w-full text-left text-sm">
+                <tbody>
+                  {[...u.versions.entries()]
+                    .sort(([a], [b]) => byVersion(a, b))
+                    .map(([version, list]) => (
+                      <tr key={version} className="border-b border-slate-100 align-top">
+                        <td className="w-28 py-2 font-mono">{version}</td>
+                        <td className="py-2">
+                          <ul className="space-y-0.5">
+                            {[...list]
+                              .sort((a, b) => Number(b.active) - Number(a.active))
+                              .map((s) => (
+                                <li key={s.origin}>
+                                  <a className="text-sky-700 hover:underline" href={s.origin}>
+                                    {s.origin.replace(/^https?:\/\//, '')}
+                                  </a>
+                                  {u.kind !== 'core' && (
+                                    <span className="ml-2 text-xs text-slate-500">
+                                      {s.active ? t.inUse : t.installedOnly}
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </Card>
+          );
+        })}
+      {view === 'sites' &&
+        sites.map((r) => (
+          <Card key={r.origin} title={r.origin.replace(/^https?:\/\//, '')}>
+            <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[10rem_1fr]">
+              <dt className="font-medium">{t.core}</dt>
+              <dd className="font-mono">{r.coreVersion}</dd>
+              <dt className="font-medium">{t.theme}</dt>
+              <dd>
+                {r.themeSlug} <span className="font-mono">{r.themeVersion}</span>
+              </dd>
+              <dt className="font-medium">plugin</dt>
+              <dd>
+                {r.plugins
+                  .filter((p) => p.active)
+                  .map((p) => `${p.slug} ${p.version}`)
+                  .join(', ') || '—'}
+              </dd>
+              <dt className="font-medium">{t.server}</dt>
+              <dd className="font-mono text-xs">{r.installId.slice(0, 8)}</dd>
+              <dt className="font-medium">{t.lastSeen}</dt>
+              <dd>{new Date(r.lastSeenAt).toLocaleString(locale)}</dd>
+            </dl>
+            <div className="mt-3">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (window.confirm(t.confirmForget)) forget.mutate(r.origin);
+                }}
+              >
+                {t.forget}
+              </Button>
+            </div>
+          </Card>
+        ))}
+    </div>
+  );
+}
+
 export default defineAdminPlugin({
   pages: [
     {
@@ -690,6 +935,13 @@ export default defineAdminPlugin({
       component: StorePage,
       // A shopping bag.
       icon: 'M5.5 8h13l-1 12.5h-11z M9 10.5V7a3 3 0 0 1 6 0v3.5',
+    },
+    {
+      path: 'installations',
+      title: { en: 'Installations', it: 'Installazioni' },
+      parent: '',
+      capability: 'manage_store',
+      component: InstallationsPage,
     },
   ],
 });

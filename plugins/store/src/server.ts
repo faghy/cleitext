@@ -23,6 +23,7 @@ import { parseLemonSqueezy, renewalUrl, verifyLemonSqueezy, type OrderEvent } fr
 import {
   activations,
   downloads,
+  installs,
   licenses,
   products,
   variants,
@@ -49,6 +50,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const activateLimit = limiter(10, 10 * 60_000);
 const tokenLimit = limiter(60, 10 * 60_000);
 const demoLimit = limiter(10, 60 * 60_000);
+const reportLimit = limiter(60, 60 * 60_000);
 
 const text = (value: unknown, max: number) =>
   typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -542,6 +544,35 @@ export default definePlugin({
       },
     });
 
+    // ---- Installation registry (reports of Cleitext sites) ----------------------------
+
+    ctx.routes.api({
+      method: 'POST',
+      path: '/v1/report',
+      webhook: true,
+      async handler(request) {
+        if (!reportLimit(request.ip)) return fail(429, 'Too many reports: try again later.');
+        const report = parseReport(request.body);
+        if (!report) return fail(400, 'The report is not valid.');
+        const values = {
+          installId: report.installId,
+          coreVersion: report.core,
+          themeSlug: report.theme?.slug ?? null,
+          themeVersion: report.theme?.version ?? null,
+          plugins: report.plugins,
+          themes: report.themes,
+          lastSeenAt: new Date(),
+        };
+        await ctx.db.transaction(request.siteId, (tx) =>
+          tx
+            .insert(installs)
+            .values({ siteId: request.siteId, origin: report.origin, ...values })
+            .onConflictDoUpdate({ target: [installs.siteId, installs.origin], set: values }),
+        );
+        return { status: 204 };
+      },
+    });
+
     // ---- Admin ----------------------------------------------------------------------
 
     const admin = (
@@ -571,6 +602,28 @@ export default definePlugin({
           ),
         },
       };
+    });
+
+    admin('GET', '/admin/installs', async (request) => {
+      const days = Math.min(Math.max(Number(request.query.days) || 90, 1), 3650);
+      const since = new Date(Date.now() - days * 86_400_000);
+      const rows = await ctx.db.transaction(request.siteId, (tx) =>
+        tx
+          .select()
+          .from(installs)
+          .where(sql`${installs.lastSeenAt} >= ${since}`)
+          .orderBy(installs.origin),
+      );
+      return { body: rows };
+    });
+
+    admin('DELETE', '/admin/installs', async (request) => {
+      const origin = originOf((request.body as { origin?: unknown })?.origin);
+      if (!origin) return fail(400, 'Which site?');
+      await ctx.db.transaction(request.siteId, (tx) =>
+        tx.delete(installs).where(eq(installs.origin, origin)),
+      );
+      return { body: { ok: true } };
     });
 
     admin('PUT', '/admin/products/:slug', async (request) => {
@@ -788,4 +841,46 @@ function originOf(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+interface Report {
+  installId: string;
+  origin: string;
+  core: string;
+  theme: { slug: string; version: string } | null;
+  plugins: { slug: string; version: string; active: boolean }[];
+  themes: { slug: string; version: string }[];
+}
+
+/** A report as sent by Cleitext (catalog/install-report), checked field by field. */
+export function parseReport(body: unknown): Report | null {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const installId = text(b.installId, 64);
+  const origin = originOf(b.origin);
+  const core = text(b.core, 40);
+  if (!/^[0-9a-f-]{36}$/i.test(installId) || !origin || !VERSION_RE.test(core)) return null;
+  const item = (value: unknown) => {
+    const v = (value ?? {}) as Record<string, unknown>;
+    const slug = text(v.slug, 40);
+    const version = text(v.version, 40);
+    return SLUG_RE.test(slug) && (version === '' || VERSION_RE.test(version))
+      ? { slug, version, active: v.active === true }
+      : null;
+  };
+  const list = (value: unknown, max: number) =>
+    Array.isArray(value)
+      ? value
+          .slice(0, max)
+          .map(item)
+          .filter((i) => i !== null)
+      : [];
+  const theme = b.theme ? item(b.theme) : null;
+  return {
+    installId,
+    origin,
+    core,
+    theme: theme ? { slug: theme.slug, version: theme.version } : null,
+    plugins: list(b.plugins, 200),
+    themes: list(b.themes, 100).map(({ slug, version }) => ({ slug, version })),
+  };
 }

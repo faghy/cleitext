@@ -6,6 +6,7 @@ import type { IdentityService } from '../auth/identity.service.js';
 import type { SessionService } from '../auth/session.service.js';
 import type { LanguagesService } from '../content/languages.service.js';
 import type { SiteResolverService } from './site-resolver.service.js';
+import type { InstallReportService } from '../catalog/install-report.service.js';
 
 interface Dependencies {
   sites: SiteResolverService;
@@ -13,6 +14,7 @@ interface Dependencies {
   sessions: SessionService;
   identity: IdentityService;
   apiTokens: ApiTokenService;
+  reports?: InstallReportService;
 }
 
 /**
@@ -28,6 +30,7 @@ export function createRequestHook({
   sessions,
   identity,
   apiTokens,
+  reports,
 }: Dependencies) {
   return async function onRequest(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     if (request.url.startsWith('/health/')) return;
@@ -61,6 +64,15 @@ export function createRequestHook({
       // 308 keeps the method and body for API calls.
       await reply.redirect(`${scheme}://${host}${request.url}`, isPage ? 301 : 308);
       return reply;
+    }
+
+    // About once a day, what the site runs goes to the registry (never waits).
+    if (isPage) {
+      reports?.touch(
+        resolution.siteId,
+        resolution.primaryHost ?? request.hostname,
+        resolution.forceHttps,
+      );
     }
 
     // Media files of other sites are not served on this host, and paths that

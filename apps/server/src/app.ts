@@ -21,6 +21,7 @@ import { SiteResolverService } from './tenancy/site-resolver.service.js';
 import { LanguagesService } from './content/languages.service.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PluginHost } from './plugins/plugin-host.service.js';
+import { InstallReportService } from './catalog/install-report.service.js';
 import { PluginRoutes } from './plugins/plugin-routes.js';
 import { adminCsp, inlineScriptHashes, securityHeaders } from './common/security-headers.js';
 import { servePluginAsset } from './plugins/plugin-assets.js';
@@ -132,6 +133,7 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
         sessions: app.get(SessionService),
         identity: app.get(IdentityService),
         apiTokens: app.get(ApiTokenService),
+        reports: app.get(InstallReportService),
       }),
     );
 

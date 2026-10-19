@@ -42,6 +42,15 @@ The official Cleitext plugin that runs the **license server of paid themes and p
 
 **Store** also makes licenses by hand (gifts, tests, sales elsewhere). It lists and searches licenses by email, last characters of the key or order, and can extend, revoke or restore them. It shows each license's sites and frees a seat, and lists the latest downloads, demos included.
 
+## Installations
+
+**Store → Installations** is the registry of what Cleitext sites run. Each visited site reports it about once a day to `…/api/v1/ext/store/v1/report`: the version of Cleitext, its theme and the plugins installed on its server, with their versions and whether they are active. It lists them in two ways:
+
+- **By plugin and theme**: each version, with the sites that have it;
+- **By site**: one card per site.
+
+Sites that stop reporting drop out of the chosen period (7 to 365 days). **Forget** removes a site until its next report.
+
 ## Permissions
 
 `routes:admin` (the license server, the webhook and the admin API), `settings:own` (settings and encrypted secrets) and `mail:send` (the keys). The capability `manage_store` goes to administrators.

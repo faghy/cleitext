@@ -60,6 +60,8 @@ const envSchema = z.object({
   CATALOG_URL: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]).optional(),
   /** Ed25519 public key of the catalog (SPKI DER, base64). */
   CATALOG_PUBLIC_KEY: z.string().min(40).optional(),
+  /** The registry the installation report goes to (catalog/install-report); empty turns it off. */
+  INSTALL_REPORT_URL: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]).optional(),
   /** Where updates come from (GitHub owner/name); empty turns the update check off. */
   UPDATES_REPO: z
     .string()
@@ -102,6 +104,7 @@ export interface AppConfig {
   /** Plugins → Add New and Themes → Add New (RF-PLG-07): an index signed with Ed25519. */
   catalog: { url: string; publicKey: string };
   updates: { repo: string };
+  installReport: { url: string };
   /** Folder of the built admin, if the server serves it (production). */
   admin: { path: string | null };
   pageCache: { maxEntries: number; ttlSeconds: number };
@@ -154,12 +157,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     // Tests never ask GitHub unless they say where.
     updates: { repo: e.UPDATES_REPO ?? (e.NODE_ENV === 'test' ? '' : 'faghy/cleitext') },
+    installReport: {
+      url: e.INSTALL_REPORT_URL ?? (e.NODE_ENV === 'test' ? '' : DEFAULT_INSTALL_REPORT_URL),
+    },
     admin: { path: adminPath(e.ADMIN_PATH) },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
     // Development and tests only: production refuses to start without one.
     appSecret: e.APP_SECRET ?? 'cleitext-development-secret-not-for-production',
   };
 }
+
+/** The installation registry of cleitext.com (the Store plugin). */
+export const DEFAULT_INSTALL_REPORT_URL = 'https://cleitext.com/api/v1/ext/store/v1/report';
 
 /** The official catalog (github.com/faghy/cleitext-catalog) and its signing key. */
 export const DEFAULT_CATALOG_URL =
