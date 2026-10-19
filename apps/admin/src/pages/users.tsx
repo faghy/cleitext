@@ -7,6 +7,7 @@ import { useMe } from '../auth';
 import { Avatar } from '../components/avatar';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 import { RolesCard } from './roles-card';
+import { useTabParam } from '../components/use-tab';
 
 const MEMBERS_KEY = ['users'] as const;
 
@@ -20,47 +21,89 @@ export function UsersPage() {
   const roles = useQuery({ queryKey: ['roles'], queryFn: () => api<RoleView[]>('GET', '/roles') });
   const canPromote = me.capabilities.includes('promote_users');
 
+  // As in WordPress: All users, Add New User (and Roles) in the Users submenu.
+  const [tab, setTab] = useTabParam<'list' | 'add' | 'roles'>('list');
+  const [notice, setNotice] = useState<string | null>(null);
+  const tabs = [
+    { id: 'list' as const, label: t('All users') },
+    ...(canPromote ? [{ id: 'add' as const, label: t('Add New User') }] : []),
+    { id: 'roles' as const, label: t('Roles') },
+  ];
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">{t('Users')}</h1>
-      {canPromote && roles.data && <InviteForm roles={roles.data} />}
-      <Card title={t('Members')}>
-        {members.isPending && <p className="text-sm text-slate-600">{t('Loading…')}</p>}
-        {members.error && <Alert>{errorMessage(members.error)}</Alert>}
-        {members.data && (
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 text-slate-600">
-              <tr>
-                <th className="py-2 font-medium">{t('Name')}</th>
-                <th className="py-2 font-medium">{t('Email')}</th>
-                <th className="py-2 font-medium">{t('Role')}</th>
-                <th className="py-2 font-medium">{t('Status')}</th>
-                <th className="py-2 font-medium">
-                  <span className="sr-only">{t('Actions')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.data.map((member) => (
-                <MemberRow
-                  key={member.id}
-                  member={member}
-                  roles={roles.data ?? []}
-                  isSelf={member.id === me.user.id}
-                  canPromote={canPromote}
-                />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
-      <RolesCard />
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-semibold">{t('Users')}</h1>
+      </div>
+      <div className="flex gap-1 border-b border-slate-200" role="tablist">
+        {tabs.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm ${tab === item.id ? 'border-sky-700 font-medium text-sky-800' : 'border-transparent text-slate-600 hover:text-slate-900'}`}
+            onClick={() => setTab(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'add' && canPromote && roles.data && (
+        <InviteForm
+          roles={roles.data}
+          onAdded={(message) => {
+            setNotice(message);
+            setTab('list');
+          }}
+        />
+      )}
+      {tab === 'list' && notice && <Alert kind="success">{notice}</Alert>}
+      {tab === 'roles' && <RolesCard />}
+      {tab === 'list' && (
+        <Card title={t('Members')}>
+          {members.isPending && <p className="text-sm text-slate-600">{t('Loading…')}</p>}
+          {members.error && <Alert>{errorMessage(members.error)}</Alert>}
+          {members.data && (
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-600">
+                <tr>
+                  <th className="py-2 font-medium">{t('Name')}</th>
+                  <th className="py-2 font-medium">{t('Email')}</th>
+                  <th className="py-2 font-medium">{t('Role')}</th>
+                  <th className="py-2 font-medium">{t('Status')}</th>
+                  <th className="py-2 font-medium">
+                    <span className="sr-only">{t('Actions')}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.data.map((member) => (
+                  <MemberRow
+                    key={member.id}
+                    member={member}
+                    roles={roles.data ?? []}
+                    isSelf={member.id === me.user.id}
+                    canPromote={canPromote}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
 
 /** Users → Add New: an invitation, or an account with a password (as in WordPress). */
-function InviteForm({ roles }: { roles: RoleView[] }) {
+function InviteForm({
+  roles,
+  onAdded,
+}: {
+  roles: RoleView[];
+  onAdded?: (message: string) => void;
+}) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
@@ -79,11 +122,19 @@ function InviteForm({ roles }: { roles: RoleView[] }) {
         ...(password ? { password } : {}),
         sendEmail,
       }),
-    onSuccess: async () => {
+    onSuccess: async (done) => {
       setEmail('');
       setDisplayName('');
       setPassword('');
       await queryClient.invalidateQueries({ queryKey: MEMBERS_KEY });
+      // As in WordPress: back to the list of users, with the news.
+      onAdded?.(
+        done.status === 'invited'
+          ? sendEmail
+            ? t('Invitation sent to {email}.', { email: done.email })
+            : t('{email} was invited; no email was sent.', { email: done.email })
+          : t('{email} can now sign in.', { email: done.email }),
+      );
     },
   });
   const fieldError = (path: string) =>

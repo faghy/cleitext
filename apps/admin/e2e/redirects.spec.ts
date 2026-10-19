@@ -15,10 +15,9 @@ test('redirects are added, imported and deleted', async ({ page, request }) => {
   await page.getByLabel('Password').fill('cleitext-admin');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/cl-admin/');
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .getByRole('link', { name: 'Redirects' })
-    .click();
+  const sidebar = page.getByRole('navigation', { name: 'Main' });
+  await sidebar.getByRole('link', { name: 'Tools', exact: true }).click();
+  await sidebar.getByRole('link', { name: 'Redirects' }).click();
 
   const form = page.getByRole('form', { name: 'Add redirect' });
   await form.getByLabel('From (path of this site)').fill(`/old-${stamp}`);

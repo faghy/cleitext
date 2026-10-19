@@ -12,10 +12,10 @@ test('a content type and a taxonomy are made, used and removed', async ({ page }
   await page.getByLabel('Password').fill('cleitext-admin');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/cl-admin/');
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .getByRole('link', { name: 'Content structure' })
-    .click();
+  // Tools → Content structure (the submenu of the screen shown is open).
+  const sidebar = page.getByRole('navigation', { name: 'Main' });
+  await sidebar.getByRole('link', { name: 'Tools', exact: true }).click();
+  await sidebar.getByRole('link', { name: 'Content structure' }).click();
 
   await page.getByRole('button', { name: 'Add content type' }).click();
   const form = page.getByRole('form', { name: 'New content type' });

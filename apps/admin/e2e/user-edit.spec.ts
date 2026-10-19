@@ -13,7 +13,7 @@ test('an administrator edits a member and sets a new password', async ({ page, c
   await page.getByLabel('Password').fill('cleitext-admin');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/cl-admin/');
-  await page.goto('/cl-admin/users');
+  await page.goto('/cl-admin/users?tab=add');
 
   // A new author, with a password and no email.
   const add = page.getByRole('button', { name: 'Add New User' });

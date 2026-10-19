@@ -236,4 +236,19 @@ export const itAdmin: Messages = {
     '{name} {version}: rinnova la licenza per averlo.',
   '{name} {version} needs Cleitext {requires}: update Cleitext first.':
     '{name} {version} richiede Cleitext {requires}: aggiorna prima Cleitext.',
+  'All users': 'Tutti gli utenti',
+  Roles: 'Ruoli',
+  Tools: 'Strumenti',
+  'Available tools': 'Strumenti disponibili',
+  Open: 'Apri',
+  'Send old addresses to new ones (301), and see the addresses visitors did not find.':
+    'Manda i vecchi indirizzi ai nuovi (301) e mostra gli indirizzi che i visitatori non hanno trovato.',
+  'Content types and taxonomies of the site, with their fields and addresses.':
+    'Tipi di contenuto e tassonomie del sito, con i loro campi e indirizzi.',
+  'Who did what on the site: logins, changes, publications and settings.':
+    'Chi ha fatto cosa sul sito: accessi, modifiche, pubblicazioni e impostazioni.',
+  'The server, the database, the background tasks and what Cleitext needs to run well.':
+    'Il server, il database, le attività in background e ciò che serve a Cleitext per funzionare bene.',
+  'The sites of this installation, their addresses and their administrators.':
+    'I siti di questa installazione, i loro indirizzi e i loro amministratori.',
 };

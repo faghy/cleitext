@@ -36,6 +36,9 @@ export const MENU_ICONS = {
   /** A cog. */
   settings:
     'M12 15a3 3 0 1 0 0-6a3 3 0 1 0 0 6z M12 18.5a6.5 6.5 0 1 0 0-13a6.5 6.5 0 1 0 0 13z M12 2.5v3 M12 18.5v3 M2.5 12h3 M18.5 12h3 M5.3 5.3l2.1 2.1 M16.6 16.6l2.1 2.1 M5.3 18.7l2.1-2.1 M16.6 7.4l2.1-2.1',
+  /** A wrench. */
+  tools:
+    'M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.5-.5-.5-2.5z',
   /** A path that turns towards an arrow. */
   redirects: 'M4 20v-6a6 6 0 0 1 6-6h10 M16 4l4 4-4 4',
   /** A tree of boxes. */

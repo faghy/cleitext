@@ -32,6 +32,7 @@ import { ConnectPage } from './pages/connect';
 import { SitesPage } from './pages/sites';
 import { ActivityPage } from './pages/activity';
 import { SystemPage } from './pages/system';
+import { ToolsPage } from './pages/tools';
 import { UpdatesPage } from './pages/updates';
 import { UsersPage } from './pages/users';
 import { UserEditPage } from './pages/user-edit';
@@ -215,6 +216,7 @@ const routeTree = rootRoute.addChildren([
     sectionRoute('/sites', SitesPage),
     sectionRoute('/activity', ActivityPage),
     sectionRoute('/system', SystemPage),
+    sectionRoute('/tools', ToolsPage),
     sectionRoute('/updates', UpdatesPage),
     sectionRoute('/assistants', AssistantsPage),
     sectionRoute('/connect', ConnectPage),

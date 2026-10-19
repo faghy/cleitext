@@ -12,7 +12,7 @@ test('a custom role is duplicated, edited and deleted', async ({ page }) => {
   await page.getByLabel('Password').fill('cleitext-admin');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/cl-admin/');
-  await page.goto('/cl-admin/users');
+  await page.goto('/cl-admin/users?tab=roles');
 
   const roles = page.getByRole('list', { name: 'Roles' });
   await roles

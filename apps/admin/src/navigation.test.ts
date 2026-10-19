@@ -1,6 +1,6 @@
 import { DEFAULT_ROLES } from '@cleitext/shared';
 import { describe, expect, it } from 'vitest';
-import { canAccess, visibleSections } from './navigation';
+import { canAccess, childSections, visibleSections } from './navigation';
 import { safeRedirect } from './pages/auth-pages';
 
 const labels = (caps: readonly string[]) => visibleSections(caps).map((s) => s.label);
@@ -16,13 +16,9 @@ describe('visibleSections', () => {
       'Appearance',
       'Plugins',
       'Users',
-      'Profile',
       'AI assistants',
       'Settings',
-      'Redirects',
-      'Content structure',
-      'Activity',
-      'System status',
+      'Tools',
     ]);
   });
 
@@ -41,6 +37,18 @@ describe('visibleSections', () => {
 
   it('shows a Subscriber only the dashboard and their profile', () => {
     expect(labels(DEFAULT_ROLES.subscriber.capabilities)).toEqual(['Dashboard', 'Profile']);
+  });
+
+  it('puts Profile under Users and the tools under Tools', () => {
+    const admin = DEFAULT_ROLES.administrator.capabilities;
+    expect(childSections('/tools', admin).map((s) => s.label)).toEqual([
+      'Redirects',
+      'Content structure',
+      'Activity',
+      'System status',
+    ]);
+    expect(canAccess('/profile', admin)).toBe(true);
+    expect(canAccess('/redirects', DEFAULT_ROLES.editor.capabilities)).toBe(false);
   });
 
   it('guards direct navigation', () => {

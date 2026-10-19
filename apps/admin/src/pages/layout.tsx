@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { api } from '../api';
 import { ME_QUERY_KEY, useMe } from '../auth';
-import { visibleSections } from '../navigation';
+import { childSections, visibleSections } from '../navigation';
 import { useT } from '../components/ui';
 import { Avatar } from '../components/avatar';
 import { LogoMark } from '@cleitext/admin-sdk';
@@ -134,6 +134,20 @@ export function AdminLayout() {
               leaf({ to, label: t('Add New'), tab: 'add' }),
             ]
           : [];
+      case '/users':
+        return [
+          leaf({ to, label: t('All users') }),
+          ...(can('promote_users') ? [leaf({ to, label: t('Add New User'), tab: 'add' })] : []),
+          ...(can('manage_users') ? [leaf({ to, label: t('Roles'), tab: 'roles' })] : []),
+          leaf({ to: '/profile', label: t('Profile') }),
+        ];
+      case '/tools':
+        return [
+          leaf({ to, label: t('Available tools') }),
+          ...childSections(to, me.capabilities).map((section) =>
+            leaf({ to: section.to, label: t(section.label) }),
+          ),
+        ];
       case '/settings':
         return [
           leaf({ to, label: t('General'), hash: 'general' }),
