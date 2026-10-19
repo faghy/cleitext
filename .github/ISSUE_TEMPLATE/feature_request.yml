@@ -1,0 +1,24 @@
+name: Feature request
+description: Something Cleitext or an official plugin should do (or do like WordPress does).
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: You may write in English or Italian.
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need
+      description: The problem to solve, from the point of view of who uses the site or the admin.
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How it could work
+      description: An idea, or how WordPress or another tool does it (links and screenshots welcome).
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      placeholder: e.g. editor, media, SEO plugin, menus
