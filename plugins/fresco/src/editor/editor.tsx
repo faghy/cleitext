@@ -23,6 +23,7 @@ import { find, placeOf } from './tree.js';
 import { TopBar } from './topbar.js';
 import { NavigatorWindow } from './navigator.js';
 import { Finder, ShortcutsDialog } from './finder.js';
+import { askText, confirmAction, Dialogs, notify } from './dialogs.js';
 import './i18n.js';
 
 const VIEWS: { view: PanelView; title: string; icon: string }[] = [
@@ -278,8 +279,18 @@ export function FrescoEditor(props: EditorProps) {
   }, [api, store]);
 
   const saveAsTemplate = () => {
-    const name = window.prompt(t('Name of the template'), props.host?.title ?? '');
-    if (name) void saveTemplate(name, 'page', store.get().blocks).catch(() => {});
+    void askText({
+      title: t('Save the page as a template'),
+      label: t('Name'),
+      value: props.host?.title ?? '',
+    }).then((name) => {
+      if (!name) return;
+      saveTemplate(name, 'page', store.get().blocks)
+        .then(() => notify(t('Page saved as “{name}”.', { name }), 'success'))
+        .catch((error: unknown) =>
+          notify(String(error instanceof Error ? error.message : error), 'error'),
+        );
+    });
   };
   // Fresco Pro's theme builder, under the admin of this site.
   const themeBuilderUrl = user.capabilities.includes('manage_fresco_templates')
@@ -339,6 +350,7 @@ export function FrescoEditor(props: EditorProps) {
         <NavigatorWindow store={store} />
         {finder && <Finder store={store} host={props.host} onClose={() => setFinder(false)} />}
         {shortcuts && <ShortcutsDialog onClose={() => setShortcuts(false)} />}
+        <Dialogs />
         {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
       </div>
     );
@@ -368,6 +380,7 @@ export function FrescoEditor(props: EditorProps) {
         />
       </main>
       {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
+      <Dialogs />
     </div>
   );
 }
@@ -573,8 +586,18 @@ function ContextMenu({
               shortcut: 'Ctrl+I',
             })}
             {item(t('Save as template'), () => {
-              const name = window.prompt(t('Name of the template'), title);
-              if (name) void saveTemplate(name, 'section', [node]).catch(() => {});
+              void askText({
+                title: t('Save the section as a template'),
+                label: t('Name'),
+                value: title,
+              }).then((name) => {
+                if (!name) return;
+                saveTemplate(name, 'section', [node])
+                  .then(() => notify(t('Section saved as “{name}”.', { name }), 'success'))
+                  .catch((error: unknown) =>
+                    notify(String(error instanceof Error ? error.message : error), 'error'),
+                  );
+              });
             })}
             {extensions()
               .menuActions.filter((action) => !action.when || action.when(node))
@@ -592,7 +615,7 @@ function ContextMenu({
                         },
                       }),
                     ).catch((error: unknown) =>
-                      window.alert(String(error instanceof Error ? error.message : error)),
+                      notify(String(error instanceof Error ? error.message : error), 'error'),
                     );
                   })}
                 </Fragment>
@@ -616,10 +639,15 @@ function ContextMenu({
           <div className="fre-menu__group">
             {item(
               t('Delete all content'),
-              () => {
-                if (window.confirm(t('Delete all the content of this page?')))
-                  for (const block of store.get().blocks) store.actions.remove(block.id);
-              },
+              () =>
+                void confirmAction({
+                  title: t('Delete all the content of this page?'),
+                  text: t('You can bring it back with Undo or from the History.'),
+                  action: t('Delete'),
+                  danger: true,
+                }).then((ok) => {
+                  if (ok) for (const block of store.get().blocks) store.actions.remove(block.id);
+                }),
               { disabled: store.get().blocks.length === 0, danger: true },
             )}
           </div>

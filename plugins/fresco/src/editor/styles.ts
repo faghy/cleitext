@@ -365,4 +365,20 @@ button.fre-chip,.fre-chip button{border:0;background:none;padding:3px 9px;cursor
 .fre-shortcuts h3{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#818a96}
 .fre-shortcuts p{display:flex;justify-content:space-between;gap:10px;margin:0;padding:7px 0;border-bottom:1px solid #f1f2f3}
 .fre-shortcuts kbd{display:inline-block;min-width:22px;margin-left:3px;padding:2px 6px;border:1px solid #d5d8dc;border-bottom-width:2px;border-radius:3px;background:#fff;font:11px Roboto,system-ui,sans-serif;text-align:center;color:#0c0d0e}
+
+.fre-modalbg--center{align-items:center;padding-top:0}
+.fre-dialog{width:min(420px,92vw);padding:22px 24px 18px;border-radius:3px;background:#fff;box-shadow:0 2px 15px rgba(0,0,0,.3);font:13px Roboto,system-ui,sans-serif;color:#515962}
+.fre-dialog h2{margin:0 0 12px;font-size:15px;color:#0c0d0e}
+.fre-dialog p{margin:0 0 14px}
+.fre-dialog label{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.fre-dialog input{height:34px;padding:0 10px;border:1px solid #d5d8dc;border-radius:3px;font:13px Roboto,system-ui,sans-serif}
+.fre-dialog input:focus{outline:0;border-color:var(--fre-accent);box-shadow:0 0 0 1px var(--fre-accent)}
+.fre-dialog__actions{display:flex;justify-content:flex-end;gap:8px}
+.fre-root .fre-button--primary{color:#fff}
+.fre-button--danger{background:#dc2626!important;border-color:#dc2626!important}
+.fre-toasts{position:fixed;left:16px;bottom:16px;z-index:300;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.fre-toast{max-width:380px;margin:0;padding:12px 16px;border-radius:4px;background:#1f2124;color:#fff;font:13px Roboto,system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:fre-in .2s ease-out}
+.fre-toast--success{box-shadow:inset 4px 0 0 #0a875a,0 4px 14px rgba(0,0,0,.25)}
+.fre-toast--error{box-shadow:inset 4px 0 0 #dc2626,0 4px 14px rgba(0,0,0,.25)}
+@keyframes fre-in{from{opacity:0;transform:translateY(8px)}}
 `;

@@ -1,5 +1,5 @@
 /** The side panel: elements, the selected element's settings, navigator, page and site settings. */
-import { useT, type EditorMedia } from '@cleitext/admin-sdk';
+import { t as tr, useT, type EditorMedia } from '@cleitext/admin-sdk';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { conditionMet, withDefaults } from '../core/css.js';
 import {
@@ -17,6 +17,7 @@ import { AtomicStyle } from './atomic-style.js';
 import { controlsOf, extensions } from '../core/extensions.js';
 import { LibraryView } from './library.js';
 import { HistoryView } from './history.js';
+import { confirmAction } from './dialogs.js';
 import { PluginBlockFields, pluginBlockTitle } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
@@ -860,15 +861,16 @@ function SiteView({ store, canManageKit, onSaveKit }: PanelProps) {
                       type="button"
                       className="fre-iconbtn"
                       aria-label={`Delete the class ${c.label}`}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Delete the class “${c.label}”? Elements keep the name but lose its style.`,
-                          )
-                        ) {
-                          set({ classes: kit.classes.filter((x) => x.id !== c.id) });
-                        }
-                      }}
+                      onClick={() =>
+                        void confirmAction({
+                          title: tr('Delete the class “{name}”?', { name: c.label }),
+                          text: tr('Elements keep the name but lose its style.'),
+                          action: tr('Delete'),
+                          danger: true,
+                        }).then((ok) => {
+                          if (ok) set({ classes: kit.classes.filter((x) => x.id !== c.id) });
+                        })
+                      }
                     >
                       ×
                     </button>

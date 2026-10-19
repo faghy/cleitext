@@ -3,7 +3,8 @@
  * patterns (document.editor = fresco). Inserting one copies it with new ids;
  * templates can be exported to a file and imported on another site.
  */
-import { api as coreApi } from '@cleitext/admin-sdk';
+import { api as coreApi, t } from '@cleitext/admin-sdk';
+import { askText, confirmAction } from './dialogs.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { FrescoNode } from '../core/model.js';
 import { getElement } from '../core/registry.js';
@@ -175,11 +176,17 @@ export function LibraryView({ store }: { store: Store }) {
           type="button"
           className="fre-button"
           disabled={busy || blocks.length === 0}
-          onClick={() => {
-            const title = window.prompt('Name of the page template');
-            if (title)
-              void run(() => saveTemplate(title, 'page', blocks), `Page saved as “${title}”.`);
-          }}
+          onClick={() =>
+            void askText({ title: t('Save the page as a template'), label: t('Name') }).then(
+              (title) => {
+                if (title)
+                  void run(
+                    () => saveTemplate(title, 'page', blocks),
+                    t('Page saved as “{name}”.', { name: title }),
+                  );
+              },
+            )
+          }
         >
           <Svg path="M5 4h11l3 3v13H5z M8 4v5h7V4 M8 20v-6h8v6" size={14} />
           Save the page
@@ -191,15 +198,17 @@ export function LibraryView({ store }: { store: Store }) {
           title={selectedNode ? undefined : 'Select an element first'}
           onClick={() => {
             if (!selectedNode) return;
-            const title = window.prompt(
-              'Name of the section template',
-              getElement(selectedNode.type)?.title ?? '',
-            );
-            if (title)
-              void run(
-                () => saveTemplate(title, 'section', [selectedNode]),
-                `Section saved as “${title}”.`,
-              );
+            void askText({
+              title: t('Save the section as a template'),
+              label: t('Name'),
+              value: t(getElement(selectedNode.type)?.title ?? ''),
+            }).then((title) => {
+              if (title)
+                void run(
+                  () => saveTemplate(title, 'section', [selectedNode]),
+                  t('Section saved as “{name}”.', { name: title }),
+                );
+            });
           }}
         >
           <Svg path="M4 6h16v12H4z M4 10h16" size={14} />
@@ -282,14 +291,19 @@ export function LibraryView({ store }: { store: Store }) {
                 type="button"
                 className="fre-iconbtn"
                 title="Delete"
-                onClick={() => {
-                  if (window.confirm(`Delete the template “${template.title}”?`)) {
-                    void run(
-                      () => coreApi('DELETE', `/patterns/${template.id}`),
-                      'Template deleted.',
-                    );
-                  }
-                }}
+                onClick={() =>
+                  void confirmAction({
+                    title: t('Delete the template “{name}”?', { name: template.title }),
+                    action: t('Delete'),
+                    danger: true,
+                  }).then((ok) => {
+                    if (ok)
+                      void run(
+                        () => coreApi('DELETE', `/patterns/${template.id}`),
+                        t('Template deleted.'),
+                      );
+                  })
+                }
               >
                 ×
               </button>

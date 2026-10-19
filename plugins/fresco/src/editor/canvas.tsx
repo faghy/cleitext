@@ -26,6 +26,7 @@ import { useStore, type Store } from './store.js';
 import { buildStructure, FLEX_PRESETS, GRID_PRESETS, type Preset } from './structures.js';
 import { find, placeOf } from './tree.js';
 import { t } from '@cleitext/admin-sdk';
+import { askText } from './dialogs.js';
 
 export interface CanvasApi {
   frame: HTMLIFrameElement | null;
@@ -445,6 +446,19 @@ function FrameTree({
     [readOnly, store, doc],
   );
 
+  // Outside the content (the theme's header and footer) the page's menu opens too.
+  useEffect(() => {
+    const onMenu = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (!target || target.closest('.fre-tree') || target.closest('[data-fre-ui]')) return;
+      event.preventDefault();
+      const rect = frame.current?.getBoundingClientRect();
+      if (rect) onContextMenu('', { x: rect.left + event.clientX, y: rect.top + event.clientY });
+    };
+    doc.addEventListener('contextmenu', onMenu);
+    return () => doc.removeEventListener('contextmenu', onMenu);
+  }, [doc, frame, onContextMenu]);
+
   const onPointerDown = (event: React.PointerEvent) => {
     if (event.button !== 0) return;
     const target = event.target as Element;
@@ -520,7 +534,12 @@ function FrameTree({
 
 // ---- Formatting bar of rich texts edited in place ---------------------------------------------
 
-const FORMATS: { command: string; title: string; path: string; value?: () => string | null }[] = [
+const FORMATS: {
+  command: string;
+  title: string;
+  path: string;
+  value?: () => Promise<string | null>;
+}[] = [
   {
     command: 'bold',
     title: 'Bold',
@@ -547,7 +566,7 @@ const FORMATS: { command: string; title: string; path: string; value?: () => str
     command: 'createLink',
     title: 'Link',
     path: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
-    value: () => window.prompt(t('Link address'), 'https://'),
+    value: () => askText({ title: t('Link address'), value: 'https://' }),
   },
   {
     command: 'unlink',
@@ -576,10 +595,22 @@ function formatBar(doc: Document, field: HTMLElement): HTMLElement {
     // Keeps the text focused and its selection.
     button.addEventListener('mousedown', (event) => event.preventDefault());
     button.addEventListener('click', () => {
-      const value = format.value ? format.value() : null;
-      if (format.value && !value) return;
-      doc.execCommand(format.command, false, value ?? undefined);
-      field.focus();
+      if (!format.value) {
+        doc.execCommand(format.command, false);
+        field.focus();
+        return;
+      }
+      // The dialog takes the focus: the selection is put back before applying.
+      const selection = doc.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+      void format.value().then((value) => {
+        field.focus();
+        if (range) {
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+        if (value) doc.execCommand(format.command, false, value);
+      });
     });
     bar.append(button);
   }

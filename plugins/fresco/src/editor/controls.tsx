@@ -3,6 +3,7 @@
  * prefixed ones) of the selected element, for the device being edited.
  */
 import { t, type EditorMedia } from '@cleitext/admin-sdk';
+import { askText } from './dialogs.js';
 import {
   useCallback,
   useEffect,
@@ -498,8 +499,17 @@ function RichText({
           title="Link"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
-            const url = window.prompt('Link address');
-            if (url) command('createLink', url);
+            // The dialog takes the focus: the selection is put back before linking.
+            const selection = window.getSelection();
+            const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+            void askText({ title: t('Link address'), value: 'https://' }).then((url) => {
+              if (!url) return;
+              if (range) {
+                selection?.removeAllRanges();
+                selection?.addRange(range);
+              }
+              command('createLink', url);
+            });
           }}
         >
           <Svg

@@ -159,6 +159,20 @@ addMessages('it', {
   Shift: 'Maiusc',
   Del: 'Canc',
   Esc: 'Esc',
+  Cancel: 'Annulla',
+  OK: 'OK',
+  Name: 'Nome',
+  'Save the page as a template': 'Salva la pagina come modello',
+  'Save the section as a template': 'Salva la sezione come modello',
+  'Page saved as “{name}”.': 'Pagina salvata come «{name}».',
+  'Section saved as “{name}”.': 'Sezione salvata come «{name}».',
+  'Delete the template “{name}”?': 'Eliminare il modello «{name}»?',
+  'Template deleted.': 'Modello eliminato.',
+  'Delete the class “{name}”?': 'Eliminare la classe «{name}»?',
+  'Elements keep the name but lose its style.':
+    'Gli elementi tengono il nome ma perdono il suo stile.',
+  'You can bring it back with Undo or from the History.':
+    'Puoi recuperarlo con Annulla o dalla Cronologia.',
   'Select an element on the page to edit it.':
     'Seleziona un elemento nella pagina per modificarlo.',
 });
