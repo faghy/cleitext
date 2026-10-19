@@ -12,7 +12,7 @@ import { Svg } from './controls.js';
 import { create, useStore, type Store } from './store.js';
 import { cloneWithNewIds, find, placeOf, walk } from './tree.js';
 
-interface Template {
+export interface Template {
   id: string;
   title: string;
   kind: 'page' | 'section';
@@ -20,7 +20,7 @@ interface Template {
   updatedAt: string;
 }
 
-interface PatternView {
+export interface PatternView {
   id: string;
   title: string;
   document: { blocks?: FrescoNode[]; editor?: { id: string; data?: { kind?: string } } } | null;
@@ -36,7 +36,7 @@ export interface TemplateFile {
   blocks: FrescoNode[];
 }
 
-function toTemplate(pattern: PatternView): Template | null {
+export function toTemplate(pattern: PatternView): Template | null {
   if (pattern.document?.editor?.id !== 'fresco') return null;
   return {
     id: pattern.id,
@@ -95,7 +95,7 @@ export function parseTemplateFile(text: string): TemplateFile {
   };
 }
 
-function download(file: TemplateFile): void {
+export function download(file: TemplateFile): void {
   const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

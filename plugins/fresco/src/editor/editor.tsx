@@ -161,6 +161,15 @@ export function FrescoEditor(props: EditorProps) {
     // Once: `api` is a new function on every render of the host.
   }, []);
 
+  // A panel asked by the address (`#fresco-site` from Fresco's overview page).
+  useEffect(() => {
+    const view = /^#fresco-(\w+)$/.exec(window.location.hash)?.[1];
+    if (view && ['site', 'page', 'history', 'library', 'elements'].includes(view)) {
+      store.actions.setView(view as PanelView);
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [store]);
+
   // Changes go to Cleitext, which saves them with the entry.
   useEffect(
     () =>

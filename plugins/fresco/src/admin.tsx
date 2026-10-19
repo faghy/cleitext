@@ -4,6 +4,7 @@
  */
 import { defineAdminPlugin } from '@cleitext/admin-sdk';
 import { installApi } from './api.js';
+import { FrescoHome, TemplatesPage } from './admin-pages.js';
 import { registerFreeElements } from './elements/index.js';
 import { fromBlocks, toBlocks } from './editor/convert.js';
 import { FrescoEditor } from './editor/editor.js';
@@ -39,6 +40,25 @@ installApi({
 });
 
 export default defineAdminPlugin({
+  // Fresco's own menu, after Pages (as other page builders have).
+  pages: [
+    {
+      path: '',
+      title: 'Fresco',
+      capability: 'edit_entries',
+      after: '/pages',
+      icon: 'M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z M9 8h6 M9 12h4 M9 8v8',
+      component: FrescoHome,
+    },
+    {
+      path: 'templates',
+      title: { en: 'Templates', it: 'Modelli' },
+      capability: 'edit_entries',
+      after: '/ext/fresco',
+      icon: 'M4 5h6v14H4z M12 5h3v14h-3z M17 6l3 1-3 12-3-1z',
+      component: TemplatesPage,
+    },
+  ],
   editors: [
     {
       id: 'fresco',

@@ -203,6 +203,33 @@ export default definePlugin({
     });
 
     // Site settings, read by the editor and saved from it.
+    // The entries made with Fresco, for the overview page of the admin.
+    ctx.routes.api({
+      method: 'GET',
+      path: '/pages',
+      capability: 'edit_entries',
+      async handler(request) {
+        const found = [];
+        for (const type of ['page', 'article']) {
+          const entries = await ctx.content
+            .find(request.siteId, { type, status: 'any', limit: 200, withDocument: true })
+            .catch(() => []);
+          for (const entry of entries) {
+            if (entry.document?.editor?.id !== 'fresco') continue;
+            found.push({
+              id: entry.id,
+              title: entry.title,
+              type: entry.type,
+              status: entry.status,
+              locale: entry.locale,
+              url: entry.url,
+            });
+          }
+        }
+        return { body: found };
+      },
+    });
+
     ctx.routes.api({
       method: 'GET',
       path: '/kit',

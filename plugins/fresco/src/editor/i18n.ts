@@ -220,6 +220,41 @@ addMessages('it', {
   'The logo and the site icon are in Appearance → Customize.':
     'Il logo e l’icona del sito sono in Aspetto → Personalizza.',
   'Site identity saved.': 'Identità del sito salvata.',
+  'Build pages visually: drag containers and elements, style them for every device.':
+    'Costruisci le pagine a vista: trascina contenitori ed elementi, dai loro stile per ogni dispositivo.',
+  'Start a new page': 'Inizia una nuova pagina',
+  'An empty page that opens straight in Fresco.':
+    'Una pagina vuota che si apre direttamente in Fresco.',
+  'New page with Fresco': 'Nuova pagina con Fresco',
+  'New page': 'Nuova pagina',
+  'New post': 'Nuovo articolo',
+  'Global colors and fonts, theme style, layout and breakpoints of every Fresco page.':
+    'Colori e caratteri globali, stile del tema, impaginazione e breakpoint di tutte le pagine Fresco.',
+  'Open the site settings': 'Apri le impostazioni del sito',
+  'Create a page with Fresco first: they open in its editor.':
+    'Crea prima una pagina con Fresco: si aprono nel suo editor.',
+  'Pages and sections saved to use again, also on other sites.':
+    'Pagine e sezioni salvate per riusarle, anche su altri siti.',
+  'Manage the templates': 'Gestisci i modelli',
+  'Pages made with Fresco': 'Pagine fatte con Fresco',
+  'No page made with Fresco yet.': 'Ancora nessuna pagina fatta con Fresco.',
+  Type: 'Tipo',
+  Status: 'Stato',
+  Post: 'Articolo',
+  View: 'Vedi',
+  '(no title)': '(senza titolo)',
+  draft: 'bozza',
+  published: 'pubblicata',
+  private: 'privata',
+  pending: 'in revisione',
+  scheduled: 'programmata',
+  'Pages and sections saved from Fresco. Insert them from the folder button of the editor, or export them to another site.':
+    'Pagine e sezioni salvate da Fresco. Inseriscile con il pulsante della cartella nell’editor, o esportale per un altro sito.',
+  'No templates yet: in the editor, right-click an element and choose “Save as template”.':
+    'Ancora nessun modello: nell’editor, fai clic destro su un elemento e scegli «Salva come modello».',
+  Updated: 'Aggiornato',
+  Section: 'Sezione',
+  Export: 'Esporta',
   'Select an element on the page to edit it.':
     'Seleziona un elemento nella pagina per modificarlo.',
 });
