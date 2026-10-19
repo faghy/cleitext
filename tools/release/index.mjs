@@ -58,6 +58,8 @@ const SEPARATE = [
   'widgets',
   'prisma',
   'vetta',
+  'classic-editor',
+  'editor-convert',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {

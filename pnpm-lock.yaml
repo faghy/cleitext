@@ -714,6 +714,46 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0
 
+  plugins/classic-editor:
+    dependencies:
+      tinymce:
+        specifier: 6.8.6
+        version: 6.8.6
+    devDependencies:
+      '@cleitext/admin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/admin-sdk
+      '@cleitext/blocks':
+        specifier: workspace:*
+        version: link:../../packages/blocks
+      '@cleitext/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@cleitext/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@tanstack/react-query':
+        specifier: ^5.104.1
+        version: 5.104.1(react@19.3.0)
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      jsdom:
+        specifier: ^30.1.2
+        version: 30.1.2
+      react:
+        specifier: ^19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.3.0
+        version: 19.3.0(react@19.3.0)
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.2)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
   plugins/click-to-chat:
     devDependencies:
       '@cleitext/admin-sdk':
@@ -758,6 +798,33 @@ importers:
       '@cleitext/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+      '@tanstack/react-query':
+        specifier: ^5.104.1
+        version: 5.104.1(react@19.3.0)
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      react:
+        specifier: ^19.3.0
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.2)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  plugins/editor-convert:
+    devDependencies:
+      '@cleitext/admin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/admin-sdk
+      '@cleitext/blocks':
+        specifier: workspace:*
+        version: link:../../packages/blocks
+      '@cleitext/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@tanstack/react-query':
         specifier: ^5.104.1
         version: 5.104.1(react@19.3.0)
@@ -6122,6 +6189,9 @@ packages:
     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
     engines: {node: '>=12.0.0'}
 
+  tinymce@6.8.6:
+    resolution: {integrity: sha512-++XYEs8lKWvZxDCjrr8Baiw7KiikraZ5JkLMg6EdnUVNKJui0IsrAADj5MsyUeFkcEryfn2jd3p09H7REvewyg==}
+
   tinyrainbow@3.2.0:
     resolution: {integrity: sha512-LgO3D9yZJjApUiuUfl9iFAwrtaX4+lok3wJIqttGoKCHlWUqHqbQpnxCf82L8FjgKsh4iGo78hqJwgL8F6To2A==}
     engines: {node: '>=14.0.0'}
@@ -11365,6 +11435,8 @@ snapshots:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.7)
       picomatch: 4.0.7
+
+  tinymce@6.8.6: {}
 
   tinyrainbow@3.2.0: {}
 

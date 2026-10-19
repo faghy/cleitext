@@ -1,0 +1,29 @@
+{
+  "name": "@cleitext/plugin-classic-editor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Official Cleitext plugin: the classic editor (TinyMCE, Visual and Text tabs), as in WordPress's Classic Editor.",
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "cleitext plugin:build .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cleitext/admin-sdk": "workspace:*",
+    "@cleitext/blocks": "workspace:*",
+    "@cleitext/cli": "workspace:*",
+    "@cleitext/plugin-sdk": "workspace:*",
+    "@tanstack/react-query": "^5.104.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jsdom": "^30.1.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "tinymce": "6.8.6"
+  }
+}
