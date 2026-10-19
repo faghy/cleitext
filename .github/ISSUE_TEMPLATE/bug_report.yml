@@ -14,6 +14,7 @@ body:
       label: Where
       options:
         - Core (admin, editor, public pages, updates)
+        - Fresco (page builder)
         - An official plugin
         - Installation or hosting
         - Other

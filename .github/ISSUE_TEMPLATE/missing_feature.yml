@@ -1,0 +1,39 @@
+name: Missing feature
+description: Something WordPress, Elementor or another tool you used does, and Cleitext (or Fresco) does not yet.
+labels: [missing feature, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: You may write in English or Italian.
+  - type: input
+    id: tool
+    attributes:
+      label: Where you saw it
+      description: The tool, plugin or theme that has it.
+      placeholder: e.g. WordPress, Elementor Pro, Yoast, Enfold
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What it does
+      description: How it works there; screenshots and links help a lot.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core (admin, editor, public pages)
+        - Fresco (page builder)
+        - An official plugin
+        - A theme
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      description: Who needs it, and what they cannot do without it.

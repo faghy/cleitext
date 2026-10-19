@@ -1,6 +1,6 @@
-name: Feature request
-description: Something Cleitext or an official plugin should do (or do like WordPress does).
-labels: [enhancement, needs-triage]
+name: New feature
+description: Something new Cleitext or an official plugin should do.
+labels: [new feature, needs-triage]
 body:
   - type: markdown
     attributes:
