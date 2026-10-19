@@ -16,6 +16,7 @@ import { ColorPicker, ControlField, Svg, type ControlEnv } from './controls.js';
 import { AtomicStyle } from './atomic-style.js';
 import { controlsOf, extensions } from '../core/extensions.js';
 import { LibraryView } from './library.js';
+import { HistoryView } from './history.js';
 import { PluginBlockFields, pluginBlockTitle } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
@@ -60,6 +61,7 @@ export function Panel(props: PanelProps) {
       {view === 'element' && <ElementView {...props} />}
       {view === 'navigator' && <Navigator store={props.store} />}
       {view === 'library' && <LibraryView store={props.store} />}
+      {view === 'history' && <HistoryView store={props.store} />}
       {view === 'page' && <PageView store={props.store} />}
       {view === 'site' && <SiteView {...props} />}
     </div>

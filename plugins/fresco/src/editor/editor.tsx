@@ -180,6 +180,9 @@ export function FrescoEditor(props: EditorProps) {
         if (event.view !== window || !hostRef.current) return;
         event.preventDefault();
         void hostRef.current.save();
+      } else if (primary && event.shiftKey && event.key.toLowerCase() === 'h') {
+        event.preventDefault();
+        store.actions.setView('history');
       } else if (primary && event.key.toLowerCase() === 'i' && !event.shiftKey) {
         event.preventDefault();
         store.actions.toggleNavigator();
@@ -341,6 +344,7 @@ function PanelHeader({ store }: { store: Store }) {
     element: t('Edit {element}', { element: t(elementTitle) }),
     navigator: t('Structure'),
     library: t('Templates'),
+    history: t('History'),
     page: t('Page settings'),
     site: t('Site settings'),
   };

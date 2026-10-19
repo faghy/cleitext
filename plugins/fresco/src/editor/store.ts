@@ -11,7 +11,8 @@ import type { Device, FrescoNode, NewNode, Settings, Tab } from '../core/model.j
 import { getElement } from '../core/registry.js';
 import * as tree from './tree.js';
 
-export type PanelView = 'elements' | 'element' | 'page' | 'site' | 'navigator' | 'library';
+export type PanelView =
+  'elements' | 'element' | 'page' | 'site' | 'navigator' | 'library' | 'history';
 
 export interface EditorState {
   blocks: FrescoNode[];
@@ -47,6 +48,25 @@ interface Snapshot {
   selected: string | null;
 }
 
+/** What a step of the history did, shown in the History panel. */
+export interface StepLabel {
+  kind:
+    | 'add'
+    | 'remove'
+    | 'duplicate'
+    | 'move'
+    | 'edit'
+    | 'paste'
+    | 'pasteStyle'
+    | 'resetStyle'
+    | 'page'
+    | 'item'
+    | 'all';
+  /** Element type, when the step is about one. */
+  type?: string;
+  at: number;
+}
+
 const HISTORY = 100;
 
 export function createStore(initial: {
@@ -77,6 +97,14 @@ export function createStore(initial: {
   };
   const past: Snapshot[] = [];
   const future: Snapshot[] = [];
+  // Labels of the steps: pastLabels[i] took the page from past[i] to the next state.
+  const pastLabels: StepLabel[] = [];
+  const futureLabels: StepLabel[] = [];
+  let pending: Omit<StepLabel, 'at'> | null = null;
+  const typeOf = (id: string) => tree.find(state.blocks, id)?.type;
+  const label = (kind: StepLabel['kind'], type?: string) => {
+    pending = { kind, ...(type ? { type } : {}) };
+  };
   const listeners = new Set<() => void>();
   const changeListeners = new Set<(state: EditorState) => void>();
   // Several edits of the same control in a row are one undo step.
@@ -99,8 +127,16 @@ export function createStore(initial: {
     const merging = merge !== undefined && lastMerge?.key === merge && now - lastMerge.at < 1200;
     if (!merging) {
       past.push({ blocks: state.blocks, page: state.page, selected: state.selected });
-      if (past.length > HISTORY) past.shift();
+      pastLabels.push({ ...(pending ?? { kind: 'edit' }), at: now });
+      if (past.length > HISTORY) {
+        past.shift();
+        pastLabels.shift();
+      }
+    } else if (pastLabels.length) {
+      pastLabels[pastLabels.length - 1]!.at = now;
     }
+    pending = null;
+    futureLabels.length = 0;
     lastMerge = merge !== undefined ? { key: merge, at: now } : null;
     future.length = 0;
     set(patch);
@@ -147,6 +183,7 @@ export function createStore(initial: {
       const count = parent.children?.length ?? 0;
       const child = create('fresco/container')!;
       child.attrs = { _title: `${label} ${count + 1}`, content_width: 'full' };
+      pending = { kind: 'item', type: parent.type };
       change({ blocks: tree.insert(state.blocks, child, { parent: id, index: count }) });
       set({ active: { ...state.active, [id]: count } });
     },
@@ -177,6 +214,7 @@ export function createStore(initial: {
       set({ kit, kitDirty: dirty });
     },
     setSettings(id: string, changes: Settings, merge?: string) {
+      label('edit', typeOf(id));
       change({ blocks: tree.setSettings(state.blocks, id, changes) }, merge && `${id}:${merge}`);
     },
     setPage(changes: Settings) {
@@ -185,6 +223,7 @@ export function createStore(initial: {
         if (value === undefined || value === null || value === '') delete page[key];
         else page[key] = value;
       }
+      label('page');
       change({ page });
     },
     /** Adds a new element of a type; widgets dropped at the top get a container. */
@@ -193,6 +232,7 @@ export function createStore(initial: {
       const node = create(type);
       if (!node) return null;
       const definition = getElement(type);
+      label('add', type);
       if (place.parent === null && !definition?.container) {
         const wrapper = create('fresco/container')!;
         wrapper.children = [node];
@@ -206,6 +246,7 @@ export function createStore(initial: {
     insertNodes(nodes: FrescoNode[], place: tree.Place) {
       if (state.contentOnly) return;
       let blocks = state.blocks;
+      label('add', nodes[0]?.type);
       nodes.forEach((node, i) => {
         blocks = tree.insert(blocks, node, { parent: place.parent, index: place.index + i });
       });
@@ -215,6 +256,7 @@ export function createStore(initial: {
       if (state.contentOnly) return;
       const node = tree.find(state.blocks, id);
       if (!node) return;
+      label('move', node.type);
       if (place.parent === null && !getElement(node.type)?.container) {
         // A widget dragged to the top goes into a new container.
         const wrapper = create('fresco/container')!;
@@ -230,6 +272,7 @@ export function createStore(initial: {
     },
     remove(id: string) {
       if (state.contentOnly) return;
+      label('remove', typeOf(id));
       change({
         blocks: tree.remove(state.blocks, id),
         selected: state.selected === id ? null : state.selected,
@@ -238,6 +281,7 @@ export function createStore(initial: {
     },
     duplicate(id: string) {
       if (state.contentOnly) return;
+      label('duplicate', typeOf(id));
       const result = tree.duplicate(state.blocks, id);
       if (result.id) change({ blocks: result.tree, selected: result.id });
     },
@@ -263,6 +307,7 @@ export function createStore(initial: {
       }
       if (!node || !getElement(node.type)) return;
       const copy = tree.cloneWithNewIds(node);
+      label('paste', copy.type);
       const place = after ? tree.placeOf(state.blocks, after) : null;
       const target = place
         ? { parent: place.parent, index: place.index + 1 }
@@ -290,6 +335,7 @@ export function createStore(initial: {
       );
       for (const [key, value] of Object.entries(source.attrs))
         if (isStyle(key)) attrs[key] = structuredClone(value);
+      label('pasteStyle', target.type);
       change({ blocks: tree.update(state.blocks, id, (node) => ({ ...node, attrs })) });
     },
     resetStyle(id: string) {
@@ -303,15 +349,18 @@ export function createStore(initial: {
       const attrs = Object.fromEntries(
         Object.entries(target.attrs).filter(([key]) => contentKeys.has(key.split(/[@:]/)[0]!)),
       );
+      label('resetStyle', target.type);
       change({ blocks: tree.update(state.blocks, id, (node) => ({ ...node, attrs })) });
     },
     replaceAll(blocks: FrescoNode[], page: Settings) {
+      label('all');
       change({ blocks, page, selected: null });
     },
     undo() {
       const snapshot = past.pop();
       if (!snapshot) return;
       future.push({ blocks: state.blocks, page: state.page, selected: state.selected });
+      futureLabels.push(pastLabels.pop() ?? { kind: 'edit', at: Date.now() });
       lastMerge = null;
       restore(snapshot);
     },
@@ -319,8 +368,14 @@ export function createStore(initial: {
       const snapshot = future.pop();
       if (!snapshot) return;
       past.push({ blocks: state.blocks, page: state.page, selected: state.selected });
+      pastLabels.push(futureLabels.pop() ?? { kind: 'edit', at: Date.now() });
       lastMerge = null;
       restore(snapshot);
+    },
+    /** Goes to a step of the history: 0 is the page as it was opened. */
+    goTo(step: number) {
+      while (past.length > step && past.length > 0) actions.undo();
+      while (past.length < step && future.length > 0) actions.redo();
     },
   };
 
@@ -341,6 +396,8 @@ export function createStore(initial: {
     },
     canUndo: () => past.length > 0,
     canRedo: () => future.length > 0,
+    /** Done steps (oldest first) and undone ones (next first). */
+    history: () => ({ done: [...pastLabels], undone: [...futureLabels].reverse() }),
     actions,
   };
 }
