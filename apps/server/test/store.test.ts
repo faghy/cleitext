@@ -340,7 +340,7 @@ describe('Store', () => {
       seats: { used: 1, total: 1 },
       renewUrl: expect.stringContaining('checkout%5Bcustom%5D%5Blicense%5D='),
     });
-    expect((await root.post('/api/v1/themes/vivid/activate')).statusCode).toBe(204);
+    expect((await root.post('/api/v1/themes/vivid/activate')).statusCode).toBe(200);
 
     // Another site cannot use the same key.
     const elsewhere = await call('POST', '/activate', {

@@ -48,6 +48,14 @@ Running servers load a new or updated theme at once, without a restart. Each sit
 
 Such a theme can be installed and tried with Live Preview without a license (the demo), but a site can activate it only after entering a license key for that site in **Appearance → Themes**. The key is checked once with the license server and kept encrypted; pages never ask the server, and the theme keeps working if the license is removed or its updates end. Updates from the catalog need a license whose updates include the new version (_Renew to update_ otherwise). The code stays GPL: the license buys downloads, updates and support.
 
+**Plugins that come with the theme** (API 1.25): a theme may ship its own plugins, such as a page builder, built, inside its package under `plugins/<slug>/`, and name them in `theme.json`:
+
+```json
+"plugins": ["my-theme-builder"]
+```
+
+`theme:install` (and so Upload Theme and the catalog) installs them with the theme. When a site activates the theme, they are activated there too, and when it chooses another theme they are deactivated, their data kept. A plugin that cannot start (for example because it needs another plugin that is not installed) does not stop the theme: **Appearance → Themes** says why.
+
 ## 3. The theme definition
 
 ```tsx

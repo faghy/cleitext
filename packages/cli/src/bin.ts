@@ -434,6 +434,27 @@ program
         ? `Updated ${manifest.slug} ${previousVersion} → ${manifest.version}.`
         : `Installed ${manifest.slug} ${manifest.version}. Activate it in Appearance → Themes.`,
     );
+    // The plugins that come with the theme, from the package's plugins/<slug>/ folders.
+    const bundled = (manifest.plugins ?? [])
+      .map((slug) => path.join(path.resolve(dir), 'plugins', slug))
+      .filter((folder) => existsSync(path.join(folder, 'cleitext.plugin.json')));
+    if (bundled.length) {
+      const { appRole } = connectionSettings();
+      if (!appRole)
+        throw new OperationError('Set DATABASE_URL (application role) or CLEITEXT_APP_ROLE.');
+      await withOwner(async (db) => {
+        for (const folder of bundled) {
+          const result = await installPlugin(db, {
+            source: folder,
+            pluginsPath: pluginsPath(),
+            appRole,
+            link: Boolean(opts.link),
+          });
+          console.log(`  with the plugin ${result.manifest.slug} ${result.manifest.version}`);
+        }
+        await announcePluginChange(db);
+      });
+    }
     await withOwner((db) => announceThemeChange(db));
   });
 

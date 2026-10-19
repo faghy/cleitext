@@ -359,7 +359,7 @@ describe('paid themes', () => {
     expect(stored).toHaveLength(1);
     expect(JSON.stringify(stored)).not.toContain(license.key);
 
-    expect((await admin.post('/api/v1/themes/vivid/activate')).statusCode).toBe(204);
+    expect((await admin.post('/api/v1/themes/vivid/activate')).statusCode).toBe(200);
     expect((await admin.get('/')).body).toContain('vivid-theme 1.0.0');
   });
 
@@ -408,7 +408,7 @@ describe('paid themes', () => {
     expect(
       (await otherAdmin.request('PUT', '/api/v1/licenses/vivid', { key: license.key })).statusCode,
     ).toBe(200);
-    expect((await otherAdmin.post('/api/v1/themes/vivid/activate')).statusCode).toBe(204);
+    expect((await otherAdmin.post('/api/v1/themes/vivid/activate')).statusCode).toBe(200);
   });
 
   it('sells plugins the same way: demo, 402 without a license, then a key per site', async () => {

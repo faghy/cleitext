@@ -31,8 +31,10 @@ import {
   themeFailures,
   themeFor,
   themePaid,
+  themePlugins,
 } from '../public/themes.js';
 import { LicensesService } from '../catalog/licenses.service.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
 
 /** Themes per site: activation, settings, block areas (RF-THM-01/03/04). */
 @Injectable()
@@ -45,6 +47,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     private readonly cache: PageCacheService,
     private readonly audit: AuditService,
     private readonly licenses: LicensesService,
+    private readonly plugins: PluginHost,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -120,7 +123,12 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     return views;
   }
 
-  async activate(siteId: string, auth: AuthContext, slug: string, ip: string): Promise<void> {
+  async activate(
+    siteId: string,
+    auth: AuthContext,
+    slug: string,
+    ip: string,
+  ): Promise<{ warnings: string[] }> {
     if (!isThemeAvailable(slug))
       throw new NotFoundException(`The theme "${slug}" is not installed.`);
     // Paid themes: a license for this site, activated once with the license
@@ -134,6 +142,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
         402,
       );
     }
+    const previous = await this.activeSlug(siteId, auth).catch(() => null);
     await this.run(siteId, auth, async (tx) => {
       await tx.execute(sql`select cleitext_app_set_theme(${slug})`);
       await this.audit.record(tx, {
@@ -146,6 +155,45 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       });
     });
     await this.cache.invalidate(siteId, ['site'], { sites: true });
+    return { warnings: await this.switchPlugins(siteId, auth, previous, slug) };
+  }
+
+  /**
+   * The plugins that come with themes: the new theme's are activated on the
+   * site, the previous theme's deactivated (their data is kept). A plugin
+   * that cannot start (a missing dependency) does not stop the theme: the
+   * reason is returned for the admin to show.
+   */
+  private async switchPlugins(
+    siteId: string,
+    auth: AuthContext,
+    previous: string | null,
+    next: string,
+  ): Promise<string[]> {
+    const wanted = themePlugins(next);
+    const leaving = themePlugins(previous).filter((p) => !wanted.includes(p));
+    if (wanted.length === 0 && leaving.length === 0) return [];
+    const warnings: string[] = [];
+    const active = await this.plugins.activeSlugs(siteId);
+    for (const plugin of leaving) {
+      if (!active.has(plugin)) continue;
+      await this.plugins.deactivate(siteId, auth.userId, plugin).catch((error: unknown) => {
+        warnings.push(error instanceof Error ? error.message : String(error));
+      });
+    }
+    for (const plugin of wanted) {
+      if (active.has(plugin)) continue;
+      if (!this.plugins.get(plugin)) {
+        warnings.push(
+          `The plugin ${plugin} that comes with the theme is not installed: install the theme again.`,
+        );
+        continue;
+      }
+      await this.plugins.activate(siteId, auth.userId, plugin).catch((error: unknown) => {
+        warnings.push(error instanceof Error ? error.message : String(error));
+      });
+    }
+    return warnings;
   }
 
   /** Values of the active theme's settings, defaults included. */

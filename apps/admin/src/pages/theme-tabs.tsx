@@ -31,8 +31,13 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
     queryFn: () => api<ThemeView[]>('GET', '/themes'),
   });
   const activate = useMutation({
-    mutationFn: (slug: string) => api<void>('POST', `/themes/${slug}/activate`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['themes'] }),
+    mutationFn: (slug: string) =>
+      api<{ warnings?: string[] } | undefined>('POST', `/themes/${slug}/activate`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['themes'] });
+      // The plugins that come with the theme changed too (its menu entries, its editor).
+      void queryClient.invalidateQueries({ queryKey: ['plugins'] });
+    },
   });
   const me = useMe();
   const canDelete = me.capabilities.includes('manage_plugins');
@@ -85,6 +90,9 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
           {t('Add New Theme')}
         </Button>
       )}
+      {(activate.data?.warnings ?? []).map((warning) => (
+        <Alert key={warning}>{warning}</Alert>
+      ))}
       {(themes.error ?? activate.error ?? deleteTheme.error) && (
         <Alert>{errorMessage(themes.error ?? activate.error ?? deleteTheme.error)}</Alert>
       )}

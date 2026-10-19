@@ -16,6 +16,15 @@ export const themeManifestSchema = z.object({
    * that site, activated with this license server.
    */
   paid: z.object({ licenseServer: z.url(), purchaseUrl: z.url().optional() }).optional(),
+  /**
+   * Plugins that come with the theme (e.g. its page builder), built, in the
+   * package under `plugins/<slug>/`: installed with the theme, activated on a
+   * site when the theme is, deactivated (data kept) when another theme is.
+   */
+  plugins: z
+    .array(z.string().regex(/^[a-z][a-z0-9-]{1,39}$/))
+    .max(10)
+    .optional(),
   /** Bundle built by `cleitext theme:build`, default export `defineTheme(…)`. */
   entry: z.string().min(1).default('dist/index.js'),
 });

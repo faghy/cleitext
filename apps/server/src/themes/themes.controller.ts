@@ -98,14 +98,14 @@ export class ThemesController {
   }
 
   @Post(':slug/activate')
-  @HttpCode(204)
+  @HttpCode(200)
   @RequireCapability('manage_themes')
   activate(
     @CurrentSite() site: SiteContext,
     @CurrentAuth() auth: AuthContext,
     @Param('slug') slug: string,
     @Req() request: FastifyRequest,
-  ): Promise<void> {
+  ): Promise<{ warnings: string[] }> {
     return this.themes.activate(site.id, auth, slug, request.ip);
   }
 

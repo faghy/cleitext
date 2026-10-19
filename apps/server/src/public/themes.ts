@@ -15,6 +15,7 @@ const bundled = new Map<string, ThemeDefinition>([[aurora.slug, aurora]]);
 let installed = new Map<string, ThemeDefinition>();
 let failures = new Map<string, string>();
 let paid = new Map<string, NonNullable<ThemeManifest['paid']>>();
+let bundledPlugins = new Map<string, string[]>();
 let generation = 0;
 
 export const DEFAULT_THEME = 'aurora';
@@ -36,6 +37,11 @@ export function installedThemes(): { theme: ThemeDefinition; bundled: boolean }[
 /** Themes of THEMES_PATH that failed to load, with the reason. */
 export function themeFailures(): ReadonlyMap<string, string> {
   return failures;
+}
+
+/** The plugins that come with a theme (theme.json `plugins`). */
+export function themePlugins(slug: string | null | undefined): string[] {
+  return (slug && bundledPlugins.get(slug)) || [];
 }
 
 /** Paid themes (RF-CAT-03): their license server, from theme.json. */
@@ -72,6 +78,7 @@ async function load(dir: string): Promise<void> {
   const next = new Map<string, ThemeDefinition>();
   const errors = new Map<string, string>();
   const nextPaid = new Map<string, NonNullable<ThemeManifest['paid']>>();
+  const nextPlugins = new Map<string, string[]>();
   const folders = existsSync(dir)
     ? // `x.staging` and `x.previous` belong to an installation in progress.
       (await readdir(dir, { withFileTypes: true })).filter(
@@ -99,6 +106,7 @@ async function load(dir: string): Promise<void> {
       // code may be left behind (themes did), and updates would be offered forever.
       next.set(theme.slug, { ...theme, version: manifest.version });
       if (manifest.paid) nextPaid.set(theme.slug, manifest.paid);
+      if (manifest.plugins?.length) nextPlugins.set(theme.slug, manifest.plugins);
     } catch (error) {
       errors.set(folder.name, error instanceof Error ? error.message : String(error));
     }
@@ -106,4 +114,5 @@ async function load(dir: string): Promise<void> {
   installed = next;
   failures = errors;
   paid = nextPaid;
+  bundledPlugins = nextPlugins;
 }

@@ -37,6 +37,14 @@ I **temi a pagamento** (RF-CAT-03) aggiungono a `theme.json` il loro server dell
 
 Un tema così si può installare e provare con l'Anteprima dal vivo senza licenza (la demo), ma un sito può attivarlo solo dopo aver inserito una chiave di licenza per quel sito in **Aspetto → Temi**. La chiave viene verificata una volta con il server delle licenze e conservata cifrata; le pagine non interrogano mai il server, e il tema continua a funzionare se la licenza viene tolta o i suoi aggiornamenti finiscono. Gli aggiornamenti dal catalogo richiedono una licenza i cui aggiornamenti includano la nuova versione (altrimenti _Rinnova per aggiornare_). Il codice resta GPL: la licenza compra download, aggiornamenti e assistenza.
 
+**Plugin che vengono con il tema** (API 1.25): un tema può portare i suoi plugin, per esempio un page builder, già compilati, nel suo pacchetto in `plugins/<slug>/`, e nominarli in `theme.json`:
+
+```json
+"plugins": ["mio-tema-builder"]
+```
+
+`theme:install` (e quindi Carica tema e il catalogo) li installa con il tema. Quando un sito attiva il tema, si attivano anche lì; quando sceglie un altro tema si disattivano, tenendo i loro dati. Un plugin che non può partire (per esempio perché richiede un altro plugin non installato) non ferma il tema: **Aspetto → Temi** dice perché.
+
 ## 3. La definizione del tema
 
 `defineTheme({ … })` riceve:

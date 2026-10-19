@@ -146,7 +146,7 @@ describe('installed themes', () => {
 
   it('activates a theme for the site', async () => {
     expect((await admin.post('/api/v1/themes/missing/activate')).statusCode).toBe(404);
-    expect((await admin.post('/api/v1/themes/plain/activate')).statusCode).toBe(204);
+    expect((await admin.post('/api/v1/themes/plain/activate')).statusCode).toBe(200);
     const home = await visitor.get('/');
     expect(home.body).toContain('Plain theme of');
     await admin.post('/api/v1/themes/aurora/activate');
@@ -194,11 +194,11 @@ export default sdk.defineTheme({ slug: 'shiny', name: 'Shiny', version: '2.0.0',
     // Delete: super admins only, never a bundled theme or one a site uses.
     expect((await admin.delete('/api/v1/themes/shiny')).statusCode).toBe(403);
     expect((await root.delete('/api/v1/themes/aurora')).statusCode).toBe(400);
-    expect((await root.post('/api/v1/themes/shiny/activate')).statusCode).toBe(204);
+    expect((await root.post('/api/v1/themes/shiny/activate')).statusCode).toBe(200);
     const used = await root.delete('/api/v1/themes/shiny');
     expect(used.statusCode).toBe(400);
     expect(used.json().detail).toContain('activate another theme there first');
-    expect((await root.post('/api/v1/themes/aurora/activate')).statusCode).toBe(204);
+    expect((await root.post('/api/v1/themes/aurora/activate')).statusCode).toBe(200);
     expect((await root.delete('/api/v1/themes/shiny')).statusCode).toBe(204);
     await eventually(
       async () =>
