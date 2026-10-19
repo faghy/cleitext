@@ -87,7 +87,7 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 | Capability                                       | Super admin | Amministratore | Editore | Autore |  Collaboratore  | Sottoscrittore |
 | ------------------------------------------------ | :---------: | :------------: | :-----: | :----: | :-------------: | :------------: |
 | `manage_sites` (creare/eliminare siti, domini)   |     ✅      |                |         |        |                 |                |
-| `manage_plugins` (installare plugin)             |     ✅      |                |         |        |                 |                |
+| `manage_plugins` (installare plugin e temi¹)     |     ✅      |      ✅¹       |         |        |                 |                |
 | `activate_plugins` (sul proprio sito)            |     ✅      |       ✅       |         |        |                 |                |
 | `manage_themes` / `edit_theme_settings`          |     ✅      |       ✅       |         |        |                 |                |
 | `manage_users` / `promote_users`                 |     ✅      |       ✅       |         |        |                 |                |
@@ -104,6 +104,8 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 | `unfiltered_html`                                |     ✅      |      ✅*       |         |        |                 |                |
 | `view_audit_log`                                 |     ✅      |       ✅       |         |        |                 |                |
 | `read` (profilo, area riservata)                 |     ✅      |       ✅       |   ✅    |   ✅   |       ✅        |       ✅       |
+
+¹ Solo in un'installazione con un solo sito, come in WordPress; con più siti installano codice solo i super amministratori.
 
 \* Disattivabile per sito.
 

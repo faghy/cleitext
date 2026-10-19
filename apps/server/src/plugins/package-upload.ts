@@ -188,6 +188,8 @@ export function assertCanUpload(
     );
   }
   if (!auth.capabilities.includes('manage_plugins')) {
-    throw new BadRequestException('Only super admins can install code.');
+    throw new BadRequestException(
+      'Only super admins (and, on an installation with one site, its administrators) can install code.',
+    );
   }
 }

@@ -1012,7 +1012,7 @@ sequenceDiagram
 
 **Security of installing from the admin:**
 
-- it requires the `manage_plugins` capability, which by default only the super admin has;
+- it requires the `manage_plugins` capability: super admins have it, and so do the administrators of an installation with one site (as in WordPress; with several sites only super admins);
 - it can be disabled with `PLUGINS_INSTALL_FROM_UI=false`, for example in environments managed via CI;
 - plugins live in `cleitext-data/plugins`, outside the release, so they survive deployments. It is the only code folder writable by the process;
 - every operation is recorded in the audit log.

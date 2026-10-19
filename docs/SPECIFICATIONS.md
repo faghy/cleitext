@@ -87,7 +87,7 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 | Capability                                       | Super admin | Administrator | Editor | Author |   Contributor    | Subscriber |
 | ------------------------------------------------ | :---------: | :-----------: | :----: | :----: | :--------------: | :--------: |
 | `manage_sites` (create/delete sites, domains)    |     ✅      |               |        |        |                  |            |
-| `manage_plugins` (install plugins)               |     ✅      |               |        |        |                  |            |
+| `manage_plugins` (install plugins and themes¹)   |     ✅      |      ✅¹      |        |        |                  |            |
 | `activate_plugins` (on own site)                 |     ✅      |      ✅       |        |        |                  |            |
 | `manage_themes` / `edit_theme_settings`          |     ✅      |      ✅       |        |        |                  |            |
 | `manage_users` / `promote_users`                 |     ✅      |      ✅       |        |        |                  |            |
@@ -104,6 +104,8 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 | `unfiltered_html`                                |     ✅      |      ✅*      |        |        |                  |            |
 | `view_audit_log`                                 |     ✅      |      ✅       |        |        |                  |            |
 | `read` (profile, members area)                   |     ✅      |      ✅       |   ✅   |   ✅   |        ✅        |     ✅     |
+
+¹ Only on an installation with one site, as in WordPress; with several sites only super admins install code.
 
 \* Can be disabled per site.
 

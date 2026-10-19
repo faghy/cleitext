@@ -12,7 +12,7 @@ import {
 } from '@cleitext/db';
 import { effectiveCapabilities, type MeResponse } from '@cleitext/shared';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { LanguagesService } from '../content/languages.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
@@ -33,14 +33,28 @@ export class IdentityService {
    * has no access to the site (neither member nor super admin).
    */
   async load(siteId: string, userId: string, sessionId: string): Promise<AuthContext | null> {
-    const active = await this.plugins.activeSlugs(siteId);
+    const active = await this.activePlugins(siteId);
     return withContext(this.database.db, { siteId, userId }, (tx) =>
       this.loadInTx(tx, siteId, userId, sessionId, active),
     );
   }
 
-  /** The plugins active on the site, for `loadInTx`: read them before opening the transaction. */
-  activePlugins(siteId: string): Promise<Set<string>> {
+  /** Whether the installation has one site only, refreshed every minute. */
+  private single: { value: boolean; at: number } | null = null;
+
+  private async singleSite(): Promise<boolean> {
+    if (this.single && Date.now() - this.single.at < 60_000) return this.single.value;
+    const [row] = await this.database.db.select({ n: count() }).from(sites);
+    this.single = { value: Number(row?.n ?? 0) === 1, at: Date.now() };
+    return this.single.value;
+  }
+
+  /**
+   * The plugins active on the site, for `loadInTx`: read them before opening
+   * the transaction (with the number of sites, read there too).
+   */
+  async activePlugins(siteId: string): Promise<Set<string>> {
+    await this.singleSite().catch(() => false);
     return this.plugins.activeSlugs(siteId);
   }
 
@@ -82,6 +96,11 @@ export class IdentityService {
       role: membership ? { id: membership.id, slug: membership.slug, name: membership.name } : null,
       capabilities: [
         ...effectiveCapabilities(membership?.capabilities ?? [], isSuperAdmin),
+        // As in WordPress: on an installation with one site, its administrators
+        // install plugins and themes; with several sites only super admins do.
+        ...(!isSuperAdmin && membership?.slug === 'administrator' && this.single?.value
+          ? (['manage_plugins'] as const)
+          : []),
         // Capabilities defined by the plugins active on the site.
         ...this.plugins.capabilitiesFor(
           active,
