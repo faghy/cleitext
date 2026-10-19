@@ -41,7 +41,11 @@ const xml = (value: string) =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!,
   );
 
-const STYLESHEET = '<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>';
+/*
+ * No <?xml-stylesheet?>: browsers are dropping XSLT (Chrome warns about it
+ * on the page), so sitemaps are plain XML. /sitemap.xsl still answers, for
+ * the links already out there.
+ */
 
 const name = (source: SitemapSource, locale: string, page: number) =>
   `sitemap-${source.kind === 'taxonomy' ? 'tax-' : ''}${source.slug}-${locale}${page > 1 ? `-${page}` : ''}.xml`;
@@ -119,7 +123,7 @@ export async function sitemapIndex(ctx: SitemapContext): Promise<string> {
         `<sitemap><loc>${xml(i.loc)}</loc>${i.lastmod ? `<lastmod>${i.lastmod.toISOString()}</lastmod>` : ''}</sitemap>`,
     )
     .join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n${STYLESHEET}\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</sitemapindex>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</sitemapindex>\n`;
 }
 
 /** The newest change of each page of a long sitemap, in the order of the sitemap. */
@@ -175,7 +179,7 @@ export async function sitemap(
       return `<url><loc>${xml(u.loc)}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}${alternates}${images}</url>`;
     })
     .join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n${STYLESHEET}\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${body}\n</urlset>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${body}\n</urlset>\n`;
 }
 
 const absolute = (ctx: SitemapContext, path: string) =>

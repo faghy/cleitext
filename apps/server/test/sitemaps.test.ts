@@ -86,7 +86,8 @@ describe('XML sitemaps', () => {
     expect(index.statusCode).toBe(200);
     expect(index.headers['content-type']).toContain('application/xml');
     expect(index.headers['x-robots-tag']).toBe('noindex, follow');
-    expect(index.body).toContain('<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>');
+    // No XSLT stylesheet: browsers are dropping it (and warn about it).
+    expect(index.body).not.toContain('xml-stylesheet');
     expect(index.body).toMatch(
       /<loc>http:\/\/sitemaps\.test\/sitemap-page-en\.xml<\/loc><lastmod>\d{4}-/,
     );
@@ -127,7 +128,7 @@ describe('XML sitemaps', () => {
     expect((await visitor.get(`/sitemap-article-en.xml`)).body).toContain(`/${story.slug}`);
   });
 
-  it('answers the addresses of WordPress and Yoast SEO, and is readable in a browser', async () => {
+  it('answers the addresses of WordPress and Yoast SEO', async () => {
     for (const path of ['/sitemap_index.xml', '/wp-sitemap.xml']) {
       const res = await visitor.get(path);
       expect(res.statusCode).toBe(301);
