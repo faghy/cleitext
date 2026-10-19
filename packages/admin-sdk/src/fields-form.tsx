@@ -109,6 +109,7 @@ function Field({
           rows={4}
           className={inputClass}
           value={text}
+          placeholder={typeof placeholder === 'string' ? placeholder : undefined}
           maxLength={field.maxLength}
           onChange={(e) => onChange(empty(e.target.value))}
         />
@@ -117,6 +118,7 @@ function Field({
           {...common}
           className={inputClass}
           value={text}
+          placeholder={typeof placeholder === 'string' ? placeholder : undefined}
           maxLength={field.maxLength}
           onChange={(e) => onChange(empty(e.target.value))}
         />
@@ -188,7 +190,10 @@ function Field({
             <input
               {...common}
               type="checkbox"
-              checked={value === true}
+              // Unset: the default (a theme or plugin setting never chosen yet).
+              checked={
+                value === undefined || value === null ? placeholder === true : value === true
+              }
               onChange={(e) => onChange(e.target.checked)}
             />
             <span className="font-medium text-slate-800">{label}</span>

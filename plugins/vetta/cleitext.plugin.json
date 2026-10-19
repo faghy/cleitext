@@ -1,0 +1,25 @@
+{
+  "slug": "vetta",
+  "name": "Vetta SEO",
+  "version": "1.0.0",
+  "apiVersion": "^1.24",
+  "description": "SEO in one place: search titles and descriptions with variables, a content analysis with a score out of 100, social cards, schema.org and local business data, sitemaps, a log of pages not found, IndexNow, llms.txt and robots.txt.",
+  "author": "Cleitext",
+  "homepage": "https://cleitext.com/plugins/vetta",
+  "license": "GPL-3.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "conflicts": ["seo"],
+  "permissions": [
+    "blocks",
+    "content:read",
+    "content:write",
+    "media:read",
+    "network",
+    "routes:admin",
+    "routes:public",
+    "settings:own",
+    "theme:hooks"
+  ],
+  "capabilities": ["manage_vetta"]
+}

@@ -57,6 +57,7 @@ const SEPARATE = [
   'shop',
   'widgets',
   'prisma',
+  'vetta',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
