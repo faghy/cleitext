@@ -25,7 +25,55 @@ export interface KitFont {
   style?: string;
 }
 
+/** A text style of the theme style: a global font, or its own family, size, weight and color. */
+export interface TextStyle {
+  /** Id of a global font. */
+  font?: string;
+  family?: string;
+  size?: SizeValue;
+  weight?: string;
+  color?: string;
+}
+
+export const THEME_TEXTS = ['body', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const;
+export type ThemeText = (typeof THEME_TEXTS)[number];
+
+/** Theme style: how texts, buttons, images, form fields and the lightbox look by default. */
+export interface ThemeStyle {
+  texts?: Partial<Record<ThemeText, TextStyle>>;
+  button?: {
+    font?: string;
+    color?: string;
+    background?: string;
+    hoverColor?: string;
+    hoverBackground?: string;
+    borderColor?: string;
+    borderWidth?: SizeValue;
+    radius?: SizeValue;
+    paddingY?: SizeValue;
+    paddingX?: SizeValue;
+  };
+  image?: {
+    radius?: SizeValue;
+    borderColor?: string;
+    borderWidth?: SizeValue;
+    opacity?: number;
+    hoverOpacity?: number;
+  };
+  field?: {
+    color?: string;
+    background?: string;
+    borderColor?: string;
+    focusBorderColor?: string;
+    borderWidth?: SizeValue;
+    radius?: SizeValue;
+  };
+  lightbox?: { background?: string; uiColor?: string };
+}
+
 export interface Kit {
+  /** Theme style beyond the colors of texts and links (see `style`). */
+  theme: ThemeStyle;
   colors: KitColor[];
   fonts: KitFont[];
   breakpoints: Breakpoints;
@@ -54,6 +102,7 @@ export interface Kit {
 export const SYSTEM_IDS = ['primary', 'secondary', 'text', 'accent'] as const;
 
 export const DEFAULT_KIT: Kit = {
+  theme: {},
   colors: [
     { id: 'primary', title: 'Primary', value: '#1d4ed8' },
     { id: 'secondary', title: 'Secondary', value: '#0f172a' },
@@ -132,6 +181,7 @@ export function normalizeKit(value: unknown): Kit {
       : fallback;
   const style = (input.style ?? {}) as Kit['style'];
   return {
+    theme: normalizeTheme(input.theme),
     colors: withSystem(colors, DEFAULT_KIT.colors),
     fonts: withSystem(fonts, DEFAULT_KIT.fonts),
     breakpoints,
@@ -180,6 +230,160 @@ export function normalizeKit(value: unknown): Kit {
 const length = (v: SizeValue | undefined): string | null =>
   v && typeof v.size === 'number' ? `${v.size}${v.unit}` : null;
 
+const sizeOf = (v: unknown): SizeValue | undefined =>
+  v &&
+  typeof v === 'object' &&
+  typeof (v as SizeValue).size === 'number' &&
+  Number.isFinite((v as SizeValue).size) &&
+  ['px', '%', 'em', 'rem', 'vw', 'vh'].includes((v as SizeValue).unit)
+    ? { size: (v as SizeValue).size, unit: (v as SizeValue).unit }
+    : undefined;
+const colorOf = (v: unknown): string | undefined => (safeColor(v) ? String(v) : undefined);
+const prune = <T extends object>(o: T): T | undefined => {
+  const kept = Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+  return Object.keys(kept).length ? (kept as T) : undefined;
+};
+
+/** The theme style read from storage: only known, safe values. */
+export function normalizeTheme(value: unknown): ThemeStyle {
+  const input = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const obj = (v: unknown) => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {});
+  const texts: Partial<Record<ThemeText, TextStyle>> = {};
+  for (const key of THEME_TEXTS) {
+    const t = obj(obj(input.texts)[key]);
+    const style = prune<TextStyle>({
+      font: typeof t.font === 'string' && ID.test(t.font) ? t.font : undefined,
+      family: typeof t.family === 'string' && safeFont(t.family) ? t.family : undefined,
+      size: sizeOf(t.size),
+      weight: typeof t.weight === 'string' && /^\d{3}$/.test(t.weight) ? t.weight : undefined,
+      color: colorOf(t.color),
+    });
+    if (style) texts[key] = style;
+  }
+  const b = obj(input.button);
+  const i = obj(input.image);
+  const f = obj(input.field);
+  const l = obj(input.lightbox);
+  const opacity = (v: unknown) =>
+    typeof v === 'number' && v >= 0 && v <= 1 ? Math.round(v * 100) / 100 : undefined;
+  return (
+    prune<ThemeStyle>({
+      texts: Object.keys(texts).length ? texts : undefined,
+      button: prune({
+        font: typeof b.font === 'string' && ID.test(b.font) ? b.font : undefined,
+        color: colorOf(b.color),
+        background: colorOf(b.background),
+        hoverColor: colorOf(b.hoverColor),
+        hoverBackground: colorOf(b.hoverBackground),
+        borderColor: colorOf(b.borderColor),
+        borderWidth: sizeOf(b.borderWidth),
+        radius: sizeOf(b.radius),
+        paddingY: sizeOf(b.paddingY),
+        paddingX: sizeOf(b.paddingX),
+      }),
+      image: prune({
+        radius: sizeOf(i.radius),
+        borderColor: colorOf(i.borderColor),
+        borderWidth: sizeOf(i.borderWidth),
+        opacity: opacity(i.opacity),
+        hoverOpacity: opacity(i.hoverOpacity),
+      }),
+      field: prune({
+        color: colorOf(f.color),
+        background: colorOf(f.background),
+        borderColor: colorOf(f.borderColor),
+        focusBorderColor: colorOf(f.focusBorderColor),
+        borderWidth: sizeOf(f.borderWidth),
+        radius: sizeOf(f.radius),
+      }),
+      lightbox: prune({ background: colorOf(l.background), uiColor: colorOf(l.uiColor) }),
+    }) ?? {}
+  );
+}
+
+/** The theme style as CSS, on pages using Fresco (the kit's CSS goes only there). */
+export function themeCss(theme: ThemeStyle): string {
+  const out: string[] = [];
+  const rule = (selector: string, decls: (string | null | undefined | false)[]) => {
+    const list = decls.filter(Boolean);
+    if (list.length) out.push(`${selector}{${list.join(';')}}`);
+  };
+  const font = (id: string | undefined) =>
+    id
+      ? [
+          `font-family:var(--fr-t-${id}-family)`,
+          `font-weight:var(--fr-t-${id}-weight)`,
+          `text-transform:var(--fr-t-${id}-transform,none)`,
+        ]
+      : [];
+  const text = (t: TextStyle | undefined) => [
+    ...font(t?.font),
+    t?.family && !t.font ? `font-family:${safeFont(t.family)}` : null,
+    length(t?.size) && `font-size:${length(t?.size)}`,
+    t?.weight && `font-weight:${t.weight}`,
+    t?.color && safeColor(t.color) && `color:${safeColor(t.color)}`,
+  ];
+  for (const key of THEME_TEXTS) {
+    rule(key === 'body' ? 'body' : `body ${key}`, text(theme.texts?.[key]));
+  }
+  const b = theme.button;
+  if (b) {
+    rule('.fr-button__link', [
+      ...font(b.font),
+      b.color && `color:${safeColor(b.color)}`,
+      b.background && `background-color:${safeColor(b.background)}`,
+      b.borderColor && `border-color:${safeColor(b.borderColor)}`,
+      length(b.borderWidth) && `border-style:solid;border-width:${length(b.borderWidth)}`,
+      length(b.radius) && `border-radius:${length(b.radius)}`,
+      (length(b.paddingY) || length(b.paddingX)) &&
+        `padding:${length(b.paddingY) ?? '12px'} ${length(b.paddingX) ?? '24px'}`,
+    ]);
+    rule('.fr-button__link:hover,.fr-button__link:focus-visible', [
+      b.hoverColor && `color:${safeColor(b.hoverColor)}`,
+      b.hoverBackground && `background-color:${safeColor(b.hoverBackground)}`,
+    ]);
+  }
+  const i = theme.image;
+  if (i) {
+    rule('.fr-image img', [
+      length(i.radius) && `border-radius:${length(i.radius)}`,
+      i.borderColor && `border-color:${safeColor(i.borderColor)}`,
+      length(i.borderWidth) && `border-style:solid;border-width:${length(i.borderWidth)}`,
+      i.opacity !== undefined && `opacity:${i.opacity}`,
+      i.hoverOpacity !== undefined && 'transition:opacity .3s',
+    ]);
+    rule('.fr-image img:hover', [i.hoverOpacity !== undefined && `opacity:${i.hoverOpacity}`]);
+  }
+  const f = theme.field;
+  if (f) {
+    const fields =
+      '.frp-form__input,.fr-e input:not([type=checkbox]):not([type=radio]):not([type=submit]),.fr-e textarea,.fr-e select';
+    rule(fields, [
+      f.color && `color:${safeColor(f.color)}`,
+      f.background && `background-color:${safeColor(f.background)}`,
+      f.borderColor && `border-color:${safeColor(f.borderColor)}`,
+      length(f.borderWidth) && `border-style:solid;border-width:${length(f.borderWidth)}`,
+      length(f.radius) && `border-radius:${length(f.radius)}`,
+    ]);
+    rule(
+      fields
+        .split(',')
+        .map((s) => `${s}:focus`)
+        .join(','),
+      [
+        f.focusBorderColor &&
+          `border-color:${safeColor(f.focusBorderColor)};outline-color:${safeColor(f.focusBorderColor)}`,
+      ],
+    );
+  }
+  const lb = theme.lightbox;
+  if (lb) {
+    rule('.fr-lb', [lb.background && `background:${safeColor(lb.background)}`]);
+    rule('.fr-lb__close,.fr-lb__nav', [lb.uiColor && `color:${safeColor(lb.uiColor)}`]);
+  }
+  return out.join('');
+}
+
 /**
  * The kit as CSS: variables on `:root` (`--fr-c-<id>`, `--fr-t-<id>-family`
  * and so on) and the theme style, inside Fresco content only.
@@ -217,6 +421,7 @@ export function kitCss(kit: Kit): string {
   if (s.background && safeColor(s.background))
     scoped.push(`body.fr-page{background-color:${safeColor(s.background)}}`);
   css += scoped.join('');
+  css += themeCss(kit.theme ?? {});
   css += atomicKitCss(kit.classes, kit.variables, kit.breakpoints);
   css += responsiveUtilities(kit.breakpoints);
   return css.replace(/<\/?style/gi, '');

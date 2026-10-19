@@ -18,6 +18,15 @@ import { controlsOf, extensions } from '../core/extensions.js';
 import { LibraryView } from './library.js';
 import { HistoryView } from './history.js';
 import { confirmAction } from './dialogs.js';
+import {
+  ButtonSettings,
+  FieldSettings,
+  IdentitySettings,
+  ImageSettings,
+  LightboxSettings,
+  SITE_MENU,
+  TypographySettings,
+} from './site-settings.js';
 import { PluginBlockFields, pluginBlockTitle } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
@@ -42,6 +51,10 @@ export interface PanelProps {
   onDragStart: (event: React.PointerEvent, type: string, label: string) => void;
   canManageKit: boolean;
   onSaveKit: () => Promise<void>;
+  /** The site settings are saved with the page (Publish), not with their own button. */
+  savesWithPage?: boolean;
+  /** The user may change the site's title and tagline. */
+  canManageSettings?: boolean;
 }
 
 export function Panel(props: PanelProps) {
@@ -619,32 +632,59 @@ function PageView({ store }: { store: Store }) {
 
 // ---- Site settings (kit) ---------------------------------------------------------------------------
 
-function SiteView({ store, canManageKit, onSaveKit }: PanelProps) {
+function SiteView({
+  store,
+  canManageKit,
+  onSaveKit,
+  savesWithPage,
+  canManageSettings,
+}: PanelProps) {
+  const { t: tx } = useT();
   const kit = useStore(store, (s) => s.kit);
   const dirty = useStore(store, (s) => s.kitDirty);
-  const [section, setSection] = useState<string>('colors');
+  const [section, setSection] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Kit>) => store.actions.setKit({ ...kit, ...patch });
   const fonts = useMemo(() => [...SYSTEM_FONTS, ...[...GOOGLE_FONTS].sort()], []);
-  const sectionHead = (id: string, title: string) => (
-    <button
-      type="button"
-      className="fre-section__head"
-      aria-expanded={section === id}
-      onClick={() => setSection(section === id ? '' : id)}
-    >
-      <Svg path={section === id ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6'} size={12} />
-      {title}
-    </button>
-  );
+  // As in other builders: a menu, and each entry its own panel with the way back.
+  const sectionHead = (_id: string, _title: string) => null;
+  const setTheme = (theme: Kit['theme']) => set({ theme });
+  const current = SITE_MENU.flatMap((g) => g.items).find((item) => item.id === section);
+  if (!current) {
+    return (
+      <div className="fre-site fre-site--menu">
+        <p className="fre-help">
+          {tx('They apply to every Fresco page of the site.')}
+          {!canManageKit && ` ${tx('Only administrators can save them.')}`}
+        </p>
+        {SITE_MENU.map((group) => (
+          <section key={group.group} className="fre-sitemenu">
+            <h4>{tx(group.group)}</h4>
+            {group.items.map((item) => (
+              <button key={item.id} type="button" onClick={() => setSection(item.id)}>
+                <Svg path={item.icon} size={16} />
+                <span>{tx(item.title)}</span>
+                <Svg path="M9 6l6 6-6 6" size={12} />
+              </button>
+            ))}
+          </section>
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="fre-site">
-      <h3 className="fre-view-title">Site settings</h3>
-      <p className="fre-help">
-        They apply to every Fresco page of the site.
-        {!canManageKit && ' Only administrators can save them.'}
-      </p>
+      <button type="button" className="fre-site__back" onClick={() => setSection('')}>
+        <Svg path="M15 6l-6 6 6 6" size={14} />
+        <span>{tx(current.title)}</span>
+      </button>
+      {section === 'typography' && <TypographySettings kit={kit} setTheme={setTheme} />}
+      {section === 'buttons' && <ButtonSettings kit={kit} setTheme={setTheme} />}
+      {section === 'images' && <ImageSettings kit={kit} setTheme={setTheme} />}
+      {section === 'fields' && <FieldSettings kit={kit} setTheme={setTheme} />}
+      {section === 'lightbox' && <LightboxSettings kit={kit} setTheme={setTheme} />}
+      {section === 'identity' && <IdentitySettings canManage={canManageSettings === true} />}
       <section className={`fre-section${section === 'colors' ? ' is-open' : ''}`}>
         {sectionHead('colors', 'Global colors')}
         {section === 'colors' && (
@@ -909,7 +949,7 @@ function SiteView({ store, canManageKit, onSaveKit }: PanelProps) {
           </div>
         )}
       </section>
-      {canManageKit && (
+      {canManageKit && !savesWithPage && (
         <div className="fre-site__save">
           {error && <p className="fre-error">{error}</p>}
           <button

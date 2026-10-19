@@ -91,7 +91,6 @@ export function FrescoEditor(props: EditorProps) {
     return () => window.removeEventListener('fresco:shortcuts', open);
   }, []);
   const hostRef = useRef(props.host);
-  hostRef.current = props.host;
   const { t } = useT();
   const [mediaMap] = useState(() => new Map<string, RenderMediaItem>());
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -297,7 +296,31 @@ export function FrescoEditor(props: EditorProps) {
     ? `${window.location.pathname.split('/entries/')[0]}/ext/fresco-pro/theme-builder`
     : null;
 
-  if (props.host) {
+  // The site settings are saved with the page, as in other builders.
+  const kitDirty = useStore(store, (s) => s.kitDirty);
+  const withKit = (action: () => Promise<void>) => async (): Promise<void> => {
+    if (store.get().kitDirty && canManageKit) {
+      try {
+        await saveKit();
+      } catch (error) {
+        notify(String(error instanceof Error ? error.message : error), 'error');
+        return;
+      }
+    }
+    await action();
+  };
+  const host = props.host
+    ? {
+        ...props.host,
+        dirty: props.host.dirty || kitDirty,
+        save: withKit(props.host.save),
+        publish: withKit(props.host.publish),
+        submit: withKit(props.host.submit),
+      }
+    : undefined;
+  hostRef.current = host;
+
+  if (host) {
     return (
       <div
         className={`fre-root fre-root--full${panelHidden ? ' is-panel-hidden' : ''}`}
@@ -305,15 +328,15 @@ export function FrescoEditor(props: EditorProps) {
       >
         <TopBar
           store={store}
-          host={props.host}
+          host={host}
           canManageKit={canManageKit}
           themeBuilderUrl={themeBuilderUrl}
           openSettings={openSettings}
           saveAsTemplate={saveAsTemplate}
         />
-        {props.host.error && (
+        {host.error && (
           <div className="fre-hosterror" role="alert">
-            {props.host.error}
+            {host.error}
           </div>
         )}
         <div className="fre-body">
@@ -325,6 +348,8 @@ export function FrescoEditor(props: EditorProps) {
               onDragStart={onDragStart}
               canManageKit={canManageKit}
               onSaveKit={saveKit}
+              savesWithPage
+              canManageSettings={user.capabilities.includes('manage_settings')}
             />
           </aside>
           <main className="fre-main">
@@ -348,7 +373,7 @@ export function FrescoEditor(props: EditorProps) {
           </main>
         </div>
         <NavigatorWindow store={store} />
-        {finder && <Finder store={store} host={props.host} onClose={() => setFinder(false)} />}
+        {finder && <Finder store={store} host={host} onClose={() => setFinder(false)} />}
         {shortcuts && <ShortcutsDialog onClose={() => setShortcuts(false)} />}
         <Dialogs />
         {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
