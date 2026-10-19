@@ -2,8 +2,16 @@
  * The controls of the panel. Each edits one setting (or, for groups, a few
  * prefixed ones) of the selected element, for the device being edited.
  */
-import type { EditorMedia } from '@cleitext/admin-sdk';
-import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { t, type EditorMedia } from '@cleitext/admin-sdk';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 import { ANIMATIONS } from '../core/common.js';
 import { isBox, isSize } from '../core/css.js';
 import { Icon, iconDataLoaded, iconNames } from '../core/icons.js';
@@ -65,23 +73,69 @@ export const DEVICE_ICONS: Record<Device, string> = {
   mobile: 'M8 3h8v18H8z M11 18h2',
 };
 
+const DEVICE_NAMES: Record<Device, string> = {
+  desktop: 'Desktop',
+  tablet: 'Tablet',
+  mobile: 'Mobile',
+};
+
+/** The device being edited; a click shows the others (the canvas follows). */
 function DeviceSwitch({ env }: { env: ControlEnv }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useClickAway(ref, open, () => setOpen(false));
   return (
-    <span className="fre-devices" role="group" aria-label="Device">
-      {(['desktop', 'tablet', 'mobile'] as const).map((device) => (
-        <button
-          key={device}
-          type="button"
-          className={device === env.device ? 'is-on' : ''}
-          title={device[0]!.toUpperCase() + device.slice(1)}
-          aria-pressed={device === env.device}
-          onClick={() => env.setDevice(device)}
-        >
-          <Svg path={DEVICE_ICONS[device]} size={12} />
-        </button>
-      ))}
+    <span ref={ref} className={`fre-devices${open ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="is-on"
+        title={t('Responsive: {device}', { device: t(DEVICE_NAMES[env.device]) })}
+        aria-label={t('Responsive: {device}', { device: t(DEVICE_NAMES[env.device]) })}
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Svg path={DEVICE_ICONS[env.device]} size={12} />
+      </button>
+      {open && (
+        <span className="fre-devices__list" role="menu">
+          {(['desktop', 'tablet', 'mobile'] as const)
+            .filter((device) => device !== env.device)
+            .map((device) => (
+              <button
+                key={device}
+                type="button"
+                role="menuitem"
+                title={t(DEVICE_NAMES[device])}
+                aria-label={t(DEVICE_NAMES[device])}
+                onClick={() => {
+                  env.setDevice(device);
+                  setOpen(false);
+                }}
+              >
+                <Svg path={DEVICE_ICONS[device]} size={12} />
+              </button>
+            ))}
+        </span>
+      )}
     </span>
   );
+}
+
+/** Calls `close` on a pointer down outside `ref` while `open`. */
+function useClickAway(ref: React.RefObject<HTMLElement | null>, open: boolean, close: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) close();
+    };
+    const key = (event: KeyboardEvent) => event.key === 'Escape' && close();
+    window.addEventListener('pointerdown', away);
+    window.addEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('pointerdown', away);
+      window.removeEventListener('keydown', key);
+    };
+  }, [open, close, ref]);
 }
 
 function Row({
@@ -100,7 +154,7 @@ function Row({
   return (
     <div className={`fre-control${inline ? ' fre-control--inline' : ''}`}>
       <div className="fre-control__head">
-        <span className="fre-control__label">{control.label}</span>
+        <span className="fre-control__label">{t(control.label)}</span>
         {extensions().fieldAddons.map((addon, i) => {
           const Addon = addon as ComponentType<{ control: Control; env: ControlEnv }>;
           return <Addon key={i} control={control} env={env} />;
@@ -110,8 +164,8 @@ function Row({
           <button
             type="button"
             className="fre-reset"
-            title="Reset"
-            aria-label={`Reset ${control.label}`}
+            title={t('Reset')}
+            aria-label={t('Reset {control}', { control: t(control.label) })}
             onClick={reset}
           >
             <Svg path="M4 12a8 8 0 1 0 2.3-5.6 M4 4v4h4" size={12} />
@@ -119,7 +173,7 @@ function Row({
         )}
       </div>
       <div className="fre-control__body">{children}</div>
-      {control.help && <p className="fre-help">{control.help}</p>}
+      {control.help && <p className="fre-help">{t(control.help)}</p>}
     </div>
   );
 }
@@ -159,7 +213,7 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
   const reset = has && control.type !== 'heading' ? () => env.set({ [key]: undefined }) : undefined;
   switch (control.type) {
     case 'heading':
-      return <h4 className="fre-subheading">{control.label}</h4>;
+      return <h4 className="fre-subheading">{t(control.label)}</h4>;
     case 'notice':
       return <p className="fre-notice">{control.label}</p>;
     case 'text':
@@ -1467,23 +1521,31 @@ function conditionMet(control: Control, settings: Settings): boolean {
 }
 
 function Group({ control, env }: { control: GroupControl; env: ControlEnv }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<'edit' | 'global' | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(null), []);
+  useClickAway(ref, open !== null, close);
   const n = control.name;
   const used = Object.keys(env.attrs).some((k) => k === n || k.startsWith(`${n}_`));
   if (control.type === 'shadow' || control.type === 'textShadow') {
     return <ShadowControl control={control} env={env} />;
   }
-  const global = control.type === 'typography' ? env.attrs[`${n}_global`] : undefined;
+  const typography = control.type === 'typography';
+  const global = typography ? env.attrs[`${n}_global`] : undefined;
+  const globalFont = typeof global === 'string' ? env.kit.fonts.find((f) => f.id === global) : null;
   return (
-    <div className="fre-control fre-group">
+    <div ref={ref} className={`fre-control fre-group${open ? ' is-open' : ''}`}>
       <div className="fre-control__head">
-        <span className="fre-control__label">{control.label}</span>
+        <span className="fre-control__label">
+          {t(control.label)}
+          {globalFont && <em className="fre-globaltag">{globalFont.title}</em>}
+        </span>
         {used && (
           <button
             type="button"
             className="fre-reset"
-            title="Reset"
-            aria-label={`Reset ${control.label}`}
+            title={t('Reset')}
+            aria-label={t('Reset {control}', { control: t(control.label) })}
             onClick={() =>
               env.set(
                 Object.fromEntries(
@@ -1497,39 +1559,60 @@ function Group({ control, env }: { control: GroupControl; env: ControlEnv }) {
             <Svg path="M4 12a8 8 0 1 0 2.3-5.6 M4 4v4h4" size={12} />
           </button>
         )}
+        {typography && (
+          <button
+            type="button"
+            className={`fre-toggle${open === 'global' ? ' is-on' : ''}${globalFont ? ' is-used' : ''}`}
+            aria-expanded={open === 'global'}
+            title={t('Global fonts')}
+            aria-label={t('Global fonts')}
+            onClick={() => setOpen(open === 'global' ? null : 'global')}
+          >
+            <Svg path={GLOBE} size={13} />
+          </button>
+        )}
         <button
           type="button"
-          className={`fre-iconbtn${open ? ' is-on' : ''}${used ? ' is-used' : ''}`}
-          aria-expanded={open}
-          title="Edit"
-          onClick={() => setOpen((o) => !o)}
+          className={`fre-toggle${open === 'edit' ? ' is-on' : ''}${used ? ' is-used' : ''}`}
+          aria-expanded={open === 'edit'}
+          title={t('Edit {control}', { control: t(control.label) })}
+          aria-label={t('Edit {control}', { control: t(control.label) })}
+          onClick={() => setOpen(open === 'edit' ? null : 'edit')}
         >
           <Svg path="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" size={13} />
         </button>
       </div>
-      {open && (
-        <div className="fre-group__body">
-          {control.type === 'typography' && (
-            <div className="fre-control fre-control--inline">
-              <div className="fre-control__head">
-                <span className="fre-control__label">Global font</span>
-              </div>
-              <div className="fre-control__body">
-                <select
-                  className="fre-input"
-                  value={typeof global === 'string' ? global : ''}
-                  onChange={(e) => env.set({ [`${n}_global`]: e.target.value || undefined })}
-                >
-                  <option value="">None</option>
-                  {env.kit.fonts.map((font) => (
-                    <option key={font.id} value={font.id}>
-                      {font.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
+      {open === 'global' && (
+        <div className="fre-popup fre-popup--globals" role="listbox" aria-label={t('Global fonts')}>
+          <p className="fre-popup__title">{t('Global fonts')}</p>
+          {env.kit.fonts.map((font) => (
+            <button
+              key={font.id}
+              type="button"
+              role="option"
+              aria-selected={global === font.id}
+              className={`fre-popup__font${global === font.id ? ' is-on' : ''}`}
+              style={{
+                fontFamily: font.family || undefined,
+                fontWeight: font.weight || undefined,
+              }}
+              onClick={() => {
+                env.set({ [`${n}_global`]: global === font.id ? undefined : font.id });
+                setOpen(null);
+              }}
+            >
+              <span>{font.title}</span>
+              <small>
+                {[font.family, font.weight, font.size ? `${font.size}px` : '']
+                  .filter(Boolean)
+                  .join(' · ')}
+              </small>
+            </button>
+          ))}
+        </div>
+      )}
+      {open === 'edit' && (
+        <div className="fre-popup">
           {groupFields(control)
             .filter((field) => conditionMet(field, env.settings))
             .map((field) => (
@@ -1540,6 +1623,9 @@ function Group({ control, env }: { control: GroupControl; env: ControlEnv }) {
     </div>
   );
 }
+
+const GLOBE =
+  'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3 12h18 M12 3a14 14 0 0 1 0 18 M12 3a14 14 0 0 0 0 18';
 
 function ShadowControl({ control, env }: { control: GroupControl; env: ControlEnv }) {
   const { key, value } = valueOf({ ...control, responsive: false }, env);
@@ -1557,6 +1643,9 @@ function ShadowControl({ control, env }: { control: GroupControl; env: ControlEn
       key,
     );
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useClickAway(ref, open, close);
   const fields: [keyof NonNullable<typeof shadow>, string, number, number][] =
     control.type === 'shadow'
       ? [
@@ -1571,9 +1660,9 @@ function ShadowControl({ control, env }: { control: GroupControl; env: ControlEn
           ['blur', 'Blur', 0, 100],
         ];
   return (
-    <div className="fre-control fre-group">
+    <div ref={ref} className={`fre-control fre-group${open ? ' is-open' : ''}`}>
       <div className="fre-control__head">
-        <span className="fre-control__label">{control.label}</span>
+        <span className="fre-control__label">{t(control.label)}</span>
         {shadow && (
           <button
             type="button"
@@ -1586,15 +1675,17 @@ function ShadowControl({ control, env }: { control: GroupControl; env: ControlEn
         )}
         <button
           type="button"
-          className={`fre-iconbtn${open ? ' is-on' : ''}${shadow ? ' is-used' : ''}`}
+          className={`fre-toggle${open ? ' is-on' : ''}${shadow ? ' is-used' : ''}`}
           aria-expanded={open}
+          title={t('Edit {control}', { control: t(control.label) })}
+          aria-label={t('Edit {control}', { control: t(control.label) })}
           onClick={() => setOpen((o) => !o)}
         >
           <Svg path="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" size={13} />
         </button>
       </div>
       {open && (
-        <div className="fre-group__body">
+        <div className="fre-popup">
           <div className="fre-control fre-control--inline">
             <div className="fre-control__head">
               <span className="fre-control__label">Color</span>

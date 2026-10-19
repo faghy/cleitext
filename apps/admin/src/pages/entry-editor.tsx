@@ -554,52 +554,61 @@ function Editor({ initial }: { initial: EntryView }) {
           <Alert>{error}</Alert>
         </div>
       )}
-      {lockedBy !== null && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          <span>
-            {t('{name} is editing this entry: saving is off to keep their changes.', {
-              name: lockedBy,
-            })}
-          </span>
-          <Button variant="secondary" onClick={() => void acquireLock(true)}>
-            {t('Take over')}
-          </Button>
-        </div>
-      )}
-      {!canEdit && (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          {t('You can view this entry but not change it.')}
-        </div>
-      )}
-      {recovery && (
-        <div className="flex items-center gap-3 border-b border-sky-200 bg-sky-50 px-4 py-2 text-sm">
-          <span>{t('There is an autosave of this entry newer than the saved version.')}</span>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              replaceDocument(recovery.document as CxdDocument);
-              setTitle(recovery.title);
-              fieldsRef.current = recovery.fields;
-              setFields(recovery.fields);
-              changeSummary({
-                excerpt: recovery.excerpt,
-                featuredMediaId: recovery.featuredMediaId,
-              });
-              markDirty();
-              setRecovery(null);
-            }}
-          >
-            {t('Restore the autosave')}
-          </Button>
-          <button
-            type="button"
-            className="text-sky-700 hover:underline"
-            onClick={() => setRecovery(null)}
-          >
-            {t('Dismiss')}
-          </button>
-        </div>
-      )}
+      {/* Notices: above the editor, or floating over a full-screen one. */}
+      <div
+        className={
+          ownChrome
+            ? 'fixed bottom-4 left-4 z-50 flex max-w-xl flex-col overflow-hidden rounded shadow-lg'
+            : 'contents'
+        }
+      >
+        {lockedBy !== null && (
+          <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            <span>
+              {t('{name} is editing this entry: saving is off to keep their changes.', {
+                name: lockedBy,
+              })}
+            </span>
+            <Button variant="secondary" onClick={() => void acquireLock(true)}>
+              {t('Take over')}
+            </Button>
+          </div>
+        )}
+        {!canEdit && (
+          <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            {t('You can view this entry but not change it.')}
+          </div>
+        )}
+        {recovery && (
+          <div className="flex items-center gap-3 border-b border-sky-200 bg-sky-50 px-4 py-2 text-sm">
+            <span>{t('There is an autosave of this entry newer than the saved version.')}</span>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                replaceDocument(recovery.document as CxdDocument);
+                setTitle(recovery.title);
+                fieldsRef.current = recovery.fields;
+                setFields(recovery.fields);
+                changeSummary({
+                  excerpt: recovery.excerpt,
+                  featuredMediaId: recovery.featuredMediaId,
+                });
+                markDirty();
+                setRecovery(null);
+              }}
+            >
+              {t('Restore the autosave')}
+            </Button>
+            <button
+              type="button"
+              className="text-sky-700 hover:underline"
+              onClick={() => setRecovery(null)}
+            >
+              {t('Dismiss')}
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="relative flex min-h-0 flex-1">
         {/* Distinct keys: the block editor's container is never reused (its teardown empties it). */}

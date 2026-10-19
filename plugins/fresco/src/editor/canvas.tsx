@@ -5,6 +5,7 @@
  * drop lines and inline text editing.
  */
 import {
+  Fragment,
   memo,
   useCallback,
   useEffect,
@@ -22,7 +23,9 @@ import { plainText, sanitizeRich } from '../core/sanitize.js';
 import { dropTarget, trackPointer, type DropTarget } from './dnd.js';
 import { PluginBlockPreview } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
-import { find } from './tree.js';
+import { buildStructure, FLEX_PRESETS, GRID_PRESETS, type Preset } from './structures.js';
+import { find, placeOf } from './tree.js';
+import { t } from '@cleitext/admin-sdk';
 
 export interface CanvasApi {
   frame: HTMLIFrameElement | null;
@@ -39,10 +42,48 @@ function frameWidth(device: string, breakpoints: { tablet: number; mobile: numbe
 
 const FRAME_STYLE = `
 .fre-tree{min-height:120px}
-.fre-tree:empty::after,.fre-tree>.fre-start{display:flex;align-items:center;justify-content:center;min-height:160px;margin:24px auto;max-width:var(--fr-container-width,1140px);border:2px dashed #94a3b8;border-radius:8px;color:#64748b;font:14px system-ui,sans-serif}
-.fre-tree:empty::after{content:'Drag an element here from the panel'}
-.fr-empty{display:flex;align-items:center;justify-content:center;min-height:80px;border:1px dashed #94a3b8;border-radius:4px;flex:1 1 auto;width:100%}
-.fr-empty::after{content:'+';font:300 28px/1 system-ui,sans-serif;color:#94a3b8}
+.fr-empty{display:flex;align-items:center;justify-content:center;min-height:80px;border:1px dashed #9da5ae;border-radius:3px;flex:1 1 auto;width:100%;cursor:pointer}
+.fr-empty::after{content:'+';display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#e6e8ea;font:400 20px/1 system-ui,sans-serif;color:#515962}
+.fr-empty:hover::after{background:#c2410c;color:#fff}
+.fre-overlay{position:absolute;left:0;top:0;width:0;height:0;z-index:2147483000;font:13px/1 system-ui,sans-serif}
+.fre-outline{position:absolute;pointer-events:none;outline-offset:-1px}
+.fre-dropline{position:absolute;background:#c2410c;border-radius:3px;box-shadow:0 0 0 2px rgba(255,255,255,.8);pointer-events:none;animation:fre-grow .15s ease-out}
+@keyframes fre-grow{from{opacity:.2;transform:scale(.6)}}
+.fre-handle{position:absolute;display:flex;align-items:stretch;height:24px;color:#fff;pointer-events:auto;user-select:none;white-space:nowrap}
+.fre-handle--section{transform:translateX(-50%);background:#0e7490;border-radius:5px 5px 0 0;padding:0 2px}
+.fre-handle--section::before,.fre-handle--section::after{content:'';position:absolute;bottom:0;border-bottom:24px solid #0e7490}
+.fre-handle--section::before{left:-11px;border-left:12px solid transparent}
+.fre-handle--section::after{right:-11px;border-right:12px solid transparent}
+.fre-handle--nested{background:#818a96;border-radius:0 0 3px 0;overflow:hidden;max-width:24px;transition:max-width .2s}
+.fre-handle--nested:hover{max-width:120px}
+.fre-handle--widget{transform:translateX(-100%);background:#c2410c;border-radius:0 0 0 3px}
+.fre-handle__btn,.fre-handle__grip{display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px;width:24px;padding:0;border:0;background:none;color:inherit;cursor:pointer}
+.fre-handle__grip{cursor:grab}
+.fre-handle__btn:hover,.fre-handle__grip:hover{background:rgba(0,0,0,.18)}
+.fre-handle--widget .fre-handle__grip{width:26px}
+.fre-add{margin:24px auto;max-width:min(1160px,calc(100% - 40px));font:13px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;color:#515962}
+.fre-add>div{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:150px;padding:40px 20px;border:2px dashed #d5d8dc;background:rgba(255,255,255,.6);text-align:center}
+.fre-add__start{flex-direction:row!important;flex-wrap:wrap}
+.fre-add__start p{flex-basis:100%;margin:6px 0 0;font-style:italic;color:#818a96}
+.fre-add__round{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;margin:0 5px;border:0;border-radius:50%;background:#515962;color:#fff;cursor:pointer;transition:transform .15s}
+.fre-add__round--add{background:#c2410c}
+.fre-add__round:hover{transform:scale(1.08)}
+.fre-add__round svg{width:18px;height:18px}
+.fre-add__title{margin:0 0 6px;font-size:15px;font-weight:600;color:#0c0d0e}
+.fre-add__kinds{display:flex;gap:20px}
+.fre-add__kinds button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:0;border:0;background:none;color:#515962;cursor:pointer;font:inherit}
+.fre-add__kind{display:flex;gap:4px;width:90px;height:60px;padding:6px;border:2px solid #d5d8dc;border-radius:3px;background:#fff}
+.fre-add__kinds button:hover .fre-add__kind{border-color:#c2410c}
+.fre-add__kind i{flex:1;background:#d5d8dc;border-radius:2px}
+.fre-add__kind--grid{display:grid;grid-template-columns:1fr 1fr}
+.fre-add__grid{display:grid;grid-template-columns:repeat(3,110px);gap:14px}
+.fre-add__preset{display:flex;gap:3px;height:52px;padding:4px;border:2px solid #d5d8dc;border-radius:3px;background:#fff;cursor:pointer}
+.fre-add__preset:hover{border-color:#c2410c}
+.fre-add__preset i{flex:1 1 0;background:#d5d8dc;border-radius:2px}
+.fre-add__preset:has(style){display:grid}
+.fre-add__back,.fre-add__close{position:absolute;top:10px;border:0;background:none;color:#818a96;cursor:pointer;font:inherit}
+.fre-add__back{left:14px}
+.fre-add__close{right:14px;font-size:20px;line-height:1}
 [data-fr-inline][contenteditable]{outline:none;cursor:text}
 .fre-tree a{cursor:default}
 .fre-tree .fr-anim{opacity:1!important}
@@ -213,6 +254,7 @@ function FrameTree({
   const blocks = useStore(store, (s) => s.blocks);
   const readOnly = useStore(store, (s) => s.readOnly);
   const active = useStore(store, (s) => s.active);
+  const adding = useStore(store, (s) => s.adding);
   // Elements edited inline are mounted again after the edit (their DOM was changed by hand).
   const [epoch, setEpoch] = useState<Record<string, number>>({});
   const entry = useStore(store, (s) => s.entry);
@@ -271,7 +313,15 @@ function FrameTree({
   const onPointerDown = (event: React.PointerEvent) => {
     if (event.button !== 0) return;
     const target = event.target as Element;
-    if (target.closest('[contenteditable]')) return;
+    if (target.closest('[contenteditable]') || target.closest('[data-fre-ui]')) return;
+    // The + of an empty container: the elements panel, to fill it.
+    if (target.closest('.fr-empty')) {
+      const holder = elementAt(event.target);
+      event.preventDefault();
+      if (holder) store.actions.select(holder.dataset.frId!);
+      store.actions.setView('elements');
+      return;
+    }
     const element = elementAt(event.target);
     if (!element) return;
     // Links and buttons of the page do nothing while editing.
@@ -313,14 +363,13 @@ function FrameTree({
         });
       }}
     >
-      {blocks.map((node) => (
-        <NodeView
-          key={`${node.id}:${epoch[node.id] ?? 0}`}
-          node={node}
-          context={renderContext}
-          epoch={epoch}
-        />
+      {blocks.map((node, index) => (
+        <Fragment key={`${node.id}:${epoch[node.id] ?? 0}`}>
+          {adding?.index === index && !readOnly && <AddArea store={store} index={index} />}
+          <NodeView node={node} context={renderContext} epoch={epoch} />
+        </Fragment>
       ))}
+      {!readOnly && <AddArea store={store} index={blocks.length} />}
     </div>
   );
 }
@@ -336,12 +385,37 @@ interface Box {
 
 const ACCENT = '#c2410c';
 const CONTAINER = '#0e7490';
+const NESTED = '#818a96';
 
 /** The current drop line, shared by the canvas overlay and the drag code. */
 let dropLine: { set: (box: Box | null) => void } = { set: () => {} };
 
 export function showDropLine(box: Box | null): void {
   dropLine.set(box);
+}
+
+const ICON = {
+  add: 'M12 5v14 M5 12h14',
+  grip: 'M9 5h.01 M15 5h.01 M9 12h.01 M15 12h.01 M9 19h.01 M15 19h.01',
+  edit: 'M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z',
+  duplicate: 'M8 8h12v12H8z M4 16V4h12',
+  remove: 'M6 6l12 12 M18 6L6 18',
+  folder: 'M3 6h6l2 2h10v11H3z',
+};
+
+type Kind = 'section' | 'nested' | 'widget';
+
+/** Which handles an element shows, from its place in the page. */
+function kindOf(blocks: FrescoNode[], id: string): Kind {
+  const node = find(blocks, id);
+  if (!node || !getElement(node.type)?.container) return 'widget';
+  return blocks.some((b) => b.id === id) ? 'section' : 'nested';
+}
+
+/** The top-level container holding an element. */
+function sectionOf(blocks: FrescoNode[], id: string): string | null {
+  for (const block of blocks) if (block.id === id || find([block], id)) return block.id;
+  return null;
 }
 
 function Overlay({
@@ -357,11 +431,19 @@ function Overlay({
   const hovered = useStore(store, (s) => s.hovered);
   const blocks = useStore(store, (s) => s.blocks);
   const readOnly = useStore(store, (s) => s.readOnly);
-  const [boxes, setBoxes] = useState<{ selected: Box | null; hovered: Box | null }>({
-    selected: null,
-    hovered: null,
-  });
   const [line, setLine] = useState<Box | null>(null);
+  // The element under the pointer stays "hovered" while the pointer is on its handle.
+  const [shown, setShown] = useState<string | null>(null);
+  const onHandle = useRef(false);
+  const leave = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    clearTimeout(leave.current);
+    if (hovered) setShown(hovered);
+    else
+      leave.current = setTimeout(() => {
+        if (!onHandle.current) setShown(null);
+      }, 350);
+  }, [hovered]);
 
   useLayoutEffect(() => {
     dropLine = { set: setLine };
@@ -370,150 +452,195 @@ function Overlay({
     };
   }, []);
 
-  // Positions follow layout changes, scrolling and resizing: measured every frame.
-  useEffect(() => {
-    let raf = 0;
-    const win = doc.defaultView!;
-    const measure = (id: string | null): Box | null => {
-      if (!id) return null;
-      const element = doc.querySelector(`[data-fr-id="${CSS.escape(id)}"]`);
-      if (!element) return null;
-      const r = element.getBoundingClientRect();
-      return { x: r.left + win.scrollX, y: r.top + win.scrollY, width: r.width, height: r.height };
-    };
-    const same = (a: Box | null, b: Box | null) =>
-      a === b ||
-      (!!a && !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height);
-    const tick = () => {
-      const next = {
-        selected: measure(selected),
-        hovered: hovered !== selected ? measure(hovered) : null,
-      };
-      setBoxes((prev) =>
-        same(prev.selected, next.selected) && same(prev.hovered, next.hovered) ? prev : next,
-      );
-      raf = win.requestAnimationFrame(tick);
-    };
-    tick();
-    return () => win.cancelAnimationFrame(raf);
-  }, [doc, selected, hovered, blocks]);
+  // What gets an outline and a handle: the element under the pointer and its section, and the selection.
+  const ids = [
+    ...new Set(
+      [selected, shown, shown ? sectionOf(blocks, shown) : null].filter((id): id is string => !!id),
+    ),
+  ];
+  const boxes = useBoxes(doc, ids, blocks);
 
-  const node = selected ? find(blocks, selected) : null;
-  const definition = node ? getElement(node.type) : null;
-  const color = definition?.container ? CONTAINER : ACCENT;
-
-  const startMove = (event: React.PointerEvent) => {
-    if (!node || !frame.current || readOnly) return;
-    event.preventDefault();
+  const startMove = (event: React.PointerEvent, id: string) => {
+    const node = find(blocks, id);
+    if (!node || !frame.current || readOnly || event.button !== 0) return;
     event.stopPropagation();
     startDrag(event, frame.current, store, {
       kind: 'move',
-      id: node.id,
-      label: definition?.title ?? node.type,
+      id,
+      label: t(getElement(node.type)?.title ?? node.type),
     });
+  };
+  const handleProps = {
+    onMouseEnter: () => {
+      onHandle.current = true;
+      clearTimeout(leave.current);
+    },
+    onMouseLeave: () => {
+      onHandle.current = false;
+      leave.current = setTimeout(() => setShown(store.get().hovered), 250);
+    },
   };
 
   return (
-    <div style={{ position: 'absolute', left: 0, top: 0, width: 0, height: 0, zIndex: 2147483000 }}>
-      {boxes.hovered && (
-        <div
-          style={{
-            position: 'absolute',
-            left: boxes.hovered.x,
-            top: boxes.hovered.y,
-            width: boxes.hovered.width,
-            height: boxes.hovered.height,
-            outline: `1px dashed ${CONTAINER}`,
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-      {boxes.selected && node && (
-        <>
-          <div
-            style={{
-              position: 'absolute',
-              left: boxes.selected.x,
-              top: boxes.selected.y,
-              width: boxes.selected.width,
-              height: boxes.selected.height,
-              outline: `2px solid ${color}`,
-              outlineOffset: -1,
-              pointerEvents: 'none',
-            }}
-          />
-          {!readOnly && (
+    <div className="fre-overlay">
+      {ids.map((id) => {
+        const box = boxes[id];
+        const node = find(blocks, id);
+        if (!box || !node) return null;
+        const kind = kindOf(blocks, id);
+        const isSelected = id === selected;
+        const color = kind === 'section' ? CONTAINER : kind === 'nested' ? NESTED : ACCENT;
+        const title = t(getElement(node.type)?.title ?? node.type);
+        const place = placeOf(blocks, id);
+        return (
+          <Fragment key={id}>
             <div
+              className="fre-outline"
               style={{
-                position: 'absolute',
-                left: boxes.selected.x,
-                top: Math.max(0, boxes.selected.y - 24),
-                display: 'flex',
-                height: 24,
-                background: color,
-                color: '#fff',
-                font: '500 12px/24px system-ui, sans-serif',
-                borderRadius: '4px 4px 0 0',
-                overflow: 'hidden',
-                whiteSpace: 'nowrap',
-                pointerEvents: 'auto',
-                userSelect: 'none',
+                left: box.x,
+                top: box.y,
+                width: box.width,
+                height: box.height,
+                outline: `${isSelected ? 2 : 1}px ${kind === 'nested' && !isSelected ? 'dashed' : 'solid'} ${color}`,
               }}
-            >
-              <span
-                title="Drag to move"
-                onPointerDown={startMove}
-                style={{
-                  padding: '0 8px',
-                  cursor: 'grab',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
+            />
+            {!readOnly && kind === 'section' && (
+              <div
+                className="fre-handle fre-handle--section"
+                style={{ left: box.x + box.width / 2, top: Math.max(0, box.y - 24) }}
+                {...handleProps}
               >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  aria-hidden="true"
+                <HandleButton
+                  title={t('Add container')}
+                  path={ICON.add}
+                  onClick={() =>
+                    store.actions.setAdding({ index: place?.index ?? 0, step: 'choose' })
+                  }
+                />
+                <span
+                  className="fre-handle__grip"
+                  title={t('Edit {element}', { element: title }) + ' · ' + t('Drag to move')}
+                  onPointerDown={(e) => startMove(e, id)}
+                  onClick={() => store.actions.select(id)}
                 >
-                  <path d="M9 5h.01 M15 5h.01 M9 12h.01 M15 12h.01 M9 19h.01 M15 19h.01" />
-                </svg>
-                {definition?.title ?? node.type}
-              </span>
-              <HandleButton
-                title="Duplicate"
-                path="M8 8h12v12H8z M4 16V4h12"
-                onClick={() => store.actions.duplicate(node.id)}
-              />
-              <HandleButton
-                title="Delete"
-                path="M5 7h14 M10 7V4h4v3 M7 7l1 13h8l1-13"
-                onClick={() => store.actions.remove(node.id)}
-              />
-            </div>
-          )}
-        </>
-      )}
+                  <Svg path={ICON.grip} />
+                </span>
+                <HandleButton
+                  title={t('Duplicate')}
+                  path={ICON.duplicate}
+                  onClick={() => store.actions.duplicate(id)}
+                />
+                <HandleButton
+                  title={t('Delete')}
+                  path={ICON.remove}
+                  onClick={() => store.actions.remove(id)}
+                />
+              </div>
+            )}
+            {!readOnly && kind === 'nested' && (
+              <div
+                className="fre-handle fre-handle--nested"
+                style={{ left: box.x, top: box.y }}
+                {...handleProps}
+              >
+                <span
+                  className="fre-handle__grip"
+                  title={t('Edit {element}', { element: title }) + ' · ' + t('Drag to move')}
+                  onPointerDown={(e) => startMove(e, id)}
+                  onClick={() => store.actions.select(id)}
+                >
+                  <Svg path={ICON.grip} />
+                </span>
+                <HandleButton
+                  title={t('Duplicate')}
+                  path={ICON.duplicate}
+                  onClick={() => store.actions.duplicate(id)}
+                />
+                <HandleButton
+                  title={t('Delete')}
+                  path={ICON.remove}
+                  onClick={() => store.actions.remove(id)}
+                />
+              </div>
+            )}
+            {!readOnly && kind === 'widget' && (
+              <div
+                className="fre-handle fre-handle--widget"
+                style={{ left: box.x + box.width, top: box.y }}
+                {...handleProps}
+              >
+                <span
+                  className="fre-handle__grip"
+                  title={t('Edit {element}', { element: title }) + ' · ' + t('Drag to move')}
+                  onPointerDown={(e) => startMove(e, id)}
+                  onClick={() => store.actions.select(id)}
+                >
+                  <Svg path={ICON.edit} />
+                </span>
+              </div>
+            )}
+          </Fragment>
+        );
+      })}
       {line && (
         <div
+          className="fre-dropline"
           style={{
-            position: 'absolute',
             left: line.x,
             top: line.y,
-            width: Math.max(line.width, 3),
-            height: Math.max(line.height, 3),
-            background: ACCENT,
-            borderRadius: 2,
-            boxShadow: '0 0 0 2px rgba(255,255,255,.8)',
-            pointerEvents: 'none',
+            width: Math.max(line.width, 4),
+            height: Math.max(line.height, 4),
           }}
         />
       )}
     </div>
+  );
+}
+
+/** Boxes of elements in the frame's coordinates, measured every frame (layout, scroll, resize). */
+function useBoxes(doc: Document, ids: string[], blocks: FrescoNode[]): Record<string, Box> {
+  const [boxes, setBoxes] = useState<Record<string, Box>>({});
+  const key = ids.join(',');
+  useEffect(() => {
+    let raf = 0;
+    const win = doc.defaultView!;
+    const tick = () => {
+      const next: Record<string, Box> = {};
+      for (const id of key ? key.split(',') : []) {
+        const element = doc.querySelector(`[data-fr-id="${CSS.escape(id)}"]`);
+        if (!element) continue;
+        const r = element.getBoundingClientRect();
+        next[id] = {
+          x: r.left + win.scrollX,
+          y: r.top + win.scrollY,
+          width: r.width,
+          height: r.height,
+        };
+      }
+      setBoxes((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+      raf = win.requestAnimationFrame(tick);
+    };
+    tick();
+    return () => win.cancelAnimationFrame(raf);
+  }, [doc, key, blocks]);
+  return boxes;
+}
+
+function Svg({ path }: { path: string }) {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={path} />
+    </svg>
   );
 }
 
@@ -529,6 +656,7 @@ function HandleButton({
   return (
     <button
       type="button"
+      className="fre-handle__btn"
       title={title}
       aria-label={title}
       onPointerDown={(e) => e.stopPropagation()}
@@ -536,30 +664,123 @@ function HandleButton({
         e.stopPropagation();
         onClick();
       }}
-      style={{
-        border: 0,
-        background: 'transparent',
-        color: '#fff',
-        padding: '0 6px',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-      }}
     >
-      <svg
-        width="13"
-        height="13"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d={path} />
-      </svg>
+      <Svg path={path} />
     </button>
+  );
+}
+
+// ---- The "add" area -----------------------------------------------------------------------
+
+/** At the end of the page (and above a container, from its +): new containers and templates. */
+function AddArea({ store, index }: { store: Store; index: number }) {
+  const adding = useStore(store, (s) => s.adding);
+  const open = adding?.index === index ? adding : null;
+  const insert = (preset: Preset) => {
+    const node = buildStructure(preset);
+    if (!node) return;
+    store.actions.insertNodes([node], { parent: null, index });
+    store.actions.setAdding(null);
+    // The first column (or the container) waits for elements.
+    store.actions.select(node.children?.[0]?.id ?? node.id);
+    store.actions.setView('elements');
+  };
+  const stop = (event: React.SyntheticEvent) => event.stopPropagation();
+  return (
+    <div className="fre-add" onPointerDown={stop} onClick={stop} data-fre-ui="">
+      {open && open.step !== 'choose' ? (
+        <div className="fre-add__presets">
+          <button
+            type="button"
+            className="fre-add__back"
+            onClick={() => store.actions.setAdding({ index, step: 'choose' })}
+          >
+            ‹ {t('Back')}
+          </button>
+          <p className="fre-add__title">{t('Select your structure')}</p>
+          <div className="fre-add__grid">
+            {(open.step === 'flex' ? FLEX_PRESETS : GRID_PRESETS).map((preset, i) => (
+              <button
+                key={i}
+                type="button"
+                className="fre-add__preset"
+                title={
+                  preset.kind === 'flex'
+                    ? preset.columns.map((c) => `${Math.round(c)}%`).join(' + ')
+                    : `${preset.columns} × ${preset.rows}`
+                }
+                onClick={() => insert(preset)}
+              >
+                {preset.kind === 'flex'
+                  ? preset.columns.map((c, j) => <i key={j} style={{ flexGrow: c }} />)
+                  : Array.from({ length: preset.columns * preset.rows }, (_, j) => <i key={j} />)}
+                {preset.kind === 'grid' && (
+                  <style>{`.fre-add__preset:nth-child(${i + 1}){grid-template-columns:repeat(${preset.columns},1fr)}`}</style>
+                )}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="fre-add__close"
+            onClick={() => store.actions.setAdding(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : open ? (
+        <div className="fre-add__choose">
+          <p className="fre-add__title">{t('Which layout would you like to use?')}</p>
+          <div className="fre-add__kinds">
+            <button type="button" onClick={() => store.actions.setAdding({ index, step: 'flex' })}>
+              <span className="fre-add__kind fre-add__kind--flex">
+                <i />
+                <i />
+              </span>
+              {t('Flexbox')}
+            </button>
+            <button type="button" onClick={() => store.actions.setAdding({ index, step: 'grid' })}>
+              <span className="fre-add__kind fre-add__kind--grid">
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
+              {t('Grid')}
+            </button>
+          </div>
+          <button
+            type="button"
+            className="fre-add__close"
+            onClick={() => store.actions.setAdding(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <div className="fre-add__start">
+          <button
+            type="button"
+            className="fre-add__round fre-add__round--add"
+            title={t('Add new container')}
+            aria-label={t('Add new container')}
+            onClick={() => store.actions.setAdding({ index, step: 'choose' })}
+          >
+            <Svg path={ICON.add} />
+          </button>
+          <button
+            type="button"
+            className="fre-add__round"
+            title={t('Add template')}
+            aria-label={t('Add template')}
+            onClick={() => store.actions.setView('library')}
+          >
+            <Svg path={ICON.folder} />
+          </button>
+          <p>{t('Drag widget here')}</p>
+        </div>
+      )}
+    </div>
   );
 }
 

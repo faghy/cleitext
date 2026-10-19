@@ -82,8 +82,8 @@ const controls: Control[] = [
     units: UNITS.length,
     max: 1600,
     selectors: {
-      // The width is the basis in a row; in a column (e.g. stacked on mobile) it stays a width.
-      '{{el}}': 'width: {{value}}; flex: 0 0 auto',
+      // The width is the basis in a row (shrinking for the gap, as in other builders); in a column it stays a width.
+      '{{el}}': 'width: {{value}}; flex: 0 1 auto',
     },
   }),
   content.slider('min_height', 'Minimum height', 'Container', {

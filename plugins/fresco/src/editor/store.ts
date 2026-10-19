@@ -33,6 +33,8 @@ export interface EditorState {
   active: Record<string, number>;
   /** The entry being edited. */
   entry: { id: string; type: string; locale: string };
+  /** The "add" area opened between top-level containers (index), and its step. */
+  adding: { index: number; step: 'flex' | 'grid' | 'choose' } | null;
 }
 
 interface Snapshot {
@@ -65,6 +67,7 @@ export function createStore(initial: {
     contentOnly: initial.contentOnly === true,
     active: {},
     entry: initial.entry ?? { id: '', type: 'page', locale: 'en' },
+    adding: null,
   };
   const past: Snapshot[] = [];
   const future: Snapshot[] = [];
@@ -103,6 +106,10 @@ export function createStore(initial: {
   };
 
   const actions = {
+    /** Opens (or closes, with null) the "add" area at a top-level index. */
+    setAdding(adding: EditorState['adding']) {
+      set({ adding });
+    },
     select(id: string | null) {
       if (id === state.selected && state.view === (id ? 'element' : state.view)) return;
       // Inside tabs or an accordion, the item holding the element is shown.
