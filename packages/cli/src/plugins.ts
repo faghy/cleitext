@@ -348,6 +348,41 @@ async function placeFiles(source: string, target: string, link: boolean): Promis
   await rename(staging, target);
 }
 
+/**
+ * Back to the version kept by the last update (`<slug>.previous`): the
+ * folders swap places, so a second rollback undoes the first. The plugin's
+ * database schema stays: its migrations only add.
+ */
+export async function rollbackPlugin(
+  db: Database,
+  options: { pluginsPath: string; slug: string },
+): Promise<{ from: string; to: string }> {
+  const target = path.join(path.resolve(options.pluginsPath), options.slug);
+  const previous = `${target}.previous`;
+  if (!(await exists(path.join(previous, 'cleitext.plugin.json')))) {
+    throw new OperationError(`No previous version of ${options.slug} to go back to.`);
+  }
+  const before = await readManifest(previous);
+  const [row] = await db.select().from(plugins).where(eq(plugins.slug, options.slug));
+  await swapFolders(target, previous);
+  const values = {
+    version: before.version,
+    apiVersion: before.apiVersion,
+    manifest: before as unknown as Record<string, unknown>,
+  };
+  await db.update(plugins).set(values).where(eq(plugins.slug, options.slug));
+  return { from: row?.version ?? '?', to: before.version };
+}
+
+/** `a` and `b` swap places. */
+export async function swapFolders(a: string, b: string): Promise<void> {
+  const aside = `${a}.swap`;
+  await rm(aside, { recursive: true, force: true });
+  await rename(a, aside);
+  await rename(b, a);
+  await rename(aside, b);
+}
+
 async function exists(file: string): Promise<boolean> {
   try {
     await lstat(file);

@@ -6,6 +6,7 @@ import { SHARED_THEME_MODULES, themeManifestSchema, type ThemeManifest } from '@
 import { eq, sql } from 'drizzle-orm';
 import * as esbuild from 'esbuild';
 import { OperationError } from './operations.js';
+import { swapFolders } from './plugins.js';
 
 /** Themes shipped with Cleitext: they cannot be installed over or removed. */
 const BUNDLED = new Set(['aurora']);
@@ -155,4 +156,25 @@ async function exists(file: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Back to the version of a theme kept by its last update
+ * (`<slug>.previous`); a second rollback undoes the first.
+ */
+export async function rollbackTheme(options: {
+  themesPath: string;
+  slug: string;
+}): Promise<{ from: string; to: string }> {
+  const target = path.join(path.resolve(options.themesPath), options.slug);
+  const previous = `${target}.previous`;
+  const version = async (dir: string) =>
+    (JSON.parse(await readFile(path.join(dir, 'theme.json'), 'utf8')) as { version: string })
+      .version;
+  if (!existsSync(path.join(previous, 'theme.json'))) {
+    throw new OperationError(`No previous version of ${options.slug} to go back to.`);
+  }
+  const from = existsSync(path.join(target, 'theme.json')) ? await version(target) : '?';
+  await swapFolders(target, previous);
+  return { from, to: await version(target) };
 }

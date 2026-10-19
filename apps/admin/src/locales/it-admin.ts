@@ -124,6 +124,7 @@ export const itAdmin: Messages = {
   'Back up database, media and plugins': 'Backup di database, media e plugin',
   'Update the database': 'Aggiornamento del database',
   'Update the official plugins': 'Aggiornamento dei plugin ufficiali',
+  'Try the new version': 'Prova della nuova versione',
   'Switch to the new version': 'Passaggio alla nuova versione',
   'The update stopped: {error} The site still runs on {version}.':
     'L’aggiornamento si è fermato: {error} Il sito funziona ancora con la {version}.',

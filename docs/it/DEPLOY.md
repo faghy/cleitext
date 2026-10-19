@@ -159,7 +159,11 @@ Un sito in più lingue ha bisogno del plugin **Multilingua**. Non è nel pacchet
 
 ## 8. Aggiornamenti
 
-**Dall'amministrazione** (da Cleitext 0.8): i super admin vedono in bacheca un avviso quando esce una nuova versione, e aggiornano da **Aggiornamenti** con un pulsante. Cleitext scarica la release da GitHub, la verifica con il suo SHA-256, fa un backup in `cleitext-shared/backups`, esegue le migrazioni del database, aggiorna i plugin ufficiali installati, passa alla nuova versione e riavvia. Il sito continua a rispondere durante l'aggiornamento; se un passo fallisce, resta sulla versione in uso. La versione precedente viene conservata: `.cleitext-previous` accanto a una cartella `cleitext` installata con la procedura guidata, oppure la cartella precedente in `releases/`.
+**Dall'amministrazione** (da Cleitext 0.8): i super admin vedono in bacheca un avviso quando esce una nuova versione, e aggiornano da **Aggiornamenti** con un pulsante. Cleitext scarica la release da GitHub, la verifica con il suo SHA-256, fa un backup in `cleitext-shared/backups`, esegue le migrazioni del database, aggiorna i plugin ufficiali installati, **avvia la nuova versione di prova** (su una porta locale libera, senza lavori programmati) e controlla che sia pronta e che mostri la home di un sito; solo dopo passa alla nuova versione e riavvia. Il sito continua a rispondere durante l'aggiornamento; se un passo fallisce, prova compresa, resta sulla versione in uso e l'errore spiega il perché. La versione precedente viene conservata: `.cleitext-previous` accanto a una cartella `cleitext` installata con la procedura guidata, oppure la cartella precedente in `releases/`.
+
+Se dopo un aggiornamento qualcosa non va, `cleitext rollback` torna alla versione precedente (rieseguilo per annullare). Il database resta com'è, perché le migrazioni aggiungono soltanto; per riportare indietro anche quello, ripristina il backup fatto prima dell'aggiornamento: `cleitext restore cleitext-shared/backups/before-<versione>.tar.gz`.
+
+Plugin e temi funzionano allo stesso modo. Un aggiornamento dal catalogo conserva la versione precedente come `<slug>.previous`. Se la nuova versione non si carica, Cleitext rimette subito quella precedente e lo dice. A mano: `cleitext plugin:rollback <slug>` e `cleitext theme:rollback <slug>`.
 
 Lo stesso da SSH: `bin/cleitext update` (`--check` dice solo se ce n'è uno). Gli aggiornamenti arrivano da `UPDATES_REPO` (predefinito `faghy/cleitext`); un valore vuoto spegne il controllo.
 

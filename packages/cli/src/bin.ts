@@ -24,12 +24,21 @@ import {
   updateSite,
 } from './operations.js';
 import { backup, restore } from './backup.js';
-import { findRelease, isNewer, runUpdate, UPDATE_STEPS, type UpdateStep } from './update.js';
+import {
+  findRelease,
+  isNewer,
+  rollbackUpdate,
+  runUpdate,
+  trialRun,
+  UPDATE_STEPS,
+  type UpdateStep,
+} from './update.js';
 import {
   announceThemeChange,
   buildTheme,
   installTheme,
   listThemes,
+  rollbackTheme,
   uninstallTheme,
 } from './themes.js';
 import {
@@ -37,6 +46,7 @@ import {
   installPlugin,
   listPlugins,
   requestRestart,
+  rollbackPlugin,
   uninstallPlugin,
 } from './plugins.js';
 
@@ -364,6 +374,18 @@ program
   });
 
 program
+  .command('plugin:rollback')
+  .description('Go back to the version of a plugin that ran before its last update.')
+  .argument('<slug>')
+  .action((slug: string) =>
+    withOwner(async (db) => {
+      const { from, to } = await rollbackPlugin(db, { pluginsPath: pluginsPath(), slug });
+      console.log(`Back to ${slug} ${to} (from ${from}).`);
+      await announcePluginChange(db);
+    }),
+  );
+
+program
   .command('plugin:list')
   .description('List installed plugins.')
   .action(() =>
@@ -485,6 +507,18 @@ program
     }),
   );
 
+program
+  .command('theme:rollback')
+  .description('Go back to the version of a theme that ran before its last update.')
+  .argument('<slug>')
+  .action((slug: string) =>
+    withOwner(async (db) => {
+      const { from, to } = await rollbackTheme({ themesPath: themesPath(), slug });
+      console.log(`Back to ${slug} ${to} (from ${from}).`);
+      await announceThemeChange(db);
+    }),
+  );
+
 // ---- Backup and restore (RNF-15) ------------------------------------------------------
 
 function dataPaths() {
@@ -571,6 +605,10 @@ program
   .option('--status <file>', 'write the progress there (used by the admin)')
   .option('--no-backup', 'skip the backup before migrating (not recommended)')
   .option(
+    '--no-trial',
+    'skip starting the new version on the side before switching to it (not recommended)',
+  )
+  .option(
     '--root <dir>',
     'the application to update (default: the one of this CLI); lets a newer CLI update an older site',
   )
@@ -582,6 +620,7 @@ program
       repo: string;
       status?: string;
       backup: boolean;
+      trial: boolean;
     }) => {
       const root = opts.root ? path.resolve(opts.root) : appRoot();
       const from = installedVersion(root);
@@ -647,6 +686,10 @@ program
                 }
               }
             },
+            check: async (staging) => {
+              if (!opts.trial) return;
+              await trialRun({ staging, env: process.env, host: await firstSiteHost() });
+            },
           },
         });
         Object.assign(status, { state: 'done', finishedAt: new Date().toISOString() });
@@ -665,6 +708,37 @@ program
       }
     },
   );
+
+/** The primary host of the oldest active site: the trial asks for its home page. */
+async function firstSiteHost(): Promise<string | undefined> {
+  try {
+    const rows = await withOwner((db) =>
+      db.execute<{ host: string }>(sql`
+        select d.host from site_domains d join sites s on s.id = d.site_id
+        where d.is_primary and s.status = 'active' order by s.created_at limit 1`),
+    );
+    return rows[0]?.host;
+  } catch {
+    return undefined;
+  }
+}
+
+program
+  .command('rollback')
+  .description(
+    'Go back to the version that ran before the last update (kept on disk); the database stays.',
+  )
+  .option('--root <dir>', 'the application (default: the one of this CLI)')
+  .action(async (opts: { root?: string }) => {
+    const root = opts.root ? path.resolve(opts.root) : appRoot();
+    const from = installedVersion(root);
+    const result = await rollbackUpdate(root);
+    console.log(
+      `Back to Cleitext ${result.version} (from ${from}) in ${result.root}. ` +
+        'If the database must go back too: cleitext restore <backups/before-' +
+        `${from}.tar.gz>.`,
+    );
+  });
 
 program
   .command('restore')

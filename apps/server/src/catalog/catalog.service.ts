@@ -23,7 +23,7 @@ import type { AuthContext } from '../common/request-context.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { packageRoot, runCli, unpackPackage } from '../plugins/package-upload.js';
-import { installedThemes, loadThemes, themePaid } from '../public/themes.js';
+import { installedThemes, loadThemes, themeFailures, themePaid } from '../public/themes.js';
 import { UpdatesService } from '../updates/updates.service.js';
 import { LicensesService } from './licenses.service.js';
 
@@ -190,6 +190,22 @@ export class CatalogService {
       // Ready when the answer comes, not when the notice reaches this process.
       if (type === 'plugin') await this.plugins.reload();
       else await loadThemes(this.config.themes.path);
+      // An update that does not load goes back to the version before, at once:
+      // the sites keep working (as WordPress does when an update fails).
+      const failure =
+        type === 'plugin'
+          ? this.plugins.get(slug)?.status === 'error'
+            ? (this.plugins.get(slug)?.error ?? 'error')
+            : null
+          : (themeFailures().get(slug) ?? null);
+      if (failure && entry.installed) {
+        await runCli([`${type}:rollback`, slug], this.config);
+        if (type === 'plugin') await this.plugins.reload();
+        else await loadThemes(this.config.themes.path);
+        throw new BadRequestException(
+          `${item.name} ${item.version} could not start (${failure}): version ${entry.installed} was put back.`,
+        );
+      }
       return { version: item.version, message };
     } finally {
       await rm(dir, { recursive: true, force: true });

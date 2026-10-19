@@ -6,7 +6,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as tar from 'tar';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { findRelease, isNewer, runUpdate, type UpdateActions } from '../src/update.js';
+import {
+  findRelease,
+  isNewer,
+  rollbackUpdate,
+  runUpdate,
+  trialRun,
+  type UpdateActions,
+} from '../src/update.js';
 
 let base: string;
 let archive: Buffer;
@@ -158,5 +165,86 @@ describe('core updates', () => {
     expect(calls).toEqual(['backup', 'migrate 9.9.9']);
     expect(JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version).toBe('1.0.0');
     expect(existsSync(path.join(base, '.cleitext-previous'))).toBe(false);
+  });
+
+  it('keeps the running version when the new one does not start', async () => {
+    const root = await folderSite();
+    const fetchImpl = fakeGithub(archive);
+    const { calls, actions } = recorder();
+    actions.check = async () => {
+      calls.push('check');
+      throw new Error('The new version did not start properly');
+    };
+    const release = await findRelease('x/y', undefined, fetchImpl);
+    await expect(runUpdate({ root, release, actions, fetchImpl })).rejects.toThrow('did not start');
+    expect(calls).toEqual(['backup', 'migrate 9.9.9', 'plugins', 'check']);
+    expect(JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version).toBe('1.0.0');
+  });
+
+  it('goes back to the previous version, and forward again', async () => {
+    const root = await folderSite();
+    const fetchImpl = fakeGithub(archive);
+    const release = await findRelease('x/y', undefined, fetchImpl);
+    await runUpdate({ root, release, actions: recorder().actions, fetchImpl });
+    const version = () => JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+    expect(version()).toBe('9.9.9');
+    expect((await rollbackUpdate(root)).version).toBe('1.0.0');
+    expect(version()).toBe('1.0.0');
+    expect(existsSync(path.join(root, 'tmp', 'restart.txt'))).toBe(true);
+    expect((await rollbackUpdate(root)).version).toBe('9.9.9');
+  });
+
+  it('moves the link back in a releases/ layout', async () => {
+    const current = path.join(base, 'releases', 'cleitext-1.0.0');
+    await mkdir(current, { recursive: true });
+    await writeFile(path.join(current, 'package.json'), JSON.stringify({ version: '1.0.0' }));
+    await symlink('releases/cleitext-1.0.0', path.join(base, 'cleitext'));
+    const link = path.join(base, 'cleitext');
+    await expect(rollbackUpdate(link)).rejects.toThrow('No previous version');
+    const fetchImpl = fakeGithub(archive);
+    const release = await findRelease('x/y', undefined, fetchImpl);
+    await runUpdate({ root: link, release, actions: recorder().actions, fetchImpl });
+    expect(await readlink(link)).toBe(path.join('releases', 'cleitext-9.9.9'));
+    expect((await rollbackUpdate(link)).version).toBe('1.0.0');
+    expect(await readlink(link)).toBe(path.join('releases', 'cleitext-1.0.0'));
+  });
+});
+
+/** A fake new release whose server is a script. */
+async function fakeServer(code: string): Promise<string> {
+  const staging = path.join(base, 'staging');
+  await mkdir(path.join(staging, 'apps/server/dist'), { recursive: true });
+  await writeFile(path.join(staging, 'apps/server/dist/main.js'), code);
+  return staging;
+}
+
+describe('trying the new version before switching', () => {
+  it('passes when the server is ready and the home page answers', async () => {
+    const staging = await fakeServer(`
+      require('node:http').createServer((req, res) => {
+        res.statusCode = req.url === '/health/ready' ? 200 : req.headers.host === 'site.test' ? 200 : 404;
+        res.end('ok');
+      }).listen(Number(process.env.PORT), process.env.HOST);
+    `);
+    await expect(trialRun({ staging, env: {}, host: 'site.test' })).resolves.toBeUndefined();
+  });
+
+  it('fails when the server stops', async () => {
+    const staging = await fakeServer(`console.error('Cannot find module x'); process.exit(3);`);
+    await expect(trialRun({ staging, env: {} })).rejects.toThrow(
+      /stopped with code 3[\s\S]*Cannot find module x/,
+    );
+  });
+
+  it('fails when the home page has a server error', async () => {
+    const staging = await fakeServer(`
+      require('node:http').createServer((req, res) => {
+        res.statusCode = req.url === '/health/ready' ? 200 : 500;
+        res.end();
+      }).listen(Number(process.env.PORT), process.env.HOST);
+    `);
+    await expect(trialRun({ staging, env: {}, host: 'site.test' })).rejects.toThrow(
+      'the home page answered 500',
+    );
   });
 });

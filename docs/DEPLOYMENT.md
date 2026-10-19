@@ -159,7 +159,11 @@ A site in more than one language needs the **Multilingual** plugin. It is not in
 
 ## 8. Updates
 
-**From the admin** (Cleitext 0.8 and later): super admins see a notice on the dashboard when a new version is published, and update in **Updates** with one button. Cleitext downloads the release from GitHub, checks it against its SHA-256, makes a backup in `cleitext-shared/backups`, runs the database migrations, updates the official plugins that are installed, switches to the new version and restarts. The site keeps answering during the update; if a step fails, it stays on the running version. The previous version is kept: `.cleitext-previous` next to a `cleitext` folder installed by the wizard, or the previous folder in `releases/`.
+**From the admin** (Cleitext 0.8 and later): super admins see a notice on the dashboard when a new version is published, and update in **Updates** with one button. Cleitext downloads the release from GitHub, checks it against its SHA-256, makes a backup in `cleitext-shared/backups`, runs the database migrations, updates the official plugins that are installed, **starts the new version on the side** (a free local port, with no scheduled work) and checks that it is ready and serves a site's home page, and only then switches to it and restarts. The site keeps answering during the update; if a step fails, the trial included, it stays on the running version and the error says why. The previous version is kept: `.cleitext-previous` next to a `cleitext` folder installed by the wizard, or the previous folder in `releases/`.
+
+If something is wrong after an update, `cleitext rollback` goes back to the previous version (run it again to undo). The database stays as it is, because migrations only add; to bring it back too, restore the backup taken before the update: `cleitext restore cleitext-shared/backups/before-<version>.tar.gz`.
+
+Plugins and themes work the same way. An update from the catalog keeps the version before as `<slug>.previous`. If the new version does not load, Cleitext puts the version before back at once and says so. By hand: `cleitext plugin:rollback <slug>` and `cleitext theme:rollback <slug>`.
 
 The same from SSH: `bin/cleitext update` (`--check` only tells whether there is one). Updates come from `UPDATES_REPO` (default `faghy/cleitext`); an empty value turns the check off.
 

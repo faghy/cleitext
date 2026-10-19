@@ -34,6 +34,7 @@ const STEP_LABELS: Record<string, string> = {
   backup: 'Back up database, media and plugins',
   migrate: 'Update the database',
   plugins: 'Update the official plugins',
+  check: 'Try the new version',
   switch: 'Switch to the new version',
 };
 

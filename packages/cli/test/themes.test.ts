@@ -6,7 +6,13 @@ import { fileURLToPath } from 'node:url';
 import { createDatabase, type DatabaseClient } from '@cleitext/db';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OperationError } from '../src/operations.js';
-import { buildTheme, installTheme, listThemes, uninstallTheme } from '../src/themes.js';
+import {
+  buildTheme,
+  installTheme,
+  listThemes,
+  rollbackTheme,
+  uninstallTheme,
+} from '../src/themes.js';
 
 const example = fileURLToPath(new URL('../../../examples/theme-plain', import.meta.url));
 let owner: DatabaseClient;
@@ -39,6 +45,12 @@ describe('themes', () => {
     expect((await listThemes(themesPath)).map((t) => t.slug)).toEqual(['plain']);
     const again = await installTheme({ source: example, themesPath });
     expect(again.previousVersion).toBe('1.0.0');
+    // The version before the update is kept: a rollback swaps them.
+    expect(await rollbackTheme({ themesPath, slug: 'plain' })).toEqual({
+      from: '1.0.0',
+      to: '1.0.0',
+    });
+    expect(existsSync(path.join(themesPath, 'plain.previous', 'theme.json'))).toBe(true);
 
     await uninstallTheme(owner.db, 'plain', themesPath);
     expect(await listThemes(themesPath)).toEqual([]);

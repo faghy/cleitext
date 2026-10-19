@@ -1,5 +1,6 @@
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createReadStream, existsSync, lstatSync, realpathSync } from 'node:fs';
+import { createReadStream, existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import {
   chmod,
   copyFile,
@@ -13,6 +14,7 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
+import { createServer, type AddressInfo } from 'node:net';
 import path from 'node:path';
 import semver from 'semver';
 import * as tar from 'tar';
@@ -21,8 +23,9 @@ import { OperationError } from './operations.js';
 /**
  * Core updates from the admin or the CLI (RF-SYS-UPD): the release is
  * downloaded from GitHub Releases, checked against its SHA-256, unpacked next
- * to the running one, configured, backed up, migrated, and switched in. The
- * previous version stays on disk for a rollback.
+ * to the running one, configured, backed up, migrated, started on the side
+ * to check that it works, and only then switched in. The previous version
+ * stays on disk for `cleitext rollback`.
  */
 
 export interface ReleaseInfo {
@@ -87,7 +90,15 @@ export function isNewer(candidate: string, current: string): boolean {
 }
 
 export type UpdateStep =
-  'download' | 'verify' | 'unpack' | 'configure' | 'backup' | 'migrate' | 'plugins' | 'switch';
+  | 'download'
+  | 'verify'
+  | 'unpack'
+  | 'configure'
+  | 'backup'
+  | 'migrate'
+  | 'plugins'
+  | 'check'
+  | 'switch';
 
 export const UPDATE_STEPS: UpdateStep[] = [
   'download',
@@ -97,6 +108,7 @@ export const UPDATE_STEPS: UpdateStep[] = [
   'backup',
   'migrate',
   'plugins',
+  'check',
   'switch',
 ];
 
@@ -107,6 +119,12 @@ export interface UpdateActions {
   migrate(staging: string): Promise<void>;
   /** Updates installed official plugins shipped newer in the release. */
   plugins(staging: string): Promise<void>;
+  /**
+   * Starts the new release on the side and checks that it answers: when it
+   * does not, the update stops before the switch and the site keeps running
+   * the current version.
+   */
+  check?(staging: string): Promise<void>;
 }
 
 export interface UpdateOptions {
@@ -210,6 +228,9 @@ export async function runUpdate(options: UpdateOptions): Promise<UpdateResult> {
     step('plugins');
     await actions.plugins(staging);
 
+    step('check');
+    await actions.check?.(staging);
+
     step('switch');
     let result: UpdateResult;
     if (layout.kind === 'releases') {
@@ -218,6 +239,8 @@ export async function runUpdate(options: UpdateOptions): Promise<UpdateResult> {
       await symlink(path.relative(path.dirname(layout.link), staging), next);
       await rename(next, layout.link);
       result = { root: staging, previous: current };
+      // `cleitext rollback` goes back to it.
+      await writeFile(path.join(layout.releases, PREVIOUS_FILE), `${current}\n`);
     } else {
       const previous = path.join(base, '.cleitext-previous');
       await rm(previous, { recursive: true, force: true });
@@ -242,6 +265,146 @@ export async function runUpdate(options: UpdateOptions): Promise<UpdateResult> {
   } finally {
     await rm(work, { recursive: true, force: true });
   }
+}
+
+/** In releases/: the folder of the version before the last update. */
+const PREVIOUS_FILE = '.previous';
+
+/**
+ * Back to the version that ran before the last update, kept on disk by it.
+ * The database stays as it is: migrations only add, so the previous version
+ * works on it; the backup taken before the update restores it when needed.
+ */
+export async function rollbackUpdate(root: string): Promise<{ root: string; version: string }> {
+  const layout = layoutOf(root);
+  const versionOf = (dir: string) =>
+    (JSON.parse(readFileSyncSafe(path.join(dir, 'package.json'))) as { version?: string })
+      .version ?? '?';
+  let result: string;
+  if (layout.kind === 'releases') {
+    const file = path.join(layout.releases, PREVIOUS_FILE);
+    const previous = existsSync(file) ? (await readFile(file, 'utf8')).trim() : '';
+    if (!previous || !existsSync(previous) || previous === layout.current) {
+      throw new OperationError('No previous version to go back to.');
+    }
+    const next = `${layout.link}.next`;
+    await rm(next, { force: true });
+    await symlink(path.relative(path.dirname(layout.link), previous), next);
+    await rename(next, layout.link);
+    await writeFile(file, `${layout.current}\n`);
+    result = previous;
+  } else {
+    const previous = path.join(path.dirname(layout.dir), '.cleitext-previous');
+    if (!existsSync(path.join(previous, 'package.json'))) {
+      throw new OperationError('No previous version to go back to.');
+    }
+    // The two swap places: a second rollback undoes the first.
+    const aside = path.join(path.dirname(layout.dir), '.cleitext-rollback');
+    await rm(aside, { recursive: true, force: true });
+    await rename(layout.dir, aside);
+    await rename(previous, layout.dir);
+    await rename(aside, previous);
+    result = layout.dir;
+  }
+  await mkdir(path.join(result, 'tmp'), { recursive: true });
+  await writeFile(path.join(result, 'tmp', 'restart.txt'), `${new Date().toISOString()}\n`);
+  return { root: result, version: versionOf(result) };
+}
+
+function readFileSyncSafe(file: string): string {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch {
+    return '{}';
+  }
+}
+
+export interface TrialOptions {
+  /** The new release, configured. */
+  staging: string;
+  /** Its environment (the running version's configuration). */
+  env: NodeJS.ProcessEnv;
+  /** A host name of a site, to ask for its home page too. */
+  host?: string;
+  timeoutMs?: number;
+  fetchImpl?: Fetch;
+}
+
+/**
+ * Starts the new release's server on a free local port, without scheduled
+ * work, and waits for it to be ready (database and migrations) and to serve
+ * a site's home page without a server error. Stops it in every case.
+ */
+export async function trialRun(options: TrialOptions): Promise<void> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const main = path.join(options.staging, 'apps/server/dist/main.js');
+  if (!existsSync(main)) throw new OperationError(`The new release has no ${main}.`);
+  const port = await freePort();
+  let output = '';
+  let exited: number | null | undefined;
+  const child = spawn(process.execPath, [main], {
+    cwd: options.staging,
+    env: {
+      ...options.env,
+      HOST: '127.0.0.1',
+      PORT: String(port),
+      // No scheduled publishing nor automatic updates from the trial.
+      SCHEDULER_INTERVAL_SECONDS: '0',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const keep = (chunk: Buffer) => (output = (output + chunk.toString()).slice(-4000));
+  child.stdout.on('data', keep);
+  child.stderr.on('data', keep);
+  child.on('exit', (code) => (exited = code));
+  const failed = (why: string) =>
+    new OperationError(
+      `The new version did not start properly (${why}); the site keeps the current one.${output.trim() ? `\n${output.trim()}` : ''}`,
+    );
+  try {
+    const deadline = Date.now() + (options.timeoutMs ?? 90_000);
+    const base = `http://127.0.0.1:${port}`;
+    for (;;) {
+      if (exited !== undefined) throw failed(`it stopped with code ${exited}`);
+      if (Date.now() > deadline) throw failed('no answer in time');
+      const ready = await fetchImpl(`${base}/health/ready`, {
+        signal: AbortSignal.timeout(5_000),
+      }).catch(() => null);
+      if (ready?.ok) break;
+      if (ready && ready.status !== 503) throw failed(`health check answered ${ready.status}`);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    if (options.host) {
+      const home = await fetchImpl(`${base}/`, {
+        headers: { host: options.host, 'x-forwarded-proto': 'https' },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(30_000),
+      }).catch((error: Error) => {
+        throw failed(`the home page failed: ${error.message}`);
+      });
+      if (home.status >= 500) throw failed(`the home page answered ${home.status}`);
+    }
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) {
+      const gone = new Promise((resolve) => child.once('exit', resolve));
+      child.kill('SIGTERM');
+      const force = setTimeout(() => child.kill('SIGKILL'), 5_000);
+      await gone;
+      clearTimeout(force);
+    }
+  }
+}
+
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      server.close(() => resolve(port));
+    });
+  });
 }
 
 /**
