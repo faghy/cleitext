@@ -46,5 +46,5 @@ Blocks keep their ids, and the settings HTML cannot show (colors, spacing, drop 
 ## Credits and licenses
 
 - The editing experience reproduces WordPress's [Classic Editor](https://wordpress.org/plugins/classic-editor/) plugin (GPLv2 or later); no WordPress code is used.
-- The visual editor is [TinyMCE](https://www.tiny.cloud/) 6.8 (MIT License, © Ephox Corporation DBA Tiny Technologies, Inc.), bundled with its skin and icons, so nothing is loaded from other sites. TinyMCE includes [DOMPurify](https://github.com/cure53/DOMPurify) (Apache-2.0 or MPL-2.0). Their license notices are in `dist/admin.js.LEGAL.txt`.
+- The visual editor is [TinyMCE](https://www.tiny.cloud/) 7.9 (GPL-2.0-or-later, © Ephox Corporation DBA Tiny Technologies, Inc., used under its open-source license), bundled with its skin and icons, so nothing is loaded from other sites. TinyMCE includes [DOMPurify](https://github.com/cure53/DOMPurify) (Apache-2.0 or MPL-2.0). Their license notices are in `dist/admin.js.LEGAL.txt`.
 - The Italian strings of the TinyMCE interface used here are our own.

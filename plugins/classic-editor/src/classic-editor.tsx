@@ -148,6 +148,8 @@ export function ClassicEditor(props: EditorProps) {
     void tinymce
       .init({
         target,
+        // TinyMCE 7 used under its open-source license (GPL-2.0-or-later).
+        license_key: 'gpl',
         language: italian ? 'it' : 'en',
         // Skin and content styles come from the bundle (registered resources).
         skin_url: 'default',
