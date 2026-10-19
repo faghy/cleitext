@@ -197,6 +197,7 @@ ctx.hooks.filter(
 | `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso                                                         | `{ siteId, ids }`                                      |
 | `account.links`            | link nella pagina account dei visitatori (`{ label, url }[]`, indirizzi locali; API 1.17)                                                            | `{ siteId, locale, userId, base }`                     |
 | `import.block`             | un blocco WordPress senza equivalente all'import: al suo posto i blocchi del plugin (API 1.23)                                                       | `{ siteId, name, attrs, html, children }`              |
+| `import.pluginData`        | i dati del plugin in un documento importato (`document.plugins[slug]`): `{ warnings? }` se li prende, altrimenti `null` (API 1.28)                   | `{ siteId, slug, data, idMap, userId }`                |
 | `feed.title`               | titolo di un feed RSS (quello del sito, o `<termine> – <sito>`; API 1.22)                                                                            | `{ siteId, locale, siteTitle, term }`                  |
 | `sitemap.sources`          | tipi di contenuto e tassonomie con una sitemap XML (`{ kind, slug }[]`)                                                                              | `{ siteId }`                                           |
 | `sitemap.urls`             | gli indirizzi di una sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` o `term`)                                                            | `{ siteId, kind, slug, locale }`                       |
@@ -644,6 +645,16 @@ const report = await ctx.transfer.importDocument(siteId, document, {
 ```
 
 Il contenuto delle voci è fatto di blocchi: `@cleitext/blocks/html` li ricava da HTML e block markup (`htmlToCxd`). I file media si indicano con il loro indirizzo http(s) e vengono scaricati solo da indirizzi pubblici, mai dalla rete del server. Quello che c'è già sul sito resta com'è, e i vecchi indirizzi (`oldPaths`) diventano redirect. Un sito grande richiede minuti: avvia l'importazione senza attenderla nella route e tieni l'avanzamento in `ctx.storage`.
+
+Le voci possono rimandare l'una all'altra in qualsiasi ordine: in un documento (o nei dati di un plugin), `{ "$entry": "<ref della voce>", "prefix": "entry:" }` diventa `prefix + <nuovo id>` quando tutte le voci esistono (`null` se quella voce non è stata importata). Le voci di un tipo di contenuto che il sito non ha (ad esempio di un plugin non attivo) restano fuori, con una riga del resoconto per tipo. Le impostazioni destinate a un plugin vanno in `document.plugins`, per slug del plugin (API 1.28): dopo le voci, ogni plugin attivo riceve le sue con il filtro `import.pluginData`, con oggetti media e riferimenti alle voci già rimappati e `idMap` (`{ entries, terms, media }` per `ref`) per tutto il resto; i dati che nessun plugin attivo prende finiscono nel resoconto.
+
+```ts
+ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data }) => {
+  if (slug !== ctx.plugin.slug) return result;
+  await ctx.storage.set(siteId, 'settings', merge(await ctx.storage.get(siteId, 'settings'), data));
+  return { warnings: [...(result?.warnings ?? []), 'Impostazioni importate.'] };
+});
+```
 
 ## 10. Le tue tabelle
 

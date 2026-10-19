@@ -173,4 +173,67 @@ describe('blocks with their own editor', () => {
     expect(html).toContain('<p>Kept text</p>');
     expect(html).not.toContain('core/imported');
   });
+
+  it('resolves entry references and hands plugins their data on import', async () => {
+    const box = (id: string, attrs: Record<string, unknown>) => ({
+      id,
+      type: 'native/box',
+      v: 1,
+      attrs,
+      children: [],
+    });
+    const page = (ref: string, slug: string, blocks: unknown[]) => ({
+      ref,
+      type: 'page',
+      locale: 'en',
+      slug,
+      title: slug,
+      status: 'published',
+      publishedAt: '2026-10-18T10:00:00Z',
+      document: { schema: 1, blocks },
+    });
+    const res = await admin.post('/api/v1/ext/native/import', {
+      format: 'cleitext-transfer',
+      version: 1,
+      source: { kind: 'wordpress', exportedAt: '2026-10-18T10:00:00Z' },
+      entries: [
+        // It points to a page imported after it.
+        page('post:1', 'linking', [
+          box('r1', {
+            heading: [{ text: 'Links' }],
+            target: { $entry: 'post:2', prefix: 'entry:' },
+            gone: { $entry: 'post:99' },
+          }),
+        ]),
+        page('post:2', 'linked', []),
+        { ...page('post:3', 'event-one', []), type: 'event' },
+      ],
+      plugins: {
+        native: { home: { $entry: 'post:2' }, untouched: 'yes' },
+        'not-installed': { anything: true },
+      },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const report = res.json() as { warnings: string[]; errors: string[] };
+    expect(report.errors).toEqual([]);
+    const list = (await admin.get('/api/v1/entries?type=page&limit=50')).json() as {
+      items: { id: string; slug: string }[];
+    };
+    const linking = list.items.find((e) => e.slug === 'linking')!;
+    const linked = list.items.find((e) => e.slug === 'linked')!;
+    const entry = (await admin.get(`/api/v1/entries/${linking.id}`)).json();
+    expect(entry.revision.document.blocks[0].attrs).toMatchObject({
+      target: `entry:${linked.id}`,
+      gone: null,
+    });
+    expect(report.warnings).toContain(
+      `native: {"home":"${linked.id}","untouched":"yes"} post:1,post:2`,
+    );
+    expect(report.warnings).toContain(
+      'Settings for the plugin "not-installed" were not imported: it is not active on this site.',
+    );
+    expect(report.warnings).toContain(
+      '1 entry of the type "event" was not imported: the site has no such content type (activate the plugin that adds it, then import again).',
+    );
+  });
 });

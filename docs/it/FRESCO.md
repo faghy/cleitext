@@ -53,7 +53,14 @@ Gli elementi atomici (Flexbox, Griglia, Div, Titolo, Paragrafo, Pulsante, Immagi
 
 ## Da WordPress
 
-L'importatore di WordPress (**Importa da WordPress** nel menu dell'amministrazione) trasforma le pagine costruite con Elementor in pagine di Fresco: sezioni, colonne e contenitori, e i widget più comuni. I widget che richiedono Fresco Pro diventano contenitori con una nota.
+L'importatore di WordPress (**Importa da WordPress** nel menu dell'amministrazione) trasforma un sito costruito con Elementor (ed Elementor Pro) in Fresco:
+
+- **Le pagine** (e le landing page) diventano pagine di Fresco: sezioni, colonne e contenitori, tutti i widget comuni con testi, link, immagini, colori e font globali, tipografia, spaziature, valori per dispositivo, colori al passaggio del mouse, sfondi (con sovrapposizioni e video), bordi, ombre e animazioni d'ingresso. Gli elementi atomici mantengono le varianti di stile e le classi. Arrivano anche le impostazioni della pagina: layout a tutta larghezza o canvas, titolo nascosto, sfondo della pagina e CSS personalizzato.
+- **Il kit** confluisce nelle **Impostazioni del sito** di Fresco: colori e font globali (i Google Font vengono caricati), breakpoint, larghezza del contenuto, spazio tra i widget e stile del tema (testi, titoli, pulsanti, immagini, campi dei moduli, lightbox).
+- **I widget Pro** diventano i rispettivi elementi di Fresco Pro (modulo, slide, call to action, flip box, tabella e listino prezzi, conto alla rovescia, titolo animato, articoli e loop, caroselli, elementi del tema e altri), ed effetti di movimento, sticky, CSS personalizzato, attributi personalizzati e tag dinamici le rispettive impostazioni di Fresco Pro.
+- **I modelli del Theme Builder** (header, footer, singolo, archivio, popup, elementi del loop, sezioni salvate e widget globali) diventano modelli di Fresco Pro con le loro condizioni; i popup mantengono attivatore, frequenza e layout. Codice personalizzato, font personalizzati e CSS personalizzato del kit vanno nelle impostazioni del sito di Fresco Pro.
+
+Widget Pro, modelli e impostazioni Pro si vedono con Fresco Pro: attivalo prima di importare, così vengono importati anche i modelli. Il resoconto dell'importazione elenca ciò che non ha un equivalente o è stato approssimato.
 
 ---
 

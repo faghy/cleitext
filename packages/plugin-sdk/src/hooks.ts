@@ -200,6 +200,28 @@ export interface Filters {
     },
   ];
   /**
+   * Data for this plugin in an imported transfer document (plugin API 1.28):
+   * `document.plugins[slug]`, e.g. a page builder's site settings converted
+   * from another system. Called once per slug, after the entries, media and
+   * terms were imported; media objects `{ id: <media ref>, url }` and entry
+   * references `{ $entry: <ref> }` in `data` are already remapped, and
+   * `idMap` gives the new ids of every imported record. Return a result (with
+   * report lines) when the data was taken: a slug that no active plugin takes
+   * is reported as not imported.
+   */
+  'import.pluginData': [
+    result: ImportPluginDataResult | null,
+    context: {
+      siteId: string;
+      /** The plugin the data is for: answer only for your own slug. */
+      slug: string;
+      data: unknown;
+      idMap: ImportIdMap;
+      /** The user the import runs as. */
+      userId: string;
+    },
+  ];
+  /**
    * Title of an RSS feed (plugin API 1.22): the site's, or "<term> – <site>"
    * for a category's or tag's, e.g. with an SEO plugin's separator.
    */
@@ -228,6 +250,19 @@ export interface Filters {
     text: string,
     context: { siteId: string; origin: string; sitemap: string; discourageSearchEngines: boolean },
   ];
+}
+
+/** New ids of the records of an imported transfer document, by their `ref`. */
+export interface ImportIdMap {
+  entries: Record<string, string>;
+  terms: Record<string, string>;
+  media: Record<string, { id: string; url: string }>;
+}
+
+/** What a plugin did with its data of an import (`import.pluginData`). */
+export interface ImportPluginDataResult {
+  /** Lines added to the import report. */
+  warnings?: string[];
 }
 
 /** What can have an XML sitemap: a content type or a taxonomy. */

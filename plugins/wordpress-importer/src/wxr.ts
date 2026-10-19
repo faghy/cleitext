@@ -1,7 +1,21 @@
 import { XMLParser } from 'fast-xml-parser';
 import { htmlToCxd, IMPORTED_BLOCK, texturizeHtml, texturizeText } from '@cleitext/blocks/html';
 import { assignLanguages } from './wpml';
-import { elementorToFresco } from './elementor.js';
+import { elementorToFresco, takeStretched, type ElementorContext } from './elementor.js';
+import {
+  convertConditions,
+  customFont,
+  isWebFont,
+  kitToFresco,
+  pageSettings,
+  popupSettings,
+  snippet,
+  templateKind,
+  type ConditionContext,
+  type KitResult,
+} from './elementor-site.js';
+import { asSettings, type Settings } from './elementor-values.js';
+import { metaValue } from './php.js';
 import type { CxdBlock } from '@cleitext/blocks';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
 
@@ -165,6 +179,17 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     attachmentUrls.set(url, ref);
   }
 
+  // ---- Elementor: what pages and templates share ---------------------------------------
+  const useElementor = options.elementor !== 'content';
+  const elementor = prepareElementor(
+    channel,
+    items,
+    locale,
+    attachmentRefs,
+    customTaxonomies,
+    warnings,
+  );
+
   // ---- Posts and pages ------------------------------------------------------------------
   const entries: NonNullable<TransferDocumentInput['entries']> = [];
   // Address and text of each entry, to recognise WPML translations at the end.
@@ -185,18 +210,25 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     const custom =
       type !== 'post' &&
       type !== 'page' &&
+      type !== LANDING_PAGE &&
       !INTERNAL_TYPES.has(type) &&
       !SHOP_TYPES.has(type) &&
       structureSlug(type);
     if (custom && !customTypes.has(type)) customTypes.set(type, { slug: custom, permalink: null });
-    if (type !== 'post' && type !== 'page' && !custom) {
+    if (type !== 'post' && type !== 'page' && type !== LANDING_PAGE && !custom) {
       // WordPress's own records are not content; shop items and odd names are reported.
       if (!INTERNAL_TYPES.has(type)) skippedTypes.set(type, (skippedTypes.get(type) ?? 0) + 1);
       continue;
     }
     if (!status) continue; // trash, auto-draft, inherit
     const id = Number(text(item['wp:post_id']));
-    const entryType = type === 'post' ? 'article' : type === 'page' ? 'page' : (custom as string);
+    // Elementor's landing pages are pages (at the same addresses).
+    const entryType =
+      type === 'post'
+        ? 'article'
+        : type === 'page' || type === LANDING_PAGE
+          ? 'page'
+          : (custom as string);
     // WordPress shows titles and content with curly quotes and dashes (wptexturize).
     const title = texturizeText(decode(text(item.title)));
     const content = texturizeHtml(text(item['content:encoded']));
@@ -207,19 +239,25 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       warn: (message) => warnings.push(`${title || `#${id}`}: ${message}`),
     });
     termIdsToSlugs(document.blocks, channel);
-    // Elementor pages: their layout, as a Fresco page.
+    // Elementor pages: their layout and page settings, as a Fresco page.
     const elementorData = meta(item, '_elementor_data');
-    if (
-      options.elementor !== 'content' &&
-      meta(item, '_elementor_edit_mode') === 'builder' &&
-      elementorData
-    ) {
-      const blocks = elementorToFresco(elementorData, {
-        mediaRef: (attachment) => attachmentRefs.get(attachment),
-        warn: (message) => warnings.push(`${title || `#${id}`}: ${message}`),
-      });
+    if (useElementor && meta(item, '_elementor_edit_mode') === 'builder' && elementorData) {
+      const blocks = elementorToFresco(
+        elementorData,
+        elementor.context((message) => warnings.push(`${title || `#${id}`}: ${message}`)),
+      );
       if (blocks && blocks.length > 0) {
-        document = { schema: 1, blocks, editor: { id: 'fresco' } };
+        const data = pageSettings(
+          meta(item, '_wp_page_template') ?? '',
+          asSettings(metaValue(meta(item, '_elementor_page_settings'))),
+          elementor.hello,
+          takeStretched(blocks),
+        );
+        document = {
+          schema: 1,
+          blocks,
+          editor: { id: 'fresco', ...(Object.keys(data).length ? { data } : {}) },
+        };
         elementorPages++;
       }
     }
@@ -381,6 +419,12 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       `${elementorPages} page(s) built with Elementor were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
     );
   }
+  // Elementor's templates (Theme Builder, popups, saved sections, global widgets).
+  const plugins: Record<string, unknown> = {};
+  if (useElementor) {
+    entries.push(...elementor.templates());
+    Object.assign(plugins, elementor.plugins());
+  }
   if (pingbacks) warnings.push(`${pingbacks} pingback(s) and trackback(s) were not imported.`);
   if (trashedComments) warnings.push(`${trashedComments} trashed comment(s) were not imported.`);
 
@@ -420,7 +464,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
           ? { kind: 'url', url: relativeTo(url, baseUrl), label: label ?? url, target, children }
           : { kind: 'custom', label: label ?? 'Item', children };
       });
-    menus.push({ name, locale, items: build('0') });
+    // Menus shown by Elementor's nav menu widgets get a location of their own.
+    const location = elementor.menuLocations.get(slug);
+    menus.push({ name, locale, ...(location ? { location } : {}), items: build('0') });
   }
 
   return {
@@ -445,6 +491,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       media,
       entries,
       menus,
+      ...(Object.keys(plugins).length ? { plugins } : {}),
     },
   };
 }
@@ -515,6 +562,9 @@ function findTermRef(channel: Node, taxonomy: string, id: number): string | unde
     : `tag:${text(found['wp:tag_slug'])}`;
 }
 
+/** Elementor's landing pages: pages. */
+const LANDING_PAGE = 'e-landing-page';
+
 /** WordPress's own types and taxonomies, never content. */
 const INTERNAL_TYPES = new Set([
   'revision',
@@ -533,7 +583,6 @@ const INTERNAL_TYPES = new Set([
   'elementor_snippet',
   'elementor_font',
   'elementor_icons',
-  'e-landing-page',
   'acf-field-group',
   'acf-field',
   'wpcf7_contact_form',
@@ -699,3 +748,295 @@ function recogniseTranslations(
   }
   return moved;
 }
+
+// ---- Elementor's site parts ----------------------------------------------------------------
+
+type TransferEntryInput = NonNullable<TransferDocumentInput['entries']>[number];
+
+interface ElementorSite {
+  /** The site used the Hello theme: Elementor pages filled the whole width. */
+  hello: boolean;
+  /** The conversion context of a page or template. */
+  context(warn: (message: string) => void): ElementorContext;
+  /** Menus shown by nav menu widgets: menu slug → location. */
+  menuLocations: Map<string, string>;
+  /** Templates of the Theme Builder, popups, saved sections and global widgets. */
+  templates(): TransferEntryInput[];
+  /** Data for Fresco (kit) and Fresco Pro (site CSS, custom code, fonts). */
+  plugins(): Record<string, unknown>;
+}
+
+/**
+ * Reads what an Elementor site keeps outside its pages: the kit, templates,
+ * custom code and fonts, and the lookups conversions need (entries, terms,
+ * menus by WordPress id).
+ */
+function prepareElementor(
+  channel: Node,
+  items: Node[],
+  locale: string,
+  attachmentRefs: Map<number, string>,
+  customTaxonomies: Map<string, { slug: string; hierarchical: boolean }>,
+  warnings: string[],
+): ElementorSite {
+  const mediaRef = (attachment: number) => attachmentRefs.get(attachment);
+  const idOf = (item: Node) => Number(text(item['wp:post_id']));
+  const typeOf = (item: Node) => text(item['wp:post_type']);
+  const ownType = (type: string) =>
+    type === 'post'
+      ? 'article'
+      : type === 'page' || type === LANDING_PAGE
+        ? 'page'
+        : INTERNAL_TYPES.has(type) ||
+            SHOP_TYPES.has(type) ||
+            type === 'attachment' ||
+            type === 'nav_menu_item'
+          ? undefined
+          : (structureSlug(type) ?? undefined);
+
+  // Entries the import will have (pages, posts, templates): references to them stay.
+  const library = items.filter((item) => typeOf(item) === 'elementor_library');
+  const kinds = new Map<number, ReturnType<typeof templateKind>>();
+  const importable = new Set<number>();
+  for (const item of items) {
+    if (!STATUS[text(item['wp:status'])]) continue;
+    if (typeOf(item) === 'elementor_library') {
+      const kind = templateKind(meta(item, '_elementor_template_type') ?? '');
+      if (kind) {
+        kinds.set(idOf(item), kind);
+        importable.add(idOf(item));
+      }
+    } else if (ownType(typeOf(item))) importable.add(idOf(item));
+  }
+  const entryRef = (post: number) => (importable.has(post) ? `post:${post}` : undefined);
+
+  // Terms by WordPress id (unique across taxonomies).
+  const termsById = new Map<number, { taxonomy: string; slug: string }>();
+  for (const c of (channel['wp:category'] as Node[] | undefined) ?? []) {
+    termsById.set(Number(text(c['wp:term_id'])), {
+      taxonomy: 'category',
+      slug: text(c['wp:category_nicename']),
+    });
+  }
+  for (const t of (channel['wp:tag'] as Node[] | undefined) ?? []) {
+    termsById.set(Number(text(t['wp:term_id'])), {
+      taxonomy: 'post_tag',
+      slug: text(t['wp:tag_slug']),
+    });
+  }
+  const menuSlugs = new Map<number, string>();
+  for (const t of (channel['wp:term'] as Node[] | undefined) ?? []) {
+    const taxonomy = text(t['wp:term_taxonomy']);
+    const id = Number(text(t['wp:term_id']));
+    if (taxonomy === 'nav_menu') menuSlugs.set(id, text(t['wp:term_slug']));
+    else termsById.set(id, { taxonomy, slug: text(t['wp:term_slug']) });
+  }
+  const taxonomySlug = (wp: string) =>
+    wp === 'category' ? 'category' : wp === 'post_tag' ? 'tag' : customTaxonomies.get(wp)?.slug;
+  const term = (taxonomy: string, id: number) => {
+    const found = termsById.get(id);
+    if (!found || (taxonomy && found.taxonomy !== taxonomy)) return undefined;
+    const own = taxonomySlug(found.taxonomy);
+    return own ? { taxonomy: own, slug: found.slug } : undefined;
+  };
+
+  // Menus shown by nav menu widgets (by slug, or by id in old data).
+  const menuLocations = new Map<string, string>();
+  const knownMenus = new Set(menuSlugs.values());
+  const menuLocation = (menu: string) => {
+    const slug = knownMenus.has(menu) ? menu : menuSlugs.get(Number(menu));
+    if (!slug) return undefined;
+    const location = slug.slice(0, 64);
+    menuLocations.set(slug, location);
+    return location;
+  };
+
+  // Fonts: custom ones (uploaded) and those to load from Google Fonts.
+  const customFamilies = new Set(
+    items
+      .filter((item) => typeOf(item) === 'elementor_font')
+      .map((item) => decode(text(item.title)).toLowerCase()),
+  );
+  const families = new Set<string>();
+  const font = (family: string) => {
+    if (isWebFont(family.trim(), customFamilies)) families.add(family.trim());
+  };
+
+  // The kit: the most recent published one (the export has no "active kit" option).
+  const notes = new Map<string, number>();
+  const note = (message: string) => notes.set(message, (notes.get(message) ?? 0) + 1);
+  const kits = library
+    .filter((item) => meta(item, '_elementor_template_type') === 'kit')
+    .sort(
+      (a, b) =>
+        Number(text(b['wp:status']) === 'publish') - Number(text(a['wp:status']) === 'publish') ||
+        text(b['wp:post_date_gmt']).localeCompare(text(a['wp:post_date_gmt'])) ||
+        idOf(b) - idOf(a),
+    );
+  let kit: KitResult | null = null;
+  if (kits[0]) {
+    kit = kitToFresco(
+      asSettings(metaValue(meta(kits[0], '_elementor_page_settings'))),
+      {
+        classes: metaValue(meta(kits[0], '_elementor_global_classes')),
+        variables: metaValue(meta(kits[0], '_elementor_global_variables')),
+      },
+      { note, font },
+    );
+  }
+
+  // Hello (the theme made for Elementor): pages had the whole width.
+  const hello = items.some(
+    (item) =>
+      (typeOf(item) === 'custom_css' && /^hello-/.test(text(item.title))) ||
+      ((item.category as Node[] | undefined) ?? []).some(
+        (c) => c['@_domain'] === 'wp_theme' && /^hello-/.test(String(c['@_nicename'] ?? '')),
+      ),
+  );
+
+  const context = (warn: (message: string) => void): ElementorContext => ({
+    mediaRef,
+    warn,
+    entryRef,
+    term,
+    typeSlug: (type: string) => ownType(type),
+    menuLocation,
+    font,
+    ...(kit ? { kit: kit.info } : {}),
+  });
+
+  const conditions = (value: unknown, warn: (message: string) => void) => {
+    const local = new Map<string, number>();
+    const ctx: ConditionContext = {
+      note: (message) => local.set(message, (local.get(message) ?? 0) + 1),
+      entryRef,
+      term,
+      taxonomySlug,
+      typeSlug: (type) => ownType(type),
+    };
+    const rules = convertConditions(value, ctx);
+    for (const [message] of local) warn(`${message}.`);
+    return rules;
+  };
+
+  const templates = (): TransferEntryInput[] => {
+    const out: TransferEntryInput[] = [];
+    const skipped = new Map<string, number>();
+    const counts = new Map<string, number>();
+    for (const item of library) {
+      const type = meta(item, '_elementor_template_type') ?? '';
+      const status = STATUS[text(item['wp:status'])];
+      if (!type || type === 'kit' || !status) continue;
+      const kind = kinds.get(idOf(item));
+      if (!kind) {
+        skipped.set(type || 'unknown', (skipped.get(type || 'unknown') ?? 0) + 1);
+        continue;
+      }
+      const id = idOf(item);
+      const title = texturizeText(decode(text(item.title))) || `Template ${id}`;
+      const warn = (message: string) => warnings.push(`Template "${title}": ${message}`);
+      const raw = meta(item, '_elementor_data');
+      const blocks = raw ? (elementorToFresco(raw, context(warn)) ?? []) : [];
+      takeStretched(blocks);
+      const page = asSettings(metaValue(meta(item, '_elementor_page_settings')));
+      const data: Settings = {
+        template: {
+          kind,
+          conditions: conditions(metaValue(meta(item, '_elementor_conditions')), warn),
+        },
+      };
+      if (kind === 'popup') {
+        const popupNotes = new Map<string, number>();
+        data.popup = popupSettings(
+          page,
+          asSettings(metaValue(meta(item, '_elementor_popup_display_settings'))),
+          { note: (m) => popupNotes.set(m, 1) },
+        );
+        for (const [message] of popupNotes) warn(`${message}.`);
+      }
+      if (type === 'error-404')
+        warn('a "not found" template became a section template: place it on the site\'s 404 page.');
+      if (str(page.custom_css).trim()) data.customCss = str(page.custom_css).trim();
+      const gmt = text(item['wp:post_date_gmt']);
+      const date = gmt && !gmt.startsWith('0000') ? `${gmt.replace(' ', 'T')}Z` : undefined;
+      out.push({
+        ref: `post:${id}`,
+        type: 'fresco_template',
+        locale,
+        slug: decodeURIComponent(text(item['wp:post_name'])) || `template-${id}`,
+        title,
+        status,
+        authorRef: `user:${text(item['dc:creator'])}`,
+        ...(date ? { publishedAt: status === 'scheduled' ? null : date, createdAt: date } : {}),
+        document: { schema: 1, blocks, editor: { id: 'fresco', data } },
+      });
+      counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    }
+    if (out.length) {
+      const list = [...counts].map(([kind, n]) => `${n} ${kind}`).join(', ');
+      warnings.push(
+        `${out.length} Elementor template(s) (${list}) were imported as Fresco Pro theme templates: Fresco Pro must be active when importing to keep them.`,
+      );
+    }
+    for (const [type, n] of skipped) {
+      warnings.push(
+        `${n} Elementor template(s) of the type "${type}" have no Fresco counterpart and were not imported.`,
+      );
+    }
+    return out;
+  };
+
+  const plugins = (): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    for (const [message, n] of notes)
+      warnings.push(`Elementor kit: ${message}${n > 1 ? ` (${n}×)` : ''}.`);
+    if (kit || families.size) {
+      out.fresco = { kit: { ...(kit?.kit ?? {}), googleFonts: [...families].slice(0, 30) } };
+    }
+    // Fresco Pro: site CSS, custom code and custom fonts.
+    const snippets = items
+      .filter((item) => typeOf(item) === 'elementor_snippet' && STATUS[text(item['wp:status'])])
+      .map((item, i) =>
+        snippet(
+          {
+            title: decode(text(item.title)),
+            code: text(item['content:encoded']),
+            location: meta(item, '_elementor_location') ?? '',
+            published: text(item['wp:status']) === 'publish',
+            conditions: conditions(metaValue(meta(item, '_elementor_conditions')), (m) =>
+              warnings.push(`Custom code "${decode(text(item.title))}": ${m}`),
+            ),
+          },
+          i,
+        ),
+      );
+    const fonts = items
+      .filter((item) => typeOf(item) === 'elementor_font')
+      .map((item) =>
+        customFont(
+          decode(text(item.title)),
+          metaValue(meta(item, 'elementor_font_files')),
+          mediaRef,
+        ),
+      )
+      .filter(Boolean);
+    const icons = items.filter((item) => typeOf(item) === 'elementor_icons').length;
+    if (icons)
+      warnings.push(
+        `${icons} custom icon set(s) of Elementor were not imported: upload their SVG icons in Fresco Pro.`,
+      );
+    const css = kit?.css ?? '';
+    if (css || snippets.length || fonts.length || library.some((item) => kinds.has(idOf(item)))) {
+      out['fresco-pro'] = {
+        ...(css ? { css } : {}),
+        ...(snippets.length ? { snippets } : {}),
+        ...(fonts.length ? { fonts } : {}),
+      };
+    }
+    return out;
+  };
+
+  return { hello, context, menuLocations, templates, plugins };
+}
+
+const str = (value: unknown): string => (typeof value === 'string' ? value : '');

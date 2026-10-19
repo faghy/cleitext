@@ -88,7 +88,7 @@ export interface Kit {
     link?: string;
     linkHover?: string;
   };
-  /** Fonts to load from Google Fonts (family names). */
+  /** Fonts to load from Google Fonts (family names, any family Google serves). */
   googleFonts: string[];
   /** The theme's page title, hidden by the page setting "Hide the page title". */
   titleSelector?: string;
@@ -220,10 +220,61 @@ export function normalizeKit(value: unknown): Kit {
           }))
       : [],
     googleFonts: Array.isArray(input.googleFonts)
-      ? input.googleFonts
-          .filter((f) => typeof f === 'string' && /^[\w ]{1,60}$/.test(f))
-          .slice(0, 12)
+      ? [
+          ...new Set(
+            input.googleFonts.filter(
+              (f) => typeof f === 'string' && GOOGLE_FAMILY.test(f) && f.trim() === f,
+            ),
+          ),
+        ].slice(0, 30)
       : [],
+  };
+}
+
+/** A family name Google Fonts may serve: letters, digits and spaces. */
+const GOOGLE_FAMILY = /^[A-Za-z0-9][\w ]{0,59}$/;
+
+/**
+ * A kit with another (partial) kit laid over it, e.g. one converted from
+ * another page builder on import: its colors, fonts, classes and variables
+ * replace those with the same id and add the others; the other settings it
+ * has replace the current ones.
+ */
+export function mergeKit(current: Kit, incoming: unknown): Kit {
+  const next = (incoming && typeof incoming === 'object' ? incoming : {}) as Partial<Kit>;
+  const byId = <T extends { id: string }>(base: T[], extra: unknown): T[] => {
+    const list = Array.isArray(extra)
+      ? (extra as T[]).filter((i) => i && typeof i === 'object')
+      : [];
+    return [
+      ...base.map((item) => list.find((i) => i.id === item.id) ?? item),
+      ...list.filter((i) => !base.some((item) => item.id === i.id)),
+    ];
+  };
+  return normalizeKit({
+    ...current,
+    colors: byId(current.colors, next.colors),
+    fonts: byId(current.fonts, next.fonts),
+    classes: byId(current.classes, next.classes),
+    variables: byId(current.variables, next.variables),
+    googleFonts: [
+      ...current.googleFonts,
+      ...(Array.isArray(next.googleFonts) ? next.googleFonts : []),
+    ],
+    ...(next.breakpoints ? { breakpoints: next.breakpoints } : {}),
+    ...(next.containerWidth ? { containerWidth: next.containerWidth } : {}),
+    ...(next.gap ? { gap: next.gap } : {}),
+    ...(next.style ? { style: { ...current.style, ...next.style } } : {}),
+    ...(next.theme ? { theme: mergeTheme(current.theme, next.theme) } : {}),
+    ...(next.titleSelector ? { titleSelector: next.titleSelector } : {}),
+  });
+}
+
+function mergeTheme(current: ThemeStyle, incoming: ThemeStyle): ThemeStyle {
+  return {
+    ...current,
+    ...incoming,
+    texts: { ...current.texts, ...incoming.texts },
   };
 }
 
@@ -461,10 +512,13 @@ function responsiveUtilities(bp: Breakpoints): string {
 
 /** The stylesheet address of the kit's Google Fonts, or null. */
 export function googleFontsUrl(kit: Kit): string | null {
+  // Fonts listed in `googleFonts` (any family of Google Fonts, e.g. imported
+  // with a site) and the global fonts that are among the popular ones.
   const families = [
-    ...new Set(
-      [...kit.googleFonts, ...kit.fonts.map((f) => f.family)].filter((f) => GOOGLE_FONTS.has(f)),
-    ),
+    ...new Set([
+      ...kit.googleFonts.filter((f) => GOOGLE_FAMILY.test(f)),
+      ...kit.fonts.map((f) => f.family).filter((f) => GOOGLE_FONTS.has(f)),
+    ]),
   ];
   if (families.length === 0) return null;
   const query = families

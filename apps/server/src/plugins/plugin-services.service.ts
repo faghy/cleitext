@@ -632,6 +632,14 @@ export class PluginServicesProvider implements PluginServices {
       // WordPress blocks without an equivalent: active plugins may convert them.
       importBlock: (block) =>
         this.host.applyFilter('import.block', null, { siteId, ...block }, siteId),
+      // Settings meant for plugins (e.g. a page builder's kit): the active ones take theirs.
+      importPluginData: (input) =>
+        this.host.applyFilter(
+          'import.pluginData',
+          null,
+          { siteId, userId: options.userId, ...input },
+          siteId,
+        ),
       siteId,
       asUserId: options.userId,
       // As when saving from the editor: raw HTML only for those who may publish it.

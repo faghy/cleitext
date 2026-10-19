@@ -24,6 +24,16 @@ export default definePlugin({
         },
       ];
     });
+    // Its own data of an imported document (plugin API 1.28), echoed in the report.
+    ctx.hooks.filter('import.pluginData', (result, { slug, data, idMap }) => {
+      if (slug !== 'native') return result;
+      return {
+        warnings: [
+          ...(result?.warnings ?? []),
+          `native: ${JSON.stringify(data)} ${Object.keys(idMap.entries).sort().join(',')}`,
+        ],
+      };
+    });
     // The tests import transfer documents through it.
     ctx.routes.api({
       method: 'POST',

@@ -6,7 +6,14 @@
 import { definePlugin, type PluginBlockDefinition, type PluginContext } from '@cleitext/plugin-sdk';
 import { elementCss, safeColor, withDefaults } from './core/css.js';
 import { setIconData, type IconData } from './core/icons.js';
-import { googleFontsUrl, kitCss, normalizeKit, safeSelector, type Kit } from './core/kit.js';
+import {
+  googleFontsUrl,
+  kitCss,
+  mergeKit,
+  normalizeKit,
+  safeSelector,
+  type Kit,
+} from './core/kit.js';
 import type { ElementDefinition, FrescoNode, RenderContext } from './core/model.js';
 import { installApi } from './api.js';
 import { isVisible, resetExtensions, resolveSettings } from './core/extensions.js';
@@ -228,6 +235,23 @@ export default definePlugin({
         }
         return { body: found };
       },
+    });
+
+    // Imports (plugin API 1.28): site settings converted from another builder join the kit.
+    ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data }) => {
+      if (slug !== 'fresco') return result;
+      const kit = (data as { kit?: unknown } | null)?.kit;
+      const warnings = [...(result?.warnings ?? [])];
+      if (kit && typeof kit === 'object') {
+        const merged = mergeKit(normalizeKit(await ctx.storage.get(siteId, KIT_KEY)), kit);
+        await ctx.storage.set(siteId, KIT_KEY, merged);
+        kits.delete(siteId);
+        await ctx.cache.invalidate(siteId, [KIT_TAG]);
+        warnings.push(
+          'Fresco site settings (global colors and fonts, layout, theme style) were updated from the imported site.',
+        );
+      }
+      return { warnings };
     });
 
     ctx.routes.api({

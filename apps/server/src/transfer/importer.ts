@@ -33,10 +33,16 @@ import type { MediaService } from '../media/media.service.js';
 import type { PageCacheService } from '../public/page-cache.service.js';
 import { loadSiteData } from '../public/site-data.js';
 import { defaultLocaleIn, PENDING } from '../content/languages.service.js';
-import type { ContentLocale, PendingLanguages } from '@cleitext/plugin-sdk';
+import type {
+  ContentLocale,
+  ImportIdMap,
+  ImportPluginDataResult,
+  PendingLanguages,
+} from '@cleitext/plugin-sdk';
 import {
   count,
   emptyReport,
+  resolveEntryRefs,
   transferDocumentSchema,
   type ImportReport,
   type TransferComment,
@@ -80,6 +86,16 @@ export interface ImportOptions {
    * `unfiltered_html`), after the blocks of other plugins were converted.
    */
   sanitize?(document: CxdDocument): CxdDocument;
+  /**
+   * The data of `document.plugins` for one plugin, given to the active
+   * plugins (the `import.pluginData` filter): their result, or null when no
+   * plugin took it.
+   */
+  importPluginData?(input: {
+    slug: string;
+    data: unknown;
+    idMap: ImportIdMap;
+  }): Promise<ImportPluginDataResult | null>;
 }
 
 interface MediaTarget {
@@ -289,7 +305,25 @@ export async function importDocument(
 
   // ---- Entries ---------------------------------------------------------------------
   const entryIds = new Map<string, { id: string }>();
-  const ordered = orderByParent(doc.entries);
+  /** Entries written by this import whose document points to other entries. */
+  const withRefs: { revisionId: string; document: CxdDocument }[] = [];
+  // Entries of types the site does not have (e.g. of a plugin that is not active).
+  const knownTypes = new Set(
+    (await run((tx) => tx.select({ slug: contentTypes.slug }).from(contentTypes))).map(
+      (t) => t.slug,
+    ),
+  );
+  const missingTypes = new Map<string, number>();
+  const ordered = orderByParent(doc.entries).filter((entry) => {
+    if (knownTypes.has(entry.type)) return true;
+    missingTypes.set(entry.type, (missingTypes.get(entry.type) ?? 0) + 1);
+    return false;
+  });
+  for (const [type, n] of missingTypes) {
+    report.warnings.push(
+      `${n} entr${n === 1 ? 'y' : 'ies'} of the type "${type}" ${n === 1 ? 'was' : 'were'} not imported: the site has no such content type (activate the plugin that adds it, then import again).`,
+    );
+  }
   for (const [index, entry] of ordered.entries()) {
     if (index % 50 === 0) progress(`Entries ${index + 1}/${ordered.length}`);
     try {
@@ -316,7 +350,10 @@ export async function importDocument(
           report,
         }),
       );
-      entryIds.set(entry.ref, result);
+      entryIds.set(entry.ref, { id: result.id });
+      if (JSON.stringify(result.document).includes('"$entry"')) {
+        withRefs.push({ revisionId: result.revisionId, document: result.document });
+      }
       if (entry.comments?.length) {
         await run((tx) => insertComments(tx, siteId, result.id, entry.comments!, userIds, report));
       }
@@ -328,6 +365,17 @@ export async function importDocument(
         `Entry "${entry.title}" (${entry.type}, ${entry.locale}) not imported: ${message(error)}`,
       );
     }
+  }
+
+  // References between entries (`{ $entry: ref }`), now that every entry has its id.
+  const idOf = (ref: string) => entryIds.get(ref)?.id;
+  for (const { revisionId, document } of withRefs) {
+    await run((tx) =>
+      tx
+        .update(revisions)
+        .set({ document: resolveEntryRefs(document, idOf) as CxdDocument })
+        .where(eq(revisions.id, revisionId)),
+    );
   }
 
   // ---- Settings, menus, redirects --------------------------------------------------
@@ -487,6 +535,34 @@ export async function importDocument(
     });
     await options.onLanguagesPending?.();
   }
+  // ---- Plugin data -----------------------------------------------------------------
+  const slugs = Object.keys(doc.plugins);
+  if (slugs.length > 0) {
+    const idMap: ImportIdMap = {
+      entries: Object.fromEntries([...entryIds].map(([ref, { id }]) => [ref, id])),
+      terms: Object.fromEntries(termIds),
+      media: Object.fromEntries(mediaTargets),
+    };
+    for (const slug of slugs) {
+      const data = resolveEntryRefs(
+        remapMediaValues(doc.plugins[slug], mediaTargets, urlMap),
+        idOf,
+      );
+      try {
+        const result = options.importPluginData
+          ? await options.importPluginData({ slug, data, idMap })
+          : null;
+        if (result) report.warnings.push(...(result.warnings ?? []));
+        else {
+          report.warnings.push(
+            `Settings for the plugin "${slug}" were not imported: it is not active on this site.`,
+          );
+        }
+      } catch (error) {
+        report.errors.push(`Settings for the plugin "${slug}" not imported: ${message(error)}`);
+      }
+    }
+  }
   await options.cache.invalidate(siteId, ['site']);
   return report;
 }
@@ -597,7 +673,7 @@ async function insertEntry(
     urls: Map<string, MediaTarget>;
     report: ImportReport;
   },
-): Promise<{ id: string }> {
+): Promise<{ id: string; revisionId: string; document: CxdDocument }> {
   const types = await tx.select().from(contentTypes);
   const type = types.find((t) => t.slug === entry.type);
   if (!type) throw new Error(`unknown content type "${entry.type}"`);
@@ -695,7 +771,7 @@ async function insertEntry(
         .onConflictDoNothing();
     }
   }
-  return { id };
+  return { id, revisionId, document };
 }
 
 /** Image blocks: media refs become the imported media ids and URLs. */

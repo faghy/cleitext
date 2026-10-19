@@ -106,10 +106,13 @@ async function runImport(
   as: string | undefined,
 ): Promise<ImportReport> {
   const host = context.app.get(PluginHost);
+  const asUserId = await importUser(context.owner.db, as);
   return importDocument(document, {
     db: context.owner.db,
     siteId,
-    asUserId: await importUser(context.owner.db, as),
+    asUserId,
+    importPluginData: (input) =>
+      host.applyFilter('import.pluginData', null, { siteId, userId: asUserId, ...input }, siteId),
     media: context.app.get(MediaService),
     cache: context.app.get(PageCacheService),
     readFile,

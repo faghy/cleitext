@@ -7,6 +7,13 @@ import { z } from 'zod';
  * Records refer to each other with `ref` strings chosen by the
  * source (Cleitext ids, WordPress post ids, Cleito ids…); the importer gives
  * them new ids, so a document can be imported into any site, even twice.
+ *
+ * Inside entry documents and plugin data, a reference to another entry is
+ * written as an object `{ "$entry": "<entry ref>", "prefix"?: "…" }`: once
+ * every entry exists, the importer replaces it with the string
+ * `prefix + <new entry id>` (or `null` when the entry was not imported), so
+ * entries may point to each other in any order (e.g. a page showing a
+ * template whose conditions name that page).
  */
 
 const ref = z.string().min(1).max(200);
@@ -186,6 +193,12 @@ export const transferDocumentSchema = z.object({
       }),
     )
     .default([]),
+  /**
+   * Data for plugins, by plugin slug (e.g. a page builder's site settings).
+   * After the entries are imported, each active plugin gets its own through
+   * the `import.pluginData` filter, with media and entry references remapped.
+   */
+  plugins: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/), z.unknown()).default({}),
 });
 
 export type TransferDocument = z.output<typeof transferDocumentSchema>;
@@ -194,3 +207,40 @@ export type TransferEntry = z.output<typeof transferEntrySchema>;
 export type TransferTerm = z.output<typeof transferTermSchema>;
 export type TransferComment = z.output<typeof transferCommentSchema>;
 export type TransferMedia = z.output<typeof transferMediaSchema>;
+
+/** A reference to an entry inside a document or plugin data, resolved on import. */
+export interface TransferEntryRef {
+  $entry: string;
+  /** Put before the new id, e.g. `entry:` for a condition rule. */
+  prefix?: string;
+}
+
+/** Whether a value is an entry reference (`{ $entry: ref }`). */
+export function isTransferEntryRef(value: unknown): value is TransferEntryRef {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof (value as TransferEntryRef).$entry === 'string' &&
+    Object.keys(value).every((key) => key === '$entry' || key === 'prefix')
+  );
+}
+
+/**
+ * Replaces entry references (`{ $entry, prefix? }`) anywhere in a value with
+ * `prefix + id`, or null when the entry is unknown.
+ */
+export function resolveEntryRefs(
+  value: unknown,
+  ids: (ref: string) => string | undefined,
+): unknown {
+  if (isTransferEntryRef(value)) {
+    const id = ids(value.$entry);
+    return id ? `${typeof value.prefix === 'string' ? value.prefix : ''}${id}` : null;
+  }
+  if (Array.isArray(value)) return value.map((v) => resolveEntryRefs(v, ids));
+  if (!value || typeof value !== 'object') return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(value)) out[key] = resolveEntryRefs(v, ids);
+  return out;
+}

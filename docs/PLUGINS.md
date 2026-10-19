@@ -195,6 +195,7 @@ ctx.hooks.filter(
 | `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                            | `{ siteId, ids }`                                      |
 | `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                               | `{ siteId, locale, userId, base }`                     |
 | `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)                                                       | `{ siteId, name, attrs, html, children }`              |
+| `import.pluginData`        | the plugin's data of an imported document (`document.plugins[slug]`): `{ warnings? }` when taken, `null` otherwise (API 1.28)                   | `{ siteId, slug, data, idMap, userId }`                |
 | `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                                                                               | `{ siteId, locale, siteTitle, term }`                  |
 | `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                                                                           | `{ siteId }`                                           |
 | `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`)                                                      | `{ siteId, kind, slug, locale }`                       |
@@ -717,6 +718,16 @@ const report = await ctx.transfer.importDocument(siteId, document, {
 ```
 
 Entry content is made of blocks: `@cleitext/blocks/html` turns HTML and block markup into them (`htmlToCxd`). Media files are given by their http(s) address and downloaded only from public addresses, never from the server's own network. What is already on the site is kept, and old addresses (`oldPaths`) become redirects. A big site takes minutes: start the import without awaiting it in the route, and keep its progress in `ctx.storage`.
+
+Entries may point to each other in any order: inside a document (or plugin data), `{ "$entry": "<entry ref>", "prefix": "entry:" }` becomes `prefix + <new id>` once every entry exists (`null` when that entry was not imported). Entries of a content type the site does not have (e.g. a plugin that is not active) are left out with one report line per type. Settings meant for a plugin go in `document.plugins` by plugin slug (API 1.28): after the entries, each active plugin gets its own through the `import.pluginData` filter, with media objects and entry references already remapped and `idMap` (`{ entries, terms, media }` by `ref`) for anything else; data that no active plugin takes is reported.
+
+```ts
+ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data }) => {
+  if (slug !== ctx.plugin.slug) return result;
+  await ctx.storage.set(siteId, 'settings', merge(await ctx.storage.get(siteId, 'settings'), data));
+  return { warnings: [...(result?.warnings ?? []), 'Settings imported.'] };
+});
+```
 
 ## 10. Your own tables
 

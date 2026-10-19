@@ -53,7 +53,14 @@ Atomic elements (Flexbox, Grid, Div, Heading, Paragraph, Button, Image, SVG, Div
 
 ## Coming from WordPress
 
-The WordPress importer (**Import from WordPress** in the admin menu) turns pages built with Elementor into Fresco pages: sections, columns and containers, and the common widgets. Pro widgets that need Fresco Pro become containers with a note.
+The WordPress importer (**Import from WordPress** in the admin menu) turns a site built with Elementor (and Elementor Pro) into Fresco:
+
+- **Pages** (and landing pages) become Fresco pages: sections, columns and containers, every common widget with its texts, links, images, global colors and fonts, typography, spacing, per-device values, hover colors, backgrounds (with overlays and videos), borders, shadows and entrance animations. Atomic elements keep their style variants and classes. The page settings come along: full width or canvas layout, hidden title, page background and custom CSS.
+- **The kit** joins Fresco's **Site settings**: global colors and fonts (Google fonts are loaded), breakpoints, content width, space between widgets and the theme style (texts, headings, buttons, images, form fields, lightbox).
+- **Pro widgets** become their Fresco Pro elements (form, slides, call to action, flip box, price table and list, countdown, animated headline, posts and loops, carousels, theme elements and more), and motion effects, sticky, custom CSS, custom attributes and dynamic tags their Fresco Pro settings.
+- **Theme Builder templates** (header, footer, single, archive, popups, loop items, saved sections and global widgets) become Fresco Pro templates with their conditions; popups keep their trigger, frequency and layout. Custom code, custom fonts and the kit's custom CSS go to Fresco Pro's site settings.
+
+Pro widgets, templates and Pro settings show with Fresco Pro: activate it before importing so that templates are imported too. The import report lists what had no counterpart or was approximated.
 
 ---
 
