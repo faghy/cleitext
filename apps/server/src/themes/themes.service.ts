@@ -31,10 +31,10 @@ import {
   themeFailures,
   themeFor,
   themePaid,
-  themePlugins,
 } from '../public/themes.js';
 import { LicensesService } from '../catalog/licenses.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
+import { switchThemePlugins } from './theme-plugins.js';
 
 /** Themes per site: activation, settings, block areas (RF-THM-01/03/04). */
 @Injectable()
@@ -155,96 +155,13 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       });
     });
     await this.cache.invalidate(siteId, ['site'], { sites: true });
-    return { warnings: await this.switchPlugins(siteId, auth, previous, slug) };
-  }
-
-  /**
-   * The plugins that come with themes: the new theme's are activated on the
-   * site, and those the previous theme activated are deactivated (their data
-   * is kept). A plugin already active before the theme (Fresco used on its
-   * own, say) stays active. A plugin that cannot start (a missing dependency)
-   * does not stop the theme: the reason is returned for the admin to show.
-   */
-  private async switchPlugins(
-    siteId: string,
-    auth: AuthContext,
-    previous: string | null,
-    next: string,
-  ): Promise<string[]> {
-    const wanted = themePlugins(next);
-    const switchedOn =
-      previous && previous !== next ? await this.themeSwitched(siteId, auth, previous) : [];
-    const leaving = switchedOn.filter((p) => !wanted.includes(p));
-    if (wanted.length === 0 && leaving.length === 0) return [];
-    const warnings: string[] = [];
-    const active = await this.plugins.activeSlugs(siteId);
-    // Dependents first: the theme lists a plugin after those it needs.
-    for (const plugin of [...leaving].reverse()) {
-      if (!active.has(plugin)) continue;
-      await this.plugins.deactivate(siteId, auth.userId, plugin).catch((error: unknown) => {
-        warnings.push(error instanceof Error ? error.message : String(error));
-      });
-    }
-    if (previous && previous !== next && switchedOn.length > 0) {
-      await this.saveThemeSwitched(siteId, auth, previous, []);
-    }
-    // Kept: what this theme switched on before (inherited from a previous theme too).
-    const mine = new Set([
-      ...(await this.themeSwitched(siteId, auth, next)),
-      ...switchedOn.filter((p) => wanted.includes(p)),
-    ]);
-    for (const plugin of wanted) {
-      if (active.has(plugin)) continue;
-      if (!this.plugins.get(plugin)) {
-        warnings.push(
-          `The plugin ${plugin} that comes with the theme is not installed: install the theme again.`,
-        );
-        continue;
-      }
-      await this.plugins.activate(siteId, auth.userId, plugin).then(
-        () => mine.add(plugin),
-        (error: unknown) => {
-          warnings.push(error instanceof Error ? error.message : String(error));
-        },
-      );
-    }
-    await this.saveThemeSwitched(
-      siteId,
-      auth,
-      next,
-      wanted.filter((p) => mine.has(p)),
-    );
-    return warnings;
-  }
-
-  /** The plugins a theme activated on the site itself (to deactivate them when it leaves). */
-  private async themeSwitched(siteId: string, auth: AuthContext, theme: string): Promise<string[]> {
-    const [row] = await this.run(siteId, auth, (tx) =>
-      tx
-        .select({ value: settings.value })
-        .from(settings)
-        .where(and(eq(settings.namespace, themeNamespace(theme)), eq(settings.key, 'plugins'))),
-    );
-    return Array.isArray(row?.value)
-      ? (row.value as unknown[]).filter((v): v is string => typeof v === 'string')
-      : [];
-  }
-
-  private async saveThemeSwitched(
-    siteId: string,
-    auth: AuthContext,
-    theme: string,
-    slugs: string[],
-  ): Promise<void> {
-    await this.run(siteId, auth, (tx) =>
-      tx
-        .insert(settings)
-        .values({ siteId, namespace: themeNamespace(theme), key: 'plugins', value: slugs })
-        .onConflictDoUpdate({
-          target: [settings.siteId, settings.namespace, settings.key],
-          set: { value: slugs },
-        }),
-    );
+    return {
+      warnings: await switchThemePlugins(
+        { db: this.database.db, host: this.plugins, siteId, userId: auth.userId },
+        previous,
+        slug,
+      ),
+    };
   }
 
   /** Values of the active theme's settings, defaults included. */

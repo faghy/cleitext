@@ -43,6 +43,7 @@ import { PluginServicesProvider } from './plugin-services.service.js';
 import { parseBody } from '../common/problem.js';
 import { siteOrigin } from '../mcp/origin.js';
 import { PublicService } from '../public/public.service.js';
+import { syncThemePlugins } from '../themes/theme-plugins.js';
 
 const previewBlockBody = z.object({
   block: cxdBlockSchema,
@@ -204,6 +205,13 @@ export class PluginsController {
     @CurrentSite() site: SiteContext,
     @CurrentAuth() auth: AuthContext,
   ): Promise<PluginAdminInfo[]> {
+    // A theme updated with a new plugin of its own: on at the first visit.
+    await syncThemePlugins({
+      db: this.database.db,
+      host: this.host,
+      siteId: site.id,
+      userId: auth.userId,
+    }).catch(() => []);
     const active = await this.host.activePlugins(site.id);
     return active.map((plugin) => ({
       slug: plugin.slug,

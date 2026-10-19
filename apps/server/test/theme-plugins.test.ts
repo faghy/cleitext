@@ -11,6 +11,7 @@ import { buildPlugin, installPlugin } from '@cleitext/cli';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { ThemesService } from '../src/themes/themes.service.js';
 import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -19,6 +20,7 @@ const fixture = fileURLToPath(new URL('./fixtures/events-plugin', import.meta.ur
 let app: NestFastifyApplication;
 let owner: DatabaseClient;
 let admin: TestClient;
+let themesPath: string;
 
 async function theme(dir: string, slug: string, plugins?: string[]) {
   await mkdir(join(dir, slug, 'dist'), { recursive: true });
@@ -39,10 +41,11 @@ export default sdk.defineTheme({ slug: '${slug}', name: '${slug}', version: '1.0
 
 beforeAll(async () => {
   owner = ownerDatabase();
-  const themesPath = await mkdtemp(join(tmpdir(), 'cleitext-themes-'));
+  themesPath = await mkdtemp(join(tmpdir(), 'cleitext-themes-'));
   await theme(themesPath, 'builder-theme', ['events']);
   await theme(themesPath, 'lost-theme', ['not-installed']);
   await theme(themesPath, 'other-theme');
+  await theme(themesPath, 'growing-theme');
   const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
   const source = join(await mkdtemp(join(tmpdir(), 'events-src-')), 'events');
   await cp(fixture, source, { recursive: true });
@@ -93,6 +96,21 @@ describe('plugins that come with a theme', () => {
     await admin.post('/api/v1/themes/other-theme/activate');
     expect(await active()).toBe(true);
     await admin.post('/api/v1/plugins/events/deactivate');
+  });
+
+  it('are turned on once when the active theme is updated with them', async () => {
+    await admin.post('/api/v1/themes/growing-theme/activate');
+    expect(await active()).toBe(false);
+    // The update: the theme now comes with the plugin.
+    await theme(themesPath, 'growing-theme', ['events']);
+    await app.get(ThemesService).reload();
+    await admin.get('/api/v1/plugins/admin');
+    expect(await active()).toBe(true);
+    // Turned off by hand, it stays off.
+    await admin.post('/api/v1/plugins/events/deactivate');
+    await admin.get('/api/v1/plugins/admin');
+    expect(await active()).toBe(false);
+    await admin.post('/api/v1/themes/other-theme/activate');
   });
 
   it('do not stop the theme when one is missing', async () => {
