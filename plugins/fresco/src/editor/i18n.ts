@@ -3,6 +3,7 @@
  * translated by the admin's catalog (`t('…')`), which falls back to English.
  */
 import { addMessages } from '@cleitext/admin-sdk';
+import './i18n-elements.js';
 
 addMessages('it', {
   'Fresco menu': 'Menu di Fresco',

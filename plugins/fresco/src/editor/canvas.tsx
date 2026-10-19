@@ -137,7 +137,7 @@ const NodeView = memo(function NodeView({
   } catch (error) {
     return (
       <div className="fre-unknown" data-fr-id={node.id}>
-        {`${definition.title}: ${String(error)}`}
+        {`${t(definition.title)}: ${String(error)}`}
       </div>
     );
   }
@@ -315,7 +315,13 @@ export function Canvas({
         style={{ width, ...(responsive && zoom !== 1 ? { zoom } : {}) }}
       >
         {src && (
-          <iframe ref={frameRef} src={src} title="Page" onLoad={onLoad} className="fre-iframe" />
+          <iframe
+            ref={frameRef}
+            src={src}
+            title={t('Page')}
+            onLoad={onLoad}
+            className="fre-iframe"
+          />
         )}
         {responsive && (
           <>

@@ -216,14 +216,20 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
     case 'heading':
       return <h4 className="fre-subheading">{t(control.label)}</h4>;
     case 'notice':
-      return <p className="fre-notice">{control.label}</p>;
+      return <p className="fre-notice">{t(control.label)}</p>;
     case 'text':
       return (
         <Row control={control} env={env} reset={reset}>
           <input
             className="fre-input"
             value={typeof value === 'string' ? value : ''}
-            placeholder={typeof inherited === 'string' ? inherited : (control.placeholder ?? '')}
+            placeholder={
+              typeof inherited === 'string'
+                ? inherited
+                : control.placeholder
+                  ? t(control.placeholder)
+                  : ''
+            }
             onChange={(e) => set(e.target.value)}
             readOnly={env.readOnly}
           />
@@ -237,7 +243,7 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
             className={`fre-input${control.type === 'code' ? ' fre-code' : ''}`}
             rows={control.type === 'code' ? 8 : 4}
             value={typeof value === 'string' ? value : ''}
-            placeholder={control.placeholder ?? ''}
+            placeholder={control.placeholder ? t(control.placeholder) : ''}
             onChange={(e) => set(e.target.value)}
             readOnly={env.readOnly}
             spellCheck={control.type !== 'code'}
@@ -271,10 +277,14 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
       );
     case 'select':
     case 'animation': {
-      const options =
-        control.type === 'animation'
-          ? ANIMATIONS
-          : [...(control.options ?? []), ...(control.source ? sourceOptions(control.source) : [])];
+      // The labels of the definition are translated; those from a source are content.
+      const options = [
+        ...(control.type === 'animation' ? ANIMATIONS : (control.options ?? [])).map((o) => ({
+          ...o,
+          label: t(o.label),
+        })),
+        ...(control.type !== 'animation' && control.source ? sourceOptions(control.source) : []),
+      ];
       return (
         <Row control={control} env={env} inline reset={reset}>
           <select
@@ -285,7 +295,9 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
           >
             {(control.responsive || control.hover) && !options.some((o) => o.value === '') && (
               <option value="">
-                {inherited !== undefined ? `Inherit (${String(inherited)})` : 'Default'}
+                {inherited !== undefined
+                  ? t('Inherit ({value})', { value: String(inherited) })
+                  : t('Default')}
               </option>
             )}
             {options.map((option) => (
@@ -300,12 +312,12 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
     case 'choose':
       return (
         <Row control={control} env={env} inline reset={reset}>
-          <span className="fre-choose" role="group" aria-label={control.label}>
+          <span className="fre-choose" role="group" aria-label={t(control.label)}>
             {(control.options ?? []).map((option) => (
               <button
                 key={option.value}
                 type="button"
-                title={option.label}
+                title={t(option.label)}
                 aria-pressed={value === option.value}
                 className={
                   value === option.value
@@ -316,7 +328,7 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
                 }
                 onClick={() => set(value === option.value ? undefined : option.value, false)}
               >
-                {option.icon ? <Svg path={option.icon} /> : option.label}
+                {option.icon ? <Svg path={option.icon} /> : t(option.label)}
               </button>
             ))}
           </span>
@@ -453,10 +465,10 @@ function RichText({
   };
   return (
     <div className="fre-rich">
-      <div className="fre-rich__bar" role="toolbar" aria-label="Formatting">
+      <div className="fre-rich__bar" role="toolbar" aria-label={t('Formatting')}>
         <button
           type="button"
-          title="Bold"
+          title={t('Bold')}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => command('bold')}
         >
@@ -464,7 +476,7 @@ function RichText({
         </button>
         <button
           type="button"
-          title="Italic"
+          title={t('Italic')}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => command('italic')}
         >
@@ -472,7 +484,7 @@ function RichText({
         </button>
         <button
           type="button"
-          title="Underline"
+          title={t('Underline')}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => command('underline')}
         >
@@ -480,7 +492,7 @@ function RichText({
         </button>
         <button
           type="button"
-          title="List"
+          title={t('List')}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => command('insertUnorderedList')}
         >
@@ -488,7 +500,7 @@ function RichText({
         </button>
         <button
           type="button"
-          title="Numbered list"
+          title={t('Numbered list')}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => command('insertOrderedList')}
         >
@@ -496,7 +508,7 @@ function RichText({
         </button>
         <button
           type="button"
-          title="Link"
+          title={t('Link')}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
             // The dialog takes the focus: the selection is put back before linking.
@@ -519,7 +531,7 @@ function RichText({
         </button>
         <button
           type="button"
-          title="Paragraph"
+          title={t('Paragraph')}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => command('formatBlock', 'p')}
         >
@@ -527,7 +539,7 @@ function RichText({
         </button>
         <button
           type="button"
-          title="Heading"
+          title={t('Heading')}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => command('formatBlock', 'h3')}
         >
@@ -587,29 +599,31 @@ export function ColorPicker({
         type="button"
         className="fre-color__swatch"
         style={{ background: shown || 'transparent' }}
-        title={globalColor ? `Global: ${globalColor.title}` : value || 'No color'}
+        title={
+          globalColor ? t('Global: {name}', { name: globalColor.title }) : value || t('No color')
+        }
         onClick={() => setOpen((o) => !o)}
       >
         {!shown && <span className="fre-color__none" />}
       </button>
       {open && (
-        <div className="fre-popover" role="dialog" aria-label="Color">
+        <div className="fre-popover" role="dialog" aria-label={t('Color')}>
           <div className="fre-color__row">
             <input
               type="color"
               value={hex}
               onChange={(e) => onChange(e.target.value)}
-              aria-label="Pick a color"
+              aria-label={t('Pick a color')}
             />
             <input
               className="fre-input fre-mono"
               value={global ? '' : value}
               placeholder={globalColor ? globalColor.value : '#rrggbb'}
               onChange={(e) => onChange(e.target.value.trim() || undefined)}
-              aria-label="Color value"
+              aria-label={t('Color value')}
             />
           </div>
-          <p className="fre-popover__title">Global colors</p>
+          <p className="fre-popover__title">{t('Global colors')}</p>
           <div className="fre-globals">
             {kit.colors.map((color) => (
               <button
@@ -629,10 +643,10 @@ export function ColorPicker({
           </div>
           <div className="fre-popover__actions">
             <button type="button" onClick={() => onChange(undefined)}>
-              Clear
+              {t('Clear')}
             </button>
             <button type="button" onClick={() => setOpen(false)}>
-              Done
+              {t('Done')}
             </button>
           </div>
         </div>
@@ -685,7 +699,7 @@ function Slider({
             : current.size
         }
         onChange={(e) => update(Number(e.target.value))}
-        aria-label={control.label}
+        aria-label={t(control.label)}
       />
       <input
         className="fre-input fre-input--number"
@@ -694,14 +708,14 @@ function Slider({
         value={current.size}
         placeholder={isSize(inherited) ? String(inherited.size) : ''}
         onChange={(e) => update(e.target.value === '' ? '' : Number(e.target.value))}
-        aria-label={`${control.label} value`}
+        aria-label={t('{control} value', { control: t(control.label) })}
       />
       {units.length > 1 || units[0] !== '' ? (
         <select
           className="fre-unit"
           value={current.unit}
           onChange={(e) => update(current.size === '' ? '' : current.size, e.target.value)}
-          aria-label="Unit"
+          aria-label={t('Unit')}
         >
           {units.map((u) => (
             <option key={u} value={u}>
@@ -752,13 +766,13 @@ function BoxInput({
               );
             }}
           />
-          <span>{side}</span>
+          <span>{t(side)}</span>
         </label>
       ))}
       <button
         type="button"
         className={`fre-link${linked ? ' is-on' : ''}`}
-        title={linked ? 'Unlink values' : 'Link values'}
+        title={linked ? t('Unlink values') : t('Link values')}
         aria-pressed={linked}
         onClick={() => update({ ...box, linked: !linked })}
       >
@@ -771,7 +785,7 @@ function BoxInput({
         className="fre-unit"
         value={box.unit}
         onChange={(e) => update({ ...box, unit: e.target.value })}
-        aria-label="Unit"
+        aria-label={t('Unit')}
       >
         {units.map((u) => (
           <option key={u} value={u}>
@@ -800,13 +814,13 @@ function LinkInput({
         <input
           className="fre-input"
           value={link.url}
-          placeholder="https:// or /page"
+          placeholder={t('https:// or /page')}
           onChange={(e) => onChange(e.target.value ? { ...link, url: e.target.value } : undefined)}
         />
         <button
           type="button"
           className={`fre-iconbtn${options ? ' is-on' : ''}`}
-          title="Link options"
+          title={t('Link options')}
           onClick={() => setOptions((o) => !o)}
         >
           <Svg
@@ -823,7 +837,7 @@ function LinkInput({
               checked={link.newTab === true}
               onChange={(e) => onChange({ ...link, newTab: e.target.checked || undefined })}
             />
-            Open in a new tab
+            {t('Open in a new tab')}
           </label>
           <label>
             <input
@@ -831,7 +845,7 @@ function LinkInput({
               checked={link.nofollow === true}
               onChange={(e) => onChange({ ...link, nofollow: e.target.checked || undefined })}
             />
-            Add nofollow
+            {t('Add nofollow')}
           </label>
         </div>
       )}
@@ -864,17 +878,17 @@ function MediaInput({
         ) : (
           <span className="fre-media__empty">
             <Svg path="M12 5v14 M5 12h14" size={20} />
-            Choose {accept === 'video' ? 'a video' : 'an image'}
+            {accept === 'video' ? t('Choose a video') : t('Choose an image')}
           </span>
         )}
       </button>
       {media && (
         <div className="fre-media__actions">
           <button type="button" onClick={() => setPicking(true)}>
-            Replace
+            {t('Replace')}
           </button>
           <button type="button" onClick={() => onChange(undefined)}>
-            Remove
+            {t('Remove')}
           </button>
         </div>
       )}
@@ -914,7 +928,7 @@ function GalleryInput({
             <img src={item.url} alt="" />
             <button
               type="button"
-              aria-label="Remove"
+              aria-label={t('Remove')}
               onClick={() => onChange(items.filter((_, j) => j !== i))}
             >
               ×
@@ -923,7 +937,7 @@ function GalleryInput({
         ))}
       </div>
       <button type="button" className="fre-button" onClick={() => setPicking(true)}>
-        {items.length ? 'Add images' : 'Choose images'}
+        {items.length ? t('Add images') : t('Choose images')}
       </button>
       {picking && (
         <MediaPicker
@@ -986,20 +1000,20 @@ export function MediaPicker({
       className="fre-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Media library"
+      aria-label={t('Media library')}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="fre-modal__box">
         <div className="fre-modal__head">
-          <strong>Media library</strong>
+          <strong>{t('Media library')}</strong>
           <input
             className="fre-input"
-            placeholder="Search"
+            placeholder={t('Search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <label className="fre-button">
-            {busy ? 'Uploading…' : 'Upload'}
+            {busy ? t('Uploading…') : t('Upload')}
             <input
               type="file"
               hidden
@@ -1021,16 +1035,16 @@ export function MediaPicker({
               }}
             />
           </label>
-          <button type="button" className="fre-iconbtn" aria-label="Close" onClick={onClose}>
+          <button type="button" className="fre-iconbtn" aria-label={t('Close')} onClick={onClose}>
             ×
           </button>
         </div>
         {error && <p className="fre-error">{error}</p>}
         <div className="fre-modal__grid">
           {items === null ? (
-            <p>Loading…</p>
+            <p>{t('Loading…')}</p>
           ) : items.length === 0 ? (
-            <p>No files.</p>
+            <p>{t('No files.')}</p>
           ) : (
             items.map((item) => (
               <button
@@ -1057,7 +1071,7 @@ export function MediaPicker({
               disabled={chosen.length === 0}
               onClick={() => onPick(chosen)}
             >
-              Add {chosen.length || ''} selected
+              {t('Add {count} selected', { count: chosen.length || '' })}
             </button>
           </div>
         )}
@@ -1074,16 +1088,16 @@ function IconInput({ value, onChange }: { value: unknown; onChange: (v: unknown)
         type="button"
         className="fre-iconinput__preview"
         onClick={() => setOpen(true)}
-        title="Choose an icon"
+        title={t('Choose an icon')}
       >
-        {value ? <Icon value={value} /> : <span>None</span>}
+        {value ? <Icon value={value} /> : <span>{t('None')}</span>}
       </button>
       <button type="button" className="fre-button" onClick={() => setOpen(true)}>
-        Icon library
+        {t('Icon library')}
       </button>
       {value ? (
         <button type="button" className="fre-button" onClick={() => onChange(undefined)}>
-          Remove
+          {t('Remove')}
         </button>
       ) : null}
       {open && (
@@ -1122,15 +1136,15 @@ function IconPicker({
       className="fre-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Icon library"
+      aria-label={t('Icon library')}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="fre-modal__box">
         <div className="fre-modal__head">
-          <strong>Icon library</strong>
+          <strong>{t('Icon library')}</strong>
           <input
             className="fre-input"
-            placeholder="Search icons"
+            placeholder={t('Search icons')}
             value={search}
             autoFocus
             onChange={(e) => setSearch(e.target.value)}
@@ -1139,19 +1153,19 @@ function IconPicker({
             className="fre-input"
             value={set}
             onChange={(e) => setSet(e.target.value)}
-            aria-label="Icon set"
+            aria-label={t('Icon set')}
           >
-            <option value="all">All</option>
+            <option value="all">{t('All')}</option>
             {extensions().iconSets.map((group) => (
               <option key={group.id} value={group.id}>
                 {group.label}
               </option>
             ))}
-            <option value="solid">Solid</option>
-            <option value="regular">Regular</option>
-            <option value="brands">Brands</option>
+            <option value="solid">{t('Solid')}</option>
+            <option value="regular">{t('Regular')}</option>
+            <option value="brands">{t('Brands')}</option>
           </select>
-          <button type="button" className="fre-iconbtn" aria-label="Close" onClick={onClose}>
+          <button type="button" className="fre-iconbtn" aria-label={t('Close')} onClick={onClose}>
             ×
           </button>
         </div>
@@ -1169,7 +1183,7 @@ function IconPicker({
             </button>
           ))}
         </div>
-        <p className="fre-help">Icons: Font Awesome Free (CC BY 4.0).</p>
+        <p className="fre-help">{t('Icons: Font Awesome Free (CC BY 4.0).')}</p>
       </div>
     </div>
   );
@@ -1188,16 +1202,16 @@ function FontSelect({
       value={value}
       onChange={(e) => onChange(e.target.value || undefined)}
     >
-      <option value="">Default</option>
-      <optgroup label="Global fonts">
+      <option value="">{t('Default')}</option>
+      <optgroup label={t('Global fonts')}>
         {['primary', 'secondary', 'text', 'accent'].map((id) => (
           <option key={id} value={`var(--fr-t-${id}-family)`}>
-            {id[0]!.toUpperCase() + id.slice(1)}
+            {t(id[0]!.toUpperCase() + id.slice(1))}
           </option>
         ))}
       </optgroup>
       {extensions().customFonts.length > 0 && (
-        <optgroup label="Custom fonts">
+        <optgroup label={t('Custom fonts')}>
           {extensions().customFonts.map((font) => (
             <option key={font} value={font}>
               {font}
@@ -1205,7 +1219,7 @@ function FontSelect({
           ))}
         </optgroup>
       )}
-      <optgroup label="System">
+      <optgroup label={t('System')}>
         {SYSTEM_FONTS.map((font) => (
           <option key={font} value={font}>
             {font}
@@ -1234,7 +1248,7 @@ function Repeater({ control, env }: { control: Control; env: ControlEnv }) {
   return (
     <div className="fre-control">
       <div className="fre-control__head">
-        <span className="fre-control__label">{control.label}</span>
+        <span className="fre-control__label">{t(control.label)}</span>
       </div>
       <div className="fre-repeater">
         {items.map((item, index) => (
@@ -1245,12 +1259,12 @@ function Repeater({ control, env }: { control: Control; env: ControlEnv }) {
                 className="fre-repeater__title"
                 onClick={() => setOpen(open === index ? null : index)}
               >
-                {String(item[control.itemTitle ?? ''] ?? '') || `Item ${index + 1}`}
+                {String(item[control.itemTitle ?? ''] ?? '') || t('Item {n}', { n: index + 1 })}
               </button>
               <button
                 type="button"
                 className="fre-iconbtn"
-                title="Move up"
+                title={t('Move up')}
                 disabled={index === 0}
                 onClick={() => {
                   const next = [...items];
@@ -1263,7 +1277,7 @@ function Repeater({ control, env }: { control: Control; env: ControlEnv }) {
               <button
                 type="button"
                 className="fre-iconbtn"
-                title="Duplicate"
+                title={t('Duplicate')}
                 onClick={() => {
                   const next = [...items];
                   next.splice(index + 1, 0, {
@@ -1278,7 +1292,7 @@ function Repeater({ control, env }: { control: Control; env: ControlEnv }) {
               <button
                 type="button"
                 className="fre-iconbtn"
-                title="Remove"
+                title={t('Remove')}
                 onClick={() => write(items.filter((_, i) => i !== index))}
               >
                 ×
@@ -1324,7 +1338,7 @@ function Repeater({ control, env }: { control: Control; env: ControlEnv }) {
             setOpen(items.length);
           }}
         >
-          + Add item
+          {t('+ Add item')}
         </button>
       </div>
     </div>
@@ -1677,7 +1691,7 @@ function ShadowControl({ control, env }: { control: GroupControl; env: ControlEn
           <button
             type="button"
             className="fre-reset"
-            title="Reset"
+            title={t('Reset')}
             onClick={() => env.set({ [key]: undefined })}
           >
             <Svg path="M4 12a8 8 0 1 0 2.3-5.6 M4 4v4h4" size={12} />
@@ -1698,7 +1712,7 @@ function ShadowControl({ control, env }: { control: GroupControl; env: ControlEn
         <div className="fre-popup">
           <div className="fre-control fre-control--inline">
             <div className="fre-control__head">
-              <span className="fre-control__label">Color</span>
+              <span className="fre-control__label">{t('Color')}</span>
             </div>
             <div className="fre-control__body">
               <ColorPicker
@@ -1711,7 +1725,7 @@ function ShadowControl({ control, env }: { control: GroupControl; env: ControlEn
           {fields.map(([field, label, min, max]) => (
             <div key={field} className="fre-control">
               <div className="fre-control__head">
-                <span className="fre-control__label">{label}</span>
+                <span className="fre-control__label">{t(label)}</span>
               </div>
               <div className="fre-slider">
                 <input
@@ -1737,7 +1751,7 @@ function ShadowControl({ control, env }: { control: GroupControl; env: ControlEn
                 checked={shadow?.inset === true}
                 onChange={(e) => set({ inset: e.target.checked })}
               />
-              Inset
+              {t('Inset')}
             </label>
           )}
         </div>

@@ -7,6 +7,7 @@ import {
   api as coreApi,
   FieldsForm,
   labelText,
+  t,
   type FieldDefinition,
   type FieldValues,
   type Label,
@@ -88,7 +89,9 @@ export function PluginBlockFields({
   if (!inner || !view) {
     return (
       <p className="fre-notice">
-        This block’s plugin is not active: the block is kept, but it shows nothing on the page.
+        {t(
+          'This block’s plugin is not active: the block is kept, but it shows nothing on the page.',
+        )}
       </p>
     );
   }
@@ -96,7 +99,7 @@ export function PluginBlockFields({
     <div className="fre-plugin-fields">
       {view.description && <p className="fre-help">{labelText(view.description, locale)}</p>}
       {view.attributes.length === 0 ? (
-        <p className="fre-help">This block has no settings.</p>
+        <p className="fre-help">{t('This block has no settings.')}</p>
       ) : (
         <FieldsForm
           fields={view.attributes}
@@ -161,7 +164,10 @@ export function PluginBlockPreview({
   if (!preview.html.trim()) {
     return (
       <div className="fr-placeholder fr-block__note">
-        {`${title}: nothing to show here yet. On the page it shows when there is content for it.`}
+        {t(
+          '{title}: nothing to show here yet. On the page it shows when there is content for it.',
+          { title },
+        )}
       </div>
     );
   }

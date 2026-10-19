@@ -455,6 +455,7 @@ function PanelHeader({ store }: { store: Store }) {
 }
 
 function Toolbar({ store, openSettings }: { store: Store; openSettings: () => void }) {
+  const { t } = useT();
   const view = useStore(store, (s) => s.view);
   // Re-render on every change so undo/redo know whether they can act.
   useStore(store, (s) => s.blocks);
@@ -467,8 +468,8 @@ function Toolbar({ store, openSettings }: { store: Store; openSettings: () => vo
           key={item.view}
           type="button"
           className={`fre-iconbtn${view === item.view ? ' is-on' : ''}`}
-          title={item.title}
-          aria-label={item.title}
+          title={t(item.title)}
+          aria-label={t(item.title)}
           aria-pressed={view === item.view}
           onClick={() => store.actions.setView(item.view)}
         >
@@ -479,8 +480,8 @@ function Toolbar({ store, openSettings }: { store: Store; openSettings: () => vo
       <button
         type="button"
         className="fre-iconbtn"
-        title="Undo (Ctrl+Z)"
-        aria-label="Undo"
+        title={t('Undo (Ctrl+Z)')}
+        aria-label={t('Undo')}
         disabled={!store.canUndo()}
         onClick={() => store.actions.undo()}
       >
@@ -489,8 +490,8 @@ function Toolbar({ store, openSettings }: { store: Store; openSettings: () => vo
       <button
         type="button"
         className="fre-iconbtn"
-        title="Redo (Ctrl+Shift+Z)"
-        aria-label="Redo"
+        title={t('Redo (Ctrl+Shift+Z)')}
+        aria-label={t('Redo')}
         disabled={!store.canRedo()}
         onClick={() => store.actions.redo()}
       >
@@ -499,8 +500,8 @@ function Toolbar({ store, openSettings }: { store: Store; openSettings: () => vo
       <button
         type="button"
         className="fre-iconbtn"
-        title="Entry settings: status, fields, revisions"
-        aria-label="Entry settings"
+        title={t('Entry settings: status, fields, revisions')}
+        aria-label={t('Entry settings')}
         onClick={openSettings}
       >
         <Svg
@@ -513,15 +514,16 @@ function Toolbar({ store, openSettings }: { store: Store; openSettings: () => vo
 }
 
 function DeviceBar({ store }: { store: Store }) {
+  const { t } = useT();
   const device = useStore(store, (s) => s.device);
   return (
-    <div className="fre-devicebar" role="group" aria-label="Preview device">
+    <div className="fre-devicebar" role="group" aria-label={t('Preview device')}>
       {(['desktop', 'tablet', 'mobile'] as const).map((d) => (
         <button
           key={d}
           type="button"
           className={`fre-iconbtn${device === d ? ' is-on' : ''}`}
-          title={d[0]!.toUpperCase() + d.slice(1)}
+          title={t(d[0]!.toUpperCase() + d.slice(1))}
           aria-pressed={device === d}
           onClick={() => store.actions.setDevice(d)}
         >

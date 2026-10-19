@@ -64,7 +64,9 @@ export function Panel(props: PanelProps) {
     return (
       <div className="fre-panel__body">
         <p className="fre-empty-note">
-          You can change the texts, images and links of this page: select an element on the page.
+          {tr(
+            'You can change the texts, images and links of this page: select an element on the page.',
+          )}
         </p>
       </div>
     );
@@ -296,7 +298,7 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
   const path = pathTo(blocks, node.id);
   return (
     <div className="fre-element">
-      <nav className="fre-crumbs" aria-label="Element path">
+      <nav className="fre-crumbs" aria-label={tr('Element path')}>
         {path.map((id, i) => {
           const item = find(blocks, id);
           const title = item ? elementTitle(item, locale) : id;
@@ -430,8 +432,8 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
               <input
                 className="fre-input fre-repeater__name"
                 value={typeof child.attrs._title === 'string' ? child.attrs._title : ''}
-                placeholder={`${label} ${index + 1}`}
-                aria-label={`${label} ${index + 1} title`}
+                placeholder={`${tr(label)} ${index + 1}`}
+                aria-label={tr('{item} title', { item: `${tr(label)} ${index + 1}` })}
                 onFocus={() => store.actions.setActive(node.id, index)}
                 onChange={(e) =>
                   store.actions.setSettings(child.id, { _title: e.target.value }, '_title')
@@ -440,7 +442,7 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
               <button
                 type="button"
                 className="fre-iconbtn"
-                title="Edit its content"
+                title={tr('Edit its content')}
                 onClick={() => store.actions.select(child.id)}
               >
                 <Svg path="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" size={12} />
@@ -448,7 +450,7 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
               <button
                 type="button"
                 className="fre-iconbtn"
-                title="Move up"
+                title={tr('Move up')}
                 disabled={index === 0}
                 onClick={() => store.actions.move(child.id, { parent: node.id, index: index - 1 })}
               >
@@ -457,7 +459,7 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
               <button
                 type="button"
                 className="fre-iconbtn"
-                title="Duplicate"
+                title={tr('Duplicate')}
                 onClick={() => store.actions.duplicate(child.id)}
               >
                 <Svg path="M8 8h12v12H8z M4 16V4h12" size={12} />
@@ -465,7 +467,7 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
               <button
                 type="button"
                 className="fre-iconbtn"
-                title="Remove"
+                title={tr('Remove')}
                 disabled={kids.length <= 1}
                 onClick={() => {
                   store.actions.remove(child.id);
@@ -482,7 +484,7 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
           className="fre-button"
           onClick={() => store.actions.addItem(node.id, label)}
         >
-          + Add {label.toLowerCase()}
+          {tr('+ Add {item}', { item: tr(label).toLowerCase() })}
         </button>
       </div>
     </div>
@@ -495,7 +497,8 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
 function elementTitle(node: FrescoNode, locale: string): string {
   const inner = node.type === 'fresco/block' ? node.children?.[0] : undefined;
   if (inner) return pluginBlockTitle(inner.type, locale);
-  return getElement(node.type)?.title ?? node.type;
+  const title = getElement(node.type)?.title;
+  return title ? tr(title) : node.type;
 }
 
 function Navigator({ store }: { store: Store }) {
@@ -521,7 +524,7 @@ function Navigator({ store }: { store: Store }) {
             <button
               type="button"
               className="fre-iconbtn"
-              aria-label={closed[node.id] ? 'Expand' : 'Collapse'}
+              aria-label={closed[node.id] ? tr('Expand') : tr('Collapse')}
               onClick={() => setClosed((c) => ({ ...c, [node.id]: !c[node.id] }))}
             >
               <Svg path={closed[node.id] ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6'} size={11} />
@@ -546,9 +549,9 @@ function Navigator({ store }: { store: Store }) {
   };
   return (
     <div className="fre-nav">
-      <h3 className="fre-view-title">Navigator</h3>
+      <h3 className="fre-view-title">{tr('Navigator')}</h3>
       {blocks.length === 0 ? (
-        <p className="fre-empty-note">The page is empty.</p>
+        <p className="fre-empty-note">{tr('The page is empty.')}</p>
       ) : (
         <ul>{blocks.map((node) => item(node, 0))}</ul>
       )}
@@ -564,10 +567,10 @@ function PageView({ store }: { store: Store }) {
   const wide = page.layout === 'full' || page.layout === 'canvas';
   return (
     <div className="fre-site">
-      <h3 className="fre-view-title">Page settings</h3>
+      <h3 className="fre-view-title">{tr('Page settings')}</h3>
       <div className="fre-control fre-control--inline">
         <div className="fre-control__head">
-          <span className="fre-control__label">Layout</span>
+          <span className="fre-control__label">{tr('Layout')}</span>
         </div>
         <div className="fre-control__body">
           <select
@@ -575,15 +578,16 @@ function PageView({ store }: { store: Store }) {
             value={typeof page.layout === 'string' ? page.layout : ''}
             onChange={(e) => store.actions.setPage({ layout: e.target.value || undefined })}
           >
-            <option value="">Theme default</option>
-            <option value="full">Full width</option>
-            <option value="canvas">Canvas (no header and footer)</option>
+            <option value="">{tr('Theme default')}</option>
+            <option value="full">{tr('Full width')}</option>
+            <option value="canvas">{tr('Canvas (no header and footer)')}</option>
           </select>
         </div>
       </div>
       <p className="fre-help">
-        Full width: top-level containers span the whole window. Canvas: also without the theme’s
-        header and footer. Seen on the page after saving.
+        {tr(
+          'Full width: top-level containers span the whole window. Canvas: also without the theme’s header and footer. Seen on the page after saving.',
+        )}
       </p>
       <label className="fre-checks">
         <input
@@ -591,10 +595,12 @@ function PageView({ store }: { store: Store }) {
           checked={page.hideTitle === true}
           onChange={(e) => store.actions.setPage({ hideTitle: e.target.checked || undefined })}
         />
-        Hide the page title
+        {tr('Hide the page title')}
       </label>
       <p className="fre-help">
-        Hides the theme's title of this page (Site settings → Layout says which element that is).
+        {tr(
+          "Hides the theme's title of this page (Site settings → Layout says which element that is).",
+        )}
       </p>
       <label className="fre-checks">
         <input
@@ -603,16 +609,18 @@ function PageView({ store }: { store: Store }) {
           disabled={wide}
           onChange={(e) => store.actions.setPage({ hideFeatured: e.target.checked || undefined })}
         />
-        Hide the featured image
+        {tr('Hide the featured image')}
       </label>
       <p className="fre-help">
         {wide
-          ? 'Full width and Canvas pages never show the theme’s featured image.'
-          : 'The theme does not show it above the page; archives, loops and social previews still use it.'}
+          ? tr('Full width and Canvas pages never show the theme’s featured image.')
+          : tr(
+              'The theme does not show it above the page; archives, loops and social previews still use it.',
+            )}
       </p>
       <div className="fre-control fre-control--inline">
         <div className="fre-control__head">
-          <span className="fre-control__label">Page background</span>
+          <span className="fre-control__label">{tr('Page background')}</span>
         </div>
         <div className="fre-control__body">
           <ColorPicker
@@ -709,7 +717,7 @@ function SiteView({
                 set({ colors: [...kit.colors, { id, title: 'New color', value: '#64748b' }] });
               }}
             >
-              + Add color
+              {tx('+ Add color')}
             </button>
           </div>
         )}
@@ -740,7 +748,7 @@ function SiteView({
                 });
               }}
             >
-              + Add font
+              {tx('+ Add font')}
             </button>
           </div>
         )}
@@ -750,28 +758,28 @@ function SiteView({
         {section === 'layout' && (
           <div className="fre-section__body">
             <NumberRow
-              label="Content width (px)"
+              label={tx('Content width (px)')}
               value={Number(kit.containerWidth.size)}
               min={300}
               max={2400}
               onChange={(v) => set({ containerWidth: { size: v, unit: 'px' } })}
             />
             <NumberRow
-              label="Gap between elements (px)"
+              label={tx('Gap between elements (px)')}
               value={Number(kit.gap.size)}
               min={0}
               max={200}
               onChange={(v) => set({ gap: { size: v, unit: 'px' } })}
             />
             <NumberRow
-              label="Tablet up to (px)"
+              label={tx('Tablet up to (px)')}
               value={kit.breakpoints.tablet}
               min={600}
               max={2400}
               onChange={(v) => set({ breakpoints: { ...kit.breakpoints, tablet: v } })}
             />
             <NumberRow
-              label="Mobile up to (px)"
+              label={tx('Mobile up to (px)')}
               value={kit.breakpoints.mobile}
               min={320}
               max={1200}
@@ -779,7 +787,7 @@ function SiteView({
             />
             <div className="fre-control">
               <div className="fre-control__head">
-                <span className="fre-control__label">Page title selector</span>
+                <span className="fre-control__label">{tx('Page title selector')}</span>
               </div>
               <input
                 className="fre-input fre-mono"
@@ -788,7 +796,7 @@ function SiteView({
                 onChange={(e) => set({ titleSelector: e.target.value || undefined })}
               />
               <p className="fre-help">
-                What "Hide the page title" hides, as a CSS selector of your theme.
+                {tx('What "Hide the page title" hides, as a CSS selector of your theme.')}
               </p>
             </div>
           </div>
@@ -799,14 +807,14 @@ function SiteView({
         {section === 'variables' && (
           <div className="fre-section__body">
             <p className="fre-help">
-              Named colors, fonts and sizes for the Style tab of atomic elements.
+              {tx('Named colors, fonts and sizes for the Style tab of atomic elements.')}
             </p>
             {kit.variables.map((variable) => (
               <div key={variable.id} className="fre-kitrow">
                 <input
                   className="fre-input"
                   value={variable.label}
-                  aria-label="Name"
+                  aria-label={tx('Name')}
                   onChange={(e) =>
                     set({
                       variables: kit.variables.map((v) =>
@@ -819,7 +827,7 @@ function SiteView({
                   <input
                     type="color"
                     value={/^#[0-9a-f]{6}$/i.test(variable.value) ? variable.value : '#000000'}
-                    aria-label="Color"
+                    aria-label={tx('Color')}
                     onChange={(e) =>
                       set({
                         variables: kit.variables.map((v) =>
@@ -832,7 +840,7 @@ function SiteView({
                 <input
                   className="fre-input fre-mono"
                   value={variable.value}
-                  aria-label="Value"
+                  aria-label={tx('Value')}
                   onChange={(e) =>
                     set({
                       variables: kit.variables.map((v) =>
@@ -844,7 +852,7 @@ function SiteView({
                 <button
                   type="button"
                   className="fre-iconbtn"
-                  aria-label={`Remove ${variable.label}`}
+                  aria-label={tx('Remove {name}', { name: variable.label })}
                   onClick={() =>
                     set({ variables: kit.variables.filter((v) => v.id !== variable.id) })
                   }
@@ -875,19 +883,19 @@ function SiteView({
                     });
                   }}
                 >
-                  + {label}
+                  + {tx(label)}
                 </button>
               ))}
             </div>
             {kit.classes.length > 0 && (
               <>
-                <h4 className="fre-subheading">Global classes</h4>
+                <h4 className="fre-subheading">{tx('Global classes')}</h4>
                 {kit.classes.map((c) => (
                   <div key={c.id} className="fre-kitrow">
                     <input
                       className="fre-input"
                       value={c.label}
-                      aria-label="Class name"
+                      aria-label={tx('Class name')}
                       onChange={(e) =>
                         set({
                           classes: kit.classes.map((x) =>
@@ -900,7 +908,7 @@ function SiteView({
                     <button
                       type="button"
                       className="fre-iconbtn"
-                      aria-label={`Delete the class ${c.label}`}
+                      aria-label={tx('Delete the class {name}', { name: c.label })}
                       onClick={() =>
                         void confirmAction({
                           title: tr('Delete the class “{name}”?', { name: c.label }),
@@ -935,7 +943,7 @@ function SiteView({
             ).map(([key, label]) => (
               <div key={key} className="fre-control fre-control--inline">
                 <div className="fre-control__head">
-                  <span className="fre-control__label">{label}</span>
+                  <span className="fre-control__label">{tx(label)}</span>
                 </div>
                 <div className="fre-control__body">
                   <ColorPicker
@@ -968,7 +976,7 @@ function SiteView({
               }
             }}
           >
-            {saving ? 'Saving…' : dirty ? 'Save site settings' : 'Site settings saved'}
+            {saving ? tx('Saving…') : dirty ? tx('Save site settings') : tx('Site settings saved')}
           </button>
         </div>
       )}
@@ -999,7 +1007,7 @@ function ColorRow({
       <input
         className="fre-input"
         value={color.title}
-        aria-label="Name"
+        aria-label={tr('Name')}
         onChange={(e) => onChange({ ...color, title: e.target.value })}
       />
       <code className="fre-mono">{color.value}</code>
@@ -1007,7 +1015,7 @@ function ColorRow({
         <button
           type="button"
           className="fre-iconbtn"
-          aria-label={`Remove ${color.title}`}
+          aria-label={tr('Remove {name}', { name: color.title })}
           onClick={onRemove}
         >
           ×
@@ -1036,14 +1044,14 @@ function FontRow({
         <input
           className="fre-input"
           value={font.title}
-          aria-label="Name"
+          aria-label={tr('Name')}
           onChange={(e) => onChange({ ...font, title: e.target.value })}
         />
         {!system && (
           <button
             type="button"
             className="fre-iconbtn"
-            aria-label={`Remove ${font.title}`}
+            aria-label={tr('Remove {name}', { name: font.title })}
             onClick={onRemove}
           >
             ×
@@ -1054,7 +1062,7 @@ function FontRow({
         <select
           className="fre-input"
           value={font.family}
-          aria-label="Family"
+          aria-label={tr('Family')}
           onChange={(e) => onChange({ ...font, family: e.target.value })}
         >
           {fonts.map((f) => (
@@ -1066,7 +1074,7 @@ function FontRow({
         <select
           className="fre-input"
           value={font.weight}
-          aria-label="Weight"
+          aria-label={tr('Weight')}
           onChange={(e) => onChange({ ...font, weight: e.target.value })}
         >
           {['300', '400', '500', '600', '700', '800'].map((w) => (
@@ -1078,8 +1086,8 @@ function FontRow({
         <input
           className="fre-input fre-input--number"
           type="number"
-          placeholder="Size"
-          aria-label="Size (px)"
+          placeholder={tr('Size')}
+          aria-label={tr('Size (px)')}
           value={typeof font.size?.size === 'number' ? font.size.size : ''}
           onChange={(e) => {
             const rest = { ...font };
@@ -1093,7 +1101,7 @@ function FontRow({
         />
       </div>
       <p className="fre-preview-font" style={{ fontFamily: font.family, fontWeight: font.weight }}>
-        The quick brown fox
+        {tr('The quick brown fox')}
       </p>
     </div>
   );

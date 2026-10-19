@@ -3,6 +3,7 @@
  * being edited, written to the element's own style or to one of its global
  * classes (shared with every element that has it).
  */
+import { t } from '@cleitext/admin-sdk';
 import { useState } from 'react';
 import {
   STYLE_PROPS,
@@ -121,7 +122,7 @@ export function AtomicStyle({
     <div className="fre-atomic">
       <div className="fre-control">
         <div className="fre-control__head">
-          <span className="fre-control__label">Classes</span>
+          <span className="fre-control__label">{t('Classes')}</span>
         </div>
         <div className="fre-chips">
           <button
@@ -129,7 +130,7 @@ export function AtomicStyle({
             className={`fre-chip${target === 'local' ? ' is-on' : ''}`}
             onClick={() => setTarget('local')}
           >
-            This element
+            {t('This element')}
           </button>
           {classes.map((id) => {
             const c = kit.classes.find((x) => x.id === id);
@@ -140,7 +141,7 @@ export function AtomicStyle({
                 </button>
                 <button
                   type="button"
-                  aria-label={`Remove the class ${c?.label ?? id}`}
+                  aria-label={t('Remove the class {name}', { name: c?.label ?? id })}
                   onClick={() => {
                     store.actions.setSettings(node.id, {
                       _classes: classes.filter((x) => x !== id),
@@ -164,7 +165,7 @@ export function AtomicStyle({
           <input
             className="fre-input"
             list="fresco-classes"
-            placeholder={canManageKit ? 'Add or create a class' : 'Add a class'}
+            placeholder={canManageKit ? t('Add or create a class') : t('Add a class')}
             value={adding}
             onChange={(e) => setAdding(e.target.value)}
           />
@@ -174,19 +175,22 @@ export function AtomicStyle({
             ))}
           </datalist>
           <button type="submit" className="fre-button" disabled={!adding.trim()}>
-            Add
+            {t('Add')}
           </button>
         </form>
         {globalClass && (
           <p className="fre-help">
-            Editing the class <strong>.{globalClass.label}</strong>: every element with it changes.{' '}
+            {withStrong(
+              t('Editing the class {name}: every element with it changes.'),
+              `.${globalClass.label}`,
+            )}{' '}
             {canManageKit
-              ? 'Save the site settings to keep it.'
-              : 'Only administrators can save classes.'}
+              ? t('Save the site settings to keep it.')
+              : t('Only administrators can save classes.')}
           </p>
         )}
       </div>
-      <div className="fre-states" role="tablist" aria-label="State">
+      <div className="fre-states" role="tablist" aria-label={t('State')}>
         {(['', 'hover', 'focus', 'active'] as const).map((s) => (
           <button
             key={s || 'normal'}
@@ -194,12 +198,12 @@ export function AtomicStyle({
             className={state === s ? 'is-on' : ''}
             onClick={() => setState(s)}
           >
-            {s ? s[0]!.toUpperCase() + s.slice(1) : 'Normal'}
+            {t(s ? s[0]!.toUpperCase() + s.slice(1) : 'Normal')}
           </button>
         ))}
       </div>
       <p className="fre-help">
-        Device: <strong>{device}</strong> (change it from the bar above the page).
+        {withStrong(t('Device: {name} (change it from the bar above the page).'), device)}
       </p>
       {SECTIONS.map((section) => {
         const props = STYLE_PROPS.filter((p) => p.section === section);
@@ -214,8 +218,8 @@ export function AtomicStyle({
               onClick={() => setOpen(isOpen ? '' : section)}
             >
               <Svg path={isOpen ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6'} size={12} />
-              {section}
-              {used && <span className="fre-dot" aria-label="Has values" />}
+              {t(section)}
+              {used && <span className="fre-dot" aria-label={t('Has values')} />}
             </button>
             {isOpen && (
               <div className="fre-section__body">
@@ -238,6 +242,18 @@ export function AtomicStyle({
   );
 }
 
+/** A translated sentence with `{name}` shown in bold. */
+function withStrong(text: string, name: string) {
+  const [before, after = ''] = text.split('{name}');
+  return (
+    <>
+      {before}
+      <strong>{name}</strong>
+      {after}
+    </>
+  );
+}
+
 function PropInput({
   prop,
   value,
@@ -256,8 +272,8 @@ function PropInput({
       <button
         type="button"
         className="fre-reset"
-        title="Reset"
-        aria-label={`Reset ${prop.label}`}
+        title={t('Reset')}
+        aria-label={t('Reset {control}', { control: t(prop.label) })}
         onClick={() => onChange(undefined)}
       >
         <Svg path="M4 12a8 8 0 1 0 2.3-5.6 M4 4v4h4" size={12} />
@@ -270,7 +286,7 @@ function PropInput({
     variables.length > 0 && ['color', 'font', 'size'].includes(prop.type) ? (
       <select
         className="fre-unit"
-        aria-label="Variable"
+        aria-label={t('Variable')}
         value={typeof value === 'string' && value.startsWith('var(') ? value : ''}
         onChange={(e) => onChange(e.target.value || undefined)}
       >
@@ -292,7 +308,9 @@ function PropInput({
           onChange={(e) => onChange(e.target.value || undefined)}
         >
           <option value="">
-            {inherited !== undefined ? `Inherit (${String(inherited)})` : 'Default'}
+            {inherited !== undefined
+              ? t('Inherit ({value})', { value: String(inherited) })
+              : t('Default')}
           </option>
           {prop.options!.map((o) => (
             <option key={o} value={o}>
@@ -328,16 +346,16 @@ function PropInput({
             type="color"
             value={typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : '#000000'}
             onChange={(e) => onChange(e.target.value)}
-            aria-label={prop.label}
+            aria-label={t(prop.label)}
           />
           <select
             className="fre-input"
             value={typeof value === 'string' && value.startsWith('var(--fr-c-') ? value : ''}
             onChange={(e) => onChange(e.target.value || undefined)}
-            aria-label="Global color"
+            aria-label={t('Global color')}
           >
             <option value="">
-              {typeof value === 'string' && !value.startsWith('var(') ? value : 'Global…'}
+              {typeof value === 'string' && !value.startsWith('var(') ? value : t('Global…')}
             </option>
             {colors.map((c) => (
               <option key={c.value} value={c.value}>
@@ -433,13 +451,13 @@ function PropInput({
                   onChange(sides.every((s) => next[s] === '') ? undefined : next);
                 }}
               />
-              <span>{side}</span>
+              <span>{t(side)}</span>
             </label>
           ))}
           <button
             type="button"
             className={`fre-link${b.linked !== false ? ' is-on' : ''}`}
-            title="Link values"
+            title={t('Link values')}
             onClick={() => onChange({ ...b, linked: b.linked === false })}
           >
             <Svg
@@ -482,7 +500,7 @@ function PropInput({
                 value={s[k] ?? ''}
                 onChange={(e) => set({ [k]: Number(e.target.value) })}
               />
-              <span>{k}</span>
+              <span>{t(k)}</span>
             </label>
           ))}
           <input
@@ -499,7 +517,7 @@ function PropInput({
   return (
     <div className="fre-control">
       <div className="fre-control__head">
-        <span className="fre-control__label">{prop.label}</span>
+        <span className="fre-control__label">{t(prop.label)}</span>
         {reset}
       </div>
       <div className="fre-control__body">{input}</div>

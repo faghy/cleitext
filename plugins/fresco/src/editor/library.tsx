@@ -63,7 +63,7 @@ export async function saveTemplate(
 export function parseTemplateFile(text: string): TemplateFile {
   const data = JSON.parse(text) as Partial<TemplateFile>;
   if (data.format !== 'fresco-template' || !Array.isArray(data.blocks)) {
-    throw new Error('This is not a Fresco template file.');
+    throw new Error(t('This is not a Fresco template file.'));
   }
   let unknown = 0;
   const keep = (nodes: FrescoNode[]): FrescoNode[] =>
@@ -82,14 +82,14 @@ export function parseTemplateFile(text: string): TemplateFile {
       }));
   const blocks = keep(data.blocks);
   if (unknown > 0 && blocks.length === 0)
-    throw new Error('The template uses elements this site does not have.');
+    throw new Error(t('The template uses elements this site does not have.'));
   return {
     format: 'fresco-template',
     version: 1,
     title:
       typeof data.title === 'string' && data.title.trim()
         ? data.title.trim().slice(0, 200)
-        : 'Imported template',
+        : t('Imported template'),
     kind: data.kind === 'page' ? 'page' : 'section',
     blocks,
   };
@@ -157,7 +157,7 @@ export function LibraryView({ store }: { store: Store }) {
       return wrapper;
     });
     store.actions.insertNodes(nodes, { parent: null, index });
-    setMessage({ kind: 'ok', text: `“${template.title}” inserted.` });
+    setMessage({ kind: 'ok', text: t('“{name}” inserted.', { name: template.title }) });
   };
 
   const selectedNode = selected ? find(blocks, selected) : null;
@@ -170,7 +170,7 @@ export function LibraryView({ store }: { store: Store }) {
 
   return (
     <div className="fre-library">
-      <h3 className="fre-view-title">Templates</h3>
+      <h3 className="fre-view-title">{t('Templates')}</h3>
       <div className="fre-library__save">
         <button
           type="button"
@@ -189,13 +189,13 @@ export function LibraryView({ store }: { store: Store }) {
           }
         >
           <Svg path="M5 4h11l3 3v13H5z M8 4v5h7V4 M8 20v-6h8v6" size={14} />
-          Save the page
+          {t('Save the page')}
         </button>
         <button
           type="button"
           className="fre-button"
           disabled={busy || !selectedNode}
-          title={selectedNode ? undefined : 'Select an element first'}
+          title={selectedNode ? undefined : t('Select an element first')}
           onClick={() => {
             if (!selectedNode) return;
             void askText({
@@ -212,11 +212,11 @@ export function LibraryView({ store }: { store: Store }) {
           }}
         >
           <Svg path="M4 6h16v12H4z M4 10h16" size={14} />
-          Save the selection
+          {t('Save the selection')}
         </button>
         <label className="fre-button">
           <Svg path="M12 4v12 M7 11l5 5 5-5 M5 20h14" size={14} />
-          Import
+          {t('Import')}
           <input
             type="file"
             accept=".json,application/json"
@@ -225,10 +225,13 @@ export function LibraryView({ store }: { store: Store }) {
               const file = e.target.files?.[0];
               e.target.value = '';
               if (!file) return;
-              await run(async () => {
-                const parsed = parseTemplateFile(await file.text());
-                await saveTemplate(parsed.title, parsed.kind, parsed.blocks);
-              }, `“${file.name}” imported.`);
+              await run(
+                async () => {
+                  const parsed = parseTemplateFile(await file.text());
+                  await saveTemplate(parsed.title, parsed.kind, parsed.blocks);
+                },
+                t('“{name}” imported.', { name: file.name }),
+              );
             }}
           />
         </label>
@@ -244,14 +247,16 @@ export function LibraryView({ store }: { store: Store }) {
             className={filter === f ? 'is-on' : ''}
             onClick={() => setFilter(f)}
           >
-            {f === 'all' ? 'All' : f === 'page' ? 'Pages' : 'Sections'}
+            {f === 'all' ? t('All') : f === 'page' ? t('Pages') : t('Sections')}
           </button>
         ))}
       </div>
       {templates === null ? (
-        <p className="fre-empty-note">Loading…</p>
+        <p className="fre-empty-note">{t('Loading…')}</p>
       ) : shown.length === 0 ? (
-        <p className="fre-empty-note">No templates yet. Save a page or a section to reuse it.</p>
+        <p className="fre-empty-note">
+          {t('No templates yet. Save a page or a section to reuse it.')}
+        </p>
       ) : (
         <ul className="fre-library__list">
           {shown.map((template) => (
@@ -259,8 +264,8 @@ export function LibraryView({ store }: { store: Store }) {
               <div className="fre-library__info">
                 <strong>{template.title}</strong>
                 <span>
-                  {template.kind === 'page' ? 'Page' : 'Section'} · {count(template.blocks)}{' '}
-                  elements
+                  {template.kind === 'page' ? t('Page') : t('Section')} ·{' '}
+                  {t('{count} elements', { count: count(template.blocks) })}
                 </span>
               </div>
               <button
@@ -269,12 +274,12 @@ export function LibraryView({ store }: { store: Store }) {
                 disabled={busy}
                 onClick={() => insert(template)}
               >
-                Insert
+                {t('Insert')}
               </button>
               <button
                 type="button"
                 className="fre-iconbtn"
-                title="Export to a file"
+                title={t('Export to a file')}
                 onClick={() =>
                   download({
                     format: 'fresco-template',
@@ -290,7 +295,7 @@ export function LibraryView({ store }: { store: Store }) {
               <button
                 type="button"
                 className="fre-iconbtn"
-                title="Delete"
+                title={t('Delete')}
                 onClick={() =>
                   void confirmAction({
                     title: t('Delete the template “{name}”?', { name: template.title }),
