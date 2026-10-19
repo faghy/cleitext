@@ -441,8 +441,9 @@ function ContextMenu({
   menu: { id: string; x: number; y: number };
   onClose: () => void;
 }) {
-  const node = find(store.get().blocks, menu.id);
-  const title = node ? (getElement(node.type)?.title ?? node.type) : '';
+  const { t } = useT();
+  const node = menu.id ? find(store.get().blocks, menu.id) : null;
+  const title = node ? t(getElement(node.type)?.title ?? node.type) : t('Page');
   const hasClipboard = (() => {
     try {
       return Boolean(store.get().clipboard ?? localStorage.getItem('fresco:clipboard'));
@@ -450,18 +451,23 @@ function ContextMenu({
       return Boolean(store.get().clipboard);
     }
   })();
-  const item = (label: string, action: () => void, disabled = false, shortcut?: string) => (
+  const item = (
+    label: string,
+    action: () => void,
+    options: { disabled?: boolean; shortcut?: string; danger?: boolean } = {},
+  ) => (
     <button
       type="button"
       role="menuitem"
-      disabled={disabled}
+      className={options.danger ? 'is-danger' : ''}
+      disabled={options.disabled}
       onClick={() => {
         action();
         onClose();
       }}
     >
       <span>{label}</span>
-      {shortcut && <kbd>{shortcut}</kbd>}
+      {options.shortcut && <kbd>{options.shortcut}</kbd>}
     </button>
   );
   useEffect(() => {
@@ -475,58 +481,97 @@ function ContextMenu({
       window.removeEventListener('pointerdown', close);
     };
   }, [onClose, store]);
+  const pasteAtEnd = () => {
+    const state = store.get();
+    const last = state.blocks[state.blocks.length - 1];
+    store.actions.paste(last?.id ?? null);
+  };
   return (
     <div
       className="fre-menu"
       role="menu"
       aria-label={title}
       style={{
-        left: Math.min(menu.x, window.innerWidth - 220),
-        top: Math.min(menu.y, window.innerHeight - 320),
+        left: Math.min(menu.x, window.innerWidth - 260),
+        top: Math.min(menu.y, window.innerHeight - 380),
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <p className="fre-menu__title">{title}</p>
-      {item('Edit', () => store.actions.select(menu.id))}
-      {item('Duplicate', () => store.actions.duplicate(menu.id), false, 'Ctrl+D')}
-      {item('Copy', () => store.actions.copy(menu.id), false, 'Ctrl+C')}
-      {item('Paste', () => store.actions.paste(menu.id), !hasClipboard, 'Ctrl+V')}
-      {item(
-        'Paste style',
-        () => store.actions.pasteStyle(menu.id),
-        store.get().clipboard?.type !== node?.type,
+      {node ? (
+        <>
+          <div className="fre-menu__group">
+            {item(t('Edit {element}', { element: title }), () => store.actions.select(menu.id))}
+            {item(t('Duplicate'), () => store.actions.duplicate(menu.id), { shortcut: 'Ctrl+D' })}
+          </div>
+          <div className="fre-menu__group">
+            {item(t('Copy'), () => store.actions.copy(menu.id), { shortcut: 'Ctrl+C' })}
+            {item(t('Paste'), () => store.actions.paste(menu.id), {
+              disabled: !hasClipboard,
+              shortcut: 'Ctrl+V',
+            })}
+            {item(t('Paste style'), () => store.actions.pasteStyle(menu.id), {
+              disabled: store.get().clipboard?.type !== node.type,
+              shortcut: 'Ctrl+Shift+V',
+            })}
+            {item(t('Reset style'), () => store.actions.resetStyle(menu.id))}
+          </div>
+          <div className="fre-menu__group">
+            {item(t('Structure'), () => store.actions.setView('navigator'), {
+              shortcut: 'Ctrl+I',
+            })}
+            {item(t('Save as template'), () => {
+              const name = window.prompt(t('Name of the template'), title);
+              if (name) void saveTemplate(name, 'section', [node]).catch(() => {});
+            })}
+            {extensions()
+              .menuActions.filter((action) => !action.when || action.when(node))
+              .map((action) => (
+                <Fragment key={action.label}>
+                  {item(t(action.label), () => {
+                    void Promise.resolve(
+                      action.run(node, {
+                        replace: (next) => {
+                          const place = placeOf(store.get().blocks, node.id);
+                          if (!place) return;
+                          store.actions.remove(node.id);
+                          store.actions.insertNodes([next], place);
+                          store.actions.select(next.id);
+                        },
+                      }),
+                    ).catch((error: unknown) =>
+                      window.alert(String(error instanceof Error ? error.message : error)),
+                    );
+                  })}
+                </Fragment>
+              ))}
+          </div>
+          <div className="fre-menu__group">
+            {item(t('Delete'), () => store.actions.remove(menu.id), {
+              shortcut: 'Del',
+              danger: true,
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="fre-menu__group">
+            {item(t('Paste'), pasteAtEnd, { disabled: !hasClipboard, shortcut: 'Ctrl+V' })}
+            {item(t('Structure'), () => store.actions.setView('navigator'), {
+              shortcut: 'Ctrl+I',
+            })}
+          </div>
+          <div className="fre-menu__group">
+            {item(
+              t('Delete all content'),
+              () => {
+                if (window.confirm(t('Delete all the content of this page?')))
+                  for (const block of store.get().blocks) store.actions.remove(block.id);
+              },
+              { disabled: store.get().blocks.length === 0, danger: true },
+            )}
+          </div>
+        </>
       )}
-      {item('Reset style', () => store.actions.resetStyle(menu.id))}
-      {item('Save as template', () => {
-        const node = find(store.get().blocks, menu.id);
-        const name =
-          node && window.prompt('Name of the template', getElement(node.type)?.title ?? '');
-        if (node && name) void saveTemplate(name, 'section', [node]).catch(() => {});
-      })}
-      {node &&
-        extensions()
-          .menuActions.filter((action) => !action.when || action.when(node))
-          .map((action) => (
-            <Fragment key={action.label}>
-              {item(action.label, () => {
-                void Promise.resolve(
-                  action.run(node, {
-                    replace: (next) => {
-                      const place = placeOf(store.get().blocks, node.id);
-                      if (!place) return;
-                      store.actions.remove(node.id);
-                      store.actions.insertNodes([next], place);
-                      store.actions.select(next.id);
-                    },
-                  }),
-                ).catch((error: unknown) =>
-                  window.alert(String(error instanceof Error ? error.message : error)),
-                );
-              })}
-            </Fragment>
-          ))}
-      {item('Navigator', () => store.actions.setView('navigator'))}
-      {item('Delete', () => store.actions.remove(menu.id), false, 'Del')}
     </div>
   );
 }

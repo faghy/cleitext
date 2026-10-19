@@ -84,6 +84,10 @@ const FRAME_STYLE = `
 .fre-add__back,.fre-add__close{position:absolute;top:10px;border:0;background:none;color:#818a96;cursor:pointer;font:inherit}
 .fre-add__back{left:14px}
 .fre-add__close{right:14px;font-size:20px;line-height:1}
+.fre-pen{position:absolute;z-index:2147483001;display:flex;padding:0 4px;border-radius:3px;background:#1f2124;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.fre-pen::after{content:'';position:absolute;left:18px;bottom:-6px;border:6px solid transparent;border-bottom:0;border-top-color:#1f2124}
+.fre-pen button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:0;background:none;color:#e6e8ea;cursor:pointer}
+.fre-pen button:hover{color:#fff;background:#3f444b}
 [data-fr-inline][contenteditable]{outline:none;cursor:text}
 .fre-tree a{cursor:default}
 .fre-tree .fr-anim{opacity:1!important}
@@ -283,9 +287,11 @@ function FrameTree({
       const rich = control.type === 'richtext';
       field.contentEditable = rich ? 'true' : 'plaintext-only';
       field.focus();
+      const toolbar = rich ? formatBar(doc, field) : null;
       const finish = () => {
         field.removeEventListener('blur', finish);
         field.removeEventListener('keydown', keys);
+        toolbar?.remove();
         const value = rich ? sanitizeRich(field.innerHTML) : field.innerText.replace(/\n+$/, '');
         field.removeAttribute('contenteditable');
         if (
@@ -307,7 +313,7 @@ function FrameTree({
       field.addEventListener('blur', finish);
       field.addEventListener('keydown', keys);
     },
-    [readOnly, store],
+    [readOnly, store, doc],
   );
 
   const onPointerDown = (event: React.PointerEvent) => {
@@ -342,7 +348,15 @@ function FrameTree({
       className="fre-tree"
       onPointerDown={onPointerDown}
       onClick={(event) => {
-        if (!(event.target as Element).closest('[contenteditable]')) event.preventDefault();
+        const target = event.target as Element;
+        if (target.closest('[contenteditable]')) return;
+        event.preventDefault();
+        // Texts are edited where they are, with one click (as in other builders).
+        const field = target.closest<HTMLElement>('[data-fr-inline]');
+        const element = elementAt(event.target);
+        if (field && element && element.contains(field) && !target.closest('[data-fr-tab]')) {
+          startInline(element, field);
+        }
       }}
       onDoubleClick={(event) => {
         const field = (event.target as Element).closest<HTMLElement>('[data-fr-inline]');
@@ -352,12 +366,13 @@ function FrameTree({
       onMouseOver={(event) => store.actions.hover(elementAt(event.target)?.dataset.frId ?? null)}
       onMouseLeave={() => store.actions.hover(null)}
       onContextMenu={(event) => {
+        if ((event.target as Element).closest('[contenteditable]')) return;
         const element = elementAt(event.target);
-        if (!element) return;
         event.preventDefault();
         const rect = frame.current!.getBoundingClientRect();
-        store.actions.select(element.dataset.frId!);
-        onContextMenu(element.dataset.frId!, {
+        // On an element its menu; elsewhere the page's (paste, delete all).
+        if (element) store.actions.select(element.dataset.frId!);
+        onContextMenu(element?.dataset.frId ?? '', {
           x: rect.left + event.clientX,
           y: rect.top + event.clientY,
         });
@@ -372,6 +387,83 @@ function FrameTree({
       {!readOnly && <AddArea store={store} index={blocks.length} />}
     </div>
   );
+}
+
+// ---- Formatting bar of rich texts edited in place ---------------------------------------------
+
+const FORMATS: { command: string; title: string; path: string; value?: () => string | null }[] = [
+  {
+    command: 'bold',
+    title: 'Bold',
+    path: 'M7 5h6a3.5 3.5 0 0 1 0 7H7z M7 12h7a3.5 3.5 0 0 1 0 7H7z',
+  },
+  { command: 'italic', title: 'Italic', path: 'M11 5h6 M7 19h6 M14 5l-4 14' },
+  { command: 'underline', title: 'Underline', path: 'M7 5v6a5 5 0 0 0 10 0V5 M5 20h14' },
+  {
+    command: 'strikeThrough',
+    title: 'Strikethrough',
+    path: 'M5 12h14 M16 6.5A4 4 0 0 0 12 5c-2.2 0-4 1.3-4 3 0 3.5 8 2.5 8 7 0 1.8-1.8 3-4 3a4.5 4.5 0 0 1-4.3-2.5',
+  },
+  {
+    command: 'insertUnorderedList',
+    title: 'Bulleted list',
+    path: 'M9 6h11 M9 12h11 M9 18h11 M4.5 6h.01 M4.5 12h.01 M4.5 18h.01',
+  },
+  {
+    command: 'insertOrderedList',
+    title: 'Numbered list',
+    path: 'M10 6h10 M10 12h10 M10 18h10 M4 5l1-1v4 M4 14h2l-2 2.5h2',
+  },
+  {
+    command: 'createLink',
+    title: 'Link',
+    path: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+    value: () => window.prompt(t('Link address'), 'https://'),
+  },
+  {
+    command: 'unlink',
+    title: 'Remove link',
+    path: 'M10 14a4 4 0 0 0 5.7 0l1-1 M14 10a4 4 0 0 0-5.7 0l-1 1 M4 4l16 16',
+  },
+  {
+    command: 'removeFormat',
+    title: 'Clear formatting',
+    path: 'M6 5h12 M10 5l-3 14 M14 5l-1 5 M15 15l5 5 M20 15l-5 5',
+  },
+];
+
+/** A dark bar above a rich text being edited: bold, italic, lists, links. */
+function formatBar(doc: Document, field: HTMLElement): HTMLElement {
+  const bar = doc.createElement('div');
+  bar.className = 'fre-pen';
+  bar.setAttribute('role', 'toolbar');
+  bar.setAttribute('data-fre-ui', '');
+  for (const format of FORMATS) {
+    const button = doc.createElement('button');
+    button.type = 'button';
+    button.title = t(format.title);
+    button.setAttribute('aria-label', t(format.title));
+    button.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${format.path}"/></svg>`;
+    // Keeps the text focused and its selection.
+    button.addEventListener('mousedown', (event) => event.preventDefault());
+    button.addEventListener('click', () => {
+      const value = format.value ? format.value() : null;
+      if (format.value && !value) return;
+      doc.execCommand(format.command, false, value ?? undefined);
+      field.focus();
+    });
+    bar.append(button);
+  }
+  doc.body.append(bar);
+  const place = () => {
+    const r = field.getBoundingClientRect();
+    const win = doc.defaultView!;
+    bar.style.left = `${Math.max(4, r.left + win.scrollX)}px`;
+    bar.style.top = `${Math.max(4, r.top + win.scrollY - bar.offsetHeight - 8)}px`;
+  };
+  place();
+  field.addEventListener('input', place);
+  return bar;
 }
 
 // ---- Overlay: outlines, handles, drop line ------------------------------------------------
