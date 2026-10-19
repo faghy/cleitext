@@ -135,6 +135,12 @@ addMessages('it', {
   Current: 'Attuale',
   'This revision was made with another editor: restore it from the entry settings.':
     'Questa revisione è stata fatta con un altro editor: ripristinala dalle impostazioni della voce.',
+  Width: 'Larghezza',
+  Height: 'Altezza',
+  'Zoom out': 'Riduci',
+  'Zoom in': 'Ingrandisci',
+  'Manage breakpoints': 'Gestisci i breakpoint',
+  'Close responsive mode': 'Chiudi la modalità responsive',
   'Select an element on the page to edit it.':
     'Seleziona un elemento nella pagina per modificarlo.',
 });

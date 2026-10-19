@@ -323,4 +323,24 @@ button.fre-chip,.fre-chip button{border:0;background:none;padding:3px 9px;cursor
 .fre-history__avatar{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:#e6e8ea;color:#515962;font-weight:700}
 .fre-history__apply{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 12px 0;padding:10px;border-radius:3px;background:var(--fre-accent-soft)}
 .fre-history__apply span{flex-basis:100%;color:var(--fre-ink,#0c0d0e)}
+
+.fre-root--full .fre-canvas{background:#e6e8ea}
+.fre-canvas.is-device{flex-direction:column;align-items:center;padding:0 20px 20px;background:#2b2f34;overflow:auto}
+.fre-canvas.is-device .fre-frame{position:relative;flex:1 1 auto;height:auto;min-height:0;box-shadow:0 0 3px rgba(0,0,0,.3),0 0 20px rgba(0,0,0,.15)}
+.fre-frame.is-resizing .fre-iframe{pointer-events:none}
+.fre-frame.is-resizing{transition:none}
+.fre-frame__handle{position:absolute;top:50%;width:4px;height:50px;margin-top:-25px;border-radius:2px;background:rgba(255,255,255,.35);cursor:ew-resize}
+.fre-frame__handle::before{content:'';position:absolute;inset:-6px -10px}
+.fre-frame__handle:hover{background:rgba(255,255,255,.8)}
+.fre-frame__handle--left{left:-12px}
+.fre-frame__handle--right{right:-12px}
+.fre-rbar{display:flex;align-items:center;gap:6px;height:40px;flex:0 0 40px;color:#d5d9de;font:12px Roboto,system-ui,sans-serif}
+.fre-rbar label{display:flex;align-items:center;gap:4px}
+.fre-rbar label span{color:#8b929b}
+.fre-rbar input{width:62px;height:26px;padding:0 6px;border:1px solid #3f444b;border-radius:3px;background:#1d2126;color:#fff;font:12px Roboto,system-ui,sans-serif}
+.fre-rbar button{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 6px;border:0;border-radius:3px;background:none;color:#d5d9de;cursor:pointer;font:inherit;font-size:14px}
+.fre-rbar button:hover{background:#3f444b;color:#fff}
+.fre-rbar .fre-rbar__text{font-size:12px}
+.fre-rbar__zoom{min-width:38px;text-align:center}
+.fre-rbar__sep{width:1px;height:18px;margin:0 6px;background:#3f444b}
 `;

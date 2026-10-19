@@ -164,6 +164,13 @@ export function Canvas({
   const [mount, setMount] = useState<{ doc: Document; root: HTMLElement } | null>(null);
   const device = useStore(store, (s) => s.device);
   const breakpoints = useStore(store, (s) => s.kit.breakpoints);
+  // A width dragged by hand in responsive mode, and the zoom; both reset with the device.
+  const [custom, setCustom] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    setCustom(null);
+    setZoom(1);
+  }, [device]);
 
   // The frame's address is asked once: the host passes a new function on every render.
   const frameUrlRef = useRef(frameUrl);
@@ -197,12 +204,129 @@ export function Canvas({
     setMount({ doc, root });
   };
 
+  const responsive = device !== 'desktop';
+  // Limits of the device being previewed: between the next smaller breakpoint and its own.
+  const limits =
+    device === 'tablet'
+      ? { min: breakpoints.mobile + 1, max: breakpoints.tablet }
+      : { min: 320, max: breakpoints.mobile };
+  const width = responsive && custom ? `${custom}px` : frameWidth(device, breakpoints);
+  const frameBox = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const box = frameBox.current;
+    if (!box) return;
+    const observer = new ResizeObserver(() => setHeight(Math.round(box.offsetHeight)));
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+
+  /** Drags a side of the frame: the width changes on both sides, within the device's limits. */
+  const resize = (event: React.PointerEvent, side: 1 | -1) => {
+    if (event.button !== 0 || !frameBox.current) return;
+    event.preventDefault();
+    const start = { x: event.clientX, width: frameBox.current.offsetWidth };
+    // The iframe would swallow the pointer while dragging.
+    frameBox.current.classList.add('is-resizing');
+    const onMove = (e: PointerEvent) => {
+      const next = start.width + side * (e.clientX - start.x) * 2;
+      setCustom(Math.round(Math.min(limits.max, Math.max(limits.min, next))));
+    };
+    const onUp = () => {
+      frameBox.current?.classList.remove('is-resizing');
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
   return (
-    <div className="fre-canvas">
+    <div className={`fre-canvas${responsive ? ' is-device' : ''}`}>
       {error && <p className="fre-error">{error}</p>}
-      <div className="fre-frame" style={{ width: frameWidth(device, breakpoints) }}>
+      {responsive && (
+        <div className="fre-rbar">
+          <label>
+            <span>W</span>
+            <input
+              type="number"
+              min={limits.min}
+              max={limits.max}
+              value={custom ?? Math.min(limits.max, device === 'tablet' ? 768 : 375)}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                if (value) setCustom(Math.min(limits.max, Math.max(limits.min, value)));
+              }}
+              aria-label={t('Width')}
+            />
+          </label>
+          <label>
+            <span>H</span>
+            <input type="number" value={height} readOnly aria-label={t('Height')} />
+          </label>
+          <span className="fre-rbar__sep" />
+          <button
+            type="button"
+            aria-label={t('Zoom out')}
+            onClick={() => setZoom((z) => Math.max(0.25, Math.round((z - 0.1) * 100) / 100))}
+          >
+            −
+          </button>
+          <span className="fre-rbar__zoom">{Math.round(zoom * 100)}%</span>
+          <button
+            type="button"
+            aria-label={t('Zoom in')}
+            onClick={() => setZoom((z) => Math.min(1, Math.round((z + 0.1) * 100) / 100))}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="fre-rbar__text"
+            onClick={() => {
+              setZoom(1);
+              setCustom(null);
+            }}
+          >
+            {t('Reset')}
+          </button>
+          <span className="fre-rbar__sep" />
+          <button
+            type="button"
+            className="fre-rbar__text"
+            onClick={() => store.actions.setView('site')}
+          >
+            {t('Manage breakpoints')}
+          </button>
+          <button
+            type="button"
+            aria-label={t('Close responsive mode')}
+            title={t('Close responsive mode')}
+            onClick={() => store.actions.setDevice('desktop')}
+          >
+            ×
+          </button>
+        </div>
+      )}
+      <div
+        ref={frameBox}
+        className="fre-frame"
+        style={{ width, ...(responsive && zoom !== 1 ? { zoom } : {}) }}
+      >
         {src && (
           <iframe ref={frameRef} src={src} title="Page" onLoad={onLoad} className="fre-iframe" />
+        )}
+        {responsive && (
+          <>
+            <span
+              className="fre-frame__handle fre-frame__handle--left"
+              onPointerDown={(e) => resize(e, -1)}
+            />
+            <span
+              className="fre-frame__handle fre-frame__handle--right"
+              onPointerDown={(e) => resize(e, 1)}
+            />
+          </>
         )}
       </div>
       {mount && createPortal(<FrameHead store={store} assetsBase={assetsBase} />, mount.doc.head)}
