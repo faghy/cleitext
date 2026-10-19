@@ -38,7 +38,13 @@ export interface AdminPageDefinition {
   icon?: string;
   /** Required capability; pages are hidden from users without it. */
   capability?: string;
-  component: ComponentType<AdminPageProps>;
+  /**
+   * A menu entry that opens an admin address instead of a page of the
+   * plugin (API 1.25), e.g. `'/appearance?tab=customize'`; `component` is
+   * then not needed.
+   */
+  link?: string;
+  component?: ComponentType<AdminPageProps>;
 }
 
 /**

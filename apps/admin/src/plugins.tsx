@@ -82,6 +82,8 @@ export interface PluginMenuItem {
   icon?: string;
   /** The entry it belongs under (a submenu item). */
   parent?: string;
+  /** A tab of the screen it opens (menu links). */
+  tab?: string;
 }
 
 /** Sidebar entries added by plugins: their content types and their pages. */
@@ -107,7 +109,7 @@ export function usePluginMenu(): { types: PluginMenuItem[]; pages: PluginMenuIte
       (plugin.definition?.pages ?? [])
         .filter((page) => page.menu !== false && allowed(page, me.capabilities))
         .map((page) => ({
-          to: pagePath(plugin.slug, page.path),
+          ...(page.link ? linkTarget(page.link) : { to: pagePath(plugin.slug, page.path) }),
           label: labelText(page.title, me.user.locale),
           icon: pluginIcon(page.icon),
           ...(page.parent !== undefined
@@ -120,6 +122,13 @@ export function usePluginMenu(): { types: PluginMenuItem[]; pages: PluginMenuIte
         })),
     ),
   };
+}
+
+/** An admin address of a menu link: its path, and the screen's tab (`?tab=`) when it has one. */
+function linkTarget(link: string): { to: string; tab?: string } {
+  const [path, query = ''] = link.split('?');
+  const tab = new URLSearchParams(query).get('tab');
+  return { to: path!.startsWith('/') ? path! : `/${path}`, ...(tab ? { tab } : {}) };
 }
 
 export function pagePath(slug: string, path: string): string {
@@ -395,6 +404,12 @@ export function PluginPage({ slug, path }: { slug: string; path: string }) {
     );
   }
   const Component = page.component;
+  // A menu link has no page of its own: its address is the one to open.
+  if (!Component) {
+    if (page.link)
+      window.location.replace(`/cl-admin${page.link.startsWith('/') ? '' : '/'}${page.link}`);
+    return null;
+  }
   return (
     <PluginErrorBoundary name={plugin.name}>
       <Component

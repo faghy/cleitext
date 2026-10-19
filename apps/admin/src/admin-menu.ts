@@ -23,6 +23,8 @@ export interface PluginPageItem {
   icon?: string;
   /** Address of the entry it belongs under (a plugin page or an admin section). */
   parent?: string;
+  /** A tab of the screen it opens (a menu link to `/appearance?tab=customize`). */
+  tab?: string;
 }
 
 /**
@@ -55,7 +57,12 @@ export function withPluginPages(top: MenuNode[], pages: PluginPageItem[]): MenuN
     }
     if (parent.children.length === 0)
       parent.children.push({ to: parent.to, label: parent.label, children: [] });
-    parent.children.push({ to: page.to, label: page.label, children: [] });
+    parent.children.push({
+      to: page.to,
+      label: page.label,
+      ...(page.tab ? { tab: page.tab } : {}),
+      children: [],
+    });
   }
   return nodes;
 }
