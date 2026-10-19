@@ -40,9 +40,21 @@ Images are looked up in this site's media library by file name (size suffixes su
 
 Maps, contact forms, post and portfolio lists (`av_blog`, `av_magazine`, `av_masonry_entries`, `av_portfolio`, `av_postslider`…), countdowns, sharing buttons and the audio player have no native block: they are left out and reported, so you can add them again with the blocks of other plugins (Maps, Forms, Widgets…). Unknown shortcodes keep their text and are reported. Icons, animations, background images and the theme's own styles are not kept.
 
+## Pages of page builders that keep them as data
+
+Since 1.1, pages built with a page builder that keeps the page as JSON in a field of the export (sections, columns, containers and widgets, the `_elementor_data` format) are read too:
+
+- sections and containers become groups (full width when they were stretched), with their background color and padding;
+- rows become columns with their widths;
+- headings, texts, images, buttons, spacers, dividers, icon and image boxes, icon lists, videos, testimonials, quotes, galleries and HTML become the closest blocks;
+- tabs, accordions, counters, calls to action and price tables are shown with simpler blocks;
+- forms, maps, menus, lists of posts, sliders and global widgets are left out and reported.
+
+To keep these pages exactly as they were, with their styles and animations, import them with the WordPress importer and edit them with Fresco instead.
+
 ## For developers
 
-Plugin API 1.26: an admin page only, with no server part and no permissions of its own. It uses the core content and media API (`/api/v1/entries`, `/api/v1/media`) with the user's own permissions; the conversion (`src/convert.ts`) is a pure function from the shortcode text to core blocks, tested with Vitest.
+Plugin API 1.26: an admin page only, with no server part and no permissions of its own. It uses the core content and media API (`/api/v1/entries`, `/api/v1/media`) with the user's own permissions; the conversions (`src/convert.ts` for shortcodes, `src/json-layout.ts` for builder data) are pure functions to core blocks, tested with Vitest.
 
 ## License
 

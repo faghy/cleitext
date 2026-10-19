@@ -2,7 +2,7 @@
 const en = {
   title: 'Layout import',
   intro:
-    'Pages of a WordPress site laid out with the old theme’s layout builder keep their layout as [av_…] shortcodes. Here they become native blocks of the block editor: color sections become full-width groups, columns and grid rows become columns, and texts, headings, images, galleries, buttons, tables and the other elements become the blocks closest to them. Every page can then be edited in the block editor, with no page builder.',
+    'Pages of a WordPress site laid out with the old theme’s layout builder keep their layout as [av_…] shortcodes. Pages built with a page builder that keeps them as data in the export (sections, columns, containers and widgets) are read too. Here they become native blocks of the block editor: color sections become full-width groups, columns and grid rows become columns, and texts, headings, images, galleries, buttons, tables and the other elements become the blocks closest to them. Every page can then be edited in the block editor, with no page builder.',
   options: 'Options',
   headingColor: 'Heading color',
   headingColorHelp:
@@ -18,14 +18,14 @@ const en = {
   fromExport: 'From a WordPress export',
   fromSite: 'Pages of this site with [av_…] text',
   exportHelp:
-    'Upload the export of the old site (Tools → Export → All content in WordPress). It is read in your browser. Each page, post or portfolio item laid out with [av_…] shortcodes is matched with the entry of this site that has the same type and slug.',
+    'Upload the export of the old site (Tools → Export → All content in WordPress). It is read in your browser. Each page, post or portfolio item laid out with [av_…] shortcodes or with a page builder is matched with the entry of this site that has the same type and slug.',
   siteHelp:
     'Pages already imported (e.g. with the WordPress importer) where the shortcodes stayed as text in the paragraphs. Without the export, images are found in the media library by file name, and links to ids of the old site cannot be resolved.',
   chooseFile: 'Export file (.xml)',
   scan: 'Find the pages',
   scanning: 'Reading… {done} of {total}',
   readingSite: 'Reading the entries and the media library of this site…',
-  noLayouts: 'No entry of this export is laid out with [av_…] shortcodes.',
+  noLayouts: 'No entry of this export is laid out with [av_…] shortcodes or with a page builder.',
   noSiteLayouts: 'No entry of this site holds [av_…] shortcodes as text.',
   notXml: 'This file is not a WordPress export.',
   found: '{count} entries with a layout',
@@ -64,7 +64,7 @@ export type Strings = typeof en;
 const it: Strings = {
   title: 'Importa layout',
   intro:
-    'Le pagine di un sito WordPress impaginate con il costruttore di layout del vecchio tema conservano l’impaginazione come shortcode [av_…]. Qui diventano blocchi nativi dell’editor a blocchi: le sezioni colorate diventano gruppi a tutta larghezza, colonne e righe a griglia diventano colonne, e testi, titoli, immagini, gallerie, pulsanti, tabelle e gli altri elementi diventano i blocchi più vicini. Ogni pagina si può poi modificare con l’editor a blocchi, senza page builder.',
+    'Le pagine di un sito WordPress impaginate con il costruttore di layout del vecchio tema conservano l’impaginazione come shortcode [av_…]. Vengono lette anche le pagine costruite con un page builder che le conserva come dati nell’esportazione (sezioni, colonne, contenitori e widget). Qui diventano blocchi nativi dell’editor a blocchi: le sezioni colorate diventano gruppi a tutta larghezza, colonne e righe a griglia diventano colonne, e testi, titoli, immagini, gallerie, pulsanti, tabelle e gli altri elementi diventano i blocchi più vicini. Ogni pagina si può poi modificare con l’editor a blocchi, senza page builder.',
   options: 'Opzioni',
   headingColor: 'Colore dei titoli',
   headingColorHelp:
@@ -80,14 +80,15 @@ const it: Strings = {
   fromExport: 'Da un’esportazione di WordPress',
   fromSite: 'Pagine di questo sito con testo [av_…]',
   exportHelp:
-    'Carica l’esportazione del vecchio sito (Strumenti → Esporta → Tutti i contenuti in WordPress). Viene letta nel tuo browser. Ogni pagina, articolo o elemento del portfolio impaginato con gli shortcode [av_…] viene abbinato alla voce di questo sito con lo stesso tipo e lo stesso slug.',
+    'Carica l’esportazione del vecchio sito (Strumenti → Esporta → Tutti i contenuti in WordPress). Viene letta nel tuo browser. Ogni pagina, articolo o elemento del portfolio impaginato con gli shortcode [av_…] o con un page builder viene abbinato alla voce di questo sito con lo stesso tipo e lo stesso slug.',
   siteHelp:
     'Pagine già importate (per esempio con l’importatore di WordPress) in cui gli shortcode sono rimasti come testo nei paragrafi. Senza l’esportazione, le immagini si trovano nella libreria media per nome del file, e i link agli id del vecchio sito non si possono risolvere.',
   chooseFile: 'File di esportazione (.xml)',
   scan: 'Trova le pagine',
   scanning: 'Lettura… {done} di {total}',
   readingSite: 'Lettura delle voci e della libreria media di questo sito…',
-  noLayouts: 'Nessuna voce di questa esportazione è impaginata con gli shortcode [av_…].',
+  noLayouts:
+    'Nessuna voce di questa esportazione è impaginata con gli shortcode [av_…] o con un page builder.',
   noSiteLayouts: 'Nessuna voce di questo sito contiene shortcode [av_…] come testo.',
   notXml: 'Questo file non è un’esportazione di WordPress.',
   found: '{count} voci con un layout',

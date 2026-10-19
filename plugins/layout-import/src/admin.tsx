@@ -17,7 +17,7 @@ import {
 import type { CxdBlock } from '@cleitext/blocks';
 import { useMemo, useState } from 'react';
 import {
-  convertLayout,
+  convertAny,
   countBlocks,
   mediaKey,
   type ImportMaps,
@@ -252,7 +252,7 @@ function LayoutImportPage(props: AdminPageProps) {
 
   const results = useMemo(() => {
     const map = new Map<string, LayoutResult>();
-    for (const job of jobs ?? []) map.set(job.key, convertLayout(job.content, maps));
+    for (const job of jobs ?? []) map.set(job.key, convertAny(job.content, maps));
     return map;
   }, [jobs, maps]);
 
@@ -267,7 +267,7 @@ function LayoutImportPage(props: AdminPageProps) {
         throw new Error(fill(t.locked, { name: lock.lockedBy.displayName }));
       }
       // Fresh blocks (new ids) from the latest options.
-      const { blocks } = convertLayout(job.content, maps);
+      const { blocks } = convertAny(job.content, maps);
       if (!blocks.length) throw new Error(t.nothing);
       await coreApi('PATCH', `/entries/${entry.id}`, { document: { schema: 1, blocks } });
       if (publish && (entry.status === 'published' || entry.status === 'private')) {

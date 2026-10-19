@@ -13,6 +13,7 @@
 import type { CxdBlock, CxdInline, CxdText } from '@cleitext/blocks';
 import { INLINE_COLOR, decodeEntities, htmlToBlocks, htmlToInline } from '@cleitext/blocks/inline';
 import { isCode, paragraphs, parseShortcodes, type Code, type Node } from './shortcodes.js';
+import { convertJsonLayout, JSON_LAYOUT } from './json-layout.js';
 
 export interface ImportMaps {
   /** Post and page ids of the old site → their address on this site (a path). */
@@ -1207,4 +1208,15 @@ export function imageAddresses(content: string, maps: ImportMaps = {}): string[]
   };
   walk(parseShortcodes(content));
   return [...found];
+}
+
+/** Converts an entry's layout: `[av_…]` shortcodes, or builder JSON (see json-layout.ts). */
+export function convertAny(
+  content: string,
+  maps: ImportMaps = {},
+  options: ConvertOptions = {},
+): LayoutResult {
+  return content.startsWith(JSON_LAYOUT)
+    ? convertJsonLayout(content.slice(JSON_LAYOUT.length), maps, options)
+    : convertLayout(content, maps, options);
 }

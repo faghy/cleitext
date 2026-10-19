@@ -5,6 +5,7 @@
  * the export's fixed shape, without a DOM, so it can be tested.
  */
 import { countElements, hasLayout } from './shortcodes.js';
+import { countJsonElements, JSON_LAYOUT } from './json-layout.js';
 import type { ImportMaps } from './convert.js';
 
 export interface ExportEntry {
@@ -161,9 +162,18 @@ export function readExport(xml: string): ExportFile {
     const link = pathOf(field(item, 'link'));
     if (link && id) maps.posts[id] = link;
     const status = field(item, 'wp:status');
-    const content = field(item, 'content:encoded');
     const type = contentTypeOf(wpType);
-    if (!type || status === 'trash' || status === 'auto-draft' || !hasLayout(content)) continue;
+    if (!type || status === 'trash' || status === 'auto-draft') continue;
+    // A page builder that keeps the page as JSON in a field, when it built the page.
+    const meta = (key: string) =>
+      all(item, 'wp:postmeta')
+        .filter((m) => field(m, 'wp:meta_key') === key)
+        .map((m) => field(m, 'wp:meta_value'))[0] ?? '';
+    const json = meta('_elementor_edit_mode') === 'builder' ? meta('_elementor_data') : '';
+    const content = json.trim().startsWith('[')
+      ? JSON_LAYOUT + json
+      : field(item, 'content:encoded');
+    if (!content.startsWith(JSON_LAYOUT) && !hasLayout(content)) continue;
     entries.push({
       id,
       wpType,
@@ -172,7 +182,9 @@ export function readExport(xml: string): ExportFile {
       title: decodeXml(field(item, 'title')),
       status,
       content,
-      elements: countElements(content),
+      elements: content.startsWith(JSON_LAYOUT)
+        ? countJsonElements(content.slice(JSON_LAYOUT.length))
+        : countElements(content),
     });
   }
   return { entries, maps };
