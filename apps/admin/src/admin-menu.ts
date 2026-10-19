@@ -25,6 +25,8 @@ export interface PluginPageItem {
   parent?: string;
   /** A tab of the screen it opens (a menu link to `/appearance?tab=customize`). */
   tab?: string;
+  /** A top-level entry placed right after this one (e.g. `/appearance`), not at the end. */
+  after?: string;
 }
 
 /**
@@ -36,13 +38,25 @@ export interface PluginPageItem {
 export function withPluginPages(top: MenuNode[], pages: PluginPageItem[]): MenuNode[] {
   const nodes = top.map((n) => ({ ...n, children: [...n.children] }));
   const own = pages.filter((p) => p.parent === undefined || p.parent === p.to);
-  for (const page of own)
-    nodes.push({
+  const placed = new Map<MenuNode, string>();
+  for (const page of own) {
+    const entry: MenuNode = {
       to: page.to,
       label: page.label,
       ...(page.icon ? { icon: page.icon } : {}),
       children: [],
-    });
+    };
+    const anchor = page.after ? nodes.findIndex((n) => n.to === page.after) : -1;
+    if (anchor < 0) {
+      nodes.push(entry);
+      continue;
+    }
+    // After the section, and after the entries already placed there.
+    let at = anchor + 1;
+    while (at < nodes.length && placed.get(nodes[at]!) === page.after) at++;
+    nodes.splice(at, 0, entry);
+    placed.set(entry, page.after!);
+  }
   for (const page of pages) {
     if (page.parent === undefined || page.parent === page.to) continue;
     const parent = nodes.find((n) => n.to === page.parent);

@@ -799,6 +799,7 @@ export default defineAdminPlugin({
 - `icon` is the page's sidebar icon: SVG path data on a 24×24 grid, drawn as an outline like the core's icons (stroke 1.75, round ends, no fill). Pages without one, or with something that is not path data, get a puzzle piece.
 - `parent` (API 1.25) makes a page a submenu item, as in WordPress: under another page of the plugin (its `path`, `''` for the main one) or under an admin section (`'/appearance'`, `'/settings'`, `'/users'`, `'/posts'`, `'/pages'`, `'/media'`, `'/plugins'`). The current entry shows its submenu below it; the others show it beside the sidebar on hover or focus.
 - `link` (API 1.25) makes a menu entry that opens an admin address instead of a page, e.g. `{ path: 'options', title: 'Theme options', parent: '', link: '/appearance?tab=customize' }`; such an entry needs no `component`.
+- `after` (API 1.25) puts a top-level entry right after an admin section instead of at the end of the sidebar, e.g. `after: '/appearance'` for a theme's own menu.
 - From `@cleitext/admin-sdk` you get `Button`, `Card`, `TextField`, `Alert`, `FieldsForm` (a form generated from field definitions), `api` (the core API), `pluginApi`, `ApiError`, `errorMessage` and `labelText`. Use them and their Tailwind classes, or inline styles. Your own Tailwind classes are not compiled.
 - `@tanstack/react-query` is available, with the admin's query client.
 - A page that crashes shows an error message; the rest of the admin keeps working.

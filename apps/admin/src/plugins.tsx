@@ -84,6 +84,8 @@ export interface PluginMenuItem {
   parent?: string;
   /** A tab of the screen it opens (menu links). */
   tab?: string;
+  /** A top-level entry placed after this admin section. */
+  after?: string;
 }
 
 /** Sidebar entries added by plugins: their content types and their pages. */
@@ -112,6 +114,7 @@ export function usePluginMenu(): { types: PluginMenuItem[]; pages: PluginMenuIte
           ...(page.link ? linkTarget(page.link) : { to: pagePath(plugin.slug, page.path) }),
           label: labelText(page.title, me.user.locale),
           icon: pluginIcon(page.icon),
+          ...(page.after ? { after: page.after } : {}),
           ...(page.parent !== undefined
             ? {
                 parent: page.parent.startsWith('/')

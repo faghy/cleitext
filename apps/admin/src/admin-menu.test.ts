@@ -34,6 +34,18 @@ describe('the admin sidebar', () => {
       'Menus',
       'Templates',
     ]);
+    // A theme's menu right after Appearance.
+    const placed = withPluginPages(top, [
+      { to: '/ext/vitality', label: 'Vitality', after: '/appearance' },
+      { to: '/ext/z', label: 'Z' },
+    ]);
+    expect(placed.map((n) => n.label)).toEqual([
+      'Dashboard',
+      'Posts',
+      'Appearance',
+      'Vitality',
+      'Z',
+    ]);
     // A parent that does not exist: the page stays at the top level.
     expect(menu.map((n) => n.label)).toContain('Lost');
   });
