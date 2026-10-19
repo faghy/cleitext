@@ -21,6 +21,7 @@ export const ICONS = {
   caret: 'M6 9l6 6 6-6',
   site: 'M12 3a9 9 0 0 0 0 18c1.2 0 1.9-1 1.5-2-.5-1.3.4-2.3 1.7-2.3H17a4 4 0 0 0 4-4C21 7.3 17 3 12 3z M7 11.5h.01 M10.5 7.5h.01 M15 9h.01',
   exit: 'M15 18l-6-6 6-6',
+  keyboard: 'M3 7h18v10H3z M7 11h.01 M11 11h.01 M15 11h.01 M8 14h8',
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01',
   entry: 'M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6',
   theme: 'M4 4h16v5H4z M4 11h7v9H4z M13 11h7v9h-7z',
@@ -110,6 +111,11 @@ export function TopBar({
                 <MenuItem icon={ICONS.theme} label={t('Theme builder')} href={themeBuilderUrl} />
               )}
               <MenuItem icon={ICONS.entry} label={t('Entry settings')} onClick={openSettings} />
+              <MenuItem
+                icon={ICONS.keyboard}
+                label={t('Keyboard shortcuts')}
+                onClick={() => window.dispatchEvent(new Event('fresco:shortcuts'))}
+              />
               <MenuItem
                 icon={ICONS.help}
                 label={t('Help')}

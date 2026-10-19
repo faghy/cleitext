@@ -343,4 +343,26 @@ button.fre-chip,.fre-chip button{border:0;background:none;padding:3px 9px;cursor
 .fre-rbar .fre-rbar__text{font-size:12px}
 .fre-rbar__zoom{min-width:38px;text-align:center}
 .fre-rbar__sep{width:1px;height:18px;margin:0 6px;background:#3f444b}
+
+.fre-main{position:relative}
+.fre-paneltoggle{position:absolute;left:0;top:50%;z-index:5;display:inline-flex;align-items:center;justify-content:center;width:16px;height:48px;margin-top:-24px;padding:0;border:0;border-radius:0 4px 4px 0;background:#fff;color:#515962;box-shadow:2px 0 4px rgba(0,0,0,.12);cursor:pointer;opacity:.6}
+.fre-paneltoggle:hover{opacity:1}
+.fre-modalbg{position:fixed;inset:0;z-index:200;display:flex;align-items:flex-start;justify-content:center;padding-top:18vh;background:rgba(0,0,0,.4)}
+.fre-finder{width:min(650px,92vw);border-radius:3px;background:#fff;box-shadow:0 2px 15px rgba(0,0,0,.3);overflow:hidden;font:13px Roboto,system-ui,sans-serif;color:#515962}
+.fre-finder__search{display:flex;align-items:center;gap:10px;height:50px;padding:0 16px;border-bottom:1px solid #e6e8ea;color:#818a96}
+.fre-finder__search input{flex:1;height:40px;border:0;outline:0;font:italic 14px Roboto,system-ui,sans-serif;color:#0c0d0e}
+.fre-finder__list{max-height:min(60vh,440px);overflow:auto;padding:6px 0 10px}
+.fre-finder__group{margin:10px 16px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#818a96}
+.fre-finder__item{display:flex;align-items:center;gap:10px;width:100%;padding:8px 16px;border:0;background:none;color:#0c0d0e;text-align:left;cursor:pointer;font:13px Roboto,system-ui,sans-serif}
+.fre-finder__item small{margin-left:auto;color:#818a96;font-size:11px}
+.fre-finder__item.is-active{background:var(--fre-accent-soft);color:var(--fre-accent)}
+.fre-finder__none{padding:14px 16px;color:#818a96}
+.fre-shortcuts{width:min(860px,94vw);border-radius:3px;background:#fff;box-shadow:0 2px 15px rgba(0,0,0,.3);font:13px Roboto,system-ui,sans-serif;color:#515962}
+.fre-shortcuts__head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #e6e8ea}
+.fre-shortcuts__head h2{margin:0;font-size:15px;color:#0c0d0e}
+.fre-shortcuts__head button{border:0;background:none;font-size:22px;color:#818a96;cursor:pointer}
+.fre-shortcuts__cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding:18px 20px 22px}
+.fre-shortcuts h3{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#818a96}
+.fre-shortcuts p{display:flex;justify-content:space-between;gap:10px;margin:0;padding:7px 0;border-bottom:1px solid #f1f2f3}
+.fre-shortcuts kbd{display:inline-block;min-width:22px;margin-left:3px;padding:2px 6px;border:1px solid #d5d8dc;border-bottom-width:2px;border-radius:3px;background:#fff;font:11px Roboto,system-ui,sans-serif;text-align:center;color:#0c0d0e}
 `;

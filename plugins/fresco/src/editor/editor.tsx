@@ -22,6 +22,7 @@ import { EDITOR_CSS } from './styles.js';
 import { find, placeOf } from './tree.js';
 import { TopBar } from './topbar.js';
 import { NavigatorWindow } from './navigator.js';
+import { Finder, ShortcutsDialog } from './finder.js';
 import './i18n.js';
 
 const VIEWS: { view: PanelView; title: string; icon: string }[] = [
@@ -80,6 +81,14 @@ export function FrescoEditor(props: EditorProps) {
     [],
   );
   const canvas = useRef<CanvasApi>({ frame: null, doc: null, root: null });
+  const [finder, setFinder] = useState(false);
+  const [shortcuts, setShortcuts] = useState(false);
+  const [panelHidden, setPanelHidden] = useState(false);
+  useEffect(() => {
+    const open = () => setShortcuts(true);
+    window.addEventListener('fresco:shortcuts', open);
+    return () => window.removeEventListener('fresco:shortcuts', open);
+  }, []);
   const hostRef = useRef(props.host);
   hostRef.current = props.host;
   const { t } = useT();
@@ -180,6 +189,24 @@ export function FrescoEditor(props: EditorProps) {
         if (event.view !== window || !hostRef.current) return;
         event.preventDefault();
         void hostRef.current.save();
+      } else if (primary && !event.shiftKey && event.key.toLowerCase() === 'e') {
+        event.preventDefault();
+        setFinder(true);
+      } else if (primary && !event.shiftKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        store.actions.setView('site');
+      } else if (primary && event.shiftKey && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        store.actions.setView('page');
+      } else if (primary && event.shiftKey && event.key.toLowerCase() === 'm') {
+        event.preventDefault();
+        store.actions.setDevice(state.device === 'desktop' ? 'tablet' : 'desktop');
+      } else if (primary && !event.shiftKey && event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        setPanelHidden((h) => !h);
+      } else if (event.key === '?' && !typing) {
+        event.preventDefault();
+        setShortcuts(true);
       } else if (primary && event.shiftKey && event.key.toLowerCase() === 'h') {
         event.preventDefault();
         store.actions.setView('history');
@@ -261,7 +288,10 @@ export function FrescoEditor(props: EditorProps) {
 
   if (props.host) {
     return (
-      <div className="fre-root fre-root--full" data-icons={iconsReady ? 'ready' : 'loading'}>
+      <div
+        className={`fre-root fre-root--full${panelHidden ? ' is-panel-hidden' : ''}`}
+        data-icons={iconsReady ? 'ready' : 'loading'}
+      >
         <TopBar
           store={store}
           host={props.host}
@@ -276,7 +306,7 @@ export function FrescoEditor(props: EditorProps) {
           </div>
         )}
         <div className="fre-body">
-          <aside className="fre-panel" aria-label="Fresco">
+          <aside className="fre-panel" aria-label="Fresco" hidden={panelHidden}>
             <PanelHeader store={store} />
             <Panel
               store={store}
@@ -287,6 +317,15 @@ export function FrescoEditor(props: EditorProps) {
             />
           </aside>
           <main className="fre-main">
+            <button
+              type="button"
+              className="fre-paneltoggle"
+              title={panelHidden ? t('Show the panel (Ctrl+P)') : t('Hide the panel (Ctrl+P)')}
+              aria-label={panelHidden ? t('Show the panel (Ctrl+P)') : t('Hide the panel (Ctrl+P)')}
+              onClick={() => setPanelHidden((h) => !h)}
+            >
+              <Svg path={panelHidden ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} size={14} />
+            </button>
             <Canvas
               store={store}
               frameUrl={frameUrl}
@@ -298,6 +337,8 @@ export function FrescoEditor(props: EditorProps) {
           </main>
         </div>
         <NavigatorWindow store={store} />
+        {finder && <Finder store={store} host={props.host} onClose={() => setFinder(false)} />}
+        {shortcuts && <ShortcutsDialog onClose={() => setShortcuts(false)} />}
         {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
       </div>
     );
