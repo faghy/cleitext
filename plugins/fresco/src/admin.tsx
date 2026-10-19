@@ -43,6 +43,8 @@ export default defineAdminPlugin({
     {
       id: 'fresco',
       title: 'Fresco',
+      // Full screen with its own top bar, as page builders are.
+      chrome: 'none',
       fromBlocks,
       toBlocks,
       component: FrescoEditor,

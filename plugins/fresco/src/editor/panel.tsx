@@ -1,6 +1,6 @@
 /** The side panel: elements, the selected element's settings, navigator, page and site settings. */
-import type { EditorMedia } from '@cleitext/admin-sdk';
-import { useMemo, useState, type ComponentType } from 'react';
+import { useT, type EditorMedia } from '@cleitext/admin-sdk';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { conditionMet, withDefaults } from '../core/css.js';
 import {
   DEFAULT_KIT,
@@ -68,12 +68,41 @@ export function Panel(props: PanelProps) {
 
 // ---- Elements ----------------------------------------------------------------------------
 
+/** Kept in the browser: favorites and closed categories of the elements panel. */
+function useStored<T>(key: string, initial: T): [T, (value: T) => void] {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  const set = (next: T) => {
+    setValue(next);
+    try {
+      localStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      // Private mode: kept until the page closes.
+    }
+  };
+  return [value, set];
+}
+
 function ElementsView({ store, onDragStart }: PanelProps) {
+  const { t } = useT();
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<'elements' | 'globals'>('elements');
+  const [favorites, setFavorites] = useStored<string[]>('fresco:favorites', []);
+  const [closed, setClosed] = useStored<string[]>('fresco:closed-categories', []);
+  const [tileMenu, setTileMenu] = useState<{ type: string; x: number; y: number } | null>(null);
   const elements = listElements();
   const q = search.trim().toLowerCase();
   const matches = (title: string, keywords: string[] = []) =>
-    !q || title.toLowerCase().includes(q) || keywords.some((k) => k.includes(q));
+    !q ||
+    title.toLowerCase().includes(q) ||
+    t(title).toLowerCase().includes(q) ||
+    keywords.some((k) => k.includes(q));
   const addAtEnd = (type: string) => {
     const state = store.get();
     // After the selected element, or at the end of the page.
@@ -84,48 +113,148 @@ function ElementsView({ store, onDragStart }: PanelProps) {
       store.actions.add(type, { parent: null, index: state.blocks.length });
     }
   };
+  useEffect(() => {
+    if (!tileMenu) return;
+    const close = () => setTileMenu(null);
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [tileMenu]);
+  const visible = elements.filter((e) => !e.hidden && matches(e.title, e.keywords));
+  const groups = [
+    ...(favorites.length
+      ? [
+          {
+            id: 'favorites',
+            title: 'Favorites',
+            list: visible.filter((e) => favorites.includes(e.type)),
+          },
+        ]
+      : []),
+    ...CATEGORIES.map((category) => ({
+      id: category.id as string,
+      title: category.title,
+      list: visible.filter((e) => e.category === category.id),
+    })),
+  ].filter((group) => group.list.length > 0);
+  const tile = (element: (typeof elements)[number]) => (
+    <button
+      key={element.type}
+      type="button"
+      className="fre-tile"
+      title={t('{element}: drag it onto the page, or click to add it', {
+        element: t(element.title),
+      })}
+      onPointerDown={(e) => onDragStart(e, element.type, t(element.title))}
+      onClick={() => addAtEnd(element.type)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setTileMenu({ type: element.type, x: e.clientX, y: e.clientY });
+      }}
+    >
+      <Svg path={element.icon} size={28} />
+      <span>{t(element.title)}</span>
+      {element.pro && <em className="fre-pro">Pro</em>}
+    </button>
+  );
   return (
     <div className="fre-elements">
-      <input
-        className="fre-input fre-search"
-        placeholder="Search elements"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      {CATEGORIES.map((category) => {
-        const list = elements.filter(
-          (e) => !e.hidden && e.category === category.id && matches(e.title, e.keywords),
-        );
-        if (list.length === 0) return null;
-        return (
-          <section key={category.id} className="fre-category">
-            <h3>{category.title}</h3>
-            <div className="fre-tiles">
-              {list.map((element) => (
+      <div className="fre-subtabs" role="tablist">
+        {(['elements', 'globals'] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            className={tab === id ? 'is-on' : ''}
+            onClick={() => setTab(id)}
+          >
+            {id === 'elements' ? t('Elements') : t('Globals')}
+          </button>
+        ))}
+      </div>
+      {tab === 'globals' ? (
+        <p className="fre-empty-note">
+          {t(
+            'Global elements are saved once and used on many pages: change one and every copy changes. Right-click an element on the page and choose “Save as template”, then add it from Templates.',
+          )}
+        </p>
+      ) : (
+        <>
+          <div className="fre-searchbox">
+            <Svg path="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3" size={14} />
+            <input
+              placeholder={t('Search elements…')}
+              aria-label={t('Search elements')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {groups.map((group) => {
+            const isClosed = !q && closed.includes(group.id);
+            return (
+              <section key={group.id} className={`fre-category${isClosed ? ' is-closed' : ''}`}>
                 <button
-                  key={element.type}
                   type="button"
-                  className="fre-tile"
-                  title={`${element.title}: drag it onto the page, or click to add it`}
-                  onPointerDown={(e) => onDragStart(e, element.type, element.title)}
-                  onClick={() => addAtEnd(element.type)}
+                  className="fre-category__head"
+                  aria-expanded={!isClosed}
+                  onClick={() =>
+                    setClosed(
+                      isClosed ? closed.filter((c) => c !== group.id) : [...closed, group.id],
+                    )
+                  }
                 >
-                  <Svg path={element.icon} size={26} />
-                  <span>{element.title}</span>
-                  {element.pro && <em className="fre-pro">Pro</em>}
+                  <span>{t(group.title)}</span>
+                  <Svg path="M9 6l6 6-6 6" size={12} />
                 </button>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+                {!isClosed && <div className="fre-tiles">{group.list.map(tile)}</div>}
+              </section>
+            );
+          })}
+          {groups.length === 0 && <p className="fre-empty-note">{t('No elements found.')}</p>}
+        </>
+      )}
+      {tileMenu && (
+        <div
+          className="fre-menu"
+          role="menu"
+          style={{ left: tileMenu.x, top: tileMenu.y }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setFavorites(
+                favorites.includes(tileMenu.type)
+                  ? favorites.filter((f) => f !== tileMenu.type)
+                  : [...favorites, tileMenu.type],
+              );
+              setTileMenu(null);
+            }}
+          >
+            <span>
+              {favorites.includes(tileMenu.type)
+                ? t('Remove from favorites')
+                : t('Add to favorites')}
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ---- Element settings -----------------------------------------------------------------------
 
+const TAB_ICONS: Record<Tab, string> = {
+  content: 'M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z M13.5 6.5l3 3',
+  style: 'M12 3a9 9 0 1 0 0 18V3z M12 3a9 9 0 0 1 0 18',
+  advanced:
+    'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M12 2v3 M12 19v3 M4.9 4.9l2.1 2.1 M17 17l2.1 2.1 M2 12h3 M19 12h3 M4.9 19.1L7 17 M17 7l2.1-2.1',
+};
+
 function ElementView({ store, media, canManageKit }: PanelProps) {
+  const { t: tr } = useT();
   const selected = useStore(store, (s) => s.selected);
   const blocks = useStore(store, (s) => s.blocks);
   const tab = useStore(store, (s) => s.tab);
@@ -139,7 +268,7 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
   const node = selected ? find(blocks, selected) : null;
   const definition = node ? getElement(node.type) : null;
   if (!node || !definition) {
-    return <p className="fre-empty-note">Select an element on the page to edit it.</p>;
+    return <p className="fre-empty-note">{tr('Select an element on the page to edit it.')}</p>;
   }
   const settings = withDefaults(definition, node.attrs);
   const allControls = controlsOf(definition);
@@ -181,7 +310,10 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
                 className={shownTab === t ? 'is-on' : ''}
                 onClick={() => store.actions.setTab(t)}
               >
-                {t === 'content' ? 'Content' : t === 'style' ? 'Style' : 'Advanced'}
+                <Svg path={TAB_ICONS[t]} size={16} />
+                <span>
+                  {tr(t === 'content' ? 'Content' : t === 'style' ? 'Style' : 'Advanced')}
+                </span>
               </button>
             ) : null,
         )}
@@ -214,8 +346,8 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
               aria-expanded={open}
               onClick={() => setOpenSection((s) => ({ ...s, [sectionKey]: open ? null : section }))}
             >
+              <span>{tr(section)}</span>
               <Svg path={open ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6'} size={12} />
-              {section}
             </button>
             {open && (
               <div className="fre-section__body">
@@ -226,14 +358,14 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
                       className={!isHover ? 'is-on' : ''}
                       onClick={() => setHover((h) => ({ ...h, [key]: false }))}
                     >
-                      Normal
+                      {tr('Normal')}
                     </button>
                     <button
                       type="button"
                       className={isHover ? 'is-on' : ''}
                       onClick={() => setHover((h) => ({ ...h, [key]: true }))}
                     >
-                      Hover
+                      {tr('Hover')}
                     </button>
                   </div>
                 )}

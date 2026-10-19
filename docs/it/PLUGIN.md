@@ -786,6 +786,10 @@ export default defineAdminPlugin({
   - `frameUrl()`: la pagina nel layout del tema con un elemento vuoto `[data-cx-editor-canvas]` dove va il contenuto, per un iframe;
   - `media.upload` e `media.list`: la libreria media;
   - `openSettings()`: apre le impostazioni della voce sopra l'editor.
+- **A tutto schermo** (API 1.27): `chrome: 'none'` nella definizione nasconde la barra superiore dell'editor delle voci, e l'editor disegna la sua, come fanno i page builder.
+  - Riceve `host`: `{ title, setTitle, status, dirty, busy, error, canPublish, canSubmit, published, save(), publish(), submit(), preview(), back: { url, label } }`.
+  - Le azioni non falliscono mai con un'eccezione; l'errore finisce in `host.error`.
+  - Ctrl/⌘+S nella pagina dell'admin salva come sempre. Dentro il tuo iframe chiama `host.save()`.
 - Dopo il ripristino di una revisione o di un salvataggio automatico, l'editor viene montato di nuovo con il nuovo `document`.
 - Nell'iframe, che ha la stessa origine, i portali React (`createPortal` di `react-dom`) possono disegnare nel documento della pagina.
 

@@ -188,6 +188,41 @@ export interface EditorProps extends AdminPageProps {
   /** Opens the entry's settings (status, custom fields, revisions…) over the editor. */
   openSettings: () => void;
   navigate: (to: string) => void;
+  /**
+   * The entry editor's own actions (API 1.27), for editors that draw their
+   * own top bar (`chrome: 'none'`): title, saving, publishing, preview.
+   * Absent on older sites.
+   */
+  host?: EditorHost;
+}
+
+/** What the entry editor does for an editor with its own top bar (API 1.27). */
+export interface EditorHost {
+  /** The title as being edited (saved with the rest). */
+  title: string;
+  setTitle: (title: string) => void;
+  /** `draft`, `pending`, `scheduled`, `published`, `private` or `trashed`. */
+  status: string;
+  /** Changes not saved yet. */
+  dirty: boolean;
+  /** A save, publish or preview is running. */
+  busy: boolean;
+  /** The message of the last failed action, or null. */
+  error: string | null;
+  /** The user may publish: the main button is Publish (or Update when published). */
+  canPublish: boolean;
+  /** Without publishing rights, a draft can be submitted for review. */
+  canSubmit: boolean;
+  /** Published or private: the main button reads Update. */
+  published: boolean;
+  /** Saves the changes (also Ctrl/⌘+S); never rejects, failures land in `error`. */
+  save: () => Promise<void>;
+  publish: () => Promise<void>;
+  submit: () => Promise<void>;
+  /** Saves, then opens the signed preview in a new tab. */
+  preview: () => Promise<void>;
+  /** The list of entries the editor came from. */
+  back: { url: string; label: string };
 }
 
 /**
@@ -204,6 +239,13 @@ export interface EditorDefinition {
   /** Content types it can edit (all when omitted). */
   types?: string[];
   capability?: string;
+  /**
+   * `none` (API 1.27): the editor takes the whole screen and draws its own
+   * top bar with `host` (title, save, publish, preview, back); the entry
+   * settings still open with `openSettings`. Default `host`: the entry
+   * editor's bar stays above the editor.
+   */
+  chrome?: 'host' | 'none';
   /**
    * Converts a block editor document when switching to this editor. Without
    * it, the page starts empty (earlier revisions keep the old content).

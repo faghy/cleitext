@@ -4,7 +4,7 @@
  * Every change is handed to Cleitext (`onChange`), which saves, autosaves and
  * publishes the entry as usual.
  */
-import { api as coreApi, type EditorProps } from '@cleitext/admin-sdk';
+import { api as coreApi, useT, type EditorProps } from '@cleitext/admin-sdk';
 import type { CxdDocument } from '@cleitext/blocks';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setIconData, iconDataLoaded, type IconData } from '../core/icons.js';
@@ -20,6 +20,8 @@ import { loadPluginBlocks } from './plugin-blocks.js';
 import { createStore, useStore, type PanelView, type Store } from './store.js';
 import { EDITOR_CSS } from './styles.js';
 import { find, placeOf } from './tree.js';
+import { TopBar } from './topbar.js';
+import './i18n.js';
 
 const VIEWS: { view: PanelView; title: string; icon: string }[] = [
   {
@@ -77,6 +79,9 @@ export function FrescoEditor(props: EditorProps) {
     [],
   );
   const canvas = useRef<CanvasApi>({ frame: null, doc: null, root: null });
+  const hostRef = useRef(props.host);
+  hostRef.current = props.host;
+  const { t } = useT();
   const [mediaMap] = useState(() => new Map<string, RenderMediaItem>());
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [iconsReady, setIconsReady] = useState(iconDataLoaded());
@@ -169,7 +174,12 @@ export function FrescoEditor(props: EditorProps) {
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
       const primary = event.ctrlKey || event.metaKey;
       const state = store.get();
-      if (primary && event.key.toLowerCase() === 'z' && !typing) {
+      if (primary && event.key.toLowerCase() === 's' && !event.shiftKey && !event.altKey) {
+        // The admin saves on its own page; inside the canvas Fresco asks it.
+        if (event.view !== window || !hostRef.current) return;
+        event.preventDefault();
+        void hostRef.current.save();
+      } else if (primary && event.key.toLowerCase() === 'z' && !typing) {
         event.preventDefault();
         if (event.shiftKey) store.actions.redo();
         else store.actions.undo();
@@ -230,6 +240,58 @@ export function FrescoEditor(props: EditorProps) {
     store.actions.setKit(normalizeKit(saved), false);
   }, [api, store]);
 
+  const saveAsTemplate = () => {
+    const name = window.prompt(t('Name of the template'), props.host?.title ?? '');
+    if (name) void saveTemplate(name, 'page', store.get().blocks).catch(() => {});
+  };
+  // Fresco Pro's theme builder, under the admin of this site.
+  const themeBuilderUrl = user.capabilities.includes('manage_fresco_templates')
+    ? `${window.location.pathname.split('/entries/')[0]}/ext/fresco-pro/theme-builder`
+    : null;
+
+  if (props.host) {
+    return (
+      <div className="fre-root fre-root--full" data-icons={iconsReady ? 'ready' : 'loading'}>
+        <TopBar
+          store={store}
+          host={props.host}
+          canManageKit={canManageKit}
+          themeBuilderUrl={themeBuilderUrl}
+          openSettings={openSettings}
+          saveAsTemplate={saveAsTemplate}
+        />
+        {props.host.error && (
+          <div className="fre-hosterror" role="alert">
+            {props.host.error}
+          </div>
+        )}
+        <div className="fre-body">
+          <aside className="fre-panel" aria-label="Fresco">
+            <PanelHeader store={store} />
+            <Panel
+              store={store}
+              media={media}
+              onDragStart={onDragStart}
+              canManageKit={canManageKit}
+              onSaveKit={saveKit}
+            />
+          </aside>
+          <main className="fre-main">
+            <Canvas
+              store={store}
+              frameUrl={frameUrl}
+              assetsBase={assetsBase}
+              context={{ media: mediaMap, locale: props.entry.locale, menus }}
+              onContextMenu={(id, position) => setMenu({ id, ...position })}
+              api={canvas}
+            />
+          </main>
+        </div>
+        {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
+      </div>
+    );
+  }
+
   return (
     <div className="fre-root" data-icons={iconsReady ? 'ready' : 'loading'}>
       <aside className="fre-panel" aria-label="Fresco">
@@ -254,6 +316,40 @@ export function FrescoEditor(props: EditorProps) {
         />
       </main>
       {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
+    </div>
+  );
+}
+
+/** The panel's title, with the way back to the elements (as in other builders). */
+function PanelHeader({ store }: { store: Store }) {
+  const { t } = useT();
+  const view = useStore(store, (s) => s.view);
+  const selected = useStore(store, (s) => s.selected);
+  const blocks = useStore(store, (s) => s.blocks);
+  const node = view === 'element' && selected ? find(blocks, selected) : null;
+  const elementTitle = node ? (getElement(node.type)?.title ?? node.type) : '';
+  const titles: Record<PanelView, string> = {
+    elements: t('Elements'),
+    element: t('Edit {element}', { element: t(elementTitle) }),
+    navigator: t('Structure'),
+    library: t('Templates'),
+    page: t('Page settings'),
+    site: t('Site settings'),
+  };
+  return (
+    <div className="fre-panel__head">
+      <h2>{titles[view]}</h2>
+      {view !== 'elements' && (
+        <button
+          type="button"
+          className="fre-panel__headbtn"
+          title={t('Elements')}
+          aria-label={t('Back to the elements')}
+          onClick={() => store.actions.setView('elements')}
+        >
+          <Svg path="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z" size={18} />
+        </button>
+      )}
     </div>
   );
 }

@@ -867,6 +867,10 @@ function BuilderEditor({
 - Content blocks are ordinary CXD blocks, usually your plugin's own (§7). Revisions, autosaves, translations, export and the AI assistants keep working.
 - After a revision or an autosave is restored, the editor is mounted again with the new `document`.
 - `media.upload` and `media.list` give the media library. `openSettings()` opens the entry's settings (status, custom fields, revisions) over the editor.
+- **Full screen** (API 1.27): `chrome: 'none'` in the definition hides the entry editor's top bar, and the editor draws its own, as page builders do.
+  - It gets `host`: `{ title, setTitle, status, dirty, busy, error, canPublish, canSubmit, published, save(), publish(), submit(), preview(), back: { url, label } }`.
+  - The actions never reject; a failure lands in `host.error`.
+  - Ctrl/⌘+S in the admin page saves as usual. Inside your own frame, call `host.save()`.
 - In the frame, React portals (`createPortal` from `react-dom`) can render into the iframe's document, since it has the same origin.
 
 ### Shared modules

@@ -1,7 +1,7 @@
 import { adminUrl } from '@cleitext/shared';
 import { documentStats, type CxdDocument } from '@cleitext/blocks';
 import type { EditorInstance, EditorServices, EmbedPreview, MediaRef } from '@cleitext/editor-core';
-import { FieldsForm, useT, type EditorDraft } from '@cleitext/admin-sdk';
+import { FieldsForm, useT, type EditorDraft, type EditorHost } from '@cleitext/admin-sdk';
 import {
   fieldDefaults,
   labelText,
@@ -419,6 +419,29 @@ function Editor({ initial }: { initial: EntryView }) {
       ? t('Pages')
       : t('Posts');
 
+  // An editor with its own top bar (API 1.27) gets the bar's actions instead.
+  const ownChrome = activeEditor?.definition.chrome === 'none';
+  const quiet = (run: Promise<unknown>) => run.then(() => undefined).catch(() => undefined);
+  const host: EditorHost = {
+    title,
+    setTitle: (next) => {
+      setTitle(next);
+      markDirty();
+    },
+    status: entry.status,
+    dirty: saveState === 'dirty',
+    busy: action.isPending || preview.isPending,
+    error,
+    canPublish: !readOnly && entry.permissions.publish && entry.status !== 'trashed',
+    canSubmit: !readOnly && !entry.permissions.publish && entry.status === 'draft',
+    published: isPublished,
+    save: () => (readOnly ? Promise.resolve() : quiet(action.mutateAsync('save'))),
+    publish: () => quiet(action.mutateAsync('publish')),
+    submit: () => quiet(action.mutateAsync('submit')),
+    preview: () => quiet(preview.mutateAsync()),
+    back: { url: adminUrl(backTo), label: typeName },
+  };
+
   const editorEntry = {
     id: entry.id,
     type: entry.type,
@@ -431,7 +454,13 @@ function Editor({ initial }: { initial: EntryView }) {
 
   return (
     <EditorShell>
-      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
+      <header
+        className={
+          ownChrome
+            ? 'hidden'
+            : 'flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2'
+        }
+      >
         <Link
           to={backTo}
           className="text-sm text-sky-700 hover:underline"
@@ -520,7 +549,7 @@ function Editor({ initial }: { initial: EntryView }) {
         )}
       </header>
 
-      {error && (
+      {error && !ownChrome && (
         <div className="border-b border-red-200 bg-red-50 px-4 py-2">
           <Alert>{error}</Alert>
         </div>
@@ -616,6 +645,7 @@ function Editor({ initial }: { initial: EntryView }) {
                 }}
                 media={pluginMedia(initial.locale)}
                 openSettings={() => setSettingsOpen(true)}
+                host={host}
               />
             )}
           </div>
