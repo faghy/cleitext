@@ -107,6 +107,7 @@ export default defineTheme({
 | `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description? }]`; a field goes in one with `section` (§4).                                    |
 | `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                   |
 | `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                             |
+| `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).   |
 | `editorCss`        | CSS for the block editor, so that content looks like the site while writing. A string, or a function of the settings.                        |
 | `comments`         | `'auto'` (default): comments, likes and sharing follow `<EntryContent>` on entries that have them. `'manual'`: the theme places them itself. |
 

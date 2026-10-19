@@ -124,6 +124,11 @@ export interface PublicEntry extends PublicEntrySummary {
   fields: Record<string, unknown>;
   /** Featured image chosen by the author, if any (RF-CNT-12). */
   featuredImage: RenderMedia | null;
+  /**
+   * Entries of the same type sharing its categories (then its tags), newest
+   * first: only for themes that ask for them (`relatedEntries`).
+   */
+  related?: PublicEntrySummary[];
   /** Comments, for types that have them. */
   comments?: EntryComments;
   /** Likes, when the site has them on. */
@@ -222,6 +227,11 @@ export interface ThemeDefinition {
    * `editor.data`, where templates read them.
    */
   entryFields?: { types?: string[]; fields: FieldDefinition[] };
+  /**
+   * How many related entries the theme may show under an entry (at most 12):
+   * Cleitext gives them in `entry.related`. Without it, none are looked up.
+   */
+  relatedEntries?: number;
   /**
    * Areas made of blocks (RF-THM-04), e.g. `{ footer: 'Footer' }`, edited in
    * Appearance → Areas and rendered with `<BlockArea name="footer" />`.

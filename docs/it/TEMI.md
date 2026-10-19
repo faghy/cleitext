@@ -49,19 +49,20 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 
 `defineTheme({ … })` riceve:
 
-| Proprietà          | A cosa serve                                                                                                                                        |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Layout`           | La pagina attorno a ogni template: `<html>`, `<head>` (con `<HeadTags>` per `head.tags`), intestazione, piè di pagina.                              |
-| `templates`        | Componenti per nome; `index` è obbligatorio. I nomi più specifici hanno la precedenza (ARCHITETTURA §12.2).                                         |
-| `css`              | Foglio di stile incluso in ogni pagina. Tienilo piccolo.                                                                                            |
-| `menuLocations`    | Posizioni per i menu, assegnati in Aspetto → Menu; si leggono con `usePage().menus`.                                                                |
-| `settings`         | Campi mostrati in Aspetto → Personalizza (§4).                                                                                                      |
-| `areas`            | Aree composte di blocchi (§5).                                                                                                                      |
-| `settingsSections` | Schede di Aspetto → Personalizza: `[{ id, label, description? }]`; un campo ci va con `section` (§4).                                               |
-| `presets`          | Stili pronti: `[{ id, label, values }]`, applicati in Personalizza prima di pubblicare (§4).                                                        |
-| `entryFields`      | Opzioni per pagina, `{ types?, fields }`, mostrate nella scheda Documento dell'editor (§4).                                                         |
-| `editorCss`        | CSS per l'editor a blocchi, perché i contenuti abbiano lo stesso aspetto del sito mentre si scrive. Una stringa, o una funzione delle impostazioni. |
-| `comments`         | `'auto'` (predefinito): commenti, mi piace e condivisione seguono `<EntryContent>` nelle voci che li hanno. `'manual'`: li posiziona il tema.       |
+| Proprietà          | A cosa serve                                                                                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Layout`           | La pagina attorno a ogni template: `<html>`, `<head>` (con `<HeadTags>` per `head.tags`), intestazione, piè di pagina.                                   |
+| `templates`        | Componenti per nome; `index` è obbligatorio. I nomi più specifici hanno la precedenza (ARCHITETTURA §12.2).                                              |
+| `css`              | Foglio di stile incluso in ogni pagina. Tienilo piccolo.                                                                                                 |
+| `menuLocations`    | Posizioni per i menu, assegnati in Aspetto → Menu; si leggono con `usePage().menus`.                                                                     |
+| `settings`         | Campi mostrati in Aspetto → Personalizza (§4).                                                                                                           |
+| `areas`            | Aree composte di blocchi (§5).                                                                                                                           |
+| `settingsSections` | Schede di Aspetto → Personalizza: `[{ id, label, description? }]`; un campo ci va con `section` (§4).                                                    |
+| `presets`          | Stili pronti: `[{ id, label, values }]`, applicati in Personalizza prima di pubblicare (§4).                                                             |
+| `entryFields`      | Opzioni per pagina, `{ types?, fields }`, mostrate nella scheda Documento dell'editor (§4).                                                              |
+| `relatedEntries`   | Quanti contenuti correlati mostrare sotto un contenuto (al massimo 12): `entry.related` li contiene, prima stesse categorie, poi stessi tag (core 0.37). |
+| `editorCss`        | CSS per l'editor a blocchi, perché i contenuti abbiano lo stesso aspetto del sito mentre si scrive. Una stringa, o una funzione delle impostazioni.      |
+| `comments`         | `'auto'` (predefinito): commenti, mi piace e condivisione seguono `<EntryContent>` nelle voci che li hanno. `'manual'`: li posiziona il tema.            |
 
 I template ricevono la pagina come props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) e leggono il resto con `usePage()`. Non interrogano mai il database.
 

@@ -51,6 +51,7 @@ import {
   type PageContext,
   type PublicComment,
   type PublicEntry,
+  type PublicEntrySummary,
   type Viewer,
   type MenuItemView,
   type ThemeLocation,
@@ -1307,6 +1308,14 @@ export class PublicService {
       data.types.find((t) => t.slug === entry.row.typeSlug)?.supports?.includes('comments')
     ) {
       await this.addCommunity(scope, entry.row, publicEntry);
+    }
+    // Related entries, for themes that show them (same categories, then same tags).
+    const relatedWanted = Math.min(
+      Math.max(Math.trunc(Number(scope.theme.relatedEntries) || 0), 0),
+      12,
+    );
+    if (relatedWanted > 0 && !options.isFrontPage) {
+      publicEntry.related = await this.relatedEntries(scope, publicEntry, relatedWanted);
     }
     if (scope.activePlugins.size > 0) {
       const blocks = await this.plugins.applyFilter(
@@ -2703,6 +2712,41 @@ export class PublicService {
         usersOnly: settings.likes === 'users',
       };
     }
+  }
+
+  /** Entries sharing the entry's terms: its categories first, then its tags and other taxonomies. */
+  private async relatedEntries(
+    scope: RequestScope,
+    entry: PublicEntry,
+    wanted: number,
+  ): Promise<PublicEntrySummary[]> {
+    const found: PublicEntry[] = [];
+    const taxonomies = Object.keys(entry.terms).sort((a, b) =>
+      a === 'category' ? -1 : b === 'category' ? 1 : a === 'tag' ? -1 : b === 'tag' ? 1 : 0,
+    );
+    for (const taxonomy of taxonomies) {
+      if (found.length >= wanted) break;
+      const slugs = (entry.terms[taxonomy] ?? []).map((t) => t.slug);
+      if (!slugs.length) continue;
+      const { entries } = await this.queryEntries(scope, {
+        type: entry.type,
+        terms: { taxonomy, slugs },
+        exclude: [entry.id, ...found.map((e) => e.id)],
+        limit: wanted - found.length,
+      });
+      found.push(...entries);
+    }
+    return found.map((e) => ({
+      id: e.id,
+      type: e.type,
+      locale: e.locale,
+      title: e.title,
+      url: e.url,
+      publishedAt: e.publishedAt,
+      excerpt: e.excerpt,
+      author: e.author,
+      image: e.featuredImage ?? e.image,
+    }));
   }
 
   /** Entries for plugin listings (BlockLoadContext.query), complete as on their own page. */
