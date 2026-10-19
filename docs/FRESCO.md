@@ -7,7 +7,7 @@ A Fresco page is an ordinary Cleitext entry: revisions, translations, export, se
 ## Getting started
 
 1. Install Fresco from **Plugins → Add New Plugin** and activate it.
-2. Open a page and choose **Edit with Fresco**, or create a page and pick Fresco as its editor.
+2. Open a page and choose **Edit with Fresco**, or create a page and pick Fresco as its editor. On the site, while signed in, the toolbar at the top of a Fresco page has **Edit with Fresco** too.
 3. Drag a **Container** from the panel onto the page, then widgets into the container.
 4. Select an element to change it in the panel: **Content**, **Style** and **Advanced** tabs.
 5. **Publish** as usual: the page is saved with its revisions.

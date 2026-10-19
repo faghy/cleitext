@@ -146,6 +146,12 @@ export interface Filters {
   ];
   /** Final HTML of a public page; use sparingly (needs `theme:hooks`). */
   'render.html': [html: string, context: RenderHookContext];
+  /**
+   * The "Edit" link of the toolbar shown to signed-in users on an entry, e.g.
+   * "Edit with <builder>" for entries made with a page builder; `null` hides
+   * it (plugin API 1.29, needs `theme:hooks`).
+   */
+  'render.adminBarEdit': [link: AdminBarEditLink | null, context: AdminBarEditContext];
   /** Template names tried in order, e.g. `entry-event` (needs `theme:hooks`). */
   'theme.templateCandidates': [candidates: string[], context: RenderHookContext];
   /**
@@ -257,6 +263,25 @@ export interface ImportIdMap {
   entries: Record<string, string>;
   terms: Record<string, string>;
   media: Record<string, { id: string; url: string }>;
+}
+
+/** The edit link of the toolbar on the public site (`render.adminBarEdit`). */
+export interface AdminBarEditLink {
+  label: string;
+  /** An address of the admin, e.g. `/cl-admin/entries/<id>`. */
+  href: string;
+}
+
+export interface AdminBarEditContext {
+  siteId: string;
+  /** The language of the signed-in user's admin (`en`, `it`…). */
+  locale: string;
+  entry: {
+    id: string;
+    type: string;
+    /** The editor the entry is made with (`document.editor.id`), if not the block editor. */
+    editor?: string;
+  };
 }
 
 /** What a plugin did with its data of an import (`import.pluginData`). */

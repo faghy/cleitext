@@ -73,7 +73,7 @@ import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import { withBackToTop } from './back-to-top.js';
 import { avatarUrl } from '../profile/avatar.js';
-import { withAdminBar } from './admin-bar.js';
+import { adminBarEditLink, withAdminBar } from './admin-bar.js';
 import { LanguagesService } from '../content/languages.service.js';
 import { PageCacheService } from './page-cache.service.js';
 import { SettingsService } from '../settings/settings.service.js';
@@ -124,7 +124,7 @@ export interface PublicResponse {
   tags: string[];
   /** For the toolbar of signed-in users. */
   siteTitle?: string;
-  entry?: { id: string; type: string };
+  entry?: { id: string; type: string; editor?: string };
   /** The account and sign-out addresses in the page's language, for the toolbar. */
   account?: { url: string; logout: string };
 }
@@ -412,16 +412,30 @@ export class PublicService {
         // Signed-in visitors (never cached) get the toolbar leading to the admin,
         // except inside a visual editor's frame.
         const frame = /^\/__preview\/[^?]+\?(?:.*&)?frame=1(?:&|$)/.test(request.url);
-        const page =
+        const toolbar = Boolean(
           request.auth &&
           !request.auth.apiToken &&
           contentType === HTML &&
           response.siteTitle &&
-          !frame
+          !frame,
+        );
+        // Plugins may name the edit link, e.g. "Edit with" a page builder.
+        const edit =
+          toolbar && request.auth && response.entry
+            ? await this.plugins.applyFilter(
+                'render.adminBarEdit',
+                adminBarEditLink(request.auth, response.entry),
+                { siteId: site.id, locale: request.auth.locale, entry: response.entry },
+                site.id,
+              )
+            : undefined;
+        const page =
+          toolbar && request.auth && response.siteTitle
             ? withAdminBar(html, {
                 auth: request.auth,
                 siteName: response.siteTitle,
                 ...(response.entry ? { entry: response.entry } : {}),
+                ...(edit !== undefined ? { edit } : {}),
                 ...(response.account
                   ? { accountUrl: response.account.url, logoutUrl: response.account.logout }
                   : {}),
@@ -1356,7 +1370,11 @@ export class PublicService {
       alternates,
       options.status ?? 200,
     );
-    return { ...response, entry: { id: entry.row.id, type: entry.row.typeSlug } };
+    const editor = publicEntry.document.editor?.id;
+    return {
+      ...response,
+      entry: { id: entry.row.id, type: entry.row.typeSlug, ...(editor ? { editor } : {}) },
+    };
   }
 
   private async renderArchive(

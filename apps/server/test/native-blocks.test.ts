@@ -236,4 +236,28 @@ describe('blocks with their own editor', () => {
       '1 entry of the type "event" was not imported: the site has no such content type (activate the plugin that adds it, then import again).',
     );
   });
+
+  it('names its editor in the toolbar of the public site', async () => {
+    const made = (
+      await admin.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Built natively',
+        slug: 'built-natively',
+        document: { schema: 1, blocks: [], editor: { id: 'native' } },
+      })
+    ).json() as { id: string };
+    await admin.post(`/api/v1/entries/${made.id}/publish`);
+    const bar = (body: string) => /<nav id="cleitext-admin-bar"[\s\S]*?<\/nav>/.exec(body)![0];
+    const own = bar((await admin.get('/built-natively')).body);
+    expect(own).toContain(`href="/cl-admin/entries/${made.id}"`);
+    expect(own).toContain('Edit with Native');
+    // Other pages keep the core's link.
+    const plain = (
+      await admin.post('/api/v1/entries', { type: 'page', title: 'Plain', slug: 'plain-page' })
+    ).json() as { id: string };
+    await admin.post(`/api/v1/entries/${plain.id}/publish`);
+    const other = bar((await admin.get('/plain-page')).body);
+    expect(other).toContain('Edit page');
+    expect(other).not.toContain('Edit with Native');
+  });
 });

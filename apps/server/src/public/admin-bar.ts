@@ -1,3 +1,4 @@
+import type { AdminBarEditLink } from '@cleitext/plugin-sdk';
 import { ADMIN_PATH } from '@cleitext/shared';
 import type { AuthContext } from '../common/request-context.js';
 
@@ -56,6 +57,25 @@ export interface AdminBarOptions {
   /** The visitor's account page and sign-out address on the site. */
   accountUrl?: string;
   logoutUrl?: string;
+  /** The edit link as plugins left it (`render.adminBarEdit`); null hides it. */
+  edit?: AdminBarEditLink | null;
+}
+
+function labels(auth: AuthContext) {
+  return auth.locale.toLowerCase().startsWith('it') ? LABELS.it : LABELS.en;
+}
+
+/** The toolbar's link to the editor of the entry shown, before plugins change it. */
+export function adminBarEditLink(
+  auth: AuthContext,
+  entry: { id: string; type: string },
+): AdminBarEditLink | null {
+  if (!auth.capabilities.includes('edit_entries')) return null;
+  const t = labels(auth);
+  return {
+    label: entry.type === 'article' ? t.editArticle : entry.type === 'page' ? t.editPage : t.edit,
+    href: `${ADMIN_PATH}/entries/${encodeURIComponent(entry.id)}`,
+  };
 }
 
 export function adminBar({
@@ -64,11 +84,12 @@ export function adminBar({
   entry,
   accountUrl,
   logoutUrl,
+  edit,
 }: AdminBarOptions): string {
-  const t = auth.locale.toLowerCase().startsWith('it') ? LABELS.it : LABELS.en;
-  const canEdit = auth.capabilities.includes('edit_entries');
-  const editLabel =
-    entry?.type === 'article' ? t.editArticle : entry?.type === 'page' ? t.editPage : t.edit;
+  const t = labels(auth);
+  const link = edit !== undefined ? edit : entry ? adminBarEditLink(auth, entry) : null;
+  // Only links into the admin.
+  const editLink = link && link.href.startsWith(`${ADMIN_PATH}/`) ? link : null;
   const initials = auth.displayName.trim().charAt(0).toUpperCase() || '?';
   const avatar = auth.avatarUrl
     ? `<img src="${escape(auth.avatarUrl)}" alt="">`
@@ -82,8 +103,8 @@ export function adminBar({
   }
   const links = [
     `<a class="cab-site" href="${ADMIN_PATH}/" title="${escape(t.dashboard)}">${icon('M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z')}<span class="cab-label">${escape(siteName)}</span></a>`,
-    canEdit && entry
-      ? `<a href="${ADMIN_PATH}/entries/${encodeURIComponent(entry.id)}">${icon('M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z')}<span class="cab-label">${escape(editLabel)}</span></a>`
+    editLink
+      ? `<a class="cab-edit" href="${escape(editLink.href)}">${icon('M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z')}<span class="cab-label">${escape(editLink.label)}</span></a>`
       : '',
     `<a class="cab-user" href="${ADMIN_PATH}/profile"><span class="cab-label">${escape(t.signedIn)} ${escape(auth.displayName)}</span>${avatar}</a>`,
   ];

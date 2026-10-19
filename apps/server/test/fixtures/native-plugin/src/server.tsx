@@ -34,6 +34,10 @@ export default definePlugin({
         ],
       };
     });
+    // The toolbar of the public site names its editor (plugin API 1.29).
+    ctx.hooks.filter('render.adminBarEdit', (link, { entry }) =>
+      link && entry.editor === 'native' ? { ...link, label: 'Edit with Native' } : link,
+    );
     // The tests import transfer documents through it.
     ctx.routes.api({
       method: 'POST',

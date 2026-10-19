@@ -159,6 +159,18 @@ export default definePlugin({
       return { ...locations, header: empty, footer: empty };
     });
 
+    // The toolbar of the public site says "Edit with Fresco" on Fresco pages (plugin API 1.29).
+    ctx.hooks.filter('render.adminBarEdit', (link, { locale, entry }) =>
+      link && entry.editor === 'fresco'
+        ? {
+            ...link,
+            label: locale.toLowerCase().startsWith('it')
+              ? 'Modifica con Fresco'
+              : 'Edit with Fresco',
+          }
+        : link,
+    );
+
     // Page settings of Fresco pages: layout, hidden title, page background.
     ctx.hooks.filter('render.html', async (html, context) => {
       const editor = context.entry?.document.editor;

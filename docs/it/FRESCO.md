@@ -7,7 +7,7 @@ Una pagina di Fresco è una normale voce di Cleitext: revisioni, traduzioni, esp
 ## Primi passi
 
 1. Installa Fresco da **Plugin → Aggiungi nuovo plugin** e attivalo.
-2. Apri una pagina e scegli **Modifica con Fresco**, oppure crea una pagina e scegli Fresco come editor.
+2. Apri una pagina e scegli **Modifica con Fresco**, oppure crea una pagina e scegli Fresco come editor. Sul sito, da connesso, anche la barra in alto di una pagina Fresco ha **Modifica con Fresco**.
 3. Trascina un **Contenitore** dal pannello nella pagina, poi i widget nel contenitore.
 4. Seleziona un elemento per modificarlo nel pannello: schede **Content** (contenuto), **Style** (stile) e **Advanced** (avanzate).
 5. **Pubblica** come sempre: la pagina viene salvata con le sue revisioni.
