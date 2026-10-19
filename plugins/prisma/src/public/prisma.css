@@ -170,6 +170,10 @@
   box-sizing: border-box;
   transition: box-shadow 0.2s ease;
 }
+/* Covers imported from WordPress: light text on the dark overlay, as there. */
+.pr-cover-dark {
+  color: #fff;
+}
 .pr-container .pr-container__link {
   position: absolute;
   inset: 0;
@@ -186,8 +190,15 @@
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
 }
+/* A root container placed inside a group or a column stays in it, as in WordPress. */
+.wp-block-group > .pr-container.pr-is-root.alignfull,
+.wp-block-column > .pr-container.pr-is-root.alignfull {
+  margin-left: 0;
+  margin-right: 0;
+}
 .pr-container.pr-is-root.alignwide {
-  width: 100%;
+  /* Auto, not 100%: themes that widen .alignwide with negative margins (Astra on phones) still can. */
+  width: auto;
   max-width: var(--wp--style--global--wide-size, 1200px);
 }
 .alignfull.pr-is-root > .pr-container__inner {
@@ -575,6 +586,22 @@ a.pr-info-box__link-all {
 }
 @media (max-width: 767px) {
   body .pr-hide-mobile {
+    display: none !important;
+  }
+}
+/* Hidden by device as in WordPress 6.9 and later (its breakpoints). */
+@media (min-width: 783px) {
+  body .pr-viewport-hide-desktop {
+    display: none !important;
+  }
+}
+@media (min-width: 481px) and (max-width: 782px) {
+  body .pr-viewport-hide-tablet {
+    display: none !important;
+  }
+}
+@media (max-width: 480px) {
+  body .pr-viewport-hide-mobile {
     display: none !important;
   }
 }

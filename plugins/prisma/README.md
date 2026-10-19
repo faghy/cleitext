@@ -28,6 +28,6 @@ Every block can also have an **entrance animation**, be **hidden on desktop, tab
 
 ## WordPress
 
-The WordPress importer turns the Spectra blocks into these blocks, keeping their settings, including the older Section, Columns and Column layouts (as containers). Activate this plugin **before** importing.
+The WordPress importer turns the Spectra blocks into these blocks, keeping their settings, including the older Section, Columns and Column layouts (as containers). Activate this plugin **before** importing. WordPress covers become containers with their background picture and overlay; the additional CSS classes of the blocks and WordPress's hiding by device (desktop, tablet, phone, with WordPress's breakpoints) are kept.
 
 Plugin API 1.23: blocks with their own editor (`blocks`), the stylesheets and scripts of the site (`theme:hooks`), its own settings (`settings:own`), posts and media (`content:read`), comment counts (`comments`), the form's address (`routes:public`), its emails (`mail:send`) and the reCAPTCHA check (`network`).

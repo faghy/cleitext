@@ -11,7 +11,7 @@ import { blockCss, withDefaults } from './lib/css';
 import { DEFAULT_GLOBALS, normalizeGlobals, variablesCss, type Globals } from './lib/globals';
 import { FORM_SETTINGS, registerFormRoutes } from './blocks/form/route';
 import { buildTablesOfContents } from './blocks/table-of-contents/server';
-import { fromSpectra } from './import';
+import { fromCover, fromSpectra } from './import';
 import { extensionProps, googleFontsLink } from './lib/extensions';
 import { setIconData, type IconData } from './lib/icons';
 import icons from './public/icons.json';
@@ -180,7 +180,12 @@ export default definePlugin({
     ctx.hooks.filter(
       'import.block',
       (blocks, { name, attrs, html, children }) =>
-        blocks ?? (name.startsWith('uagb/') ? fromSpectra(name, attrs, html, children) : null),
+        blocks ??
+        (name.startsWith('uagb/')
+          ? fromSpectra(name, attrs, html, children)
+          : name === 'core/cover'
+            ? fromCover(attrs, html, children)
+            : null),
     );
     ctx.assets.enqueue({
       file: 'prisma.css',

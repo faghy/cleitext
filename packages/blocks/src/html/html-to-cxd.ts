@@ -1,6 +1,7 @@
 import {
   CXD_SCHEMA_VERSION,
   cleanBlockStyle,
+  cleanLayout,
   htmlToInline,
   inlineText,
   newBlockId,
@@ -44,6 +45,15 @@ export function htmlToCxd(html: string, options: ConvertOptions = {}): CxdDocume
 
 // ---- Block markup ----------------------------------------------------------------------
 
+/** Text alignment as WordPress 6.9+ saves it, in the block's `style.typography.textAlign`. */
+function styleTextAlign(attrs: Record<string, unknown>): string | undefined {
+  const style = attrs.style as { typography?: { textAlign?: unknown } } | undefined;
+  const value = style?.typography?.textAlign;
+  return typeof value === 'string' && ['left', 'center', 'right', 'justify'].includes(value)
+    ? value
+    : undefined;
+}
+
 function fromWpBlock(
   block: WpBlock,
   options: ConvertOptions,
@@ -62,18 +72,26 @@ function fromWpBlock(
   switch (name) {
     case 'core/paragraph': {
       const content = inline(firstElementInner(html, 'p') ?? html);
+      const align = attrs.align ?? styleTextAlign(attrs);
       return hasText(content)
-        ? [make('core/paragraph', { ...common, ...pick(attrs, ['dropCap']) }, content)]
+        ? [
+            make(
+              'core/paragraph',
+              { ...common, ...(align ? { align } : {}), ...pick(attrs, ['dropCap']) },
+              content,
+            ),
+          ]
         : [];
     }
     case 'core/heading': {
       const element = parse(html).querySelector('h1,h2,h3,h4,h5,h6');
       const level =
         typeof attrs.level === 'number' ? attrs.level : Number(element?.tagName.slice(1) ?? 2);
+      const textAlign = attrs.textAlign ?? styleTextAlign(attrs);
       return [
         make(
           'core/heading',
-          { ...common, level, ...pick(attrs, ['textAlign']) },
+          { ...common, level, ...(textAlign ? { textAlign } : {}) },
           inline(element?.innerHTML ?? html),
         ),
       ];
@@ -165,26 +183,47 @@ function fromWpBlock(
     case 'core/columns':
       return [
         {
-          ...make('core/columns', { ...common, ...pick(attrs, ['isStackedOnMobile']) }),
+          ...make('core/columns', {
+            ...common,
+            ...pick(attrs, ['isStackedOnMobile', 'verticalAlignment']),
+          }),
           children: children(),
         },
       ];
     case 'core/column':
       return [
-        { ...make('core/column', { ...common, ...pick(attrs, ['width']) }), children: children() },
+        {
+          ...make('core/column', { ...common, ...pick(attrs, ['width', 'verticalAlignment']) }),
+          children: children(),
+        },
       ];
     case 'core/group':
     case 'core/cover':
     case 'core/media-text': {
-      if (name !== 'core/group') warn(`A ${name.slice(5)} block became a group.`);
+      // During an import a plugin may have a block for covers (the import.block
+      // filter): the group is the placeholder's content, used when none does.
       const inner = children();
       if (name === 'core/media-text' || name === 'core/cover') {
         const image = parse(html).querySelector('img');
         if (image) inner.unshift(imageBlock(image, {}, attrs.mediaId ?? attrs.id, options));
       }
-      return [
-        { ...make('core/group', { ...common, ...pick(attrs, ['tagName']) }), children: inner },
-      ];
+      // Rows and grids of WordPress's layout support (groups only).
+      const layout = name === 'core/group' ? cleanLayout(attrs.layout) : undefined;
+      const group = {
+        ...make('core/group', {
+          ...common,
+          ...pick(attrs, ['tagName']),
+          ...(layout ? { layout } : {}),
+        }),
+        children: inner,
+      };
+      if (name === 'core/cover' && options.keepUnknown) {
+        return [
+          { ...make(IMPORTED_BLOCK, { name, attrs, html, fallback: [] }), children: [group] },
+        ];
+      }
+      if (name !== 'core/group') warn(`A ${name.slice(5)} block became a group.`);
+      return [group];
     }
     case 'core/separator':
       return [make('core/separator', common)];
@@ -271,11 +310,23 @@ function withPaletteClasses(
   const text = slug(attrs.textColor);
   const background = slug(attrs.backgroundColor);
   const gradient = slug(attrs.gradient);
+  const fontSize = slug(attrs.fontSize);
+  const fontFamily = slug(attrs.fontFamily);
+  // Custom colors get WordPress's marker classes too (themes pad blocks with a background).
+  const custom = (attrs.style as { color?: Record<string, unknown> } | undefined)?.color ?? {};
   const classes = [
     ...(typeof common.className === 'string' ? common.className.split(/\s+/) : []),
     ...(text ? [`has-${text}-color`, 'has-text-color'] : []),
+    ...(!text && typeof custom.text === 'string' ? ['has-text-color'] : []),
     ...(background ? [`has-${background}-background-color`, 'has-background'] : []),
     ...(gradient ? [`has-${gradient}-gradient-background`, 'has-background'] : []),
+    ...(!background &&
+    !gradient &&
+    (typeof custom.background === 'string' || typeof custom.gradient === 'string')
+      ? ['has-background']
+      : []),
+    ...(fontSize ? [`has-${fontSize}-font-size`] : []),
+    ...(fontFamily ? [`has-${fontFamily}-font-family`] : []),
   ].filter(Boolean);
   const unique = [...new Set(classes)].join(' ');
   return unique ? { ...common, className: unique } : common;

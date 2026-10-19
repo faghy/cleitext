@@ -75,7 +75,15 @@ export function googleFontsLink(html: string): string | null {
 }
 
 export function extensionProps(a: Attrs): { className: string; data: Record<string, string> } {
-  const classes: string[] = [];
+  // "Additional CSS class(es)" of the block, as typed (safe names only).
+  const classes: string[] =
+    typeof a.className === 'string'
+      ? a.className.split(/\s+/).filter((c) => /^-?[A-Za-z_][\w-]{0,80}$/.test(c))
+      : [];
+  // Hidden by device in WordPress 6.9+, with its breakpoints (782px, 480px).
+  if (Array.isArray(a.viewportHidden))
+    for (const device of ['desktop', 'tablet', 'mobile'])
+      if (a.viewportHidden.includes(device)) classes.push(`pr-viewport-hide-${device}`);
   if (a.responsiveConditions || a.displayCondition === 'responsiveVisibility') {
     if (a.hideDesktop) classes.push('pr-hide-desktop');
     if (a.hideTablet) classes.push('pr-hide-tablet');

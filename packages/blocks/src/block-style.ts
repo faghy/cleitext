@@ -136,3 +136,106 @@ export function hasFlowGap(value: unknown): boolean {
   const gap = cleanBlockStyle(value)?.spacing?.blockGap;
   return typeof gap === 'string' || Boolean(gap?.top);
 }
+
+/**
+ * The `layout` of a group as WordPress saves it: a row or a column (flex)
+ * or a grid. The default "flow" and "constrained" layouts need nothing.
+ */
+export interface BlockLayout {
+  type: 'flex' | 'grid';
+  orientation?: 'horizontal' | 'vertical';
+  flexWrap?: 'wrap' | 'nowrap';
+  justifyContent?: 'left' | 'center' | 'right' | 'space-between' | 'stretch';
+  verticalAlignment?: 'top' | 'center' | 'bottom' | 'stretch' | 'space-between';
+  columnCount?: number;
+  minimumColumnWidth?: string;
+}
+
+const pickOne = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
+  allowed.includes(value as T) ? (value as T) : undefined;
+
+/** The safe part of a block's `layout` attribute, or undefined for the default layouts. */
+export function cleanLayout(value: unknown): BlockLayout | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const v = value as Record<string, unknown>;
+  const type = pickOne(v.type, ['flex', 'grid'] as const);
+  if (!type) return undefined;
+  const layout: BlockLayout = { type };
+  const orientation = pickOne(v.orientation, ['horizontal', 'vertical'] as const);
+  const flexWrap = pickOne(v.flexWrap, ['wrap', 'nowrap'] as const);
+  const justifyContent = pickOne(v.justifyContent, [
+    'left',
+    'center',
+    'right',
+    'space-between',
+    'stretch',
+  ] as const);
+  const verticalAlignment = pickOne(v.verticalAlignment, [
+    'top',
+    'center',
+    'bottom',
+    'stretch',
+    'space-between',
+  ] as const);
+  if (orientation) layout.orientation = orientation;
+  if (flexWrap) layout.flexWrap = flexWrap;
+  if (justifyContent) layout.justifyContent = justifyContent;
+  if (verticalAlignment) layout.verticalAlignment = verticalAlignment;
+  if (typeof v.columnCount === 'number' && v.columnCount >= 1 && v.columnCount <= 16)
+    layout.columnCount = Math.floor(v.columnCount);
+  const min = length(v.minimumColumnWidth);
+  if (min) layout.minimumColumnWidth = min;
+  return layout;
+}
+
+const FLEX_POSITION = {
+  left: 'flex-start',
+  top: 'flex-start',
+  center: 'center',
+  right: 'flex-end',
+  bottom: 'flex-end',
+  'space-between': 'space-between',
+  stretch: 'stretch',
+} as const;
+
+/**
+ * WordPress's classes and the CSS of a flex or grid layout, as its layout
+ * support prints them: rows centered vertically and wrapping by default,
+ * grids of a number of columns or of columns at least 12rem wide. The gap is
+ * the block's own (`blockStyleCss` with `flex`), else the theme's (`CORE_BLOCK_CSS`).
+ */
+export function layoutCss(
+  value: unknown,
+): { className: string; css: Record<string, string> } | undefined {
+  const layout = cleanLayout(value);
+  if (!layout) return undefined;
+  if (layout.type === 'grid') {
+    const columns = layout.columnCount
+      ? `repeat(${layout.columnCount}, minmax(0, 1fr))`
+      : `repeat(auto-fill, minmax(min(${cssValue(layout.minimumColumnWidth ?? '12rem')}, 100%), 1fr))`;
+    return {
+      className: 'is-layout-grid',
+      css: { display: 'grid', gridTemplateColumns: columns },
+    };
+  }
+  const vertical = layout.orientation === 'vertical';
+  const justify = layout.justifyContent ?? 'left';
+  const align = layout.verticalAlignment ?? (vertical ? 'top' : 'center');
+  const classes = [
+    'is-layout-flex',
+    vertical && 'is-vertical',
+    layout.flexWrap === 'nowrap' && 'is-nowrap',
+    `is-content-justification-${justify}`,
+  ].filter(Boolean);
+  return {
+    className: classes.join(' '),
+    css: {
+      display: 'flex',
+      flexDirection: vertical ? 'column' : 'row',
+      flexWrap: layout.flexWrap ?? 'wrap',
+      // A row places its items along the line, a column across it.
+      [vertical ? 'alignItems' : 'justifyContent']: FLEX_POSITION[justify],
+      [vertical ? 'justifyContent' : 'alignItems']: FLEX_POSITION[align],
+    },
+  };
+}

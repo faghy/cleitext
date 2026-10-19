@@ -113,7 +113,7 @@ describe('core blocks', () => {
       '<blockquote class="wp-block-quote"><p>Quote</p><cite>Someone</cite></blockquote>',
     );
     expect(out).toContain(
-      '<div class="wp-block-columns is-stacked-on-mobile"><div class="wp-block-column" style="flex-basis:66.66%"></div></div>',
+      '<div class="wp-block-columns is-stacked-on-mobile is-layout-flex"><div class="wp-block-column" style="flex-basis:66.66%"></div></div>',
     );
     expect(out).toContain(
       '<a class="wp-block-button__link wp-element-button" href="/contact" target="_blank" rel="noopener noreferrer">Contact</a>',
@@ -173,7 +173,7 @@ describe('core blocks', () => {
       ),
     ).toBe(
       '<p style="margin-top:0;margin-bottom:var(--wp--preset--spacing--20);color:#4a4a4a;font-size:18px;line-height:1.4">Hi<a href="/x" style="color:#c06e52">go</a></p>' +
-        '<div class="wp-block-columns is-stacked-on-mobile" style="row-gap:80px;column-gap:var(--wp--preset--spacing--60)"></div>' +
+        '<div class="wp-block-columns is-stacked-on-mobile is-layout-flex" style="row-gap:80px;column-gap:var(--wp--preset--spacing--60)"></div>' +
         '<div class="wp-block-column cx-flow-gap" style="--cx-block-gap:8px"></div>' +
         '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" style="padding-left:2rem" href="/book">Book</a></div>',
     );
@@ -188,6 +188,46 @@ describe('core blocks', () => {
         ),
       ),
     ).toBe('');
+  });
+});
+
+describe('group layouts', () => {
+  it('shows rows and grids as WordPress lays them out', () => {
+    const out = html(
+      doc(
+        {
+          id: 'row',
+          type: 'core/group',
+          v: 1,
+          attrs: {
+            layout: { type: 'flex', flexWrap: 'nowrap', justifyContent: 'center' },
+            style: { spacing: { blockGap: '24px' } },
+          },
+          children: [],
+        },
+        {
+          id: 'grid',
+          type: 'core/group',
+          v: 1,
+          attrs: { layout: { type: 'grid', columnCount: 3 } },
+          children: [],
+        },
+        {
+          id: 'flow',
+          type: 'core/group',
+          v: 1,
+          attrs: { layout: { type: 'constrained' } },
+          children: [],
+        },
+      ),
+    );
+    expect(out).toContain(
+      '<div class="wp-block-group is-layout-flex is-nowrap is-content-justification-center" style="display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:center;align-items:center;gap:24px">',
+    );
+    expect(out).toContain(
+      'class="wp-block-group is-layout-grid" style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr))"',
+    );
+    expect(out).toContain('<div class="wp-block-group"></div>');
   });
 });
 

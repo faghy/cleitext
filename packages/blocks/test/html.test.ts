@@ -174,7 +174,63 @@ describe('block markup', () => {
   });
 });
 
+describe('text alignment of WordPress 6.9 and later', () => {
+  it('reads it from the block style of paragraphs and headings', () => {
+    const { blocks } = convert(
+      '<!-- wp:paragraph {"style":{"typography":{"textAlign":"center"}}} -->\n<p class="has-text-align-center">Middle</p>\n<!-- /wp:paragraph -->' +
+        '<!-- wp:heading {"level":3,"style":{"typography":{"textAlign":"right"}}} -->\n<h3 class="wp-block-heading has-text-align-right">Side</h3>\n<!-- /wp:heading -->' +
+        '<!-- wp:paragraph {"align":"left","style":{"typography":{"textAlign":"center"}}} -->\n<p>Older</p>\n<!-- /wp:paragraph -->',
+    );
+    expect(blocks.map((b) => [b.type, b.attrs.align ?? b.attrs.textAlign])).toEqual([
+      ['core/paragraph', 'center'],
+      ['core/heading', 'right'],
+      ['core/paragraph', 'left'],
+    ]);
+  });
+});
+
+describe('covers', () => {
+  const cover =
+    '<!-- wp:cover {"url":"https://example.com/a.webp","dimRatio":20} -->\n<div class="wp-block-cover"><img class="wp-block-cover__image-background" src="https://example.com/a.webp" alt=""/><span class="wp-block-cover__background has-background-dim-20 has-background-dim"></span><div class="wp-block-cover__inner-container"><!-- wp:paragraph -->\n<p>On top</p>\n<!-- /wp:paragraph --></div></div>\n<!-- /wp:cover -->';
+  it('become a group with the image, then the content', () => {
+    const { blocks, warnings } = convert(cover);
+    expect(types(blocks)).toEqual(['core/group']);
+    expect(types(blocks[0]!.children!)).toEqual(['core/image', 'core/paragraph']);
+    expect(warnings).toEqual(['A cover block became a group.']);
+  });
+  it('during an import, wait for a plugin with that group as the fallback', () => {
+    const doc = htmlToCxd(cover, { keepUnknown: true });
+    expect(doc.blocks[0]!.type).toBe('core/imported');
+    expect(doc.blocks[0]!.attrs.name).toBe('core/cover');
+    expect(types(doc.blocks[0]!.children!)).toEqual(['core/group']);
+  });
+});
+
+describe('group layouts', () => {
+  it('keeps rows and grids, not the default layouts', () => {
+    const { blocks } = convert(
+      '<!-- wp:group {"layout":{"type":"flex","flexWrap":"nowrap","justifyContent":"center","bogus":1}} -->\n<div class="wp-block-group"></div>\n<!-- /wp:group -->' +
+        '<!-- wp:group {"layout":{"type":"constrained"}} -->\n<div class="wp-block-group"></div>\n<!-- /wp:group -->',
+    );
+    expect(blocks.map((b) => b.attrs.layout)).toEqual([
+      { type: 'flex', flexWrap: 'nowrap', justifyContent: 'center' },
+      undefined,
+    ]);
+  });
+});
+
 describe('colors and custom HTML', () => {
+  it('keeps preset text sizes and marks custom backgrounds as WordPress does', () => {
+    const { blocks } = convert(
+      '<!-- wp:paragraph {"fontSize":"x-large","style":{"color":{"background":"#3636367d","text":"#ffffff"}}} -->\n<p class="has-x-large-font-size">Band</p>\n<!-- /wp:paragraph -->',
+    );
+    expect(String(blocks[0]!.attrs.className).split(' ').sort()).toEqual([
+      'has-background',
+      'has-text-color',
+      'has-x-large-font-size',
+    ]);
+  });
+
   it('keeps palette colors as WordPress classes, inline colors and custom HTML', () => {
     const doc = htmlToCxd(
       '<!-- wp:paragraph {"textColor":"ast-global-color-0","backgroundColor":"bad slug!","className":"lead","style":{"spacing":{"margin":{"top":"0","bottom":"0"}},"color":{"text":"expression(x)"}}} -->' +

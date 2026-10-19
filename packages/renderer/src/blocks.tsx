@@ -1,6 +1,7 @@
 import {
   blockStyleCss,
   hasFlowGap,
+  layoutCss,
   resolveEmbed,
   type CxdBlock,
   type CxdDocument,
@@ -376,6 +377,14 @@ registerBlockRenderer('core/gallery', ({ block, children }) => {
  * may restyle them): borders and room in tables, a grid in galleries.
  */
 export const CORE_BLOCK_CSS = [
+  // Rows and grids of groups: the theme's gap, else WordPress's default.
+  ':where(.wp-block-group.is-layout-flex,.wp-block-group.is-layout-grid){gap:0.5em}',
+  // Columns aligned vertically (WordPress's verticalAlignment).
+  ...(['top', 'center', 'bottom'] as const).map(
+    (v, i) =>
+      `.wp-block-columns.are-vertically-aligned-${v}{align-items:${['flex-start', 'center', 'flex-end'][i]}}.wp-block-column.is-vertically-aligned-${v}{align-self:${['flex-start', 'center', 'flex-end'][i]}}`,
+  ),
+  '.wp-block-column.is-vertically-aligned-stretch{align-self:stretch}',
   '.wp-block-table{overflow-x:auto;margin:1.5em 0}',
   '.wp-block-table table{border-collapse:collapse;width:100%}',
   '.wp-block-table .has-fixed-layout{table-layout:fixed}',
@@ -413,7 +422,10 @@ export function withCoreBlockCss(html: string): string {
     const end = html.lastIndexOf('</body>');
     html = end === -1 ? html + style : html.slice(0, end) + style + html.slice(end);
   }
-  if (!/class="wp-block-(table|gallery)\b/.test(html)) return html;
+  if (
+    !/class="wp-block-(table|gallery)\b|-vertically-aligned-|\bis-layout-(flex|grid)\b/.test(html)
+  )
+    return html;
   // Before the theme's styles, which may restyle them.
   const head = html.indexOf('</head>');
   const first = html.search(/<style|<link[^>]+rel="stylesheet"/);
@@ -561,13 +573,22 @@ registerBlockRenderer('core/button', ({ block }) => {
   );
 });
 
+/** Vertical alignment of columns (`verticalAlignment`), as WordPress names it. */
+const verticalAlign = (block: CxdBlock): string | undefined => {
+  const v = str(block.attrs.verticalAlignment);
+  return v && ['top', 'center', 'bottom', 'stretch'].includes(v) ? v : undefined;
+};
+
 registerBlockRenderer('core/columns', ({ block, children }) => (
   <div
     id={anchor(block)}
     className={classes(
       'wp-block-columns',
       alignClass(block),
-      block.attrs.isStackedOnMobile !== false && 'is-stacked-on-mobile',
+      verticalAlign(block) && `are-vertically-aligned-${verticalAlign(block)}`,
+      block.attrs.isStackedOnMobile !== false ? 'is-stacked-on-mobile' : 'is-not-stacked-on-mobile',
+      // As WordPress marks them: themes give rows their gap through this class.
+      'is-layout-flex',
       extraClass(block),
     )}
     style={blockStyle(block, true)}
@@ -582,6 +603,7 @@ registerBlockRenderer('core/column', ({ block, children }) => {
     <div
       className={classes(
         'wp-block-column',
+        verticalAlign(block) && `is-vertically-aligned-${verticalAlign(block)}`,
         hasFlowGap(block.attrs.style) && 'cx-flow-gap',
         extraClass(block),
       )}
@@ -597,16 +619,23 @@ const GROUP_TAGS = new Set(['div', 'section', 'article', 'aside', 'header', 'foo
 registerBlockRenderer('core/group', ({ block, children }) => {
   const tag = str(block.attrs.tagName);
   const Tag = (tag && GROUP_TAGS.has(tag) ? tag : 'div') as 'div';
+  // A row or a grid (WordPress's layout support); its gap is the block gap.
+  const layout = layoutCss(block.attrs.layout);
   return (
     <Tag
       id={anchor(block)}
       className={classes(
         'wp-block-group',
         alignClass(block),
-        hasFlowGap(block.attrs.style) && 'cx-flow-gap',
+        layout?.className,
+        !layout && hasFlowGap(block.attrs.style) && 'cx-flow-gap',
         extraClass(block),
       )}
-      style={blockStyle(block)}
+      style={
+        layout
+          ? ({ ...layout.css, ...blockStyle(block, true) } as CSSProperties)
+          : blockStyle(block)
+      }
     >
       {children}
     </Tag>
