@@ -48,8 +48,9 @@ describe('installation reports', () => {
     expect(sent[0]).toMatchObject({
       origin: `http://${host}`,
       theme: { slug: 'aurora' },
-      plugins: [],
     });
+    // Plugins installed by other tests are listed, none active on this site.
+    expect(sent[0]!.plugins.every((p) => typeof p.version === 'string' && !p.active)).toBe(true);
     expect(sent[0]!.installId).toMatch(/^[0-9a-f-]{36}$/);
     expect(sent[0]!.core).toBeTruthy();
 

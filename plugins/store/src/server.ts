@@ -4,7 +4,7 @@ import {
   type RouteRequest,
   type RouteResponse,
 } from '@cleitext/plugin-sdk';
-import { and, count, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, isNull, or, sql } from 'drizzle-orm';
 import {
   addMonths,
   isKey,
@@ -608,11 +608,7 @@ export default definePlugin({
       const days = Math.min(Math.max(Number(request.query.days) || 90, 1), 3650);
       const since = new Date(Date.now() - days * 86_400_000);
       const rows = await ctx.db.transaction(request.siteId, (tx) =>
-        tx
-          .select()
-          .from(installs)
-          .where(sql`${installs.lastSeenAt} >= ${since}`)
-          .orderBy(installs.origin),
+        tx.select().from(installs).where(gte(installs.lastSeenAt, since)).orderBy(installs.origin),
       );
       return { body: rows };
     });
