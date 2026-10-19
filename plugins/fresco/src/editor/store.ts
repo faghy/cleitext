@@ -35,6 +35,10 @@ export interface EditorState {
   entry: { id: string; type: string; locale: string };
   /** The "add" area opened between top-level containers (index), and its step. */
   adding: { index: number; step: 'flex' | 'grid' | 'choose' } | null;
+  /** The floating Structure window is open. */
+  navigator: boolean;
+  /** Elements hidden in the editor only (the eye of the Structure window). */
+  hidden: Record<string, true>;
 }
 
 interface Snapshot {
@@ -68,6 +72,8 @@ export function createStore(initial: {
     active: {},
     entry: initial.entry ?? { id: '', type: 'page', locale: 'en' },
     adding: null,
+    navigator: false,
+    hidden: {},
   };
   const past: Snapshot[] = [];
   const future: Snapshot[] = [];
@@ -151,7 +157,18 @@ export function createStore(initial: {
       set({ device });
     },
     setView(view: PanelView) {
-      set({ view, ...(view !== 'element' ? {} : {}) });
+      // The structure is a floating window over the canvas, not a view of the panel.
+      if (view === 'navigator') set({ navigator: true });
+      else set({ view });
+    },
+    toggleNavigator(open?: boolean) {
+      set({ navigator: open ?? !state.navigator });
+    },
+    toggleHidden(id: string) {
+      const hidden = { ...state.hidden };
+      if (hidden[id]) delete hidden[id];
+      else hidden[id] = true;
+      set({ hidden });
     },
     setTab(tab: Tab) {
       set({ tab });

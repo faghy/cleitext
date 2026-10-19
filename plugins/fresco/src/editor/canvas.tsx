@@ -230,6 +230,10 @@ function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) 
   const blocks = useStore(store, (s) => s.blocks);
   const fonts = googleFontsUrl(kit);
   const css = documentCss(blocks, getElement, kit.breakpoints);
+  const hidden = useStore(store, (s) => s.hidden);
+  const hiddenCss = Object.keys(hidden)
+    .map((id) => `[data-fr-id="${CSS.escape(id)}"]{display:none!important}`)
+    .join('');
   return (
     <>
       <link rel="stylesheet" href={`${assetsBase}/fresco.css`} />
@@ -237,6 +241,7 @@ function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) 
       <style>{kitCss(kit)}</style>
       <style>{css}</style>
       <style>{FRAME_STYLE}</style>
+      {hiddenCss && <style>{hiddenCss}</style>}
     </>
   );
 }

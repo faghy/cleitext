@@ -21,6 +21,7 @@ import { createStore, useStore, type PanelView, type Store } from './store.js';
 import { EDITOR_CSS } from './styles.js';
 import { find, placeOf } from './tree.js';
 import { TopBar } from './topbar.js';
+import { NavigatorWindow } from './navigator.js';
 import './i18n.js';
 
 const VIEWS: { view: PanelView; title: string; icon: string }[] = [
@@ -179,6 +180,12 @@ export function FrescoEditor(props: EditorProps) {
         if (event.view !== window || !hostRef.current) return;
         event.preventDefault();
         void hostRef.current.save();
+      } else if (primary && event.key.toLowerCase() === 'i' && !event.shiftKey) {
+        event.preventDefault();
+        store.actions.toggleNavigator();
+      } else if (primary && event.shiftKey && event.key.toLowerCase() === 'v' && !typing) {
+        event.preventDefault();
+        if (state.selected) store.actions.pasteStyle(state.selected);
       } else if (primary && event.key.toLowerCase() === 'z' && !typing) {
         event.preventDefault();
         if (event.shiftKey) store.actions.redo();
@@ -287,6 +294,7 @@ export function FrescoEditor(props: EditorProps) {
             />
           </main>
         </div>
+        <NavigatorWindow store={store} />
         {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
       </div>
     );

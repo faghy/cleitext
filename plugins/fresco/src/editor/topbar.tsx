@@ -50,6 +50,7 @@ export function TopBar({
   const { t } = useT();
   const view = useStore(store, (s) => s.view);
   const device = useStore(store, (s) => s.device);
+  const navigator = useStore(store, (s) => s.navigator);
   // Re-render on every change so undo/redo know whether they can act.
   useStore(store, (s) => s.blocks);
   useStore(store, (s) => s.page);
@@ -176,7 +177,16 @@ export function TopBar({
         >
           <Svg path={ICONS.redo} size={18} />
         </button>
-        {tool('navigator', t('Structure'), ICONS.structure)}
+        <button
+          type="button"
+          className={`fre-bar__btn${navigator ? ' is-on' : ''}`}
+          title={t('Structure (Ctrl+I)')}
+          aria-label={t('Structure')}
+          aria-pressed={navigator}
+          onClick={() => store.actions.toggleNavigator()}
+        >
+          <Svg path={ICONS.structure} size={18} />
+        </button>
         <button
           type="button"
           className="fre-bar__btn"

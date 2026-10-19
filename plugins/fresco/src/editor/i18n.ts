@@ -98,6 +98,18 @@ addMessages('it', {
   'Remove link': 'Rimuovi il link',
   'Clear formatting': 'Pulisci la formattazione',
   'Link address': 'Indirizzo del link',
+  'Structure (Ctrl+I)': 'Struttura (Ctrl+I)',
+  Expand: 'Espandi',
+  Collapse: 'Comprimi',
+  'Expand all': 'Espandi tutto',
+  'Collapse all': 'Comprimi tutto',
+  Close: 'Chiudi',
+  'Show in the editor': 'Mostra nell’editor',
+  'Hide in the editor': 'Nascondi nell’editor',
+  'Click to edit, drag to move, double-click to rename':
+    'Clic per modificare, trascina per spostare, doppio clic per rinominare',
+  'The page is empty: add a container to start.':
+    'La pagina è vuota: aggiungi un contenitore per iniziare.',
   'Select an element on the page to edit it.':
     'Seleziona un elemento nella pagina per modificarlo.',
 });
