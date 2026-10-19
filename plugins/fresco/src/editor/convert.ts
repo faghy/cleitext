@@ -4,6 +4,7 @@
  * has no counterpart becomes HTML, so nothing is lost silently.
  */
 import type { CxdBlock, CxdDocument, CxdInline } from '@cleitext/blocks';
+import { htmlToBlocks, htmlToInline } from '@cleitext/blocks/inline';
 import { newId } from '../core/ids.js';
 import type { FrescoNode, Settings } from '../core/model.js';
 
@@ -81,6 +82,7 @@ function fromBlock(block: CxdBlock): FrescoNode[] {
       return [
         el('heading', {
           title: inlineText(block.content),
+          ...(a.textAlign === 'center' || a.textAlign === 'right' ? { align: a.textAlign } : {}),
           tag: `h${typeof a.level === 'number' ? a.level : 2}`,
         }),
       ];
@@ -243,20 +245,81 @@ const block = (
   ...extra,
 });
 
+/** Text and rich text of a widget, as blocks (titles become headings). */
+function textBlocks(a: Settings, keys: { heading?: string; html?: string[]; text?: string[] }) {
+  const out: CxdBlock[] = [];
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  if (keys.heading && str(a[keys.heading])) {
+    out.push(block('core/heading', { level: 3 }, { content: htmlToInline(str(a[keys.heading])) }));
+  }
+  for (const key of keys.html ?? []) {
+    if (str(a[key])) out.push(...htmlToBlocks(paragraphsOf(str(a[key])), { newId }));
+  }
+  for (const key of keys.text ?? []) {
+    if (str(a[key])) out.push(block('core/paragraph', {}, { content: [{ text: str(a[key]) }] }));
+  }
+  return out;
+}
+
+/** Plain text with blank lines as paragraphs; HTML as it is. */
+const paragraphsOf = (value: string) =>
+  /<[a-z][^>]*>/i.test(value)
+    ? value
+    : value
+        .split(/\n{2,}/)
+        .map((p) => `<p>${escape(p).replace(/\n/g, '<br>')}</p>`)
+        .join('');
+
+/** A Fresco link value ({ url, newTab }) as block attributes. */
+function linkAttrs(value: unknown, key: 'url' | 'href'): Record<string, unknown> {
+  const link = value as { url?: unknown; newTab?: unknown } | undefined;
+  if (!link || typeof link.url !== 'string' || !link.url.trim()) return {};
+  return {
+    [key]: link.url.trim(),
+    ...(link.newTab ? { linkTarget: '_blank' } : {}),
+  };
+}
+
+function imageBlock(
+  image: { id?: string | null; url?: string; alt?: string } | undefined,
+  extra: Record<string, unknown> = {},
+): CxdBlock[] {
+  return image?.url
+    ? [
+        block('core/image', {
+          ...(image.id ? { id: image.id } : {}),
+          url: image.url,
+          alt: image.alt ?? '',
+          ...extra,
+        }),
+      ]
+    : [];
+}
+
 function toBlock(node: FrescoNode): CxdBlock[] {
   const a = node.attrs;
   const text = (v: unknown) => (typeof v === 'string' ? v : '');
+  const kids = () => (node.children ?? []).flatMap(toBlock);
   switch (node.type) {
-    case 'fresco/heading': {
+    case 'fresco/heading':
+    case 'fresco/a-heading': {
       const level = Number(/^h([1-6])$/.exec(text(a.tag))?.[1] ?? 2);
+      const content = htmlToInline(text(a.title));
+      const align = a.align === 'center' || a.align === 'right' ? { textAlign: a.align } : {};
       return [
-        block('core/heading', { level }, { content: [{ text: text(a.title) || 'Heading' }] }),
+        block(
+          'core/heading',
+          { level, ...align },
+          { content: content.length ? content : [{ text: 'Heading' }] },
+        ),
       ];
     }
     case 'fresco/text':
-      return [block('core/html', { content: text(a.content) })];
+    case 'fresco/a-paragraph':
+      // Paragraphs, headings and lists become blocks; the rest stays as HTML.
+      return htmlToBlocks(text(a.content), { newId });
     case 'fresco/html':
-      return [block('core/html', { content: text(a.code) })];
+      return text(a.code).trim() ? [block('core/html', { content: text(a.code) })] : [];
     case 'fresco/gallery': {
       const images = (Array.isArray(a.images) ? a.images : []) as {
         id?: string | null;
@@ -279,36 +342,36 @@ function toBlock(node: FrescoNode): CxdBlock[] {
         : [];
     }
     case 'fresco/image': {
-      const image = a.image as { id?: string | null; url?: string; alt?: string } | undefined;
-      return image?.url
-        ? [
-            block('core/image', {
-              ...(image.id ? { id: image.id } : {}),
-              url: image.url,
-              alt: image.alt ?? '',
-            }),
-          ]
-        : [];
+      const caption = a.caption_source === 'custom' ? text(a.caption).trim() : '';
+      return imageBlock(a.image as { url?: string } | undefined, {
+        ...(caption ? { caption: [{ text: caption }] } : {}),
+        ...(a.link_to === 'custom' ? linkAttrs(a.link, 'href') : {}),
+      });
     }
-    case 'fresco/button': {
-      const link = a.link as { url?: string } | undefined;
+    case 'fresco/a-image': {
+      const image = a.image as { id?: string | null; url?: string; alt?: string } | undefined;
+      return imageBlock(
+        image && text(a.alt) ? { ...image, alt: text(a.alt) } : image,
+        linkAttrs(a.link, 'href'),
+      );
+    }
+    case 'fresco/button':
+    case 'fresco/a-button':
       return [
         block(
           'core/buttons',
           {},
           {
             children: [
-              block(
-                'core/button',
-                { ...(link?.url ? { url: link.url } : {}) },
-                { content: [{ text: text(a.text) || 'Button' }] },
-              ),
+              block('core/button', linkAttrs(a.link, 'url'), {
+                content: [{ text: text(a.text) || 'Button' }],
+              }),
             ],
           },
         ),
       ];
-    }
     case 'fresco/divider':
+    case 'fresco/a-divider':
       return [block('core/separator', {})];
     case 'fresco/spacer': {
       const space = a.space as { size?: number } | undefined;
@@ -318,10 +381,85 @@ function toBlock(node: FrescoNode): CxdBlock[] {
       // The plugin's block, as it was.
       return (node.children ?? []) as unknown as CxdBlock[];
     case 'fresco/video':
+    case 'fresco/a-youtube':
       return typeof a.url === 'string' && a.url ? [block('core/embed', { url: a.url })] : [];
+    case 'fresco/icon-box':
+      return textBlocks(a, { heading: 'title', html: ['description'] });
+    case 'fresco/image-box':
+      return [
+        ...imageBlock(a.image as { url?: string } | undefined),
+        ...textBlocks(a, { heading: 'title', html: ['description'] }),
+      ];
+    case 'fresco/alert':
+      return textBlocks(a, { heading: 'title', html: ['description'] });
+    case 'fresco/icon-list': {
+      const items = (Array.isArray(a.items) ? a.items : []) as { text?: unknown }[];
+      const texts = items.map((item) => text(item.text).trim()).filter(Boolean);
+      return texts.length
+        ? [
+            block(
+              'core/list',
+              {},
+              {
+                children: texts.map((t) =>
+                  block('core/list-item', {}, { content: htmlToInline(t) }),
+                ),
+              },
+            ),
+          ]
+        : [];
+    }
+    case 'fresco/testimonial': {
+      const who = [text(a.name), text(a.job)].filter((v) => v.trim()).join(', ');
+      const children = [
+        ...htmlToBlocks(paragraphsOf(text(a.content)), { newId }),
+        ...(who ? [block('core/paragraph', {}, { content: [{ text: `— ${who}` }] })] : []),
+      ];
+      return children.length ? [block('core/quote', {}, { children })] : [];
+    }
+    case 'fresco/counter': {
+      const number = `${text(a.prefix)}${a.end ?? ''}${text(a.suffix)}`;
+      return textBlocks({ ...a, number }, { heading: 'title', text: ['number'] });
+    }
+    case 'fresco/progress':
+      return textBlocks(a, { text: ['title', 'inner'] });
+    case 'fresco/tabs':
+    case 'fresco/accordion':
+    case 'fresco/toggle':
+      // Each item: its title as a heading, then its content.
+      return (node.children ?? []).flatMap((item, i) => [
+        block(
+          'core/heading',
+          { level: 3 },
+          { content: [{ text: text(item.attrs._title).trim() || `${i + 1}` }] },
+        ),
+        ...(item.children ?? []).flatMap(toBlock),
+      ]);
+    case 'fresco/container': {
+      const children = node.children ?? [];
+      // A row of boxes: columns.
+      const row =
+        a.flex_direction === 'row' &&
+        children.length > 1 &&
+        children.every((c) => c.type === 'fresco/container');
+      if (row) {
+        return [
+          block(
+            'core/columns',
+            {},
+            {
+              children: children.map((c) =>
+                block('core/column', {}, { children: (c.children ?? []).flatMap(toBlock) }),
+              ),
+            },
+          ),
+        ];
+      }
+      return kids();
+    }
     default:
-      // Containers and the other widgets: their children, in order.
-      return (node.children ?? []).flatMap(toBlock);
+      // Other boxes and widgets: their children, in order.
+      return kids();
   }
 }
 

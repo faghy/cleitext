@@ -1,5 +1,6 @@
 export * from './cxd.js';
 export * from './inline.js';
+export * from './html-blocks.js';
 export * from './block-style.js';
 export * from './registry.js';
 export * from './core-blocks.js';

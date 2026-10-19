@@ -31,6 +31,8 @@ Tabs, accordions and toggles hold containers, so anything can go inside them.
 
 **Blocks of other plugins**: the **Plugins** group of the panel has the blocks of the other active plugins, such as Cleishop's product grid and cart link. Their settings are the ones of the block editor, the canvas shows them as the page will, and the Advanced tab works on them like on any widget.
 
+**Switching editors.** **Edit with Fresco** turns block editor content into Fresco elements: text keeps its formatting, columns become containers in a row, and blocks without a widget stay as they are inside a plugin block element. Going back to the block editor, text becomes paragraphs, headings and lists again, rows of containers become columns, and widgets without a block of their own (icon boxes, icon lists, testimonials, counters, tabs and accordions) keep their titles and text. Styles and layout settings are not carried over; the earlier content stays in the revisions. To convert many pages at once, use the **Convert Editors** plugin (**Tools → Convert editors**).
+
 ## Site settings
 
 The **Site settings** (the kit) apply to every Fresco page:

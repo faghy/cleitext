@@ -1,0 +1,23 @@
+{
+  "name": "@cleitext/plugin-editor-convert",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Official Cleitext plugin: Convert Editors, moves pages and posts between the block editor and page builders.",
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "cleitext plugin:build .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cleitext/admin-sdk": "workspace:*",
+    "@cleitext/blocks": "workspace:*",
+    "@cleitext/cli": "workspace:*",
+    "@tanstack/react-query": "^5.104.1",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.0",
+    "vitest": "^5.0.3"
+  }
+}

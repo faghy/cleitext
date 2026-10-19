@@ -9,7 +9,9 @@ import type {
   EditorProps,
   ListColumnDefinition,
   ListRow,
+  SiteEditor,
 } from '@cleitext/admin-sdk';
+import type { CxdDocument } from '@cleitext/blocks';
 import { labelText, type ContentTypeView, type PluginAdminInfo } from '@cleitext/shared';
 import * as reactQuery from '@tanstack/react-query';
 import { queryOptions, useQuery } from '@tanstack/react-query';
@@ -144,7 +146,7 @@ function allowed(page: AdminPageDefinition, capabilities: readonly string[]): bo
 
 /** What every plugin component receives. */
 function usePageProps(plugin: { slug: string; version: string }): AdminPageProps {
-  return pagePropsFor(plugin, useMe());
+  return pagePropsFor(plugin, useMe(), usePluginAdmin());
 }
 
 function shown(
@@ -285,7 +287,7 @@ export function usePluginColumns(kind: 'entry' | 'term', type: string): PluginCo
     const columns =
       kind === 'entry' ? plugin.definition?.entryColumns : plugin.definition?.termColumns;
     for (const definition of columns ?? []) {
-      const props = pagePropsFor(plugin, me);
+      const props = pagePropsFor(plugin, me, plugins);
       if (!shown(definition, type, props)) continue;
       result.push({
         key: `${plugin.slug}:${definition.id}`,
@@ -352,6 +354,7 @@ export function PluginCell({
 function pagePropsFor(
   plugin: { slug: string; version: string },
   me: ReturnType<typeof useMe>,
+  plugins: LoadedAdminPlugin[],
 ): AdminPageProps {
   return {
     plugin: { slug: plugin.slug, version: plugin.version },
@@ -368,7 +371,53 @@ function pagePropsFor(
       capabilities: me.capabilities,
     },
     api: pluginApi(plugin.slug),
+    editors: (type) => siteEditors(plugins, me.capabilities, type),
   };
+}
+
+/** The block editor's content stays as it is, without the settings it keeps for the theme. */
+const asBlocks = (document: CxdDocument): CxdDocument => ({
+  schema: document.schema,
+  blocks: document.blocks,
+});
+
+/** The block editor, as plugins see it among the site's editors. */
+const BLOCK_EDITOR: SiteEditor = {
+  id: 'blocks',
+  title: { en: 'Block editor', it: 'Editor a blocchi' },
+  plugin: null,
+  fromBlocks: asBlocks,
+  toBlocks: asBlocks,
+};
+
+/**
+ * The editors of the site (plugin API 1.26): the block editor, then those of
+ * the active plugins the user may use, for a content type when given.
+ */
+export function siteEditors(
+  plugins: LoadedAdminPlugin[],
+  capabilities: readonly string[],
+  type?: string,
+): SiteEditor[] {
+  return [
+    BLOCK_EDITOR,
+    ...plugins.flatMap((plugin) =>
+      (plugin.definition?.editors ?? [])
+        .filter(
+          (definition) =>
+            (type === undefined || !definition.types || definition.types.includes(type)) &&
+            (!definition.capability || capabilities.includes(definition.capability)),
+        )
+        .map((definition): SiteEditor => ({
+          id: definition.id,
+          title: definition.title,
+          plugin: plugin.slug,
+          ...(definition.types ? { types: definition.types } : {}),
+          ...(definition.fromBlocks ? { fromBlocks: definition.fromBlocks } : {}),
+          ...(definition.toBlocks ? { toBlocks: definition.toBlocks } : {}),
+        })),
+    ),
+  ];
 }
 
 /** Renders a plugin admin page (route `/ext/$plugin/$`). */
@@ -415,22 +464,7 @@ export function PluginPage({ slug, path }: { slug: string; path: string }) {
   }
   return (
     <PluginErrorBoundary name={plugin.name}>
-      <Component
-        plugin={{ slug: plugin.slug, version: plugin.version }}
-        site={{
-          id: me.site.id,
-          name: me.site.name,
-          defaultLocale: me.site.defaultLocale,
-          locales: me.site.locales,
-        }}
-        user={{
-          id: me.user.id,
-          displayName: me.user.displayName,
-          locale: me.user.locale,
-          capabilities: me.capabilities,
-        }}
-        api={pluginApi(plugin.slug)}
-      />
+      <Component {...pagePropsFor(plugin, me, plugins.data ?? [])} />
     </PluginErrorBoundary>
   );
 }
@@ -444,25 +478,11 @@ export function PluginWidget({
   widget: adminSdk.DashboardWidgetDefinition;
 }) {
   const me = useMe();
+  const plugins = usePluginAdmin();
   const Component = widget.component;
   return (
     <PluginErrorBoundary name={plugin.name}>
-      <Component
-        plugin={{ slug: plugin.slug, version: plugin.version }}
-        site={{
-          id: me.site.id,
-          name: me.site.name,
-          defaultLocale: me.site.defaultLocale,
-          locales: me.site.locales,
-        }}
-        user={{
-          id: me.user.id,
-          displayName: me.user.displayName,
-          locale: me.user.locale,
-          capabilities: me.capabilities,
-        }}
-        api={pluginApi(plugin.slug)}
-      />
+      <Component {...pagePropsFor(plugin, me, plugins)} />
     </PluginErrorBoundary>
   );
 }

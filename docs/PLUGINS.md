@@ -795,9 +795,10 @@ export default defineAdminPlugin({
 ```
 
 - Page props: `plugin`, `site` (`id`, `name`, `defaultLocale`, `locales`), `user` (`id`, `displayName`, `locale`, `capabilities`) and `api`, which calls your endpoints (`api('GET', '/rsvps')` → `/api/v1/ext/<slug>/rsvps`).
+- `editors(type?)` (API 1.26; missing on older sites, so check it first) lists the editors of the site: the block editor first (`{ id: 'blocks', plugin: null }`), then the [editors](#editors) of the active plugins that the user may use, for a content type when given. Each is `{ id, title, plugin, types?, fromBlocks?, toBlocks? }`, with the plugin's own converters; the block editor's return the document as it is. A tool can move content between editors with them: `toBlocks` of the editor that made the document (its `document.editor.id`, `blocks` when there is none), then `fromBlocks` of the other one. The **Convert Editors** plugin does this for many entries at once.
 - `menu: false` hides a page from the sidebar. `capability` hides it from users without that capability.
 - `icon` is the page's sidebar icon: SVG path data on a 24×24 grid, drawn as an outline like the core's icons (stroke 1.75, round ends, no fill). Pages without one, or with something that is not path data, get a puzzle piece.
-- `parent` (API 1.25) makes a page a submenu item, as in WordPress: under another page of the plugin (its `path`, `''` for the main one) or under an admin section (`'/appearance'`, `'/settings'`, `'/users'`, `'/posts'`, `'/pages'`, `'/media'`, `'/plugins'`). The current entry shows its submenu below it; the others show it beside the sidebar on hover or focus.
+- `parent` (API 1.25) makes a page a submenu item, as in WordPress: under another page of the plugin (its `path`, `''` for the main one) or under an admin section (`'/appearance'`, `'/settings'`, `'/users'`, `'/posts'`, `'/pages'`, `'/media'`, `'/plugins'`, and `'/tools'` from API 1.26). A page under `'/tools'` also gets a card on the **Tools** screen, with its `description` (API 1.26), a sentence on what it is for. The current entry shows its submenu below it; the others show it beside the sidebar on hover or focus.
 - `link` (API 1.25) makes a menu entry that opens an admin address instead of a page, e.g. `{ path: 'options', title: 'Theme options', parent: '', link: '/appearance?tab=customize' }`; such an entry needs no `component`.
 - `after` (API 1.25) puts a top-level entry right after an admin section instead of at the end of the sidebar, e.g. `after: '/appearance'` for a theme's own menu.
 - From `@cleitext/admin-sdk` you get `Button`, `Card`, `TextField`, `Alert`, `FieldsForm` (a form generated from field definitions), `api` (the core API), `pluginApi`, `ApiError`, `errorMessage` and `labelText`. Use them and their Tailwind classes, or inline styles. Your own Tailwind classes are not compiled.
@@ -832,7 +833,7 @@ export default defineAdminPlugin({
 
 `entry` is `{ id, type, locale, title, slug, status }`; rows are `{ id, locale, title, status? }`. From API 1.24 an editor section also gets `draft`, the entry as it is being edited, before it is saved (`title`, `slug`, `excerpt`, `featuredMediaId`, `document`, `fields`; it renders again a moment after each change, e.g. for a live SEO analysis), and `setFields(group, values)`, which changes a field group's values like the sidebar's fields (saved with the entry). On older sites both are missing: check before using them. `navigate('/entries/<id>')` opens an admin address. `visible` hides a section or column, e.g. when the site has a single language.
 
-**Editors** (plugin API 1.11). A plugin can offer an editor for entries instead of the block editor, such as a page builder. It takes the whole screen under the editor's top bar, which keeps the title, saving, preview and publishing:
+<a id="editors"></a>**Editors** (plugin API 1.11). A plugin can offer an editor for entries instead of the block editor, such as a page builder. It takes the whole screen under the editor's top bar, which keeps the title, saving, preview and publishing:
 
 ```tsx
 export default defineAdminPlugin({

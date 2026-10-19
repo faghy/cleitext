@@ -31,6 +31,8 @@ Schede, fisarmoniche e interruttori contengono contenitori, quindi dentro può a
 
 **Blocchi degli altri plugin**: il gruppo **Plugin** del pannello contiene i blocchi degli altri plugin attivi, come la griglia prodotti e il link al carrello di Cleishop. Le impostazioni sono quelle dell'editor a blocchi, la tela li mostra come appariranno nella pagina e la scheda Avanzate funziona come su qualunque widget.
 
+**Cambiare editor.** **Modifica con Fresco** trasforma il contenuto dell'editor a blocchi in elementi di Fresco: il testo mantiene la formattazione, le colonne diventano contenitori in riga e i blocchi senza un widget restano come sono dentro un elemento blocco del plugin. Tornando all'editor a blocchi, il testo torna paragrafi, titoli ed elenchi, le righe di contenitori diventano colonne e i widget senza un blocco corrispondente (box con icona, elenchi con icone, testimonianze, contatori, schede e fisarmoniche) mantengono titoli e testo. Stili e impostazioni di layout non vengono riportati; il contenuto precedente resta nelle revisioni. Per convertire molte pagine insieme c'è il plugin **Converti editor** (**Strumenti → Converti editor**).
+
 ## Impostazioni del sito
 
 Le impostazioni del sito (**Site settings**, il kit) valgono per tutte le pagine di Fresco:

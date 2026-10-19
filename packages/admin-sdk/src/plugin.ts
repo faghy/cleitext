@@ -15,6 +15,34 @@ export interface AdminPageProps {
   user: { id: string; displayName: string; locale: string; capabilities: string[] };
   /** Calls the plugin's endpoints (`/api/v1/ext/<slug>…`), with session and CSRF handled. */
   api: <T>(method: Method, path: string, body?: unknown) => Promise<T>;
+  /**
+   * The editors of the site (API 1.26; absent on older sites): the block
+   * editor first, then those of the active plugins the user may use, for a
+   * content type when given. Their converters let a plugin move content
+   * from one editor to another.
+   */
+  editors?: (type?: string) => SiteEditor[];
+}
+
+/**
+ * An editor of the site, as plugins see it (API 1.26): the block editor
+ * (`id: 'blocks'`, `plugin: null`) or an editor added by a plugin.
+ */
+export interface SiteEditor {
+  /**
+   * `document.editor.id` of the documents it makes; `blocks` for the block
+   * editor, whose documents have no `editor` (or `editor.id: 'blocks'`).
+   */
+  id: string;
+  title: Label;
+  /** Slug of the plugin that adds it; null for the block editor. */
+  plugin: string | null;
+  /** Content types it can edit (all when omitted). */
+  types?: string[];
+  /** Block editor content as this editor's (the block editor returns it as it is). */
+  fromBlocks?: (document: CxdDocument) => CxdDocument;
+  /** This editor's content as block editor content (the block editor returns it as it is). */
+  toBlocks?: (document: CxdDocument) => CxdDocument;
 }
 
 export interface AdminPageDefinition {
@@ -27,9 +55,15 @@ export interface AdminPageDefinition {
    * Shown as a submenu item (API 1.25): under another page of the plugin
    * (its `path`, e.g. `''` for the main page), or under a section of the
    * admin (`/appearance`, `/settings`, `/users`, `/posts`, `/pages`, `/media`,
-   * `/plugins`). As in WordPress, submenus open on hover beside the sidebar.
+   * `/plugins`, and `/tools` from API 1.26). As in WordPress, submenus open
+   * on hover beside the sidebar.
    */
   parent?: string;
+  /**
+   * What the page is for, in a sentence (API 1.26): shown on its card in
+   * Tools when `parent` is `/tools`.
+   */
+  description?: Label;
   /**
    * A top-level entry right after an admin section instead of at the end of
    * the sidebar (API 1.25), e.g. `'/appearance'` for a theme's own menu.

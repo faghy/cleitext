@@ -4,3 +4,4 @@
  */
 export * from './marks.js';
 export * from './inline.js';
+export * from './html-blocks.js';

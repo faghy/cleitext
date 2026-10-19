@@ -85,16 +85,74 @@ describe('conversion', () => {
     expect(blocks[2]!.children![0]!.attrs.content).toBe('<ol><li>One</li></ol>');
   });
 
-  it('goes back to blocks, flattening the layout', () => {
+  it('goes back to blocks: text as native blocks, rows of boxes as columns', () => {
     const back = toBlocks(fromBlocks(doc));
     expect(back.editor).toBeUndefined();
     expect(back.blocks.map((b) => b.type)).toEqual([
       'core/heading',
-      'core/html',
-      'core/image',
-      'core/separator',
-      'core/html',
+      'core/paragraph',
+      'core/columns',
+      'core/list',
     ]);
+    expect(back.blocks[1]!.content).toEqual([
+      { text: 'Hello ' },
+      { text: 'world', marks: ['bold'] },
+      { type: 'link', href: '/about', children: [{ text: ' & more' }] },
+    ]);
+    expect(back.blocks[2]!.children!.map((c) => c.children!.map((b) => b.type))).toEqual([
+      ['core/image'],
+      ['core/separator'],
+    ]);
+    expect(back.blocks[3]).toMatchObject({
+      attrs: { ordered: true },
+      children: [{ type: 'core/list-item', content: [{ text: 'One' }] }],
+    });
+  });
+
+  it('keeps the text of widgets without a block of their own', () => {
+    const node = (type: string, attrs: Record<string, unknown>, children?: unknown[]) => ({
+      id: type,
+      type,
+      v: 1,
+      attrs,
+      ...(children ? { children } : {}),
+    });
+    const page = {
+      schema: 1 as const,
+      editor: { id: 'fresco' },
+      blocks: [
+        node('fresco/container', {}, [
+          node('fresco/icon-box', { title: 'Fast', description: 'Very <em>fast</em>.' }),
+          node('fresco/icon-list', { items: [{ text: 'One' }, { text: 'Two' }] }),
+          node('fresco/testimonial', { content: 'Great.', name: 'Ann', job: 'CEO' }),
+          node('fresco/button', { text: 'Go', link: { url: '/go', newTab: true } }),
+          node('fresco/tabs', {}, [
+            node('fresco/container', { _title: 'First' }, [node('fresco/text', { content: 'A' })]),
+          ]),
+        ]),
+      ] as unknown as CxdDocument['blocks'],
+    };
+    const blocks = toBlocks(page).blocks;
+    expect(blocks.map((b) => b.type)).toEqual([
+      'core/heading',
+      'core/paragraph',
+      'core/list',
+      'core/quote',
+      'core/buttons',
+      'core/heading',
+      'core/paragraph',
+    ]);
+    expect(blocks[1]!.content).toEqual([
+      { text: 'Very ' },
+      { text: 'fast', marks: ['italic'] },
+      { text: '.' },
+    ]);
+    expect(blocks[3]!.children!.map((b) => b.content)).toEqual([
+      [{ text: 'Great.' }],
+      [{ text: '— Ann, CEO' }],
+    ]);
+    expect(blocks[4]!.children![0]!.attrs).toEqual({ url: '/go', linkTarget: '_blank' });
+    expect(blocks[5]!.content).toEqual([{ text: 'First' }]);
   });
 
   it('keeps blocks of other plugins, inside a plugin block element', () => {

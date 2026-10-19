@@ -1,0 +1,11 @@
+{
+  "slug": "editor-convert",
+  "name": "Convert Editors",
+  "version": "1.0.0",
+  "apiVersion": "^1.26",
+  "description": "Move pages and posts between editors: from the block editor to a page builder (Fresco, Vitality Builder…), from one page builder to another, or back. Pick the entries, preview what changes, then convert them in place (a new revision, undone from Revisions) or as new drafts.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "admin": "dist/admin.js",
+  "permissions": []
+}
