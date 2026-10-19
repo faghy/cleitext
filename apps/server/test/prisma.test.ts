@@ -3,6 +3,7 @@
  * site with their CSS, the site-wide defaults, and pages built with Spectra
  * imported from WordPress as Prisma blocks.
  */
+import { readFileSync } from 'node:fs';
 import { cp, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +23,8 @@ import {
 
 const PASSWORD = 'correct horse battery staple';
 const pluginsRoot = fileURLToPath(new URL('../../../plugins', import.meta.url));
+/** Assets are served under the plugin's version. */
+const ASSETS = `/plugin-assets/prisma/${(JSON.parse(readFileSync(join(pluginsRoot, 'prisma', 'cleitext.plugin.json'), 'utf8')) as { version: string }).version}`;
 
 let app: NestFastifyApplication;
 let owner: DatabaseClient;
@@ -197,7 +200,7 @@ describe('Prisma blocks', () => {
     expect(html).toContain('alt="One"');
     expect(html).toContain('First');
     expect(html).toContain('class="pr-lightbox"');
-    expect(html).toContain('/plugin-assets/prisma/0.2.1/gallery.js');
+    expect(html).toContain(`${ASSETS}/gallery.js`);
   });
 
   it('imports pages built with Spectra as Prisma blocks', async () => {
@@ -288,7 +291,7 @@ describe('Prisma blocks', () => {
       /<div class="pr-buttons__wrap">[\s\S]*?<a class="pr-button__link wp-block-button__link" href="tel:3454674236" rel="noopener"><span class="pr-button__text">Contattaci<\/span><\/a>/,
     );
     expect(html).toContain('data-pr-animation="fade-right"');
-    expect(html).toContain('/plugin-assets/prisma/0.2.1/animations.js');
+    expect(html).toContain(`${ASSETS}/animations.js`);
     expect(html).toContain('gap:90px');
     expect(html).toContain('pr-gallery pr-gallery--masonry');
     expect(html).toContain('alt="Pool"');
