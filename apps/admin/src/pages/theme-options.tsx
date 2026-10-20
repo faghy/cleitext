@@ -85,6 +85,7 @@ export function ThemeOptions() {
   const open = (id: string) => {
     setCurrent(id);
     setSearch('');
+    setTab(null);
   };
 
   // Builders (header, footer): shown under the preview while their section,
@@ -103,6 +104,7 @@ export function ThemeOptions() {
       ),
   );
   const [device, setDevice] = useState<PreviewDevice>('desktop');
+  const [tab, setTab] = useState<string | null>(null);
 
   const changedIn = (id: string) =>
     values !== null &&
@@ -206,7 +208,11 @@ export function ThemeOptions() {
     return <p className="text-sm text-slate-600">{t('This theme has no settings.')}</p>;
   }
   const sectionInfo = sections.find((s) => s.id === section);
-  const visibleCount = shown.filter((f) => fieldVisible(f, values, defaults)).length;
+  // Sections with tabs (General, Design): the fields of the open one; untabbed ones in the first.
+  const tabs = !query && sectionInfo && 'tabs' in sectionInfo ? (sectionInfo.tabs ?? []) : [];
+  const openTab = tabs.find((x) => x.id === tab)?.id ?? tabs[0]?.id;
+  const inTab = tabs.length ? shown.filter((f) => (f.tab ?? tabs[0]!.id) === openTab) : shown;
+  const visibleCount = inTab.filter((f) => fieldVisible(f, values, defaults)).length;
 
   return (
     <DeviceContext.Provider value={{ device, setDevice }}>
@@ -351,6 +357,26 @@ export function ThemeOptions() {
                 </button>
               )}
             </div>
+            {tabs.length > 1 && (
+              <div role="tablist" className="mb-4 flex border-b border-slate-200">
+                {tabs.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={item.id === openTab}
+                    onClick={() => setTab(item.id)}
+                    className={`-mb-px flex-1 border-b-2 px-3 py-1.5 text-sm ${
+                      item.id === openTab
+                        ? 'border-slate-900 font-medium text-slate-900'
+                        : 'border-transparent text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {labelText(item.label, locale)}
+                  </button>
+                ))}
+              </div>
+            )}
             {visibleCount === 0 ? (
               <p className="text-sm text-slate-600">
                 {query
@@ -359,7 +385,7 @@ export function ThemeOptions() {
               </p>
             ) : (
               <FieldsForm
-                fields={shown}
+                fields={inTab}
                 values={values}
                 defaults={defaults}
                 onChange={setValues}

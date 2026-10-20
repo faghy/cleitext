@@ -29,6 +29,8 @@ interface BaseField {
    */
   section?: string;
   group?: Label;
+  /** The tab of the section the field is in (e.g. `general`, `design`), when the section has tabs. */
+  tab?: string;
   /** Shown only when another field of the same form has a value (the value is kept). */
   showIf?: FieldCondition;
   /**
@@ -216,6 +218,8 @@ export interface ZoneDefinition {
    * (or this one has): the zones beside the center of a header.
    */
   whenUsed?: string;
+  /** Devices that have this zone (default: all), e.g. the zones beside a desktop center. */
+  devices?: ZoneDevice[];
 }
 
 /** A row of a zones field (e.g. the header's main row, a footer row). */
@@ -321,6 +325,7 @@ const base = {
   translation: z.enum(['translate', 'copy', 'ignore']).optional(),
   section: z.string().max(64).optional(),
   group: label.optional(),
+  tab: z.string().max(32).optional(),
   showIf: condition.optional(),
   responsive: z.boolean().optional(),
 };
@@ -439,6 +444,7 @@ export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z.discriminated
                 name: z.string().regex(ZONE_RE),
                 label: label.optional(),
                 whenUsed: z.string().regex(ZONE_RE).optional(),
+                devices: z.array(zoneDevice).max(2).optional(),
               }),
             )
             .min(1)
@@ -689,7 +695,8 @@ function zonesSchema(field: ZonesField): z.ZodType<unknown> {
             continue;
           }
           for (const [zone, names] of Object.entries(zones)) {
-            if (!row.zones.some((z) => z.name === zone)) {
+            const known = row.zones.find((z) => z.name === zone);
+            if (!known || (known.devices && !known.devices.includes(device))) {
               ctx.addIssue({ code: 'custom', message: `Unknown zone "${rowName}.${zone}"` });
               continue;
             }

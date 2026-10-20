@@ -51,6 +51,7 @@ export interface ThemeView {
     description?: Label;
     icon?: string;
     parent?: string;
+    tabs?: { id: string; label: Label }[];
   }[];
   /** Ready-made sets of settings. */
   presets: { id: string; label: Label; values: Record<string, unknown> }[];

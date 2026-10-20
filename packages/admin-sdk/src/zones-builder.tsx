@@ -103,7 +103,11 @@ export function ZonesBuilder({
     const columns = row.columnsField ? Number(values[row.columnsField]) : NaN;
     const zones = Number.isFinite(columns) && columns > 0 ? row.zones.slice(0, columns) : row.zones;
     const used = (zone: string) => zoneItems(value, device, row.name, zone).length > 0;
-    return zones.filter((z) => !z.whenUsed || used(z.whenUsed) || used(z.name));
+    return zones.filter(
+      (z) =>
+        (!z.devices || z.devices.includes(device)) &&
+        (!z.whenUsed || used(z.whenUsed) || used(z.name)),
+    );
   };
 
   const chip = (name: string, row: string, zone: string, index: number) => {

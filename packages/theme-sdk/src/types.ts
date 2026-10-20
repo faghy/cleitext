@@ -202,6 +202,8 @@ export interface ThemeSettingsSection {
    * the header): listed under it, only while it or a sibling is open.
    */
   parent?: string;
+  /** Tabs of the section (e.g. General and Design); a field goes in one with `tab`. */
+  tabs?: { id: string; label: Label }[];
 }
 
 export interface ThemeDefinition {

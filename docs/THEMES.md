@@ -104,7 +104,7 @@ export default defineTheme({
 | `menuLocations`    | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                                          |
 | `settings`         | Fields shown in Appearance → Customize (§4).                                                                                                 |
 | `areas`            | Areas made of blocks (§5).                                                                                                                   |
-| `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description?, parent? }]`; a field goes in one with `section` (§4).                           |
+| `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description?, parent?, tabs? }]`; a field goes in one with `section` (§4).                    |
 | `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                   |
 | `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                             |
 | `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).   |
@@ -169,7 +169,7 @@ settings: [
 presets: [{ id: 'dark', label: 'Dark', values: { accent: '#38bdf8' } }],
 ```
 
-Customize shows one tab per section (fields without one go in "Other"), a search box across all options, the ready-made styles, export and import as JSON, and "Reset this section". Nothing reaches the site until **Publish**. The preview can be shown at desktop, tablet and mobile width.
+Customize shows one tab per section (fields without one go in "Other"), a search box across all options, the ready-made styles, export and import as JSON, and "Reset this section". A section with `tabs: [{ id: 'general', label: 'General' }, { id: 'design', label: 'Design' }]` shows them above its fields; a field goes in one with `tab` (the first, without). Nothing reaches the site until **Publish**. The preview can be shown at desktop, tablet and mobile width.
 
 ### Header and footer builders
 
@@ -201,7 +201,7 @@ settings: [
 ```
 
 - A click on an element, or on a row's gear, opens its `section`. Sections with a `parent` are listed under it, only while it or a sibling is open.
-- `whenUsed` hides a zone until another one (or itself) holds elements. `columnsField` names a number field that says how many zones of the row are used (the columns of a footer row). `devices` and `rows` limit where a row or an element can go. `stacked` lays the zones of a row in a column.
+- `whenUsed` hides a zone until another one (or itself) holds elements, and `devices` keeps a zone to some devices. `columnsField` names a number field that says how many zones of the row are used (the columns of a footer row). `devices` and `rows` limit where a row or an element can go. `stacked` lays the zones of a row in a column.
 - Each element is used at most once per device; the value is `{ desktop: { row: { zone: ['logo'] } }, mobile: {…} }`, checked against the definition. Read it with `zoneItems(value, device, row, zone)` from `@cleitext/theme-sdk`.
 - Put `data-customize="<section>"` on the parts of the page an element or a row renders: in the preview a pencil on them opens that section. Links in the preview change the page shown.
 
