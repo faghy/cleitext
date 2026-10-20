@@ -153,6 +153,8 @@ settings: [
 - Ogni elemento si usa al massimo una volta per dispositivo; il valore è `{ desktop: { riga: { zona: ['logo'] } }, mobile: {…} }`, controllato sulla definizione. Si legge con `zoneItems(value, device, row, zone)` da `@cleitext/theme-sdk`.
 - Metti `data-customize="<sezione>"` sulle parti della pagina disegnate da un elemento o da una riga: nell'anteprima una matita su di esse apre quella sezione. I link nell'anteprima cambiano la pagina mostrata.
 
+I plugin possono aggiungere a un tema impostazioni, sezioni, elementi del costruttore, stili pronti e aree ([PLUGIN.md, Estendere le opzioni di un tema](PLUGIN.md#estendere-le-opzioni-di-un-tema-api-dei-plugin-132)): mentre un plugin del genere è attivo nel sito, `useThemeSettings()` contiene anche i valori dei suoi campi, controllati e con i predefiniti come quelli del tema. Si leggono per nome, e mancano quando il plugin non è attivo.
+
 `entryFields` aggiunge opzioni alle singole pagine (per esempio una barra laterale o un'intestazione trasparente per pagina). Chi scrive le imposta nella scheda Documento dell'editor a blocchi; sono salvate con il contenuto in `document.editor.data` e il tema le legge da `entry.document.editor?.data`. `types` le limita ad alcuni tipi di contenuto (`['page']`).
 
 `editorCss` può essere una funzione, `(settings) => string`, così l'editor segue i colori e i caratteri scelti in Personalizza.

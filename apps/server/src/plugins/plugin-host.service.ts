@@ -42,7 +42,9 @@ import {
   type PluginManifest,
   type PublicRoute,
   type TaxonomyDefinition,
+  type ThemeExtension,
 } from '@cleitext/plugin-sdk';
+import type { ThemeDefinition } from '@cleitext/theme-sdk';
 import { installServerSharedModules } from '@cleitext/plugin-sdk/host';
 import {
   Inject,
@@ -60,6 +62,7 @@ import { PageCacheService } from '../public/page-cache.service.js';
 import { createPluginContext, type PluginServices } from './plugin-context.js';
 import { AuditService } from '../audit/audit.service.js';
 import { compileRoute, type CompiledRoute } from './route-matcher.js';
+import { extendTheme } from '../themes/theme-extensions.js';
 
 /** Default priority of hooks, as in WordPress. */
 const DEFAULT_PRIORITY = 10;
@@ -117,6 +120,8 @@ export interface LoadedPlugin {
   assets: PublicAsset[];
   /** Registered with `ctx.schedule.every` (plugin API 1.18). */
   schedules: { name: string; minutes: number; handler: (siteId: string) => Promise<void> | void }[];
+  /** Registered with `ctx.themes.extend` (plugin API 1.32). */
+  themeExtensions: { theme: string; extension: ThemeExtension }[];
   stats: PluginStats;
 }
 
@@ -147,6 +152,9 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   private ticker: NodeJS.Timeout | undefined;
   /** When each scheduled task last ran, by `slug:name:siteId`. */
   private readonly lastRuns = new Map<string, number>();
+  /** Themes with their plugins' extensions, by plugin set (warnings logged once). */
+  private loads = 0;
+  private readonly extendedThemes = new WeakMap<ThemeDefinition, Map<string, ThemeDefinition>>();
 
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
@@ -244,6 +252,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       for (const block of plugin.blocks) blockRegistry.unregister(block.type);
     }
     this.loaded = next;
+    this.loads++;
     for (const plugin of next.values()) {
       for (const block of plugin.blocks) registerBlockDefinition(block);
     }
@@ -302,6 +311,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       trackerProviders: [],
       assets: [],
       schedules: [],
+      themeExtensions: [],
       stats: { calls: 0, errors: 0, totalMs: 0, lastError: null },
     };
     try {
@@ -347,6 +357,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         trackerProviders: [],
         assets: [],
         schedules: [],
+        themeExtensions: [],
       });
       plugin.capabilities.clear();
       this.logger.error(`Plugin ${slug} could not be loaded: ${plugin.error}`);
@@ -499,6 +510,14 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     plugin.types.push(definition);
   }
 
+  addThemeExtension(plugin: LoadedPlugin, theme: string, extension: ThemeExtension): void {
+    if (!/^[a-z][a-z0-9-]{0,63}$/.test(theme)) {
+      throw new PluginError(`Invalid theme slug "${theme}"`);
+    }
+    fieldListSchema.parse(extension.settings ?? []);
+    plugin.themeExtensions.push({ theme, extension });
+  }
+
   addTaxonomy(plugin: LoadedPlugin, definition: TaxonomyDefinition): void {
     if (!/^[a-z][a-z0-9-]{0,63}$/.test(definition.slug)) {
       throw new PluginError(`Invalid taxonomy slug "${definition.slug}"`);
@@ -560,6 +579,39 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   get pluginServices(): PluginServices {
     if (!this.services) throw new Error('Plugin services are not bound yet');
     return this.services;
+  }
+
+  /**
+   * A site's theme with what its active plugins add (`ctx.themes.extend`):
+   * what Customize shows and what the theme's templates get.
+   */
+  async effectiveTheme(siteId: string, base: ThemeDefinition): Promise<ThemeDefinition> {
+    const loads = this.loads;
+    const targeting = [...this.loaded.values()].flatMap((plugin) =>
+      plugin.status === 'loaded'
+        ? plugin.themeExtensions
+            .filter((e) => e.theme === base.slug)
+            .map(({ extension }) => ({ plugin: plugin.slug, extension }))
+        : [],
+    );
+    if (targeting.length === 0) return base;
+    const active = await this.activeSlugs(siteId);
+    const key = `${loads}|${[...active].sort().join(',')}`;
+    let byKey = this.extendedThemes.get(base);
+    if (!byKey) this.extendedThemes.set(base, (byKey = new Map()));
+    let theme = byKey.get(key);
+    if (!theme) {
+      theme = extendTheme(
+        base,
+        targeting.filter((e) => active.has(e.plugin)),
+        targeting.filter((e) => !active.has(e.plugin)),
+        (message) => this.logger.warn(message),
+      );
+      // Only the latest combinations: a theme sees few plugin sets.
+      if (byKey.size >= 32) byKey.clear();
+      byKey.set(key, theme);
+    }
+    return theme;
   }
 
   /** Slugs of the plugins active on a site (loaded without errors). */

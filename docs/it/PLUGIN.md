@@ -501,6 +501,38 @@ const font = ctx.assets.url('fonts/icons.woff2'); // l'indirizzo, per il proprio
 
 Gli stili vanno in fondo al `<head>`, gli script prima di `</body>` (`defer`, oppure `type="module"` per `.mjs`). `when` riceve il contesto dell'hook della pagina e il suo HTML finale.
 
+### Estendere le opzioni di un tema (API dei plugin 1.32)
+
+Un plugin può aggiungere impostazioni, sezioni, elementi del costruttore di intestazione o piè di pagina, stili pronti e aree di blocchi a un tema, indicato per slug: un'estensione come la versione "Pro" del tema. Si chiama `ctx.themes.extend` in `setup` (serve `theme:hooks`):
+
+```ts
+ctx.themes.extend('zenit', {
+  settingsSections: [{ id: 'pro-topbar', label: 'Barra superiore', parent: 'header' }],
+  settings: [
+    { name: 'topbarText', type: 'text', section: 'pro-topbar', label: 'Testo', default: '' },
+    {
+      name: 'topbarSticky',
+      type: 'boolean',
+      section: 'pro-topbar',
+      label: 'Fissa',
+      default: false,
+    },
+  ],
+  // Elementi per i campi zones del tema, per nome del campo.
+  zoneItems: {
+    headerLayout: [{ name: 'topbar', label: 'Barra superiore', section: 'pro-topbar' }],
+  },
+  presets: [{ id: 'pro-dark', label: 'Scuro (Pro)', values: { topbarSticky: true } }],
+  areas: { 'pro-topbar': 'Barra superiore' },
+  areaDefaults: { 'pro-topbar': { schema: 1, blocks: [] } },
+});
+```
+
+- Vale nei siti in cui il tema è attivo e il plugin è attivo. **Aspetto → Personalizza** mostra i campi aggiunti insieme a quelli del tema, e i template del tema ricevono i loro valori con `useThemeSettings()`, controllati e con i predefiniti, come i propri; le aree aggiunte si modificano in **Aspetto → Aree**.
+- Impostazioni, sezioni e stili pronti vanno dopo quelli del tema; `zoneItems` aggiunge elementi ai campi `zones` del tema (i nomi di campo sconosciuti sono ignorati); le aree si uniscono. Un'impostazione, sezione, elemento, stile pronto o area con un nome già usato dal tema viene ignorato, con un avviso nel log.
+- Cosa fare dei valori lo decide il tema: un'estensione è pensata per un tema che li legge (per esempio per nome, `settings.topbarText`) o che disegna i suoi elementi e le sue aree.
+- Quando il plugin viene disattivato i suoi campi escono da Personalizza e i suoi valori non arrivano più al tema, ma restano salvati e tornano quando lo si riattiva.
+
 ### Impostazioni
 
 `settings:own`. Si dichiarano con dei campi; l'admin mostra il modulo sotto **Settings**, per singolo sito.
@@ -830,7 +862,7 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 | `routes:public` | `ctx.routes.public`                                                                               |
 | `settings:own`  | `ctx.settings.define` / `get`, `ctx.storage`                                                      |
 | `languages`     | `ctx.languages` ([plugin delle lingue](#15-lingue-plugin-delle-lingue))                           |
-| `theme:hooks`   | filtri `render.*` e `theme.*`                                                                     |
+| `theme:hooks`   | filtri `render.*` e `theme.*`, `ctx.assets.enqueue`, `ctx.themes.extend` (API 1.32)               |
 | `mail:send`     | `ctx.mail.send`                                                                                   |
 | `network`       | `ctx.http.send`                                                                                   |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |

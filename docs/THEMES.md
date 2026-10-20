@@ -208,6 +208,8 @@ settings: [
 - Each element is used at most once per device; the value is `{ desktop: { row: { zone: ['logo'] } }, mobile: {…} }`, checked against the definition. Read it with `zoneItems(value, device, row, zone)` from `@cleitext/theme-sdk`.
 - Put `data-customize="<section>"` on the parts of the page an element or a row renders: in the preview a pencil on them opens that section. Links in the preview change the page shown.
 
+Plugins may add settings, sections, builder elements, ready-made styles and areas to a theme ([PLUGINS.md, Extending a theme's options](PLUGINS.md#extending-a-themes-options-plugin-api-132)): while such a plugin is active on the site, `useThemeSettings()` also holds the values of its fields, checked and with defaults like the theme's own. Read them by name, and expect them to be missing when the plugin is not active.
+
 `entryFields` adds options to single pages (for example a sidebar or a transparent header per page). Editors set them in the Document tab of the block editor; they are saved with the entry in `document.editor.data` and the theme reads them from `entry.document.editor?.data`. `types` limits them to some entry types (`['page']`).
 
 `editorCss` may be a function, `(settings) => string`, so the editor follows the colors and fonts chosen in Customize.

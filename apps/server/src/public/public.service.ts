@@ -630,7 +630,9 @@ export class PublicService {
       scope.params = Object.fromEntries(
         [...query].slice(0, 20).map(([k, v]) => [k.slice(0, 64), v.slice(0, 200)]),
       );
-      if (customize?.theme) scope.theme = themeFor(customize.theme);
+      if (customize?.theme) {
+        scope.theme = await this.plugins.effectiveTheme(siteId, themeFor(customize.theme));
+      }
       if (customize?.themeSettings) scope.themeSettings = customize.themeSettings;
 
       if (redirect?.status === 410) return this.notFound(scope, 410);
@@ -723,7 +725,8 @@ export class PublicService {
         siteId,
         data,
         settings,
-        theme: themeFor(site?.theme),
+        // With what the active plugins add to it (`ctx.themes.extend`).
+        theme: await this.plugins.effectiveTheme(siteId, themeFor(site?.theme)),
         siteTitle: settings.title || site?.name || 'Cleitext',
         origin,
         locale,

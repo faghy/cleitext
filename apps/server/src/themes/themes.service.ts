@@ -23,7 +23,12 @@ import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { validateDocument } from '../content/entries.service.js';
 import { DATABASE } from '../database/database.module.js';
 import { PageCacheService } from '../public/page-cache.service.js';
-import { AREAS_NAMESPACE, themeNamespace, themeSettings } from '../public/theme-data.js';
+import {
+  AREAS_NAMESPACE,
+  storedThemeSettings,
+  themeNamespace,
+  themeSettings,
+} from '../public/theme-data.js';
 import {
   installedThemes,
   isThemeAvailable,
@@ -34,6 +39,8 @@ import {
 } from '../public/themes.js';
 import { LicensesService } from '../catalog/licenses.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
+import type { ThemeDefinition } from '@cleitext/theme-sdk';
+import { hiddenSettings } from './theme-extensions.js';
 import { switchThemePlugins } from './theme-plugins.js';
 
 /** Themes per site: activation, settings, block areas (RF-THM-01/03/04). */
@@ -83,10 +90,21 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     return themeFor(site?.theme).slug;
   }
 
+  /** The site's theme with what its active plugins add (`ctx.themes.extend`). */
+  async activeTheme(siteId: string, auth: AuthContext): Promise<ThemeDefinition> {
+    return this.plugins.effectiveTheme(siteId, themeFor(await this.activeSlug(siteId, auth)));
+  }
+
   async list(siteId: string, auth: AuthContext): Promise<ThemeView[]> {
     const active = await this.activeSlug(siteId, auth);
     const licenses = await this.licenses.list(siteId, auth);
-    const views: ThemeView[] = installedThemes().map(({ theme, bundled }) => ({
+    const themes = await Promise.all(
+      installedThemes().map(async ({ theme, bundled }) => ({
+        theme: await this.plugins.effectiveTheme(siteId, theme),
+        bundled,
+      })),
+    );
+    const views: ThemeView[] = themes.map(({ theme, bundled }) => ({
       slug: theme.slug,
       name: theme.name,
       version: theme.version,
@@ -166,7 +184,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
 
   /** Values of the active theme's settings, defaults included. */
   async settings(siteId: string, auth: AuthContext): Promise<Record<string, unknown>> {
-    const theme = themeFor(await this.activeSlug(siteId, auth));
+    const theme = await this.activeTheme(siteId, auth);
     return this.run(siteId, auth, (tx) => themeSettings(tx, theme));
   }
 
@@ -176,7 +194,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     auth: AuthContext,
     values: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    const theme = themeFor(await this.activeSlug(siteId, auth));
+    const theme = await this.activeTheme(siteId, auth);
     const fields = theme.settings ?? [];
     const known = new Set(fields.map((f) => f.name));
     const parsed = fieldsValidator(fields).safeParse(
@@ -203,7 +221,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     auth: AuthContext,
     data: unknown,
   ): Promise<{ values: Record<string, unknown>; skipped: number }> {
-    const theme = themeFor(await this.activeSlug(siteId, auth));
+    const theme = await this.activeTheme(siteId, auth);
     const converted = theme.importSettings?.(data) ?? null;
     if (!converted) {
       throw new BadRequestException('The active theme cannot read this file.');
@@ -226,9 +244,17 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     values: Record<string, unknown>,
     ip: string,
   ): Promise<Record<string, unknown>> {
-    const slug = await this.activeSlug(siteId, auth);
-    const clean = await this.validSettings(siteId, auth, values);
+    const theme = await this.activeTheme(siteId, auth);
+    const slug = theme.slug;
+    let clean = await this.validSettings(siteId, auth, values);
     await this.run(siteId, auth, async (tx) => {
+      // Values of settings added by plugins deactivated here are kept for their return.
+      const hidden = hiddenSettings(theme);
+      if (hidden.size > 0) {
+        const stored = await storedThemeSettings(tx, slug);
+        const kept = Object.entries(stored).filter(([name]) => hidden.has(name));
+        clean = { ...Object.fromEntries(kept), ...clean };
+      }
       await tx
         .insert(settings)
         .values({ siteId, namespace: themeNamespace(slug), key: 'values', value: clean })
@@ -264,7 +290,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     );
     return (
       (row?.value as CxdDocument | undefined) ??
-      themeFor(await this.activeSlug(siteId, auth)).areaDefaults?.[name] ?? {
+      (await this.activeTheme(siteId, auth)).areaDefaults?.[name] ?? {
         schema: 1,
         blocks: [],
       }
@@ -331,7 +357,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     siteId: string,
     auth: AuthContext,
   ): Promise<{ slug: string; name: string; guide: string | null }> {
-    const theme = themeFor(await this.activeSlug(siteId, auth));
+    const theme = await this.activeTheme(siteId, auth);
     return { slug: theme.slug, name: theme.name, guide: theme.aiGuide ?? null };
   }
 
@@ -343,7 +369,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
   }
 
   async editorCss(siteId: string, auth: AuthContext): Promise<string> {
-    const theme = themeFor(await this.activeSlug(siteId, auth));
+    const theme = await this.activeTheme(siteId, auth);
     if (typeof theme.editorCss !== 'function') return theme.editorCss ?? '';
     // The chosen colors and fonts, as on the site.
     const values = await this.run(siteId, auth, (tx) => themeSettings(tx, theme));
@@ -355,7 +381,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
   }
 
   private async assertArea(siteId: string, auth: AuthContext, name: string): Promise<void> {
-    const theme = themeFor(await this.activeSlug(siteId, auth));
+    const theme = await this.activeTheme(siteId, auth);
     if (!theme.areas || !(name in theme.areas)) {
       throw new NotFoundException(`The theme has no area "${name}".`);
     }

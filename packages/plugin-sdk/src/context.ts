@@ -1,6 +1,6 @@
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import type { TransferDocumentInput } from '@cleitext/blocks/transfer';
-import type { FieldDefinition, FieldValues, Label } from '@cleitext/shared';
+import type { FieldDefinition, FieldValues, Label, ZoneItem } from '@cleitext/shared';
 import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
 import type { ReactNode } from 'react';
 import type {
@@ -9,6 +9,8 @@ import type {
   Pagination,
   PublicEntry,
   PublicEntrySummary,
+  ThemeDefinition,
+  ThemeSettingsSection,
 } from '@cleitext/theme-sdk';
 import type { HookApi, RenderHookContext } from './hooks.js';
 
@@ -934,11 +936,44 @@ export interface AssetsApi {
   enqueue(asset: PublicAsset): void;
 }
 
+/**
+ * What a plugin adds to a theme's options (plugin API 1.32), e.g. a "Pro"
+ * add-on: shown in Appearance → Customize and given to the theme's templates
+ * like the theme's own settings, only on sites where the plugin is active.
+ * Names and ids already used by the theme are ignored.
+ */
+export interface ThemeExtension {
+  /** More settings, as a theme's `settings` (`section`, `tab`, `showIf`, zones…). */
+  settings?: FieldDefinition[];
+  /** More sections of the options panel; `parent` may name one of the theme's. */
+  settingsSections?: ThemeSettingsSection[];
+  /** More ready-made sets of settings (skins). */
+  presets?: NonNullable<ThemeDefinition['presets']>;
+  /** More elements for the theme's zones fields (header or footer builder), by field name. */
+  zoneItems?: Record<string, ZoneItem[]>;
+  /** More block areas, e.g. `{ 'top-bar': 'Top bar' }`, rendered by the theme by name. */
+  areas?: Record<string, string>;
+  /** What the added areas show until they are edited. */
+  areaDefaults?: Record<string, CxdDocument>;
+}
+
+export interface ThemesApi {
+  /**
+   * Extends the options of a theme, by slug (needs `theme:hooks`, plugin API
+   * 1.32). Call it in `setup`; it applies while the theme is a site's theme
+   * and the plugin is active there. Values of the added settings are kept
+   * when the plugin is deactivated, but no longer reach the theme.
+   */
+  extend(theme: string, extension: ThemeExtension): void;
+}
+
 export interface PluginContext {
   readonly plugin: { slug: string; version: string };
   /** A site's name and languages (plugin API 1.16), e.g. for emails sent outside a request. */
   site(siteId: string): Promise<PluginSite>;
   readonly assets: AssetsApi;
+  /** Adds settings, sections and areas to a theme (plugin API 1.32). */
+  readonly themes: ThemesApi;
   readonly log: PluginLogger;
   readonly hooks: HookApi;
   readonly content: ContentApi;

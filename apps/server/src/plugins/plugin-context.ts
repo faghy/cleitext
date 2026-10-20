@@ -360,6 +360,13 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       },
     },
 
+    themes: {
+      extend(theme, extension) {
+        require('theme:hooks');
+        host.addThemeExtension(plugin, theme, extension);
+      },
+    },
+
     blocks: {
       register(definition) {
         require('blocks');

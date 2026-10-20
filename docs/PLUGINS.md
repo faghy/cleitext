@@ -574,6 +574,36 @@ const font = ctx.assets.url('fonts/icons.woff2'); // the address, for your own m
 
 Styles go at the end of `<head>`, scripts before `</body>` (`defer`, or `type="module"` for `.mjs`). `when` receives the page's hook context and its final HTML.
 
+### Extending a theme's options (plugin API 1.32)
+
+A plugin can add settings, sections, header or footer builder elements, ready-made styles and block areas to a theme, by its slug: an add-on such as a "Pro" version of the theme. Call `ctx.themes.extend` in `setup` (needs `theme:hooks`):
+
+```ts
+ctx.themes.extend('zenit', {
+  settingsSections: [{ id: 'pro-topbar', label: 'Top bar', parent: 'header' }],
+  settings: [
+    { name: 'topbarText', type: 'text', section: 'pro-topbar', label: 'Text', default: '' },
+    {
+      name: 'topbarSticky',
+      type: 'boolean',
+      section: 'pro-topbar',
+      label: 'Sticky',
+      default: false,
+    },
+  ],
+  // Elements for the theme's zones fields, by field name.
+  zoneItems: { headerLayout: [{ name: 'topbar', label: 'Top bar', section: 'pro-topbar' }] },
+  presets: [{ id: 'pro-dark', label: 'Dark (Pro)', values: { topbarSticky: true } }],
+  areas: { 'pro-topbar': 'Top bar' },
+  areaDefaults: { 'pro-topbar': { schema: 1, blocks: [] } },
+});
+```
+
+- It applies on sites where the theme is active and the plugin is active. **Appearance → Customize** shows the added fields with the theme's, and the theme's templates get their values with `useThemeSettings()`, checked and with defaults, like its own; the added areas are edited in **Appearance → Areas**.
+- Settings, sections and presets are added after the theme's; `zoneItems` adds elements to the theme's `zones` fields (unknown field names are ignored); areas are merged. A setting, section, element, preset or area whose name the theme already uses is ignored, with a warning in the log.
+- The theme decides what to do with the values: an add-on targets a theme that reads them (for example by name, `settings.topbarText`), or renders its elements and areas.
+- When the plugin is deactivated its fields leave Customize and its values no longer reach the theme, but they stay stored and come back when it is activated again.
+
 ### Settings
 
 `settings:own`. Declared with fields; the admin shows the form under **Settings**, per site.
@@ -910,7 +940,7 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 | `routes:public` | `ctx.routes.public`                                                                               |
 | `settings:own`  | `ctx.settings.define` / `get`, `ctx.storage`                                                      |
 | `languages`     | `ctx.languages` ([language plugins](#15-languages-language-plugins))                              |
-| `theme:hooks`   | filters `render.*` and `theme.*`                                                                  |
+| `theme:hooks`   | filters `render.*` and `theme.*`, `ctx.assets.enqueue`, `ctx.themes.extend` (API 1.32)            |
 | `mail:send`     | `ctx.mail.send`                                                                                   |
 | `network`       | `ctx.http.send`                                                                                   |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
