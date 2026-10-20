@@ -37,12 +37,16 @@ const envSchema = z.object({
     .default(12),
   SESSION_REMEMBER_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   /**
-   * Outgoing mail: `smtp://user:pass@host:587`, `smtps://…`, `log://` (print to
-   * the log, development) or `memory://` (kept in memory, tests).
+   * Outgoing mail: `smtp://user:pass@host:587`, `smtps://…`, `sendmail://` (the
+   * server's /usr/sbin/sendmail, or `sendmail:///path/to/sendmail`), `log://`
+   * (print to the log, development) or `memory://` (kept in memory, tests).
    */
   MAIL_URL: z
     .string()
-    .regex(/^(smtps?|log|memory):\/\//, 'Use smtp://, smtps://, log:// or memory://')
+    .regex(
+      /^(smtps?|sendmail|log|memory):\/\//,
+      'Use smtp://, smtps://, sendmail://, log:// or memory://',
+    )
     .default('log://'),
   MAIL_FROM: z.string().min(3).default('Cleitext <no-reply@localhost>'),
   /** Uploaded files (disk storage driver). Relative paths start from the working directory. */

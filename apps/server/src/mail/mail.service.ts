@@ -35,6 +35,7 @@ interface SiteTransport {
  * Outgoing email. A site can have its own SMTP server (RF-SET-02); otherwise
  * the server's MAIL_URL is used:
  * - `smtp://` / `smtps://`: real delivery (nodemailer);
+ * - `sendmail://`: handed to the server's sendmail (Plesk, cPanel…), no mailbox needed;
  * - `log://`: printed to the log (development);
  * - `memory://`: kept in `outbox` (tests), site settings included.
  */
@@ -53,7 +54,16 @@ export class MailService {
   ) {
     const scheme = config.mail.url.split(':')[0];
     this.driver = scheme === 'log' ? 'log' : scheme === 'memory' ? 'memory' : 'smtp';
-    this.transport = this.driver === 'smtp' ? createTransport(config.mail.url) : null;
+    this.transport =
+      this.driver !== 'smtp'
+        ? null
+        : scheme === 'sendmail'
+          ? createTransport({
+              sendmail: true,
+              newline: 'unix',
+              path: sendmailPath(config.mail.url),
+            })
+          : createTransport(config.mail.url);
   }
 
   /** Sends a message; with `siteId`, through the site's SMTP server when it has one. */
@@ -141,4 +151,10 @@ export class MailService {
     this.sites.set(siteId, result);
     return result;
   }
+}
+
+/** `sendmail://` → /usr/sbin/sendmail; `sendmail:///usr/lib/sendmail` → that program. */
+export function sendmailPath(url: string): string {
+  const path = url.slice('sendmail://'.length);
+  return /^\/[\w./-]+$/.test(path) ? path : '/usr/sbin/sendmail';
 }

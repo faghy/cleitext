@@ -115,9 +115,11 @@ TRUST_PROXY=true                  # behind nginx
 MEDIA_PATH=/var/www/vhosts/example.com/cleitext-shared/media
 PLUGINS_PATH=/var/www/vhosts/example.com/cleitext-shared/plugins
 THEMES_PATH=/var/www/vhosts/example.com/cleitext-shared/themes
-MAIL_URL=smtp://user:password@localhost:587
+MAIL_URL=smtp://user:password@localhost:587   # or sendmail:// (the server's sendmail, no mailbox)
 MAIL_FROM=Example <no-reply@example.com>
 ```
+
+On Plesk, `localhost:25` without the credentials of a mailbox delivers only to the server's own domains ("Relay access denied"): use `MAIL_URL=sendmail://`, which hands the messages to the server's mail system, or the SMTP settings of a mailbox.
 
 `chmod 600 cleitext-shared/.env`. The other settings are listed in [`.env.example`](../.env.example).
 

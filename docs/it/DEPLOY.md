@@ -115,9 +115,11 @@ TRUST_PROXY=true                  # behind nginx
 MEDIA_PATH=/var/www/vhosts/example.com/cleitext-shared/media
 PLUGINS_PATH=/var/www/vhosts/example.com/cleitext-shared/plugins
 THEMES_PATH=/var/www/vhosts/example.com/cleitext-shared/themes
-MAIL_URL=smtp://user:password@localhost:587
+MAIL_URL=smtp://user:password@localhost:587   # oppure sendmail:// (il sendmail del server, senza casella)
 MAIL_FROM=Example <no-reply@example.com>
 ```
+
+Su Plesk, `localhost:25` senza le credenziali di una casella consegna solo ai domini del server («Relay access denied»): usa `MAIL_URL=sendmail://`, che passa i messaggi al sistema di posta del server, oppure i dati SMTP di una casella.
 
 `chmod 600 cleitext-shared/.env`. Le altre impostazioni sono elencate in [`.env.example`](../../.env.example).
 
