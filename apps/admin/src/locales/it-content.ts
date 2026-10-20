@@ -122,6 +122,7 @@ export const itContent: Messages = {
   Text: 'Testo',
   'The public version is older than the saved one.':
     'La versione pubblica è più vecchia di quella salvata.',
+  'Theme options': 'Opzioni del tema',
   'Theme: {name} {version}': 'Tema: {name} {version}',
   'There is an autosave of this entry newer than the saved version.':
     'Esiste un salvataggio automatico di questo contenuto più recente della versione salvata.',

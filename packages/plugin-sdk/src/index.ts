@@ -19,6 +19,7 @@ export {
   type FieldDefinition,
   type FieldValues,
   type Label,
+  type MenuItemField,
 } from '@cleitext/shared';
 
 /**

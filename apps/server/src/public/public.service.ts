@@ -1770,6 +1770,7 @@ export class PublicService {
       data.urls,
       scope.path,
       new Set(data.types.map((t) => t.slug)),
+      theme.menuItemFields,
     );
     scope.tags.add(`menus:${locale}`);
     // Theme settings and block areas, with the media they use.
@@ -2353,6 +2354,7 @@ export class PublicService {
         scope.data.urls,
         '/',
         new Set(scope.data.types.map((t) => t.slug)),
+        scope.theme.menuItemFields,
       );
       const renderers = await this.pluginBlockRenderers(scope, [document], props, media, menus);
       const html = renderers

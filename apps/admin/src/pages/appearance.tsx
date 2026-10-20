@@ -1,7 +1,13 @@
-import type { EntryListResponse, MenuView, ThemeInfo } from '@cleitext/shared';
+import {
+  fieldDefaults,
+  menuItemFieldApplies,
+  type EntryListResponse,
+  type MenuView,
+  type ThemeInfo,
+} from '@cleitext/shared';
 import { useTabParam } from '../components/use-tab';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useT } from '@cleitext/admin-sdk';
+import { FieldsForm, useT } from '@cleitext/admin-sdk';
 import { Fragment, type PointerEvent, useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
@@ -231,9 +237,22 @@ function MenuEditor({
   theme: ThemeInfo;
   onDeleted: () => void;
 }) {
-  const { t } = useT();
+  const { t, language } = useT();
   const queryClient = useQueryClient();
   const [name, setName] = useState(menu.name);
+  /** Rows whose theme options are shown. */
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (key: string) =>
+    setExpanded((keys) => {
+      const next = new Set(keys);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  /** The theme's options for an item at a depth (plugin API 1.34). */
+  const optionsAt = (depth: number) =>
+    (theme.menuItemFields ?? [])
+      .filter((item) => menuItemFieldApplies(item, depth))
+      .map((item) => item.field);
   const [location, setLocation] = useState(menu.location ?? '');
   const [items, setItems] = useState<FlatItem[]>(() => flatten(menu.items));
   const [saved, setSaved] = useState(false);
@@ -344,90 +363,121 @@ function MenuEditor({
           <p className="text-sm text-slate-600">{t('Add items from the column on the left.')}</p>
         ) : (
           <ol ref={listRef} className="space-y-2" aria-label={t('Menu items')}>
-            {items.map((item, index) => (
-              <Fragment key={item.key}>
-                {markerBefore === item.key && marker}
-                <li
-                  data-key={item.key}
-                  style={{ marginLeft: `${item.depth * 1.5}rem` }}
-                  className={`rounded border border-slate-200 bg-slate-50 p-2 ${dragged && index >= dragged.from && index < dragged.end ? 'opacity-40' : ''}`}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      title={t('Drag to move')}
-                      aria-label={t('Drag to move')}
-                      tabIndex={-1}
-                      className="cursor-grab touch-none px-1 text-slate-500 select-none active:cursor-grabbing"
-                      {...dragHandlers(index)}
-                    >
-                      ⠿
-                    </button>
-                    <span className="text-xs uppercase text-slate-500">
-                      {t(KIND_LABELS[item.kind])}
-                    </span>
-                    <label className="sr-only" htmlFor={`label-${item.key}`}>
-                      {t('Navigation label')}
-                    </label>
-                    <input
-                      id={`label-${item.key}`}
-                      className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
-                      value={item.label ?? ''}
-                      placeholder={item.title}
-                      onChange={(e) => update(index, { label: e.target.value })}
-                    />
-                    <TreeButton label={t('Move up')} onClick={() => setItems(moveUp(items, index))}>
-                      ↑
-                    </TreeButton>
-                    <TreeButton
-                      label={t('Move down')}
-                      onClick={() => setItems(moveDown(items, index))}
-                    >
-                      ↓
-                    </TreeButton>
-                    <TreeButton
-                      label={t('Make sub-item')}
-                      disabled={!canIndent(items, index)}
-                      onClick={() => setItems(indent(items, index))}
-                    >
-                      →
-                    </TreeButton>
-                    <TreeButton
-                      label={t('Move out of sub-items')}
-                      disabled={item.depth === 0}
-                      onClick={() => setItems(outdent(items, index))}
-                    >
-                      ←
-                    </TreeButton>
-                    <TreeButton label={t('Remove')} onClick={() => setItems(remove(items, index))}>
-                      ✕
-                    </TreeButton>
-                  </div>
-                  {item.kind === 'url' && (
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                      <label className="flex flex-1 items-center gap-2">
-                        <span>{t('URL')}</span>
-                        <input
-                          className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1"
-                          value={item.url ?? ''}
-                          onChange={(e) => update(index, { url: e.target.value })}
-                        />
+            {items.map((item, index) => {
+              const options = optionsAt(item.depth);
+              const open = options.length > 0 && expanded.has(item.key);
+              return (
+                <Fragment key={item.key}>
+                  {markerBefore === item.key && marker}
+                  <li
+                    data-key={item.key}
+                    style={{ marginLeft: `${item.depth * 1.5}rem` }}
+                    className={`rounded border border-slate-200 bg-slate-50 p-2 ${dragged && index >= dragged.from && index < dragged.end ? 'opacity-40' : ''}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        title={t('Drag to move')}
+                        aria-label={t('Drag to move')}
+                        tabIndex={-1}
+                        className="cursor-grab touch-none px-1 text-slate-500 select-none active:cursor-grabbing"
+                        {...dragHandlers(index)}
+                      >
+                        ⠿
+                      </button>
+                      <span className="text-xs uppercase text-slate-500">
+                        {t(KIND_LABELS[item.kind])}
+                      </span>
+                      <label className="sr-only" htmlFor={`label-${item.key}`}>
+                        {t('Navigation label')}
                       </label>
-                      <label className="flex items-center gap-1">
-                        <input
-                          type="checkbox"
-                          checked={item.target === '_blank'}
-                          onChange={(e) =>
-                            update(index, { target: e.target.checked ? '_blank' : null })
-                          }
-                        />
-                        {t('Open in a new tab')}
-                      </label>
+                      <input
+                        id={`label-${item.key}`}
+                        className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+                        value={item.label ?? ''}
+                        placeholder={item.title}
+                        onChange={(e) => update(index, { label: e.target.value })}
+                      />
+                      <TreeButton
+                        label={t('Move up')}
+                        onClick={() => setItems(moveUp(items, index))}
+                      >
+                        ↑
+                      </TreeButton>
+                      <TreeButton
+                        label={t('Move down')}
+                        onClick={() => setItems(moveDown(items, index))}
+                      >
+                        ↓
+                      </TreeButton>
+                      <TreeButton
+                        label={t('Make sub-item')}
+                        disabled={!canIndent(items, index)}
+                        onClick={() => setItems(indent(items, index))}
+                      >
+                        →
+                      </TreeButton>
+                      <TreeButton
+                        label={t('Move out of sub-items')}
+                        disabled={item.depth === 0}
+                        onClick={() => setItems(outdent(items, index))}
+                      >
+                        ←
+                      </TreeButton>
+                      {options.length > 0 && (
+                        <TreeButton
+                          label={t('Theme options')}
+                          expanded={open}
+                          onClick={() => toggle(item.key)}
+                        >
+                          ⚙
+                        </TreeButton>
+                      )}
+                      <TreeButton
+                        label={t('Remove')}
+                        onClick={() => setItems(remove(items, index))}
+                      >
+                        ✕
+                      </TreeButton>
                     </div>
-                  )}
-                </li>
-              </Fragment>
-            ))}
+                    {item.kind === 'url' && (
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                        <label className="flex flex-1 items-center gap-2">
+                          <span>{t('URL')}</span>
+                          <input
+                            className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1"
+                            value={item.url ?? ''}
+                            onChange={(e) => update(index, { url: e.target.value })}
+                          />
+                        </label>
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={item.target === '_blank'}
+                            onChange={(e) =>
+                              update(index, { target: e.target.checked ? '_blank' : null })
+                            }
+                          />
+                          {t('Open in a new tab')}
+                        </label>
+                      </div>
+                    )}
+                    {open && (
+                      <section className="mt-3 rounded border border-slate-200 bg-white p-3">
+                        <h3 className="mb-2 text-sm font-semibold">{t('Theme options')}</h3>
+                        <FieldsForm
+                          fields={options}
+                          values={item.data ?? {}}
+                          defaults={fieldDefaults(options)}
+                          locale={language}
+                          onChange={(data) => update(index, { data })}
+                        />
+                      </section>
+                    )}
+                  </li>
+                </Fragment>
+              );
+            })}
             {markerBefore === null && marker}
           </ol>
         )}
@@ -467,12 +517,15 @@ const KIND_LABELS: Record<FlatItem['kind'], string> = {
 function TreeButton({
   label,
   children,
+  expanded,
   ...props
 }: {
   label: string;
   children: string;
   onClick: () => void;
   disabled?: boolean;
+  /** For buttons that show or hide a panel. */
+  expanded?: boolean;
 }) {
   return (
     <button
@@ -480,6 +533,7 @@ function TreeButton({
       aria-label={label}
       title={label}
       className="h-7 w-7 rounded border border-slate-300 bg-white text-sm hover:bg-slate-100 disabled:opacity-40"
+      {...(expanded !== undefined ? { 'aria-expanded': expanded } : {})}
       {...props}
     >
       {children}

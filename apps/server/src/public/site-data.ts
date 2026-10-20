@@ -20,10 +20,11 @@ import {
   safeUrl,
   type RenderMedia,
 } from '@cleitext/renderer';
-import type { MenuItemView, PublicEntrySummary } from '@cleitext/theme-sdk';
+import type { MenuItemField, MenuItemView, PublicEntrySummary } from '@cleitext/theme-sdk';
 import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { ContentLocale } from '@cleitext/plugin-sdk';
 import { termKey, UrlBuilder, type TypeInfo } from './urls.js';
+import { menuItemFieldsAt, publicMenuItemData } from '../menus/menu-item-data.js';
 
 /** Published entry with its published revision. */
 export interface PublishedEntry {
@@ -357,6 +358,8 @@ export async function loadMenus(
   currentPath: string,
   /** Content types visible on the site (links to other entries are dropped). */
   typeSlugs: ReadonlySet<string>,
+  /** Options of menu items of the site's theme (plugin API 1.34), given in `data`. */
+  itemFields?: readonly MenuItemField[],
 ): Promise<Record<string, MenuItemView[]>> {
   const menuRows = await tx
     .select()
@@ -421,13 +424,14 @@ export async function loadMenus(
   const result: Record<string, MenuItemView[]> = {};
   for (const menu of menuRows) {
     const ownItems = items.filter((i) => i.menuId === menu.id);
-    const build = (parentId: string | null): MenuItemView[] =>
+    const build = (parentId: string | null, depth: number): MenuItemView[] =>
       ownItems
         .filter((i) => i.parentId === parentId)
         .flatMap((item) => {
           const resolved = resolve(item);
           if (!resolved) return [];
-          const children = build(item.id);
+          const children = build(item.id, depth + 1);
+          const fields = menuItemFieldsAt(itemFields, depth);
           const current =
             resolved.url === currentPath ||
             (resolved.url !== '/' && currentPath.startsWith(`${resolved.url}/`)) ||
@@ -439,11 +443,12 @@ export async function loadMenus(
               url: resolved.url,
               ...(item.target === '_blank' ? { target: '_blank' as const } : {}),
               current,
+              ...(fields.length > 0 ? { data: publicMenuItemData(fields, item.data) } : {}),
               children,
             },
           ];
         });
-    result[menu.location!] = build(null);
+    result[menu.location!] = build(null, 0);
   }
   return result;
 }

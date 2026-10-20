@@ -1,7 +1,9 @@
-import type { FieldDefinition, Label } from '@cleitext/shared';
+import type { FieldDefinition, Label, MenuItemField } from '@cleitext/shared';
 import type { CxdDocument } from '@cleitext/blocks';
 import type { BlockRenderer, RenderMedia } from '@cleitext/renderer';
 import type { ComponentType, ReactNode } from 'react';
+
+export type { MenuItemField } from '@cleitext/shared';
 
 /**
  * Theme contract (docs/ARCHITECTURE.md §12). Templates are React components
@@ -35,6 +37,12 @@ export interface MenuItemView {
   target?: '_blank';
   /** The item points to the current page or one of its ancestors. */
   current: boolean;
+  /**
+   * Values of the theme's `menuItemFields` for this item (plugin API 1.34),
+   * defaults included: only options of the active theme and its active
+   * plugins that apply at the item's level.
+   */
+  data?: Record<string, unknown>;
   children: MenuItemView[];
 }
 
@@ -217,6 +225,13 @@ export interface ThemeDefinition {
   description?: string;
   /** Menu locations offered by the theme: key → label. */
   menuLocations: Record<string, string>;
+  /**
+   * Options of each menu item (plugin API 1.34), e.g. a mega menu's columns:
+   * edited in Appearance → Menus under "Theme options" and given to the
+   * theme in `MenuItemView.data`. `levels`: `top` (first-level items only),
+   * `nested` (sub-items only) or `all` (default).
+   */
+  menuItemFields?: MenuItemField[];
   /**
    * Settings shown in Appearance → Customize (RF-THM-03): logo, colors,
    * texts… Values reach templates through `useThemeSettings()`.

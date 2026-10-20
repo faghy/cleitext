@@ -18,6 +18,8 @@ import { DATABASE } from '../database/database.module.js';
 import { LanguagesService } from '../content/languages.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { themeFor } from '../public/themes.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
+import { menuItemFieldsAt, validMenuItemData } from './menu-item-data.js';
 import { nextFreeSlug, slugify } from '../content/slug.js';
 
 type MenuRow = typeof menus.$inferSelect;
@@ -30,26 +32,30 @@ export class MenusService {
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly cache: PageCacheService,
     private readonly languages: LanguagesService,
+    private readonly plugins: PluginHost,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: SiteTransaction) => Promise<T>) {
     return withContext(this.database.db, { siteId, userId: auth.userId }, fn);
   }
 
+  /** The site's theme with what its active plugins add (outside any transaction). */
+  private async activeTheme(siteId: string, auth: AuthContext) {
+    const [site] = await this.run(siteId, auth, (tx) =>
+      tx.select({ theme: sites.themeSlug }).from(sites).where(eq(sites.id, siteId)),
+    );
+    return this.plugins.effectiveTheme(siteId, themeFor(site?.theme));
+  }
+
   async currentTheme(siteId: string, auth: AuthContext): Promise<ThemeInfo> {
-    return this.run(siteId, auth, async (tx) => {
-      const [site] = await tx
-        .select({ theme: sites.themeSlug })
-        .from(sites)
-        .where(eq(sites.id, siteId));
-      const theme = themeFor(site?.theme);
-      return {
-        slug: theme.slug,
-        name: theme.name,
-        version: theme.version,
-        menuLocations: theme.menuLocations,
-      };
-    });
+    const theme = await this.activeTheme(siteId, auth);
+    return {
+      slug: theme.slug,
+      name: theme.name,
+      version: theme.version,
+      menuLocations: theme.menuLocations,
+      menuItemFields: theme.menuItemFields ?? [],
+    };
   }
 
   list(siteId: string, auth: AuthContext, locale?: string): Promise<MenuView[]> {
@@ -126,15 +132,36 @@ export class MenusService {
     id: string,
     items: MenuItemInput[],
   ): Promise<MenuView> {
+    const { menuItemFields } = await this.activeTheme(siteId, auth);
     const view = await this.run(siteId, auth, async (tx) => {
       const menu = await this.load(tx, id);
       await this.validateItems(tx, menu.locale, items);
+      // Values of theme options not declared now are carried over (by item id).
+      const stored = new Map(
+        (
+          await tx
+            .select({ id: menuItems.id, data: menuItems.data })
+            .from(menuItems)
+            .where(eq(menuItems.menuId, id))
+        ).map((row) => [row.id, row.data as Record<string, unknown>]),
+      );
       await tx.delete(menuItems).where(eq(menuItems.menuId, id));
       const rows: (typeof menuItems.$inferInsert)[] = [];
       const walk = (list: MenuItemInput[], parentId: string | null, depth: number) => {
         if (depth > 5) throw new BadRequestException('Menus can be nested up to 5 levels.');
         list.forEach((item, position) => {
           const itemId = newId();
+          const data = validMenuItemData(
+            menuItemFieldsAt(menuItemFields, depth - 1),
+            item.data,
+            item.id ? stored.get(item.id) : undefined,
+          );
+          if (!data.ok) {
+            throw new BadRequestException({
+              message: `Some theme options of the menu item "${item.label?.trim() || item.url || item.kind}" are not valid.`,
+              errors: data.errors,
+            });
+          }
           rows.push({
             id: itemId,
             siteId,
@@ -147,6 +174,7 @@ export class MenusService {
             url: item.kind === 'url' ? item.url!.trim() : null,
             label: item.label?.trim() || null,
             target: item.target ?? null,
+            data: data.data,
           });
           walk(item.children ?? [], itemId, depth + 1);
         });
@@ -278,6 +306,7 @@ export class MenusService {
             (item.termId ? termNames.get(item.termId) : undefined) ||
             item.url ||
             '(untitled)',
+          data: (item.data as Record<string, unknown> | null) ?? {},
           children: build(item.id),
         }));
     return {

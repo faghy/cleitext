@@ -117,6 +117,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       settingsSections: theme.settingsSections ?? [],
       presets: theme.presets ?? [],
       entryFields: theme.entryFields ?? null,
+      menuItemFields: theme.menuItemFields ?? [],
       paid: paidView(theme.slug, licenses),
       error: null,
     }));
@@ -134,6 +135,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
         settingsSections: [],
         presets: [],
         entryFields: null,
+        menuItemFields: [],
         paid: null,
         error,
       });

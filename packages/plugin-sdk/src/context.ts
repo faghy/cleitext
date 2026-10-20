@@ -1,6 +1,12 @@
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import type { TransferDocumentInput } from '@cleitext/blocks/transfer';
-import type { FieldDefinition, FieldValues, Label, ZoneItem } from '@cleitext/shared';
+import type {
+  FieldDefinition,
+  FieldValues,
+  Label,
+  MenuItemField,
+  ZoneItem,
+} from '@cleitext/shared';
 import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
 import type { ReactNode } from 'react';
 import type {
@@ -955,6 +961,11 @@ export interface ThemeExtension {
   areas?: Record<string, string>;
   /** What the added areas show until they are edited. */
   areaDefaults?: Record<string, CxdDocument>;
+  /**
+   * More options of menu items, as a theme's `menuItemFields` (plugin API
+   * 1.34), e.g. a mega menu. Values stay stored while the plugin is inactive.
+   */
+  menuItemFields?: MenuItemField[];
 }
 
 export interface ThemesApi {

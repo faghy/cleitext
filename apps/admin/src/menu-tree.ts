@@ -12,6 +12,10 @@ export interface FlatItem {
   target: '_blank' | null;
   /** Title of the linked entry or term, for display. */
   title: string;
+  /** Id of the saved item (its stored theme options are kept on save). */
+  id?: string;
+  /** Values of the theme's menu item options (plugin API 1.34). */
+  data?: Record<string, unknown>;
 }
 
 /** Up to 5 levels (depth 0–4), as the server accepts. */
@@ -32,6 +36,8 @@ export function flatten(nodes: MenuItemNode[], depth = 0): FlatItem[] {
       label: node.label,
       target: node.target,
       title: node.displayLabel,
+      id: node.id,
+      data: node.data ?? {},
     },
     ...flatten(node.children, depth + 1),
   ]);
@@ -43,12 +49,14 @@ export function toTree(items: FlatItem[]): MenuItemInput[] {
   for (const item of items) {
     while (stack.length > 1 && stack.at(-1)!.depth >= item.depth) stack.pop();
     const node: MenuItemInput = {
+      ...(item.id ? { id: item.id } : {}),
       kind: item.kind,
       ...(item.entryId ? { entryId: item.entryId } : {}),
       ...(item.termId ? { termId: item.termId } : {}),
       ...(item.url ? { url: item.url } : {}),
       label: item.label?.trim() || null,
       target: item.target,
+      ...(item.data && Object.keys(item.data).length > 0 ? { data: item.data } : {}),
       children: [],
     };
     stack.at(-1)!.children.push(node);

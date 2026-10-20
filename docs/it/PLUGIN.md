@@ -527,13 +527,17 @@ ctx.themes.extend('zenit', {
   presets: [{ id: 'pro-dark', label: 'Scuro (Pro)', values: { topbarSticky: true } }],
   areas: { 'pro-topbar': 'Barra superiore' },
   areaDefaults: { 'pro-topbar': { schema: 1, blocks: [] } },
+  // Opzioni delle voci di menu (API dei plugin 1.34), per esempio un mega menu.
+  menuItemFields: [
+    { field: { name: 'mega', type: 'boolean', label: 'Mega menu', default: false }, levels: 'top' },
+  ],
 });
 ```
 
 - Vale nei siti in cui il tema è attivo e il plugin è attivo. **Aspetto → Personalizza** mostra i campi aggiunti insieme a quelli del tema, e i template del tema ricevono i loro valori con `useThemeSettings()`, controllati e con i predefiniti, come i propri; le aree aggiunte si modificano in **Aspetto → Aree**.
-- Impostazioni, sezioni e stili pronti vanno dopo quelli del tema; `zoneItems` aggiunge elementi ai campi `zones` del tema (i nomi di campo sconosciuti sono ignorati); le aree si uniscono. Un'impostazione, sezione, elemento, stile pronto o area con un nome già usato dal tema viene ignorato, con un avviso nel log.
+- Impostazioni, sezioni e stili pronti vanno dopo quelli del tema; `zoneItems` aggiunge elementi ai campi `zones` del tema (i nomi di campo sconosciuti sono ignorati); le aree si uniscono; `menuItemFields` (API dei plugin 1.34) vanno dopo le opzioni delle voci di menu del tema ([TEMI.md §4](TEMI.md)), compaiono in **Aspetto → Menu** e arrivano al tema in `MenuItemView.data`. Un'impostazione, sezione, elemento, stile pronto, area o opzione delle voci di menu con un nome già usato dal tema viene ignorato, con un avviso nel log.
 - Cosa fare dei valori lo decide il tema: un'estensione è pensata per un tema che li legge (per esempio per nome, `settings.topbarText`) o che disegna i suoi elementi e le sue aree.
-- Quando il plugin viene disattivato i suoi campi escono da Personalizza e i suoi valori non arrivano più al tema, ma restano salvati e tornano quando lo si riattiva.
+- Quando il plugin viene disattivato i suoi campi escono da Personalizza (e le sue opzioni delle voci di menu da Menu) e i suoi valori non arrivano più al tema, ma restano salvati e tornano quando lo si riattiva.
 
 ### Impostazioni
 

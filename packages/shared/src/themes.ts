@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { FieldDefinition, Label } from './fields.js';
 import type { LicenseView } from './licenses.js';
+import type { MenuItemField } from './menus.js';
 
 /** `theme.json` of an installable theme package (RF-THM-01). */
 export const themeManifestSchema = z.object({
@@ -57,6 +58,8 @@ export interface ThemeView {
   presets: { id: string; label: Label; values: Record<string, unknown> }[];
   /** Options of each page or post, shown in the editor (stored in `editor.data`). */
   entryFields: { types?: string[]; fields: FieldDefinition[] } | null;
+  /** Options of menu items, shown in Appearance → Menus (plugin API 1.34). */
+  menuItemFields: MenuItemField[];
   /** Paid themes: where to buy a license, and this site's license (null without). */
   paid: { purchaseUrl: string | null; license: LicenseView | null } | null;
   /** Set when an installed theme could not be loaded. */

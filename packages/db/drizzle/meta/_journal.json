@@ -176,6 +176,13 @@
       "when": 1792218044234,
       "tag": "0024_member_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792304444234,
+      "tag": "0025_menu_item_data",
+      "breakpoints": true
     }
   ]
 }

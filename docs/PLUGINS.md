@@ -598,13 +598,17 @@ ctx.themes.extend('zenit', {
   presets: [{ id: 'pro-dark', label: 'Dark (Pro)', values: { topbarSticky: true } }],
   areas: { 'pro-topbar': 'Top bar' },
   areaDefaults: { 'pro-topbar': { schema: 1, blocks: [] } },
+  // Options of menu items (plugin API 1.34), e.g. a mega menu.
+  menuItemFields: [
+    { field: { name: 'mega', type: 'boolean', label: 'Mega menu', default: false }, levels: 'top' },
+  ],
 });
 ```
 
 - It applies on sites where the theme is active and the plugin is active. **Appearance → Customize** shows the added fields with the theme's, and the theme's templates get their values with `useThemeSettings()`, checked and with defaults, like its own; the added areas are edited in **Appearance → Areas**.
-- Settings, sections and presets are added after the theme's; `zoneItems` adds elements to the theme's `zones` fields (unknown field names are ignored); areas are merged. A setting, section, element, preset or area whose name the theme already uses is ignored, with a warning in the log.
+- Settings, sections and presets are added after the theme's; `zoneItems` adds elements to the theme's `zones` fields (unknown field names are ignored); areas are merged; `menuItemFields` (plugin API 1.34) are added after the theme's menu item options ([THEMES.md §4](THEMES.md)), shown in **Appearance → Menus** and given to the theme in `MenuItemView.data`. A setting, section, element, preset, area or menu item option whose name the theme already uses is ignored, with a warning in the log.
 - The theme decides what to do with the values: an add-on targets a theme that reads them (for example by name, `settings.topbarText`), or renders its elements and areas.
-- When the plugin is deactivated its fields leave Customize and its values no longer reach the theme, but they stay stored and come back when it is activated again.
+- When the plugin is deactivated its fields leave Customize (and its menu item options leave Menus) and its values no longer reach the theme, but they stay stored and come back when it is activated again.
 
 ### Settings
 

@@ -107,6 +107,7 @@ export default defineTheme({
 | `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description?, parent?, tabs? }]`; a field goes in one with `section` (§4).                                                                                                                                        |
 | `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                                                                                                                                       |
 | `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                                                                                                                                                 |
+| `menuItemFields`   | Options of each menu item, `[{ field, levels? }]`, shown in Appearance → Menus and read from `MenuItemView.data` (§4, plugin API 1.34).                                                                                                                          |
 | `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).                                                                                                                       |
 | `listTerms`        | `true`: lists (blog, archives, search) give each entry's categories and tags in `entries[].terms` (core 0.46).                                                                                                                                                   |
 | `adjacentEntries`  | `true`: entries get the previous and next ones of the same type in `entry.adjacent` (`prev`, `next`), for "Previous / Next" links (core 0.46).                                                                                                                   |
@@ -217,6 +218,19 @@ settings: [
 Plugins may add settings, sections, builder elements, ready-made styles and areas to a theme ([PLUGINS.md, Extending a theme's options](PLUGINS.md#extending-a-themes-options-plugin-api-132)): while such a plugin is active on the site, `useThemeSettings()` also holds the values of its fields, checked and with defaults like the theme's own. Read them by name, and expect them to be missing when the plugin is not active.
 
 `entryFields` adds options to single pages (for example a sidebar or a transparent header per page). Editors set them in the Document tab of the block editor; they are saved with the entry in `document.editor.data` and the theme reads them from `entry.document.editor?.data`. `types` limits them to some entry types (`['page']`).
+
+`menuItemFields` (plugin API 1.34) adds options to each menu item, for example a mega menu's columns or an icon. Each entry is `{ field, levels? }`: `field` is a field definition, `levels` is `'top'` (first-level items only), `'nested'` (sub-items only) or `'all'` (default). In **Appearance → Menus** the ⚙ button of an item opens its "Theme options"; the values are checked like settings (unknown keys are dropped, invalid values refused) and stored with the item. The theme reads them in `usePage().menus[location][i].data`, with the defaults applied, only for the options that apply at the item's level:
+
+```tsx
+menuItemFields: [
+  { field: { name: 'mega', type: 'boolean', label: 'Mega menu', default: false }, levels: 'top' },
+  { field: { name: 'columns', type: 'number', label: 'Columns', min: 1, max: 6, default: 3 }, levels: 'top' },
+  { field: { name: 'icon', type: 'text', label: 'Icon', maxLength: 40 } },
+],
+// In the header: item.data?.mega ? <MegaMenu columns={item.data.columns as number} … /> : …
+```
+
+Plugins extending the theme may add more (`menuItemFields` of `ctx.themes.extend`). Values of options no longer declared (another theme, or a plugin deactivated) stay stored with the item, and come back with the option, but never reach the theme.
 
 `editorCss` may be a function, `(settings) => string`, so the editor follows the colors and fonts chosen in Customize.
 

@@ -60,6 +60,7 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 | `settingsSections` | Schede di Aspetto → Personalizza: `[{ id, label, description?, parent?, tabs? }]`; un campo ci va con `section` (§4).                                                                                                                                                 |
 | `presets`          | Stili pronti: `[{ id, label, values }]`, applicati in Personalizza prima di pubblicare (§4).                                                                                                                                                                          |
 | `entryFields`      | Opzioni per pagina, `{ types?, fields }`, mostrate nella scheda Documento dell'editor (§4).                                                                                                                                                                           |
+| `menuItemFields`   | Opzioni di ogni voce di menu, `[{ field, levels? }]`, mostrate in Aspetto → Menu e lette da `MenuItemView.data` (§4, API dei plugin 1.34).                                                                                                                            |
 | `relatedEntries`   | Quanti contenuti correlati mostrare sotto un contenuto (al massimo 12): `entry.related` li contiene, prima stesse categorie, poi stessi tag (core 0.37).                                                                                                              |
 | `listTerms`        | `true`: gli elenchi (blog, archivi, ricerca) danno categorie e tag di ogni contenuto in `entries[].terms` (core 0.46).                                                                                                                                                |
 | `adjacentEntries`  | `true`: i contenuti ricevono il precedente e il successivo dello stesso tipo in `entry.adjacent` (`prev`, `next`), per i link "Precedente / Successivo" (core 0.46).                                                                                                  |
@@ -162,6 +163,19 @@ settings: [
 I plugin possono aggiungere a un tema impostazioni, sezioni, elementi del costruttore, stili pronti e aree ([PLUGIN.md, Estendere le opzioni di un tema](PLUGIN.md#estendere-le-opzioni-di-un-tema-api-dei-plugin-132)): mentre un plugin del genere è attivo nel sito, `useThemeSettings()` contiene anche i valori dei suoi campi, controllati e con i predefiniti come quelli del tema. Si leggono per nome, e mancano quando il plugin non è attivo.
 
 `entryFields` aggiunge opzioni alle singole pagine (per esempio una barra laterale o un'intestazione trasparente per pagina). Chi scrive le imposta nella scheda Documento dell'editor a blocchi; sono salvate con il contenuto in `document.editor.data` e il tema le legge da `entry.document.editor?.data`. `types` le limita ad alcuni tipi di contenuto (`['page']`).
+
+`menuItemFields` (API dei plugin 1.34) aggiunge opzioni a ogni voce di menu, per esempio le colonne di un mega menu o un'icona. Ogni elemento è `{ field, levels? }`: `field` è la definizione di un campo, `levels` è `'top'` (solo voci di primo livello), `'nested'` (solo sottovoci) o `'all'` (predefinito). In **Aspetto → Menu** il pulsante ⚙ di una voce apre le sue "Opzioni del tema"; i valori sono controllati come le impostazioni (le chiavi sconosciute sono scartate, i valori non validi rifiutati) e salvati con la voce. Il tema li legge in `usePage().menus[posizione][i].data`, con i predefiniti applicati, solo per le opzioni valide al livello della voce:
+
+```tsx
+menuItemFields: [
+  { field: { name: 'mega', type: 'boolean', label: 'Mega menu', default: false }, levels: 'top' },
+  { field: { name: 'columns', type: 'number', label: 'Colonne', min: 1, max: 6, default: 3 }, levels: 'top' },
+  { field: { name: 'icon', type: 'text', label: 'Icona', maxLength: 40 } },
+],
+// Nell'intestazione: item.data?.mega ? <MegaMenu columns={item.data.columns as number} … /> : …
+```
+
+I plugin che estendono il tema possono aggiungerne altre (`menuItemFields` di `ctx.themes.extend`). I valori delle opzioni non più dichiarate (un altro tema, o un plugin disattivato) restano salvati con la voce e tornano con l'opzione, ma non arrivano mai al tema.
 
 `editorCss` può essere una funzione, `(settings) => string`, così l'editor segue i colori e i caratteri scelti in Personalizza.
 

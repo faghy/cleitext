@@ -47,6 +47,11 @@ export const menuItems = pgTable(
     label: text('label'),
     target: text('target'),
     attrs: jsonb('attrs').notNull().default({}),
+    /**
+     * Values of the theme's menu item options (plugin API 1.34), by field
+     * name; values of options no longer declared are kept.
+     */
+    data: jsonb('data').notNull().default({}),
   },
   (t) => [
     unique('menu_items_site_id_unique').on(t.siteId, t.id),

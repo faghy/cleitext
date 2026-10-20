@@ -20,9 +20,9 @@ export function hiddenSettings(theme: ThemeDefinition): ReadonlySet<string> {
 
 /**
  * The theme as a site sees it: the base theme plus the extensions of the
- * plugins active there (`active`), in order. Settings, sections and presets
- * are appended, zone items go to the zones field they name, areas are
- * merged. Names and ids the theme (or an earlier extension) already uses
+ * plugins active there (`active`), in order. Settings, sections, presets
+ * and menu item options are appended, zone items go to the zones field
+ * they name, areas are merged. Names and ids the theme (or an earlier extension) already uses
  * are skipped with a warning. `inactive` are the extensions of the other
  * plugins, whose settings are hidden.
  */
@@ -41,6 +41,8 @@ export function extendTheme(
   const fieldNames = new Set(settings.map((f) => f.name));
   const sectionIds = new Set(sections.map((s) => s.id));
   const presetIds = new Set(presets.map((p) => p.id));
+  const menuItemFields = [...(base.menuItemFields ?? [])];
+  const menuFieldNames = new Set(menuItemFields.map((m) => m.field.name));
 
   for (const { plugin, extension } of active) {
     const skip = (what: string) =>
@@ -64,6 +66,13 @@ export function extendTheme(
       else {
         presetIds.add(preset.id);
         presets.push(preset);
+      }
+    }
+    for (const item of extension.menuItemFields ?? []) {
+      if (menuFieldNames.has(item.field.name)) skip(`menu item option "${item.field.name}"`);
+      else {
+        menuFieldNames.add(item.field.name);
+        menuItemFields.push(item);
       }
     }
     for (const [fieldName, items] of Object.entries(extension.zoneItems ?? {})) {
@@ -99,6 +108,7 @@ export function extendTheme(
     presets,
     areas,
     areaDefaults,
+    menuItemFields,
   };
   const hide = new Set(
     inactive
