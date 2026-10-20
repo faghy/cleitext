@@ -64,7 +64,7 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 | `editorCss`        | CSS per l'editor a blocchi, perché i contenuti abbiano lo stesso aspetto del sito mentre si scrive. Una stringa, o una funzione delle impostazioni.      |
 | `comments`         | `'auto'` (predefinito): commenti, mi piace e condivisione seguono `<EntryContent>` nelle voci che li hanno. `'manual'`: li posiziona il tema.            |
 
-I template ricevono la pagina come props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) e leggono il resto con `usePage()`. Non interrogano mai il database.
+I template ricevono la pagina come props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) e leggono il resto con `usePage()`. Il Layout trova le stesse props in `usePage().view`, per cambiare classi del body o barre laterali secondo il tipo di pagina. Non interrogano mai il database.
 
 Avvolgi in `<Location>` le parti che un theme builder può sostituire: `header`, `footer`, `single` (il contenuto della pagina di una voce; passa `entry`) e `archive` (archivi e risultati di ricerca). Se nessun plugin le riempie, si vede il markup del tema:
 

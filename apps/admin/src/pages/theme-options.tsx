@@ -118,7 +118,7 @@ export function ThemeOptions() {
 
   // The preview follows the options, a moment after the last change.
   const [preview, setPreview] = useState(true);
-  const [html, setHtml] = useState('');
+  const [frameUrl, setFrameUrl] = useState('');
   const [path, setPath] = useState('/');
   const frame = useRef<HTMLIFrameElement>(null);
   // The preview's pencils open a section; its links change the page shown.
@@ -139,9 +139,10 @@ export function ThemeOptions() {
   useEffect(() => {
     if (!values || !preview) return;
     const timer = setTimeout(() => {
-      void api<string>('POST', '/themes/active/preview', { path, values }, { text: true })
-        .then((page) => setHtml(page))
-        .catch(() => setHtml(''));
+      // Kept at an address of its own, so that the theme's scripts run in it.
+      void api<{ url: string }>('POST', '/themes/active/preview', { path, values, frame: true })
+        .then((page) => setFrameUrl(page.url))
+        .catch(() => setFrameUrl(''));
     }, 400);
     return () => clearTimeout(timer);
   }, [values, path, preview]);
@@ -402,7 +403,7 @@ export function ThemeOptions() {
                   title={t('Site preview')}
                   // Scripts run (sticky header, sliders) in an origin of their own: no access to the admin.
                   sandbox="allow-scripts"
-                  srcDoc={html}
+                  src={frameUrl || 'about:blank'}
                   style={{ width: DEVICES[device] }}
                   className={`bg-white ${builder ? 'h-[55vh]' : 'h-[75vh]'}`}
                 />

@@ -118,6 +118,24 @@ describe('theme settings and areas', () => {
     expect(script.body).toContain('cleitext:customize');
   });
 
+  it('keeps a preview at an address of its own, with the public policy', async () => {
+    const res = await admin.post('/api/v1/themes/active/preview', {
+      path: '/',
+      values: { footerText: 'Framed footer' },
+      frame: true,
+    });
+    expect(res.statusCode).toBe(200);
+    const { url } = res.json() as { url: string };
+    expect(url).toMatch(/^\/api\/v1\/themes\/preview\/[\w-]{20,}$/);
+    const page = await visitor.get(url);
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('Framed footer');
+    expect(page.headers['content-security-policy']).toContain('sandbox allow-scripts');
+    expect((await visitor.get('/api/v1/themes/preview/nope-nope-nope-nope-nope')).statusCode).toBe(
+      404,
+    );
+  });
+
   it('renders block areas per language', async () => {
     const document = {
       schema: 1,

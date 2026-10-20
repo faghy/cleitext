@@ -16,9 +16,11 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { CurrentAuth, CurrentSite, Public, RequireCapability } from '../common/decorators.js';
 import { parseBody } from '../common/problem.js';
+import { PUBLIC_CSP } from '../common/security-headers.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { siteOrigin } from '../mcp/origin.js';
 import { PublicService } from '../public/public.service.js';
@@ -35,7 +37,25 @@ const settingsBody = z.object({ values: z.record(z.string(), z.unknown()) });
 const previewBody = z.object({
   path: z.string().startsWith('/').max(500).default('/'),
   values: z.record(z.string(), z.unknown()),
+  /** Answer `{ url }`: the page is kept a few minutes at that address (see `previewFrame`). */
+  frame: z.boolean().optional(),
 });
+
+/**
+ * Customize previews kept for their frame: served from an address of their
+ * own, they get the public pages' policy, so the theme's inline scripts run
+ * (a srcdoc frame inherits the admin's policy, which blocks them).
+ */
+const frames = new Map<string, { html: string; expires: number }>();
+const FRAME_TTL = 5 * 60_000;
+function keepFrame(html: string): string {
+  const now = Date.now();
+  for (const [key, frame] of frames) if (frame.expires < now) frames.delete(key);
+  while (frames.size >= 200) frames.delete(frames.keys().next().value!);
+  const token = randomBytes(18).toString('base64url');
+  frames.set(token, { html, expires: now + FRAME_TTL });
+  return token;
+}
 const livePreviewBody = z.object({ path: z.string().startsWith('/').max(500).default('/') });
 const areaBody = z.object({ document: z.unknown() });
 const localeQuery = z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/);
@@ -189,8 +209,8 @@ export class ThemesController {
     @Body() body: unknown,
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<string> {
-    const { path, values } = parseBody(previewBody, body);
+  ): Promise<string | { url: string }> {
+    const { path, values, frame } = parseBody(previewBody, body);
     const themeSettings = {
       ...(await this.themes.settings(site.id, auth)),
       ...(await this.themes.validSettings(site.id, auth, values)),
@@ -206,12 +226,33 @@ export class ThemesController {
       { themeSettings },
     );
     if (response.redirect) throw new BadRequestException('This address redirects elsewhere.');
-    void reply.type('text/html; charset=utf-8').header('cache-control', 'no-store');
-    // An external script: the admin's policy, which the frame inherits, blocks inline ones.
-    return (response.html ?? '').replace(
+    // The preview's script (pencils, links) as a file: a srcdoc frame blocks inline ones.
+    const html = (response.html ?? '').replace(
       /<head>/i,
       `<head><base href="${origin}/"><script src="/api/v1/themes/preview.js"></script>`,
     );
+    if (frame) return { url: `/api/v1/themes/preview/${keepFrame(html)}` };
+    void reply.type('text/html; charset=utf-8').header('cache-control', 'no-store');
+    return html;
+  }
+
+  /** A preview kept by `POST active/preview` with `frame`: its address is its secret. */
+  @Public()
+  @Get('preview/:token')
+  previewFrame(
+    @Param('token') token: string,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): string {
+    const kept = frames.get(token);
+    if (!kept || kept.expires < Date.now())
+      throw new NotFoundException('This preview has expired.');
+    void reply
+      .type('text/html; charset=utf-8')
+      .header('cache-control', 'no-store')
+      // Without an origin of its own, even when opened outside the frame.
+      .header('content-security-policy', `${PUBLIC_CSP}; sandbox allow-scripts allow-forms`)
+      .header('x-robots-tag', 'noindex');
+    return kept.html;
   }
 
   @Get('active/areas/:name')

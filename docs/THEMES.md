@@ -111,7 +111,7 @@ export default defineTheme({
 | `editorCss`        | CSS for the block editor, so that content looks like the site while writing. A string, or a function of the settings.                        |
 | `comments`         | `'auto'` (default): comments, likes and sharing follow `<EntryContent>` on entries that have them. `'manual'`: the theme places them itself. |
 
-Templates receive the page as props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) and read the rest with `usePage()`: site, language, languages, menus, media, URLs. They never query the database.
+Templates receive the page as props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) and read the rest with `usePage()`: site, language, languages, menus, media, URLs. The Layout finds the same props in `usePage().view`, to change body classes or sidebars by kind of page. They never query the database.
 
 Wrap the parts a theme builder may replace in `<Location>`: `header`, `footer`, `single` (the content of an entry page; pass `entry`) and `archive` (archives and search results). Without a plugin filling them, the theme's own markup shows:
 

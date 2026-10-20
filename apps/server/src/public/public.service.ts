@@ -1829,6 +1829,7 @@ export class PublicService {
       },
       viewer: scope.viewer ?? null,
       ...(props.kind === 'entry' ? { entry: props.entry } : {}),
+      view: props,
       share: scope.settings.shareButtons,
       autoCommunity: theme.comments !== 'manual',
       media,

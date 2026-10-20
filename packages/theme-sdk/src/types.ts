@@ -292,6 +292,11 @@ export interface PageContext {
   viewer?: Viewer | null;
   /** The entry being shown, on entry pages. */
   entry?: PublicEntry;
+  /**
+   * What the page shows: the template's props (entry, archive, search, 404),
+   * for layouts that change with it (body classes, sidebars).
+   */
+  view?: TemplateProps;
   /** Sharing links under entries (Settings → Discussion). */
   share?: boolean;
   /** `EntryContent` adds likes, sharing and comments after the entry (themes without `comments: 'manual'`). */
