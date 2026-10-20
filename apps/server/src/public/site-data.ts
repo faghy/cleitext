@@ -189,7 +189,7 @@ export async function loadPublished(
     offset?: number;
     includePrivate?: boolean;
     /** Newest first by default. */
-    orderBy?: 'date' | 'title' | 'modified' | 'random';
+    orderBy?: 'date' | 'title' | 'modified' | 'random' | 'order';
     order?: 'asc' | 'desc';
   } = {},
 ): Promise<PublishedEntry[]> {
@@ -201,7 +201,10 @@ export async function loadPublished(
         ? [direction(revisions.title), desc(entries.id)]
         : options.orderBy === 'modified'
           ? [direction(entries.updatedAt), desc(entries.id)]
-          : [direction(entries.publishedAt), direction(entries.id)];
+          : options.orderBy === 'order'
+            ? // The manual order (WordPress's menu_order), then the newest.
+              [direction(entries.position), desc(entries.publishedAt), desc(entries.id)]
+            : [direction(entries.publishedAt), direction(entries.id)];
   let query = tx
     .select({
       row: entries,

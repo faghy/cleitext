@@ -1,5 +1,5 @@
 import type { Device, Sheet } from '@cleitext/design';
-import { createElement, type ReactNode } from 'react';
+import { createElement, Fragment, type ReactNode } from 'react';
 import {
   border,
   borderDefaults,
@@ -59,6 +59,10 @@ export const POST_DEFAULTS: Attrs = {
   order: 'desc',
   orderBy: 'date',
   excludeCurrentPost: false,
+  /** Custom fields shown under the title: one per line, `key` or `key: Label`. */
+  customFields: '',
+  /** With the picture beside the text: on the left and on the right, one post after the other. */
+  alternate: false,
   postDisplaytext: 'No post found!',
   columns: 3,
   tcolumns: 2,
@@ -602,10 +606,26 @@ function part(name: Part, post: PostItem, a: Attrs, kind: string, locale: string
     case 'title': {
       if (!a.displayPostTitle) return null;
       const tag = TITLE_TAGS.includes(String(a.titleTag)) ? String(a.titleTag) : 'h4';
-      return createElement(
+      const title = createElement(
         tag,
         { key: 'title', className: 'pr-post__title pr-post__text' },
         <a {...link(a, post.url)}>{post.title}</a>,
+      );
+      // The custom fields chosen for the block, right under the title.
+      return post.fields?.length ? (
+        <Fragment key="title">
+          {title}
+          <dl className="pr-post__text pr-post__fields">
+            {post.fields.map((f, i) => (
+              <div key={i} className="pr-post__field">
+                {f.label ? <dt>{f.label}</dt> : null}
+                <dd>{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </Fragment>
+      ) : (
+        title
       );
     }
     case 'meta':
@@ -644,11 +664,14 @@ export function PostArticle({
   a,
   kind,
   locale,
+  index = 0,
 }: {
   post: PostItem;
   a: Attrs;
   kind: string;
   locale: string;
+  /** Its place in the list: every other post is mirrored with `alternate`. */
+  index?: number;
 }) {
   const order = partsOf(a.layoutConfig);
   let body: ReactNode;
@@ -672,7 +695,9 @@ export function PostArticle({
     ];
   }
   return (
-    <article className="pr-post">
+    <article
+      className={`pr-post${a.alternate && a.isLeftToRightLayout && index % 2 === 1 ? ' pr-post--reverse' : ''}`}
+    >
       {body}
       {a.linkBox ? (
         <a className="pr-post__box-link" {...link(a, post.url)} aria-label={post.title} />

@@ -465,8 +465,8 @@ export interface PublicQuery {
   terms?: { taxonomy: string; slugs: string[] };
   ids?: string[];
   exclude?: string[];
-  /** Newest first by default. */
-  orderBy?: 'date' | 'title' | 'modified' | 'random';
+  /** Newest first by default; `order` is the manual order of the admin (plugin API 1.31). */
+  orderBy?: 'date' | 'title' | 'modified' | 'random' | 'order';
   order?: 'asc' | 'desc';
   /** Default 10, at most 100. */
   limit?: number;

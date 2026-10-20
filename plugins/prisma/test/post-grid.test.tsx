@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { postGrid } from '../src/blocks/post-grid';
 import {
   excerptOf,
+  fieldList,
+  fieldsOf,
+  fieldText,
   paragraphs,
   phpDate,
   termSlugs,
@@ -367,6 +370,55 @@ describe('post data', () => {
       author: { name: 'Bo', url: '/author/bo' },
       terms: [{ name: 'News', url: '/c/news' }],
       image: { src: '/m-1280.webp', alt: 'M', width: 1280, height: 640 },
+    });
+  });
+});
+
+describe('entries of any type with their custom fields', () => {
+  it('reads the chosen fields as text, with their labels', () => {
+    expect(fieldList('dimensions: Size, technique ,bad key')).toEqual([
+      { key: 'dimensions', label: 'Size' },
+      { key: 'technique', label: '' },
+    ]);
+    expect(fieldText(['oil', { label: 'canvas' }, 3])).toBe('oil, canvas, 3');
+    expect(
+      fieldsOf(
+        { dimensions: '50 x 70 cm', technique: '', other: 'x' },
+        {
+          customFields: 'dimensions: Size, technique',
+        },
+      ),
+    ).toEqual([{ label: 'Size', value: '50 x 70 cm' }]);
+  });
+
+  it('shows them under the title, and mirrors every other post', () => {
+    const data: PostsData = {
+      ...DATA,
+      posts: DATA.posts.map((p, i) => ({
+        ...p,
+        fields: i === 0 ? [{ label: 'Size', value: '50 x 70 cm' }] : [],
+      })),
+    };
+    const html = renderWithData(postGrid, { isLeftToRightLayout: true, alternate: true }, data);
+    expect(html).toContain(
+      '<dl class="pr-post__text pr-post__fields"><div class="pr-post__field"><dt>Size</dt><dd>50 x 70 cm</dd></div></dl>',
+    );
+    expect(html.match(/class="pr-post pr-post--reverse"/g)).toHaveLength(1);
+    expect(
+      blockCss(
+        postGrid,
+        { isLeftToRightLayout: true, alternate: true },
+        'test0001',
+        DEFAULT_GLOBALS,
+      ),
+    ).toContain('.pr-post.pr-post--reverse{flex-direction:row-reverse}');
+  });
+
+  it('has its texts in the language of the page', () => {
+    expect(withDefaults(postGrid, {}, 'it')).toMatchObject({
+      ctaText: 'Leggi di più',
+      paginationPrevText: '« Precedente',
+      paginationNextText: 'Successivo »',
     });
   });
 });

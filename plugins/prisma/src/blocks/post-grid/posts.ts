@@ -33,6 +33,48 @@ export interface PostItem {
   comments: number | null;
   /** Terms of the block's taxonomy. */
   terms: { name: string; url: string }[];
+  /** The custom fields the block shows (`customFields`), as text, in their order. */
+  fields?: { label: string; value: string }[];
+}
+
+/**
+ * The custom fields a block shows: one per line, `key` or `key: Label`
+ * (`dimensions: Size`). Keys are those of the content type's fields.
+ */
+export function fieldList(value: unknown): { key: string; label: string }[] {
+  return String(value ?? '')
+    .split(/\n|,/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 20)
+    .map((line) => {
+      const at = line.indexOf(':');
+      const key = (at === -1 ? line : line.slice(0, at)).trim();
+      const label = at === -1 ? '' : line.slice(at + 1).trim();
+      return { key, label };
+    })
+    .filter((f) => /^[A-Za-z0-9_-]{1,64}$/.test(f.key));
+}
+
+/** A field value as text: numbers, words, lists, choices (`{ label }`), links (`{ url }`). */
+export function fieldText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.replace(/<[^>]*>/g, '').trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(fieldText).filter(Boolean).join(', ');
+  if (typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    return fieldText(o.label ?? o.name ?? o.title ?? o.text ?? '');
+  }
+  return '';
+}
+
+/** The chosen fields of an entry, those with a value. */
+export function fieldsOf(fields: unknown, a: Attrs): { label: string; value: string }[] {
+  const values = (fields ?? {}) as Record<string, unknown>;
+  return fieldList(a.customFields)
+    .map((f) => ({ label: f.label, value: fieldText(values[f.key]) }))
+    .filter((f) => f.value);
 }
 
 export interface PostsData {
@@ -63,11 +105,13 @@ export function termSlugs(value: unknown): string[] {
     .slice(0, 50);
 }
 
-const ORDER_BY: Record<string, 'date' | 'title' | 'modified' | 'random'> = {
+const ORDER_BY: Record<string, 'date' | 'title' | 'modified' | 'random' | 'order'> = {
   date: 'date',
   title: 'title',
   modified: 'modified',
   rand: 'random',
+  // WordPress's menu_order: the manual order of the admin.
+  menu_order: 'order',
 };
 
 /** Image sizes of WordPress, by name, as widths. */
@@ -239,6 +283,7 @@ export async function loadPosts(
         image: imageAt(e.featuredImage, options.size),
         comments: counts[i] ?? null,
         terms: (e.terms[taxonomy] ?? []).map((t) => ({ name: t.name, url: t.url })),
+        fields: fieldsOf(e.fields, a),
       };
     }),
     page,
@@ -272,7 +317,12 @@ interface ApiEntry {
   author: { displayName: string } | null;
   comments?: { count: number };
   terms?: Record<string, { name: string; slug: string }[]>;
-  revision?: { excerpt: string | null; featuredMediaId: string | null; document: unknown } | null;
+  revision?: {
+    excerpt: string | null;
+    featuredMediaId: string | null;
+    document: unknown;
+    fields?: Record<string, unknown>;
+  } | null;
 }
 
 async function editorPosts(a: Attrs, size: unknown, full: boolean): Promise<PostsData> {
@@ -288,7 +338,14 @@ async function editorPosts(a: Attrs, size: unknown, full: boolean): Promise<Post
     ).catch(() => []);
     term = terms.find((t) => t.slug === slugs[0])?.id ?? '';
   }
-  const sort = a.orderBy === 'title' ? 'title' : a.orderBy === 'modified' ? 'updated' : 'date';
+  const sort =
+    a.orderBy === 'title'
+      ? 'title'
+      : a.orderBy === 'modified'
+        ? 'updated'
+        : a.orderBy === 'menu_order'
+          ? 'order'
+          : 'date';
   const query = new URLSearchParams({
     type,
     status: 'published',
@@ -322,6 +379,7 @@ async function editorPosts(a: Attrs, size: unknown, full: boolean): Promise<Post
           : null,
         comments: e.comments?.count ?? null,
         terms: (e.terms?.[taxonomy] ?? []).map((t) => ({ name: t.name, url: '#' })),
+        fields: fieldsOf(e.revision?.fields, a),
       };
     }),
   );

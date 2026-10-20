@@ -348,3 +348,22 @@
 .pr-post-grid__empty {
   grid-column: 1 / -1;
 }
+
+/* Custom fields under the title: label and value on one line. */
+.pr-post__fields {
+  margin: 0 0 0.75em;
+}
+.pr-post__field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.4em;
+}
+.pr-post__field dt {
+  font-weight: 600;
+}
+.pr-post__field dt::after {
+  content: ':';
+}
+.pr-post__field dd {
+  margin: 0;
+}

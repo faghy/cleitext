@@ -50,6 +50,15 @@ export function QueryFields({ bind, a, terms = true }: { bind: Bind; a: Attrs; t
   const types = useOptions<{ slug: string; name: Label }[]>('/content-types', (list) =>
     list.map((t) => ({ value: t.slug, label: label(t.name, t.slug) })),
   );
+  // The custom fields of the chosen type, offered for `customFields`.
+  const fields = useOptions<{ slug: string; fields?: { name: string; label: Label }[] }[]>(
+    '/content-types',
+    (list) =>
+      (list.find((t) => t.slug === type)?.fields ?? []).map((f) => ({
+        value: f.name,
+        label: label(f.label, f.name),
+      })),
+  );
   const taxonomies = useOptions<{ slug: string; name: Label; contentTypes: string[] }[]>(
     '/taxonomies',
     (list) =>
@@ -82,6 +91,17 @@ export function QueryFields({ bind, a, terms = true }: { bind: Bind; a: Attrs; t
           options={[{ value: '', label: 'All' }, ...termOptions]}
         />
       )}
+      <Text
+        bind={bind}
+        name="customFields"
+        label="Custom fields to show"
+        placeholder="dimensions: Size, technique"
+        help={
+          fields.length
+            ? `Under the title, separated by commas, with an optional label after a colon. Fields of this type: ${fields.map((f) => `${f.value} (${f.label})`).join(', ')}.`
+            : 'Under the title, separated by commas, with an optional label after a colon.'
+        }
+      />
     </>
   );
 }
@@ -91,6 +111,7 @@ const ORDER_BY: Option[] = [
   { value: 'title', label: 'Title' },
   { value: 'rand', label: 'Random' },
   { value: 'modified', label: 'Last Modified' },
+  { value: 'menu_order', label: 'Manual order' },
 ];
 
 /** Exclude current post, how many, offset and order. */

@@ -74,6 +74,13 @@ export const PostGridSettings: Inspector = ({ attributes, setAttributes, block }
             <Panel title="Image Alignment">
               <Toggle bind={bind} name="isLeftToRightLayout" label="Enable Left Right Position" />
               {Boolean(a.isLeftToRightLayout) && (
+                <Toggle
+                  bind={bind}
+                  name="alternate"
+                  label="Alternate sides, one post after the other"
+                />
+              )}
+              {Boolean(a.isLeftToRightLayout) && (
                 <>
                   <Choice
                     bind={bind}

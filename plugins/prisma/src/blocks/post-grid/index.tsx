@@ -116,6 +116,11 @@ function css(a: Attrs, B: string, sheet: Sheet): void {
       width: '100%',
     });
     emit(sheet, 'desktop', `${R} .pr-post__image`, { flex: 'none', width: top ? '35%' : '100%' });
+    // Every other post mirrored (picture on the other side).
+    if (a.alternate)
+      emit(sheet, 'desktop', `${R} .pr-post.pr-post--reverse`, {
+        'flex-direction': a.wrapperAlign === 'row-reverse' ? 'row' : 'row-reverse',
+      });
     emit(sheet, 'tablet', `${R} .pr-post__image`, { width: top ? '45%' : '100%' });
     emit(sheet, 'mobile', `${R} .pr-post__image`, { width: top ? 'unset' : '100%' });
     emit(sheet, 'mobile', R, { display: 'grid' });
@@ -164,8 +169,15 @@ function View({ attrs: a, id, root, editing, data }: ViewProps) {
     'div',
     { className },
     <>
-      {list.map((post) => (
-        <PostArticle key={post.id} post={post} a={a} kind={layout} locale={posts!.locale} />
+      {list.map((post, index) => (
+        <PostArticle
+          key={post.id}
+          post={post}
+          a={a}
+          kind={layout}
+          locale={posts!.locale}
+          index={index}
+        />
       ))}
       {list.length === 0 && (posts || editing) ? (
         <EmptyNote loading={!posts} text={a.postDisplaytext} />
@@ -221,6 +233,16 @@ export const postGrid: PrismaBlock = {
   defaults: DEFAULTS,
   css,
   View,
+  // Texts left at default follow the page's language.
+  localized: (lang) =>
+    lang === 'it'
+      ? {
+          ctaText: 'Leggi di più',
+          postDisplaytext: 'Nessun contenuto trovato.',
+          paginationPrevText: '« Precedente',
+          paginationNextText: 'Successivo »',
+        }
+      : {},
   load: (a, context, ctx) =>
     loadPosts(a, context, ctx, {
       paged: Boolean(a.postPagination),

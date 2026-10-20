@@ -12,7 +12,7 @@ Its blocks are edited in the block editor with a live preview. The settings are 
 
 **People and business.** Testimonials (columns or carousel), Team, Social Share, Price List, Review (with review structured data), How-To (with HowTo structured data), Google Map, Lottie animation.
 
-**Posts.** Post Grid (also as masonry), Post Carousel, Post Timeline and Taxonomy List, from the site's posts and categories.
+**Posts.** Post Grid (also as masonry), Post Carousel, Post Timeline and Taxonomy List, from the site's posts and categories, or from any content type (paintings, portfolio, real estate, events…): its custom fields can be shown under the title with their labels, entries can follow the manual order, and with the picture beside the text the sides can alternate. Buttons, page links and empty messages follow the page's language.
 
 **Forms.** A form with name, email, phone, URL, text, select, radio, checkbox, toggle, date, hidden, upload and consent fields. Messages are sent by email to the addresses of the form, with a honeypot, a time check, a rate limit and optional reCAPTCHA v2/v3 against spam.
 
