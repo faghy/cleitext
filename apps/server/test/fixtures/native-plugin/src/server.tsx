@@ -38,6 +38,29 @@ export default definePlugin({
     ctx.hooks.filter('render.adminBarEdit', (link, { entry }) =>
       link && entry.editor === 'native' ? { ...link, label: 'Edit with Native' } : link,
     );
+    // Pictures from an address into the library (plugin API 1.30).
+    ctx.routes.api({
+      method: 'POST',
+      path: '/fetch-media',
+      capability: 'upload_media',
+      async handler(request) {
+        try {
+          const item = await ctx.media.fromUrl(
+            request.siteId,
+            String((request.body as { url?: unknown }).url),
+            {
+              userId: request.user!.id,
+            },
+          );
+          return { body: item };
+        } catch (error) {
+          return {
+            status: 422,
+            body: { error: String(error instanceof Error ? error.message : error) },
+          };
+        }
+      },
+    });
     // The tests import transfer documents through it.
     ctx.routes.api({
       method: 'POST',

@@ -413,6 +413,18 @@ export interface PluginMedia {
 export interface MediaApi {
   /** One item of the site's media library (needs `media:read`). */
   get(siteId: string, id: string): Promise<PluginMedia | null>;
+  /**
+   * Downloads a picture or a document from a public address into the site's
+   * library, as uploaded by `userId` (needs `media:write`, plugin API 1.30).
+   * Only public http(s) addresses, as large as uploads may be; a file already
+   * in the library is reused. Throws when the address cannot be read or the
+   * file is not allowed.
+   */
+  fromUrl(
+    siteId: string,
+    url: string,
+    options: { userId: string; alt?: string; filename?: string },
+  ): Promise<PluginMedia>;
 }
 
 // ---- Blocks -------------------------------------------------------------------------

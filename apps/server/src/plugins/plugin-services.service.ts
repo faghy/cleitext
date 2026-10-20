@@ -791,6 +791,46 @@ export class PluginServicesProvider implements PluginServices {
     return { status: res.status, type: res.type, text: res.data.toString('utf8') };
   }
 
+  /** A file from a public address into the site's library (plugin API 1.30). */
+  async mediaFromUrl(
+    plugin: LoadedPlugin,
+    siteId: string,
+    url: string,
+    options: { userId: string; alt?: string; filename?: string },
+  ): Promise<PluginMedia> {
+    if (!/^https?:\/\//i.test(url)) throw new Error('Only http(s) addresses can be downloaded.');
+    const file = await fetchPublic(url, {
+      maxBytes: this.config.media.maxBytes,
+      timeoutMs: 60_000,
+      allowHttp: true,
+      userAgent: `Cleitext-Plugin/${plugin.slug}`,
+    });
+    const name =
+      options.filename ??
+      decodeURIComponent(file.url.pathname.split('/').pop() ?? '').replace(/[^\w.-]+/g, '-');
+    // As that person uploading it: their permissions apply.
+    const auth = await this.actor(siteId, options.userId);
+    if (!auth.capabilities.includes('upload_media'))
+      throw new ForbiddenException('That user cannot add files to the media library.');
+    const view = await this.media.upload(
+      siteId,
+      auth,
+      { filename: name.slice(0, 120) || 'file', data: file.data },
+      '127.0.0.1',
+    );
+    if (options.alt) {
+      const locale = await withContext(this.database.db, { siteId }, (tx) =>
+        defaultLocaleIn(tx, siteId),
+      );
+      await this.media.update(siteId, auth, view.id, {
+        alt: { [locale]: options.alt.slice(0, 500) },
+      });
+    }
+    const item = await this.mediaItem(siteId, view.id);
+    if (!item) throw new Error('The file could not be added.');
+    return item;
+  }
+
   async mediaItem(siteId: string, id: string): Promise<PluginMedia | null> {
     const [row] = await withContext(this.database.db, { siteId }, (tx) =>
       tx.select().from(media).where(eq(media.id, id)),

@@ -102,6 +102,7 @@ export const itGeneral: Messages = {
   Profile: 'Profilo',
   'Read content': 'Leggere i contenuti',
   'Read the media library': 'Leggere la libreria media',
+  'Add files to the media library': 'Aggiungere file alla libreria media',
   Reading: 'Lettura',
   'Remember me': 'Ricordami',
   Remove: 'Rimuovi',

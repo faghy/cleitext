@@ -90,6 +90,12 @@ export interface PluginServices {
     siteId?: string;
   }): Promise<void>;
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
+  mediaFromUrl(
+    plugin: LoadedPlugin,
+    siteId: string,
+    url: string,
+    options: { userId: string; alt?: string; filename?: string },
+  ): Promise<PluginMedia>;
   findComments(siteId: string, query: Parameters<CommentsApi['find']>[1]): Promise<PluginComment[]>;
   postComment(
     request: RouteRequest,
@@ -437,6 +443,12 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         assertSiteId(siteId);
         if (!UUID_RE.test(id)) return null;
         return services().mediaItem(siteId, id);
+      },
+      async fromUrl(siteId, url, options) {
+        require('media:write');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(options.userId)) throw new Error('A user id is needed.');
+        return services().mediaFromUrl(plugin, siteId, url, options);
       },
     },
 

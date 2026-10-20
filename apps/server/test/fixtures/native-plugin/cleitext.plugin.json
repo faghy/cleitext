@@ -8,6 +8,14 @@
   "server": "dist/server.js",
   "editor": "dist/editor.js",
   "public": "dist/public",
-  "editorStyles": ["native.css"],
-  "permissions": ["blocks", "import", "routes:admin", "theme:hooks"]
+  "editorStyles": [
+    "native.css"
+  ],
+  "permissions": [
+    "blocks",
+    "import",
+    "routes:admin",
+    "theme:hooks",
+    "media:write"
+  ]
 }

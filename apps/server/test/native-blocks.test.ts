@@ -260,4 +260,11 @@ describe('blocks with their own editor', () => {
     expect(other).toContain('Edit page');
     expect(other).not.toContain('Edit with Native');
   });
+
+  it('downloads pictures only from public addresses (plugin API 1.30)', async () => {
+    for (const url of ['http://127.0.0.1:1/a.png', 'http://10.0.0.1/a.png', 'file:///etc/passwd']) {
+      const res = await admin.post('/api/v1/ext/native/fetch-media', { url });
+      expect(res.statusCode, url).toBe(422);
+    }
+  });
 });

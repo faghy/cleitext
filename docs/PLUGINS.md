@@ -650,6 +650,8 @@ if (res.status >= 400) ctx.log.warn('Webhook refused', { status: res.status });
 
 `media:read`: `await ctx.media.get(siteId, id)` returns an item of the media library (`url`, `mime`, `width`, `height`, `alt` by language), e.g. the image chosen in a `media` field. Entries returned by `ctx.content.find` / `get` carry their `parentId`.
 
+`media:write` (API 1.30): `await ctx.media.fromUrl(siteId, url, { userId, alt?, filename? })` downloads a picture or a document from a public http(s) address into the library, as uploaded by that user (who needs `upload_media`); addresses of the server's own network are refused, the size limit of uploads applies and a file already in the library is reused. Imports use it for the pictures of other platforms.
+
 ### Personal data (GDPR)
 
 A plugin that keeps personal data (messages, sign-ups, orders…) should let the site answer the requests of people about it, as WordPress's privacy exporters and erasers do (plugin API 1.2, no permission needed):
@@ -913,6 +915,7 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 | `network`       | `ctx.http.send`                                                                                   |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
 | `media:read`    | `ctx.media.get`                                                                                   |
+| `media:write`   | `ctx.media.fromUrl` (API 1.30)                                                                    |
 | `import`        | `ctx.transfer.importDocument`                                                                     |
 
 Administrators see the requested permissions in **Plugins → Details**. Your own tables (`ctx.db`), hooks on actions, logging, capabilities and cache invalidation need no permission.

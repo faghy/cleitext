@@ -30,6 +30,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   'content:read': 'Read content',
   'content:write': 'Add content types and fields',
   'media:read': 'Read the media library',
+  'media:write': 'Add files to the media library',
   'settings:own': 'Store its own settings',
   'routes:public': 'Add addresses to the public site',
   'routes:admin': 'Add API endpoints',
