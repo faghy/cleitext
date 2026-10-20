@@ -180,15 +180,21 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
     URL.revokeObjectURL(link.href);
   };
   const importValues = async (file: File) => {
-    let data: { theme?: string; values?: unknown };
+    const text = await file.text();
+    let data: { theme?: string; values?: unknown } | string;
     try {
-      data = JSON.parse(await file.text()) as { theme?: string; values?: unknown };
+      data = JSON.parse(text) as { theme?: string; values?: unknown };
     } catch {
-      setNotice(t('This file does not hold theme options.'));
-      return;
+      // Not JSON (e.g. another system's serialized export): the theme may read the text.
+      data = text;
     }
     // Not a Cleitext export: the theme may know the format (settings of another system).
-    if (!data.values || typeof data.values !== 'object' || !data.theme) {
+    if (
+      typeof data === 'string' ||
+      !data.values ||
+      typeof data.values !== 'object' ||
+      !data.theme
+    ) {
       try {
         const result = await api<{ values: Record<string, unknown>; skipped: number }>(
           'POST',
@@ -393,7 +399,7 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="application/json,.json"
+                  accept="application/json,.json,.dat,.txt"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
