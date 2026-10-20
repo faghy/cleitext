@@ -27,10 +27,18 @@ const KIT_TAG = 'fresco:kit';
 /** Kits by site, kept for a minute (and dropped when saved). */
 const kits = new Map<string, { kit: Kit; at: number }>();
 
+/**
+ * Fresco's own context: the kit is in its storage. Elements of Fresco Pro
+ * are built with Pro's context (`blockFor`), whose storage is Pro's: read
+ * there, the kit was missing and the defaults (cached for every element of
+ * the site) replaced the site's colors, fonts and widths.
+ */
+let kitContext: PluginContext | null = null;
+
 async function kitFor(ctx: PluginContext, siteId: string): Promise<Kit> {
   const hit = kits.get(siteId);
   if (hit && Date.now() - hit.at < 60_000) return hit.kit;
-  const kit = normalizeKit(await ctx.storage.get(siteId, KIT_KEY));
+  const kit = normalizeKit(await (kitContext ?? ctx).storage.get(siteId, KIT_KEY));
   kits.set(siteId, { kit, at: Date.now() });
   return kit;
 }
@@ -118,6 +126,8 @@ function blockFor(
 
 export default definePlugin({
   setup(ctx) {
+    kitContext = ctx;
+    kits.clear();
     setIconData(icons as unknown as IconData);
     // Plugins load again after installs and updates: extensions start empty.
     resetExtensions();

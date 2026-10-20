@@ -63,6 +63,25 @@ function animations(): void {
 
 // ---- Videos behind an image -----------------------------------------------------------
 
+/** Background videos from YouTube or Vimeo: their 16:9 frame covers the container. */
+function backgroundEmbeds(): void {
+  const boxes = document.querySelectorAll<HTMLElement>('[data-fr-video-bg]');
+  if (boxes.length === 0) return;
+  const fit = () => {
+    for (const box of boxes) {
+      const frame = box.querySelector('iframe');
+      const width = box.clientWidth;
+      const height = box.clientHeight;
+      if (!frame || !width || !height) continue;
+      const wide = width / height > 16 / 9;
+      frame.style.width = `${Math.ceil(wide ? width : (height * 16) / 9)}px`;
+      frame.style.height = `${Math.ceil(wide ? (width * 9) / 16 : height)}px`;
+    }
+  };
+  fit();
+  window.addEventListener('resize', fit);
+}
+
 function videos(): void {
   document.addEventListener('click', (event) => {
     const button = (event.target as Element | null)?.closest<HTMLElement>('[data-fr-video]');
@@ -333,6 +352,7 @@ document.documentElement.classList.add('fr-js');
 const ready = () => {
   animations();
   videos();
+  backgroundEmbeds();
   lightbox();
   start();
 };

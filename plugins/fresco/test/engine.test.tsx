@@ -195,6 +195,70 @@ describe('rendering', () => {
       }),
     );
     expect(unsafe).not.toContain('<video');
+    // YouTube: a muted, looping frame covering the container.
+    const youtube = renderToStaticMarkup(
+      container.render({
+        node: node('fresco/container', {}),
+        settings: withDefaults(container, {
+          background_video: { url: 'https://www.youtube.com/watch?v=J01iDyHq2p0' },
+        }),
+        context,
+      }),
+    );
+    expect(youtube).not.toContain('<video');
+    expect(youtube).toContain('fr-has-video');
+    expect(youtube).toContain('data-fr-video-bg=""');
+    expect(youtube).toContain(
+      'src="https://www.youtube-nocookie.com/embed/J01iDyHq2p0?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=J01iDyHq2p0&amp;controls=0&amp;rel=0"',
+    );
+  });
+
+  it('draws shape dividers and gradient overlays over the background', () => {
+    const attrs = {
+      shape_top: 'curve-asymmetrical',
+      shape_top_negative: true,
+      shape_bottom: 'tilt',
+      shape_bottom_front: true,
+      shape_bottom_color: '#E41E24',
+      shape_bottom_height: { size: 58, unit: 'px' },
+      overlay_bg_type: 'gradient',
+      overlay_bg_color: '#000000',
+      overlay_bg_color_b: '#ffffff',
+      overlay_bg_angle: { size: 90, unit: 'deg' },
+    };
+    const html = renderToStaticMarkup(
+      container.render({
+        node: node('fresco/container', attrs),
+        settings: withDefaults(container, attrs),
+        children: <p>content</p>,
+        context,
+      }),
+    );
+    expect(html).toContain('fr-has-overlay');
+    expect(html).toContain(
+      '<div class="fr-shape fr-shape--top fr-shape--negative" aria-hidden="true">',
+    );
+    expect(html).toContain('d="M615.2,96.7C240.2');
+    expect(html).toContain(
+      '<div class="fr-shape fr-shape--bottom fr-shape--front" aria-hidden="true">',
+    );
+    expect(html).toContain('d="M0,6V0h1000v100L0,6z"');
+    const css = elementCss(container, node('fresco/container', attrs), DEFAULT_BREAKPOINTS);
+    expect(css).toContain('.fr-e-abc123 > .fr-shape--bottom .fr-shape__fill{fill:#E41E24}');
+    expect(css).toContain('.fr-e-abc123 > .fr-shape--bottom svg{height:58px}');
+    expect(css).toMatch(
+      /\.fr-e-abc123::before\{background-image:linear-gradient\(90deg, #000000 0%, #ffffff 100%\)/,
+    );
+    // No shape, an unknown one: nothing drawn.
+    const plain = renderToStaticMarkup(
+      container.render({
+        node: node('fresco/container', { shape_top: 'nope' }),
+        settings: withDefaults(container, { shape_top: 'nope' }),
+        context,
+      }),
+    );
+    expect(plain).not.toContain('fr-shape');
+    expect(plain).not.toContain('fr-has-overlay');
   });
 
   it('marks elements for the editor only when editing', () => {

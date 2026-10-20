@@ -41,6 +41,66 @@
   pointer-events: none;
   border-radius: inherit;
 }
+/* Shape dividers: over the background and the overlay, behind the content unless in front. */
+.fr-shape {
+  position: absolute;
+  left: 0;
+  z-index: 0;
+  width: 100%;
+  overflow: hidden;
+  line-height: 0;
+  direction: ltr;
+  pointer-events: none;
+}
+.fr-shape--top {
+  top: -1px;
+}
+.fr-shape--bottom {
+  bottom: -1px;
+}
+.fr-shape--bottom:not(.fr-shape--negative),
+.fr-shape--top.fr-shape--negative {
+  transform: rotate(180deg);
+}
+.fr-shape svg {
+  display: block;
+  position: relative;
+  left: 50%;
+  width: calc(100% + 1.3px);
+  transform: translateX(-50%);
+}
+.fr-shape--flip svg {
+  transform: translateX(-50%) rotateY(180deg);
+}
+.fr-shape__fill {
+  fill: #fff;
+}
+.fr-shape--front {
+  z-index: 2;
+}
+/* A gradient or image overlay (its background comes with the element's styles). */
+.fr-has-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+/* YouTube and Vimeo: a frame cut to cover the container (sized by frontend.js). */
+.fr-bg-embed {
+  overflow: hidden;
+}
+.fr-bg-embed iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
 .fr-has-video::before {
   z-index: 1 !important;
 }
@@ -811,6 +871,18 @@ a.fr-container {
   padding: 0;
   list-style: none;
 }
+/* Themes style the lists of the content (`.entry-content ul`, `.entry-content ul li`):
+   Fresco's lists are not running text. */
+.fr-e ul.fr-list,
+.fr-e ul.fr-menu__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fr-e ul.fr-list > li,
+.fr-e ul.fr-menu__list li {
+  margin: 0;
+}
 .fr-list--inline {
   flex-direction: row;
   flex-wrap: wrap;
@@ -1179,11 +1251,17 @@ a.fr-container {
   display: inline-flex;
   padding: 4px;
   border: 0;
+  border-radius: 0;
+  box-shadow: none;
   background: none;
   color: inherit;
   cursor: pointer;
 }
-.fr-menu__sub {
+/* `ul.`: over the padding and margin themes give to the lists of the content
+   (`.entry-content ul`, loaded before), under the menu's own variants. */
+ul.fr-menu__sub {
+  margin: 0;
+  list-style: none;
   position: absolute;
   top: 100%;
   left: 0;
@@ -1237,6 +1315,8 @@ a.fr-container {
   display: none;
   padding: 8px;
   border: 0;
+  border-radius: 0;
+  box-shadow: none;
   background: none;
   color: inherit;
   cursor: pointer;

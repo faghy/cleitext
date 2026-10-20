@@ -496,9 +496,30 @@ export function dynamicTag(
             : '';
     return key && key !== 'wa:' ? { tag: 'contact-url', key } : undefined;
   }
-  if (tag.name === 'popup' && str(s.action || 'open') === 'open') {
+  if (tag.name === 'popup') {
+    // Fresco Pro's popup tag links to `#popup-<key>`; `#popup-close` closes the popup.
+    const action = str(s.action || 'open');
+    if (action === 'close') return { tag: 'popup', key: 'close' };
+    if (action !== 'open' && action !== 'toggle') return undefined;
     const ref = num(s.popup) !== null ? entryRef?.(num(s.popup)!) : undefined;
     return ref ? { tag: 'popup', key: { $entry: ref } } : undefined;
   }
   return undefined;
+}
+
+/**
+ * The link of a repeater item (icon list, social icons…): its own, or the
+ * address an Elementor popup tag stands for (Fresco Pro opens and closes
+ * popups from links to `#popup-<id>` and `#popup-close`), which needs no
+ * dynamic tag on the item.
+ */
+export function itemLink(
+  item: Settings,
+  entryRef?: (post: number) => string | undefined,
+): Settings | undefined {
+  const tag = parseDynamic(asSettings(item.__dynamic__).link);
+  const value = tag?.name === 'popup' ? dynamicTag(tag, entryRef) : undefined;
+  if (value?.key === 'close') return { url: '#popup-close' };
+  if (value?.key) return { url: { ...asSettings(value.key), prefix: '#popup-' } };
+  return link(item.link);
 }

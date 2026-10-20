@@ -391,6 +391,202 @@ describe('Elementor pages to Fresco', () => {
     expect(slideshow.warnings.join('\n')).toContain('slideshows show their first image');
   });
 
+  it('converts gradient overlays, shape dividers and column margins as Elementor draws them', () => {
+    const { block, warnings } = container({
+      background_overlay_background: 'gradient',
+      background_overlay_color: '#000000',
+      background_overlay_gradient_angle: { unit: 'deg', size: 90 },
+      background_overlay_opacity: { size: 0.7 },
+      shape_divider_top: 'curve-asymmetrical',
+      shape_divider_top_negative: 'yes',
+      shape_divider_bottom: 'tilt',
+      shape_divider_bottom_above_content: 'yes',
+      shape_divider_bottom_height: { unit: 'px', size: 58 },
+      __globals__: { shape_divider_bottom_color: 'globals/colors?id=primary' },
+    });
+    expect(block.attrs).toMatchObject({
+      overlay_bg_type: 'gradient',
+      overlay_bg_color: '#000000',
+      // Elementor's default second color.
+      overlay_bg_color_b: '#f2295b',
+      overlay_bg_angle: { size: 90, unit: 'deg' },
+      overlay_opacity: { size: 0.7, unit: '' },
+      shape_top: 'curve-asymmetrical',
+      shape_top_negative: true,
+      shape_bottom: 'tilt',
+      shape_bottom_front: true,
+      shape_bottom_height: { size: 58, unit: 'px' },
+      shape_bottom_color: 'var(--fr-c-primary)',
+    });
+    expect(block.attrs.overlay_color).toBeUndefined();
+    expect(warnings).toEqual([]);
+    const youtube = container({
+      background_background: 'video',
+      background_video_link: 'https://www.youtube.com/watch?v=J01iDyHq2p0',
+      background_video_fallback: { id: 12, url: 'https://old.test/wp-content/uploads/a.jpg' },
+    });
+    expect(youtube.block.attrs).toMatchObject({
+      background_video: { url: 'https://www.youtube.com/watch?v=J01iDyHq2p0' },
+      background_image: { id: 'att:12' },
+    });
+    expect(youtube.warnings).toEqual([]);
+    const other = container({ shape_divider_top: 'book' });
+    expect(other.block.attrs.shape_top).toBeUndefined();
+    expect(other.warnings.join('\n')).toContain('shape dividers "book" were not imported');
+
+    // A column's margin is inside it (Elementor): the column keeps its width.
+    const warnings2: string[] = [];
+    const [section] = elementorToFresco(
+      JSON.stringify([
+        {
+          id: 's',
+          elType: 'section',
+          settings: {},
+          elements: [
+            {
+              id: 'c',
+              elType: 'column',
+              settings: {
+                _column_size: 25,
+                hide_mobile: 'hidden-phone',
+                margin: {
+                  unit: '%',
+                  top: '0',
+                  right: '0',
+                  bottom: '0',
+                  left: '20',
+                  isLinked: false,
+                },
+              },
+              elements: [
+                { id: 'w', elType: 'widget', widgetType: 'heading', settings: { title: 'Hi' } },
+              ],
+            },
+          ],
+        },
+      ]),
+      context(warnings2),
+    )!;
+    // Without phone widths, columns stack on phones.
+    expect(section!.attrs['flex_direction@mobile']).toBe('column');
+    const [phone] = elementorToFresco(
+      JSON.stringify([
+        {
+          id: 's2',
+          elType: 'section',
+          settings: {},
+          elements: [
+            {
+              id: 'a',
+              elType: 'column',
+              settings: { _column_size: 50, _inline_size_mobile: 45 },
+              elements: [],
+            },
+            {
+              id: 'b',
+              elType: 'column',
+              settings: { _column_size: 50, _inline_size_mobile: 55 },
+              elements: [],
+            },
+          ],
+        },
+      ]),
+      context([]),
+    )!;
+    expect(phone!.attrs).toMatchObject({
+      'flex_direction@mobile': 'row',
+      'flex_wrap@mobile': 'wrap',
+    });
+    expect(phone!.children![0]!.attrs['width@mobile']).toEqual({ size: 45, unit: '%' });
+    const column = section!.children![0]!;
+    expect(column.attrs).toMatchObject({
+      width: { size: 25, unit: '%' },
+      _hide_mobile: true,
+      _padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    expect(column.attrs._margin).toBeUndefined();
+    expect(column.attrs.__wrapped).toBeUndefined();
+    const inner = column.children![0]!;
+    expect(inner.type).toBe('fresco/container');
+    expect(inner.attrs).toMatchObject({
+      _margin: { left: 20, unit: '%' },
+      _padding: { top: 10, right: 10, bottom: 10, left: 10, unit: 'px' },
+    });
+    expect(inner.attrs.width).toBeUndefined();
+    expect(inner.attrs._hide_mobile).toBeUndefined();
+    expect(inner.children![0]!.type).toBe('fresco/heading');
+  });
+
+  it('centers images, spaces menu links and opens popups from list items like Elementor', () => {
+    expect(
+      one({ widgetType: 'image', settings: { image: { id: 12, url: 'https://old.test/a.jpg' } } })
+        .block.attrs.align,
+    ).toBe('center');
+    expect(
+      one({
+        widgetType: 'image',
+        settings: { align: 'left', image: { url: 'https://old.test/a.jpg' } },
+      }).block.attrs.align,
+    ).toBe('left');
+    const menu = one({
+      widgetType: 'nav-menu',
+      settings: { __globals__: { color_menu_item_hover: 'globals/colors?id=accent' } },
+    }).block;
+    expect(menu.attrs).toMatchObject({
+      'link_color:hover': 'var(--fr-c-accent)',
+      current_color: 'var(--fr-c-accent)',
+      typography_line: { size: 20, unit: 'px' },
+      link_padding: { top: 13, right: 20, bottom: 13, left: 20, unit: 'px' },
+    });
+    const entryRef = (id: number) => (id === 1162 ? 'post:1162' : undefined);
+    const tag = (settings: string) =>
+      `[elementor-tag id="a1" name="popup" settings="${encodeURIComponent(settings)}"]`;
+    const list = one(
+      {
+        widgetType: 'icon-list',
+        settings: {
+          icon_list: [
+            { _id: 'a', text: 'Weather', __dynamic__: { link: tag('{"popup":"1162"}') } },
+            { _id: 'b', text: 'Close', __dynamic__: { link: tag('{"action":"close"}') } },
+            { _id: 'c', text: 'Plain', link: { url: '/x' } },
+          ],
+        },
+      },
+      { entryRef },
+    ).block;
+    expect((list.attrs.items as { link?: unknown }[]).map((i) => i.link)).toEqual([
+      { url: { $entry: 'post:1162', prefix: '#popup-' } },
+      { url: '#popup-close' },
+      { url: '/x' },
+    ]);
+    const close = one({
+      widgetType: 'icon',
+      settings: { __dynamic__: { link: tag('{"action":"close"}') } },
+    });
+    expect(close.block.attrs.__dynamic).toMatchObject({ link: { tag: 'popup', key: 'close' } });
+    expect(close.warnings).toEqual([]);
+  });
+
+  it('turns Elementor search forms into joined search forms with an icon button', () => {
+    const { block } = one({
+      widgetType: 'search-form',
+      settings: {
+        placeholder: 'Cerca...',
+        button_text: 'Cerca',
+        size: { unit: 'px', size: 29 },
+        __globals__: { button_background_color: 'globals/colors?id=secondary' },
+      },
+    });
+    expect(block.type).toBe('fresco-pro/search-form');
+    expect(block.attrs).toMatchObject({
+      placeholder: 'Cerca...',
+      layout: 'joined',
+      button_type: 'icon',
+      size: { size: 29, unit: 'px' },
+      button_bg: 'var(--fr-c-secondary)',
+    });
+  });
+
   it('turns Pro widgets into Fresco Pro elements', () => {
     const entryRef = (id: number) => (id === 40 ? 'post:40' : id === 41 ? 'post:41' : undefined);
     const term = (_taxonomy: string, id: number) =>
@@ -418,6 +614,8 @@ describe('Elementor pages to Fresco', () => {
               width: '50',
             },
             { _id: 'c', custom_id: 'file', field_type: 'upload', field_label: 'CV' },
+            // Captchas are left out (Fresco Pro's forms have their own spam protection).
+            { _id: 'd', custom_id: 'captcha', field_type: 'recaptcha_v3' },
           ],
           submit_actions: ['email', 'redirect', 'popup'],
           email_to: 'info@example.com',
@@ -445,7 +643,10 @@ describe('Elementor pages to Fresco', () => {
       popup_action: 'open',
       popup_id: { $entry: 'post:41' },
       button_text: 'Send it',
+      // Elementor's default button color: the kit's accent.
+      button_bg: 'var(--fr-c-accent)',
     });
+    expect((form.block.attrs.fields as unknown[]).length).toBe(3);
     expect(form.warnings.join('\n')).toContain('upload, recaptcha');
 
     const menu = one(

@@ -13,6 +13,8 @@ import {
   color,
   colorOf,
   copy,
+  hasLineHeight,
+  itemLink,
   link,
   list,
   num,
@@ -163,21 +165,23 @@ export function proWidget(
       c.typography(out, src, 'menu_typography', 'typography');
       color(out, src, 'color_menu_item', 'link_color', 'color_menu_item_hover');
       color(out, src, 'color_menu_item_active', 'current_color');
+      // Elementor shows the current page's item in the hover color unless it has its own.
+      if (!out.current_color) color(out, src, 'color_menu_item_hover', 'current_color');
       color(out, src, 'background_color_dropdown_item', 'sub_bg');
       color(out, src, 'color_dropdown_item', 'sub_color');
       color(out, src, 'toggle_color', 'toggle_color');
+      // Elementor's menu links: 13px 20px around a 20px line unless set otherwise.
+      if (!hasLineHeight(src, 'menu_typography')) out.typography_line = { size: 20, unit: 'px' };
       const x = size(src.padding_horizontal_menu_item);
       const y = size(src.padding_vertical_menu_item);
-      if (x || y) {
-        out.link_padding = {
-          top: y?.size ?? 13,
-          right: x?.size ?? 20,
-          bottom: y?.size ?? 13,
-          left: x?.size ?? 20,
-          unit: 'px',
-          linked: false,
-        };
-      }
+      out.link_padding = {
+        top: y?.size ?? 13,
+        right: x?.size ?? 20,
+        bottom: y?.size ?? 13,
+        left: x?.size ?? 20,
+        unit: 'px',
+        linked: false,
+      };
       copy(out, src, 'menu_space_between', 'spacing', (v) => size(v, c));
       return [c.node('nav-menu', out)];
     }
@@ -257,6 +261,20 @@ export function proWidget(
     case 'search':
       out.placeholder = str(src.placeholder) || 'Search…';
       if (str(src.button_text)) out.button = str(src.button_text);
+      if (type === 'search-form') {
+        // Elementor's skins draw the field and its button as one box; the
+        // button shows an icon unless set to text; `size` is the box height.
+        out.layout = 'joined';
+        out.button_type = str(src.button_type) === 'text' ? 'text' : 'icon';
+        const height = size(src.size);
+        if (height) out.size = height;
+        const radius = size(src.border_radius);
+        if (radius) out.radius = radius;
+        color(out, src, 'input_background_color', 'input_bg');
+        color(out, src, 'input_text_color', 'input_color');
+        if (str(src.skin) === 'full_screen')
+          c.note('full-screen search forms were imported as a plain search form');
+      }
       color(out, src, 'button_background_color', 'button_bg');
       color(out, src, 'button_text_color', 'button_color');
       return [c.node('fresco-pro/search-form', out)];
@@ -371,7 +389,10 @@ export function proWidget(
 
     // ---- Content ---------------------------------------------------------------------------
     case 'form': {
-      out.fields = list(src.form_fields).map((field, i) => {
+      // Captchas and honeypots: Fresco Pro's forms have their own spam protection.
+      const ANTISPAM = new Set(['recaptcha', 'recaptcha_v3', 'honeypot', 'hcaptcha', 'turnstile']);
+      const fields = list(src.form_fields).filter((f) => !ANTISPAM.has(str(f.field_type)));
+      out.fields = fields.map((field, i) => {
         const fieldType = str(field.field_type) || 'text';
         const width = num(field.width) ?? 100;
         return {
@@ -392,7 +413,7 @@ export function proWidget(
             : {}),
         };
       });
-      if (list(src.form_fields).some((f) => !FIELD_TYPES.has(str(f.field_type) || 'text'))) {
+      if (fields.some((f) => !FIELD_TYPES.has(str(f.field_type) || 'text'))) {
         c.note('form fields of other kinds (upload, recaptcha…) became text fields');
       }
       out.form_name = str(src.form_name) || 'New form';
@@ -492,8 +513,8 @@ export function proWidget(
       );
       c.typography(out, src, 'field_typography', 'field_typo');
       color(out, src, 'button_text_color', 'button_color');
-      const bg = colorOf(src, 'button_background_color');
-      if (bg) out.button_bg = bg;
+      // Elementor's form button: the kit's accent color unless set.
+      out.button_bg = colorOf(src, 'button_background_color') ?? 'var(--fr-c-accent)';
       const bgHover = colorOf(src, 'button_background_hover_color');
       if (bgHover) out['button_bg:hover'] = bgHover;
       copy(out, src, 'button_text_padding', 'button_padding', (v) => box(v, c), false);
@@ -581,6 +602,11 @@ export function proWidget(
       out.hover = ['zoom-in', 'zoom-out', 'move-left', 'move-up'].includes(hover) ? hover : 'none';
       copy(out, src, 'min-height', 'min_height', (v) => size(v, c));
       copy(out, src, 'min_height', 'min_height', (v) => size(v, c));
+      // Elementor's classic skin: the image covers a box 200px high unless set otherwise.
+      if (out.skin === 'classic' && image) {
+        copy(out, src, 'image_min_height', 'image_height', (v) => size(v, c));
+        if (!out.image_height) out.image_height = { size: 200, unit: 'px' };
+      }
       color(out, src, 'content_bg_color', 'content_bg');
       color(out, src, 'overlay_color', 'overlay', 'overlay_color_hover');
       color(out, src, 'title_color', 'title_color');
@@ -632,7 +658,10 @@ export function proWidget(
       return [c.node('fresco-pro/flip-box', out)];
     }
     case 'price-table': {
-      out.heading = str(src.heading);
+      // Elementor's look: bands, centered features with dividers, its default fonts.
+      out.skin = 'classic';
+      // Line breaks (`<br>`) stay as new lines.
+      out.heading = text(src.heading).replace(/[ \t]*\n[ \t]*/g, '\n');
       out.sub_heading = str(src.sub_heading);
       out.tag = tag(src.heading_tag, 'h3');
       const symbols: Record<string, string> = {
@@ -671,20 +700,45 @@ export function proWidget(
         _id: str(item._id) || `f${i}`,
         text: text(item.item_text),
         included: true,
-        ...(c.icon(item.selected_item_icon) ? { icon: c.icon(item.selected_item_icon) } : {}),
+        // Elementor's default icon: a check in a circle.
+        icon: c.icon(item.selected_item_icon) ?? { set: 'regular', name: 'circle-check' },
       }));
       out.button_text = str(src.button_text);
       if (link(src.link)) out.button_link = link(src.link);
-      out.footer_info = str(src.footer_additional_info);
+      out.footer_info = text(src.footer_additional_info).trim();
       if (yes(src.show_ribbon) && str(src.ribbon_title)) {
         out.ribbon = true;
         out.ribbon_title = str(src.ribbon_title);
       }
       color(out, src, 'header_bg_color', 'header_bg');
+      color(out, src, 'heading_color', 'heading_color');
+      color(out, src, 'sub_heading_color', 'sub_color');
+      color(out, src, 'pricing_element_bg_color', 'pricing_bg');
       color(out, src, 'price_color', 'price_color');
-      c.typography(out, src, 'price_typography', 'price_typo');
+      color(out, src, 'currency_color', 'currency_color');
+      copy(out, src, 'currency_size', 'currency_size', (v) => {
+        const n = num(asSettings(v).size);
+        return n === null ? undefined : { size: n, unit: '' };
+      });
+      color(out, src, 'period_color', 'period_color');
+      color(out, src, 'features_list_bg_color', 'features_bg');
       color(out, src, 'features_list_color', 'features_color');
+      color(out, src, 'item_icon_color', 'icon_color');
+      color(out, src, 'divider_color', 'divider_color');
+      color(out, src, 'footer_bg_color', 'footer_bg');
       color(out, src, 'ribbon_bg_color', 'ribbon_bg');
+      // Elementor's default fonts of each part (the kit's), unless set on the widget.
+      for (const [from, to, global] of [
+        ['heading_typography', 'heading_typography', 'primary'],
+        ['sub_heading_typography', 'sub_typography', 'secondary'],
+        ['price_typography', 'price_typo', 'primary'],
+        ['period_typography', 'period_typography', 'secondary'],
+        ['features_list_typography', 'features_typo', 'text'],
+      ] as const) {
+        c.typography(out, src, from, to);
+        if (src[`${from}_typography`] !== 'custom' && !out[`${to}_global`])
+          out[`${to}_global`] = global;
+      }
       return [c.node('fresco-pro/price-table', out)];
     }
     case 'price-list':
@@ -694,7 +748,7 @@ export function proWidget(
         price: str(item.price),
         description: text(item.item_description),
         ...(media(item.image) ? { image: media(item.image) } : {}),
-        ...(link(item.link) ? { link: link(item.link) } : {}),
+        ...(itemLink(item, c.ctx.entryRef) ? { link: itemLink(item, c.ctx.entryRef) } : {}),
       }));
       if (['dotted', 'dashed', 'solid', 'double'].includes(str(src.separator_style))) {
         out.separator = str(src.separator_style) === 'double' ? 'solid' : str(src.separator_style);

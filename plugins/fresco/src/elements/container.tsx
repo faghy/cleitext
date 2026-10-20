@@ -2,6 +2,8 @@ import { advancedControls, ElementRoot, UNITS } from '../core/common.js';
 import { content, groups, style } from '../core/controls.js';
 import { linkProps } from '../core/links.js';
 import type { Control, ElementDefinition } from '../core/model.js';
+import { videoEmbed } from './general.js';
+import { SHAPE_OPTIONS, SHAPES } from './shapes.js';
 
 const IN = '{{el}} > .fr-container__in';
 
@@ -188,7 +190,7 @@ const controls: Control[] = [
   {
     name: 'background_video',
     type: 'media',
-    label: 'Video (MP4 or WebM)',
+    label: 'Video (MP4, WebM, YouTube or Vimeo link)',
     tab: 'style',
     section: 'Background video',
     accept: 'video',
@@ -203,6 +205,8 @@ const controls: Control[] = [
     section: 'Background video',
     noCss: true,
   },
+  // A gradient or an image over the background (a plain color: "Overlay color" below).
+  groups.background('overlay_bg', 'Overlay', 'Background overlay', '{{el}}::before'),
   style.color('overlay_color', 'Overlay color', 'Background overlay', {
     selectors: {
       '{{el}}::before':
@@ -218,8 +222,55 @@ const controls: Control[] = [
   }),
   groups.border('border', 'Border', 'Border', '{{el}}'),
   groups.shadow('shadow', 'Box shadow', 'Border', '{{el}}'),
+  ...(['top', 'bottom'] as const).flatMap((edge) => {
+    const section = edge === 'top' ? 'Shape divider (top)' : 'Shape divider (bottom)';
+    const at = `{{el}} > .fr-shape--${edge}`;
+    return [
+      style.select(`shape_${edge}`, 'Shape', section, { options: SHAPE_OPTIONS, noCss: true }),
+      style.color(`shape_${edge}_color`, 'Color', section, {
+        selectors: { [`${at} .fr-shape__fill`]: 'fill: {{value}}' },
+      }),
+      style.slider(`shape_${edge}_width`, 'Width', section, {
+        responsive: true,
+        units: ['%'],
+        min: 100,
+        max: 300,
+        selectors: { [`${at} svg`]: 'width: calc({{size}}% + 1.3px)' },
+      }),
+      style.slider(`shape_${edge}_height`, 'Height', section, {
+        responsive: true,
+        units: ['px'],
+        max: 500,
+        selectors: { [`${at} svg`]: 'height: {{value}}' },
+      }),
+      style.switch(`shape_${edge}_flip`, 'Flip', section, { noCss: true }),
+      style.switch(`shape_${edge}_negative`, 'Invert', section, { noCss: true }),
+      style.switch(`shape_${edge}_front`, 'In front of the content', section, { noCss: true }),
+    ];
+  }),
   ...advancedControls({ container: true }),
 ];
+
+/** A shape divider at an edge of a container (none when no shape is chosen). */
+function shapeDivider(settings: Record<string, unknown>, edge: 'top' | 'bottom') {
+  const shape = SHAPES[String(settings[`shape_${edge}`] ?? '')];
+  if (!shape) return null;
+  const negative = settings[`shape_${edge}_negative`] === true && Boolean(shape.negative);
+  const classes = [
+    'fr-shape',
+    `fr-shape--${edge}`,
+    negative ? 'fr-shape--negative' : '',
+    settings[`shape_${edge}_flip`] === true ? 'fr-shape--flip' : '',
+    settings[`shape_${edge}_front`] === true ? 'fr-shape--front' : '',
+  ];
+  return (
+    <div className={classes.filter(Boolean).join(' ')} aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 100" preserveAspectRatio="none">
+        <path className="fr-shape__fill" d={negative ? shape.negative : shape.path} />
+      </svg>
+    </div>
+  );
+}
 
 export const container: ElementDefinition = {
   type: 'fresco/container',
@@ -239,19 +290,37 @@ export const container: ElementDefinition = {
     const name = `fr-container fr-container--${grid ? 'grid' : 'flex'} fr-container--${boxed ? 'boxed' : 'full'}`;
     const empty = !node.children || node.children.length === 0;
     const video = (settings.background_video as { url?: string } | undefined)?.url;
-    const videoUrl = video && /^(https?:\/\/|\/(?!\/))[^\s"'<>]*$/.test(video) ? video : null;
+    const videoUrl =
+      video &&
+      !/(youtube\.com|youtu\.be|vimeo\.com)\//.test(video) &&
+      /^(https?:\/\/|\/(?!\/))[^\s"'<>]*$/.test(video)
+        ? video
+        : null;
+    const overlay =
+      settings.overlay_bg_type === 'classic' || settings.overlay_bg_type === 'gradient';
+    // YouTube and Vimeo play in a frame, muted and looping, cut to cover the container.
+    const embed =
+      video && /^https:\/\//.test(video)
+        ? (videoEmbed(/vimeo\.com/.test(video) ? 'vimeo' : 'youtube', video, {
+            autoplay: true,
+            mute: true,
+            loop: true,
+            controls: false,
+          })?.replace(/^(https:\/\/player\.vimeo\.com\/[^#]*)/, '$1&background=1') ?? null)
+        : null;
+    const mobileClass = settings.background_video_mobile === true ? '' : ' fr-bg-video--wide';
     return (
       <ElementRoot
         node={node}
         settings={settings}
-        name={videoUrl ? `${name} fr-has-video` : name}
+        name={`${name}${videoUrl || embed ? ' fr-has-video' : ''}${overlay ? ' fr-has-overlay' : ''}`}
         editing={context.editing}
         tag={tag === 'a' && !link ? 'div' : tag}
         extra={link ? { href: link.href, target: link.target, rel: link.rel } : undefined}
       >
         {videoUrl && (
           <video
-            className={`fr-bg-video${settings.background_video_mobile === true ? '' : ' fr-bg-video--wide'}`}
+            className={`fr-bg-video${mobileClass}`}
             src={videoUrl}
             autoPlay
             muted
@@ -262,6 +331,17 @@ export const container: ElementDefinition = {
             tabIndex={-1}
           />
         )}
+        {embed && (
+          <div
+            className={`fr-bg-video fr-bg-embed${mobileClass}`}
+            aria-hidden="true"
+            data-fr-video-bg=""
+          >
+            <iframe src={embed} title="" tabIndex={-1} allow="autoplay; encrypted-media" />
+          </div>
+        )}
+        {shapeDivider(settings, 'top')}
+        {shapeDivider(settings, 'bottom')}
         <div className="fr-container__in">
           {children}
           {empty && context.editing ? <div className="fr-empty" data-fr-empty="" /> : null}
@@ -271,7 +351,7 @@ export const container: ElementDefinition = {
   },
   media: (settings) => {
     const ids: string[] = [];
-    for (const key of ['background_image', 'background_hover_image']) {
+    for (const key of ['background_image', 'background_hover_image', 'overlay_bg_image']) {
       const value = settings[key] as { id?: string } | undefined;
       if (value?.id) ids.push(value.id);
     }

@@ -22,6 +22,7 @@ import {
   evenBox,
   hasLineHeight,
   icon,
+  itemLink,
   link,
   list,
   mediaValue,
@@ -216,6 +217,8 @@ function background(c: Converter, out: Settings, src: Settings, from: string, to
     if (str(src[`${from}_attachment`])) out[`${to}_attachment`] = str(src[`${from}_attachment`]);
   } else {
     color(out, src, `${from}_color_b`, `${to}_color_b`);
+    // Elementor's default second color.
+    if (!out[`${to}_color_b`]) out[`${to}_color_b`] = '#f2295b';
     const stop = size(src[`${from}_color_stop`]);
     if (stop) out[`${to}_stop`] = stop;
     const stopB = size(src[`${from}_color_b_stop`]);
@@ -388,6 +391,30 @@ function hide(out: Settings, src: Settings): void {
   }
 }
 
+/** Shapes Fresco's containers draw (the others are left out). */
+const SHAPES = new Set(['tilt', 'triangle', 'curve', 'curve-asymmetrical', 'waves']);
+
+/** Elementor's shape dividers → Fresco's (shape, color, size, flip, invert, in front). */
+function shapeDividers(c: Converter, out: Settings, src: Settings): void {
+  for (const edge of ['top', 'bottom']) {
+    const from = `shape_divider_${edge}`;
+    const shape = str(src[from]);
+    if (!shape) continue;
+    if (!SHAPES.has(shape)) {
+      c.note(`shape dividers "${shape}" were not imported`);
+      continue;
+    }
+    const to = `shape_${edge}`;
+    out[to] = shape;
+    color(out, src, `${from}_color`, `${to}_color`);
+    copy(out, src, `${from}_width`, `${to}_width`, (v) => size(v));
+    copy(out, src, `${from}_height`, `${to}_height`, (v) => size(v));
+    if (yes(src[`${from}_flip`])) out[`${to}_flip`] = true;
+    if (yes(src[`${from}_negative`])) out[`${to}_negative`] = true;
+    if (yes(src[`${from}_above_content`])) out[`${to}_front`] = true;
+  }
+}
+
 /**
  * The settings of a section, column or container: spacing, background (with
  * overlay, video and slideshow), border, shadow, animation and the rest.
@@ -404,11 +431,15 @@ function containerCommon(c: Converter, out: Settings, src: Settings): void {
   if (type === 'video') {
     const url = str(src.background_video_link);
     const fallback = c.media(src.background_video_fallback);
-    if (/\.(mp4|webm|ogv)(\?.*)?$/i.test(url)) {
+    // Files, and YouTube and Vimeo links (Fresco plays them in a frame).
+    if (
+      /\.(mp4|webm|ogv)(\?.*)?$/i.test(url) ||
+      /^https:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|vimeo\.com)\//i.test(url)
+    ) {
       out.background_video = { id: null, url };
       if (yes(src.background_play_on_mobile)) out.background_video_mobile = true;
-    } else {
-      c.note('background videos from YouTube or Vimeo were replaced by their fallback image');
+    } else if (url) {
+      c.note('background videos of other sites were replaced by their fallback image');
     }
     if (fallback) {
       out.background_type = 'classic';
@@ -427,17 +458,19 @@ function containerCommon(c: Converter, out: Settings, src: Settings): void {
     c.note('background slideshows show their first image');
   }
   background(c, out, src, 'background_hover', 'background_hover');
-  // Overlay: a color (or the first color of a gradient) and its opacity.
+  // Overlay: a plain color, or a gradient or an image (Fresco's overlay background), and its opacity.
   const overlay = str(src.background_overlay_background);
-  if (overlay === 'classic' || overlay === 'gradient') {
+  const overlayImage = str(asSettings(src.background_overlay_image).url);
+  if (overlay === 'gradient' || (overlay === 'classic' && overlayImage)) {
+    background(c, out, src, 'background_overlay', 'overlay_bg');
+    const opacity = num(asSettings(src.background_overlay_opacity).size);
+    out.overlay_opacity = { size: opacity ?? 0.5, unit: '' };
+  } else if (overlay === 'classic') {
     const value = colorOf(src, 'background_overlay_color');
     if (value) {
       out.overlay_color = value;
       const opacity = num(asSettings(src.background_overlay_opacity).size);
       out.overlay_opacity = { size: opacity ?? 0.5, unit: '' };
-    }
-    if (overlay === 'gradient' || src.background_overlay_image) {
-      c.note('gradient and image overlays became a plain color overlay');
     }
   }
   border(out, src, 'border', 'border');
@@ -457,7 +490,7 @@ function containerCommon(c: Converter, out: Settings, src: Settings): void {
   const align = str(src.text_align);
   if (['left', 'center', 'right', 'justify'].includes(align))
     addCss(out, `selector{text-align:${align}}`);
-  if (src.shape_divider_top || src.shape_divider_bottom) c.note('shape dividers were not imported');
+  shapeDividers(c, out, src);
 }
 
 // ---- Conversion ------------------------------------------------------------------------------
@@ -612,6 +645,8 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
               ? 'full'
               : 'large';
         alignTo(out, src, 'align');
+        // Elementor centers images unless told otherwise; Fresco keeps the text alignment.
+        if (!out.align) out.align = 'center';
         if (src.link_to === 'file') out.link_to = 'file';
         if (src.link_to === 'custom' && link(src.link)) {
           out.link_to = 'custom';
@@ -772,7 +807,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           _id: str(item._id) || `i${i}`,
           text: str(item.text),
           ...(c.icon(item.selected_icon) ? { icon: c.icon(item.selected_icon) } : {}),
-          ...(link(item.link) ? { link: link(item.link) } : {}),
+          ...(itemLink(item, ctx.entryRef) ? { link: itemLink(item, ctx.entryRef) } : {}),
         }));
         if (src.view === 'inline') out.layout = 'inline';
         copy(out, src, 'space_between', 'space', (v) => size(v, c));
@@ -834,7 +869,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         out.items = list(src.social_icon_list).map((item, i) => ({
           _id: str(item._id) || `s${i}`,
           ...(c.icon(item.social_icon) ? { icon: c.icon(item.social_icon) } : {}),
-          ...(link(item.link) ? { link: link(item.link) } : {}),
+          ...(itemLink(item, ctx.entryRef) ? { link: itemLink(item, ctx.entryRef) } : {}),
         }));
         if (['rounded', 'square', 'circle'].includes(str(src.shape))) out.shape = str(src.shape);
         if (src.icon_color === 'custom') {
@@ -1062,6 +1097,16 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         };
         if (src.reverse_order_tablet === 'reverse-tablet')
           extra['flex_direction@tablet'] = 'row-reverse';
+        // Columns with a width of their own on phones stay side by side there
+        // (Elementor wraps them: the others take the whole row).
+        const phoneWidths = (el.elements ?? []).some((column) => {
+          const width = num(asSettings(column.settings)._inline_size_mobile);
+          return width !== null && width < 100;
+        });
+        if (phoneWidths && src.reverse_order_mobile !== 'reverse-mobile') {
+          extra['flex_direction@mobile'] = 'row';
+          extra['flex_wrap@mobile'] = 'wrap';
+        }
         if (size(src.content_width)) extra.boxed_width = size(src.content_width, c);
         const heightKey = el.isInner ? 'height_inner' : 'height';
         if (src[heightKey] === 'min-height') {
@@ -1100,8 +1145,12 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         const vertical = str(src.content_position);
         const columns = (el.elements ?? []).map((column) => {
           const converted = element(column);
-          for (const block of converted) {
-            if (block.type !== 'fresco/container') continue;
+          for (const outer of converted) {
+            if (outer.type !== 'fresco/container') continue;
+            // A column with a margin: its spacing and position go to the box inside.
+            const wrapped = outer.attrs.__wrapped === true;
+            delete outer.attrs.__wrapped;
+            const block = wrapped && outer.children?.[0] ? outer.children[0] : outer;
             const own = asSettings(column.settings);
             if (!box(own.padding)) block.attrs._padding = evenBox(columnPadding);
             if (!str(own.content_position) && vertical) {
@@ -1159,6 +1208,27 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         }
         copy(extra, src, 'space_between_widgets', 'gap', (v) => size(v, c));
         if (str(src.html_tag) && str(src.html_tag) !== 'div') extra.html_tag = str(src.html_tag);
+        if (['', '_tablet', '_mobile'].some((device) => box(src[`margin${device}`]))) {
+          // Elementor puts a column's margin (with its padding, background and
+          // border) on the box inside it: the column keeps its width. Fresco's
+          // margin is on the container itself, so the column becomes a
+          // container of that width holding one with everything else.
+          const { width: _w, ...own } = extra;
+          void _w;
+          for (const key of Object.keys(own)) if (key.startsWith('width@')) delete own[key];
+          const inner = container(src, children(), own);
+          // It fills the column, less its margin (as Elementor's inner box does).
+          addCss(inner.attrs, 'selector{flex-grow:1;width:auto}');
+          const outer: Settings = { content_width: 'full', _padding: evenBox(0), __wrapped: true };
+          for (const [key, value] of Object.entries(extra)) {
+            if (key === 'width' || key.startsWith('width@')) outer[key] = value;
+          }
+          for (const key of ['_hide_desktop', '_hide_tablet', '_hide_mobile']) {
+            if (inner.attrs[key]) outer[key] = inner.attrs[key];
+            delete inner.attrs[key];
+          }
+          return [c.node('container', outer, [inner])];
+        }
         return [container(src, children(), extra)];
       }
       case 'container': {
