@@ -134,6 +134,41 @@ export interface RenderHookContext {
   signedIn?: boolean;
 }
 
+/**
+ * A maintenance page given by a plugin (`render.maintenance`, plugin API
+ * 1.35): a whole HTML document, sent instead of the theme's.
+ */
+export interface MaintenancePage {
+  /** The complete document, from `<!doctype html>` on. */
+  html: string;
+  /** Seconds until the site is expected back (`Retry-After`); default 3600. */
+  retryAfter?: number;
+}
+
+/** Context of the `render.maintenance` filter. */
+export interface MaintenanceContext {
+  siteId: string;
+  /** The language of the page asked for (its address prefix), or the default one. */
+  locale: string;
+  /** The site's default language. */
+  defaultLocale: string;
+  /** The site's address as the visitor reached it, e.g. `https://example.com`. */
+  origin: string;
+  path: string;
+  site: {
+    /** Title and tagline in `locale`. */
+    title: string;
+    tagline: string;
+    /** IANA time zone of the site (Settings → General), for dates. */
+    timezone: string;
+    /** Addresses of the theme's logo and site icon (`logo`, `favicon` settings), when set. */
+    logoUrl?: string;
+    iconUrl?: string;
+  };
+  /** Shown to an administrator as a preview (Settings → General), not to a visitor. */
+  preview?: boolean;
+}
+
 /** Filters (transformations): `[value, context]` by name. */
 export interface Filters {
   /** Title, meta tags and extra `<head>` tags of a public page (needs `theme:hooks`). */
@@ -153,6 +188,14 @@ export interface Filters {
   ];
   /** Final HTML of a public page; use sparingly (needs `theme:hooks`). */
   'render.html': [html: string, context: RenderHookContext];
+  /**
+   * The page visitors get while the site is in maintenance mode (plugin API
+   * 1.35, needs `theme:hooks`): return a page to send it, with status 503,
+   * `Retry-After` and `X-Robots-Tag: noindex`, instead of the theme's
+   * `maintenance` template; `null` leaves it to the theme. Signed-in users
+   * still see the site.
+   */
+  'render.maintenance': [page: MaintenancePage | null, context: MaintenanceContext];
   /**
    * The "Edit" link of the toolbar shown to signed-in users on an entry, e.g.
    * "Edit with <builder>" for entries made with a page builder; `null` hides

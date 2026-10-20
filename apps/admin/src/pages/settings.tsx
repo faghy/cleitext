@@ -35,10 +35,70 @@ export function SettingsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">{t('Settings')}</h1>
       {settings.error && <Alert>{errorMessage(settings.error)}</Alert>}
+      <MaintenanceCard />
       {settings.data && <SettingsForm initial={settings.data} />}
       <MailCard />
       <PluginSettings />
     </div>
+  );
+}
+
+export const MAINTENANCE_QUERY_KEY = ['settings', 'maintenance'];
+
+/**
+ * Maintenance mode (RF-SIT-06), as `cleitext site:maintenance`: visitors get
+ * a 503 page (the theme's, or a plugin's such as Maintenance), signed-in
+ * users see the site.
+ */
+function MaintenanceCard() {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const status = useQuery({
+    queryKey: MAINTENANCE_QUERY_KEY,
+    queryFn: () => api<{ enabled: boolean }>('GET', '/settings/maintenance'),
+  });
+  const toggle = useMutation({
+    mutationFn: (enabled: boolean) =>
+      api<{ enabled: boolean }>('PUT', '/settings/maintenance', { enabled }),
+    onSuccess: (next) => queryClient.setQueryData(MAINTENANCE_QUERY_KEY, next),
+  });
+  const enabled = status.data?.enabled ?? false;
+  return (
+    <Card id="maintenance" title={t('Maintenance mode')}>
+      <div className="space-y-3 text-sm">
+        {status.error && <Alert>{errorMessage(status.error)}</Alert>}
+        <label className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            role="switch"
+            className="h-4 w-4"
+            checked={enabled}
+            disabled={!status.data || toggle.isPending}
+            onChange={(e) => toggle.mutate(e.target.checked)}
+          />
+          <span className="font-medium text-slate-800">
+            {enabled ? t('Maintenance mode is on') : t('Maintenance mode is off')}
+          </span>
+        </label>
+        <p className="text-slate-600">
+          {t(
+            'Visitors see a maintenance page; signed-in users see the site. Search engines are told to come back later (status 503).',
+          )}
+        </p>
+        <p className="flex flex-wrap gap-x-4 gap-y-1">
+          <a
+            className="text-sky-700 underline"
+            href="/api/v1/settings/maintenance/preview"
+            target="_blank"
+            rel="noopener"
+          >
+            {t('Preview the maintenance page')}
+            <span className="sr-only"> {t('(opens in a new tab)')}</span>
+          </a>
+        </p>
+        {toggle.error && <Alert>{errorMessage(toggle.error)}</Alert>}
+      </div>
+    </Card>
   );
 }
 

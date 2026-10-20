@@ -7,6 +7,7 @@ import { childSections, visibleSections } from '../navigation';
 import { useT } from '../components/ui';
 import { Avatar } from '../components/avatar';
 import { LogoMark } from '@cleitext/admin-sdk';
+import { MAINTENANCE_QUERY_KEY } from './settings';
 import { taxonomiesQuery, taxonomyLabel } from './terms';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
@@ -15,6 +16,8 @@ import { currentTop, itemActive, withPluginPages, type MenuNode } from '../admin
 import { MenuIcon } from '../components/menu-icons';
 import { UPDATES_QUERY } from './updates';
 import { useCatalogUpdates } from '../components/catalog';
+
+const SETTINGS_PATH: string = '/settings';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
 /** Section routes are registered dynamically (navigation.ts), hence a plain string. */
@@ -64,6 +67,13 @@ export function AdminLayout() {
   const togglePalette = useCallback(() => setPaletteOpen((open) => !open), []);
   useCommandPaletteShortcut(togglePalette);
   const pluginMenu = usePluginMenu();
+  // A badge in the top bar while visitors get the maintenance page (RF-SIT-06).
+  const maintenance = useQuery({
+    queryKey: MAINTENANCE_QUERY_KEY,
+    queryFn: () => api<{ enabled: boolean }>('GET', '/settings/maintenance'),
+    enabled: me.capabilities.includes('manage_settings'),
+    staleTime: 5 * 60 * 1000,
+  });
   const updates = useQuery({
     ...UPDATES_QUERY,
     enabled: me.capabilities.includes('manage_plugins'),
@@ -358,6 +368,16 @@ export function AdminLayout() {
             {t('Search…')}
             <kbd className="rounded bg-slate-100 px-1 text-xs text-slate-700">Ctrl K</kbd>
           </button>
+          {maintenance.data?.enabled && (
+            <Link
+              to={SETTINGS_PATH}
+              hash="maintenance"
+              className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-200"
+              title={t('The site is in maintenance mode: visitors see the maintenance page.')}
+            >
+              {t('Maintenance')}
+            </Link>
+          )}
           {me.sites.length > 1 && (
             <label className="mr-auto flex items-center gap-2">
               <span className="text-slate-600">{t('Site')}</span>

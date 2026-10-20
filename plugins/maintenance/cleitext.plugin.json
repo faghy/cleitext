@@ -1,0 +1,12 @@
+{
+  "slug": "maintenance",
+  "name": "Maintenance",
+  "version": "1.0.0",
+  "apiVersion": "^1.35",
+  "description": "A clean maintenance or \"coming soon\" page for visitors while the site is in maintenance mode, whatever the theme: your logo, a message in every language, the date you will be back and a contact address. Signed-in users still see the site.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "permissions": ["theme:hooks", "settings:own", "routes:admin"]
+}

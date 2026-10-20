@@ -218,7 +218,10 @@ export class PublicService {
           `${request.protocol}://${request.host}`,
           url.pathname,
         );
-        void reply.header('retry-after', '3600');
+        for (const [name, value] of Object.entries(page.headers ?? {})) {
+          void reply.header(name, value);
+        }
+        if (!reply.hasHeader('retry-after')) void reply.header('retry-after', '3600');
         await this.sendPage(request, reply, page.status, page.html ?? '', null, 'BYPASS');
         return;
       }
@@ -740,10 +743,26 @@ export class PublicService {
     };
   }
 
-  /** The theme's maintenance page, 503 (RF-SIT-06). */
-  async maintenance(siteId: string, origin: string, path: string): Promise<PublicResponse> {
+  /**
+   * The maintenance page, 503 (RF-SIT-06): a plugin's (`render.maintenance`,
+   * plugin API 1.35), or the theme's. `preview`: shown to an administrator.
+   */
+  async maintenance(
+    siteId: string,
+    origin: string,
+    path: string,
+    /** `locale`: the page in that language (its home address), for a preview. */
+    options: { preview?: boolean; locale?: string } = {},
+  ): Promise<PublicResponse> {
     return withContext(this.database.db, { siteId }, async (tx) => {
-      const { scope } = await this.scope(tx, siteId, origin, path);
+      let { scope } = await this.scope(tx, siteId, origin, path);
+      const locale = options.locale;
+      if (locale && locale !== scope.locale && scope.data.locales.some((l) => l.code === locale)) {
+        const home = new URL(scope.data.urls.home(locale), origin).pathname;
+        ({ scope } = await this.scope(tx, siteId, origin, home));
+      }
+      const given = await this.pluginMaintenance(scope, options.preview === true);
+      if (given) return given;
       const props: TemplateProps = { kind: 'maintenance' };
       const head = this.head(scope, {
         title: scope.siteTitle,
@@ -756,6 +775,60 @@ export class PublicService {
       });
       return this.render(scope, props, templateCandidates(props), head, new Map(), [], 503);
     });
+  }
+
+  /** A maintenance page given by an active plugin, or null. */
+  private async pluginMaintenance(
+    scope: RequestScope,
+    preview: boolean,
+  ): Promise<PublicResponse | null> {
+    if (scope.activePlugins.size === 0) return null;
+    // The theme's logo and site icon, for a page that is not the theme's.
+    const values = await themeSettings(scope.tx, scope.theme);
+    const logoId = typeof values.logo === 'string' ? values.logo : null;
+    const iconId = typeof values.favicon === 'string' ? values.favicon : null;
+    const media = await loadMedia(
+      scope.tx,
+      [logoId, iconId].filter((id): id is string => !!id),
+      scope.locale,
+    );
+    const absolute = (id: string | null) => {
+      const url = id ? media.get(id)?.url : undefined;
+      return url ? new URL(url, scope.origin).href : undefined;
+    };
+    const logoUrl = absolute(logoId);
+    const iconUrl = absolute(iconId);
+    const page = await this.plugins.applyFilter(
+      'render.maintenance',
+      null,
+      {
+        siteId: scope.siteId,
+        locale: scope.locale,
+        defaultLocale: scope.data.locales[0]?.code ?? scope.locale,
+        origin: scope.origin,
+        path: scope.path,
+        site: {
+          title: scope.siteTitle,
+          tagline: scope.settings.tagline,
+          timezone: scope.settings.timezone,
+          ...(logoUrl ? { logoUrl } : {}),
+          ...(iconUrl ? { iconUrl } : {}),
+        },
+        ...(preview ? { preview: true } : {}),
+      },
+      scope.siteId,
+    );
+    if (!page || typeof page.html !== 'string' || page.html.length === 0) return null;
+    const retryAfter =
+      typeof page.retryAfter === 'number' && Number.isFinite(page.retryAfter) && page.retryAfter > 0
+        ? Math.min(Math.ceil(page.retryAfter), 31_536_000)
+        : 3600;
+    return {
+      status: 503,
+      html: page.html,
+      headers: { 'retry-after': String(retryAfter), 'x-robots-tag': 'noindex' },
+      tags: [],
+    };
   }
 
   // ---- Previews, robots.txt, sitemaps -------------------------------------------------

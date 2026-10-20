@@ -192,6 +192,7 @@ ctx.hooks.filter(
 | `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                                                                               | `RenderHookContext` with `entry`                       |
 | `render.html`              | the final HTML string                                                                                                                           | `RenderHookContext`                                    |
 | `render.adminBarEdit`      | the edit link of the public toolbar on an entry, `{ label, href }` (an admin address), or `null` to hide it, e.g. "Edit with …" (API 1.29)      | `{ siteId, locale, entry: { id, type, editor? } }`     |
+| `render.maintenance`       | the page visitors get in maintenance mode: `{ html, retryAfter? }` (a whole document) instead of the theme's, or `null` (API 1.35)              | `MaintenanceContext`                                   |
 | `theme.templateCandidates` | template names tried in order                                                                                                                   | `RenderHookContext`                                    |
 | `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                            | `{ siteId, ids }`                                      |
 | `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                               | `{ siteId, locale, userId, base }`                     |
@@ -206,6 +207,16 @@ ctx.hooks.filter(
 `RenderHookContext` is `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (plugin API 1.33) is `true` when the visitor is signed in: their pages are never cached, so content may depend on it. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
 
 **Caches in front of Cleitext** (plugin API 1.9). `cache.headers` adds headers to the public responses the page cache keeps (never to signed-in visitors): computed once, stored with the page and sent on every hit, e.g. a `Cache-Control` with `s-maxage` and the page's tags for Varnish or a CDN. `cache.invalidated` is emitted once per change, outside the transaction that made it, with the tags whose pages changed: purge them there. The official **Edge cache** plugin does both for Varnish and Cloudflare.
+
+**Maintenance page** (plugin API 1.35). While a site is in maintenance mode (**Settings → General** or `cleitext site:maintenance`), visitors get a 503 page and signed-in users still see the site. `render.maintenance` replaces the theme's `maintenance` template: return `{ html, retryAfter? }` and the core sends that document with status 503, `Retry-After` (`retryAfter` seconds, 3600 by default), `X-Robots-Tag: noindex` and no caching; `null` (the starting value) leaves the page to the theme. The context, `MaintenanceContext`, is `{ siteId, locale, defaultLocale, origin, path, site: { title, tagline, timezone, logoUrl?, iconUrl? }, preview? }`: `locale` is the language of the address asked for (the default one otherwise), `logoUrl` and `iconUrl` are the absolute addresses of the theme's `logo` and `favicon` settings when set, and `preview` is `true` for the preview of **Settings → General** (`GET /api/v1/settings/maintenance/preview?locale=`), which shows the page to an administrator. The page is sent under the public Content Security Policy: keep its styles inline. The official **Maintenance** plugin uses it:
+
+```ts
+ctx.hooks.filter(
+  'render.maintenance',
+  async (page, context) =>
+    page ?? { html: myPage(context.locale, context.site), retryAfter: 2 * 3600 },
+);
+```
 
 **Theme locations** (plugin API 1.11). `render.locations` lets a theme builder replace parts of the theme: return CXD documents for `header`, `footer`, `single` (entry pages), `archive` (archives and search) and `overlay` (popups and panels, added at the end of every page whatever the theme). They render like the content, with plugin blocks, media and patterns; themes mark the places with `<Location>`. In the `single` template, a `cleitext/entry-content` block shows the entry's own content:
 

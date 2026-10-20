@@ -394,4 +394,12 @@ export const itContent: Messages = {
   'Close customizer': 'Chiudi il personalizzatore',
   '{count} settings imported: check them, then publish.':
     '{count} impostazioni importate: controllale, poi pubblica.',
+  'Maintenance mode': 'Modalità manutenzione',
+  'Maintenance mode is on': 'La modalità manutenzione è attiva',
+  'Maintenance mode is off': 'La modalità manutenzione è spenta',
+  'Visitors see a maintenance page; signed-in users see the site. Search engines are told to come back later (status 503).':
+    'I visitatori vedono una pagina di manutenzione; chi ha effettuato l’accesso vede il sito. I motori di ricerca vengono invitati a ripassare più tardi (stato 503).',
+  'Preview the maintenance page': 'Anteprima della pagina di manutenzione',
+  'The site is in maintenance mode: visitors see the maintenance page.':
+    'Il sito è in manutenzione: i visitatori vedono la pagina di manutenzione.',
 };

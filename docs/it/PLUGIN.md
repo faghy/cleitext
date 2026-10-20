@@ -194,6 +194,7 @@ ctx.hooks.filter(
 | `render.blocks`            | i blocchi della voce (`CxdBlock[]`)                                                                                                                          | `RenderHookContext` con `entry`                        |
 | `render.html`              | la stringa HTML finale                                                                                                                                       | `RenderHookContext`                                    |
 | `render.adminBarEdit`      | il link di modifica della barra pubblica su una voce, `{ label, href }` (un indirizzo dell'admin), o `null` per nasconderlo, es. «Modifica con …» (API 1.29) | `{ siteId, locale, entry: { id, type, editor? } }`     |
+| `render.maintenance`       | la pagina che i visitatori ricevono in modalità manutenzione: `{ html, retryAfter? }` (un documento intero) al posto di quella del tema, o `null` (API 1.35) | `MaintenanceContext`                                   |
 | `theme.templateCandidates` | nomi dei template provati in ordine                                                                                                                          | `RenderHookContext`                                    |
 | `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso                                                                 | `{ siteId, ids }`                                      |
 | `account.links`            | link nella pagina account dei visitatori (`{ label, url }[]`, indirizzi locali; API 1.17)                                                                    | `{ siteId, locale, userId, base }`                     |
@@ -208,6 +209,16 @@ ctx.hooks.filter(
 `RenderHookContext` è `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` è `entry`, `archive`, `search`, `404` o `maintenance`. `entry` è la voce pubblica: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (API dei plugin 1.33) è `true` quando il visitatore ha effettuato l'accesso: le sue pagine non vanno mai in cache, quindi il contenuto può dipenderne. Chiama `tag('type:event')` quando ciò che aggiungi dipende da altri dati (vedi [cache](#cache)).
 
 **Cache davanti a Cleitext** (API dei plugin 1.9). `cache.headers` aggiunge header alle risposte pubbliche che la cache delle pagine tiene (mai a chi ha fatto il login): calcolati una volta, salvati con la pagina e inviati a ogni hit, per esempio un `Cache-Control` con `s-maxage` e i tag della pagina per Varnish o una CDN. `cache.invalidated` viene emesso una volta per modifica, fuori dalla transazione che l’ha fatta, con i tag delle pagine cambiate: svuotale lì. Il plugin ufficiale **Cache esterna** fa entrambe le cose per Varnish e Cloudflare.
+
+**Pagina di manutenzione** (API dei plugin 1.35). Quando un sito è in modalità manutenzione (**Impostazioni → Generali** o `cleitext site:maintenance`), i visitatori ricevono una pagina 503 e chi ha effettuato l'accesso continua a vedere il sito. `render.maintenance` sostituisce il template `maintenance` del tema: restituisci `{ html, retryAfter? }` e il core invia quel documento con stato 503, `Retry-After` (`retryAfter` secondi, 3600 se manca), `X-Robots-Tag: noindex` e senza cache; `null` (il valore di partenza) lascia la pagina al tema. Il contesto, `MaintenanceContext`, è `{ siteId, locale, defaultLocale, origin, path, site: { title, tagline, timezone, logoUrl?, iconUrl? }, preview? }`: `locale` è la lingua dell'indirizzo richiesto (altrimenti quella predefinita), `logoUrl` e `iconUrl` sono gli indirizzi assoluti delle impostazioni `logo` e `favicon` del tema quando ci sono, e `preview` vale `true` per l'anteprima di **Impostazioni → Generali** (`GET /api/v1/settings/maintenance/preview?locale=`), che mostra la pagina a un amministratore. La pagina viene inviata con la Content Security Policy pubblica: tieni gli stili in linea. Il plugin ufficiale **Manutenzione** la usa così:
+
+```ts
+ctx.hooks.filter(
+  'render.maintenance',
+  async (page, context) =>
+    page ?? { html: myPage(context.locale, context.site), retryAfter: 2 * 3600 },
+);
+```
 
 **Posizioni del tema** (API dei plugin 1.11). `render.locations` permette a un theme builder di sostituire parti del tema: restituisci documenti CXD per `header`, `footer`, `single` (pagine delle voci), `archive` (archivi e ricerca) e `overlay` (popup e pannelli, aggiunti in fondo a ogni pagina con qualsiasi tema). Vengono disegnati come il contenuto, con blocchi dei plugin, media e pattern; i temi segnano i punti con `<Location>`. Nel template `single`, un blocco `cleitext/entry-content` mostra il contenuto della voce:
 

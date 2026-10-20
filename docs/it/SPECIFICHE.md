@@ -128,7 +128,7 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 | RF-SIT-03 | Creazione, modifica e archiviazione dei siti da CLI e da admin (super admin).                              | MVP      |
 | RF-SIT-04 | Più domini per sito (primario più alias), con redirect al dominio primario e HTTPS forzato configurabile.  | MVP      |
 | RF-SIT-05 | Risoluzione del sito dall'host della richiesta. Un host sconosciuto riceve un 404 neutro.                  | MVP      |
-| RF-SIT-06 | Modalità manutenzione per sito, con bypass per gli utenti autenticati e pagina personalizzabile dal tema.  | MVP      |
+| RF-SIT-06 | Manutenzione per sito (CLI o Impostazioni), esclusi gli utenti autenticati; pagina del tema o dei plugin.  | MVP      |
 | RF-SIT-07 | Clonazione di un sito (struttura, impostazioni, contenuti opzionali).                                      | Poi      |
 
 ### 4.2 Utenti e accesso

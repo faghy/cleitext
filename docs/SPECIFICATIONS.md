@@ -128,7 +128,7 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 | RF-SIT-03 | Creating, editing and archiving sites from the CLI and the admin (super admin).                                      | MVP      |
 | RF-SIT-04 | Multiple domains per site (primary plus aliases), with redirect to the primary domain and configurable forced HTTPS. | MVP      |
 | RF-SIT-05 | Site resolution from the request host. An unknown host gets a neutral 404.                                           | MVP      |
-| RF-SIT-06 | Per-site maintenance mode, with bypass for authenticated users and a page customizable by the theme.                 | MVP      |
+| RF-SIT-06 | Per-site maintenance mode (CLI or Settings), bypassed by signed-in users; page by the theme or a plugin.             | MVP      |
 | RF-SIT-07 | Cloning a site (structure, settings, optionally content).                                                            | Later    |
 
 ### 4.2 Users and access

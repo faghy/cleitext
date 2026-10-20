@@ -61,6 +61,7 @@ const SEPARATE = [
   'classic-editor',
   'editor-convert',
   'layout-import',
+  'maintenance',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
