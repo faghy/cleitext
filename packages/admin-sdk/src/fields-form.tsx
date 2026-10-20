@@ -1,4 +1,5 @@
 import {
+  DEVICES,
   deviceValue,
   fieldVisible,
   labelText,
@@ -6,6 +7,7 @@ import {
   type FieldValues,
   type ListField,
   type BackgroundValue,
+  type Device,
   type MediaListResponse,
   type ResponsiveValue,
   type SpacingValue,
@@ -17,9 +19,11 @@ import { useId, useState } from 'react';
 import { api } from './api.js';
 import { useT } from './i18n.js';
 import { ZonesBuilder } from './zones-builder.js';
+import { CustomizerForm } from './customizer-fields.js';
 import {
   BackgroundControl,
   ColorInput,
+  DEVICE_ICONS,
   DeviceSwitch,
   SpacingControl,
   TypographyControl,
@@ -42,6 +46,7 @@ export function FieldsForm({
   disabled = false,
   errors = {},
   defaults = {},
+  appearance = 'form',
 }: {
   fields: FieldDefinition[];
   values: FieldValues;
@@ -52,7 +57,25 @@ export function FieldsForm({
   errors?: Record<string, string>;
   /** Values used when a field has none (for `showIf`). */
   defaults?: FieldValues;
+  /**
+   * `form` (default): labels above stacked controls. `customizer`: the
+   * controls of the WordPress customizer, for a 300 px panel (Customize).
+   */
+  appearance?: 'form' | 'customizer';
 }) {
+  if (appearance === 'customizer') {
+    return (
+      <CustomizerForm
+        fields={fields}
+        values={values}
+        onChange={onChange}
+        locale={locale}
+        disabled={disabled}
+        errors={errors}
+        defaults={defaults}
+      />
+    );
+  }
   const shown = fields.filter((field) => fieldVisible(field, values, defaults));
   return (
     <div className="space-y-3">
@@ -108,6 +131,19 @@ function Field({
   /** Shown at the end of the label's line (the device switch). */
   extra?: React.ReactNode;
 }) {
+  if (field.type === 'boolean' && field.display === 'devices' && field.responsive) {
+    return (
+      <DeviceButtons
+        label={labelText(field.label, locale)}
+        help={labelText(field.help, locale)}
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        error={error}
+        onChange={onChange}
+      />
+    );
+  }
   if (field.responsive) {
     return (
       <ResponsiveField
@@ -647,6 +683,62 @@ function ListControl({
           + {t('Add')}
         </button>
       )}
+    </div>
+  );
+}
+
+/** A responsive boolean as one button per device, pressed where it is on (`display: 'devices'`). */
+function DeviceButtons({
+  label,
+  help,
+  value,
+  placeholder,
+  disabled,
+  error,
+  onChange,
+}: {
+  label: string;
+  help: string;
+  value: unknown;
+  placeholder: unknown;
+  disabled: boolean;
+  error: string | undefined;
+  onChange: (value: unknown) => void;
+}) {
+  const { t } = useT();
+  const id = useId();
+  const record = (value && typeof value === 'object' ? value : {}) as ResponsiveValue<boolean>;
+  const on = (d: Device) =>
+    deviceValue<boolean>(record, d) ??
+    (typeof placeholder === 'boolean' ? placeholder : deviceValue<boolean>(placeholder, d)) ??
+    false;
+  const names: Record<Device, string> = {
+    desktop: t('Desktop'),
+    tablet: t('Tablet'),
+    mobile: t('Mobile'),
+  };
+  return (
+    <div className="space-y-1">
+      <span id={`${id}-label`} className="block text-sm font-medium text-slate-800">
+        {label}
+      </span>
+      <div role="group" aria-labelledby={`${id}-label`} className="inline-flex gap-1">
+        {DEVICES.map((d) => (
+          <button
+            key={d}
+            type="button"
+            disabled={disabled}
+            aria-pressed={on(d)}
+            aria-label={names[d]}
+            title={names[d]}
+            className={`rounded border px-3 py-1.5 ${on(d) ? 'border-sky-700 bg-sky-700 text-white' : 'border-slate-300 bg-white text-slate-500 hover:bg-slate-50'}`}
+            onClick={() => onChange({ ...record, [d]: !on(d) })}
+          >
+            {DEVICE_ICONS[d]}
+          </button>
+        ))}
+      </div>
+      <Help id={id} help={help} error={error} />
     </div>
   );
 }

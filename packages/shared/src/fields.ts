@@ -33,6 +33,8 @@ interface BaseField {
   tab?: string;
   /** Shown only when another field of the same form has a value (the value is kept). */
   showIf?: FieldCondition;
+  /** Never shown in forms: data kept with the others (e.g. options imported from another site). */
+  hidden?: boolean;
   /**
    * A value per device (`number`, `select`, `choice`, `boolean`, `spacing`,
    * `background`, `color`, `text`):
@@ -40,6 +42,12 @@ interface BaseField {
    * one uses the larger one's). With `units`, also `desktopUnit`…
    */
   responsive?: boolean;
+  /**
+   * Drawn on the same line as the field before it, as just its control (e.g.
+   * a hover color's swatch beside the normal color's); its label becomes the
+   * control's tooltip. Used by the customizer look of forms.
+   */
+  inline?: boolean;
 }
 
 /** The devices of responsive values, largest first. */
@@ -85,6 +93,11 @@ export interface NumberField extends BaseField {
 export interface BooleanField extends BaseField {
   type: 'boolean';
   default?: boolean | ResponsiveValue<boolean>;
+  /**
+   * `devices` (with `responsive`): three joined buttons, one per device,
+   * pressed where the value is on (e.g. an element's visibility).
+   */
+  display?: 'devices';
 }
 export interface DateField extends BaseField {
   /** `date`: YYYY-MM-DD · `datetime`: ISO 8601 with time zone. */
@@ -329,6 +342,8 @@ const base = {
   tab: z.string().max(32).optional(),
   showIf: condition.optional(),
   responsive: z.boolean().optional(),
+  inline: z.boolean().optional(),
+  hidden: z.boolean().optional(),
 };
 const UNIT_RE = /^(px|em|rem|%|vw|vh|)$/;
 const units = z.array(z.string().regex(UNIT_RE)).min(1).max(6).optional();
@@ -369,7 +384,12 @@ export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z.discriminated
     unit: z.string().max(10).optional(),
     units,
   }),
-  z.object({ ...base, type: z.literal('boolean'), default: loose }),
+  z.object({
+    ...base,
+    type: z.literal('boolean'),
+    default: loose,
+    display: z.literal('devices').optional(),
+  }),
   z.object({
     ...base,
     type: z.enum(['date', 'datetime']),

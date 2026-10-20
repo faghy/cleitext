@@ -33,7 +33,7 @@ export function useDevice(): [Device, (device: Device) => void] {
   return shared ? [shared.device, shared.setDevice] : [own, setOwn];
 }
 
-const DEVICE_ICONS: Record<Device, ReactNode> = {
+export const DEVICE_ICONS: Record<Device, ReactNode> = {
   desktop: (
     <svg
       viewBox="0 0 20 20"
@@ -136,7 +136,7 @@ export function UnitSelect({
 const COLOR_RE = /^#[0-9a-f]{6}/i;
 
 /** The colors of a palette, from the form's values. */
-function paletteColors(palette: ColorPalette | undefined, form: FieldValues): string[] {
+export function paletteColors(palette: ColorPalette | undefined, form: FieldValues): string[] {
   if (!palette) return [];
   const list = form[palette.field];
   if (!Array.isArray(list)) return [];

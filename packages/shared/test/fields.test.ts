@@ -161,6 +161,8 @@ describe('compound and responsive fields', () => {
     { name: 'size', label: 'Size', type: 'number', responsive: true, units: ['px', 'em'] },
     { name: 'padding', label: 'Padding', type: 'spacing', responsive: true },
     { name: 'link', label: 'Link', type: 'color', palette },
+    { name: 'linkHover', label: 'Hover', type: 'color', palette, inline: true },
+    { name: 'visible', label: 'Visibility', type: 'boolean', responsive: true, display: 'devices' },
     { name: 'bg', label: 'Background', type: 'background', palette },
     { name: 'body', label: 'Body', type: 'typography' },
   ];
@@ -169,9 +171,18 @@ describe('compound and responsive fields', () => {
 
   it('accepts their definitions', () => {
     for (const field of fields) expect(fieldDefinitionSchema.safeParse(field).success).toBe(true);
+    expect(
+      fieldDefinitionSchema.safeParse({
+        name: 'x',
+        label: 'X',
+        type: 'boolean',
+        display: 'buttons',
+      }).success,
+    ).toBe(false);
   });
 
   it('validates values per device', () => {
+    expect(check({ visible: { desktop: true, mobile: false } })).toBe(true);
     expect(check({ size: { desktop: 36, tablet: 30, mobile: null, desktopUnit: 'px' } })).toBe(
       true,
     );

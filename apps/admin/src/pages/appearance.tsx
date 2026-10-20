@@ -79,7 +79,7 @@ export function AppearancePage() {
           }
         />
       )}
-      {current === 'customize' && <ThemeOptions />}
+      {current === 'customize' && <ThemeOptions onClose={() => setTab('themes')} />}
       {current === 'areas' && <AreasTab />}
       {current === 'menus' && <MenusTab />}
       {current === 'patterns' && <PatternsTab />}
