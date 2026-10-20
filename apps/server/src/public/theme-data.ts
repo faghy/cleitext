@@ -51,15 +51,28 @@ export async function themeAreas(
   return Object.fromEntries(rows.map((row) => [row.key.split(':')[0]!, row.value as CxdDocument]));
 }
 
-/** Media used by theme settings (media fields) and areas, to preload. */
+/** Media used by theme settings (media fields, background images) and areas, to preload. */
 export function themeMediaIds(
   theme: ThemeDefinition,
   values: Record<string, unknown>,
   areas: Record<string, CxdDocument>,
 ): string[] {
-  const fromSettings = (theme.settings ?? [])
-    .filter((field) => field.type === 'media')
-    .map((field) => values[field.name])
-    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const ids: unknown[] = [];
+  const image = (bg: unknown) =>
+    bg && typeof bg === 'object' ? (bg as { image?: unknown }).image : undefined;
+  for (const field of theme.settings ?? []) {
+    const value = values[field.name];
+    if (field.type === 'media') ids.push(value);
+    else if (field.type === 'background') {
+      if (field.responsive && value && typeof value === 'object') {
+        ids.push(
+          ...['desktop', 'tablet', 'mobile'].map((d) =>
+            image((value as Record<string, unknown>)[d]),
+          ),
+        );
+      } else ids.push(image(value));
+    }
+  }
+  const fromSettings = ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
   return [...fromSettings, ...Object.values(areas).flatMap((doc) => collectMediaIds(doc))];
 }

@@ -931,23 +931,28 @@ Administrators see the requested permissions in **Plugins → Details**. Your ow
 
 Used by content type fields, field groups, block attributes and settings.
 
-| `type`     | Value            | Options                                                                                                    |
-| ---------- | ---------------- | ---------------------------------------------------------------------------------------------------------- |
-| `text`     | string           | `maxLength`, `multiline`, `default`                                                                        |
-| `url`      | string           | `default`. Accepts `http(s)://`, `/`, `mailto:`, `tel:`                                                    |
-| `number`   | number           | `min`, `max`, `step`, `default`, `display: 'range'` (a slider), `unit` (shown beside it, e.g. `px`)        |
-| `boolean`  | boolean          | `default`                                                                                                  |
-| `date`     | `YYYY-MM-DD`     | `default`                                                                                                  |
-| `datetime` | ISO 8601         | `default`                                                                                                  |
-| `select`   | string           | `options: [{ value, label }]`, `default`                                                                   |
-| `media`    | media id (uuid)  | an image of the media library                                                                              |
-| `color`    | `#rrggbb`        | `alpha` (also `#rrggbbaa`), `default`                                                                      |
-| `choice`   | string           | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                         |
-| `code`     | string           | `language: 'css'`, `default`. Up to 100,000 characters, never `</style`                                    |
-| `list`     | array of objects | `fields` (any type but `list`), `itemLabel` (the field that names an item), `max` (default 200), `default` |
-| `zones`    | object           | `devices`, `rows`, `items`, `default`: a header or footer builder (THEMES.md §4); not inside a `list`      |
+| `type`       | Value            | Options                                                                                                                                                                        |
+| ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `text`       | string           | `maxLength`, `multiline`, `default`                                                                                                                                            |
+| `url`        | string           | `default`. Accepts `http(s)://`, `/`, `mailto:`, `tel:`                                                                                                                        |
+| `number`     | number           | `min`, `max`, `step`, `default`, `display: 'range'` (a slider), `unit` (shown beside it, e.g. `px`)                                                                            |
+| `boolean`    | boolean          | `default`                                                                                                                                                                      |
+| `date`       | `YYYY-MM-DD`     | `default`                                                                                                                                                                      |
+| `datetime`   | ISO 8601         | `default`                                                                                                                                                                      |
+| `select`     | string           | `options: [{ value, label }]`, `default`                                                                                                                                       |
+| `media`      | media id (uuid)  | an image of the media library                                                                                                                                                  |
+| `color`      | `#rrggbb`        | `alpha` (also `#rrggbbaa`), `default`                                                                                                                                          |
+| `choice`     | string           | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                                                                                             |
+| `code`       | string           | `language: 'css'`, `default`. Up to 100,000 characters, never `</style`                                                                                                        |
+| `list`       | array of objects | `fields` (any type but `list`), `itemLabel` (the field that names an item), `max` (default 200), `default`                                                                     |
+| `spacing`    | object           | `{ top, right, bottom, left, unit }`; options `units` (default `px`, `em`, `%`), `sides`, `corners` (radii), `default`                                                         |
+| `background` | object           | `{ type: 'color' \| 'gradient' \| 'image', color, gradient, image, position, size, repeat, attachment, overlay }`; `palette`, `default`                                        |
+| `typography` | object           | `{ family, weight, size: { desktop, tablet, mobile, desktopUnit… }, lineHeight, lineHeightUnit, letterSpacing, letterSpacingUnit, transform, decoration }`; `units`, `default` |
+| `zones`      | object           | `devices`, `rows`, `items`, `default`: a header or footer builder (THEMES.md §4); not inside a `list`                                                                          |
 
 Common options: `name` (letters, digits, `_`), `label`, `help`, `required` and `translation`. In settings forms, `section` puts a field in a tab (theme options, §4 of THEMES.md), `group` puts a heading above it, and `showIf` shows it only when other fields have some values: `{ field: 'header', equals: 'transparent' }`, `{ field: 'layout', in: ['left', 'right'] }`, `{ field: 'sidebar', not: 'none' }`, or several with `{ all: [...] }` / `{ any: [...] }`. A field without a value counts as its default. Labels are strings or per-language objects (`{ en: 'Date', it: 'Data' }`). An optional field may be empty (`null`).
+
+`responsive: true` (on `number`, `select`, `choice`, `boolean`, `spacing` and `background`) keeps a value per device, `{ desktop, tablet, mobile }`: a device without one uses the larger one's (`deviceValue(value, device)` in `@cleitext/shared`). A responsive `number` may have `units` (`['px', 'em']`), stored as `desktopUnit`, `tabletUnit`, `mobileUnit`. In Customize the device switch beside the label follows the preview. A `color` or `background` with `palette: { field, prefix }` also offers the theme's global colors: `field` is a list of `{ color }` items of the same form, and the value is `var(<prefix><index>)`, e.g. `var(--zn-global-color-0)`. Fonts of `typography` fields are checked against nothing but their spelling; `googleFonts()` in `@cleitext/shared` lists the Google families and weights.
 
 `translation` says what happens to the field in other languages, with a language plugin: `translate` (default) is copied into a new translation and then edited there, `copy` stays the same as in the original (it is updated when the original is saved, like a price), `ignore` starts empty.
 

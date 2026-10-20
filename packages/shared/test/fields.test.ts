@@ -4,6 +4,8 @@ import {
   fieldDefinitionSchema,
   fieldVisible,
   fieldsValidator,
+  deviceValue,
+  paletteIndex,
   zoneItems,
   type FieldDefinition,
 } from '../src/fields.js';
@@ -150,5 +152,56 @@ describe('zones fields', () => {
   it('cannot be an item of a list', () => {
     const list = { name: 'rows', label: 'Rows', type: 'list', fields: [header] };
     expect(fieldDefinitionSchema.safeParse(list).success).toBe(false);
+  });
+});
+
+describe('compound and responsive fields', () => {
+  const palette = { field: 'palette', prefix: '--zn-global-color-' };
+  const fields: FieldDefinition[] = [
+    { name: 'size', label: 'Size', type: 'number', responsive: true, units: ['px', 'em'] },
+    { name: 'padding', label: 'Padding', type: 'spacing', responsive: true },
+    { name: 'link', label: 'Link', type: 'color', palette },
+    { name: 'bg', label: 'Background', type: 'background', palette },
+    { name: 'body', label: 'Body', type: 'typography' },
+  ];
+  const check = (values: Record<string, unknown>) =>
+    fieldsValidator(fields).safeParse(values).success;
+
+  it('accepts their definitions', () => {
+    for (const field of fields) expect(fieldDefinitionSchema.safeParse(field).success).toBe(true);
+  });
+
+  it('validates values per device', () => {
+    expect(check({ size: { desktop: 36, tablet: 30, mobile: null, desktopUnit: 'px' } })).toBe(
+      true,
+    );
+    expect(check({ size: 36 })).toBe(false);
+    expect(check({ size: { phone: 3 } })).toBe(false);
+    expect(check({ padding: { desktop: { top: 15, right: 30, unit: 'px' } } })).toBe(true);
+    expect(check({ padding: { desktop: { top: 'a' } } })).toBe(false);
+  });
+
+  it('takes palette colors, gradients and fonts', () => {
+    expect(check({ link: 'var(--zn-global-color-0)' })).toBe(true);
+    expect(check({ link: 'var(--other-0)' })).toBe(false);
+    expect(
+      check({ bg: { type: 'gradient', gradient: 'linear-gradient(90deg,#fff 0%,#000 100%)' } }),
+    ).toBe(true);
+    expect(check({ bg: { gradient: 'url(x);}' } })).toBe(false);
+    expect(
+      check({
+        body: { family: 'Open Sans', weight: '400', size: { desktop: 16 }, lineHeight: 1.65 },
+      }),
+    ).toBe(true);
+    expect(check({ body: { family: 'x;}<' } })).toBe(false);
+    expect(paletteIndex('var(--zn-global-color-7)', palette)).toBe(7);
+  });
+
+  it('reads the value of a device from the larger ones', () => {
+    const value = { desktop: 36, tablet: 30 };
+    expect(deviceValue(value, 'desktop')).toBe(36);
+    expect(deviceValue(value, 'mobile')).toBe(30);
+    expect(deviceValue({ desktop: 36 }, 'tablet')).toBe(36);
+    expect(deviceValue(undefined, 'tablet')).toBeUndefined();
   });
 });

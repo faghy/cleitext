@@ -1,4 +1,4 @@
-import { FieldsForm, ZonesBuilder } from '@cleitext/admin-sdk';
+import { DeviceContext, FieldsForm, ZonesBuilder } from '@cleitext/admin-sdk';
 import {
   fieldDefaults,
   fieldVisible,
@@ -208,232 +208,241 @@ export function ThemeOptions() {
   const visibleCount = shown.filter((f) => fieldVisible(f, values, defaults)).length;
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="mr-auto text-lg font-semibold text-slate-900">
-          {t('{name} options', { name: theme.name })}
-        </h2>
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('Search options')}
-          aria-label={t('Search options')}
-          className="w-52 rounded border border-slate-300 px-2 py-1.5 text-sm"
-        />
-        {presets.length > 0 && (
-          <select
-            aria-label={t('Ready-made styles')}
-            className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-            value=""
-            onChange={(e) => {
-              const preset = presets.find((p) => p.id === e.target.value);
-              if (preset) {
-                setValues((v) => ({ ...(v ?? {}), ...preset.values }));
-                setNotice(t('Style applied: check it, then publish.'));
-              }
-            }}
-          >
-            <option value="">{t('Ready-made styles…')}</option>
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {labelText(p.label, locale)}
-              </option>
-            ))}
-          </select>
-        )}
-        <Button variant="secondary" onClick={exportValues}>
-          {t('Export')}
-        </Button>
-        <Button variant="secondary" onClick={() => fileRef.current?.click()}>
-          {t('Import')}
-        </Button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void importValues(file);
-            e.target.value = '';
-          }}
-        />
-        <Button variant="secondary" onClick={() => setPreview((p) => !p)} aria-pressed={preview}>
-          {preview ? t('Hide preview') : t('Show preview')}
-        </Button>
-        <Button onClick={() => save.mutate()} disabled={save.isPending || !dirty}>
-          {save.isPending ? t('Publishing…') : t('Publish')}
-        </Button>
-      </div>
-      {notice && (
-        <Alert kind="success">
-          <span className="flex items-start justify-between gap-3">
-            {notice}
-            <button
-              type="button"
-              aria-label={t('Close')}
-              className="shrink-0"
-              onClick={() => setNotice(null)}
+    <DeviceContext.Provider value={{ device, setDevice }}>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="mr-auto text-lg font-semibold text-slate-900">
+            {t('{name} options', { name: theme.name })}
+          </h2>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('Search options')}
+            aria-label={t('Search options')}
+            className="w-52 rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          {presets.length > 0 && (
+            <select
+              aria-label={t('Ready-made styles')}
+              className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+              value=""
+              onChange={(e) => {
+                const preset = presets.find((p) => p.id === e.target.value);
+                if (preset) {
+                  setValues((v) => ({ ...(v ?? {}), ...preset.values }));
+                  setNotice(t('Style applied: check it, then publish.'));
+                }
+              }}
             >
-              ×
-            </button>
-          </span>
-        </Alert>
-      )}
-      {save.error && <Alert>{errorMessage(save.error)}</Alert>}
-      {save.isSuccess && !dirty && <Alert kind="success">{t('Published.')}</Alert>}
-
-      <div
-        className={`grid gap-4 ${preview ? 'xl:grid-cols-[13rem_minmax(0,30rem)_minmax(0,1fr)]' : 'md:grid-cols-[13rem_minmax(0,46rem)]'}`}
-      >
-        <nav aria-label={t('Sections')} className="space-y-0.5">
-          {sections
-            .filter((s) => {
-              const parent = 'parent' in s ? s.parent : undefined;
-              return !parent || parent === section || parent === parentOf(section);
-            })
-            .map((s) => (
+              <option value="">{t('Ready-made styles…')}</option>
+              {presets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {labelText(p.label, locale)}
+                </option>
+              ))}
+            </select>
+          )}
+          <Button variant="secondary" onClick={exportValues}>
+            {t('Export')}
+          </Button>
+          <Button variant="secondary" onClick={() => fileRef.current?.click()}>
+            {t('Import')}
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void importValues(file);
+              e.target.value = '';
+            }}
+          />
+          <Button variant="secondary" onClick={() => setPreview((p) => !p)} aria-pressed={preview}>
+            {preview ? t('Hide preview') : t('Show preview')}
+          </Button>
+          <Button onClick={() => save.mutate()} disabled={save.isPending || !dirty}>
+            {save.isPending ? t('Publishing…') : t('Publish')}
+          </Button>
+        </div>
+        {notice && (
+          <Alert kind="success">
+            <span className="flex items-start justify-between gap-3">
+              {notice}
               <button
-                key={s.id}
                 type="button"
-                aria-current={!query && s.id === section ? 'page' : undefined}
-                onClick={() => open(s.id)}
-                className={`flex w-full items-center justify-between rounded py-2 pr-3 text-left text-sm ${
-                  'parent' in s && s.parent ? 'pl-6' : 'pl-3'
-                } ${
-                  !query && s.id === section
-                    ? 'bg-slate-900 font-medium text-white'
-                    : 'text-slate-700 hover:bg-slate-100'
-                }`}
+                aria-label={t('Close')}
+                className="shrink-0"
+                onClick={() => setNotice(null)}
               >
-                <span>{labelText(s.label, locale)}</span>
-                {changedIn(s.id) && (
-                  <>
-                    <span
-                      aria-hidden="true"
-                      className="h-2 w-2 rounded-full bg-amber-500"
-                      title={t('Not published yet')}
-                    />
-                    <span className="sr-only">{t('(changed)')}</span>
-                  </>
-                )}
+                ×
               </button>
-            ))}
-        </nav>
+            </span>
+          </Alert>
+        )}
+        {save.error && <Alert>{errorMessage(save.error)}</Alert>}
+        {save.isSuccess && !dirty && <Alert kind="success">{t('Published.')}</Alert>}
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900">
-                {query
-                  ? t('Results for "{query}"', { query: search.trim() })
-                  : labelText(sectionInfo?.label, locale)}
-              </h3>
-              {!query && sectionInfo && 'description' in sectionInfo && sectionInfo.description && (
-                <p className="mt-1 text-sm text-slate-600">
-                  {labelText(sectionInfo.description, locale)}
-                </p>
+        <div
+          className={`grid gap-4 ${preview ? 'xl:grid-cols-[13rem_minmax(0,30rem)_minmax(0,1fr)]' : 'md:grid-cols-[13rem_minmax(0,46rem)]'}`}
+        >
+          <nav aria-label={t('Sections')} className="space-y-0.5">
+            {sections
+              .filter((s) => {
+                const parent = 'parent' in s ? s.parent : undefined;
+                return !parent || parent === section || parent === parentOf(section);
+              })
+              .map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  aria-current={!query && s.id === section ? 'page' : undefined}
+                  onClick={() => open(s.id)}
+                  className={`flex w-full items-center justify-between rounded py-2 pr-3 text-left text-sm ${
+                    'parent' in s && s.parent ? 'pl-6' : 'pl-3'
+                  } ${
+                    !query && s.id === section
+                      ? 'bg-slate-900 font-medium text-white'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{labelText(s.label, locale)}</span>
+                  {changedIn(s.id) && (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="h-2 w-2 rounded-full bg-amber-500"
+                        title={t('Not published yet')}
+                      />
+                      <span className="sr-only">{t('(changed)')}</span>
+                    </>
+                  )}
+                </button>
+              ))}
+          </nav>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">
+                  {query
+                    ? t('Results for "{query}"', { query: search.trim() })
+                    : labelText(sectionInfo?.label, locale)}
+                </h3>
+                {!query &&
+                  sectionInfo &&
+                  'description' in sectionInfo &&
+                  sectionInfo.description && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      {labelText(sectionInfo.description, locale)}
+                    </p>
+                  )}
+              </div>
+              {!query && (
+                <button
+                  type="button"
+                  className="shrink-0 text-xs text-slate-600 hover:underline"
+                  onClick={resetSection}
+                >
+                  {t('Reset this section')}
+                </button>
               )}
             </div>
-            {!query && (
-              <button
-                type="button"
-                className="shrink-0 text-xs text-slate-600 hover:underline"
-                onClick={resetSection}
-              >
-                {t('Reset this section')}
-              </button>
+            {visibleCount === 0 ? (
+              <p className="text-sm text-slate-600">
+                {query
+                  ? t('No option matches.')
+                  : t('No option to show here with the current choices.')}
+              </p>
+            ) : (
+              <FieldsForm
+                fields={shown}
+                values={values}
+                defaults={defaults}
+                onChange={setValues}
+                locale={locale}
+              />
             )}
-          </div>
-          {visibleCount === 0 ? (
-            <p className="text-sm text-slate-600">
-              {query
-                ? t('No option matches.')
-                : t('No option to show here with the current choices.')}
-            </p>
-          ) : (
-            <FieldsForm
-              fields={shown}
-              values={values}
-              defaults={defaults}
-              onChange={setValues}
-              locale={locale}
-            />
-          )}
-        </section>
+          </section>
 
-        {preview && (
-          <div className="space-y-2 xl:sticky xl:top-4 xl:self-start">
-            <div className="flex items-center gap-2">
-              <label className="flex flex-1 items-center gap-2 text-sm">
-                <span className="font-medium">{t('Preview of')}</span>
-                <input
-                  className="flex-1 rounded border border-slate-300 px-2 py-1"
-                  value={path}
-                  onChange={(e) =>
-                    setPath(e.target.value.startsWith('/') ? e.target.value : `/${e.target.value}`)
-                  }
+          {preview && (
+            <div className="space-y-2 xl:sticky xl:top-4 xl:self-start">
+              <div className="flex items-center gap-2">
+                <label className="flex flex-1 items-center gap-2 text-sm">
+                  <span className="font-medium">{t('Preview of')}</span>
+                  <input
+                    className="flex-1 rounded border border-slate-300 px-2 py-1"
+                    value={path}
+                    onChange={(e) =>
+                      setPath(
+                        e.target.value.startsWith('/') ? e.target.value : `/${e.target.value}`,
+                      )
+                    }
+                  />
+                </label>
+                <div role="group" aria-label={t('Device')} className="flex rounded border">
+                  {(Object.keys(DEVICES) as PreviewDevice[]).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-pressed={d === device}
+                      className={`px-2 py-1 text-xs ${d === device ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+                      onClick={() => setDevice(d)}
+                    >
+                      {d === 'desktop' ? t('Desktop') : d === 'tablet' ? t('Tablet') : t('Mobile')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-center rounded border border-slate-200 bg-slate-100">
+                <iframe
+                  ref={frame}
+                  title={t('Site preview')}
+                  // Scripts run (sticky header, sliders) in an origin of their own: no access to the admin.
+                  sandbox="allow-scripts"
+                  srcDoc={html}
+                  style={{ width: DEVICES[device] }}
+                  className={`bg-white ${builder ? 'h-[55vh]' : 'h-[75vh]'}`}
                 />
-              </label>
-              <div role="group" aria-label={t('Device')} className="flex rounded border">
-                {(Object.keys(DEVICES) as PreviewDevice[]).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    aria-pressed={d === device}
-                    className={`px-2 py-1 text-xs ${d === device ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
-                    onClick={() => setDevice(d)}
-                  >
-                    {d === 'desktop' ? t('Desktop') : d === 'tablet' ? t('Tablet') : t('Mobile')}
-                  </button>
-                ))}
               </div>
             </div>
-            <div className="flex justify-center rounded border border-slate-200 bg-slate-100">
-              <iframe
-                ref={frame}
-                title={t('Site preview')}
-                // Scripts run (sticky header, sliders) in an origin of their own: no access to the admin.
-                sandbox="allow-scripts"
-                srcDoc={html}
-                style={{ width: DEVICES[device] }}
-                className={`bg-white ${builder ? 'h-[55vh]' : 'h-[75vh]'}`}
-              />
-            </div>
-          </div>
+          )}
+        </div>
+
+        {builder && (
+          <section
+            aria-label={labelText(builder.label, locale)}
+            className="rounded-lg border border-slate-200 bg-white p-3"
+          >
+            <h3 className="mb-2 text-sm font-semibold text-slate-900">
+              <button
+                type="button"
+                className="hover:underline"
+                onClick={() => builder.section && open(builder.section)}
+              >
+                {labelText(builder.label, locale)}
+              </button>
+            </h3>
+            <ZonesBuilder
+              field={builder}
+              value={(values[builder.name] ?? defaults[builder.name] ?? {}) as ZonesValue}
+              values={{ ...defaults, ...values }}
+              onChange={(next) => setValues((v) => ({ ...(v ?? {}), [builder.name]: next }))}
+              locale={locale}
+              device={device === 'desktop' ? 'desktop' : 'mobile'}
+              onDevice={(d: ZoneDevice) =>
+                setDevice((now) =>
+                  d === 'desktop' ? 'desktop' : now === 'desktop' ? 'mobile' : now,
+                )
+              }
+              onOpen={open}
+              active={section}
+            />
+          </section>
         )}
       </div>
-
-      {builder && (
-        <section
-          aria-label={labelText(builder.label, locale)}
-          className="rounded-lg border border-slate-200 bg-white p-3"
-        >
-          <h3 className="mb-2 text-sm font-semibold text-slate-900">
-            <button
-              type="button"
-              className="hover:underline"
-              onClick={() => builder.section && open(builder.section)}
-            >
-              {labelText(builder.label, locale)}
-            </button>
-          </h3>
-          <ZonesBuilder
-            field={builder}
-            value={(values[builder.name] ?? defaults[builder.name] ?? {}) as ZonesValue}
-            values={{ ...defaults, ...values }}
-            onChange={(next) => setValues((v) => ({ ...(v ?? {}), [builder.name]: next }))}
-            locale={locale}
-            device={device === 'desktop' ? 'desktop' : 'mobile'}
-            onDevice={(d: ZoneDevice) =>
-              setDevice((now) => (d === 'desktop' ? 'desktop' : now === 'desktop' ? 'mobile' : now))
-            }
-            onOpen={open}
-            active={section}
-          />
-        </section>
-      )}
-    </div>
+    </DeviceContext.Provider>
   );
 }

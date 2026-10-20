@@ -2,6 +2,7 @@ export * from './api.js';
 export * from './ui.js';
 export * from './fields-form.js';
 export * from './zones-builder.js';
+export { DeviceContext, useDevice } from './compound-fields.js';
 export * from './plugin.js';
 export {
   ADMIN_PATH,

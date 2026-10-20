@@ -31,7 +31,20 @@ interface BaseField {
   group?: Label;
   /** Shown only when another field of the same form has a value (the value is kept). */
   showIf?: FieldCondition;
+  /**
+   * A value per device (`number`, `select`, `choice`, `boolean`, `spacing`):
+   * `{ desktop, tablet, mobile }`, each optional (a smaller screen without
+   * one uses the larger one's). With `units`, also `desktopUnit`…
+   */
+  responsive?: boolean;
 }
+
+/** The devices of responsive values, largest first. */
+export const DEVICES = ['desktop', 'tablet', 'mobile'] as const;
+export type Device = (typeof DEVICES)[number];
+/** A value per device (`responsive` fields). */
+export type ResponsiveValue<T> = Partial<Record<Device, T | null>> &
+  Partial<Record<`${Device}Unit`, string>>;
 
 /**
  * When a field is shown: another field `equals` a value, is one of `in`, or
@@ -58,15 +71,17 @@ export interface NumberField extends BaseField {
   min?: number;
   max?: number;
   step?: number;
-  default?: number;
+  default?: number | ResponsiveValue<number>;
   /** `range`: a slider with the number beside it. */
   display?: 'range';
   /** Unit shown after the number, e.g. `px`. */
   unit?: string;
+  /** Units to choose from (responsive numbers): the first is the default. */
+  units?: string[];
 }
 export interface BooleanField extends BaseField {
   type: 'boolean';
-  default?: boolean;
+  default?: boolean | ResponsiveValue<boolean>;
 }
 export interface DateField extends BaseField {
   /** `date`: YYYY-MM-DD · `datetime`: ISO 8601 with time zone. */
@@ -76,17 +91,30 @@ export interface DateField extends BaseField {
 export interface SelectField extends BaseField {
   type: 'select';
   options: { value: string; label: Label }[];
-  default?: string;
+  default?: string | ResponsiveValue<string>;
 }
 export interface MediaField extends BaseField {
   /** A media library item (uuid). */
   type: 'media';
 }
 export interface ColorField extends BaseField {
-  /** A color: `#rrggbb`, with `alpha` also `#rrggbbaa`; empty for none. */
+  /**
+   * A color: `#rrggbb`, with `alpha` also `#rrggbbaa`; empty for none. With
+   * `palette`, also a color of the theme's palette, `var(<prefix><index>)`.
+   */
   type: 'color';
   alpha?: boolean;
   default?: string;
+  palette?: ColorPalette;
+}
+
+/**
+ * The theme's global colors: a list field of the same form whose items have
+ * a `color` (and a `name`), used as CSS variables `<prefix>0`, `<prefix>1`…
+ */
+export interface ColorPalette {
+  field: string;
+  prefix: string;
 }
 export interface ChoiceField extends BaseField {
   /**
@@ -96,7 +124,7 @@ export interface ChoiceField extends BaseField {
   type: 'choice';
   options: { value: string; label: Label; image?: string }[];
   display?: 'buttons' | 'images';
-  default?: string;
+  default?: string | ResponsiveValue<string>;
 }
 export interface CodeField extends BaseField {
   /** Code typed by an administrator: CSS added to every page. */
@@ -115,6 +143,65 @@ export interface ListField extends BaseField {
   itemLabel?: string;
   max?: number;
   default?: FieldValues[];
+}
+
+export type Side = 'top' | 'right' | 'bottom' | 'left';
+/** Space or widths on the four sides, in a unit (`unit` default: the first of `units`). */
+export type SpacingValue = Partial<Record<Side, number | null>> & { unit?: string };
+
+export interface SpacingField extends BaseField {
+  /** Padding, margin, border widths or radii: four numbers and a unit. */
+  type: 'spacing';
+  /** Default `['px', 'em', '%']`. */
+  units?: string[];
+  /** The sides shown (default all four), e.g. `['top', 'bottom']`. */
+  sides?: Side[];
+  /** The corners' names instead of the sides' (border radius). */
+  corners?: boolean;
+  default?: SpacingValue | ResponsiveValue<SpacingValue>;
+}
+
+/** A background: a color, a gradient or an image. */
+export interface BackgroundValue {
+  type?: 'color' | 'gradient' | 'image';
+  color?: string;
+  /** A CSS gradient, e.g. `linear-gradient(90deg, #fff 0%, #000 100%)`. */
+  gradient?: string;
+  /** A media library image. */
+  image?: string;
+  position?: string;
+  size?: 'auto' | 'cover' | 'contain';
+  repeat?: 'repeat' | 'no-repeat' | 'repeat-x' | 'repeat-y';
+  attachment?: 'scroll' | 'fixed';
+  /** A color laid over the image. */
+  overlay?: string;
+}
+
+export interface BackgroundField extends BaseField {
+  type: 'background';
+  palette?: ColorPalette;
+  default?: BackgroundValue | ResponsiveValue<BackgroundValue>;
+}
+
+/** A font and its look; `size` per device. */
+export interface TypographyValue {
+  /** A font family name (a Google font, or `inherit` / empty for the default). */
+  family?: string;
+  weight?: string;
+  size?: ResponsiveValue<number>;
+  lineHeight?: number | null;
+  lineHeightUnit?: string;
+  letterSpacing?: number | null;
+  letterSpacingUnit?: string;
+  transform?: '' | 'none' | 'capitalize' | 'uppercase' | 'lowercase';
+  decoration?: '' | 'none' | 'underline' | 'line-through';
+}
+
+export interface TypographyField extends BaseField {
+  type: 'typography';
+  /** Units of the size (default `['px', 'em', 'rem', 'vw']`). */
+  units?: string[];
+  default?: TypographyValue;
 }
 
 /** A device with its own layout in a zones field. */
@@ -198,7 +285,10 @@ export type FieldDefinition =
   | ChoiceField
   | CodeField
   | ListField
-  | ZonesField;
+  | ZonesField
+  | SpacingField
+  | BackgroundField
+  | TypographyField;
 
 export type FieldType = FieldDefinition['type'];
 export type FieldValues = Record<string, unknown>;
@@ -218,6 +308,11 @@ const condition: z.ZodType<FieldCondition> = z.lazy(() =>
   ]),
 ) as z.ZodType<FieldCondition>;
 
+const palette = z.object({
+  field: z.string().regex(NAME_RE),
+  prefix: z.string().regex(/^--[a-z0-9-]{1,40}$/),
+});
+
 const base = {
   name: z.string().regex(NAME_RE, 'Field names start with a letter: letters, digits, _'),
   label,
@@ -227,7 +322,11 @@ const base = {
   section: z.string().max(64).optional(),
   group: label.optional(),
   showIf: condition.optional(),
+  responsive: z.boolean().optional(),
 };
+const UNIT_RE = /^(px|em|rem|%|vw|vh|)$/;
+const units = z.array(z.string().regex(UNIT_RE)).min(1).max(6).optional();
+const loose = z.unknown().optional();
 
 const zoneDevice = z.enum(['desktop', 'mobile']);
 const ZONE_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$/;
@@ -259,11 +358,12 @@ export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z.discriminated
     min: z.number().optional(),
     max: z.number().optional(),
     step: z.number().positive().optional(),
-    default: z.number().optional(),
+    default: loose,
     display: z.literal('range').optional(),
     unit: z.string().max(10).optional(),
+    units,
   }),
-  z.object({ ...base, type: z.literal('boolean'), default: z.boolean().optional() }),
+  z.object({ ...base, type: z.literal('boolean'), default: loose }),
   z.object({
     ...base,
     type: z.enum(['date', 'datetime']),
@@ -276,7 +376,7 @@ export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z.discriminated
       .array(z.object({ value: z.string().min(1).max(200), label }))
       .min(1)
       .max(200),
-    default: z.string().optional(),
+    default: loose,
   }),
   z.object({ ...base, type: z.literal('media') }),
   z.object({
@@ -284,13 +384,14 @@ export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z.discriminated
     type: z.literal('color'),
     alpha: z.boolean().optional(),
     default: z.string().optional(),
+    palette: palette.optional(),
   }),
   z.object({
     ...base,
     type: z.literal('choice'),
     options: choiceOptions,
     display: z.enum(['buttons', 'images']).optional(),
-    default: z.string().optional(),
+    default: loose,
   }),
   z.object({
     ...base,
@@ -309,6 +410,20 @@ export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z.discriminated
     max: z.number().int().min(1).max(200).optional(),
     default: z.array(z.record(z.string(), z.unknown())).optional(),
   }),
+  z.object({
+    ...base,
+    type: z.literal('spacing'),
+    units,
+    sides: z
+      .array(z.enum(['top', 'right', 'bottom', 'left']))
+      .min(1)
+      .max(4)
+      .optional(),
+    corners: z.boolean().optional(),
+    default: loose,
+  }),
+  z.object({ ...base, type: z.literal('background'), palette: palette.optional(), default: loose }),
+  z.object({ ...base, type: z.literal('typography'), units, default: loose }),
   z.object({
     ...base,
     type: z.literal('zones'),
@@ -377,7 +492,65 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const ALPHA_COLOR_RE = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
+/** Validator of a field's value: per device when the field is responsive. */
 function valueSchema(field: FieldDefinition): z.ZodType<unknown> {
+  const one = singleValueSchema(field);
+  if (!field.responsive || !RESPONSIVE_TYPES.has(field.type)) return one;
+  const unit = z.string().regex(UNIT_RE).optional();
+  return z
+    .object({
+      desktop: one.nullable().optional(),
+      tablet: one.nullable().optional(),
+      mobile: one.nullable().optional(),
+      desktopUnit: unit,
+      tabletUnit: unit,
+      mobileUnit: unit,
+    })
+    .strict();
+}
+
+const RESPONSIVE_TYPES = new Set([
+  'number',
+  'select',
+  'choice',
+  'boolean',
+  'spacing',
+  'background',
+]);
+
+/** A color, of the palette (`var(--prefix-N)`) when the field has one. */
+function colorSchema(alpha: boolean | undefined, palette: ColorPalette | undefined) {
+  return z
+    .string()
+    .max(80)
+    .refine(
+      (v) =>
+        v === '' ||
+        (alpha ? ALPHA_COLOR_RE : COLOR_RE).test(v) ||
+        (palette !== undefined && paletteIndex(v, palette) !== null),
+      'Enter a color like #1e73be',
+    );
+}
+
+/** The index of a palette color (`var(--prefix-3)` → 3), or null. */
+export function paletteIndex(value: unknown, palette: ColorPalette): number | null {
+  if (typeof value !== 'string') return null;
+  const match = /^var\((--[a-z0-9-]+?)(\d{1,2})\)$/.exec(value);
+  return match && match[1] === palette.prefix ? Number(match[2]) : null;
+}
+
+const numberOrNull = z.number().nullable().optional();
+const spacingSchema = z
+  .object({
+    top: numberOrNull,
+    right: numberOrNull,
+    bottom: numberOrNull,
+    left: numberOrNull,
+    unit: z.string().regex(UNIT_RE).optional(),
+  })
+  .strict();
+
+function singleValueSchema(field: FieldDefinition): z.ZodType<unknown> {
   switch (field.type) {
     case 'text':
       return z.string().max(field.maxLength ?? (field.multiline ? 10_000 : 1_000));
@@ -403,12 +576,7 @@ function valueSchema(field: FieldDefinition): z.ZodType<unknown> {
     case 'media':
       return z.uuid();
     case 'color':
-      return z
-        .string()
-        .refine(
-          (v) => v === '' || (field.alpha ? ALPHA_COLOR_RE : COLOR_RE).test(v),
-          'Enter a color like #1e73be',
-        );
+      return colorSchema(field.alpha, field.palette);
     case 'choice':
       return z.enum(field.options.map((o) => o.value) as [string, ...string[]]);
     case 'code':
@@ -423,7 +591,78 @@ function valueSchema(field: FieldDefinition): z.ZodType<unknown> {
     }
     case 'zones':
       return zonesSchema(field);
+    case 'spacing':
+      return spacingSchema;
+    case 'background': {
+      const color = colorSchema(true, field.palette).optional();
+      return z
+        .object({
+          type: z.enum(['color', 'gradient', 'image']).optional(),
+          color,
+          gradient: z
+            .string()
+            .max(1_000)
+            .regex(
+              /^((repeating-)?(linear|radial|conic)-gradient\([^;{}<>]*\))?$/,
+              'Enter a CSS gradient',
+            )
+            .optional(),
+          image: z.uuid().nullable().optional(),
+          position: z
+            .string()
+            .regex(/^[a-z0-9.% -]{0,40}$/)
+            .optional(),
+          size: z.enum(['auto', 'cover', 'contain']).optional(),
+          repeat: z.enum(['repeat', 'no-repeat', 'repeat-x', 'repeat-y']).optional(),
+          attachment: z.enum(['scroll', 'fixed']).optional(),
+          overlay: color,
+        })
+        .strict();
+    }
+    case 'typography': {
+      const unit = z.string().regex(UNIT_RE).optional();
+      return z
+        .object({
+          family: z
+            .string()
+            .regex(/^[A-Za-z0-9 _-]{0,60}$/, 'Enter a font name')
+            .optional(),
+          weight: z
+            .string()
+            .regex(/^(|inherit|normal|bold|[1-9]00)$/)
+            .optional(),
+          size: z
+            .object({
+              desktop: numberOrNull,
+              tablet: numberOrNull,
+              mobile: numberOrNull,
+              desktopUnit: unit,
+              tabletUnit: unit,
+              mobileUnit: unit,
+            })
+            .strict()
+            .optional(),
+          lineHeight: numberOrNull,
+          lineHeightUnit: unit,
+          letterSpacing: numberOrNull,
+          letterSpacingUnit: unit,
+          transform: z.enum(['', 'none', 'capitalize', 'uppercase', 'lowercase']).optional(),
+          decoration: z.enum(['', 'none', 'underline', 'line-through']).optional(),
+        })
+        .strict();
+    }
   }
+}
+
+/** The value of a responsive field for a device: the nearest larger device's when unset. */
+export function deviceValue<T>(value: unknown, device: Device): T | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const record = value as ResponsiveValue<T>;
+  for (const d of DEVICES.slice(0, DEVICES.indexOf(device) + 1).reverse()) {
+    const v = record[d];
+    if (v !== undefined && v !== null && v !== ('' as unknown)) return v;
+  }
+  return undefined;
 }
 
 /**

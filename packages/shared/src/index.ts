@@ -10,3 +10,4 @@ export * from './admin.js';
 export * from './themes.js';
 export * from './catalog.js';
 export * from './licenses.js';
+export * from './google-fonts.js';

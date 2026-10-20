@@ -1,10 +1,15 @@
 import {
+  deviceValue,
   fieldVisible,
   labelText,
   type FieldDefinition,
   type FieldValues,
   type ListField,
+  type BackgroundValue,
   type MediaListResponse,
+  type ResponsiveValue,
+  type SpacingValue,
+  type TypographyValue,
   type ZonesValue,
 } from '@cleitext/shared';
 import { useQuery } from '@tanstack/react-query';
@@ -12,6 +17,15 @@ import { useId, useState } from 'react';
 import { api } from './api.js';
 import { useT } from './i18n.js';
 import { ZonesBuilder } from './zones-builder.js';
+import {
+  BackgroundControl,
+  ColorInput,
+  DeviceSwitch,
+  SpacingControl,
+  TypographyControl,
+  UnitSelect,
+  useDevice,
+} from './compound-fields.js';
 
 const inputClass =
   'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600';
@@ -60,7 +74,7 @@ export function FieldsForm({
               locale={locale}
               disabled={disabled}
               error={errors[field.name]}
-              form={values}
+              form={{ ...defaults, ...values }}
               onChange={(value) => onChange({ ...values, [field.name]: value })}
             />
           </div>
@@ -79,6 +93,7 @@ function Field({
   error,
   placeholder,
   form,
+  extra,
 }: {
   field: FieldDefinition;
   value: unknown;
@@ -90,7 +105,103 @@ function Field({
   placeholder?: unknown;
   /** The values of the whole form. */
   form?: FieldValues;
+  /** Shown at the end of the label's line (the device switch). */
+  extra?: React.ReactNode;
 }) {
+  if (field.responsive) {
+    return (
+      <ResponsiveField
+        field={field}
+        value={value}
+        onChange={onChange}
+        locale={locale}
+        disabled={disabled}
+        error={error}
+        placeholder={placeholder}
+        form={form}
+      />
+    );
+  }
+  return (
+    <SingleField
+      field={field}
+      value={value}
+      onChange={onChange}
+      locale={locale}
+      disabled={disabled}
+      error={error}
+      placeholder={placeholder}
+      form={form}
+      extra={extra}
+    />
+  );
+}
+
+type FieldProps = Parameters<typeof Field>[0];
+
+/**
+ * A field with a value per device: edits the device chosen with the switch
+ * (the preview's, in Customize); a device without a value shows the larger
+ * one's as placeholder.
+ */
+function ResponsiveField(props: FieldProps) {
+  const { field, value, onChange, placeholder } = props;
+  const { t } = useT();
+  const [device] = useDevice();
+  const record = (value && typeof value === 'object' ? value : {}) as ResponsiveValue<unknown>;
+  const fallback = (
+    placeholder && typeof placeholder === 'object' ? placeholder : {}
+  ) as ResponsiveValue<unknown>;
+  const larger =
+    device === 'desktop'
+      ? undefined
+      : deviceValue(record, device === 'mobile' ? 'tablet' : 'desktop');
+  const unitKey = `${device}Unit` as const;
+  const units = field.type === 'number' ? field.units : undefined;
+  const update = (patch: Record<string, unknown>) => {
+    const next = Object.fromEntries(
+      Object.entries({ ...record, ...patch }).filter(
+        ([, v]) => v !== null && v !== undefined && v !== '',
+      ),
+    );
+    onChange(Object.keys(next).length ? next : null);
+  };
+  return (
+    <SingleField
+      {...props}
+      field={{ ...field, responsive: false } as FieldDefinition}
+      value={record[device] ?? undefined}
+      placeholder={larger ?? deviceValue(fallback, device)}
+      onChange={(v) => update({ [device]: v })}
+      extra={
+        <span className="flex items-center gap-1">
+          {units && (
+            <UnitSelect
+              units={units}
+              value={record[unitKey] ?? fallback[unitKey]}
+              label={t('Unit')}
+              disabled={props.disabled}
+              onChange={(unit) => update({ [unitKey]: unit })}
+            />
+          )}
+          <DeviceSwitch />
+        </span>
+      }
+    />
+  );
+}
+
+function SingleField({
+  field,
+  value,
+  onChange,
+  locale,
+  disabled,
+  error,
+  placeholder,
+  form,
+  extra,
+}: FieldProps) {
   const id = useId();
   const label = labelText(field.label, locale);
   const help = labelText(field.help, locale);
@@ -102,7 +213,6 @@ function Field({
     'aria-describedby': describedBy,
     'aria-required': field.required ? true : undefined,
   } as const;
-  const { t } = useT();
   const text = typeof value === 'string' ? value : '';
   const empty = (next: string) => (next === '' ? null : next);
 
@@ -203,6 +313,7 @@ function Field({
               onChange={(e) => onChange(e.target.checked)}
             />
             <span className="font-medium text-slate-800">{label}</span>
+            {extra && <span className="ml-auto">{extra}</span>}
           </label>
           <Help id={id} help={help} error={error} />
         </div>
@@ -257,57 +368,22 @@ function Field({
         <MediaPicker id={id} value={text || null} disabled={disabled} onChange={onChange} />
       );
       break;
-    case 'color': {
-      const shown = text || (typeof placeholder === 'string' ? placeholder : '');
-      const known = /^#[0-9a-f]{6}/i.test(shown);
+    case 'color':
       control = (
-        <div className="flex items-center gap-2">
-          <span className="relative inline-flex">
-            <input
-              type="color"
-              aria-label={label}
-              disabled={disabled}
-              className="h-8 w-10 cursor-pointer rounded border border-slate-300 bg-white p-0.5"
-              value={known ? shown.slice(0, 7) : '#000000'}
-              onChange={(e) =>
-                // The alpha of a typed #rrggbbaa stays when the swatch changes the color.
-                onChange(e.target.value + (field.alpha && text.length === 9 ? text.slice(7) : ''))
-              }
-            />
-            {/* No color yet: a crossed swatch, not a black one that looks like a choice. */}
-            {!known && (
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0.5 rounded-sm border border-slate-200 bg-white"
-                style={{
-                  backgroundImage:
-                    'linear-gradient(to top right, transparent calc(50% - 1px), #dc2626 calc(50% - 1px), #dc2626 calc(50% + 1px), transparent calc(50% + 1px))',
-                }}
-              />
-            )}
-          </span>
-          <input
-            {...common}
-            className={`${inputClass} w-32 font-mono`}
-            value={text}
-            placeholder={typeof placeholder === 'string' ? placeholder : '#'}
-            maxLength={field.alpha ? 9 : 7}
-            onChange={(e) => onChange(empty(e.target.value.trim()))}
-          />
-          {text && (
-            <button
-              type="button"
-              disabled={disabled}
-              className="text-xs text-slate-600 hover:underline"
-              onClick={() => onChange(null)}
-            >
-              {placeholder ? t('Default') : t('Clear')}
-            </button>
-          )}
-        </div>
+        <ColorInput
+          id={id}
+          describedBy={describedBy}
+          label={label}
+          value={text}
+          placeholder={typeof placeholder === 'string' ? placeholder : undefined}
+          alpha={field.alpha}
+          palette={field.palette}
+          form={form}
+          disabled={disabled}
+          onChange={onChange}
+        />
       );
       break;
-    }
     case 'choice': {
       const current = text || (typeof placeholder === 'string' ? placeholder : '');
       const images = field.display === 'images';
@@ -378,6 +454,48 @@ function Field({
         />
       );
       break;
+    case 'spacing':
+      control = (
+        <SpacingControl
+          label={label}
+          value={value as SpacingValue | undefined}
+          placeholder={placeholder as SpacingValue | undefined}
+          units={field.units}
+          sides={field.sides}
+          corners={field.corners}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      );
+      break;
+    case 'background':
+      control = (
+        <BackgroundControl
+          label={label}
+          value={value as BackgroundValue | undefined}
+          placeholder={placeholder as BackgroundValue | undefined}
+          palette={field.palette}
+          form={form}
+          disabled={disabled}
+          onChange={onChange}
+          mediaPicker={(media, change) => (
+            <MediaPicker id={`${id}-image`} value={media} disabled={disabled} onChange={change} />
+          )}
+        />
+      );
+      break;
+    case 'typography':
+      control = (
+        <TypographyControl
+          label={label}
+          value={value as TypographyValue | undefined}
+          placeholder={placeholder as TypographyValue | undefined}
+          units={field.units}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      );
+      break;
     case 'zones':
       control = (
         <ZonesBuilder
@@ -394,10 +512,13 @@ function Field({
 
   return (
     <div className="space-y-1">
-      <label id={`${id}-label`} htmlFor={id} className="block text-sm font-medium text-slate-800">
-        {label}
-        {field.required && <span aria-hidden="true"> *</span>}
-      </label>
+      <div className="flex items-center justify-between gap-2">
+        <label id={`${id}-label`} htmlFor={id} className="block text-sm font-medium text-slate-800">
+          {label}
+          {field.required && <span aria-hidden="true"> *</span>}
+        </label>
+        {extra}
+      </div>
       {control}
       <Help id={id} help={help} error={error} />
     </div>

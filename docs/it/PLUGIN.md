@@ -851,23 +851,28 @@ Gli amministratori vedono i permessi richiesti in **Plugins → Details**. Le tu
 
 Usati dai campi dei tipi di contenuto, dai gruppi di campi, dagli attributi dei blocchi e dalle impostazioni.
 
-| `type`     | Valore              | Opzioni                                                                                                                     |
-| ---------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `text`     | stringa             | `maxLength`, `multiline`, `default`                                                                                         |
-| `url`      | stringa             | `default`. Accetta `http(s)://`, `/`, `mailto:`, `tel:`                                                                     |
-| `number`   | numero              | `min`, `max`, `step`, `default`, `display: 'range'` (un cursore), `unit` (mostrata accanto, es. `px`)                       |
-| `boolean`  | booleano            | `default`                                                                                                                   |
-| `date`     | `YYYY-MM-DD`        | `default`                                                                                                                   |
-| `datetime` | ISO 8601            | `default`                                                                                                                   |
-| `select`   | stringa             | `options: [{ value, label }]`, `default`                                                                                    |
-| `media`    | id del media (uuid) | un'immagine della libreria media                                                                                            |
-| `color`    | `#rrggbb`           | `alpha` (anche `#rrggbbaa`), `default`                                                                                      |
-| `choice`   | stringa             | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                                          |
-| `code`     | stringa             | `language: 'css'`, `default`. Fino a 100.000 caratteri, mai `</style`                                                       |
-| `list`     | array di oggetti    | `fields` (ogni tipo tranne `list`), `itemLabel` (il campo che dà il nome a un elemento), `max` (predefinito 200), `default` |
-| `zones`    | oggetto             | `devices`, `rows`, `items`, `default`: un costruttore di intestazione o piè di pagina (TEMI.md §4); non dentro una `list`   |
+| `type`       | Valore              | Opzioni                                                                                                                                                                        |
+| ------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `text`       | stringa             | `maxLength`, `multiline`, `default`                                                                                                                                            |
+| `url`        | stringa             | `default`. Accetta `http(s)://`, `/`, `mailto:`, `tel:`                                                                                                                        |
+| `number`     | numero              | `min`, `max`, `step`, `default`, `display: 'range'` (un cursore), `unit` (mostrata accanto, es. `px`)                                                                          |
+| `boolean`    | booleano            | `default`                                                                                                                                                                      |
+| `date`       | `YYYY-MM-DD`        | `default`                                                                                                                                                                      |
+| `datetime`   | ISO 8601            | `default`                                                                                                                                                                      |
+| `select`     | stringa             | `options: [{ value, label }]`, `default`                                                                                                                                       |
+| `media`      | id del media (uuid) | un'immagine della libreria media                                                                                                                                               |
+| `color`      | `#rrggbb`           | `alpha` (anche `#rrggbbaa`), `default`                                                                                                                                         |
+| `choice`     | stringa             | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                                                                                             |
+| `code`       | stringa             | `language: 'css'`, `default`. Fino a 100.000 caratteri, mai `</style`                                                                                                          |
+| `list`       | array di oggetti    | `fields` (ogni tipo tranne `list`), `itemLabel` (il campo che dà il nome a un elemento), `max` (predefinito 200), `default`                                                    |
+| `spacing`    | oggetto             | `{ top, right, bottom, left, unit }`; opzioni `units` (predefinite `px`, `em`, `%`), `sides`, `corners` (raggi), `default`                                                     |
+| `background` | oggetto             | `{ type: 'color' \| 'gradient' \| 'image', color, gradient, image, position, size, repeat, attachment, overlay }`; `palette`, `default`                                        |
+| `typography` | oggetto             | `{ family, weight, size: { desktop, tablet, mobile, desktopUnit… }, lineHeight, lineHeightUnit, letterSpacing, letterSpacingUnit, transform, decoration }`; `units`, `default` |
+| `zones`      | oggetto             | `devices`, `rows`, `items`, `default`: un costruttore di intestazione o piè di pagina (TEMI.md §4); non dentro una `list`                                                      |
 
 Opzioni comuni: `name` (lettere, cifre, `_`), `label`, `help`, `required` e `translation`. Nei moduli di impostazioni, `section` mette un campo in una scheda (opzioni del tema, §4 di TEMI.md), `group` gli mette sopra un titolo e `showIf` lo mostra solo quando altri campi hanno certi valori: `{ field: 'header', equals: 'transparent' }`, `{ field: 'layout', in: ['left', 'right'] }`, `{ field: 'sidebar', not: 'none' }`, oppure più condizioni con `{ all: [...] }` / `{ any: [...] }`. Un campo senza valore conta come il suo predefinito. Le etichette sono stringhe oppure oggetti per lingua (`{ en: 'Date', it: 'Data' }`). Un campo facoltativo può essere vuoto (`null`).
+
+`responsive: true` (su `number`, `select`, `choice`, `boolean`, `spacing` e `background`) tiene un valore per dispositivo, `{ desktop, tablet, mobile }`: un dispositivo senza valore usa quello del più grande (`deviceValue(value, device)` in `@cleitext/shared`). Un `number` responsive può avere `units` (`['px', 'em']`), salvate come `desktopUnit`, `tabletUnit`, `mobileUnit`. In Personalizza il selettore del dispositivo accanto all'etichetta segue l'anteprima. Un `color` o un `background` con `palette: { field, prefix }` offre anche i colori globali del tema: `field` è una lista di elementi `{ color }` dello stesso modulo, e il valore è `var(<prefix><indice>)`, per esempio `var(--zn-global-color-0)`. Dei caratteri dei campi `typography` si controlla solo la scrittura; `googleFonts()` in `@cleitext/shared` elenca famiglie e spessori di Google.
 
 `translation` dice cosa succede al campo nelle altre lingue, con un plugin delle lingue: `translate` (predefinito) viene copiato nella nuova traduzione e poi modificato lì, `copy` resta uguale all'originale (si aggiorna quando l'originale viene salvato, come un prezzo), `ignore` parte vuoto.
 
