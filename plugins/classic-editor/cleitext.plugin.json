@@ -1,7 +1,7 @@
 {
   "slug": "classic-editor",
   "name": "Classic Editor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": "^1.11",
   "description": "The classic editor of WordPress: Visual and Text tabs, two rows of formatting buttons, Add Media and the word count, with the content still saved as blocks.",
   "author": "Cleitext",

@@ -60,6 +60,8 @@ L'importatore di WordPress (**Importa da WordPress** nel menu dell'amministrazio
 - **I widget Pro** diventano i rispettivi elementi di Fresco Pro (modulo, slide, call to action, flip box, tabella e listino prezzi, conto alla rovescia, titolo animato, articoli e loop, caroselli, elementi del tema e altri), ed effetti di movimento, sticky, CSS personalizzato, attributi personalizzati e tag dinamici le rispettive impostazioni di Fresco Pro.
 - **I modelli del Theme Builder** (header, footer, singolo, archivio, popup, elementi del loop, sezioni salvate e widget globali) diventano modelli di Fresco Pro con le loro condizioni; i popup mantengono attivatore, frequenza e layout. Codice personalizzato, font personalizzati e CSS personalizzato del kit vanno nelle impostazioni del sito di Fresco Pro.
 
+Gli shortcode di altri plugin che stanno da soli in un widget shortcode, testo o HTML diventano i blocchi di quei plugin quando un plugin attivo li converte (es. `[kross-booking]` di Kross Booking), dentro un elemento blocco di plugin; gli altri restano testo.
+
 Widget Pro, modelli e impostazioni Pro si vedono con Fresco Pro: attivalo prima di importare, così vengono importati anche i modelli. Il resoconto dell'importazione elenca ciò che non ha un equivalente o è stato approssimato.
 
 ---

@@ -11,6 +11,7 @@ import {
 } from '../index.js';
 import { HTMLElement, parse, TextNode, type Node } from 'node-html-parser';
 import { parseBlocks, type WpBlock } from './wp-blocks.js';
+import { shortcodeLines, type Shortcode } from './shortcodes.js';
 
 export interface ConvertOptions {
   /** Media ref of a WordPress attachment id (e.g. `att:123`). */
@@ -21,13 +22,35 @@ export interface ConvertOptions {
    * Keep blocks without an equivalent as `core/imported` placeholders, with
    * their name, attributes, HTML, converted inner blocks (`children`) and
    * text (`attrs.fallback`): the import turns them into plugin blocks (the
-   * `import.block` filter, plugin API 1.23) or into that text.
+   * `import.block` filter, plugin API 1.23) or into that text. Shortcodes
+   * standing alone in their paragraph become placeholders too (the
+   * `import.shortcode` filter, plugin API 1.36).
    */
   keepUnknown?: boolean;
 }
 
 /** Placeholder of a WordPress block without an equivalent, during an import. */
 export const IMPORTED_BLOCK = 'core/imported';
+
+/**
+ * Placeholder of a shortcode standing alone, during an import: a plugin may
+ * turn it into its blocks (`import.shortcode`); otherwise `fallback` (its
+ * text) is kept. `wrap`, when set, is the element each of the plugin's
+ * blocks goes into (e.g. a page builder's element for plugin blocks).
+ */
+export function shortcodePlaceholder(
+  shortcode: Shortcode,
+  fallback: CxdBlock[],
+  wrap?: { type: string; v?: number; attrs?: Record<string, unknown> },
+): CxdBlock {
+  return make(IMPORTED_BLOCK, {
+    name: 'core/shortcode',
+    shortcode,
+    html: shortcode.text,
+    fallback,
+    ...(wrap ? { wrap } : {}),
+  });
+}
 
 /**
  * WordPress post content → CXD (RF-IMP-01). Block markup (`<!-- wp:… -->`)
@@ -71,17 +94,25 @@ function fromWpBlock(
 
   switch (name) {
     case 'core/paragraph': {
-      const content = inline(firstElementInner(html, 'p') ?? html);
+      const inner = firstElementInner(html, 'p') ?? html;
+      const content = inline(inner);
       const align = attrs.align ?? styleTextAlign(attrs);
-      return hasText(content)
-        ? [
-            make(
-              'core/paragraph',
-              { ...common, ...(align ? { align } : {}), ...pick(attrs, ['dropCap']) },
-              content,
-            ),
-          ]
-        : [];
+      const paragraph = make(
+        'core/paragraph',
+        { ...common, ...(align ? { align } : {}), ...pick(attrs, ['dropCap']) },
+        content,
+      );
+      // A paragraph holding only shortcodes (e.g. a booking widget's).
+      const shortcodes = options.keepUnknown ? shortcodeLines(inner) : null;
+      if (shortcodes) {
+        return shortcodes.map((shortcode) =>
+          shortcodePlaceholder(
+            shortcode,
+            shortcodes.length === 1 ? [paragraph] : [shortcodeText(shortcode)],
+          ),
+        );
+      }
+      return hasText(content) ? [paragraph] : [];
     }
     case 'core/heading': {
       const element = parse(html).querySelector('h1,h2,h3,h4,h5,h6');
@@ -258,6 +289,12 @@ function fromWpBlock(
     case 'core/shortcode': {
       const gallery = galleryShortcode(html.trim(), options);
       if (gallery) return [gallery];
+      const shortcodes = options.keepUnknown ? shortcodeLines(html.trim()) : null;
+      if (shortcodes) {
+        return shortcodes.map((shortcode) =>
+          shortcodePlaceholder(shortcode, [shortcodeText(shortcode)]),
+        );
+      }
       warn(`Shortcode left as text: ${html.trim().slice(0, 60)}`);
       return [make('core/paragraph', {}, [{ text: html.trim() }])];
     }
@@ -375,6 +412,17 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
       const gallery = galleryShortcode(chunk.trim(), options);
       if (gallery) {
         blocks.push(gallery);
+        continue;
+      }
+      // Shortcodes alone on their lines: plugins may have blocks for them.
+      const shortcodes = options.keepUnknown ? shortcodeLines(chunk.trim()) : null;
+      if (shortcodes) {
+        for (const shortcode of shortcodes) {
+          blocks.push(
+            galleryShortcode(shortcode.text, options) ??
+              shortcodePlaceholder(shortcode, [shortcodeText(shortcode)]),
+          );
+        }
         continue;
       }
       const content = inline(chunk.trim().replace(/\n/g, '<br>'));
@@ -712,6 +760,11 @@ function make(type: string, attrs: Record<string, unknown>, content?: CxdInline[
 
 function inline(html: string): CxdInline[] {
   return htmlToInline(html.replace(/\s*\n\s*/g, ' ').replace(/<br\s*\/?>\s*/gi, '\n'));
+}
+
+/** A shortcode kept as the text of a paragraph. */
+function shortcodeText(shortcode: Shortcode): CxdBlock {
+  return make('core/paragraph', {}, inline(shortcode.text));
 }
 
 function linkTo(url: string): CxdInline {

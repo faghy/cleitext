@@ -1,6 +1,6 @@
 import { newCommentStatus } from '../community/defaults.js';
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
-import { documentText } from '@cleitext/blocks';
+import { documentText, newBlockId } from '@cleitext/blocks';
 import { IMPORTED_BLOCK } from '@cleitext/blocks/html';
 import { isIP } from 'node:net';
 import {
@@ -80,6 +80,17 @@ export interface ImportOptions {
     attrs: Record<string, unknown>;
     html: string;
     children: CxdBlock[];
+  }): Promise<CxdBlock[] | null>;
+  /**
+   * Shortcodes standing alone (`core/imported` placeholders with a
+   * `shortcode`): their replacement by an active plugin (the
+   * `import.shortcode` filter), or null to keep their text.
+   */
+  importShortcode?(shortcode: {
+    tag: string;
+    attrs: Record<string, string>;
+    content: string | null;
+    text: string;
   }): Promise<CxdBlock[] | null>;
   /**
    * Cleans each document before it is written (raw HTML of users without
@@ -931,17 +942,38 @@ export async function importUser(db: Database, email?: string): Promise<string> 
   return user.id;
 }
 
+/** A shortcode placeholder's data (`shortcodePlaceholder` of `@cleitext/blocks/html`). */
+function shortcodeOf(value: unknown): {
+  tag: string;
+  attrs: Record<string, string>;
+  content: string | null;
+  text: string;
+} | null {
+  if (!value || typeof value !== 'object') return null;
+  const { tag, attrs, content, text } = value as Record<string, unknown>;
+  if (typeof tag !== 'string' || typeof text !== 'string') return null;
+  const clean: Record<string, string> = {};
+  if (attrs && typeof attrs === 'object') {
+    for (const [key, v] of Object.entries(attrs)) if (typeof v === 'string') clean[key] = v;
+  }
+  return { tag, attrs: clean, content: typeof content === 'string' ? content : null, text };
+}
+
 /**
  * Blocks of other WordPress plugins, kept as `core/imported` placeholders by
  * the conversion: replaced by an active plugin's blocks (inner blocks first),
- * or by their content, with a warning for each kind left.
+ * or by their content, with a warning for each kind left. Shortcodes
+ * standing alone are placeholders too: a plugin's blocks (each inside
+ * `wrap`, when set, e.g. a page builder's element) or their text.
  */
 async function resolveImportedBlocks(
   entries: { document: CxdDocument }[],
-  options: Pick<ImportOptions, 'importBlock'>,
+  options: Pick<ImportOptions, 'importBlock' | 'importShortcode'>,
   report: ImportReport,
 ): Promise<void> {
   const left = new Map<string, number>();
+  const shortcodesLeft = new Map<string, number>();
+  const shortcodesDone = new Map<string, number>();
   const resolve = async (blocks: CxdBlock[]): Promise<CxdBlock[]> => {
     const out: CxdBlock[] = [];
     for (const block of blocks) {
@@ -950,12 +982,37 @@ async function resolveImportedBlocks(
         out.push(children ? { ...block, children } : block);
         continue;
       }
-      const { name, attrs, html, fallback } = block.attrs as {
+      const { name, attrs, html, fallback, shortcode, wrap } = block.attrs as {
         name?: string;
         attrs?: Record<string, unknown>;
         html?: string;
         fallback?: CxdBlock[];
+        shortcode?: unknown;
+        wrap?: { type?: unknown; v?: unknown; attrs?: unknown };
       };
+      const found = shortcodeOf(shortcode);
+      if (found) {
+        const converted = options.importShortcode ? await options.importShortcode(found) : null;
+        if (converted && converted.length > 0) {
+          const wrapper = typeof wrap?.type === 'string' ? wrap : null;
+          out.push(
+            ...(wrapper
+              ? converted.map((inner) => ({
+                  id: newBlockId(),
+                  type: wrapper.type as string,
+                  v: typeof wrapper.v === 'number' ? wrapper.v : 1,
+                  attrs: { ...((wrapper.attrs as Record<string, unknown> | undefined) ?? {}) },
+                  children: [inner],
+                }))
+              : converted),
+          );
+          shortcodesDone.set(found.tag, (shortcodesDone.get(found.tag) ?? 0) + 1);
+        } else {
+          shortcodesLeft.set(found.tag, (shortcodesLeft.get(found.tag) ?? 0) + 1);
+          out.push(...(fallback ?? []));
+        }
+        continue;
+      }
       const converted = options.importBlock
         ? await options.importBlock({
             name: String(name ?? ''),
@@ -979,6 +1036,14 @@ async function resolveImportedBlocks(
   for (const [name, count] of left) {
     report.warnings.push(
       `Block ${name} has no equivalent (${count}×): its content was kept. A plugin may add it.`,
+    );
+  }
+  for (const [tag, count] of shortcodesDone) {
+    report.warnings.push(`Shortcode [${tag}] became a block of an active plugin (${count}×).`);
+  }
+  for (const [tag, count] of shortcodesLeft) {
+    report.warnings.push(
+      `Shortcode [${tag}] has no equivalent (${count}×): kept as text. A plugin may add it.`,
     );
   }
 }

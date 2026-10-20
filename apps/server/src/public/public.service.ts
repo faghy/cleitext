@@ -2057,6 +2057,7 @@ export class PublicService {
     props: TemplateProps,
     media: Map<string, RenderMedia>,
     menus: Record<string, MenuItemView[]>,
+    options: { preview?: boolean } = {},
   ): Promise<Map<string, BlockRenderer> | undefined> {
     const definitions = new Map(
       (await this.plugins.activePlugins(scope.siteId)).flatMap((plugin) =>
@@ -2146,7 +2147,14 @@ export class PublicService {
         html,
       };
     }
-    const context = { siteId: scope.siteId, locale: scope.locale, media, menus, page };
+    const context = {
+      siteId: scope.siteId,
+      locale: scope.locale,
+      media,
+      menus,
+      page,
+      ...(options.preview ? { preview: true } : {}),
+    };
     const inPage = (block: { container?: boolean; wrapper?: boolean }) =>
       block.container === true || block.wrapper === false;
 
@@ -2429,7 +2437,9 @@ export class PublicService {
         new Set(scope.data.types.map((t) => t.slug)),
         scope.theme.menuItemFields,
       );
-      const renderers = await this.pluginBlockRenderers(scope, [document], props, media, menus);
+      const renderers = await this.pluginBlockRenderers(scope, [document], props, media, menus, {
+        preview: true,
+      });
       const html = renderers
         ? renderToStaticMarkup(
             createElement(Blocks, {

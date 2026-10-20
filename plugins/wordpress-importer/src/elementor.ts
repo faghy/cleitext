@@ -9,6 +9,7 @@
  */
 import type { CxdBlock } from '@cleitext/blocks';
 import { newBlockId } from '@cleitext/blocks';
+import { shortcodePlaceholder, splitShortcodes } from '@cleitext/blocks/html';
 import { atomicElement, isAtomic } from './elementor-atomic.js';
 import { proWidget } from './elementor-pro.js';
 import {
@@ -158,6 +159,41 @@ export function plainTitle(html: string): { text: string; formatted: boolean } {
 export function addCss(out: Settings, css: string): void {
   const current = str(out._custom_css);
   out._custom_css = current ? `${current}\n${css}` : css;
+}
+
+/**
+ * Shortcodes standing alone in a text, HTML or shortcode widget (on their
+ * own line or paragraph) become placeholders that active plugins may turn
+ * into their blocks on import (the `import.shortcode` filter), each inside a
+ * plugin block element with the widget's Advanced settings. The rest of the
+ * widget stays a widget of its own; a shortcode no plugin takes stays the
+ * widget it was. Null when the widget has no such shortcode.
+ */
+export function withShortcodes(element: CxdBlock, field: 'content' | 'code'): CxdBlock[] | null {
+  const value = element.attrs[field];
+  if (typeof value !== 'string' || element.attrs.__dynamic) return null;
+  const pieces = splitShortcodes(value);
+  if (!pieces.some((piece) => 'shortcode' in piece)) return null;
+  return pieces.map((piece, i) => {
+    // One element keeps the CSS id.
+    const attrs = { ...element.attrs };
+    if (i > 0) delete attrs._css_id;
+    const copy = (text: string): CxdBlock => ({
+      ...element,
+      id: newBlockId(),
+      attrs: { ...attrs, [field]: text },
+    });
+    if ('html' in piece) return copy(piece.html);
+    const { text } = piece.shortcode;
+    const advanced = Object.fromEntries(
+      Object.entries(attrs).filter(([key]) => key.startsWith('_') && !key.startsWith('__')),
+    );
+    return shortcodePlaceholder(
+      piece.shortcode,
+      [copy(field === 'code' ? text : `<p>${text}</p>`)],
+      { type: 'fresco/block', v: 1, attrs: advanced },
+    );
+  });
 }
 
 // ---- Settings every element has ------------------------------------------------------------
@@ -874,8 +910,8 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         result = c.node('html', out);
         break;
       case 'shortcode':
+        // Plugins may turn it into their block on import (below); otherwise it is text.
         out.content = `<p>${str(src.shortcode)}</p>`;
-        c.note('shortcodes were kept as text');
         result = c.node('text', out);
         break;
       case 'menu-anchor':
@@ -997,6 +1033,11 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
       }
     }
     widgetCommon(c, result.attrs, src);
+    if (type === 'text-editor' || type === 'html' || type === 'shortcode') {
+      const pieces = withShortcodes(result, type === 'html' ? 'code' : 'content');
+      if (pieces) return pieces;
+      if (type === 'shortcode') c.note('shortcodes were kept as text');
+    }
     return [result];
   };
 

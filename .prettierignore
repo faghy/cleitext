@@ -3,3 +3,5 @@ dist/
 coverage/
 packages/db/drizzle/meta/
 LICENSE
+# Vendored, kept byte for byte with its license header.
+plugins/kross-booking/public/jquery-*.min.js

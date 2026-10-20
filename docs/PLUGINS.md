@@ -186,23 +186,24 @@ ctx.hooks.filter(
 
 **Filters** (public site, they need the `theme:hooks` permission):
 
-| Name                       | Value                                                                                                                                           | Context                                                |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                         | `RenderHookContext`                                    |
-| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                                                                               | `RenderHookContext` with `entry`                       |
-| `render.html`              | the final HTML string                                                                                                                           | `RenderHookContext`                                    |
-| `render.adminBarEdit`      | the edit link of the public toolbar on an entry, `{ label, href }` (an admin address), or `null` to hide it, e.g. "Edit with …" (API 1.29)      | `{ siteId, locale, entry: { id, type, editor? } }`     |
-| `render.maintenance`       | the page visitors get in maintenance mode: `{ html, retryAfter? }` (a whole document) instead of the theme's, or `null` (API 1.35)              | `MaintenanceContext`                                   |
-| `theme.templateCandidates` | template names tried in order                                                                                                                   | `RenderHookContext`                                    |
-| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                            | `{ siteId, ids }`                                      |
-| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                               | `{ siteId, locale, userId, base }`                     |
-| `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)                                                       | `{ siteId, name, attrs, html, children }`              |
-| `import.pluginData`        | the plugin's data of an imported document (`document.plugins[slug]`): `{ warnings? }` when taken, `null` otherwise (API 1.28)                   | `{ siteId, slug, data, idMap, userId }`                |
-| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                                                                               | `{ siteId, locale, siteTitle, term }`                  |
-| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                                                                           | `{ siteId }`                                           |
-| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`)                                                      | `{ siteId, kind, slug, locale }`                       |
-| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                                                                              | `{ siteId, host, path, status, tags }`                 |
-| `robots.txt`               | the text of `/robots.txt`, with its `Sitemap:` line; no permission. A site that asks search engines to stay away keeps `Disallow: /` (API 1.24) | `{ siteId, origin, sitemap, discourageSearchEngines }` |
+| Name                       | Value                                                                                                                                                                 | Context                                                |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                                               | `RenderHookContext`                                    |
+| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                                                                                                     | `RenderHookContext` with `entry`                       |
+| `render.html`              | the final HTML string                                                                                                                                                 | `RenderHookContext`                                    |
+| `render.adminBarEdit`      | the edit link of the public toolbar on an entry, `{ label, href }` (an admin address), or `null` to hide it, e.g. "Edit with …" (API 1.29)                            | `{ siteId, locale, entry: { id, type, editor? } }`     |
+| `render.maintenance`       | the page visitors get in maintenance mode: `{ html, retryAfter? }` (a whole document) instead of the theme's, or `null` (API 1.35)                                    | `MaintenanceContext`                                   |
+| `theme.templateCandidates` | template names tried in order                                                                                                                                         | `RenderHookContext`                                    |
+| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                                                  | `{ siteId, ids }`                                      |
+| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                                                     | `{ siteId, locale, userId, base }`                     |
+| `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)                                                                             | `{ siteId, name, attrs, html, children }`              |
+| `import.shortcode`         | a WordPress shortcode standing alone on import (own line or paragraph, Shortcode block, Elementor shortcode/text/HTML widget): the plugin's blocks instead (API 1.36) | `{ siteId, tag, attrs, content, text }`                |
+| `import.pluginData`        | the plugin's data of an imported document (`document.plugins[slug]`): `{ warnings? }` when taken, `null` otherwise (API 1.28)                                         | `{ siteId, slug, data, idMap, userId }`                |
+| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                                                                                                     | `{ siteId, locale, siteTitle, term }`                  |
+| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                                                                                                 | `{ siteId }`                                           |
+| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`)                                                                            | `{ siteId, kind, slug, locale }`                       |
+| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                                                                                                    | `{ siteId, host, path, status, tags }`                 |
+| `robots.txt`               | the text of `/robots.txt`, with its `Sitemap:` line; no permission. A site that asks search engines to stay away keeps `Disallow: /` (API 1.24)                       | `{ siteId, origin, sitemap, discourageSearchEngines }` |
 
 `RenderHookContext` is `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (plugin API 1.33) is `true` when the visitor is signed in: their pages are never cached, so content may depend on it. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
 
@@ -412,6 +413,7 @@ defineBlock<{ gap: number; image?: string }>({
 - `context.page` (also in `load`) is the page being rendered: `route`, `site` (`title`, `tagline`, `home`), `params` (the query parameters of the address, e.g. a page number), and `entry` (the full public entry), `archive` (title, term, entries, pagination; `html` for plugin listings, API 1.20) or `search`, for blocks that show the page's own data, such as a theme builder's post title or archive list.
 - `context.query({ type, terms, ids, exclude, orderBy, order, limit, offset })` in `load` (plugin API 1.11) lists published entries in the page's language, complete as themes get them (excerpt, images, terms, fields), with the `total` for pagination; the page refreshes when entries of those types change. `orderBy` is `date` (default), `title`, `modified`, `random` or `order` (the manual order of the admin, as WordPress's `menu_order`, API 1.31); `terms` is `{ taxonomy, slugs }`; `limit` is at most 100. Loops, related posts and portfolios use it.
 - `context.menus` holds the site's menus in the page's language, by theme location (`{ id, label, url, target?, current, children }`), for navigation blocks.
+- `context.preview` (plugin API 1.36) is `true` when the block is rendered for an editor's preview (`POST /api/v1/blocks/preview`, e.g. Fresco's canvas), not for a page: a block whose content comes from a script (a booking widget) can show a placeholder there.
 - `items` (containers): each child rendered on its own, to wrap them one by one (tabs, accordions, carousels).
 - `html` lists attributes holding raw HTML: for authors without `unfiltered_html` they are cleaned on save, like the Custom HTML block.
 - `media` lists the media ids an instance uses. They are preloaded into `context.media`, with their `url`, size, `alt` and resized `variants`.
@@ -682,7 +684,7 @@ Public pages are cached and refreshed through **tags**. Pages showing an entry c
 
 ### Requests to other services
 
-`network` (plugin API 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` returns `{ status, type, text }`. Use it for webhooks, mailing lists and chat notifications. Only public `https` addresses are accepted: names resolving to the server's own network are refused when connecting, redirects are not followed, answers are cut at 1 MB and requests last 10 seconds by default (30 at most).
+`network` (plugin API 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` returns `{ status, type, text }`. Use it for webhooks, mailing lists and chat notifications. Only public `https` addresses are accepted: names resolving to the server's own network are refused when connecting, redirects are not followed, answers are cut at 1 MB and requests last 10 seconds by default (30 at most). With `binary: true` (plugin API 1.36) the answer is a file: its bytes come as `base64` (up to 5 MB) and `text` is empty, e.g. to copy a font or an image from an imported site.
 
 ```ts
 const res = await ctx.http.send({
@@ -767,7 +769,17 @@ const report = await ctx.transfer.importDocument(siteId, document, {
 // { created: { entries: 12, media: 30, … }, skipped: {…}, warnings: […], errors: […] }
 ```
 
-Entry content is made of blocks: `@cleitext/blocks/html` turns HTML and block markup into them (`htmlToCxd`). Media files are given by their http(s) address and downloaded only from public addresses, never from the server's own network. What is already on the site is kept, and old addresses (`oldPaths`) become redirects. A big site takes minutes: start the import without awaiting it in the route, and keep its progress in `ctx.storage`.
+Entry content is made of blocks: `@cleitext/blocks/html` turns HTML and block markup into them (`htmlToCxd`). During an import (`keepUnknown`), WordPress blocks without an equivalent and shortcodes standing alone become `core/imported` placeholders: active plugins replace them through `import.block` and `import.shortcode` (API 1.36), and the rest keeps its text, with one report line per kind. In an Elementor page imported into Fresco, a shortcode's blocks go inside a Fresco plugin block element (the placeholder's `wrap`). For example, the official **Kross Booking** plugin turns `[kross-booking id="3" lang="it"]` into its block:
+
+```ts
+ctx.hooks.filter(
+  'import.shortcode',
+  (blocks, { tag, attrs }) =>
+    blocks ?? (tag === 'kross-booking' ? [blockFromShortcode(attrs)] : null),
+);
+```
+
+Media files are given by their http(s) address and downloaded only from public addresses, never from the server's own network. What is already on the site is kept, and old addresses (`oldPaths`) become redirects. A big site takes minutes: start the import without awaiting it in the route, and keep its progress in `ctx.storage`.
 
 Entries may point to each other in any order: inside a document (or plugin data), `{ "$entry": "<entry ref>", "prefix": "entry:" }` becomes `prefix + <new id>` once every entry exists (`null` when that entry was not imported). Entries of a content type the site does not have (e.g. a plugin that is not active) are left out with one report line per type. Settings meant for a plugin go in `document.plugins` by plugin slug (API 1.28): after the entries, each active plugin gets its own through the `import.pluginData` filter, with media objects and entry references already remapped and `idMap` (`{ entries, terms, media }` by `ref`) for anything else; data that no active plugin takes is reported.
 

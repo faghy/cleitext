@@ -24,6 +24,29 @@ export default definePlugin({
         },
       ];
     });
+    // Shortcodes of WordPress pages become Boxes on import (plugin API 1.36).
+    ctx.hooks.filter('import.shortcode', (blocks, { tag, attrs, content }) => {
+      if (blocks || tag !== 'legacy-box') return blocks;
+      return [
+        {
+          id: `short-${Math.random().toString(36).slice(2, 10)}`,
+          type: 'native/box',
+          v: 1,
+          attrs: { heading: [{ text: attrs.title ?? '' }] },
+          children: content
+            ? [
+                {
+                  id: 'short-p',
+                  type: 'core/paragraph',
+                  v: 1,
+                  attrs: {},
+                  content: [{ text: content }],
+                },
+              ]
+            : [],
+        },
+      ];
+    });
     // Its own data of an imported document (plugin API 1.28), echoed in the report.
     ctx.hooks.filter('import.pluginData', (result, { slug, data, idMap }) => {
       if (slug !== 'native') return result;
@@ -74,6 +97,14 @@ export default definePlugin({
         };
       },
     });
+    // Tells where it is rendered: an editor's preview or a page (plugin API 1.36).
+    ctx.blocks.register(
+      defineBlock({
+        type: 'native/where',
+        title: 'Where',
+        render: ({ context }) => <p>{context.preview ? 'In a preview' : 'On a page'}</p>,
+      }),
+    );
     ctx.blocks.register(
       defineBlock<Attrs>({
         type: 'native/box',

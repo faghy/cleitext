@@ -1,0 +1,14 @@
+{
+  "slug": "kross-booking",
+  "name": "Kross Booking",
+  "version": "1.0.0",
+  "apiVersion": "^1.36",
+  "description": "The booking widget of Kross Booking on your pages: a block for the block editor and Fresco, its files loaded only where it is shown, and the [kross-booking] shortcodes of WordPress pages converted on import.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "editor": "dist/editor.js",
+  "public": "dist/public",
+  "permissions": ["blocks", "theme:hooks", "routes:admin", "settings:own"]
+}

@@ -256,6 +256,28 @@ export interface Filters {
     },
   ];
   /**
+   * A WordPress shortcode standing alone during an import (plugin API 1.36):
+   * on its own line or paragraph of the content, in a Shortcode block, or in
+   * an Elementor shortcode, text or HTML widget. Return blocks of the plugin
+   * to use instead, e.g. `[my-form id="3"]` → the plugin's form block.
+   * `attrs` are its attributes by lowercase name (positional ones by index:
+   * `0`, `1`…), `content` the text between `[tag]` and `[/tag]` (null when
+   * it encloses none), `text` the shortcode as written. In a page builder's
+   * page (an Elementor page imported into Fresco), each block is placed in
+   * the builder's element for plugin blocks. Without an answer, the
+   * shortcode stays as text; the import report counts both.
+   */
+  'import.shortcode': [
+    blocks: CxdBlock[] | null,
+    context: {
+      siteId: string;
+      tag: string;
+      attrs: Record<string, string>;
+      content: string | null;
+      text: string;
+    },
+  ];
+  /**
    * Data for this plugin in an imported transfer document (plugin API 1.28):
    * `document.plugins[slug]`, e.g. a page builder's site settings converted
    * from another system. Called once per slug, after the entries, media and

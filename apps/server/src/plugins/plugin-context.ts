@@ -110,8 +110,9 @@ export interface PluginServices {
       headers?: Record<string, string>;
       body?: string;
       timeoutMs: number;
+      binary?: boolean;
     },
-  ): Promise<{ status: number; type: string; text: string }>;
+  ): Promise<{ status: number; type: string; text: string; base64?: string }>;
   /** What the core keeps about an email on a site: account, sessions, activity. */
   corePersonalData(siteId: string, email: string): Promise<PersonalDataGroup[]>;
   /** Anonymizes the comments and removes the likes of an email (art. 17). */
@@ -440,6 +441,7 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           ...(request.headers ? { headers: request.headers } : {}),
           ...(request.body !== undefined ? { body: request.body } : {}),
           timeoutMs: Math.min(Math.max(request.timeoutMs ?? 10_000, 1000), 30_000),
+          ...(request.binary ? { binary: true } : {}),
         });
       },
     },

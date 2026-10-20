@@ -174,6 +174,94 @@ describe('blocks with their own editor', () => {
     expect(html).not.toContain('core/imported');
   });
 
+  it('turns shortcodes of WordPress pages into its blocks on import (plugin API 1.36)', async () => {
+    const paragraph = (text: string) => ({
+      id: `p${Math.random().toString(36).slice(2, 8)}`,
+      type: 'core/paragraph',
+      v: 1,
+      attrs: {},
+      content: [{ text }],
+    });
+    // As `@cleitext/blocks/html` keeps a shortcode standing alone.
+    const placeholder = (
+      shortcode: { tag: string; attrs: Record<string, string>; content: string | null },
+      wrap?: Record<string, unknown>,
+    ) => {
+      const text = `[${shortcode.tag}]`;
+      return {
+        id: `s${Math.random().toString(36).slice(2, 8)}`,
+        type: 'core/imported',
+        v: 1,
+        attrs: {
+          name: 'core/shortcode',
+          shortcode: { ...shortcode, text },
+          html: text,
+          fallback: [paragraph(text)],
+          ...(wrap ? { wrap } : {}),
+        },
+      };
+    };
+    const res = await admin.post('/api/v1/ext/native/import', {
+      format: 'cleitext-transfer',
+      version: 1,
+      source: { kind: 'wordpress', exportedAt: '2026-10-20T10:00:00Z' },
+      entries: [
+        {
+          ref: 'post:7',
+          type: 'page',
+          locale: 'en',
+          slug: 'shortcodes',
+          title: 'Shortcodes',
+          status: 'published',
+          publishedAt: '2026-10-20T10:00:00Z',
+          document: {
+            schema: 1,
+            blocks: [
+              placeholder({ tag: 'legacy-box', attrs: { title: 'Booking' }, content: 'Rooms' }),
+              // In a page builder's page: inside the builder's element for plugin blocks.
+              placeholder(
+                { tag: 'legacy-box', attrs: { title: 'Wrapped' }, content: null },
+                { type: 'native/box', v: 1, attrs: { heading: [{ text: 'Outer' }] } },
+              ),
+              placeholder({ tag: 'unknown-form', attrs: {}, content: null }),
+            ],
+          },
+        },
+      ],
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const warnings = res.json().warnings as string[];
+    expect(warnings).toContain('Shortcode [legacy-box] became a block of an active plugin (2×).');
+    expect(warnings).toContain(
+      'Shortcode [unknown-form] has no equivalent (1×): kept as text. A plugin may add it.',
+    );
+    const html = (await visitor.get('/shortcodes')).body;
+    expect(html).toMatch(/<section class="nb-box nb-short-\w+"><h2>Booking<\/h2><p>Rooms<\/p>/);
+    expect(html).toMatch(
+      /<section class="nb-box nb-b_\w+"><h2>Outer<\/h2><section class="nb-box nb-short-\w+"><h2>Wrapped<\/h2>/,
+    );
+    expect(html).toContain('<p>[unknown-form]</p>');
+    expect(html).not.toContain('core/imported');
+  });
+
+  it('tells blocks when they are rendered for an editor’s preview (plugin API 1.36)', async () => {
+    const preview = await admin.post('/api/v1/blocks/preview', {
+      block: { id: 'w1', type: 'native/where', v: 1, attrs: {} },
+      locale: 'en',
+    });
+    expect(preview.statusCode, preview.body).toBe(200);
+    expect(preview.json().html).toContain('In a preview');
+    const created = await admin.post('/api/v1/entries', {
+      type: 'page',
+      title: 'Where',
+      document: { schema: 1, blocks: [{ id: 'w2', type: 'native/where', v: 1, attrs: {} }] },
+    });
+    const published = await admin.post(`/api/v1/entries/${created.json().id}/publish`);
+    expect((await visitor.get(`/${published.json().slug as string}`)).body).toContain(
+      '<p>On a page</p>',
+    );
+  });
+
   it('resolves entry references and hands plugins their data on import', async () => {
     const box = (id: string, attrs: Record<string, unknown>) => ({
       id,

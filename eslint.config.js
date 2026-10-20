@@ -5,7 +5,14 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '.cleitext-dev/**', '**/coverage/**'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '.cleitext-dev/**',
+      '**/coverage/**',
+      // Vendored, kept byte for byte with its license header.
+      'plugins/kross-booking/public/jquery-*.min.js',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -41,6 +48,11 @@ export default tseslint.config(
       'apps/server/test/fixtures/*/src/editor.tsx',
     ],
     rules: { 'no-restricted-imports': 'off' },
+  },
+  {
+    // Plugins' public scripts that ship unbundled (e.g. Kross Booking's loader).
+    files: ['plugins/*/public/**/*.js'],
+    languageOptions: { globals: { ...globals.browser } },
   },
   {
     files: ['apps/admin/**/*.{ts,tsx}'],

@@ -632,6 +632,9 @@ export class PluginServicesProvider implements PluginServices {
       // WordPress blocks without an equivalent: active plugins may convert them.
       importBlock: (block) =>
         this.host.applyFilter('import.block', null, { siteId, ...block }, siteId),
+      // Shortcodes standing alone: active plugins may turn them into their blocks.
+      importShortcode: (shortcode) =>
+        this.host.applyFilter('import.shortcode', null, { siteId, ...shortcode }, siteId),
       // Settings meant for plugins (e.g. a page builder's kit): the active ones take theirs.
       importPluginData: (input) =>
         this.host.applyFilter(
@@ -778,16 +781,20 @@ export class PluginServicesProvider implements PluginServices {
       headers?: Record<string, string>;
       body?: string;
       timeoutMs: number;
+      binary?: boolean;
     },
-  ): Promise<{ status: number; type: string; text: string }> {
+  ): Promise<{ status: number; type: string; text: string; base64?: string }> {
     const res = await sendPublic(request.url, {
       method: request.method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
       ...(request.headers ? { headers: request.headers } : {}),
       ...(request.body !== undefined ? { body: request.body } : {}),
-      maxBytes: 1024 * 1024,
+      // Files (fonts, images) may be larger than API answers.
+      maxBytes: request.binary ? 5 * 1024 * 1024 : 1024 * 1024,
       timeoutMs: request.timeoutMs,
       userAgent: `Cleitext-Plugin/${plugin.slug}`,
     });
+    if (request.binary)
+      return { status: res.status, type: res.type, text: '', base64: res.data.toString('base64') };
     return { status: res.status, type: res.type, text: res.data.toString('utf8') };
   }
 

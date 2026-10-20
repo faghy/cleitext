@@ -60,6 +60,8 @@ The WordPress importer (**Import from WordPress** in the admin menu) turns a sit
 - **Pro widgets** become their Fresco Pro elements (form, slides, call to action, flip box, price table and list, countdown, animated headline, posts and loops, carousels, theme elements and more), and motion effects, sticky, custom CSS, custom attributes and dynamic tags their Fresco Pro settings.
 - **Theme Builder templates** (header, footer, single, archive, popups, loop items, saved sections and global widgets) become Fresco Pro templates with their conditions; popups keep their trigger, frequency and layout. Custom code, custom fonts and the kit's custom CSS go to Fresco Pro's site settings.
 
+Shortcodes of other plugins standing alone in a shortcode, text or HTML widget become those plugins' blocks when an active plugin converts them (e.g. Kross Booking's `[kross-booking]`), inside a plugin block element; the others stay text.
+
 Pro widgets, templates and Pro settings show with Fresco Pro: activate it before importing so that templates are imported too. The import report lists what had no counterpart or was approximated.
 
 ---

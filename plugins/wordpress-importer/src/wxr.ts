@@ -283,6 +283,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       warn: (message) => warnings.push(`${title || `#${id}`}: ${message}`),
     });
     termIdsToSlugs(document.blocks, channel);
+    // Shortcodes standing alone are left to active plugins (`import.shortcode`).
+    const placed = shortcodeTexts(document.blocks);
     // Elementor pages: their layout and page settings, as a Fresco page.
     const elementorData = meta(item, '_elementor_data');
     if (useElementor && meta(item, '_elementor_edit_mode') === 'builder' && elementorData) {
@@ -362,8 +364,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         ...(ip ? { ip } : {}),
       });
     }
-    // Galleries become galleries; other shortcodes stay as text.
-    if (/\[(?!gallery\b)[a-z_-]+[^\]]*\]/i.test(content) && !/<!--\s+wp:shortcode/.test(content)) {
+    // Galleries become galleries; shortcodes inside text stay as text.
+    const rest = placed.reduce((text, shortcode) => text.replace(shortcode, ''), content);
+    if (/\[(?!gallery\b)[a-z_-]+[^\]]*\]/i.test(rest) && !/<!--\s+wp:shortcode/.test(rest)) {
       warnings.push(`${title || `#${id}`}: contains shortcodes, left as text.`);
     }
     const categories = ((item.category as Node[] | undefined) ?? []).map((c) => ({
@@ -587,6 +590,18 @@ const POST_BLOCKS = new Set([
  * Blocks of other plugins that filter posts by category or tag keep WordPress's
  * term ids, which mean nothing on the new site: they become the terms' slugs.
  */
+/** The shortcodes kept as placeholders for plugins, as written. */
+function shortcodeTexts(blocks: CxdBlock[]): string[] {
+  const out: string[] = [];
+  for (const block of blocks) {
+    const shortcode = block.attrs.shortcode as { text?: unknown } | undefined;
+    if (block.type === IMPORTED_BLOCK && typeof shortcode?.text === 'string')
+      out.push(shortcode.text);
+    if (block.children) out.push(...shortcodeTexts(block.children));
+  }
+  return out;
+}
+
 function termIdsToSlugs(blocks: CxdBlock[], channel: Node): void {
   for (const block of blocks) {
     if (block.type === IMPORTED_BLOCK && POST_BLOCKS.has(String(block.attrs.name))) {

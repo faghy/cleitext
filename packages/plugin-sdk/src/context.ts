@@ -507,6 +507,12 @@ export interface BlockRenderContext {
   media: ReadonlyMap<string, BlockMedia>;
   /** The site's menus in the page's language, by theme location (e.g. `primary`). */
   menus: Readonly<Record<string, BlockMenuItem[]>>;
+  /**
+   * Rendered for an editor's preview of the block (`POST /blocks/preview`,
+   * e.g. in Fresco's canvas), not for a page (plugin API 1.36): a block that
+   * shows nothing until its script runs can show a placeholder instead.
+   */
+  preview?: boolean;
 }
 
 /** A menu item as blocks see it. */
@@ -792,7 +798,12 @@ export interface HttpApi {
     body?: string;
     /** 10 seconds when left out, 30 at most. */
     timeoutMs?: number;
-  }): Promise<{ status: number; type: string; text: string }>;
+    /**
+     * A file rather than text (plugin API 1.36): the answer's bytes come as
+     * `base64`, up to 5 MB, and `text` is empty.
+     */
+    binary?: boolean;
+  }): Promise<{ status: number; type: string; text: string; base64?: string }>;
 }
 
 // ---- Import -------------------------------------------------------------------------

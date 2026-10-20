@@ -62,6 +62,7 @@ const SEPARATE = [
   'editor-convert',
   'layout-import',
   'maintenance',
+  'kross-booking',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
