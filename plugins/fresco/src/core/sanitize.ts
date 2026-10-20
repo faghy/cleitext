@@ -68,8 +68,34 @@ const escapeText = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escapeAttr = (text: string) => escapeText(text).replace(/"/g, '&quot;');
 
+/** Inline styles kept from pasted or imported text: alignment, colors and font styles only. */
+const STYLE_RULES: Record<string, RegExp> = {
+  'text-align': /^(left|right|center|justify|start|end)$/,
+  color: /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%]+\)|[a-z]{3,20})$/i,
+  'background-color': /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%]+\)|[a-z]{3,20})$/i,
+  'font-weight': /^(normal|bold|[1-9]00)$/,
+  'font-style': /^(normal|italic)$/,
+  'text-decoration': /^(none|underline|line-through)$/,
+};
+
+export function safeStyle(value: string): string | null {
+  const kept: string[] = [];
+  for (const declaration of value.split(';')) {
+    const at = declaration.indexOf(':');
+    if (at === -1) continue;
+    const prop = declaration.slice(0, at).trim().toLowerCase();
+    const val = declaration.slice(at + 1).trim();
+    if (STYLE_RULES[prop]?.test(val)) kept.push(`${prop}: ${val}`);
+  }
+  return kept.length ? kept.join('; ') : null;
+}
+
 function attribute(tag: string, name: string, value: string): string | null {
   const key = name.toLowerCase();
+  if (key === 'style') {
+    const style = safeStyle(value);
+    return style ? `style="${escapeAttr(style)}"` : null;
+  }
   if (!COMMON.has(key) && !BY_TAG[tag]?.has(key)) return null;
   if (key === 'href' && !SAFE_URL.test(value.trim())) return null;
   if (key === 'src' && !SAFE_SRC.test(value.trim())) return null;

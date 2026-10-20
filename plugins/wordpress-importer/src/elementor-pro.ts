@@ -49,6 +49,9 @@ function carousel(out: Settings, src: Settings): void {
     out.autoplay_speed = Math.max(1, Math.round(num(src.autoplay_speed)! / 1000));
   if (src.loop === '' || src.infinite === 'no') out.loop = false;
   color(out, src, 'arrows_color', 'arrow_color');
+  // Elementor's arrows are plain chevrons (no round box), 20px unless set.
+  out.arrow_bg = 'transparent';
+  out.arrow_size = size(src.arrows_size) ?? { size: 20, unit: 'px' };
   color(out, src, 'pagination_color', 'dot_active');
 }
 
@@ -1007,6 +1010,28 @@ export function proWidget(
         ...(type === 'reviews' && link(slide.link) ? { link: link(slide.link) } : {}),
       }));
       carousel(out, src);
+      if (type === 'testimonial-carousel') {
+        // Elementor's layouts: the photo beside the text, above it, or inline with the name below.
+        const layout = str(src.layout) || 'image_inline';
+        out.layout =
+          layout === 'image_left'
+            ? 'left'
+            : layout === 'image_right'
+              ? 'right'
+              : layout === 'image_above'
+                ? 'top'
+                : 'bottom';
+        copy(out, src, 'image_size', 'photo_size', (v) => size(v, c));
+        copy(out, src, 'image_border_radius', 'photo_radius', (v) => size(v, c), false);
+        copy(out, src, 'content_gap', 'photo_gap', (v) => size(v, c));
+        // No card of its own: Elementor's testimonials sit on the page.
+        if (!colorOf(src, 'background_color')) out.card_bg = 'transparent';
+        out.card_padding = { top: 0, right: 0, bottom: 0, left: 0, unit: 'px', linked: true };
+        c.typography(out, src, 'content_typography', 'content_typography');
+        c.typography(out, src, 'name_typography', 'name_typography');
+        color(out, src, 'title_color', 'role_color');
+        c.typography(out, src, 'title_typography', 'role_typography');
+      }
       copy(out, src, 'alignment', 'align', (v) => str(v) || undefined, false);
       color(out, src, 'background_color', 'card_bg');
       color(out, src, 'content_color', 'content_color');

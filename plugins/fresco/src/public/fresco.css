@@ -220,7 +220,7 @@ a.fr-container {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 0 solid transparent;
+  border: 0 solid currentColor; /* A border style without a color: the text color, as in CSS. */
   border-radius: 4px;
   background-color: var(--fr-c-accent, #1d4ed8);
   color: #fff;

@@ -278,7 +278,17 @@ function proAdvanced(c: Converter, out: Settings, src: Settings): void {
       any = true;
     }
     if (yes(src[`${fx}scale_effect`])) {
-      out._motion_scale = str(src[`${fx}scale_direction`]).startsWith('in') ? 'down' : 'up';
+      // Elementor scales up from the element's own size: 1 + speed × progress / 10.
+      const direction = str(src[`${fx}scale_direction`]) || 'out-in';
+      out._motion_scale =
+        direction === 'in-out'
+          ? 'down'
+          : direction === 'out-in-out'
+            ? 'up-down'
+            : direction === 'in-out-in'
+              ? 'down-up'
+              : 'up';
+      out._motion_scale_speed = speed('scale');
       any = true;
     }
     if (any) {
@@ -389,6 +399,21 @@ function hide(out: Settings, src: Settings): void {
     const value = str(src[`hide_${device}`]);
     if (value.startsWith('hidden-') || value === 'yes') out[`_hide_${device}`] = true;
   }
+}
+
+/** Icons that are not brands among the networks of old social icons (`fa fa-…`). */
+const SOLID_SOCIAL = new Set(['envelope', 'phone', 'globe', 'rss', 'link', 'home', 'map-marker']);
+
+/** The icon of an old social icon (Elementor 1/2: `social: 'fa fa-facebook'`, Font Awesome 4). */
+function legacySocial(value: unknown): Settings | undefined {
+  const name = /\bfa-([\w-]+)/.exec(str(value))?.[1];
+  if (!name) return undefined;
+  return SOLID_SOCIAL.has(name)
+    ? {
+        set: 'solid',
+        name: name === 'home' ? 'house' : name === 'map-marker' ? 'location-dot' : name,
+      }
+    : { set: 'brands', name };
 }
 
 /** Shapes Fresco's containers draw (the others are left out). */
@@ -868,16 +893,21 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
       case 'social-icons':
         out.items = list(src.social_icon_list).map((item, i) => ({
           _id: str(item._id) || `s${i}`,
-          ...(c.icon(item.social_icon) ? { icon: c.icon(item.social_icon) } : {}),
+          ...((c.icon(item.social_icon) ?? legacySocial(item.social))
+            ? { icon: c.icon(item.social_icon) ?? legacySocial(item.social) }
+            : {}),
           ...(itemLink(item, ctx.entryRef) ? { link: itemLink(item, ctx.entryRef) } : {}),
         }));
         if (['rounded', 'square', 'circle'].includes(str(src.shape))) out.shape = str(src.shape);
         if (src.icon_color === 'custom') {
           out.look = 'custom';
-          color(out, src, 'icon_primary_color', 'primary');
-          color(out, src, 'icon_secondary_color', 'secondary');
+          color(out, src, 'icon_primary_color', 'primary', 'hover_primary_color');
+          color(out, src, 'icon_secondary_color', 'secondary', 'hover_secondary_color');
         }
+        // Elementor's icons: 25px with 0.5em around unless set.
         copy(out, src, 'icon_size', 'size', (v) => size(v, c));
+        if (!out.size) out.size = { size: 25, unit: 'px' };
+        copy(out, src, 'icon_padding', 'padding', (v) => size(v, c), false);
         copy(out, src, 'icon_spacing', 'spacing', (v) => size(v, c));
         alignTo(out, src, 'align');
         result = c.node('social-icons', out);
@@ -1005,11 +1035,34 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
       case 'toggle': {
         // Legacy widgets: each item's HTML becomes a container with a text.
         const items = list(src.tabs);
+        // The content's color and font go to each item's text.
+        const textStyle: Settings = {};
+        if (type !== 'tabs') {
+          color(textStyle, src, 'content_color', 'color');
+          c.typography(textStyle, src, 'content_typography', 'typography');
+        }
         const children = items.map((item) =>
           c.node('container', { _title: str(item.tab_title), content_width: 'full' }, [
-            c.node('text', { content: str(item.tab_content) }),
+            c.node('text', { content: str(item.tab_content), ...textStyle }),
           ]),
         );
+        if (type !== 'tabs') {
+          // Elementor's look: its icons (plus and minus, at the start), title and content styles.
+          const closed = c.icon(src.selected_icon);
+          const opened = c.icon(src.selected_active_icon);
+          if (closed) out.icon = closed;
+          if (opened) out.icon_open = opened;
+          out.icon_position = str(src.icon_align) === 'right' ? 'end' : 'start';
+          if (HEADING_TAGS.has(str(src.title_html_tag))) out.title_tag = str(src.title_html_tag);
+          color(out, src, 'title_color', 'title_color');
+          color(out, src, 'tab_active_color', 'title_open_color');
+          color(out, src, 'title_background', 'title_bg');
+          color(out, src, 'icon_color', 'icon_color');
+          c.typography(out, src, 'title_typography', 'title_typography');
+          color(out, src, 'content_background_color', 'content_bg');
+          copy(out, src, 'title_padding', 'title_padding', (v) => box(v, c));
+          copy(out, src, 'content_padding', 'content_padding', (v) => box(v, c));
+        }
         if (type !== 'tabs' && src.faq_schema === 'yes') out.faq = true;
         if (type === 'toggle') out.multiple = true;
         if (type === 'accordion') out.open = 'first';
@@ -1123,7 +1176,9 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           extra.min_height = { size: 100, unit: 'vh' };
           extra['min_height@mobile'] = { size: 0, unit: 'px' };
         }
-        if (src[heightKey] === 'full' || src[heightKey] === 'min-height') {
+        // "Column position" belongs to the height of top sections only (Elementor's
+        // condition): in inner sections the columns stretch to the row's height.
+        if (!el.isInner && (src.height === 'full' || src.height === 'min-height')) {
           const position = str(src.column_position) || 'middle';
           extra.align_items =
             position === 'top'

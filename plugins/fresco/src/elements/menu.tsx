@@ -7,42 +7,48 @@ import type { ElementDefinition, MenuItem } from '../core/model.js';
 function Items({ items, level, arrow }: { items: MenuItem[]; level: number; arrow: unknown }) {
   return (
     <ul className={level === 0 ? 'fr-menu__list' : 'fr-menu__sub'}>
-      {items.map((item) => (
-        <li
-          key={item.id}
-          className={`fr-menu__item${item.current ? ' is-current' : ''}${item.children.length ? ' has-children' : ''}`}
-        >
-          <a
-            className="fr-menu__link"
-            href={/^(https?:\/\/|\/|#|mailto:|tel:)/.test(item.url) ? item.url : '#'}
-            {...(item.target ? { target: '_blank', rel: 'noopener' } : {})}
-            {...(item.current ? { 'aria-current': 'page' as const } : {})}
+      {items.map((item) => {
+        // `current` is also set on the items above the current page: those
+        // are its ancestors, not the current item (Elementor, WordPress).
+        const ancestor = item.current && item.children.some((child) => child.current);
+        const current = item.current && !ancestor;
+        return (
+          <li
+            key={item.id}
+            className={`fr-menu__item${current ? ' is-current' : ''}${ancestor ? ' is-current-ancestor' : ''}${item.children.length ? ' has-children' : ''}`}
           >
-            {item.label}
-            {arrow && item.children.length > 0 ? (
-              <span className="fr-menu__arrow" aria-hidden="true">
-                <Icon value={arrow} />
-              </span>
-            ) : null}
-          </a>
-          {item.children.length > 0 && (
-            <>
-              <button
-                type="button"
-                className="fr-menu__expand"
-                aria-expanded="false"
-                aria-label={`Open ${item.label}`}
-                data-fr-expand=""
-              >
-                <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
-                  <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" />
-                </svg>
-              </button>
-              <Items items={item.children} level={level + 1} arrow={arrow} />
-            </>
-          )}
-        </li>
-      ))}
+            <a
+              className="fr-menu__link"
+              href={/^(https?:\/\/|\/|#|mailto:|tel:)/.test(item.url) ? item.url : '#'}
+              {...(item.target ? { target: '_blank', rel: 'noopener' } : {})}
+              {...(current ? { 'aria-current': 'page' as const } : {})}
+            >
+              {item.label}
+              {arrow && item.children.length > 0 ? (
+                <span className="fr-menu__arrow" aria-hidden="true">
+                  <Icon value={arrow} />
+                </span>
+              ) : null}
+            </a>
+            {item.children.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  className="fr-menu__expand"
+                  aria-expanded="false"
+                  aria-label={`Open ${item.label}`}
+                  data-fr-expand=""
+                >
+                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+                    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" />
+                  </svg>
+                </button>
+                <Items items={item.children} level={level + 1} arrow={arrow} />
+              </>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

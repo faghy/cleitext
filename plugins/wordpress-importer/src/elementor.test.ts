@@ -295,6 +295,8 @@ describe('Elementor pages to Fresco', () => {
         motion_fx_translateY_affectedRange: { unit: '%', sizes: { start: 20, end: 80 } },
         motion_fx_opacity_effect: 'yes',
         motion_fx_opacity_direction: 'out-in',
+        motion_fx_scale_effect: 'yes',
+        motion_fx_scale_speed: { unit: 'px', size: '' },
         sticky: 'top',
         sticky_on: ['desktop', 'tablet'],
         sticky_offset: 20,
@@ -326,6 +328,9 @@ describe('Elementor pages to Fresco', () => {
       _motion_scroll: true,
       _motion_y: -3,
       _motion_fade: 'in',
+      // Elementor's scale: growing from the element's size, speed 4 by default.
+      _motion_scale: 'up',
+      _motion_scale_speed: 4,
       _motion_range: '20-80',
       _sticky: 'top',
       _sticky_offset: 20,
@@ -646,6 +651,77 @@ describe('Elementor pages to Fresco', () => {
       graphic: { id: 'att:12' },
       graphic_width: { size: 49, unit: '%' },
     });
+  });
+
+  it('stretches the columns of inner sections with a minimum height', () => {
+    const inner = (isInner: boolean) =>
+      elementorToFresco(
+        JSON.stringify([
+          {
+            id: 's',
+            elType: 'section',
+            isInner,
+            settings: isInner
+              ? { height_inner: 'min-height', custom_height_inner: { unit: 'px', size: 250 } }
+              : { height: 'min-height', custom_height: { unit: 'px', size: 250 } },
+            elements: [
+              { id: 'c', elType: 'column', settings: { _column_size: 100 }, elements: [] },
+            ],
+          },
+        ]),
+        context([]),
+      )![0]!;
+    expect(inner(true).attrs.min_height).toEqual({ size: 250, unit: 'px' });
+    expect(inner(true).attrs.align_items).toBeUndefined();
+    // Top sections: "Column position" (middle by default).
+    expect(inner(false).attrs.align_items).toBe('center');
+  });
+
+  it('keeps the look of legacy accordions', () => {
+    const { block } = one({
+      widgetType: 'accordion',
+      settings: {
+        tabs: [{ _id: 'a', tab_title: 'Price?', tab_content: '<p>12 euro</p>' }],
+        title_typography_typography: 'custom',
+        title_typography_font_family: 'Funny Pages Regular',
+        content_color: '#868686',
+        __globals__: {
+          title_color: 'globals/colors?id=d25a2d9',
+          tab_active_color: 'globals/colors?id=accent',
+        },
+      },
+    });
+    expect(block.attrs).toMatchObject({
+      icon_position: 'start',
+      title_color: 'var(--fr-c-d25a2d9)',
+      title_open_color: 'var(--fr-c-accent)',
+      title_typography_family: 'Funny Pages Regular',
+    });
+    expect(block.children![0]!.children![0]!.attrs).toMatchObject({
+      content: '<p>12 euro</p>',
+      color: '#868686',
+    });
+  });
+
+  it('reads old social icons (Font Awesome 4 classes)', () => {
+    const { block } = one({
+      widgetType: 'social-icons',
+      settings: {
+        social_icon_list: [
+          { _id: 'a', social: 'fa fa-facebook' },
+          { _id: 'b', social: 'fa fa-envelope' },
+        ],
+        icon_padding: { unit: 'em', size: 0.9 },
+      },
+    });
+    expect(block.attrs).toMatchObject({
+      size: { size: 25, unit: 'px' },
+      padding: { size: 0.9, unit: 'em' },
+    });
+    expect((block.attrs.items as { icon?: unknown }[]).map((i) => i.icon)).toEqual([
+      { set: 'brands', name: 'facebook' },
+      { set: 'solid', name: 'envelope' },
+    ]);
   });
 
   it('keeps the zoom of maps, Elementor’s default when unset', () => {

@@ -291,6 +291,31 @@ describe('rendering', () => {
     expect(html).toContain('fr-menu--arrows fr-menu--pointer-underline');
     expect(html).toContain('Park<span class="fr-menu__arrow" aria-hidden="true">');
     expect(html).not.toMatch(/Home<span class="fr-menu__arrow"/);
+    // On a child page, its parent is an ancestor, not the current item.
+    const child = renderToStaticMarkup(
+      navMenu.render({
+        node: node('fresco/nav-menu', attrs),
+        settings: withDefaults(navMenu, attrs),
+        context: {
+          ...context,
+          menus: {
+            primary: [
+              {
+                id: 'b',
+                label: 'Park',
+                url: '#',
+                current: true,
+                children: [{ id: 'c', label: 'Rides', url: '/rides', current: true, children: [] }],
+              },
+            ],
+          },
+        } as unknown as RenderContext,
+      }),
+    );
+    expect(child).toContain('class="fr-menu__item is-current-ancestor has-children"');
+    expect(child).toContain(
+      '<li class="fr-menu__item is-current"><a class="fr-menu__link" href="/rides" aria-current="page">Rides',
+    );
     const css = elementCss(navMenu, node('fresco/nav-menu', attrs), DEFAULT_BREAKPOINTS);
     expect(css).toContain('--fr-menu-pointer:#E30C1E');
     expect(css).toContain('--fr-menu-pointer-width:1px');
@@ -360,6 +385,17 @@ describe('rendering', () => {
 });
 
 describe('sanitizeRich', () => {
+  it('keeps safe inline styles only (alignment, colors, font styles)', () => {
+    expect(
+      sanitizeRich(
+        '<p style="text-align: center; position: fixed">A <span style="color:#E30C1E;background:url(x)">B</span></p><p style="behavior:x">C</p>',
+      ),
+    ).toBe('<p style="text-align: center">A <span style="color: #E30C1E">B</span></p><p>C</p>');
+    expect(sanitizeRich('<span style="color: expression(alert(1))">x</span>')).toBe(
+      '<span>x</span>',
+    );
+  });
+
   it('closes what was left open and escapes text', () => {
     expect(sanitizeRich('<p><strong>bold <em>both</p>')).toBe(
       '<p><strong>bold <em>both</em></strong></p>',
