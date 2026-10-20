@@ -15,6 +15,8 @@ const STALE_MS = 15 * 60_000;
 const ROLES = ['author', 'editor', 'contributor', 'subscriber'];
 /** Which comments come along (`?comments=`): approved ones by default. */
 const COMMENTS = ['approved', 'all', 'skip'] as const;
+/** Spam protection given to the imported forms (`?formCaptcha=`): none by default. */
+const FORM_CAPTCHAS = ['turnstile'] as const;
 
 const TITLES: Record<number, string> = { 400: 'Bad Request', 409: 'Conflict' };
 const problem = (status: 400 | 409, detail: string) => ({
@@ -68,6 +70,7 @@ async function run(
     authorRole: string;
     locales: string[];
     comments: (typeof COMMENTS)[number];
+    formCaptcha?: (typeof FORM_CAPTCHAS)[number];
   },
 ): Promise<void> {
   let saved = 0;
@@ -86,6 +89,7 @@ async function run(
       authorRole: options.authorRole,
       locales: options.locales,
       comments: options.comments,
+      ...(options.formCaptcha ? { formCaptcha: options.formCaptcha } : {}),
       trailingSlash: site.trailingSlash === true,
     });
     const report = await ctx.transfer.importDocument(siteId, document, {
@@ -123,7 +127,7 @@ export default definePlugin({
       },
     });
 
-    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author&comments=all).
+    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author&comments=all&formCaptcha=turnstile).
     ctx.routes.api({
       method: 'POST',
       path: '/imports',
@@ -155,6 +159,7 @@ export default definePlugin({
           .filter((l) => /^[a-z]{2,3}(-[A-Z]{2})?$/.test(l))
           .slice(0, 8);
         const comments = COMMENTS.find((c) => c === request.query.comments) ?? 'approved';
+        const formCaptcha = FORM_CAPTCHAS.find((c) => c === request.query.formCaptcha);
         const authorRole = ROLES.includes(request.query.authorRole ?? '')
           ? request.query.authorRole!
           : 'author';
@@ -176,6 +181,7 @@ export default definePlugin({
           authorRole,
           locales,
           comments,
+          ...(formCaptcha ? { formCaptcha } : {}),
         });
         return { status: 202, body: { job } };
       },

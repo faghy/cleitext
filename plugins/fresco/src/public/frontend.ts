@@ -80,6 +80,37 @@ function backgroundEmbeds(): void {
   };
   fit();
   window.addEventListener('resize', fit);
+  // The frame shows once the video plays: until then (and if it never does,
+  // e.g. autoplay blocked) the background image stays visible, not a black box.
+  const frames = [...boxes]
+    .map((box) => box.querySelector('iframe'))
+    .filter(Boolean) as HTMLIFrameElement[];
+  for (const frame of frames) {
+    if (!/youtube/.test(frame.src)) {
+      frame.addEventListener('load', () => frame.classList.add('is-playing'));
+      continue;
+    }
+    frame.addEventListener('load', () => {
+      frame.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: frame.src }), '*');
+    });
+  }
+  window.addEventListener('message', (event) => {
+    if (!/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(event.origin)) return;
+    let data: { event?: string; info?: unknown } | null;
+    try {
+      data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+    } catch {
+      return;
+    }
+    const info = data?.info as { playerState?: number } | number | undefined;
+    const playing =
+      (data?.event === 'onStateChange' && info === 1) ||
+      (data?.event === 'infoDelivery' && typeof info === 'object' && info?.playerState === 1);
+    if (!playing) return;
+    for (const frame of frames) {
+      if (frame.contentWindow === event.source) frame.classList.add('is-playing');
+    }
+  });
 }
 
 function videos(): void {

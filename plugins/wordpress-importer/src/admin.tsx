@@ -68,6 +68,8 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   const [locale, setLocale] = useState(site.defaultLocale);
   const [role, setRole] = useState('author');
   const [comments, setComments] = useState('approved');
+  const captchaId = useId();
+  const [formCaptcha, setFormCaptcha] = useState('');
   const [sent, setSent] = useState(0);
   const start = useMutation({
     mutationFn: () => {
@@ -75,6 +77,7 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
         locale,
         authorRole: role,
         comments,
+        ...(formCaptcha ? { formCaptcha } : {}),
         // All the site's languages: pages translated with WPML go into theirs.
         ...(site.locales.length > 1
           ? { languages: site.locales.map((l) => l.code).join(',') }
@@ -187,6 +190,26 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
                 {tr(
                   'Choose “None” if comments were closed and only old spam is left. Pingbacks and trackbacks are never imported.',
                   'Scegli «Nessuno» se i commenti erano chiusi ed è rimasto solo vecchio spam. Pingback e trackback non vengono mai importati.',
+                )}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor={captchaId} className="block text-sm font-medium text-slate-800">
+                {tr('Form protection', 'Protezione dei moduli')}
+              </label>
+              <select
+                id={captchaId}
+                className={select}
+                value={formCaptcha}
+                onChange={(e) => setFormCaptcha(e.target.value)}
+              >
+                <option value="">{tr('None', 'Nessuna')}</option>
+                <option value="turnstile">Cloudflare Turnstile</option>
+              </select>
+              <p className="text-xs text-slate-500">
+                {tr(
+                  'Every imported form gets Turnstile (reCAPTCHA fields are dropped either way): add its keys in Fresco Pro → Forms → Spam protection.',
+                  'Ogni modulo importato avrà Turnstile (i campi reCAPTCHA vengono comunque tolti): inserisci le chiavi in Fresco Pro → Moduli → Protezione dallo spam.',
                 )}
               </p>
             </div>

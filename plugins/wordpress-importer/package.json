@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-wordpress-importer",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "private": true,
   "description": "Official Cleitext plugin: imports a WordPress export (WXR) from the admin.",
   "license": "GPL-2.0-or-later",

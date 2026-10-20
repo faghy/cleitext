@@ -383,7 +383,9 @@ export function icon(
   }
   const match = /\bfa([srb]|-solid|-regular|-brands)?\s+fa-([\w-]+)/.exec(str(v.value));
   if (!match) return undefined;
-  const style = match[1] ?? 's';
+  // `fa fa-…` alone: a Font Awesome 4 name (Elementor's old icons).
+  if (!match[1]) return fa4Icon(match[2]!);
+  const style = match[1];
   const set =
     style === 'r' || style === '-regular'
       ? 'regular'
@@ -392,6 +394,74 @@ export function icon(
         : 'solid';
   const name = match[2]!;
   return { set, name: RENAMED[name] ?? name };
+}
+
+/**
+ * Font Awesome 4 brand names → Font Awesome 6/7 (as Elementor's own FA4 shim
+ * does): some kept their name but not their glyph, e.g. FA4 `facebook` is the
+ * plain "f", which FA5+ calls `facebook-f` (`facebook` is now "f" in a circle).
+ */
+const FA4_BRANDS: Record<string, string> = {
+  facebook: 'facebook-f',
+  'facebook-f': 'facebook-f',
+  'facebook-official': 'facebook',
+  'facebook-square': 'square-facebook',
+  linkedin: 'linkedin-in',
+  'linkedin-square': 'linkedin',
+  'google-plus': 'google-plus-g',
+  'google-plus-official': 'google-plus',
+  'google-plus-square': 'square-google-plus',
+  vimeo: 'vimeo-v',
+  'vimeo-square': 'square-vimeo',
+  'youtube-play': 'youtube',
+  'youtube-square': 'square-youtube',
+  'twitter-square': 'square-twitter',
+  'pinterest-square': 'square-pinterest',
+  'tumblr-square': 'square-tumblr',
+  'github-square': 'square-github',
+  'reddit-square': 'square-reddit',
+  'xing-square': 'square-xing',
+  'behance-square': 'square-behance',
+  instagram: 'instagram',
+  twitter: 'twitter',
+  youtube: 'youtube',
+  pinterest: 'pinterest',
+  'pinterest-p': 'pinterest-p',
+  tumblr: 'tumblr',
+  dribbble: 'dribbble',
+  behance: 'behance',
+  github: 'github',
+  whatsapp: 'whatsapp',
+  skype: 'skype',
+  flickr: 'flickr',
+  vk: 'vk',
+  xing: 'xing',
+  reddit: 'reddit',
+  'snapchat-ghost': 'snapchat',
+  tripadvisor: 'tripadvisor',
+  spotify: 'spotify',
+  soundcloud: 'soundcloud',
+  telegram: 'telegram',
+  foursquare: 'foursquare',
+  yelp: 'yelp',
+  amazon: 'amazon',
+  apple: 'apple',
+  android: 'android',
+  windows: 'windows',
+  wordpress: 'wordpress',
+  'stack-overflow': 'stack-overflow',
+  medium: 'medium',
+  slack: 'slack',
+  twitch: 'twitch',
+};
+
+/** A Font Awesome 4 icon name as Fresco's (Font Awesome 6/7) icon. */
+export function fa4Icon(name: string): IconValue {
+  if (FA4_BRANDS[name]) return { set: 'brands', name: FA4_BRANDS[name]! };
+  // `-o`: the outlined version (Font Awesome 5+: the regular style).
+  const outline = name.endsWith('-o');
+  const base = outline ? name.slice(0, -2) : name;
+  return { set: outline ? 'regular' : 'solid', name: RENAMED[base] ?? base };
 }
 
 // ---- Links and media ---------------------------------------------------------------------

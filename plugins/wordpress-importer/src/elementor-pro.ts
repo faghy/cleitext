@@ -40,6 +40,9 @@ const dateTime = (value: unknown) => {
 /** Elementor carousels: the shared slides/arrows/autoplay settings. */
 function carousel(out: Settings, src: Settings): void {
   copy(out, src, 'slides_per_view', 'slides', (v) => num(v) ?? undefined);
+  // Elementor shows whole slides on phones (one unless set), never part of the next.
+  out.peek = false;
+  if (!out['slides@mobile']) out['slides@mobile'] = 1;
   if (src.show_arrows === '' || src.navigation === 'dots' || src.navigation === 'none')
     out.arrows = false;
   if (src.pagination === '' || src.navigation === 'arrows' || src.navigation === 'none')
@@ -562,6 +565,11 @@ export function proWidget(
       if (bgHover) out['button_bg:hover'] = bgHover;
       copy(out, src, 'button_text_padding', 'button_padding', (v) => box(v, c), false);
       c.typography(out, src, 'button_typography', 'button_typo');
+      // The import's spam protection (whatever the original had: its captcha field is dropped).
+      if (c.ctx.formCaptcha) {
+        out.captcha = c.ctx.formCaptcha;
+        c.ctx.protectedForm?.();
+      }
       return [c.node('fresco-pro/form', out)];
     }
     case 'slides':

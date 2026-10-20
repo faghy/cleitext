@@ -20,6 +20,7 @@ import {
   copy,
   dynamicTag,
   evenBox,
+  fa4Icon,
   hasLineHeight,
   icon,
   itemLink,
@@ -75,6 +76,10 @@ export interface ElementorContext {
   menuLocation?: (menu: string) => string | undefined;
   /** Font families used by the page (to load them). */
   font?: (family: string) => void;
+  /** Spam protection given to every converted form (Fresco Pro's `captcha`). */
+  formCaptcha?: 'turnstile';
+  /** Called for each form given that protection (to count them). */
+  protectedForm?: () => void;
   kit?: ElementorKitInfo;
 }
 
@@ -401,19 +406,10 @@ function hide(out: Settings, src: Settings): void {
   }
 }
 
-/** Icons that are not brands among the networks of old social icons (`fa fa-…`). */
-const SOLID_SOCIAL = new Set(['envelope', 'phone', 'globe', 'rss', 'link', 'home', 'map-marker']);
-
 /** The icon of an old social icon (Elementor 1/2: `social: 'fa fa-facebook'`, Font Awesome 4). */
 function legacySocial(value: unknown): Settings | undefined {
   const name = /\bfa-([\w-]+)/.exec(str(value))?.[1];
-  if (!name) return undefined;
-  return SOLID_SOCIAL.has(name)
-    ? {
-        set: 'solid',
-        name: name === 'home' ? 'house' : name === 'map-marker' ? 'location-dot' : name,
-      }
-    : { set: 'brands', name };
+  return name ? ({ ...fa4Icon(name) } as Settings) : undefined;
 }
 
 /** Shapes Fresco's containers draw (the others are left out). */

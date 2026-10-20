@@ -306,7 +306,10 @@ export const container: ElementDefinition = {
             mute: true,
             loop: true,
             controls: false,
-          })?.replace(/^(https:\/\/player\.vimeo\.com\/[^#]*)/, '$1&background=1') ?? null)
+          })
+            ?.replace(/^(https:\/\/player\.vimeo\.com\/[^#]*)/, '$1&background=1')
+            // YouTube tells the page when it plays (frontend.js shows the frame then).
+            .replace(/^(https:\/\/www\.youtube-nocookie\.com\/[^#]*)/, '$1&enablejsapi=1') ?? null)
         : null;
     const mobileClass = settings.background_video_mobile === true ? '' : ' fr-bg-video--wide';
     return (

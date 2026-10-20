@@ -633,6 +633,8 @@ describe('Elementor pages to Fresco', () => {
       button_bg: 'var(--fr-c-d25a2d9)',
       arrows: false,
       dots: false,
+      // No part of the next slide on phones, as in Elementor.
+      peek: false,
     });
     expect((slides.attrs.items as { heading: string }[])[0]!.heading).toBe(
       'PRATO NEVOSO\nSUMMER CAMP',
@@ -710,6 +712,8 @@ describe('Elementor pages to Fresco', () => {
         social_icon_list: [
           { _id: 'a', social: 'fa fa-facebook' },
           { _id: 'b', social: 'fa fa-envelope' },
+          { _id: 'c', social: 'fa fa-linkedin' },
+          { _id: 'd', social: 'fa fa-envelope-o' },
         ],
         icon_padding: { unit: 'em', size: 0.9 },
       },
@@ -719,8 +723,11 @@ describe('Elementor pages to Fresco', () => {
       padding: { size: 0.9, unit: 'em' },
     });
     expect((block.attrs.items as { icon?: unknown }[]).map((i) => i.icon)).toEqual([
-      { set: 'brands', name: 'facebook' },
+      // Font Awesome 4's `facebook` is the plain "f" (`facebook-f` since FA5).
+      { set: 'brands', name: 'facebook-f' },
       { set: 'solid', name: 'envelope' },
+      { set: 'brands', name: 'linkedin-in' },
+      { set: 'regular', name: 'envelope' },
     ]);
   });
 

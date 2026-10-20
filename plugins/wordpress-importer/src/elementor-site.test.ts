@@ -524,3 +524,49 @@ describe('An Elementor site in a WordPress export', () => {
     });
   });
 });
+
+describe('Spam protection for imported forms', () => {
+  const form = {
+    id: 'f',
+    elType: 'widget',
+    widgetType: 'form',
+    settings: {
+      form_fields: [
+        { _id: 'a', custom_id: 'name', field_type: 'text', field_label: 'Name' },
+        { _id: 'b', custom_id: 'captcha', field_type: 'recaptcha_v3' },
+      ],
+    },
+  };
+  const page = (forms: unknown[]) =>
+    site.replace(
+      '</channel>',
+      `${item({ id: 90, title: 'Contact', type: 'page', name: 'contact', metas: builder(forms) })}</channel>`,
+    );
+  const formsOf = (blocks: CxdBlock[]): CxdBlock[] =>
+    blocks.flatMap((b) => [
+      ...(b.type === 'fresco-pro/form' ? [b] : []),
+      ...formsOf(b.children ?? []),
+    ]);
+
+  it('gives every form Turnstile when asked, and says how many', () => {
+    const { document, warnings } = wxrToDocument(page([form, { ...form, id: 'g' }]), {
+      locale: 'en',
+      formCaptcha: 'turnstile',
+    });
+    const contact = document.entries!.find((e) => e.title === 'Contact')!;
+    const forms = formsOf(contact.document!.blocks as CxdBlock[]);
+    expect(forms.map((f) => f.attrs.captcha)).toEqual(['turnstile', 'turnstile']);
+    // The reCAPTCHA field is left out either way.
+    expect((forms[0]!.attrs.fields as unknown[]).length).toBe(1);
+    expect(warnings).toContain(
+      '2 form(s) protected with Turnstile: add the site and secret keys in Fresco Pro → Forms → Spam protection.',
+    );
+  });
+
+  it('leaves forms as they were by default', () => {
+    const { document, warnings } = wxrToDocument(page([form]), { locale: 'en' });
+    const contact = document.entries!.find((e) => e.title === 'Contact')!;
+    expect(formsOf(contact.document!.blocks as CxdBlock[])[0]!.attrs.captcha).toBeUndefined();
+    expect(warnings.join('\n')).not.toContain('Turnstile');
+  });
+});

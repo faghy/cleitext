@@ -66,6 +66,8 @@ export interface WxrOptions {
   comments?: 'approved' | 'all' | 'skip';
   /** The site's addresses already end with a slash (no need to suggest it). */
   trailingSlash?: boolean;
+  /** Protects every imported form (Elementor's) with Cloudflare Turnstile. */
+  formCaptcha?: 'turnstile';
 }
 
 export interface WxrResult {
@@ -214,6 +216,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
 
   // ---- Elementor: what pages and templates share ---------------------------------------
   const useElementor = options.elementor !== 'content';
+  let protectedForms = 0;
   const elementor = prepareElementor(
     channel,
     items,
@@ -221,6 +224,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     attachmentRefs,
     customTaxonomies,
     warnings,
+    options.formCaptcha
+      ? { formCaptcha: options.formCaptcha, protectedForm: () => protectedForms++ }
+      : {},
   );
 
   // ---- Posts and pages ------------------------------------------------------------------
@@ -522,6 +528,11 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   if (useElementor) {
     entries.push(...elementor.templates());
     Object.assign(plugins, elementor.plugins());
+  }
+  if (protectedForms) {
+    warnings.push(
+      `${protectedForms} form(s) protected with Turnstile: add the site and secret keys in Fresco Pro → Forms → Spam protection.`,
+    );
   }
   if (pingbacks) warnings.push(`${pingbacks} pingback(s) and trackback(s) were not imported.`);
   if (trashedComments) warnings.push(`${trashedComments} trashed comment(s) were not imported.`);
@@ -896,6 +907,7 @@ function prepareElementor(
   attachmentRefs: Map<number, string>,
   customTaxonomies: Map<string, { slug: string; hierarchical: boolean }>,
   warnings: string[],
+  forms: Pick<ElementorContext, 'formCaptcha' | 'protectedForm'> = {},
 ): ElementorSite {
   const mediaRef = (attachment: number) => attachmentRefs.get(attachment);
   const idOf = (item: Node) => Number(text(item['wp:post_id']));
@@ -1020,6 +1032,7 @@ function prepareElementor(
     typeSlug: (type: string) => ownType(type),
     menuLocation,
     font,
+    ...forms,
     ...(kit ? { kit: kit.info } : {}),
   });
 

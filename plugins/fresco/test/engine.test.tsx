@@ -210,7 +210,7 @@ describe('rendering', () => {
     expect(youtube).toContain('fr-has-video');
     expect(youtube).toContain('data-fr-video-bg=""');
     expect(youtube).toContain(
-      'src="https://www.youtube-nocookie.com/embed/J01iDyHq2p0?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=J01iDyHq2p0&amp;controls=0&amp;rel=0"',
+      'src="https://www.youtube-nocookie.com/embed/J01iDyHq2p0?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=J01iDyHq2p0&amp;controls=0&amp;rel=0&amp;enablejsapi=1"',
     );
   });
 
