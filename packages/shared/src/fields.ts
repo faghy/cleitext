@@ -34,7 +34,8 @@ interface BaseField {
   /** Shown only when another field of the same form has a value (the value is kept). */
   showIf?: FieldCondition;
   /**
-   * A value per device (`number`, `select`, `choice`, `boolean`, `spacing`):
+   * A value per device (`number`, `select`, `choice`, `boolean`, `spacing`,
+   * `background`, `color`, `text`):
    * `{ desktop, tablet, mobile }`, each optional (a smaller screen without
    * one uses the larger one's). With `units`, also `desktopUnit`…
    */
@@ -522,6 +523,8 @@ const RESPONSIVE_TYPES = new Set([
   'boolean',
   'spacing',
   'background',
+  'color',
+  'text',
 ]);
 
 /** A color, of the palette (`var(--prefix-N)`) when the field has one. */
