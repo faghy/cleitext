@@ -25,7 +25,8 @@ const ACTIVE_KEY = ['themes', 'active'];
 const OTHER = '__other';
 
 /** Widths of the preview per device, as in the themes' breakpoints. */
-const DEVICES = { desktop: '100%', tablet: '768px', mobile: '390px' } as const;
+/** Widths the preview is drawn at; it is scaled down to fit when the space is narrower. */
+const DEVICES = { desktop: 1280, tablet: 768, mobile: 390 } as const;
 type PreviewDevice = keyof typeof DEVICES;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -448,17 +449,13 @@ export function ThemeOptions() {
                   ))}
                 </div>
               </div>
-              <div className="flex justify-center rounded border border-slate-200 bg-slate-100">
-                <iframe
-                  ref={frame}
-                  title={t('Site preview')}
-                  // Scripts run (sticky header, sliders) in an origin of their own: no access to the admin.
-                  sandbox="allow-scripts"
-                  src={frameUrl || 'about:blank'}
-                  style={{ width: DEVICES[device] }}
-                  className={`bg-white ${builder ? 'h-[55vh]' : 'h-[75vh]'}`}
-                />
-              </div>
+              <PreviewFrame
+                frame={frame}
+                title={t('Site preview')}
+                src={frameUrl || 'about:blank'}
+                width={DEVICES[device]}
+                tall={!builder}
+              />
             </div>
           )}
         </div>
@@ -496,5 +493,58 @@ export function ThemeOptions() {
         )}
       </div>
     </DeviceContext.Provider>
+  );
+}
+
+/**
+ * The preview at the device's real width (the desktop one too, so the site
+ * shows its desktop layout), scaled down when the column is narrower.
+ */
+function PreviewFrame({
+  frame,
+  title,
+  src,
+  width,
+  tall,
+}: {
+  frame: React.RefObject<HTMLIFrameElement | null>;
+  title: string;
+  src: string;
+  width: number;
+  tall: boolean;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [space, setSpace] = useState(width);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setSpace(el.clientWidth));
+    observer.observe(el);
+    setSpace(el.clientWidth);
+    return () => observer.disconnect();
+  }, []);
+  const scale = Math.min(1, space / width);
+  const height = (tall ? 0.75 : 0.55) * (typeof window === 'undefined' ? 800 : window.innerHeight);
+  return (
+    <div
+      ref={box}
+      className="flex justify-center overflow-hidden rounded border border-slate-200 bg-slate-100"
+      style={{ height }}
+    >
+      <iframe
+        ref={frame}
+        title={title}
+        // Scripts run (sticky header, sliders) in an origin of their own: no access to the admin.
+        sandbox="allow-scripts"
+        src={src}
+        className="shrink-0 bg-white"
+        style={{
+          width,
+          height: height / scale,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top center',
+        }}
+      />
+    </div>
   );
 }
