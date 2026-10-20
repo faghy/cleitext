@@ -1,6 +1,7 @@
 export * from './api.js';
 export * from './ui.js';
 export * from './fields-form.js';
+export * from './zones-builder.js';
 export * from './plugin.js';
 export {
   ADMIN_PATH,

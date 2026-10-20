@@ -17,7 +17,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { CurrentAuth, CurrentSite, RequireCapability } from '../common/decorators.js';
+import { CurrentAuth, CurrentSite, Public, RequireCapability } from '../common/decorators.js';
 import { parseBody } from '../common/problem.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { siteOrigin } from '../mcp/origin.js';
@@ -28,6 +28,7 @@ import path from 'node:path';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { uploadedFile } from '../plugins/plugins.controller.js';
 import { assertCanUpload, packageRoot, runCli, unpackPackage } from '../plugins/package-upload.js';
+import { PREVIEW_SCRIPT } from './preview-script.js';
 import { ThemesService } from './themes.service.js';
 
 const settingsBody = z.object({ values: z.record(z.string(), z.unknown()) });
@@ -142,6 +143,16 @@ export class ThemesController {
     return (response.html ?? '').replace(/<head>/i, `<head><base href="${origin}/">`);
   }
 
+  /** The script of the Customize preview: pencils and links (no data, no login). */
+  @Public()
+  @Get('preview.js')
+  previewScript(@Res({ passthrough: true }) reply: FastifyReply): string {
+    void reply
+      .type('text/javascript; charset=utf-8')
+      .header('cache-control', 'public, max-age=3600');
+    return PREVIEW_SCRIPT;
+  }
+
   /** The active theme and its settings' values. */
   @Get('active')
   @RequireCapability('edit_theme_settings')
@@ -196,7 +207,11 @@ export class ThemesController {
     );
     if (response.redirect) throw new BadRequestException('This address redirects elsewhere.');
     void reply.type('text/html; charset=utf-8').header('cache-control', 'no-store');
-    return (response.html ?? '').replace(/<head>/i, `<head><base href="${origin}/">`);
+    // An external script: the admin's policy, which the frame inherits, blocks inline ones.
+    return (response.html ?? '').replace(
+      /<head>/i,
+      `<head><base href="${origin}/"><script src="/api/v1/themes/preview.js"></script>`,
+    );
   }
 
   @Get('active/areas/:name')

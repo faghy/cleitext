@@ -5,11 +5,13 @@ import {
   type FieldValues,
   type ListField,
   type MediaListResponse,
+  type ZonesValue,
 } from '@cleitext/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { api } from './api.js';
 import { useT } from './i18n.js';
+import { ZonesBuilder } from './zones-builder.js';
 
 const inputClass =
   'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600';
@@ -58,6 +60,7 @@ export function FieldsForm({
               locale={locale}
               disabled={disabled}
               error={errors[field.name]}
+              form={values}
               onChange={(value) => onChange({ ...values, [field.name]: value })}
             />
           </div>
@@ -75,6 +78,7 @@ function Field({
   disabled,
   error,
   placeholder,
+  form,
 }: {
   field: FieldDefinition;
   value: unknown;
@@ -84,6 +88,8 @@ function Field({
   error: string | undefined;
   /** The default, shown when there is no value. */
   placeholder?: unknown;
+  /** The values of the whole form. */
+  form?: FieldValues;
 }) {
   const id = useId();
   const label = labelText(field.label, locale);
@@ -366,6 +372,18 @@ function Field({
                 ? (placeholder as FieldValues[])
                 : []
           }
+          locale={locale}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      );
+      break;
+    case 'zones':
+      control = (
+        <ZonesBuilder
+          field={field}
+          value={(value ?? placeholder ?? {}) as ZonesValue}
+          values={form}
           locale={locale}
           disabled={disabled}
           onChange={onChange}

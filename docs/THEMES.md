@@ -104,7 +104,7 @@ export default defineTheme({
 | `menuLocations`    | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                                          |
 | `settings`         | Fields shown in Appearance → Customize (§4).                                                                                                 |
 | `areas`            | Areas made of blocks (§5).                                                                                                                   |
-| `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description? }]`; a field goes in one with `section` (§4).                                    |
+| `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description?, parent? }]`; a field goes in one with `section` (§4).                           |
 | `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                   |
 | `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                             |
 | `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).   |
@@ -169,7 +169,41 @@ settings: [
 presets: [{ id: 'dark', label: 'Dark', values: { accent: '#38bdf8' } }],
 ```
 
-Customize shows one tab per section (fields without one go in "Other"), a search box across all options, the ready-made styles, export and import as JSON, and "Reset this section". Nothing reaches the site until **Publish**.
+Customize shows one tab per section (fields without one go in "Other"), a search box across all options, the ready-made styles, export and import as JSON, and "Reset this section". Nothing reaches the site until **Publish**. The preview can be shown at desktop, tablet and mobile width.
+
+### Header and footer builders
+
+A `zones` field is a drag-and-drop builder: rows split into zones where elements are placed, with a layout for desktop and one for tablet/mobile. In Customize it opens under the preview while its section, or the section of one of its rows or elements, is open.
+
+```tsx
+settingsSections: [
+  { id: 'header', label: 'Header builder' },
+  { id: 'header-logo', label: 'Site identity', parent: 'header' },
+  { id: 'header-main', label: 'Main row', parent: 'header' },
+],
+settings: [
+  { name: 'headerLayout', type: 'zones', section: 'header', label: 'Header',
+    devices: ['desktop', 'mobile'],
+    rows: [
+      { name: 'main', label: 'Main row', section: 'header-main', zones: [
+        { name: 'left' }, { name: 'left-center', whenUsed: 'center' }, { name: 'center' },
+        { name: 'right-center', whenUsed: 'center' }, { name: 'right' }] },
+      { name: 'offcanvas', label: 'Off-canvas', devices: ['mobile'], stacked: true, zones: [{ name: 'main' }] },
+    ],
+    items: [
+      { name: 'logo', label: 'Logo', section: 'header-logo' },
+      { name: 'menu', label: 'Menu' },
+      { name: 'toggle', label: 'Menu toggle', devices: ['mobile'] },
+    ],
+    default: { desktop: { main: { left: ['logo'], right: ['menu'] } },
+               mobile: { main: { left: ['logo'], right: ['toggle'] }, offcanvas: { main: ['menu'] } } } },
+],
+```
+
+- A click on an element, or on a row's gear, opens its `section`. Sections with a `parent` are listed under it, only while it or a sibling is open.
+- `whenUsed` hides a zone until another one (or itself) holds elements. `columnsField` names a number field that says how many zones of the row are used (the columns of a footer row). `devices` and `rows` limit where a row or an element can go. `stacked` lays the zones of a row in a column.
+- Each element is used at most once per device; the value is `{ desktop: { row: { zone: ['logo'] } }, mobile: {…} }`, checked against the definition. Read it with `zoneItems(value, device, row, zone)` from `@cleitext/theme-sdk`.
+- Put `data-customize="<section>"` on the parts of the page an element or a row renders: in the preview a pencil on them opens that section. Links in the preview change the page shown.
 
 `entryFields` adds options to single pages (for example a sidebar or a transparent header per page). Editors set them in the Document tab of the block editor; they are saved with the entry in `document.editor.data` and the theme reads them from `entry.document.editor?.data`. `types` limits them to some entry types (`['page']`).
 

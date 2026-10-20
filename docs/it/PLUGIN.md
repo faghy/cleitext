@@ -865,6 +865,7 @@ Usati dai campi dei tipi di contenuto, dai gruppi di campi, dagli attributi dei 
 | `choice`   | stringa             | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                                          |
 | `code`     | stringa             | `language: 'css'`, `default`. Fino a 100.000 caratteri, mai `</style`                                                       |
 | `list`     | array di oggetti    | `fields` (ogni tipo tranne `list`), `itemLabel` (il campo che dà il nome a un elemento), `max` (predefinito 200), `default` |
+| `zones`    | oggetto             | `devices`, `rows`, `items`, `default`: un costruttore di intestazione o piè di pagina (TEMI.md §4); non dentro una `list`   |
 
 Opzioni comuni: `name` (lettere, cifre, `_`), `label`, `help`, `required` e `translation`. Nei moduli di impostazioni, `section` mette un campo in una scheda (opzioni del tema, §4 di TEMI.md), `group` gli mette sopra un titolo e `showIf` lo mostra solo quando altri campi hanno certi valori: `{ field: 'header', equals: 'transparent' }`, `{ field: 'layout', in: ['left', 'right'] }`, `{ field: 'sidebar', not: 'none' }`, oppure più condizioni con `{ all: [...] }` / `{ any: [...] }`. Un campo senza valore conta come il suo predefinito. Le etichette sono stringhe oppure oggetti per lingua (`{ en: 'Date', it: 'Data' }`). Un campo facoltativo può essere vuoto (`null`).
 

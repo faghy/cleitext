@@ -945,6 +945,7 @@ Used by content type fields, field groups, block attributes and settings.
 | `choice`   | string           | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                         |
 | `code`     | string           | `language: 'css'`, `default`. Up to 100,000 characters, never `</style`                                    |
 | `list`     | array of objects | `fields` (any type but `list`), `itemLabel` (the field that names an item), `max` (default 200), `default` |
+| `zones`    | object           | `devices`, `rows`, `items`, `default`: a header or footer builder (THEMES.md §4); not inside a `list`      |
 
 Common options: `name` (letters, digits, `_`), `label`, `help`, `required` and `translation`. In settings forms, `section` puts a field in a tab (theme options, §4 of THEMES.md), `group` puts a heading above it, and `showIf` shows it only when other fields have some values: `{ field: 'header', equals: 'transparent' }`, `{ field: 'layout', in: ['left', 'right'] }`, `{ field: 'sidebar', not: 'none' }`, or several with `{ all: [...] }` / `{ any: [...] }`. A field without a value counts as its default. Labels are strings or per-language objects (`{ en: 'Date', it: 'Data' }`). An optional field may be empty (`null`).
 

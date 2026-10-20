@@ -109,7 +109,13 @@ describe('theme settings and areas', () => {
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.body).toContain('Draft footer');
     expect(res.body).toContain('<base href="http://themes.test/">');
+    expect(res.body).toContain('<script src="/api/v1/themes/preview.js"></script>');
     expect((await visitor.get('/')).body).toContain('Made in Rome');
+    // The preview's script (pencils, links) needs no login.
+    const script = await visitor.get('/api/v1/themes/preview.js');
+    expect(script.statusCode).toBe(200);
+    expect(script.headers['content-type']).toContain('javascript');
+    expect(script.body).toContain('cleitext:customize');
   });
 
   it('renders block areas per language', async () => {

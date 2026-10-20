@@ -117,8 +117,74 @@ export interface ListField extends BaseField {
   default?: FieldValues[];
 }
 
+/** A device with its own layout in a zones field. */
+export type ZoneDevice = 'desktop' | 'mobile';
+
+/** A zone of a row. */
+export interface ZoneDefinition {
+  name: string;
+  label?: Label;
+  /**
+   * Shown in the builder only when this other zone of the row has elements
+   * (or this one has): the zones beside the center of a header.
+   */
+  whenUsed?: string;
+}
+
+/** A row of a zones field (e.g. the header's main row, a footer row). */
+export interface ZoneRow {
+  name: string;
+  label: Label;
+  /**
+   * The row's zones, in order (e.g. `left`, `center`, `right`; `1`…`6` for
+   * the columns of a footer row). An empty name is not allowed.
+   */
+  zones: ZoneDefinition[];
+  /** Devices that have this row (default: all), e.g. an off-canvas panel only on mobile. */
+  devices?: ZoneDevice[];
+  /** The settings section of the row, opened by its gear. */
+  section?: string;
+  /**
+   * A number field of the same form that tells how many of the zones are
+   * used (a footer row's columns): the others are hidden.
+   */
+  columnsField?: string;
+  /** Zones laid out as a column (an off-canvas panel) instead of in a line. */
+  stacked?: boolean;
+}
+
+/** An element placed in the zones (logo, menu, button…). */
+export interface ZoneItem {
+  name: string;
+  label: Label;
+  /** A simple icon name (e.g. `logo`, `menu`, `button`, `search`). */
+  icon?: string;
+  /** The settings section of the element, opened by a click on it. */
+  section?: string;
+  /** Devices where the element can be placed (default: all). */
+  devices?: ZoneDevice[];
+  /** Rows where the element can be placed (default: all). */
+  rows?: string[];
+}
+
+/** Where each element is: device → row → zone → element names, in order. */
+export type ZonesValue = Partial<Record<ZoneDevice, Record<string, Record<string, string[]>>>>;
+
+export interface ZonesField extends BaseField {
+  /**
+   * A drag-and-drop builder (a theme's header or footer): rows split into
+   * zones, where elements are placed, with a layout per device. Each
+   * element is used at most once per device.
+   */
+  type: 'zones';
+  devices: ZoneDevice[];
+  rows: ZoneRow[];
+  items: ZoneItem[];
+  default?: ZonesValue;
+}
+
 /** Fields an item of a list may have (no list inside a list). */
-export type ListItemField = Exclude<FieldDefinition, ListField>;
+export type ListItemField = Exclude<FieldDefinition, ListField | ZonesField>;
 
 export type FieldDefinition =
   | TextField
@@ -131,7 +197,8 @@ export type FieldDefinition =
   | ColorField
   | ChoiceField
   | CodeField
-  | ListField;
+  | ListField
+  | ZonesField;
 
 export type FieldType = FieldDefinition['type'];
 export type FieldValues = Record<string, unknown>;
@@ -161,6 +228,9 @@ const base = {
   group: label.optional(),
   showIf: condition.optional(),
 };
+
+const zoneDevice = z.enum(['desktop', 'mobile']);
+const ZONE_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$/;
 
 const choiceOptions = z
   .array(
@@ -239,12 +309,53 @@ export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z.discriminated
     max: z.number().int().min(1).max(200).optional(),
     default: z.array(z.record(z.string(), z.unknown())).optional(),
   }),
+  z.object({
+    ...base,
+    type: z.literal('zones'),
+    devices: z.array(zoneDevice).min(1).max(2),
+    rows: z
+      .array(
+        z.object({
+          name: z.string().regex(NAME_RE),
+          label,
+          zones: z
+            .array(
+              z.object({
+                name: z.string().regex(ZONE_RE),
+                label: label.optional(),
+                whenUsed: z.string().regex(ZONE_RE).optional(),
+              }),
+            )
+            .min(1)
+            .max(12),
+          devices: z.array(zoneDevice).max(2).optional(),
+          section: z.string().max(64).optional(),
+          columnsField: z.string().regex(NAME_RE).optional(),
+          stacked: z.boolean().optional(),
+        }),
+      )
+      .min(1)
+      .max(12),
+    items: z
+      .array(
+        z.object({
+          name: z.string().regex(NAME_RE),
+          label,
+          icon: z.string().max(40).optional(),
+          section: z.string().max(64).optional(),
+          devices: z.array(zoneDevice).max(2).optional(),
+          rows: z.array(z.string().regex(NAME_RE)).max(12).optional(),
+        }),
+      )
+      .max(200),
+    default: z.record(z.string(), z.unknown()).optional(),
+  }),
 ]) as z.ZodType<FieldDefinition>;
 
-/** The fields of a list's items: any field but a list. */
+/** The fields of a list's items: any field but a list or zones. */
 const listItemFieldSchema: z.ZodType<ListItemField> = fieldDefinitionSchema.refine(
-  (field) => field.type !== 'list',
-  'A list cannot hold another list',
+  (field) => field.type !== 'list' && field.type !== 'zones',
+  'A list cannot hold another list or zones',
 ) as z.ZodType<ListItemField>;
 
 export const fieldListSchema = z
@@ -310,7 +421,62 @@ function valueSchema(field: FieldDefinition): z.ZodType<unknown> {
       const item = fieldsValidator(field.fields);
       return z.array(item).max(field.max ?? 200);
     }
+    case 'zones':
+      return zonesSchema(field);
   }
+}
+
+/**
+ * A zones value: known devices, rows, zones and elements, each element
+ * once per device and only where it is allowed.
+ */
+function zonesSchema(field: ZonesField): z.ZodType<unknown> {
+  const items = new Map(field.items.map((item) => [item.name, item]));
+  const zoneList = z.array(z.string()).max(50);
+  return z
+    .partialRecord(zoneDevice, z.record(z.string(), z.record(z.string(), zoneList)))
+    .superRefine((value, ctx) => {
+      for (const [device, rows] of Object.entries(value) as [ZoneDevice, typeof value.desktop][]) {
+        if (!rows) continue;
+        if (!field.devices.includes(device)) {
+          ctx.addIssue({ code: 'custom', message: `Unknown device "${device}"` });
+          continue;
+        }
+        const used = new Set<string>();
+        for (const [rowName, zones] of Object.entries(rows)) {
+          const row = field.rows.find((r) => r.name === rowName);
+          if (!row || (row.devices && !row.devices.includes(device))) {
+            ctx.addIssue({ code: 'custom', message: `Unknown row "${rowName}"` });
+            continue;
+          }
+          for (const [zone, names] of Object.entries(zones)) {
+            if (!row.zones.some((z) => z.name === zone)) {
+              ctx.addIssue({ code: 'custom', message: `Unknown zone "${rowName}.${zone}"` });
+              continue;
+            }
+            for (const name of names) {
+              const item = items.get(name);
+              if (
+                !item ||
+                (item.devices && !item.devices.includes(device)) ||
+                (item.rows && !item.rows.includes(rowName))
+              ) {
+                ctx.addIssue({ code: 'custom', message: `"${name}" cannot be placed here` });
+              } else if (used.has(name)) {
+                ctx.addIssue({ code: 'custom', message: `"${name}" is placed twice` });
+              }
+              used.add(name);
+            }
+          }
+        }
+      }
+    });
+}
+
+/** The elements of a zones value in a row and zone of a device, in order. */
+export function zoneItems(value: unknown, device: ZoneDevice, row: string, zone: string): string[] {
+  const list = (value as ZonesValue | null | undefined)?.[device]?.[row]?.[zone];
+  return Array.isArray(list) ? list.filter((n): n is string => typeof n === 'string') : [];
 }
 
 /**

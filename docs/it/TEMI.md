@@ -57,7 +57,7 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 | `menuLocations`    | Posizioni per i menu, assegnati in Aspetto → Menu; si leggono con `usePage().menus`.                                                                     |
 | `settings`         | Campi mostrati in Aspetto → Personalizza (§4).                                                                                                           |
 | `areas`            | Aree composte di blocchi (§5).                                                                                                                           |
-| `settingsSections` | Schede di Aspetto → Personalizza: `[{ id, label, description? }]`; un campo ci va con `section` (§4).                                                    |
+| `settingsSections` | Schede di Aspetto → Personalizza: `[{ id, label, description?, parent? }]`; un campo ci va con `section` (§4).                                           |
 | `presets`          | Stili pronti: `[{ id, label, values }]`, applicati in Personalizza prima di pubblicare (§4).                                                             |
 | `entryFields`      | Opzioni per pagina, `{ types?, fields }`, mostrate nella scheda Documento dell'editor (§4).                                                              |
 | `relatedEntries`   | Quanti contenuti correlati mostrare sotto un contenuto (al massimo 12): `entry.related` li contiene, prima stesse categorie, poi stessi tag (core 0.37). |
@@ -114,7 +114,41 @@ settings: [
 presets: [{ id: 'dark', label: 'Scuro', values: { accent: '#38bdf8' } }],
 ```
 
-Personalizza mostra una scheda per sezione (i campi senza sezione vanno in "Altro"), una ricerca su tutte le opzioni, gli stili pronti, esportazione e importazione in JSON e "Ripristina questa sezione". Niente arriva al sito finché non premi **Pubblica**.
+Personalizza mostra una scheda per sezione (i campi senza sezione vanno in "Altro"), una ricerca su tutte le opzioni, gli stili pronti, esportazione e importazione in JSON e "Ripristina questa sezione". Niente arriva al sito finché non premi **Pubblica**. L'anteprima si può vedere a larghezza desktop, tablet e mobile.
+
+### Costruttori di intestazione e piè di pagina
+
+Un campo `zones` è un costruttore a trascinamento: righe divise in zone dove si mettono gli elementi, con un layout per desktop e uno per tablet/mobile. In Personalizza si apre sotto l'anteprima mentre è aperta la sua sezione, o quella di una sua riga o di un suo elemento.
+
+```tsx
+settingsSections: [
+  { id: 'header', label: 'Costruttore intestazione' },
+  { id: 'header-logo', label: 'Identità del sito', parent: 'header' },
+  { id: 'header-main', label: 'Riga principale', parent: 'header' },
+],
+settings: [
+  { name: 'headerLayout', type: 'zones', section: 'header', label: 'Intestazione',
+    devices: ['desktop', 'mobile'],
+    rows: [
+      { name: 'main', label: 'Riga principale', section: 'header-main', zones: [
+        { name: 'left' }, { name: 'left-center', whenUsed: 'center' }, { name: 'center' },
+        { name: 'right-center', whenUsed: 'center' }, { name: 'right' }] },
+      { name: 'offcanvas', label: 'Off-canvas', devices: ['mobile'], stacked: true, zones: [{ name: 'main' }] },
+    ],
+    items: [
+      { name: 'logo', label: 'Logo', section: 'header-logo' },
+      { name: 'menu', label: 'Menu' },
+      { name: 'toggle', label: 'Pulsante menu', devices: ['mobile'] },
+    ],
+    default: { desktop: { main: { left: ['logo'], right: ['menu'] } },
+               mobile: { main: { left: ['logo'], right: ['toggle'] }, offcanvas: { main: ['menu'] } } } },
+],
+```
+
+- Un clic su un elemento, o sull'ingranaggio di una riga, apre la sua `section`. Le sezioni con `parent` sono elencate sotto di essa, solo mentre è aperta lei o una sorella.
+- `whenUsed` nasconde una zona finché un'altra (o lei stessa) non contiene elementi. `columnsField` indica un campo numerico che dice quante zone della riga si usano (le colonne di una riga del piè di pagina). `devices` e `rows` limitano dove può andare una riga o un elemento. `stacked` dispone in colonna le zone di una riga.
+- Ogni elemento si usa al massimo una volta per dispositivo; il valore è `{ desktop: { riga: { zona: ['logo'] } }, mobile: {…} }`, controllato sulla definizione. Si legge con `zoneItems(value, device, row, zone)` da `@cleitext/theme-sdk`.
+- Metti `data-customize="<sezione>"` sulle parti della pagina disegnate da un elemento o da una riga: nell'anteprima una matita su di esse apre quella sezione. I link nell'anteprima cambiano la pagina mostrata.
 
 `entryFields` aggiunge opzioni alle singole pagine (per esempio una barra laterale o un'intestazione trasparente per pagina). Chi scrive le imposta nella scheda Documento dell'editor a blocchi; sono salvate con il contenuto in `document.editor.data` e il tema le legge da `entry.document.editor?.data`. `types` le limita ad alcuni tipi di contenuto (`['page']`).
 

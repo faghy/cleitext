@@ -14,6 +14,7 @@ import type {
 
 export * from './types.js';
 export { Inline, safeUrl, type RenderMedia } from '@cleitext/renderer';
+export { zoneItems, type ZoneDevice, type ZonesValue } from '@cleitext/shared';
 
 export { PageProvider, usePage } from './context.js';
 export { AccountForms, accountStrings, type AccountAttrs, type AccountView } from './account.js';

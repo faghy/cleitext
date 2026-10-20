@@ -197,6 +197,11 @@ export interface ThemeSettingsSection {
   description?: Label;
   /** A simple icon name (e.g. `palette`, `layout`, `header`) shown before the label. */
   icon?: string;
+  /**
+   * The section this one belongs to (the settings of a header element under
+   * the header): listed under it, only while it or a sibling is open.
+   */
+  parent?: string;
 }
 
 export interface ThemeDefinition {

@@ -4,6 +4,7 @@ import {
   fieldDefinitionSchema,
   fieldVisible,
   fieldsValidator,
+  zoneItems,
   type FieldDefinition,
 } from '../src/fields.js';
 
@@ -97,5 +98,57 @@ describe('theme option fields', () => {
     expect(fieldVisible(phone, { header: 'center', size: 10 }, defaults)).toBe(false);
     expect(fieldVisible({ showIf: { any: [{ field: 'a', in: [1, 2] }] } }, { a: 2 })).toBe(true);
     expect(fieldVisible({}, {})).toBe(true);
+  });
+});
+
+describe('zones fields', () => {
+  const header: FieldDefinition = {
+    name: 'header',
+    label: 'Header',
+    type: 'zones',
+    devices: ['desktop', 'mobile'],
+    rows: [
+      { name: 'primary', label: 'Main row', zones: [{ name: 'left' }, { name: 'right' }] },
+      { name: 'offcanvas', label: 'Off-canvas', zones: [{ name: 'main' }], devices: ['mobile'] },
+    ],
+    items: [
+      { name: 'logo', label: 'Logo' },
+      { name: 'menu', label: 'Menu' },
+      { name: 'toggle', label: 'Toggle', devices: ['mobile'] },
+    ],
+  };
+
+  it('accepts its definition', () => {
+    expect(fieldDefinitionSchema.safeParse(header).success).toBe(true);
+  });
+
+  it('validates where the elements are', () => {
+    const check = (value: unknown) =>
+      fieldsValidator([header]).safeParse({ header: value }).success;
+    expect(
+      check({
+        desktop: { primary: { left: ['logo'], right: ['menu'] } },
+        mobile: { primary: { left: ['logo'], right: ['toggle'] }, offcanvas: { main: ['menu'] } },
+      }),
+    ).toBe(true);
+    // Unknown element, zone, row; an element twice; a mobile-only element or row on desktop.
+    expect(check({ desktop: { primary: { left: ['cart'] } } })).toBe(false);
+    expect(check({ desktop: { primary: { middle: ['logo'] } } })).toBe(false);
+    expect(check({ desktop: { below: { left: ['logo'] } } })).toBe(false);
+    expect(check({ desktop: { primary: { left: ['logo'], right: ['logo'] } } })).toBe(false);
+    expect(check({ desktop: { primary: { left: ['toggle'] } } })).toBe(false);
+    expect(check({ desktop: { offcanvas: { main: ['menu'] } } })).toBe(false);
+  });
+
+  it('reads the elements of a zone', () => {
+    const value = { desktop: { primary: { left: ['logo', 'menu'] } } };
+    expect(zoneItems(value, 'desktop', 'primary', 'left')).toEqual(['logo', 'menu']);
+    expect(zoneItems(value, 'mobile', 'primary', 'left')).toEqual([]);
+    expect(zoneItems(null, 'desktop', 'primary', 'left')).toEqual([]);
+  });
+
+  it('cannot be an item of a list', () => {
+    const list = { name: 'rows', label: 'Rows', type: 'list', fields: [header] };
+    expect(fieldDefinitionSchema.safeParse(list).success).toBe(false);
   });
 });

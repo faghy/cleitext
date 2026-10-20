@@ -1,10 +1,13 @@
-import { FieldsForm } from '@cleitext/admin-sdk';
+import { FieldsForm, ZonesBuilder } from '@cleitext/admin-sdk';
 import {
   fieldDefaults,
   fieldVisible,
   labelText,
   type FieldDefinition,
   type ThemeView,
+  type ZoneDevice,
+  type ZonesField,
+  type ZonesValue,
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -20,6 +23,10 @@ interface ActiveTheme {
 const ACTIVE_KEY = ['themes', 'active'];
 /** Fields without a section, when the theme has sections. */
 const OTHER = '__other';
+
+/** Widths of the preview per device, as in the themes' breakpoints. */
+const DEVICES = { desktop: '100%', tablet: '768px', mobile: '390px' } as const;
+type PreviewDevice = keyof typeof DEVICES;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
@@ -66,13 +73,36 @@ export function ThemeOptions() {
   const section = current ?? sections[0]?.id ?? OTHER;
   const [search, setSearch] = useState('');
   const query = search.trim().toLowerCase();
-  const shown = query
-    ? fields.filter((f) =>
-        `${labelText(f.label, locale)} ${labelText(f.help, locale)} ${labelText(f.group, locale)}`
-          .toLowerCase()
-          .includes(query),
-      )
-    : fields.filter((f) => sectionOf(f) === section);
+  const shown = (
+    query
+      ? fields.filter((f) =>
+          `${labelText(f.label, locale)} ${labelText(f.help, locale)} ${labelText(f.group, locale)}`
+            .toLowerCase()
+            .includes(query),
+        )
+      : fields.filter((f) => sectionOf(f) === section)
+  ).filter((f) => f.type !== 'zones');
+  const open = (id: string) => {
+    setCurrent(id);
+    setSearch('');
+  };
+
+  // Builders (header, footer): shown under the preview while their section,
+  // or the section of one of their rows or elements, is open.
+  const parentOf = (id: string) => theme?.settingsSections.find((s) => s.id === id)?.parent;
+  const builder = fields.find(
+    (f): f is ZonesField =>
+      f.type === 'zones' &&
+      !query &&
+      [section, parentOf(section)].some(
+        (id) =>
+          id !== undefined &&
+          (f.section === id ||
+            f.items.some((i) => i.section === id) ||
+            f.rows.some((r) => r.section === id)),
+      ),
+  );
+  const [device, setDevice] = useState<PreviewDevice>('desktop');
 
   const changedIn = (id: string) =>
     values !== null &&
@@ -90,6 +120,22 @@ export function ThemeOptions() {
   const [preview, setPreview] = useState(true);
   const [html, setHtml] = useState('');
   const [path, setPath] = useState('/');
+  const frame = useRef<HTMLIFrameElement>(null);
+  // The preview's pencils open a section; its links change the page shown.
+  useEffect(() => {
+    const listen = (event: MessageEvent) => {
+      if (event.source !== frame.current?.contentWindow) return;
+      const data = event.data as { type?: string; section?: unknown; path?: unknown };
+      if (data?.type === 'cleitext:customize' && typeof data.section === 'string') {
+        setCurrent(data.section);
+        setSearch('');
+      } else if (data?.type === 'cleitext:navigate' && typeof data.path === 'string') {
+        setPath(data.path);
+      }
+    };
+    window.addEventListener('message', listen);
+    return () => window.removeEventListener('message', listen);
+  }, []);
   useEffect(() => {
     if (!values || !preview) return;
     const timer = setTimeout(() => {
@@ -242,34 +288,38 @@ export function ThemeOptions() {
         className={`grid gap-4 ${preview ? 'xl:grid-cols-[13rem_minmax(0,30rem)_minmax(0,1fr)]' : 'md:grid-cols-[13rem_minmax(0,46rem)]'}`}
       >
         <nav aria-label={t('Sections')} className="space-y-0.5">
-          {sections.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              aria-current={!query && s.id === section ? 'page' : undefined}
-              onClick={() => {
-                setCurrent(s.id);
-                setSearch('');
-              }}
-              className={`flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm ${
-                !query && s.id === section
-                  ? 'bg-slate-900 font-medium text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <span>{labelText(s.label, locale)}</span>
-              {changedIn(s.id) && (
-                <>
-                  <span
-                    aria-hidden="true"
-                    className="h-2 w-2 rounded-full bg-amber-500"
-                    title={t('Not published yet')}
-                  />
-                  <span className="sr-only">{t('(changed)')}</span>
-                </>
-              )}
-            </button>
-          ))}
+          {sections
+            .filter((s) => {
+              const parent = 'parent' in s ? s.parent : undefined;
+              return !parent || parent === section || parent === parentOf(section);
+            })
+            .map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                aria-current={!query && s.id === section ? 'page' : undefined}
+                onClick={() => open(s.id)}
+                className={`flex w-full items-center justify-between rounded py-2 pr-3 text-left text-sm ${
+                  'parent' in s && s.parent ? 'pl-6' : 'pl-3'
+                } ${
+                  !query && s.id === section
+                    ? 'bg-slate-900 font-medium text-white'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <span>{labelText(s.label, locale)}</span>
+                {changedIn(s.id) && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="h-2 w-2 rounded-full bg-amber-500"
+                      title={t('Not published yet')}
+                    />
+                    <span className="sr-only">{t('(changed)')}</span>
+                  </>
+                )}
+              </button>
+            ))}
         </nav>
 
         <section className="rounded-lg border border-slate-200 bg-white p-4">
@@ -315,26 +365,75 @@ export function ThemeOptions() {
 
         {preview && (
           <div className="space-y-2 xl:sticky xl:top-4 xl:self-start">
-            <label className="flex items-center gap-2 text-sm">
-              <span className="font-medium">{t('Preview of')}</span>
-              <input
-                className="flex-1 rounded border border-slate-300 px-2 py-1"
-                value={path}
-                onChange={(e) =>
-                  setPath(e.target.value.startsWith('/') ? e.target.value : `/${e.target.value}`)
-                }
+            <div className="flex items-center gap-2">
+              <label className="flex flex-1 items-center gap-2 text-sm">
+                <span className="font-medium">{t('Preview of')}</span>
+                <input
+                  className="flex-1 rounded border border-slate-300 px-2 py-1"
+                  value={path}
+                  onChange={(e) =>
+                    setPath(e.target.value.startsWith('/') ? e.target.value : `/${e.target.value}`)
+                  }
+                />
+              </label>
+              <div role="group" aria-label={t('Device')} className="flex rounded border">
+                {(Object.keys(DEVICES) as PreviewDevice[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    aria-pressed={d === device}
+                    className={`px-2 py-1 text-xs ${d === device ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+                    onClick={() => setDevice(d)}
+                  >
+                    {d === 'desktop' ? t('Desktop') : d === 'tablet' ? t('Tablet') : t('Mobile')}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-center rounded border border-slate-200 bg-slate-100">
+              <iframe
+                ref={frame}
+                title={t('Site preview')}
+                // Scripts run (sticky header, sliders) in an origin of their own: no access to the admin.
+                sandbox="allow-scripts"
+                srcDoc={html}
+                style={{ width: DEVICES[device] }}
+                className={`bg-white ${builder ? 'h-[55vh]' : 'h-[75vh]'}`}
               />
-            </label>
-            <iframe
-              title={t('Site preview')}
-              // Scripts run (sticky header, sliders) in an origin of their own: no access to the admin.
-              sandbox="allow-scripts"
-              srcDoc={html}
-              className="h-[75vh] w-full rounded border border-slate-200 bg-white"
-            />
+            </div>
           </div>
         )}
       </div>
+
+      {builder && (
+        <section
+          aria-label={labelText(builder.label, locale)}
+          className="rounded-lg border border-slate-200 bg-white p-3"
+        >
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">
+            <button
+              type="button"
+              className="hover:underline"
+              onClick={() => builder.section && open(builder.section)}
+            >
+              {labelText(builder.label, locale)}
+            </button>
+          </h3>
+          <ZonesBuilder
+            field={builder}
+            value={(values[builder.name] ?? defaults[builder.name] ?? {}) as ZonesValue}
+            values={{ ...defaults, ...values }}
+            onChange={(next) => setValues((v) => ({ ...(v ?? {}), [builder.name]: next }))}
+            locale={locale}
+            device={device === 'desktop' ? 'desktop' : 'mobile'}
+            onDevice={(d: ZoneDevice) =>
+              setDevice((now) => (d === 'desktop' ? 'desktop' : now === 'desktop' ? 'mobile' : now))
+            }
+            onOpen={open}
+            active={section}
+          />
+        </section>
+      )}
     </div>
   );
 }

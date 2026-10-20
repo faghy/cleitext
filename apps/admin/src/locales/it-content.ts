@@ -311,4 +311,14 @@ export const itContent: Messages = {
   'New name': 'Nuovo nome',
   'Delete the pattern "{name}"?': 'Eliminare il pattern «{name}»?',
   'Save pattern': 'Salva pattern',
+  // Builders of theme settings (header, footer).
+  Desktop: 'Desktop',
+  Tablet: 'Tablet',
+  Mobile: 'Mobile',
+  Device: 'Dispositivo',
+  Elements: 'Elementi',
+  'Tablet / Mobile': 'Tablet / Mobile',
+  'Add an element': 'Aggiungi un elemento',
+  'Reset {device} layout': 'Ripristina il layout {device}',
+  'Settings of {row}': 'Impostazioni di {row}',
 };

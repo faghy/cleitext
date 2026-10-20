@@ -45,7 +45,13 @@ export interface ThemeView {
   areas: Record<string, string>;
   settings: FieldDefinition[];
   /** Tabs of the options panel (fields name theirs in `section`). */
-  settingsSections: { id: string; label: Label; description?: Label; icon?: string }[];
+  settingsSections: {
+    id: string;
+    label: Label;
+    description?: Label;
+    icon?: string;
+    parent?: string;
+  }[];
   /** Ready-made sets of settings. */
   presets: { id: string; label: Label; values: Record<string, unknown> }[];
   /** Options of each page or post, shown in the editor (stored in `editor.data`). */
