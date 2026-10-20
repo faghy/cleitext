@@ -584,19 +584,15 @@ export class PublicService {
       return { status: 400, html: 'Bad Request', tags: [] };
     }
     // One canonical form: no trailing slash (except the root).
-    if (path.length > 1 && path.endsWith('/')) {
-      const search = query.toString();
-      return {
-        status: 301,
-        redirect: `${encodeURI(path.replace(/\/+$/, '') || '/')}${search ? `?${search}` : ''}`,
-        tags: [],
-      };
-    }
+    const slashed = path.length > 1 && path.endsWith('/');
+    const canonical = slashed ? path.replace(/\/+$/, '') || '/' : path;
 
     return withContext(this.database.db, { siteId }, async (tx) => {
       // Old addresses may have a query, as WordPress's /?p=123: that exact one first.
+      // With a trailing slash, the redirect of either form is taken at once (one hop).
       const search = query.toString();
-      const candidates = search ? [`${path}?${search}`, path] : [path];
+      const forms = slashed ? [path, canonical] : [path];
+      const candidates = forms.flatMap((p) => (search ? [`${p}?${search}`, p] : [p]));
       const found = await tx
         .select()
         .from(redirects)
@@ -612,6 +608,13 @@ export class PublicService {
         if (redirect.status !== 410) {
           return { status: redirect.status, redirect: redirect.toPath, tags: [] };
         }
+      }
+      if (slashed) {
+        return {
+          status: 301,
+          redirect: `${encodeURI(canonical)}${search ? `?${search}` : ''}`,
+          tags: [],
+        };
       }
 
       const { scope, rest } = await this.scope(tx, siteId, origin, path, includePrivate);

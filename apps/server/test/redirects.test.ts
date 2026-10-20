@@ -57,11 +57,15 @@ describe('redirects', () => {
       400,
     );
 
+    // With a trailing slash (as WordPress wrote addresses), straight there: one hop (and a hit).
+    const slashed = await visitor.get('/old-page/');
+    expect(slashed.statusCode).toBe(301);
+    expect(slashed.headers.location).toBe('/new-page');
     const hit = await visitor.get('/old-page');
     expect(hit.statusCode).toBe(301);
     expect(hit.headers.location).toBe('/new-page');
     const list = (await admin.get('/api/v1/redirects?q=old')).json();
-    expect(list).toEqual([{ id, from: '/old-page', to: '/new-page', status: 301, hits: 1 }]);
+    expect(list).toEqual([{ id, from: '/old-page', to: '/new-page', status: 301, hits: 2 }]);
 
     await admin.request('PATCH', `/api/v1/redirects/${id}`, {
       from: '/old-page',
