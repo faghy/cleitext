@@ -113,6 +113,11 @@ export const itAdmin: Messages = {
   'You have the latest version.': 'Hai l’ultima versione.',
   'Last checked: {date}.': 'Ultimo controllo: {date}.',
   'Check again': 'Controlla di nuovo',
+  'Installation report': 'Resoconto delle installazioni',
+  'Tell cleitext.com which versions this site runs':
+    'Comunica a cleitext.com quali versioni usa questo sito',
+  "About once a day, as WordPress does with wordpress.org: the site's address, the version of Cleitext, the themes and plugins installed with their versions and whether they are active, and a random identifier of the server. Nothing about content, users or visitors. It helps the maintainers know which versions are in use and warn the sites hit by a broken update; sites not seen for 180 days are deleted from the registry.":
+    "Circa una volta al giorno, come fa WordPress con wordpress.org: l'indirizzo del sito, la versione di Cleitext, i temi e i plugin installati con la loro versione e se sono attivi, e un identificativo casuale del server. Nulla su contenuti, utenti o visitatori. Serve ai manutentori per sapere quali versioni sono in uso e avvisare i siti colpiti da un aggiornamento difettoso; i siti non visti da 180 giorni vengono cancellati dal registro.",
   'Editor & builder': 'Editor & builder',
   Statistics: 'Statistiche',
   'E-commerce': 'E-commerce',

@@ -44,12 +44,12 @@ The official Cleitext plugin that runs the **license server of paid themes and p
 
 ## Installations
 
-**Store → Installations** is the registry of what Cleitext sites run. Each visited site reports it about once a day to `…/api/v1/ext/store/v1/report`: the version of Cleitext, its theme and the plugins installed on its server, with their versions and whether they are active. It lists them in two ways:
+**Store → Installations** is the registry of what Cleitext sites run. Each visited site reports it about once a day to `…/api/v1/ext/store/v1/report`: the version of Cleitext, its theme and the plugins installed on its server, with their versions and whether they are active. It opens with a **summary**: the number of sites, servers and Cleitext versions, and a table of Cleitext, every theme and every plugin with the sites using it, those that only have it installed and the versions. The **Plugin** and **Theme** filters narrow everything to the sites where that plugin or theme is installed, and show its total: the sites it is installed on, in use on and the versions. Below, the same data in two ways:
 
 - **By plugin and theme**: each version, with the sites that have it;
 - **By site**: one card per site.
 
-Sites that stop reporting drop out of the chosen period (7 to 365 days). **Forget** removes a site until its next report.
+Reports from development and test addresses (`localhost`, `.test`, `.local`, private networks) are ignored. Sites can turn reporting off in **Settings → General**; a site not heard from for 180 days is deleted from the registry. **Forget** removes a site until its next report.
 
 ## Permissions
 

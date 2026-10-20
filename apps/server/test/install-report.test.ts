@@ -7,7 +7,8 @@ import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InstallReportService, type InstallReport } from '../src/catalog/install-report.service.js';
-import { ownerDatabase, seedSite, startTestApp, TestClient } from './helpers.js';
+import { SettingsService } from '../src/settings/settings.service.js';
+import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
 
 let app: NestFastifyApplication;
 let owner: DatabaseClient;
@@ -63,5 +64,19 @@ describe('installation reports', () => {
     await visitor.get('/api/v1/public/site');
     await new Promise((r) => setTimeout(r, 100));
     expect(sent).toHaveLength(1);
+  });
+
+  it('is not sent when the site turned it off', async () => {
+    const quiet = await seedSite(owner, 'install-report-off', { forceHttps: false });
+    const admin = await seedUser(owner, {
+      email: 'admin@install-report-off.test',
+      password: 'correct horse battery staple',
+      site: quiet,
+      role: 'administrator',
+    });
+    await app.get(SettingsService).updateCore(quiet.id, admin, { installReport: false });
+    await new TestClient(app, quiet.host, '10.38.0.2').get('/');
+    await new Promise((r) => setTimeout(r, 200));
+    expect(sent.filter((r) => r.origin.includes('install-report-off'))).toHaveLength(0);
   });
 });

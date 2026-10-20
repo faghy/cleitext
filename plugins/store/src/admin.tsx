@@ -697,7 +697,7 @@ const I = {
   en: {
     title: 'Installations',
     intro:
-      'What Cleitext sites run, as they report it about once a day: the version of Cleitext, the theme and the plugins. Sites with INSTALL_REPORT_URL empty do not report.',
+      'What Cleitext sites run, as they report it about once a day: the version of Cleitext, the theme and the plugins. Sites can turn it off in Settings → General; sites not seen for 180 days are deleted.',
     byItem: 'By plugin and theme',
     bySite: 'By site',
     seen: 'Seen in the last',
@@ -727,11 +727,14 @@ const I = {
     byTheme: 'Theme',
     any: 'All',
     clear: 'Clear filters',
+    installedOn: 'installed on',
+    usedOn: 'in use on',
+    only: 'installed only on',
   },
   it: {
     title: 'Installazioni',
     intro:
-      'Cosa usano i siti Cleitext, come lo comunicano circa una volta al giorno: la versione di Cleitext, il tema e i plugin. I siti con INSTALL_REPORT_URL vuoto non inviano nulla.',
+      'Cosa usano i siti Cleitext, come lo comunicano circa una volta al giorno: la versione di Cleitext, il tema e i plugin. I siti possono spegnerlo in Impostazioni → Generali; quelli non visti da 180 giorni vengono cancellati.',
     byItem: 'Per plugin e tema',
     bySite: 'Per sito',
     seen: 'Visti negli ultimi',
@@ -761,6 +764,9 @@ const I = {
     byTheme: 'Tema',
     any: 'Tutti',
     clear: 'Togli i filtri',
+    installedOn: 'installato su',
+    usedOn: 'in uso su',
+    only: 'solo installato su',
   },
 };
 
@@ -834,11 +840,39 @@ function InstallationsPage({ api, user }: AdminPageProps) {
     .filter(Boolean)
     .sort();
   // The sites using the chosen plugin (active) and theme (the site's own).
-  const data = all.filter(
-    (r) =>
-      (!plugin || r.plugins.some((p) => p.slug === plugin && p.active)) &&
-      (!theme || r.themeSlug === theme),
-  );
+  // The sites where the chosen plugin and theme are installed (in use or not).
+  const hasPlugin = (r: InstallRow) => r.plugins.some((p) => p.slug === plugin);
+  const hasTheme = (r: InstallRow) =>
+    r.themeSlug === theme || r.themes.some((x) => x.slug === theme);
+  const data = all.filter((r) => (!plugin || hasPlugin(r)) && (!theme || hasTheme(r)));
+  // The totals of the chosen plugin or theme, on all the sites.
+  const chosen = [
+    ...(plugin
+      ? [
+          {
+            name: plugin,
+            entries: all.flatMap((r) =>
+              r.plugins
+                .filter((p) => p.slug === plugin)
+                .map((p) => ({ version: p.version, active: p.active })),
+            ),
+          },
+        ]
+      : []),
+    ...(theme
+      ? [
+          {
+            name: theme,
+            entries: all.filter(hasTheme).map((r) => ({
+              version:
+                r.themes.find((x) => x.slug === theme)?.version ??
+                (r.themeSlug === theme ? (r.themeVersion ?? '') : ''),
+              active: r.themeSlug === theme,
+            })),
+          },
+        ]
+      : []),
+  ];
   const servers = new Set(data.map((r) => r.installId)).size;
   const coreVersions = new Set(data.map((r) => r.coreVersion)).size;
   const summary = usageOf(data).map((u) => {
@@ -885,7 +919,7 @@ function InstallationsPage({ api, user }: AdminPageProps) {
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
           >
-            {[7, 30, 90, 365].map((d) => (
+            {[7, 30, 90, 180].map((d) => (
               <option key={d} value={d}>
                 {d} {t.days}
               </option>
@@ -928,6 +962,29 @@ function InstallationsPage({ api, user }: AdminPageProps) {
           </button>
         )}
       </div>
+      {chosen.map((c) => {
+        const versions = new Map<string, number>();
+        for (const e of c.entries)
+          versions.set(e.version || '?', (versions.get(e.version || '?') ?? 0) + 1);
+        const used = c.entries.filter((e) => e.active).length;
+        return (
+          <div key={c.name} className="rounded border border-sky-200 bg-sky-50 p-4" role="status">
+            <p className="text-lg">
+              <strong>{c.name}</strong>: {t.installedOn}{' '}
+              <strong className="text-2xl">{c.entries.length}</strong> {t.sites}
+            </p>
+            <p className="text-sm text-slate-700">
+              {t.usedOn} {used} · {t.only} {c.entries.length - used} ·{' '}
+              <span className="font-mono text-xs">
+                {[...versions.entries()]
+                  .sort(([a], [b]) => byVersion(a, b))
+                  .map(([v, n]) => `${v} (${n})`)
+                  .join(' · ')}
+              </span>
+            </p>
+          </div>
+        );
+      })}
       {all.length > 0 && (
         <Card title={t.summary}>
           <dl className="mb-4 grid grid-cols-3 gap-4 text-center">

@@ -22,6 +22,11 @@ const coreSettingsFields = {
   dateStyle: z.enum(['long', 'medium', 'short']),
   /** AI assistants can connect to the site through MCP (/mcp), with OAuth. */
   mcp: z.boolean(),
+  /**
+   * Once a day, tell cleitext.com the site's address and the versions of
+   * Cleitext, its themes and plugins (the installation registry).
+   */
+  installReport: z.boolean(),
   /** An arrow on the public pages that scrolls back to the top. */
   backToTop: z.boolean(),
   /** The arrow's colour (`#rrggbb`); a dark grey when null. */
@@ -100,6 +105,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   timezone: 'UTC',
   dateStyle: 'long',
   mcp: false,
+  installReport: true,
   backToTop: false,
   backToTopColor: null,
   backToTopPosition: 'right',

@@ -9,6 +9,7 @@ import { DATABASE } from '../database/database.module.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { installedThemes, themeFor } from '../public/themes.js';
 import { UpdatesService } from '../updates/updates.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 
 /**
  * Installation reports, as WordPress tells wordpress.org what a site runs:
@@ -50,6 +51,7 @@ export class InstallReportService {
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly plugins: PluginHost,
     private readonly updates: UpdatesService,
+    private readonly settings: SettingsService,
   ) {}
 
   /** Shared by every process and version: next to media, plugins and themes. */
@@ -69,6 +71,8 @@ export class InstallReportService {
   }
 
   private async maybeSend(siteId: string, origin: string): Promise<void> {
+    // The site's administrators turned it off (Settings → General).
+    if (!(await this.settings.getCore(siteId)).installReport) return;
     const stored = this.read();
     const last = Date.parse(stored.sent[siteId] ?? '');
     if (Number.isFinite(last) && Date.now() - last < EVERY_MS) {

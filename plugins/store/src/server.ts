@@ -4,7 +4,7 @@ import {
   type RouteRequest,
   type RouteResponse,
 } from '@cleitext/plugin-sdk';
-import { and, count, desc, eq, gte, ilike, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, isNull, lt, or, sql } from 'drizzle-orm';
 import {
   addMonths,
   isKey,
@@ -565,12 +565,16 @@ export default definePlugin({
           themes: report.themes,
           lastSeenAt: new Date(),
         };
-        await ctx.db.transaction(request.siteId, (tx) =>
-          tx
+        await ctx.db.transaction(request.siteId, async (tx) => {
+          await tx
             .insert(installs)
             .values({ siteId: request.siteId, origin: report.origin, ...values })
-            .onConflictDoUpdate({ target: [installs.siteId, installs.origin], set: values }),
-        );
+            .onConflictDoUpdate({ target: [installs.siteId, installs.origin], set: values });
+          // Sites not seen for 180 days leave the registry (data kept no longer than needed).
+          await tx
+            .delete(installs)
+            .where(lt(installs.lastSeenAt, new Date(Date.now() - RETENTION_DAYS * 86_400_000)));
+        });
         return { status: 204 };
       },
     });
@@ -607,7 +611,7 @@ export default definePlugin({
     });
 
     admin('GET', '/admin/installs', async (request) => {
-      const days = Math.min(Math.max(Number(request.query.days) || 90, 1), 3650);
+      const days = Math.min(Math.max(Number(request.query.days) || 90, 1), RETENTION_DAYS);
       const since = new Date(Date.now() - days * 86_400_000);
       const rows = await ctx.db.transaction(request.siteId, (tx) =>
         tx.select().from(installs).where(gte(installs.lastSeenAt, since)).orderBy(installs.origin),
@@ -851,6 +855,9 @@ interface Report {
 }
 
 /** A report as sent by Cleitext (catalog/install-report), checked field by field. */
+/** Days a site stays in the registry after its last report. */
+export const RETENTION_DAYS = 180;
+
 /**
  * Whether a reported address is a public site: not localhost, not a test or
  * local name (`.test`, `.local`, `.localhost`, `.example`, `.invalid`), not a

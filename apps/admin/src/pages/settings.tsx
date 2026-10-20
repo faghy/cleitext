@@ -363,6 +363,26 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
             </Link>
           </div>
         </Card>
+        <Card id="install-report" title={t('Installation report')}>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={values.installReport}
+              onChange={(e) => set('installReport', e.target.checked)}
+            />
+            <span>
+              <span className="block font-medium text-slate-800">
+                {t('Tell cleitext.com which versions this site runs')}
+              </span>
+              <span className="text-xs text-slate-500">
+                {t(
+                  "About once a day, as WordPress does with wordpress.org: the site's address, the version of Cleitext, the themes and plugins installed with their versions and whether they are active, and a random identifier of the server. Nothing about content, users or visitors. It helps the maintainers know which versions are in use and warn the sites hit by a broken update; sites not seen for 180 days are deleted from the registry.",
+                )}
+              </span>
+            </span>
+          </label>
+        </Card>
       </div>
 
       {pages.error && <Alert>{errorMessage(pages.error)}</Alert>}
