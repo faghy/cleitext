@@ -8,6 +8,7 @@ import {
   menuItems,
   menus,
   revisions,
+  settings,
   taxonomies,
   terms,
   users,
@@ -69,6 +70,15 @@ export interface SiteData {
  */
 export function isTypeAvailable(source: string, activePlugins: ReadonlySet<string>): boolean {
   return !source.startsWith('plugin:') || activePlugins.has(source.slice('plugin:'.length));
+}
+
+/** The `trailingSlash` core setting (RF-SET-03): addresses end with a slash. */
+export async function trailingSlashIn(tx: SiteTransaction): Promise<boolean> {
+  const [row] = await tx
+    .select({ value: settings.value })
+    .from(settings)
+    .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'trailingSlash')));
+  return row?.value === true;
 }
 
 export async function loadSiteData(
@@ -166,6 +176,7 @@ export async function loadSiteData(
       paths,
       new Map(taxonomyRows.flatMap((t) => (t.base !== null ? [[t.slug, t.base] as const] : []))),
       termPaths,
+      await trailingSlashIn(tx),
     ),
   };
 }
@@ -414,7 +425,9 @@ export async function loadMenus(
       }
       case 'url': {
         const url = safeUrl(item.url);
-        return url && item.label ? { label: item.label, url } : null;
+        if (!url || !item.label) return null;
+        // Addresses of the site follow its trailing-slash setting (no redirect on click).
+        return { label: item.label, url: /^\/(?!\/)/.test(url) ? urls.canonical(url) : url };
       }
       default:
         return item.label ? { label: item.label, url: '#' } : null;
@@ -432,9 +445,11 @@ export async function loadMenus(
           if (!resolved) return [];
           const children = build(item.id, depth + 1);
           const fields = menuItemFieldsAt(itemFields, depth);
+          // In either form of the addresses (with or without the trailing slash).
+          const bareUrl = resolved.url.replace(/\/+$/, '');
           const current =
             resolved.url === currentPath ||
-            (resolved.url !== '/' && currentPath.startsWith(`${resolved.url}/`)) ||
+            (bareUrl !== '' && `${currentPath.replace(/\/+$/, '')}/`.startsWith(`${bareUrl}/`)) ||
             children.some((c) => c.current);
           return [
             {

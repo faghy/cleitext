@@ -219,6 +219,33 @@ describe('translations of entries', () => {
     expect(italian.body).toContain('hrefLang="en" href="http://multi.test/"');
     await admin.request('PATCH', '/api/v1/settings/core', { frontPage: null });
   });
+
+  it('add the trailing slash after the language prefix too (trailingSlash)', async () => {
+    await admin.request('PATCH', '/api/v1/settings/core', { trailingSlash: true });
+    const hop = async (path: string) => {
+      const res = await visitor.get(path);
+      return [res.statusCode, res.headers.location];
+    };
+    expect(await hop('/it')).toEqual([301, '/it/']);
+    expect(await hop('/it/chi-siamo?x=1')).toEqual([301, '/it/chi-siamo/?x=1']);
+    expect((await visitor.get('/it/')).statusCode).toBe(200);
+    const italian = await visitor.get('/it/chi-siamo/');
+    expect(italian.statusCode).toBe(200);
+    expect(italian.body).toContain(
+      '<link rel="canonical" href="http://multi.test/it/chi-siamo/"/>',
+    );
+    expect(italian.body).toContain(
+      '<link rel="alternate" hrefLang="en" href="http://multi.test/about-us/"/>',
+    );
+    expect(italian.body).toContain('<a href="/about-us/" hrefLang="en" lang="en">English</a>');
+    expect((await visitor.get('/it/feed/')).statusCode).toBe(200);
+    expect((await visitor.get('/sitemap-page-it.xml')).body).toContain(
+      '<loc>http://multi.test/it/chi-siamo/</loc>',
+    );
+    expect(await hop('/it/account/login/')).toEqual([301, '/it/account/login']);
+    await admin.request('PATCH', '/api/v1/settings/core', { trailingSlash: false });
+    expect(await hop('/it/')).toEqual([301, '/it']);
+  });
 });
 
 describe('translations of terms', () => {

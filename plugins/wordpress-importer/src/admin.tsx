@@ -22,6 +22,7 @@ const KINDS: Record<string, [string, string]> = {
   menuItems: ['menu items', 'voci di menu'],
   users: ['authors', 'autori'],
   redirects: ['redirects', 'redirect'],
+  comments: ['comments', 'commenti'],
   contentTypes: ['content types', 'tipi di contenuto'],
   taxonomies: ['taxonomies', 'tassonomie'],
   locales: ['languages', 'lingue'],
@@ -62,15 +63,18 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   const fileId = useId();
   const localeId = useId();
   const roleId = useId();
+  const commentsId = useId();
   const [file, setFile] = useState<File | null>(null);
   const [locale, setLocale] = useState(site.defaultLocale);
   const [role, setRole] = useState('author');
+  const [comments, setComments] = useState('approved');
   const [sent, setSent] = useState(0);
   const start = useMutation({
     mutationFn: () => {
       const query = new URLSearchParams({
         locale,
         authorRole: role,
+        comments,
         // All the site's languages: pages translated with WPML go into theirs.
         ...(site.locales.length > 1
           ? { languages: site.locales.map((l) => l.code).join(',') }
@@ -157,6 +161,34 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
                 <option value="editor">{tr('Editor', 'Editore')}</option>
                 <option value="subscriber">{tr('Subscriber', 'Sottoscrittore')}</option>
               </select>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor={commentsId} className="block text-sm font-medium text-slate-800">
+                {tr('Comments', 'Commenti')}
+              </label>
+              <select
+                id={commentsId}
+                className={select}
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+              >
+                <option value="approved">
+                  {tr('Approved ones only', 'Solo quelli approvati')}
+                </option>
+                <option value="all">
+                  {tr(
+                    'All: also waiting for approval and spam',
+                    'Tutti: anche quelli in attesa e lo spam',
+                  )}
+                </option>
+                <option value="skip">{tr('None', 'Nessuno')}</option>
+              </select>
+              <p className="text-xs text-slate-500">
+                {tr(
+                  'Choose “None” if comments were closed and only old spam is left. Pingbacks and trackbacks are never imported.',
+                  'Scegli «Nessuno» se i commenti erano chiusi ed è rimasto solo vecchio spam. Pingback e trackback non vengono mai importati.',
+                )}
+              </p>
             </div>
           </div>
           <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">

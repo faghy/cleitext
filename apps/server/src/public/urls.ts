@@ -1,4 +1,5 @@
 import type { ContentLocale } from '@cleitext/plugin-sdk';
+import { ADMIN_PATH } from '@cleitext/shared';
 
 /**
  * Public URLs (docs/SPECIFICATIONS.md RF-SET-03): permalink patterns per
@@ -33,6 +34,43 @@ export interface UrlOrigin {
   scheme: string;
 }
 
+/**
+ * Whether a public path follows the site's trailing-slash setting
+ * (`trailingSlash`): not the root, not files (a dot in the last part), not
+ * visitors' account pages (their forms post to exact addresses), previews,
+ * internal addresses (`/_…`), the API or the admin. Those keep one form,
+ * without the slash.
+ */
+export function slashable(path: string): boolean {
+  if (path === '/' || !path.startsWith('/')) return false;
+  const bare = path.replace(/\/+$/, '');
+  if (!bare) return false;
+  if (bare.slice(bare.lastIndexOf('/') + 1).includes('.')) return false;
+  if (/^\/(?:[a-z]{2}(?:-[a-z]{2,4})?\/)?account(?:\/|$)/i.test(bare)) return false;
+  if (bare.startsWith('/_') || bare === '/api' || bare.startsWith('/api/')) return false;
+  return bare !== ADMIN_PATH && !bare.startsWith(`${ADMIN_PATH}/`);
+}
+
+/**
+ * The canonical form of a public path (RF-SET-03): with a trailing slash when
+ * the setting is on (`/about/`, as WordPress), without it otherwise
+ * (`/about`). The root stays `/`; paths that are not `slashable` lose it.
+ */
+export function canonicalPath(path: string, trailingSlash: boolean): string {
+  const bare = path.replace(/\/+$/, '') || '/';
+  return trailingSlash && slashable(bare) ? `${bare}/` : bare;
+}
+
+/**
+ * A local address (`/about?x=1#y`, or absolute on a site's domain) in the
+ * canonical form of its path; other addresses are returned as they are.
+ */
+export function canonicalUrl(url: string, trailingSlash: boolean): string {
+  const match = /^(https?:\/\/[^/?#]+)?(\/(?!\/)[^?#]*)?([?#].*)?$/i.exec(url);
+  if (!match || !match[2]) return url;
+  return `${match[1] ?? ''}${canonicalPath(match[2], trailingSlash)}${match[3] ?? ''}`;
+}
+
 /** Key of a term in `UrlBuilder`'s term paths. */
 export function termKey(taxonomy: string, locale: string, slug: string): string {
   return `${taxonomy}\u0000${locale}\u0000${slug}`;
@@ -53,7 +91,20 @@ export class UrlBuilder {
      * (`termKey`), as WordPress's /category/parent/child.
      */
     private readonly termPaths: Map<string, string[]> = new Map(),
+    /** Addresses end with a slash, as WordPress's (`trailingSlash` setting). */
+    readonly trailingSlash = false,
   ) {}
+
+  /** An address in the site's canonical form (trailing slash or not). */
+  canonical(url: string): string {
+    return canonicalUrl(url, this.trailingSlash);
+  }
+
+  /** A sub-address of another one: `join('/news/', '/feed')` → `/news/feed(/)`. */
+  join(base: string, suffix: string): string {
+    const [, path = '', rest = ''] = /^([^?#]*)(.*)$/s.exec(base) ?? [];
+    return this.canonical(`${path.replace(/\/+$/, '')}${suffix}${rest}`);
+  }
 
   get defaultLocale(): string {
     return (this.locales.find((l) => l.isDefault) ?? this.locales[0])?.code ?? 'en';
@@ -93,7 +144,7 @@ export class UrlBuilder {
 
   home(locale: string): string {
     const base = this.base(locale);
-    return !base ? '/' : /^https?:\/\/[^/]+$/.test(base) ? `${base}/` : base;
+    return !base ? '/' : /^https?:\/\/[^/]+$/.test(base) ? `${base}/` : this.canonical(base);
   }
 
   /** Pages of visitors' accounts: sign in, sign up, profile (RF-USR-11). */
@@ -103,22 +154,24 @@ export class UrlBuilder {
 
   /** Author archive (RF-THM-11). */
   author(locale: string, slug: string): string {
-    return `${this.home(locale).replace(/\/$/, '')}/author/${encodeURIComponent(slug)}`;
+    return this.join(this.home(locale), `/author/${encodeURIComponent(slug)}`);
   }
 
   /** RSS feed of the latest posts in a language (RF-THM-08). */
   feed(locale: string): string {
-    return `${this.base(locale)}/feed`;
+    return this.canonical(`${this.base(locale)}/feed`);
   }
 
   search(locale: string): string {
-    return `${this.base(locale)}/search`;
+    return this.canonical(`${this.base(locale)}/search`);
   }
 
   term(taxonomy: string, slug: string, locale: string): string {
     const base = this.taxonomyBases.get(taxonomy) ?? taxonomy;
     const path = (this.termPaths.get(termKey(taxonomy, locale, slug)) ?? [slug]).join('/');
-    return base ? `${this.base(locale)}/${base}/${path}` : `${this.base(locale)}/${path}`;
+    return this.canonical(
+      base ? `${this.base(locale)}/${base}/${path}` : `${this.base(locale)}/${path}`,
+    );
   }
 
   entry(entry: EntryRef): string {
@@ -130,13 +183,13 @@ export class UrlBuilder {
       .replace('{slug}', entry.slug)
       .replace('{year}', String(date.getUTCFullYear()))
       .replace('{month}', String(date.getUTCMonth() + 1).padStart(2, '0'));
-    return `${this.base(entry.locale)}${path}`;
+    return this.canonical(`${this.base(entry.locale)}${path}`);
   }
 
   /** `/page/2` style pagination of a listing URL. */
   page(base: string, page: number): string {
     if (page <= 1) return base;
-    return `${base.replace(/\/$/, '')}/page/${page}`;
+    return this.join(base, `/page/${page}`);
   }
 
   /** Splits `/it/foo` into the language and the rest of the path. */

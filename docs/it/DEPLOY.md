@@ -228,7 +228,7 @@ Ogni tanto ripristina un backup su una copia di prova, per essere sicuro che i t
 
 Le importazioni aggiungono contenuti al sito, non li sostituiscono. Ogni importazione stampa un resoconto e può salvarlo con `--report report.json`.
 
-**Da WordPress**: installa il plugin **WordPress Importer** da **Plugin → Aggiungi nuovo** (non è nel pacchetto base), esporta il vecchio sito con **Strumenti → Esporta → Tutti i contenuti** in WordPress, poi apri **Importa da WordPress** nell'amministrazione e carica il file. Lavora in background e alla fine mostra un resoconto; i vecchi indirizzi vengono reindirizzati a quelli nuovi. I file media vengono scaricati dal vecchio sito (solo da indirizzi pubblici), quindi tienilo online finché l'importazione non finisce.
+**Da WordPress**: installa il plugin **WordPress Importer** da **Plugin → Aggiungi nuovo** (non è nel pacchetto base), esporta il vecchio sito con **Strumenti → Esporta → Tutti i contenuti** in WordPress, poi apri **Importa da WordPress** nell'amministrazione e carica il file. Lavora in background e alla fine mostra un resoconto; i vecchi indirizzi vengono reindirizzati a quelli nuovi. I file media vengono scaricati dal vecchio sito (solo da indirizzi pubblici), quindi tienilo online finché l'importazione non finisce. Gli indirizzi di WordPress finiscono con la barra (`/mia-pagina/`): attiva **Indirizzi con la barra finale** in **Impostazioni → Struttura dei contenuti** per mantenerli identici (il resoconto lo suggerisce). La scelta **Commenti** importa quelli approvati (predefinito), tutti oppure nessuno.
 
 ## 11. Più siti
 

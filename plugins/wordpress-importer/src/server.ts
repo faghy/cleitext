@@ -13,6 +13,8 @@ const JOB = 'job';
 /** A running import that has not moved for this long was stopped by a restart. */
 const STALE_MS = 15 * 60_000;
 const ROLES = ['author', 'editor', 'contributor', 'subscriber'];
+/** Which comments come along (`?comments=`): approved ones by default. */
+const COMMENTS = ['approved', 'all', 'skip'] as const;
 
 const TITLES: Record<number, string> = { 400: 'Bad Request', 409: 'Conflict' };
 const problem = (status: 400 | 409, detail: string) => ({
@@ -60,7 +62,13 @@ async function run(
   ctx: PluginContext,
   siteId: string,
   job: Job,
-  options: { xml: string; userId: string; authorRole: string; locales: string[] },
+  options: {
+    xml: string;
+    userId: string;
+    authorRole: string;
+    locales: string[];
+    comments: (typeof COMMENTS)[number];
+  },
 ): Promise<void> {
   let saved = 0;
   const save = async (force = false) => {
@@ -76,6 +84,7 @@ async function run(
       locale: job.locale,
       authorRole: options.authorRole,
       locales: options.locales,
+      comments: options.comments,
     });
     const report = await ctx.transfer.importDocument(siteId, document, {
       userId: options.userId,
@@ -112,7 +121,7 @@ export default definePlugin({
       },
     });
 
-    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author).
+    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author&comments=all).
     ctx.routes.api({
       method: 'POST',
       path: '/imports',
@@ -143,6 +152,7 @@ export default definePlugin({
           .map((l) => l.trim())
           .filter((l) => /^[a-z]{2,3}(-[A-Z]{2})?$/.test(l))
           .slice(0, 8);
+        const comments = COMMENTS.find((c) => c === request.query.comments) ?? 'approved';
         const authorRole = ROLES.includes(request.query.authorRole ?? '')
           ? request.query.authorRole!
           : 'author';
@@ -163,6 +173,7 @@ export default definePlugin({
           userId: request.user!.id,
           authorRole,
           locales,
+          comments,
         });
         return { status: 202, body: { job } };
       },

@@ -14,6 +14,11 @@ const coreSettingsFields = {
   errorPage: z.uuid().nullable(),
   /** Ask search engines not to index the site. */
   discourageSearchEngines: z.boolean(),
+  /**
+   * Public addresses end with a slash (`/about/`), as WordPress's: the other
+   * form redirects (301). Off: `/about`, as before.
+   */
+  trailingSlash: z.boolean(),
   /** Days before trashed entries are deleted; 0 keeps them (RF-CNT-14). */
   trashDays: z.number().int().min(0).max(3650),
   /** IANA time zone of the site, e.g. Europe/Rome (dates, scheduling). */
@@ -101,6 +106,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   postsPerPage: 10,
   errorPage: null,
   discourageSearchEngines: false,
+  trailingSlash: false,
   trashDays: 30,
   timezone: 'UTC',
   dateStyle: 'long',

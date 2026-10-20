@@ -228,7 +228,7 @@ Restore a backup on a test copy now and then, to be sure that your backups work.
 
 Imports add content to the site; they do not replace it. Every import prints a report and can save it with `--report report.json`.
 
-**From WordPress**: install the **WordPress Importer** plugin from **Plugins → Add New** (it is not in the base package), export the old site with **Tools → Export → All content** in WordPress, then open **Import from WordPress** in the admin and upload the file. It runs in the background and shows a report at the end; old addresses are redirected to the new ones. Media files are downloaded from the old site (public addresses only), so keep it online until the import ends.
+**From WordPress**: install the **WordPress Importer** plugin from **Plugins → Add New** (it is not in the base package), export the old site with **Tools → Export → All content** in WordPress, then open **Import from WordPress** in the admin and upload the file. It runs in the background and shows a report at the end; old addresses are redirected to the new ones. Media files are downloaded from the old site (public addresses only), so keep it online until the import ends. WordPress addresses end with a slash (`/my-page/`): turn on **End addresses with a slash** in **Settings → Content structure** to keep them identical (the report suggests it). The **Comments** choice brings the approved comments (default), all of them, or none.
 
 ## 11. Several sites
 

@@ -57,6 +57,13 @@ export interface WxrOptions {
    * in their language, as translations of each other.
    */
   locales?: string[];
+  /**
+   * Which comments come along: `approved` ones only (default), `all` (also
+   * those waiting for approval and spam) or none (`skip`), for sites whose
+   * comments were closed and only old spam is left. Pingbacks and trackbacks
+   * never do, nor trashed comments.
+   */
+  comments?: 'approved' | 'all' | 'skip';
 }
 
 export interface WxrResult {
@@ -221,6 +228,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const skippedTypes = new Map<string, number>();
   let pingbacks = 0;
   let trashedComments = 0;
+  let leftComments = 0;
+  let unapprovedComments = 0;
+  const commentsMode = options.comments ?? 'approved';
   let elementorPages = 0;
   const entryRefs = new Map<number, string>();
   /** Types of themes and plugins (portfolio…): WordPress slug → Cleitext's, and an address. */
@@ -321,13 +331,18 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     }
     const gmt = text(item['wp:post_date_gmt']);
     const date = gmt && !gmt.startsWith('0000') ? `${gmt.replace(' ', 'T')}Z` : undefined;
-    // Comments: approved, waiting and spam ones (pingbacks are links, not comments).
+    // Comments: approved ones, or also waiting and spam ones, or none (`comments`);
+    // pingbacks are links, not comments.
     const comments: NonNullable<NonNullable<TransferDocumentInput['entries']>[number]['comments']> =
       [];
     for (const c of (item['wp:comment'] as Node[] | undefined) ?? []) {
       const kind = text(c['wp:comment_type']);
       if (kind === 'pingback' || kind === 'trackback') {
         pingbacks++;
+        continue;
+      }
+      if (commentsMode === 'skip') {
+        leftComments++;
         continue;
       }
       const approved = text(c['wp:comment_approved']);
@@ -341,6 +356,10 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
               : null;
       if (!commentStatus) {
         trashedComments++;
+        continue;
+      }
+      if (commentsMode === 'approved' && commentStatus !== 'approved') {
+        unapprovedComments++;
         continue;
       }
       const commentGmt = text(c['wp:comment_date_gmt']);
@@ -476,6 +495,19 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       'Posts had addresses like /my-post: to keep them, set the permalink of Posts to /{slug} in Content structure before importing (otherwise the old addresses redirect).',
     );
   }
+  // WordPress's addresses end with a slash (/my-page/): Cleitext can keep them so.
+  const ownPaths = items
+    .filter(
+      (i) =>
+        ['post', 'page'].includes(text(i['wp:post_type'])) && text(i['wp:status']) === 'publish',
+    )
+    .map((i) => relativeTo(text(i.link), baseUrl))
+    .filter((p) => p.startsWith('/') && p !== '/' && !p.includes('?'));
+  if (ownPaths.length > 0 && ownPaths.every((p) => p.endsWith('/'))) {
+    warnings.push(
+      'The WordPress addresses end with a slash (/my-page/): to keep them exactly, turn on “End addresses with a slash” in Settings → Content structure (otherwise they redirect once to the form without it).',
+    );
+  }
   if (elementorPages) {
     warnings.push(
       `${elementorPages} page(s) built with Elementor were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
@@ -491,6 +523,14 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   }
   if (pingbacks) warnings.push(`${pingbacks} pingback(s) and trackback(s) were not imported.`);
   if (trashedComments) warnings.push(`${trashedComments} trashed comment(s) were not imported.`);
+  if (leftComments) {
+    warnings.push(`${leftComments} comment(s) were not imported, as chosen.`);
+  }
+  if (unapprovedComments) {
+    warnings.push(
+      `${unapprovedComments} comment(s) waiting for approval or marked as spam were not imported (only approved ones were chosen).`,
+    );
+  }
 
   // ---- Menus ------------------------------------------------------------------------------
   const menus: NonNullable<TransferDocumentInput['menus']> = [];

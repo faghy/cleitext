@@ -5,7 +5,7 @@ The official Cleitext plugin to move a WordPress site in from the admin, without
 ## How to use it
 
 1. In WordPress, open **Tools → Export**, choose **All content** and press **Download Export File** (an `.xml` file).
-2. In Cleitext, open **Import from WordPress**, choose the file, the language of the content (on multilingual sites) and the role of the imported authors, and press **Import**.
+2. In Cleitext, open **Import from WordPress**, choose the file, the language of the content (on multilingual sites), the role of the imported authors and which comments to bring, and press **Import**.
 3. The import runs in the background: you can leave the page. At the end a report shows what was created, what was already there, and what was adapted or left out.
 
 ## What it imports
@@ -22,7 +22,8 @@ Posts, pages, images and other media, categories, tags, menus and authors, with 
 - Nothing already on the site is overwritten: importing the same file twice adds nothing new. Posts and pages imported before (same type, language, address and title) are kept as they are and get only the comments they lack; menus with the same name are not added again.
 - Media files are downloaded from the WordPress site, only from public addresses: keep the old site online until the import ends.
 - Authors get an account without a password, as members of the site with the chosen role; they set a password with **Forgot password**.
-- Comments come along with their threads (approved, waiting and spam); pingbacks, trackbacks and trashed comments are counted in the report. Custom post types of other plugins are counted and not imported; shortcodes stay as text.
+- Comments come along with their threads: the approved ones by default, or all of them (also those waiting for approval and spam), or none, for sites whose comments were closed and only old spam is left (the **Comments** choice; `?comments=approved|all|skip` on the upload). Pingbacks, trackbacks and trashed comments are never imported; what was left out is counted in the report.
+- WordPress addresses end with a slash (`/my-page/`): when the export's do, the report suggests turning on **End addresses with a slash** in **Settings → Content structure**, so the addresses stay exactly the same (nothing changes by itself). Custom post types of other plugins are counted and not imported; shortcodes stay as text.
 
 Only administrators can use it (capability `import_wordpress`).
 

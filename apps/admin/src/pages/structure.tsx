@@ -1,6 +1,7 @@
 import {
   CONTENT_TYPE_FEATURES,
   labelText,
+  type CoreSettings,
   type ContentTypeView,
   type FieldDefinition,
   type TaxonomyView,
@@ -43,9 +44,57 @@ export function StructurePage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">{t('Content structure')}</h1>
+      {me.capabilities.includes('manage_settings') && <AddressesCard />}
       {me.capabilities.includes('manage_content_types') && <ContentTypesCard />}
       {me.capabilities.includes('manage_taxonomies') && <TaxonomiesCard />}
     </div>
+  );
+}
+
+/**
+ * How every public address ends (RF-SET-03): with a slash, as WordPress's
+ * (`/about/`), or without (`/about`). The other form redirects (301).
+ */
+function AddressesCard() {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const settings = useQuery({
+    queryKey: ['settings', 'core'],
+    queryFn: () => api<CoreSettings>('GET', '/settings/core'),
+  });
+  const save = useMutation({
+    mutationFn: (trailingSlash: boolean) =>
+      api<CoreSettings>('PATCH', '/settings/core', { trailingSlash }),
+    onSuccess: (next) => queryClient.setQueryData(['settings', 'core'], next),
+  });
+  const enabled = settings.data?.trailingSlash ?? false;
+  return (
+    <Card id="addresses" title={t('Addresses')}>
+      <div className="space-y-2 text-sm">
+        {(settings.error ?? save.error) && (
+          <Alert>{errorMessage(settings.error ?? save.error)}</Alert>
+        )}
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={enabled}
+            disabled={!settings.data || save.isPending}
+            onChange={(e) => save.mutate(e.target.checked)}
+          />
+          <span>
+            <span className="block font-medium text-slate-800">
+              {t('End addresses with a slash')}
+            </span>
+            <span className="text-xs text-slate-500">
+              {t(
+                'Like WordPress: /about/ instead of /about. Turn it on for sites moved from WordPress, so the addresses search engines know stay the same. The other form redirects (301); files such as /sitemap.xml do not change.',
+              )}
+            </span>
+          </span>
+        </label>
+      </div>
+    </Card>
   );
 }
 

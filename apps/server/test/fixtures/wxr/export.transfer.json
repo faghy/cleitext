@@ -1,6 +1,7 @@
 {
   "warnings": [
     "1 WooCommerce product(s) were imported for Cleishop, with prices, codes, stock, pictures and variations: activate Cleishop before importing to keep them.",
+    "The WordPress addresses end with a slash (/my-page/): to keep them exactly, turn on “End addresses with a slash” in Settings → Content structure (otherwise they redirect once to the form without it).",
     "1 pingback(s) and trackback(s) were not imported."
   ],
   "document": {

@@ -88,6 +88,7 @@ import {
   entryAuthor,
   type PublishedEntry,
   type SiteData,
+  trailingSlashIn,
 } from './site-data.js';
 import { verifySameOrigin } from '../auth/auth.guard.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
@@ -99,7 +100,7 @@ import { themeFor } from './themes.js';
 import { PUBLIC_CSP } from '../common/security-headers.js';
 import { themeAreas, themeMediaIds, themeSettings } from './theme-data.js';
 import { SITEMAP_RE, SITEMAP_XSL, sitemap, sitemapIndex, type SitemapContext } from './sitemaps.js';
-import { matchPermalinks } from './urls.js';
+import { canonicalPath, canonicalUrl, matchPermalinks } from './urls.js';
 
 const HTML = 'text/html; charset=utf-8';
 /** Hook points a theme marks with `<Location name="hook:…">` (plugin API 1.33). */
@@ -589,15 +590,16 @@ export class PublicService {
     } catch {
       return { status: 400, html: 'Bad Request', tags: [] };
     }
-    // One canonical form: no trailing slash (except the root).
-    const slashed = path.length > 1 && path.endsWith('/');
-    const canonical = slashed ? path.replace(/\/+$/, '') || '/' : path;
-
     return withContext(this.database.db, { siteId }, async (tx) => {
+      // One canonical form (RF-SET-03): without a trailing slash, or with one
+      // when the site asks (`trailingSlash`, as WordPress). Never for the root and files.
+      const trailingSlash = await trailingSlashIn(tx);
+      const canonical = canonicalPath(path, trailingSlash);
+      const bare = path.replace(/\/+$/, '') || '/';
       // Old addresses may have a query, as WordPress's /?p=123: that exact one first.
-      // With a trailing slash, the redirect of either form is taken at once (one hop).
+      // A redirect is found in either form, and taken at once (one hop).
       const search = query.toString();
-      const forms = slashed ? [path, canonical] : [path];
+      const forms = [...new Set([path, bare, bare === '/' ? '/' : `${bare}/`])];
       const candidates = forms.flatMap((p) => (search ? [`${p}?${search}`, p] : [p]));
       const found = await tx
         .select()
@@ -607,15 +609,22 @@ export class PublicService {
         (a, b) => candidates.indexOf(a.fromPath) - candidates.indexOf(b.fromPath),
       )[0];
       if (redirect) {
-        await tx
-          .update(redirects)
-          .set({ hits: sql`${redirects.hits} + 1` })
-          .where(eq(redirects.id, redirect.id));
-        if (redirect.status !== 410) {
-          return { status: redirect.status, redirect: redirect.toPath, tags: [] };
+        // To the site's own form of the target, never through a second redirect.
+        const target = /^\/(?!\/)/.test(redirect.toPath)
+          ? canonicalUrl(redirect.toPath, trailingSlash)
+          : redirect.toPath;
+        const here = `${canonical}${search ? `?${search}` : ''}`;
+        if (redirect.status === 410 || target !== here) {
+          await tx
+            .update(redirects)
+            .set({ hits: sql`${redirects.hits} + 1` })
+            .where(eq(redirects.id, redirect.id));
+          if (redirect.status !== 410) {
+            return { status: redirect.status, redirect: target, tags: [] };
+          }
         }
       }
-      if (slashed) {
+      if (path !== canonical) {
         return {
           status: 301,
           redirect: `${encodeURI(canonical)}${search ? `?${search}` : ''}`,
@@ -641,6 +650,8 @@ export class PublicService {
       if (customize?.themeSettings) scope.themeSettings = customize.themeSettings;
 
       if (redirect?.status === 410) return this.notFound(scope, 410);
+      // Routes match addresses without the trailing slash.
+      const route = rest.replace(/\/+$/, '') || '/';
       if (path === '/robots.txt') return await this.robots(scope);
       // The addresses of WordPress and Yoast SEO, for sites moved from there.
       if (path === '/sitemap_index.xml' || path === '/wp-sitemap.xml') {
@@ -679,7 +690,7 @@ export class PublicService {
           )) ?? this.notFound(scope, 404)
         );
       }
-      return (await this.route(scope, rest, query)) ?? this.notFound(scope, 404);
+      return (await this.route(scope, route, query)) ?? this.notFound(scope, 404);
     });
   }
 
@@ -994,7 +1005,7 @@ export class PublicService {
       title = `${row.term.name} – ${scope.siteTitle}`;
       named = { ...term, name: row.term.name };
       link = data.urls.term(term.taxonomy, term.slug, locale);
-      self = `${link}/feed`;
+      self = data.urls.join(link, '/feed');
       tags.push(`term:${row.term.id}`);
     }
     title = await this.plugins.applyFilter(
@@ -1079,7 +1090,7 @@ export class PublicService {
         ].join(''),
       )
       .join('');
-    const self = `${data.urls.home(locale).replace(/\/$/, '')}/comments/feed`;
+    const self = data.urls.join(data.urls.home(locale), '/comments/feed');
     return {
       status: 200,
       html:
@@ -1163,9 +1174,8 @@ export class PublicService {
     if (paged && settings.postsPage) {
       const posts = await this.settingPage(scope, settings.postsPage);
       const base = posts ? data.urls.entry(posts.row) : null;
-      if (posts && base === scope.path.replace(/\/page\/\d+$/, '')) {
-        const page = Number(paged[2]);
-        if (page < 2) return null;
+      const page = Number(paged[2]);
+      if (posts && base && page >= 2 && data.urls.page(base, page) === scope.path) {
         return this.renderArchive(scope, {
           where: eq(entries.typeSlug, 'article'),
           title: posts.row.title,
@@ -1248,14 +1258,15 @@ export class PublicService {
     const slug = match[1]!.slice(match[1]!.lastIndexOf('/') + 1);
     const page = Number(match[2] ?? 1);
     const suffix = match[3] ? '/feed' : page > 1 ? `/page/${page}` : '';
+    const urls = scope.data.urls;
     for (const taxonomy of taxonomies) {
       const found = match[3]
         ? await this.feed(scope, { taxonomy, slug })
         : await this.renderTermArchive(scope, taxonomy, slug, page);
       if (!found) continue;
-      const canonical = scope.data.urls.term(taxonomy, slug, scope.locale);
-      if (`${canonical}${suffix}` !== scope.path && found.status === 200) {
-        const target = `${canonical}${suffix}`;
+      const canonical = urls.term(taxonomy, slug, scope.locale);
+      const target = suffix ? urls.join(canonical, suffix) : canonical;
+      if (target !== scope.path && found.status === 200) {
         // Redirects saved when terms lived elsewhere (0.31: /parent/child → /child)
         // would loop with this one, or chain to it: they go.
         await scope.tx.delete(redirects).where(eq(redirects.fromPath, target));
@@ -1544,7 +1555,7 @@ export class PublicService {
         ? {
             feed: {
               title: `${options.term.name} – ${scope.siteTitle}`,
-              href: `${options.base}/feed`,
+              href: data.urls.join(options.base, '/feed'),
             },
           }
         : {}),
@@ -2335,13 +2346,15 @@ export class PublicService {
           capabilities: viewer.capabilities,
         };
       }
+      // Plugins' addresses answer in both forms: the page names the site's own.
+      const canonical = scope.data.urls.canonical(path);
       const entry: PublicEntry = {
         id: `plugin-page:${path}`,
         type: 'page',
         locale: scope.locale,
         slug: path.split('/').filter(Boolean).at(-1) ?? 'page',
         title: page.title,
-        url: path,
+        url: canonical,
         publishedAt: null,
         excerpt: '',
         author: null,
@@ -2356,7 +2369,7 @@ export class PublicService {
       const head = this.head(scope, {
         title: `${page.title} – ${scope.siteTitle}`,
         description: page.description ?? '',
-        path,
+        path: canonical,
         alternates: [],
         type: 'website',
         image: null,

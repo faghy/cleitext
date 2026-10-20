@@ -194,6 +194,10 @@ export const itContent: Messages = {
   Choice: 'Scelta',
   'Choices (comma separated)': 'Scelte (separate da virgole)',
   'Content structure': 'Struttura dei contenuti',
+  Addresses: 'Indirizzi',
+  'End addresses with a slash': 'Indirizzi con la barra finale',
+  'Like WordPress: /about/ instead of /about. Turn it on for sites moved from WordPress, so the addresses search engines know stay the same. The other form redirects (301); files such as /sitemap.xml do not change.':
+    'Come WordPress: /chi-siamo/ invece di /chi-siamo. Attivalo per i siti trasferiti da WordPress, così gli indirizzi che i motori di ricerca conoscono restano uguali. L’altra forma reindirizza (301); i file come /sitemap.xml non cambiano.',
   'Custom fields': 'Campi personalizzati',
   'Date and time': 'Data e ora',
   'Delete the content type "{name}"?': 'Eliminare il tipo di contenuto «{name}»?',
