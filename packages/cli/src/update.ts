@@ -348,8 +348,9 @@ export async function trialRun(options: TrialOptions): Promise<void> {
       ...options.env,
       HOST: '127.0.0.1',
       PORT: String(port),
-      // No scheduled publishing nor automatic updates from the trial.
+      // No scheduled publishing, automatic updates nor registry reports from the trial.
       SCHEDULER_INTERVAL_SECONDS: '0',
+      INSTALL_REPORT_URL: '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

@@ -554,6 +554,8 @@ export default definePlugin({
         if (!reportLimit(request.ip)) return fail(429, 'Too many reports: try again later.');
         const report = parseReport(request.body);
         if (!report) return fail(400, 'The report is not valid.');
+        // Development machines, test suites and private networks are not installations.
+        if (!isPublicOrigin(report.origin)) return { status: 204 };
         const values = {
           installId: report.installId,
           coreVersion: report.core,
@@ -849,6 +851,37 @@ interface Report {
 }
 
 /** A report as sent by Cleitext (catalog/install-report), checked field by field. */
+/**
+ * Whether a reported address is a public site: not localhost, not a test or
+ * local name (`.test`, `.local`, `.localhost`, `.example`, `.invalid`), not a
+ * private, loopback or link-local IP.
+ */
+export function isPublicOrigin(origin: string): boolean {
+  let host: string;
+  try {
+    host = new URL(origin).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  } catch {
+    return false;
+  }
+  if (!host.includes('.') && !host.includes(':')) return false;
+  if (/(^|\.)(localhost|test|local|example|invalid|internal|lan|home)$/.test(host)) return false;
+  const v4 = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(host);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return !(
+      a === 10 ||
+      a === 127 ||
+      a === 0 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127)
+    );
+  }
+  if (host.includes(':')) return !/^(::1?|fe80:|fc|fd)/.test(host);
+  return true;
+}
+
 export function parseReport(body: unknown): Report | null {
   const b = (body ?? {}) as Record<string, unknown>;
   const installId = text(b.installId, 64);

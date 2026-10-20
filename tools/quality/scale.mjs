@@ -44,6 +44,8 @@ const db = await setupTestDatabase({ migrate });
 const env = {
   ...process.env,
   NODE_ENV: 'production',
+  // A check, not an installation: nothing goes to the registry.
+  INSTALL_REPORT_URL: '',
   APP_SECRET: 'scale-check-secret-0123456789abcdef0123',
   DATABASE_URL: db.appUrl,
   DATABASE_ADMIN_URL: db.ownerUrl,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseReport } from './server';
+import { isPublicOrigin, parseReport } from './server';
 
 const good = {
   installId: '0b6f2a8e-3c1d-4e5f-8a9b-0c1d2e3f4a5b',
@@ -33,5 +33,26 @@ describe('installation reports', () => {
     });
     expect(parsed?.plugins).toHaveLength(199);
     expect(parsed?.themes).toEqual([]);
+  });
+});
+
+describe('public addresses', () => {
+  it('counts real sites, not development, tests or private networks', () => {
+    for (const origin of ['https://dongbei.it', 'https://www.example.com', 'http://81.30.157.33'])
+      expect(isPublicOrigin(origin), origin).toBe(true);
+    for (const origin of [
+      'http://localhost',
+      'http://localhost:3000',
+      'http://site-12.test',
+      'http://shop.local',
+      'http://127.0.0.1:8080',
+      'http://192.168.1.20',
+      'http://10.0.0.5',
+      'http://172.20.1.1',
+      'http://[::1]:3000',
+      'http://intranet',
+      'not a url',
+    ])
+      expect(isPublicOrigin(origin), origin).toBe(false);
   });
 });

@@ -158,7 +158,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     // Tests never ask GitHub unless they say where.
     updates: { repo: e.UPDATES_REPO ?? (e.NODE_ENV === 'test' ? '' : 'faghy/cleitext') },
     installReport: {
-      url: e.INSTALL_REPORT_URL ?? (e.NODE_ENV === 'test' ? '' : DEFAULT_INSTALL_REPORT_URL),
+      // Only real installations (production) report by default: never tests nor development.
+      url: e.INSTALL_REPORT_URL ?? (e.NODE_ENV === 'production' ? DEFAULT_INSTALL_REPORT_URL : ''),
     },
     admin: { path: adminPath(e.ADMIN_PATH) },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
