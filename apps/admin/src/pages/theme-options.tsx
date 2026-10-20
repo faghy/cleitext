@@ -61,7 +61,13 @@ export function ThemeOptions() {
     const known = new Set(declared.map((s) => s.id));
     const rest = fields.some((f) => !f.section || !known.has(f.section));
     return [
-      ...declared.filter((s) => fields.some((f) => f.section === s.id)),
+      // A section with fields, or one grouping sections that have some (a panel).
+      ...declared.filter(function used(s): boolean {
+        return (
+          fields.some((f) => f.section === s.id) ||
+          declared.some((child) => child.parent === s.id && used(child))
+        );
+      }),
       ...(rest || declared.length === 0
         ? [{ id: OTHER, label: declared.length ? t('Other') : t('Settings') }]
         : []),
@@ -377,7 +383,26 @@ export function ThemeOptions() {
                 ))}
               </div>
             )}
-            {visibleCount === 0 ? (
+            {!query &&
+            visibleCount === 0 &&
+            sections.some((s) => 'parent' in s && s.parent === section) ? (
+              <ul className="divide-y divide-slate-100 rounded border border-slate-200">
+                {sections
+                  .filter((s) => 'parent' in s && s.parent === section)
+                  .map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => open(s.id)}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
+                      >
+                        {labelText(s.label, locale)}
+                        <span aria-hidden="true">›</span>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            ) : visibleCount === 0 ? (
               <p className="text-sm text-slate-600">
                 {query
                   ? t('No option matches.')
