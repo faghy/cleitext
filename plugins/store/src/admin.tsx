@@ -714,6 +714,19 @@ const I = {
     lastSeen: 'last report',
     forget: 'Forget',
     confirmForget: 'Forget this site? It comes back with its next report.',
+    summary: 'Summary',
+    totalSites: 'Sites',
+    totalServers: 'Servers',
+    totalCore: 'Cleitext versions',
+    item: 'Name',
+    kind: 'Type',
+    active: 'In use',
+    inactive: 'Installed only',
+    versions: 'Versions',
+    byPlugin: 'Plugin',
+    byTheme: 'Theme',
+    any: 'All',
+    clear: 'Clear filters',
   },
   it: {
     title: 'Installazioni',
@@ -735,6 +748,19 @@ const I = {
     lastSeen: 'ultimo resoconto',
     forget: 'Dimentica',
     confirmForget: 'Dimenticare questo sito? Ricompare con il prossimo resoconto.',
+    summary: 'Riepilogo',
+    totalSites: 'Siti',
+    totalServers: 'Server',
+    totalCore: 'Versioni di Cleitext',
+    item: 'Nome',
+    kind: 'Tipo',
+    active: 'In uso',
+    inactive: 'Solo installato',
+    versions: 'Versioni',
+    byPlugin: 'Plugin',
+    byTheme: 'Tema',
+    any: 'Tutti',
+    clear: 'Togli i filtri',
   },
 };
 
@@ -788,6 +814,8 @@ function InstallationsPage({ api, user }: AdminPageProps) {
   const [days, setDays] = useState(90);
   const [view, setView] = useState<'items' | 'sites'>('items');
   const [q, setQ] = useState('');
+  const [plugin, setPlugin] = useState('');
+  const [theme, setTheme] = useState('');
   const rows = useQuery({
     queryKey: ['store', 'installs', days],
     queryFn: () => api<InstallRow[]>('GET', `/admin/installs?days=${days}`),
@@ -797,7 +825,30 @@ function InstallationsPage({ api, user }: AdminPageProps) {
     onSuccess: () => client.invalidateQueries({ queryKey: ['store', 'installs'] }),
   });
   const needle = q.trim().toLowerCase();
-  const data = rows.data ?? [];
+  const all = rows.data ?? [];
+  // Every plugin and theme reported, for the filters.
+  const pluginSlugs = [...new Set(all.flatMap((r) => r.plugins.map((p) => p.slug)))].sort();
+  const themeSlugs = [
+    ...new Set(all.flatMap((r) => [r.themeSlug ?? '', ...r.themes.map((x) => x.slug)])),
+  ]
+    .filter(Boolean)
+    .sort();
+  // The sites using the chosen plugin (active) and theme (the site's own).
+  const data = all.filter(
+    (r) =>
+      (!plugin || r.plugins.some((p) => p.slug === plugin && p.active)) &&
+      (!theme || r.themeSlug === theme),
+  );
+  const servers = new Set(data.map((r) => r.installId)).size;
+  const coreVersions = new Set(data.map((r) => r.coreVersion)).size;
+  const summary = usageOf(data).map((u) => {
+    const entries = [...u.versions.values()].flat();
+    return {
+      ...u,
+      active: new Set(entries.filter((e) => e.active).map((e) => e.origin)).size,
+      inactive: new Set(entries.filter((e) => !e.active).map((e) => e.origin)).size,
+    };
+  });
   const usages = usageOf(data).filter((u) => !needle || u.slug.includes(needle));
   const sites = data.filter(
     (r) =>
@@ -842,12 +893,109 @@ function InstallationsPage({ api, user }: AdminPageProps) {
           </select>
         </label>
         <TextField label={t.filter} value={q} onChange={(e) => setQ(e.target.value)} />
+        {(
+          [
+            [t.byPlugin, plugin, setPlugin, pluginSlugs],
+            [t.byTheme, theme, setTheme, themeSlugs],
+          ] as const
+        ).map(([label, value, set, options]) => (
+          <label key={label} className="block space-y-1 text-sm">
+            <span className="block font-medium text-slate-800">{label}</span>
+            <select
+              className="rounded border border-slate-300 bg-white px-2 py-2"
+              value={value}
+              onChange={(e) => set(e.target.value)}
+            >
+              <option value="">{t.any}</option>
+              {options.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+        {(plugin || theme) && (
+          <button
+            type="button"
+            className="py-2 text-sm text-sky-700 hover:underline"
+            onClick={() => {
+              setPlugin('');
+              setTheme('');
+            }}
+          >
+            {t.clear}
+          </button>
+        )}
       </div>
+      {all.length > 0 && (
+        <Card title={t.summary}>
+          <dl className="mb-4 grid grid-cols-3 gap-4 text-center">
+            {(
+              [
+                [t.totalSites, data.length],
+                [t.totalServers, servers],
+                [t.totalCore, coreVersions],
+              ] as const
+            ).map(([label, n]) => (
+              <div key={label} className="rounded bg-slate-50 p-3">
+                <dt className="text-xs text-slate-600">{label}</dt>
+                <dd className="text-2xl font-semibold">{n}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs text-slate-600">
+                  <th className="py-2 pr-3 font-medium">{t.item}</th>
+                  <th className="py-2 pr-3 font-medium">{t.kind}</th>
+                  <th className="py-2 pr-3 text-right font-medium">{t.active}</th>
+                  <th className="py-2 pr-3 text-right font-medium">{t.inactive}</th>
+                  <th className="py-2 pl-6 font-medium">{t.versions}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.map((u) => (
+                  <tr key={u.key} className="border-b border-slate-100">
+                    <td className="py-1.5 pr-3">
+                      {u.kind === 'core' ? (
+                        t.core
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-sky-700 hover:underline"
+                          onClick={() =>
+                            u.kind === 'plugin' ? setPlugin(u.slug) : setTheme(u.slug)
+                          }
+                        >
+                          {u.slug}
+                        </button>
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-3 text-slate-600">
+                      {u.kind === 'core' ? '' : t[u.kind]}
+                    </td>
+                    <td className="py-1.5 pr-3 text-right font-medium">{u.active}</td>
+                    <td className="py-1.5 pr-3 text-right text-slate-600">{u.inactive || ''}</td>
+                    <td className="py-1.5 pl-6 font-mono text-xs">
+                      {[...u.versions.entries()]
+                        .sort(([a], [b]) => byVersion(a, b))
+                        .map(([v, list]) => `${v} (${new Set(list.map((x) => x.origin)).size})`)
+                        .join(' · ')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
       <div className="flex gap-1 border-b border-slate-200" role="tablist">
         {tab('items', t.byItem)}
         {tab('sites', `${t.bySite} (${data.length})`)}
       </div>
-      {rows.data && data.length === 0 && <p className="text-sm text-slate-600">{t.none}</p>}
+      {rows.data && all.length === 0 && <p className="text-sm text-slate-600">{t.none}</p>}
       {view === 'items' &&
         usages.map((u) => {
           const total = new Set([...u.versions.values()].flat().map((s) => s.origin)).size;
