@@ -245,8 +245,9 @@ export const IT: Record<string, string> = {
   '{rows} products in {file}; {known} columns recognized.':
     '{rows} prodotti in {file}; {known} colonne riconosciute.',
   'Ignored columns:': 'Colonne ignorate:',
-  'Images are not downloaded: add them in each product.':
-    'Le immagini non vengono scaricate: aggiungile in ogni prodotto.',
+  'Pictures are downloaded from their addresses: the first becomes the product picture, the others its gallery. Keep the old site online until the import ends.':
+    "Le immagini vengono scaricate dai loro indirizzi: la prima diventa l'immagine del prodotto, le altre la galleria. Tieni online il vecchio sito finché l'import non è finito.",
+  'Picture not downloaded ({source}): {error}': 'Immagine non scaricata ({source}): {error}',
   'Update the products already in the shop': 'Aggiorna i prodotti già presenti',
   'Add the new ones': 'Aggiungi quelli nuovi',
   'Create missing categories and brands': 'Crea le categorie e i marchi mancanti',

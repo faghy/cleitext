@@ -460,6 +460,32 @@ export default definePlugin({
       };
     });
 
+    /** Pictures of an import, downloaded from their addresses into the library (in order). */
+    api('POST', '/import/images', async (request) => {
+      const input = z
+        .object({
+          urls: z
+            .array(z.url({ protocol: /^https?$/ }))
+            .min(1)
+            .max(20),
+        })
+        .safeParse(request.body ?? {});
+      if (!input.success) return invalid(input.error);
+      const images: ({ id: string; url: string } | { error: string; source: string })[] = [];
+      for (const url of input.data.urls) {
+        try {
+          const item = await ctx.media.fromUrl(request.siteId, url, { userId: request.user!.id });
+          images.push({ id: item.id, url: item.url });
+        } catch (error) {
+          images.push({
+            source: url,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      return { body: { images } };
+    });
+
     api('GET', '/products/:id', async (request) => {
       const id = request.params.id!;
       if (!UUID_RE.test(id)) return fail(404, 'Not found.');

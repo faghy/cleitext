@@ -252,6 +252,31 @@ export function ImportPanel({
           if (['visible', 'catalog', 'search', 'hidden'].includes(value))
             product.visibility = value;
         }
+        // Pictures (WooCommerce lists their addresses, comma separated): the first is the
+        // product's picture, the others its gallery.
+        if (has('images')) {
+          const urls = (cell(row, 'images') ?? '')
+            .split(',')
+            .map((u) => u.trim())
+            .filter((u) => /^https?:\/\//i.test(u))
+            .slice(0, 20);
+          if (urls.length > 0) {
+            const { images } = await api<{
+              images: ({ id: string; url: string } | { error: string; source: string })[];
+            }>('POST', '/import/images', { urls });
+            const ok = images.filter((i): i is { id: string; url: string } => 'id' in i);
+            for (const failed of images.filter((i) => 'error' in i))
+              result.errors.push({
+                row: index + 2,
+                message: t('Picture not downloaded ({source}): {error}', {
+                  source: (failed as { source: string }).source,
+                  error: (failed as { error: string }).error,
+                }),
+              });
+            if (ok[0]) await core('PATCH', `/entries/${id}`, { featuredMediaId: ok[0].id });
+            product.gallery = ok.slice(1).map((i) => ({ id: i.id, caption: '' }));
+          }
+        }
         await api('PUT', `/products/${id}`, { product });
 
         if (has('published') && (cell(row, 'published') ?? '').trim() === '1')
@@ -313,7 +338,9 @@ export function ImportPanel({
           )}
           {parsed.columns.includes('images') && (
             <p className="sh-small sh-muted">
-              {t('Images are not downloaded: add them in each product.')}
+              {t(
+                'Pictures are downloaded from their addresses: the first becomes the product picture, the others its gallery. Keep the old site online until the import ends.',
+              )}
             </p>
           )}
           <div className="sh-row">

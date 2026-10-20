@@ -18,7 +18,7 @@ products, with the catalog features shops expect.
   - price and stock changed by clicking on them;
   - a quick look (images, prices, stock);
   - duplicate, trash and publish on many products at once;
-  - CSV export and import, with the usual column names of e-commerce platforms.
+  - CSV export and import, with the usual column names of e-commerce platforms; the pictures of an import are downloaded from their addresses (first one the product picture, then the gallery).
 - **The product form**, on one page or step by step (Settings → Cleishop):
   - category and brand;
   - description;
