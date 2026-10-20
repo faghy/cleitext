@@ -48,7 +48,11 @@ export async function themeAreas(
         ),
       ),
     );
-  return Object.fromEntries(rows.map((row) => [row.key.split(':')[0]!, row.value as CxdDocument]));
+  const stored = Object.fromEntries(
+    rows.map((row) => [row.key.split(':')[0]!, row.value as CxdDocument]),
+  );
+  // Areas never edited show the theme's default content, if any.
+  return { ...(theme.areaDefaults ?? {}), ...stored };
 }
 
 /** Media used by theme settings (media fields, background images) and areas, to preload. */

@@ -194,6 +194,32 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     return parsed.data;
   }
 
+  /**
+   * Setting values from a file exported by another system, converted by the
+   * active theme (`importSettings`): only the values that pass validation.
+   */
+  async importSettings(
+    siteId: string,
+    auth: AuthContext,
+    data: unknown,
+  ): Promise<{ values: Record<string, unknown>; skipped: number }> {
+    const theme = themeFor(await this.activeSlug(siteId, auth));
+    const converted = theme.importSettings?.(data) ?? null;
+    if (!converted) {
+      throw new BadRequestException('The active theme cannot read this file.');
+    }
+    const fields = theme.settings ?? [];
+    const values: Record<string, unknown> = {};
+    let skipped = 0;
+    for (const field of fields) {
+      if (!(field.name in converted)) continue;
+      const one = fieldsValidator([field]).safeParse({ [field.name]: converted[field.name] });
+      if (one.success) values[field.name] = converted[field.name];
+      else skipped++;
+    }
+    return { values, skipped };
+  }
+
   async saveSettings(
     siteId: string,
     auth: AuthContext,
@@ -236,7 +262,13 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
         .from(settings)
         .where(and(eq(settings.namespace, AREAS_NAMESPACE), eq(settings.key, `${name}:${locale}`))),
     );
-    return (row?.value as CxdDocument | undefined) ?? { schema: 1, blocks: [] };
+    return (
+      (row?.value as CxdDocument | undefined) ??
+      themeFor(await this.activeSlug(siteId, auth)).areaDefaults?.[name] ?? {
+        schema: 1,
+        blocks: [],
+      }
+    );
   }
 
   async saveArea(

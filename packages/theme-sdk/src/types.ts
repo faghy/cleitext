@@ -243,6 +243,12 @@ export interface ThemeDefinition {
    * Cleitext gives them in `entry.related`. Without it, none are looked up.
    */
   relatedEntries?: number;
+  /**
+   * Turns settings exported from another system (a file the site owner
+   * imports in Customize) into this theme's setting values, or null when the
+   * file is not one it knows.
+   */
+  importSettings?(data: unknown): Record<string, unknown> | null;
   /** Give the categories and tags of the entries in lists (`entries[].terms`). */
   listTerms?: boolean;
   /** Give the previous and next entries of posts (`entry.adjacent`), for "Previous / Next" links. */
@@ -252,6 +258,11 @@ export interface ThemeDefinition {
    * Appearance → Areas and rendered with `<BlockArea name="footer" />`.
    */
   areas?: Record<string, string>;
+  /**
+   * What an area shows until it is edited (e.g. a shop plugin's cart block in
+   * a header area): blocks of any installed plugin, loaded like the others.
+   */
+  areaDefaults?: Record<string, CxdDocument>;
   /**
    * CSS for the block editor's canvas, so that content looks like the site;
    * a function gets the settings' values (the chosen colors and fonts).

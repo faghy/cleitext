@@ -58,6 +58,7 @@ function keepFrame(html: string): string {
 }
 const livePreviewBody = z.object({ path: z.string().startsWith('/').max(500).default('/') });
 const areaBody = z.object({ document: z.unknown() });
+const importBody = z.object({ data: z.unknown() });
 const localeQuery = z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/);
 
 /** Appearance → Themes, Customize and Areas (RF-THM-01/03/04). */
@@ -253,6 +254,19 @@ export class ThemesController {
       .header('content-security-policy', `${PUBLIC_CSP}; sandbox allow-scripts allow-forms`)
       .header('x-robots-tag', 'noindex');
     return kept.html;
+  }
+
+  /** Converts settings exported from another system with the active theme (`importSettings`). */
+  @Post('active/import')
+  @HttpCode(200)
+  @RequireCapability('edit_theme_settings')
+  importSettings(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Body() body: unknown,
+  ) {
+    const { data } = parseBody(importBody, body);
+    return this.themes.importSettings(site.id, auth, data);
   }
 
   @Get('active/areas/:name')

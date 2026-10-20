@@ -39,10 +39,14 @@ const sdk = globalThis.__cleitextShared['@cleitext/theme-sdk'];
 function Layout({ head, children }) {
   const page = sdk.usePage();
   return h('html', null, h('head', null, h('title', null, head.title)),
-    h('body', null, h('p', { id: 'plain' }, 'Plain theme of ' + page.site.title), children));
+    h('body', null, h('p', { id: 'plain' }, 'Plain theme of ' + page.site.title), children, h(sdk.BlockArea, { name: 'note' })));
 }
 function Index() { return h('main', null, 'index'); }
-export default sdk.defineTheme({ slug: 'plain', name: 'Plain', version: '1.0.0', menuLocations: {}, templates: { index: Index }, Layout, css: '' });
+export default sdk.defineTheme({ slug: 'plain', name: 'Plain', version: '1.0.0', menuLocations: {}, templates: { index: Index }, Layout, css: '',
+  settings: [{ name: 'motto', type: 'text', label: 'Motto', maxLength: 20 }, { name: 'columns', type: 'number', label: 'Columns', min: 1, max: 4 }],
+  areas: { note: 'Note' },
+  areaDefaults: { note: { schema: 1, blocks: [{ id: 'd', type: 'core/paragraph', v: 1, attrs: {}, content: [{ text: 'Default note' }] }] } },
+  importSettings: (data) => (data && data.oldTheme ? { motto: data.oldTheme.motto, columns: data.oldTheme.columns } : null) });
 `,
   );
   // A broken one is reported, not fatal.
@@ -230,6 +234,34 @@ export default sdk.defineTheme({ slug: 'shiny', name: 'Shiny', version: '2.0.0',
           .json()
           .some((t: { slug: string }) => t.slug === 'shiny'),
     );
+  });
+});
+
+describe('settings of another system', () => {
+  it('are imported through the active theme', async () => {
+    // The default theme does not read other formats.
+    expect((await admin.post('/api/v1/themes/active/import', { data: { x: 1 } })).statusCode).toBe(
+      400,
+    );
+    expect((await admin.post('/api/v1/themes/plain/activate')).statusCode).toBe(200);
+    try {
+      const res = await admin.post('/api/v1/themes/active/import', {
+        data: { oldTheme: { motto: 'From the old site', columns: 9 } },
+      });
+      expect(res.statusCode).toBe(200);
+      // Values that fail validation (9 columns) are left out.
+      expect(res.json()).toEqual({ values: { motto: 'From the old site' }, skipped: 1 });
+      const other = await admin.post('/api/v1/themes/active/import', { data: { other: true } });
+      expect(other.statusCode).toBe(400);
+      const denied = await editor.post('/api/v1/themes/active/import', { data: {} });
+      expect(denied.statusCode).toBe(403);
+      // An area never edited shows the theme's default content.
+      expect((await visitor.get('/')).body).toContain('Default note');
+      const area = (await admin.get('/api/v1/themes/active/areas/note?locale=en')).json();
+      expect(area.blocks[0].content[0].text).toBe('Default note');
+    } finally {
+      await admin.post('/api/v1/themes/aurora/activate');
+    }
   });
 });
 
