@@ -16,6 +16,7 @@ import {
   type SiteTransaction,
 } from '@cleitext/db';
 import {
+  fieldDefinitionSchema,
   fieldListSchema,
   fieldsValidator,
   labelText,
@@ -514,7 +515,12 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     if (!/^[a-z][a-z0-9-]{0,63}$/.test(theme)) {
       throw new PluginError(`Invalid theme slug "${theme}"`);
     }
-    fieldListSchema.parse(extension.settings ?? []);
+    // Each field is checked like a plugin's; a theme's options run to hundreds, so no cap of 100.
+    const settings = extension.settings ?? [];
+    z.array(fieldDefinitionSchema).max(5000).parse(settings);
+    if (new Set(settings.map((f) => f.name)).size !== settings.length) {
+      throw new PluginError('Field names of a theme extension must be unique');
+    }
     plugin.themeExtensions.push({ theme, extension });
   }
 
