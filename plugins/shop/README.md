@@ -95,7 +95,9 @@ products, with the catalog features shops expect.
   or best sellers of the category) and structured data (Product, Offer,
   BreadcrumbList).
 - Blocks: **Products** (latest, featured, on sale, best sellers or top rated,
-  of a category or brand) and **Cart link** with the number of items.
+  of a category or brand), **Cart link** with the number of items and
+  **Product search** (the site's search among products only); the last two
+  fit a theme's header area, such as Canvas's **Header (right side)**.
 - In the visitor's account: their orders and their details, and the
   addresses that fill in the checkout. A signed-in customer finds their cart
   on another device.

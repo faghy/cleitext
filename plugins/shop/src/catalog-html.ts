@@ -63,6 +63,9 @@ export const CATALOG_CSS = `
 .shop-cart-link{display:inline-flex;gap:.35rem;align-items:center;text-decoration:none;color:inherit;font-weight:600}
 .shop-cart-link__count{display:inline-grid;place-items:center;min-width:1.4rem;height:1.4rem;padding:0 .3rem;border-radius:999px;background:var(--shop-accent,var(--cx-accent,#1f2937));color:var(--shop-on-accent,var(--cx-on-accent,#fff));font-size:.75em}
 .shop-cart-link__count:empty{display:none}
+.shop-search{display:flex;align-items:stretch;margin:0;max-width:16rem}
+.shop-search input{flex:1;min-width:0;padding:.4rem .6rem;border:1px solid currentColor;border-right:0;border-radius:6px 0 0 6px;font:inherit;background:transparent;color:inherit}
+.shop-search button{display:inline-grid;place-items:center;padding:0 .6rem;border:1px solid currentColor;border-radius:0 6px 6px 0;background:transparent;color:inherit;cursor:pointer}
 `;
 
 /** A thumbnail of an image of the media library (300 px), the original otherwise. */

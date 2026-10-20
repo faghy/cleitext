@@ -1061,6 +1061,8 @@ export class PublicService {
         scope,
         (query.get('q') ?? '').trim().slice(0, 200),
         Number(query.get('page') ?? 1),
+        // One content type only, e.g. products from a shop's search box.
+        /^[a-z][a-z0-9_-]{0,63}$/.test(query.get('type') ?? '') ? query.get('type')! : null,
       );
     }
 
@@ -1625,6 +1627,7 @@ export class PublicService {
     scope: RequestScope,
     q: string,
     page: number,
+    type: string | null = null,
   ): Promise<PublicResponse> {
     const { tx, data, settings } = scope;
     scope.tags.add('search');
@@ -1634,7 +1637,11 @@ export class PublicService {
     let total = 0;
     if (q) {
       const match = sql`${entries.search} @@ plainto_tsquery('simple', unaccent(${q}))`;
-      const where = and(await this.listedIn(scope), match);
+      const where = and(
+        await this.listedIn(scope),
+        match,
+        type ? eq(entries.typeSlug, type) : undefined,
+      );
       total = await this.count(scope, where);
       list = await this.published(scope, where, {
         limit: perPage,
@@ -1653,7 +1660,7 @@ export class PublicService {
       }),
     );
     const totalPages = Math.max(1, Math.ceil(total / perPage));
-    const base = `${data.urls.search(scope.locale)}?q=${encodeURIComponent(q)}`;
+    const base = `${data.urls.search(scope.locale)}?q=${encodeURIComponent(q)}${type ? `&type=${type}` : ''}`;
     const props: TemplateProps = {
       kind: 'search',
       query: q,

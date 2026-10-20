@@ -254,6 +254,14 @@ describe('search', () => {
     expect(html).toContain('<mark>pistachio</mark>');
     expect(draft.status).toBe('draft');
   });
+
+  it('can look in one content type only', async () => {
+    await publish('page', 'Pistachio page', { text: 'Pistachio cream recipe.' });
+    const pages = await page('/search?q=pistachio&type=page');
+    expect(pages.html).toContain('Pistachio page');
+    expect(pages.html).not.toContain('Gelato guide');
+    expect((await page('/search?q=pistachio&type=bad%20type')).html).toContain('Gelato guide');
+  });
 });
 
 describe('menus', () => {

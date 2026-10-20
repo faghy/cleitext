@@ -120,6 +120,8 @@ const IT: Record<string, string> = {
     'Il coupon “{code}” non si può usare insieme ad altri coupon.',
   'Coupon “{code}” is already applied.': 'Il coupon “{code}” è già applicato.',
   Cart: 'Carrello',
+  'Search products': 'Cerca prodotti',
+  Search: 'Cerca',
   Checkout: 'Cassa',
   'Order received': 'Ordine ricevuto',
   'Add to cart': 'Aggiungi al carrello',

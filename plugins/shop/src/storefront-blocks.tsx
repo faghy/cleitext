@@ -216,6 +216,49 @@ export function registerStorefrontBlocks(
     }),
   );
 
+  // ---- Product search, for headers ---------------------------------------------------
+
+  ctx.blocks.register(
+    defineBlock<{ placeholder: string }, { prefix: string }>({
+      type: 'shop/search',
+      title: { en: 'Product search', it: 'Ricerca prodotti' },
+      description: {
+        en: 'A search box that looks among the products only, for the header.',
+        it: 'Un campo di ricerca che cerca solo tra i prodotti, per l’intestazione.',
+      },
+      icon: 'search',
+      attributes: [
+        { name: 'placeholder', type: 'text', label: { en: 'Placeholder', it: 'Testo di esempio' } },
+      ],
+      load: async (_attrs, context) => ({ prefix: prefixOf(context.page.site.home) }),
+      css: () => CATALOG_CSS,
+      render({ attrs, data, context }) {
+        const t = translator(context.locale);
+        const label = attrs.placeholder || t('Search products');
+        return (
+          <form className="shop-search" role="search" method="get" action={`${data.prefix}/search`}>
+            <input type="search" name="q" placeholder={label} aria-label={label} />
+            <input type="hidden" name="type" value={PRODUCT} />
+            <button type="submit" aria-label={t('Search')}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+            </button>
+          </form>
+        );
+      },
+    }),
+  );
+
   ctx.routes.public({
     method: 'GET',
     path: CART_JS_PATH,
