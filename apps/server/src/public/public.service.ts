@@ -1855,6 +1855,7 @@ export class PublicService {
       scope.path,
       new Set(data.types.map((t) => t.slug)),
       theme.menuItemFields,
+      await this.frontPageIds(scope),
     );
     scope.tags.add(`menus:${locale}`);
     // Theme settings and block areas, with the media they use.

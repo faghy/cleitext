@@ -28,6 +28,8 @@ const HEADING_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span',
 const tag = (value: unknown, fallback: string) =>
   HEADING_TAGS.has(str(value)) ? str(value) : fallback;
 const text = (value: unknown) => plainTitle(str(value)).text;
+/** Plain text keeping the line breaks (`<br>`) as new lines. */
+const lines = (value: unknown) => text(value).replace(/[ \t]*\n[ \t]*/g, '\n');
 
 /** Elementor's `Y-m-d H:i` → the date control's `YYYY-MM-DDTHH:mm`. */
 const dateTime = (value: unknown) => {
@@ -169,7 +171,15 @@ export function proWidget(
       if (!out.current_color) color(out, src, 'color_menu_item_hover', 'current_color');
       color(out, src, 'background_color_dropdown_item', 'sub_bg');
       color(out, src, 'color_dropdown_item', 'sub_color');
+      // The phone toggle as Elementor draws it: a light box, 22px icon, centered.
       color(out, src, 'toggle_color', 'toggle_color');
+      if (!out.toggle_color) color(out, src, 'color_menu_item', 'toggle_color');
+      out.toggle_bg = colorOf(src, 'toggle_background_color') ?? 'rgba(0,0,0,0.05)';
+      out.toggle_size = size(src.toggle_size) ?? { size: 22, unit: 'px' };
+      out.toggle_padding = { size: 0.25, unit: 'em' };
+      out.toggle_radius = size(src.toggle_border_radius) ?? { size: 3, unit: 'px' };
+      const toggleAlign = str(src.toggle_align);
+      out.toggle_align = toggleAlign === 'left' || toggleAlign === 'right' ? toggleAlign : 'center';
       // Elementor's menu links: 13px 20px around a 20px line unless set otherwise.
       if (!hasLineHeight(src, 'menu_typography')) out.typography_line = { size: 20, unit: 'px' };
       const x = size(src.padding_horizontal_menu_item);
@@ -183,6 +193,36 @@ export function proWidget(
         linked: false,
       };
       copy(out, src, 'menu_space_between', 'spacing', (v) => size(v, c));
+      // Pointer of the top links (Elementor's default: an underline in the accent color).
+      const pointer = str(src.pointer) || 'underline';
+      const pointers: Record<string, string> = {
+        underline: 'underline',
+        overline: 'overline',
+        'double-line': 'double',
+        framed: 'framed',
+        background: 'background',
+      };
+      if (pointers[pointer]) {
+        out.pointer = pointers[pointer];
+        out.pointer_color =
+          colorOf(src, 'pointer_color_menu_item_active') ??
+          colorOf(src, 'pointer_color_menu_item_hover') ??
+          'var(--fr-c-accent)';
+        const width = size(src.pointer_width);
+        if (width) out.pointer_width = width;
+      }
+      // Submenu indicator, in the link: its icon (Elementor's default: a caret).
+      const indicator =
+        c.icon(src.submenu_icon) ??
+        (
+          {
+            classic: { set: 'solid', name: 'caret-down' },
+            chevron: { set: 'solid', name: 'chevron-down' },
+            angle: { set: 'solid', name: 'angle-down' },
+            plus: { set: 'solid', name: 'plus' },
+          } as Record<string, Settings>
+        )[str(src.indicator) || 'classic'];
+      if (indicator && str(src.indicator) !== 'none') out.indicator = indicator;
       return [c.node('nav-menu', out)];
     }
     case 'theme-site-logo': {
@@ -581,7 +621,13 @@ export function proWidget(
       color(out, src, 'description_color', 'desc_color');
       c.typography(out, src, 'description_typography', 'desc_typography');
       color(out, src, 'button_text_color', 'button_color', 'button_hover_text_color');
+      color(out, src, 'button_background_color', 'button_bg', 'button_hover_background_color');
       color(out, src, 'button_border_color', 'button_border');
+      // One slide: Elementor shows no arrows nor dots.
+      if ((out.items as unknown[]).length < 2) {
+        out.arrows = false;
+        out.dots = false;
+      }
       return [c.node('fresco-pro/slides', out)];
     case 'call-to-action': {
       out.skin = src.skin === 'cover' ? 'cover' : 'classic';
@@ -591,6 +637,14 @@ export function proWidget(
       if (position === 'left' || position === 'right') out.image_position = position;
       out.title = text(src.title);
       out.description = text(src.description);
+      // A graphic above the title (Elementor's "graphic element": image).
+      if (src.graphic_element === 'image') {
+        const graphic = media(src.graphic_image);
+        if (graphic) out.graphic = graphic;
+        copy(out, src, 'graphic_image_width', 'graphic_width', (v) => size(v, c), false);
+      } else if (src.graphic_element === 'icon') {
+        c.note('icons above call-to-action titles were left out');
+      }
       out.button_text = str(src.button);
       if (link(src.link)) out.button_link = link(src.link);
       if (src.link_click === 'box') out.whole_link = true;
@@ -661,8 +715,8 @@ export function proWidget(
       // Elementor's look: bands, centered features with dividers, its default fonts.
       out.skin = 'classic';
       // Line breaks (`<br>`) stay as new lines.
-      out.heading = text(src.heading).replace(/[ \t]*\n[ \t]*/g, '\n');
-      out.sub_heading = str(src.sub_heading);
+      out.heading = lines(src.heading);
+      out.sub_heading = lines(src.sub_heading);
       out.tag = tag(src.heading_tag, 'h3');
       const symbols: Record<string, string> = {
         dollar: '$',
@@ -695,7 +749,7 @@ export function proWidget(
         out.sale = true;
         out.original_price = str(src.original_price);
       }
-      out.period = str(src.period);
+      out.period = lines(src.period);
       out.features = list(src.features_list).map((item, i) => ({
         _id: str(item._id) || `f${i}`,
         text: text(item.item_text),

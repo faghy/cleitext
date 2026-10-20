@@ -80,11 +80,13 @@ async function run(
   try {
     // Parsing a large export takes seconds: only after the upload has been answered.
     await new Promise((resolve) => setImmediate(resolve));
+    const site = await ctx.site(siteId);
     const { document, warnings } = wxrToDocument(options.xml, {
       locale: job.locale,
       authorRole: options.authorRole,
       locales: options.locales,
       comments: options.comments,
+      trailingSlash: site.trailingSlash === true,
     });
     const report = await ctx.transfer.importDocument(siteId, document, {
       userId: options.userId,

@@ -382,10 +382,11 @@ a.fr-container {
   flex: 0 0 auto;
   max-width: 100%;
 }
-.fr-image-box .fr-box__media {
+/* Default widths without specificity: the element's own width (Image → Width) wins. */
+:where(.fr-image-box) .fr-box__media {
   width: 30%;
 }
-.fr-image-box .fr-box--top .fr-box__media {
+:where(.fr-image-box .fr-box--top) .fr-box__media {
   width: 50%;
 }
 .fr-box__media img {
@@ -399,6 +400,7 @@ a.fr-container {
 }
 .fr-box__title {
   margin: 0 0 10px;
+  white-space: pre-line;
   color: var(--fr-c-primary, inherit);
   font-family: var(--fr-t-primary-family, inherit);
   font-weight: var(--fr-t-primary-weight, 600);
@@ -409,6 +411,8 @@ a.fr-container {
 }
 .fr-box__description {
   margin: 0;
+  /* Line breaks typed in the text (or imported from <br>) show. */
+  white-space: pre-line;
   color: var(--fr-c-text, inherit);
 }
 
@@ -1256,6 +1260,82 @@ a.fr-container {
   background: none;
   color: inherit;
   cursor: pointer;
+}
+/* Where the toggle sits in the menu's width (folded menus). */
+.fr-menu--toggle-at-center .fr-menu__toggle {
+  margin-inline: auto;
+}
+.fr-menu--toggle-at-right .fr-menu__toggle {
+  margin-left: auto;
+}
+/* The submenu indicator inside the link (an icon chosen in the menu); the
+   separate toggle button only shows in the folded (mobile) menu. */
+.fr-menu--arrows .fr-menu__item > .fr-menu__expand {
+  display: none;
+}
+.fr-menu--arrows .fr-menu__link {
+  display: flex;
+  align-items: center;
+}
+.fr-menu__arrow {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  line-height: 1;
+}
+.fr-menu__arrow svg {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+}
+/* Pointers of the top links, on hover and on the current page. */
+.fr-menu[class*='fr-menu--pointer-'] .fr-menu__list > li > .fr-menu__link {
+  position: relative;
+}
+.fr-menu--pointer-underline .fr-menu__list > li > .fr-menu__link::after,
+.fr-menu--pointer-double .fr-menu__list > li > .fr-menu__link::after,
+.fr-menu--pointer-overline .fr-menu__list > li > .fr-menu__link::before,
+.fr-menu--pointer-double .fr-menu__list > li > .fr-menu__link::before,
+.fr-menu--pointer-framed .fr-menu__list > li > .fr-menu__link::before,
+.fr-menu--pointer-background .fr-menu__list > li > .fr-menu__link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--fr-menu-pointer-width, 3px);
+  background-color: var(--fr-menu-pointer, var(--fr-c-accent, currentColor));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.fr-menu__list > li > .fr-menu__link::after {
+  bottom: 0;
+}
+.fr-menu__list > li > .fr-menu__link::before {
+  top: 0;
+}
+.fr-menu--pointer-framed .fr-menu__list > li > .fr-menu__link::before {
+  height: auto;
+  bottom: 0;
+  border: var(--fr-menu-pointer-width, 3px) solid
+    var(--fr-menu-pointer, var(--fr-c-accent, currentColor));
+  background: none;
+}
+.fr-menu--pointer-background .fr-menu__list > li > .fr-menu__link {
+  z-index: 0;
+}
+.fr-menu--pointer-background .fr-menu__list > li > .fr-menu__link::before {
+  z-index: -1;
+  height: auto;
+  bottom: 0;
+}
+.fr-menu[class*='fr-menu--pointer-'] .fr-menu__list > li > .fr-menu__link:hover::before,
+.fr-menu[class*='fr-menu--pointer-'] .fr-menu__list > li > .fr-menu__link:hover::after,
+.fr-menu[class*='fr-menu--pointer-'] .fr-menu__list > li > .fr-menu__link:focus-visible::before,
+.fr-menu[class*='fr-menu--pointer-'] .fr-menu__list > li > .fr-menu__link:focus-visible::after,
+.fr-menu[class*='fr-menu--pointer-'] .fr-menu__list > .is-current > .fr-menu__link::before,
+.fr-menu[class*='fr-menu--pointer-'] .fr-menu__list > .is-current > .fr-menu__link::after {
+  opacity: 1;
 }
 /* `ul.`: over the padding and margin themes give to the lists of the content
    (`.entry-content ul`, loaded before), under the menu's own variants. */

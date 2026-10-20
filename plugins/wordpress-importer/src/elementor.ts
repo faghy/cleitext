@@ -936,7 +936,8 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
       }
       case 'google_maps':
         out.address = str(src.address);
-        if (size(src.zoom)) out.zoom = size(src.zoom)!.size;
+        // Elementor's default zoom is 10.
+        out.zoom = size(src.zoom)?.size ?? 10;
         copy(out, src, 'height', 'height', (v) => size(v, c));
         result = c.node('google-maps', out);
         break;
@@ -1117,7 +1118,11 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
             'min_height',
             (v) => size(v, c),
           );
-        } else if (src[heightKey] === 'full') extra.min_height = { size: 100, unit: 'vh' };
+        } else if (src[heightKey] === 'full') {
+          // Elementor fits the window from tablets up; on phones the content decides.
+          extra.min_height = { size: 100, unit: 'vh' };
+          extra['min_height@mobile'] = { size: 0, unit: 'px' };
+        }
         if (src[heightKey] === 'full' || src[heightKey] === 'min-height') {
           const position = str(src.column_position) || 'middle';
           extra.align_items =

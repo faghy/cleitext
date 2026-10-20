@@ -371,6 +371,8 @@ export async function loadMenus(
   typeSlugs: ReadonlySet<string>,
   /** Options of menu items of the site's theme (plugin API 1.34), given in `data`. */
   itemFields?: readonly MenuItemField[],
+  /** The front page and its translations: links to them go to the home address. */
+  frontPageIds: ReadonlySet<string> = new Set(),
 ): Promise<Record<string, MenuItemView[]>> {
   const menuRows = await tx
     .select()
@@ -411,7 +413,10 @@ export async function loadMenus(
       case 'entry': {
         const entry = item.entryId ? entryById.get(item.entryId) : undefined;
         return entry && typeSlugs.has(entry.typeSlug)
-          ? { label: item.label || entry.title, url: urls.entry(entry) }
+          ? {
+              label: item.label || entry.title,
+              url: frontPageIds.has(entry.id) ? urls.home(entry.locale) : urls.entry(entry),
+            }
           : null;
       }
       case 'term': {

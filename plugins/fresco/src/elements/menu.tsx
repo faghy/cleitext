@@ -1,9 +1,10 @@
 /** Nav menu: one of the site's menus (by theme location), with dropdowns and a mobile toggle. */
 import { advancedControls, ElementRoot, UNITS } from '../core/common.js';
 import { ALIGN, content, groups, style } from '../core/controls.js';
+import { Icon } from '../core/icons.js';
 import type { ElementDefinition, MenuItem } from '../core/model.js';
 
-function Items({ items, level }: { items: MenuItem[]; level: number }) {
+function Items({ items, level, arrow }: { items: MenuItem[]; level: number; arrow: unknown }) {
   return (
     <ul className={level === 0 ? 'fr-menu__list' : 'fr-menu__sub'}>
       {items.map((item) => (
@@ -18,6 +19,11 @@ function Items({ items, level }: { items: MenuItem[]; level: number }) {
             {...(item.current ? { 'aria-current': 'page' as const } : {})}
           >
             {item.label}
+            {arrow && item.children.length > 0 ? (
+              <span className="fr-menu__arrow" aria-hidden="true">
+                <Icon value={arrow} />
+              </span>
+            ) : null}
           </a>
           {item.children.length > 0 && (
             <>
@@ -32,7 +38,7 @@ function Items({ items, level }: { items: MenuItem[]; level: number }) {
                   <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" />
                 </svg>
               </button>
-              <Items items={item.children} level={level + 1} />
+              <Items items={item.children} level={level + 1} arrow={arrow} />
             </>
           )}
         </li>
@@ -40,6 +46,8 @@ function Items({ items, level }: { items: MenuItem[]; level: number }) {
     </ul>
   );
 }
+
+const POINTERS = ['underline', 'overline', 'double', 'framed', 'background'];
 
 export const navMenu: ElementDefinition = {
   type: 'fresco/nav-menu',
@@ -95,6 +103,29 @@ export const navMenu: ElementDefinition = {
       max: 80,
       selectors: { '{{el}} .fr-menu__list': 'gap: {{value}}' },
     }),
+    content.icon('indicator', 'Submenu indicator', 'Menu', {
+      help: 'Shown in the link of items with a submenu. Empty: a small arrow beside the link.',
+    }),
+    style.select('pointer', 'Pointer', 'Links', {
+      default: '',
+      noCss: true,
+      options: [
+        { value: '', label: 'None' },
+        { value: 'underline', label: 'Underline' },
+        { value: 'overline', label: 'Overline' },
+        { value: 'double', label: 'Double line' },
+        { value: 'framed', label: 'Framed' },
+        { value: 'background', label: 'Background' },
+      ],
+    }),
+    style.color('pointer_color', 'Pointer color', 'Links', {
+      selectors: { '{{el}}': '--fr-menu-pointer: {{value}}' },
+    }),
+    style.slider('pointer_width', 'Pointer width', 'Links', {
+      units: ['px'],
+      max: 20,
+      selectors: { '{{el}}': '--fr-menu-pointer-width: {{value}}' },
+    }),
     style.box('link_padding', 'Padding', 'Links', {
       responsive: true,
       units: UNITS.box,
@@ -111,6 +142,28 @@ export const navMenu: ElementDefinition = {
     style.color('toggle_color', 'Toggle color', 'Mobile', {
       selectors: { '{{el}} .fr-menu__toggle': 'color: {{value}}' },
     }),
+    style.color('toggle_bg', 'Toggle background', 'Mobile', {
+      selectors: { '{{el}} .fr-menu__toggle': 'background-color: {{value}}' },
+    }),
+    style.slider('toggle_size', 'Toggle size', 'Mobile', {
+      units: ['px'],
+      max: 60,
+      selectors: { '{{el}} .fr-menu__toggle svg': 'width: {{value}}; height: {{value}}' },
+    }),
+    style.slider('toggle_padding', 'Toggle padding', 'Mobile', {
+      units: ['px', 'em'],
+      max: 40,
+      selectors: { '{{el}} .fr-menu__toggle': 'padding: {{value}}' },
+    }),
+    style.slider('toggle_radius', 'Toggle corners', 'Mobile', {
+      units: ['px', '%'],
+      max: 50,
+      selectors: { '{{el}} .fr-menu__toggle': 'border-radius: {{value}}' },
+    }),
+    content.choose('toggle_align', 'Toggle position', 'Mobile', {
+      options: ALIGN.filter((o) => o.value !== 'justify'),
+      noCss: true,
+    }),
     style.color('mobile_bg', 'Menu background', 'Mobile', {
       selectors: { '{{el}}.is-collapsible .fr-menu__panel': 'background-color: {{value}}' },
     }),
@@ -120,6 +173,8 @@ export const navMenu: ElementDefinition = {
     const location = typeof settings.location === 'string' ? settings.location : 'primary';
     const items = context.menus?.[location] ?? [];
     const vertical = settings.layout === 'vertical';
+    const indicator = settings.indicator as { name?: string } | undefined;
+    const arrow = indicator?.name ? indicator : null;
     const toggle = ['tablet', 'none'].includes(settings.toggle as string)
       ? String(settings.toggle)
       : 'mobile';
@@ -138,7 +193,20 @@ export const navMenu: ElementDefinition = {
       <ElementRoot
         node={node}
         settings={settings}
-        name={`fr-menu fr-menu--${vertical ? 'vertical' : 'horizontal'} fr-menu--toggle-${toggle}`}
+        name={[
+          'fr-menu',
+          `fr-menu--${vertical ? 'vertical' : 'horizontal'}`,
+          `fr-menu--toggle-${toggle}`,
+          arrow ? 'fr-menu--arrows' : '',
+          ['center', 'right'].includes(settings.toggle_align as string)
+            ? `fr-menu--toggle-at-${settings.toggle_align}`
+            : '',
+          POINTERS.includes(settings.pointer as string)
+            ? `fr-menu--pointer-${settings.pointer}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         editing={context.editing}
         tag="nav"
         extra={{ 'data-fr-handler': 'menu', 'aria-label': location }}
@@ -163,7 +231,7 @@ export const navMenu: ElementDefinition = {
           </button>
         )}
         <div className="fr-menu__panel">
-          <Items items={items} level={0} />
+          <Items items={items} level={0} arrow={arrow} />
         </div>
       </ElementRoot>
     );

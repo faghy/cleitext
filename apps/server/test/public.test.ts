@@ -308,6 +308,36 @@ describe('menus', () => {
     expect(html).not.toContain('Not yet');
     expect(html).not.toContain('javascript:');
   });
+
+  it('links menu items of the front page to the home address', async () => {
+    const start = await publish('page', 'Start here');
+    await withSiteContext(owner.db, site.id, async (tx) => {
+      const [menu] = await tx
+        .insert(menus)
+        .values({
+          siteId: site.id,
+          slug: 'home-menu',
+          name: 'Home menu',
+          locale: 'en',
+          location: 'footer',
+        })
+        .returning();
+      await tx.insert(menuItems).values({
+        siteId: site.id,
+        menuId: menu!.id,
+        kind: 'entry',
+        entryId: start.id,
+        position: 0,
+      });
+    });
+    const admin = new TestClient(app, site.host, '10.6.0.5');
+    await admin.login('admin@public.test', PASSWORD);
+    await admin.request('PATCH', '/api/v1/settings/core', { frontPage: start.id });
+    // Like WordPress: the item goes to the home, and is the current one there.
+    expect((await page('/')).html).toContain('<a href="/" aria-current="page">Start here</a>');
+    await admin.request('PATCH', '/api/v1/settings/core', { frontPage: null });
+    expect((await page('/services')).html).toContain('<a href="/start-here">Start here</a>');
+  });
 });
 
 describe('redirects and errors', () => {

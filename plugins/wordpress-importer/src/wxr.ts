@@ -64,6 +64,8 @@ export interface WxrOptions {
    * never do, nor trashed comments.
    */
   comments?: 'approved' | 'all' | 'skip';
+  /** The site's addresses already end with a slash (no need to suggest it). */
+  trailingSlash?: boolean;
 }
 
 export interface WxrResult {
@@ -503,7 +505,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     )
     .map((i) => relativeTo(text(i.link), baseUrl))
     .filter((p) => p.startsWith('/') && p !== '/' && !p.includes('?'));
-  if (ownPaths.length > 0 && ownPaths.every((p) => p.endsWith('/'))) {
+  if (!options.trailingSlash && ownPaths.length > 0 && ownPaths.every((p) => p.endsWith('/'))) {
     warnings.push(
       'The WordPress addresses end with a slash (/my-page/): to keep them exactly, turn on “End addresses with a slash” in Settings → Content structure (otherwise they redirect once to the form without it).',
     );

@@ -91,6 +91,13 @@ ${links
     expect(
       wxrToDocument(site(['/tariffario-estivo', '/about/']), { locale: 'it' }).warnings.join('\n'),
     ).not.toContain(hint);
+    // Not when the site already has the setting on.
+    expect(
+      wxrToDocument(site(['/tariffario-estivo/', '/about/team/']), {
+        locale: 'it',
+        trailingSlash: true,
+      }).warnings.join('\n'),
+    ).not.toContain(hint);
     expect(
       wxrToDocument(site(['/?page_id=1']), { locale: 'it' }).warnings.join('\n'),
     ).not.toContain(hint);

@@ -474,7 +474,7 @@ describe('Elementor pages to Fresco', () => {
         {
           id: 's2',
           elType: 'section',
-          settings: {},
+          settings: { height: 'full' },
           elements: [
             {
               id: 'a',
@@ -496,6 +496,9 @@ describe('Elementor pages to Fresco', () => {
     expect(phone!.attrs).toMatchObject({
       'flex_direction@mobile': 'row',
       'flex_wrap@mobile': 'wrap',
+      // Fits the window, except on phones (as Elementor).
+      min_height: { size: 100, unit: 'vh' },
+      'min_height@mobile': { size: 0, unit: 'px' },
     });
     expect(phone!.children![0]!.attrs['width@mobile']).toEqual({ size: 45, unit: '%' });
     const column = section!.children![0]!;
@@ -535,9 +538,34 @@ describe('Elementor pages to Fresco', () => {
     expect(menu.attrs).toMatchObject({
       'link_color:hover': 'var(--fr-c-accent)',
       current_color: 'var(--fr-c-accent)',
+      // Elementor's defaults: an underline in the accent color, a caret beside submenus.
+      pointer: 'underline',
+      pointer_color: 'var(--fr-c-accent)',
+      toggle_bg: 'rgba(0,0,0,0.05)',
+      toggle_size: { size: 22, unit: 'px' },
+      toggle_align: 'center',
+      indicator: { set: 'solid', name: 'caret-down' },
       typography_line: { size: 20, unit: 'px' },
       link_padding: { top: 13, right: 20, bottom: 13, left: 20, unit: 'px' },
     });
+    const styled = one({
+      widgetType: 'nav-menu',
+      settings: {
+        pointer: 'double-line',
+        pointer_width: { unit: 'px', size: 1 },
+        submenu_icon: { value: 'fas fa-angle-down', library: 'fa-solid' },
+        __globals__: { pointer_color_menu_item_hover: 'globals/colors?id=secondary' },
+      },
+    }).block;
+    expect(styled.attrs).toMatchObject({
+      pointer: 'double',
+      pointer_width: { size: 1, unit: 'px' },
+      pointer_color: 'var(--fr-c-secondary)',
+      indicator: { set: 'solid', name: 'angle-down' },
+    });
+    const plain = one({ widgetType: 'nav-menu', settings: { pointer: 'none', indicator: 'none' } });
+    expect(plain.block.attrs.pointer).toBeUndefined();
+    expect(plain.block.attrs.indicator).toBeUndefined();
     const entryRef = (id: number) => (id === 1162 ? 'post:1162' : undefined);
     const tag = (settings: string) =>
       `[elementor-tag id="a1" name="popup" settings="${encodeURIComponent(settings)}"]`;
@@ -565,6 +593,69 @@ describe('Elementor pages to Fresco', () => {
     });
     expect(close.block.attrs.__dynamic).toMatchObject({ link: { tag: 'popup', key: 'close' } });
     expect(close.warnings).toEqual([]);
+  });
+
+  it('turns price tables into classic ones with Elementor line breaks and fonts', () => {
+    const { block } = one({
+      widgetType: 'price-table',
+      settings: {
+        heading: 'Stagionale<br> dal 7 gennaio',
+        period: 'gratuito <br>per ogni bambino',
+        footer_additional_info: ' ',
+        features_list: [{ _id: 'a', item_text: 'Sdraio <b>omaggio</b>' }],
+      },
+    });
+    expect(block.attrs).toMatchObject({
+      skin: 'classic',
+      heading: 'Stagionale\ndal 7 gennaio',
+      period: 'gratuito\nper ogni bambino',
+      footer_info: '',
+      features: [{ text: 'Sdraio omaggio', icon: { set: 'regular', name: 'circle-check' } }],
+      heading_typography_global: 'primary',
+      features_typo_global: 'text',
+    });
+  });
+
+  it('converts slides and call-to-action graphics as Elementor shows them', () => {
+    const slides = one({
+      widgetType: 'slides',
+      settings: {
+        slides: [{ _id: 'a', heading: 'PRATO NEVOSO<br>SUMMER CAMP', button_text: 'Go' }],
+        __globals__: { button_background_color: 'globals/colors?id=d25a2d9' },
+      },
+    }).block;
+    expect(slides.attrs).toMatchObject({
+      button_bg: 'var(--fr-c-d25a2d9)',
+      arrows: false,
+      dots: false,
+    });
+    expect((slides.attrs.items as { heading: string }[])[0]!.heading).toBe(
+      'PRATO NEVOSO\nSUMMER CAMP',
+    );
+    const cta = one({
+      widgetType: 'call-to-action',
+      settings: {
+        skin: 'cover',
+        title: 'MTB',
+        graphic_element: 'image',
+        graphic_image: { id: 12, url: 'https://old.test/wp-content/uploads/a.png' },
+        graphic_image_width: { unit: '%', size: 49 },
+      },
+    }).block;
+    expect(cta.attrs).toMatchObject({
+      graphic: { id: 'att:12' },
+      graphic_width: { size: 49, unit: '%' },
+    });
+  });
+
+  it('keeps the zoom of maps, Elementor’s default when unset', () => {
+    expect(one({ widgetType: 'google_maps', settings: { address: 'Rome' } }).block.attrs.zoom).toBe(
+      10,
+    );
+    expect(
+      one({ widgetType: 'google_maps', settings: { address: 'Rome', zoom: { size: 18 } } }).block
+        .attrs.zoom,
+    ).toBe(18);
   });
 
   it('turns Elementor search forms into joined search forms with an icon button', () => {

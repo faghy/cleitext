@@ -70,7 +70,12 @@ import { DATABASE, PLUGIN_DATABASE } from '../database/database.module.js';
 import { MailService } from '../mail/mail.service.js';
 import { MediaService } from '../media/media.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
-import { isPublished, isTypeAvailable, loadSiteData } from '../public/site-data.js';
+import {
+  isPublished,
+  isTypeAvailable,
+  loadSiteData,
+  trailingSlashIn,
+} from '../public/site-data.js';
 import { importDocument } from '../transfer/importer.js';
 import { blockRegistry } from '../content/block-registry.js';
 import { sanitizeDocument } from '../content/html-sanitize.js';
@@ -99,9 +104,9 @@ export class PluginServicesProvider implements PluginServices {
   }
 
   async site(siteId: string): Promise<PluginSite> {
-    const site = await withContext(this.database.db, { siteId }, async (tx) => {
+    const { site, trailingSlash } = await withContext(this.database.db, { siteId }, async (tx) => {
       const [row] = await tx.select().from(sites).where(eq(sites.id, siteId));
-      return row;
+      return { site: row, trailingSlash: await trailingSlashIn(tx) };
     });
     const defaultLocale = site?.defaultLocale ?? 'en';
     return {
@@ -109,6 +114,7 @@ export class PluginServicesProvider implements PluginServices {
       name: site?.name ?? '',
       defaultLocale,
       locales: (await this.languages.locales(siteId, defaultLocale)).map((l) => l.code),
+      trailingSlash,
     };
   }
 

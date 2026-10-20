@@ -27,6 +27,11 @@ export interface PluginSite {
   defaultLocale: string;
   /** Content languages, the default first (only the default without a language plugin). */
   locales: string[];
+  /**
+   * Public addresses end with a slash (`/about/`, the core `trailingSlash`
+   * setting; plugin API 1.37). Missing on older cores.
+   */
+  trailingSlash?: boolean;
 }
 
 export interface PluginLogger {

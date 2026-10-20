@@ -7,6 +7,7 @@ import { sanitizeRich } from '../src/core/sanitize.js';
 import { button, heading, text } from '../src/elements/basic.js';
 import { container } from '../src/elements/container.js';
 import { videoEmbed } from '../src/elements/general.js';
+import { navMenu } from '../src/elements/menu.js';
 import { pluginBlock } from '../src/elements/plugin-block.js';
 
 const node = (
@@ -259,6 +260,40 @@ describe('rendering', () => {
     );
     expect(plain).not.toContain('fr-shape');
     expect(plain).not.toContain('fr-has-overlay');
+  });
+
+  it('draws the menu pointer and the submenu indicator in the link', () => {
+    const attrs = {
+      pointer: 'underline',
+      pointer_color: '#E30C1E',
+      pointer_width: { size: 1, unit: 'px' },
+      indicator: { set: 'solid', name: 'angle-down' },
+    };
+    const menus = {
+      primary: [
+        { id: 'a', label: 'Home', url: '/', current: true, children: [] },
+        {
+          id: 'b',
+          label: 'Park',
+          url: '#',
+          current: false,
+          children: [{ id: 'c', label: 'Rides', url: '/rides', current: false, children: [] }],
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      navMenu.render({
+        node: node('fresco/nav-menu', attrs),
+        settings: withDefaults(navMenu, attrs),
+        context: { ...context, menus } as unknown as RenderContext,
+      }),
+    );
+    expect(html).toContain('fr-menu--arrows fr-menu--pointer-underline');
+    expect(html).toContain('Park<span class="fr-menu__arrow" aria-hidden="true">');
+    expect(html).not.toMatch(/Home<span class="fr-menu__arrow"/);
+    const css = elementCss(navMenu, node('fresco/nav-menu', attrs), DEFAULT_BREAKPOINTS);
+    expect(css).toContain('--fr-menu-pointer:#E30C1E');
+    expect(css).toContain('--fr-menu-pointer-width:1px');
   });
 
   it('marks elements for the editor only when editing', () => {
