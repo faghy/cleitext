@@ -64,7 +64,7 @@ import { CommentsService } from '../community/comments.service.js';
 import { CommunityPublic, safePath, withQuery } from '../community/community-public.js';
 import { setSessionCookie } from '../auth/cookies.js';
 import { createHash } from 'node:crypto';
-import { and, count, desc, eq, inArray, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, lt, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createElement, Fragment } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -84,6 +84,7 @@ import {
   loadPublished,
   loadSiteData,
   summarize,
+  addSummaryTerms,
   entryAuthor,
   type PublishedEntry,
   type SiteData,
@@ -1336,6 +1337,9 @@ export class PublicService {
     if (relatedWanted > 0 && !options.isFrontPage) {
       publicEntry.related = await this.relatedEntries(scope, publicEntry, relatedWanted);
     }
+    if (scope.theme.adjacentEntries && !options.isFrontPage && !options.preview) {
+      publicEntry.adjacent = await this.adjacentEntries(scope, entry);
+    }
     if (scope.activePlugins.size > 0) {
       const blocks = await this.plugins.applyFilter(
         'render.blocks',
@@ -1415,6 +1419,7 @@ export class PublicService {
       offset: (options.page - 1) * perPage,
     });
     const { summaries, media } = await summarize(tx, list, data.urls, scope.locale);
+    if (scope.theme.listTerms) await addSummaryTerms(tx, summaries, data.urls);
     for (const entry of list) scope.tags.add(`entry:${entry.row.id}`);
 
     const pagePath = data.urls.page(options.base, options.page);
@@ -1649,6 +1654,7 @@ export class PublicService {
       });
     }
     const { summaries, media } = await summarize(tx, list, data.urls, scope.locale);
+    if (scope.theme.listTerms) await addSummaryTerms(tx, summaries, data.urls);
     // The matching words in context, marked by PostgreSQL (RF-THM-10).
     await Promise.all(
       list.map(async (entry, index) => {
@@ -2741,6 +2747,38 @@ export class PublicService {
         usersOnly: settings.likes === 'users',
       };
     }
+  }
+
+  /** The entries of the same type published just before and just after this one. */
+  private async adjacentEntries(
+    scope: RequestScope,
+    entry: PublishedEntry,
+  ): Promise<{ prev?: PublicEntrySummary; next?: PublicEntrySummary }> {
+    const at = entry.row.publishedAt;
+    if (!at) return {};
+    const base = and(
+      eq(entries.typeSlug, entry.row.typeSlug),
+      ne(entries.id, entry.row.id),
+      await this.languageFilter(scope),
+    );
+    const options = { limit: 1, includePrivate: scope.includePrivate };
+    const [before, after] = await Promise.all([
+      loadPublished(scope.tx, and(base, lt(entries.publishedAt, at)), {
+        ...options,
+        order: 'desc',
+      }),
+      loadPublished(scope.tx, and(base, gt(entries.publishedAt, at)), { ...options, order: 'asc' }),
+    ]);
+    const { summaries } = await summarize(
+      scope.tx,
+      [...before, ...after],
+      scope.data.urls,
+      scope.locale,
+    );
+    return {
+      ...(before.length ? { prev: summaries[0]! } : {}),
+      ...(after.length ? { next: summaries[before.length]! } : {}),
+    };
   }
 
   /** Entries sharing the entry's terms: its categories first, then its tags and other taxonomies. */

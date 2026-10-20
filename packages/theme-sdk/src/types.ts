@@ -110,6 +110,8 @@ export interface PublicEntrySummary {
   excerpt: string;
   author: EntryAuthor | null;
   image: RenderMedia | null;
+  /** Categories, tags… by taxonomy, for themes with `listTerms`. */
+  terms?: Record<string, TermLink[]>;
   /** Search results: a fragment of the text with the matching words marked (RF-THM-10). */
   highlight?: { text: string; match: boolean }[];
 }
@@ -129,6 +131,8 @@ export interface PublicEntry extends PublicEntrySummary {
    * first: only for themes that ask for them (`relatedEntries`).
    */
   related?: PublicEntrySummary[];
+  /** The previous and next entries of the same type, by date (themes with `adjacentEntries`). */
+  adjacent?: { prev?: PublicEntrySummary; next?: PublicEntrySummary };
   /** Comments, for types that have them. */
   comments?: EntryComments;
   /** Likes, when the site has them on. */
@@ -239,6 +243,10 @@ export interface ThemeDefinition {
    * Cleitext gives them in `entry.related`. Without it, none are looked up.
    */
   relatedEntries?: number;
+  /** Give the categories and tags of the entries in lists (`entries[].terms`). */
+  listTerms?: boolean;
+  /** Give the previous and next entries of posts (`entry.adjacent`), for "Previous / Next" links. */
+  adjacentEntries?: boolean;
   /**
    * Areas made of blocks (RF-THM-04), e.g. `{ footer: 'Footer' }`, edited in
    * Appearance → Areas and rendered with `<BlockArea name="footer" />`.

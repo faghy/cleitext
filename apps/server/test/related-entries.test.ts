@@ -1,7 +1,8 @@
 /**
  * Related entries (theme `relatedEntries`): entries of the same type sharing
  * the entry's categories first, then its tags, newest first; none without
- * the theme asking for them.
+ * the theme asking for them. Also the previous and next entries
+ * (`adjacentEntries`) and the terms of listed entries (`listTerms`).
  */
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -57,6 +58,29 @@ async function addressOf(slug: string): Promise<string> {
   throw new Error(`No address for ${slug}`);
 }
 
+async function navTheme(dir: string) {
+  await mkdir(join(dir, 'nav-theme', 'dist'), { recursive: true });
+  await writeFile(
+    join(dir, 'nav-theme', 'theme.json'),
+    JSON.stringify({ slug: 'nav-theme', name: 'nav-theme', version: '1.0.0' }),
+  );
+  await writeFile(
+    join(dir, 'nav-theme', 'dist', 'index.js'),
+    `const { createElement: h } = globalThis.__cleitextShared.react;
+const sdk = globalThis.__cleitextShared['@cleitext/theme-sdk'];
+function Layout({ head, children }) { return h('html', null, h('head', null, h('title', null, head.title)), h('body', null, children)); }
+function Index(props) {
+  if (props.kind === 'entry') {
+    const a = props.entry.adjacent || {};
+    return h('main', null, h('p', { id: 'prev' }, a.prev ? a.prev.title : '-'), h('p', { id: 'next' }, a.next ? a.next.title : '-'));
+  }
+  return h('main', null, (props.entries || []).map((e) => h('p', { key: e.id, className: 'terms' }, e.title + ':' + ((e.terms && e.terms.category) || []).map((t) => t.name).join(','))));
+}
+export default sdk.defineTheme({ slug: 'nav-theme', name: 'nav-theme', version: '1.0.0', menuLocations: {}, templates: { index: Index }, Layout, css: '', listTerms: true, adjacentEntries: true });
+`,
+  );
+}
+
 const related = async (slug: string) => {
   const html = (await visitor.get(await addressOf(slug))).body;
   return [...html.matchAll(/<li>([^<]+)<\/li>/g)].map((m) => m[1]);
@@ -67,6 +91,7 @@ beforeAll(async () => {
   const themesPath = await mkdtemp(join(tmpdir(), 'cleitext-themes-'));
   await theme(themesPath, 'related-theme', 3);
   await theme(themesPath, 'plain-theme');
+  await navTheme(themesPath);
   app = await startTestApp({ env: { THEMES_PATH: themesPath } });
   const site = await seedSite(owner, 'related-entries');
   await seedUser(owner, {
@@ -108,5 +133,18 @@ describe('related entries', () => {
     expect((await visitor.get(await addressOf(other.slug))).body).toContain(
       '<p id="none">none</p>',
     );
+  });
+
+  it('give the previous and next entries, and the terms of listed ones, to themes asking', async () => {
+    expect((await admin.post('/api/v1/themes/nav-theme/activate')).statusCode).toBe(200);
+    const river = (await admin.post('/api/v1/taxonomies/category/terms', { name: 'River' })).json();
+    await publish('First of three', { category: [river.id] });
+    const middle = await publish('Second of three', {});
+    await publish('Third of three', {});
+    const html = (await visitor.get(await addressOf(middle.slug))).body;
+    expect(html).toContain('<p id="prev">First of three</p>');
+    expect(html).toContain('<p id="next">Third of three</p>');
+    const list = (await visitor.get(`/category/${river.slug}`)).body;
+    expect(list).toContain('First of three:River');
   });
 });

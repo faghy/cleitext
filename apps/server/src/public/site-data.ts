@@ -2,6 +2,7 @@ import type { CxdDocument } from '@cleitext/blocks';
 import {
   contentTypes,
   entries,
+  entryTerms,
   media,
   mediaVariants,
   menuItems,
@@ -273,6 +274,37 @@ export async function loadMedia(
     });
   }
   return result;
+}
+
+/** The categories, tags… of listed entries, for themes that show them in lists. */
+export async function addSummaryTerms(
+  tx: SiteTransaction,
+  summaries: PublicEntrySummary[],
+  urls: UrlBuilder,
+): Promise<void> {
+  if (summaries.length === 0) return;
+  const rows = await tx
+    .select({ entryId: entryTerms.entryId, term: terms, taxonomy: taxonomies.slug })
+    .from(entryTerms)
+    .innerJoin(terms, eq(terms.id, entryTerms.termId))
+    .innerJoin(taxonomies, eq(taxonomies.id, terms.taxonomyId))
+    .where(
+      inArray(
+        entryTerms.entryId,
+        summaries.map((s) => s.id),
+      ),
+    );
+  const byId = new Map(summaries.map((s) => [s.id, s]));
+  for (const { entryId, term, taxonomy } of rows) {
+    const summary = byId.get(entryId);
+    if (!summary) continue;
+    summary.terms ??= {};
+    (summary.terms[taxonomy] ??= []).push({
+      name: term.name,
+      slug: term.slug,
+      url: urls.term(taxonomy, term.slug, term.locale),
+    });
+  }
 }
 
 /** Summaries for listings, with the first image of each entry. */

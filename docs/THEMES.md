@@ -96,20 +96,22 @@ export default defineTheme({
 });
 ```
 
-| Property           | What it does                                                                                                                                 |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Layout`           | The page around every template: `<html>`, `<head>` (render `head.tags` with `<HeadTags>`), header, footer.                                   |
-| `templates`        | Components by name; `index` is required. More specific names win (`entry-page`, `archive-category`…, see ARCHITECTURE §12.2).                |
-| `css`              | Stylesheet inlined in every page. Keep it small.                                                                                             |
-| `menuLocations`    | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                                          |
-| `settings`         | Fields shown in Appearance → Customize (§4).                                                                                                 |
-| `areas`            | Areas made of blocks (§5).                                                                                                                   |
-| `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description?, parent?, tabs? }]`; a field goes in one with `section` (§4).                    |
-| `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                   |
-| `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                             |
-| `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).   |
-| `editorCss`        | CSS for the block editor, so that content looks like the site while writing. A string, or a function of the settings.                        |
-| `comments`         | `'auto'` (default): comments, likes and sharing follow `<EntryContent>` on entries that have them. `'manual'`: the theme places them itself. |
+| Property           | What it does                                                                                                                                   |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Layout`           | The page around every template: `<html>`, `<head>` (render `head.tags` with `<HeadTags>`), header, footer.                                     |
+| `templates`        | Components by name; `index` is required. More specific names win (`entry-page`, `archive-category`…, see ARCHITECTURE §12.2).                  |
+| `css`              | Stylesheet inlined in every page. Keep it small.                                                                                               |
+| `menuLocations`    | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                                            |
+| `settings`         | Fields shown in Appearance → Customize (§4).                                                                                                   |
+| `areas`            | Areas made of blocks (§5).                                                                                                                     |
+| `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description?, parent?, tabs? }]`; a field goes in one with `section` (§4).                      |
+| `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                     |
+| `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                               |
+| `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).     |
+| `listTerms`        | `true`: lists (blog, archives, search) give each entry's categories and tags in `entries[].terms` (core 0.46).                                 |
+| `adjacentEntries`  | `true`: entries get the previous and next ones of the same type in `entry.adjacent` (`prev`, `next`), for "Previous / Next" links (core 0.46). |
+| `editorCss`        | CSS for the block editor, so that content looks like the site while writing. A string, or a function of the settings.                          |
+| `comments`         | `'auto'` (default): comments, likes and sharing follow `<EntryContent>` on entries that have them. `'manual'`: the theme places them itself.   |
 
 Templates receive the page as props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) and read the rest with `usePage()`: site, language, languages, menus, media, URLs. The Layout finds the same props in `usePage().view`, to change body classes or sidebars by kind of page. They never query the database.
 
