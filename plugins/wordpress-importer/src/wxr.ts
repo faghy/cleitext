@@ -16,6 +16,7 @@ import {
 } from './elementor-site.js';
 import { asSettings, type Settings } from './elementor-values.js';
 import { metaValue } from './php.js';
+import { WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
 import type { CxdBlock } from '@cleitext/blocks';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
 
@@ -124,12 +125,35 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     });
   }
   const menuNames = new Map<string, string>();
+  /** WooCommerce attribute values: `pa_colour:red` → "Red". */
+  const wooTermNames = new Map<string, string>();
   /** Taxonomies of themes and plugins (portfolio categories…): WordPress slug → Cleitext's. */
   const customTaxonomies = new Map<string, { slug: string; hierarchical: boolean }>();
   for (const t of (channel['wp:term'] as Node[] | undefined) ?? []) {
     const taxonomy = text(t['wp:term_taxonomy']);
     if (taxonomy === 'nav_menu') {
       menuNames.set(text(t['wp:term_slug']), decode(text(t['wp:term_name'])));
+      continue;
+    }
+    // WooCommerce: product categories and brands become Cleishop's; attribute values keep their names.
+    const woo = WOO_TAXONOMIES[taxonomy];
+    if (woo || taxonomy.startsWith('pa_')) {
+      const slug = text(t['wp:term_slug']);
+      const name = decode(text(t['wp:term_name'])) || slug;
+      if (taxonomy.startsWith('pa_')) {
+        wooTermNames.set(`${taxonomy}:${slug}`, name);
+        continue;
+      }
+      const parent = text(t['wp:term_parent']);
+      terms.push({
+        ref: `${taxonomy}:${slug}`,
+        taxonomy: woo!,
+        locale,
+        slug,
+        name,
+        description: text(t['wp:term_description']) || null,
+        ...(parent ? { parentRef: `${taxonomy}:${parent}` } : {}),
+      });
       continue;
     }
     if (INTERNAL_TAXONOMIES.has(taxonomy) || SHOP_TAXONOMIES.has(taxonomy)) continue;
@@ -203,8 +227,26 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const customTypes = new Map<string, { slug: string; permalink: string | null }>();
   /** The content types each taxonomy is used by. */
   const taxonomyTypes = new Map<string, Set<string>>();
+  // WooCommerce: variations by product, and the products' data for Cleishop.
+  const variationsOf = new Map<number, Node[]>();
+  for (const item of items) {
+    if (text(item['wp:post_type']) !== 'product_variation') continue;
+    const parent = Number(text(item['wp:post_parent']) || 0);
+    variationsOf.set(parent, [...(variationsOf.get(parent) ?? []), item]);
+  }
+  const shopProducts: Record<string, unknown>[] = [];
+  const mediaUrlOf = new Map(media.map((m) => [m.ref, m.file]));
+  const wooContext = {
+    locale,
+    attachmentRefs,
+    attachmentUrl: (ref: string) => mediaUrlOf.get(ref),
+    entryRef: (id: number) => `post:${id}`,
+    termNames: wooTermNames,
+  };
   for (const item of items) {
     const type = text(item['wp:post_type']);
+    const isProduct = type === 'product';
+    if (type === 'product_variation') continue;
     const status = STATUS[text(item['wp:status'])];
     if (type === 'attachment' || type === 'nav_menu_item') continue;
     const custom =
@@ -215,7 +257,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       !SHOP_TYPES.has(type) &&
       structureSlug(type);
     if (custom && !customTypes.has(type)) customTypes.set(type, { slug: custom, permalink: null });
-    if (type !== 'post' && type !== 'page' && type !== LANDING_PAGE && !custom) {
+    if (type !== 'post' && type !== 'page' && type !== LANDING_PAGE && !custom && !isProduct) {
       // WordPress's own records are not content; shop items and odd names are reported.
       if (!INTERNAL_TYPES.has(type)) skippedTypes.set(type, (skippedTypes.get(type) ?? 0) + 1);
       continue;
@@ -228,7 +270,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         ? 'article'
         : type === 'page' || type === LANDING_PAGE
           ? 'page'
-          : (custom as string);
+          : isProduct
+            ? 'product'
+            : (custom as string);
     // WordPress shows titles and content with curly quotes and dashes (wptexturize).
     const title = texturizeText(decode(text(item.title)));
     const content = texturizeHtml(text(item['content:encoded']));
@@ -341,6 +385,11 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     }
     const ownTerms: Record<string, string[]> = {};
     for (const c of categories) {
+      // Product categories and brands (Cleishop's taxonomies).
+      if (isProduct && WOO_TAXONOMIES[c.domain]) {
+        (ownTerms[WOO_TAXONOMIES[c.domain]!] ??= []).push(`${c.domain}:${c.slug}`);
+        continue;
+      }
       const taxonomy = customTaxonomies.get(c.domain);
       if (!taxonomy) continue;
       (ownTerms[taxonomy.slug] ??= []).push(`${c.domain}:${c.slug}`);
@@ -364,6 +413,10 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       ...(status === 'scheduled' && date ? { scheduledAt: date } : {}),
       position: Number(text(item['wp:menu_order']) || 0),
       document,
+      // A product's short description.
+      ...(isProduct && stripTags(text(item['excerpt:encoded']))
+        ? { excerpt: stripTags(text(item['excerpt:encoded'])).slice(0, 5_000) }
+        : {}),
       ...(thumbnailRef ? { featuredMediaRef: thumbnailRef } : {}),
       ...(seo ? { fields: { seo } } : {}),
       terms: {
@@ -379,6 +432,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         : {}),
       ...(comments.length ? { comments } : {}),
     });
+    if (isProduct) shopProducts.push(wooProduct(item, ref, variationsOf.get(id) ?? [], wooContext));
   }
   const translated = recogniseTranslations(entries, sources, locale, options.locales ?? []);
   if (translated > 0) {
@@ -389,8 +443,13 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   for (const [type, n] of skippedTypes) {
     warnings.push(
       SHOP_TYPES.has(type)
-        ? `${n} item(s) of the shop type "${type}" were not imported: import products into Cleishop from a CSV export.`
+        ? `${n} item(s) of the shop type "${type}" (orders, coupons) were not imported.`
         : `${n} item(s) of the custom type "${type}" were not imported.`,
+    );
+  }
+  if (shopProducts.length > 0) {
+    warnings.push(
+      `${shopProducts.length} WooCommerce product(s) were imported for Cleishop, with prices, codes, stock, pictures and variations: activate Cleishop before importing to keep them.`,
     );
   }
   const contentTypes = [...customTypes.entries()].map(([wp, t]) => ({
@@ -421,6 +480,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   }
   // Elementor's templates (Theme Builder, popups, saved sections, global widgets).
   const plugins: Record<string, unknown> = {};
+  // WooCommerce products' commercial data, for Cleishop.
+  if (shopProducts.length > 0) plugins.shop = { products: shopProducts };
   if (useElementor) {
     entries.push(...elementor.templates());
     Object.assign(plugins, elementor.plugins());

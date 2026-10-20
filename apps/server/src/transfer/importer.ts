@@ -736,6 +736,7 @@ async function insertEntry(
     kind: 'import',
     title: entry.title,
     fields: entry.fields ?? {},
+    ...(entry.excerpt ? { excerpt: entry.excerpt } : {}),
     featuredMediaId: entry.featuredMediaRef
       ? (context.media.get(entry.featuredMediaRef)?.id ?? null)
       : null,

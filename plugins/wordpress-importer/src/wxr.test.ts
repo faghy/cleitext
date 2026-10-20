@@ -26,7 +26,7 @@ describe('WordPress export to transfer document', () => {
       locale: 'it',
       authorRole: 'editor',
     });
-    expect(warnings.join('\n')).toContain('shop type "product"');
+    expect(warnings.join('\n')).toContain('1 WooCommerce product(s) were imported for Cleishop');
     expect(warnings.join('\n')).toContain('1 pingback(s)');
     expect(document.entries?.every((e) => e.locale === 'it')).toBe(true);
     expect(document.users?.[0]?.role).toBe('editor');

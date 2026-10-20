@@ -23,6 +23,7 @@ import { registerStorefront, type StoreSettings } from './storefront';
 import { COUNTRIES } from './address';
 import { registerAccount } from './account';
 import { registerCatalog } from './catalog-routes';
+import { registerWooImport } from './import-woocommerce';
 import { registerReviews } from './reviews';
 import { registerPrivacy } from './privacy';
 import { groupTranslations } from './translations';
@@ -317,6 +318,8 @@ export default definePlugin({
       currency: String((await ctx.settings.get(siteId)).currency ?? 'EUR'),
     });
     registerCatalog(ctx, currency);
+    // WooCommerce products from the WordPress importer.
+    registerWooImport(ctx);
     registerAccount(ctx, store);
     registerStorefrontBlocks(ctx, currency, async (siteId) => {
       const values = await ctx.settings.get(siteId);

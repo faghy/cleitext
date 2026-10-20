@@ -144,7 +144,9 @@ describe('WordPress import', () => {
     });
     const warnings = report.warnings.join('\n');
     expect(warnings).toContain('1 pingback(s)');
-    expect(warnings).toContain('shop type "product"');
+    // A WooCommerce product, for Cleishop, which is not active here: reported, not lost silently.
+    expect(warnings).toContain('1 entry of the type "product" was not imported');
+    expect(warnings).toContain('Settings for the plugin "shop" were not imported');
     // The table and the [gallery] of the classic post are a table and a gallery now.
     expect(warnings).not.toContain('shortcodes');
     expect(warnings).not.toContain('table');

@@ -1,6 +1,6 @@
 {
   "warnings": [
-    "1 item(s) of the shop type \"product\" were not imported: import products into Cleishop from a CSV export.",
+    "1 WooCommerce product(s) were imported for Cleishop, with prices, codes, stock, pictures and variations: activate Cleishop before importing to keep them.",
     "1 pingback(s) and trackback(s) were not imported."
   ],
   "document": {
@@ -10,7 +10,7 @@
       "kind": "wordpress",
       "name": "Seaside Notes",
       "url": "https://old.example.com",
-      "exportedAt": "2026-10-18T07:52:55.611Z"
+      "exportedAt": "2026-10-20T04:09:18.949Z"
     },
     "site": {
       "title": "Seaside Notes",
@@ -82,7 +82,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdtxmag01rj15fu",
+              "id": "b_mvg5z52801xkxd8z",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -112,7 +112,7 @@
               ]
             },
             {
-              "id": "b_mvdtxmah02cupi1v",
+              "id": "b_mvg5z52902rtbain",
               "type": "core/image",
               "v": 1,
               "attrs": {
@@ -128,7 +128,7 @@
               }
             },
             {
-              "id": "b_mvdtxmah039ckbqj",
+              "id": "b_mvg5z52903q9cp5u",
               "type": "core/heading",
               "v": 1,
               "attrs": {
@@ -141,13 +141,13 @@
               ]
             },
             {
-              "id": "b_mvdtxmah06nch9pk",
+              "id": "b_mvg5z52906yta4ls",
               "type": "core/list",
               "v": 1,
               "attrs": {},
               "children": [
                 {
-                  "id": "b_mvdtxmah04n23cbd",
+                  "id": "b_mvg5z529042096pe",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -158,7 +158,7 @@
                   ]
                 },
                 {
-                  "id": "b_mvdtxmah05srxavj",
+                  "id": "b_mvg5z52905rm8qef",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -171,7 +171,7 @@
               ]
             },
             {
-              "id": "b_mvdtxmah08bz0td3",
+              "id": "b_mvg5z5290846msju",
               "type": "core/quote",
               "v": 1,
               "attrs": {
@@ -183,7 +183,7 @@
               },
               "children": [
                 {
-                  "id": "b_mvdtxmah07blfw8a",
+                  "id": "b_mvg5z529078zehja",
                   "type": "core/paragraph",
                   "v": 1,
                   "attrs": {},
@@ -196,19 +196,19 @@
               ]
             },
             {
-              "id": "b_mvdtxmah09ca2tgl",
+              "id": "b_mvg5z52a09m876md",
               "type": "core/columns",
               "v": 1,
               "attrs": {},
               "children": [
                 {
-                  "id": "b_mvdtxmah0a99kw98",
+                  "id": "b_mvg5z52a0a1jesi3",
                   "type": "core/column",
                   "v": 1,
                   "attrs": {},
                   "children": [
                     {
-                      "id": "b_mvdtxmah0bh0zqik",
+                      "id": "b_mvg5z52a0bfxvdto",
                       "type": "core/paragraph",
                       "v": 1,
                       "attrs": {},
@@ -221,13 +221,13 @@
                   ]
                 },
                 {
-                  "id": "b_mvdtxmah0c15q4tv",
+                  "id": "b_mvg5z52a0c1vetto",
                   "type": "core/column",
                   "v": 1,
                   "attrs": {},
                   "children": [
                     {
-                      "id": "b_mvdtxmai0dfm6dz2",
+                      "id": "b_mvg5z52a0dfm23gr",
                       "type": "core/paragraph",
                       "v": 1,
                       "attrs": {},
@@ -242,13 +242,13 @@
               ]
             },
             {
-              "id": "b_mvdtxmai0ebo1pmy",
+              "id": "b_mvg5z52a0ex6cdpp",
               "type": "core/separator",
               "v": 1,
               "attrs": {}
             },
             {
-              "id": "b_mvdtxmai0gym8b8n",
+              "id": "b_mvg5z52a0gzc1xgb",
               "type": "core/imported",
               "v": 1,
               "attrs": {
@@ -259,7 +259,7 @@
                 "html": "\n<div class=\"map\">Map of the coast</div>\n",
                 "fallback": [
                   {
-                    "id": "b_mvdtxmai0fc711fa",
+                    "id": "b_mvg5z52a0fcab1hw",
                     "type": "core/paragraph",
                     "v": 1,
                     "attrs": {},
@@ -327,7 +327,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdtxmai0h834hv5",
+              "id": "b_mvg5z52b0h6492ur",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -345,7 +345,7 @@
               ]
             },
             {
-              "id": "b_mvdtxmai0ib4u3ew",
+              "id": "b_mvg5z52b0i205n1p",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -356,7 +356,7 @@
               ]
             },
             {
-              "id": "b_mvdtxmai0jtii0m8",
+              "id": "b_mvg5z52b0jyh8y4q",
               "type": "core/heading",
               "v": 1,
               "attrs": {
@@ -369,7 +369,7 @@
               ]
             },
             {
-              "id": "b_mvdtxmai0k3azd86",
+              "id": "b_mvg5z52b0kgggtjc",
               "type": "core/list",
               "v": 1,
               "attrs": {
@@ -377,7 +377,7 @@
               },
               "children": [
                 {
-                  "id": "b_mvdtxmai0lb7j25o",
+                  "id": "b_mvg5z52b0ltooszx",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -388,7 +388,7 @@
                   ]
                 },
                 {
-                  "id": "b_mvdtxmai0oyotxvw",
+                  "id": "b_mvg5z52b0o3u0yrk",
                   "type": "core/list-item",
                   "v": 1,
                   "attrs": {},
@@ -399,13 +399,13 @@
                   ],
                   "children": [
                     {
-                      "id": "b_mvdtxmai0mdglx67",
+                      "id": "b_mvg5z52b0m9jprec",
                       "type": "core/list",
                       "v": 1,
                       "attrs": {},
                       "children": [
                         {
-                          "id": "b_mvdtxmai0nihaddv",
+                          "id": "b_mvg5z52b0nbn2kbi",
                           "type": "core/list-item",
                           "v": 1,
                           "attrs": {},
@@ -422,7 +422,7 @@
               ]
             },
             {
-              "id": "b_mvdtxmaj0pc88ljc",
+              "id": "b_mvg5z52b0pw0mv67",
               "type": "core/image",
               "v": 1,
               "attrs": {
@@ -432,13 +432,13 @@
               }
             },
             {
-              "id": "b_mvdtxmaj0qsro8ra",
+              "id": "b_mvg5z52b0qp6dxy8",
               "type": "core/gallery",
               "v": 1,
               "attrs": {},
               "children": [
                 {
-                  "id": "b_mvdtxmaj0reoi8is",
+                  "id": "b_mvg5z52b0r9xyjuu",
                   "type": "core/image",
                   "v": 1,
                   "attrs": {
@@ -449,7 +449,7 @@
               ]
             },
             {
-              "id": "b_mvdtxmaj0soiyqgo",
+              "id": "b_mvg5z52c0s2sukld",
               "type": "core/table",
               "v": 1,
               "attrs": {
@@ -502,7 +502,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdtxmaj0tb7veuy",
+              "id": "b_mvg5z52c0t8c2spu",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -536,7 +536,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdtxmak0usoeycd",
+              "id": "b_mvg5z52c0u95n2j0",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -567,7 +567,7 @@
           "schema": 1,
           "blocks": [
             {
-              "id": "b_mvdtxmak0vh6v9m6",
+              "id": "b_mvg5z52c0vd9abhp",
               "type": "core/paragraph",
               "v": 1,
               "attrs": {},
@@ -583,6 +583,37 @@
           "category": [],
           "tag": []
         }
+      },
+      {
+        "ref": "post:50",
+        "type": "product",
+        "locale": "en",
+        "slug": "Product",
+        "title": "Product",
+        "status": "published",
+        "authorRef": "user:",
+        "position": 0,
+        "document": {
+          "schema": 1,
+          "blocks": [
+            {
+              "id": "b_mvg5z52c0wwl0g7x",
+              "type": "core/paragraph",
+              "v": 1,
+              "attrs": {},
+              "content": [
+                {
+                  "text": "Mug"
+                }
+              ]
+            }
+          ]
+        },
+        "terms": {
+          "category": [],
+          "tag": []
+        },
+        "oldPaths": ["https://old.example.com/product/mug/", "/?p=50"]
       }
     ],
     "menus": [
@@ -621,6 +652,45 @@
           }
         ]
       }
-    ]
+    ],
+    "plugins": {
+      "shop": {
+        "products": [
+          {
+            "entry": {
+              "$entry": "post:50"
+            },
+            "product": {
+              "kind": "simple",
+              "sku": "",
+              "regularPrice": null,
+              "salePrice": null,
+              "saleFrom": null,
+              "saleTo": null,
+              "manageStock": false,
+              "stock": null,
+              "stockStatus": "instock",
+              "backorders": "no",
+              "lowStock": null,
+              "soldIndividually": false,
+              "taxStatus": "taxable",
+              "taxClass": "",
+              "weight": null,
+              "length": null,
+              "width": null,
+              "height": null,
+              "virtual": false,
+              "downloadable": false,
+              "purchaseNote": "",
+              "featured": false,
+              "visibility": "visible",
+              "gallery": []
+            },
+            "upsells": [],
+            "crossSells": []
+          }
+        ]
+      }
+    }
   }
 }

@@ -89,6 +89,8 @@ export const transferEntrySchema = z.object({
   fields: z.record(z.string(), z.unknown()).optional(),
   /** Image blocks refer to media with `attrs.id` = media `ref`. */
   document: cxdDocumentSchema,
+  /** Short summary (plain text), e.g. a product's short description. */
+  excerpt: z.string().max(5_000).optional(),
   /** Featured image: a media `ref`. */
   featuredMediaRef: ref.optional(),
   /** Term refs by taxonomy slug. */
