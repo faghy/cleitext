@@ -255,9 +255,15 @@ describe('uagb/columns and uagb/column', () => {
     expect(r.mobile).toContain('flex-direction:column-reverse');
 
     const col = devices(renderBlock(container, a!.attrs).css);
-    expect(col.desktop).toContain('.pr-container.pr-is-root .pr-block-test0001{max-width:60%');
-    expect(col.tablet).toContain('.pr-container.pr-is-root .pr-block-test0001{max-width:50%');
-    expect(col.mobile).toContain('.pr-container.pr-is-root .pr-block-test0001{max-width:100%');
+    expect(col.desktop).toContain(
+      '.pr-container.pr-is-root .pr-block-test0001, .pr-block-test0001:not(.pr-is-root){max-width:60%',
+    );
+    expect(col.tablet).toContain(
+      '.pr-container.pr-is-root .pr-block-test0001, .pr-block-test0001:not(.pr-is-root){max-width:50%',
+    );
+    expect(col.mobile).toContain(
+      '.pr-container.pr-is-root .pr-block-test0001, .pr-block-test0001:not(.pr-is-root){max-width:100%',
+    );
     expect(col.desktop).toContain('background-color:#eeeeee');
     expect(col.desktop).toContain('justify-content:center');
     expect(col.desktop).toContain('border-top-left-radius:8px');

@@ -190,7 +190,8 @@ function makeEdit(block: PrismaBlock, Settings: Inspector | undefined) {
     // Icons arrive after the first draw: drawn again then.
     useSyncExternalStore(onIconData, iconsLoaded);
     const id = useBlockId(props);
-    const attrs = withDefaults(block, props.attributes);
+    // The editor's language stands for the page's in the preview.
+    const attrs = withDefaults(block, props.attributes, document.documentElement.lang);
     return (
       <>
         <style>{variablesCss(globals) + blockCss(block, props.attributes, id, globals)}</style>

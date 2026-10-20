@@ -76,7 +76,7 @@ function register(ctx: PluginContext, block: PrismaBlock) {
         siteGlobals.get(context.siteId) ?? DEFAULT_GLOBALS,
       ),
     render: ({ attrs, block: cxd, children, context, data }) => {
-      const all = withDefaults(block, attrs);
+      const all = withDefaults(block, attrs, context.locale);
       return (
         <block.View
           attrs={all}

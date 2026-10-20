@@ -17,9 +17,17 @@ export const BREAKPOINTS: Breakpoints = { tablet: 976, mobile: 767 };
 /** The CSS class of a block instance. */
 export const blockClass = (id: string): string => `pr-block-${id.replace(/[^A-Za-z0-9_-]/g, '')}`;
 
-/** Attributes with the block's defaults (saved attributes are sparse). */
-export function withDefaults(block: Pick<PrismaBlock, 'defaults'>, attrs: Attrs): Attrs {
-  return { ...block.defaults, ...attrs };
+/**
+ * Attributes with the block's defaults (saved attributes are sparse), those
+ * of the page's language included (`locale`, e.g. `it-IT`).
+ */
+export function withDefaults(
+  block: Pick<PrismaBlock, 'defaults' | 'localized'>,
+  attrs: Attrs,
+  locale?: string,
+): Attrs {
+  const lang = (locale ?? 'en').slice(0, 2).toLowerCase();
+  return { ...block.defaults, ...(block.localized?.(lang) ?? {}), ...attrs };
 }
 
 /**

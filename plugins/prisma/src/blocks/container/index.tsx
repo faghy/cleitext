@@ -317,8 +317,9 @@ function css(input: Attrs, B: string, sheet: Sheet, g: Globals): void {
         });
       }
     }
-    // Width of nested containers.
-    emit(sheet, device, `.pr-container.pr-is-root ${B}`, {
+    // Width of nested containers, also when they sit in a group or a column
+    // rather than in a root container.
+    emit(sheet, device, `.pr-container.pr-is-root ${B}, ${B}:not(.pr-is-root)`, {
       'max-width': px(
         a[`width${D(device)}`],
         device === 'desktop' ? a.widthType : a[`widthType${s}`],

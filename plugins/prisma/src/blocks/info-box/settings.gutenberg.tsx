@@ -285,6 +285,30 @@ export const InfoBoxSettings: Inspector = ({ attributes, setAttributes, block })
             </Panel>
           ) : (
             <Panel title="Image" initialOpen>
+              <Select
+                bind={bind}
+                name="imageRatio"
+                label="Proportion"
+                options={[
+                  { value: '', label: 'Original' },
+                  { value: '1/1', label: 'Square 1:1' },
+                  { value: '4/3', label: '4:3' },
+                  { value: '3/2', label: '3:2' },
+                  { value: '16/9', label: '16:9' },
+                  { value: '3/4', label: 'Portrait 3:4' },
+                ]}
+              />
+              {Boolean(a.imageRatio) && (
+                <Select
+                  bind={bind}
+                  name="imageFit"
+                  label="Fit"
+                  options={[
+                    { value: 'cover', label: 'Crop to fill' },
+                    { value: 'contain', label: 'Whole picture' },
+                  ]}
+                />
+              )}
               <Toggle bind={bind} name="imageWidthType" label="Custom width" />
               {Boolean(a.imageWidthType) && (
                 <Range

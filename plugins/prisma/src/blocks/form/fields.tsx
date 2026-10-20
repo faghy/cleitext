@@ -68,6 +68,8 @@ function field(
     description: string;
     keywords?: string[];
     defaults: Attrs;
+    /** Italian texts of the defaults (labels, placeholders, phone code). */
+    italian?: Attrs;
     View: (props: ViewProps) => ReactNode;
     spectra: SpectraImporter;
     rich?: boolean;
@@ -81,6 +83,7 @@ function field(
     parent: ['form'],
     ...(def.rich === false ? {} : { richAttributes: [FIELDS[kind].label] }),
     defaults: def.defaults,
+    ...(def.italian ? { localized: (lang: string) => (lang === 'it' ? def.italian! : {}) } : {}),
     css: () => {},
     View: def.View,
     spectra: { [`uagb/forms-${kind}`]: def.spectra },
@@ -130,6 +133,7 @@ export const formName = field('name', {
     placeholder: 'John Doe',
     autocomplete: 'name',
   },
+  italian: { name: rich('Nome'), placeholder: 'Mario Rossi' },
   View: textInput('name', 'text'),
   spectra: importer('name'),
 });
@@ -144,6 +148,7 @@ export const formEmail = field('email', {
     placeholder: 'example@mail.com',
     autocomplete: 'email',
   },
+  italian: { placeholder: 'nome@esempio.it' },
   View: textInput('email', 'email'),
   spectra: importer('email'),
 });
@@ -158,6 +163,7 @@ export const formUrl = field('url', {
     placeholder: 'https://example.com',
     autocomplete: 'url',
   },
+  italian: { name: rich('Sito web'), placeholder: 'https://esempio.it' },
   View: textInput('url', 'url'),
   spectra: importer('url'),
 });
@@ -230,6 +236,8 @@ export const formPhone = field('phone', {
     selectPhoneCode: '+44',
     autocomplete: 'tel-national',
   },
+  // Italian numbers have no fixed shape: no pattern.
+  italian: { phoneName: rich('Telefono'), pattern: '', selectPhoneCode: '+39' },
   View: PhoneView,
   spectra: importer('phone'),
 });
@@ -268,6 +276,7 @@ export const formTextarea = field('textarea', {
     placeholder: 'Enter your message',
     autocomplete: 'off',
   },
+  italian: { textareaName: rich('Messaggio'), placeholder: 'Scrivi il tuo messaggio' },
   View: TextareaView,
   spectra: importer('textarea'),
 });

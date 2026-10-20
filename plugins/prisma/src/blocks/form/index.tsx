@@ -926,6 +926,17 @@ export const form: PrismaBlock = {
   allowedBlocks: FORM_FIELDS.map((f) => `prisma/${f.name}`),
   richAttributes: ['submitButtonText'],
   defaults: DEFAULTS,
+  localized: (lang) =>
+    lang === 'it'
+      ? {
+          submitButtonText: [{ text: 'Invia' }],
+          confirmationMessage: 'Grazie, il messaggio è stato inviato.',
+          failedMessage:
+            "Si è verificato un errore nell'invio del modulo. Controlla i campi e riprova.",
+          captchaMessage: 'Completa il controllo qui sopra.',
+          afterSubmitEmailSubject: 'Nuovo messaggio dal sito',
+        }
+      : {},
   css: formCss,
   View: FormView,
   script: { file: 'form.js', marker: 'data-pr-form' },

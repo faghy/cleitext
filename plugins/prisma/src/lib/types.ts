@@ -66,6 +66,11 @@ export interface PrismaBlock {
   richAttributes?: string[];
   /** Every attribute with its default. */
   defaults: Attrs;
+  /**
+   * Defaults that depend on the page's language (`it`, `en`…), over
+   * `defaults`: the texts and the phone code of form fields, for example.
+   */
+  localized?: (lang: string) => Attrs;
   /** Its CSS rules, scoped by `.pr-block-<id>`, with the site's defaults. */
   css(attrs: Attrs, scope: string, sheet: Sheet, globals: Globals): void;
   /** Its markup. */

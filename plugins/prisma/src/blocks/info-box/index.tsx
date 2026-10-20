@@ -128,6 +128,10 @@ const DEFAULTS: Attrs = {
   imageWidthUnitTablet: 'px',
   imageWidthUnitMobile: 'px',
   imageWidthType: true,
+  /** Proportion of the picture (`1/1`, `4/3`…), cropped to fill it; empty: as it is. */
+  imageRatio: '',
+  /** How the picture fills its proportion: `cover` (cropped) or `contain` (whole). */
+  imageFit: 'cover',
   iconimgBorderRadius: 0,
   iconimgBorderRadiusUnit: 'px',
   seperatorWidth: 30,
@@ -304,6 +308,16 @@ function css(a: Attrs, B: string, sheet: Sheet): void {
       ...(hasMargin ? sidesCss(a, 'block', 'Margin', device) : {}),
     };
     emit(sheet, device, hasMargin ? `${R} .pr-info-box__margin` : R, spacing);
+    // The same proportion for every picture (cards of a grid line up).
+    const ratio = /^\d{1,2}\/\d{1,2}$/.test(String(a.imageRatio)) ? String(a.imageRatio) : '';
+    if (ratio && device === 'desktop') {
+      emit(sheet, device, `${R} .pr-info-box__image img`, {
+        'aspect-ratio': ratio.replace('/', ' / '),
+        'object-fit': a.imageFit === 'contain' ? 'contain' : 'cover',
+        width: a.imageWidthType && imageWidth ? '' : '100%',
+        height: 'auto',
+      });
+    }
     if (a.imageWidthType && imageWidth) {
       emit(
         sheet,

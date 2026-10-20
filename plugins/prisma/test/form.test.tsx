@@ -7,8 +7,10 @@ import {
   formHidden,
   formName,
   formPhone,
+  formTextarea,
   formToggle,
 } from '../src/blocks/form';
+import { withDefaults } from '../src/lib/css';
 import { renderBlock, text } from './render';
 
 const fakeSource = (html: string) => ({
@@ -199,5 +201,19 @@ describe('form fields', () => {
       ) as never,
     )[0]!;
     expect(accept.attrs.acceptText).toBe('I agree & accept');
+  });
+});
+
+describe('defaults in the language of the page', () => {
+  it('Italian pages get Italian texts, +39 and no US phone pattern', () => {
+    expect(withDefaults(formPhone, {}, 'it-IT')).toMatchObject({
+      selectPhoneCode: '+39',
+      pattern: '',
+    });
+    expect(withDefaults(formTextarea, {}, 'it').placeholder).toBe('Scrivi il tuo messaggio');
+    expect(withDefaults(form, {}, 'it').submitButtonText).toEqual([{ text: 'Invia' }]);
+    // English stays as it was, and what was set on the block wins.
+    expect(withDefaults(formPhone, {}, 'en')).toMatchObject({ selectPhoneCode: '+44' });
+    expect(withDefaults(formPhone, { selectPhoneCode: '+41' }, 'it').selectPhoneCode).toBe('+41');
   });
 });
