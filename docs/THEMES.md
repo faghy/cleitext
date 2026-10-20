@@ -96,23 +96,23 @@ export default defineTheme({
 });
 ```
 
-| Property           | What it does                                                                                                                                                                                                     |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Layout`           | The page around every template: `<html>`, `<head>` (render `head.tags` with `<HeadTags>`), header, footer.                                                                                                       |
-| `templates`        | Components by name; `index` is required. More specific names win (`entry-page`, `archive-category`…, see ARCHITECTURE §12.2).                                                                                    |
-| `css`              | Stylesheet inlined in every page. Keep it small.                                                                                                                                                                 |
-| `menuLocations`    | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                                                                                                              |
-| `settings`         | Fields shown in Appearance → Customize (§4).                                                                                                                                                                     |
-| `areas`            | Areas made of blocks (§5).                                                                                                                                                                                       |
-| `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description?, parent?, tabs? }]`; a field goes in one with `section` (§4).                                                                                        |
-| `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                                                                                       |
-| `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                                                                                                 |
-| `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).                                                                       |
-| `listTerms`        | `true`: lists (blog, archives, search) give each entry's categories and tags in `entries[].terms` (core 0.46).                                                                                                   |
-| `adjacentEntries`  | `true`: entries get the previous and next ones of the same type in `entry.adjacent` (`prev`, `next`), for "Previous / Next" links (core 0.46).                                                                   |
-| `importSettings`   | `(data) => values \| null`: turns settings exported from another system (a JSON file imported in Customize → ⋯ → Import) into this theme's setting values; values that fail validation are left out (core 0.46). |
-| `editorCss`        | CSS for the block editor, so that content looks like the site while writing. A string, or a function of the settings.                                                                                            |
-| `comments`         | `'auto'` (default): comments, likes and sharing follow `<EntryContent>` on entries that have them. `'manual'`: the theme places them itself.                                                                     |
+| Property           | What it does                                                                                                                                                                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Layout`           | The page around every template: `<html>`, `<head>` (render `head.tags` with `<HeadTags>`), header, footer.                                                                                                                                                       |
+| `templates`        | Components by name; `index` is required. More specific names win (`entry-page`, `archive-category`…, see ARCHITECTURE §12.2).                                                                                                                                    |
+| `css`              | Stylesheet inlined in every page. Keep it small.                                                                                                                                                                                                                 |
+| `menuLocations`    | Places for menus, assigned in Appearance → Menus; read them with `usePage().menus`.                                                                                                                                                                              |
+| `settings`         | Fields shown in Appearance → Customize (§4).                                                                                                                                                                                                                     |
+| `areas`            | Areas made of blocks (§5).                                                                                                                                                                                                                                       |
+| `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description?, parent?, tabs? }]`; a field goes in one with `section` (§4).                                                                                                                                        |
+| `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                                                                                                                                       |
+| `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                                                                                                                                                 |
+| `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).                                                                                                                       |
+| `listTerms`        | `true`: lists (blog, archives, search) give each entry's categories and tags in `entries[].terms` (core 0.46).                                                                                                                                                   |
+| `adjacentEntries`  | `true`: entries get the previous and next ones of the same type in `entry.adjacent` (`prev`, `next`), for "Previous / Next" links (core 0.46).                                                                                                                   |
+| `importSettings`   | `(data) => values \| null`: turns settings exported from another system (a file imported in Customize → ⋯ → Import: parsed JSON, or the file's text when it is not JSON) into this theme's setting values; values that fail validation are left out (core 0.46). |
+| `editorCss`        | CSS for the block editor, so that content looks like the site while writing. A string, or a function of the settings.                                                                                                                                            |
+| `comments`         | `'auto'` (default): comments, likes and sharing follow `<EntryContent>` on entries that have them. `'manual'`: the theme places them itself.                                                                                                                     |
 
 Templates receive the page as props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) and read the rest with `usePage()`: site, language, languages, menus, media, URLs. The Layout finds the same props in `usePage().view`, to change body classes or sidebars by kind of page. They never query the database.
 
@@ -121,6 +121,12 @@ Wrap the parts a theme builder may replace in `<Location>`: `header`, `footer`, 
 ```tsx
 <Location name="header"><header className="site-header">…</header></Location>
 <Location name="single" entry={entry}><article>…</article></Location>
+```
+
+Hook points (plugin API 1.33) are named `hook:<name>`, with your theme's prefix (`hook:mytheme_header_before`, letters, digits, `_` and `-`). Without children they render nothing until a plugin fills them through `render.locations`, so add them freely where a plugin may want to insert content (before and after the header, the content, the comments, the footer…). A filled location is wrapped in `<div class="cx-location cx-location-hook-<name>">`:
+
+```tsx
+<Location name="hook:mytheme_header_before" />
 ```
 
 Render an entry's content with `<EntryContent document={…} />`. Inside a visual editor (a plugin's page builder) it renders an empty `[data-cx-editor-canvas]` element instead, which the editor fills, so the page is edited in the theme's own layout. When the editor hides the title (`entry.document.editor?.data?.hideTitle === true`, as Fresco's page setting does), leave out the entry's title header, so the page has a single `h1`. Leave out the featured image above the content when it asks (`hideFeatured === true`) and on its `full` and `canvas` layouts (`layout`): the page is designed in the editor.

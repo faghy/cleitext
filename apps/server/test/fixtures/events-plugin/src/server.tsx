@@ -242,6 +242,20 @@ export default definePlugin({
                 { id: 'lc', type: 'cleitext/entry-content', v: 1, attrs: {} },
               ],
             },
+            // Hook points of themes that mark them (plugin API 1.33); bad names are dropped.
+            'hook:test_top': {
+              schema: 1,
+              blocks: [
+                {
+                  id: 'lk',
+                  type: 'core/paragraph',
+                  v: 1,
+                  attrs: {},
+                  content: [{ text: `Hooked ${context.signedIn ? 'signed in' : 'visitor'}` }],
+                },
+              ],
+            },
+            'hook:bad name': { schema: 1, blocks: [] },
           }
         : locations,
     );

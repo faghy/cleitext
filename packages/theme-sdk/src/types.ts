@@ -285,14 +285,18 @@ export interface ThemeDefinition {
   comments?: 'auto' | 'manual';
 }
 
-/** Everything a template can read through `usePage()`. */
 /**
  * Parts of a page a theme builder can replace: the header, the footer, the
  * content of single entries, and the content of archives and search results.
  * `overlay` (popups, off-canvas panels) is added by Cleitext at the end of
- * the page, whatever the theme.
+ * the page, whatever the theme. `hook:<name>` (plugin API 1.33) are hook
+ * points the theme marks in its layout, e.g. `hook:zenit_header_before`:
+ * empty unless a plugin fills them. Hook names use letters, digits, `_` and `-`.
  */
-export type ThemeLocation = 'header' | 'footer' | 'single' | 'archive' | 'overlay';
+export type ThemeLocation =
+  'header' | 'footer' | 'single' | 'archive' | 'overlay' | `hook:${string}`;
+
+/** Everything a template can read through `usePage()`. */
 
 export interface PageContext {
   site: SiteInfo;

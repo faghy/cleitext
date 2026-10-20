@@ -21,8 +21,9 @@ let app: NestFastifyApplication;
 let owner: DatabaseClient;
 let admin: TestClient;
 let themesPath: string;
+let visitor: TestClient;
 
-async function theme(dir: string, slug: string, plugins?: string[]) {
+async function theme(dir: string, slug: string, plugins?: string[], body = 'children') {
   await mkdir(join(dir, slug, 'dist'), { recursive: true });
   await writeFile(
     join(dir, slug, 'theme.json'),
@@ -32,7 +33,7 @@ async function theme(dir: string, slug: string, plugins?: string[]) {
     join(dir, slug, 'dist', 'index.js'),
     `const { createElement: h } = globalThis.__cleitextShared.react;
 const sdk = globalThis.__cleitextShared['@cleitext/theme-sdk'];
-function Layout({ head, children }) { return h('html', null, h('head', null, h('title', null, head.title)), h('body', null, children)); }
+function Layout({ head, children }) { return h('html', null, h('head', null, h('title', null, head.title)), h('body', null, ${body})); }
 function Index() { return h('main', null, '${slug}'); }
 export default sdk.defineTheme({ slug: '${slug}', name: '${slug}', version: '1.0.0', menuLocations: {}, templates: { index: Index }, Layout, css: '' });
 `,
@@ -46,6 +47,13 @@ beforeAll(async () => {
   await theme(themesPath, 'lost-theme', ['not-installed']);
   await theme(themesPath, 'other-theme');
   await theme(themesPath, 'growing-theme');
+  // Hook points (plugin API 1.33): one the plugin fills, one it leaves empty.
+  await theme(
+    themesPath,
+    'hook-theme',
+    undefined,
+    "h(sdk.Location, { name: 'hook:test_top' }), h(sdk.Location, { name: 'hook:test_empty' }), h(sdk.Location, { name: 'hook:test_kept' }, h('p', null, 'Kept')), children",
+  );
   const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
   const source = join(await mkdtemp(join(tmpdir(), 'events-src-')), 'events');
   await cp(fixture, source, { recursive: true });
@@ -64,6 +72,7 @@ beforeAll(async () => {
     role: 'administrator',
   });
   admin = new TestClient(app, site.host, '10.36.0.1');
+  visitor = new TestClient(app, site.host, '10.36.0.2');
   await admin.login('admin@theme-plugins.test', PASSWORD);
 });
 
@@ -117,5 +126,36 @@ describe('plugins that come with a theme', () => {
     const result = await admin.post('/api/v1/themes/lost-theme/activate');
     expect(result.statusCode).toBe(200);
     expect(result.json().warnings[0]).toMatch(/not-installed .*not installed/);
+  });
+});
+
+describe('hook points of a theme', () => {
+  it('render nothing unless a plugin fills them', async () => {
+    await admin.post('/api/v1/themes/hook-theme/activate');
+    const created = (
+      await admin.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Located',
+        document: { schema: 1, blocks: [] },
+      })
+    ).json();
+    await admin.post(`/api/v1/entries/${created.id}/publish`);
+    // Without the plugin, only the theme's own markup.
+    const plain = (await admin.get('/located')).body;
+    expect(plain).toContain('<p>Kept</p><main>');
+    expect(plain).not.toContain('cx-location');
+
+    await admin.post('/api/v1/plugins/events/activate');
+    const html = (await visitor.get('/located')).body;
+    expect(html).toContain(
+      '<div class="cx-location cx-location-hook-test_top"><p>Hooked visitor</p></div><p>Kept</p><main>',
+    );
+    expect(html).not.toContain('test_empty');
+    // Plugins know when the visitor is signed in (their pages are never cached).
+    expect((await admin.get('/located')).body).toContain('<p>Hooked signed in</p>');
+    // Elsewhere the hook stays empty.
+    expect((await admin.get('/')).body).not.toContain('Hooked');
+    await admin.post('/api/v1/plugins/events/deactivate');
+    await admin.post('/api/v1/themes/other-theme/activate');
   });
 });

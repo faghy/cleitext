@@ -127,6 +127,11 @@ export interface RenderHookContext {
   isFrontPage?: boolean;
   /** Archives: the term (taxonomy and slug) or the content type listed; `home` for the latest posts on the home page. */
   archive?: { taxonomy?: string; term?: string; type?: string; home?: boolean };
+  /**
+   * The visitor is signed in (plugin API 1.33). Their pages are never
+   * cached, so content may depend on it.
+   */
+  signedIn?: boolean;
 }
 
 /** Filters (transformations): `[value, context]` by name. */
@@ -138,7 +143,9 @@ export interface Filters {
   /**
    * Content for the theme's locations (header, footer, single, archive),
    * replacing what the theme shows there, e.g. templates of a theme builder
-   * (needs `theme:hooks`). Themes mark them with `<Location>`.
+   * (needs `theme:hooks`). Themes mark them with `<Location>`. Since plugin
+   * API 1.33, `hook:<name>` keys fill the hook points a theme marks in its
+   * layout (e.g. `hook:zenit_header_before`), which are empty otherwise.
    */
   'render.locations': [
     locations: Partial<Record<ThemeLocation, CxdDocument>>,

@@ -203,7 +203,7 @@ ctx.hooks.filter(
 | `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                                                                              | `{ siteId, host, path, status, tags }`                 |
 | `robots.txt`               | the text of `/robots.txt`, with its `Sitemap:` line; no permission. A site that asks search engines to stay away keeps `Disallow: /` (API 1.24) | `{ siteId, origin, sitemap, discourageSearchEngines }` |
 
-`RenderHookContext` is `{ siteId, locale, route, path, entry?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
+`RenderHookContext` is `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (plugin API 1.33) is `true` when the visitor is signed in: their pages are never cached, so content may depend on it. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
 
 **Caches in front of Cleitext** (plugin API 1.9). `cache.headers` adds headers to the public responses the page cache keeps (never to signed-in visitors): computed once, stored with the page and sent on every hit, e.g. a `Cache-Control` with `s-maxage` and the page's tags for Varnish or a CDN. `cache.invalidated` is emitted once per change, outside the transaction that made it, with the tags whose pages changed: purge them there. The official **Edge cache** plugin does both for Varnish and Cloudflare.
 
@@ -214,6 +214,8 @@ ctx.hooks.filter('render.locations', async (locations, context) =>
   context.route === 'entry' ? { ...locations, header: myHeader, single: mySingle } : locations,
 );
 ```
+
+Since plugin API 1.33, keys named `hook:<name>` fill the hook points a theme marks in its layout (e.g. `hook:zenit_header_before` in Zenit). They show nothing until a plugin fills them; names the theme does not mark are ignored.
 
 `head.tags` adds tags to `<head>`: `{ tag: 'meta', attrs }`, `{ tag: 'link', attrs }` or `{ tag: 'json-ld', data }` (structured data, safely serialized).
 

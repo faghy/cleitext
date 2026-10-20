@@ -71,7 +71,9 @@ export function useThemeSettings<T extends Record<string, unknown> = Record<stri
 
 /**
  * A part of the page a plugin may replace (theme builders): what it gives
- * for the location, or the theme's own markup (`children`).
+ * for the location, or the theme's own markup (`children`). A hook point
+ * (`hook:<name>`) usually has no children: nothing shows until a plugin
+ * fills it.
  */
 export function Location({
   name,
@@ -87,7 +89,7 @@ export function Location({
   const document = page.locations?.[name];
   if (!document) return <>{children}</>;
   return (
-    <div className={`cx-location cx-location-${name}`}>
+    <div className={`cx-location cx-location-${name.replace(':', '-')}`}>
       <Blocks
         document={document}
         context={{

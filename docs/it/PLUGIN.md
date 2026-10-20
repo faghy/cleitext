@@ -205,7 +205,7 @@ ctx.hooks.filter(
 | `cache.headers`            | header in più delle risposte pubbliche tenute dalla cache delle pagine, API 1.9                                                                              | `{ siteId, host, path, status, tags }`                 |
 | `robots.txt`               | il testo di `/robots.txt`, con la sua riga `Sitemap:`; nessun permesso. Un sito che chiede ai motori di restare fuori tiene `Disallow: /` (API 1.24)         | `{ siteId, origin, sitemap, discourageSearchEngines }` |
 
-`RenderHookContext` è `{ siteId, locale, route, path, entry?, tag(tag) }`. `route` è `entry`, `archive`, `search`, `404` o `maintenance`. `entry` è la voce pubblica: `{ id, type, title, url, fields, document, terms, … }`. Chiama `tag('type:event')` quando ciò che aggiungi dipende da altri dati (vedi [cache](#cache)).
+`RenderHookContext` è `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` è `entry`, `archive`, `search`, `404` o `maintenance`. `entry` è la voce pubblica: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (API dei plugin 1.33) è `true` quando il visitatore ha effettuato l'accesso: le sue pagine non vanno mai in cache, quindi il contenuto può dipenderne. Chiama `tag('type:event')` quando ciò che aggiungi dipende da altri dati (vedi [cache](#cache)).
 
 **Cache davanti a Cleitext** (API dei plugin 1.9). `cache.headers` aggiunge header alle risposte pubbliche che la cache delle pagine tiene (mai a chi ha fatto il login): calcolati una volta, salvati con la pagina e inviati a ogni hit, per esempio un `Cache-Control` con `s-maxage` e i tag della pagina per Varnish o una CDN. `cache.invalidated` viene emesso una volta per modifica, fuori dalla transazione che l’ha fatta, con i tag delle pagine cambiate: svuotale lì. Il plugin ufficiale **Cache esterna** fa entrambe le cose per Varnish e Cloudflare.
 
@@ -216,6 +216,8 @@ ctx.hooks.filter('render.locations', async (locations, context) =>
   context.route === 'entry' ? { ...locations, header: myHeader, single: mySingle } : locations,
 );
 ```
+
+Dall'API dei plugin 1.33, le chiavi `hook:<nome>` riempiono i punti di aggancio che un tema segna nel suo layout (ad esempio `hook:zenit_header_before` in Zenit). Non mostrano nulla finché un plugin non li riempie; i nomi che il tema non segna sono ignorati.
 
 `head.tags` aggiunge tag a `<head>`: `{ tag: 'meta', attrs }`, `{ tag: 'link', attrs }` oppure `{ tag: 'json-ld', data }` (dati strutturati, serializzati in modo sicuro).
 

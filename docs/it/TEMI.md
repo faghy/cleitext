@@ -49,23 +49,23 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 
 `defineTheme({ … })` riceve:
 
-| Proprietà          | A cosa serve                                                                                                                                                                                                    |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Layout`           | La pagina attorno a ogni template: `<html>`, `<head>` (con `<HeadTags>` per `head.tags`), intestazione, piè di pagina.                                                                                          |
-| `templates`        | Componenti per nome; `index` è obbligatorio. I nomi più specifici hanno la precedenza (ARCHITETTURA §12.2).                                                                                                     |
-| `css`              | Foglio di stile incluso in ogni pagina. Tienilo piccolo.                                                                                                                                                        |
-| `menuLocations`    | Posizioni per i menu, assegnati in Aspetto → Menu; si leggono con `usePage().menus`.                                                                                                                            |
-| `settings`         | Campi mostrati in Aspetto → Personalizza (§4).                                                                                                                                                                  |
-| `areas`            | Aree composte di blocchi (§5).                                                                                                                                                                                  |
-| `settingsSections` | Schede di Aspetto → Personalizza: `[{ id, label, description?, parent?, tabs? }]`; un campo ci va con `section` (§4).                                                                                           |
-| `presets`          | Stili pronti: `[{ id, label, values }]`, applicati in Personalizza prima di pubblicare (§4).                                                                                                                    |
-| `entryFields`      | Opzioni per pagina, `{ types?, fields }`, mostrate nella scheda Documento dell'editor (§4).                                                                                                                     |
-| `relatedEntries`   | Quanti contenuti correlati mostrare sotto un contenuto (al massimo 12): `entry.related` li contiene, prima stesse categorie, poi stessi tag (core 0.37).                                                        |
-| `listTerms`        | `true`: gli elenchi (blog, archivi, ricerca) danno categorie e tag di ogni contenuto in `entries[].terms` (core 0.46).                                                                                          |
-| `adjacentEntries`  | `true`: i contenuti ricevono il precedente e il successivo dello stesso tipo in `entry.adjacent` (`prev`, `next`), per i link "Precedente / Successivo" (core 0.46).                                            |
-| `importSettings`   | `(data) => values \| null`: trasforma le impostazioni esportate da un altro sistema (un file JSON importato in Personalizza → ⋯ → Importa) nei valori del tema; quelli non validi vengono scartati (core 0.46). |
-| `editorCss`        | CSS per l'editor a blocchi, perché i contenuti abbiano lo stesso aspetto del sito mentre si scrive. Una stringa, o una funzione delle impostazioni.                                                             |
-| `comments`         | `'auto'` (predefinito): commenti, mi piace e condivisione seguono `<EntryContent>` nelle voci che li hanno. `'manual'`: li posiziona il tema.                                                                   |
+| Proprietà          | A cosa serve                                                                                                                                                                                                                                                          |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Layout`           | La pagina attorno a ogni template: `<html>`, `<head>` (con `<HeadTags>` per `head.tags`), intestazione, piè di pagina.                                                                                                                                                |
+| `templates`        | Componenti per nome; `index` è obbligatorio. I nomi più specifici hanno la precedenza (ARCHITETTURA §12.2).                                                                                                                                                           |
+| `css`              | Foglio di stile incluso in ogni pagina. Tienilo piccolo.                                                                                                                                                                                                              |
+| `menuLocations`    | Posizioni per i menu, assegnati in Aspetto → Menu; si leggono con `usePage().menus`.                                                                                                                                                                                  |
+| `settings`         | Campi mostrati in Aspetto → Personalizza (§4).                                                                                                                                                                                                                        |
+| `areas`            | Aree composte di blocchi (§5).                                                                                                                                                                                                                                        |
+| `settingsSections` | Schede di Aspetto → Personalizza: `[{ id, label, description?, parent?, tabs? }]`; un campo ci va con `section` (§4).                                                                                                                                                 |
+| `presets`          | Stili pronti: `[{ id, label, values }]`, applicati in Personalizza prima di pubblicare (§4).                                                                                                                                                                          |
+| `entryFields`      | Opzioni per pagina, `{ types?, fields }`, mostrate nella scheda Documento dell'editor (§4).                                                                                                                                                                           |
+| `relatedEntries`   | Quanti contenuti correlati mostrare sotto un contenuto (al massimo 12): `entry.related` li contiene, prima stesse categorie, poi stessi tag (core 0.37).                                                                                                              |
+| `listTerms`        | `true`: gli elenchi (blog, archivi, ricerca) danno categorie e tag di ogni contenuto in `entries[].terms` (core 0.46).                                                                                                                                                |
+| `adjacentEntries`  | `true`: i contenuti ricevono il precedente e il successivo dello stesso tipo in `entry.adjacent` (`prev`, `next`), per i link "Precedente / Successivo" (core 0.46).                                                                                                  |
+| `importSettings`   | `(data) => values \| null`: trasforma le impostazioni esportate da un altro sistema (un file importato in Personalizza → ⋯ → Importa: il JSON già letto, oppure il testo del file se non è JSON) nei valori del tema; quelli non validi vengono scartati (core 0.46). |
+| `editorCss`        | CSS per l'editor a blocchi, perché i contenuti abbiano lo stesso aspetto del sito mentre si scrive. Una stringa, o una funzione delle impostazioni.                                                                                                                   |
+| `comments`         | `'auto'` (predefinito): commenti, mi piace e condivisione seguono `<EntryContent>` nelle voci che li hanno. `'manual'`: li posiziona il tema.                                                                                                                         |
 
 I template ricevono la pagina come props (`kind`: `entry`, `archive`, `search`, `404`, `maintenance`) e leggono il resto con `usePage()`. Il Layout trova le stesse props in `usePage().view`, per cambiare classi del body o barre laterali secondo il tipo di pagina. Non interrogano mai il database.
 
@@ -74,6 +74,12 @@ Avvolgi in `<Location>` le parti che un theme builder può sostituire: `header`,
 ```tsx
 <Location name="header"><header className="site-header">…</header></Location>
 <Location name="single" entry={entry}><article>…</article></Location>
+```
+
+I punti di aggancio (API dei plugin 1.33) si chiamano `hook:<nome>`, con il prefisso del tema (`hook:miotema_header_before`, lettere, cifre, `_` e `-`). Senza figli non mostrano nulla finché un plugin non li riempie con `render.locations`: aggiungili liberamente dove un plugin può voler inserire contenuti (prima e dopo l'header, il contenuto, i commenti, il footer…). Una posizione riempita è avvolta in `<div class="cx-location cx-location-hook-<nome>">`:
+
+```tsx
+<Location name="hook:miotema_header_before" />
 ```
 
 Il contenuto di una voce si mostra con `<EntryContent document={…} />`. Dentro un editor visuale (il page builder di un plugin) mostra invece un elemento vuoto `[data-cx-editor-canvas]` che l'editor riempie: così la pagina si modifica nel layout del tema. Quando l'editor nasconde il titolo (`entry.document.editor?.data?.hideTitle === true`, come fa l'impostazione di pagina di Fresco), non mostrare l'intestazione con il titolo della voce, così la pagina ha un solo `h1`. Non mostrare l'immagine in evidenza sopra il contenuto quando lo chiede (`hideFeatured === true`) e con i suoi layout `full` e `canvas` (`layout`): la pagina è disegnata nell'editor.

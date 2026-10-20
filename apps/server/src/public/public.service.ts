@@ -102,6 +102,8 @@ import { SITEMAP_RE, SITEMAP_XSL, sitemap, sitemapIndex, type SitemapContext } f
 import { matchPermalinks } from './urls.js';
 
 const HTML = 'text/html; charset=utf-8';
+/** Hook points a theme marks with `<Location name="hook:…">` (plugin API 1.33). */
+const HOOK_LOCATION = /^hook:[A-Za-z0-9_-]{1,64}$/;
 /** ts_headline settings: matches between \u0001 and \u0002 (never found in text). */
 const HEADLINE_OPTIONS =
   'StartSel=\u0001, StopSel=\u0002, MaxWords=30, MinWords=12, MaxFragments=2, FragmentDelimiter=" … "';
@@ -1746,7 +1748,12 @@ export class PublicService {
         hookContext,
         scope.siteId,
       );
-      for (const name of ['header', 'footer', 'single', 'archive', 'overlay'] as const) {
+      const names = new Set<ThemeLocation>(['header', 'footer', 'single', 'archive', 'overlay']);
+      // Hook points the theme marks in its layout (plugin API 1.33).
+      for (const name of Object.keys(given ?? {})) {
+        if (HOOK_LOCATION.test(name)) names.add(name as ThemeLocation);
+      }
+      for (const name of names) {
         const parsed = cxdDocumentSchema.safeParse(given?.[name]);
         if (parsed.success) locations[name] = parsed.data;
       }
@@ -1768,13 +1775,14 @@ export class PublicService {
     // Theme settings and block areas, with the media they use.
     const themeValues = scope.themeSettings ?? (await themeSettings(scope.tx, theme));
     const areas = await themeAreas(scope.tx, theme, locale);
+    const locationDocs = Object.values(locations).filter((doc): doc is CxdDocument => !!doc);
     // Synced patterns used by the entry or the areas (RF-EDT-07).
     const patternIds = [
       ...new Set(
         [
           props.kind === 'entry' ? props.entry.document : null,
           ...Object.values(areas),
-          ...Object.values(locations),
+          ...locationDocs,
         ].flatMap((doc) => collectPatternIds(doc)),
       ),
     ];
@@ -1789,7 +1797,7 @@ export class PublicService {
     }
     const extraMedia = [
       ...themeMediaIds(theme, themeValues, areas),
-      ...Object.values(locations).flatMap((doc) => collectMediaIds(doc)),
+      ...locationDocs.flatMap((doc) => collectMediaIds(doc)),
       ...[...patternDocs.values()].flatMap((doc) => collectMediaIds(doc)),
     ].filter((id) => !media.has(id));
     if (extraMedia.length > 0) {
@@ -1802,7 +1810,7 @@ export class PublicService {
         [
           ...(props.kind === 'entry' ? [props.entry.document] : []),
           ...Object.values(areas),
-          ...Object.values(locations),
+          ...locationDocs,
           ...patternDocs.values(),
         ],
         props,
@@ -1933,6 +1941,7 @@ export class PublicService {
           ...(listing.type ? { type: listing.type } : {}),
         },
         ...(scope.editorFrame ? { editorFrame: true } : {}),
+        ...(scope.viewer ? { signedIn: true } : {}),
         tag: (tag: string) => {
           scope.tags.add(tag);
         },
@@ -1945,6 +1954,7 @@ export class PublicService {
       path: scope.path,
       ...(entry ? { entry } : {}),
       ...(scope.editorFrame ? { editorFrame: true } : {}),
+      ...(scope.viewer ? { signedIn: true } : {}),
       ...(props?.kind === 'entry' && props.isFrontPage ? { isFrontPage: true } : {}),
       ...(props?.kind === 'archive'
         ? {
