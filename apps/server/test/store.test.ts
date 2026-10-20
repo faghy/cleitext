@@ -460,7 +460,7 @@ describe('Store', () => {
   it('keeps the reports of the sites: plugins and themes by version and site', async () => {
     const report = {
       installId: '0b6f2a8e-3c1d-4e5f-8a9b-0c1d2e3f4a5b',
-      origin: 'https://customer.test',
+      origin: 'https://customer.example.com',
       core: '0.37.0',
       theme: { slug: 'vivid', version: '1.0.0' },
       plugins: [{ slug: 'seo', version: '1.3.0', active: true }],
@@ -469,10 +469,14 @@ describe('Store', () => {
     expect((await call('POST', '/report', report)).status).toBe(204);
     expect((await call('POST', '/report', { ...report, core: '0.37.1' })).status).toBe(204);
     expect((await call('POST', '/report', { origin: 'https://x.test' })).status).toBe(400);
+    // Development and test addresses are taken and dropped.
+    expect(
+      (await call('POST', '/report', { ...report, origin: 'http://site-3.test' })).status,
+    ).toBe(204);
     const rows = (await shopAdmin.get(ext('/admin/installs'))).json();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      origin: 'https://customer.test',
+      origin: 'https://customer.example.com',
       coreVersion: '0.37.1',
       themeSlug: 'vivid',
       plugins: [{ slug: 'seo', version: '1.3.0', active: true }],
