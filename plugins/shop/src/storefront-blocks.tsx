@@ -85,6 +85,13 @@ export function registerStorefrontBlocks(
     };
   };
 
+  // Product pictures open enlarged in a window that closes (not the bare file).
+  ctx.assets.enqueue({
+    file: 'lightbox.js',
+    when: ({ html }) =>
+      html.includes('shop-summary__main') || html.includes('class="shop-gallery"'),
+  });
+
   // ---- Products: a grid for any page ------------------------------------------------
 
   ctx.blocks.register(

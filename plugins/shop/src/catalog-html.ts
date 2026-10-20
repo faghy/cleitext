@@ -11,6 +11,17 @@ import type { Translate } from './strings';
  */
 
 export const CATALOG_CSS = `
+.shop-lightbox{border:0;padding:0;margin:0;width:100vw;height:100vh;max-width:none;max-height:none;background:rgba(0,0,0,.9);color:#fff;overflow:hidden}
+.shop-lightbox::backdrop{background:rgba(0,0,0,.9)}
+.shop-lightbox[open]{display:flex;align-items:center;justify-content:center}
+.shop-lightbox__image{max-width:calc(100vw - 7rem);max-height:calc(100vh - 6rem);object-fit:contain;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+@media(max-width:600px){.shop-lightbox__image{max-width:100vw}}
+.shop-lightbox button{position:absolute;display:flex;align-items:center;justify-content:center;width:3rem;height:3rem;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;font:2rem/1 system-ui,sans-serif;cursor:pointer}
+.shop-lightbox button:hover,.shop-lightbox button:focus-visible{background:rgba(255,255,255,.28);outline:2px solid #fff;outline-offset:2px}
+.shop-lightbox__close{top:1rem;right:1rem}
+.shop-lightbox__nav--prev{left:1rem;top:50%;transform:translateY(-50%)}
+.shop-lightbox__nav--next{right:1rem;top:50%;transform:translateY(-50%)}
+.shop-lightbox__count{position:absolute;bottom:1rem;left:0;right:0;margin:0;text-align:center;font-size:.9rem;opacity:.8}
 .shop-crumbs{font-size:.9em;margin:0 0 1rem}.shop-crumbs ol{display:flex;flex-wrap:wrap;gap:.25rem .5rem;list-style:none;margin:0;padding:0}
 .shop-crumbs li+li::before{content:"›";margin-right:.5rem;opacity:.6}
 .shop-wide{width:min(76rem,calc(100vw - 2rem));position:relative;left:50%;transform:translateX(-50%)}
