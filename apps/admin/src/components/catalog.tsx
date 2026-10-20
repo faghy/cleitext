@@ -91,7 +91,18 @@ function RenewNote({ item }: { item: CatalogEntryView }) {
   );
 }
 
-/** Plugins → Add New, Themes → Add New: the catalog, searchable, with Install. */
+/** The groups of the plugin catalog, in the order they are shown. */
+const CATEGORIES: Record<string, string> = {
+  editor: 'Editor & builder',
+  seo: 'SEO',
+  analytics: 'Statistics',
+  shop: 'E-commerce',
+  tools: 'Tools',
+};
+const categoryLabel = (slug: string) =>
+  CATEGORIES[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ');
+
+/** Plugins → Add New, Themes → Add New: the catalog, searchable and grouped by category, with Install. */
 export function CatalogBrowser({ type }: { type: 'plugin' | 'theme' }) {
   const { t } = useT();
   const me = useMe();
@@ -105,15 +116,25 @@ export function CatalogBrowser({ type }: { type: 'plugin' | 'theme' }) {
     onSuccess: refresh,
   });
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('');
   const [installedNow, setInstalledNow] = useState<Set<string>>(new Set());
   const lang = me.user.locale.toLowerCase().startsWith('it') ? 'it' : 'en';
   const summary = (item: CatalogEntryView) => item.summary[lang] ?? item.summary.en ?? '';
   const words = query.trim().toLowerCase();
-  const items = (catalog.data?.items ?? []).filter(
+  const ofType = (catalog.data?.items ?? []).filter((item) => item.type === type);
+  // The categories the listed items use: the known ones in their order, then any other.
+  const used = new Set(ofType.map((item) => item.category).filter((c): c is string => Boolean(c)));
+  const categories = [
+    ...Object.keys(CATEGORIES).filter((c) => used.has(c)),
+    ...[...used].filter((c) => !(c in CATEGORIES)).sort(),
+  ];
+  const items = ofType.filter(
     (item) =>
-      item.type === type &&
+      (!category || item.category === category) &&
       (!words ||
-        `${item.name} ${summary(item)} ${item.tags.join(' ')}`.toLowerCase().includes(words)),
+        `${item.name} ${summary(item)} ${item.tags.join(' ')} ${item.category ? t(categoryLabel(item.category)) : ''}`
+          .toLowerCase()
+          .includes(words)),
   );
 
   if (!me.capabilities.includes('manage_plugins')) return null;
@@ -150,6 +171,28 @@ export function CatalogBrowser({ type }: { type: 'plugin' | 'theme' }) {
           {t('Check again')}
         </Button>
       </div>
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t('Categories')}>
+          {['', ...categories].map((c) => (
+            <button
+              key={c || 'all'}
+              type="button"
+              aria-pressed={category === c}
+              onClick={() => setCategory(c)}
+              className={
+                category === c
+                  ? 'rounded-full bg-sky-700 px-3 py-1 text-sm font-medium text-white'
+                  : 'rounded-full border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50'
+              }
+            >
+              {c ? t(categoryLabel(c)) : t('All')}
+              <span className="ml-1 opacity-70">
+                {c ? ofType.filter((item) => item.category === c).length : ofType.length}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       {catalog.error && <Alert>{errorMessage(catalog.error)}</Alert>}
       {catalog.data?.error && (
         <Alert>
@@ -194,6 +237,11 @@ export function CatalogBrowser({ type }: { type: 'plugin' | 'theme' }) {
                     <p className="text-xs text-slate-500">
                       {t('Version {version}', { version: item.version })} · {item.author}
                     </p>
+                    {item.category && (
+                      <p className="mt-1 text-xs font-medium text-sky-800">
+                        {t(categoryLabel(item.category))}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <p className="flex-1 text-sm text-slate-700">{summary(item)}</p>

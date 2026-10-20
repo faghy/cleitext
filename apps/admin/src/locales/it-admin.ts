@@ -113,6 +113,11 @@ export const itAdmin: Messages = {
   'You have the latest version.': 'Hai l’ultima versione.',
   'Last checked: {date}.': 'Ultimo controllo: {date}.',
   'Check again': 'Controlla di nuovo',
+  'Editor & builder': 'Editor & builder',
+  Statistics: 'Statistiche',
+  'E-commerce': 'E-commerce',
+  Categories: 'Categorie',
+  All: 'Tutti',
   'What is new in {version}': 'Novità della {version}',
   'Before updating, a backup of the database, media and plugins is made. The site keeps working during the update, and restarts on the new version at the end; the previous version is kept on the server.':
     'Prima di aggiornare viene fatto un backup di database, media e plugin. Il sito continua a funzionare durante l’aggiornamento e alla fine riparte con la nuova versione; la versione precedente resta sul server.',

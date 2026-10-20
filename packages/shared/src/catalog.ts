@@ -9,6 +9,11 @@ export const catalogItemSchema = z.object({
   /** Short description by language. */
   summary: z.record(z.string(), z.string().max(1000)),
   tags: z.array(z.string().max(40)).max(20).default([]),
+  /** Plugins: the group of the catalog they are listed under (`editor`, `seo`, `analytics`, `shop`, `tools`). */
+  category: z
+    .string()
+    .regex(/^[a-z][a-z0-9-]{0,39}$/)
+    .optional(),
   icon: z.url().nullable().default(null),
   screenshots: z.array(z.url()).max(10).default([]),
   version: z.string().max(40),
