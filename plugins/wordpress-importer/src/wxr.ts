@@ -1029,9 +1029,11 @@ function prepareElementor(
       ),
   );
 
+  const origin = text(channel['wp:base_blog_url']) || text(channel.link);
   const context = (warn: (message: string) => void): ElementorContext => ({
     mediaRef,
     warn,
+    ...(origin ? { origin } : {}),
     entryRef,
     term,
     typeSlug: (type: string) => ownType(type),

@@ -7,7 +7,14 @@
  */
 import type { CxdBlock } from '@cleitext/blocks';
 import type { Converter, ElementorNode } from './elementor.js';
-import { asSettings, DEVICE_NAMES, num, str, type Settings } from './elementor-values.js';
+import {
+  asSettings,
+  DEVICE_NAMES,
+  num,
+  relativeUrl,
+  str,
+  type Settings,
+} from './elementor-values.js';
 
 const BOXES: Record<string, string> = {
   e_flexbox: 'flexbox',
@@ -209,10 +216,13 @@ function variants(el: ElementorNode, classes: string[], skipped: Set<string>): S
 }
 
 /** Global style classes (from the kit) and the element's own extra classes. */
-export function atomicLink(value: unknown): Settings | undefined {
+export function atomicLink(value: unknown, origin?: string): Settings | undefined {
   const link = asSettings(unwrap(value));
   const destination = link.destination;
-  const url = typeof destination === 'string' ? destination : str(asSettings(destination).url);
+  const url = relativeUrl(
+    typeof destination === 'string' ? destination : str(asSettings(destination).url),
+    origin,
+  );
   if (!url) return undefined;
   return { url, ...(link.isTargetBlank === true ? { newTab: true } : {}) };
 }
@@ -232,7 +242,7 @@ export function atomicElement(c: Converter, el: ElementorNode): CxdBlock[] {
   if (str(extra.id)) attrs._css_id = str(extra.id);
   if (skipped.size)
     c.note(`atomic style properties ${[...skipped].sort().join(', ')} were left out`);
-  const link = atomicLink(settings.link);
+  const link = atomicLink(settings.link, c.ctx.origin);
   const media = (raw: unknown) => {
     const image = asSettings(unwrap(raw));
     const src = asSettings(image.src);

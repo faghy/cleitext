@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CxdBlock } from '@cleitext/blocks';
 import { elementorToFresco, takeStretched, type ElementorContext } from './elementor';
+import { relativeUrl } from './elementor-values';
 
 // The shape of `_elementor_data`, as Elementor saves it (sections and containers).
 const data = JSON.stringify([
@@ -1107,6 +1108,102 @@ describe('Elementor extra devices', () => {
       'title_typography_size@mobile_extra': { size: 24, unit: 'px' },
       _hide_laptop: true,
       _hide_mobile_extra: true,
+    });
+  });
+});
+
+describe('Links to the old site', () => {
+  const origin = 'https://old.example';
+
+  it('makes them relative, with either scheme, and leaves other addresses alone', () => {
+    expect(relativeUrl('https://old.example/about/', origin)).toBe('/about/');
+    expect(relativeUrl('http://old.example/about/?a=1#x', origin)).toBe('/about/?a=1#x');
+    expect(relativeUrl('https://OLD.example', `${origin}/`)).toBe('/');
+    expect(relativeUrl('https://old.example#top', origin)).toBe('/#top');
+    expect(relativeUrl('https://old.example.net/x', origin)).toBe('https://old.example.net/x');
+    expect(relativeUrl('https://other.example/x', origin)).toBe('https://other.example/x');
+    expect(relativeUrl('/x', origin)).toBe('/x');
+    expect(relativeUrl('https://old.example/x', undefined)).toBe('https://old.example/x');
+  });
+
+  it('turns widget, item and atomic links into paths of this site', () => {
+    const heading = one(
+      {
+        widgetType: 'heading',
+        settings: { title: 'Hi', link: { url: 'https://old.example/contact/', is_external: 'on' } },
+      },
+      { origin },
+    ).block;
+    expect(heading.attrs.link).toEqual({ url: '/contact/', newTab: true });
+    const button = one(
+      {
+        widgetType: 'button',
+        settings: { text: 'Go', link: { url: 'https://elsewhere.example/' } },
+      },
+      { origin },
+    ).block;
+    expect(button.attrs.link).toEqual({ url: 'https://elsewhere.example/' });
+    const list = one(
+      {
+        widgetType: 'icon-list',
+        settings: { icon_list: [{ _id: 'a', text: 'A', link: { url: 'http://old.example/a' } }] },
+      },
+      { origin },
+    ).block;
+    expect((list.attrs.items as { link?: unknown }[])[0]!.link).toEqual({ url: '/a' });
+    const atomic = one(
+      {
+        widgetType: 'e-button',
+        settings: {
+          text: { $$type: 'string', value: 'Go' },
+          link: {
+            $$type: 'link',
+            value: { destination: { $$type: 'url', value: 'https://old.example/b' } },
+          },
+        },
+      },
+      { origin },
+    ).block;
+    expect(JSON.stringify(atomic.attrs)).toContain('"url":"/b"');
+  });
+});
+
+describe('Full-height sections and containers', () => {
+  it('keeps the minimum height in vh, per device', () => {
+    const { block } = container({
+      min_height: { unit: 'vh', size: 100 },
+      min_height_tablet: { unit: 'vh', size: 80 },
+      min_height_mobile: { unit: 'px', size: 400 },
+    });
+    expect(block.attrs).toMatchObject({
+      min_height: { size: 100, unit: 'vh' },
+      'min_height@tablet': { size: 80, unit: 'vh' },
+      'min_height@mobile': { size: 400, unit: 'px' },
+    });
+  });
+
+  it('keeps a section’s minimum height in vh, and the full height of inner sections', () => {
+    const section = (settings: Record<string, unknown>, isInner = false) =>
+      elementorToFresco(
+        JSON.stringify([
+          {
+            id: 's',
+            elType: 'section',
+            isInner,
+            settings,
+            elements: [
+              { id: 'c', elType: 'column', settings: { _column_size: 100 }, elements: [] },
+            ],
+          },
+        ]),
+        context([]),
+      )![0]!;
+    expect(
+      section({ height: 'min-height', custom_height: { unit: 'vh', size: 75 } }).attrs.min_height,
+    ).toEqual({ size: 75, unit: 'vh' });
+    expect(section({ height_inner: 'full' }, true).attrs).toMatchObject({
+      min_height: { size: 100, unit: 'vh' },
+      'min_height@mobile': { size: 0, unit: 'px' },
     });
   });
 });

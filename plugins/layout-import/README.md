@@ -1,6 +1,6 @@
 # Layout Import
 
-The official Cleitext plugin to bring pages of a WordPress site laid out with the old theme's layout builder — the one that stores each page as `[av_…]` shortcodes (`[av_section]`, `[av_one_half]`, `[av_textblock]`…) — into **native blocks** of the block editor. After the conversion every page is edited with the normal block editor: no page builder is needed. It is free and not in the base package: install it from **Plugins → Add New** (catalog), or download `cleitext-plugin-layout-import-<version>.zip` from the Releases page and upload it in **Plugins → Upload Plugin**.
+The official Cleitext plugin to turn layouts into **native blocks** of the block editor: pages of a WordPress site laid out with the old theme's layout builder — the one that stores each page as `[av_…]` shortcodes (`[av_section]`, `[av_one_half]`, `[av_textblock]`…) —, pages of a page builder that keeps them as JSON in the WordPress export (Elementor), and pages of this site built with **Fresco**. After the conversion every page is edited with the normal block editor: no page builder is needed. It is free and not in the base package: install it from **Plugins → Add New** (catalog), or download `cleitext-plugin-layout-import-<version>.zip` from the Releases page and upload it in **Plugins → Upload Plugin**.
 
 ## How it works
 
@@ -10,6 +10,7 @@ Open **Tools → Layout import**.
 2. **Choose the source.**
    - **From a WordPress export**: upload the export of the old site (WordPress: Tools → Export → All content). It is read in your browser. Every page, post or portfolio item laid out with `[av_…]` shortcodes is matched with the entry of this site that has the same type and slug (as the WordPress importer created them). Links to pages and posts by id, categories, tags and images by attachment id are resolved with the export.
    - **Pages of this site with `[av_…]` text**: for sites already imported where the shortcodes stayed as text in the paragraphs (the WordPress importer keeps unknown shortcodes as text). The text of the blocks is put back together and converted. Without the export, links to ids of the old site cannot be resolved.
+   - **Fresco pages of this site**: pages built with Fresco, or imported from Elementor as Fresco pages, become pages of the block editor, so the site can do without Fresco (see below).
 3. **Check the preview.** For each entry: how many elements it had and how many blocks it becomes, and what could not be kept exactly (elements left out, shown with simpler blocks, unknown shortcodes, background images, images not in the media library).
 4. **Convert** one entry or all of them. Each entry gets the blocks as a **new revision**: a published page keeps showing its old content until you check it and publish it (or choose to publish again in the options), and the earlier content stays in **Revisions**, so it can be restored. Entries someone else is editing are skipped.
 
@@ -52,9 +53,21 @@ Since 1.1, pages built with a page builder that keeps the page as JSON in a fiel
 
 To keep these pages exactly as they were, with their styles and animations, import them with the WordPress importer and edit them with Fresco instead.
 
+## Fresco pages
+
+Since 1.2, pages of this site built with Fresco become pages of the block editor:
+
+- top-level containers become full-width groups (sections), with their background color and padding;
+- containers in a row, and grids, become columns with their widths (a grid of three columns: rows of three columns), aligned as they were; other containers become groups when they have a color or padding of their own;
+- headings, texts, images, buttons, spacers, dividers, galleries, videos, icon and image boxes, icon lists, testimonials, alerts and HTML become the closest blocks, and the blocks of other plugins stay as they are;
+- tabs, accordions and toggles become a heading for each item followed by its content; image carousels become galleries; counters, progress bars and star ratings become headings and paragraphs; video files become an HTML video;
+- icons, social icons, menus, maps, audio, text paths, forms and the other Fresco Pro widgets have no native block: they are left out and reported. Elements hidden on computers (usually a copy for phones) are left out too.
+
+Background images and gradients, overlays, minimum heights, global colors, animations and effects are not kept and are reported. Links to the old site (the address in the options) become paths of this site. The page settings of Fresco are not kept.
+
 ## For developers
 
-Plugin API 1.26: an admin page only, with no server part and no permissions of its own. It uses the core content and media API (`/api/v1/entries`, `/api/v1/media`) with the user's own permissions; the conversions (`src/convert.ts` for shortcodes, `src/json-layout.ts` for builder data) are pure functions to core blocks, tested with Vitest.
+Plugin API 1.26: an admin page only, with no server part and no permissions of its own. It uses the core content and media API (`/api/v1/entries`, `/api/v1/media`) with the user's own permissions; the conversions (`src/convert.ts` for shortcodes, `src/json-layout.ts` for builder data, `src/fresco-layout.ts` for Fresco pages, which maps widgets as Fresco's own switch to the block editor does but keeps the layout, and does not need Fresco installed) are pure functions to core blocks, tested with Vitest.
 
 ## License
 

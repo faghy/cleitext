@@ -250,7 +250,7 @@ export function proWidget(
             ? 'archive-title'
             : 'post-title';
       out.tag = tag(src.header_size, type === 'theme-site-title' ? 'div' : 'h1');
-      if (link(src.link) || src.link_to === 'home') out.link = true;
+      if (link(src.link, c.ctx.origin) || src.link_to === 'home') out.link = true;
       copy(out, src, 'align', 'align', (v) => str(v) || undefined);
       color(out, src, 'title_color', 'title_color');
       c.typography(out, src, 'typography', 'title_typography');
@@ -338,8 +338,8 @@ export function proWidget(
         if (str(src.user_label)) out.email_label = str(src.user_label);
         if (str(src.password_label)) out.password_label = str(src.password_label);
       }
-      if (yes(src.redirect_after_login) && link(src.redirect_url))
-        out.redirect = str(asSettings(src.redirect_url).url);
+      if (yes(src.redirect_after_login) && link(src.redirect_url, c.ctx.origin))
+        out.redirect = link(src.redirect_url, c.ctx.origin)!.url as string;
       color(out, src, 'button_text_color', 'button_color');
       color(out, src, 'field_background_color', 'field_bg');
       color(out, src, 'field_border_color', 'field_border');
@@ -583,8 +583,10 @@ export function proWidget(
           heading: text(slide.heading),
           description: text(slide.description),
           button_text: str(slide.button_text),
-          ...(link(slide.link) ? { link: link(slide.link) } : {}),
-          ...(slide.link_click === 'slide' && link(slide.link) ? { whole_link: true } : {}),
+          ...(link(slide.link, c.ctx.origin) ? { link: link(slide.link, c.ctx.origin) } : {}),
+          ...(slide.link_click === 'slide' && link(slide.link, c.ctx.origin)
+            ? { whole_link: true }
+            : {}),
           ...(bg ? { bg_image: bg } : {}),
           ...(colorOf(slide, 'background_color')
             ? { bg_color: colorOf(slide, 'background_color') }
@@ -657,7 +659,7 @@ export function proWidget(
         c.note('icons above call-to-action titles were left out');
       }
       out.button_text = str(src.button);
-      if (link(src.link)) out.button_link = link(src.link);
+      if (link(src.link, c.ctx.origin)) out.button_link = link(src.link, c.ctx.origin);
       if (src.link_click === 'box') out.whole_link = true;
       if (str(src.ribbon_title)) {
         out.ribbon = true;
@@ -696,7 +698,7 @@ export function proWidget(
       out.back_title = text(src.title_text_b);
       out.back_text = text(src.description_text_b);
       out.button_text = str(src.button_text);
-      if (link(src.link)) out.button_link = link(src.link);
+      if (link(src.link, c.ctx.origin)) out.button_link = link(src.link, c.ctx.origin);
       const effect = str(src.flip_effect) || 'flip';
       out.effect = ['flip', 'slide', 'push', 'zoom-in', 'zoom-out', 'fade'].includes(effect)
         ? effect
@@ -769,7 +771,7 @@ export function proWidget(
         icon: c.icon(item.selected_item_icon) ?? { set: 'regular', name: 'circle-check' },
       }));
       out.button_text = str(src.button_text);
-      if (link(src.link)) out.button_link = link(src.link);
+      if (link(src.link, c.ctx.origin)) out.button_link = link(src.link, c.ctx.origin);
       out.footer_info = text(src.footer_additional_info).trim();
       if (yes(src.show_ribbon) && str(src.ribbon_title)) {
         out.ribbon = true;
@@ -813,7 +815,9 @@ export function proWidget(
         price: str(item.price),
         description: text(item.item_description),
         ...(media(item.image) ? { image: media(item.image) } : {}),
-        ...(itemLink(item, c.ctx.entryRef) ? { link: itemLink(item, c.ctx.entryRef) } : {}),
+        ...(itemLink(item, c.ctx.entryRef, c.ctx.origin)
+          ? { link: itemLink(item, c.ctx.entryRef, c.ctx.origin) }
+          : {}),
       }));
       if (['dotted', 'dashed', 'solid', 'double'].includes(str(src.separator_style))) {
         out.separator = str(src.separator_style) === 'double' ? 'solid' : str(src.separator_style);
@@ -866,7 +870,7 @@ export function proWidget(
           ? num(src.rotate_iteration_delay)
           : num(src.highlight_animation_duration);
       if (duration) out.duration = duration;
-      if (link(src.link)) out.link = link(src.link);
+      if (link(src.link, c.ctx.origin)) out.link = link(src.link, c.ctx.origin);
       out.tag = tag(src.tag, 'h3');
       copy(out, src, 'alignment', 'align', (v) => str(v) || undefined);
       color(out, src, 'title_color', 'text_color');
@@ -974,7 +978,9 @@ export function proWidget(
           x: spot.hotspot_horizontal === 'right' ? 100 - x : x,
           y: spot.hotspot_vertical === 'bottom' ? 100 - y : y,
           tooltip: text(spot.hotspot_tooltip_content),
-          ...(link(spot.hotspot_link) ? { link: link(spot.hotspot_link) } : {}),
+          ...(link(spot.hotspot_link, c.ctx.origin)
+            ? { link: link(spot.hotspot_link, c.ctx.origin) }
+            : {}),
         };
       });
       out.trigger =
@@ -1015,7 +1021,9 @@ export function proWidget(
         name: str(slide.name),
         title: str(slide.title),
         ...(type === 'reviews' && num(slide.rating) !== null ? { rating: num(slide.rating) } : {}),
-        ...(type === 'reviews' && link(slide.link) ? { link: link(slide.link) } : {}),
+        ...(type === 'reviews' && link(slide.link, c.ctx.origin)
+          ? { link: link(slide.link, c.ctx.origin) }
+          : {}),
       }));
       carousel(out, src);
       if (type === 'testimonial-carousel') {
@@ -1064,7 +1072,8 @@ export function proWidget(
       if (yes(src.reverse_animation)) out.reverse = true;
       const speed = num(asSettings(src.play_speed).size);
       if (speed) out.speed = speed;
-      if (src.link_to === 'custom' && link(src.custom_link)) out.link = link(src.custom_link);
+      if (src.link_to === 'custom' && link(src.custom_link, c.ctx.origin))
+        out.link = link(src.custom_link, c.ctx.origin);
       copy(out, src, 'align', 'align', (v) => str(v) || undefined);
       copy(out, src, 'width', 'width', (v) => size(v, c));
       return [c.node('fresco-pro/lottie', out)];

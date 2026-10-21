@@ -78,6 +78,8 @@ export interface ElementorContext {
   menuLocation?: (menu: string) => string | undefined;
   /** Font families used by the page (to load them). */
   font?: (family: string) => void;
+  /** Address of the old site: links to it become paths of this one. */
+  origin?: string;
   /** Spam protection given to every converted form (Fresco Pro's `captcha`). */
   formCaptcha?: 'site' | 'turnstile';
   /** Called for each form given that protection (to count them). */
@@ -627,7 +629,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         else out.tag = 'h2';
         if (['small', 'medium', 'large', 'xl', 'xxl'].includes(str(src.size)))
           out.size = str(src.size);
-        if (link(src.link)) out.link = link(src.link);
+        if (link(src.link, ctx.origin)) out.link = link(src.link, ctx.origin);
         c.dynamic(out, src, 'link', 'link', 'url');
         alignTo(out, src, 'align');
         color(out, src, 'title_color', 'title_color', 'title_hover_color');
@@ -671,9 +673,9 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         // Elementor centers images unless told otherwise; Fresco keeps the text alignment.
         if (!out.align) out.align = 'center';
         if (src.link_to === 'file') out.link_to = 'file';
-        if (src.link_to === 'custom' && link(src.link)) {
+        if (src.link_to === 'custom' && link(src.link, ctx.origin)) {
           out.link_to = 'custom';
-          out.link = link(src.link);
+          out.link = link(src.link, ctx.origin);
         }
         if (src.link_to === 'custom') c.dynamic(out, src, 'link', 'link', 'url');
         if (src.caption_source === 'custom') {
@@ -699,7 +701,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
       case 'button': {
         out.text = str(src.text) || 'Click here';
         c.dynamic(out, src, 'text', 'text', 'text');
-        out.link = link(src.link) ?? { url: '#' };
+        out.link = link(src.link, ctx.origin) ?? { url: '#' };
         c.dynamic(out, src, 'link', 'link', 'url');
         alignTo(out, src, 'align');
         out.size = ['xs', 'sm', 'md', 'lg', 'xl'].includes(str(src.size)) ? str(src.size) : 'sm';
@@ -764,7 +766,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         if (value) out.icon = value;
         if (['stacked', 'framed'].includes(str(src.view))) out.view = str(src.view);
         if (str(src.shape)) out.shape = str(src.shape);
-        if (link(src.link)) out.link = link(src.link);
+        if (link(src.link, ctx.origin)) out.link = link(src.link, ctx.origin);
         c.dynamic(out, src, 'link', 'link', 'url');
         alignTo(out, src, 'align');
         color(out, src, 'primary_color', 'primary_color', 'hover_primary_color');
@@ -781,7 +783,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         out.description = description.text;
         if (description.formatted) c.note('inline formatting inside box descriptions was removed');
         c.dynamic(out, src, 'description_text', 'description', 'text');
-        if (link(src.link)) out.link = link(src.link);
+        if (link(src.link, ctx.origin)) out.link = link(src.link, ctx.origin);
         c.dynamic(out, src, 'link', 'link', 'url');
         const position = str(src.position);
         copy(out, src, 'position', 'position', (v) =>
@@ -830,7 +832,9 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           _id: str(item._id) || `i${i}`,
           text: str(item.text),
           ...(c.icon(item.selected_icon) ? { icon: c.icon(item.selected_icon) } : {}),
-          ...(itemLink(item, ctx.entryRef) ? { link: itemLink(item, ctx.entryRef) } : {}),
+          ...(itemLink(item, ctx.entryRef, ctx.origin)
+            ? { link: itemLink(item, ctx.entryRef, ctx.origin) }
+            : {}),
         }));
         if (src.view === 'inline') out.layout = 'inline';
         copy(out, src, 'space_between', 'space', (v) => size(v, c));
@@ -877,7 +881,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         if (image) out.image = image;
         out.name = str(src.testimonial_name);
         out.job = str(src.testimonial_job);
-        if (link(src.link)) out.link = link(src.link);
+        if (link(src.link, ctx.origin)) out.link = link(src.link, ctx.origin);
         alignTo(out, src, 'testimonial_alignment', 'align');
         if (['aside', 'top'].includes(str(src.testimonial_image_position))) {
           out.image_position = str(src.testimonial_image_position);
@@ -894,7 +898,9 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           ...((c.icon(item.social_icon) ?? legacySocial(item.social))
             ? { icon: c.icon(item.social_icon) ?? legacySocial(item.social) }
             : {}),
-          ...(itemLink(item, ctx.entryRef) ? { link: itemLink(item, ctx.entryRef) } : {}),
+          ...(itemLink(item, ctx.entryRef, ctx.origin)
+            ? { link: itemLink(item, ctx.entryRef, ctx.origin) }
+            : {}),
         }));
         if (['rounded', 'square', 'circle'].includes(str(src.shape))) out.shape = str(src.shape);
         if (src.icon_color === 'custom') {
@@ -1344,7 +1350,8 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         copy(extra, src, 'min_height', 'min_height', (v) => size(v, c));
         if (str(src.overflow) === 'hidden') extra.overflow = 'hidden';
         if (str(src.html_tag) && str(src.html_tag) !== 'div') extra.html_tag = str(src.html_tag);
-        if (src.html_tag === 'a' && link(src.link)) extra.link = link(src.link);
+        if (src.html_tag === 'a' && link(src.link, ctx.origin))
+          extra.link = link(src.link, ctx.origin);
         // On phones, Elementor's containers fill the width and their items wrap.
         if (extra.width && !extra['width@mobile']) extra['width@mobile'] = { size: 100, unit: '%' };
         const row = [extra.flex_direction, extra['flex_direction@tablet']].some((d) =>

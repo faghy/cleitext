@@ -1,8 +1,9 @@
 /**
- * Layout Import in the admin: a page under Tools that converts pages laid out
- * with `[av_…]` shortcodes into native blocks, from a WordPress export read
- * in the browser or from entries of this site that still hold the shortcodes
- * as text. It uses only the core content API, with the user's permissions.
+ * Layout Import in the admin: a page under Tools that converts layouts into
+ * native blocks: pages laid out with `[av_…]` shortcodes or with a page
+ * builder's JSON, from a WordPress export read in the browser; entries of
+ * this site that still hold the shortcodes as text; and pages built with
+ * Fresco. It uses only the core content API, with the user's permissions.
  */
 import {
   Alert,
@@ -25,6 +26,7 @@ import {
   type Warning,
   type WarningKind,
 } from './convert.js';
+import { countFrescoElements, frescoSource, isFrescoDocument } from './fresco-layout.js';
 import { countElements } from './shortcodes.js';
 import { blocksHaveLayout, blocksToSource } from './source.js';
 import { fill, strings, type Strings } from './strings.js';
@@ -137,7 +139,7 @@ async function pool<T, R>(
 function LayoutImportPage(props: AdminPageProps) {
   const { user, site } = props;
   const t = strings(user.locale);
-  const [mode, setMode] = useState<'export' | 'site'>('export');
+  const [mode, setMode] = useState<'export' | 'site' | 'fresco'>('export');
   const [headingColor, setHeadingColor] = useState('');
   const [uppercase, setUppercase] = useState(false);
   const [origin, setOrigin] = useState('');
@@ -211,7 +213,8 @@ function LayoutImportPage(props: AdminPageProps) {
     }
   };
 
-  const scanSite = async () => {
+  /** Entries of this site with a layout to convert: `[av_…]` text, or Fresco pages. */
+  const scanSite = async (source: 'site' | 'fresco') => {
     reset();
     setBusy(t.readingSite);
     try {
@@ -227,16 +230,21 @@ function LayoutImportPage(props: AdminPageProps) {
         async (row) => {
           const entry = await coreApi<EntryDetail>('GET', `/entries/${row.id}`).catch(() => null);
           const doc = entry?.revision?.document as { blocks?: CxdBlock[] } | undefined;
-          if (!entry || !blocksHaveLayout(doc?.blocks)) return;
+          if (!entry) return;
+          const job = { key: row.id, title: row.title || row.slug, type: row.type, target: row };
+          if (source === 'fresco') {
+            if (!isFrescoDocument(doc)) return;
+            const blocks = doc?.blocks ?? [];
+            found.push({
+              ...job,
+              content: frescoSource(blocks),
+              elements: countFrescoElements(blocks),
+            });
+            return;
+          }
+          if (!blocksHaveLayout(doc?.blocks)) return;
           const content = blocksToSource(doc?.blocks ?? []);
-          found.push({
-            key: row.id,
-            title: row.title || row.slug,
-            type: row.type,
-            content,
-            elements: countElements(content),
-            target: row,
-          });
+          found.push({ ...job, content, elements: countElements(content) });
         },
         (done) => setBusy(fill(t.scanning, { done, total: rows.length })),
       );
@@ -369,6 +377,7 @@ function LayoutImportPage(props: AdminPageProps) {
               [
                 ['export', t.fromExport],
                 ['site', t.fromSite],
+                ['fresco', t.fromFresco],
               ] as const
             ).map(([value, label]) => (
               <Button
@@ -403,8 +412,10 @@ function LayoutImportPage(props: AdminPageProps) {
             </div>
           ) : (
             <div className="space-y-2 text-sm">
-              <p className="max-w-3xl text-slate-600">{t.siteHelp}</p>
-              <Button disabled={busy !== null} onClick={() => void scanSite()}>
+              <p className="max-w-3xl text-slate-600">
+                {mode === 'fresco' ? t.frescoHelp : t.siteHelp}
+              </p>
+              <Button disabled={busy !== null} onClick={() => void scanSite(mode)}>
                 {t.scan}
               </Button>
             </div>
@@ -419,7 +430,9 @@ function LayoutImportPage(props: AdminPageProps) {
       </Card>
 
       {jobs && jobs.length === 0 && (
-        <Alert>{mode === 'export' ? t.noLayouts : t.noSiteLayouts}</Alert>
+        <Alert>
+          {mode === 'export' ? t.noLayouts : mode === 'fresco' ? t.noFresco : t.noSiteLayouts}
+        </Alert>
       )}
       {jobs && jobs.length > 0 && (
         <Card title={fill(t.found, { count: jobs.length })}>
@@ -441,7 +454,7 @@ function LayoutImportPage(props: AdminPageProps) {
                   return (
                     <tr key={job.key} className="border-b border-slate-100 align-top">
                       <td className="py-2 pr-3">
-                        {mode === 'site' && job.target ? (
+                        {mode !== 'export' && job.target ? (
                           <a
                             className="font-medium text-sky-800 underline"
                             href={adminUrl(`/entries/${job.target.id}`)}
@@ -571,8 +584,8 @@ export default defineAdminPlugin({
       path: '',
       title: { en: 'Layout import', it: 'Importa layout' },
       description: {
-        en: 'Turn pages laid out with [av_…] shortcodes of an old WordPress theme into native blocks of the block editor.',
-        it: 'Trasforma le pagine impaginate con gli shortcode [av_…] di un vecchio tema WordPress in blocchi nativi dell’editor a blocchi.',
+        en: 'Turn layouts into native blocks of the block editor: pages laid out with [av_…] shortcodes of an old WordPress theme, pages of a page builder that keeps them as JSON in the WordPress export (Elementor), and pages built with Fresco.',
+        it: 'Trasforma i layout in blocchi nativi dell’editor a blocchi: le pagine impaginate con gli shortcode [av_…] di un vecchio tema WordPress, quelle di un page builder che le conserva come JSON nell’esportazione di WordPress (Elementor) e le pagine costruite con Fresco.',
       },
       parent: '/tools',
       icon: 'M4 4h16v6H4z M4 14h7v6H4z M14 14h6v6h-6z',

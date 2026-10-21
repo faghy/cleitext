@@ -12,11 +12,19 @@ A Fresco page is an ordinary Cleitext entry: revisions, translations, export, se
 4. Select an element to change it in the panel: **Content**, **Style** and **Advanced** tabs.
 5. **Publish** as usual: the page is saved with its revisions.
 
-The toolbar at the top of the panel opens the **Elements**, the **Templates** library, the **Navigator** (the tree of the page), the **Page settings** and the **Site settings**. Undo and redo are there too (Ctrl+Z, Ctrl+Shift+Z).
+The toolbar at the top of the panel opens the **Elements**, the **Templates** library, the **Structure** (the tree of the page), the **Page settings** and the **Site settings**. Undo and redo are there too (Ctrl+Z, Ctrl+Shift+Z); Ctrl+S saves, from the canvas too.
 
-**Page settings** set the page's layout (the theme's, **Full width** or **Canvas**, without the theme's header and footer), hide the theme's title, hide the featured image and give the page a background. A hidden featured image still shows in archives, loops and social previews; Full width and Canvas pages never show it. For a social preview without a featured image, use the **Social image** field of the SEO plugin.
+- **Panel**: drag its right edge to make it wider or narrower; double-click the edge to reset it.
+- **Structure**: a window you move by its header; drop it on the right edge and it docks there, beside the canvas, with a width you set by dragging its left edge.
+- **Finder** (Ctrl+E, or its button): one search box for the elements of the page, the widgets to add, the site's other pages and posts (to open them in Fresco) and the editor's commands. Shift+? lists the keyboard shortcuts.
+- **Several elements**: Ctrl-click (Cmd-click on a Mac) selects more than one, to delete, duplicate or copy them together.
+- **Repeaters** (list items, social icons, slides…): drag an item by its handle to reorder it.
 
-The icons above the page switch between **desktop, tablet and mobile**: style values set on a device apply from that device down. Right-click an element for copy, paste, paste style, reset style, duplicate, save as template and delete.
+**Page settings** have three tabs. **Settings**: title, status, featured image, the page's layout (the theme's, **Full width** or **Canvas**, without the theme's header and footer), hiding the theme's title and the featured image. **Style**: the page background (color, gradient or image) and the padding around the content. **Advanced**: custom CSS and scroll snap, with Fresco Pro. A hidden featured image still shows in archives, loops and social previews; Full width and Canvas pages never show it. For a social preview without a featured image, use the **Social image** field of the SEO plugin.
+
+**Colors**: the swatch opens a picker with hue and **opacity**, the browser's **eyedropper** (where the browser has one) and a hex or rgba value; the globe beside it picks one of the **global colors**. **Fonts**: the font picker searches the whole **Google Fonts** list, with the popular ones and the system fonts first; only the fonts a page uses are loaded on it.
+
+The icons above the page switch between **devices**: desktop, tablet and mobile, plus the breakpoints turned on in **Site settings → Layout** (**widescreen**, **laptop**, **tablet extra**, **mobile extra**: up to six). Style values set on a device apply from that device down (widescreen: from its width up). Right-click an element for copy, paste, paste style, reset style, duplicate, save as template and delete; right-click the empty canvas for **Copy all**, which copies the whole page to paste it on another one.
 
 ## Layout
 
@@ -31,7 +39,7 @@ Tabs, accordions and toggles hold containers, so anything can go inside them.
 
 **Blocks of other plugins**: the **Plugins** group of the panel has the blocks of the other active plugins, such as Cleishop's product grid and cart link. Their settings are the ones of the block editor, the canvas shows them as the page will, and the Advanced tab works on them like on any widget.
 
-**Switching editors.** **Edit with Fresco** turns block editor content into Fresco elements: text keeps its formatting, columns become containers in a row, and blocks without a widget stay as they are inside a plugin block element. Going back to the block editor, text becomes paragraphs, headings and lists again, rows of containers become columns, and widgets without a block of their own (icon boxes, icon lists, testimonials, counters, tabs and accordions) keep their titles and text. Styles and layout settings are not carried over; the earlier content stays in the revisions. To convert many pages at once, use the **Convert Editors** plugin (**Tools → Convert editors**).
+**Switching editors.** **Edit with Fresco** turns block editor content into Fresco elements: text keeps its formatting, columns become containers in a row, and blocks without a widget stay as they are inside a plugin block element. Going back to the block editor, text becomes paragraphs, headings and lists again, rows of containers become columns, and widgets without a block of their own (icon boxes, icon lists, testimonials, counters, tabs and accordions) keep their titles and text. Styles and layout settings are not carried over; the earlier content stays in the revisions. To convert many pages at once, use the **Convert Editors** plugin (**Tools → Convert editors**). To leave Fresco keeping the layout (full-width sections, columns with their widths, colors and padding), use the **Layout Import** plugin (**Tools → Layout import → Fresco pages of this site**): it reports what has no block.
 
 ## Site settings
 
@@ -39,7 +47,7 @@ The **Site settings** (the kit) apply to every Fresco page:
 
 - **Global colors and fonts**: pick them in any color or font control; change them once to restyle the site.
 - **Theme style**: headings, buttons, images and form fields.
-- **Layout**: content width, gaps, breakpoints.
+- **Layout**: content width, gaps, breakpoints (the extra ones are off until you turn them on; pages made before look the same).
 - **Page title selector**, so pages can hide the theme's title. Aurora, Canvas, Pulsar and Vitality leave the title out of the page by themselves, so it never shows twice.
 - **Lightbox** settings.
 
@@ -58,6 +66,10 @@ Besides the overview and **Templates**, the **Fresco** menu of the admin has (fo
 - **Site settings**: opens the editor on its Site settings panel, also before any page is made with Fresco (a draft page is made for it).
 - **Tools**: **Regenerate CSS** (when a page looks wrong after an update), **Replace URL** (after moving the site to a new address or to HTTPS: counts the old address in every Fresco page and template, then replaces it; earlier revisions stay) and the versions of Cleitext, Fresco and Fresco Pro.
 - **System info**: versions, server, site, active theme and plugins, with a button that copies them for a support request.
+
+## AI assistants
+
+**Chriss**, the Cleitext assistant, and the assistants connected over MCP know which pages are made with Fresco and keep them Fresco pages ([MCP](MCP.md)). They read Fresco's guide (its elements and settings, devices, hover, the site's global colors and fonts) and write containers and widgets directly; blocks or HTML they send for a Fresco page are converted by Fresco. What they write is checked: unknown elements and widgets outside containers are refused, and rich text is cleaned. **Ask Chriss** in the entry editor opens the chat about that page.
 
 ## Coming from WordPress
 
@@ -80,7 +92,7 @@ Fresco Pro needs Fresco. It installs without a license as a demo; activating it 
 
 ### Theme Builder
 
-**Theme Builder** (in the admin menu) makes templates for the parts of your theme:
+**Theme Builder** (under **Fresco → Templates**) makes templates for the parts of your theme:
 
 | Template       | Replaces                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------------ |
@@ -139,7 +151,7 @@ Every element gets, in its **Advanced** tab:
 - **Custom attributes** (`name|value`, one per line; event handlers are not allowed).
 - **Display conditions**: signed in or not, between dates, days of the week, hours, an address parameter, content types.
 
-Pages get **custom CSS** and **scroll snap** in their page settings.
+Pages get **custom CSS** and **scroll snap** in the **Advanced** tab of their page settings.
 
 ### Site features
 

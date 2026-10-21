@@ -13,6 +13,7 @@
 import type { CxdBlock, CxdInline, CxdText } from '@cleitext/blocks';
 import { INLINE_COLOR, decodeEntities, htmlToBlocks, htmlToInline } from '@cleitext/blocks/inline';
 import { isCode, paragraphs, parseShortcodes, type Code, type Node } from './shortcodes.js';
+import { convertFrescoSource, FRESCO_LAYOUT } from './fresco-layout.js';
 import { convertJsonLayout, JSON_LAYOUT } from './json-layout.js';
 
 export interface ImportMaps {
@@ -1150,7 +1151,7 @@ export function convertLayout(
  * posts) go away: a row keeps its other columns, sharing the space, and a
  * row with one column left becomes that column's content.
  */
-function prune(blocks: CxdBlock[]): CxdBlock[] {
+export function prune(blocks: CxdBlock[]): CxdBlock[] {
   return blocks.flatMap((block): CxdBlock[] => {
     if (!block.children) return [block];
     const children = prune(block.children);
@@ -1210,13 +1211,20 @@ export function imageAddresses(content: string, maps: ImportMaps = {}): string[]
   return [...found];
 }
 
-/** Converts an entry's layout: `[av_…]` shortcodes, or builder JSON (see json-layout.ts). */
+/**
+ * Converts an entry's layout: `[av_…]` shortcodes, builder JSON (see
+ * json-layout.ts) or a Fresco page (see fresco-layout.ts).
+ */
 export function convertAny(
   content: string,
   maps: ImportMaps = {},
   options: ConvertOptions = {},
 ): LayoutResult {
-  return content.startsWith(JSON_LAYOUT)
-    ? convertJsonLayout(content.slice(JSON_LAYOUT.length), maps, options)
-    : convertLayout(content, maps, options);
+  if (content.startsWith(JSON_LAYOUT)) {
+    return convertJsonLayout(content.slice(JSON_LAYOUT.length), maps, options);
+  }
+  if (content.startsWith(FRESCO_LAYOUT)) {
+    return convertFrescoSource(content.slice(FRESCO_LAYOUT.length), maps, options);
+  }
+  return convertLayout(content, maps, options);
 }

@@ -9,14 +9,22 @@ Una pagina di Fresco è una normale voce di Cleitext: revisioni, traduzioni, esp
 1. Installa Fresco da **Plugin → Aggiungi nuovo plugin** e attivalo.
 2. Apri una pagina e scegli **Modifica con Fresco**, oppure crea una pagina e scegli Fresco come editor. Sul sito, da connesso, anche la barra in alto di una pagina Fresco ha **Modifica con Fresco**.
 3. Trascina un **Contenitore** dal pannello nella pagina, poi i widget nel contenitore.
-4. Seleziona un elemento per modificarlo nel pannello: schede **Content** (contenuto), **Style** (stile) e **Advanced** (avanzate).
+4. Seleziona un elemento per modificarlo nel pannello: schede **Contenuto**, **Stile** e **Avanzate**.
 5. **Pubblica** come sempre: la pagina viene salvata con le sue revisioni.
 
-La barra in cima al pannello apre gli elementi (**Elements**), la libreria dei modelli (**Templates**), il **Navigator** (l'albero della pagina), le impostazioni della pagina (**Page settings**) e del sito (**Site settings**). L'editor di Fresco, per ora, ha le etichette in inglese. Ci sono anche annulla e ripeti (Ctrl+Z, Ctrl+Maiusc+Z).
+La barra in cima al pannello apre gli **Elementi**, la libreria dei **Modelli**, la **Struttura** (l'albero della pagina), le **Impostazioni pagina** e le **Impostazioni del sito**. Ci sono anche annulla e ripeti (Ctrl+Z, Ctrl+Maiusc+Z); Ctrl+S salva, anche dalla tela.
 
-Le **impostazioni della pagina** scelgono il layout (quello del tema, **Full width**, a tutta larghezza, o **Canvas**, senza intestazione e piè di pagina del tema), nascondono il titolo del tema, nascondono l'immagine in evidenza e danno uno sfondo alla pagina. L'immagine in evidenza nascosta resta negli archivi, nei loop e nelle anteprime social; le pagine Full width e Canvas non la mostrano mai. Per un'anteprima social senza immagine in evidenza usa il campo **Immagine social** del plugin SEO.
+- **Pannello**: trascinane il bordo destro per allargarlo o stringerlo; un doppio clic sul bordo lo riporta com'era.
+- **Struttura**: una finestra che si sposta dalla sua intestazione; lasciata sul bordo destro si aggancia lì, accanto alla tela, con la larghezza che scegli trascinandone il bordo sinistro.
+- **Finder** (Ctrl+E, o il suo pulsante): una sola casella di ricerca per gli elementi della pagina, i widget da aggiungere, le altre pagine e articoli del sito (per aprirli in Fresco) e i comandi dell'editor. Maiusc+? elenca le scorciatoie da tastiera.
+- **Più elementi**: Ctrl-clic (Cmd-clic su Mac) ne seleziona più di uno, per eliminarli, duplicarli o copiarli insieme.
+- **Ripetitori** (voci di elenco, icone social, slide…): trascina una voce dalla sua maniglia per cambiarne l'ordine.
 
-Le icone sopra la pagina passano tra **desktop, tablet e mobile**: i valori di stile impostati su un dispositivo valgono da quel dispositivo in giù. Il clic destro su un elemento offre copia, incolla, incolla stile, ripristina stile, duplica, salva come modello ed elimina.
+Le **Impostazioni pagina** hanno tre schede. **Impostazioni**: titolo, stato, immagine in evidenza, layout della pagina (quello del tema, **Larghezza piena** o **Canvas**, senza header e footer del tema), titolo del tema e immagine in evidenza nascosti. **Stile**: lo sfondo della pagina (colore, sfumatura o immagine) e la spaziatura attorno al contenuto. **Avanzate**: CSS personalizzato e scroll snap, con Fresco Pro. L'immagine in evidenza nascosta resta negli archivi, nei loop e nelle anteprime social; le pagine a larghezza piena e Canvas non la mostrano mai. Per un'anteprima social senza immagine in evidenza usa il campo **Immagine social** del plugin SEO.
+
+**Colori**: il campione apre un selettore con tinta e **opacità**, il **contagocce** del browser (dove il browser lo ha) e il valore esadecimale o rgba; il globo accanto sceglie uno dei **colori globali**. **Font**: il selettore cerca nell'intero elenco dei **Google Fonts**, con prima i più usati e i font di sistema; in ogni pagina si caricano solo i font che usa.
+
+Le icone sopra la pagina passano tra i **dispositivi**: desktop, tablet e mobile, più i breakpoint attivati in **Impostazioni del sito → Layout** (**schermo ampio**, **portatile**, **tablet extra**, **mobile extra**: fino a sei). I valori di stile impostati su un dispositivo valgono da quel dispositivo in giù (lo schermo ampio: dalla sua larghezza in su). Il clic destro su un elemento offre copia, incolla, incolla stile, ripristina stile, duplica, salva come modello ed elimina; il clic destro sulla tela vuota offre **Copia tutto**, che copia l'intera pagina per incollarla in un'altra.
 
 ## Struttura
 
@@ -31,7 +39,7 @@ Schede, fisarmoniche e interruttori contengono contenitori, quindi dentro può a
 
 **Blocchi degli altri plugin**: il gruppo **Plugin** del pannello contiene i blocchi degli altri plugin attivi, come la griglia prodotti e il link al carrello di Cleishop. Le impostazioni sono quelle dell'editor a blocchi, la tela li mostra come appariranno nella pagina e la scheda Avanzate funziona come su qualunque widget.
 
-**Cambiare editor.** **Modifica con Fresco** trasforma il contenuto dell'editor a blocchi in elementi di Fresco: il testo mantiene la formattazione, le colonne diventano contenitori in riga e i blocchi senza un widget restano come sono dentro un elemento blocco del plugin. Tornando all'editor a blocchi, il testo torna paragrafi, titoli ed elenchi, le righe di contenitori diventano colonne e i widget senza un blocco corrispondente (box con icona, elenchi con icone, testimonianze, contatori, schede e fisarmoniche) mantengono titoli e testo. Stili e impostazioni di layout non vengono riportati; il contenuto precedente resta nelle revisioni. Per convertire molte pagine insieme c'è il plugin **Converti editor** (**Strumenti → Converti editor**).
+**Cambiare editor.** **Modifica con Fresco** trasforma il contenuto dell'editor a blocchi in elementi di Fresco: il testo mantiene la formattazione, le colonne diventano contenitori in riga e i blocchi senza un widget restano come sono dentro un elemento blocco del plugin. Tornando all'editor a blocchi, il testo torna paragrafi, titoli ed elenchi, le righe di contenitori diventano colonne e i widget senza un blocco corrispondente (box con icona, elenchi con icone, testimonianze, contatori, schede e fisarmoniche) mantengono titoli e testo. Stili e impostazioni di layout non vengono riportati; il contenuto precedente resta nelle revisioni. Per convertire molte pagine insieme c'è il plugin **Converti editor** (**Strumenti → Converti editor**). Per lasciare Fresco mantenendo l'impaginazione (sezioni a tutta larghezza, colonne con le loro larghezze, colori e spaziature) c'è il plugin **Importa layout** (**Strumenti → Importa layout → Pagine Fresco di questo sito**): segnala ciò che non ha un blocco.
 
 ## Impostazioni del sito
 
@@ -39,7 +47,7 @@ Le impostazioni del sito (**Site settings**, il kit) valgono per tutte le pagine
 
 - **Colori e font globali**: si scelgono in qualunque controllo di colore o font; cambiandoli una volta si cambia lo stile del sito.
 - **Stile del tema**: titoli, pulsanti, immagini e campi dei moduli.
-- **Layout**: larghezza dei contenuti, spaziature, breakpoint.
+- **Layout**: larghezza dei contenuti, spaziature, breakpoint (quelli in più restano spenti finché non li attivi; le pagine fatte prima restano uguali).
 - **Selettore del titolo della pagina**, perché le pagine possano nascondere il titolo del tema. Aurora, Canvas, Pulsar e Vitality lo tolgono da soli dalla pagina, così non compare mai due volte.
 - Impostazioni della **lightbox**.
 
@@ -49,7 +57,7 @@ Gli elementi atomici (Flexbox, Griglia, Div, Titolo, Paragrafo, Pulsante, Immagi
 
 ## Modelli
 
-**Templates** salva una sezione o una pagina intera per riusarla, e importa o esporta file `.fresco.json` per spostare i design tra siti.
+**Modelli** salva una sezione o una pagina intera per riusarla, e importa o esporta file `.fresco.json` per spostare i design tra siti.
 
 ## Il menu di Fresco
 
@@ -58,6 +66,10 @@ Oltre alla panoramica e a **Modelli**, il menu **Fresco** dell'amministrazione h
 - **Impostazioni del sito**: apre l'editor sul pannello delle impostazioni del sito, anche prima di aver fatto una pagina con Fresco (viene creata una pagina in bozza apposta).
 - **Strumenti**: **Rigenera il CSS** (quando una pagina appare sbagliata dopo un aggiornamento), **Sostituisci URL** (dopo aver spostato il sito su un nuovo indirizzo o su HTTPS: conta il vecchio indirizzo in ogni pagina e modello di Fresco, poi lo sostituisce; le revisioni precedenti restano) e le versioni di Cleitext, Fresco e Fresco Pro.
 - **Informazioni di sistema**: versioni, server, sito, tema e plugin attivi, con un pulsante che li copia per una richiesta di assistenza.
+
+## Assistenti IA
+
+**Chriss**, l'assistente di Cleitext, e gli assistenti collegati via MCP sanno quali pagine sono fatte con Fresco e le mantengono pagine Fresco ([MCP](MCP.md)). Leggono la guida di Fresco (elementi e impostazioni, dispositivi, hover, colori e font globali del sito) e scrivono direttamente contenitori e widget; blocchi o HTML mandati per una pagina Fresco vengono convertiti da Fresco. Quello che scrivono viene controllato: elementi sconosciuti e widget fuori dai contenitori vengono rifiutati, e il testo formattato viene ripulito. **Chiedi a Chriss** nell'editor della voce apre la chat su quella pagina.
 
 ## Da WordPress
 
@@ -80,7 +92,7 @@ Fresco Pro richiede Fresco. Si installa senza licenza come demo; per attivarlo s
 
 ### Theme Builder
 
-**Theme Builder** (nel menu dell'amministrazione) crea modelli per le parti del tema:
+**Theme Builder** (in **Fresco → Modelli**) crea modelli per le parti del tema:
 
 | Modello           | Sostituisce                                                                                      |
 | ----------------- | ------------------------------------------------------------------------------------------------ |
@@ -139,7 +151,7 @@ Ogni elemento riceve, nella scheda **Advanced**:
 - **Attributi personalizzati** (`nome|valore`, uno per riga; i gestori di eventi non sono ammessi).
 - **Condizioni di visualizzazione**: con o senza accesso, tra due date, giorni della settimana, orari, un parametro dell'indirizzo, tipi di contenuto.
 
-Le pagine hanno **Custom CSS** e **Scroll snap** in **Page settings**.
+Le pagine hanno **CSS personalizzato** e **scroll snap** nella scheda **Avanzate** delle **Impostazioni pagina**.
 
 ### Funzioni per il sito
 

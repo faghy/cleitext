@@ -482,10 +482,28 @@ export function fa4Icon(name: string): IconValue {
 
 // ---- Links and media ---------------------------------------------------------------------
 
-/** Elementor link `{ url, is_external, nofollow }` → Fresco link. */
-export function link(value: unknown): Settings | undefined {
+/**
+ * A link to the old site (`origin`, e.g. `https://example.com`) as a path of
+ * this one, so it follows the new domain (as menus and paths of the import do).
+ * Either scheme matches; other addresses stay as they are.
+ */
+export function relativeUrl(url: string, origin?: string): string {
+  const base = (origin ?? '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/^https?:/i, '');
+  if (!base.startsWith('//')) return url;
+  const bare = url.replace(/^https?:/i, '');
+  if (!bare.toLowerCase().startsWith(base.toLowerCase())) return url;
+  const rest = bare.slice(base.length);
+  if (rest && !/^[/?#]/.test(rest)) return url;
+  return rest.startsWith('/') ? rest : `/${rest}`;
+}
+
+/** Elementor link `{ url, is_external, nofollow }` → Fresco link (old-site links relative). */
+export function link(value: unknown, origin?: string): Settings | undefined {
   const v = asSettings(value);
-  const url = str(v.url).trim();
+  const url = relativeUrl(str(v.url).trim(), origin);
   if (!url) return undefined;
   return {
     url,
@@ -602,10 +620,11 @@ export function dynamicTag(
 export function itemLink(
   item: Settings,
   entryRef?: (post: number) => string | undefined,
+  origin?: string,
 ): Settings | undefined {
   const tag = parseDynamic(asSettings(item.__dynamic__).link);
   const value = tag?.name === 'popup' ? dynamicTag(tag, entryRef) : undefined;
   if (value?.key === 'close') return { url: '#popup-close' };
   if (value?.key) return { url: { ...asSettings(value.key), prefix: '#popup-' } };
-  return link(item.link);
+  return link(item.link, origin);
 }

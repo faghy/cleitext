@@ -629,3 +629,38 @@ describe('Elementor breakpoints', () => {
     expect(popup(['desktop', 'tablet']).allDevices).toBeUndefined();
   });
 });
+
+describe('Links of Elementor widgets to the old site', () => {
+  it('become paths of this site, as menus do', () => {
+    const page = site.replace(
+      '</channel>',
+      `${item({
+        id: 91,
+        title: 'Links',
+        type: 'page',
+        name: 'links',
+        metas: builder([
+          {
+            id: 'b1',
+            elType: 'widget',
+            widgetType: 'button',
+            settings: { text: 'Contact', link: { url: 'https://studio.example/contact/' } },
+          },
+          {
+            id: 'b2',
+            elType: 'widget',
+            widgetType: 'button',
+            settings: { text: 'Out', link: { url: 'https://elsewhere.example/' } },
+          },
+        ]),
+      })}</channel>`,
+    );
+    const { document } = wxrToDocument(page, { locale: 'en' });
+    const links = document.entries!.find((e) => e.title === 'Links')!;
+    const buttons = (links.document!.blocks as CxdBlock[])[0]!.children!;
+    expect(buttons.map((b) => (b.attrs.link as { url: string }).url)).toEqual([
+      '/contact/',
+      'https://elsewhere.example/',
+    ]);
+  });
+});
