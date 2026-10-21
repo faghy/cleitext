@@ -8,6 +8,15 @@ interface FormConfig {
   confirmationType: 'message' | 'url';
   confirmationUrl: string;
   captcha?: { version: 'v2' | 'v3'; siteKey: string; hideBadge: boolean; message: string };
+  /** The site's captcha (Captcha plugin) is in the form. */
+  siteCaptcha?: boolean;
+  captchaMessage?: string;
+}
+
+/** The site's bot protection in the browser (plugin API 1.38). */
+interface SiteChallenge {
+  prepare(form: HTMLFormElement): Promise<void>;
+  reset(form: HTMLFormElement): void;
 }
 
 interface Grecaptcha {
@@ -22,6 +31,7 @@ declare global {
   interface Window {
     grecaptcha?: Grecaptcha;
     prFormCaptchaLoaded?: () => void;
+    cleitextChallenge?: SiteChallenge;
   }
 }
 
@@ -168,6 +178,14 @@ function init(form: HTMLFormElement) {
           return;
         }
       }
+      if (config.siteCaptcha) {
+        try {
+          await window.cleitextChallenge?.prepare(form);
+        } catch {
+          if (captchaError) captchaError.textContent = config.captchaMessage ?? '';
+          return;
+        }
+      }
       sending = true;
       button?.setAttribute('aria-busy', 'true');
       if (button) button.disabled = true;
@@ -188,7 +206,14 @@ function init(form: HTMLFormElement) {
           ok?: boolean;
           errors?: Record<string, string>;
           redirect?: string;
+          message?: string;
         };
+        // Tokens of the site's captcha work once.
+        if (!answer.ok && config.siteCaptcha) window.cleitextChallenge?.reset(form);
+        if (!answer.ok && answer.message && res.status === 403) {
+          if (captchaError) captchaError.textContent = answer.message;
+          return;
+        }
         if (answer.ok) {
           if (config.confirmationType === 'url' && answer.redirect) {
             window.location.assign(answer.redirect);

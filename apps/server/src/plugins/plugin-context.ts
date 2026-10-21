@@ -145,6 +145,16 @@ export function pluginLogger(slug: string): PluginLogger {
   };
 }
 
+/** The common part of the inputs of `ctx.forms`, checked. */
+function formInput<T extends { siteId: string; form: string; locale: string; signedIn: boolean }>(
+  input: T,
+): T {
+  if (typeof input.form !== 'string' || !/^[a-z0-9][\w./-]{0,119}$/i.test(input.form)) {
+    throw new TypeError('Invalid form id: use `<plugin slug>/<form>`.');
+  }
+  return { ...input, locale: String(input.locale ?? ''), signedIn: input.signedIn === true };
+}
+
 /**
  * The `ctx` object a plugin receives. Each facade checks the permissions
  * declared in the manifest (docs/SPECIFICATIONS.md §7.3).
@@ -176,6 +186,7 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         if (name.startsWith('render.') || name.startsWith('theme.') || name.startsWith('cache.'))
           require('theme:hooks');
         if (name.startsWith('site.')) require('languages');
+        if (name.startsWith('form.')) require('forms:protect');
         host.addHook(plugin, 'filter', name, handler as never, options?.priority);
       },
       async emit(name, payload, context) {
@@ -510,6 +521,22 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         require('privacy');
         assertSiteId(siteId);
         return host.erasePersonalData(siteId, email);
+      },
+    },
+
+    forms: {
+      async challenge(input) {
+        assertSiteId(input.siteId);
+        return host.formChallenge(formInput(input));
+      },
+      async verify(input) {
+        assertSiteId(input.siteId);
+        return host.formVerify({
+          ...formInput(input),
+          fields: input.fields && typeof input.fields === 'object' ? input.fields : {},
+          ip: String(input.ip ?? ''),
+          ...(input.host ? { host: String(input.host) } : {}),
+        });
       },
     },
 

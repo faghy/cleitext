@@ -2190,6 +2190,7 @@ export class PublicService {
                     scope.tags.add(tag);
                   },
                   query: (query) => this.queryEntries(scope, query),
+                  signedIn: Boolean(scope.viewer),
                 })
               : undefined;
             const style = block.css ? block.css({ attrs, block: instance, context }) : '';
@@ -2735,6 +2736,17 @@ export class PublicService {
         ...(notice ? { notice } : {}),
       };
     }
+    // Bot protection from a plugin (form.challenge, plugin API 1.38).
+    const form = ACCOUNT_FORMS[attrs.view];
+    if (form) {
+      const challenge = await this.plugins.formChallenge({
+        siteId: scope.siteId,
+        form,
+        locale,
+        signedIn: Boolean(scope.viewer),
+      });
+      if (challenge) attrs = { ...attrs, protection: challenge };
+    }
     const path = page ? data.urls.account(locale, page) : base;
     const entry: PublicEntry = {
       id: `account-${page || 'profile'}`,
@@ -2851,6 +2863,16 @@ export class PublicService {
       action: `${scope.data.urls.home(scope.locale).replace(/\/$/, '')}/comments`,
       ...(notice ? { notice } : {}),
     };
+    if (open && !(settings.commentRegistration && !scope.viewer)) {
+      // Bot protection from a plugin (form.challenge, plugin API 1.38).
+      const challenge = await this.plugins.formChallenge({
+        siteId: scope.siteId,
+        form: 'core/comment',
+        locale: scope.locale,
+        signedIn: Boolean(scope.viewer),
+      });
+      if (challenge) publicEntry.comments.protection = challenge;
+    }
     if (settings.likes !== 'off') {
       publicEntry.likes = {
         count: row.likeCount,
@@ -3054,6 +3076,14 @@ export class PublicService {
     return loadPublished(scope.tx, where, { ...options, includePrivate: scope.includePrivate });
   }
 }
+
+/** The account forms that plugins can protect (`form.challenge`), by view. */
+const ACCOUNT_FORMS: Partial<Record<AccountAttrs['view'], string>> = {
+  login: 'core/login',
+  register: 'core/register',
+  lost: 'core/lost-password',
+  reset: 'core/reset-password',
+};
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -169,8 +169,65 @@ export interface MaintenanceContext {
   preview?: boolean;
 }
 
+/**
+ * A form of the site that can be protected against bots (plugin API 1.38):
+ * `core/login`, `core/register`, `core/lost-password`, `core/reset-password`,
+ * `core/comment`, or a plugin's form named `<slug>/<form>`, e.g.
+ * `forms/<block id>`, `shop/checkout`, `fresco-pro/form`, `prisma/form`.
+ */
+export interface FormChallengeContext {
+  siteId: string;
+  /** The form's stable id (see above). */
+  form: string;
+  /** The page's language. */
+  locale: string;
+  /** The visitor is signed in. Pages of guests may be cached: keep the markup the same for all of them. */
+  signedIn: boolean;
+}
+
+/** Context of the `form.verify` filter (plugin API 1.38). */
+export interface FormVerifyContext {
+  siteId: string;
+  form: string;
+  /** The page's language, for the message. */
+  locale: string;
+  /**
+   * The submitted values, the fields of the challenge included (e.g.
+   * `cf-turnstile-response`, `g-recaptcha-response`). Read only what you need.
+   */
+  fields: Record<string, unknown>;
+  /** The visitor's address as the core sees it (`TRUST_PROXY` behind a proxy). */
+  ip: string;
+  /** Host name of the request, without the port, when known. */
+  host?: string;
+  signedIn: boolean;
+}
+
+/** What a protection plugin says of a submission (`form.verify`). */
+export interface FormVerifyResult {
+  ok: boolean;
+  /** Shown to the visitor when `ok` is false, in `locale`. */
+  message?: string;
+}
+
 /** Filters (transformations): `[value, context]` by name. */
 export interface Filters {
+  /**
+   * Markup placed inside a form, before its submit button (plugin API 1.38,
+   * needs `forms:protect`), e.g. a captcha widget with its `<script>` tags.
+   * Add to the value (`html + mine`); `''` (the starting value) shows
+   * nothing. Forms ask through `ctx.forms.challenge`; the core's own sign-in,
+   * sign-up, password and comment forms ask too.
+   */
+  'form.challenge': [html: string, context: FormChallengeContext];
+  /**
+   * Checks a submission of a protected form (plugin API 1.38, needs
+   * `forms:protect`): `{ ok: false, message }` refuses it with that message,
+   * `{ ok: true }` or `null` (the starting value) lets it through. Keep a
+   * refusal given by another plugin. A handler that throws or times out is
+   * skipped, so catch your own errors and decide.
+   */
+  'form.verify': [result: FormVerifyResult | null, context: FormVerifyContext];
   /** Title, meta tags and extra `<head>` tags of a public page (needs `theme:hooks`). */
   'render.head': [head: HeadData, context: RenderHookContext];
   /** Blocks of an entry before rendering, e.g. to add a details box (needs `theme:hooks`). */

@@ -2,6 +2,7 @@ import { HttpException, Injectable, Logger } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { AuthService } from '../auth/auth.service.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
 import { clearSessionCookie, setSessionCookie } from '../auth/cookies.js';
 import { verifySameOrigin } from '../auth/auth.guard.js';
 import { AccountsService } from './accounts.service.js';
@@ -47,6 +48,7 @@ export class CommunityPublic {
     private readonly auth: AuthService,
     private readonly comments: CommentsService,
     private readonly likes: LikesService,
+    private readonly plugins: PluginHost,
   ) {}
 
   /** True when the path is one of these forms (and it was handled). */
@@ -104,12 +106,43 @@ export class CommunityPublic {
       return Number.isFinite(ts) && ts > 0 && Date.now() - ts < 2000;
     };
 
+    /**
+     * Bot protection from a plugin (`form.verify`, plugin API 1.38): the
+     * refusal's message, or null when the submission may go on.
+     */
+    const refused = async (form: string): Promise<string | null> => {
+      const result = await this.plugins.formVerify({
+        siteId,
+        form,
+        locale,
+        fields: body,
+        ip: request.ip,
+        host: request.hostname,
+        signedIn: Boolean(request.auth && !request.auth.apiToken),
+      });
+      if (result.ok) return null;
+      return (
+        result.message ??
+        say(
+          locale,
+          'Please confirm that you are not a robot, then try again.',
+          'Conferma di non essere un robot, poi riprova.',
+        )
+      );
+    };
+
     let handled = true;
     const run = async (): Promise<void> => {
       switch (action) {
         case 'account/login': {
           const redirect = safePath(text(body, 'redirect'), base);
           const email = text(body, 'email', 200).trim();
+          const blocked = await refused('core/login');
+          if (blocked)
+            return void (await fail(
+              withQuery(`${base}/login`, { error: blocked, email, redirect }),
+              blocked,
+            ));
           try {
             const result = await this.auth.login(
               siteId,
@@ -167,6 +200,12 @@ export class CommunityPublic {
         case 'account/register': {
           if (isBot()) return void (await go(`${base}/register?sent=1`));
           const values = { name: text(body, 'name', 80), email: text(body, 'email', 200) };
+          const blocked = await refused('core/register');
+          if (blocked)
+            return void (await fail(
+              withQuery(`${base}/register`, { error: blocked, ...values }),
+              blocked,
+            ));
           try {
             const result = await this.accounts.register(
               siteId,
@@ -194,6 +233,12 @@ export class CommunityPublic {
         }
         case 'account/lost-password': {
           const email = text(body, 'email', 200).trim();
+          const blocked = await refused('core/lost-password');
+          if (blocked)
+            return void (await fail(
+              withQuery(`${base}/lost-password`, { error: blocked }),
+              blocked,
+            ));
           if (email)
             await this.auth.forgotPassword(
               siteId,
@@ -205,6 +250,12 @@ export class CommunityPublic {
         }
         case 'account/reset-password': {
           const token = text(body, 'token', 200);
+          const blocked = await refused('core/reset-password');
+          if (blocked)
+            return void (await fail(
+              withQuery(`${base}/reset-password`, { token, error: blocked }),
+              blocked,
+            ));
           try {
             await this.auth.resetPassword(
               siteId,
@@ -293,6 +344,12 @@ export class CommunityPublic {
           // Signed-in people are known: the bot traps are for guests.
           if (!viewer && isBot())
             return void (await go(withQuery(back, { comment: 'pending' }, '#comments')));
+          const blocked = await refused('core/comment');
+          if (blocked)
+            return void (await fail(
+              withQuery(back, { 'comment-error': blocked }, '#respond'),
+              blocked,
+            ));
           try {
             const result = await this.comments.post(
               siteId,

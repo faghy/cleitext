@@ -41,7 +41,12 @@ interface ReviewsData {
   counts: number[];
   settings: ReviewSettings;
   notice: { kind: 'ok' | 'error'; text: string } | null;
+  /** The site's bot protection (`ctx.forms.challenge`, plugin API 1.38). */
+  challenge?: string;
 }
+
+/** The review form's id for the site's bot protection. */
+const REVIEW_FORM = 'shop/review';
 
 const ratingOf = (meta: Record<string, unknown>) => {
   const n = Number(meta.rating);
@@ -162,6 +167,20 @@ export function registerReviews(
         return go({
           'review-error': t('Only customers who bought this product can review it.'),
         });
+      // The site's bot protection (Captcha plugin), when there is one.
+      const verdict = await ctx.forms?.verify({
+        siteId: request.siteId,
+        form: REVIEW_FORM,
+        locale: request.locale,
+        fields: body,
+        ip: request.ip,
+        host: (request.headers.host ?? '').replace(/:\d+$/, ''),
+        signedIn: request.user !== null,
+      });
+      if (verdict && !verdict.ok)
+        return go({
+          'review-error': verdict.message ?? t('The spam check did not pass: please try again.'),
+        });
       try {
         const posted = await ctx.comments.post(request, {
           entryId,
@@ -218,7 +237,17 @@ export function registerReviews(
                 }
               : null;
         const base = context.page.site.home.replace(/^https?:\/\/[^/]+/, '').replace(/\/$/, '');
+        const challenge =
+          (await ctx.forms
+            ?.challenge({
+              siteId: context.siteId,
+              form: REVIEW_FORM,
+              locale: context.locale,
+              signedIn: context.signedIn === true,
+            })
+            .catch(() => '')) ?? '';
         return {
+          ...(challenge ? { challenge } : {}),
           entryId: id,
           action: `${base}/reviews`,
           reviews,
@@ -350,6 +379,7 @@ export function registerReviews(
             <p class="shop-meta">
               ${t('Signed in? You can leave name and email empty. Your email is not published.')}
             </p>
+            ${data.challenge ? raw(`<div class="shop-challenge">${data.challenge}</div>`) : ''}
             <p><button class="shop-button" type="submit">${t('Submit review')}</button></p>
           </form>
         </section>`;

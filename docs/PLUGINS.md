@@ -193,6 +193,8 @@ ctx.hooks.filter(
 | `render.html`              | the final HTML string                                                                                                                                                 | `RenderHookContext`                                    |
 | `render.adminBarEdit`      | the edit link of the public toolbar on an entry, `{ label, href }` (an admin address), or `null` to hide it, e.g. "Edit with …" (API 1.29)                            | `{ siteId, locale, entry: { id, type, editor? } }`     |
 | `render.maintenance`       | the page visitors get in maintenance mode: `{ html, retryAfter? }` (a whole document) instead of the theme's, or `null` (API 1.35)                                    | `MaintenanceContext`                                   |
+| `form.challenge`           | markup placed in a form before its submit button, e.g. a captcha widget; add to the value (needs `forms:protect`, API 1.38)                                           | `FormChallengeContext`                                 |
+| `form.verify`              | `{ ok, message? }` for a submission of a protected form, or `null` to let it through (needs `forms:protect`, API 1.38)                                                | `FormVerifyContext`                                    |
 | `theme.templateCandidates` | template names tried in order                                                                                                                                         | `RenderHookContext`                                    |
 | `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                                                  | `{ siteId, ids }`                                      |
 | `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                                                     | `{ siteId, locale, userId, base }`                     |
@@ -218,6 +220,13 @@ ctx.hooks.filter(
     page ?? { html: myPage(context.locale, context.site), retryAfter: 2 * 3600 },
 );
 ```
+
+**Protecting forms** (plugin API 1.38). One plugin protects every form of the site against bots, e.g. with a captcha, and forms ask it through the core instead of each having its own keys. Forms have a stable id: `core/login`, `core/register`, `core/lost-password`, `core/reset-password` and `core/comment` for the core's own (which ask by themselves), and `<slug>/<form>` for a plugin's, e.g. `forms/<block id>`, `shop/checkout`, `fresco-pro/form`, `prisma/form`. A protection plugin (permission `forms:protect`) answers two filters:
+
+- `form.challenge`: the markup to place inside the form, before its submit button (a widget and its `<script>` tags). The context, `FormChallengeContext`, is `{ siteId, form, locale, signedIn }`. Pages of guests may be cached, so the markup must not depend on anything else (no tokens in it). Add to the value: `''` shows nothing.
+- `form.verify`: `{ ok: false, message }` refuses a submission, with a message for the visitor in `locale`; `{ ok: true }` or `null` lets it go on. The context, `FormVerifyContext`, is `{ siteId, form, locale, fields, ip, host?, signedIn }`, where `fields` are the submitted values with the challenge's own (e.g. `cf-turnstile-response`) and `ip` is the visitor's address as the core sees it (set `TRUST_PROXY` behind a proxy). Keep a refusal given before yours, and catch your own errors: a handler that throws or times out (5 seconds) is skipped.
+
+A plugin with forms of its own uses `ctx.forms` (no permission): `await ctx.forms.challenge({ siteId, form, locale, signedIn })` gives the markup (in a block's `load`, `context.signedIn` tells whether the visitor is signed in), and `await ctx.forms.verify({ siteId, form, locale, fields, ip, host, signedIn })` gives `{ ok, message? }`, always `{ ok: true }` when no plugin protects forms. On the core's forms a refusal is shown like their other errors. In the browser, a form sent with JavaScript calls `await window.cleitextChallenge?.prepare(form)` before reading its fields (invisible captchas get their token then) and `window.cleitextChallenge?.reset(form)` after a refused submission, since tokens work once; markup added with `innerHTML` needs its `<script>` elements created again. The official **Captcha** plugin provides Cloudflare Turnstile and Google reCAPTCHA this way.
 
 **Theme locations** (plugin API 1.11). `render.locations` lets a theme builder replace parts of the theme: return CXD documents for `header`, `footer`, `single` (entry pages), `archive` (archives and search) and `overlay` (popups and panels, added at the end of every page whatever the theme). They render like the content, with plugin blocks, media and patterns; themes mark the places with `<Location>`. In the `single` template, a `cleitext/entry-content` block shows the entry's own content:
 
@@ -972,6 +981,7 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 | `theme:hooks`   | filters `render.*` and `theme.*`, `ctx.assets.enqueue`, `ctx.themes.extend` (API 1.32)            |
 | `mail:send`     | `ctx.mail.send`                                                                                   |
 | `network`       | `ctx.http.send`                                                                                   |
+| `forms:protect` | filters `form.challenge` and `form.verify` (API 1.38)                                             |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
 | `media:read`    | `ctx.media.get`                                                                                   |
 | `media:write`   | `ctx.media.fromUrl` (API 1.30)                                                                    |

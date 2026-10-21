@@ -1,0 +1,23 @@
+{
+  "name": "@cleitext/plugin-captcha",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Official Cleitext plugin: Cloudflare Turnstile or Google reCAPTCHA on every form of the site.",
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "cleitext plugin:build .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cleitext/admin-sdk": "workspace:*",
+    "@cleitext/cli": "workspace:*",
+    "@cleitext/plugin-sdk": "workspace:*",
+    "@tanstack/react-query": "^5.104.1",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.0",
+    "vitest": "^5.0.3"
+  }
+}

@@ -83,6 +83,11 @@ export interface EntryComments {
   notice?: { kind: 'pending' | 'posted' | 'error'; text?: string };
   /** The comment being answered (`?replyto=<id>`), for forms without JavaScript. */
   replyTo?: { id: string; authorName: string };
+  /**
+   * Bot protection of the form, from a plugin (`form.challenge`, plugin API
+   * 1.38): markup placed before the submit button.
+   */
+  protection?: string;
 }
 
 export interface PublicComment {

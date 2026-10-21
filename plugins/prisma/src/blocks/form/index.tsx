@@ -13,7 +13,7 @@ import {
 } from '../../lib/emit';
 import type { Attrs, PrismaBlock, ViewProps } from '../../lib/types';
 import { FORM_FIELDS } from './fields';
-import { plainText, safeRedirect, SUBMIT_PATH } from './schema';
+import { captchaMode, plainText, safeRedirect, SITE_CAPTCHA_FORM, SUBMIT_PATH } from './schema';
 import { formKey, makeToken } from './token';
 
 export {
@@ -817,6 +817,8 @@ export interface FormData {
   token: string;
   siteKeyV2: string;
   siteKeyV3: string;
+  /** The site's captcha (Captcha plugin, `ctx.forms.challenge`), when the form uses it. */
+  challenge?: string;
 }
 
 const isFormData = (d: unknown): d is FormData =>
@@ -825,7 +827,8 @@ const isFormData = (d: unknown): d is FormData =>
 function FormView({ attrs: a, id, root, inner, text, editing, data }: ViewProps) {
   const size = String(a.buttonSize ?? 'medium').replace(/\W/g, '');
   const site = isFormData(data) ? data : null;
-  const captcha = Boolean(a.reCaptchaEnable);
+  const challenge = site?.challenge ?? '';
+  const captcha = Boolean(a.reCaptchaEnable) && a.reCaptchaType !== 'site' && !challenge;
   const version = a.reCaptchaType === 'v3' ? 'v3' : 'v2';
   const siteKey = site ? (version === 'v3' ? site.siteKeyV3 : site.siteKeyV2) : '';
   const config = {
@@ -842,6 +845,7 @@ function FormView({ attrs: a, id, root, inner, text, editing, data }: ViewProps)
           },
         }
       : {}),
+    ...(challenge ? { siteCaptcha: true, captchaMessage: String(a.captchaMessage ?? '') } : {}),
   };
   const buttonText = text('submitButtonText', {
     tagName: 'div',
@@ -862,6 +866,12 @@ function FormView({ attrs: a, id, root, inner, text, editing, data }: ViewProps)
         <input type="text" name="_pr_website" tabIndex={-1} autoComplete="off" defaultValue="" />
       </div>
       {captcha && version === 'v2' && <div className="pr-form__captcha pr-form__field" />}
+      {challenge && !editing && (
+        <div
+          className="pr-form__challenge pr-form__field"
+          dangerouslySetInnerHTML={{ __html: challenge }}
+        />
+      )}
       <div className="pr-form__captcha-error" role="alert" />
       <div className="pr-form__submit-wrap wp-block-button">
         <button
@@ -943,6 +953,17 @@ export const form: PrismaBlock = {
   async load(attrs, context, ctx): Promise<FormData> {
     const entry = context.entry?.id ?? null;
     const settings = await ctx.settings.get(context.siteId).catch(() => ({}) as Attrs);
+    const challenge =
+      captchaMode(attrs, settings as Attrs) === 'site'
+        ? ((await ctx.forms
+            ?.challenge({
+              siteId: context.siteId,
+              form: SITE_CAPTCHA_FORM,
+              locale: context.locale,
+              signedIn: context.signedIn === true,
+            })
+            .catch(() => '')) ?? '')
+        : '';
     const key = (name: string, legacy: unknown) =>
       String((settings as Attrs)[name] || legacy || '').trim();
     let token = '';
@@ -956,6 +977,7 @@ export const form: PrismaBlock = {
       token,
       siteKeyV2: key('recaptchaSiteKeyV2', attrs.reCaptchaSiteKeyV2),
       siteKeyV3: key('recaptchaSiteKeyV3', attrs.reCaptchaSiteKeyV3),
+      ...(challenge ? { challenge } : {}),
     };
   },
   spectra: {

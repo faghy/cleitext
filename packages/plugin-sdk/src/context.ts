@@ -18,7 +18,13 @@ import type {
   ThemeDefinition,
   ThemeSettingsSection,
 } from '@cleitext/theme-sdk';
-import type { HookApi, RenderHookContext } from './hooks.js';
+import type {
+  FormChallengeContext,
+  FormVerifyContext,
+  FormVerifyResult,
+  HookApi,
+  RenderHookContext,
+} from './hooks.js';
 
 /** A site, as plugins see it. */
 export interface PluginSite {
@@ -501,6 +507,11 @@ export interface BlockLoadContext {
   entry?: { id: string; type: string };
   /** Adds a page-cache tag, e.g. `type:event`, so the page refreshes with that data. */
   tag(tag: string): void;
+  /**
+   * The visitor is signed in (plugin API 1.38), e.g. for
+   * `ctx.forms.challenge`. Their pages are never cached.
+   */
+  signedIn?: boolean;
 }
 
 export interface BlockRenderContext {
@@ -994,6 +1005,35 @@ export interface ThemesApi {
   extend(theme: string, extension: ThemeExtension): void;
 }
 
+/**
+ * Bot protection of forms (plugin API 1.38), for plugins with forms of their
+ * own: they ask the plugins that protect forms (the `form.challenge` and
+ * `form.verify` filters, e.g. the Captcha plugin) instead of each having
+ * its own captcha. Without such a plugin nothing changes: the challenge is
+ * empty and every submission passes. No permission needed.
+ *
+ * In the browser, a form sent with JavaScript calls
+ * `await window.cleitextChallenge?.prepare(form)` before reading its fields
+ * (invisible captchas get their token then) and
+ * `window.cleitextChallenge?.reset(form)` after a refused submission, since
+ * tokens work once. Markup added after the page loaded (`innerHTML`) needs
+ * its `<script>` elements created again, or `window.cleitextChallenge?.render(root)`.
+ */
+export interface FormsApi {
+  /**
+   * Markup to place inside the form, before its submit button: empty when
+   * no plugin protects this form. Pages of guests may be cached, so it
+   * depends only on the site, the form, the language and `signedIn`.
+   */
+  challenge(input: FormChallengeContext): Promise<string>;
+  /**
+   * Whether a submission may go on; `{ ok: false, message }` refuses it,
+   * with a message for the visitor in `locale`. Always `{ ok: true }`
+   * without a protection plugin.
+   */
+  verify(input: FormVerifyContext): Promise<FormVerifyResult>;
+}
+
 export interface PluginContext {
   readonly plugin: { slug: string; version: string };
   /** A site's name and languages (plugin API 1.16), e.g. for emails sent outside a request. */
@@ -1021,6 +1061,8 @@ export interface PluginContext {
   readonly media: MediaApi;
   readonly privacy: PrivacyApi;
   readonly transfer: TransferApi;
+  /** Bot protection of the plugin's own forms (plugin API 1.38). */
+  readonly forms: FormsApi;
 }
 
 export interface PluginDefinition {

@@ -50,6 +50,9 @@ import { coupons, products, type OrderRow } from './schema';
 import type { Destination } from './shipping';
 import { translator, type Translate } from './strings';
 
+/** The checkout's id for the site's bot protection (`ctx.forms`, plugin API 1.38). */
+const CHECKOUT_FORM = 'shop/checkout';
+
 /** What the storefront needs from the shop's settings. */
 export interface StoreSettings {
   currency: string;
@@ -535,6 +538,16 @@ export function registerStorefront(
     });
     const prefix = prefixOf(request);
     if (cart.lines.length === 0) return { status: 303, headers: { location: `${prefix}/cart` } };
+    // The site's bot protection, when a plugin gives one (e.g. Captcha).
+    const challenge =
+      (await ctx.forms
+        ?.challenge({
+          siteId: request.siteId,
+          form: CHECKOUT_FORM,
+          locale: request.locale,
+          signedIn: request.user !== null,
+        })
+        .catch(() => '')) ?? '';
     return {
       ...(cart.cookie ? { cookies: [cookieOf(cart.cookie)] } : {}),
       status: Object.keys(errors).length || notice ? 422 : 200,
@@ -573,6 +586,7 @@ export function registerStorefront(
           termsUrl: store.termsUrl,
           phoneRequired: store.phoneRequired,
           ...(notice ? { notice } : {}),
+          ...(challenge ? { challenge } : {}),
         }),
       },
     };
@@ -645,6 +659,24 @@ export function registerStorefront(
           values,
           errors,
           t('Please correct the fields marked below.'),
+        );
+
+      // The site's bot protection (Captcha plugin), when there is one.
+      const verdict = await ctx.forms?.verify({
+        siteId: request.siteId,
+        form: CHECKOUT_FORM,
+        locale: request.locale,
+        fields: body,
+        ip: request.ip,
+        host: (request.headers.host ?? '').replace(/:\d+$/, ''),
+        signedIn: request.user !== null,
+      });
+      if (verdict && !verdict.ok)
+        return renderCheckout(
+          request,
+          values,
+          {},
+          verdict.message ?? t('The spam check did not pass: please try again.'),
         );
 
       const token = request.cookies[CART_COOKIE];

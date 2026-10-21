@@ -38,6 +38,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   'theme:hooks': 'Change public pages',
   'mail:send': 'Send email',
   network: 'Send requests to other services',
+  'forms:protect': 'Protect forms against bots (can refuse submissions)',
 };
 
 /** Plugins → Installed Plugins (RF-PLG-02). Installation is done with the CLI. */

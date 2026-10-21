@@ -119,6 +119,8 @@ export const itGeneral: Messages = {
   'Saved.': 'Salvato.',
   'Send email': 'Inviare email',
   'Send requests to other services': 'Inviare richieste ad altri servizi',
+  'Protect forms against bots (can refuse submissions)':
+    'Proteggere i moduli dai bot (può rifiutare gli invii)',
   'Send invitation': 'Invia invito',
   'Send reset link': 'Invia link di reimpostazione',
   'Send the invitation by email': "Invia l'invito via email",

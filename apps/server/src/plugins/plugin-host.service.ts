@@ -31,6 +31,9 @@ import {
   type ContentTypeDefinition,
   type ErasureResult,
   type FieldGroupDefinition,
+  type FormChallengeContext,
+  type FormVerifyContext,
+  type FormVerifyResult,
   type LanguageProvider,
   type PersonalDataEraser,
   type PersonalDataExporter,
@@ -799,6 +802,31 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       if (output.ok && output.value !== undefined) current = output.value as Filters[K][0];
     }
     return current;
+  }
+
+  /**
+   * Markup protecting a form (`form.challenge`, plugin API 1.38): empty
+   * when no active plugin protects it.
+   */
+  async formChallenge(input: FormChallengeContext): Promise<string> {
+    const html = await this.applyFilter('form.challenge', '', input, input.siteId);
+    return typeof html === 'string' ? html : '';
+  }
+
+  /**
+   * Whether a submission of a protected form may go on (`form.verify`,
+   * plugin API 1.38). Only an explicit `{ ok: false }` refuses it.
+   */
+  async formVerify(input: FormVerifyContext): Promise<FormVerifyResult> {
+    const result = await this.applyFilter('form.verify', null, input, input.siteId);
+    if (result && typeof result === 'object' && result.ok === false) {
+      const message =
+        typeof result.message === 'string' && result.message.trim()
+          ? result.message.trim().slice(0, 300)
+          : undefined;
+      return message ? { ok: false, message } : { ok: false };
+    }
+    return { ok: true };
   }
 
   private async hooksFor(

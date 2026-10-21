@@ -1,0 +1,10 @@
+{
+  "slug": "guard",
+  "name": "Guard (test fixture)",
+  "version": "1.0.0",
+  "apiVersion": "^1.38",
+  "description": "Protects forms with a fake challenge, used by the server tests of form.challenge and form.verify.",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": ["forms:protect", "routes:public"]
+}

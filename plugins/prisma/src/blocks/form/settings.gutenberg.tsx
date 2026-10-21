@@ -188,8 +188,9 @@ export const FormSettings: Inspector = ({ attributes, setAttributes, block }) =>
             {captcha && (
               <>
                 <p className="pr-help">
-                  Set the site and secret keys of Google reCAPTCHA in Settings → Prisma. Do not use
-                  forms with different versions on the same page.
+                  {a.reCaptchaType === 'site'
+                    ? 'The keys and the forms to protect are set in Settings → Captcha (Captcha plugin).'
+                    : 'Set the site and secret keys of Google reCAPTCHA in Settings → Prisma. Without them the site captcha (Captcha plugin) is used. Do not use forms with different versions on the same page.'}
                 </p>
                 <Choice
                   bind={bind}
@@ -198,9 +199,10 @@ export const FormSettings: Inspector = ({ attributes, setAttributes, block }) =>
                   options={[
                     { value: 'v2', label: 'V2' },
                     { value: 'v3', label: 'V3' },
+                    { value: 'site', label: 'Site captcha (Captcha plugin)' },
                   ]}
                 />
-                {a.reCaptchaType === 'v2' && (
+                {a.reCaptchaType !== 'v3' && (
                   <Text bind={bind} name="captchaMessage" label="Message when not checked" />
                 )}
                 {a.reCaptchaType === 'v3' && (

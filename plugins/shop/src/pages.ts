@@ -440,6 +440,8 @@ export function checkoutPage(options: {
   rate: string | null;
   /** Visitors not signed in: where to sign in and come back. */
   loginUrl?: string;
+  /** The site's bot protection (`ctx.forms.challenge`, plugin API 1.38). */
+  challenge?: string;
 }): string {
   const { values, errors, t, money, locale } = options;
   const { field, addressFields } = formParts({
@@ -549,6 +551,7 @@ export function checkoutPage(options: {
             ${errors.terms ? html`<span class="shop-error">${t(errors.terms)}</span>` : ''}`
         : ''
     }
+    ${options.challenge ? raw(`<div class="shop-challenge">${options.challenge}</div>`) : ''}
     <p><button class="shop-button" type="submit" style="width:100%">${t('Place order')}</button></p>
   </div>`;
 

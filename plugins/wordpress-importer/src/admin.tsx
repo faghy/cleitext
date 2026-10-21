@@ -204,13 +204,26 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
                 onChange={(e) => setFormCaptcha(e.target.value)}
               >
                 <option value="">{tr('None', 'Nessuna')}</option>
-                <option value="turnstile">Cloudflare Turnstile</option>
+                <option value="site">
+                  {tr('Site captcha (Captcha plugin)', 'Captcha del sito (plugin Captcha)')}
+                </option>
+                <option value="turnstile">
+                  {tr(
+                    'Cloudflare Turnstile (Fresco Pro keys)',
+                    'Cloudflare Turnstile (chiavi di Fresco Pro)',
+                  )}
+                </option>
               </select>
               <p className="text-xs text-slate-500">
-                {tr(
-                  'Every imported form gets Turnstile (reCAPTCHA fields are dropped either way): add its keys in Fresco Pro → Forms → Spam protection.',
-                  'Ogni modulo importato avrà Turnstile (i campi reCAPTCHA vengono comunque tolti): inserisci le chiavi in Fresco Pro → Moduli → Protezione dallo spam.',
-                )}
+                {formCaptcha === 'turnstile'
+                  ? tr(
+                      'Every imported form gets Turnstile (reCAPTCHA fields are dropped either way): add its keys in Fresco Pro → Forms → Spam protection, or the Captcha plugin’s are used.',
+                      'Ogni modulo importato avrà Turnstile (i campi reCAPTCHA vengono comunque tolti): inserisci le chiavi in Fresco Pro → Moduli → Protezione dallo spam, altrimenti si usano quelle del plugin Captcha.',
+                    )
+                  : tr(
+                      'Every imported form uses the site captcha (reCAPTCHA fields are dropped either way): activate the free Captcha plugin and set Turnstile or reCAPTCHA once in Settings → Captcha.',
+                      'Ogni modulo importato usa il captcha del sito (i campi reCAPTCHA vengono comunque tolti): attiva il plugin gratuito Captcha e imposta Turnstile o reCAPTCHA una volta in Impostazioni → Captcha.',
+                    )}
               </p>
             </div>
           </div>

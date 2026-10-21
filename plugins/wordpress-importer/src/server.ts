@@ -15,8 +15,12 @@ const STALE_MS = 15 * 60_000;
 const ROLES = ['author', 'editor', 'contributor', 'subscriber'];
 /** Which comments come along (`?comments=`): approved ones by default. */
 const COMMENTS = ['approved', 'all', 'skip'] as const;
-/** Spam protection given to the imported forms (`?formCaptcha=`): none by default. */
-const FORM_CAPTCHAS = ['turnstile'] as const;
+/**
+ * Spam protection given to the imported forms (`?formCaptcha=`): none by
+ * default; `site` uses the site's captcha (the Captcha plugin), `turnstile`
+ * Fresco Pro's own Turnstile keys.
+ */
+const FORM_CAPTCHAS = ['site', 'turnstile'] as const;
 
 const TITLES: Record<number, string> = { 400: 'Bad Request', 409: 'Conflict' };
 const problem = (status: 400 | 409, detail: string) => ({

@@ -63,6 +63,7 @@ const SEPARATE = [
   'layout-import',
   'maintenance',
   'kross-booking',
+  'captcha',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {

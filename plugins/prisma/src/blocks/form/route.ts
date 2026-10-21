@@ -5,7 +5,7 @@ import type {
   RouteResponse,
 } from '@cleitext/plugin-sdk';
 import type { Attrs } from '../../lib/types';
-import { safeRedirect, SUBMIT_PATH } from './schema';
+import { captchaMode, safeRedirect, SITE_CAPTCHA_FORM, SUBMIT_PATH } from './schema';
 import {
   checkValues,
   composeEmail,
@@ -92,7 +92,9 @@ async function captchaPassed(
   response: string,
   ip: string,
 ): Promise<boolean> {
-  if (!form.reCaptchaEnable) return true;
+  const mode = captchaMode(form, settings);
+  if (mode === 'broken') return false;
+  if (mode === 'site') return true;
   const v = form.reCaptchaType === 'v3' ? 'V3' : 'V2';
   const site = String(
     settings[`recaptchaSiteKey${v}`] || form[`reCaptchaSiteKey${v}`] || '',
@@ -134,7 +136,12 @@ export function registerFormRoutes(ctx: PluginContext): void {
       const back = returnPath(request.headers.referer, request.origin);
       const reply = (
         ok: boolean,
-        extra: { errors?: Record<string, string>; redirect?: string; status?: number } = {},
+        extra: {
+          errors?: Record<string, string>;
+          redirect?: string;
+          status?: number;
+          message?: string;
+        } = {},
       ): RouteResponse => {
         if (json) {
           return {
@@ -142,6 +149,7 @@ export function registerFormRoutes(ctx: PluginContext): void {
             body: {
               ok,
               ...(extra.errors ? { errors: extra.errors } : {}),
+              ...(extra.message ? { message: extra.message } : {}),
               ...(extra.redirect ? { redirect: extra.redirect } : {}),
             },
           };
@@ -198,6 +206,20 @@ export function registerFormRoutes(ctx: PluginContext): void {
       const settings = ((await ctx.settings.get(request.siteId).catch(() => ({}))) ?? {}) as Attrs;
       if (!(await captchaPassed(ctx, attrs, settings, one(body, '_pr_captcha'), request.ip)))
         return reply(false, { status: 403 });
+      if (captchaMode(attrs, settings) === 'site') {
+        // The site's bot protection (Captcha plugin), when there is one.
+        const site = await ctx.forms?.verify({
+          siteId: request.siteId,
+          form: SITE_CAPTCHA_FORM,
+          locale: request.locale,
+          fields: body,
+          ip: request.ip,
+          host: (request.headers.host ?? '').replace(/:\d+$/, ''),
+          signedIn: request.user !== null,
+        });
+        if (site && !site.ok)
+          return reply(false, { status: 403, ...(site.message ? { message: site.message } : {}) });
+      }
 
       const checked = checkValues(formFields(form), body);
       if (Object.keys(checked.errors).length)

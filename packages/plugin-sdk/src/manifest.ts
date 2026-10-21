@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.37.0';
+export const SDK_VERSION = '1.38.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -25,6 +25,12 @@ export const PLUGIN_PERMISSIONS = [
   'network',
   /** Read comments and post comments of its own type for visitors, e.g. reviews (API 1.19). */
   'comments',
+  /**
+   * Protect the site's forms against bots, e.g. with a captcha (plugin API
+   * 1.38): the `form.challenge` and `form.verify` filters, which can refuse
+   * any submission, sign-ins included.
+   */
+  'forms:protect',
 ] as const;
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 

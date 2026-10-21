@@ -111,7 +111,7 @@ Il widget **Modulo** ha campi di testo, email, area di testo, telefono, URL, num
 
 Dopo l'invio un modulo può: salvare il messaggio (**Invii dei moduli**, con esportazione CSV), mandare un'email e una seconda email (per esempio al visitatore), reindirizzare, chiamare un webhook, iscrivere la persona a **Mailchimp, ActiveCampaign, Kit, MailerLite, GetResponse o Brevo**, avvisare **Slack** o **Discord**, aprire o chiudere un popup. Tag come `[all-fields]`, `[email]`, `[form-name]` e `[page-url]` compilano email e indirizzi.
 
-Protezione dallo spam: sempre un campo nascosto, più **Cloudflare Turnstile** o **reCAPTCHA** v2/v3. Le chiavi API vanno in **Integrazioni dei moduli**: restano sul server, cifrate, e non compaiono mai nelle pagine né nei modelli esportati. I messaggi rientrano negli strumenti privacy del sito (esportazione e cancellazione per indirizzo email).
+Protezione dallo spam: sempre un campo nascosto, più **Cloudflare Turnstile** o **reCAPTCHA** v2/v3. Le chiavi API vanno in **Integrazioni dei moduli**: restano sul server, cifrate, e non compaiono mai nelle pagine né nei modelli esportati. I messaggi rientrano negli strumenti privacy del sito (esportazione e cancellazione per indirizzo email). Con il plugin gratuito **Captcha** un modulo può usare invece il **captcha del sito** (chiavi impostate una volta in Impostazioni → Captcha); lo usano anche i moduli senza chiavi proprie e quelli con il solo campo nascosto, quando il plugin Captcha protegge i moduli dei page builder.
 
 Il widget **Accesso** fa entrare i visitatori sul sito stesso, codici a due fattori compresi, e mostra chi ha effettuato l'accesso.
 

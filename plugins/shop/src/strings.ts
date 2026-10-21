@@ -177,6 +177,8 @@ const IT: Record<string, string> = {
   'You can withdraw from the purchase within 14 days of receiving the goods.':
     'Puoi recedere dall’acquisto entro 14 giorni dal ricevimento della merce.',
   'Please correct the fields marked below.': 'Correggi i campi indicati qui sotto.',
+  'The spam check did not pass: please try again.':
+    'Il controllo anti-spam non è riuscito: riprova.',
   Required: 'Obbligatorio',
   'Not a valid postcode': 'CAP non valido',
   'Not an Italian province': 'Non è una provincia italiana',

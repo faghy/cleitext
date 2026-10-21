@@ -111,7 +111,7 @@ The **Form** widget has text, email, textarea, phone, URL, number, date, time, s
 
 After sending, a form can: save the message (**Form submissions**, with CSV export), send an email and a second email (e.g. to the visitor), redirect, call a webhook, add the person to **Mailchimp, ActiveCampaign, Kit, MailerLite, GetResponse or Brevo**, notify **Slack** or **Discord**, open or close a popup. Merge tags such as `[all-fields]`, `[email]`, `[form-name]` and `[page-url]` fill emails and addresses.
 
-Spam protection: a hidden field always, plus **Cloudflare Turnstile** or **reCAPTCHA** v2/v3. API keys go in **Form integrations**: they stay on the server, encrypted, and never appear in pages or exported templates. Messages are part of the site's privacy tools (export and erasure by email address).
+Spam protection: a hidden field always, plus **Cloudflare Turnstile** or **reCAPTCHA** v2/v3. API keys go in **Form integrations**: they stay on the server, encrypted, and never appear in pages or exported templates. Messages are part of the site's privacy tools (export and erasure by email address). With the free **Captcha** plugin, a form can use the **site captcha** instead (keys set once in Settings → Captcha); forms without keys of their own, and those with only the hidden field, use it too when the Captcha plugin protects page builder forms.
 
 The **Login** widget signs visitors in on the site itself, two-factor codes included, and shows who is signed in.
 

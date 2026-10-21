@@ -66,8 +66,11 @@ export interface WxrOptions {
   comments?: 'approved' | 'all' | 'skip';
   /** The site's addresses already end with a slash (no need to suggest it). */
   trailingSlash?: boolean;
-  /** Protects every imported form (Elementor's) with Cloudflare Turnstile. */
-  formCaptcha?: 'turnstile';
+  /**
+   * Protects every imported form (Elementor's): with the site's captcha
+   * (`site`, the Captcha plugin) or Fresco Pro's own Turnstile keys.
+   */
+  formCaptcha?: 'site' | 'turnstile';
 }
 
 export interface WxrResult {
@@ -531,7 +534,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   }
   if (protectedForms) {
     warnings.push(
-      `${protectedForms} form(s) protected with Turnstile: add the site and secret keys in Fresco Pro → Forms → Spam protection.`,
+      options.formCaptcha === 'site'
+        ? `${protectedForms} form(s) protected with the site captcha: activate the Captcha plugin and set its keys in Settings → Captcha.`
+        : `${protectedForms} form(s) protected with Turnstile: add the site and secret keys in Fresco Pro → Forms → Spam protection (without them the Captcha plugin's keys are used).`,
     );
   }
   if (pingbacks) warnings.push(`${pingbacks} pingback(s) and trackback(s) were not imported.`);

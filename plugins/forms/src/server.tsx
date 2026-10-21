@@ -38,6 +38,13 @@ function returnPath(referer: string | undefined, host: string | undefined): stri
   return '/';
 }
 
+/**
+ * The form's id for the site's bot protection (`ctx.forms`, plugin API
+ * 1.38): the same for every contact form, since a block's `load` does not
+ * know its block.
+ */
+const FORM_ID = 'forms/contact';
+
 const text = (value: unknown, max: number) =>
   typeof value === 'string' ? value.trim().slice(0, max) : '';
 
@@ -69,7 +76,7 @@ export default definePlugin({
     );
 
     ctx.blocks.register(
-      defineBlock<FormAttrs>({
+      defineBlock<FormAttrs, { challenge: string }>({
         type: 'forms/contact',
         title: { en: 'Contact form', it: 'Modulo di contatto' },
         description: { en: 'Name, email and message.', it: 'Nome, email e messaggio.' },
@@ -112,13 +119,25 @@ export default definePlugin({
             maxLength: 300,
           },
         ],
-        render({ attrs, block, context }) {
+        // The site's bot protection, when a plugin gives one (e.g. Captcha).
+        async load(_attrs, context) {
+          const challenge = await ctx.forms
+            ?.challenge({
+              siteId: context.siteId,
+              form: FORM_ID,
+              locale: context.locale,
+              signedIn: context.signedIn === true,
+            })
+            .catch(() => '');
+          return { challenge: challenge ?? '' };
+        },
+        render({ attrs, block, context, data }) {
           const it = context.locale.startsWith('it');
           const id = `form-${block.id}`;
           return (
             <section className="contact-form" id={id}>
               <style>
-                {`#${id}-sent:not(:target),#${id}-error:not(:target){display:none}` +
+                {`#${id}-sent:not(:target),#${id}-error:not(:target),#${id}-check:not(:target){display:none}` +
                   `.contact-form form{display:grid;gap:.75rem;max-width:36rem}` +
                   `.contact-form label{display:grid;gap:.25rem}` +
                   `.contact-form .form-privacy{font-size:.875em;margin:0}` +
@@ -131,6 +150,11 @@ export default definePlugin({
                 {it
                   ? 'Il messaggio non è stato inviato. Controlla i campi e riprova.'
                   : 'The message was not sent. Check the fields and try again.'}
+              </p>
+              <p id={`${id}-check`} role="alert">
+                {it
+                  ? 'Il controllo anti-spam non è riuscito: riprova.'
+                  : 'The spam check did not pass: please try again.'}
               </p>
               <form method="post" action={SUBMIT_PATH}>
                 <input type="hidden" name="_form" value={attrs.formName} />
@@ -166,6 +190,12 @@ export default definePlugin({
                     <a href={attrs.privacyUrl}>privacy policy</a>.
                   </p>
                 )}
+                {data?.challenge ? (
+                  <div
+                    className="form-challenge"
+                    dangerouslySetInnerHTML={{ __html: data.challenge }}
+                  />
+                ) : null}
                 <button type="submit">{attrs.buttonLabel}</button>
               </form>
             </section>
@@ -181,7 +211,7 @@ export default definePlugin({
         const form = (request.body ?? {}) as Record<string, unknown>;
         const block = text(form._block, 64).replace(/[^\w-]/g, '');
         const back = returnPath(request.headers.referer, request.headers.host);
-        const redirect = (outcome: 'sent' | 'error') => ({
+        const redirect = (outcome: 'sent' | 'error' | 'check') => ({
           status: 303,
           headers: { location: `${back}#form-${block}-${outcome}` },
         });
@@ -196,6 +226,17 @@ export default definePlugin({
         if (!allowed(`${request.siteId}|${request.ip}`)) {
           return { status: 429, body: 'Too many messages. Try again later.' };
         }
+        // The site's bot protection (Captcha plugin), when there is one.
+        const verdict = await ctx.forms?.verify({
+          siteId: request.siteId,
+          form: FORM_ID,
+          locale: request.locale,
+          fields: form,
+          ip: request.ip,
+          host: (request.headers.host ?? '').replace(/:\d+$/, ''),
+          signedIn: request.user !== null,
+        });
+        if (verdict && !verdict.ok) return redirect('check');
 
         const formName = text(form._form, 80) || 'Contact';
         await ctx.db.transaction(request.siteId, (tx) =>

@@ -66,6 +66,28 @@ export function fieldOf(type: string): FieldSpec | null {
 /** The form's address on the site (a public route of the plugin). */
 export const SUBMIT_PATH = '/_prisma/form';
 
+/** The forms' id for the site's bot protection (`ctx.forms`, plugin API 1.38). */
+export const SITE_CAPTCHA_FORM = 'prisma/form';
+
+/**
+ * Which spam check a form uses: its own reCAPTCHA when both keys are set
+ * (in Settings → Prisma or, as in Spectra, in the form), none that can pass
+ * with only one of them, or the site's captcha (the Captcha plugin) when
+ * the form chooses it or has no keys of its own.
+ */
+export function captchaMode(a: Attrs, settings: Attrs): 'own' | 'broken' | 'site' {
+  if (a.reCaptchaEnable && a.reCaptchaType !== 'site') {
+    const v = a.reCaptchaType === 'v3' ? 'V3' : 'V2';
+    const site = String(settings[`recaptchaSiteKey${v}`] || a[`reCaptchaSiteKey${v}`] || '').trim();
+    const secret = String(
+      settings[`recaptchaSecretKey${v}`] || a[`reCaptchaSecretKey${v}`] || '',
+    ).trim();
+    if (site && secret) return 'own';
+    if (site || secret) return 'broken';
+  }
+  return 'site';
+}
+
 /** A label as plain text: rich text nodes, or HTML. */
 export function plainText(value: unknown): string {
   if (Array.isArray(value)) {

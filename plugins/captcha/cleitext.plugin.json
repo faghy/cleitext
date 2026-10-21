@@ -1,0 +1,13 @@
+{
+  "slug": "captcha",
+  "name": "Captcha",
+  "version": "1.0.0",
+  "apiVersion": "^1.38",
+  "description": "Stops spam and bots on every form of the site with Cloudflare Turnstile or Google reCAPTCHA: sign-in, sign-up, lost password, comments, the Forms plugin, the shop's checkout and the forms of Fresco Pro and Prisma. One place for the keys, a choice of forms, trusted addresses and a failsafe when Cloudflare is down.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "public": "dist/public",
+  "permissions": ["forms:protect", "settings:own", "routes:admin", "network"]
+}

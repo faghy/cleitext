@@ -77,7 +77,7 @@ export interface ElementorContext {
   /** Font families used by the page (to load them). */
   font?: (family: string) => void;
   /** Spam protection given to every converted form (Fresco Pro's `captcha`). */
-  formCaptcha?: 'turnstile';
+  formCaptcha?: 'site' | 'turnstile';
   /** Called for each form given that protection (to count them). */
   protectedForm?: () => void;
   kit?: ElementorKitInfo;

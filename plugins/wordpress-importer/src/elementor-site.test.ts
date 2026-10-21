@@ -559,7 +559,19 @@ describe('Spam protection for imported forms', () => {
     // The reCAPTCHA field is left out either way.
     expect((forms[0]!.attrs.fields as unknown[]).length).toBe(1);
     expect(warnings).toContain(
-      '2 form(s) protected with Turnstile: add the site and secret keys in Fresco Pro → Forms → Spam protection.',
+      "2 form(s) protected with Turnstile: add the site and secret keys in Fresco Pro → Forms → Spam protection (without them the Captcha plugin's keys are used).",
+    );
+  });
+
+  it('gives every form the site captcha when asked', () => {
+    const { document, warnings } = wxrToDocument(page([form]), {
+      locale: 'en',
+      formCaptcha: 'site',
+    });
+    const contact = document.entries!.find((e) => e.title === 'Contact')!;
+    expect(formsOf(contact.document!.blocks as CxdBlock[])[0]!.attrs.captcha).toBe('site');
+    expect(warnings).toContain(
+      '1 form(s) protected with the site captcha: activate the Captcha plugin and set its keys in Settings → Captcha.',
     );
   });
 

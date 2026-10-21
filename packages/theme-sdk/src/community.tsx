@@ -6,6 +6,7 @@
  */
 import type { ReactNode } from 'react';
 import { usePage } from './context.js';
+import { Challenge } from './account.js';
 import type { EntryAuthor, EntryComments, PublicComment, PublicEntry } from './types.js';
 
 type Strings = Record<keyof typeof EN, string>;
@@ -411,6 +412,7 @@ function CommentForm({
             <input type="checkbox" name="notify" value="1" /> {t.notify}
           </label>
         </p>
+        <Challenge html={comments.protection} />
         <p>
           <button type="submit" className="cx-button">
             {t.post}
@@ -597,7 +599,7 @@ export const COMMUNITY_CSS = `
 .cx-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:0 1rem}.cx-check label{display:flex;gap:.5rem;font-weight:400;align-items:center}
 .cx-button{padding:.65em 1.4em;border:0;border-radius:6px;background:var(--cx-accent,#1d4ed8);color:#fff;font:inherit;font-weight:600;cursor:pointer}
 .cx-notice{padding:.75rem 1rem;border-radius:6px;background:rgba(22,163,74,.12)}.cx-notice--error{background:rgba(220,38,38,.12)}
-.cx-hp{position:absolute!important;left:-9999px;width:1px;height:1px;overflow:hidden}.cx-required{color:#dc2626}
+.cx-hp{position:absolute!important;left:-9999px;width:1px;height:1px;overflow:hidden}.cx-required{color:#dc2626}.cx-challenge{margin:0 0 1rem}
 .cx-author{display:flex;gap:1rem;align-items:flex-start;margin-block:0 1.5rem;padding:1.25rem;border-radius:8px;background:rgba(127,127,127,.08)}
 .cx-author__avatar{width:72px;height:72px;font-size:1.2em}.cx-author__name{margin:0 0 .4rem;font-size:1.05em}.cx-author__bio p{margin:.3rem 0}
 .cx-author__links{display:flex;flex-wrap:wrap;gap:.25rem 1rem;margin:.5rem 0 0;font-size:.9em}
@@ -616,9 +618,10 @@ if(f){
 var store={};try{store=JSON.parse(localStorage.getItem('cx-commenter')||'{}')}catch(e){}
 f.querySelectorAll('[data-cx-remember]').forEach(function(i){var k=i.getAttribute('data-cx-remember');if(store[k]&&!i.value)i.value=store[k]});
 f.addEventListener('submit',function(){var s={};f.querySelectorAll('[data-cx-remember]').forEach(function(i){s[i.getAttribute('data-cx-remember')]=i.value});try{localStorage.setItem('cx-commenter',JSON.stringify(s))}catch(e){}});
+var reset=function(){var c=window.cleitextChallenge;if(c&&c.reset)c.reset(f)};
 var respond=document.getElementById('respond'),home=respond&&respond.parentNode,next=respond&&respond.nextSibling,title=respond&&respond.querySelector('[data-cx-reply-title]'),cancel=respond&&respond.querySelector('[data-cx-cancel-reply]'),parent=f.querySelector('[data-cx-parent]'),original=title&&(title.getAttribute('data-cx-reply-title')||title.textContent);
-document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('[data-cx-reply]');if(a&&respond){e.preventDefault();a.closest('article').after(respond);parent.value=a.getAttribute('data-cx-reply');title.textContent=a.textContent+' — '+a.getAttribute('data-cx-reply-name');cancel.hidden=false;f.querySelector('textarea').focus()}
-var c=e.target.closest&&e.target.closest('[data-cx-cancel-reply]');if(c&&respond){e.preventDefault();home.insertBefore(respond,next);parent.value='';title.textContent=original;cancel.hidden=true}});
+document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('[data-cx-reply]');if(a&&respond){e.preventDefault();a.closest('article').after(respond);parent.value=a.getAttribute('data-cx-reply');title.textContent=a.textContent+' — '+a.getAttribute('data-cx-reply-name');cancel.hidden=false;reset();f.querySelector('textarea').focus()}
+var c=e.target.closest&&e.target.closest('[data-cx-cancel-reply]');if(c&&respond){e.preventDefault();home.insertBefore(respond,next);parent.value='';title.textContent=original;cancel.hidden=true;reset()}});
 var q=new URLSearchParams(location.search).get('replyto');if(q){var link=document.querySelector('[data-cx-reply="'+q+'"]');if(link)link.click()}}
 document.querySelectorAll('[data-cx-like]').forEach(function(form){form.addEventListener('submit',function(e){e.preventDefault();fetch(form.action,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded',accept:'application/json'},body:new URLSearchParams(new FormData(form)),credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){if(typeof d.count!=='number')return;var b=form.querySelector('button');b.setAttribute('aria-pressed',String(d.liked));form.querySelector('[data-cx-like-count]').textContent=d.count;var l=form.querySelector('[data-cx-like-label]');if(l&&d.label)l.textContent=d.label}).catch(function(){form.submit()})})});
 document.querySelectorAll('[data-cx-copy]').forEach(function(b){b.hidden=false;b.addEventListener('click',function(){navigator.clipboard&&navigator.clipboard.writeText(b.getAttribute('data-cx-copy')).then(function(){b.textContent=b.getAttribute('data-cx-copied')})})});

@@ -22,6 +22,11 @@ export interface AccountAttrs {
   challenge?: string;
   registration?: boolean;
   termsUrl?: string | null;
+  /**
+   * Bot protection of the form shown, from a plugin (`form.challenge`, plugin
+   * API 1.38): markup placed before its submit button.
+   */
+  protection?: string;
   /** Pages of plugins for the signed-in visitor, e.g. a shop's orders (the `account.links` filter). */
   links?: { label: string; url: string }[];
   profile?: {
@@ -120,6 +125,11 @@ function Field({
   );
 }
 
+/** A protection plugin's widget (`form.challenge`), before the submit button. */
+export function Challenge({ html }: { html: string | undefined }) {
+  return html ? <div className="cx-challenge" dangerouslySetInnerHTML={{ __html: html }} /> : null;
+}
+
 function Hidden({ name, value }: { name: string; value: string | undefined }) {
   return value ? <input type="hidden" name={name} value={value} /> : null;
 }
@@ -176,6 +186,7 @@ export function AccountForms({ attrs }: { attrs: AccountAttrs }) {
                 <input type="checkbox" name="remember" value="1" /> {t.remember}
               </label>
             </p>
+            <Challenge html={attrs.protection} />
             <p>
               <button type="submit" className="cx-button">
                 {t.signIn}
@@ -264,6 +275,7 @@ export function AccountForms({ attrs }: { attrs: AccountAttrs }) {
                 </label>
               </p>
             )}
+            <Challenge html={attrs.protection} />
             <p>
               <button type="submit" className="cx-button">
                 {t.signUp}
@@ -290,6 +302,7 @@ export function AccountForms({ attrs }: { attrs: AccountAttrs }) {
               required
               defaultValue={attrs.email}
             />
+            <Challenge html={attrs.protection} />
             <p>
               <button type="submit" className="cx-button">
                 {t.sendLink}
@@ -313,6 +326,7 @@ export function AccountForms({ attrs }: { attrs: AccountAttrs }) {
               required
               minLength={8}
             />
+            <Challenge html={attrs.protection} />
             <p>
               <button type="submit" className="cx-button">
                 {t.save}
