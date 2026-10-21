@@ -5,11 +5,11 @@
  * with forms of their own ask it through `ctx.forms`. Without such a plugin
  * nothing changes.
  */
-import { cp, mkdtemp } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPlugin, installPlugin } from '@cleitext/cli';
+import { buildPlugin, deactivatePlugin, installPlugin } from '@cleitext/cli';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
@@ -24,6 +24,7 @@ let app: NestFastifyApplication;
 let owner: DatabaseClient;
 let admin: TestClient;
 let host: string;
+let siteSlug: string;
 let postPath: string;
 let postId: string;
 
@@ -63,9 +64,14 @@ beforeAll(async () => {
     pluginsPath,
     appRole: new URL(inject('appUrl')).username,
   });
-  app = await startTestApp({ pluginsPath });
+  // A built admin, for its Content Security Policy.
+  const adminPath = await mkdtemp(join(tmpdir(), 'cleitext-admin-'));
+  await mkdir(join(adminPath, 'assets'));
+  await writeFile(join(adminPath, 'index.html'), '<!doctype html><title>Cleitext admin</title>');
+  app = await startTestApp({ pluginsPath, env: { ADMIN_PATH: adminPath } });
   const site = await seedSite(owner, 'guarded');
   host = site.host;
+  siteSlug = 'guarded';
   await seedUser(owner, {
     email: 'admin@guarded.test',
     password: PASSWORD,
@@ -122,11 +128,37 @@ describe('without a protection plugin', () => {
     expect(own.statusCode).toBe(404); // the fixture is not active yet
   });
 
+  it('leaves the admin sign-in and its strict policy as they were', async () => {
+    const client = new TestClient(app, host, '10.81.1.1');
+    expect((await client.get('/api/v1/auth/challenge?form=core/admin-login')).json()).toEqual({
+      html: '',
+    });
+    expect((await adminLogin(client)).statusCode).toBe(200);
+    const csp = await adminCsp();
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toContain('guard.example');
+  });
+
   it('activates the protection plugin', async () => {
     const activated = await admin.post('/api/v1/plugins/guard/activate');
     expect(activated.statusCode, activated.body).toBe(200);
   });
 });
+
+/** The admin's sign-in, as the admin app sends it (JSON, CSRF). */
+async function adminLogin(client: TestClient, extra: Record<string, unknown> = {}) {
+  return client.post('/api/v1/auth/login', {
+    email: 'admin@guarded.test',
+    password: PASSWORD,
+    ...extra,
+  });
+}
+const adminCsp = async () =>
+  String(
+    (await app.inject({ method: 'GET', url: '/cl-admin/login', headers: { host } })).headers[
+      'content-security-policy'
+    ],
+  );
 
 describe('with a protection plugin', () => {
   it('adds its challenge to the core forms', async () => {
@@ -242,6 +274,61 @@ describe('with a protection plugin', () => {
     expect(passed.json()).toMatchObject({ ok: true });
   });
 
+  it('protects the admin sign-in (password step) and opens its policy to the widget only', async () => {
+    const client = new TestClient(app, host, '10.81.1.2');
+    const challenge = (await client.get('/api/v1/auth/challenge?form=core/admin-login')).json() as {
+      html: string;
+    };
+    expect(challenge.html).toBe(
+      '<input type="hidden" name="guard-form" value="core/admin-login|en|0">',
+    );
+    expect((await client.get('/api/v1/auth/challenge?form=core/comment')).json()).toEqual({
+      html: '',
+    });
+
+    const refused = await adminLogin(client);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toMatchObject({ status: 400, detail: 'The guard says no' });
+    const forgot = await client.post('/api/v1/auth/password/forgot', {
+      email: 'admin@guarded.test',
+    });
+    expect(forgot.statusCode).toBe(400);
+    const reset = await client.post('/api/v1/auth/password/reset', {
+      token: 'x'.repeat(30),
+      password: 'a-long-password-9',
+    });
+    expect(reset.json()).toMatchObject({ detail: 'The guard says no' });
+
+    const passed = await adminLogin(client, { 'guard-token': 'pass' });
+    expect(passed.statusCode, passed.body).toBe(200);
+    expect(passed.json().user.email).toBe('admin@guarded.test');
+    // Signed in: the session works as usual.
+    expect((await client.get('/api/v1/auth/me')).statusCode).toBe(200);
+
+    const csp = await adminCsp();
+    expect(csp).toContain("script-src 'self' https://guard.example");
+    expect(csp).toContain('https://guard.example/frames/');
+    expect(csp).not.toContain("unsafe-inline' https");
+    expect(csp).not.toContain('insecure.example');
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+  });
+
+  it('leaves API tokens alone', async () => {
+    const created = await admin.post('/api/v1/tokens', {
+      name: 'Script',
+      scopes: ['read'],
+      expiresInDays: 1,
+    });
+    expect(created.statusCode).toBe(201);
+    const me = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: { host, authorization: `Bearer ${created.json().token}` },
+    });
+    expect(me.statusCode).toBe(200);
+  });
+
   it('stops when the plugin is deactivated', async () => {
     resetLimits();
     expect((await admin.post('/api/v1/plugins/guard/deactivate')).statusCode).toBe(200);
@@ -296,6 +383,20 @@ describe('the Captcha plugin', () => {
     expect((await admin.get(postPath)).body).not.toContain('data-cl-captcha="');
   });
 
+  it('protects the admin sign-in with Turnstile and lets its origin in the admin policy', async () => {
+    const client = new TestClient(app, host, '10.81.1.3');
+    const { html } = (await client.get('/api/v1/auth/challenge?form=core/admin-login')).json();
+    expect(html).toContain('data-cl-captcha="');
+    expect(html).toContain('core_admin-login');
+    const refused = await adminLogin(client);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().detail).toBe('Please confirm that you are not a robot, then try again.');
+    const csp = await adminCsp();
+    expect(csp).toContain("script-src 'self' https://challenges.cloudflare.com");
+    expect(csp).toMatch(/frame-src [^;]*https:\/\/challenges\.cloudflare\.com/);
+    expect(csp).not.toContain('google.com');
+  });
+
   it('lets trusted addresses through', async () => {
     resetLimits();
     const current = (await admin.get('/api/v1/ext/captcha/settings')).json();
@@ -309,5 +410,38 @@ describe('the Captcha plugin', () => {
       password: PASSWORD,
     });
     expect(passed.headers.location).toBe('/account');
+    expect((await adminLogin(new TestClient(app, host, '10.82.5.5'))).statusCode).toBe(200);
+  });
+
+  it('can leave the admin sign-in alone', async () => {
+    const current = (await admin.get('/api/v1/ext/captcha/settings')).json();
+    await admin.request('PUT', '/api/v1/ext/captcha/settings', {
+      config: {
+        ...current.config,
+        trustedIps: [],
+        forms: { ...current.config.forms, admin: false },
+      },
+      secrets: {},
+    });
+    const client = new TestClient(app, host, '10.81.1.4');
+    expect((await client.get('/api/v1/auth/challenge?form=core/admin-login')).json()).toEqual({
+      html: '',
+    });
+    expect((await adminLogin(client)).statusCode).toBe(200);
+    expect(await adminCsp()).not.toContain('cloudflare');
+  });
+
+  it('can be turned off from the command line by a locked-out operator', async () => {
+    const current = (await admin.get('/api/v1/ext/captcha/settings')).json();
+    await admin.request('PUT', '/api/v1/ext/captcha/settings', {
+      config: { ...current.config, forms: { ...current.config.forms, admin: true } },
+      secrets: {},
+    });
+    const client = new TestClient(app, host, '10.81.1.5');
+    expect((await adminLogin(client)).statusCode).toBe(400);
+    expect(await deactivatePlugin(owner.db, 'captcha', { site: siteSlug })).toBe(
+      `captcha deactivated on ${siteSlug}.`,
+    );
+    await eventually(async () => (await adminLogin(client)).statusCode === 200);
   });
 });

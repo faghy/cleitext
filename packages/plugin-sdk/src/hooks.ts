@@ -203,6 +203,16 @@ export interface FormVerifyContext {
   signedIn: boolean;
 }
 
+/**
+ * Origins the challenge needs in the admin (`form.sources`, plugin API
+ * 1.38), e.g. `https://challenges.cloudflare.com`: the admin's Content
+ * Security Policy allows only these for scripts and frames, besides its own.
+ */
+export interface FormSources {
+  script: string[];
+  frame: string[];
+}
+
 /** What a protection plugin says of a submission (`form.verify`). */
 export interface FormVerifyResult {
   ok: boolean;
@@ -228,6 +238,13 @@ export interface Filters {
    * skipped, so catch your own errors and decide.
    */
   'form.verify': [result: FormVerifyResult | null, context: FormVerifyContext];
+  /**
+   * Origins the admin's sign-in challenge loads scripts and frames from
+   * (plugin API 1.38, needs `forms:protect`): the admin's Content Security
+   * Policy adds them, and only them. Return none when the admin is not
+   * protected. Only `https://` origins, with an optional path, are kept.
+   */
+  'form.sources': [sources: FormSources, context: { siteId: string }];
   /** Title, meta tags and extra `<head>` tags of a public page (needs `theme:hooks`). */
   'render.head': [head: HeadData, context: RenderHookContext];
   /** Blocks of an entry before rendering, e.g. to add a details box (needs `theme:hooks`). */

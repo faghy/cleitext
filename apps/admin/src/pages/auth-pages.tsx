@@ -12,6 +12,14 @@ import { type FormEvent, useState } from 'react';
 import { api, ApiError, errorMessage } from '../api';
 import { ME_QUERY_KEY } from '../auth';
 import { Alert, AuthShell, Button, TextField, useT } from '../components/ui';
+import { Challenge, ChallengeError, useChallenge } from '../components/challenge';
+
+/** A refused or unfinished bot check: the widget says why, the alert says what to do. */
+function challengeMessage(error: unknown, t: (text: string) => string): string | null {
+  return error instanceof ChallengeError
+    ? t('Complete the spam check above, then try again.')
+    : null;
+}
 
 export function LoginPage({ redirect }: { redirect?: string | undefined }) {
   const { t } = useT();
@@ -21,6 +29,7 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
   const [challenge, setChallenge] = useState<string | null>(null);
+  const check = useChallenge('core/admin-login');
 
   const signedIn = async (me: MeResponse) => {
     queryClient.setQueryData(ME_QUERY_KEY, me);
@@ -33,12 +42,18 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
     await navigate({ to: target });
   };
   const login = useMutation({
-    mutationFn: () =>
-      api<MeResponse | TwoFactorChallenge>('POST', '/auth/login', { email, password, remember }),
+    mutationFn: async () =>
+      api<MeResponse | TwoFactorChallenge>('POST', '/auth/login', {
+        email,
+        password,
+        remember,
+        ...(await check.fields()),
+      }),
     onSuccess: async (result) => {
       if ('twoFactorRequired' in result) setChallenge(result.challenge);
       else await signedIn(result);
     },
+    onError: () => check.reset(),
   });
 
   const passkey = useMutation({
@@ -74,12 +89,12 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
   const error = login.error;
   return (
     <AuthShell title={t('Sign in')}>
-      <form onSubmit={onSubmit} className="space-y-4" noValidate>
+      <form ref={check.formRef} onSubmit={onSubmit} className="space-y-4" noValidate>
         {error && (
           <Alert>
             {error instanceof ApiError && error.status === 429
               ? t('Too many failed attempts. Wait a few minutes and try again.')
-              : errorMessage(error)}
+              : (challengeMessage(error, t) ?? errorMessage(error))}
           </Alert>
         )}
         <TextField
@@ -106,6 +121,7 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
           />
           {t('Remember me')}
         </label>
+        <Challenge html={check.html} />
         <Button type="submit" className="w-full" disabled={login.isPending}>
           {login.isPending ? t('Signing in…') : t('Sign in')}
         </Button>
@@ -200,8 +216,14 @@ function TwoFactorStep({
 export function ForgotPasswordPage() {
   const { t } = useT();
   const [email, setEmail] = useState('');
+  const check = useChallenge('core/admin-lost-password');
   const request = useMutation({
-    mutationFn: () => api<{ message: string }>('POST', '/auth/password/forgot', { email }),
+    mutationFn: async () =>
+      api<{ message: string }>('POST', '/auth/password/forgot', {
+        email,
+        ...(await check.fields()),
+      }),
+    onError: () => check.reset(),
   });
 
   return (
@@ -213,6 +235,7 @@ export function ForgotPasswordPage() {
         </div>
       ) : (
         <form
+          ref={check.formRef}
           className="space-y-4"
           noValidate
           onSubmit={(e) => {
@@ -223,7 +246,9 @@ export function ForgotPasswordPage() {
           <p className="text-sm text-slate-600">
             {t('Enter your email address: we will send you a link to choose a new password.')}
           </p>
-          {request.error && <Alert>{errorMessage(request.error)}</Alert>}
+          {request.error && (
+            <Alert>{challengeMessage(request.error, t) ?? errorMessage(request.error)}</Alert>
+          )}
           <TextField
             label={t('Email')}
             type="email"
@@ -232,6 +257,7 @@ export function ForgotPasswordPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
+          <Challenge html={check.html} />
           <Button type="submit" className="w-full" disabled={request.isPending}>
             {t('Send reset link')}
           </Button>
@@ -245,8 +271,11 @@ export function ForgotPasswordPage() {
 export function ResetPasswordPage({ token }: { token: string }) {
   const { t } = useT();
   const [password, setPassword] = useState('');
+  const check = useChallenge('core/admin-reset-password');
   const reset = useMutation({
-    mutationFn: () => api<void>('POST', '/auth/password/reset', { token, password }),
+    mutationFn: async () =>
+      api<void>('POST', '/auth/password/reset', { token, password, ...(await check.fields()) }),
+    onError: () => check.reset(),
   });
 
   return (
@@ -258,6 +287,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
         </div>
       ) : (
         <form
+          ref={check.formRef}
           className="space-y-4"
           noValidate
           onSubmit={(e) => {
@@ -267,13 +297,14 @@ export function ResetPasswordPage({ token }: { token: string }) {
         >
           {reset.error &&
             !(reset.error instanceof ApiError && reset.error.fieldError('password')) && (
-              <Alert>{errorMessage(reset.error)}</Alert>
+              <Alert>{challengeMessage(reset.error, t) ?? errorMessage(reset.error)}</Alert>
             )}
           <NewPasswordField
             value={password}
             onChange={setPassword}
             error={reset.error instanceof ApiError ? reset.error.fieldError('password') : undefined}
           />
+          <Challenge html={check.html} />
           <Button type="submit" className="w-full" disabled={reset.isPending}>
             {t('Save password')}
           </Button>

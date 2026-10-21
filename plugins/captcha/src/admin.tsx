@@ -115,7 +115,11 @@ function CaptchaPage(props: AdminPageProps) {
     ['recaptcha3', tr('Google reCAPTCHA v3 (score)', 'Google reCAPTCHA v3 (punteggio)')],
   ];
   const groups: [FormGroup, string][] = [
-    ['login', tr('Sign in', 'Accesso')],
+    [
+      'admin',
+      tr('Admin sign-in and lost password', 'Accesso all’amministrazione e password dimenticata'),
+    ],
+    ['login', tr('Sign in (visitors)', 'Accesso (visitatori)')],
     ['register', tr('Create an account', 'Registrazione')],
     ['password', tr('Lost and new password', 'Password dimenticata e nuova password')],
     ['comments', tr('Comments and reviews', 'Commenti e recensioni')],
@@ -236,6 +240,14 @@ function CaptchaPage(props: AdminPageProps) {
                 {label}
               </Check>
             ))}
+            {draft.forms.admin && (
+              <p className="text-xs text-slate-500">
+                {tr(
+                  'Try the keys in a private window before signing out. Locked out? On the server: cleitext plugin:deactivate captcha --site <site>.',
+                  'Prova le chiavi in una finestra privata prima di uscire. Rimasto fuori? Sul server: cleitext plugin:deactivate captcha --site <sito>.',
+                )}
+              </p>
+            )}
             <hr className="my-3 border-slate-200" />
             <Check checked={draft.skipSignedIn} onChange={(v) => set({ skipSignedIn: v })}>
               {tr(

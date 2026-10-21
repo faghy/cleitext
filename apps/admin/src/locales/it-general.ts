@@ -83,6 +83,8 @@ export const itGeneral: Messages = {
     'Elenca gli ultimi articoli quando la homepage è una pagina statica.',
   'Loading…': 'Caricamento…',
   'Lost your password?': 'Hai dimenticato la password?',
+  'Complete the spam check above, then try again.':
+    'Completa il controllo anti-spam qui sopra, poi riprova.',
   Main: 'Principale',
   Media: 'Media',
   Members: 'Membri',

@@ -7,7 +7,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { ADMIN_PATH } from '@cleitext/shared';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
@@ -99,11 +99,23 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
       });
     }
     const indexHtml = await readFile(join(config.admin.path, 'index.html'), 'utf8');
-    const csp = adminCsp(inlineScriptHashes(indexHtml));
-    const sendAdmin = (_request: unknown, reply: FastifyReply) =>
+    const hashes = inlineScriptHashes(indexHtml);
+    const csp = adminCsp(hashes);
+    const plugins = app.get(PluginHost);
+    /** A plugin's sign-in challenge adds its own origins (plugin API 1.38), and only those. */
+    const cspFor = async (request: FastifyRequest): Promise<string> => {
+      if (!request.site) return csp;
+      try {
+        const extra = await plugins.formSources(request.site.id);
+        return extra.script.length || extra.frame.length ? adminCsp(hashes, extra) : csp;
+      } catch {
+        return csp;
+      }
+    };
+    const sendAdmin = async (request: FastifyRequest, reply: FastifyReply) =>
       reply
         .header('cache-control', 'no-cache')
-        .header('content-security-policy', csp)
+        .header('content-security-policy', await cspFor(request))
         .header('cross-origin-opener-policy', 'same-origin')
         .header('x-frame-options', 'DENY')
         .header('x-content-type-options', 'nosniff')

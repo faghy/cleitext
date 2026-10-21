@@ -115,7 +115,10 @@ export class CommunityPublic {
         siteId,
         form,
         locale,
-        fields: body,
+        // Plugins get the challenge's fields, never passwords.
+        fields: Object.fromEntries(
+          Object.entries(body).filter(([key]) => key !== 'password' && key !== 'current'),
+        ),
         ip: request.ip,
         host: request.hostname,
         signedIn: Boolean(request.auth && !request.auth.apiToken),

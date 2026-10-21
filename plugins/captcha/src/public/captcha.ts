@@ -45,6 +45,8 @@ const TOKEN_WAIT = 20_000;
 const FRESH_FOR = 90_000;
 
 const win = window as Win;
+/** A provider's script did not load. */
+const LOAD_ERROR = 'cl-captcha-load';
 
 interface Widget {
   box: HTMLElement;
@@ -183,8 +185,10 @@ interface Widget {
         }
       },
       () => {
+        // Nothing to show and no failsafe: say why, so nobody is left guessing.
         failed = true;
         solved();
+        say(box, o.err);
       },
     );
     return w;
@@ -256,7 +260,7 @@ interface Widget {
             });
             return api;
           });
-    ready.catch(() => {});
+    ready.catch(() => say(box, o.err));
     const w: Widget = {
       box,
       o,
@@ -264,7 +268,9 @@ interface Widget {
       ready: () => Boolean(field().value) && Date.now() - freshAt < FRESH_FOR,
       async ensure() {
         if (w.ready()) return;
-        const api = await ready;
+        const api = await ready.catch(() => {
+          throw new Error(LOAD_ERROR);
+        });
         let token: string;
         if (o.p === 'recaptcha3') {
           token = (await api.execute(o.k, { action: o.a })) ?? '';
@@ -320,7 +326,9 @@ interface Widget {
       try {
         await Promise.all(list.map((w) => w.ensure()));
       } catch (error) {
-        if (list[0]) say(list[0].box, list[0].o.msg);
+        const first = list[0];
+        if (first)
+          say(first.box, (error as Error).message === LOAD_ERROR ? first.o.err : first.o.msg);
         throw error;
       }
     },

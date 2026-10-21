@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   actionFor,
+  adminSources,
   DEFAULT_CONFIG,
   formGroup,
   isTestSecret,
@@ -78,6 +79,10 @@ describe('forms', () => {
     expect(formGroup('fresco-pro/form')).toBe('builders');
     expect(formGroup('prisma/form')).toBe('builders');
     expect(formGroup('events/rsvp')).toBe('other');
+    expect(formGroup('core/admin-login')).toBe('admin');
+    expect(formGroup('core/admin-lost-password')).toBe('admin');
+    expect(formGroup('core/admin-reset-password')).toBe('admin');
+    expect(DEFAULT_CONFIG.forms.admin).toBe(true);
   });
 
   it('skips signed-in people when asked', () => {
@@ -120,6 +125,36 @@ describe('addresses', () => {
       'x',
     ])
       expect(publicIp(local)).toBeNull();
+  });
+});
+
+describe('admin Content Security Policy', () => {
+  it('allows only the active provider', () => {
+    expect(adminSources(normalizeConfig({}))).toEqual({
+      script: ['https://challenges.cloudflare.com'],
+      frame: ['https://challenges.cloudflare.com'],
+    });
+    const google = adminSources(normalizeConfig({ provider: 'recaptcha3' }));
+    expect(google.script).toEqual([
+      'https://www.google.com/recaptcha/',
+      'https://www.gstatic.com/recaptcha/',
+    ]);
+    expect(google.frame).not.toContain('https://challenges.cloudflare.com');
+    const failsafe = adminSources(
+      normalizeConfig({
+        failsafe: 'recaptcha',
+        fallbackSiteKey: '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI',
+      }),
+    );
+    expect(failsafe.script).toEqual([
+      'https://challenges.cloudflare.com',
+      'https://www.google.com/recaptcha/',
+      'https://www.gstatic.com/recaptcha/',
+    ]);
+    expect(adminSources(normalizeConfig({ forms: { admin: false } }))).toEqual({
+      script: [],
+      frame: [],
+    });
   });
 });
 

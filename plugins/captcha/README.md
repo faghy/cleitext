@@ -12,7 +12,8 @@ Pick one service and set its keys once: every form of the site is protected with
 
 The forms it covers, each with its own switch:
 
-- sign in, create an account, lost and new password;
+- the **admin sign-in** (`/cl-admin`) and its lost and new password screens, as WordPress plugins protect `wp-login.php` (signing in with a passkey and the two-factor code are not asked again);
+- visitors' sign in, create an account, lost and new password;
 - comments (and the shop's product reviews);
 - the forms of the **Forms** plugin;
 - the checkout of **Cleishop** (off by default: turn it on if bots place fake orders);
@@ -41,12 +42,22 @@ Every check is made on the server, with the service's own answer: the token, you
 
 That's it: open your sign-in page in a private window to see the widget.
 
+**Locked out of the admin?** If the widget cannot load where you are (a firewall, a browser extension) or the keys are wrong, you could not sign in. Keep a second browser tab signed in while you try new keys, and use the failsafe if you choose Turnstile. If it happens anyway, turn the plugin off from the server's command line: your settings and keys are kept, and you can fix them and turn it back on in **Plugins**.
+
+```sh
+cleitext plugin:deactivate captcha --site <your site's slug>
+```
+
+(`cleitext site:list` shows the slugs; a plugin activated on every site is turned off with `--network`.)
+
+The admin's security policy normally lets in no outside scripts: while the admin sign-in is protected, it lets in the chosen service only (`challenges.cloudflare.com` for Turnstile, Google's reCAPTCHA addresses for reCAPTCHA).
+
 **Trying it out.** Cloudflare has test keys that always pass: site key `1x00000000000000000000AA`, secret key `1x0000000000000000000000000000000AA`. With the site key `2x00000000000000000000AB` the widget always fails, and the secret key `2x0000000000000000000000000000000AA` refuses every token. Use real keys on a live site.
 
 **Behind a proxy or Cloudflare.** The visitor's address is sent to the service and checked against your trusted addresses. When the site runs behind nginx, Plesk, HAProxy or Cloudflare, set `TRUST_PROXY=true` in Cleitext's settings (`.env`), and also `TRUST_CLOUDFLARE=true` behind Cloudflare; otherwise every visitor seems to come from the proxy (or from a Cloudflare server), and the plugin leaves the address out rather than sending the proxy's. `TRUST_PROXY=true` trusts only proxies on local and private networks; a proxy on a public address must be listed in `TRUST_PROXY` (see the deployment guide, §5). Cleitext reads `X-Forwarded-For` from the right, through trusted proxies only, so a visitor cannot put a trusted address in the header to skip the challenge.
 
 ## For developers
 
-The plugin answers the core's `form.challenge` and `form.verify` filters (plugin API 1.38, permission `forms:protect`): the core's own forms ask by themselves, and a plugin with forms of its own asks with `ctx.forms.challenge(…)` and `ctx.forms.verify(…)`, under a form id such as `events/rsvp` (covered by the "Forms of other plugins" switch). Forms sent with JavaScript call `window.cleitextChallenge.prepare(form)` before reading their fields and `reset(form)` after a refused submission. See the plugin guide, "Protecting forms".
+The plugin answers the core's `form.challenge`, `form.verify` and `form.sources` filters (plugin API 1.38, permission `forms:protect`): the core's own forms ask by themselves, and a plugin with forms of its own asks with `ctx.forms.challenge(…)` and `ctx.forms.verify(…)`, under a form id such as `events/rsvp` (covered by the "Forms of other plugins" switch). Forms sent with JavaScript call `window.cleitextChallenge.prepare(form)` before reading their fields and `reset(form)` after a refused submission. See the plugin guide, "Protecting forms".
 
 Permissions: `forms:protect`, `settings:own` (settings and encrypted keys), `routes:admin` (the settings page) and `network` (the services' checks).

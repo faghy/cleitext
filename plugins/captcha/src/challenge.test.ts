@@ -35,6 +35,7 @@ describe('challenge markup', () => {
       lock: false,
       failsafe: 'off',
       msg: 'Conferma di non essere un robot, poi riprova.',
+      err: expect.stringContaining('Il controllo anti-spam non si è caricato'),
     });
   });
 

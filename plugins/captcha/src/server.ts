@@ -1,6 +1,13 @@
 import { definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
 import { challengeHtml } from './challenge';
-import { isTrusted, messageFor, normalizeConfig, protects, type CaptchaConfig } from './config';
+import {
+  adminSources,
+  isTrusted,
+  messageFor,
+  normalizeConfig,
+  protects,
+  type CaptchaConfig,
+} from './config';
 import { cloudflareStatus, verifySubmission, type HttpSend } from './verify';
 
 /**
@@ -56,6 +63,17 @@ export default definePlugin({
       const state = await states.get(context.siteId);
       if (!active(state) || !protects(state.config, context)) return html;
       return html + challengeHtml(state.config, context, ctx.assets.url('captcha.js'));
+    });
+
+    // The admin's Content Security Policy lets the sign-in widget load.
+    ctx.hooks.filter('form.sources', async (sources, context) => {
+      const state = await states.get(context.siteId);
+      if (!active(state)) return sources;
+      const mine = adminSources(state.config);
+      return {
+        script: [...sources.script, ...mine.script],
+        frame: [...sources.frame, ...mine.frame],
+      };
     });
 
     ctx.hooks.filter('form.verify', async (result, context) => {

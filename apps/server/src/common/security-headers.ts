@@ -25,16 +25,20 @@ export function inlineScriptHashes(html: string): string[] {
  * scripts (plus hashed inline ones), inline styles for the block editor,
  * images from anywhere over HTTPS, frames for embed previews, never framed.
  */
-export function adminCsp(scriptHashes: string[]): string {
+export function adminCsp(
+  scriptHashes: string[],
+  /** Origins of a plugin's sign-in challenge (`form.sources`, plugin API 1.38). */
+  extra: { script: string[]; frame: string[] } = { script: [], frame: [] },
+): string {
   return [
     "default-src 'self'",
-    `script-src 'self' ${scriptHashes.join(' ')}`.trim(),
+    `script-src 'self' ${[...scriptHashes, ...extra.script].join(' ')}`.trim(),
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https:",
     "font-src 'self' data:",
     "connect-src 'self'",
-    `frame-src 'self' blob: ${EMBED_FRAME_HOSTS.join(' ')}`,
+    `frame-src 'self' blob: ${[...EMBED_FRAME_HOSTS, ...extra.frame].join(' ')}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

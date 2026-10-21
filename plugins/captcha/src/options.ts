@@ -8,6 +8,7 @@ export type Provider = (typeof PROVIDERS)[number];
 
 /** Groups of forms, each with its own switch in the settings. */
 export const FORM_GROUPS = [
+  'admin',
   'login',
   'register',
   'password',
@@ -52,6 +53,8 @@ export interface CaptchaConfig {
 }
 
 export const DEFAULT_FORMS: Record<FormGroup, boolean> = {
+  /** The admin's sign-in (`/cl-admin`), as wp-login.php in WordPress. */
+  admin: true,
   login: true,
   register: true,
   password: true,

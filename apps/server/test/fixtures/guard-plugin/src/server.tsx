@@ -21,6 +21,12 @@ export default definePlugin({
       };
     });
 
+    // The admin's CSP: only valid https origins are kept.
+    ctx.hooks.filter('form.sources', (sources) => ({
+      script: [...sources.script, 'https://guard.example', "'unsafe-inline'"],
+      frame: [...sources.frame, 'https://guard.example/frames/', 'http://insecure.example'],
+    }));
+
     // A plugin's own form, through ctx.forms.
     ctx.routes.public({
       method: 'POST',

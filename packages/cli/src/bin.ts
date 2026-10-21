@@ -43,6 +43,7 @@ import {
 } from './themes.js';
 import {
   buildPlugin,
+  deactivatePlugin,
   installPlugin,
   listPlugins,
   requestRestart,
@@ -382,6 +383,20 @@ program
       const { from, to } = await rollbackPlugin(db, { pluginsPath: pluginsPath(), slug });
       console.log(`Back to ${slug} ${to} (from ${from}).`);
       await announcePluginChange(db);
+    }),
+  );
+
+program
+  .command('plugin:deactivate')
+  .description(
+    'Deactivate a plugin on a site (its data is kept), e.g. one that locks you out of the admin.',
+  )
+  .argument('<slug>')
+  .option('--site <slug>', 'the site')
+  .option('--network', 'turn off a plugin active on the whole network')
+  .action((slug: string, opts: { site?: string; network?: boolean }) =>
+    withOwner(async (db) => {
+      console.log(await deactivatePlugin(db, slug, opts));
     }),
   );
 

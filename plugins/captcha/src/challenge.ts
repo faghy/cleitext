@@ -3,7 +3,7 @@
  * for the plugin's script, a message for browsers without JavaScript and
  * the script itself. No token or visitor data: pages of guests are cached.
  */
-import { actionFor, messageFor, type CaptchaConfig } from './config';
+import { actionFor, loadErrorFor, messageFor, type CaptchaConfig } from './config';
 
 /** What the browser script needs (`data-cl-captcha`). */
 export interface WidgetOptions {
@@ -25,6 +25,8 @@ export interface WidgetOptions {
   fallback?: string;
   /** Message when the visitor sends the form before the check is done. */
   msg: string;
+  /** Message when the widget cannot load and no failsafe applies. */
+  err: string;
 }
 
 const escapeAttr = (value: string) =>
@@ -48,6 +50,7 @@ export function widgetOptions(config: CaptchaConfig, form: string, locale: strin
       ? { fallback: config.fallbackSiteKey }
       : {}),
     msg: messageFor(config, locale),
+    err: loadErrorFor(locale),
   };
 }
 

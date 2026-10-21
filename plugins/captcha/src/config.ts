@@ -90,6 +90,10 @@ export function normalizeConfig(input: unknown): CaptchaConfig {
 /** The settings' switch that covers a form id (`core/login`, `shop/checkout`…). */
 export function formGroup(form: string): FormGroup {
   switch (form) {
+    case 'core/admin-login':
+    case 'core/admin-lost-password':
+    case 'core/admin-reset-password':
+      return 'admin';
     case 'core/login':
       return 'login';
     case 'core/register':
@@ -172,6 +176,34 @@ export function publicIp(ip: string): string | null {
 export function actionFor(provider: Provider, form: string): string {
   if (provider === 'turnstile') return form.replace(/[^\w-]/g, '_').slice(0, 32);
   return form.replace(/[^A-Za-z0-9/_]/g, '_').slice(0, 100);
+}
+
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
+const RECAPTCHA_SOURCES = {
+  script: ['https://www.google.com/recaptcha/', 'https://www.gstatic.com/recaptcha/'],
+  frame: ['https://www.google.com/recaptcha/', 'https://recaptcha.google.com/recaptcha/'],
+};
+
+/**
+ * What the admin's Content Security Policy must allow for the sign-in
+ * widget (`form.sources`): only the active provider's origins, and the
+ * reCAPTCHA ones for Turnstile's reCAPTCHA failsafe.
+ */
+export function adminSources(config: CaptchaConfig): { script: string[]; frame: string[] } {
+  if (!config.forms.admin) return { script: [], frame: [] };
+  if (config.provider !== 'turnstile') return RECAPTCHA_SOURCES;
+  const fallback = config.failsafe === 'recaptcha' && config.fallbackSiteKey;
+  return {
+    script: [TURNSTILE_ORIGIN, ...(fallback ? RECAPTCHA_SOURCES.script : [])],
+    frame: [TURNSTILE_ORIGIN, ...(fallback ? RECAPTCHA_SOURCES.frame : [])],
+  };
+}
+
+/** The message when the widget cannot load (blocked network, extension, provider down). */
+export function loadErrorFor(locale: string): string {
+  return locale.startsWith('it')
+    ? 'Il controllo anti-spam non si è caricato (rete o estensione del browser lo bloccano). Ricarica la pagina o prova da un’altra rete.'
+    : 'The spam check could not load (blocked by the network or a browser extension). Reload the page or try another network.';
 }
 
 /** The message for a failed check, in the page's language. */

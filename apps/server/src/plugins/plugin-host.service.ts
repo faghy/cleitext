@@ -32,6 +32,7 @@ import {
   type ErasureResult,
   type FieldGroupDefinition,
   type FormChallengeContext,
+  type FormSources,
   type FormVerifyContext,
   type FormVerifyResult,
   type LanguageProvider,
@@ -827,6 +828,29 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       return message ? { ok: false, message } : { ok: false };
     }
     return { ok: true };
+  }
+
+  /**
+   * Origins the admin's sign-in challenge needs (`form.sources`, plugin API
+   * 1.38), for the admin's Content Security Policy: `https://` only.
+   */
+  async formSources(siteId: string): Promise<FormSources> {
+    const sources = await this.applyFilter(
+      'form.sources',
+      { script: [], frame: [] },
+      { siteId },
+      siteId,
+    );
+    const clean = (list: unknown) =>
+      [
+        ...new Set(
+          (Array.isArray(list) ? list : []).filter(
+            (v): v is string =>
+              typeof v === 'string' && /^https:\/\/[a-z0-9.-]+(:\d{1,5})?(\/[\w./-]*)?$/i.test(v),
+          ),
+        ),
+      ].slice(0, 10);
+    return { script: clean(sources?.script), frame: clean(sources?.frame) };
   }
 
   private async hooksFor(

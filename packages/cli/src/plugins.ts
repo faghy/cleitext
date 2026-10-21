@@ -488,6 +488,49 @@ export interface UninstallOptions {
 }
 
 /**
+ * Deactivates a plugin on one site from the command line, e.g. when it
+ * locks people out of the admin (a captcha that cannot load). Running
+ * servers drop it at once. With `network`, a plugin active on the whole
+ * network is turned off there instead (every site).
+ */
+export async function deactivatePlugin(
+  db: Database,
+  slug: string,
+  options: { site?: string; network?: boolean },
+): Promise<string> {
+  const [plugin] = await db.select().from(plugins).where(eq(plugins.slug, slug));
+  if (!plugin) throw new OperationError(`The plugin ${slug} is not installed.`);
+  if (plugin.mustUse)
+    throw new OperationError(`${slug} is a must-use plugin: remove it with plugin:uninstall.`);
+  const notify = (payload: Record<string, unknown>) =>
+    db.execute(sql`select pg_notify('cleitext_cache', ${JSON.stringify(payload)})`);
+  if (options.network) {
+    if (!plugin.network) throw new OperationError(`${slug} is not active on the whole network.`);
+    await db.update(plugins).set({ network: false }).where(eq(plugins.slug, slug));
+    for (const site of await db.select({ id: sites.id }).from(sites))
+      await notify({ siteId: site.id, tags: ['site'], sites: true });
+    return `${slug} is no longer active on the whole network.`;
+  }
+  if (!options.site) throw new OperationError('Specify --site <slug> (or --network).');
+  const [site] = await db.select().from(sites).where(eq(sites.slug, options.site));
+  if (!site) throw new OperationError(`No site with slug "${options.site}".`);
+  if (plugin.network)
+    throw new OperationError(
+      `${slug} is active on the whole network: use --network to turn it off everywhere.`,
+    );
+  const changed = await withSiteContext(db, site.id, (tx) =>
+    tx
+      .update(sitePlugins)
+      .set({ active: false })
+      .where(and(eq(sitePlugins.pluginSlug, slug), eq(sitePlugins.active, true)))
+      .returning({ slug: sitePlugins.pluginSlug }),
+  );
+  if (changed.length === 0) return `${slug} was not active on ${options.site}.`;
+  await notify({ siteId: site.id, tags: ['site'], sites: true });
+  return `${slug} deactivated on ${options.site}.`;
+}
+
+/**
  * Removes a plugin with its data (RF-PLG-04): `onUninstall`, the schema and
  * role, its settings on every site, its files. Entries of its content types
  * are kept (they reappear if the plugin is installed again).
