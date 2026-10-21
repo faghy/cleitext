@@ -179,7 +179,10 @@ describe('setup wizard with the token (CLEITEXT_SETUP_TOKEN)', () => {
     const env = parseEnv(readFileSync(file, 'utf8'));
     const config = loadConfig({ ...env, LOG_LEVEL: 'silent' });
     expect(config.env).toBe('production');
-    expect(config.trustProxy).toBe(true);
+    // The checkbox means the safe set: loopback and private networks, not Cloudflare.
+    expect(config.trustProxy).toEqual(expect.arrayContaining(['loopback', '10.0.0.0/8']));
+    expect(config.trustProxy).not.toContain('173.245.48.0/20');
+    expect(readFileSync(file, 'utf8')).not.toContain('TRUST_CLOUDFLARE');
     expect(new URL(config.database.url).username).toBe(`${db.database}_site`);
     expect(new URL(config.database.adminUrl!).username).toBe(db.ownerRole);
 
@@ -267,12 +270,14 @@ describe('setup wizard creating the database (PostgreSQL administrator)', () => 
   });
 
   it('creates owner, database and application user, and stores no administrator', async () => {
-    const page = await create();
+    const page = await create({ trustCloudflare: 'on' });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('Configuration saved');
 
     const text = readFileSync(join(dir, 'shared', '.env'), 'utf8');
+    expect(text).toContain('TRUST_CLOUDFLARE=true');
     const config = loadConfig({ ...parseEnv(text), LOG_LEVEL: 'silent' });
+    expect(config.trustProxy).toEqual(expect.arrayContaining(['loopback', '173.245.48.0/20']));
     expect(new URL(config.database.adminUrl!).username).toBe(`${name}_owner`);
     expect(new URL(config.database.url).username).toBe(`${name}_app`);
     expect(new URL(config.database.adminUrl!).pathname).toBe(`/${name}`);

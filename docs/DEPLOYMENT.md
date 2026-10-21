@@ -111,7 +111,8 @@ NODE_ENV=production
 DATABASE_URL=postgres://cleitext_app:…@localhost:5432/cleitext
 DATABASE_ADMIN_URL=postgres://cleitext_owner:…@localhost:5432/cleitext
 APP_SECRET=…                      # openssl rand -hex 32
-TRUST_PROXY=true                  # behind nginx
+TRUST_PROXY=true                  # behind nginx (loopback and private networks)
+# TRUST_CLOUDFLARE=true           # also behind Cloudflare (orange cloud)
 MEDIA_PATH=/var/www/vhosts/example.com/cleitext-shared/media
 PLUGINS_PATH=/var/www/vhosts/example.com/cleitext-shared/plugins
 THEMES_PATH=/var/www/vhosts/example.com/cleitext-shared/themes
@@ -122,6 +123,23 @@ MAIL_FROM=Example <no-reply@example.com>
 On Plesk, `localhost:25` without the credentials of a mailbox delivers only to the server's own domains ("Relay access denied"): use `MAIL_URL=sendmail://`, which hands the messages to the server's mail system, or the SMTP settings of a mailbox.
 
 `chmod 600 cleitext-shared/.env`. The other settings are listed in [`.env.example`](../.env.example).
+
+### Proxies and the visitor's address
+
+Login throttling, rate limits, the activity log, spam checks on comments and forms, the Captcha plugin's trusted addresses and the installation report all use the visitor's address. Behind a proxy the server only sees the proxy, so it reads the address from `X-Forwarded-For`, walking it **from the right**: each trusted proxy hands over to the address it reports, and the first address that is not a trusted proxy is the visitor. The leftmost entries are written by the visitor and are never believed as such.
+
+| `TRUST_PROXY`                                      | Trusted proxies                                                                                                                                                                                                     |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `false` (default)                                  | none: `X-Forwarded-*` is ignored, the visitor is whoever connects                                                                                                                                                   |
+| `true`                                             | loopback, link-local and private networks: `127.0.0.0/8`, `::1`, `169.254.0.0/16`, `fe80::/10`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`, `fc00::/7`. Plesk's nginx, HAProxy over WireGuard |
+| a number, e.g. `2`                                 | that many hops, whatever their address. Only when nobody can reach Cleitext directly (it listens on `127.0.0.1`)                                                                                                    |
+| a list, e.g. `loopback,10.0.0.200,198.51.100.0/24` | exactly these addresses and networks (CIDR), and the keywords `loopback`, `linklocal`, `uniquelocal`                                                                                                                |
+
+A proxy on a **public** address (a load balancer or another server reached over the internet) is not covered by `true`: list it, e.g. `TRUST_PROXY=loopback,uniquelocal,198.51.100.20`, otherwise its address is taken as the visitor's.
+
+**Behind Cloudflare** (orange cloud), also set `TRUST_CLOUDFLARE=true`: Cloudflare's published networks become trusted too, so with Cloudflare → HAProxy → nginx → Cleitext the address Cloudflare appends to `X-Forwarded-For` is the visitor's, and a visitor cannot pretend to come through Cloudflare by writing the header itself. `CF-Connecting-IP` is not read. The list of networks is bundled with Cleitext (`apps/server/src/config/trust-proxy.ts`, with its date) and refreshed in new releases from <https://www.cloudflare.com/ips-v4> and <https://www.cloudflare.com/ips-v6>. `TRUST_CLOUDFLARE` cannot be combined with a number of hops.
+
+Existing installations with `TRUST_PROXY=true` keep working: the value now means the private networks above instead of "every proxy", which closes the spoofing of the leftmost `X-Forwarded-For` entry. The setup wizard's **Behind a proxy** checkbox writes `TRUST_PROXY=true`, and **Behind Cloudflare** writes `TRUST_CLOUDFLARE=true`.
 
 ## 6. Plesk: the Node.js application
 
@@ -241,11 +259,11 @@ bin/cleitext site:domain:add --site main --domain www.example.com
 
 ## 12. Troubleshooting
 
-| Problem                                     | Check                                                                             |
-| ------------------------------------------- | --------------------------------------------------------------------------------- |
-| The application does not start              | Plesk → Node.js → logs; a configuration error is printed with the variable's name |
-| `permission denied to create role`          | the owner role lacks `CREATEROLE` (§2)                                            |
-| Every site answers "Not Found"              | the domain is not registered: `bin/cleitext site:list`, `site:domain:add`         |
-| Wrong client address in logs or rate limits | `TRUST_PROXY=true`                                                                |
-| `pg_dump not found`                         | install the PostgreSQL client tools or set `PG_BIN`                               |
-| `/health/ready` answers 503                 | the database is unreachable or migrations are missing (`bin/cleitext migrate`)    |
+| Problem                                     | Check                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| The application does not start              | Plesk → Node.js → logs; a configuration error is printed with the variable's name       |
+| `permission denied to create role`          | the owner role lacks `CREATEROLE` (§2)                                                  |
+| Every site answers "Not Found"              | the domain is not registered: `bin/cleitext site:list`, `site:domain:add`               |
+| Wrong client address in logs or rate limits | `TRUST_PROXY=true`; `TRUST_CLOUDFLARE=true` behind Cloudflare; list public proxies (§5) |
+| `pg_dump not found`                         | install the PostgreSQL client tools or set `PG_BIN`                                     |
+| `/health/ready` answers 503                 | the database is unreachable or migrations are missing (`bin/cleitext migrate`)          |

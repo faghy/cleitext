@@ -104,10 +104,10 @@ Last review: October 2026, release 0.17.0.
 
 ## V12 Secure communication
 
-| Status | Requirement   | How                                                                                                                                                                                       |
-| ------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ✅     | HTTPS         | Forced per domain (redirect), HSTS over HTTPS; TLS is terminated by the web server in front ([DEPLOYMENT.md](DEPLOYMENT.md)). `TRUST_PROXY` makes the scheme and client address reliable. |
-| ✅     | Outgoing mail | SMTP with STARTTLS or TLS per site settings.                                                                                                                                              |
+| Status | Requirement   | How                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅     | HTTPS         | Forced per domain (redirect), HSTS over HTTPS; TLS is terminated by the web server in front ([DEPLOYMENT.md](DEPLOYMENT.md)). `TRUST_PROXY` makes the scheme and client address reliable: `X-Forwarded-For` is walked from the right through trusted proxies only (`true` = loopback and private networks, `TRUST_CLOUDFLARE` adds Cloudflare's networks), so a visitor cannot spoof its address for rate limits and logs ([DEPLOYMENT.md](DEPLOYMENT.md) §5). |
+| ✅     | Outgoing mail | SMTP with STARTTLS or TLS per site settings.                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ## V13 Configuration
 

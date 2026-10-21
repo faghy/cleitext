@@ -239,7 +239,10 @@ export interface ConfigurationInput {
   dataDir: string;
   databaseUrl: string;
   adminUrl: string;
+  /** TRUST_PROXY=true: loopback and private networks (config/trust-proxy.ts). */
   trustProxy: boolean;
+  /** TRUST_CLOUDFLARE=true; omitted from the file when false. */
+  trustCloudflare?: boolean;
 }
 
 /**
@@ -261,6 +264,7 @@ export async function writeConfiguration(input: ConfigurationInput): Promise<str
     `DATABASE_ADMIN_URL=${input.adminUrl}`,
     `APP_SECRET=${randomBytes(32).toString('hex')}`,
     `TRUST_PROXY=${input.trustProxy}`,
+    ...(input.trustCloudflare ? ['TRUST_CLOUDFLARE=true'] : []),
     `MEDIA_PATH=${join(input.dataDir, 'media')}`,
     `PLUGINS_PATH=${join(input.dataDir, 'plugins')}`,
     `THEMES_PATH=${join(input.dataDir, 'themes')}`,

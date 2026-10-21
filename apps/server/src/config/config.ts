@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { parseTrustProxy, withCloudflare, type TrustProxy } from './trust-proxy.js';
 
 const booleanString = z
   .enum(['true', 'false', '1', '0'])
@@ -24,8 +25,22 @@ const envSchema = z.object({
   DATABASE_ADMIN_URL: z.url({ protocol: /^postgres(ql)?$/ }).optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-  /** Trust X-Forwarded-* headers (true behind nginx/Plesk). */
-  TRUST_PROXY: booleanString.default(false),
+  /**
+   * Proxies trusted for X-Forwarded-* (trust-proxy.ts): false, true (loopback
+   * and private networks: nginx/Plesk, HAProxy), a number of hops, or a
+   * comma-separated list of addresses and networks.
+   */
+  TRUST_PROXY: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      const parsed = parseTrustProxy(value);
+      if (parsed.ok) return parsed.value;
+      ctx.addIssue({ code: 'custom', message: parsed.error });
+      return z.NEVER;
+    }),
+  /** Also trust Cloudflare's published networks (the site is behind Cloudflare). */
+  TRUST_CLOUDFLARE: booleanString.default(false),
   /** Secret for signed links (previews). Required in production, at least 32 characters. */
   APP_SECRET: z.string().min(32).optional(),
   /** Session lifetime without "remember me", and with it. */
@@ -97,7 +112,8 @@ export interface AppConfig {
   port: number;
   database: { url: string; poolMax: number; adminUrl: string | null };
   logLevel: string;
-  trustProxy: boolean;
+  /** The resolved trusted set, Cloudflare included; turned into Fastify's option by `fastifyTrustProxy`. */
+  trustProxy: TrustProxy;
   session: { ttlHours: number; rememberDays: number };
   mail: { url: string; from: string };
   schedulerIntervalSeconds: number;
@@ -133,6 +149,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (!e.APP_SECRET && e.NODE_ENV === 'production') {
     throw new ConfigError(['APP_SECRET: required in production (at least 32 random characters)']);
   }
+  if (e.TRUST_CLOUDFLARE && typeof e.TRUST_PROXY === 'number') {
+    throw new ConfigError([
+      'TRUST_CLOUDFLARE: cannot be combined with a number of hops in TRUST_PROXY; use true or a list of addresses',
+    ]);
+  }
   return {
     env: e.NODE_ENV,
     host: e.HOST,
@@ -143,7 +164,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       adminUrl: e.DATABASE_ADMIN_URL ?? null,
     },
     logLevel: e.LOG_LEVEL,
-    trustProxy: e.TRUST_PROXY,
+    trustProxy: e.TRUST_CLOUDFLARE ? withCloudflare(e.TRUST_PROXY) : e.TRUST_PROXY,
     session: { ttlHours: e.SESSION_TTL_HOURS, rememberDays: e.SESSION_REMEMBER_DAYS },
     mail: { url: e.MAIL_URL, from: e.MAIL_FROM },
     schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,

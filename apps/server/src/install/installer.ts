@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { createDatabase, isInstalled } from '@cleitext/db';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import type { AppConfig } from '../config/config.js';
+import { fastifyTrustProxy } from '../config/trust-proxy.js';
 import { runCli } from '../plugins/package-upload.js';
 import {
   errorList,
@@ -74,7 +75,7 @@ export async function createInstaller(options: InstallerOptions): Promise<Fastif
   let installed = false;
 
   const app = Fastify({
-    trustProxy: config.trustProxy,
+    trustProxy: fastifyTrustProxy(config.trustProxy),
     bodyLimit: 16 * 1024,
     logger: { level: config.logLevel },
   });

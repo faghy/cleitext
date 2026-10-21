@@ -34,7 +34,9 @@ export function apiContext(
       method: method as 'GET',
       url: `/api/v1${path}`,
       headers: { ...headers, ...(type ? { 'content-type': type } : {}) },
-      remoteAddress: request.ip,
+      // The address that connected, with the forwarded headers above: the
+      // request resolves the visitor's address and scheme as this one did.
+      remoteAddress: request.raw.socket?.remoteAddress ?? request.ip,
       ...(payload !== undefined ? { payload } : {}),
     });
     let data: unknown;

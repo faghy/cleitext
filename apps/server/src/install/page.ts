@@ -114,6 +114,9 @@ const IT: Record<string, string> = {
   'Outside the web root, kept across updates.':
     'Fuori dalla cartella pubblica, resta tra un aggiornamento e l’altro.',
   'Behind a proxy (Plesk, nginx, Apache)': 'Dietro un proxy (Plesk, nginx, Apache)',
+  'Behind Cloudflare': 'Dietro Cloudflare',
+  'Only when the domain’s traffic goes through Cloudflare’s proxy (orange cloud): visitors’ addresses are then read through Cloudflare’s servers.':
+    'Solo se il traffico del dominio passa dal proxy di Cloudflare (nuvola arancione): gli indirizzi dei visitatori vengono allora letti attraverso i server di Cloudflare.',
   'Save the configuration': 'Salva la configurazione',
   'Enter the {field}.': 'Inserisci {field}.',
   'Use letters, digits and underscores for the user names, starting with a letter.':

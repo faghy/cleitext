@@ -111,7 +111,8 @@ NODE_ENV=production
 DATABASE_URL=postgres://cleitext_app:…@localhost:5432/cleitext
 DATABASE_ADMIN_URL=postgres://cleitext_owner:…@localhost:5432/cleitext
 APP_SECRET=…                      # openssl rand -hex 32
-TRUST_PROXY=true                  # behind nginx
+TRUST_PROXY=true                  # dietro nginx (loopback e reti private)
+# TRUST_CLOUDFLARE=true           # anche dietro Cloudflare (nuvola arancione)
 MEDIA_PATH=/var/www/vhosts/example.com/cleitext-shared/media
 PLUGINS_PATH=/var/www/vhosts/example.com/cleitext-shared/plugins
 THEMES_PATH=/var/www/vhosts/example.com/cleitext-shared/themes
@@ -122,6 +123,23 @@ MAIL_FROM=Example <no-reply@example.com>
 Su Plesk, `localhost:25` senza le credenziali di una casella consegna solo ai domini del server («Relay access denied»): usa `MAIL_URL=sendmail://`, che passa i messaggi al sistema di posta del server, oppure i dati SMTP di una casella.
 
 `chmod 600 cleitext-shared/.env`. Le altre impostazioni sono elencate in [`.env.example`](../../.env.example).
+
+### Proxy e indirizzo del visitatore
+
+Il limite ai tentativi di accesso, i limiti di frequenza, il registro delle attività, i controlli antispam su commenti e moduli, gli indirizzi fidati del plugin Captcha e il resoconto dell'installazione usano tutti l'indirizzo del visitatore. Dietro un proxy il server vede solo il proxy, quindi legge l'indirizzo da `X-Forwarded-For` percorrendolo **da destra**: ogni proxy fidato passa la mano all'indirizzo che riporta, e il primo indirizzo che non è un proxy fidato è il visitatore. Le voci più a sinistra le scrive il visitatore e non vengono mai credute come tali.
+
+| `TRUST_PROXY`                                               | Proxy fidati                                                                                                                                                                                                   |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `false` (predefinito)                                       | nessuno: `X-Forwarded-*` viene ignorato, il visitatore è chi si collega                                                                                                                                        |
+| `true`                                                      | loopback, link-local e reti private: `127.0.0.0/8`, `::1`, `169.254.0.0/16`, `fe80::/10`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`, `fc00::/7`. L'nginx di Plesk, HAProxy su WireGuard |
+| un numero, ad esempio `2`                                   | quel numero di passaggi, qualunque sia l'indirizzo. Solo se nessuno può raggiungere Cleitext direttamente (ascolta su `127.0.0.1`)                                                                             |
+| un elenco, ad esempio `loopback,10.0.0.200,198.51.100.0/24` | esattamente questi indirizzi e reti (CIDR), e le parole chiave `loopback`, `linklocal`, `uniquelocal`                                                                                                          |
+
+Un proxy su un indirizzo **pubblico** (un bilanciatore o un altro server raggiunto via internet) non rientra in `true`: elencalo, ad esempio `TRUST_PROXY=loopback,uniquelocal,198.51.100.20`, altrimenti il suo indirizzo viene preso per quello del visitatore.
+
+**Dietro Cloudflare** (nuvola arancione) imposta anche `TRUST_CLOUDFLARE=true`: diventano fidate anche le reti pubblicate da Cloudflare, così con Cloudflare → HAProxy → nginx → Cleitext l'indirizzo che Cloudflare aggiunge a `X-Forwarded-For` è quello del visitatore, e un visitatore non può fingere di passare da Cloudflare scrivendo l'intestazione da sé. `CF-Connecting-IP` non viene letto. L'elenco delle reti è incluso in Cleitext (`apps/server/src/config/trust-proxy.ts`, con la sua data) e viene aggiornato nelle nuove versioni da <https://www.cloudflare.com/ips-v4> e <https://www.cloudflare.com/ips-v6>. `TRUST_CLOUDFLARE` non si può combinare con un numero di passaggi.
+
+Le installazioni esistenti con `TRUST_PROXY=true` continuano a funzionare: il valore ora indica le reti private qui sopra invece di «qualunque proxy», e questo impedisce di falsificare la voce più a sinistra di `X-Forwarded-For`. Nella procedura guidata la casella **Dietro un proxy** scrive `TRUST_PROXY=true` e **Dietro Cloudflare** scrive `TRUST_CLOUDFLARE=true`.
 
 ## 6. Plesk: l'applicazione Node.js
 
@@ -246,6 +264,6 @@ bin/cleitext site:domain:add --site main --domain www.example.com
 | L'applicazione non si avvia                                   | Plesk → Node.js → log; un errore di configurazione viene stampato con il nome della variabile |
 | `permission denied to create role`                            | al ruolo proprietario manca `CREATEROLE` (§2)                                                 |
 | Ogni sito risponde "Not Found"                                | il dominio non è registrato: `bin/cleitext site:list`, `site:domain:add`                      |
-| Indirizzo del client errato nei log o nei limiti di frequenza | `TRUST_PROXY=true`                                                                            |
+| Indirizzo del client errato nei log o nei limiti di frequenza | `TRUST_PROXY=true`; `TRUST_CLOUDFLARE=true` dietro Cloudflare; elenca i proxy pubblici (§5)   |
 | `pg_dump not found`                                           | installa gli strumenti client di PostgreSQL o imposta `PG_BIN`                                |
 | `/health/ready` risponde 503                                  | il database non è raggiungibile o mancano delle migrazioni (`bin/cleitext migrate`)           |

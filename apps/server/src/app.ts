@@ -15,6 +15,7 @@ import { IdentityService } from './auth/identity.service.js';
 import { SessionService } from './auth/session.service.js';
 import { ApiTokenService } from './auth/api-token.service.js';
 import type { AppConfig } from './config/config.js';
+import { fastifyTrustProxy } from './config/trust-proxy.js';
 import { PublicService } from './public/public.service.js';
 import { createRequestHook } from './tenancy/request-hook.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
@@ -28,7 +29,7 @@ import { servePluginAsset } from './plugins/plugin-assets.js';
 
 /** Builds the application without listening, so tests can use `inject()`. */
 export async function createApp(config: AppConfig): Promise<NestFastifyApplication> {
-  const adapter = new FastifyAdapter({ trustProxy: config.trustProxy });
+  const adapter = new FastifyAdapter({ trustProxy: fastifyTrustProxy(config.trustProxy) });
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.forRoot(config), adapter, {
     bufferLogs: true,
     // Kept for plugin webhook routes, which check signatures over the body.

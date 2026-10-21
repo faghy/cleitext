@@ -43,7 +43,7 @@ That's it: open your sign-in page in a private window to see the widget.
 
 **Trying it out.** Cloudflare has test keys that always pass: site key `1x00000000000000000000AA`, secret key `1x0000000000000000000000000000000AA`. With the site key `2x00000000000000000000AB` the widget always fails, and the secret key `2x0000000000000000000000000000000AA` refuses every token. Use real keys on a live site.
 
-**Behind a proxy or Cloudflare.** The visitor's address is sent to the service and checked against your trusted addresses. When the site runs behind nginx, Plesk, HAProxy or Cloudflare, set `TRUST_PROXY=true` in Cleitext's settings (`.env`), otherwise every visitor seems to come from the proxy: the plugin then leaves the address out rather than sending the proxy's. Use the trusted addresses only when your proxy sets `X-Forwarded-For` itself.
+**Behind a proxy or Cloudflare.** The visitor's address is sent to the service and checked against your trusted addresses. When the site runs behind nginx, Plesk, HAProxy or Cloudflare, set `TRUST_PROXY=true` in Cleitext's settings (`.env`), and also `TRUST_CLOUDFLARE=true` behind Cloudflare; otherwise every visitor seems to come from the proxy (or from a Cloudflare server), and the plugin leaves the address out rather than sending the proxy's. `TRUST_PROXY=true` trusts only proxies on local and private networks; a proxy on a public address must be listed in `TRUST_PROXY` (see the deployment guide, §5). Cleitext reads `X-Forwarded-For` from the right, through trusted proxies only, so a visitor cannot put a trusted address in the header to skip the challenge.
 
 ## For developers
 

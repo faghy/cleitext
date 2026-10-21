@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import { PRIVATE_NETWORKS } from '../config/trust-proxy.js';
 import {
   canWrite,
   createDatabaseAs,
@@ -135,6 +136,7 @@ interface DatabaseForm {
   appRole: string;
   dataDir: string;
   trustProxy: boolean;
+  trustCloudflare: boolean;
 }
 
 export async function createSetup(options: SetupOptions): Promise<FastifyInstance> {
@@ -149,7 +151,8 @@ export async function createSetup(options: SetupOptions): Promise<FastifyInstanc
   let busy = false;
 
   const app = Fastify({
-    trustProxy: true,
+    // No configuration yet: the proxies of a typical installation (nginx, Plesk).
+    trustProxy: [...PRIVATE_NETWORKS],
     bodyLimit: 16 * 1024,
     logger: { level: options.logLevel ?? 'info' },
   });
@@ -263,6 +266,8 @@ ${field('owner', 'Owner user', 'autocomplete="off"')}
 <fieldset><legend>${t('Data folder')}</legend>
 ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept across updates.'))}
 <label class="check"><input name="trustProxy" type="checkbox" ${values.trustProxy ? 'checked' : ''}> ${t('Behind a proxy (Plesk, nginx, Apache)')}</label>
+<label class="check"><input name="trustCloudflare" type="checkbox" ${values.trustCloudflare ? 'checked' : ''}> ${t('Behind Cloudflare')}</label>
+<p class="hint">${t('Only when the domain’s traffic goes through Cloudflare’s proxy (orange cloud): visitors’ addresses are then read through Cloudflare’s servers.')}</p>
 </fieldset>
 <a class="button secondary" href="/install?step=requirements">${t('Back')}</a>
 <button type="submit">${t('Save the configuration')}</button>
@@ -280,6 +285,7 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
     appRole: '',
     dataDir: defaultDataDir(root),
     trustProxy: true,
+    trustCloudflare: false,
   });
 
   const show = (
@@ -339,6 +345,7 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
       appRole: (body.appRole ?? '').trim(),
       dataDir: (body.dataDir ?? '').trim(),
       trustProxy: body.trustProxy === 'on',
+      trustCloudflare: body.trustCloudflare === 'on',
     };
     const creating = values.mode === 'create';
     const appRole = values.appRole || `${values.database}_app`.slice(0, 63);
@@ -414,6 +421,7 @@ ${field('dataDir', 'Data folder', 'required', t('Outside the web root, kept acro
           databaseUrl: databaseUrl(input, appRole, appPassword),
           adminUrl: databaseUrl(input, input.owner, input.ownerPassword),
           trustProxy: values.trustProxy,
+          trustCloudflare: values.trustCloudflare,
         });
       } catch (error) {
         return show(
