@@ -392,6 +392,8 @@ function Editor({ initial }: { initial: EntryView }) {
   };
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // An editor that saved on its own (with its own data) already took the key.
+      if (event.defaultPrevented) return;
       if (
         (event.ctrlKey || event.metaKey) &&
         !event.shiftKey &&
@@ -440,6 +442,14 @@ function Editor({ initial }: { initial: EntryView }) {
     submit: () => quiet(action.mutateAsync('submit')),
     preview: () => quiet(preview.mutateAsync()),
     back: { url: adminUrl(backTo), label: typeName },
+    // The featured image, for editors that show it in their own settings (API 1.39).
+    ...(contentType?.supports.includes('featured_image')
+      ? {
+          featuredMediaId: (summary.featuredMediaId as string | null | undefined) ?? null,
+          setFeaturedMediaId: (id: string | null) =>
+            changeSummary({ ...summaryRef.current, featuredMediaId: id }),
+        }
+      : {}),
   };
 
   const editorEntry = {

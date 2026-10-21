@@ -1,5 +1,5 @@
 /** The side panel: elements, the selected element's settings, navigator, page and site settings. */
-import { t as tr, useT, type EditorMedia } from '@cleitext/admin-sdk';
+import { t as tr, useT, type EditorHost, type EditorMedia } from '@cleitext/admin-sdk';
 import { useEffect, useState, type ComponentType } from 'react';
 import { conditionMet, withDefaults } from '../core/css.js';
 import { DEFAULT_KIT, type Kit, type KitColor, type KitFont } from '../core/kit.js';
@@ -17,7 +17,16 @@ import {
   type Tab,
 } from '../core/model.js';
 import { getElement, listElements } from '../core/registry.js';
-import { ColorPicker, ControlField, DEVICE_NAMES, Svg, type ControlEnv } from './controls.js';
+import {
+  ColorPicker,
+  ControlField,
+  DEVICE_NAMES,
+  DragHandle,
+  Svg,
+  useDragReorder,
+  type ControlEnv,
+} from './controls.js';
+import { PAGE_STYLE_CONTROLS, pageStyleSettings } from '../core/page-css.js';
 import { AtomicStyle } from './atomic-style.js';
 import { FontPicker, systemGroup } from './font-picker.js';
 import { controlsOf, extensions } from '../core/extensions.js';
@@ -30,6 +39,7 @@ import {
   IdentitySettings,
   ImageSettings,
   LightboxSettings,
+  MediaIdField,
   SITE_MENU,
   TypographySettings,
 } from './site-settings.js';
@@ -61,6 +71,10 @@ export interface PanelProps {
   savesWithPage?: boolean;
   /** The user may change the site's title and tagline. */
   canManageSettings?: boolean;
+  /** The user may change the theme's settings (logo, site icon). */
+  canManageTheme?: boolean;
+  /** The entry editor's actions (full screen): title, status, featured image. */
+  host?: EditorHost;
 }
 
 export function Panel(props: PanelProps) {
@@ -84,7 +98,7 @@ export function Panel(props: PanelProps) {
       {view === 'navigator' && <Navigator store={props.store} />}
       {view === 'library' && <LibraryView store={props.store} />}
       {view === 'history' && <HistoryView store={props.store} />}
-      {view === 'page' && <PageView store={props.store} />}
+      {view === 'page' && <PageView {...props} />}
       {view === 'site' && <SiteView {...props} />}
     </div>
   );
@@ -287,6 +301,7 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
   const readOnly = useStore(store, (s) => s.readOnly);
   const contentOnly = useStore(store, (s) => s.contentOnly);
   const locale = useStore(store, (s) => s.entry.locale);
+  const selectionCount = useStore(store, (s) => s.selection.length);
   const [hover, setHover] = useState<Record<string, boolean>>({});
   const [openSection, setOpenSection] = useState<Record<string, string | null>>({});
   const node = selected ? find(blocks, selected) : null;
@@ -311,6 +326,19 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
   const path = pathTo(blocks, node.id);
   return (
     <div className="fre-element">
+      {selectionCount > 1 && (
+        <p className="fre-multinote" role="status">
+          <strong>{tr('{count} elements selected', { count: selectionCount })}</strong>
+          <span>
+            {tr(
+              'The panel edits the last one you clicked. Delete, Duplicate and Copy act on all of them.',
+            )}
+          </span>
+          <button type="button" onClick={() => store.actions.select(node.id)}>
+            {tr('Select only this one')}
+          </button>
+        </p>
+      )}
       <nav className="fre-crumbs" aria-label={tr('Element path')}>
         {path.map((id, i) => {
           const item = find(blocks, id);
@@ -435,13 +463,32 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
 
 function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; label: string }) {
   const active = useStore(store, (s) => s.active[node.id]);
+  const readOnly = useStore(store, (s) => s.readOnly || s.contentOnly);
   const kids = node.children ?? [];
+  const order = useDragReorder((from, to) => {
+    const child = kids[from];
+    if (!child) return;
+    store.actions.move(child.id, { parent: node.id, index: to });
+    store.actions.setActive(node.id, to > from ? to - 1 : to);
+    store.actions.select(node.id);
+  });
   return (
     <div className="fre-control">
-      <div className="fre-repeater">
+      <div className={`fre-repeater${order.dragging ? ' is-sorting' : ''}`} ref={order.listRef}>
         {kids.map((child, index) => (
-          <div key={child.id} className={`fre-repeater__item${active === index ? ' is-on' : ''}`}>
+          <div
+            key={child.id}
+            data-reorder=""
+            className={`fre-repeater__item${active === index ? ' is-on' : ''}${order.classOf(index, kids.length)}`}
+          >
             <div className="fre-repeater__head">
+              <DragHandle
+                label={tr('Drag to reorder (or use the arrow keys)')}
+                onPointerDown={(e) => {
+                  if (!readOnly) order.start(e, index);
+                }}
+                onKeyDown={(e) => !readOnly && order.keyDown(e, index, kids.length)}
+              />
               <input
                 className="fre-input fre-repeater__name"
                 value={typeof child.attrs._title === 'string' ? child.attrs._title : ''}
@@ -459,15 +506,6 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
                 onClick={() => store.actions.select(child.id)}
               >
                 <Svg path="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" size={12} />
-              </button>
-              <button
-                type="button"
-                className="fre-iconbtn"
-                title={tr('Move up')}
-                disabled={index === 0}
-                onClick={() => store.actions.move(child.id, { parent: node.id, index: index - 1 })}
-              >
-                <Svg path="M12 19V5 M6 11l6-6 6 6" size={12} />
               </button>
               <button
                 type="button"
@@ -495,7 +533,7 @@ function ItemsList({ store, node, label }: { store: Store; node: FrescoNode; lab
         <button
           type="button"
           className="fre-button"
-          onClick={() => store.actions.addItem(node.id, label)}
+          onClick={() => store.actions.addItem(node.id, tr(label))}
         >
           {tr('+ Add {item}', { item: tr(label).toLowerCase() })}
         </button>
@@ -516,7 +554,7 @@ function elementTitle(node: FrescoNode, locale: string): string {
 
 function Navigator({ store }: { store: Store }) {
   const blocks = useStore(store, (s) => s.blocks);
-  const selected = useStore(store, (s) => s.selected);
+  const selection = useStore(store, (s) => s.selection);
   const locale = useStore(store, (s) => s.entry.locale);
   const [closed, setClosed] = useState<Record<string, boolean>>({});
   const item = (node: FrescoNode, depth: number) => {
@@ -528,7 +566,7 @@ function Navigator({ store }: { store: Store }) {
     return (
       <li key={node.id}>
         <div
-          className={`fre-nav__row${selected === node.id ? ' is-on' : ''}`}
+          className={`fre-nav__row${selection.includes(node.id) ? ' is-on' : ''}`}
           style={{ paddingLeft: 8 + depth * 14 }}
           onMouseEnter={() => store.actions.hover(node.id)}
           onMouseLeave={() => store.actions.hover(null)}
@@ -548,7 +586,11 @@ function Navigator({ store }: { store: Store }) {
           <button
             type="button"
             className="fre-nav__title"
-            onClick={() => store.actions.select(node.id)}
+            onClick={(e) =>
+              e.metaKey || e.ctrlKey
+                ? store.actions.toggleSelect(node.id)
+                : store.actions.select(node.id)
+            }
           >
             {definition && <Svg path={definition.icon} size={13} />}
             {title}
@@ -574,13 +616,132 @@ function Navigator({ store }: { store: Store }) {
 
 // ---- Page settings ------------------------------------------------------------------------------
 
-function PageView({ store }: { store: Store }) {
+type PageTab = 'settings' | 'style' | 'advanced';
+
+const PAGE_TABS: { id: PageTab; label: string; icon: string }[] = [
+  { id: 'settings', label: 'Settings', icon: TAB_ICONS.advanced },
+  { id: 'style', label: 'Style', icon: TAB_ICONS.style },
+  { id: 'advanced', label: 'Advanced', icon: 'M8 6l-6 6 6 6 M16 6l6 6-6 6' },
+];
+
+/** Where a section of the extensions goes (`pageTab` on the component; Advanced by default). */
+function pageTabOf(section: unknown): PageTab {
+  const tab = (section as { pageTab?: unknown }).pageTab;
+  return tab === 'settings' || tab === 'style' ? tab : 'advanced';
+}
+
+/** The page settings, in tabs as in other builders: Settings, Style, Advanced. */
+function PageView({ store, media, host }: PanelProps) {
+  const [tab, setTab] = useState<PageTab>('settings');
+  const extra = extensions().pageSettings.filter((section) => pageTabOf(section) === tab);
+  return (
+    <div className="fre-element fre-pageview">
+      <div className="fre-tabs" role="tablist">
+        {PAGE_TABS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            className={tab === item.id ? 'is-on' : ''}
+            onClick={() => setTab(item.id)}
+          >
+            <Svg path={item.icon} size={16} />
+            <span>{tr(item.label)}</span>
+          </button>
+        ))}
+      </div>
+      <div className="fre-pageview__body">
+        {tab === 'settings' && <PageSettingsTab store={store} media={media} host={host} />}
+        {tab === 'style' && <PageStyleTab store={store} media={media} />}
+        {tab === 'advanced' && extra.length === 0 && (
+          <p className="fre-help">
+            {tr('Custom CSS and more options of the page come with Fresco Pro.')}
+          </p>
+        )}
+        {extra.map((section, n) => {
+          const Section = section as ComponentType<{ store: Store }>;
+          return <Section key={n} store={store} />;
+        })}
+      </div>
+    </div>
+  );
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  pending: 'Pending review',
+  scheduled: 'Scheduled',
+  published: 'Published',
+  private: 'Private',
+  trashed: 'Trashed',
+};
+
+function PageSettingsTab({
+  store,
+  media,
+  host,
+}: {
+  store: Store;
+  media: PanelProps['media'];
+  host: EditorHost | undefined;
+}) {
   const page = useStore(store, (s) => s.page);
-  const kit = useStore(store, (s) => s.kit);
+  const readOnly = useStore(store, (s) => s.readOnly);
   const wide = page.layout === 'full' || page.layout === 'canvas';
   return (
-    <div className="fre-site">
-      <h3 className="fre-view-title">{tr('Page settings')}</h3>
+    <>
+      {host && (
+        <>
+          <div className="fre-control">
+            <div className="fre-control__head">
+              <span className="fre-control__label">{tr('Title')}</span>
+            </div>
+            <input
+              className="fre-input"
+              value={host.title}
+              readOnly={readOnly}
+              onChange={(e) => host.setTitle(e.target.value)}
+            />
+          </div>
+          <div className="fre-control fre-control--inline">
+            <div className="fre-control__head">
+              <span className="fre-control__label">{tr('Status')}</span>
+            </div>
+            <div className="fre-control__body">
+              <span className={`fre-status fre-status--${host.status}`}>
+                {tr(STATUS_LABELS[host.status] ?? host.status)}
+              </span>
+            </div>
+          </div>
+          <p className="fre-help">
+            {tr('Publish, update or save a draft with the button at the top right.')}
+          </p>
+          {host.setFeaturedMediaId && (
+            <MediaIdField
+              label={tr('Featured image')}
+              help={tr('Saved with the page; shown in lists and social previews.')}
+              id={host.featuredMediaId ?? null}
+              onChange={host.setFeaturedMediaId}
+              media={media}
+              readOnly={readOnly}
+            />
+          )}
+        </>
+      )}
+      <label className="fre-checks">
+        <input
+          type="checkbox"
+          checked={page.hideTitle === true}
+          onChange={(e) => store.actions.setPage({ hideTitle: e.target.checked || undefined })}
+        />
+        {tr('Hide the page title')}
+      </label>
+      <p className="fre-help">
+        {tr(
+          "Hides the theme's title of this page (Site settings → Layout says which element that is).",
+        )}
+      </p>
       <div className="fre-control fre-control--inline">
         <div className="fre-control__head">
           <span className="fre-control__label">{tr('Layout')}</span>
@@ -605,19 +766,6 @@ function PageView({ store }: { store: Store }) {
       <label className="fre-checks">
         <input
           type="checkbox"
-          checked={page.hideTitle === true}
-          onChange={(e) => store.actions.setPage({ hideTitle: e.target.checked || undefined })}
-        />
-        {tr('Hide the page title')}
-      </label>
-      <p className="fre-help">
-        {tr(
-          "Hides the theme's title of this page (Site settings → Layout says which element that is).",
-        )}
-      </p>
-      <label className="fre-checks">
-        <input
-          type="checkbox"
           checked={page.hideFeatured === true || wide}
           disabled={wide}
           onChange={(e) => store.actions.setPage({ hideFeatured: e.target.checked || undefined })}
@@ -631,23 +779,56 @@ function PageView({ store }: { store: Store }) {
               'The theme does not show it above the page; archives, loops and social previews still use it.',
             )}
       </p>
-      <div className="fre-control fre-control--inline">
-        <div className="fre-control__head">
-          <span className="fre-control__label">{tr('Page background')}</span>
-        </div>
-        <div className="fre-control__body">
-          <ColorPicker
-            value={typeof page.background === 'string' ? page.background : ''}
-            kit={kit}
-            onChange={(v) => store.actions.setPage({ background: v })}
-          />
-        </div>
-      </div>
-      {extensions().pageSettings.map((section, n) => {
-        const Section = section as ComponentType<{ store: Store }>;
-        return <Section key={n} store={store} />;
-      })}
-    </div>
+    </>
+  );
+}
+
+/** Background (solid or gradient) and padding of the page, live in the canvas. */
+function PageStyleTab({ store, media }: { store: Store; media: PanelProps['media'] }) {
+  const page = useStore(store, (s) => s.page);
+  const kit = useStore(store, (s) => s.kit);
+  const device = useStore(store, (s) => s.device);
+  const readOnly = useStore(store, (s) => s.readOnly);
+  const settings = pageStyleSettings(page);
+  // The single color of older pages becomes the Background group's on the first change.
+  const legacy = settings !== page;
+  const env: ControlEnv = {
+    attrs: settings,
+    settings,
+    device,
+    hover: false,
+    kit,
+    readOnly,
+    setDevice: (d) => store.actions.setDevice(d),
+    set: (changes, merge) =>
+      store.actions.setPage(
+        legacy
+          ? {
+              bg_type: settings.bg_type,
+              bg_color: settings.bg_color,
+              ...changes,
+              background: undefined,
+            }
+          : changes,
+        merge,
+      ),
+    media,
+  };
+  const sections = [...new Set(PAGE_STYLE_CONTROLS.map((c) => c.section))];
+  return (
+    <>
+      {sections.map((section) => (
+        <section key={section} className="fre-pageview__section">
+          <h4 className="fre-subheading">{tr(section)}</h4>
+          {PAGE_STYLE_CONTROLS.filter((c) => c.section === section).map((control) => (
+            <ControlField key={control.name} control={control} env={env} />
+          ))}
+        </section>
+      ))}
+      <p className="fre-help">
+        {tr('The background covers the whole page; the padding is around the content.')}
+      </p>
+    </>
   );
 }
 
@@ -655,10 +836,12 @@ function PageView({ store }: { store: Store }) {
 
 function SiteView({
   store,
+  media,
   canManageKit,
   onSaveKit,
   savesWithPage,
   canManageSettings,
+  canManageTheme,
 }: PanelProps) {
   const { t: tx } = useT();
   const kit = useStore(store, (s) => s.kit);
@@ -704,7 +887,13 @@ function SiteView({
       {section === 'images' && <ImageSettings kit={kit} setTheme={setTheme} />}
       {section === 'fields' && <FieldSettings kit={kit} setTheme={setTheme} />}
       {section === 'lightbox' && <LightboxSettings kit={kit} setTheme={setTheme} />}
-      {section === 'identity' && <IdentitySettings canManage={canManageSettings === true} />}
+      {section === 'identity' && (
+        <IdentitySettings
+          canManage={canManageSettings === true}
+          canManageTheme={canManageTheme === true}
+          media={media}
+        />
+      )}
       <section className={`fre-section${section === 'colors' ? ' is-open' : ''}`}>
         {sectionHead('colors', 'Global colors')}
         {section === 'colors' && (

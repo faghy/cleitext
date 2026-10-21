@@ -3,6 +3,7 @@
  * Social icons, Alert, Audio, Image carousel, Image gallery, Star rating,
  * HTML, Menu anchor, Google Maps, Text path.
  */
+import { uiText } from '../core/ui-text.js';
 import type { ReactNode } from 'react';
 import { advancedControls, ElementRoot } from '../core/common.js';
 import { ALIGN, content, groups, style, textStyle } from '../core/controls.js';
@@ -588,7 +589,12 @@ export const alert: ElementDefinition = {
             <p className="fr-alert__description">{plainText(settings.description)}</p>
           )}
           {settings.dismiss !== false && (
-            <button type="button" className="fr-alert__close" aria-label="Close" data-fr-close="">
+            <button
+              type="button"
+              className="fr-alert__close"
+              aria-label={uiText(context.locale, 'Close')}
+              data-fr-close=""
+            >
               ×
             </button>
           )}
@@ -770,7 +776,7 @@ export const imageCarousel: ElementDefinition = {
           className="fr-carousel"
           role="region"
           aria-roledescription="carousel"
-          aria-label="Images"
+          aria-label={uiText(context.locale, 'Images')}
         >
           <div className="fr-carousel__track" tabIndex={0}>
             {images.map((image, i) => {
@@ -807,7 +813,7 @@ export const imageCarousel: ElementDefinition = {
               <button
                 type="button"
                 className="fr-carousel__arrow fr-carousel__prev"
-                aria-label="Previous"
+                aria-label={uiText(context.locale, 'Previous')}
                 data-fr-prev=""
               >
                 ‹
@@ -815,7 +821,7 @@ export const imageCarousel: ElementDefinition = {
               <button
                 type="button"
                 className="fr-carousel__arrow fr-carousel__next"
-                aria-label="Next"
+                aria-label={uiText(context.locale, 'Next')}
                 data-fr-next=""
               >
                 ›

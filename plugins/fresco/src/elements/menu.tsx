@@ -2,6 +2,8 @@
 import { advancedControls, ElementRoot, UNITS } from '../core/common.js';
 import { ALIGN, content, groups, style } from '../core/controls.js';
 import { Icon } from '../core/icons.js';
+import { uiText } from '../core/ui-text.js';
+import { MAX_WIDTH_DEVICES } from '../core/model.js';
 import type { ElementDefinition, MenuItem } from '../core/model.js';
 
 function Items({ items, level, arrow }: { items: MenuItem[]; level: number; arrow: unknown }) {
@@ -86,11 +88,15 @@ export const navMenu: ElementDefinition = {
       ],
       selectors: { '{{el}} .fr-menu__list': 'justify-content: {{value}}' },
     }),
+    // Every breakpoint of the site (the editor lists only those in use).
     content.select('toggle', 'Mobile toggle up to', 'Menu', {
       default: 'mobile',
       options: [
         { value: 'mobile', label: 'Mobile' },
+        { value: 'mobile_extra', label: 'Mobile extra' },
         { value: 'tablet', label: 'Tablet' },
+        { value: 'tablet_extra', label: 'Tablet extra' },
+        { value: 'laptop', label: 'Laptop' },
         { value: 'none', label: 'Never' },
       ],
       noCss: true,
@@ -181,7 +187,7 @@ export const navMenu: ElementDefinition = {
     const vertical = settings.layout === 'vertical';
     const indicator = settings.indicator as { name?: string } | undefined;
     const arrow = indicator?.name ? indicator : null;
-    const toggle = ['tablet', 'none'].includes(settings.toggle as string)
+    const toggle = [...MAX_WIDTH_DEVICES, 'none'].includes(settings.toggle as string)
       ? String(settings.toggle)
       : 'mobile';
     if (items.length === 0) {
@@ -222,7 +228,7 @@ export const navMenu: ElementDefinition = {
             type="button"
             className="fr-menu__toggle"
             aria-expanded="false"
-            aria-label="Menu"
+            aria-label={uiText(context.locale, 'Menu')}
             data-fr-toggle=""
           >
             <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">

@@ -4,6 +4,8 @@
  * accordions, counters…), registered by name.
  */
 
+import { uiText } from '../core/ui-text.js';
+
 type Handler = (element: HTMLElement) => void;
 
 const handlers: Record<string, Handler> = {};
@@ -149,11 +151,13 @@ function lightbox(): void {
   const build = () => {
     dialog = document.createElement('dialog');
     dialog.className = 'fr-lb';
+    // The labels in the page's language.
+    const lang = document.documentElement.lang;
     dialog.innerHTML =
       '<figure><img alt=""><figcaption></figcaption></figure>' +
-      '<button type="button" class="fr-lb__close" aria-label="Close">×</button>' +
-      '<button type="button" class="fr-lb__nav fr-lb__prev" aria-label="Previous">‹</button>' +
-      '<button type="button" class="fr-lb__nav fr-lb__next" aria-label="Next">›</button>';
+      `<button type="button" class="fr-lb__close" aria-label="${uiText(lang, 'Close')}">×</button>` +
+      `<button type="button" class="fr-lb__nav fr-lb__prev" aria-label="${uiText(lang, 'Previous')}">‹</button>` +
+      `<button type="button" class="fr-lb__nav fr-lb__next" aria-label="${uiText(lang, 'Next')}">›</button>`;
     dialog.addEventListener('click', (event) => {
       const target = event.target as HTMLElement;
       if (target.closest('.fr-lb__prev')) show(index - 1);

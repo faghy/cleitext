@@ -4,7 +4,7 @@
  * Every change is handed to Cleitext (`onChange`), which saves, autosaves and
  * publishes the entry as usual.
  */
-import { api as coreApi, useT, type EditorProps } from '@cleitext/admin-sdk';
+import { api as coreApi, t as translate, useT, type EditorProps } from '@cleitext/admin-sdk';
 import type { CxdDocument } from '@cleitext/blocks';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setIconData, iconDataLoaded, type IconData } from '../core/icons.js';
@@ -18,7 +18,7 @@ import { DEVICE_ICONS, DEVICE_NAMES, Svg } from './controls.js';
 import { saveTemplate } from './library.js';
 import { Panel } from './panel.js';
 import { loadPluginBlocks } from './plugin-blocks.js';
-import { createStore, useStore, type PanelView, type Store } from './store.js';
+import { createStore, setTextTranslator, useStore, type PanelView, type Store } from './store.js';
 import { EDITOR_CSS } from './styles.js';
 import { find, placeOf } from './tree.js';
 import { TopBar } from './topbar.js';
@@ -82,7 +82,13 @@ export function FrescoEditor(props: EditorProps) {
     // The editor is mounted again when the document is replaced from outside.
     [],
   );
+  // New elements get their sample texts in the editor's language.
+  useEffect(() => {
+    setTextTranslator((text) => translate(text));
+    return () => setTextTranslator(null);
+  }, []);
   const canvas = useRef<CanvasApi>({ frame: null, doc: null, root: null });
+  const [panelWidth, setPanelWidth] = usePanelWidth();
   const [finder, setFinder] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
   const [panelHidden, setPanelHidden] = useState(false);
@@ -194,11 +200,10 @@ export function FrescoEditor(props: EditorProps) {
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
       const primary = event.ctrlKey || event.metaKey;
       const state = store.get();
+      const many = state.selection.length > 1 ? state.selection : null;
       if (primary && event.key.toLowerCase() === 's' && !event.shiftKey && !event.altKey) {
-        // The admin saves on its own page; inside the canvas Fresco asks it.
-        if (event.view !== window || !hostRef.current) return;
-        event.preventDefault();
-        void hostRef.current.save();
+        // Handled by `saveKey` (capture phase), for the admin page and the canvas alike.
+        return;
       } else if (primary && !event.shiftKey && event.key.toLowerCase() === 'e') {
         event.preventDefault();
         setFinder(true);
@@ -235,15 +240,18 @@ export function FrescoEditor(props: EditorProps) {
         store.actions.redo();
       } else if (primary && event.key.toLowerCase() === 'd' && state.selected && !typing) {
         event.preventDefault();
-        store.actions.duplicate(state.selected);
+        if (many) store.actions.duplicateMany(many);
+        else store.actions.duplicate(state.selected);
       } else if (
         primary &&
         event.key.toLowerCase() === 'c' &&
         state.selected &&
         !typing &&
-        !window.getSelection()?.toString()
+        !window.getSelection()?.toString() &&
+        !canvas.current.doc?.getSelection()?.toString()
       ) {
-        store.actions.copy(state.selected);
+        if (many) store.actions.copyMany(many);
+        else store.actions.copy(state.selected);
       } else if (primary && event.key.toLowerCase() === 'v' && !typing) {
         store.actions.paste(state.selected);
       } else if (
@@ -252,25 +260,73 @@ export function FrescoEditor(props: EditorProps) {
         !typing
       ) {
         event.preventDefault();
-        store.actions.remove(state.selected);
-      } else if (event.key === 'Escape' && !typing) {
+        if (many) store.actions.removeMany(many);
+        else store.actions.remove(state.selected);
+      } else if (
+        event.key === 'Escape' &&
+        !typing &&
+        // Escape closes an open popover (color, typography…) first.
+        !window.document.querySelector('.fre-popover, .fre-popup')
+      ) {
         setMenu(null);
         store.actions.select(null);
       }
     };
+    /**
+     * Ctrl/⌘+S saves once, wherever the focus is, and the browser's own Save
+     * dialog never opens. With its own top bar Fresco saves (with the site
+     * settings) and keeps the key from the admin's listener; in the admin's
+     * bar, a key pressed in the canvas is passed on to the admin's page.
+     */
+    const saveKey = (event: KeyboardEvent) => {
+      if (
+        !event.isTrusted ||
+        !(event.ctrlKey || event.metaKey) ||
+        event.shiftKey ||
+        event.altKey ||
+        event.key.toLowerCase() !== 's'
+      )
+        return;
+      const host = hostRef.current;
+      const fromFrame = event.view !== window;
+      if (host) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.repeat && !host.busy) void host.save();
+      } else if (fromFrame) {
+        event.preventDefault();
+        window.document.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 's',
+            ctrlKey: event.ctrlKey,
+            metaKey: event.metaKey,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      }
+    };
     const frameWindow = () => canvas.current.frame?.contentWindow;
     window.addEventListener('keydown', handler);
+    // Capture, on the window: before the admin's listener on the document.
+    window.addEventListener('keydown', saveKey, true);
+    const attached = new WeakSet<Window>();
+    let attachedTo: Window | null = null;
     const attach = setInterval(() => {
       const win = frameWindow();
-      if (win && !(win as unknown as { __frescoKeys?: boolean }).__frescoKeys) {
-        (win as unknown as { __frescoKeys?: boolean }).__frescoKeys = true;
+      if (win && !attached.has(win)) {
+        attached.add(win);
+        attachedTo = win;
         win.addEventListener('keydown', handler);
+        win.addEventListener('keydown', saveKey, true);
       }
     }, 500);
     return () => {
       window.removeEventListener('keydown', handler);
+      window.removeEventListener('keydown', saveKey, true);
       clearInterval(attach);
-      frameWindow()?.removeEventListener('keydown', handler);
+      attachedTo?.removeEventListener('keydown', handler);
+      attachedTo?.removeEventListener('keydown', saveKey, true);
     };
   }, [store]);
 
@@ -330,11 +386,30 @@ export function FrescoEditor(props: EditorProps) {
     : undefined;
   hostRef.current = host;
 
+  // The page's public address, for "View page" (once it is published).
+  const published = props.host?.published === true;
+  const [viewUrl, setViewUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!published) {
+      setViewUrl(null);
+      return;
+    }
+    let cancelled = false;
+    api<{ url: string }>('GET', `/entry-link?id=${encodeURIComponent(props.entry.id)}`)
+      .then((link) => !cancelled && setViewUrl(link.url))
+      .catch(() => !cancelled && setViewUrl(null));
+    return () => {
+      cancelled = true;
+    };
+    // `api` is a new function on every render of the host.
+  }, [published, props.entry.id]);
+
   if (host) {
     return (
       <div
         className={`fre-root fre-root--full${panelHidden ? ' is-panel-hidden' : ''}`}
         data-icons={iconsReady ? 'ready' : 'loading'}
+        style={{ '--fre-panel-width': `${panelWidth}px` } as React.CSSProperties}
       >
         <TopBar
           store={store}
@@ -343,6 +418,8 @@ export function FrescoEditor(props: EditorProps) {
           themeBuilderUrl={themeBuilderUrl}
           openSettings={openSettings}
           saveAsTemplate={saveAsTemplate}
+          openFinder={() => setFinder(true)}
+          viewUrl={viewUrl}
         />
         {host.error && (
           <div className="fre-hosterror" role="alert">
@@ -360,7 +437,10 @@ export function FrescoEditor(props: EditorProps) {
               onSaveKit={saveKit}
               savesWithPage
               canManageSettings={user.capabilities.includes('manage_settings')}
+              canManageTheme={user.capabilities.includes('edit_theme_settings')}
+              host={host}
             />
+            <PanelResizer width={panelWidth} onChange={setPanelWidth} />
           </aside>
           <main className="fre-main">
             <button
@@ -381,9 +461,17 @@ export function FrescoEditor(props: EditorProps) {
               api={canvas}
             />
           </main>
+          {/* Floating over the canvas, or docked to the right edge beside it. */}
+          <NavigatorWindow store={store} />
         </div>
-        <NavigatorWindow store={store} />
-        {finder && <Finder store={store} host={host} onClose={() => setFinder(false)} />}
+        {finder && (
+          <Finder
+            store={store}
+            host={host}
+            onClose={() => setFinder(false)}
+            navigate={props.navigate}
+          />
+        )}
         {shortcuts && <ShortcutsDialog onClose={() => setShortcuts(false)} />}
         <Dialogs />
         {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
@@ -548,6 +636,9 @@ function ContextMenu({
   const { t } = useT();
   const node = menu.id ? find(store.get().blocks, menu.id) : null;
   const title = node ? t(getElement(node.type)?.title ?? node.type) : t('Page');
+  // On one of several selected elements, Duplicate, Copy and Delete act on all of them.
+  const selection = store.get().selection;
+  const many = node && selection.length > 1 && selection.includes(node.id) ? selection : null;
   const hasClipboard = (() => {
     try {
       return Boolean(store.get().clipboard ?? localStorage.getItem('fresco:clipboard'));
@@ -604,17 +695,30 @@ function ContextMenu({
       {node ? (
         <>
           <div className="fre-menu__group">
+            {many && (
+              <p className="fre-menu__note">
+                {t('{count} elements selected', { count: many.length })}
+              </p>
+            )}
             {item(t('Edit {element}', { element: title }), () => store.actions.select(menu.id))}
-            {item(t('Duplicate'), () => store.actions.duplicate(menu.id), { shortcut: 'Ctrl+D' })}
+            {item(
+              t('Duplicate'),
+              () => (many ? store.actions.duplicateMany(many) : store.actions.duplicate(menu.id)),
+              { shortcut: 'Ctrl+D' },
+            )}
           </div>
           <div className="fre-menu__group">
-            {item(t('Copy'), () => store.actions.copy(menu.id), { shortcut: 'Ctrl+C' })}
+            {item(
+              t('Copy'),
+              () => (many ? store.actions.copyMany(many) : store.actions.copy(menu.id)),
+              { shortcut: 'Ctrl+C' },
+            )}
             {item(t('Paste'), () => store.actions.paste(menu.id), {
               disabled: !hasClipboard,
               shortcut: 'Ctrl+V',
             })}
             {item(t('Paste style'), () => store.actions.pasteStyle(menu.id), {
-              disabled: store.get().clipboard?.type !== node.type,
+              disabled: store.get().clipboard?.[0]?.type !== node.type,
               shortcut: 'Ctrl+Shift+V',
             })}
             {item(t('Reset style'), () => store.actions.resetStyle(menu.id))}
@@ -660,16 +764,29 @@ function ContextMenu({
               ))}
           </div>
           <div className="fre-menu__group">
-            {item(t('Delete'), () => store.actions.remove(menu.id), {
-              shortcut: 'Del',
-              danger: true,
-            })}
+            {item(
+              many ? t('Delete {count} elements', { count: many.length }) : t('Delete'),
+              () => (many ? store.actions.removeMany(many) : store.actions.remove(menu.id)),
+              { shortcut: 'Del', danger: true },
+            )}
           </div>
         </>
       ) : (
         <>
           <div className="fre-menu__group">
             {item(t('Paste'), pasteAtEnd, { disabled: !hasClipboard, shortcut: 'Ctrl+V' })}
+            {item(
+              t('Copy all'),
+              () => {
+                const blocks = store.get().blocks;
+                store.actions.copyMany(blocks.map((block) => block.id));
+                notify(
+                  t('The whole page was copied: paste it here or on another page.'),
+                  'success',
+                );
+              },
+              { disabled: store.get().blocks.length === 0 },
+            )}
             {item(t('Structure'), () => store.actions.setView('navigator'), {
               shortcut: 'Ctrl+I',
             })}
@@ -684,7 +801,7 @@ function ContextMenu({
                   action: t('Delete'),
                   danger: true,
                 }).then((ok) => {
-                  if (ok) for (const block of store.get().blocks) store.actions.remove(block.id);
+                  if (ok) store.actions.removeMany(store.get().blocks.map((block) => block.id));
                 }),
               { disabled: store.get().blocks.length === 0, danger: true },
             )}
@@ -699,4 +816,86 @@ function ContextMenu({
 function canvasWindowClose(close: () => void) {
   const frame = window.document.querySelector<HTMLIFrameElement>('.fre-iframe');
   frame?.contentWindow?.addEventListener('pointerdown', close, { once: true });
+}
+
+// ---- Width of the panel -------------------------------------------------------------------
+
+const PANEL_KEY = 'fresco:panel-width';
+export const PANEL_WIDTH = { min: 280, max: 600, initial: 300 } as const;
+
+/** A width within the panel's limits. */
+export function clampPanelWidth(width: number): number {
+  if (!Number.isFinite(width)) return PANEL_WIDTH.initial;
+  return Math.round(Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, width)));
+}
+
+/** The panel's width, kept in the browser for this user. */
+function usePanelWidth(): [number, (width: number | null) => void] {
+  const [width, setWidth] = useState<number>(() => {
+    try {
+      const stored = Number(localStorage.getItem(PANEL_KEY));
+      return stored ? clampPanelWidth(stored) : PANEL_WIDTH.initial;
+    } catch {
+      return PANEL_WIDTH.initial;
+    }
+  });
+  const change = useCallback((next: number | null) => {
+    const value = next === null ? PANEL_WIDTH.initial : clampPanelWidth(next);
+    setWidth(value);
+    try {
+      if (next === null) localStorage.removeItem(PANEL_KEY);
+      else localStorage.setItem(PANEL_KEY, String(value));
+    } catch {
+      // Private mode: kept until the page closes.
+    }
+  }, []);
+  return [width, change];
+}
+
+/** The handle on the panel's right edge: drag to resize, double-click to reset. */
+function PanelResizer({
+  width,
+  onChange,
+}: {
+  width: number;
+  onChange: (width: number | null) => void;
+}) {
+  const { t } = useT();
+  const start = (event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const from = { x: event.clientX, width };
+    const root = (event.currentTarget as HTMLElement).closest('.fre-root');
+    // The canvas iframe would swallow the pointer while dragging.
+    root?.classList.add('is-resizing-panel');
+    const move = (e: PointerEvent) => onChange(from.width + e.clientX - from.x);
+    const up = () => {
+      root?.classList.remove('is-resizing-panel');
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div
+      className="fre-panel__resize"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t('Panel width (double-click to reset)')}
+      aria-valuemin={PANEL_WIDTH.min}
+      aria-valuemax={PANEL_WIDTH.max}
+      aria-valuenow={width}
+      tabIndex={0}
+      title={t('Panel width (double-click to reset)')}
+      onPointerDown={start}
+      onDoubleClick={() => onChange(null)}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft') onChange(width - 10);
+        else if (e.key === 'ArrowRight') onChange(width + 10);
+        else return;
+        e.preventDefault();
+      }}
+    />
+  );
 }

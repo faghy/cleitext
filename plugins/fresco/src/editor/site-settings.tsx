@@ -13,7 +13,7 @@ import {
   type ThemeText,
 } from '../core/kit.js';
 import type { SizeValue } from '../core/model.js';
-import { ColorPicker } from './controls.js';
+import { ColorPicker, MediaPicker, Svg, type ControlEnv } from './controls.js';
 import { FontPicker, systemGroup } from './font-picker.js';
 import { notify } from './dialogs.js';
 
@@ -464,9 +464,127 @@ export function LightboxSettings({ kit, setTheme }: { kit: Kit; setTheme: SetThe
 
 // ---- Site identity (the core's general settings) ------------------------------------------
 
-export function IdentitySettings({ canManage }: { canManage: boolean }) {
+/** An image of the media library kept by its id (featured image, logo, site icon). */
+export function MediaIdField({
+  label,
+  help,
+  id,
+  onChange,
+  media,
+  readOnly = false,
+}: {
+  label: string;
+  help?: string;
+  id: string | null;
+  onChange: (id: string | null) => void;
+  media: ControlEnv['media'];
+  readOnly?: boolean;
+}) {
+  const { t } = useT();
+  const [picking, setPicking] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!id) {
+      setUrl(null);
+      return;
+    }
+    let cancelled = false;
+    coreApi<{ url: string; variants?: { variant: string; url: string }[] }>(
+      'GET',
+      `/media/${encodeURIComponent(id)}`,
+    )
+      .then((item) => {
+        if (!cancelled) setUrl(item.variants?.find((v) => v.variant === 'thumb')?.url ?? item.url);
+      })
+      .catch(() => !cancelled && setUrl(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+  return (
+    <div className="fre-control">
+      <div className="fre-control__head">
+        <span className="fre-control__label">{label}</span>
+      </div>
+      <div className="fre-media">
+        <button
+          type="button"
+          className="fre-media__preview"
+          disabled={readOnly}
+          onClick={() => setPicking(true)}
+        >
+          {id && url ? (
+            <img src={url} alt="" />
+          ) : (
+            <span className="fre-media__empty">
+              <Svg path="M12 5v14 M5 12h14" size={20} />
+              {t('Choose an image')}
+            </span>
+          )}
+        </button>
+        {id && !readOnly && (
+          <div className="fre-media__actions">
+            <button type="button" onClick={() => setPicking(true)}>
+              {t('Replace')}
+            </button>
+            <button type="button" onClick={() => onChange(null)}>
+              {t('Remove')}
+            </button>
+          </div>
+        )}
+      </div>
+      {help && <p className="fre-help">{help}</p>}
+      {picking && (
+        <MediaPicker
+          env={{ media } as ControlEnv}
+          kind="image"
+          onClose={() => setPicking(false)}
+          onPick={(items) => {
+            const item = items[0];
+            if (item) {
+              onChange(item.id);
+              setUrl(item.thumbnailUrl ?? item.url);
+            }
+            setPicking(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The theme's settings, as Appearance → Customize keeps them. */
+interface ActiveTheme {
+  theme?: { settings?: { name: string; type: string }[] };
+  values: Record<string, unknown>;
+}
+
+/** Appearance → Customize in this admin. */
+const customizeUrl = () =>
+  `${window.location.pathname.split('/entries/')[0]}/appearance?tab=customize`;
+
+/**
+ * The site's identity: title and tagline (general settings), logo and site
+ * icon (the theme's `logo` and `favicon` settings, as Customize keeps them,
+ * when the active theme has them).
+ */
+export function IdentitySettings({
+  canManage,
+  canManageTheme,
+  media,
+}: {
+  canManage: boolean;
+  canManageTheme: boolean;
+  media: ControlEnv['media'];
+}) {
   const { t } = useT();
   const [values, setValues] = useState<{ title: string; tagline: string } | null>(null);
+  const [theme, setTheme] = useState<ActiveTheme | null>(null);
+  const [images, setImages] = useState<{ logo: string | null; favicon: string | null }>({
+    logo: null,
+    favicon: null,
+  });
+  const [dirty, setDirty] = useState({ core: false, theme: false });
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!canManage) return;
@@ -474,48 +592,112 @@ export function IdentitySettings({ canManage }: { canManage: boolean }) {
       .then((s) => setValues({ title: s.title, tagline: s.tagline }))
       .catch(() => setValues(null));
   }, [canManage]);
-  if (!canManage) {
+  useEffect(() => {
+    if (!canManageTheme) return;
+    void coreApi<ActiveTheme>('GET', '/themes/active')
+      .then((active) => {
+        setTheme(active);
+        const id = (key: string) =>
+          typeof active.values[key] === 'string' && active.values[key]
+            ? (active.values[key] as string)
+            : null;
+        setImages({ logo: id('logo'), favicon: id('favicon') });
+      })
+      .catch(() => setTheme(null));
+  }, [canManageTheme]);
+  const has = (name: string) =>
+    theme?.theme?.settings?.some((field) => field.name === name && field.type === 'media') === true;
+  const themeFields = (['logo', 'favicon'] as const).filter(has);
+  if (!canManage && themeFields.length === 0) {
     return (
       <p className="fre-help">{t('Only administrators can change the identity of the site.')}</p>
     );
   }
-  if (!values) return <p className="fre-empty-note">{t('Loading…')}</p>;
+  if (canManage && !values) return <p className="fre-empty-note">{t('Loading…')}</p>;
+  const save = async () => {
+    setSaving(true);
+    try {
+      if (dirty.core && values) await coreApi('PATCH', '/settings/core', values);
+      if (dirty.theme && theme) {
+        const saved = await coreApi<Record<string, unknown>>('PUT', '/themes/active/settings', {
+          values: { ...theme.values, ...images },
+        });
+        setTheme({ ...theme, values: saved });
+      }
+      setDirty({ core: false, theme: false });
+      notify(t('Site identity saved.'), 'success');
+    } catch (e) {
+      notify(String(e instanceof Error ? e.message : e), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <>
-      <div className="fre-control">
-        <div className="fre-control__head">
-          <span className="fre-control__label">{t('Site title')}</span>
-        </div>
-        <input
-          className="fre-input"
-          value={values.title}
-          onChange={(e) => setValues({ ...values, title: e.target.value })}
+      {canManage && values && (
+        <>
+          <div className="fre-control">
+            <div className="fre-control__head">
+              <span className="fre-control__label">{t('Site title')}</span>
+            </div>
+            <input
+              className="fre-input"
+              value={values.title}
+              onChange={(e) => {
+                setValues({ ...values, title: e.target.value });
+                setDirty((d) => ({ ...d, core: true }));
+              }}
+            />
+          </div>
+          <div className="fre-control">
+            <div className="fre-control__head">
+              <span className="fre-control__label">{t('Tagline')}</span>
+            </div>
+            <input
+              className="fre-input"
+              value={values.tagline}
+              onChange={(e) => {
+                setValues({ ...values, tagline: e.target.value });
+                setDirty((d) => ({ ...d, core: true }));
+              }}
+            />
+          </div>
+        </>
+      )}
+      {themeFields.map((name) => (
+        <MediaIdField
+          key={name}
+          label={name === 'logo' ? t('Site logo') : t('Site icon')}
+          help={
+            name === 'favicon'
+              ? t('Shown in browser tabs and bookmarks: a square image, at least 512 × 512 px.')
+              : undefined
+          }
+          id={images[name]}
+          media={media}
+          onChange={(id) => {
+            setImages((current) => ({ ...current, [name]: id }));
+            setDirty((d) => ({ ...d, theme: true }));
+          }}
         />
-      </div>
-      <div className="fre-control">
-        <div className="fre-control__head">
-          <span className="fre-control__label">{t('Tagline')}</span>
-        </div>
-        <input
-          className="fre-input"
-          value={values.tagline}
-          onChange={(e) => setValues({ ...values, tagline: e.target.value })}
-        />
-      </div>
-      <p className="fre-help">{t('The logo and the site icon are in Appearance → Customize.')}</p>
+      ))}
+      {themeFields.length < 2 && (
+        <p className="fre-help">
+          {themeFields.length === 0
+            ? t('The logo and the site icon are set in the theme’s options:')
+            : t('The theme’s other images are set in its options:')}{' '}
+          <a href={customizeUrl()} target="_blank" rel="noopener noreferrer">
+            {t('Appearance → Customize')}
+          </a>
+        </p>
+      )}
       <button
         type="button"
         className="fre-button fre-button--primary"
-        disabled={saving}
-        onClick={() => {
-          setSaving(true);
-          coreApi('PATCH', '/settings/core', values)
-            .then(() => notify(t('Site identity saved.'), 'success'))
-            .catch((e: unknown) => notify(String(e instanceof Error ? e.message : e), 'error'))
-            .finally(() => setSaving(false));
-        }}
+        disabled={saving || (!dirty.core && !dirty.theme)}
+        onClick={() => void save()}
       >
-        {t('Save')}
+        {saving ? t('Saving…') : t('Save')}
       </button>
     </>
   );

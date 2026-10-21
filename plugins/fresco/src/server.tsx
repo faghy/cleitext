@@ -4,7 +4,8 @@
  * kit (global colors and fonts) is added to pages that use Fresco.
  */
 import { definePlugin, type PluginBlockDefinition, type PluginContext } from '@cleitext/plugin-sdk';
-import { elementCss, safeColor, withDefaults } from './core/css.js';
+import { elementCss, withDefaults } from './core/css.js';
+import { pageCss } from './core/page-css.js';
 import { pageGoogleFonts, usedGoogleFonts } from './core/fonts.js';
 import { setIconData, type IconData } from './core/icons.js';
 import {
@@ -183,35 +184,20 @@ export default definePlugin({
         : link,
     );
 
-    // Page settings of Fresco pages: layout, hidden title, page background.
+    // Page settings of Fresco pages: layout, hidden title, page background and padding.
     ctx.hooks.filter('render.html', async (html, context) => {
       const editor = context.entry?.document.editor;
       if (editor?.id !== 'fresco' || !editor.data) return html;
-      const data = editor.data;
-      const rules: string[] = [];
-      if (data.hideTitle === true) {
-        const kit = await kitFor(ctx, context.siteId);
-        const selector = safeSelector(kit.titleSelector);
-        // Never headings of Fresco's elements.
-        const scoped = selector
-          ?.split(',')
-          .map((part) => `${part.trim()}:not(.fr-e *)`)
-          .join(',');
-        if (scoped) rules.push(`${scoped}{display:none!important}`);
-      }
-      if (data.layout === 'full' || data.layout === 'canvas') {
-        // Top-level containers break out of the theme's content column.
-        rules.push(
-          '.fr-container:not(.fr-container .fr-container):not(.cx-location .fr-container){width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}html,body{overflow-x:clip}',
-        );
-      }
-      const background = safeColor(data.background);
-      if (background) rules.push(`body{background-color:${background}}`);
-      if (rules.length === 0) return html;
+      const kit = await kitFor(ctx, context.siteId);
+      const css = pageCss(editor.data, {
+        titleSelector: safeSelector(kit.titleSelector),
+        breakpoints: kit.breakpoints,
+      });
+      if (!css) return html;
       const at = html.indexOf('</head>');
       return at === -1
         ? html
-        : `${html.slice(0, at)}<style id="fr-page">${rules.join('')}</style>${html.slice(at)}`;
+        : `${html.slice(0, at)}<style id="fr-page">${css}</style>${html.slice(at)}`;
     });
 
     // The kit: CSS variables of the global colors and fonts, on pages using Fresco.
@@ -258,6 +244,19 @@ export default definePlugin({
               url: entry.url,
             })),
         };
+      },
+    });
+
+    // The public address of an entry, for "View page" in the editor.
+    ctx.routes.api({
+      method: 'GET',
+      path: '/entry-link',
+      capability: 'edit_entries',
+      async handler(request) {
+        const id = request.query.id ?? '';
+        const entry = /^[\w-]{1,64}$/.test(id) ? await ctx.content.get(request.siteId, id) : null;
+        if (!entry) return { status: 404, body: { error: 'not_found' } };
+        return { body: { url: entry.url, status: entry.status } };
       },
     });
 

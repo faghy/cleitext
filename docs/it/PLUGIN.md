@@ -875,7 +875,8 @@ export default defineAdminPlugin({
 - **A tutto schermo** (API 1.27): `chrome: 'none'` nella definizione nasconde la barra superiore dell'editor delle voci, e l'editor disegna la sua, come fanno i page builder.
   - Riceve `host`: `{ title, setTitle, status, dirty, busy, error, canPublish, canSubmit, published, save(), publish(), submit(), preview(), back: { url, label } }`.
   - Le azioni non falliscono mai con un'eccezione; l'errore finisce in `host.error`.
-  - Ctrl/⌘+S nella pagina dell'admin salva come sempre. Dentro il tuo iframe chiama `host.save()`.
+  - Con l'API 1.39, se il tipo di contenuto ha l'immagine in evidenza, `host` ha anche `featuredMediaId` (l'id di un media, o null) e `setFeaturedMediaId(id)`, salvati con il resto, così l'editor può mostrarla nelle sue impostazioni della pagina.
+  - Ctrl/⌘+S nella pagina dell'admin salva come sempre. Dentro il tuo iframe chiama `host.save()`. Un editor che salva da sé (per esempio con dati suoi) chiama `preventDefault()` sul tasto: l'admin allora non lo gestisce, e la pagina si salva una volta sola.
 - Dopo il ripristino di una revisione o di un salvataggio automatico, l'editor viene montato di nuovo con il nuovo `document`.
 - Nell'iframe, che ha la stessa origine, i portali React (`createPortal` di `react-dom`) possono disegnare nel documento della pagina.
 

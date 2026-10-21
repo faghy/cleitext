@@ -954,7 +954,8 @@ function BuilderEditor({
 - **Full screen** (API 1.27): `chrome: 'none'` in the definition hides the entry editor's top bar, and the editor draws its own, as page builders do.
   - It gets `host`: `{ title, setTitle, status, dirty, busy, error, canPublish, canSubmit, published, save(), publish(), submit(), preview(), back: { url, label } }`.
   - The actions never reject; a failure lands in `host.error`.
-  - Ctrl/⌘+S in the admin page saves as usual. Inside your own frame, call `host.save()`.
+  - With API 1.39, when the content type has a featured image, `host` also has `featuredMediaId` (a media id or null) and `setFeaturedMediaId(id)`, saved with the rest, so the editor can show it in its own page settings.
+  - Ctrl/⌘+S in the admin page saves as usual. Inside your own frame, call `host.save()`. An editor that saves on its own (e.g. with data of its own) calls `preventDefault()` on the key: the admin then leaves it alone, so the page is saved once.
 - In the frame, React portals (`createPortal` from `react-dom`) can render into the iframe's document, since it has the same origin.
 
 ### Shared modules

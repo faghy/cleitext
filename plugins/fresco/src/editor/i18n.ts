@@ -271,4 +271,77 @@ addMessages('it', {
   Export: 'Esporta',
   'Select an element on the page to edit it.':
     'Seleziona un elemento nella pagina per modificarlo.',
+
+  // ---- Multi-selection, panel, structure ---------------------------------------------------
+  '{count} elements selected': '{count} elementi selezionati',
+  'The panel edits the last one you clicked. Delete, Duplicate and Copy act on all of them.':
+    'Il pannello modifica l’ultimo su cui hai cliccato. Elimina, Duplica e Copia agiscono su tutti.',
+  'Select only this one': 'Seleziona solo questo',
+  'Delete {count} elements': 'Elimina {count} elementi',
+  'Copy all': 'Copia tutto',
+  'The whole page was copied: paste it here or on another page.':
+    'Hai copiato tutta la pagina: incollala qui o in un’altra pagina.',
+  'Panel width (double-click to reset)': 'Larghezza del pannello (doppio clic per ripristinarla)',
+  'Dock to the right': 'Aggancia a destra',
+  Undock: 'Sgancia',
+  'Drag to move; drop on the right edge to dock':
+    'Trascina per spostare; rilascia sul bordo destro per agganciare',
+  'Structure width': 'Larghezza della struttura',
+  'Drag to reorder (or use the arrow keys)': 'Trascina per riordinare (o usa le frecce)',
+  // ---- Top bar and Finder ------------------------------------------------------------------
+  'Finder (Ctrl+E)': 'Finder (Ctrl+E)',
+  'View page': 'Vedi pagina',
+  Open: 'Apri',
+  'Open “{title}”?': 'Aprire «{title}»?',
+  'The changes to this page that are not saved yet will be lost.':
+    'Le modifiche a questa pagina non ancora salvate andranno perse.',
+  // ---- Colors ------------------------------------------------------------------------------
+  'Pick a color from the screen': 'Prendi un colore dallo schermo',
+  'Saturation and brightness': 'Saturazione e luminosità',
+  'Click the color in use to unlink it.': 'Fai clic sul colore in uso per scollegarlo.',
+  // ---- Page settings -----------------------------------------------------------------------
+  Draft: 'Bozza',
+  'Pending review': 'In revisione',
+  Scheduled: 'Programmata',
+  Private: 'Privata',
+  Trashed: 'Nel cestino',
+  'Publish, update or save a draft with the button at the top right.':
+    'Pubblica, aggiorna o salva una bozza con il pulsante in alto a destra.',
+  'Featured image': 'Immagine in evidenza',
+  'Saved with the page; shown in lists and social previews.':
+    'Si salva con la pagina; compare negli elenchi e nelle anteprime social.',
+  'Custom CSS and more options of the page come with Fresco Pro.':
+    'Il CSS personalizzato e altre opzioni della pagina arrivano con Fresco Pro.',
+  'The background covers the whole page; the padding is around the content.':
+    'Lo sfondo copre tutta la pagina; la spaziatura interna sta attorno al contenuto.',
+  // ---- Site identity -----------------------------------------------------------------------
+  'Site logo': 'Logo del sito',
+  'Site icon': 'Icona del sito',
+  'Shown in browser tabs and bookmarks: a square image, at least 512 × 512 px.':
+    'Compare nelle schede del browser e nei preferiti: un’immagine quadrata, almeno 512 × 512 px.',
+  'The logo and the site icon are set in the theme’s options:':
+    'Il logo e l’icona del sito si impostano nelle opzioni del tema:',
+  'The theme’s other images are set in its options:':
+    'Le altre immagini del tema si impostano nelle sue opzioni:',
+  'Appearance → Customize': 'Aspetto → Personalizza',
+  // ---- Sample texts of new elements --------------------------------------------------------
+  'Add your heading here': 'Aggiungi qui il tuo titolo',
+  'Click here': 'Clicca qui',
+  'List item': 'Voce dell’elenco',
+  'Cool number': 'Un bel numero',
+  'My skill': 'La mia competenza',
+  'Jane Doe': 'Maria Rossi',
+  Designer: 'Designer',
+  'This is an alert': 'Questo è un avviso',
+  'Explain what happened and what to do next.': 'Spiega cosa è successo e cosa fare adesso.',
+  'This is a title': 'Questo è un titolo',
+  'This is the heading': 'Questo è il titolo',
+  'Tell visitors what this is about, in a sentence or two.':
+    'Racconta ai visitatori di cosa si tratta, in una o due frasi.',
+  'Add your curvy text here': 'Aggiungi qui il tuo testo curvo',
+  '<p>Type your paragraph here.</p>': '<p>Scrivi qui il tuo paragrafo.</p>',
+  '<p>Write your text here. Click to edit it, or change it in the panel.</p>':
+    '<p>Scrivi qui il tuo testo. Fai clic per modificarlo, o cambialo nel pannello.</p>',
+  'A short sentence from a happy customer, about what changed for them.':
+    'Una breve frase di un cliente soddisfatto, su cosa è cambiato per lui.',
 });

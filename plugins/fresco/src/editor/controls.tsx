@@ -20,9 +20,13 @@ import type { Kit } from '../core/kit.js';
 import { FontPicker, systemGroup, type FontGroup } from './font-picker.js';
 import { extensions } from '../core/extensions.js';
 import { isMedia } from '../core/media.js';
+import { reorder } from './tree.js';
+import { formatColor, hsvaToRgba, parseColor, rgbaToHsva, toHex, type Hsva } from './color.js';
 import {
+  OPTIONAL_DEVICES,
   activeDevices,
   inheritChain,
+  type OptionalDevice,
   settingKey,
   type BoxValue,
   type Control,
@@ -286,7 +290,13 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
           label: t(o.label),
         })),
         ...(control.type !== 'animation' && control.source ? sourceOptions(control.source) : []),
-      ];
+      ].filter(
+        // A choice naming a device the site does not use (e.g. Laptop) is left out.
+        (o) =>
+          !(OPTIONAL_DEVICES as readonly string[]).includes(o.value) ||
+          typeof env.kit.breakpoints[o.value as OptionalDevice] === 'number' ||
+          o.value === value,
+      );
       return (
         <Row control={control} env={env} inline reset={reset}>
           <select
@@ -581,6 +591,18 @@ function RichText({
 
 const GLOBAL_RE = /^var\(--fr-c-([a-z0-9-]+)\)$/;
 
+/** The browser's eyedropper (Chromium), when there is one. */
+type EyeDropperCtor = new () => { open: () => Promise<{ sRGBHex: string }> };
+const eyeDropper = (): EyeDropperCtor | null =>
+  typeof window !== 'undefined'
+    ? ((window as unknown as { EyeDropper?: EyeDropperCtor }).EyeDropper ?? null)
+    : null;
+
+/**
+ * A color: the swatch opens a picker (saturation box, hue and opacity
+ * sliders, eyedropper, hex or rgba value); the globe beside it opens the
+ * site's global colors.
+ */
 export function ColorPicker({
   value,
   kit,
@@ -590,70 +612,246 @@ export function ColorPicker({
   kit: Kit;
   onChange: (v: string | undefined) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<'picker' | 'globals' | null>(null);
+  const ref = useRef<HTMLSpanElement>(null);
+  const close = useCallback(() => setOpen(null), []);
+  useClickAway(ref, open !== null, close);
   const global = GLOBAL_RE.exec(value)?.[1];
   const globalColor = global ? kit.colors.find((c) => c.id === global) : undefined;
   const shown = globalColor?.value ?? value;
-  const hex = /^#[0-9a-f]{6}$/i.test(shown) ? shown : '#000000';
   return (
-    <span className="fre-color">
+    <span ref={ref} className="fre-color">
       <button
         type="button"
-        className="fre-color__swatch"
-        style={{ background: shown || 'transparent' }}
+        className={`fre-color__swatch${open === 'picker' ? ' is-on' : ''}`}
         title={
           globalColor ? t('Global: {name}', { name: globalColor.title }) : value || t('No color')
         }
-        onClick={() => setOpen((o) => !o)}
+        aria-label={t('Pick a color')}
+        aria-expanded={open === 'picker'}
+        onClick={() => setOpen(open === 'picker' ? null : 'picker')}
       >
-        {!shown && <span className="fre-color__none" />}
+        <span style={{ background: shown || 'transparent' }}>
+          {!shown && <span className="fre-color__none" />}
+        </span>
       </button>
-      {open && (
-        <div className="fre-popover" role="dialog" aria-label={t('Color')}>
-          <div className="fre-color__row">
-            <input
-              type="color"
-              value={hex}
-              onChange={(e) => onChange(e.target.value)}
-              aria-label={t('Pick a color')}
-            />
-            <input
-              className="fre-input fre-mono"
-              value={global ? '' : value}
-              placeholder={globalColor ? globalColor.value : '#rrggbb'}
-              onChange={(e) => onChange(e.target.value.trim() || undefined)}
-              aria-label={t('Color value')}
-            />
-          </div>
+      {kit.colors.length > 0 && (
+        <button
+          type="button"
+          className={`fre-toggle${open === 'globals' ? ' is-on' : ''}${globalColor ? ' is-used' : ''}`}
+          title={t('Global colors')}
+          aria-label={t('Global colors')}
+          aria-expanded={open === 'globals'}
+          onClick={() => setOpen(open === 'globals' ? null : 'globals')}
+        >
+          <Svg path={GLOBE} size={13} />
+        </button>
+      )}
+      {open === 'picker' && (
+        <ColorPopover
+          value={shown}
+          global={globalColor?.title ?? null}
+          onChange={onChange}
+          onClose={close}
+        />
+      )}
+      {open === 'globals' && (
+        <div
+          className="fre-popover fre-popover--globals"
+          role="listbox"
+          aria-label={t('Global colors')}
+        >
           <p className="fre-popover__title">{t('Global colors')}</p>
           <div className="fre-globals">
             {kit.colors.map((color) => (
               <button
                 key={color.id}
                 type="button"
+                role="option"
+                aria-selected={global === color.id}
                 className={global === color.id ? 'is-on' : ''}
-                title={color.title}
+                title={color.value}
                 onClick={() => {
-                  onChange(`var(--fr-c-${color.id})`);
-                  setOpen(false);
+                  onChange(global === color.id ? color.value : `var(--fr-c-${color.id})`);
+                  setOpen(null);
                 }}
               >
                 <span style={{ background: color.value }} />
                 {color.title}
+                <small>{color.value}</small>
               </button>
             ))}
           </div>
-          <div className="fre-popover__actions">
-            <button type="button" onClick={() => onChange(undefined)}>
-              {t('Clear')}
-            </button>
-            <button type="button" onClick={() => setOpen(false)}>
-              {t('Done')}
-            </button>
-          </div>
+          {globalColor && <p className="fre-help">{t('Click the color in use to unlink it.')}</p>}
         </div>
       )}
     </span>
+  );
+}
+
+function ColorPopover({
+  value,
+  global,
+  onChange,
+  onClose,
+}: {
+  value: string;
+  /** The global color in use (its name), shown above the picker. */
+  global: string | null;
+  onChange: (v: string | undefined) => void;
+  onClose: () => void;
+}) {
+  // Hue and saturation are kept here: grey or black would lose them in the value.
+  const [hsva, setHsva] = useState<Hsva>(() =>
+    rgbaToHsva(parseColor(value) ?? { r: 0, g: 0, b: 0, a: 1 }),
+  );
+  const [text, setText] = useState(value);
+  const last = useRef(value);
+  useEffect(() => {
+    if (value === last.current) return;
+    last.current = value;
+    setText(value);
+    const parsed = parseColor(value);
+    if (parsed) setHsva(rgbaToHsva(parsed));
+  }, [value]);
+  const apply = (next: Hsva) => {
+    setHsva(next);
+    const color = formatColor(hsvaToRgba(next));
+    last.current = color;
+    setText(color);
+    onChange(color);
+  };
+  const rgba = hsvaToRgba(hsva);
+  const pure = toHex(hsvaToRgba({ h: hsva.h, s: 1, v: 1, a: 1 }));
+  const box = useRef<HTMLDivElement>(null);
+  const pick = (event: React.PointerEvent) => {
+    const r = box.current!.getBoundingClientRect();
+    apply({
+      ...hsva,
+      s: Math.min(1, Math.max(0, (event.clientX - r.left) / r.width)),
+      v: Math.min(1, Math.max(0, 1 - (event.clientY - r.top) / r.height)),
+    });
+  };
+  const Dropper = eyeDropper();
+  return (
+    <div className="fre-popover fre-picker" role="dialog" aria-label={t('Color')}>
+      {global && <p className="fre-popover__title">{t('Global: {name}', { name: global })}</p>}
+      <div
+        ref={box}
+        className="fre-picker__box"
+        style={{ background: pure }}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          pick(e);
+        }}
+        onPointerMove={(e) => e.buttons === 1 && pick(e)}
+        role="slider"
+        aria-label={t('Saturation and brightness')}
+        aria-valuenow={Math.round(hsva.s * 100)}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          const step = e.shiftKey ? 0.1 : 0.01;
+          const moves: Record<string, Partial<Hsva>> = {
+            ArrowLeft: { s: Math.max(0, hsva.s - step) },
+            ArrowRight: { s: Math.min(1, hsva.s + step) },
+            ArrowUp: { v: Math.min(1, hsva.v + step) },
+            ArrowDown: { v: Math.max(0, hsva.v - step) },
+          };
+          const move = moves[e.key];
+          if (!move) return;
+          e.preventDefault();
+          apply({ ...hsva, ...move });
+        }}
+      >
+        <span
+          className="fre-picker__dot"
+          style={{
+            left: `${hsva.s * 100}%`,
+            top: `${(1 - hsva.v) * 100}%`,
+            background: toHex(rgba),
+          }}
+        />
+      </div>
+      <div className="fre-picker__row">
+        {Dropper && (
+          <button
+            type="button"
+            className="fre-toggle"
+            title={t('Pick a color from the screen')}
+            aria-label={t('Pick a color from the screen')}
+            onClick={() => {
+              void new Dropper()
+                .open()
+                .then((result) => {
+                  const parsed = parseColor(result.sRGBHex);
+                  if (parsed) apply(rgbaToHsva({ ...parsed, a: hsva.a }));
+                })
+                .catch(() => {
+                  // Cancelled with Escape.
+                });
+            }}
+          >
+            <Svg path="M15 4l5 5 M13.5 5.5l5 5 M17 7l-9.5 9.5L4 20l3.5-3.5 M7 13l4 4" size={14} />
+          </button>
+        )}
+        <div className="fre-picker__sliders">
+          <input
+            type="range"
+            className="fre-picker__hue"
+            min={0}
+            max={360}
+            value={Math.round(hsva.h)}
+            aria-label={t('Hue')}
+            onChange={(e) => apply({ ...hsva, h: Number(e.target.value) })}
+          />
+          <input
+            type="range"
+            className="fre-picker__alpha"
+            min={0}
+            max={100}
+            value={Math.round(hsva.a * 100)}
+            aria-label={t('Opacity')}
+            style={{
+              ['--fre-alpha' as string]: `linear-gradient(90deg, transparent, ${toHex(rgba)})`,
+            }}
+            onChange={(e) => apply({ ...hsva, a: Number(e.target.value) / 100 })}
+          />
+        </div>
+        <span className="fre-picker__preview" aria-hidden="true">
+          <span style={{ background: formatColor(rgba) }} />
+        </span>
+      </div>
+      <div className="fre-picker__row">
+        <input
+          className="fre-input fre-mono"
+          value={text}
+          placeholder="#rrggbb / rgba()"
+          aria-label={t('Color value')}
+          spellCheck={false}
+          onChange={(e) => {
+            const next = e.target.value;
+            setText(next);
+            const parsed = parseColor(next);
+            if (parsed) {
+              setHsva(rgbaToHsva(parsed));
+              last.current = next.trim();
+              onChange(next.trim());
+            } else if (!next.trim()) onChange(undefined);
+            // Color names (`white`, `transparent`) are kept as they are.
+            else if (/^[a-z]{3,20}$/i.test(next.trim())) onChange(next.trim());
+          }}
+        />
+        <span className="fre-picker__alphavalue">{Math.round(hsva.a * 100)}%</span>
+      </div>
+      <div className="fre-popover__actions">
+        <button type="button" onClick={() => onChange(undefined)}>
+          {t('Clear')}
+        </button>
+        <button type="button" onClick={onClose}>
+          {t('Done')}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1221,40 +1419,127 @@ function FontSelect({
 
 // ---- Repeater ---------------------------------------------------------------------------------
 
+/**
+ * Reordering a list by dragging its items' handles: `listRef` goes on the
+ * list, `data-reorder` on each item. `onMove(from, to)` gets the slot before
+ * the move (as `reorder` takes it); dropping in place does nothing.
+ */
+export function useDragReorder(onMove: (from: number, to: number) => void) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
+  const start = (event: React.PointerEvent, from: number) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    let to = from;
+    setDrag({ from, to });
+    const items = () => [
+      ...(listRef.current?.querySelectorAll<HTMLElement>(':scope > [data-reorder]') ?? []),
+    ];
+    const move = (e: PointerEvent) => {
+      const rects = items().map((item) => item.getBoundingClientRect());
+      const slot = rects.findIndex((r) => e.clientY < r.top + r.height / 2);
+      to = slot === -1 ? rects.length : slot;
+      setDrag({ from, to });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('keydown', key);
+      setDrag(null);
+      if (to !== from && to !== from + 1) onMove(from, to);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      to = from;
+      up();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('keydown', key);
+  };
+  /** The classes of an item while dragging: the one dragged, and where it would land. */
+  const classOf = (index: number, count: number): string => {
+    if (!drag) return '';
+    const moves = drag.to !== drag.from && drag.to !== drag.from + 1;
+    return [
+      index === drag.from ? ' is-dragging' : '',
+      moves && drag.to === index ? ' is-drop-before' : '',
+      moves && drag.to === count && index === count - 1 ? ' is-drop-after' : '',
+    ].join('');
+  };
+  /** The handle's keys: arrow up and down move the item by one. */
+  const keyDown = (event: React.KeyboardEvent, index: number, count: number) => {
+    if (event.key === 'ArrowUp' && index > 0) onMove(index, index - 1);
+    else if (event.key === 'ArrowDown' && index < count - 1) onMove(index, index + 2);
+    else return;
+    event.preventDefault();
+  };
+  return { listRef, start, classOf, keyDown, dragging: drag !== null };
+}
+
+/** The handle of a draggable item (⠿). */
+export function DragHandle({
+  onPointerDown,
+  onKeyDown,
+  label,
+}: {
+  onPointerDown: (event: React.PointerEvent) => void;
+  onKeyDown?: (event: React.KeyboardEvent) => void;
+  label: string;
+}) {
+  return (
+    <span
+      className="fre-draghandle"
+      title={label}
+      aria-label={label}
+      role="button"
+      tabIndex={0}
+      onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
+    >
+      <Svg path="M9 5h.01 M15 5h.01 M9 12h.01 M15 12h.01 M9 19h.01 M15 19h.01" size={14} />
+    </span>
+  );
+}
+
 function Repeater({ control, env }: { control: Control; env: ControlEnv }) {
   const items = (
     Array.isArray(env.settings[control.name]) ? env.settings[control.name] : []
   ) as Settings[];
   const [open, setOpen] = useState<number | null>(null);
   const write = (next: Settings[]) => env.set({ [control.name]: next }, control.name);
+  const order = useDragReorder((from, to) => {
+    const next = reorder(items, from, to);
+    write(next);
+    // The open item stays open where it went.
+    if (open !== null) setOpen(next.indexOf(items[open]!));
+  });
   return (
     <div className="fre-control">
       <div className="fre-control__head">
         <span className="fre-control__label">{t(control.label)}</span>
       </div>
-      <div className="fre-repeater">
+      <div className={`fre-repeater${order.dragging ? ' is-sorting' : ''}`} ref={order.listRef}>
         {items.map((item, index) => (
-          <div key={String(item._id ?? index)} className="fre-repeater__item">
+          <div
+            key={String(item._id ?? index)}
+            data-reorder=""
+            className={`fre-repeater__item${order.classOf(index, items.length)}`}
+          >
             <div className="fre-repeater__head">
+              <DragHandle
+                label={t('Drag to reorder (or use the arrow keys)')}
+                onPointerDown={(e) => {
+                  if (!env.readOnly) order.start(e, index);
+                }}
+                onKeyDown={(e) => !env.readOnly && order.keyDown(e, index, items.length)}
+              />
               <button
                 type="button"
                 className="fre-repeater__title"
                 onClick={() => setOpen(open === index ? null : index)}
               >
                 {String(item[control.itemTitle ?? ''] ?? '') || t('Item {n}', { n: index + 1 })}
-              </button>
-              <button
-                type="button"
-                className="fre-iconbtn"
-                title={t('Move up')}
-                disabled={index === 0}
-                onClick={() => {
-                  const next = [...items];
-                  [next[index - 1], next[index]] = [next[index]!, next[index - 1]!];
-                  write(next);
-                }}
-              >
-                <Svg path="M12 19V5 M6 11l6-6 6 6" size={12} />
               </button>
               <button
                 type="button"

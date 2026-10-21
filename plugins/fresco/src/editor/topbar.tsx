@@ -26,6 +26,8 @@ export const ICONS = {
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01',
   entry: 'M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6',
   theme: 'M4 4h16v5H4z M4 11h7v9H4z M13 11h7v9h-7z',
+  finder: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3',
+  external: 'M14 4h6v6 M20 4l-9 9 M18 14v6H4V6h6',
 } as const;
 
 export interface TopBarProps {
@@ -37,6 +39,10 @@ export interface TopBarProps {
   themeBuilderUrl: string | null;
   openSettings: () => void;
   saveAsTemplate: () => void;
+  /** Opens the Finder (Ctrl+E). */
+  openFinder: () => void;
+  /** The page's public address once it is published, for "View page". */
+  viewUrl: string | null;
 }
 
 export function TopBar({
@@ -46,6 +52,8 @@ export function TopBar({
   themeBuilderUrl,
   openSettings,
   saveAsTemplate,
+  openFinder,
+  viewUrl,
 }: TopBarProps) {
   const { t } = useT();
   const view = useStore(store, (s) => s.view);
@@ -167,6 +175,15 @@ export function TopBar({
         <button
           type="button"
           className="fre-bar__btn"
+          title={t('Finder (Ctrl+E)')}
+          aria-label={t('Finder')}
+          onClick={openFinder}
+        >
+          <Svg path={ICONS.finder} size={18} />
+        </button>
+        <button
+          type="button"
+          className="fre-bar__btn"
           title={t('Undo (Ctrl+Z)')}
           aria-label={t('Undo')}
           disabled={!store.canUndo()}
@@ -234,6 +251,9 @@ export function TopBar({
               )}
               <MenuItem label={t('Save as template')} onClick={saveAsTemplate} />
               <MenuItem label={t('Preview changes')} onClick={() => void host.preview()} />
+              {viewUrl && (
+                <MenuItem icon={ICONS.external} label={t('View page')} href={viewUrl} external />
+              )}
               <MenuItem label={t('Entry settings')} onClick={openSettings} />
             </Dropdown>
           )}

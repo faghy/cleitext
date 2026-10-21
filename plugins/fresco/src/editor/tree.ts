@@ -133,3 +133,16 @@ export function walk(tree: Tree, fn: (node: FrescoNode, depth: number) => void, 
     if (node.children) walk(node.children, fn, depth + 1);
   }
 }
+
+/**
+ * A list with one item moved: `to` is the slot before the move (0 is before
+ * the first item, `items.length` after the last), as a drop line shows it.
+ */
+export function reorder<T>(items: readonly T[], from: number, to: number): T[] {
+  const next = [...items];
+  if (from < 0 || from >= next.length) return next;
+  const slot = Math.max(0, Math.min(to, next.length));
+  const [item] = next.splice(from, 1);
+  next.splice(slot > from ? slot - 1 : slot, 0, item as T);
+  return next;
+}

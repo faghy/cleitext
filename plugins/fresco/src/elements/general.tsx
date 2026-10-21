@@ -1,4 +1,5 @@
 /** General widgets: Icon, Video, Icon box, Image box. */
+import { uiText } from '../core/ui-text.js';
 import { advancedControls, ElementRoot, OTHER_DEVICES } from '../core/common.js';
 import {
   ALIGN,
@@ -265,7 +266,7 @@ export const video: ElementDefinition = {
             type="button"
             className="fr-video__overlay"
             data-fr-video={embed}
-            aria-label="Play video"
+            aria-label={uiText(context.locale, 'Play video')}
           >
             <FrImage value={poster} context={context} size="large" />
             <span className="fr-video__play" aria-hidden="true" />

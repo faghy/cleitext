@@ -1,14 +1,53 @@
 /**
  * Finder (Ctrl+E): one search box for the elements of the page, the
- * elements to add, the editor's panels and actions. And the keyboard
- * shortcuts window (Shift+?).
+ * elements to add, the site's other pages and posts, the editor's panels
+ * and actions. And the keyboard shortcuts window (Shift+?).
  */
-import { useT, type EditorHost } from '@cleitext/admin-sdk';
+import { api as coreApi, useT, type EditorHost } from '@cleitext/admin-sdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FrescoNode } from '../core/model.js';
 import { getElement, listElements } from '../core/registry.js';
 import { Svg } from './controls.js';
+import { confirmAction } from './dialogs.js';
 import type { Store } from './store.js';
+
+const PAGE_ICON = 'M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6';
+
+interface FoundEntry {
+  id: string;
+  type: string;
+  title: string;
+  status: string;
+}
+
+/** The site's pages and posts matching a search (the most recently changed when empty). */
+function useEntries(query: string, locale: string, exclude: string): FoundEntry[] {
+  const [found, setFound] = useState<FoundEntry[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const q = query.trim();
+      const search = (type: string) =>
+        coreApi<{ items: FoundEntry[] }>(
+          'GET',
+          `/entries?type=${type}&locale=${encodeURIComponent(locale)}&limit=${q ? 8 : 4}${
+            q ? `&q=${encodeURIComponent(q)}` : ''
+          }`,
+        )
+          .then((list) => list.items)
+          .catch(() => [] as FoundEntry[]);
+      void Promise.all([search('page'), search('article')]).then(([pages, posts]) => {
+        if (!cancelled)
+          setFound([...pages, ...posts].filter((e) => e.id !== exclude && e.status !== 'trashed'));
+      });
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, locale, exclude]);
+  return found;
+}
 
 interface Result {
   group: string;
@@ -19,6 +58,12 @@ interface Result {
 }
 
 const ACTION_ICON = 'M5 12h14 M13 6l6 6-6 6';
+
+/** Groups in a stable order: this page, pages, elements to add, actions. */
+function groupOrder(a: Result, b: Result, t: (s: string) => string): number {
+  const order = [t('On this page'), t('Pages'), t('Add element'), t('Actions')];
+  return order.indexOf(a.group) - order.indexOf(b.group);
+}
 
 function flatten(nodes: FrescoNode[], out: FrescoNode[] = []): FrescoNode[] {
   for (const node of nodes) {
@@ -32,15 +77,20 @@ export function Finder({
   store,
   host,
   onClose,
+  navigate,
 }: {
   store: Store;
   host: EditorHost;
   onClose: () => void;
+  /** Opens an admin address (another entry: in Fresco when it is a Fresco page). */
+  navigate: (to: string) => void;
 }) {
   const { t } = useT();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const entry = store.get().entry;
+  const entries = useEntries(query, entry.locale, entry.id);
 
   const results = useMemo<Result[]>(() => {
     const q = query.trim().toLowerCase();
@@ -72,6 +122,22 @@ export function Finder({
       icon: getElement(node.type)?.icon ?? ACTION_ICON,
       run: () => store.actions.select(node.id),
     }));
+    // Other pages: they open in their own editor (Fresco pages in Fresco).
+    const pages: Result[] = entries.map((found) => ({
+      group: t('Pages'),
+      title: found.title || t('(no title)'),
+      hint: `${found.type === 'page' ? t('Page') : t('Post')} · ${t(found.status)}`,
+      icon: PAGE_ICON,
+      run: () => {
+        const open = () => navigate(`/entries/${found.id}`);
+        if (!host.dirty) return open();
+        void confirmAction({
+          title: t('Open “{title}”?', { title: found.title || t('(no title)') }),
+          text: t('The changes to this page that are not saved yet will be lost.'),
+          action: t('Open'),
+        }).then((ok) => ok && open());
+      },
+    }));
     const toAdd: Result[] = listElements()
       .filter((e) => !e.hidden)
       .map((element) => ({
@@ -84,10 +150,14 @@ export function Finder({
           store.actions.add(element.type, { parent: null, index: state.blocks.length });
         },
       }));
-    return [...onPage, ...toAdd, ...actions]
-      .filter((r) => has(r.title, r.hint ?? ''))
-      .slice(0, q ? 60 : 30);
-  }, [query, store, host, t]);
+    // The pages are already searched by the server.
+    return [
+      ...[...onPage, ...toAdd, ...actions].filter((r) => has(r.title, r.hint ?? '')),
+      ...pages,
+    ]
+      .sort((a, b) => groupOrder(a, b, t))
+      .slice(0, q ? 70 : 40);
+  }, [query, store, host, t, entries, navigate]);
 
   useEffect(() => setActive(0), [query]);
   useEffect(() => {

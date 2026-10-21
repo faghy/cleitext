@@ -18,15 +18,21 @@ export interface EditorState {
   blocks: FrescoNode[];
   /** Page settings (document.editor.data). */
   page: Settings;
+  /** The primary selection: the element the panel edits (the last one clicked). */
   selected: string | null;
+  /**
+   * Every selected element (⌘/Ctrl-click adds and removes), the primary last.
+   * Delete, Duplicate and Copy act on all of them.
+   */
+  selection: string[];
   hovered: string | null;
   device: Device;
   view: PanelView;
   tab: Tab;
   kit: Kit;
   kitDirty: boolean;
-  /** Copied element (in this tab; also in localStorage for other pages). */
-  clipboard: FrescoNode | null;
+  /** Copied elements (in this tab; also in localStorage for other pages). */
+  clipboard: FrescoNode[] | null;
   readOnly: boolean;
   /** Content only (role manager of Fresco Pro): texts and media, no structure or style. */
   contentOnly: boolean;
@@ -38,6 +44,8 @@ export interface EditorState {
   adding: { index: number; step: 'flex' | 'grid' | 'choose' } | null;
   /** The floating Structure window is open. */
   navigator: boolean;
+  /** The Structure window is docked to the right edge (the canvas makes room). */
+  navigatorDocked: boolean;
   /** Elements hidden in the editor only (the eye of the Structure window). */
   hidden: Record<string, true>;
 }
@@ -69,6 +77,47 @@ export interface StepLabel {
 
 const HISTORY = 100;
 
+const CLIPBOARD_KEY = 'fresco:clipboard';
+const DOCK_KEY = 'fresco:navigator-docked';
+
+/** The copied elements: one (as older versions stored it) or several. */
+export function readClipboard(raw: unknown): FrescoNode[] | null {
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const nodes = list.filter(
+    (node): node is FrescoNode =>
+      !!node &&
+      typeof node === 'object' &&
+      typeof (node as FrescoNode).id === 'string' &&
+      typeof (node as FrescoNode).type === 'string',
+  );
+  return nodes.length ? nodes : null;
+}
+
+/**
+ * The selected elements that are not inside another selected one, in the
+ * order of the page (acting on a container already acts on its children).
+ */
+export function topmost(blocks: FrescoNode[], ids: readonly string[]): string[] {
+  const wanted = new Set(ids);
+  const out: string[] = [];
+  const visit = (nodes: FrescoNode[]) => {
+    for (const node of nodes) {
+      if (wanted.has(node.id)) out.push(node.id);
+      else if (node.children) visit(node.children);
+    }
+  };
+  visit(blocks);
+  return out;
+}
+
+function storedDock(): boolean {
+  try {
+    return localStorage.getItem(DOCK_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function createStore(initial: {
   blocks: FrescoNode[];
   page: Settings;
@@ -80,6 +129,7 @@ export function createStore(initial: {
     blocks: initial.blocks,
     page: initial.page,
     selected: null,
+    selection: [],
     hovered: null,
     device: 'desktop',
     view: 'elements',
@@ -93,6 +143,7 @@ export function createStore(initial: {
     entry: initial.entry ?? { id: '', type: 'page', locale: 'en' },
     adding: null,
     navigator: false,
+    navigatorDocked: storedDock(),
     hidden: {},
   };
   const past: Snapshot[] = [];
@@ -119,7 +170,7 @@ export function createStore(initial: {
   };
   /** A change of the page: recorded for undo, then reported. */
   const change = (
-    patch: Partial<Pick<EditorState, 'blocks' | 'page' | 'selected'>>,
+    patch: Partial<Pick<EditorState, 'blocks' | 'page' | 'selected' | 'selection'>>,
     merge?: string,
   ) => {
     if (state.readOnly) return;
@@ -139,12 +190,38 @@ export function createStore(initial: {
     futureLabels.length = 0;
     lastMerge = merge !== undefined ? { key: merge, at: now } : null;
     future.length = 0;
-    set(patch);
+    // A new primary selection alone replaces the others; ids no longer there leave it.
+    const blocks = patch.blocks ?? state.blocks;
+    let selected = patch.selected !== undefined ? patch.selected : state.selected;
+    if (selected && !tree.find(blocks, selected)) selected = null;
+    const selection = (
+      patch.selection ??
+      (patch.selected !== undefined && patch.selected !== state.selected
+        ? selected
+          ? [selected]
+          : []
+        : state.selection)
+    ).filter((id) => tree.find(blocks, id));
+    set({ ...patch, selected, selection });
     for (const listener of changeListeners) listener(state);
   };
   const restore = (snapshot: Snapshot) => {
-    set({ blocks: snapshot.blocks, page: snapshot.page, selected: snapshot.selected });
+    set({
+      blocks: snapshot.blocks,
+      page: snapshot.page,
+      selected: snapshot.selected,
+      selection: snapshot.selected ? [snapshot.selected] : [],
+    });
     for (const listener of changeListeners) listener(state);
+  };
+  /** The copied elements, also for other pages (one is stored alone, as before). */
+  const writeClipboard = (nodes: FrescoNode[]) => {
+    set({ clipboard: nodes });
+    try {
+      localStorage.setItem(CLIPBOARD_KEY, JSON.stringify(nodes.length === 1 ? nodes[0] : nodes));
+    } catch {
+      // Private windows: the copy stays in this page.
+    }
   };
 
   const actions = {
@@ -153,7 +230,12 @@ export function createStore(initial: {
       set({ adding });
     },
     select(id: string | null) {
-      if (id === state.selected && state.view === (id ? 'element' : state.view)) return;
+      if (
+        id === state.selected &&
+        state.selection.length === (id ? 1 : 0) &&
+        state.view === (id ? 'element' : state.view)
+      )
+        return;
       // Inside tabs or an accordion, the item holding the element is shown.
       let active = state.active;
       if (id) {
@@ -169,9 +251,28 @@ export function createStore(initial: {
       }
       set({
         selected: id,
+        selection: id ? [id] : [],
         active,
         view: id ? 'element' : state.view === 'element' ? 'elements' : state.view,
       });
+    },
+    /**
+     * ⌘/Ctrl-click: adds an element to the selection (it becomes the one the
+     * panel edits), or takes it out.
+     */
+    toggleSelect(id: string) {
+      if (!tree.find(state.blocks, id)) return;
+      if (state.selection.includes(id)) {
+        const selection = state.selection.filter((s) => s !== id);
+        const selected = selection.at(-1) ?? null;
+        set({
+          selection,
+          selected,
+          view: selected ? 'element' : state.view === 'element' ? 'elements' : state.view,
+        });
+        return;
+      }
+      set({ selection: [...state.selection, id], selected: id, view: 'element' });
     },
     setActive(id: string, index: number) {
       set({ active: { ...state.active, [id]: index } });
@@ -201,6 +302,15 @@ export function createStore(initial: {
     toggleNavigator(open?: boolean) {
       set({ navigator: open ?? !state.navigator });
     },
+    /** Docks the Structure window to the right edge, or lets it float again (remembered). */
+    setNavigatorDocked(docked: boolean) {
+      set({ navigatorDocked: docked });
+      try {
+        localStorage.setItem(DOCK_KEY, docked ? '1' : '0');
+      } catch {
+        // Private mode: kept until the page closes.
+      }
+    },
     toggleHidden(id: string) {
       const hidden = { ...state.hidden };
       if (hidden[id]) delete hidden[id];
@@ -217,14 +327,15 @@ export function createStore(initial: {
       label('edit', typeOf(id));
       change({ blocks: tree.setSettings(state.blocks, id, changes) }, merge && `${id}:${merge}`);
     },
-    setPage(changes: Settings) {
+    /** Changes page settings; several edits of the same one in a row (`merge`) are one undo step. */
+    setPage(changes: Settings, merge?: string) {
       const page = { ...state.page };
       for (const [key, value] of Object.entries(changes)) {
         if (value === undefined || value === null || value === '') delete page[key];
         else page[key] = value;
       }
       label('page');
-      change({ page });
+      change({ page }, merge && `page:${merge}`);
     },
     /** Adds a new element of a type; widgets dropped at the top get a container. */
     add(type: string, place: tree.Place): string | null {
@@ -279,49 +390,89 @@ export function createStore(initial: {
       });
       if (state.view === 'element' && !state.selected) set({ view: 'elements' });
     },
+    /** Removes several elements in one step (the selection). */
+    removeMany(ids: readonly string[]) {
+      if (state.contentOnly) return;
+      const list = topmost(state.blocks, ids);
+      if (list.length === 0) return;
+      if (list.length === 1) return actions.remove(list[0]!);
+      label('remove', typeOf(list[0]!));
+      let blocks = state.blocks;
+      for (const id of list) blocks = tree.remove(blocks, id);
+      change({ blocks, selected: null, selection: [] });
+      if (state.view === 'element') set({ view: 'elements' });
+    },
     duplicate(id: string) {
       if (state.contentOnly) return;
       label('duplicate', typeOf(id));
       const result = tree.duplicate(state.blocks, id);
       if (result.id) change({ blocks: result.tree, selected: result.id });
     },
+    /** Duplicates several elements in one step; the copies become the selection. */
+    duplicateMany(ids: readonly string[]) {
+      if (state.contentOnly) return;
+      const list = topmost(state.blocks, ids);
+      if (list.length === 0) return;
+      if (list.length === 1) return actions.duplicate(list[0]!);
+      label('duplicate', typeOf(list[0]!));
+      let blocks = state.blocks;
+      const copies: string[] = [];
+      for (const id of list) {
+        const result = tree.duplicate(blocks, id);
+        blocks = result.tree;
+        if (result.id) copies.push(result.id);
+      }
+      change({ blocks, selected: copies.at(-1) ?? null, selection: copies });
+    },
     copy(id: string) {
       const node = tree.find(state.blocks, id);
-      if (!node) return;
-      set({ clipboard: node });
-      try {
-        localStorage.setItem('fresco:clipboard', JSON.stringify(node));
-      } catch {
-        // Private windows: the copy stays in this page.
-      }
+      if (node) writeClipboard([node]);
+    },
+    /** Copies several elements (the selection, or the whole page), in the page's order. */
+    copyMany(ids: readonly string[]) {
+      const nodes = topmost(state.blocks, ids)
+        .map((id) => tree.find(state.blocks, id))
+        .filter((node): node is FrescoNode => !!node);
+      if (nodes.length) writeClipboard(nodes);
     },
     /** Pastes after an element (or at the end of the page). */
     paste(after: string | null) {
       if (state.contentOnly) return;
-      let node = state.clipboard;
+      let nodes = state.clipboard;
       try {
-        const stored = localStorage.getItem('fresco:clipboard');
-        if (stored) node = JSON.parse(stored) as FrescoNode;
+        const stored = localStorage.getItem(CLIPBOARD_KEY);
+        if (stored) nodes = readClipboard(JSON.parse(stored)) ?? nodes;
       } catch {
         // Keep the in-page copy.
       }
-      if (!node || !getElement(node.type)) return;
-      const copy = tree.cloneWithNewIds(node);
-      label('paste', copy.type);
+      const copies = (nodes ?? [])
+        .filter((node) => getElement(node.type))
+        .map((node) => tree.cloneWithNewIds(node));
+      if (copies.length === 0) return;
+      label('paste', copies[0]!.type);
       const place = after ? tree.placeOf(state.blocks, after) : null;
-      const target = place
+      let target = place
         ? { parent: place.parent, index: place.index + 1 }
-        : { parent: null, index: state.blocks.length };
-      if (target.parent === null && !getElement(copy.type)?.container) {
-        const wrapper = create('fresco/container')!;
-        wrapper.children = [copy];
-        change({ blocks: tree.insert(state.blocks, wrapper, target), selected: copy.id });
-      } else change({ blocks: tree.insert(state.blocks, copy, target), selected: copy.id });
+        : { parent: null as string | null, index: state.blocks.length };
+      let blocks = state.blocks;
+      const pasted: string[] = [];
+      for (const copy of copies) {
+        // A widget pasted at the top level gets a container.
+        let node = copy;
+        if (target.parent === null && !getElement(copy.type)?.container) {
+          node = create('fresco/container')!;
+          node.children = [copy];
+        }
+        blocks = tree.insert(blocks, node, target);
+        pasted.push(copy.id);
+        target = { parent: target.parent, index: target.index + 1 };
+      }
+      change({ blocks, selected: pasted.at(-1) ?? null, selection: pasted });
     },
     /** Applies the copied element's style (not its content) to another of the same type. */
     pasteStyle(id: string) {
       if (state.contentOnly) return;
-      const source = state.clipboard;
+      const source = state.clipboard?.[0];
       const target = tree.find(state.blocks, id);
       const definition = target && getElement(target.type);
       if (!source || !target || !definition || source.type !== target.type) return;
@@ -404,6 +555,66 @@ export function createStore(initial: {
 
 export type Store = ReturnType<typeof createStore>;
 
+/** Translates the sample texts of new elements into the editor's language. */
+let translateText: ((text: string) => string) | null = null;
+
+/** Set by the editor: new elements get their sample texts in its language. */
+export function setTextTranslator(fn: ((text: string) => string) | null): void {
+  translateText = fn;
+}
+
+const TEXT_CONTROLS = new Set(['text', 'textarea', 'richtext']);
+
+/**
+ * The sample texts of a new element in the editor's language: the defaults
+ * of its content texts (and of its list items) are stored translated, so the
+ * page shows what the editor showed. In English nothing is stored.
+ */
+function localizeDefaults(node: FrescoNode): FrescoNode {
+  const translate = translateText;
+  const definition = getElement(node.type);
+  if (!translate || !definition) return node;
+  const attrs = { ...node.attrs };
+  const local = (value: unknown): string | null => {
+    if (typeof value !== 'string' || !value.trim()) return null;
+    const translated = translate(value);
+    return translated && translated !== value ? translated : null;
+  };
+  // Items of tabs and accordions: "Tab 1" → "Scheda 1".
+  const numbered = typeof attrs._title === 'string' ? /^(.+?) (\d+)$/.exec(attrs._title) : null;
+  if (numbered) {
+    const word = local(numbered[1]);
+    if (word !== null) attrs._title = `${word} ${numbered[2]}`;
+  }
+  for (const control of definition.controls) {
+    if (control.tab !== 'content' || attrs[control.name] !== undefined) continue;
+    if (TEXT_CONTROLS.has(control.type)) {
+      const value = local(control.default);
+      if (value !== null) attrs[control.name] = value;
+    } else if (control.type === 'repeater' && Array.isArray(control.default)) {
+      let changed = false;
+      const items = (control.default as Settings[]).map((item) => {
+        const next = { ...item };
+        for (const field of control.fields ?? []) {
+          if (!TEXT_CONTROLS.has(field.type)) continue;
+          const value = local(item[field.name] ?? field.default);
+          if (value !== null) {
+            next[field.name] = value;
+            changed = true;
+          }
+        }
+        return next;
+      });
+      if (changed) attrs[control.name] = structuredClone(items);
+    }
+  }
+  return {
+    ...node,
+    attrs,
+    ...(node.children ? { children: node.children.map(localizeDefaults) } : {}),
+  };
+}
+
 /** A new element of a type, with what its definition creates (children of tabs…). */
 export function create(type: string): FrescoNode | null {
   const definition = getElement(type);
@@ -416,8 +627,14 @@ export function create(type: string): FrescoNode | null {
     attrs: structuredClone(node.attrs),
     ...(node.children ? { children: node.children.map((child) => withIds(child)) } : {}),
   });
-  if (made) return withIds(made);
-  return { id: newId(), type, v: 1, attrs: {}, ...(definition.container ? { children: [] } : {}) };
+  if (made) return localizeDefaults(withIds(made));
+  return localizeDefaults({
+    id: newId(),
+    type,
+    v: 1,
+    attrs: {},
+    ...(definition.container ? { children: [] } : {}),
+  });
 }
 
 export function useStore<T>(store: Store, selector: (state: EditorState) => T): T {

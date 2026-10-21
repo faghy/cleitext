@@ -2,7 +2,8 @@
  * The Structure window: the page as a tree, floating over the canvas. Rows
  * select and outline their element, drag to move it (before, after or
  * inside a container), rename with a double click and hide in the editor
- * with the eye.
+ * with the eye. It can be docked to the right edge (the canvas makes room)
+ * and floated again; the choice is remembered.
  */
 import { useT } from '@cleitext/admin-sdk';
 import { useEffect, useRef, useState } from 'react';
@@ -57,6 +58,8 @@ export function NavigatorWindow({ store }: { store: Store }) {
   const open = useStore(store, (s) => s.navigator);
   const blocks = useStore(store, (s) => s.blocks);
   const selected = useStore(store, (s) => s.selected);
+  const selection = useStore(store, (s) => s.selection);
+  const docked = useStore(store, (s) => s.navigatorDocked);
   const hidden = useStore(store, (s) => s.hidden);
   const locale = useStore(store, (s) => s.entry.locale);
   const readOnly = useStore(store, (s) => s.readOnly || s.contentOnly);
@@ -85,14 +88,22 @@ export function NavigatorWindow({ store }: { store: Store }) {
 
   if (!open) return null;
 
-  /** Moves the window by its header, or resizes it by its corner. */
-  const track = (event: React.PointerEvent, mode: 'move' | 'resize') => {
+  /**
+   * Moves the window by its header (dropped on the right edge, it docks), or
+   * resizes it by its corner; docked, its left edge sets the width.
+   */
+  const track = (event: React.PointerEvent, mode: 'move' | 'resize' | 'dock') => {
     if (event.button !== 0) return;
     event.preventDefault();
     const start = { x: event.clientX, y: event.clientY, frame };
+    const root = (event.currentTarget as HTMLElement).closest('.fre-root');
+    // The canvas iframe would swallow the pointer while dragging.
+    root?.classList.add('is-resizing-panel');
+    let atEdge = false;
     const onMove = (e: PointerEvent) => {
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
+      atEdge = mode === 'move' && e.clientX >= window.innerWidth - 12;
       setFrame(
         mode === 'move'
           ? {
@@ -100,16 +111,24 @@ export function NavigatorWindow({ store }: { store: Store }) {
               x: Math.min(Math.max(0, start.frame.x + dx), window.innerWidth - 120),
               y: Math.min(Math.max(48, start.frame.y + dy), window.innerHeight - 60),
             }
-          : {
-              ...start.frame,
-              width: Math.max(200, start.frame.width + dx),
-              height: Math.max(180, start.frame.height + dy),
-            },
+          : mode === 'dock'
+            ? { ...start.frame, width: Math.min(520, Math.max(200, start.frame.width - dx)) }
+            : {
+                ...start.frame,
+                width: Math.max(200, start.frame.width + dx),
+                height: Math.max(180, start.frame.height + dy),
+              },
       );
     };
     const onUp = () => {
+      root?.classList.remove('is-resizing-panel');
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      if (atEdge) {
+        // Back where it was when floated again.
+        setFrame(start.frame);
+        store.actions.setNavigatorDocked(true);
+      }
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -117,7 +136,16 @@ export function NavigatorWindow({ store }: { store: Store }) {
 
   /** Drags a row: before, after or inside (containers) the row under the pointer. */
   const startRowDrag = (event: React.PointerEvent, id: string) => {
-    if (event.button !== 0 || readOnly) return;
+    if (event.button !== 0) return;
+    // ⌘/Ctrl-click adds the element to the selection, or takes it out.
+    if (event.metaKey || event.ctrlKey) {
+      store.actions.toggleSelect(id);
+      return;
+    }
+    if (readOnly) {
+      store.actions.select(id);
+      return;
+    }
     const startY = event.clientY;
     let started = false;
     let target: Drop | null = null;
@@ -182,7 +210,7 @@ export function NavigatorWindow({ store }: { store: Store }) {
           data-nav-id={node.id}
           className={[
             'fre-navw__row',
-            selected === node.id ? 'is-on' : '',
+            selected === node.id || selection.includes(node.id) ? 'is-on' : '',
             isHidden ? 'is-hidden' : '',
             dragging === node.id ? 'is-dragging' : '',
             dropHere ? `is-drop-${dropHere}` : '',
@@ -274,12 +302,29 @@ export function NavigatorWindow({ store }: { store: Store }) {
 
   return (
     <div
-      className="fre-navw"
-      role="dialog"
+      className={`fre-navw${docked ? ' fre-navw--docked' : ''}`}
+      role={docked ? 'complementary' : 'dialog'}
       aria-label={t('Structure')}
-      style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }}
+      style={
+        docked
+          ? { width: frame.width, flexBasis: frame.width }
+          : { left: frame.x, top: frame.y, width: frame.width, height: frame.height }
+      }
     >
-      <div className="fre-navw__head" onPointerDown={(e) => track(e, 'move')}>
+      {docked && (
+        <div
+          className="fre-navw__edge"
+          onPointerDown={(e) => track(e, 'dock')}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('Structure width')}
+        />
+      )}
+      <div
+        className="fre-navw__head"
+        onPointerDown={(e) => !docked && track(e, 'move')}
+        title={docked ? undefined : t('Drag to move; drop on the right edge to dock')}
+      >
         <button
           type="button"
           className="fre-navw__btn"
@@ -291,6 +336,17 @@ export function NavigatorWindow({ store }: { store: Store }) {
           <Svg path={allOpen ? 'M7 15l5-5 5 5' : 'M7 9l5 5 5-5'} size={14} />
         </button>
         <span>{t('Structure')}</span>
+        <button
+          type="button"
+          className={`fre-navw__btn${docked ? ' is-on' : ''}`}
+          title={docked ? t('Undock') : t('Dock to the right')}
+          aria-label={docked ? t('Undock') : t('Dock to the right')}
+          aria-pressed={docked}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => store.actions.setNavigatorDocked(!docked)}
+        >
+          <Svg path={docked ? 'M4 4h16v16H4z M9 9h6v6H9z' : 'M4 4h16v16H4z M15 4v16'} size={14} />
+        </button>
         <button
           type="button"
           className="fre-navw__btn"
@@ -309,11 +365,13 @@ export function NavigatorWindow({ store }: { store: Store }) {
           <ul>{blocks.map((node) => row(node, 0))}</ul>
         )}
       </div>
-      <div
-        className="fre-navw__foot"
-        onPointerDown={(e) => track(e, 'resize')}
-        aria-hidden="true"
-      />
+      {!docked && (
+        <div
+          className="fre-navw__foot"
+          onPointerDown={(e) => track(e, 'resize')}
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }

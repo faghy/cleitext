@@ -16,7 +16,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { documentCss, withDefaults } from '../core/css.js';
-import { googleFontsUrl, kitCss, usedGoogleFonts } from '../core/kit.js';
+import { googleFontsUrl, kitCss, safeSelector, usedGoogleFonts } from '../core/kit.js';
+import { pageCss } from '../core/page-css.js';
 import {
   activeDevices,
   deviceRange,
@@ -29,11 +30,11 @@ import {
 } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import { plainText, sanitizeRich } from '../core/sanitize.js';
-import { dropTarget, trackPointer, type DropTarget } from './dnd.js';
+import { dropTarget, trackPointer, type Anchor, type DropTarget } from './dnd.js';
 import { PluginBlockPreview } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
 import { buildStructure, FLEX_PRESETS, GRID_PRESETS, type Preset } from './structures.js';
-import { find, placeOf } from './tree.js';
+import { find, placeOf, type Place } from './tree.js';
 import { t } from '@cleitext/admin-sdk';
 import { askText } from './dialogs.js';
 
@@ -72,6 +73,15 @@ const FRAME_STYLE = `
 .fr-empty:hover::after{background:#c2410c;color:#fff}
 .fre-overlay{position:absolute;left:0;top:0;width:0;height:0;z-index:2147483000;font:13px/1 system-ui,sans-serif}
 .fre-outline{position:absolute;pointer-events:none;outline-offset:-1px}
+.fre-placeholder{box-sizing:border-box;flex:0 0 auto;align-self:stretch;border:2px dashed #c2410c;border-radius:3px;background:rgba(194,65,12,.07);pointer-events:none;overflow:hidden}
+.fre-placeholder--column{width:100%;height:56px;animation:fre-open-v .18s ease-out}
+.fre-placeholder--row{width:72px;min-height:48px;animation:fre-open-h .18s ease-out}
+.fre-placeholder.is-leaving{animation:none;transition:height .15s ease-in,width .15s ease-in,opacity .15s;opacity:0}
+.fre-placeholder--column.is-leaving{height:0;border-width:0}
+.fre-placeholder--row.is-leaving{width:0;border-width:0}
+@keyframes fre-open-v{from{height:0;opacity:0}}
+@keyframes fre-open-h{from{width:0;opacity:0}}
+.fre-drag-source{opacity:.35}
 .fre-dropline{position:absolute;background:#c2410c;border-radius:3px;box-shadow:0 0 0 2px rgba(255,255,255,.8);pointer-events:none;animation:fre-grow .15s ease-out}
 @keyframes fre-grow{from{opacity:.2;transform:scale(.6)}}
 .fre-handle{position:absolute;display:flex;align-items:stretch;height:24px;color:#fff;pointer-events:auto;user-select:none;white-space:nowrap}
@@ -400,6 +410,12 @@ function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) 
   // The fonts the page uses, as on the site (the list changes rarely: the address is stable).
   const fonts = googleFontsUrl(kit, usedGoogleFonts(css + kitStyle).slice(0, 20));
   const hidden = useStore(store, (s) => s.hidden);
+  // The page settings (background, padding, title, layout), live.
+  const page = useStore(store, (s) => s.page);
+  const pageStyle = pageCss(page, {
+    titleSelector: safeSelector(kit.titleSelector),
+    breakpoints: kit.breakpoints,
+  });
   const hiddenCss = Object.keys(hidden)
     .map((id) => `[data-fr-id="${CSS.escape(id)}"]{display:none!important}`)
     .join('');
@@ -409,6 +425,7 @@ function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) 
       {fonts && <link rel="stylesheet" href={fonts} />}
       <style>{kitStyle}</style>
       <style>{css}</style>
+      {pageStyle && <style>{pageStyle}</style>}
       <style>{FRAME_STYLE}</style>
       {hiddenCss && <style>{hiddenCss}</style>}
     </>
@@ -519,6 +536,11 @@ function FrameTree({
     if (!element) return;
     // Links and buttons of the page do nothing while editing.
     event.preventDefault();
+    // ⌘/Ctrl-click adds the element to the selection, or takes it out.
+    if (event.metaKey || event.ctrlKey) {
+      store.actions.toggleSelect(element.dataset.frId!);
+      return;
+    }
     // Titles of tabs and accordions switch the item shown.
     const tab = target.closest<HTMLElement>('[data-fr-tab]');
     if (tab && element.contains(tab)) {
@@ -538,6 +560,7 @@ function FrameTree({
         const target = event.target as Element;
         if (target.closest('[contenteditable]')) return;
         event.preventDefault();
+        if (event.metaKey || event.ctrlKey) return;
         // Texts are edited where they are, with one click (as in other builders).
         const field = target.closest<HTMLElement>('[data-fr-inline]');
         const element = elementAt(event.target);
@@ -558,7 +581,9 @@ function FrameTree({
         event.preventDefault();
         const rect = frame.current!.getBoundingClientRect();
         // On an element its menu; elsewhere the page's (paste, delete all).
-        if (element) store.actions.select(element.dataset.frId!);
+        // A right click inside the selection keeps it, for actions on all of it.
+        if (element && !store.get().selection.includes(element.dataset.frId!))
+          store.actions.select(element.dataset.frId!);
         onContextMenu(element?.dataset.frId ?? '', {
           x: rect.left + event.clientX,
           y: rect.top + event.clientY,
@@ -724,6 +749,7 @@ function Overlay({
   frame: React.RefObject<HTMLIFrameElement | null>;
 }) {
   const selected = useStore(store, (s) => s.selected);
+  const selection = useStore(store, (s) => s.selection);
   const hovered = useStore(store, (s) => s.hovered);
   const blocks = useStore(store, (s) => s.blocks);
   const readOnly = useStore(store, (s) => s.readOnly);
@@ -751,7 +777,9 @@ function Overlay({
   // What gets an outline and a handle: the element under the pointer and its section, and the selection.
   const ids = [
     ...new Set(
-      [selected, shown, shown ? sectionOf(blocks, shown) : null].filter((id): id is string => !!id),
+      [...selection, selected, shown, shown ? sectionOf(blocks, shown) : null].filter(
+        (id): id is string => !!id,
+      ),
     ),
   ];
   const boxes = useBoxes(doc, ids, blocks);
@@ -784,7 +812,10 @@ function Overlay({
         const node = find(blocks, id);
         if (!box || !node) return null;
         const kind = kindOf(blocks, id);
-        const isSelected = id === selected;
+        const isSelected = id === selected || selection.includes(id);
+        // The other selected elements get their outline only.
+        const handles =
+          !readOnly && (id === selected || id === shown || id === sectionOf(blocks, shown ?? ''));
         const color = kind === 'section' ? CONTAINER : kind === 'nested' ? NESTED : ACCENT;
         const title = t(getElement(node.type)?.title ?? node.type);
         const place = placeOf(blocks, id);
@@ -800,7 +831,7 @@ function Overlay({
                 outline: `${isSelected ? 2 : 1}px ${kind === 'nested' && !isSelected ? 'dashed' : 'solid'} ${color}`,
               }}
             />
-            {!readOnly && kind === 'section' && (
+            {handles && kind === 'section' && (
               <div
                 className="fre-handle fre-handle--section"
                 style={{ left: box.x + box.width / 2, top: Math.max(0, box.y - 24) }}
@@ -833,7 +864,7 @@ function Overlay({
                 />
               </div>
             )}
-            {!readOnly && kind === 'nested' && (
+            {handles && kind === 'nested' && (
               <div
                 className="fre-handle fre-handle--nested"
                 style={{ left: box.x, top: box.y }}
@@ -859,7 +890,7 @@ function Overlay({
                 />
               </div>
             )}
-            {!readOnly && kind === 'widget' && (
+            {handles && kind === 'widget' && (
               <div
                 className="fre-handle fre-handle--widget"
                 style={{ left: box.x + box.width, top: box.y }}
@@ -1096,6 +1127,62 @@ function ghost(label: string): { move: (x: number, y: number) => void; remove: (
   };
 }
 
+/**
+ * The placeholder opening the space where a dragged element will land: a
+ * dashed box that grows in the canvas, and shrinks away when the place
+ * changes. It is not React's: it is removed before the drop changes the page.
+ */
+function placeholders(doc: Document) {
+  let current: { element: HTMLElement; place: string } | null = null;
+  const leaving = new Set<HTMLElement>();
+  const drop = (element: HTMLElement) => {
+    leaving.add(element);
+    element.classList.add('is-leaving');
+    setTimeout(() => {
+      element.remove();
+      leaving.delete(element);
+    }, 160);
+  };
+  return {
+    /** Shows it at a place; false when it is already there. */
+    show(anchor: Anchor, place: Place): boolean {
+      const key = `${place.parent ?? ''}:${place.index}`;
+      if (current?.place === key) return false;
+      if (current) drop(current.element);
+      const element = doc.createElement('div');
+      element.className = `fre-placeholder fre-placeholder--${anchor.axis}`;
+      element.setAttribute('data-fre-ui', '');
+      element.setAttribute('aria-hidden', 'true');
+      // `before` may be the old placeholder, which is on its way out.
+      const before =
+        anchor.before && anchor.before.parentNode === anchor.parent ? anchor.before : null;
+      anchor.parent.insertBefore(element, before);
+      current = { element, place: key };
+      return true;
+    },
+    /** The pointer is on it: the place stays (the space it opened moved the rest). */
+    contains(x: number, y: number): boolean {
+      if (!current) return false;
+      const r = current.element.getBoundingClientRect();
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    },
+    /** False when there was none. */
+    hide(): boolean {
+      if (!current) return false;
+      drop(current.element);
+      current = null;
+      return true;
+    },
+    /** At once, before the page changes. */
+    clear() {
+      current?.element.remove();
+      for (const element of leaving) element.remove();
+      leaving.clear();
+      current = null;
+    },
+  };
+}
+
 /** Starts dragging a new element (from the panel) or an element of the page. */
 export function startDrag(
   event: PointerEvent | React.PointerEvent,
@@ -1109,26 +1196,49 @@ export function startDrag(
   if (!doc || !root) return;
   let label: ReturnType<typeof ghost> | null = null;
   let target: DropTarget | null = null;
+  const space = placeholders(doc);
+  const moved =
+    source.kind === 'move'
+      ? doc.querySelector<HTMLElement>(`[data-fr-id="${CSS.escape(source.id)}"]`)
+      : null;
+  // While the placeholder opens (or closes) the page moves under the pointer:
+  // the place is decided again once it has settled.
+  const SETTLE = 200;
+  let settled = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let last: { x: number; y: number } | null = null;
+  const decide = () => {
+    const canvas = last;
+    if (canvas && target && space.contains(canvas.x, canvas.y)) return;
+    target = canvas
+      ? dropTarget(
+          doc,
+          root,
+          store.get().blocks,
+          canvas.x,
+          canvas.y,
+          source.kind === 'move' ? source.id : null,
+          source.kind === 'new' ? source.type : (find(store.get().blocks, source.id)?.type ?? ''),
+        )
+      : null;
+    const changed = target?.anchor ? space.show(target.anchor, target.place) : space.hide();
+    showDropLine(target?.anchor ? null : (target?.line ?? null));
+    if (changed) settled = performance.now() + SETTLE;
+  };
   trackPointer(event, frame, {
     onStart: () => {
       label = ghost(source.label);
       doc.documentElement.style.cursor = 'grabbing';
       document.documentElement.style.cursor = 'grabbing';
+      moved?.classList.add('fre-drag-source');
     },
     onMove: (canvas, screen) => {
       label?.move(screen.x, screen.y);
-      target = canvas
-        ? dropTarget(
-            doc,
-            root,
-            store.get().blocks,
-            canvas.x,
-            canvas.y,
-            source.kind === 'move' ? source.id : null,
-            source.kind === 'new' ? source.type : (find(store.get().blocks, source.id)?.type ?? ''),
-          )
-        : null;
-      showDropLine(target?.line ?? null);
+      last = canvas;
+      clearTimeout(timer);
+      const wait = settled - performance.now();
+      if (wait > 0) timer = setTimeout(decide, wait);
+      else decide();
     },
     onDrop: () => {
       finish();
@@ -1139,7 +1249,10 @@ export function startDrag(
     onCancel: finish,
   });
   function finish() {
+    clearTimeout(timer);
     label?.remove();
+    space.clear();
+    moved?.classList.remove('fre-drag-source');
     showDropLine(null);
     doc!.documentElement.style.cursor = '';
     document.documentElement.style.cursor = '';

@@ -11,9 +11,35 @@ export interface DropTarget {
   place: Place;
   /** The line showing where it goes, in the canvas document's coordinates. */
   line: { x: number; y: number; width: number; height: number };
+  /** Where a placeholder opens the space in the canvas: in `parent`, before `before`. */
+  anchor?: Anchor;
 }
 
-type Axis = 'row' | 'column';
+export type Axis = 'row' | 'column';
+
+export interface Anchor {
+  parent: Element;
+  before: Node | null;
+  axis: Axis;
+}
+
+/** The place of the slot `index` among the elements of `parent`. */
+function anchorAt(parent: Element, siblings: HTMLElement[], index: number, axis: Axis): Anchor {
+  const before =
+    index < siblings.length
+      ? siblings[index]!
+      : siblings.length
+        ? siblings.at(-1)!.nextSibling
+        : parent.firstChild;
+  return { parent, before, axis };
+}
+
+/** Next to an element, before or after it. */
+function besideAnchor(element: HTMLElement, after: boolean): Anchor | undefined {
+  const parent = element.parentElement;
+  if (!parent) return undefined;
+  return { parent, before: after ? element.nextSibling : element, axis: axisOf(parent) };
+}
 
 function axisOf(inner: Element): Axis {
   const style = inner.ownerDocument.defaultView!.getComputedStyle(inner);
@@ -21,10 +47,13 @@ function axisOf(inner: Element): Axis {
   return style.flexDirection.startsWith('row') ? 'row' : 'column';
 }
 
+/**
+ * The elements inside a container. They live in the canvas's own window, so
+ * `instanceof HTMLElement` (the admin's) would never match them.
+ */
 function childElements(inner: Element): HTMLElement[] {
-  return [...inner.children].filter(
-    (child): child is HTMLElement =>
-      child instanceof HTMLElement && child.hasAttribute('data-fr-id'),
+  return [...inner.children].filter((child): child is HTMLElement =>
+    child.hasAttribute('data-fr-id'),
   );
 }
 
@@ -96,9 +125,14 @@ export function dropTarget(
   const element = hit?.closest<HTMLElement>('[data-fr-id]');
   if (!element || !root.contains(element)) {
     // Outside every element: at the top level, by height.
-    const top = childElements(root.querySelector('.fre-tree') ?? root);
+    const tree = root.querySelector('.fre-tree') ?? root;
+    const top = childElements(tree);
     const s = slot(top, 'column', x, y, scroll, root.getBoundingClientRect());
-    return { place: { parent: null, index: s.index }, line: s.line };
+    return {
+      place: { parent: null, index: s.index },
+      line: s.line,
+      anchor: anchorAt(tree, top, s.index, 'column'),
+    };
   }
   const id = element.dataset.frId!;
   const node = find(blocks, id);
@@ -111,6 +145,7 @@ export function dropTarget(
     // Near the top or bottom edge: next to the container, not inside it.
     if (place && (y - r.top < edge || r.bottom - y < edge)) {
       const after = r.bottom - y < edge;
+      const anchor = besideAnchor(element, after);
       return {
         place: { parent: place.parent, index: place.index + (after ? 1 : 0) },
         line: {
@@ -119,25 +154,27 @@ export function dropTarget(
           width: r.width,
           height: 3,
         },
+        ...(anchor ? { anchor } : {}),
       };
     }
     const inner = element.querySelector(':scope > .fr-container__in') ?? element;
-    const s = slot(
-      childElements(inner),
-      axisOf(inner),
-      x,
-      y,
-      scroll,
-      inner.getBoundingClientRect(),
-    );
-    return { place: { parent: id, index: s.index }, line: s.line };
+    const siblings = childElements(inner);
+    const axis = axisOf(inner);
+    const s = slot(siblings, axis, x, y, scroll, inner.getBoundingClientRect());
+    return {
+      place: { parent: id, index: s.index },
+      line: s.line,
+      anchor: anchorAt(inner, siblings, s.index, axis),
+    };
   }
   const place = placeOf(blocks, id);
   if (!place) return null;
   const parentInner = element.parentElement;
   const axis = parentInner ? axisOf(parentInner) : 'column';
   const after = axis === 'row' ? x > r.left + r.width / 2 : y > r.top + r.height / 2;
+  const anchor = besideAnchor(element, after);
   return {
+    ...(anchor ? { anchor } : {}),
     place: { parent: place.parent, index: place.index + (after ? 1 : 0) },
     line:
       axis === 'row'

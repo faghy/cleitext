@@ -223,6 +223,13 @@ export interface EditorHost {
   preview: () => Promise<void>;
   /** The list of entries the editor came from. */
   back: { url: string; label: string };
+  /**
+   * The featured image (a media id, or null) as being edited (API 1.39).
+   * Absent when the content type has no featured image, and on older sites.
+   */
+  featuredMediaId?: string | null;
+  /** Changes the featured image, saved with the rest (API 1.39; absent like `featuredMediaId`). */
+  setFeaturedMediaId?: (id: string | null) => void;
 }
 
 /**
