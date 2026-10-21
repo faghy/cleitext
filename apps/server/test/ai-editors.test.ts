@@ -3,8 +3,9 @@
  * AI assistants and the site's editors (plugin API 1.40): entries keep the
  * editor they were made with (block editor, Fresco, Classic Editor), blocks
  * are converted on the server by the editor's plugin, native Fresco trees are
- * checked, new entries use the default editor of their type, and plugins add
- * sections of the guide and tools.
+ * checked, new entries use the default editor of their type, translations
+ * (Multilingual) keep the editor of the original, and plugins add sections of
+ * the guide and tools.
  */
 import { cp, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -105,7 +106,7 @@ async function install(source: string, slug: string, pluginsPath: string, inPlac
 beforeAll(async () => {
   owner = ownerDatabase();
   const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
-  for (const slug of ['fresco', 'classic-editor', 'seo']) {
+  for (const slug of ['fresco', 'classic-editor', 'seo', 'multilingual', 'shop']) {
     await install(join(pluginsRoot, slug), slug, pluginsPath);
   }
   await install(fixture, 'ai-helper', pluginsPath, false);
@@ -120,8 +121,15 @@ beforeAll(async () => {
   await seedUser(owner, { email: 'editor@ai.test', password: PASSWORD, site, role: 'editor' });
   admin = new TestClient(app, site.host, '10.49.0.1');
   await admin.login('admin@ai.test', PASSWORD);
-  for (const slug of ['fresco', 'classic-editor', 'seo', 'ai-helper']) {
+  for (const slug of ['fresco', 'classic-editor', 'seo', 'multilingual', 'shop', 'ai-helper']) {
     expect((await admin.post(`/api/v1/plugins/${slug}/activate`)).statusCode).toBe(200);
+  }
+  for (const [code, name] of [
+    ['it', 'Italiano'],
+    ['fr', 'Français'],
+  ]) {
+    const added = await admin.post('/api/v1/ext/multilingual/languages', { code, name });
+    expect(added.statusCode, added.body).toBe(201);
   }
   expect((await admin.request('PATCH', '/api/v1/settings/core', { mcp: true })).statusCode).toBe(
     200,
@@ -269,6 +277,140 @@ describe('AI assistants and editors', () => {
     document = await documentOf(id);
     expect(document.editor).toBeUndefined();
     expect(document.blocks.map((b) => b.type)).toEqual(['core/heading', 'core/paragraph']);
+  });
+
+  it('translates a Fresco page into a Fresco page (Multilingual)', async () => {
+    const tree = (title: string, text: string) => [
+      {
+        type: 'fresco/container',
+        attrs: { html_tag: 'section' },
+        children: [
+          { type: 'fresco/heading', attrs: { title, tag: 'h2' } },
+          { type: 'fresco/text', attrs: { content: `<p>${text}</p>` } },
+        ],
+      },
+    ];
+    const original = await call('create_entry', {
+      title: 'Our bakery',
+      editor: 'fresco',
+      native: tree('Fresh bread', 'Baked every morning.'),
+      fields: { seo: { title: 'Bakery', description: 'Fresh bread every morning' } },
+    });
+    expect(original.isError).toBe(false);
+    const id = original.json!.id as string;
+    const document = await documentOf(id);
+    await admin.request('PATCH', `/api/v1/entries/${id}`, {
+      document: { ...document, editor: { id: 'fresco', data: { layout: 'canvas' } } },
+    });
+
+    // A translated native tree: the translation stays in Fresco with the original's page settings.
+    const italian = await call('create_entry', {
+      title: 'La nostra panetteria',
+      slug: 'la-nostra-panetteria',
+      locale: 'it',
+      translation_of: id,
+      native: tree('Pane fresco', 'Sfornato ogni mattina.'),
+      fields: { seo: { title: 'Panetteria' } },
+    });
+    expect(italian.isError, italian.text).toBe(false);
+    expect(italian.json).toMatchObject({ locale: 'it', editor: 'fresco', status: 'draft' });
+    const translated = await documentOf(italian.json!.id);
+    expect(translated.editor).toEqual({ id: 'fresco', data: { layout: 'canvas' } });
+    expect(translated.blocks.map((b) => b.type)).toEqual(['fresco/container']);
+    expect(JSON.stringify(translated.blocks)).toContain('Sfornato ogni mattina.');
+    expect(JSON.stringify(translated.blocks)).not.toContain('Baked every morning.');
+    const read = await call('get_entry', { id: italian.json!.id });
+    expect(read.json!.editor).toBe('fresco');
+    // The original's fields are copied, the given ones replaced.
+    expect(read.json!.fields.seo).toMatchObject({
+      title: 'Panetteria',
+      description: 'Fresh bread every morning',
+    });
+
+    // Blocks or HTML for a translation are converted to Fresco too.
+    const french = await call('create_entry', {
+      title: 'Notre boulangerie',
+      locale: 'fr',
+      translation_of: id,
+      content: '<h2>Pain frais</h2><p>Cuit chaque matin.</p>',
+    });
+    expect(french.isError, french.text).toBe(false);
+    expect(french.json!.editor).toBe('fresco');
+    const converted = await documentOf(french.json!.id);
+    expect(converted.editor?.id).toBe('fresco');
+    expect(converted.blocks.map((b) => b.type)).toEqual(['fresco/container']);
+    expect(JSON.stringify(converted.blocks)).toContain('Cuit chaque matin.');
+
+    // One version per language; the tool of Multilingual finds them.
+    const again = await call('create_entry', { title: 'Ancora', locale: 'it', translation_of: id });
+    expect(again.isError).toBe(true);
+    const links = await call('multilingual_translations', { id });
+    expect(links.isError, links.text).toBe(false);
+    expect(links.json).toMatchObject({ id, locale: 'en', isOriginal: true });
+    expect(
+      (links.json!.links as { id: string; locale: string }[]).map((l) => [l.locale, l.id]).sort(),
+    ).toEqual([
+      ['fr', french.json!.id],
+      ['it', italian.json!.id],
+    ]);
+    const bad = await call('multilingual_translations', { id: 'nope' });
+    expect(bad).toMatchObject({ isError: true, text: 'Give the id of an entry (a UUID).' });
+
+    // Multilingual and SEO teach the assistant how they work.
+    const guide = await call('get_block_guide', { editor: 'fresco' });
+    expect(guide.text).toContain(
+      '## Languages and translations (Multilingual) (plugin multilingual)',
+    );
+    expect(guide.text).toContain('## SEO fields (SEO plugin) (plugin seo)');
+  });
+
+  it('writes products as entries, and their prices with the shop tool', async () => {
+    expect(await toolNames(token)).toContain('shop_set_prices');
+    const created = await call('create_entry', {
+      type: 'product',
+      title: 'Sourdough loaf',
+      content: '<p>Slow risen for two days.</p>',
+      excerpt: 'Our classic loaf.',
+    });
+    expect(created.isError, created.text).toBe(false);
+    const id = created.json!.id as string;
+    const product = async () => (await admin.get(`/api/v1/ext/shop/products/${id}`)).json();
+
+    const set = await call('shop_set_prices', { id, regular_price: '6.50', stock: 12 });
+    expect(set.isError, set.text).toBe(false);
+    expect(set.json).toMatchObject({
+      id,
+      title: 'Sourdough loaf',
+      stock: 12,
+      stock_status: 'instock',
+    });
+    expect(Number(set.json!.regular_price)).toBe(6.5);
+    const sale = await call('shop_set_prices', { id, sale_price: 5.9 });
+    expect(Number(sale.json!.sale_price)).toBe(5.9);
+    expect(Number((await product()).regularPrice)).toBe(6.5);
+
+    // Checked before anything is saved.
+    for (const [args, message] of [
+      [{ id, sale_price: 7 }, 'The sale price must be lower than the regular price.'],
+      [{ id, regular_price: 'cheap' }, '"cheap" is not an amount'],
+      [{ id, stock_status: 'outofstock' }, 'give `stock` instead'],
+      [{ id }, 'Give at least one change.'],
+      [{ id, price: 3 }, 'Unrecognized key'],
+    ] as const) {
+      const refused = await call('shop_set_prices', args);
+      expect(refused.isError).toBe(true);
+      expect(refused.text).toContain(message);
+    }
+    expect(Number((await product()).salePrice)).toBe(5.9);
+
+    const apron = await call('create_entry', { type: 'product', title: 'Apron' });
+    const apronId = apron.json!.id as string;
+    await admin.request('PUT', `/api/v1/ext/shop/products/${apronId}`, {
+      product: { kind: 'variable' },
+    });
+    const variable = await call('shop_set_prices', { id: apronId, regular_price: 20 });
+    expect(variable.isError).toBe(true);
+    expect(variable.text).toContain('variations');
   });
 
   it('keeps Classic Editor entries classic', async () => {

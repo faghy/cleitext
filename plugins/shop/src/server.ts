@@ -1,5 +1,6 @@
 import { definePlugin, type PluginContext, type RouteRequest } from '@cleitext/plugin-sdk';
 import { z } from 'zod';
+import { registerAi } from './ai';
 import { EXAMPLE_RULES, pricingRulesSchema, quickEditSchema, type PricingRules } from './catalog';
 import { exportProducts, matchProducts } from './export';
 import { listProducts, listQuerySchema } from './list';
@@ -337,6 +338,7 @@ export default definePlugin({
       );
       await ctx.storage.set(siteId, GROUPED, true);
     });
+    registerAi(ctx);
     registerReviews(ctx, async (siteId) => {
       const values = await ctx.settings.get(siteId);
       return {

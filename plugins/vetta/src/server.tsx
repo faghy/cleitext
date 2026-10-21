@@ -181,6 +181,30 @@ async function indexNow(
 
 const lastSent = new Map<string, number>();
 
+/** How assistants fill Vetta's fields (create_entry and update_entry, `fields.vetta`). */
+const AI_CONTEXT = `Every content type has the field group \`vetta\`; send it in \`fields\`, e.g.
+\`{"vetta": {"keywords": "…", "title": "…", "description": "…"}}\` (only the given fields change).
+Longer values are refused.
+
+- \`vetta.keywords\` (max 300): the main keyword first, then up to four more, separated by commas.
+  Use the main one in the search title, the description, the address (\`slug\`), the first
+  paragraph, a subheading and an image's alt text: the editor's analysis scores the page on it.
+  Give each page its own main keyword.
+- \`vetta.title\` (max 200): the whole search title as written, with variables such as
+  \`%title%\`, \`%sep%\` and \`%sitename%\`, e.g. \`"Fresh bread every day %sep% %sitename%"\`.
+  About 60 characters once filled in. Empty: the content type's template (usually
+  \`%title% %sep% %sitename%\`), so leave it empty when the title already works.
+- \`vetta.description\` (max 400): about 150 characters, one or two sentences with the main
+  keyword; empty uses the excerpt.
+- \`vetta.ogTitle\`, \`vetta.ogDescription\` (social cards) and \`vetta.ogImage\` (a media id,
+  1200×630 is best): only when sharing should differ from search.
+- \`vetta.breadcrumbTitle\` (max 100): a shorter name in breadcrumbs, when the title is long.
+- Leave alone unless asked: \`noindex\`, \`nofollow\`, \`noarchive\`, \`noimageindex\`,
+  \`nosnippet\`, \`canonical\` (only for copies of a page elsewhere), \`schema\` ("auto",
+  "Article", "BlogPosting", "NewsArticle", "none") and \`pillar\`.
+
+Write them in the entry's language; a translation gets its own.`;
+
 export default definePlugin({
   setup(ctx) {
     ctx.access.defineCapability('manage_vetta', {
@@ -329,6 +353,9 @@ export default definePlugin({
         },
       ],
     });
+
+    // ---- AI assistants (plugin API 1.40; missing on older cores) -----------------------
+    ctx.ai?.addContext({ title: 'SEO fields (Vetta SEO)', markdown: AI_CONTEXT });
 
     // ---- The <head> ---------------------------------------------------------------------
     ctx.hooks.filter(

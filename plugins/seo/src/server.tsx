@@ -16,6 +16,24 @@ interface Crumb {
   url: string;
 }
 
+/** How assistants fill the SEO fields (create_entry and update_entry, `fields.seo`). */
+const AI_CONTEXT = `Pages and posts (\`page\`, \`article\`) have the field group \`seo\`; send it in
+\`fields\`, e.g. \`{"seo": {"title": "…", "description": "…", "keyphrase": "…"}}\` (only the given
+fields change). Longer values are refused.
+
+- \`seo.title\` (max 70): the search title without the site name, which the site adds itself
+  ("<title> – <site>"). Aim for 30–60 characters, the keyphrase near the start. Empty: the title.
+- \`seo.description\` (max 160): 120–156 characters, one or two sentences that make people click,
+  with the keyphrase. Empty: the site's default description.
+- \`seo.keyphrase\` (max 100): the 1–4 words people search for this page. Use it in the search
+  title, the description, the address (\`slug\`), the first paragraph, some subheadings and one
+  image's alt text; the editor's analysis checks this. A different keyphrase for each page.
+- \`seo.socialImage\`: a media id for social cards (the featured image otherwise).
+- \`seo.noindex\` (boolean) and \`seo.canonical\` (a full address, only for copies of a page
+  elsewhere): leave them alone unless the user asks.
+
+Write them in the entry's language; a translation gets its own.`;
+
 const HOME_LABEL = (locale: string) => (locale.toLowerCase().startsWith('it') ? 'Home' : 'Home');
 
 /**
@@ -209,6 +227,9 @@ export default definePlugin({
         })
         .map((url) => (cfg.sitemapImages ? url : { ...url, images: [] }));
     });
+
+    // ---- AI assistants (plugin API 1.40; missing on older cores) -----------------------
+    ctx.ai?.addContext({ title: 'SEO fields (SEO plugin)', markdown: AI_CONTEXT });
 
     // ---- Feeds: "<term> <separator> <site>", as the pages' titles -----------------------
 

@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-multilingual",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "private": true,
   "description": "Official Cleitext plugin: languages, translations, language addresses and hreflang.",
   "license": "GPL-2.0-or-later",

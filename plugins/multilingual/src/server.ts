@@ -1,3 +1,4 @@
+import { registerAi } from './ai';
 import { DeepL, translateContent, type MachineTranslator } from './machine';
 import {
   definePlugin,
@@ -119,6 +120,7 @@ export default definePlugin({
     });
 
     routes(ctx);
+    registerAi(ctx);
   },
 
   async onActivate(site, ctx) {
