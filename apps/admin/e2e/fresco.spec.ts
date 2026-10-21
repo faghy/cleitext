@@ -27,6 +27,14 @@ test.beforeAll(() => {
   );
 });
 
+// The other specs run without Fresco's blocks, even after a failure here.
+test.afterAll(async ({ browser }) => {
+  const page = await browser.newPage();
+  await signIn(page);
+  await api(page, 'POST', '/plugins/fresco/deactivate').catch(() => undefined);
+  await page.close();
+});
+
 async function signIn(page: Page) {
   await page.goto('/cl-admin/login');
   await page.locator('input[type="email"]').fill(ADMIN.email);
