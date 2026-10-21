@@ -83,14 +83,22 @@ export async function seedUser(
     superAdmin?: boolean;
   },
 ): Promise<string> {
-  const [user] = await owner.db
-    .insert(users)
-    .values({
-      email: input.email,
-      displayName: input.email.split('@')[0]!,
-      passwordHash: await hashPassword(input.password),
-    })
-    .returning();
+  const values = {
+    email: input.email,
+    displayName: input.email.split('@')[0]!,
+    passwordHash: await hashPassword(input.password),
+  };
+  // The author slug is picked by a trigger from the display name: test files
+  // running at the same time can race for the same one, so try again.
+  let user: typeof users.$inferSelect | undefined;
+  for (let attempt = 0; !user; attempt++) {
+    try {
+      [user] = await owner.db.insert(users).values(values).returning();
+    } catch (error) {
+      const code = (error as { cause?: { code?: string } }).cause?.code;
+      if (code !== '23505' || attempt >= 4) throw error;
+    }
+  }
   if (input.superAdmin) await owner.db.insert(superAdmins).values({ userId: user!.id });
   if (input.site && input.role) {
     const [role] = await owner.db
