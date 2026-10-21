@@ -471,7 +471,7 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
                 </span>
                 <span className="text-xs text-slate-500">
                   {t(
-                    'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish. Save, then open AI assistants to connect one.',
+                    'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish. Save, then open the Chriss page to connect one.',
                   )}
                 </span>
               </span>
@@ -480,7 +480,7 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
               to={ASSISTANTS_PATH}
               className="inline-block rounded border border-slate-300 bg-white px-3 py-2 font-medium text-slate-800 hover:bg-slate-50"
             >
-              {t('Open AI assistants')}
+              {t('Open Chriss')}
             </Link>
           </div>
         </Card>

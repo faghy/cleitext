@@ -1431,7 +1431,7 @@ export function mediaServices(locale: string): EditorServices {
 }
 
 /**
- * "Ask the AI": the admin chat in a new tab, about this entry (it knows the
+ * "Ask Chriss": the admin chat in a new tab, about this entry (it knows the
  * entry and its editor). Shown when the site has an AI provider for the chat.
  */
 function AskAiLink({ entryId, plain = false }: { entryId: string; plain?: boolean }) {
@@ -1453,7 +1453,7 @@ function AskAiLink({ entryId, plain = false }: { entryId: string; plain?: boolea
           : 'rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50'
       }
     >
-      {t('Ask the AI')}
+      {t('Ask Chriss')}
       <span className="sr-only"> {t('(opens in a new tab)')}</span>
     </a>
   );

@@ -107,7 +107,7 @@ export const createApiTokenRequestSchema = z.object({
   userId: z.uuid().optional(),
 });
 
-/** Admin → AI assistants. */
+/** Admin → Chriss. */
 export interface AssistantsStatus {
   /** MCP: people can connect their own assistant. */
   enabled: boolean;
@@ -148,7 +148,7 @@ export const assistantChatRequestSchema = z.object({
     .min(1)
     .max(400),
   publish: z.boolean().optional(),
-  /** The entry the chat was opened from (its editor's "Ask the AI"), as context. */
+  /** The entry the chat was opened from (its editor's "Ask Chriss"), as context. */
   entryId: z.uuid().optional(),
 });
 

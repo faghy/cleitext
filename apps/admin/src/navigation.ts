@@ -63,7 +63,7 @@ export const SECTIONS: Section[] = [
   {
     to: '/assistants',
     icon: MENU_ICONS.assistants,
-    label: 'AI assistants',
+    label: 'Chriss',
     anyOf: ['edit_entries'],
     ready: true,
   },

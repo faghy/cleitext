@@ -66,7 +66,7 @@ export function ConnectPage() {
             )}
             <p className="text-xs text-slate-500">
               {t(
-                'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time in AI assistants.',
+                'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time on the Chriss page.',
               )}
             </p>
             <div className="flex gap-2">

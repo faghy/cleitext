@@ -11,7 +11,7 @@ import { useMe } from '../auth';
 import { Alert, Button, useT } from '../components/ui';
 import { siteEditors, usePluginAdmin } from '../plugins';
 
-/** What the assistant is doing, by tool. */
+/** What Chriss is doing, by tool. */
 const STEP_LABELS: Record<string, string> = {
   get_site: 'Reading the site',
   get_block_guide: 'Reading how to write blocks',
@@ -40,7 +40,7 @@ interface Saved {
 }
 
 /**
- * Admin → AI assistants → Chat (RF-AI-03): ask, and the site's AI provider
+ * Admin → Chriss → Chat (RF-AI-03): ask Chriss, and the site's AI provider
  * does it. Opened from an entry's editor (`entryId`), it is about that entry:
  * the server tells the assistant which entry and editor it is.
  */
@@ -171,7 +171,7 @@ export function AssistantChat({
       {saved.turns.length === 0 ? (
         <p className="text-slate-600">
           {t(
-            'Ask for a page, a post, a translation or a change: the assistant works on the site with your permissions and leaves drafts for you to check.',
+            'Ask Chriss for a page, a post, a translation or a change: Chriss works on the site with your permissions and leaves drafts for you to check.',
           )}
         </p>
       ) : (
@@ -189,6 +189,7 @@ export function AssistantChat({
                 turn.text
               ) : (
                 <>
+                  <p className="text-xs font-semibold text-slate-500">Chriss</p>
                   {turn.steps && turn.steps.length > 0 && (
                     <ul className="space-y-0.5 text-xs text-slate-500">
                       {turn.steps.map((step, i) => (
@@ -202,7 +203,7 @@ export function AssistantChat({
                   {turn.text && <RichText text={turn.text} />}
                   {turn.error && <Alert>{t(turn.error)}</Alert>}
                   {!turn.text && !turn.error && busy && index === saved.turns.length - 1 && (
-                    <p className="text-slate-500">{t('Working…')}</p>
+                    <p className="text-slate-500">{t('Chriss is thinking…')}</p>
                   )}
                 </>
               )}
@@ -225,7 +226,7 @@ export function AssistantChat({
             ref={box}
             rows={3}
             className="w-full rounded border border-slate-300 bg-white px-3 py-2"
-            placeholder={t('What should the assistant do?')}
+            placeholder={t('What should Chriss do?')}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {

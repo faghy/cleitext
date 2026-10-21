@@ -132,9 +132,12 @@ describe('MCP', () => {
     ).json();
     expect(init.result).toMatchObject({
       protocolVersion: '2025-06-18',
-      serverInfo: { name: 'cleitext' },
+      serverInfo: { name: 'cleitext', title: 'Cleitext (Chriss)' },
     });
     expect(init.result.instructions).toContain('get_block_guide');
+    // The tools are Chriss's, but an external assistant keeps its own persona.
+    expect(init.result.instructions).toMatch(/^Chriss — Cleitext assistant tools\./);
+    expect(init.result.instructions).not.toContain('You are Chriss');
     const notification = await app.inject({
       method: 'POST',
       url: '/mcp',

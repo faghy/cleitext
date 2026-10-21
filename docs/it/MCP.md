@@ -4,11 +4,13 @@
 
 Cleitext è un **server MCP**: ognuno collega il proprio assistente IA (ChatGPT, Cursor o qualsiasi client MCP) al sito e gli chiede di scrivere pagine e articoli. L'assistente lavora con i blocchi dell'editor e le sezioni del tema, con i permessi della persona che l'ha collegato. Cleitext non chiama nessun servizio di IA e non serve nessuna chiave API.
 
+Nell'admin c'è anche **Chriss**, l'assistente di Cleitext: una chat che fa lo stesso lavoro con il fornitore di IA del sito (vedi [Chat nell'admin](#chat-nelladmin)).
+
 ## Attivarlo
 
-Nell'admin apri **Assistenti IA** e scegli _Attiva gli assistenti IA_ (oppure spunta _Permetti agli assistenti IA di lavorare su questo sito_ in **Impostazioni → Assistenti IA (MCP)** e salva). La sezione **Assistenti IA** mostra l'indirizzo da dare all'assistente, `https://<il tuo sito>/mcp`, con il pulsante Copia, i passi per collegarlo e gli assistenti collegati al tuo account. Finché è spento, `/mcp` e gli indirizzi OAuth rispondono 404.
+Nell'admin apri **Chriss** e scegli _Attiva gli assistenti IA_ (oppure spunta _Permetti agli assistenti IA di lavorare su questo sito_ in **Impostazioni → Assistenti IA (MCP)** e salva). La pagina **Chriss** mostra l'indirizzo da dare all'assistente, `https://<il tuo sito>/mcp`, con il pulsante Copia, i passi per collegarlo e gli assistenti collegati al tuo account. Finché è spento, `/mcp` e gli indirizzi OAuth rispondono 404.
 
-L'indirizzo non è una pagina da aprire nel browser: chi lo apre lì finisce su **Assistenti IA** nell'admin.
+L'indirizzo non è una pagina da aprire nel browser: chi lo apre lì finisce su **Chriss** nell'admin.
 
 ## Collegare un assistente
 
@@ -28,7 +30,7 @@ L'indirizzo non è una pagina da aprire nel browser: chi lo apre lì finisce su 
 }
 ```
 
-Ogni collegamento è un token API del tuo account: gli assistenti collegati con OAuth sono in **Assistenti IA → Assistenti collegati** (e in **Profilo → Token API**, con il nome "<assistente> (MCP)"); scollegarlo o revocarlo ferma l'assistente.
+Ogni collegamento è un token API del tuo account: gli assistenti collegati con OAuth sono in **Chriss → Assistenti collegati** (e in **Profilo → Token API**, con il nome "<assistente> (MCP)"); scollegarlo o revocarlo ferma l'assistente.
 
 ## Cosa può fare l'assistente
 
@@ -60,11 +62,11 @@ Ogni contenuto mantiene l'editor con cui è stato fatto: l'editor a blocchi, o q
 - `create_entry` e `update_entry` accettano un `editor` facoltativo; una modifica mantiene l'editor del contenuto e le sue impostazioni di pagina, salvo indicazione diversa. Markup dei blocchi, HTML e blocchi inviati per un contenuto di un altro editor vengono convertiti dal suo plugin sul server; i documenti `native` vengono controllati da lui (Fresco rifiuta elementi sconosciuti e widget fuori dai contenitori, e ripulisce il testo formattato). Se il plugin dell'editor non è attivo, o non sa convertire, lo strumento risponde con un errore invece di spostare il contenuto in un altro editor.
 - `get_block_guide` è un'unica guida per l'editor richiesto (di default quello del tipo di contenuto): le regole di Cleitext (pagine modificabili da chi non programma, prima le bozze, riassunto, immagine in evidenza, campi SEO, lingue, menu), la guida dell'editor (per Fresco: il formato, gli elementi e le impostazioni, i dispositivi, l'hover, i colori e i caratteri globali del sito), le sezioni aggiunte dai plugin, l'`aiGuide` del tema e i pattern del sito.
 
-Aperta dall'editor di un contenuto con **Chiedi all'IA**, la chat dell'admin sa di quale contenuto si tratta e con quale editor è fatto.
+Aperta dall'editor di un contenuto con **Chiedi a Chriss**, la chat dell'admin sa di quale contenuto si tratta e con quale editor è fatto.
 
 ## Chat nell'admin
 
-**Assistenti IA** ha anche una **Chat** (e l'editor dei contenuti un link **Chiedi all'IA** che la apre su quel contenuto): scrivi lì la richiesta e l'IA del sito la esegue con gli stessi strumenti, come te, mostrando ogni passo (lettura del sito, creazione di una bozza…) e i link per modificare e vedere l'anteprima del risultato. Spunta _Può anche pubblicare_ per lasciarla pubblicare; altrimenti lascia bozze. Le **Richieste pronte** sono esempi che funzionano bene: usale nella chat o copiale nel tuo assistente.
+La pagina **Chriss** ha anche una **Chat con Chriss** (e l'editor dei contenuti un link **Chiedi a Chriss** che la apre su quel contenuto): scrivi lì la richiesta e Chriss la esegue con l'IA del sito e gli stessi strumenti, come te, mostrando ogni passo (lettura del sito, creazione di una bozza…) e i link per modificare e vedere l'anteprima del risultato. Spunta _Può anche pubblicare_ per lasciarlo pubblicare; altrimenti lascia bozze. Le **Richieste pronte** sono esempi che funzionano bene: usale nella chat o copiale nel tuo assistente.
 
 La chat ha bisogno di un **fornitore di IA**, configurato da un super admin in fondo alla pagina: qualunque servizio con un'API chat completions compatibile con OpenAI (l'indirizzo, come `https://api.openai.com/v1`, `https://openrouter.ai/api/v1` o `http://localhost:11434/v1` per Ollama, un modello che sappia usare gli strumenti, e la chiave). La chiave è salvata cifrata e non viene più mostrata; il fornitore addebita l'uso all'account della chiave. La conversazione resta nella scheda del browser finché non ne inizi una nuova.
 

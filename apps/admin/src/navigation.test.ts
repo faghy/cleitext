@@ -16,7 +16,7 @@ describe('visibleSections', () => {
       'Appearance',
       'Plugins',
       'Users',
-      'AI assistants',
+      'Chriss',
       'Settings',
       'Tools',
     ]);
@@ -31,7 +31,7 @@ describe('visibleSections', () => {
       'Comments',
       'Appearance',
       'Profile',
-      'AI assistants',
+      'Chriss',
     ]);
   });
 

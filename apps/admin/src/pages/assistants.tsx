@@ -22,7 +22,7 @@ const READY_REQUESTS = [
   'List my drafts and tell me which ones look ready to publish.',
 ];
 
-/** Admin → AI assistants (RF-AI-01/02/03): the chat, ready requests, your own assistant. */
+/** Admin → Chriss (RF-AI-01/02/03): the chat with Chriss, ready requests, your own assistant. */
 export function AssistantsPage() {
   const { t } = useT();
   const me = useMe();
@@ -32,7 +32,7 @@ export function AssistantsPage() {
     queryFn: () => api<AssistantsStatus>('GET', '/assistants'),
   });
   const [suggestion, setSuggestion] = useState<{ text: string; at: number } | null>(null);
-  // Opened from an entry's editor ("Ask the AI"): the chat is about that entry.
+  // Opened from an entry's editor ("Ask Chriss"): the chat is about that entry.
   const [entryId] = useState(() => {
     const id = new URLSearchParams(window.location.search).get('entry') ?? '';
     return /^[0-9a-f-]{36}$/i.test(id) ? id : null;
@@ -45,23 +45,26 @@ export function AssistantsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">{t('AI assistants')}</h1>
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold">Chriss</h1>
+        <p className="text-slate-700">{t('Chriss, the Cleitext assistant')}</p>
+      </div>
       <p className="max-w-3xl text-sm text-slate-600">
         {t(
-          'Ask an AI assistant to write pages and posts: here in the chat, or from your own assistant (ChatGPT, Cursor or another MCP client). It uses the blocks of the editor and the sections of the theme, acts with your permissions, and creates drafts unless you let it publish.',
+          'Ask Chriss to write pages and posts here in the chat, or connect your own AI assistant (ChatGPT, Cursor or another MCP client). Both use the blocks of the editor and the sections of the theme, act with your permissions, and create drafts unless you let them publish.',
         )}
       </p>
       {status.error && <Alert>{errorMessage(status.error)}</Alert>}
 
       {status.data && (
-        <Card title={t('Chat')}>
+        <Card title={t('Chat with Chriss')}>
           {status.data.chat ? (
             <AssistantChat suggestion={suggestion} entryId={entryId} />
           ) : (
             <p className="text-sm text-slate-600">
               {isSuperAdmin
-                ? t('To chat here, set up an AI provider at the bottom of this page.')
-                : t('To chat here, a super admin has to set up an AI provider.')}
+                ? t('To chat with Chriss, set up an AI provider at the bottom of this page.')
+                : t('To chat with Chriss, a super admin has to set up an AI provider.')}
             </p>
           )}
         </Card>
@@ -70,7 +73,7 @@ export function AssistantsPage() {
       <Card title={t('Ready requests')}>
         <p className="mb-3 text-sm text-slate-600">
           {t(
-            'Requests that work well: change the words in brackets, then use them here or copy them into your assistant.',
+            'Requests that work well: change the words in brackets, then give them to Chriss or copy them into your own assistant.',
           )}
         </p>
         <ul className="space-y-2 text-sm">
@@ -374,7 +377,7 @@ function ProviderForm({
               variant="danger"
               disabled={remove.isPending}
               onClick={() => {
-                if (window.confirm(t('Remove the AI provider? The chat stops working.')))
+                if (window.confirm(t('Remove the AI provider? Chriss stops working.')))
                   remove.mutate();
               }}
             >

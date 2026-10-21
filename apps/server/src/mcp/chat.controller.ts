@@ -30,7 +30,7 @@ import { ChatService, type ChatEntry } from './chat.service.js';
 import { siteOrigin } from './origin.js';
 import { editorOf } from './tools.js';
 
-/** Admin → AI assistants → Chat (RF-AI-03), and its AI provider. */
+/** Admin → Chriss → Chat (RF-AI-03), and its AI provider. */
 @Controller('assistants')
 export class ChatController {
   constructor(

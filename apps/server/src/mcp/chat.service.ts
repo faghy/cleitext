@@ -21,7 +21,7 @@ import {
 } from './tools.js';
 
 /**
- * The chat of Admin → AI assistants (RF-AI-03): the site's own AI provider
+ * The chat of Admin → Chriss (RF-AI-03): the site's own AI provider
  * (any OpenAI-compatible chat completions API) with the MCP tools, run as
  * the signed-in user. The provider and its key are set by a super admin.
  */
@@ -160,7 +160,10 @@ export class ChatService {
       type: 'function',
       function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
     }));
-    const system = `${ASSISTANT_INSTRUCTIONS}
+    const system = `You are Chriss, the assistant of Cleitext. If asked who you are, say that you are
+Chriss, the Cleitext assistant (in their language), without explaining the name.
+
+${ASSISTANT_INSTRUCTIONS}
 
 You are working inside the admin of the site, with ${person.name}. Answer in their language
 (${person.locale}) unless they write in another one, briefly. When you create or change

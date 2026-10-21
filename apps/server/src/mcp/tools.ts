@@ -936,7 +936,7 @@ export function toolList(scopes: string[], tools: Tool[] = TOOLS) {
     }));
 }
 
-/** How an assistant should work on the site, sent when it connects. */
+/** How an assistant should work on the site, sent when it connects. No persona: the chat adds Chriss. */
 export const ASSISTANT_INSTRUCTIONS = `You are connected to a Cleitext site, a CMS like WordPress.
 Start with get_site, then read get_block_guide before writing: it has Cleitext's rules, the guide
 of the editor the entry uses (the block editor, or another such as the Fresco page builder),
@@ -945,6 +945,11 @@ that editor's format, never turn a page into one big HTML block, and keep it edi
 who do not write code. Everything you create is a draft: share the preview link, and publish only
 when the user asks. Write in the language of each entry; fill in the excerpt, the featured image
 and the SEO fields when the site has them.`;
+
+/** What external MCP clients get: Chriss's tools, without imposing a persona on them. */
+export const MCP_INSTRUCTIONS = `Chriss — Cleitext assistant tools.
+
+${ASSISTANT_INSTRUCTIONS}`;
 
 /** Runs a tool for the assistant; problems come back as text it can act on. */
 export async function callTool(

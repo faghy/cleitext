@@ -12,7 +12,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { apiContext } from './api-context.js';
 import { siteOrigin } from './origin.js';
-import { ASSISTANT_INSTRUCTIONS, callTool, siteTools, toolList, TOOLS } from './tools.js';
+import { callTool, MCP_INSTRUCTIONS, siteTools, toolList, TOOLS } from './tools.js';
 
 /**
  * MCP server of a site (RF-AI-01): `POST /mcp`, JSON-RPC over the stateless
@@ -113,7 +113,7 @@ export class McpController {
 
   /**
    * No server-initiated stream: every answer comes with its request. Someone
-   * opening the address in a browser lands on Admin → AI assistants.
+   * opening the address in a browser lands on Admin → Chriss.
    */
   @Get()
   get(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
@@ -142,8 +142,8 @@ export class McpController {
         return rpcResult(id, {
           protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'cleitext', title: 'Cleitext', version: VERSION },
-          instructions: ASSISTANT_INSTRUCTIONS,
+          serverInfo: { name: 'cleitext', title: 'Cleitext (Chriss)', version: VERSION },
+          instructions: MCP_INSTRUCTIONS,
         });
       }
       case 'ping':

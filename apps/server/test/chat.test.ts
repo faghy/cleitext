@@ -1,4 +1,4 @@
-/** The chat of Admin → AI assistants (RF-AI-03), with a fake AI provider. */
+/** The chat of Admin → Chriss (RF-AI-03), with a fake AI provider. */
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { DatabaseClient } from '@cleitext/db';
@@ -156,6 +156,7 @@ describe('admin chat', () => {
     expect(first.tools.map((t) => t.function.name)).toContain('create_entry');
     expect(first.tools.map((t) => t.function.name)).not.toContain('publish_entry');
     expect(first.messages[0]!.role).toBe('system');
+    expect(first.messages[0]!.content).toMatch(/^You are Chriss, the assistant of Cleitext\./);
 
     // The draft exists, made by the user, with the blocks.
     const pages = (await admin.get('/api/v1/entries?type=page')).json() as {

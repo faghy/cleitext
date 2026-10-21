@@ -260,19 +260,20 @@ export const itGeneral: Messages = {
   'Can publish (AI assistants)': 'Può pubblicare (assistenti IA)',
   'AI assistants (MCP)': 'Assistenti IA (MCP)',
   'Let AI assistants work on this site': 'Permetti agli assistenti IA di lavorare su questo sito',
-  'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish. Save, then open AI assistants to connect one.':
-    'Ognuno collega il proprio assistente IA (ChatGPT, Cursor o un altro client MCP) con il suo account e gli chiede di scrivere pagine e articoli. L’assistente usa i blocchi dell’editor e le sezioni del tema, agisce con i permessi della persona e crea bozze, a meno che non gli sia permesso di pubblicare. Salva, poi apri Assistenti IA per collegarne uno.',
-  'Open AI assistants': 'Apri Assistenti IA',
-  'Ask an AI assistant to write pages and posts: here in the chat, or from your own assistant (ChatGPT, Cursor or another MCP client). It uses the blocks of the editor and the sections of the theme, acts with your permissions, and creates drafts unless you let it publish.':
-    'Chiedi a un assistente IA di scrivere pagine e articoli: qui nella chat, oppure dal tuo assistente (ChatGPT, Cursor o un altro client MCP). Usa i blocchi dell’editor e le sezioni del tema, agisce con i tuoi permessi e crea bozze, a meno che tu non gli permetta di pubblicare.',
-  Chat: 'Chat',
-  'To chat here, set up an AI provider at the bottom of this page.':
-    'Per usare la chat qui, configura un fornitore di IA in fondo a questa pagina.',
-  'To chat here, a super admin has to set up an AI provider.':
-    'Per usare la chat qui, un super amministratore deve configurare un fornitore di IA.',
+  'People connect their AI assistant (ChatGPT, Cursor or another MCP client) with their own account and ask it to write pages and posts. The assistant uses the blocks of the editor and the sections of the theme, acts with the permissions of the person, and creates drafts unless allowed to publish. Save, then open the Chriss page to connect one.':
+    'Ognuno collega il proprio assistente IA (ChatGPT, Cursor o un altro client MCP) con il suo account e gli chiede di scrivere pagine e articoli. L’assistente usa i blocchi dell’editor e le sezioni del tema, agisce con i permessi della persona e crea bozze, a meno che non gli sia permesso di pubblicare. Salva, poi apri la pagina Chriss per collegarne uno.',
+  'Open Chriss': 'Apri Chriss',
+  'Chriss, the Cleitext assistant': 'Chriss, l’assistente di Cleitext',
+  'Ask Chriss to write pages and posts here in the chat, or connect your own AI assistant (ChatGPT, Cursor or another MCP client). Both use the blocks of the editor and the sections of the theme, act with your permissions, and create drafts unless you let them publish.':
+    'Chiedi a Chriss di scrivere pagine e articoli qui nella chat, oppure collega il tuo assistente IA (ChatGPT, Cursor o un altro client MCP). Entrambi usano i blocchi dell’editor e le sezioni del tema, agiscono con i tuoi permessi e creano bozze, a meno che tu non permetta loro di pubblicare.',
+  'Chat with Chriss': 'Chat con Chriss',
+  'To chat with Chriss, set up an AI provider at the bottom of this page.':
+    'Per chattare con Chriss, configura un fornitore di IA in fondo a questa pagina.',
+  'To chat with Chriss, a super admin has to set up an AI provider.':
+    'Per chattare con Chriss, un super amministratore deve configurare un fornitore di IA.',
   'Ready requests': 'Richieste pronte',
-  'Requests that work well: change the words in brackets, then use them here or copy them into your assistant.':
-    'Richieste che funzionano bene: cambia le parole tra parentesi quadre, poi usale qui o copiale nel tuo assistente.',
+  'Requests that work well: change the words in brackets, then give them to Chriss or copy them into your own assistant.':
+    'Richieste che funzionano bene: cambia le parole tra parentesi quadre, poi dalle a Chriss o copiale nel tuo assistente.',
   'Use in the chat': 'Usa nella chat',
   'Create a page "About us" with an opening section, three cards about what we do and a final call to action, in the style of the theme.':
     'Crea una pagina «Chi siamo» con una sezione di apertura, tre card su cosa facciamo e un invito all’azione finale, nello stile del tema.',
@@ -310,13 +311,14 @@ export const itGeneral: Messages = {
   'Saved: leave empty to keep it': 'Salvata: lascia vuoto per mantenerla',
   'The key is stored encrypted and never shown again.':
     'La chiave è salvata cifrata e non viene più mostrata.',
-  'Remove the AI provider? The chat stops working.':
-    'Rimuovere il fornitore di IA? La chat smette di funzionare.',
-  'Ask for a page, a post, a translation or a change: the assistant works on the site with your permissions and leaves drafts for you to check.':
-    'Chiedi una pagina, un articolo, una traduzione o una modifica: l’assistente lavora sul sito con i tuoi permessi e lascia bozze da controllare.',
+  'Remove the AI provider? Chriss stops working.':
+    'Rimuovere il fornitore di IA? Chriss smette di funzionare.',
+  'Ask Chriss for a page, a post, a translation or a change: Chriss works on the site with your permissions and leaves drafts for you to check.':
+    'Chiedi a Chriss una pagina, un articolo, una traduzione o una modifica: Chriss lavora sul sito con i tuoi permessi e lascia bozze da controllare.',
   'Working…': 'Al lavoro…',
+  'Chriss is thinking…': 'Chriss sta pensando…',
   'Your request': 'La tua richiesta',
-  'What should the assistant do?': 'Cosa deve fare l’assistente?',
+  'What should Chriss do?': 'Cosa deve fare Chriss?',
   Send: 'Invia',
   Stop: 'Ferma',
   'New conversation': 'Nuova conversazione',
@@ -337,7 +339,6 @@ export const itGeneral: Messages = {
   'Uploading an image': 'Caricamento di un’immagine',
   'Looking at the media': 'Consultazione dei media',
   'Updating a menu': 'Aggiornamento di un menu',
-  'AI assistants': 'Assistenti IA',
   'Ask an administrator of the site to turn them on.':
     'Chiedi a un amministratore del sito di attivarli.',
   'Connect an assistant': 'Collega un assistente',
@@ -365,8 +366,8 @@ export const itGeneral: Messages = {
     'creare e modificare bozze, caricare immagini, impostare i menu',
   'also publish (otherwise everything stays a draft)':
     'anche pubblicare (altrimenti resta tutto in bozza)',
-  'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time in AI assistants.':
-    'Agisce con i tuoi permessi, e tutto quello che fa finisce nel registro attività. Puoi scollegarlo quando vuoi da Assistenti IA.',
+  'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time on the Chriss page.':
+    'Agisce con i tuoi permessi, e tutto quello che fa finisce nel registro attività. Puoi scollegarlo quando vuoi dalla pagina Chriss.',
   Allow: 'Consenti',
   'Start again from your assistant.': 'Ricomincia dal tuo assistente.',
   'This assistant is not registered on this site: connect it again.':
@@ -555,6 +556,6 @@ export const itGeneral: Messages = {
   Writing: 'Scrittura',
   'The editor new entries open with. Entries keep the editor they were made with; each can still switch from its editor.':
     'L’editor con cui si aprono i nuovi contenuti. Ogni contenuto mantiene l’editor con cui è stato creato, e può comunque cambiarlo dal suo editor.',
-  'Ask the AI': 'Chiedi all’IA',
+  'Ask Chriss': 'Chiedi a Chriss',
   'About “{title}”, made with {editor}.': 'Su “{title}”, fatto con {editor}.',
 };

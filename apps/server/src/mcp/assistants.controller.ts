@@ -28,7 +28,7 @@ import { siteOrigin } from './origin.js';
 import { OAuthService } from './oauth.service.js';
 
 /**
- * Admin → AI assistants (RF-AI-01/02): whether MCP is on, the address to give
+ * Admin → Chriss (RF-AI-01/02): whether MCP is on, the address to give
  * the assistant, and the consent screen of /oauth/authorize, shown in the admin.
  */
 @Controller()

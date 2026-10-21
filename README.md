@@ -20,7 +20,7 @@
 - **Public site**: React SSR themes, no JavaScript by default, tag-based page cache
 - **Extensibility**: a plugin system modeled on WordPress (hooks, activation/uninstall lifecycle, upload and auto-updates), with typed hooks and a dedicated PostgreSQL schema per plugin
 - **Multi-site**: one installation serves many domains, isolated with PostgreSQL Row Level Security
-- **AI assistants**: an MCP server lets people connect ChatGPT and other AI assistants with OAuth and have them build pages and posts with the blocks of the editor, or ask in the chat of the admin with the site's own AI provider
+- **AI assistants**: an MCP server lets people connect ChatGPT and other AI assistants with OAuth and have them build pages and posts with the blocks of the editor, or ask Chriss, the Cleitext assistant, in the chat of the admin with the site's own AI provider
 - **Privacy & GDPR** (separate plugin): cookie banner following the Italian Garante's guidelines, with scripts held until consent and a consent log, privacy and cookie policy pages made of blocks, and requests to export or erase personal data
 - **Analytics** (separate plugin): Matomo, Google Analytics 4, Tag Manager, Meta Pixel, Search Console and Bing verification, with their privacy rules applied by Privacy & GDPR
 - **Catalog**: official plugins and themes installed and updated from the admin (Plugins → Add New), from a catalog signed with Ed25519 — [faghy/cleitext-catalog](https://github.com/faghy/cleitext-catalog)

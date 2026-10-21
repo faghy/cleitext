@@ -1,4 +1,4 @@
-/** Admin → AI assistants: the chat, and the consent of an assistant in the admin (RF-AI-01/02/03). */
+/** Admin → Chriss: the chat, and the consent of an assistant in the admin (RF-AI-01/02/03). */
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -20,9 +20,9 @@ test('an assistant is connected from the admin and disconnected', async ({ page,
   await signIn(page);
   await page.waitForURL('**/cl-admin/');
 
-  await page.getByRole('link', { name: 'AI assistants', exact: true }).click();
+  await page.getByRole('link', { name: 'Chriss', exact: true }).click();
   // The browser tab names the screen and the site.
-  await expect(page).toHaveTitle(/^AI assistants ‹ \S/);
+  await expect(page).toHaveTitle(/^Chriss ‹ \S/);
   await page.getByRole('button', { name: 'Allow connections' }).click();
   await expect(page.getByTestId('mcp-address')).toHaveText(/\/mcp$/);
   await expect(page.getByText('No assistant is connected to your account yet.')).toBeVisible();
@@ -142,7 +142,7 @@ test("the chat writes a draft with the site's AI provider", async ({ page }) => 
     });
   });
   await page.goto('/cl-admin/assistants');
-  await expect(page.getByText('To chat here, set up an AI provider')).toBeVisible();
+  await expect(page.getByText('To chat with Chriss, set up an AI provider')).toBeVisible();
 
   await page.getByLabel('API address').fill(`http://127.0.0.1:${port}/v1`);
   await page.getByLabel('Model').fill('test-model');
@@ -164,7 +164,7 @@ test("the chat writes a draft with the site's AI provider", async ({ page }) => 
   } finally {
     page.once('dialog', (dialog) => void dialog.accept());
     await page.getByRole('button', { name: 'Remove', exact: true }).click();
-    await expect(page.getByText('To chat here, set up an AI provider')).toBeVisible();
+    await expect(page.getByText('To chat with Chriss, set up an AI provider')).toBeVisible();
     // Really removed, not saved again by the form around the button.
     expect(await providerNow()).toBeNull();
     provider.close();
@@ -218,7 +218,7 @@ test('the chat opened from an entry knows the entry and its editor', async ({ pa
   try {
     await page.goto(`/cl-admin/entries/${entry.id}`);
     const opened = context.waitForEvent('page');
-    await page.getByRole('link', { name: /Ask the AI/ }).click();
+    await page.getByRole('link', { name: /Ask Chriss/ }).click();
     const chat = await opened;
     await chat.waitForURL(`**/cl-admin/assistants?entry=${entry.id}`);
     await expect(chat.getByText('About “Opening hours”, made with Block editor.')).toBeVisible();
