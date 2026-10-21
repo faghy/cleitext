@@ -169,6 +169,7 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 | RF-CNT-15 | Blocco di modifica concorrente: avviso "X sta modificando questa pagina" con possibilità di prendere il controllo.                                                          | 1.0                                   |
 | RF-CNT-16 | Pagina di visibilità "privata" (solo utenti con capability) e "protetta da password".                                                                                       | 1.0                                   |
 | RF-CNT-17 | Workflow editoriali personalizzati (stati custom).                                                                                                                          | Poi                                   |
+| RF-CNT-18 | Cambio dell'autore di una voce (riquadro Autore, azione "Cambia autore", `cleitext entry:reassign`): serve `edit_others_entries`; il nuovo autore deve poter scrivere.      | 1.0                                   |
 
 ### 4.4 Editor a blocchi
 
@@ -343,6 +344,8 @@ Base: `/api/v1`. Il formato è JSON. Gli errori seguono RFC 9457. La paginazione
 | POST                  | `/entries`                                                      | Crea un'entry (bozza).                                                       |
 | GET                   | `/entries/:id`                                                  | Entry più revisione corrente (`?revision=published` per quella pubblicata).  |
 | PATCH                 | `/entries/:id`                                                  | Salva: crea una revisione `manual`.                                          |
+| GET                   | `/entries/authors`                                              | Chi può essere scelto come autore (`edit_others_entries`).                   |
+| POST                  | `/entries/bulk`                                                 | Azioni di massa; `author` + `authorId` cambia l'autore.                      |
 | PUT                   | `/entries/:id/autosave`                                         | Autosalvataggio.                                                             |
 | POST                  | `/entries/:id/publish` · `/unpublish` · `/schedule` · `/submit` | Transizioni di stato.                                                        |
 | POST                  | `/entries/:id/trash` · `/restore`                               | Cestino.                                                                     |

@@ -406,4 +406,8 @@ export const itContent: Messages = {
   'Preview the maintenance page': 'Anteprima della pagina di manutenzione',
   'The site is in maintenance mode: visitors see the maintenance page.':
     'Il sito è in manutenzione: i visitatori vedono la pagina di manutenzione.',
+  'Change author': 'Cambia autore',
+  'New author': 'Nuovo autore',
+  '— New author —': '— Nuovo autore —',
+  '(no author)': '(nessun autore)',
 };

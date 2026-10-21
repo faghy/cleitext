@@ -169,6 +169,7 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 | RF-CNT-15 | Concurrent editing lock: "X is editing this page" warning with the option to take over.                                                                                            | 1.0                                |
 | RF-CNT-16 | "Private" visibility (only users with the capability) and "password protected".                                                                                                    | 1.0                                |
 | RF-CNT-17 | Custom editorial workflows (custom statuses).                                                                                                                                      | Later                              |
+| RF-CNT-18 | Changing an entry's author (Author box, "Change author" bulk action, `cleitext entry:reassign`): needs `edit_others_entries`; the new author is a member who can write.            | 1.0                                |
 
 ### 4.4 Block editor
 
@@ -343,6 +344,8 @@ Base: `/api/v1`. The format is JSON. Errors follow RFC 9457. Pagination is curso
 | POST                  | `/entries`                                                      | Creates an entry (draft).                                                     |
 | GET                   | `/entries/:id`                                                  | Entry plus current revision (`?revision=published` for the published one).    |
 | PATCH                 | `/entries/:id`                                                  | Save: creates a `manual` revision.                                            |
+| GET                   | `/entries/authors`                                              | Who can be chosen as author (`edit_others_entries`).                          |
+| POST                  | `/entries/bulk`                                                 | Bulk actions; `author` + `authorId` changes the author.                       |
 | PUT                   | `/entries/:id/autosave`                                         | Autosave.                                                                     |
 | POST                  | `/entries/:id/publish` · `/unpublish` · `/schedule` · `/submit` | Status transitions.                                                           |
 | POST                  | `/entries/:id/trash` · `/restore`                               | Trash.                                                                        |

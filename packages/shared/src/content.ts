@@ -56,6 +56,11 @@ export const updateEntryRequestSchema = z.object({
   fields: fieldsSchema.optional(),
   excerpt: excerptSchema.optional(),
   featuredMediaId: featuredMediaSchema.optional(),
+  /**
+   * Gives the entry to another writer of the site (like WordPress's Author box).
+   * Needs `edit_others_entries`; not saved as a revision.
+   */
+  authorId: z.uuid().optional(),
 });
 export type UpdateEntryRequest = z.input<typeof updateEntryRequestSchema>;
 
@@ -93,10 +98,25 @@ export const listEntriesQuerySchema = z.object({
 });
 
 /** Bulk actions of list tables (RF-ADM-03). */
-export const bulkEntriesRequestSchema = z.object({
-  ids: z.array(z.uuid()).min(1).max(100),
-  action: z.enum(['publish', 'unpublish', 'trash', 'restore', 'delete']),
-});
+export const bulkEntriesRequestSchema = z
+  .object({
+    ids: z.array(z.uuid()).min(1).max(100),
+    action: z.enum(['publish', 'unpublish', 'trash', 'restore', 'delete', 'author']),
+    /** The new author, for the `author` action ("Change author"). */
+    authorId: z.uuid().optional(),
+  })
+  .refine((v) => v.action !== 'author' || v.authorId !== undefined, {
+    message: 'Choose the new author.',
+    path: ['authorId'],
+  });
+export type BulkEntriesRequest = z.input<typeof bulkEntriesRequestSchema>;
+
+/** A member of the site who can write entries: a choice for the Author box. */
+export interface EntryAuthorOption {
+  id: string;
+  displayName: string;
+  email: string;
+}
 
 export interface BulkEntriesResponse {
   results: { id: string; ok: boolean; error?: string }[];

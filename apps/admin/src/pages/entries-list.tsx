@@ -1,5 +1,6 @@
 import type {
   BulkEntriesResponse,
+  EntryAuthorOption,
   EntryListResponse,
   EntryStatus,
   EntrySummary,
@@ -44,7 +45,7 @@ const FILTERS: { label: string; status?: EntryStatus }[] = [
 ];
 
 type Sort = 'updated' | 'title' | 'date' | 'order';
-type BulkAction = 'publish' | 'unpublish' | 'trash' | 'restore' | 'delete';
+type BulkAction = 'publish' | 'unpublish' | 'trash' | 'restore' | 'delete' | 'author';
 
 const SELECT = 'rounded border border-slate-300 bg-white px-2 py-1 text-sm';
 
@@ -66,10 +67,12 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<BulkAction | ''>('');
+  const [bulkAuthor, setBulkAuthor] = useState('');
   const [bulkMessage, setBulkMessage] = useState<{ kind: 'error' | 'success'; text: string }>();
   const [editing, setEditing] = useState<string | null>(null);
 
   const canManageUsers = me.capabilities.includes('manage_users');
+  const canReassign = me.capabilities.includes('edit_others_entries');
   const multilingual = me.site.locales.length > 1;
   const types = useQuery(contentTypesQuery);
   const hierarchical = types.data?.find((ct) => ct.slug === type)?.hierarchical ?? false;
@@ -82,6 +85,11 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
     queryKey: ['users'],
     queryFn: () => api<MemberView[]>('GET', '/users'),
     enabled: canManageUsers,
+  });
+  const writers = useQuery({
+    queryKey: ['entry-authors'],
+    queryFn: () => api<EntryAuthorOption[]>('GET', '/entries/authors'),
+    enabled: canReassign,
   });
   const taxonomies = useQuery({
     queryKey: ['taxonomies'],
@@ -157,7 +165,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
     onError: (error) => setBulkMessage({ kind: 'error', text: errorMessage(error) }),
   });
   const bulk = useMutation({
-    mutationFn: (input: { ids: string[]; action: BulkAction }) =>
+    mutationFn: (input: { ids: string[]; action: BulkAction; authorId?: string }) =>
       api<BulkEntriesResponse>('POST', '/entries/bulk', input),
     onSuccess: async ({ results }) => {
       const failed = results.filter((r) => !r.ok);
@@ -192,6 +200,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
           { value: 'publish', label: 'Publish' },
           { value: 'unpublish', label: 'Unpublish' },
           { value: 'trash', label: 'Move to trash' },
+          ...(canReassign ? [{ value: 'author' as const, label: 'Change author' }] : []),
         ];
 
   function toggle(id: string) {
@@ -285,13 +294,18 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
           onSubmit={(e) => {
             e.preventDefault();
             if (!bulkAction || selected.size === 0) return;
+            if (bulkAction === 'author' && !bulkAuthor) return;
             if (
               bulkAction === 'delete' &&
               !window.confirm(t('Delete the selected items permanently?'))
             )
               return;
             setBulkMessage(undefined);
-            bulk.mutate({ ids: [...selected], action: bulkAction });
+            bulk.mutate({
+              ids: [...selected],
+              action: bulkAction,
+              ...(bulkAction === 'author' ? { authorId: bulkAuthor } : {}),
+            });
           }}
         >
           <select
@@ -307,10 +321,30 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
               </option>
             ))}
           </select>
+          {bulkAction === 'author' && (
+            <select
+              aria-label={t('New author')}
+              className={SELECT}
+              value={bulkAuthor}
+              onChange={(e) => setBulkAuthor(e.target.value)}
+            >
+              <option value="">{t('— New author —')}</option>
+              {writers.data?.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.displayName}
+                </option>
+              ))}
+            </select>
+          )}
           <Button
             variant="secondary"
             type="submit"
-            disabled={!bulkAction || selected.size === 0 || bulk.isPending}
+            disabled={
+              !bulkAction ||
+              selected.size === 0 ||
+              bulk.isPending ||
+              (bulkAction === 'author' && !bulkAuthor)
+            }
           >
             {t('Apply')}
           </Button>

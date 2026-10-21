@@ -285,7 +285,8 @@ I pannelli di hosting (l'estensione Plesk **Cleitext Toolkit**) e gli script usa
 | `not_configured`                                                                           | `DATABASE_ADMIN_URL` (o il ruolo dell'applicazione) non è impostato                     |
 | `db_unreachable`                                                                           | il database rifiuta la connessione, la password è sbagliata o il database non esiste    |
 | `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | i dati sono incompleti o sbagliati                                                      |
-| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link` e i comandi dei domini                                                     |
+| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign` e i comandi dei domini                                   |
+| `cannot_write`                                                                             | `entry:reassign`: il ruolo del nuovo autore non può scrivere voci                       |
 | `primary_domain`                                                                           | `site:domain:remove` sul dominio principale                                             |
 | `installed`                                                                                | `install` quando esiste già un sito                                                     |
 | `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                                    |
@@ -411,6 +412,7 @@ Il link fa entrare nell'amministrazione di quel sito, di solito il primo sito at
 | `site:maintenance`, `site:archive`, `site:update`               | `{"site",…}`                                                                                                |
 | `user:create … --password-stdin`                                | `{"id","email","superAdmin","site","role"}`                                                                 |
 | `user:reset-password --email <e> --password-stdin`              | `{"email"}`                                                                                                 |
+| `entry:reassign --site <s> --from <u> --to <u> [--type <t>]`    | `{"site","from","to","type","entries","published","media"}`: `from`/`to` sono `{"id","email"}`              |
 | `plugin:list`                                                   | `{"plugins":[{"slug","name","version","apiVersion","network","mustUse","paid","activeOn":["main"]}]}`       |
 | `plugin:activate <slug> --site <s>` \| `--network`              | `{"slug","site","version","alreadyActive","network"}`                                                       |
 | `plugin:deactivate <slug> --site <s>` \| `--network`            | `{"slug","site","network","message"}`                                                                       |
@@ -420,6 +422,8 @@ Il link fa entrare nell'amministrazione di quel sito, di solito il primo sito at
 | `backup:list [--dir <cartella>]`                                | `{"dir","backups":[{"name","path","bytes","createdAt","beforeVersion"}]}`, dal più recente                  |
 | `backup:prune --keep <n> [--dir <cartella>]`                    | `{"dir","keep","removed":[…]}`: tiene gli n più recenti, compresi quelli fatti prima degli aggiornamenti    |
 | `restore <file> --yes`                                          | `{"file","createdAt","postgres","revokedRoles"}`                                                            |
+
+`entry:reassign` assegna tutte le voci di un utente su un sito a un altro autore, come "Attribuisci tutti i contenuti a" di WordPress quando si elimina un utente: ogni stato (bozze, in revisione, programmate, cestino) e ogni lingua. `--from` e `--to` accettano un indirizzo email o l'id di un utente. Il nuovo autore deve essere un membro attivo del sito con un ruolo che può scrivere voci (`edit_entries`). Seguono anche i media caricati dall'utente, a meno che `--type` limiti il cambio a un tipo di contenuto. Le revisioni conservano chi le ha salvate e la data di modifica non cambia. Il registro attività annota `entries.reassigned` con i conteggi e la cache delle pagine del sito viene svuotata. Prima di togliere qualcuno da un sito, eseguilo perché i suoi contenuti abbiano ancora un autore. Nell'amministrazione l'autore di una voce si cambia dal riquadro Autore dell'editor, quello di più voci dall'azione di massa **Cambia autore** (entrambi richiedono `edit_others_entries`; annotato come `entry.author_changed`).
 
 `plugin:activate --site` attiva il plugin come il pulsante **Attiva** dell'amministrazione. Controlla dipendenze e conflitti, crea i tipi di contenuto ed esegue `onActivate`, e il registro attività lo annota. Un plugin a pagamento richiede la licenza del sito, inserita prima nell'amministrazione. `--network` lo attiva su tutti i siti.
 

@@ -2,10 +2,17 @@
  * Content (milestone M2): entries, revisions, statuses, scheduling,
  * permissions and redirects (translations: the multilingual plugin).
  */
-import { entries, redirects, withSiteContext, type DatabaseClient } from '@cleitext/db';
+import {
+  auditLog,
+  entries,
+  redirects,
+  users,
+  withSiteContext,
+  type DatabaseClient,
+} from '@cleitext/db';
 import type { CxdDocument } from '@cleitext/blocks';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SchedulerService } from '../src/content/scheduler.service.js';
@@ -455,5 +462,124 @@ describe('private entries (RF-CNT-16)', () => {
     // Back to public.
     await admin.post(`/api/v1/entries/${created.id}/publish`);
     expect((await visitor.get('/staff-only')).statusCode).toBe(200);
+  });
+});
+
+describe('changing the author (RF-CNT-18)', () => {
+  it('lets editors give an entry to another writer, audited and shown in public', async () => {
+    const editor = as.editor!;
+    const entry = await createArticle(editor, 'Handed over', 'Passed on.');
+    expect((await editor.post(`/api/v1/entries/${entry.id}/publish`)).statusCode).toBe(200);
+    const path = `/${new Date().getFullYear()}/handed-over`;
+    const visitor = new TestClient(app, site.host, '10.12.2.1');
+    expect((await visitor.get(path)).statusCode).toBe(200); // now in the page cache
+
+    // The choices: active members who can write, not subscribers.
+    const choices = (await editor.get('/api/v1/entries/authors')).json();
+    const emails = choices.map((c: { email: string }) => c.email);
+    expect(emails).toContain('contributor@content.test');
+    expect(emails).not.toContain('subscriber@content.test');
+    expect((await as.author!.get('/api/v1/entries/authors')).statusCode).toBe(403);
+
+    const [contributor] = await owner.db
+      .select({ id: users.id, slug: users.slug, name: users.displayName })
+      .from(users)
+      .where(eq(users.email, 'contributor@content.test'));
+    const editorId = entry.author.id as string;
+    const res = await editor.request('PATCH', `/api/v1/entries/${entry.id}`, {
+      authorId: contributor!.id,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json()).toMatchObject({
+      author: { id: contributor!.id },
+      status: 'published',
+      revision: { id: entry.revision.id },
+    });
+
+    const logged = await withSiteContext(owner.db, site.id, (tx) =>
+      tx
+        .select()
+        .from(auditLog)
+        .where(and(eq(auditLog.action, 'entry.author_changed'), eq(auditLog.targetId, entry.id))),
+    );
+    expect(logged).toHaveLength(1);
+    expect(logged[0]!.meta).toEqual({ from: editorId, to: contributor!.id });
+
+    // The page, the author archive and the feed show the new author at once.
+    const page = (await visitor.get(path)).body;
+    expect(page).toContain(`href="/author/${contributor!.slug}"`);
+    const archive = await visitor.get(`/author/${contributor!.slug}`);
+    expect(archive.statusCode).toBe(200);
+    expect(archive.body).toContain('Handed over');
+    expect((await visitor.get('/feed')).body).toContain(
+      `<dc:creator>${contributor!.name}</dc:creator>`,
+    );
+  });
+
+  it('refuses people without the capability, and authors who cannot write here', async () => {
+    const own = await createArticle(as.author!, 'Mine to keep');
+    const [editorUser] = await owner.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, 'editor@content.test'));
+    // An author cannot give away even their own entry.
+    const refused = await as.author!.request('PATCH', `/api/v1/entries/${own.id}`, {
+      authorId: editorUser!.id,
+    });
+    expect(refused.statusCode).toBe(403);
+    // Sending the same author is not a change.
+    expect(
+      (await as.author!.request('PATCH', `/api/v1/entries/${own.id}`, { authorId: own.author.id }))
+        .statusCode,
+    ).toBe(200);
+
+    const admin = as.administrator!;
+    const outsider = await seedUser(owner, {
+      email: 'outsider@content.test',
+      password: PASSWORD,
+      site: other,
+      role: 'editor',
+    });
+    const [subscriber] = await owner.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, 'subscriber@content.test'));
+    for (const [authorId, message] of [
+      [outsider, /not a member/],
+      [subscriber!.id, /cannot write entries/],
+    ] as const) {
+      const res = await admin.request('PATCH', `/api/v1/entries/${own.id}`, { authorId });
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toMatch(message);
+    }
+    expect((await admin.get(`/api/v1/entries/${own.id}`)).json().author.id).toBe(own.author.id);
+  });
+
+  it('works as a bulk action', async () => {
+    const admin = as.administrator!;
+    const a = await createArticle(as.author!, 'Bulk one');
+    const b = await createArticle(as.author!, 'Bulk two');
+    const [editorUser] = await owner.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, 'editor@content.test'));
+    const missing = await admin.post('/api/v1/entries/bulk', { ids: [a.id], action: 'author' });
+    expect(missing.statusCode).toBe(400);
+    const res = await admin.post('/api/v1/entries/bulk', {
+      ids: [a.id, b.id],
+      action: 'author',
+      authorId: editorUser!.id,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().results.every((r: { ok: boolean }) => r.ok)).toBe(true);
+    for (const id of [a.id, b.id]) {
+      expect((await admin.get(`/api/v1/entries/${id}`)).json().author.id).toBe(editorUser!.id);
+    }
+    const byAuthor = await as.author!.post('/api/v1/entries/bulk', {
+      ids: [a.id],
+      action: 'author',
+      authorId: editorUser!.id,
+    });
+    expect(byAuthor.statusCode).toBe(403);
   });
 });

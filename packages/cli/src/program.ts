@@ -40,6 +40,7 @@ import {
 } from './operations.js';
 import { backup, listBackups, pruneBackups, restore } from './backup.js';
 import { configure } from './configure.js';
+import { reassignEntries } from './content.js';
 import {
   appRoot,
   backupsDir,
@@ -662,6 +663,25 @@ export function buildProgram(json = false): Command {
         const password = await newPassword(opts.passwordStdin, 'New password (min. 12 characters)');
         await setPassword(db, opts.email, password);
         report({ email: opts.email }, `Password updated for ${opts.email}.`);
+      }),
+    );
+
+  program
+    .command('entry:reassign')
+    .description(
+      "Give all of a user's entries (every status and language) and uploaded media to another writer.",
+    )
+    .requiredOption('--site <slug>')
+    .requiredOption('--from <user>', 'current author: email or user id')
+    .requiredOption('--to <user>', 'new author: email or user id of a member who can write')
+    .option('--type <slug>', 'only entries of this content type (media are left as they are)')
+    .action((opts: { site: string; from: string; to: string; type?: string }) =>
+      withOwner(async (db) => {
+        const result = await reassignEntries(db, opts);
+        report(
+          { ...result },
+          `${result.entries} entries (${result.published} published) and ${result.media} media files of ${result.from.email} now belong to ${result.to.email} on ${result.site}.`,
+        );
       }),
     );
 

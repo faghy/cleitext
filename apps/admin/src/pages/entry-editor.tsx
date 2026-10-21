@@ -7,6 +7,7 @@ import {
   labelText,
   type AssistantsStatus,
   type ContentTypeView,
+  type EntryAuthorOption,
   type EntryListResponse,
   type EntryView,
   type FieldDefinition,
@@ -1120,15 +1121,21 @@ function DocumentPanel({
   onRestored: (view: EntryView) => void;
 }) {
   const { t } = useT();
-  const siteTimezone = useMe().site.timezone;
+  const me = useMe();
+  const siteTimezone = me.site.timezone;
+  const canReassign = me.capabilities.includes('edit_others_entries');
   const [slug, setSlug] = useState(entry.slug);
   const [scheduleAt, setScheduleAt] = useState('');
   const [comparing, setComparing] = useState<string | null>(null);
   useEffect(() => setSlug(entry.slug), [entry.slug]);
 
   const saveSettings = useMutation({
-    mutationFn: (changes: { slug?: string; parentId?: string | null; position?: number }) =>
-      api<EntryView>('PATCH', `/entries/${entry.id}`, changes),
+    mutationFn: (changes: {
+      slug?: string;
+      parentId?: string | null;
+      position?: number;
+      authorId?: string;
+    }) => api<EntryView>('PATCH', `/entries/${entry.id}`, changes),
     onSuccess: onSaved,
   });
 
@@ -1140,6 +1147,13 @@ function DocumentPanel({
     mutationFn: (revisionId: string) =>
       api<EntryView>('POST', `/entries/${entry.id}/revisions/${revisionId}/restore`),
     onSuccess: onRestored,
+  });
+
+  // Like WordPress's Author box: members who can write (RF-CNT-18).
+  const writers = useQuery({
+    queryKey: ['entry-authors'],
+    queryFn: () => api<EntryAuthorOption[]>('GET', '/entries/authors'),
+    enabled: canReassign,
   });
 
   const types = useQuery(contentTypesQuery);
@@ -1243,6 +1257,31 @@ function DocumentPanel({
           />
         </label>
       </section>
+
+      {canReassign && (
+        <section className="space-y-2">
+          <h3 className="font-medium">{t('Author')}</h3>
+          <label className="block">
+            <span className="sr-only">{t('Author')}</span>
+            <select
+              value={entry.author?.id ?? ''}
+              disabled={readOnly || saveSettings.isPending}
+              onChange={(e) => e.target.value && saveSettings.mutate({ authorId: e.target.value })}
+              className="w-full rounded border border-slate-300 bg-white px-2 py-1"
+            >
+              {!entry.author && <option value="">{t('(no author)')}</option>}
+              {entry.author && !writers.data?.some((w) => w.id === entry.author?.id) && (
+                <option value={entry.author.id}>{entry.author.displayName}</option>
+              )}
+              {writers.data?.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
+      )}
 
       {hierarchical && (
         <section className="space-y-2">

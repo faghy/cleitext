@@ -285,7 +285,8 @@ Hosting panels (the Plesk extension **Cleitext Toolkit**) and scripts drive Clei
 | `not_configured`                                                                           | `DATABASE_ADMIN_URL` (or the application role) is not set                        |
 | `db_unreachable`                                                                           | the database refuses the connection, the password is wrong, or it does not exist |
 | `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | the input is incomplete or wrong                                                 |
-| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link` and the domain commands                                             |
+| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign` and the domain commands                           |
+| `cannot_write`                                                                             | `entry:reassign`: the new author's role cannot write entries                     |
 | `primary_domain`                                                                           | `site:domain:remove` on the primary domain                                       |
 | `installed`                                                                                | `install` when a site already exists                                             |
 | `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                             |
@@ -411,6 +412,7 @@ The link signs in to the admin of that site, the first active one by default. On
 | `site:maintenance`, `site:archive`, `site:update`               | `{"site",…}`                                                                                            |
 | `user:create … --password-stdin`                                | `{"id","email","superAdmin","site","role"}`                                                             |
 | `user:reset-password --email <e> --password-stdin`              | `{"email"}`                                                                                             |
+| `entry:reassign --site <s> --from <u> --to <u> [--type <t>]`    | `{"site","from","to","type","entries","published","media"}`: `from`/`to` are `{"id","email"}`           |
 | `plugin:list`                                                   | `{"plugins":[{"slug","name","version","apiVersion","network","mustUse","paid","activeOn":["main"]}]}`   |
 | `plugin:activate <slug> --site <s>` \| `--network`              | `{"slug","site","version","alreadyActive","network"}`                                                   |
 | `plugin:deactivate <slug> --site <s>` \| `--network`            | `{"slug","site","network","message"}`                                                                   |
@@ -420,6 +422,8 @@ The link signs in to the admin of that site, the first active one by default. On
 | `backup:list [--dir <dir>]`                                     | `{"dir","backups":[{"name","path","bytes","createdAt","beforeVersion"}]}`, newest first                 |
 | `backup:prune --keep <n> [--dir <dir>]`                         | `{"dir","keep","removed":[…]}`: keeps the n newest, those taken before updates included                 |
 | `restore <file> --yes`                                          | `{"file","createdAt","postgres","revokedRoles"}`                                                        |
+
+`entry:reassign` gives all of a user's entries on a site to another writer, like WordPress's "Attribute all content to" when a user is deleted: every status (drafts, pending, scheduled, trash) and every language. `--from` and `--to` take an email address or a user id. The new author must be an active member of the site whose role can write entries (`edit_entries`). The media the user uploaded follow too, unless `--type` limits the change to one content type. Revisions keep who saved them, and the modification date does not change. The activity log records `entries.reassigned` with the counts, and the site's page cache is cleared. Before removing someone from a site, run it so their content keeps an author. In the admin, one entry's author changes from the editor's Author box, and several from the **Change author** bulk action (both need `edit_others_entries`; logged as `entry.author_changed`).
 
 `plugin:activate --site` activates the plugin like the **Activate** button in the admin. It checks dependencies and conflicts, creates the content types and runs `onActivate`, and the activity log records it. A paid plugin needs the site's license, entered in the admin first. `--network` activates it on every site.
 

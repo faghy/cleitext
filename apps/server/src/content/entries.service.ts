@@ -14,6 +14,8 @@ import {
   newId,
   redirects,
   revisions,
+  roles,
+  siteMembers,
   sites,
   users,
   withContext,
@@ -22,6 +24,7 @@ import {
 } from '@cleitext/db';
 import type {
   ContentTypeView,
+  EntryAuthorOption,
   EntryListResponse,
   EntryStatus,
   EntrySummary,
@@ -326,13 +329,22 @@ export class EntriesService {
     siteId: string,
     auth: AuthContext,
     ids: string[],
-    action: 'publish' | 'unpublish' | 'trash' | 'restore' | 'delete',
+    action: 'publish' | 'unpublish' | 'trash' | 'restore' | 'delete' | 'author',
     ip: string,
+    options: { authorId?: string | undefined } = {},
   ): Promise<{ results: { id: string; ok: boolean; error?: string }[] }> {
+    if (action === 'author') {
+      if (!options.authorId) throw new BadRequestException('Choose the new author.');
+      // Checked once for the whole list: the same reasons would fail every entry.
+      this.assertCanReassign(auth);
+      await this.run(siteId, auth, (tx) => this.assertWriter(tx, siteId, options.authorId!));
+    }
     const results: { id: string; ok: boolean; error?: string }[] = [];
     for (const id of [...new Set(ids)]) {
       try {
-        if (action === 'publish') await this.publish(siteId, auth, id, ip);
+        if (action === 'author')
+          await this.update(siteId, auth, id, { authorId: options.authorId }, ip);
+        else if (action === 'publish') await this.publish(siteId, auth, id, ip);
         else if (action === 'unpublish') await this.unpublish(siteId, auth, id, ip);
         else if (action === 'trash') await this.trash(siteId, auth, id, ip);
         else if (action === 'restore') await this.restore(siteId, auth, id, ip);
@@ -355,6 +367,29 @@ export class EntriesService {
       if (!canRead(auth, entry)) throw new ForbiddenException('You cannot view this entry.');
       return this.view(tx, auth, entry);
     });
+  }
+
+  /**
+   * Members who can write entries (their role has `edit_entries`): the
+   * choices of the Author box and of the "Change author" bulk action.
+   */
+  authors(siteId: string, auth: AuthContext): Promise<EntryAuthorOption[]> {
+    this.assertCanReassign(auth);
+    return this.run(siteId, auth, (tx) =>
+      tx
+        .select({ id: users.id, displayName: users.displayName, email: users.email })
+        .from(siteMembers)
+        .innerJoin(users, eq(users.id, siteMembers.userId))
+        .innerJoin(roles, eq(roles.id, siteMembers.roleId))
+        .where(
+          and(
+            eq(siteMembers.siteId, siteId),
+            eq(users.status, 'active'),
+            sql`'edit_entries' = ANY (${roles.capabilities})`,
+          ),
+        )
+        .orderBy(asc(users.displayName), asc(users.email)),
+    );
   }
 
   // ---- Commands ---------------------------------------------------------------
@@ -469,6 +504,7 @@ export class EntriesService {
       excerpt?: string | null | undefined;
       featuredMediaId?: string | null | undefined;
       terms?: Record<string, (string | { name: string })[]> | undefined;
+      authorId?: string | undefined;
     },
     ip: string,
   ): Promise<EntryView> {
@@ -482,6 +518,14 @@ export class EntriesService {
       const before = await this.publicTags(tx, entry);
 
       const changes: Partial<typeof entries.$inferInsert> = { updatedAt: sql`now()` as never };
+      // A new author is entry metadata, like WordPress's post_author: no revision.
+      const newAuthor =
+        input.authorId !== undefined && input.authorId !== entry.authorId ? input.authorId : null;
+      if (newAuthor) {
+        this.assertCanReassign(auth);
+        await this.assertWriter(tx, siteId, newAuthor);
+        changes.authorId = newAuthor;
+      }
       if (input.title !== undefined) changes.title = input.title;
       if (input.position !== undefined) changes.position = input.position;
       if (input.parentId !== undefined) {
@@ -555,8 +599,25 @@ export class EntriesService {
           if (to) await this.redirectPath(tx, siteId, from, to);
         }
       }
-      await this.audit.record(tx, entryAudit(siteId, auth, 'entry.saved', id, ip));
+      const onlyAuthor = Object.entries(input).every(
+        ([key, value]) => key === 'authorId' || value === undefined,
+      );
+      if (!onlyAuthor || !newAuthor) {
+        await this.audit.record(tx, entryAudit(siteId, auth, 'entry.saved', id, ip));
+      }
       tags = [...before, ...(await this.publicTags(tx, updated))];
+      if (newAuthor) {
+        await this.audit.record(tx, {
+          ...entryAudit(siteId, auth, 'entry.author_changed', id, ip),
+          meta: { from: entry.authorId, to: newAuthor },
+        });
+        // Author archives (and their feeds) of both people; the entry, its
+        // listings and the site feeds come from publicTags when it is public.
+        if (tags.length > 0) {
+          if (entry.authorId) tags.push(`author:${entry.authorId}`);
+          tags.push(`author:${newAuthor}`);
+        }
+      }
       return this.view(tx, auth, updated);
     });
     await this.cache.invalidate(siteId, tags);
@@ -973,6 +1034,32 @@ export class EntriesService {
       'search',
       ...termRows.map((t) => `term:${t.id}`),
     ];
+  }
+
+  /** Changing who wrote an entry is acting on someone else's entry. */
+  private assertCanReassign(auth: AuthContext): void {
+    if (!auth.capabilities.includes('edit_others_entries')) {
+      throw new ForbiddenException('You cannot change the author of entries.');
+    }
+  }
+
+  /** The new author: an active member of the site whose role can write entries. */
+  private async assertWriter(tx: Tx, siteId: string, userId: string): Promise<void> {
+    const [row] = await tx
+      .select({ status: users.status, capabilities: roles.capabilities })
+      .from(siteMembers)
+      .innerJoin(users, eq(users.id, siteMembers.userId))
+      .innerJoin(roles, eq(roles.id, siteMembers.roleId))
+      .where(and(eq(siteMembers.siteId, siteId), eq(siteMembers.userId, userId)));
+    if (!row) throw new BadRequestException('The new author is not a member of this site.');
+    if (row.status !== 'active') {
+      throw new BadRequestException('The new author does not have an active account.');
+    }
+    if (!row.capabilities.includes('edit_entries')) {
+      throw new BadRequestException(
+        'The new author cannot write entries: give them a role such as Contributor, Author or Editor.',
+      );
+    }
   }
 
   private async load(tx: Tx, id: string): Promise<EntryRow> {

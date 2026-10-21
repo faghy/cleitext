@@ -9,8 +9,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import {
+  auditLog,
   createDatabase,
+  entries,
   hashUserToken,
+  media,
+  sites,
+  withSiteContext,
   migrate,
   parseEnvFile,
   userTokens,
@@ -286,6 +291,95 @@ describe('login-link', () => {
     expect(suspended.json.error.code).toBe('user_inactive');
     const nobody = await cli(['login-link', '--json', '--email', 'nobody@example.com']);
     expect(nobody.json.error.code).toBe('not_found');
+  });
+});
+
+describe('entry:reassign', () => {
+  it('gives every entry and medium of a user to another writer', async () => {
+    const make = (email: string, role: string) =>
+      cli(
+        [
+          'user:create',
+          '--json',
+          '--email',
+          email,
+          '--site',
+          'main',
+          '--role',
+          role,
+          '--password-stdin',
+        ],
+        PASSWORD,
+      );
+    const gone = (await make('gone@example.com', 'author')).json.id as string;
+    const heir = (await make('heir@example.com', 'author')).json.id as string;
+    await make('reader@example.com', 'subscriber');
+    const [site] = await owner.db.select().from(sites).where(eq(sites.slug, 'main'));
+    await withSiteContext(owner.db, site!.id, async (tx) => {
+      const rows = [
+        ['article', 'en', 'published'],
+        ['article', 'it', 'draft'],
+        ['page', 'en', 'trashed'],
+      ] as const;
+      for (const [i, [typeSlug, locale, status]] of rows.entries()) {
+        await tx.insert(entries).values({
+          siteId: site!.id,
+          typeSlug,
+          locale,
+          slug: `gone-${i}`,
+          title: `Gone ${i}`,
+          status,
+          authorId: gone,
+        });
+      }
+      await tx.insert(media).values({
+        siteId: site!.id,
+        storageKey: 'x/gone.webp',
+        filename: 'gone.webp',
+        mime: 'image/webp',
+        sizeBytes: 10,
+        checksum: 'abc',
+        uploadedBy: gone,
+      });
+    });
+
+    const args = ['entry:reassign', '--json', '--site', 'main', '--from', 'gone@example.com'];
+    const subscriber = await cli([...args, '--to', 'reader@example.com']);
+    expect(subscriber.json.error.code).toBe('cannot_write');
+    const outsider = await cli([...args, '--to', 'root@example.com']);
+    expect(outsider.json.error.code).toBe('not_member');
+    const suspended = await cli([...args, '--to', 'editor@example.com']);
+    expect(suspended.json.error.code).toBe('user_inactive');
+    const unknown = await cli([...args, '--to', 'nobody@example.com']);
+    expect(unknown.json.error.code).toBe('not_found');
+
+    const pages = await cli([...args, '--to', heir, '--type', 'page']);
+    expect(pages.code).toBe(0);
+    expect(pages.json).toMatchObject({ type: 'page', entries: 1, published: 0, media: 0 });
+
+    const all = await cli([...args, '--to', 'heir@example.com']);
+    expect(all.json).toEqual({
+      site: 'main',
+      from: { id: gone, email: 'gone@example.com' },
+      to: { id: heir, email: 'heir@example.com' },
+      type: null,
+      entries: 2,
+      published: 1,
+      media: 1,
+    });
+    await withSiteContext(owner.db, site!.id, async (tx) => {
+      const owned = await tx.select().from(entries).where(eq(entries.authorId, heir));
+      expect(owned).toHaveLength(3);
+      const [file] = await tx.select().from(media).where(eq(media.filename, 'gone.webp'));
+      expect(file!.uploadedBy).toBe(heir);
+      const logged = await tx
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.action, 'entries.reassigned'));
+      expect(logged.map((l) => l.meta)).toContainEqual(
+        expect.objectContaining({ from: gone, to: heir, entries: 2, media: 1 }),
+      );
+    });
   });
 });
 

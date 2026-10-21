@@ -2,6 +2,7 @@ import {
   autosaveRequestSchema,
   bulkEntriesRequestSchema,
   type BulkEntriesResponse,
+  type EntryAuthorOption,
   type EntryLockView,
   publishRequestSchema,
   createEntryRequestSchema,
@@ -74,8 +75,17 @@ export class EntriesController {
     @Body() body: unknown,
     @Req() request: FastifyRequest,
   ): Promise<BulkEntriesResponse> {
-    const { ids, action } = parseBody(bulkEntriesRequestSchema, body);
-    return this.entries.bulk(site.id, auth, ids, action, request.ip);
+    const { ids, action, authorId } = parseBody(bulkEntriesRequestSchema, body);
+    return this.entries.bulk(site.id, auth, ids, action, request.ip, { authorId });
+  }
+
+  /** Who can be chosen as an entry's author (needs `edit_others_entries`). */
+  @Get('entries/authors')
+  authors(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<EntryAuthorOption[]> {
+    return this.entries.authors(site.id, auth);
   }
 
   @Post('entries')
