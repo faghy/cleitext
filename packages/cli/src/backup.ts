@@ -177,7 +177,8 @@ export async function restore(
     const existing = new Set(
       (
         await db.execute<{ name: string }>(
-          sql`select rolname as name from pg_roles where rolname = any(${[...grantees]})`,
+          // One text[] parameter: a JS array would expand into a tuple.
+          sql`select rolname as name from pg_roles where rolname = any(${`{${[...grantees].join(',')}}`}::text[])`,
         )
       ).map((r) => r.name),
     );
