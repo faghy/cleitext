@@ -64,6 +64,7 @@ const SEPARATE = [
   'maintenance',
   'kross-booking',
   'captcha',
+  'social-feed',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
@@ -74,7 +75,13 @@ for (const slug of await readdir(join(root, 'plugins'))) {
   separate.push(slug);
   const targets = SEPARATE.includes(slug) ? [own] : [join(out, 'plugins', slug), own];
   for (const target of targets) {
-    for (const part of ['cleitext.plugin.json', 'dist', 'migrations', 'README.md']) {
+    for (const part of [
+      'cleitext.plugin.json',
+      'dist',
+      'migrations',
+      'README.md',
+      'README.it.md',
+    ]) {
       if (existsSync(join(source, part)))
         await cp(join(source, part), join(target, part), { recursive: true });
     }

@@ -1,0 +1,20 @@
+{
+  "slug": "social-feed",
+  "name": "Social Feed",
+  "version": "1.0.0",
+  "apiVersion": "^1.36",
+  "description": "The latest posts of your Instagram account and your Facebook Page on the site: a Social feed block with grid, carousel or list, a header with a follow button, Load more and a lightbox. It connects with your own Meta app through the official APIs, refreshes the tokens by itself and keeps copies of the pictures on the site, so visitors never load Meta's servers.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "public": "dist/public",
+  "permissions": [
+    "blocks",
+    "settings:own",
+    "routes:admin",
+    "routes:public",
+    "theme:hooks",
+    "network"
+  ]
+}
