@@ -1,4 +1,4 @@
-import type { Device, Sheet } from '@cleitext/design';
+import type { BaseDevice as Device, Sheet } from '@cleitext/design';
 import { useEffect, useRef, useState } from 'react';
 import { background, gradient } from '../../lib/background';
 import { blockClass } from '../../lib/css';

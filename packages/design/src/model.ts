@@ -49,17 +49,143 @@ export interface IconValue {
   url?: string;
 }
 
-/** Devices, from the widest. Desktop has no suffix. */
-export const DEVICES = ['desktop', 'tablet', 'mobile'] as const;
+/**
+ * Devices, from the widest. Desktop is the base and has no suffix; tablet and
+ * mobile are always there; the others are optional (switched on in the kit).
+ * Widescreen starts at its breakpoint (min width), the others end at theirs
+ * (max width).
+ */
+export const DEVICES = [
+  'widescreen',
+  'desktop',
+  'laptop',
+  'tablet_extra',
+  'tablet',
+  'mobile_extra',
+  'mobile',
+] as const;
 export type Device = (typeof DEVICES)[number];
 
-/** Upper bounds (px) of the smaller devices; the kit can change them. */
+/** The three devices every breakpoint set has (what Prisma, like WordPress blocks, uses). */
+export type BaseDevice = 'desktop' | 'tablet' | 'mobile';
+
+/**
+ * The order of the devices in a stylesheet: desktop first, then widescreen
+ * (min width), then the smaller ones from the widest, so a smaller device's
+ * rules win over the larger ones' and a device without a value inherits
+ * from the next larger one.
+ */
+export const SHEET_ORDER: readonly Device[] = [
+  'desktop',
+  'widescreen',
+  'laptop',
+  'tablet_extra',
+  'tablet',
+  'mobile_extra',
+  'mobile',
+];
+
+/** The devices that are off unless the kit gives them a breakpoint. */
+export const OPTIONAL_DEVICES = ['widescreen', 'laptop', 'tablet_extra', 'mobile_extra'] as const;
+export type OptionalDevice = (typeof OPTIONAL_DEVICES)[number];
+
+/** The max-width devices, from the widest. */
+export const MAX_WIDTH_DEVICES = [
+  'laptop',
+  'tablet_extra',
+  'tablet',
+  'mobile_extra',
+  'mobile',
+] as const;
+
+/**
+ * Breakpoints (px) the kit can change: the upper bound of each smaller device
+ * and the lower bound of widescreen. An optional device is on when it has a value.
+ */
 export interface Breakpoints {
   tablet: number;
   mobile: number;
+  mobile_extra?: number;
+  tablet_extra?: number;
+  laptop?: number;
+  widescreen?: number;
 }
 
 export const DEFAULT_BREAKPOINTS: Breakpoints = { tablet: 1024, mobile: 767 };
+
+/** The value an optional device gets when it is switched on. */
+export const OPTIONAL_BREAKPOINTS: Record<OptionalDevice, number> = {
+  mobile_extra: 880,
+  tablet_extra: 1200,
+  laptop: 1366,
+  widescreen: 2400,
+};
+
+/** The devices in use with these breakpoints, from the widest (desktop always). */
+export function activeDevices(breakpoints: Breakpoints = DEFAULT_BREAKPOINTS): Device[] {
+  return DEVICES.filter(
+    (device) => device === 'desktop' || typeof breakpoints[device] === 'number',
+  );
+}
+
+/**
+ * The devices a device inherits its values from, nearest first: the next
+ * larger active device, and so on up to desktop. Laptop and widescreen
+ * inherit from desktop.
+ */
+export function inheritChain(
+  device: Device,
+  breakpoints: Breakpoints = DEFAULT_BREAKPOINTS,
+): Device[] {
+  if (device === 'desktop') return [];
+  if (device === 'widescreen') return ['desktop'];
+  const index = MAX_WIDTH_DEVICES.indexOf(device);
+  const larger = MAX_WIDTH_DEVICES.slice(0, index)
+    .filter((d) => typeof breakpoints[d] === 'number')
+    .reverse();
+  return [...larger, 'desktop'];
+}
+
+/** The media query of a device (`(max-width:767px)`), or null for desktop and devices that are off. */
+export function deviceMedia(device: Device, breakpoints: Breakpoints): string | null {
+  if (device === 'desktop') return null;
+  const value = breakpoints[device];
+  if (typeof value !== 'number') return null;
+  return device === 'widescreen' ? `(min-width:${value}px)` : `(max-width:${value}px)`;
+}
+
+/**
+ * The width range (px) of a device alone, for showing or hiding something on
+ * that device only: from the next smaller active breakpoint to its own.
+ * Null when the device is off.
+ */
+export function deviceRange(
+  device: Device,
+  breakpoints: Breakpoints,
+): { min?: number; max?: number } | null {
+  const active = activeDevices(breakpoints);
+  if (!active.includes(device)) return null;
+  if (device === 'widescreen') return { min: breakpoints.widescreen! };
+  const index = active.indexOf(device);
+  const smaller = active[index + 1];
+  const range: { min?: number; max?: number } = {};
+  if (smaller && smaller !== 'widescreen' && smaller !== 'desktop')
+    range.min = breakpoints[smaller]! + 1;
+  if (device === 'desktop') {
+    if (typeof breakpoints.widescreen === 'number') range.max = breakpoints.widescreen - 1;
+  } else range.max = breakpoints[device]!;
+  return range;
+}
+
+/** A media query for a range from `deviceRange` (`''` when it covers every width). */
+export function rangeMedia(range: { min?: number; max?: number }): string {
+  return [
+    range.min !== undefined ? `(min-width:${range.min}px)` : '',
+    range.max !== undefined ? `(max-width:${range.max}px)` : '',
+  ]
+    .filter(Boolean)
+    .join(' and ');
+}
 
 // ---- Controls ------------------------------------------------------------------------
 

@@ -1,10 +1,12 @@
 /**
  * The CSS engine: settings become CSS rules, scoped by an element's selector,
- * with media queries for tablet and mobile and `:hover` variants. The same
+ * with media queries for the smaller (and wider) devices and `:hover` variants. The same
  * code runs on the server (one `<style>` per page) and in editors (live).
  */
 import {
   DEVICES,
+  SHEET_ORDER,
+  deviceMedia,
   isGroup,
   settingKey,
   type BoxValue,
@@ -20,8 +22,12 @@ import {
 export type Sheet = Record<Device, Map<string, string[]>>;
 
 export const emptySheet = (): Sheet => ({
+  widescreen: new Map(),
   desktop: new Map(),
+  laptop: new Map(),
+  tablet_extra: new Map(),
   tablet: new Map(),
+  mobile_extra: new Map(),
   mobile: new Map(),
 });
 
@@ -401,10 +407,11 @@ export function printSheet(sheet: Sheet, breakpoints: Breakpoints): string {
   const block = (rules: Map<string, string[]>) =>
     [...rules].map(([selector, body]) => `${selector}{${body.join(';')}}`).join('');
   let css = block(sheet.desktop);
-  if (sheet.tablet.size)
-    css += `@media (max-width:${breakpoints.tablet}px){${block(sheet.tablet)}}`;
-  if (sheet.mobile.size)
-    css += `@media (max-width:${breakpoints.mobile}px){${block(sheet.mobile)}}`;
+  for (const device of SHEET_ORDER) {
+    // Devices that are off (no breakpoint) are left out.
+    const media = deviceMedia(device, breakpoints);
+    if (media && sheet[device].size) css += `@media ${media}{${block(sheet[device])}}`;
+  }
   // Nothing in a setting may close the <style> element.
   return css.replace(/<\/?style/gi, '');
 }

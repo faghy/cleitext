@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { printSheet, safeColor, settingsSheet, withControlDefaults } from './css.js';
-import { DEFAULT_BREAKPOINTS, type Control } from './model.js';
+import {
+  DEFAULT_BREAKPOINTS,
+  activeDevices,
+  deviceRange,
+  inheritChain,
+  rangeMedia,
+  type Breakpoints,
+  type Control,
+} from './model.js';
 
 const controls: Control[] = [
   {
@@ -65,5 +73,78 @@ describe('settings → CSS', () => {
     );
     expect(css).not.toContain(';x');
     expect(css).not.toContain('px}');
+  });
+});
+
+describe('breakpoints', () => {
+  const all: Breakpoints = {
+    mobile: 767,
+    mobile_extra: 880,
+    tablet: 1024,
+    tablet_extra: 1200,
+    laptop: 1366,
+    widescreen: 2400,
+  };
+  const attrs = {
+    padding: { top: 1, right: 1, bottom: 1, left: 1, unit: 'px' },
+    'padding@widescreen': { top: 2, right: 2, bottom: 2, left: 2, unit: 'px' },
+    'padding@laptop': { top: 3, right: 3, bottom: 3, left: 3, unit: 'px' },
+    'padding@tablet_extra': { top: 4, right: 4, bottom: 4, left: 4, unit: 'px' },
+    'padding@tablet': { top: 5, right: 5, bottom: 5, left: 5, unit: 'px' },
+    'padding@mobile_extra': { top: 6, right: 6, bottom: 6, left: 6, unit: 'px' },
+    'padding@mobile': { top: 7, right: 7, bottom: 7, left: 7, unit: 'px' },
+  };
+  const sheet = () => settingsSheet(controls, withControlDefaults(controls, attrs), attrs, '.x');
+
+  it('writes every active device: desktop, widescreen, then the smaller ones from the widest', () => {
+    expect(printSheet(sheet(), all)).toBe(
+      '.x{padding:1px 1px 1px 1px}.x h2{color:#333}' +
+        '@media (min-width:2400px){.x{padding:2px 2px 2px 2px}}' +
+        '@media (max-width:1366px){.x{padding:3px 3px 3px 3px}}' +
+        '@media (max-width:1200px){.x{padding:4px 4px 4px 4px}}' +
+        '@media (max-width:1024px){.x{padding:5px 5px 5px 5px}}' +
+        '@media (max-width:880px){.x{padding:6px 6px 6px 6px}}' +
+        '@media (max-width:767px){.x{padding:7px 7px 7px 7px}}',
+    );
+  });
+
+  it('leaves out the devices that are off, as before', () => {
+    expect(printSheet(sheet(), DEFAULT_BREAKPOINTS)).toBe(
+      '.x{padding:1px 1px 1px 1px}.x h2{color:#333}' +
+        '@media (max-width:1024px){.x{padding:5px 5px 5px 5px}}' +
+        '@media (max-width:767px){.x{padding:7px 7px 7px 7px}}',
+    );
+  });
+
+  it('inherits from the next larger active device, then desktop', () => {
+    expect(activeDevices(DEFAULT_BREAKPOINTS)).toEqual(['desktop', 'tablet', 'mobile']);
+    expect(activeDevices(all)).toHaveLength(7);
+    expect(inheritChain('mobile', DEFAULT_BREAKPOINTS)).toEqual(['tablet', 'desktop']);
+    expect(inheritChain('mobile', all)).toEqual([
+      'mobile_extra',
+      'tablet',
+      'tablet_extra',
+      'laptop',
+      'desktop',
+    ]);
+    expect(inheritChain('tablet', { ...DEFAULT_BREAKPOINTS, laptop: 1366 })).toEqual([
+      'laptop',
+      'desktop',
+    ]);
+    expect(inheritChain('laptop', all)).toEqual(['desktop']);
+    expect(inheritChain('widescreen', all)).toEqual(['desktop']);
+    expect(inheritChain('desktop', all)).toEqual([]);
+  });
+
+  it('gives each device its own width range', () => {
+    const media = (d: Parameters<typeof deviceRange>[0], bp: Breakpoints) =>
+      rangeMedia(deviceRange(d, bp)!);
+    expect(media('desktop', DEFAULT_BREAKPOINTS)).toBe('(min-width:1025px)');
+    expect(media('tablet', DEFAULT_BREAKPOINTS)).toBe('(min-width:768px) and (max-width:1024px)');
+    expect(media('mobile', DEFAULT_BREAKPOINTS)).toBe('(max-width:767px)');
+    expect(media('desktop', all)).toBe('(min-width:1367px) and (max-width:2399px)');
+    expect(media('widescreen', all)).toBe('(min-width:2400px)');
+    expect(media('mobile_extra', all)).toBe('(min-width:768px) and (max-width:880px)');
+    expect(deviceRange('laptop', DEFAULT_BREAKPOINTS)).toBeNull();
   });
 });

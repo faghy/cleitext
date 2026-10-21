@@ -1076,3 +1076,37 @@ describe('Elementor pages to Fresco', () => {
     });
   });
 });
+
+describe('Elementor extra devices', () => {
+  it('copies the values of laptop, widescreen, tablet extra and mobile extra', () => {
+    const { block } = one({
+      widgetType: 'heading',
+      settings: {
+        title: 'Hi',
+        align: 'left',
+        align_widescreen: 'center',
+        align_laptop: 'right',
+        align_tablet_extra: 'center',
+        align_mobile_extra: 'justify',
+        typography_typography: 'custom',
+        typography_font_size: { unit: 'px', size: 40, sizes: [] },
+        typography_font_size_laptop: { unit: 'px', size: 36, sizes: [] },
+        typography_font_size_mobile_extra: { unit: 'px', size: 24, sizes: [] },
+        hide_laptop: 'hidden-laptop',
+        hide_mobile_extra: 'hidden-mobile_extra',
+      },
+    });
+    expect(block.attrs).toMatchObject({
+      align: 'left',
+      'align@widescreen': 'center',
+      'align@laptop': 'right',
+      'align@tablet_extra': 'center',
+      'align@mobile_extra': 'justify',
+      title_typography_size: { size: 40, unit: 'px' },
+      'title_typography_size@laptop': { size: 36, unit: 'px' },
+      'title_typography_size@mobile_extra': { size: 24, unit: 'px' },
+      _hide_laptop: true,
+      _hide_mobile_extra: true,
+    });
+  });
+});

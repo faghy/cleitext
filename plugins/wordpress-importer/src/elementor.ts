@@ -14,6 +14,8 @@ import { atomicElement, isAtomic } from './elementor-atomic.js';
 import { proWidget } from './elementor-pro.js';
 import {
   asSettings,
+  DEVICE_NAMES,
+  DEVICES,
   box,
   color,
   colorOf,
@@ -400,7 +402,7 @@ function entrance(out: Settings, src: Settings, key: string, delayKey: string): 
 }
 
 function hide(out: Settings, src: Settings): void {
-  for (const device of ['desktop', 'tablet', 'mobile']) {
+  for (const device of DEVICE_NAMES) {
     const value = str(src[`hide_${device}`]);
     if (value.startsWith('hidden-') || value === 'yes') out[`_hide_${device}`] = true;
   }
@@ -1264,7 +1266,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         }
         copy(extra, src, 'space_between_widgets', 'gap', (v) => size(v, c));
         if (str(src.html_tag) && str(src.html_tag) !== 'div') extra.html_tag = str(src.html_tag);
-        if (['', '_tablet', '_mobile'].some((device) => box(src[`margin${device}`]))) {
+        if (DEVICES.some(([device]) => box(src[`margin${device}`]))) {
           // Elementor puts a column's margin (with its padding, background and
           // border) on the box inside it: the column keeps its width. Fresco's
           // margin is on the container itself, so the column becomes a
@@ -1279,7 +1281,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           for (const [key, value] of Object.entries(extra)) {
             if (key === 'width' || key.startsWith('width@')) outer[key] = value;
           }
-          for (const key of ['_hide_desktop', '_hide_tablet', '_hide_mobile']) {
+          for (const key of DEVICE_NAMES.map((device) => `_hide_${device}`)) {
             if (inner.attrs[key]) outer[key] = inner.attrs[key];
             delete inner.attrs[key];
           }

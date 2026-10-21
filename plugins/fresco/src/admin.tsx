@@ -4,7 +4,14 @@
  */
 import { defineAdminPlugin } from '@cleitext/admin-sdk';
 import { installApi } from './api.js';
-import { FrescoHome, TemplatesPage } from './admin-pages.js';
+import {
+  FrescoHome,
+  SiteSettingsPage,
+  SystemInfoPage,
+  TemplatesPage,
+  ToolsPage,
+} from './admin-pages.js';
+import { AdminDialogs, askText, confirmAction, notify } from './admin-dialogs.js';
 import { registerFreeElements } from './elements/index.js';
 import { fromBlocks, toBlocks } from './editor/convert.js';
 import { FrescoEditor } from './editor/editor.js';
@@ -36,6 +43,7 @@ installApi({
     fromBlocks,
     toBlocks,
     loadIcons,
+    dialogs: { askText, confirmAction, notify, Host: AdminDialogs },
   },
 });
 
@@ -49,6 +57,28 @@ export default defineAdminPlugin({
       after: '/pages',
       icon: 'M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z M9 8h6 M9 12h4 M9 8v8',
       component: FrescoHome,
+    },
+    // Under Fresco, as other page builders have them.
+    {
+      path: 'site-settings',
+      parent: '',
+      title: { en: 'Site settings', it: 'Impostazioni del sito' },
+      capability: 'manage_fresco',
+      component: SiteSettingsPage,
+    },
+    {
+      path: 'tools',
+      parent: '',
+      title: { en: 'Tools', it: 'Strumenti' },
+      capability: 'manage_fresco',
+      component: ToolsPage,
+    },
+    {
+      path: 'system-info',
+      parent: '',
+      title: { en: 'System info', it: 'Informazioni di sistema' },
+      capability: 'manage_fresco',
+      component: SystemInfoPage,
     },
     {
       path: 'templates',

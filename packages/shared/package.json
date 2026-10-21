@@ -11,6 +11,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./google-fonts": {
+      "types": "./dist/google-fonts.d.ts",
+      "default": "./dist/google-fonts.js"
     }
   },
   "scripts": {

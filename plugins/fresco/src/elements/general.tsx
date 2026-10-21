@@ -1,5 +1,5 @@
 /** General widgets: Icon, Video, Icon box, Image box. */
-import { advancedControls, ElementRoot } from '../core/common.js';
+import { advancedControls, ElementRoot, OTHER_DEVICES } from '../core/common.js';
 import {
   ALIGN,
   content,
@@ -410,10 +410,11 @@ function Box({
   const classes = [
     'fr-box',
     `fr-box--${position(settings.position) ?? 'top'}`,
-    position(nodeAttrs['position@tablet']) &&
-      `fr-box--tablet-${position(nodeAttrs['position@tablet'])}`,
-    position(nodeAttrs['position@mobile']) &&
-      `fr-box--mobile-${position(nodeAttrs['position@mobile'])}`,
+    ...OTHER_DEVICES.map(
+      (d) =>
+        position(nodeAttrs[`position@${d}`]) &&
+        `fr-box--${d}-${position(nodeAttrs[`position@${d}`])}`,
+    ),
   ]
     .filter(Boolean)
     .join(' ');

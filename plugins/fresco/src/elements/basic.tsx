@@ -1,5 +1,5 @@
 /** Basic widgets: Heading, Text, Image, Button, Spacer, Divider. */
-import { advancedControls, ElementRoot, UNITS } from '../core/common.js';
+import { advancedControls, ElementRoot, OTHER_DEVICES, UNITS } from '../core/common.js';
 import {
   ALIGN,
   content,
@@ -349,7 +349,7 @@ export const button: ElementDefinition = {
       ['left', 'center', 'right', 'justify'].includes(value as string)
         ? ` fr-align${device}-${String(value)}`
         : '';
-    const classes = `fr-button${align('', settings.align)}${align('-tablet', node.attrs['align@tablet'])}${align('-mobile', node.attrs['align@mobile'])}`;
+    const classes = `fr-button${align('', settings.align)}${OTHER_DEVICES.map((d) => align(`-${d}`, node.attrs[`align@${d}`])).join('')}`;
     const hover = ['grow', 'shrink', 'float', 'pulse'].includes(settings.hover_effect as string)
       ? ` fr-hover-${String(settings.hover_effect)}`
       : '';

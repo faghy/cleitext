@@ -6,7 +6,22 @@
 import type { ReactNode } from 'react';
 import { elementClass } from './css.js';
 import { extraRootProps } from './extensions.js';
-import type { Control, FrescoNode, Settings } from './model.js';
+import { elementGoogleFonts } from './fonts.js';
+import { DEVICES, type Control, type Device, type FrescoNode, type Settings } from './model.js';
+
+/** Devices other than desktop (their values have a `@device` suffix). */
+export const OTHER_DEVICES: readonly Device[] = DEVICES.filter((d) => d !== 'desktop');
+
+/** English names of the devices (translated in the editor). */
+export const DEVICE_NAMES: Record<Device, string> = {
+  widescreen: 'Widescreen',
+  desktop: 'Desktop',
+  laptop: 'Laptop',
+  tablet_extra: 'Tablet extra',
+  tablet: 'Tablet',
+  mobile_extra: 'Mobile extra',
+  mobile: 'Mobile',
+};
 
 export const UNITS = {
   length: ['px', '%', 'em', 'rem', 'vw'],
@@ -201,30 +216,15 @@ export function advancedControls(options: { container?: boolean } = {}): Control
       section: 'Border',
       selector: '{{el}}',
     } as Control,
-    {
-      name: '_hide_desktop',
+    // One switch per device; the panel shows those of the active devices.
+    ...DEVICES.map((device): Control => ({
+      name: `_hide_${device}`,
       type: 'switch',
-      label: 'Hide on desktop',
+      label: `Hide on ${DEVICE_NAMES[device].toLowerCase()}`,
       tab,
       section: 'Responsive',
       noCss: true,
-    },
-    {
-      name: '_hide_tablet',
-      type: 'switch',
-      label: 'Hide on tablet',
-      tab,
-      section: 'Responsive',
-      noCss: true,
-    },
-    {
-      name: '_hide_mobile',
-      type: 'switch',
-      label: 'Hide on mobile',
-      tab,
-      section: 'Responsive',
-      noCss: true,
-    },
+    })),
     {
       name: '_css_id',
       type: 'text',
@@ -290,13 +290,13 @@ export function rootProps(
   if (typeof settings._css_classes === 'string') {
     for (const c of settings._css_classes.split(/\s+/)) if (CLASS.test(c)) classes.push(c);
   }
-  for (const device of ['desktop', 'tablet', 'mobile']) {
+  for (const device of DEVICES) {
     if (settings[`_hide_${device}`] === true) classes.push(`fr-hide-${device}`);
   }
   const width = settings._width;
   if (width === 'full') classes.push('fr-w-full');
   if (width === 'auto') classes.push('fr-w-auto');
-  for (const device of ['tablet', 'mobile']) {
+  for (const device of OTHER_DEVICES) {
     const w = node.attrs[`_width@${device}`];
     if (w === 'full' || w === 'auto') classes.push(`fr-w-${w}-${device}`);
   }
@@ -318,6 +318,11 @@ export function rootProps(
       props['data-fr-delay'] = String(Math.min(delay, 10000));
   }
   if (editing) props['data-fr-id'] = node.id;
+  else {
+    // Google fonts it uses, for the page to load (see the kit's render.html filter).
+    const fonts = elementGoogleFonts(node.attrs);
+    if (fonts.length) props['data-fr-fonts'] = fonts.join('|');
+  }
   // Attributes from extensions (Fresco Pro); their classes are added, not replaced.
   const { className: extraClass, ...extra } = extraRootProps(node, settings, editing);
   if (extraClass) props.className += ` ${extraClass}`;

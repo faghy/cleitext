@@ -9,6 +9,7 @@ import { atomicClasses, atomicVariables } from './elementor-atomic.js';
 import type { ElementorKitInfo } from './elementor.js';
 import {
   asSettings,
+  DEVICE_NAMES,
   box,
   colorOf,
   cssLength,
@@ -138,8 +139,21 @@ export function kitToFresco(
   const mobile =
     num(settings.viewport_mobile) ??
     (num(settings.viewport_md) !== null ? num(settings.viewport_md)! - 1 : null);
-  if (tablet !== null || mobile !== null) {
-    kit.breakpoints = { tablet: Math.round(tablet ?? 1024), mobile: Math.round(mobile ?? 767) };
+  // The extra devices, when the kit has them on (Elementor's defaults when it has no value).
+  const active = Array.isArray(settings.active_breakpoints)
+    ? (settings.active_breakpoints as unknown[]).map(str)
+    : [];
+  const optional: Settings = {};
+  for (const [name, fallback] of EXTRA_BREAKPOINTS) {
+    if (active.includes(`viewport_${name}`))
+      optional[name] = Math.round(num(settings[`viewport_${name}`]) ?? fallback);
+  }
+  if (tablet !== null || mobile !== null || Object.keys(optional).length) {
+    kit.breakpoints = {
+      tablet: Math.round(tablet ?? 1024),
+      mobile: Math.round(mobile ?? 767),
+      ...optional,
+    };
   }
   const width = size(settings.container_width, notes);
   if (width) kit.containerWidth = width;
@@ -253,15 +267,16 @@ export function kitToFresco(
   if (classes.length) kit.classes = classes;
   const variables = atomicVariables(extra.variables);
   if (variables.length) kit.variables = variables;
-  if (settings.active_breakpoints && Array.isArray(settings.active_breakpoints)) {
-    const others = (settings.active_breakpoints as unknown[])
-      .map(str)
-      .filter((b) => !['viewport_mobile', 'viewport_tablet'].includes(b));
-    if (others.length)
-      notes.note('extra breakpoints of the kit (laptop, widescreen…) were not imported');
-  }
   return { kit, info, css: str(settings.custom_css).trim() };
 }
+
+/** The optional breakpoints of an Elementor kit, with Elementor's default values. */
+const EXTRA_BREAKPOINTS: [string, number][] = [
+  ['mobile_extra', 880],
+  ['tablet_extra', 1200],
+  ['laptop', 1366],
+  ['widescreen', 2400],
+];
 
 // ---- Templates -----------------------------------------------------------------------------
 
@@ -450,7 +465,11 @@ export function popupSettings(page: Settings, display: Settings, notes: Notes): 
   if (yes(timing.devices) && Array.isArray(timing.devices_devices)) {
     out.devices = (timing.devices_devices as unknown[])
       .map(str)
-      .filter((d) => ['desktop', 'tablet', 'mobile'].includes(d));
+      .filter((d) => DEVICE_NAMES.includes(d));
+    // A list naming the extra devices is complete; otherwise Fresco Pro
+    // shows the popup on them where the base devices it names cover them.
+    if ((out.devices as string[]).some((d) => !['desktop', 'tablet', 'mobile'].includes(d)))
+      out.allDevices = true;
   }
   if (yes(timing.url) && timing.url_action !== 'hide' && str(timing.url_url))
     out.referrer = str(timing.url_url);

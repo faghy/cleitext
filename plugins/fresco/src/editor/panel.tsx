@@ -1,19 +1,25 @@
 /** The side panel: elements, the selected element's settings, navigator, page and site settings. */
 import { t as tr, useT, type EditorMedia } from '@cleitext/admin-sdk';
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import { conditionMet, withDefaults } from '../core/css.js';
+import { DEFAULT_KIT, type Kit, type KitColor, type KitFont } from '../core/kit.js';
 import {
-  DEFAULT_KIT,
-  GOOGLE_FONTS,
-  SYSTEM_FONTS,
-  type Kit,
-  type KitColor,
-  type KitFont,
-} from '../core/kit.js';
-import type { Control, ElementCategory, FrescoNode, Settings, Tab } from '../core/model.js';
+  OPTIONAL_BREAKPOINTS,
+  OPTIONAL_DEVICES,
+  activeDevices,
+  type Breakpoints,
+  type Control,
+  type Device,
+  type ElementCategory,
+  type FrescoNode,
+  type OptionalDevice,
+  type Settings,
+  type Tab,
+} from '../core/model.js';
 import { getElement, listElements } from '../core/registry.js';
-import { ColorPicker, ControlField, Svg, type ControlEnv } from './controls.js';
+import { ColorPicker, ControlField, DEVICE_NAMES, Svg, type ControlEnv } from './controls.js';
 import { AtomicStyle } from './atomic-style.js';
+import { FontPicker, systemGroup } from './font-picker.js';
 import { controlsOf, extensions } from '../core/extensions.js';
 import { LibraryView } from './library.js';
 import { HistoryView } from './history.js';
@@ -291,7 +297,14 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
   const settings = withDefaults(definition, node.attrs);
   const allControls = controlsOf(definition);
   const shownTab = contentOnly ? 'content' : tab;
-  const controls = allControls.filter((c) => c.tab === shownTab && conditionMet(c, settings));
+  // "Hide on <device>" only for the devices in use.
+  const devices: readonly string[] = activeDevices(kit.breakpoints);
+  const controls = allControls.filter(
+    (c) =>
+      c.tab === shownTab &&
+      conditionMet(c, settings) &&
+      !(c.name.startsWith('_hide_') && !devices.includes(c.name.slice(6))),
+  );
   const sections = [...new Set(controls.map((c) => c.section))];
   const sectionKey = `${node.type}:${tab}`;
   const current = openSection[sectionKey] === undefined ? sections[0] : openSection[sectionKey];
@@ -654,7 +667,6 @@ function SiteView({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Kit>) => store.actions.setKit({ ...kit, ...patch });
-  const fonts = useMemo(() => [...SYSTEM_FONTS, ...[...GOOGLE_FONTS].sort()], []);
   // As in other builders: a menu, and each entry its own panel with the way back.
   const sectionHead = (_id: string, _title: string) => null;
   const setTheme = (theme: Kit['theme']) => set({ theme });
@@ -730,7 +742,6 @@ function SiteView({
               <FontRow
                 key={font.id}
                 font={font}
-                fonts={fonts}
                 system={index < 4}
                 onChange={(next) =>
                   set({ fonts: kit.fonts.map((f) => (f.id === font.id ? next : f)) })
@@ -771,19 +782,9 @@ function SiteView({
               max={200}
               onChange={(v) => set({ gap: { size: v, unit: 'px' } })}
             />
-            <NumberRow
-              label={tx('Tablet up to (px)')}
-              value={kit.breakpoints.tablet}
-              min={600}
-              max={2400}
-              onChange={(v) => set({ breakpoints: { ...kit.breakpoints, tablet: v } })}
-            />
-            <NumberRow
-              label={tx('Mobile up to (px)')}
-              value={kit.breakpoints.mobile}
-              min={320}
-              max={1200}
-              onChange={(v) => set({ breakpoints: { ...kit.breakpoints, mobile: v } })}
+            <BreakpointsSettings
+              breakpoints={kit.breakpoints}
+              onChange={(breakpoints) => set({ breakpoints })}
             />
             <div className="fre-control">
               <div className="fre-control__head">
@@ -1027,13 +1028,11 @@ function ColorRow({
 
 function FontRow({
   font,
-  fonts,
   system,
   onChange,
   onRemove,
 }: {
   font: KitFont;
-  fonts: string[];
   system: boolean;
   onChange: (f: KitFont) => void;
   onRemove: () => void;
@@ -1059,18 +1058,12 @@ function FontRow({
         )}
       </div>
       <div className="fre-kitrow">
-        <select
-          className="fre-input"
+        <FontPicker
           value={font.family}
-          aria-label={tr('Family')}
-          onChange={(e) => onChange({ ...font, family: e.target.value })}
-        >
-          {fonts.map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
+          ariaLabel={tr('Family')}
+          groups={[systemGroup()]}
+          onChange={(family) => family && onChange({ ...font, family })}
+        />
         <select
           className="fre-input"
           value={font.weight}
@@ -1104,6 +1097,105 @@ function FontRow({
         {tr('The quick brown fox')}
       </p>
     </div>
+  );
+}
+
+/** Labels of the breakpoint rows, from the smallest device. */
+const BREAKPOINT_ROWS: { device: Exclude<Device, 'desktop'>; label: string }[] = [
+  { device: 'mobile', label: 'Mobile up to (px)' },
+  { device: 'mobile_extra', label: 'Mobile extra up to (px)' },
+  { device: 'tablet', label: 'Tablet up to (px)' },
+  { device: 'tablet_extra', label: 'Tablet extra up to (px)' },
+  { device: 'laptop', label: 'Laptop up to (px)' },
+  { device: 'widescreen', label: 'Widescreen from (px)' },
+];
+
+/**
+ * The breakpoints: tablet and mobile always, the other devices off until
+ * switched on. Each value stays between its neighbours' (widescreen above all).
+ */
+function BreakpointsSettings({
+  breakpoints,
+  onChange,
+}: {
+  breakpoints: Breakpoints;
+  onChange: (next: Breakpoints) => void;
+}) {
+  const { t: tx } = useT();
+  // Bounds of a device: past its active neighbours (widescreen starts at
+  // least two pixels above the widest max-width breakpoint, so desktop keeps a width).
+  const bounds = (device: Exclude<Device, 'desktop'>) => {
+    const index = BREAKPOINT_ROWS.findIndex((r) => r.device === device);
+    const active = (rows: typeof BREAKPOINT_ROWS) =>
+      rows.filter((r) => typeof breakpoints[r.device] === 'number');
+    const below = active(BREAKPOINT_ROWS.slice(0, index)).at(-1);
+    const above = active(BREAKPOINT_ROWS.slice(index + 1))[0];
+    const step = (a: Device, b: Device) => (a === 'widescreen' || b === 'widescreen' ? 2 : 1);
+    const cap =
+      device === 'widescreen' ? 5000 : device === 'tablet' || device === 'mobile' ? 2400 : 2999;
+    return {
+      min: below ? breakpoints[below.device]! + step(below.device, device) : 320,
+      max: above ? Math.min(cap, breakpoints[above.device]! - step(above.device, device)) : cap,
+    };
+  };
+  return (
+    <>
+      <h4 className="fre-subheading">{tx('Breakpoints')}</h4>
+      <p className="fre-help">
+        {tx(
+          'Extra devices are off until you switch them on; each one gets its own values and its own button in the top bar.',
+        )}
+      </p>
+      {BREAKPOINT_ROWS.map(({ device, label }) => {
+        const optional = (OPTIONAL_DEVICES as readonly string[]).includes(device);
+        const value = breakpoints[device];
+        const { min, max } = bounds(device);
+        const on = typeof value === 'number';
+        return (
+          <div key={device} className="fre-control fre-control--inline">
+            <div className="fre-control__head">
+              <span className="fre-control__label">{tx(label)}</span>
+            </div>
+            <div className="fre-control__body">
+              {optional && (
+                <label className="fre-switch" title={tx(on ? 'Switch off' : 'Switch on')}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    disabled={!on && min > max}
+                    aria-label={tx(DEVICE_NAMES[device])}
+                    onChange={(e) => {
+                      const next = { ...breakpoints };
+                      if (e.target.checked) {
+                        const wanted = OPTIONAL_BREAKPOINTS[device as OptionalDevice];
+                        next[device] = Math.max(min, Math.min(max, wanted));
+                      } else delete next[device];
+                      onChange(next);
+                    }}
+                  />
+                  <span />
+                </label>
+              )}
+              {on && (
+                <input
+                  className="fre-input fre-input--number"
+                  type="number"
+                  min={min}
+                  max={max}
+                  value={value}
+                  aria-label={tx(label)}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v) && v > 0)
+                      onChange({ ...breakpoints, [device]: Math.max(min, Math.min(max, v)) });
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </>
   );
 }
 

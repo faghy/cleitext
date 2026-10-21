@@ -270,6 +270,20 @@ button.fre-chip,.fre-chip button{border:0;background:none;padding:3px 9px;cursor
 .fre-devices__list{position:absolute;top:100%;left:-3px;z-index:30;display:flex;flex-direction:column;padding:3px;border-radius:3px;background:#fff;box-shadow:0 0 3px rgba(0,0,0,.2)}
 .fre-devices__list button{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:0;border-radius:3px;background:none;color:#515962;cursor:pointer}
 .fre-devices__list button:hover{color:var(--fre-accent);background:#f1f2f3}
+.fre-devices__list button.is-on{color:var(--fre-accent)}
+.fre-fontpick{position:relative;width:100%;min-width:0}
+.fre-fontpick__value{display:flex;align-items:center;justify-content:space-between;text-align:left;cursor:pointer}
+.fre-fontpick__value span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fre-fontpick__value::after{content:'';flex:0 0 auto;margin-left:6px;border:4px solid transparent;border-top-color:currentColor;transform:translateY(2px)}
+.fre-fontpick__menu{position:absolute;top:100%;left:0;right:0;z-index:40;margin-top:2px;padding:6px;border-radius:6px;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.18);min-width:220px}
+.fre-fontpick__list{position:relative;margin-top:6px;overflow-y:auto}
+.fre-fontpick__group{position:absolute;left:0;right:0;display:flex;align-items:flex-end;padding:0 8px 4px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#818a96}
+.fre-fontpick__option{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 8px;border:0;border-radius:4px;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.fre-fontpick__option span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fre-fontpick__option small{flex:0 0 auto;color:#9ca3af;font-size:10px}
+.fre-fontpick__option:hover,.fre-fontpick__option.is-active{background:#f1f2f3}
+.fre-fontpick__option.is-on{color:var(--fre-accent);font-weight:600}
+.fre-fontpick__none{margin:8px;color:#818a96}
 .fre-group{position:relative}
 .fre-toggle{display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border:1px solid var(--fre-border,#d5d8dc);border-radius:3px;background:#fff;color:#515962;cursor:pointer}
 .fre-toggle:hover,.fre-toggle.is-on{border-color:#818a96;color:var(--fre-ink,#0c0d0e)}

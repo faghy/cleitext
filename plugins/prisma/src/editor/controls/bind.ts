@@ -1,4 +1,4 @@
-import type { Device } from '@cleitext/design';
+import type { BaseDevice as Device } from '@cleitext/design';
 
 export type Attrs = Record<string, unknown>;
 

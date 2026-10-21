@@ -1,4 +1,4 @@
-import type { Device, Sheet } from '@cleitext/design';
+import type { BaseDevice as Device, Sheet } from '@cleitext/design';
 import { createElement, Fragment, type ReactNode } from 'react';
 import {
   border,

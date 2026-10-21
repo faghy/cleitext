@@ -51,6 +51,14 @@ Gli elementi atomici (Flexbox, Griglia, Div, Titolo, Paragrafo, Pulsante, Immagi
 
 **Templates** salva una sezione o una pagina intera per riusarla, e importa o esporta file `.fresco.json` per spostare i design tra siti.
 
+## Il menu di Fresco
+
+Oltre alla panoramica e a **Modelli**, il menu **Fresco** dell'amministrazione ha (per gli amministratori):
+
+- **Impostazioni del sito**: apre l'editor sul pannello delle impostazioni del sito, anche prima di aver fatto una pagina con Fresco (viene creata una pagina in bozza apposta).
+- **Strumenti**: **Rigenera il CSS** (quando una pagina appare sbagliata dopo un aggiornamento), **Sostituisci URL** (dopo aver spostato il sito su un nuovo indirizzo o su HTTPS: conta il vecchio indirizzo in ogni pagina e modello di Fresco, poi lo sostituisce; le revisioni precedenti restano) e le versioni di Cleitext, Fresco e Fresco Pro.
+- **Informazioni di sistema**: versioni, server, sito, tema e plugin attivi, con un pulsante che li copia per una richiesta di assistenza.
+
 ## Da WordPress
 
 L'importatore di WordPress (**Importa da WordPress** nel menu dell'amministrazione) trasforma un sito costruito con Elementor (ed Elementor Pro) in Fresco:
@@ -91,7 +99,7 @@ Con il plugin Multilingual un modello si traduce come una pagina: su una pagina 
 
 ### Popup
 
-Un modello popup ha le sue impostazioni in **Page settings → Template**: attivatore (al caricamento dopo un ritardo, allo scorrimento, al raggiungimento di un elemento, dopo alcuni clic, dopo un'inattività, quando il visitatore sta per uscire, da un link), frequenza (sempre, una volta per sessione, ogni N giorni, una volta sola), dopo quante pagine viste, su quali dispositivi, provenendo da quale indirizzo, tra quali date, posizione, dimensioni, velatura, pulsante di chiusura e animazione. I link a `#popup-<id del modello>` lo aprono; `#popup-close` lo chiude.
+**Modelli → Popup** elenca i modelli popup e ne crea di nuovi. Un modello popup ha le sue impostazioni in **Page settings → Template**: attivatore (al caricamento dopo un ritardo, allo scorrimento, al raggiungimento di un elemento, dopo alcuni clic, dopo un'inattività, quando il visitatore sta per uscire, da un link), frequenza (sempre, una volta per sessione, ogni N giorni, una volta sola), dopo quante pagine viste, su quali dispositivi, provenendo da quale indirizzo, tra quali date, posizione, dimensioni, velatura, pulsante di chiusura e animazione. I link a `#popup-<id del modello>` lo aprono; `#popup-close` lo chiude.
 
 ### Contenuti dinamici
 
@@ -139,9 +147,14 @@ Le pagine hanno **Custom CSS** e **Scroll snap** in **Page settings**.
 
 - **CSS del sito**, su ogni pagina.
 - **Codice** per `<head>`, l'inizio o la fine del `<body>`, con le stesse condizioni dei modelli: statistiche, pixel, verifiche.
+- **Transizioni di pagina** tra le pagine del sito, con animazione di caricamento.
+
+**Font e icone** (amministratori) contiene:
+
 - **Font personalizzati**, caricati come `.woff2`, `.woff`, `.ttf` o `.otf`, poi disponibili in tutti i selettori di font.
 - **Icone personalizzate**, caricate come file SVG (ripuliti dagli script), poi disponibili nel selettore di icone; prendono il colore del testo.
-- **Transizioni di pagina** tra le pagine del sito, con preloader.
+
+**Licenza** (sotto Fresco, per chi attiva i plugin) mostra la licenza di Fresco Pro sul sito, come fa **Plugin**: inserisci la chiave, verificala, rinnovala o rimuovila.
 
 ### Ruoli
 
@@ -154,7 +167,7 @@ Fresco Pro aggiunge capacità che puoi dare ai ruoli nella scheda **Ruoli** di *
 | Gestire i modelli del tema                      | Amministratore                                | Niente Theme Builder                         |
 | Vedere i messaggi dei moduli                    | Amministratore, editor                        | Niente Invii dei moduli                      |
 | Configurare le integrazioni dei moduli          | Amministratore                                | Niente Integrazioni dei moduli               |
-| Aggiungere codice personalizzato e CSS del sito | Amministratore                                | Niente Codice personalizzato                 |
+| Aggiungere codice personalizzato e CSS del sito | Amministratore                                | Niente Codice personalizzato, Font e icone   |
 
 ## Licenze
 

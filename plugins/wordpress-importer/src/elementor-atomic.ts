@@ -7,7 +7,7 @@
  */
 import type { CxdBlock } from '@cleitext/blocks';
 import type { Converter, ElementorNode } from './elementor.js';
-import { asSettings, num, str, type Settings } from './elementor-values.js';
+import { asSettings, DEVICE_NAMES, num, str, type Settings } from './elementor-values.js';
 
 const BOXES: Record<string, string> = {
   e_flexbox: 'flexbox',
@@ -195,7 +195,7 @@ function variants(el: ElementorNode, classes: string[], skipped: Set<string>): S
       const meta = asSettings(variant.meta);
       const breakpoint = str(meta.breakpoint) || 'desktop';
       const state = str(meta.state);
-      if (!['desktop', 'tablet', 'mobile'].includes(breakpoint)) continue;
+      if (!DEVICE_NAMES.includes(breakpoint)) continue;
       const props = styleProps(asSettings(variant.props), skipped);
       if (Object.keys(props).length === 0) continue;
       out.push({

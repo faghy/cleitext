@@ -1,4 +1,4 @@
-import type { Device, Sheet } from '@cleitext/design';
+import type { BaseDevice as Device, Sheet } from '@cleitext/design';
 import { background, mediaUrl, overlay, rgba } from '../../lib/background';
 import { blockClass } from '../../lib/css';
 import { border, borderDefaults, clean, DEVICES, emit, numeric, px, suffix } from '../../lib/emit';

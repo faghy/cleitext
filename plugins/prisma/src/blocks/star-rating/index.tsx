@@ -1,4 +1,4 @@
-import type { Device, Sheet } from '@cleitext/design';
+import type { BaseDevice as Device, Sheet } from '@cleitext/design';
 import { blockClass } from '../../lib/css';
 import { DEVICES, emit, numeric, px, suffix, typography, type Declarations } from '../../lib/emit';
 import type { Attrs, PrismaBlock, ViewProps } from '../../lib/types';

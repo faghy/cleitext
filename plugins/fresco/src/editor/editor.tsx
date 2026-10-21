@@ -13,7 +13,8 @@ import { normalizeKit } from '../core/kit.js';
 import type { FrescoNode, MenuItem, RenderMediaItem, Settings } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import { Canvas, startDrag, type CanvasApi } from './canvas.js';
-import { DEVICE_ICONS, Svg } from './controls.js';
+import { activeDevices } from '../core/model.js';
+import { DEVICE_ICONS, DEVICE_NAMES, Svg } from './controls.js';
 import { saveTemplate } from './library.js';
 import { Panel } from './panel.js';
 import { loadPluginBlocks } from './plugin-blocks.js';
@@ -516,14 +517,15 @@ function Toolbar({ store, openSettings }: { store: Store; openSettings: () => vo
 function DeviceBar({ store }: { store: Store }) {
   const { t } = useT();
   const device = useStore(store, (s) => s.device);
+  const breakpoints = useStore(store, (s) => s.kit.breakpoints);
   return (
     <div className="fre-devicebar" role="group" aria-label={t('Preview device')}>
-      {(['desktop', 'tablet', 'mobile'] as const).map((d) => (
+      {activeDevices(breakpoints).map((d) => (
         <button
           key={d}
           type="button"
           className={`fre-iconbtn${device === d ? ' is-on' : ''}`}
-          title={t(d[0]!.toUpperCase() + d.slice(1))}
+          title={t(DEVICE_NAMES[d])}
           aria-pressed={device === d}
           onClick={() => store.actions.setDevice(d)}
         >

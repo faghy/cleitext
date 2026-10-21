@@ -1,7 +1,7 @@
 import { Button, Dropdown, MenuGroup, MenuItem } from '@wordpress/components';
 import { useDispatch, useSelect } from '@wordpress/data';
 import { desktop, mobile, tablet } from '@wordpress/icons';
-import type { Device } from '@cleitext/design';
+import type { BaseDevice as Device } from '@cleitext/design';
 
 type DeviceType = 'Desktop' | 'Tablet' | 'Mobile';
 

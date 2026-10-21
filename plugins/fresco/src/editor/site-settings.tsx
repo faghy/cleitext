@@ -6,8 +6,6 @@
 import { api as coreApi, useT } from '@cleitext/admin-sdk';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  GOOGLE_FONTS,
-  SYSTEM_FONTS,
   THEME_TEXTS,
   type Kit,
   type TextStyle,
@@ -16,6 +14,7 @@ import {
 } from '../core/kit.js';
 import type { SizeValue } from '../core/model.js';
 import { ColorPicker } from './controls.js';
+import { FontPicker, systemGroup } from './font-picker.js';
 import { notify } from './dialogs.js';
 
 export type SiteSection =
@@ -205,7 +204,6 @@ const TEXT_LABELS: Record<ThemeText, string> = {
 export function TypographySettings({ kit, setTheme }: { kit: Kit; setTheme: SetTheme }) {
   const { t } = useT();
   const [open, setOpen] = useState<ThemeText>('body');
-  const families = [...SYSTEM_FONTS, ...[...GOOGLE_FONTS].sort()];
   const texts = kit.theme.texts ?? {};
   const set = (key: ThemeText, patch: Partial<TextStyle>) =>
     setTheme({ ...kit.theme, texts: { ...texts, [key]: { ...texts[key], ...patch } } });
@@ -235,16 +233,13 @@ export function TypographySettings({ kit, setTheme }: { kit: Kit; setTheme: SetT
       />
       {!texts[open]?.font && (
         <Row label={t('Family')}>
-          <select
-            className="fre-input"
+          <FontPicker
             value={texts[open]?.family ?? ''}
-            onChange={(e) => set(open, { family: e.target.value || undefined })}
-          >
-            <option value="">{t('Default')}</option>
-            {families.map((f) => (
-              <option key={f}>{f}</option>
-            ))}
-          </select>
+            onChange={(family) => set(open, { family })}
+            groups={[systemGroup()]}
+            emptyLabel={t('Default')}
+            ariaLabel={t('Family')}
+          />
         </Row>
       )}
       <SizeField

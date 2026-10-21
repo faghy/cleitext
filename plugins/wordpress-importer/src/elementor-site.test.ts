@@ -582,3 +582,50 @@ describe('Spam protection for imported forms', () => {
     expect(warnings.join('\n')).not.toContain('Turnstile');
   });
 });
+
+describe('Elementor breakpoints', () => {
+  it('imports the extra breakpoints the kit has on, with their values or the defaults', () => {
+    const notes: string[] = [];
+    const { kit } = kitToFresco(
+      {
+        viewport_tablet: 1000,
+        viewport_mobile: 700,
+        viewport_laptop: 1300,
+        viewport_widescreen: 2000,
+        // Off in the kit: not imported.
+        viewport_mobile_extra: 850,
+        active_breakpoints: [
+          'viewport_mobile',
+          'viewport_tablet',
+          'viewport_tablet_extra',
+          'viewport_laptop',
+          'viewport_widescreen',
+        ],
+      },
+      {},
+      { note: (m) => notes.push(m), font: () => undefined },
+    );
+    expect(kit.breakpoints).toEqual({
+      tablet: 1000,
+      mobile: 700,
+      tablet_extra: 1200,
+      laptop: 1300,
+      widescreen: 2000,
+    });
+    expect(notes.join(' ')).not.toContain('breakpoints');
+  });
+
+  it('keeps every device of a popup rule', () => {
+    const popup = (devices: string[]) =>
+      popupSettings(
+        {},
+        { timing: { devices: 'yes', devices_devices: devices } },
+        { note: () => undefined },
+      );
+    expect(popup(['desktop', 'laptop', 'mobile_extra'])).toMatchObject({
+      devices: ['desktop', 'laptop', 'mobile_extra'],
+      allDevices: true,
+    });
+    expect(popup(['desktop', 'tablet']).allDevices).toBeUndefined();
+  });
+});

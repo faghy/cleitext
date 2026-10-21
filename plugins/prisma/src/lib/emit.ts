@@ -1,4 +1,4 @@
-import { add, type Device, type Sheet } from '@cleitext/design';
+import { add, type BaseDevice as Device, type Sheet } from '@cleitext/design';
 import type { Attrs } from './types';
 
 /**

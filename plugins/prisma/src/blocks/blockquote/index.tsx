@@ -1,4 +1,4 @@
-import type { Device, Sheet } from '@cleitext/design';
+import type { BaseDevice as Device, Sheet } from '@cleitext/design';
 import type { CxdInline } from '@cleitext/plugin-sdk';
 import { mediaUrl } from '../../lib/background';
 import { blockClass } from '../../lib/css';

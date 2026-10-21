@@ -26,10 +26,26 @@ export interface Notes {
   note(text: string): void;
 }
 
+/** Elementor's device suffixes → Fresco's (desktop has none); the extra devices too. */
 export const DEVICES: [string, string][] = [
   ['', ''],
+  ['_widescreen', '@widescreen'],
+  ['_laptop', '@laptop'],
+  ['_tablet_extra', '@tablet_extra'],
   ['_tablet', '@tablet'],
+  ['_mobile_extra', '@mobile_extra'],
   ['_mobile', '@mobile'],
+];
+
+/** Elementor's device names (all of them, as Fresco names them too). */
+export const DEVICE_NAMES = [
+  'widescreen',
+  'desktop',
+  'laptop',
+  'tablet_extra',
+  'tablet',
+  'mobile_extra',
+  'mobile',
 ];
 
 export const asSettings = (value: unknown): Settings =>

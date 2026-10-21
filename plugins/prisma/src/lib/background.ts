@@ -1,4 +1,4 @@
-import type { Device } from '@cleitext/design';
+import type { BaseDevice as Device } from '@cleitext/design';
 import { clean, numeric, px, type Declarations } from './emit';
 import type { Attrs } from './types';
 

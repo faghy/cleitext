@@ -5,8 +5,20 @@
  * page at once.
  */
 import { atomicKitCss, normalizeVariants, type GlobalClass, type Variable } from './atomic.js';
+import { googleFonts } from '@cleitext/shared/google-fonts';
 import { safeColor, safeFont } from './css.js';
-import { DEFAULT_BREAKPOINTS, type Breakpoints, type SizeValue } from './model.js';
+import { isGoogleFont } from './fonts.js';
+import {
+  DEFAULT_BREAKPOINTS,
+  MAX_WIDTH_DEVICES,
+  SHEET_ORDER,
+  deviceMedia,
+  deviceRange,
+  rangeMedia,
+  type Breakpoints,
+  type Device,
+  type SizeValue,
+} from './model.js';
 
 export interface KitColor {
   id: string;
@@ -160,16 +172,7 @@ export function normalizeKit(value: unknown): Kit {
     ...defaults.map((d) => list.find((item) => item.id === d.id) ?? d),
     ...list.filter((item) => !defaults.some((d) => d.id === item.id)),
   ];
-  const bp = input.breakpoints;
-  const breakpoints =
-    bp &&
-    Number.isInteger(bp.tablet) &&
-    Number.isInteger(bp.mobile) &&
-    bp.mobile >= 320 &&
-    bp.mobile < bp.tablet &&
-    bp.tablet <= 2400
-      ? { tablet: bp.tablet, mobile: bp.mobile }
-      : DEFAULT_BREAKPOINTS;
+  const breakpoints = normalizeBreakpoints(input.breakpoints);
   const size = (v: unknown, fallback: SizeValue): SizeValue =>
     v && typeof v === 'object' && typeof (v as SizeValue).size === 'number'
       ? {
@@ -229,6 +232,29 @@ export function normalizeKit(value: unknown): Kit {
         ].slice(0, 30)
       : [],
   };
+}
+
+/**
+ * Breakpoints read from storage. Tablet and mobile are always there (the
+ * defaults when invalid); an optional device is kept when its value is a
+ * whole number in order with the others (each max-width breakpoint above the
+ * next smaller one, widescreen above them all); otherwise it is off.
+ */
+export function normalizeBreakpoints(value: unknown): Breakpoints {
+  const bp = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const int = (v: unknown, min: number, max: number): v is number =>
+    typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max;
+  const base =
+    int(bp.mobile, 320, 2400) && int(bp.tablet, 321, 2400) && bp.mobile < bp.tablet
+      ? { tablet: bp.tablet, mobile: bp.mobile }
+      : { ...DEFAULT_BREAKPOINTS };
+  const out: Breakpoints = { ...base };
+  if (int(bp.mobile_extra, out.mobile + 1, out.tablet - 1)) out.mobile_extra = bp.mobile_extra;
+  if (int(bp.tablet_extra, out.tablet + 1, 2999)) out.tablet_extra = bp.tablet_extra;
+  if (int(bp.laptop, (out.tablet_extra ?? out.tablet) + 1, 2999)) out.laptop = bp.laptop;
+  if (int(bp.widescreen, (out.laptop ?? out.tablet_extra ?? out.tablet) + 2, 5000))
+    out.widescreen = bp.widescreen;
+  return out;
 }
 
 /** A family name Google Fonts may serve: letters, digits and spaces. */
@@ -479,12 +505,13 @@ export function kitCss(kit: Kit): string {
 }
 
 /**
- * Classes that depend on the breakpoints: hiding per device, and the tablet
- * and mobile variants of alignments and box positions.
+ * Classes that depend on the breakpoints: hiding per device, and the
+ * per-device variants of alignments, widths and box positions.
  */
 function responsiveUtilities(bp: Breakpoints): string {
-  // Tablet values reach mobile too, unless mobile has its own (later rules win).
-  const device = (name: 'tablet' | 'mobile') => [
+  // A device's values reach the smaller devices too, unless they have their
+  // own (later rules win); widescreen's only reach wider screens.
+  const device = (name: Device) => [
     `.fr-align-${name}-left{text-align:left}`,
     `.fr-align-${name}-center{text-align:center}`,
     `.fr-align-${name}-right{text-align:right}`,
@@ -495,13 +522,23 @@ function responsiveUtilities(bp: Breakpoints): string {
     `.fr-w-full-${name}{width:100%}`,
     `.fr-w-auto-${name}{width:auto;max-width:fit-content}`,
   ];
-  // Hiding is per device only.
+  let css = '';
+  // Hiding is per device only (its own range of widths).
+  for (const name of ['desktop', ...MAX_WIDTH_DEVICES, 'widescreen'] as const) {
+    const range = deviceRange(name, bp);
+    if (!range) continue;
+    const media = rangeMedia(range);
+    const rule = `.fr-hide-${name}{display:none!important}`;
+    css += media ? `@media ${media}{${rule}}` : rule;
+  }
+  // The device in use, for scripts (`--fr-device`, e.g. Fresco Pro's popups and sticky).
+  css += ':root{--fr-device:desktop}';
+  for (const name of SHEET_ORDER) {
+    const media = deviceMedia(name, bp);
+    if (media) css += `@media ${media}{:root{--fr-device:${name}}${device(name).join('')}}`;
+  }
   return (
-    `@media (min-width:${bp.tablet + 1}px){.fr-hide-desktop{display:none!important}}` +
-    `@media (min-width:${bp.mobile + 1}px) and (max-width:${bp.tablet}px){.fr-hide-tablet{display:none!important}}` +
-    `@media (max-width:${bp.mobile}px){.fr-hide-mobile{display:none!important}}` +
-    `@media (max-width:${bp.tablet}px){${device('tablet').join('')}}` +
-    `@media (max-width:${bp.mobile}px){${device('mobile').join('')}}` +
+    css +
     // Nav menus fold behind a toggle up to their breakpoint.
     `@media (max-width:${bp.tablet}px){.fr-menu--toggle-tablet .fr-menu__toggle{display:flex;width:fit-content}.fr-menu--toggle-tablet .fr-menu__panel{display:none;position:absolute;left:auto;right:0;width:min(320px,90vw);top:100%;z-index:60;background:#fff;padding:6px 0;box-shadow:0 10px 30px rgba(0,0,0,.12)}.fr-menu--toggle-tablet.is-open .fr-menu__panel{display:block}.fr-menu--toggle-tablet .fr-menu__list{flex-direction:column}.fr-menu--toggle-tablet .fr-menu__item{flex-wrap:wrap}.fr-menu--toggle-tablet .fr-menu__sub{position:static;box-shadow:none;display:none;opacity:1;visibility:visible;transform:none;padding-left:14px}.fr-menu--toggle-tablet .fr-menu__item.is-open>.fr-menu__sub{display:block}.fr-menu--toggle-tablet.fr-menu--arrows .fr-menu__item>.fr-menu__expand{display:inline-flex}.fr-menu--toggle-tablet .fr-menu__arrow{display:none}.fr-menu--toggle-tablet .fr-menu__link::before,.fr-menu--toggle-tablet .fr-menu__link::after{display:none}}` +
     `@media (max-width:${bp.mobile}px){.fr-menu--toggle-mobile .fr-menu__toggle{display:flex;width:fit-content}.fr-menu--toggle-mobile .fr-menu__panel{display:none;position:absolute;left:auto;right:0;width:min(320px,90vw);top:100%;z-index:60;background:#fff;padding:6px 0;box-shadow:0 10px 30px rgba(0,0,0,.12)}.fr-menu--toggle-mobile.is-open .fr-menu__panel{display:block}.fr-menu--toggle-mobile .fr-menu__list{flex-direction:column}.fr-menu--toggle-mobile .fr-menu__item{flex-wrap:wrap}.fr-menu--toggle-mobile .fr-menu__sub{position:static;box-shadow:none;display:none;opacity:1;visibility:visible;transform:none;padding-left:14px}.fr-menu--toggle-mobile .fr-menu__item.is-open>.fr-menu__sub{display:block}.fr-menu--toggle-mobile.fr-menu--arrows .fr-menu__item>.fr-menu__expand{display:inline-flex}.fr-menu--toggle-mobile .fr-menu__arrow{display:none}.fr-menu--toggle-mobile .fr-menu__link::before,.fr-menu--toggle-mobile .fr-menu__link::after{display:none}}` +
@@ -510,27 +547,38 @@ function responsiveUtilities(bp: Breakpoints): string {
   );
 }
 
-/** The stylesheet address of the kit's Google Fonts, or null. */
-export function googleFontsUrl(kit: Kit): string | null {
-  // Fonts listed in `googleFonts` (any family of Google Fonts, e.g. imported
-  // with a site) and the global fonts that are among the popular ones.
+export { googleFontList, isGoogleFont, usedGoogleFonts } from './fonts.js';
+
+const WEIGHTS = ['300', '400', '500', '600', '700', '800'];
+
+/** One family of the Google Fonts address: the weights it has, with italics when it has them all. */
+function familyQuery(family: string): string {
+  const name = encodeURIComponent(family).replace(/%20/g, '+');
+  const font = googleFonts().get(family);
+  const weights = font ? WEIGHTS.filter((w) => font.weights.includes(w)) : WEIGHTS;
+  if (weights.length === WEIGHTS.length)
+    return `family=${name}:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400`;
+  return weights.length ? `family=${name}:wght@${weights.join(';')}` : `family=${name}`;
+}
+
+/**
+ * The stylesheet address of the Google Fonts to load, or null: the kit's
+ * (listed in `googleFonts`, and the global fonts that are Google fonts) and
+ * `more`, e.g. those a page's CSS uses (see `usedGoogleFonts`).
+ */
+export function googleFontsUrl(kit: Kit, more: readonly string[] = []): string | null {
   const families = [
     ...new Set([
       ...kit.googleFonts.filter((f) => GOOGLE_FAMILY.test(f)),
-      ...kit.fonts.map((f) => f.family).filter((f) => GOOGLE_FONTS.has(f)),
+      ...kit.fonts.map((f) => f.family).filter(isGoogleFont),
+      ...more.filter((f) => GOOGLE_FAMILY.test(f) && isGoogleFont(f)),
     ]),
   ];
   if (families.length === 0) return null;
-  const query = families
-    .map(
-      (f) =>
-        `family=${encodeURIComponent(f).replace(/%20/g, '+')}:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400`,
-    )
-    .join('&');
-  return `https://fonts.googleapis.com/css2?${query}&display=swap`;
+  return `https://fonts.googleapis.com/css2?${families.map(familyQuery).join('&')}&display=swap`;
 }
 
-/** Popular Google Fonts offered in the font pickers. */
+/** Popular Google Fonts, first in the font pickers. */
 export const GOOGLE_FONTS = new Set([
   'Inter',
   'Roboto',

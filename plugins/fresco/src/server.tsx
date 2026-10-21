@@ -5,6 +5,7 @@
  */
 import { definePlugin, type PluginBlockDefinition, type PluginContext } from '@cleitext/plugin-sdk';
 import { elementCss, safeColor, withDefaults } from './core/css.js';
+import { pageGoogleFonts, usedGoogleFonts } from './core/fonts.js';
 import { setIconData, type IconData } from './core/icons.js';
 import {
   googleFontsUrl,
@@ -19,6 +20,7 @@ import { installApi } from './api.js';
 import { isVisible, resetExtensions, resolveSettings } from './core/extensions.js';
 import { listElements } from './core/registry.js';
 import { registerFreeElements } from './elements/index.js';
+import { frescoEntries, registerTools } from './tools.js';
 import icons from './public/icons.json';
 
 const KIT_KEY = 'kit';
@@ -217,12 +219,18 @@ export default definePlugin({
       if (!html.includes('class="fr-e ')) return html;
       context.tag(KIT_TAG);
       const kit = await kitFor(ctx, context.siteId);
-      const fonts = googleFontsUrl(kit);
+      const css = kitCss(kit);
+      // Google fonts: the kit's, and those this page's elements use (they name
+      // them in `data-fr-fonts`); the theme's own fonts stay its business.
+      const fonts = googleFontsUrl(
+        kit,
+        [...new Set([...pageGoogleFonts(html), ...usedGoogleFonts(css)])].slice(0, 20),
+      );
       const head =
         (fonts
           ? `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${fonts.replace(/&/g, '&amp;')}">`
           : '') +
-        `<style id="fr-kit">${kitCss(kit)}</style>` +
+        `<style id="fr-kit">${css}</style>` +
         // Animated elements wait hidden for their turn; without scripts they just show.
         (html.includes('data-fr-anim=')
           ? "<script>document.documentElement.classList.add('fr-js')</script>"
@@ -231,31 +239,34 @@ export default definePlugin({
       return at === -1 ? html : html.slice(0, at) + head + html.slice(at);
     });
 
-    // Site settings, read by the editor and saved from it.
     // The entries made with Fresco, for the overview page of the admin.
     ctx.routes.api({
       method: 'GET',
       path: '/pages',
       capability: 'edit_entries',
       async handler(request) {
-        const found = [];
-        for (const type of ['page', 'article']) {
-          const entries = await ctx.content
-            .find(request.siteId, { type, status: 'any', limit: 200, withDocument: true })
-            .catch(() => []);
-          for (const entry of entries) {
-            if (entry.document?.editor?.id !== 'fresco') continue;
-            found.push({
+        const entries = await frescoEntries(ctx, request.siteId);
+        return {
+          body: entries
+            .filter((entry) => entry.type === 'page' || entry.type === 'article')
+            .map((entry) => ({
               id: entry.id,
               title: entry.title,
               type: entry.type,
               status: entry.status,
               locale: entry.locale,
               url: entry.url,
-            });
-          }
-        }
-        return { body: found };
+            })),
+        };
+      },
+    });
+
+    // Tools and System info of Fresco's menu. Regenerating the CSS reads the
+    // kit again and empties the cached pages that use Fresco.
+    registerTools(ctx, {
+      async regenerate(siteId) {
+        kits.delete(siteId);
+        await ctx.cache.invalidate(siteId, [KIT_TAG]);
       },
     });
 
@@ -276,6 +287,7 @@ export default definePlugin({
       return { warnings };
     });
 
+    // Site settings, read by the editor and saved from it.
     ctx.routes.api({
       method: 'GET',
       path: '/kit',

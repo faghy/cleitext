@@ -14,8 +14,14 @@ import {
 } from '../core/atomic.js';
 import { isBox, isSize } from '../core/css.js';
 import type { Kit } from '../core/kit.js';
-import type { BoxValue, Device, FrescoNode, SizeValue } from '../core/model.js';
-import { Svg } from './controls.js';
+import {
+  inheritChain,
+  type BoxValue,
+  type Device,
+  type FrescoNode,
+  type SizeValue,
+} from '../core/model.js';
+import { DEVICE_NAMES, Svg } from './controls.js';
 import { useStore, type Store } from './store.js';
 
 const SECTIONS = [...new Set(STYLE_PROPS.map((p) => p.section))];
@@ -73,9 +79,7 @@ export function AtomicStyle({
   const variants = globalClass ? globalClass.variants : variantsOf(node.attrs._styles);
   const current = variants.find((v) => v.device === device && v.state === state)?.props ?? {};
   const inherited = (key: string) => {
-    const chain: Device[] =
-      device === 'mobile' ? ['tablet', 'desktop'] : device === 'tablet' ? ['desktop'] : [];
-    for (const d of chain) {
+    for (const d of inheritChain(device, kit.breakpoints)) {
       const v = variants.find((x) => x.device === d && x.state === state)?.props[key];
       if (v !== undefined) return v;
     }
@@ -203,7 +207,10 @@ export function AtomicStyle({
         ))}
       </div>
       <p className="fre-help">
-        {withStrong(t('Device: {name} (change it from the bar above the page).'), device)}
+        {withStrong(
+          t('Device: {name} (change it from the bar above the page).'),
+          t(DEVICE_NAMES[device]),
+        )}
       </p>
       {SECTIONS.map((section) => {
         const props = STYLE_PROPS.filter((p) => p.section === section);

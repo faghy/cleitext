@@ -913,6 +913,9 @@ importers:
       '@cleitext/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+      '@cleitext/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@fortawesome/fontawesome-free':
         specifier: ^7.3.1
         version: 7.3.1

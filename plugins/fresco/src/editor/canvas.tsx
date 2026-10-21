@@ -16,8 +16,17 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { documentCss, withDefaults } from '../core/css.js';
-import { googleFontsUrl, kitCss } from '../core/kit.js';
-import type { FrescoNode, MenuItem, RenderContext, RenderMediaItem } from '../core/model.js';
+import { googleFontsUrl, kitCss, usedGoogleFonts } from '../core/kit.js';
+import {
+  activeDevices,
+  deviceRange,
+  type Breakpoints,
+  type Device,
+  type FrescoNode,
+  type MenuItem,
+  type RenderContext,
+  type RenderMediaItem,
+} from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import { plainText, sanitizeRich } from '../core/sanitize.js';
 import { dropTarget, trackPointer, type DropTarget } from './dnd.js';
@@ -34,11 +43,26 @@ export interface CanvasApi {
   root: HTMLElement | null;
 }
 
-/** Widths of the device previews (never wider than the kit's breakpoints). */
-function frameWidth(device: string, breakpoints: { tablet: number; mobile: number }): string {
-  if (device === 'tablet') return `${Math.min(768, breakpoints.tablet)}px`;
-  if (device === 'mobile') return `${Math.min(375, breakpoints.mobile)}px`;
-  return '100%';
+/**
+ * Width of a device preview (px), or null for desktop (the whole canvas):
+ * tablet and mobile as common devices (never wider than their breakpoint),
+ * the other smaller devices at their breakpoint, widescreen at its start.
+ */
+export function previewWidth(device: Device, breakpoints: Breakpoints): number | null {
+  if (device === 'desktop') return null;
+  if (device === 'tablet') return Math.min(768, breakpoints.tablet);
+  if (device === 'mobile') return Math.min(375, breakpoints.mobile);
+  return breakpoints[device] ?? null;
+}
+
+/** The widths a device preview can be dragged to: the device's own range. */
+export function previewLimits(
+  device: Device,
+  breakpoints: Breakpoints,
+): { min: number; max: number } {
+  const range = deviceRange(device, breakpoints) ?? {};
+  const min = range.min ?? 320;
+  return { min, max: range.max ?? Math.max(min, 5000) };
 }
 
 const FRAME_STYLE = `
@@ -170,10 +194,22 @@ export function Canvas({
   // A width dragged by hand in responsive mode, and the zoom; both reset with the device.
   const [custom, setCustom] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
+  const canvasRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setCustom(null);
-    setZoom(1);
+    // A preview wider than the canvas (widescreen) starts zoomed out to fit.
+    const wanted = previewWidth(device, breakpoints);
+    const room = (canvasRef.current?.clientWidth ?? 0) - 40;
+    setZoom(
+      wanted && room > 0 && wanted > room
+        ? Math.max(0.25, Math.floor((room / wanted) * 100) / 100)
+        : 1,
+    );
   }, [device]);
+  // A device switched off in the site settings: back to desktop.
+  useEffect(() => {
+    if (!activeDevices(breakpoints).includes(device)) store.actions.setDevice('desktop');
+  }, [breakpoints, device, store]);
 
   // The frame's address is asked once: the host passes a new function on every render.
   const frameUrlRef = useRef(frameUrl);
@@ -209,11 +245,9 @@ export function Canvas({
 
   const responsive = device !== 'desktop';
   // Limits of the device being previewed: between the next smaller breakpoint and its own.
-  const limits =
-    device === 'tablet'
-      ? { min: breakpoints.mobile + 1, max: breakpoints.tablet }
-      : { min: 320, max: breakpoints.mobile };
-  const width = responsive && custom ? `${custom}px` : frameWidth(device, breakpoints);
+  const limits = previewLimits(device, breakpoints);
+  const preview = previewWidth(device, breakpoints);
+  const width = responsive && custom ? `${custom}px` : preview ? `${preview}px` : '100%';
   const frameBox = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
   useEffect(() => {
@@ -245,7 +279,7 @@ export function Canvas({
   };
 
   return (
-    <div className={`fre-canvas${responsive ? ' is-device' : ''}`}>
+    <div ref={canvasRef} className={`fre-canvas${responsive ? ' is-device' : ''}`}>
       {error && <p className="fre-error">{error}</p>}
       {responsive && (
         <div className="fre-rbar">
@@ -255,7 +289,7 @@ export function Canvas({
               type="number"
               min={limits.min}
               max={limits.max}
-              value={custom ?? Math.min(limits.max, device === 'tablet' ? 768 : 375)}
+              value={custom ?? preview ?? limits.max}
               onChange={(e) => {
                 const value = Number(e.target.value);
                 if (value) setCustom(Math.min(limits.max, Math.max(limits.min, value)));
@@ -361,8 +395,10 @@ export function Canvas({
 function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) {
   const kit = useStore(store, (s) => s.kit);
   const blocks = useStore(store, (s) => s.blocks);
-  const fonts = googleFontsUrl(kit);
   const css = documentCss(blocks, getElement, kit.breakpoints);
+  const kitStyle = kitCss(kit);
+  // The fonts the page uses, as on the site (the list changes rarely: the address is stable).
+  const fonts = googleFontsUrl(kit, usedGoogleFonts(css + kitStyle).slice(0, 20));
   const hidden = useStore(store, (s) => s.hidden);
   const hiddenCss = Object.keys(hidden)
     .map((id) => `[data-fr-id="${CSS.escape(id)}"]{display:none!important}`)
@@ -371,7 +407,7 @@ function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) 
     <>
       <link rel="stylesheet" href={`${assetsBase}/fresco.css`} />
       {fonts && <link rel="stylesheet" href={fonts} />}
-      <style>{kitCss(kit)}</style>
+      <style>{kitStyle}</style>
       <style>{css}</style>
       <style>{FRAME_STYLE}</style>
       {hiddenCss && <style>{hiddenCss}</style>}

@@ -5,7 +5,15 @@
  * the kit and used as `var(--fr-v-<id>)`.
  */
 import { boxCss, isBox, isSize, safeColor, safeFont } from './css.js';
-import type { BoxValue, Breakpoints, Device, SizeValue } from './model.js';
+import {
+  DEVICES,
+  SHEET_ORDER,
+  deviceMedia,
+  type BoxValue,
+  type Breakpoints,
+  type Device,
+  type SizeValue,
+} from './model.js';
 
 export type StyleState = '' | 'hover' | 'focus' | 'active';
 
@@ -379,15 +387,19 @@ function declarations(props: Record<string, unknown>): string {
     .join(';');
 }
 
-/** CSS of style variants for a selector, desktop first, then tablet and mobile. */
+/**
+ * CSS of style variants for a selector: desktop first, then the other active
+ * devices (widescreen, then the smaller ones from the widest).
+ */
 export function variantsCss(
   selector: string,
   variants: StyleVariant[],
   breakpoints: Breakpoints,
 ): string {
-  const order: Device[] = ['desktop', 'tablet', 'mobile'];
   let css = '';
-  for (const device of order) {
+  for (const device of SHEET_ORDER) {
+    const media = device === 'desktop' ? '' : deviceMedia(device, breakpoints);
+    if (media === null) continue;
     let block = '';
     for (const variant of variants.filter((v) => v.device === device)) {
       const body = declarations(variant.props ?? {});
@@ -396,9 +408,7 @@ export function variantsCss(
       block += `${selector}${state}{${body}}`;
     }
     if (!block) continue;
-    if (device === 'desktop') css += block;
-    else
-      css += `@media (max-width:${device === 'tablet' ? breakpoints.tablet : breakpoints.mobile}px){${block}}`;
+    css += media ? `@media ${media}{${block}}` : block;
   }
   return css.replace(/<\/?style/gi, '');
 }
@@ -436,7 +446,7 @@ export function normalizeVariants(value: unknown): StyleVariant[] {
   return value
     .filter((v): v is StyleVariant => Boolean(v) && typeof v === 'object')
     .map((v) => ({
-      device: (['desktop', 'tablet', 'mobile'] as const).includes(v.device) ? v.device : 'desktop',
+      device: DEVICES.includes(v.device) ? v.device : 'desktop',
       state: (['', 'hover', 'focus', 'active'] as const).includes(v.state) ? v.state : '',
       props: v.props && typeof v.props === 'object' ? v.props : {},
     }));

@@ -51,6 +51,14 @@ Atomic elements (Flexbox, Grid, Div, Heading, Paragraph, Button, Image, SVG, Div
 
 **Templates** saves a section or a whole page to reuse it, and imports or exports `.fresco.json` files to move designs between sites.
 
+## Fresco's menu
+
+Besides the overview and **Templates**, the **Fresco** menu of the admin has (for administrators):
+
+- **Site settings**: opens the editor on its Site settings panel, also before any page is made with Fresco (a draft page is made for it).
+- **Tools**: **Regenerate CSS** (when a page looks wrong after an update), **Replace URL** (after moving the site to a new address or to HTTPS: counts the old address in every Fresco page and template, then replaces it; earlier revisions stay) and the versions of Cleitext, Fresco and Fresco Pro.
+- **System info**: versions, server, site, active theme and plugins, with a button that copies them for a support request.
+
 ## Coming from WordPress
 
 The WordPress importer (**Import from WordPress** in the admin menu) turns a site built with Elementor (and Elementor Pro) into Fresco:
@@ -91,7 +99,7 @@ With the Multilingual plugin, translate a template like a page: on a page in a l
 
 ### Popups
 
-A popup template has its own settings in **Page settings → Template**: trigger (on load after a delay, on scroll, when an element is reached, after some clicks, after inactivity, on exit intent, from a link), how often (every time, once per session, every N days, once), after how many page views, on which devices, coming from which address, between which dates, position, size, overlay, close button and animation. Links to `#popup-<template id>` open it; `#popup-close` closes it.
+**Templates → Popups** lists the popup templates and makes new ones. A popup template has its own settings in **Page settings → Template**: trigger (on load after a delay, on scroll, when an element is reached, after some clicks, after inactivity, on exit intent, from a link), how often (every time, once per session, every N days, once), after how many page views, on which devices, coming from which address, between which dates, position, size, overlay, close button and animation. Links to `#popup-<template id>` open it; `#popup-close` closes it.
 
 ### Dynamic content
 
@@ -139,9 +147,14 @@ Pages get **custom CSS** and **scroll snap** in their page settings.
 
 - **Site CSS**, on every page.
 - **Code** for `<head>`, the start or the end of `<body>`, with the same conditions as templates: analytics, pixels, verification tags.
+- **Page transitions** between the site's pages, with a preloader.
+
+**Fonts & icons** (administrators) holds:
+
 - **Custom fonts**, uploaded as `.woff2`, `.woff`, `.ttf` or `.otf`, then offered in every font picker.
 - **Custom icons**, uploaded as SVG files (cleaned of scripts), then offered in the icon picker; they take the text color.
-- **Page transitions** between the site's pages, with a preloader.
+
+**License** (under Fresco, for who activates plugins) shows the license of Fresco Pro on the site, as **Plugins** does: enter the key, check it, renew or remove it.
 
 ### Roles
 
@@ -154,7 +167,7 @@ Fresco Pro adds capabilities you can give to roles in the **Roles** card of **Us
 | Manage theme templates            | Administrator                              | No Theme Builder                      |
 | View form submissions             | Administrator, editor                      | No Form submissions                   |
 | Set up form integrations          | Administrator                              | No Form integrations                  |
-| Add custom code and site CSS      | Administrator                              | No Custom code                        |
+| Add custom code and site CSS      | Administrator                              | No Custom code, no Fonts & icons      |
 
 ## Licenses
 

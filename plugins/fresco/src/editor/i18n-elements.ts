@@ -115,6 +115,10 @@ addMessages('it', {
   Responsive: 'Responsive',
   'Hide on tablet': 'Nascondi su tablet',
   'Hide on mobile': 'Nascondi su mobile',
+  'Hide on widescreen': 'Nascondi su schermo ampio',
+  'Hide on laptop': 'Nascondi su portatile',
+  'Hide on tablet extra': 'Nascondi su tablet extra',
+  'Hide on mobile extra': 'Nascondi su mobile extra',
   'CSS ID': 'ID CSS',
   Attributes: 'Attributi',
   'Letters, digits, dashes and underscores. Links to #id jump here.':
@@ -533,6 +537,15 @@ addMessages('it', {
   'Gap between elements (px)': 'Spaziatura tra gli elementi (px)',
   'Tablet up to (px)': 'Tablet fino a (px)',
   'Mobile up to (px)': 'Mobile fino a (px)',
+  'Mobile extra up to (px)': 'Mobile extra fino a (px)',
+  'Tablet extra up to (px)': 'Tablet extra fino a (px)',
+  'Laptop up to (px)': 'Portatile fino a (px)',
+  'Widescreen from (px)': 'Schermo ampio da (px)',
+  Breakpoints: 'Breakpoint',
+  'Extra devices are off until you switch them on; each one gets its own values and its own button in the top bar.':
+    'I dispositivi extra sono spenti finché non li attivi; ognuno ha i suoi valori e il suo pulsante nella barra in alto.',
+  'Switch on': 'Attiva',
+  'Switch off': 'Disattiva',
   'Page title selector': 'Selettore del titolo della pagina',
   'What "Hide the page title" hides, as a CSS selector of your theme.':
     'Cosa nasconde «Nascondi il titolo della pagina», come selettore CSS del tuo tema.',

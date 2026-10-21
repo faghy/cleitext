@@ -1,12 +1,29 @@
 /**
  * Fresco's own menu in the admin, as other page builders have: an overview
- * (new page, the pages made with Fresco, the way to the site settings) and
- * the saved templates.
+ * (new page, the pages made with Fresco, the way to the site settings), the
+ * saved templates, the site settings, tools and the system info for support.
  */
-import { api as coreApi, useT, type AdminPageProps } from '@cleitext/admin-sdk';
-import { useEffect, useState } from 'react';
+import {
+  adminUrl,
+  api as coreApi,
+  errorMessage,
+  useT,
+  type AdminPageProps,
+} from '@cleitext/admin-sdk';
+import { useEffect, useRef, useState } from 'react';
+import { AdminDialogs, confirmAction, notify } from './admin-dialogs.js';
 import { download, toTemplate, type PatternView, type Template } from './editor/library.js';
+import {
+  systemReport,
+  systemSections,
+  type CoreStatus,
+  type PluginRow,
+  type SystemData,
+  type ThemeRow,
+} from './system-report.js';
+import type { FrescoSystemInfo, ReplaceResult } from './tools.js';
 import './editor/i18n.js';
+import './admin-i18n.js';
 
 interface FrescoPage {
   id: string;
@@ -40,6 +57,14 @@ const PAGE_CSS = `
 .frx .muted{color:#6b7280}
 .frx .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
 .frx .error{color:#b91c1c}
+.frx .ok{color:#047857}
+.frx .card label{display:block;margin:0 0 10px;font-size:13px;font-weight:600}
+.frx .card input[type=url]{display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font:inherit;font-weight:400}
+.frx .card ul{margin:0 0 12px;padding-left:18px;font-size:13px}
+.frx dl{display:grid;grid-template-columns:minmax(160px,max-content) 1fr;gap:6px 18px;margin:0;font-size:13px}
+.frx dt{color:#6b7280}
+.frx dd{margin:0;word-break:break-word}
+.frx .stack{display:grid;gap:16px;margin-bottom:20px}
 `;
 
 function Styles() {
@@ -179,6 +204,7 @@ export function TemplatesPage(_props: AdminPageProps) {
   return (
     <div className="frx">
       <Styles />
+      <AdminDialogs />
       <h1>{t('Templates')}</h1>
       <p className="lead">
         {t(
@@ -236,18 +262,19 @@ export function TemplatesPage(_props: AdminPageProps) {
                     <button
                       type="button"
                       className="btn"
-                      onClick={() => {
-                        if (
-                          !window.confirm(
-                            t('Delete the template “{name}”?', { name: template.title }),
-                          )
-                        )
-                          return;
-                        void coreApi('DELETE', `/patterns/${template.id}`).then(
-                          load,
-                          (e: unknown) => setError(String(e instanceof Error ? e.message : e)),
-                        );
-                      }}
+                      onClick={() =>
+                        void confirmAction({
+                          title: t('Delete the template “{name}”?', { name: template.title }),
+                          action: t('Delete'),
+                          danger: true,
+                        }).then((ok) => {
+                          if (!ok) return;
+                          void coreApi('DELETE', `/patterns/${template.id}`).then(
+                            load,
+                            (e: unknown) => setError(String(e instanceof Error ? e.message : e)),
+                          );
+                        })
+                      }
                     >
                       {t('Delete')}
                     </button>
@@ -258,6 +285,306 @@ export function TemplatesPage(_props: AdminPageProps) {
           </tbody>
         </table>
       )}
+    </div>
+  );
+}
+
+/**
+ * "Site settings" of Fresco's menu: the editor opens on its Site settings
+ * panel, over the most recent page made with Fresco. A site without one
+ * gets a draft page for it (reused the next times).
+ */
+export function SiteSettingsPage(_props: AdminPageProps) {
+  const { t } = useT();
+  const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    const open = async () => {
+      const pages = await coreApi<FrescoPage[]>('GET', '/ext/fresco/pages');
+      let id = pages[0]?.id;
+      if (!id) {
+        const entry = await coreApi<{ id: string }>('POST', '/entries', {
+          type: 'page',
+          title: t('Fresco site settings'),
+          document: { schema: 1, blocks: [], editor: { id: 'fresco' } },
+        });
+        id = entry.id;
+      }
+      window.location.replace(editorUrl(id, 'site'));
+    };
+    open().catch((e: unknown) => setError(errorMessage(e)));
+  }, []);
+  return (
+    <div className="frx">
+      <Styles />
+      <h1>{t('Site settings')}</h1>
+      {error ? (
+        <p className="error">{error}</p>
+      ) : (
+        <p className="muted">{t('Opening the site settings in Fresco…')}</p>
+      )}
+    </div>
+  );
+}
+
+// ---- What support asks about: versions and the system ----------------------------------
+
+/** Fresco's own info and what the core shows this user (each part when allowed). */
+function useSystem(): { data: SystemData | null; error: string | null } {
+  const [data, setData] = useState<SystemData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const optional = <T,>(path: string) => coreApi<T>('GET', path).catch(() => null);
+    void Promise.all([
+      coreApi<FrescoSystemInfo>('GET', '/ext/fresco/system'),
+      optional<CoreStatus>('/system/status'),
+      optional<PluginRow[]>('/plugins'),
+      optional<ThemeRow[]>('/themes'),
+    ])
+      .then(([fresco, core, plugins, themes]) => setData({ fresco, core, plugins, themes }))
+      .catch((e: unknown) => setError(errorMessage(e)));
+  }, []);
+  return { data, error };
+}
+
+function SystemSections({ data }: { data: SystemData }) {
+  const { t } = useT();
+  return (
+    <div className="stack">
+      {systemSections(data, t).map((section) => (
+        <div className="card" key={section.title}>
+          <h2>{section.title}</h2>
+          <dl>
+            {section.rows.map(([label, value]) => (
+              <div key={label} style={{ display: 'contents' }}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SystemInfoPage(_props: AdminPageProps) {
+  const { t } = useT();
+  const { data, error } = useSystem();
+  const copy = async () => {
+    if (!data) return;
+    try {
+      await navigator.clipboard.writeText(systemReport(systemSections(data, t)));
+      notify(t('Copied: paste it in your support request.'), 'success');
+    } catch {
+      notify(t('The browser did not allow copying.'), 'error');
+    }
+  };
+  return (
+    <div className="frx">
+      <Styles />
+      <AdminDialogs />
+      <h1>{t('System info')}</h1>
+      <p className="lead">
+        {t('What support asks about: versions of Cleitext, Fresco and the server.')}
+      </p>
+      <div className="row">
+        <button
+          type="button"
+          className="btn btn--primary"
+          disabled={!data}
+          onClick={() => void copy()}
+        >
+          {t('Copy the system info')}
+        </button>
+      </div>
+      {error && <p className="error">{error}</p>}
+      {!data && !error && <p className="muted">{t('Loading…')}</p>}
+      {data && <SystemSections data={data} />}
+    </div>
+  );
+}
+
+// ---- Tools ---------------------------------------------------------------------------
+
+export function ToolsPage(_props: AdminPageProps) {
+  const { t } = useT();
+  const { data } = useSystem();
+  const [busy, setBusy] = useState(false);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [counted, setCounted] = useState<(ReplaceResult & { from: string; to: string }) | null>(
+    null,
+  );
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await action();
+    } catch (e) {
+      setMessage({ ok: false, text: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const regenerate = () =>
+    run(async () => {
+      await coreApi('POST', '/ext/fresco/tools/regenerate-css');
+      setMessage({ ok: true, text: t('The CSS of the Fresco pages is generated again.') });
+    });
+
+  const count = () =>
+    run(async () => {
+      const result = await coreApi<ReplaceResult>('POST', '/ext/fresco/tools/replace-url', {
+        from,
+        to,
+        dryRun: true,
+      });
+      setCounted({ ...result, from, to });
+    });
+
+  const replace = () =>
+    run(async () => {
+      if (!counted) return;
+      const ok = await confirmAction({
+        title: t('Replace the address?'),
+        text: t(
+          '{count} occurrences in {documents} documents change. Each page keeps its earlier revisions.',
+          { count: counted.replaced, documents: counted.entries.length },
+        ),
+        action: t('Replace'),
+        danger: true,
+      });
+      if (!ok) return;
+      const result = await coreApi<ReplaceResult>('POST', '/ext/fresco/tools/replace-url', {
+        from: counted.from,
+        to: counted.to,
+        dryRun: false,
+      });
+      setCounted(null);
+      setMessage({
+        ok: true,
+        text: t('{count} occurrences replaced in {documents} documents.', {
+          count: result.replaced,
+          documents: result.entries.length,
+        }),
+      });
+    });
+
+  const fresh = counted && counted.from === from && counted.to === to;
+  const pro = data?.plugins?.find((p) => p.slug === 'fresco-pro');
+  return (
+    <div className="frx">
+      <Styles />
+      <AdminDialogs />
+      <h1>{t('Tools')}</h1>
+      {message && <p className={message.ok ? 'ok' : 'error'}>{message.text}</p>}
+      <div className="stack">
+        <div className="card">
+          <h2>{t('Regenerate CSS')}</h2>
+          <p>
+            {t(
+              'Pages made with Fresco keep their styles ready to be fast. If a page looks wrong after an update or a change of the site settings, generate them again.',
+            )}
+          </p>
+          <button type="button" className="btn" disabled={busy} onClick={() => void regenerate()}>
+            {t('Regenerate CSS')}
+          </button>
+        </div>
+
+        <div className="card">
+          <h2>{t('Replace URL')}</h2>
+          <p>
+            {t(
+              'After moving the site to a new address or to HTTPS: replace the old address in every page and template made with Fresco. Count first, then replace.',
+            )}
+          </p>
+          <label>
+            {t('Old address')}
+            <input
+              type="url"
+              placeholder="http://old-site.com"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </label>
+          <label>
+            {t('New address')}
+            <input
+              type="url"
+              placeholder="https://new-site.com"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </label>
+          {fresh && (
+            <>
+              <p>
+                {counted.replaced === 0
+                  ? t('The old address is in no Fresco document.')
+                  : t('Found {count} times in {documents} documents:', {
+                      count: counted.replaced,
+                      documents: counted.entries.length,
+                    })}
+              </p>
+              {counted.entries.length > 0 && (
+                <ul>
+                  {counted.entries.slice(0, 20).map((entry) => (
+                    <li key={entry.id}>
+                      {entry.title || t('(no title)')} ({entry.count})
+                    </li>
+                  ))}
+                  {counted.entries.length > 20 && (
+                    <li>{t('and {count} more', { count: counted.entries.length - 20 })}</li>
+                  )}
+                </ul>
+              )}
+            </>
+          )}
+          <div className="row">
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || !from.trim() || !to.trim()}
+              onClick={() => void count()}
+            >
+              {t('Count')}
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={busy || !fresh || counted.replaced === 0}
+              onClick={() => void replace()}
+            >
+              {t('Replace URL')}
+            </button>
+          </div>
+        </div>
+
+        <div className="card">
+          <h2>{t('Versions')}</h2>
+          <dl>
+            <dt>Cleitext</dt>
+            <dd>{data?.core?.version ?? '—'}</dd>
+            <dt>{t('Plugin API')}</dt>
+            <dd>{data?.fresco?.pluginApi ?? '—'}</dd>
+            <dt>Fresco</dt>
+            <dd>{data?.fresco?.fresco.version ?? '—'}</dd>
+            <dt>Fresco Pro</dt>
+            <dd>{pro ? pro.version : '—'}</dd>
+          </dl>
+          <div className="row" style={{ marginTop: 14, marginBottom: 0 }}>
+            <a className="btn" href={adminUrl('/updates')}>
+              {t('Check for updates')}
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

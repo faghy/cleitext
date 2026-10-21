@@ -5,7 +5,7 @@ import {
   printSheet,
   safeColor,
   type Breakpoints,
-  type Device,
+  type BaseDevice as Device,
   type Sheet,
 } from '@cleitext/design';
 import { DEFAULT_GLOBALS, type Globals } from './globals';

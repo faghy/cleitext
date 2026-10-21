@@ -13,13 +13,16 @@ import {
   type ComponentType,
   type ReactNode,
 } from 'react';
-import { ANIMATIONS } from '../core/common.js';
+import { ANIMATIONS, DEVICE_NAMES } from '../core/common.js';
 import { isBox, isSize } from '../core/css.js';
 import { Icon, iconDataLoaded, iconNames } from '../core/icons.js';
-import { GOOGLE_FONTS, SYSTEM_FONTS, type Kit } from '../core/kit.js';
+import type { Kit } from '../core/kit.js';
+import { FontPicker, systemGroup, type FontGroup } from './font-picker.js';
 import { extensions } from '../core/extensions.js';
 import { isMedia } from '../core/media.js';
 import {
+  activeDevices,
+  inheritChain,
   settingKey,
   type BoxValue,
   type Control,
@@ -69,18 +72,18 @@ export function Svg({ path, size = 16 }: { path: string; size?: number }) {
 }
 
 export const DEVICE_ICONS: Record<Device, string> = {
+  widescreen: 'M1 4h22v12H1z M8 20h8 M12 16v4',
   desktop: 'M3 5h18v11H3z M8 20h8 M12 16v4',
+  laptop: 'M4 5h16v10H4z M2 19h20',
+  tablet_extra: 'M3 6h18v12H3z M18 11v2',
   tablet: 'M6 3h12v18H6z M11 18h2',
+  mobile_extra: 'M3 8h18v8H3z M18 11v2',
   mobile: 'M8 3h8v18H8z M11 18h2',
 };
 
-const DEVICE_NAMES: Record<Device, string> = {
-  desktop: 'Desktop',
-  tablet: 'Tablet',
-  mobile: 'Mobile',
-};
+export { DEVICE_NAMES };
 
-/** The device being edited; a click shows the others (the canvas follows). */
+/** The device being edited; a click lists the active devices (the canvas follows). */
 function DeviceSwitch({ env }: { env: ControlEnv }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -99,23 +102,22 @@ function DeviceSwitch({ env }: { env: ControlEnv }) {
       </button>
       {open && (
         <span className="fre-devices__list" role="menu">
-          {(['desktop', 'tablet', 'mobile'] as const)
-            .filter((device) => device !== env.device)
-            .map((device) => (
-              <button
-                key={device}
-                type="button"
-                role="menuitem"
-                title={t(DEVICE_NAMES[device])}
-                aria-label={t(DEVICE_NAMES[device])}
-                onClick={() => {
-                  env.setDevice(device);
-                  setOpen(false);
-                }}
-              >
-                <Svg path={DEVICE_ICONS[device]} size={12} />
-              </button>
-            ))}
+          {activeDevices(env.kit.breakpoints).map((device) => (
+            <button
+              key={device}
+              type="button"
+              className={device === env.device ? 'is-on' : undefined}
+              role="menuitem"
+              title={t(DEVICE_NAMES[device])}
+              aria-label={t(DEVICE_NAMES[device])}
+              onClick={() => {
+                env.setDevice(device);
+                setOpen(false);
+              }}
+            >
+              <Svg path={DEVICE_ICONS[device]} size={12} />
+            </button>
+          ))}
         </span>
       )}
     </span>
@@ -187,8 +189,8 @@ function valueOf(
   const device = control.responsive ? env.device : 'desktop';
   const hover = control.hover ? env.hover : false;
   const key = settingKey(control.name, device, hover);
-  const chain: Device[] =
-    device === 'mobile' ? ['tablet', 'desktop'] : device === 'tablet' ? ['desktop'] : [];
+  // A device without a value shows the one of the next larger active device.
+  const chain = inheritChain(device, env.kit.breakpoints);
   let inherited: unknown;
   for (const d of chain) {
     const v =
@@ -1196,45 +1198,25 @@ function FontSelect({
   value: string;
   onChange: (v: string | undefined) => void;
 }) {
-  return (
-    <select
-      className="fre-input"
-      value={value}
-      onChange={(e) => onChange(e.target.value || undefined)}
-    >
-      <option value="">{t('Default')}</option>
-      <optgroup label={t('Global fonts')}>
-        {['primary', 'secondary', 'text', 'accent'].map((id) => (
-          <option key={id} value={`var(--fr-t-${id}-family)`}>
-            {t(id[0]!.toUpperCase() + id.slice(1))}
-          </option>
-        ))}
-      </optgroup>
-      {extensions().customFonts.length > 0 && (
-        <optgroup label={t('Custom fonts')}>
-          {extensions().customFonts.map((font) => (
-            <option key={font} value={font}>
-              {font}
-            </option>
-          ))}
-        </optgroup>
-      )}
-      <optgroup label={t('System')}>
-        {SYSTEM_FONTS.map((font) => (
-          <option key={font} value={font}>
-            {font}
-          </option>
-        ))}
-      </optgroup>
-      <optgroup label="Google Fonts">
-        {[...GOOGLE_FONTS].sort().map((font) => (
-          <option key={font} value={font}>
-            {font}
-          </option>
-        ))}
-      </optgroup>
-    </select>
-  );
+  const groups: FontGroup[] = [
+    {
+      label: 'Global fonts',
+      options: ['primary', 'secondary', 'text', 'accent'].map((id) => ({
+        value: `var(--fr-t-${id}-family)`,
+        label: t(id[0]!.toUpperCase() + id.slice(1)),
+      })),
+    },
+    ...(extensions().customFonts.length > 0
+      ? [
+          {
+            label: 'Custom fonts',
+            options: extensions().customFonts.map((font) => ({ value: font, label: font })),
+          },
+        ]
+      : []),
+    systemGroup(),
+  ];
+  return <FontPicker value={value} onChange={onChange} groups={groups} emptyLabel={t('Default')} />;
 }
 
 // ---- Repeater ---------------------------------------------------------------------------------

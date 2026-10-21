@@ -4,6 +4,7 @@
  * build elements with the same parts as Fresco's own and register them in
  * the shared registry; they extend every element through `extensions`.
  */
+import type { ComponentType } from 'react';
 import { ANIMATIONS, advancedControls, ElementRoot, rootProps, UNITS } from './core/common.js';
 import {
   ALIGN,
@@ -89,6 +90,25 @@ export type FrescoApi = ReturnType<typeof createApi> & {
     toBlocks: unknown;
     /** Loads the icons of the icon picker (once). */
     loadIcons: () => Promise<void>;
+    /**
+     * The editor's dialogs instead of the browser's (Fresco 2.1): in the
+     * editor they show at once; admin pages mount `Host` once.
+     */
+    dialogs?: {
+      askText: (options: {
+        title: string;
+        label?: string;
+        value?: string;
+      }) => Promise<string | null>;
+      confirmAction: (options: {
+        title: string;
+        text?: string;
+        action: string;
+        danger?: boolean;
+      }) => Promise<boolean>;
+      notify: (text: string, kind?: 'info' | 'success' | 'error') => void;
+      Host: ComponentType;
+    };
   };
 };
 

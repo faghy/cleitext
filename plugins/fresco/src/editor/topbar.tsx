@@ -5,7 +5,8 @@
  */
 import { useT, type EditorHost } from '@cleitext/admin-sdk';
 import { useEffect, useRef, useState } from 'react';
-import { DEVICE_ICONS, Svg } from './controls.js';
+import { activeDevices } from '../core/model.js';
+import { DEVICE_ICONS, DEVICE_NAMES, Svg } from './controls.js';
 import { useStore, type PanelView, type Store } from './store.js';
 
 export const ICONS = {
@@ -26,9 +27,6 @@ export const ICONS = {
   entry: 'M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6',
   theme: 'M4 4h16v5H4z M4 11h7v9H4z M13 11h7v9h-7z',
 } as const;
-
-const DEVICES = ['desktop', 'tablet', 'mobile'] as const;
-const DEVICE_LABELS = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' } as const;
 
 export interface TopBarProps {
   store: Store;
@@ -52,6 +50,7 @@ export function TopBar({
   const { t } = useT();
   const view = useStore(store, (s) => s.view);
   const device = useStore(store, (s) => s.device);
+  const breakpoints = useStore(store, (s) => s.kit.breakpoints);
   const navigator = useStore(store, (s) => s.navigator);
   // Re-render on every change so undo/redo know whether they can act.
   useStore(store, (s) => s.blocks);
@@ -148,13 +147,13 @@ export function TopBar({
         />
         <span className="fre-bar__sep" />
         <div className="fre-bar__devices" role="group" aria-label={t('Preview device')}>
-          {DEVICES.map((d) => (
+          {activeDevices(breakpoints).map((d) => (
             <button
               key={d}
               type="button"
               className={`fre-bar__btn${device === d ? ' is-on' : ''}`}
-              title={t(DEVICE_LABELS[d])}
-              aria-label={t(DEVICE_LABELS[d])}
+              title={t(DEVICE_NAMES[d])}
+              aria-label={t(DEVICE_NAMES[d])}
               aria-pressed={device === d}
               onClick={() => store.actions.setDevice(d)}
             >
