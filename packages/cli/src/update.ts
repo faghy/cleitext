@@ -270,6 +270,18 @@ export async function runUpdate(options: UpdateOptions): Promise<UpdateResult> {
 /** In releases/: the folder of the version before the last update. */
 const PREVIOUS_FILE = '.previous';
 
+/** The folder `cleitext rollback` would go back to, or null. */
+export function previousRelease(root: string): string | null {
+  const layout = layoutOf(root);
+  if (layout.kind === 'releases') {
+    const file = path.join(layout.releases, PREVIOUS_FILE);
+    const previous = existsSync(file) ? readFileSyncSafe(file, '').trim() : '';
+    return previous && previous !== layout.current && existsSync(previous) ? previous : null;
+  }
+  const previous = path.join(path.dirname(layout.dir), '.cleitext-previous');
+  return existsSync(path.join(previous, 'package.json')) ? previous : null;
+}
+
 /**
  * Back to the version that ran before the last update, kept on disk by it.
  * The database stays as it is: migrations only add, so the previous version
@@ -311,11 +323,11 @@ export async function rollbackUpdate(root: string): Promise<{ root: string; vers
   return { root: result, version: versionOf(result) };
 }
 
-function readFileSyncSafe(file: string): string {
+function readFileSyncSafe(file: string, fallback = '{}'): string {
   try {
     return readFileSync(file, 'utf8');
   } catch {
-    return '{}';
+    return fallback;
   }
 }
 

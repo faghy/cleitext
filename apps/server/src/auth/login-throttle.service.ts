@@ -43,6 +43,22 @@ export class LoginThrottleService {
     await this.bump(ipKey(ip), LoginThrottleService.IP_THRESHOLD, () => 15 * 60, IP_WINDOW_SECONDS);
   }
 
+  /** Seconds until the address may try again (per-address counter only), or 0. */
+  async ipRetryAfter(ip: string): Promise<number> {
+    const [row] = await this.database.db
+      .select({ lockedUntil: loginThrottle.lockedUntil })
+      .from(loginThrottle)
+      .where(eq(loginThrottle.key, ipKey(ip)));
+    return row?.lockedUntil
+      ? Math.max(0, Math.ceil((row.lockedUntil.getTime() - Date.now()) / 1000))
+      : 0;
+  }
+
+  /** A failure tied to no account (e.g. a wrong one-time sign-in link): the address only. */
+  async recordIpFailure(ip: string): Promise<void> {
+    await this.bump(ipKey(ip), LoginThrottleService.IP_THRESHOLD, () => 15 * 60, IP_WINDOW_SECONDS);
+  }
+
   async recordSuccess(email: string): Promise<void> {
     await this.database.db.delete(loginThrottle).where(eq(loginThrottle.key, emailKey(email)));
   }

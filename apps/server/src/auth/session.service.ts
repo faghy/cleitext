@@ -1,4 +1,4 @@
-import { sessions, userTokens, type DatabaseClient } from '@cleitext/db';
+import { sessions, userTokens, type DatabaseClient, type UserTokenKind } from '@cleitext/db';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, gt, isNull, lt, ne, sql } from 'drizzle-orm';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
@@ -103,9 +103,13 @@ export class SessionService {
   }
 }
 
-export type TokenKind = 'password_reset' | 'invitation' | 'login_2fa' | 'email_verify';
+export type TokenKind = UserTokenKind;
 
-/** Single-use tokens sent by email (password reset, invitation). */
+/**
+ * Single-use tokens: sent by email (password reset, invitation), the 2FA
+ * step, and the hosting panel's one-time sign-in (`panel_login`, issued by
+ * `cleitext login-link`).
+ */
 @Injectable()
 export class UserTokenService {
   constructor(@Inject(DATABASE) private readonly database: DatabaseClient) {}

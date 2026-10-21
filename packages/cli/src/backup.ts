@@ -4,7 +4,18 @@
  */
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { chmod, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -120,7 +131,7 @@ export async function backup(
       'plugins',
     ]);
     await chmod(out, 0o600);
-    const { size } = await import('node:fs/promises').then((fs) => fs.stat(out));
+    const { size } = await stat(out);
     return { bytes: size };
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -135,7 +146,7 @@ export async function restore(
   db: Database,
   paths: BackupPaths & { appRole: string },
   file: string,
-): Promise<BackupManifest> {
+): Promise<BackupManifest & { revokedRoles: string[] }> {
   const dir = await mkdtemp(path.join(tmpdir(), 'cleitext-restore-'));
   try {
     await tar.extract({
@@ -162,6 +173,13 @@ export async function restore(
       [...schema.matchAll(/^GRANT .+ TO "?([a-z_][a-z0-9_]*)"?;$/gm)]
         .map((m) => m[1]!)
         .filter((r) => r !== 'public'),
+    );
+    const existing = new Set(
+      (
+        await db.execute<{ name: string }>(
+          sql`select rolname as name from pg_roles where rolname = any(${[...grantees]})`,
+        )
+      ).map((r) => r.name),
     );
     for (const role of grantees) {
       await db.execute(
@@ -206,9 +224,21 @@ export async function restore(
     }
     // Roles are not part of a database dump: plugin roles and grants again.
     await grantAppPrivileges(db, paths.appRole);
+    const keep = [paths.appRole];
     for (const plugin of await db.select().from(plugins)) {
       await migratePlugin(db, plugin.slug, path.join(dir, 'plugins', plugin.slug), paths.appRole);
+      const [row] = await db.execute<{ role: string }>(
+        sql`select cleitext_plugin_role(${plugin.slug}) as role`,
+      );
+      if (row) keep.push(row.role);
     }
+    // A backup of another database (a copy of the site, a clone): its
+    // application and plugin roles must not keep rights on this one.
+    const revokedRoles = await revokeForeignGrants(
+      db,
+      [...grantees].filter((role) => !keep.includes(role)),
+      [...grantees].filter((role) => !existing.has(role)),
+    );
     for (const [name, target] of [
       ['media', paths.mediaPath],
       ['plugins', paths.pluginsPath],
@@ -219,8 +249,93 @@ export async function restore(
       await mkdir(path.dirname(target), { recursive: true });
       await cp(path.join(dir, name), target, { recursive: true });
     }
-    return manifest;
+    return { ...manifest, revokedRoles };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * After restoring the backup of another database (plugin roles carry a tag of
+ * the database name, the application role may differ): `foreign` roles lose
+ * every right on this database's schemas, tables, sequences and functions,
+ * and those the restore created (`created`) are dropped again. Returns the
+ * roles whose rights were removed.
+ */
+export async function revokeForeignGrants(
+  db: Database,
+  foreign: string[],
+  created: string[] = [],
+): Promise<string[]> {
+  const roles = foreign.filter((role) => /^[a-z_][a-z0-9_]*$/.test(role));
+  if (roles.length === 0) return [];
+  const [me] = await db.execute<{ name: string }>(sql`select current_user as name`);
+  const targets = roles.filter((role) => role !== me?.name);
+  const schemas = (
+    await db.execute<{ name: string }>(sql`
+      select nspname as name from pg_namespace
+      where pg_has_role(nspowner, 'USAGE')
+        and nspname not like 'pg\\_%' and nspname <> 'information_schema'`)
+  ).map((r) => r.name);
+  for (const role of targets) {
+    const exists = await db.execute(sql`select 1 from pg_roles where rolname = ${role}`);
+    if (exists.length === 0) continue;
+    for (const schema of schemas) {
+      const s = `"${schema.replaceAll('"', '""')}"`;
+      await db.execute(
+        sql.raw(`
+        REVOKE ALL ON ALL TABLES IN SCHEMA ${s} FROM ${role};
+        REVOKE ALL ON ALL SEQUENCES IN SCHEMA ${s} FROM ${role};
+        REVOKE ALL ON ALL FUNCTIONS IN SCHEMA ${s} FROM ${role};
+        REVOKE ALL ON SCHEMA ${s} FROM ${role};`),
+      );
+    }
+    if (created.includes(role)) {
+      // Created without login by this restore: nothing else uses it.
+      await db.execute(sql.raw(`DROP ROLE IF EXISTS ${role}`)).catch(() => {});
+    }
+  }
+  return targets;
+}
+
+export interface BackupFile {
+  name: string;
+  path: string;
+  bytes: number;
+  /** When the file was written (ISO). */
+  createdAt: string;
+  /** Taken by an update, before switching to that version (`before-<version>.tar.gz`). */
+  beforeVersion: string | null;
+}
+
+/** The backups in a folder (*.tar.gz), newest first. */
+export async function listBackups(dir: string): Promise<BackupFile[]> {
+  if (!existsSync(dir)) return [];
+  const files: BackupFile[] = [];
+  for (const name of await readdir(dir)) {
+    if (!name.endsWith('.tar.gz')) continue;
+    const file = path.join(dir, name);
+    const info = await stat(file).catch(() => null);
+    if (!info?.isFile()) continue;
+    files.push({
+      name,
+      path: file,
+      bytes: info.size,
+      createdAt: info.mtime.toISOString(),
+      beforeVersion: /^before-(.+)\.tar\.gz$/.exec(name)?.[1] ?? null,
+    });
+  }
+  return files.sort(
+    (a, b) => b.createdAt.localeCompare(a.createdAt) || b.name.localeCompare(a.name),
+  );
+}
+
+/** Deletes all but the `keep` newest backups of a folder; returns the deleted ones. */
+export async function pruneBackups(dir: string, keep: number): Promise<BackupFile[]> {
+  if (!Number.isInteger(keep) || keep < 0) {
+    throw new OperationError('--keep must be a whole number, 0 or more.', 'invalid_option');
+  }
+  const removed = (await listBackups(dir)).slice(keep);
+  for (const file of removed) await rm(file.path, { force: true });
+  return removed;
 }

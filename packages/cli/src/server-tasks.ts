@@ -24,3 +24,7 @@ export declare function importTask(
 ): Promise<ImportReport>;
 export declare function formatReport(report: ImportReport): string;
 export declare function saveReport(file: string, report: ImportReport): Promise<void>;
+export declare function activatePluginTask(
+  context: TaskContext,
+  options: { slug: string; site: string },
+): Promise<{ slug: string; site: string; version: string; alreadyActive: boolean }>;

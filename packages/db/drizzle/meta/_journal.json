@@ -190,6 +190,13 @@
       "when": 1792390844234,
       "tag": "0026_site_status",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792477244234,
+      "tag": "0027_panel_login",
+      "breakpoints": true
     }
   ]
 }

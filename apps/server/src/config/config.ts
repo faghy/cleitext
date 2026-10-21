@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_CATALOG_KEY, DEFAULT_CATALOG_URL } from '@cleitext/shared';
 import { z } from 'zod';
 import { parseTrustProxy, withCloudflare, type TrustProxy } from './trust-proxy.js';
 
@@ -196,10 +197,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 /** The installation registry of cleitext.com (the Store plugin). */
 export const DEFAULT_INSTALL_REPORT_URL = 'https://cleitext.com/api/v1/ext/store/v1/report';
 
-/** The official catalog (github.com/faghy/cleitext-catalog) and its signing key. */
-export const DEFAULT_CATALOG_URL =
-  'https://github.com/faghy/cleitext-catalog/releases/download/catalog/catalog.json';
-export const DEFAULT_CATALOG_KEY = 'MCowBQYDK2VwAyEAqg+tdu3CRzfBy9RInH4I0fcFvfgkppCNihY2uQ+pxXA=';
+/** The official catalog and its signing key (in @cleitext/shared: the CLI reads them too). */
+export { DEFAULT_CATALOG_KEY, DEFAULT_CATALOG_URL };
 
 /** Injection token for the validated configuration. */
 export const APP_CONFIG = Symbol('APP_CONFIG');

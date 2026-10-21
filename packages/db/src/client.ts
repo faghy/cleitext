@@ -22,6 +22,8 @@ export interface DatabaseClient {
 export interface CreateDatabaseOptions {
   /** Maximum pool size (default 10). */
   max?: number;
+  /** Seconds to wait for a connection (default 30). */
+  connectTimeout?: number;
 }
 
 /**
@@ -159,7 +161,11 @@ export function transactionFor<T>(
 }
 
 export function createDatabase(url: string, options: CreateDatabaseOptions = {}): DatabaseClient {
-  const client = postgres(url, { max: options.max ?? 10, onnotice: () => {} });
+  const client = postgres(url, {
+    max: options.max ?? 10,
+    onnotice: () => {},
+    ...(options.connectTimeout ? { connect_timeout: options.connectTimeout } : {}),
+  });
   const db = drizzle(client, { schema });
   // Queries outside a transaction take a connection too (transactions have their own client).
   const unsafe = client.unsafe.bind(client);

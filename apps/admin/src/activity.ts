@@ -15,6 +15,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'media.deleted': 'deleted a file',
   'user.login': 'signed in',
   'user.login.failed': 'failed to sign in',
+  'auth.login_panel': 'signed in from the hosting panel',
   'user.logout': 'signed out',
   'user.invited': 'invited',
   'user.created': 'created the account of',

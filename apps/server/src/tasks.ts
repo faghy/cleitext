@@ -4,10 +4,20 @@
  * Run through the `cleitext` CLI: `cleitext export` and `import`.
  */
 import { writeFile } from 'node:fs/promises';
-import { createDatabase, sites, withContext, type DatabaseClient } from '@cleitext/db';
+import {
+  createDatabase,
+  settings,
+  sites,
+  withContext,
+  withSiteContext,
+  type DatabaseClient,
+} from '@cleitext/db';
+import { licenseStorageKey } from '@cleitext/shared';
+import { AuditService } from './audit/audit.service.js';
+import { LICENSES_NAMESPACE } from './catalog/licenses.service.js';
 import { defaultLocaleIn, LanguagesService } from './content/languages.service.js';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { createApp } from './app.js';
 import { loadConfig, type AppConfig } from './config/config.js';
 import { DiskStorage } from './media/storage.js';
@@ -127,6 +137,54 @@ async function runImport(
 
 async function defaultLocale(context: TaskContext, siteId: string): Promise<string> {
   return withContext(context.owner.db, { siteId }, (tx) => defaultLocaleIn(tx, siteId));
+}
+
+/**
+ * `cleitext plugin:activate <slug> --site <s>`: as the admin's Activate button
+ * (dependencies, conflicts, content types, `onActivate`), in the name of no
+ * user. A paid plugin needs the site's license, entered in the admin.
+ */
+export async function activatePluginTask(
+  context: TaskContext,
+  options: { slug: string; site: string },
+): Promise<{ slug: string; site: string; version: string; alreadyActive: boolean }> {
+  const site = await siteBySlug(context, options.site);
+  const host = context.app.get(PluginHost);
+  const plugin = host.get(options.slug);
+  if (!plugin) throw new Error(`The plugin ${options.slug} is not installed.`);
+  const result = { slug: options.slug, site: options.site, version: plugin.version };
+  if ((await host.activeSlugs(site.id)).has(options.slug))
+    return { ...result, alreadyActive: true };
+  if (plugin.manifest.paid) {
+    const [license] = await withSiteContext(context.owner.db, site.id, (tx) =>
+      tx
+        .select({ key: settings.key })
+        .from(settings)
+        .where(
+          and(
+            eq(settings.siteId, site.id),
+            eq(settings.namespace, LICENSES_NAMESPACE),
+            eq(settings.key, licenseStorageKey('plugin', options.slug)),
+          ),
+        ),
+    );
+    if (!license) {
+      throw new Error(
+        `${options.slug} is paid: enter a license key for ${options.site} in the admin (Plugins) first.`,
+      );
+    }
+  }
+  await host.activate(site.id, '', options.slug);
+  await withContext(context.owner.db, { siteId: site.id }, (tx) =>
+    context.app.get(AuditService).record(tx, {
+      siteId: site.id,
+      action: 'plugin.activated',
+      targetType: 'plugin',
+      targetId: options.slug,
+      meta: { via: 'cli' },
+    }),
+  );
+  return { ...result, alreadyActive: false };
 }
 
 /** Human-readable report; the full one can be saved as JSON. */

@@ -171,12 +171,52 @@ export class AuthService {
     return this.startSession(siteId, auth, false, client, 'passkey');
   }
 
+  /**
+   * One-time sign-in link from a hosting panel (`cleitext login-link`, as WP
+   * Toolkit's "Log in"). Only who has shell access to the installation can
+   * issue one, so it is a trusted sign-in: the second factor is not asked.
+   * The link works once, for a minute (five at most), on the site it was
+   * issued for, and only for an active user who may use that site.
+   */
+  async loginPanel(
+    siteId: string,
+    token: string,
+    client: ClientInfo,
+  ): Promise<{ auth: AuthContext; token: string; expiresAt: Date }> {
+    const wait = await this.throttle.ipRetryAfter(client.ip);
+    if (wait > 0) throw tooManyAttempts(wait);
+    const invalid = () =>
+      new HttpException('This sign-in link is invalid or has expired.', HttpStatus.GONE);
+    const record = token ? await this.tokens.peek('panel_login', token) : null;
+    const meta = record?.meta as { siteId?: string } | undefined;
+    if (!record || meta?.siteId !== siteId) {
+      await this.throttle.recordIpFailure(client.ip);
+      throw invalid();
+    }
+    // Used up whatever happens next: a link is never tried twice.
+    if (!(await this.tokens.consume('panel_login', token))) throw invalid();
+    const auth = await this.identity.load(siteId, record.userId, '');
+    if (!auth) {
+      await withContext(this.database.db, { siteId }, (tx) =>
+        this.audit.record(tx, {
+          siteId,
+          userId: record.userId,
+          action: 'user.login.failed',
+          meta: { method: 'panel' },
+          ip: client.ip,
+        }),
+      );
+      throw invalid();
+    }
+    return this.startSession(siteId, auth, false, client, 'panel');
+  }
+
   private async startSession(
     siteId: string,
     auth: AuthContext,
     remember: boolean,
     client: ClientInfo,
-    method: 'password' | 'totp' | 'recovery' | 'passkey',
+    method: 'password' | 'totp' | 'recovery' | 'passkey' | 'panel',
   ): Promise<{ auth: AuthContext; token: string; expiresAt: Date }> {
     const session = await this.sessions.create({
       userId: auth.userId,
@@ -192,7 +232,7 @@ export class AuthService {
       await this.audit.record(tx, {
         siteId,
         userId: auth.userId,
-        action: 'user.login',
+        action: method === 'panel' ? 'auth.login_panel' : 'user.login',
         ...(method === 'password' ? {} : { meta: { method } }),
         ip: client.ip,
       });

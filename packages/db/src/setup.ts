@@ -1,14 +1,24 @@
 import { randomBytes } from 'node:crypto';
-import { constants, existsSync, lstatSync } from 'node:fs';
-import { access, chmod, copyFile, mkdir, rename, symlink, writeFile } from 'node:fs/promises';
+import { constants, existsSync, lstatSync, realpathSync } from 'node:fs';
+import {
+  access,
+  chmod,
+  copyFile,
+  mkdir,
+  readFile,
+  rename,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
-import { createDatabase } from '@cleitext/db';
 import { sql } from 'drizzle-orm';
+import { createDatabase } from './client.js';
 
 /**
- * The database step of the setup wizard (RF-SIT-02): checks the owner the
- * user entered, creates the application role (the one the running server
- * uses, subject to Row Level Security) and writes the configuration.
+ * The database step of the setup wizard (RF-SIT-02) and of `cleitext
+ * configure`: checks the owner the user entered, creates the application role
+ * (the one the running server uses, subject to Row Level Security) and writes
+ * the configuration.
  */
 
 export const ROLE_RE = /^[a-z_][a-z0-9_]{0,62}$/i;
@@ -20,6 +30,11 @@ export interface DatabaseInput {
   owner: string;
   ownerPassword: string;
   appRole: string;
+  /**
+   * The application role's password to set; default: a new random one. `cleitext
+   * configure` passes the current one again, so a second run changes nothing.
+   */
+  appPassword?: string;
 }
 
 /** Problems the user can fix, with the exact command when one is needed. */
@@ -74,7 +89,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 /**
  * Connects as the owner and prepares the application role. Returns the
- * application role's password (random, new each time).
+ * application role's password (`input.appPassword`, or random and new each time).
  */
 export async function prepareDatabase(input: DatabaseInput): Promise<string> {
   const owner = createDatabase(databaseUrl(input, input.owner, input.ownerPassword), { max: 1 });
@@ -119,11 +134,18 @@ export async function prepareDatabase(input: DatabaseInput): Promise<string> {
     }
 
     // Hex only: safe inside a SQL literal and a URL.
-    const password = randomBytes(24).toString('hex');
+    const password =
+      input.appPassword && /^[0-9a-f]{32,128}$/i.test(input.appPassword)
+        ? input.appPassword
+        : randomBytes(24).toString('hex');
     try {
+      // An existing role keeps its attributes: since PostgreSQL 16 the owner may
+      // only change those it has itself (it lacks CREATEDB), so naming them fails.
       await owner.db.execute(
         sql.raw(
-          `${facts.role_exists ? 'ALTER' : 'CREATE'} ROLE ${ident(input.appRole)} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${password}'`,
+          facts.role_exists
+            ? `ALTER ROLE ${ident(input.appRole)} WITH LOGIN PASSWORD '${password}'`
+            : `CREATE ROLE ${ident(input.appRole)} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${password}'`,
         ),
       );
     } catch {
@@ -239,16 +261,50 @@ export interface ConfigurationInput {
   dataDir: string;
   databaseUrl: string;
   adminUrl: string;
-  /** TRUST_PROXY=true: loopback and private networks (config/trust-proxy.ts). */
-  trustProxy: boolean;
+  /**
+   * TRUST_PROXY: true (loopback and private networks, config/trust-proxy.ts),
+   * false, a number of hops or a list of addresses and networks.
+   */
+  trustProxy: boolean | string;
   /** TRUST_CLOUDFLARE=true; omitted from the file when false. */
   trustCloudflare?: boolean;
+  /** The APP_SECRET to keep (`cleitext configure` run again); default: a new one. */
+  appSecret?: string;
+  /** Other settings written after these (e.g. MAIL_URL kept from the previous file). */
+  extra?: Record<string, string>;
+}
+
+/** The settings `writeConfiguration` writes itself. */
+export const MANAGED_SETTINGS = [
+  'NODE_ENV',
+  'DATABASE_URL',
+  'DATABASE_ADMIN_URL',
+  'APP_SECRET',
+  'TRUST_PROXY',
+  'TRUST_CLOUDFLARE',
+  'MEDIA_PATH',
+  'PLUGINS_PATH',
+  'THEMES_PATH',
+];
+
+/** The KEY=value lines of a .env file (comments and blank lines left out). */
+export function parseEnvFile(text: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+    if (!match) continue;
+    let value = match[2]!;
+    if (/^(['"]).*\1$/.test(value)) value = value.slice(1, -1);
+    result[match[1]!] = value;
+  }
+  return result;
 }
 
 /**
  * Writes `.env` in the data folder (mode 600) and links it from the
  * application folder, where `app.js` reads it; creates the data folders.
- * Returns the path of the written file.
+ * Returns the path of the written file. A file with the same settings is
+ * left as it is; a different one is kept as `.env.bak-<date>`.
  */
 export async function writeConfiguration(input: ConfigurationInput): Promise<string> {
   for (const folder of ['media', 'plugins', 'themes', 'backups']) {
@@ -262,21 +318,28 @@ export async function writeConfiguration(input: ConfigurationInput): Promise<str
     'NODE_ENV=production',
     `DATABASE_URL=${input.databaseUrl}`,
     `DATABASE_ADMIN_URL=${input.adminUrl}`,
-    `APP_SECRET=${randomBytes(32).toString('hex')}`,
+    `APP_SECRET=${input.appSecret && input.appSecret.length >= 32 ? input.appSecret : randomBytes(32).toString('hex')}`,
     `TRUST_PROXY=${input.trustProxy}`,
     ...(input.trustCloudflare ? ['TRUST_CLOUDFLARE=true'] : []),
     `MEDIA_PATH=${join(input.dataDir, 'media')}`,
     `PLUGINS_PATH=${join(input.dataDir, 'plugins')}`,
     `THEMES_PATH=${join(input.dataDir, 'themes')}`,
+    ...Object.entries(input.extra ?? {})
+      .filter(([key, value]) => !MANAGED_SETTINGS.includes(key) && !/[\r\n]/.test(value))
+      .map(([key, value]) => `${key}=${value}`),
     '',
   ];
+  const text = lines.join('\n');
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  if (existsSync(file)) await rename(file, `${file}.bak-${stamp}`);
-  await writeFile(file, lines.join('\n'), { mode: 0o600 });
+  const before = existsSync(file) ? await readFile(file, 'utf8').catch(() => null) : null;
+  if (before !== text) {
+    if (before !== null) await rename(file, `${file}.bak-${stamp}`);
+    await writeFile(file, text, { mode: 0o600 });
+  }
   await chmod(file, 0o600);
 
   const link = join(input.root, '.env');
-  if (link !== file) {
+  if (link !== file && !linksTo(link, file)) {
     if (isPresent(link)) await rename(link, `${link}.bak-${stamp}`);
     try {
       await symlink(relative(input.root, file), link);
@@ -286,6 +349,15 @@ export async function writeConfiguration(input: ConfigurationInput): Promise<str
     }
   }
   return file;
+}
+
+/** Whether `link` is a symbolic link to `file`. */
+function linksTo(link: string, file: string): boolean {
+  try {
+    return lstatSync(link).isSymbolicLink() && realpathSync(link) === realpathSync(file);
+  } catch {
+    return false;
+  }
 }
 
 function isPresent(path: string): boolean {

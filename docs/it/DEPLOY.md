@@ -267,3 +267,175 @@ bin/cleitext site:domain:add --site main --domain www.example.com
 | Indirizzo del client errato nei log o nei limiti di frequenza | `TRUST_PROXY=true`; `TRUST_CLOUDFLARE=true` dietro Cloudflare; elenca i proxy pubblici (§5)   |
 | `pg_dump not found`                                           | installa gli strumenti client di PostgreSQL o imposta `PG_BIN`                                |
 | `/health/ready` risponde 503                                  | il database non è raggiungibile o mancano delle migrazioni (`bin/cleitext migrate`)           |
+
+## 13. Automazione (JSON)
+
+I pannelli di hosting (l'estensione Plesk **Cleitext Toolkit**) e gli script usano Cleitext solo con i comandi `bin/cleitext … --json`, eseguiti come utente di sistema del dominio. Le regole:
+
+- Con `--json` un comando stampa **un solo oggetto JSON** su stdout, seguito da un a capo. I messaggi di avanzamento e i log vanno su stderr.
+- Se qualcosa va storto, l'oggetto è `{"error":{"code":"…","message":"…"}}` e il codice di uscita non è 0. `code` è stabile e serve ai programmi; `message` è per le persone.
+- Con `--json` non ci sono mai domande. Le password arrivano da stdin (`--password-stdin`) e i comandi distruttivi vogliono `--yes`.
+- Senza `--json` ogni comando stampa lo stesso testo di prima.
+
+**Codici di errore.**
+
+| Codice                                                                                     | Significato                                                                             |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `usage`                                                                                    | comando o opzione sconosciuti, oppure manca un'opzione obbligatoria                     |
+| `not_configured`                                                                           | `DATABASE_ADMIN_URL` (o il ruolo dell'applicazione) non è impostato                     |
+| `db_unreachable`                                                                           | il database rifiuta la connessione, la password è sbagliata o il database non esiste    |
+| `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | i dati sono incompleti o sbagliati                                                      |
+| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link` e i comandi dei domini                                                     |
+| `primary_domain`                                                                           | `site:domain:remove` sul dominio principale                                             |
+| `installed`                                                                                | `install` quando esiste già un sito                                                     |
+| `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                                    |
+| `db_connect`, `db_version`, `db_createrole`, `db_owner`, `db_role_taken`, `db_app_connect` | `configure`: gli stessi problemi della procedura guidata, con il comando per risolverli |
+| `timeout`                                                                                  | nessuna risposta in tempo                                                               |
+| `failed`                                                                                   | ogni altro problema, spiegato dal messaggio                                             |
+| `internal`                                                                                 | un errore inatteso (un bug: segnalalo)                                                  |
+
+### Stato e controlli
+
+`cleitext status --json` [`--root <cartella>`] funziona anche con il database spento: in quel caso `db` vale `{"ok":false,"error":"…"}`.
+
+```json
+{
+  "version": "0.58.0",
+  "root": "/var/www/vhosts/example.com/releases/cleitext-0.58.0",
+  "layout": "releases",
+  "link": "/var/www/vhosts/example.com/cleitext",
+  "previous": {
+    "version": "0.57.0",
+    "path": "/var/www/vhosts/example.com/releases/cleitext-0.57.0"
+  },
+  "node": "22.12.0",
+  "configured": true,
+  "envFile": "/var/www/vhosts/example.com/cleitext-shared/.env",
+  "dataDir": "/var/www/vhosts/example.com/cleitext-shared",
+  "db": {
+    "ok": true,
+    "postgres": "17.2",
+    "database": "cleitext",
+    "migrations": { "applied": 28, "expected": 28, "pending": 0 }
+  },
+  "installed": true,
+  "sites": [
+    {
+      "id": "…",
+      "slug": "main",
+      "name": "Esempio",
+      "status": "active",
+      "maintenance": false,
+      "locale": "it",
+      "domains": [{ "host": "example.com", "primary": true, "forceHttps": true }],
+      "url": "https://example.com/"
+    }
+  ],
+  "autoUpdates": {
+    "core": "patch",
+    "items": [{ "type": "plugin", "slug": "seo" }],
+    "lastRun": null,
+    "nextRun": null
+  },
+  "lastUpdate": null,
+  "appUrls": ["https://example.com/"]
+}
+```
+
+`layout` vale `folder` (una cartella `cleitext`, come la lascia la procedura guidata) oppure `releases` (`releases/cleitext-<versione>` più il collegamento `cleitext`, §4). `previous` è la versione a cui torna `cleitext rollback`. `lastUpdate` è il file di avanzamento dell'ultimo aggiornamento del core. `appUrls` elenca prima `APP_URL`, se è impostato, poi la home di ogni sito.
+
+`cleitext doctor --json` [`--offline`] restituisce `{"status":"ok|warn|fail","checks":[{"id","status","message","fix?"}]}`. Senza `--json` esce con 1 quando un controllo fallisce. I controlli sono:
+
+| `id`                              | Cosa controlla                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `env_file`                        | il `.env` esiste e ha i permessi 600                                                             |
+| `document_root`                   | `cleitext/public` esiste e in `httpdocs` non è rimasta la pagina predefinita (per quanto si può) |
+| `setup_token`                     | non è rimasto un token di installazione in `tmp/setup-token`                                     |
+| `trust_proxy`                     | `TRUST_PROXY` è impostato e non è un semplice numero di passaggi                                 |
+| `database`                        | il database risponde                                                                             |
+| `https`                           | `APP_URL` e gli indirizzi dei siti usano HTTPS                                                   |
+| `migrations`                      | non ci sono migrazioni in sospeso                                                                |
+| `installed`                       | esiste un sito, quindi l'installazione non è aperta al primo visitatore                          |
+| `owner_createrole`                | il ruolo proprietario ha `CREATEROLE`, che serve ai plugin con tabelle                           |
+| `pg_dump`                         | `pg_dump` c'è e la sua versione principale non è più vecchia di quella del server                |
+| `disk_space`                      | nella cartella dei backup c'è spazio per un backup: database, media e plugin                     |
+| `core_update`                     | una versione più recente di Cleitext (saltato con `--offline`)                                   |
+| `plugin_updates`, `theme_updates` | versioni compatibili più recenti nel catalogo firmato (saltato con `--offline`)                  |
+
+### Configurare e installare
+
+```bash
+printf '%s' "$OWNER_PASSWORD" | bin/cleitext configure --json \
+  --db-host localhost --db-port 5432 --db-name example_cleitext --owner example_owner \
+  [--app-role example_app] [--data-dir <cartella>] [--app-url https://example.com] \
+  [--trust-proxy true] [--trust-cloudflare] [--app-secret-from <altro .env>]
+```
+
+`configure` è il passo del database della procedura guidata e usa lo stesso codice. Controlla il proprietario (PostgreSQL 16 o successivo, `CREATEROLE`, proprietario del database), crea o aggiorna il ruolo dell'applicazione (di solito `<db-name>_app`) e scrive `cleitext-shared/.env` con i permessi 600. Il file è collegato dalla cartella della release, come si aspetta `cleitext update`. La password del proprietario arriva da stdin o da `CLEITEXT_DB_OWNER_PASSWORD`. Non arriva mai da un'opzione, perché le opzioni si vedono nell'elenco dei processi.
+
+Si può eseguire più volte. Mantiene `APP_SECRET`, la password del ruolo dell'applicazione, `TRUST_PROXY`/`TRUST_CLOUDFLARE` (se non li ripeti) e tutte le altre impostazioni del file (`MAIL_URL`, …). Se non cambia niente, il file non viene riscritto. Un file modificato resta come `.env.bak-<data>`. `--app-url` viene scritto come `APP_URL`: lo leggono `status`, `doctor` e `login-link`, mentre il server lo ignora.
+
+Risultato: `{"envFile","envLink","dataDir","appRole","changed":true,"secret":"new|kept|copied"}`.
+
+Poi `bin/cleitext install --json --site-name … --site-slug … --domain … --admin-email … --password-stdin [--locale it] [--official-plugins]` restituisce `{"site":{"id","slug","name","domain"},"admin","adminUrl","plugins":[{"slug","version","active"}]}`.
+
+### Accesso con un clic
+
+```bash
+bin/cleitext login-link --json (--email <indirizzo> | --first-super-admin) [--site <slug>] [--ttl 60]
+# {"url":"https://example.com/api/v1/auth/one-time?token=…","expiresAt":"…","user":"…","site":"main"}
+```
+
+Il link fa entrare nell'amministrazione di quel sito, di solito il primo sito attivo. Può crearlo solo chi esegue comandi sul server: il pannello lancia il comando come utente del dominio. Come è protetto:
+
+- Funziona **una volta sola**, entro la sua durata: 60 secondi di solito, al massimo 300. Del token si conserva solo lo SHA-256, come per tutti gli altri token (tipo `panel_login`).
+- Funziona solo sul sito per cui è stato creato, e solo per un utente attivo che può usare quel sito: un membro o un super amministratore.
+- `GET /api/v1/auth/one-time?token=…` crea una sessione normale (le solite regole del cookie: `HttpOnly`, `SameSite=Lax`, `Secure` su HTTPS, senza "ricordami"). Poi porta a `/cl-admin/`. Le risposte hanno `cache-control: no-store` e `referrer-policy: no-referrer`.
+- I link sbagliati o già usati contano come accessi falliti dell'indirizzo: 20 in 15 minuti lo bloccano per 15 minuti (`429`).
+- Il registro attività annota `auth.login_panel`.
+
+**Con questi link non viene chiesta l'autenticazione a due fattori**, come fa WP Toolkit con WordPress. Chi può eseguire il comando controlla già l'installazione: può leggere `.env`, il database e i segreti 2FA. Un secondo fattore non proteggerebbe niente contro di lui. Un pannello che offre il pulsante deve verificare i propri utenti come al solito.
+
+### Altri comandi
+
+| Comando                                                         | Risultato JSON                                                                                              |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `migrate`                                                       | `{"applied","total","expected","appRole"}` (`applied`: le migrazioni eseguite adesso)                       |
+| `update --check`                                                | `{"current","latest","available","publishedAt","url","notes"}`                                              |
+| `update [--to <v>]`                                             | `{"updated":true,"from","to","root","previous","backup"}`, oppure `{"updated":false,"from","to","current"}` |
+| `rollback`                                                      | `{"from","to","root","databaseBackup"}`                                                                     |
+| `site:create`                                                   | il sito, come in `status`                                                                                   |
+| `site:list`                                                     | `{"sites":[…]}`, come in `status`                                                                           |
+| `site:domain:add` / `site:domain:remove`                        | `{"site","domain","primary"}` / `{"site","domain","removed":true}`                                          |
+| `site:domain:replace --from <host> --to <host> [--site <slug>]` | `{"site","from","to","primary"}`: rinomina un dominio e mantiene se è principale e se forza HTTPS           |
+| `site:maintenance`, `site:archive`, `site:update`               | `{"site",…}`                                                                                                |
+| `user:create … --password-stdin`                                | `{"id","email","superAdmin","site","role"}`                                                                 |
+| `user:reset-password --email <e> --password-stdin`              | `{"email"}`                                                                                                 |
+| `plugin:list`                                                   | `{"plugins":[{"slug","name","version","apiVersion","network","mustUse","paid","activeOn":["main"]}]}`       |
+| `plugin:activate <slug> --site <s>` \| `--network`              | `{"slug","site","version","alreadyActive","network"}`                                                       |
+| `plugin:deactivate <slug> --site <s>` \| `--network`            | `{"slug","site","network","message"}`                                                                       |
+| `plugin:install`, `plugin:rollback`, `plugin:uninstall --yes`   | `{"slug","version","previousVersion","migrations"}`, `{"slug","from","to"}`, `{"slug","uninstalled"}`       |
+| `theme:list`                                                    | `{"themes":[{"slug","name","version","bundled"}]}`                                                          |
+| `backup [--out <file>]`                                         | `{"file","bytes"}`. File predefinito: `cleitext-shared/backups/cleitext-<data>.tar.gz`                      |
+| `backup:list [--dir <cartella>]`                                | `{"dir","backups":[{"name","path","bytes","createdAt","beforeVersion"}]}`, dal più recente                  |
+| `backup:prune --keep <n> [--dir <cartella>]`                    | `{"dir","keep","removed":[…]}`: tiene gli n più recenti, compresi quelli fatti prima degli aggiornamenti    |
+| `restore <file> --yes`                                          | `{"file","createdAt","postgres","revokedRoles"}`                                                            |
+
+`plugin:activate --site` attiva il plugin come il pulsante **Attiva** dell'amministrazione. Controlla dipendenze e conflitti, crea i tipi di contenuto ed esegue `onActivate`, e il registro attività lo annota. Un plugin a pagamento richiede la licenza del sito, inserita prima nell'amministrazione. `--network` lo attiva su tutti i siti.
+
+### Copiare un sito (clone)
+
+Un backup si può ripristinare in un altro database, con un altro nome e altri ruoli. I ruoli dei plugin portano un'etichetta del nome del database (`cleitext_plg_<slug>_<hash>`). Dopo un ripristino, `restore` crea i ruoli dei plugin del nuovo database e ridà loro i permessi. Inoltre **toglie ogni permesso ai ruoli del database di origine** (il suo ruolo dell'applicazione e i suoi ruoli dei plugin), così l'installazione originale non può raggiungere la copia. I ruoli che il ripristino ha dovuto creare solo per questo vengono di nuovo eliminati. I loro nomi sono in `revokedRoles`.
+
+```bash
+# sull'origine
+bin/cleitext backup --json                      # → {"file": ".../cleitext-2026-10-21-10-00-00.tar.gz"}
+# sulla copia: scompatta la release (§4), poi
+printf '%s' "$OWNER_PASSWORD" | bin/cleitext configure --json --db-name copy_db --owner copy_owner \
+  --app-secret-from /var/www/vhosts/example.com/cleitext-shared/.env
+bin/cleitext restore /percorso/cleitext-2026-10-21-10-00-00.tar.gz --yes --json
+bin/cleitext site:domain:replace --json --from example.com --to staging.example.com
+bin/cleitext site:domain:remove --json --site main --domain www.example.com   # gli alias che la copia non serve
+```
+
+**Prendi `APP_SECRET` dall'origine** (`--app-secret-from`). Con questo segreto sono cifrati i segreti a due fattori, la password SMTP e le chiavi di licenza: con un segreto diverso la copia non riesce a leggerli. Le licenze a pagamento sono attivate per un indirizzo: se nella copia servono i loro aggiornamenti, attiva di nuovo la chiave. Le sessioni copiate con il database restano legate ai cookie del vecchio dominio.

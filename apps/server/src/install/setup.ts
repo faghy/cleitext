@@ -12,7 +12,7 @@ import {
   writeConfiguration,
   databaseUrl,
   type DatabaseInput,
-} from './database-setup.js';
+} from '@cleitext/db';
 import {
   errorList,
   escape,

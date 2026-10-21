@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { paidSchema, type LicenseView } from './licenses.js';
 
+/** The official catalog (github.com/faghy/cleitext-catalog) and its signing key. */
+export const DEFAULT_CATALOG_URL =
+  'https://github.com/faghy/cleitext-catalog/releases/download/catalog/catalog.json';
+export const DEFAULT_CATALOG_KEY = 'MCowBQYDK2VwAyEAqg+tdu3CRzfBy9RInH4I0fcFvfgkppCNihY2uQ+pxXA=';
+
 /** An item of the plugin and theme catalog (RF-PLG-07), as listed in catalog.json. */
 export const catalogItemSchema = z.object({
   type: z.enum(['plugin', 'theme']),

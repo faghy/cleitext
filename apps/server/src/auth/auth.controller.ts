@@ -1,4 +1,5 @@
 import {
+  ADMIN_PATH,
   acceptInviteRequestSchema,
   forgotPasswordRequestSchema,
   loginRequestSchema,
@@ -14,6 +15,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpException,
   Inject,
   Post,
   Query,
@@ -205,6 +207,51 @@ export class AuthController {
       expiresAt: result.expiresAt,
     });
     return this.identity.me(site.id, result.auth);
+  }
+
+  /**
+   * One-time sign-in link from a hosting panel (`cleitext login-link`):
+   * signs in and opens the admin. 2FA is not asked (see AuthService.loginPanel).
+   */
+  @Public()
+  @Get('one-time')
+  async oneTime(
+    @CurrentSite() site: SiteContext,
+    @Query('token') token: string | undefined,
+    @Req() request: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    void reply.header('cache-control', 'no-store').header('referrer-policy', 'no-referrer');
+    try {
+      const result = await this.authService.loginPanel(
+        site.id,
+        String(token ?? ''),
+        clientInfo(request),
+      );
+      setSessionCookie(request, reply, result.token, {
+        remember: false,
+        expiresAt: result.expiresAt,
+      });
+      await reply.redirect(`${ADMIN_PATH}/`, 303);
+    } catch (error) {
+      if (!(error instanceof HttpException)) throw error;
+      const status = error.getStatus();
+      const it = adminLocale(request).startsWith('it');
+      const message =
+        status === 429
+          ? it
+            ? 'Troppi tentativi. Riprova più tardi.'
+            : 'Too many attempts. Try again later.'
+          : it
+            ? 'Questo link di accesso non è valido o è scaduto: creane un altro dal pannello.'
+            : 'This sign-in link is invalid or has expired: create a new one from the panel.';
+      await reply
+        .code(status)
+        .type('text/html; charset=utf-8')
+        .send(
+          `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Cleitext</title><p>${message}</p><p><a href="${ADMIN_PATH}/">${it ? 'Accedi' : 'Sign in'}</a></p>`,
+        );
+    }
   }
 
   @Post('logout')

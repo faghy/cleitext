@@ -14,13 +14,27 @@ import {
   withSiteContext,
   BREACHED_PASSWORD_MESSAGE,
   isBreachedPassword,
+  issueUserToken,
+  PANEL_LOGIN_DEFAULT_TTL_SECONDS,
+  PANEL_LOGIN_MAX_TTL_SECONDS,
   type Database,
 } from '@cleitext/db';
 import { emailSchema, localeSchema, passwordSchema } from '@cleitext/shared';
 import { hash } from '@node-rs/argon2';
 import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 
-export class OperationError extends Error {}
+/**
+ * A failure the user can understand and fix. `code` is the stable,
+ * machine-readable reason printed by `--json` (`{"error":{"code",…}}`).
+ */
+export class OperationError extends Error {
+  constructor(
+    message: string,
+    readonly code: string = 'failed',
+  ) {
+    super(message);
+  }
+}
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const HOST_RE =
@@ -86,6 +100,100 @@ export async function addDomain(db: Database, input: AddDomainInput): Promise<vo
       forceHttps: input.forceHttps ?? true,
     });
   });
+}
+
+/** Removes a domain (an alias) from its site. The primary domain stays: move it first. */
+export async function removeDomain(
+  db: Database,
+  input: { site: string; host: string },
+): Promise<void> {
+  const siteId = await siteIdBySlug(db, input.site);
+  const host = normalizeHost(input.host);
+  const [domain] = await db
+    .select()
+    .from(siteDomains)
+    .where(and(eq(siteDomains.siteId, siteId), eq(siteDomains.host, host)));
+  if (!domain) throw new OperationError(`${host} is not a domain of ${input.site}.`, 'not_found');
+  if (domain.isPrimary) {
+    throw new OperationError(
+      `${host} is the primary domain of ${input.site}: make another one primary first (site:domain:add --primary), or use site:domain:replace.`,
+      'primary_domain',
+    );
+  }
+  await db.delete(siteDomains).where(eq(siteDomains.id, domain.id));
+  await notifySiteChanged(db, siteId);
+}
+
+/**
+ * Renames a domain, keeping whether it is primary and forces HTTPS: for a
+ * copy of an installation on another address, or a site that moves.
+ */
+export async function replaceDomain(
+  db: Database,
+  input: { from: string; to: string; site?: string },
+): Promise<{ site: string; primary: boolean }> {
+  const from = normalizeHost(input.from);
+  const to = normalizeHost(input.to);
+  const [row] = await db
+    .select({ domain: siteDomains, slug: sites.slug })
+    .from(siteDomains)
+    .innerJoin(sites, eq(sites.id, siteDomains.siteId))
+    .where(eq(siteDomains.host, from));
+  if (!row || (input.site && row.slug !== input.site)) {
+    throw new OperationError(
+      `${from} is not a domain of ${input.site ? `the site ${input.site}` : 'any site'}.`,
+      'not_found',
+    );
+  }
+  if (from !== to) {
+    await assertHostFree(db, to);
+    await db.update(siteDomains).set({ host: to }).where(eq(siteDomains.id, row.domain.id));
+    await notifySiteChanged(db, row.domain.siteId);
+  }
+  return { site: row.slug, primary: row.domain.isPrimary };
+}
+
+export interface SiteSummary {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  maintenance: boolean;
+  locale: string;
+  domains: { host: string; primary: boolean; forceHttps: boolean }[];
+  /** Address of the home page, from the primary domain. */
+  url: string | null;
+}
+
+/** Sites with their domains, for `--json` output (primary domain first). */
+export async function siteSummaries(db: Database): Promise<SiteSummary[]> {
+  const rows = await db
+    .select({ site: sites, domain: siteDomains })
+    .from(sites)
+    .leftJoin(siteDomains, eq(siteDomains.siteId, sites.id))
+    .orderBy(asc(sites.createdAt), asc(sites.slug), asc(siteDomains.host));
+  const result = new Map<string, SiteSummary>();
+  for (const { site, domain } of rows) {
+    const entry = result.get(site.id) ?? {
+      id: site.id,
+      slug: site.slug,
+      name: site.name,
+      status: site.status,
+      maintenance: site.status === 'maintenance',
+      locale: site.defaultLocale,
+      domains: [],
+      url: null,
+    };
+    if (domain) {
+      const item = { host: domain.host, primary: domain.isPrimary, forceHttps: domain.forceHttps };
+      if (domain.isPrimary) {
+        entry.domains.unshift(item);
+        entry.url = `${domain.forceHttps ? 'https' : 'http'}://${domain.host}/`;
+      } else entry.domains.push(item);
+    }
+    result.set(site.id, entry);
+  }
+  return [...result.values()];
 }
 
 export async function listSites(db: Database) {
@@ -273,6 +381,94 @@ export async function addMember(
   await withSiteContext(db, siteId, (tx) =>
     tx.insert(siteMembers).values({ siteId, userId: input.userId, roleId: role.id }),
   );
+}
+
+export interface LoginLinkInput {
+  /** The user: by email, or the first super admin (the oldest). */
+  email?: string;
+  firstSuperAdmin?: boolean;
+  /** The site (slug); default: the first active one. */
+  site?: string;
+  /** Seconds, at most PANEL_LOGIN_MAX_TTL_SECONDS (default 60). */
+  ttlSeconds?: number;
+}
+
+/**
+ * A one-time sign-in link to the admin (`cleitext login-link`), for hosting
+ * panels: whoever can run this command already controls the installation.
+ * The link works once, within its TTL, on that site only; it skips the
+ * second factor (docs/DEPLOYMENT.md, "Automation (JSON)").
+ */
+export async function createLoginLink(
+  db: Database,
+  input: LoginLinkInput,
+): Promise<{ url: string; expiresAt: string; user: string; site: string }> {
+  const ttl = input.ttlSeconds ?? PANEL_LOGIN_DEFAULT_TTL_SECONDS;
+  if (!Number.isInteger(ttl) || ttl < 1 || ttl > PANEL_LOGIN_MAX_TTL_SECONDS) {
+    throw new OperationError(
+      `--ttl must be from 1 to ${PANEL_LOGIN_MAX_TTL_SECONDS} seconds.`,
+      'invalid_option',
+    );
+  }
+  if (Boolean(input.email) === Boolean(input.firstSuperAdmin)) {
+    throw new OperationError('Give --email <address> or --first-super-admin.', 'invalid_option');
+  }
+  let user: typeof users.$inferSelect | undefined;
+  if (input.email) {
+    const email = parse(emailSchema, input.email, 'email');
+    [user] = await db.select().from(users).where(eq(users.email, email));
+    if (!user) throw new OperationError(`No user with email ${email}.`, 'not_found');
+  } else {
+    [user] = await db
+      .select({ user: users })
+      .from(superAdmins)
+      .innerJoin(users, eq(users.id, superAdmins.userId))
+      .where(eq(users.status, 'active'))
+      .orderBy(asc(users.createdAt))
+      .limit(1)
+      .then((rows) => rows.map((r) => r.user));
+    if (!user) throw new OperationError('There is no active super admin.', 'not_found');
+  }
+  if (user.status !== 'active') {
+    throw new OperationError(`The account ${user.email} is not active.`, 'user_inactive');
+  }
+  const all = await siteSummaries(db);
+  const site = input.site
+    ? all.find((s) => s.slug === input.site)
+    : (all.find((s) => s.status === 'active') ?? all.find((s) => s.status !== 'archived'));
+  if (!site) {
+    throw new OperationError(
+      input.site ? `No site with slug "${input.site}".` : 'There is no site yet.',
+      'not_found',
+    );
+  }
+  if (site.status === 'archived')
+    throw new OperationError(`The site ${site.slug} is archived.`, 'site_archived');
+  if (!site.url) throw new OperationError(`The site ${site.slug} has no domain.`, 'no_domain');
+  const [admin] = await db.select().from(superAdmins).where(eq(superAdmins.userId, user.id));
+  if (!admin) {
+    const [member] = await withSiteContext(db, site.id, (tx) =>
+      tx
+        .select({ id: siteMembers.userId })
+        .from(siteMembers)
+        .where(and(eq(siteMembers.siteId, site.id), eq(siteMembers.userId, user.id))),
+    );
+    if (!member) {
+      throw new OperationError(`${user.email} is not a member of ${site.slug}.`, 'not_member');
+    }
+  }
+  const { token, expiresAt } = await issueUserToken(db, {
+    kind: 'panel_login',
+    userId: user.id,
+    ttlMs: ttl * 1000,
+    meta: { siteId: site.id },
+  });
+  return {
+    url: `${site.url.replace(/\/$/, '')}/api/v1/auth/one-time?token=${token}`,
+    expiresAt: expiresAt.toISOString(),
+    user: user.email,
+    site: site.slug,
+  };
 }
 
 export async function hasSites(db: Database): Promise<boolean> {

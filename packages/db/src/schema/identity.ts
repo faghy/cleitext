@@ -112,7 +112,8 @@ export const sessions = pgTable(
 );
 
 /**
- * Single-use tokens (password reset, invitation). Global: they are looked up
+ * Single-use tokens (password reset, invitation, the hosting panel's one-time
+ * sign-in). Global: they are looked up
  * by hash before any site context exists. Invitation details live in `meta`.
  */
 export const userTokens = pgTable(
@@ -132,7 +133,7 @@ export const userTokens = pgTable(
   (t) => [
     check(
       'user_tokens_kind_check',
-      sql`${t.kind} in ('password_reset', 'invitation', 'login_2fa', 'email_verify')`,
+      sql`${t.kind} in ('password_reset', 'invitation', 'login_2fa', 'email_verify', 'panel_login')`,
     ),
     index('user_tokens_user_idx').on(t.userId),
   ],

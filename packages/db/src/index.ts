@@ -37,3 +37,27 @@ export {
   type MigrateOptions,
   type MigrationStatus,
 } from './migrate.js';
+export {
+  canWrite,
+  createDatabaseAs,
+  databaseUrl,
+  defaultDataDir,
+  MANAGED_SETTINGS,
+  parseEnvFile,
+  prepareDatabase,
+  ROLE_RE,
+  SetupProblem,
+  writeConfiguration,
+  type AdminInput,
+  type CheckProblem,
+  type ConfigurationInput,
+  type DatabaseInput,
+} from './setup.js';
+export {
+  hashUserToken,
+  issueUserToken,
+  PANEL_LOGIN_DEFAULT_TTL_SECONDS,
+  PANEL_LOGIN_MAX_TTL_SECONDS,
+  USER_TOKEN_KINDS,
+  type UserTokenKind,
+} from './tokens.js';

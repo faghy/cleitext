@@ -462,9 +462,14 @@ export default definePlugin({
     });
     // API 1.24: rules added to robots.txt, a log of "not found" pages, fields on every type.
     ctx.hooks.filter('robots.txt', (text) => `${text}Disallow: /private-events/\n`);
-    ctx.hooks.on('request.notFound', async (event, context) => {
-      const seen = ((await ctx.storage.get(context.siteId, 'missing')) as string[] | null) ?? [];
-      await ctx.storage.set(context.siteId, 'missing', [...seen, `${event.path}?${event.query}`]);
+    // One write at a time: two events close together would otherwise lose one.
+    let logged: Promise<void> = Promise.resolve();
+    ctx.hooks.on('request.notFound', (event, context) => {
+      logged = logged.then(async () => {
+        const seen = ((await ctx.storage.get(context.siteId, 'missing')) as string[] | null) ?? [];
+        await ctx.storage.set(context.siteId, 'missing', [...seen, `${event.path}?${event.query}`]);
+      });
+      return logged;
     });
     ctx.routes.public({
       method: 'GET',
