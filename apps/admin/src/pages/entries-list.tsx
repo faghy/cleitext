@@ -18,7 +18,13 @@ import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card } from '../components/ui';
 import { entryTree } from '../entry-tree';
-import { contentTypesQuery, PluginCell, usePluginColumnData, usePluginColumns } from '../plugins';
+import {
+  contentTypesQuery,
+  PluginCell,
+  useNewEntryDocument,
+  usePluginColumnData,
+  usePluginColumns,
+} from '../plugins';
 export const STATUS_LABELS: Record<EntryStatus, string> = {
   draft: 'Draft',
   pending: 'Pending review',
@@ -126,10 +132,19 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
     .map((e) => ({ id: e.id, locale: e.locale, title: e.title, status: e.status }));
   const columnData = usePluginColumnData(columns, type, listRows);
 
+  const newDocument = useNewEntryDocument();
   const create = useMutation({
-    // Filtered by language, a new entry is written in that language.
-    mutationFn: () =>
-      api<EntryView>('POST', '/entries', { type, title: '', ...(locale ? { locale } : {}) }),
+    // Filtered by language, a new entry is written in that language; it opens
+    // in the editor of its type (Settings → Writing).
+    mutationFn: async () => {
+      const document = await newDocument(type);
+      return api<EntryView>('POST', '/entries', {
+        type,
+        title: '',
+        ...(locale ? { locale } : {}),
+        ...(document ? { document } : {}),
+      });
+    },
     onSuccess: (entry) => navigate({ to: '/entries/$id', params: { id: entry.id } }),
   });
 

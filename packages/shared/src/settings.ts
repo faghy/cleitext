@@ -25,6 +25,14 @@ const coreSettingsFields = {
   timezone: z.string().min(1).max(64).refine(isTimeZone, 'Choose a time zone from the list'),
   /** How dates are written on the site. */
   dateStyle: z.enum(['long', 'medium', 'short']),
+  /**
+   * The editor new entries of a content type open with, by content type
+   * slug: a plugin editor's id (e.g. `fresco`). Missing: the block editor.
+   */
+  defaultEditors: z.record(
+    z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/),
+    z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/),
+  ),
   /** AI assistants can connect to the site through MCP (/mcp), with OAuth. */
   mcp: z.boolean(),
   /**
@@ -110,6 +118,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   trashDays: 30,
   timezone: 'UTC',
   dateStyle: 'long',
+  defaultEditors: {},
   mcp: false,
   installReport: true,
   backToTop: false,

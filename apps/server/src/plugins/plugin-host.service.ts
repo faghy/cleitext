@@ -27,6 +27,9 @@ import {
   pluginManifestSchema,
   SDK_VERSION,
   type Actions,
+  type AiContextSection,
+  type AiEditorDefinition,
+  type AiToolDefinition,
   type ApiRoute,
   type ContentTypeDefinition,
   type ErasureResult,
@@ -127,6 +130,8 @@ export interface LoadedPlugin {
   schedules: { name: string; minutes: number; handler: (siteId: string) => Promise<void> | void }[];
   /** Registered with `ctx.themes.extend` (plugin API 1.32). */
   themeExtensions: { theme: string; extension: ThemeExtension }[];
+  /** Registered with `ctx.ai` (plugin API 1.40): what AI assistants learn and can use. */
+  ai: { editors: AiEditorDefinition[]; sections: AiContextSection[]; tools: AiToolDefinition[] };
   stats: PluginStats;
 }
 
@@ -317,6 +322,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       assets: [],
       schedules: [],
       themeExtensions: [],
+      ai: { editors: [], sections: [], tools: [] },
       stats: { calls: 0, errors: 0, totalMs: 0, lastError: null },
     };
     try {
@@ -574,6 +580,49 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       }
       plugin.publicRoutes.push({ ...(route as PublicRoute), compiled: compileRoute(route.path) });
     }
+  }
+
+  addAiEditor(plugin: LoadedPlugin, definition: AiEditorDefinition): void {
+    if (!/^[a-z][a-z0-9_-]{0,39}$/.test(String(definition?.id)) || definition.id === 'blocks') {
+      throw new PluginError(`Invalid AI editor id "${String(definition?.id)}"`);
+    }
+    if (typeof definition.guide !== 'string' && typeof definition.guide !== 'function') {
+      throw new PluginError(`The AI editor "${definition.id}" needs a guide`);
+    }
+    if (plugin.ai.editors.some((e) => e.id === definition.id)) {
+      throw new PluginError(`The AI editor "${definition.id}" is already registered`);
+    }
+    plugin.ai.editors.push(definition);
+  }
+
+  addAiSection(plugin: LoadedPlugin, section: AiContextSection): void {
+    if (typeof section?.title !== 'string' || !section.title.trim()) {
+      throw new PluginError('An AI context section needs a title');
+    }
+    if (typeof section.markdown !== 'string' && typeof section.markdown !== 'function') {
+      throw new PluginError(`The AI context section "${section.title}" needs its markdown`);
+    }
+    plugin.ai.sections.push(section);
+  }
+
+  addAiTool(plugin: LoadedPlugin, tool: AiToolDefinition): void {
+    if (!/^[a-z][a-z0-9_]{1,39}$/.test(String(tool?.name))) {
+      throw new PluginError(`Invalid AI tool name "${String(tool?.name)}"`);
+    }
+    if (tool.scope !== 'read' && tool.scope !== 'write') {
+      throw new PluginError(`The AI tool "${tool.name}" needs the scope "read" or "write"`);
+    }
+    const schema = tool.inputSchema as { type?: unknown } | undefined;
+    if (!schema || schema.type !== 'object') {
+      throw new PluginError(`The input schema of the AI tool "${tool.name}" must be an object`);
+    }
+    if (typeof tool.run !== 'function' || typeof tool.description !== 'string') {
+      throw new PluginError(`The AI tool "${tool.name}" needs a description and run()`);
+    }
+    if (plugin.ai.tools.some((t) => t.name === tool.name)) {
+      throw new PluginError(`The AI tool "${tool.name}" is already registered`);
+    }
+    plugin.ai.tools.push(tool);
   }
 
   // ---- Queries ------------------------------------------------------------------------

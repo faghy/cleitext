@@ -1,0 +1,10 @@
+{
+  "slug": "ai-helper",
+  "name": "AI helper (test fixture)",
+  "version": "1.0.0",
+  "apiVersion": "^1.40",
+  "description": "Teaches AI assistants a section of the guide and gives them two tools, used by the server tests of ctx.ai.",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": []
+}

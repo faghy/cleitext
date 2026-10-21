@@ -802,6 +802,72 @@ ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data }) => 
 });
 ```
 
+<a id="ai-assistants"></a>
+
+### AI assistants
+
+Cleitext's AI assistants (MCP and the admin chat, see [MCP.md](./MCP.md)) read a guide before writing and work with tools. With `ctx.ai` (plugin API 1.40, no permission needed) a plugin teaches them. Call it in `setup`; it applies on sites where the plugin is active. On older cores `ctx.ai` is missing, so call it as `ctx.ai?.…`.
+
+**An editor.** A plugin with its own [editor](#editors) (e.g. a page builder) registers it, so assistants keep its pages in it instead of turning them into block editor pages:
+
+```ts
+ctx.ai?.registerEditor({
+  id: 'builder', // the admin editor's id: `document.editor.id`
+  title: 'Builder',
+  types: ['page'], // all content types when omitted
+  // Markdown, kept short: the format, the main elements and settings, an example.
+  guide: async ({ siteId, locale }) => `A Builder page is a list of sections…`,
+  // Blocks (CXD) from the assistant (block markup and HTML are parsed first) → a Builder document.
+  fromBlocks: (blocks, { locale }) => ({
+    schema: 1,
+    blocks: toSections(blocks),
+    editor: { id: 'builder' },
+  }),
+  // A Builder document → blocks, for assistants that read it as blocks (get_entry `as_blocks`).
+  toBlocks: (document) => toCoreBlocks(document.blocks),
+  // A document in Builder's own format (`native`): the cleaned document, or what is wrong.
+  validate: (document) =>
+    problems(document).length ? { errors: problems(document) } : { document: clean(document) },
+});
+```
+
+- `get_site` lists the editor, `get_entry` returns its documents as `native` (and `editor_settings`, the page settings in `editor.data`), and `get_block_guide` with `editor: 'builder'` gives Cleitext's rules, your guide, the sections of plugins, the theme's guide and the patterns.
+- `create_entry` and `update_entry` keep the entry's editor and its `editor.data`: `content` and `blocks` go through `fromBlocks`, `native` through `validate`. Without `fromBlocks` (or `validate`), assistants are told to send the other form; when the plugin is not active, the tools refuse to write such entries rather than move them to another editor.
+- The core still validates and sanitizes the blocks of the result, as for every save. `validate` should check what the core cannot: element types, nesting, rich text (Fresco cleans it with its own sanitizer).
+- Functions get `{ siteId, userId, locale, type? }`. Errors they throw reach the assistant as a short message.
+- **Settings → Writing** chooses, per content type, the editor new entries open with, in the admin and for assistants (`defaultEditors` of the core settings; `me.site.defaultEditors` in the admin).
+
+**A section of the guide**, e.g. how the plugin's blocks or fields are used:
+
+```ts
+ctx.ai?.addContext({
+  title: 'Products',
+  markdown: ({ siteId, locale }) =>
+    'Show products with the shop/products block; prices come from the shop, never write them in text.',
+});
+```
+
+**Tools** of the plugin, named `<plugin slug>_<name>` for the assistant (dashes become `_`). They run as the person the assistant acts for: `context.api` is the site's REST API with that person's permissions. `write` tools need a connection that may write; `capability` hides a tool from people without it. Throw an error with `expose: true` to give the assistant its message; other errors become a generic one and are logged.
+
+```ts
+ctx.ai?.registerTool({
+  name: 'low_stock',
+  title: 'Products low in stock',
+  description: 'Products with fewer than `below` items in stock.',
+  scope: 'read',
+  capability: 'manage_shop',
+  inputSchema: {
+    type: 'object',
+    properties: { below: { type: 'integer', minimum: 1 } },
+    additionalProperties: false,
+  },
+  async run(args, { api }) {
+    const { data } = await api('GET', `/ext/shop/products?stock_below=${Number(args.below ?? 5)}`);
+    return data;
+  },
+});
+```
+
 ## 10. Your own tables
 
 Tables live in the plugin's PostgreSQL schema `plg_<slug>`. They are created by SQL migrations in `migrations/`, named `NNNN_description.sql` and run in order when the plugin is installed or updated:
@@ -948,7 +1014,7 @@ function BuilderEditor({
 
 - The top bar shows **Edit with …** for every editor that fits the entry's type. Switching converts the content with `fromBlocks` (and back with `toBlocks`). Without them, the page starts empty after a confirmation, and the old content stays in the revisions.
 - Documents the editor saves carry `editor: { id, data? }`. `data` holds page-level settings. Such documents always open with that editor; when its plugin is not active, the admin says so instead of opening them in the block editor.
-- Content blocks are ordinary CXD blocks, usually your plugin's own (§7). Revisions, autosaves, translations, export and the AI assistants keep working.
+- Content blocks are ordinary CXD blocks, usually your plugin's own (§7). Revisions, autosaves, translations, export and the AI assistants keep working; register the editor with [`ctx.ai`](#ai-assistants) too, so assistants write its pages in its format.
 - After a revision or an autosave is restored, the editor is mounted again with the new `document`.
 - `media.upload` and `media.list` give the media library. `openSettings()` opens the entry's settings (status, custom fields, revisions) over the editor.
 - **Full screen** (API 1.27): `chrome: 'none'` in the definition hides the entry editor's top bar, and the editor draws its own, as page builders do.

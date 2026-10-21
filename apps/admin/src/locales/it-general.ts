@@ -552,4 +552,9 @@ export const itGeneral: Messages = {
   '(changed)': '(modificata)',
   'All posts': 'Tutti gli articoli',
   'All pages': 'Tutte le pagine',
+  Writing: 'Scrittura',
+  'The editor new entries open with. Entries keep the editor they were made with; each can still switch from its editor.':
+    'L’editor con cui si aprono i nuovi contenuti. Ogni contenuto mantiene l’editor con cui è stato creato, e può comunque cambiarlo dal suo editor.',
+  'Ask the AI': 'Chiedi all’IA',
+  'About “{title}”, made with {editor}.': 'Su “{title}”, fatto con {editor}.',
 };

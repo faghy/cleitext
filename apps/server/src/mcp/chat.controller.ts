@@ -24,8 +24,11 @@ import { CurrentAuth, CurrentSite, RequireCapability } from '../common/decorator
 import { parseBody } from '../common/problem.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { apiContext } from './api-context.js';
-import { ChatService } from './chat.service.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
+import { SettingsService } from '../settings/settings.service.js';
+import { ChatService, type ChatEntry } from './chat.service.js';
 import { siteOrigin } from './origin.js';
+import { editorOf } from './tools.js';
 
 /** Admin → AI assistants → Chat (RF-AI-03), and its AI provider. */
 @Controller('assistants')
@@ -33,6 +36,8 @@ export class ChatController {
   constructor(
     private readonly chat: ChatService,
     private readonly adapter: HttpAdapterHost,
+    private readonly plugins: PluginHost,
+    private readonly settings: SettingsService,
   ) {}
 
   /** The provider: set by super admins, since the server calls the address they give. */
@@ -93,7 +98,31 @@ export class ChatController {
       request,
       credentials,
       scopes,
+      { plugins: this.plugins, settings: this.settings },
     );
+    // Opened from an entry's editor: the entry, read as the user (null if they cannot).
+    let entry: ChatEntry | null = null;
+    if (input.entryId) {
+      const found = await ctx.api('GET', `/entries/${input.entryId}`);
+      if (found.status === 200) {
+        const view = found.data as {
+          id: string;
+          title: string;
+          type: string;
+          locale: string;
+          status: string;
+          revision?: { document?: Parameters<typeof editorOf>[0] };
+        };
+        entry = {
+          id: view.id,
+          title: view.title,
+          type: view.type,
+          locale: view.locale,
+          status: view.status,
+          editor: editorOf(view.revision?.document),
+        };
+      }
+    }
 
     reply.hijack();
     reply.raw.writeHead(200, {
@@ -114,6 +143,7 @@ export class ChatController {
         { name: auth.displayName, locale: auth.locale },
         input.messages as AssistantChatMessage[],
         emit,
+        entry,
       );
     } catch (error) {
       request.log.error(error, 'Admin chat failed');

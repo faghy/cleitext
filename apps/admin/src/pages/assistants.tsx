@@ -32,6 +32,11 @@ export function AssistantsPage() {
     queryFn: () => api<AssistantsStatus>('GET', '/assistants'),
   });
   const [suggestion, setSuggestion] = useState<{ text: string; at: number } | null>(null);
+  // Opened from an entry's editor ("Ask the AI"): the chat is about that entry.
+  const [entryId] = useState(() => {
+    const id = new URLSearchParams(window.location.search).get('entry') ?? '';
+    return /^[0-9a-f-]{36}$/i.test(id) ? id : null;
+  });
   const [copied, setCopied] = useState<string | null>(null);
   const copy = (text: string) => {
     void navigator.clipboard?.writeText(text);
@@ -51,7 +56,7 @@ export function AssistantsPage() {
       {status.data && (
         <Card title={t('Chat')}>
           {status.data.chat ? (
-            <AssistantChat suggestion={suggestion} />
+            <AssistantChat suggestion={suggestion} entryId={entryId} />
           ) : (
             <p className="text-sm text-slate-600">
               {isSuperAdmin

@@ -17,6 +17,7 @@ import {
   type Kit,
 } from './core/kit.js';
 import type { ElementDefinition, FrescoNode, RenderContext } from './core/model.js';
+import { aiEditor } from './ai.js';
 import { installApi } from './api.js';
 import { isVisible, resetExtensions, resolveSettings } from './core/extensions.js';
 import { listElements } from './core/registry.js';
@@ -143,6 +144,9 @@ export default definePlugin({
     for (const definition of listElements()) {
       if (definition.type.startsWith('fresco/')) ctx.blocks.register(blockFor(ctx, definition));
     }
+
+    // Cleitext's AI assistants write Fresco pages as Fresco pages (plugin API 1.40).
+    ctx.ai?.registerEditor(aiEditor((siteId) => kitFor(ctx, siteId)));
 
     ctx.access.defineCapability('manage_fresco', {
       label: {

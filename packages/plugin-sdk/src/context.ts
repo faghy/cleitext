@@ -1034,6 +1034,104 @@ export interface FormsApi {
   verify(input: FormVerifyContext): Promise<FormVerifyResult>;
 }
 
+// ---- AI (plugin API 1.40) ---------------------------------------------------------------
+
+/** Who an AI assistant works for, when a plugin converts, validates or runs a tool. */
+export interface AiContext {
+  siteId: string;
+  /** The person the assistant acts as. */
+  userId: string;
+  /** Language of the entry being written (the site's default language otherwise). */
+  locale: string;
+  /** Content type of the entry, when there is one. */
+  type?: string;
+}
+
+/** What a validation gives back: the document to save, or what is wrong for the assistant. */
+export type AiValidation = { document: CxdDocument } | { errors: string[] };
+
+/**
+ * An editor that AI assistants can write with (plugin API 1.40), e.g. a page
+ * builder. Assistants of the site (MCP and the admin chat) then keep pages
+ * in this editor instead of turning them into block editor pages, read its
+ * guide, and send either blocks (converted with `fromBlocks`) or documents
+ * in the editor's own format (checked with `validate`).
+ */
+export interface AiEditorDefinition {
+  /** `document.editor.id` of its documents, as the admin editor's `id`. */
+  id: string;
+  title: string;
+  /** Content types it can edit (all when omitted). */
+  types?: string[];
+  /**
+   * How to write documents of this editor, in Markdown: the format, the main
+   * elements and their settings, an example. Keep it short: assistants read
+   * it before every page. A function gets the site (e.g. its global colors).
+   */
+  guide: string | ((context: AiContext) => string | Promise<string>);
+  /**
+   * Block editor blocks (core and plugin blocks, CXD) as a document of this
+   * editor, with `editor: { id }`. Without it, assistants must send
+   * documents in the editor's format.
+   */
+  fromBlocks?: (blocks: CxdBlock[], context: AiContext) => CxdDocument | Promise<CxdDocument>;
+  /** A document of this editor as blocks, for assistants that ask to read it as blocks. */
+  toBlocks?: (document: CxdDocument, context: AiContext) => CxdBlock[] | Promise<CxdBlock[]>;
+  /**
+   * Checks a document an assistant wrote in this editor's format (its
+   * `blocks`, and `editor.data` kept from the page): the cleaned document,
+   * or the problems. Without it, assistants cannot send such documents.
+   * The core validates and sanitizes blocks afterwards as for every save.
+   */
+  validate?: (document: CxdDocument, context: AiContext) => AiValidation | Promise<AiValidation>;
+}
+
+/** A section added to the guide AI assistants read before writing (plugin API 1.40). */
+export interface AiContextSection {
+  title: string;
+  /** Markdown; a function gets the site, e.g. to describe its settings. */
+  markdown: string | ((context: Omit<AiContext, 'type'>) => string | Promise<string>);
+}
+
+/** What a plugin tool gets: the person, and the site's REST API as them. */
+export interface AiToolContext extends Omit<AiContext, 'type'> {
+  /** The REST API of the site (`/api/v1` + `path`), with the person's permissions. */
+  api(method: string, path: string, body?: unknown): Promise<{ status: number; data: unknown }>;
+}
+
+/**
+ * A tool AI assistants can call (plugin API 1.40), named `<plugin>_<name>`
+ * for them (dashes become underscores). It runs as the person the assistant
+ * acts for; `write` tools need a connection that may write.
+ */
+export interface AiToolDefinition {
+  /** Lowercase letters, digits and `_`, e.g. `list_products`. */
+  name: string;
+  title: string;
+  description: string;
+  scope: 'read' | 'write';
+  /** A JSON schema of type `object`: assistants get it as it is. */
+  inputSchema: Record<string, unknown>;
+  /** A capability the person needs, e.g. `manage_shop`. */
+  capability?: string;
+  /**
+   * The answer, as text or JSON. Throw an error whose message the assistant
+   * can act on (it gets the message of errors with `expose: true`, a
+   * generic one otherwise).
+   */
+  run(args: Record<string, unknown>, context: AiToolContext): unknown;
+}
+
+/** Cleitext's AI assistants (plugin API 1.40): what plugins teach them. No permission needed. */
+export interface AiApi {
+  /** An editor assistants can write with (one per `id`). */
+  registerEditor(definition: AiEditorDefinition): void;
+  /** A section of the guide, e.g. how the plugin's blocks or fields are used. */
+  addContext(section: AiContextSection): void;
+  /** A tool of the plugin. */
+  registerTool(definition: AiToolDefinition): void;
+}
+
 export interface PluginContext {
   readonly plugin: { slug: string; version: string };
   /** A site's name and languages (plugin API 1.16), e.g. for emails sent outside a request. */
@@ -1063,6 +1161,11 @@ export interface PluginContext {
   readonly transfer: TransferApi;
   /** Bot protection of the plugin's own forms (plugin API 1.38). */
   readonly forms: FormsApi;
+  /**
+   * Guides, editors and tools for the site's AI assistants (plugin API 1.40).
+   * Missing on older cores: call it as `ctx.ai?.registerEditor(...)`.
+   */
+  readonly ai: AiApi;
 }
 
 export interface PluginDefinition {

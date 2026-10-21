@@ -540,6 +540,18 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       },
     },
 
+    ai: {
+      registerEditor(definition) {
+        host.addAiEditor(plugin, definition);
+      },
+      addContext(section) {
+        host.addAiSection(plugin, section);
+      },
+      registerTool(definition) {
+        host.addAiTool(plugin, definition);
+      },
+    },
+
     transfer: {
       async importDocument(siteId, document, options) {
         require('import');

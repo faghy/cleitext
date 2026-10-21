@@ -13,7 +13,7 @@ import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 import { MailCard } from './mail-settings';
 import { DiscussionCard, MembershipCard } from './settings-community';
-import { usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
+import { contentTypesQuery, siteEditors, usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
 const selectClass = 'w-full rounded border border-slate-300 bg-white px-2 py-2 text-sm';
 const ASSISTANTS_PATH: string = '/assistants';
@@ -97,6 +97,63 @@ function MaintenanceCard() {
           </a>
         </p>
         {toggle.error && <Alert>{errorMessage(toggle.error)}</Alert>}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Settings → Writing: the editor new entries of each content type open with,
+ * among the block editor and those of the active plugins (page builders, the
+ * Classic Editor…). AI assistants use it too. Shown when there is a choice.
+ */
+function WritingCard({
+  value,
+  onChange,
+}: {
+  value: Record<string, string>;
+  onChange: (next: Record<string, string>) => void;
+}) {
+  const me = useMe();
+  const { t } = useT();
+  const plugins = usePluginAdmin();
+  const types = useQuery(contentTypesQuery);
+  const editable = (types.data ?? []).filter((type) => type.supports.includes('blocks'));
+  const rows = editable
+    .map((type) => ({ type, editors: siteEditors(plugins, me.capabilities, type.slug) }))
+    .filter((row) => row.editors.length > 1);
+  if (rows.length === 0) return null;
+  return (
+    <Card id="writing" title={t('Writing')}>
+      <div className="space-y-4 text-sm">
+        <p className="text-slate-600">
+          {t(
+            'The editor new entries open with. Entries keep the editor they were made with; each can still switch from its editor.',
+          )}
+        </p>
+        {rows.map(({ type, editors }) => (
+          <label key={type.slug} className="block space-y-1">
+            <span className="block font-medium text-slate-800">
+              {labelText(type.name, me.user.locale)}
+            </span>
+            <select
+              className={selectClass}
+              value={value[type.slug] ?? 'blocks'}
+              onChange={(e) => {
+                const next = { ...value };
+                if (e.target.value === 'blocks') delete next[type.slug];
+                else next[type.slug] = e.target.value;
+                onChange(next);
+              }}
+            >
+              {editors.map((editor) => (
+                <option key={editor.id} value={editor.id}>
+                  {labelText(editor.title, me.user.locale)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
       </div>
     </Card>
   );
@@ -379,6 +436,10 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
             )}
           </div>
         </Card>
+        <WritingCard
+          value={values.defaultEditors}
+          onChange={(next) => set('defaultEditors', next)}
+        />
         <div className="flex flex-wrap items-center justify-center gap-3 lg:col-span-2">
           <Button type="submit" disabled={save.isPending}>
             {t('Save changes')}

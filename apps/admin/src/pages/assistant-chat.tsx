@@ -1,8 +1,15 @@
-import type { AssistantChatEvent, AssistantChatMessage } from '@cleitext/shared';
+import {
+  labelText,
+  type AssistantChatEvent,
+  type AssistantChatMessage,
+  type EntryView,
+} from '@cleitext/shared';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { apiStream, errorMessage } from '../api';
+import { api, apiStream, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, useT } from '../components/ui';
+import { siteEditors, usePluginAdmin } from '../plugins';
 
 /** What the assistant is doing, by tool. */
 const STEP_LABELS: Record<string, string> = {
@@ -32,11 +39,31 @@ interface Saved {
   messages: AssistantChatMessage[];
 }
 
-/** Admin → AI assistants → Chat (RF-AI-03): ask, and the site's AI provider does it. */
-export function AssistantChat({ suggestion }: { suggestion: { text: string; at: number } | null }) {
+/**
+ * Admin → AI assistants → Chat (RF-AI-03): ask, and the site's AI provider
+ * does it. Opened from an entry's editor (`entryId`), it is about that entry:
+ * the server tells the assistant which entry and editor it is.
+ */
+export function AssistantChat({
+  suggestion,
+  entryId = null,
+}: {
+  suggestion: { text: string; at: number } | null;
+  entryId?: string | null;
+}) {
   const { t } = useT();
   const me = useMe();
-  const storageKey = `cleitext-chat-${me.site.id}`;
+  // One conversation per entry, and one for the rest.
+  const storageKey = `cleitext-chat-${me.site.id}${entryId ? `-${entryId}` : ''}`;
+  const entry = useQuery({
+    queryKey: ['entry', entryId],
+    queryFn: () => api<EntryView>('GET', `/entries/${entryId}`),
+    enabled: entryId !== null,
+  });
+  const plugins = usePluginAdmin();
+  const editorId = (entry.data?.revision?.document as { editor?: { id?: string } } | undefined)
+    ?.editor?.id;
+  const editor = siteEditors(plugins, me.capabilities).find((e) => e.id === (editorId || 'blocks'));
   const [saved, setSaved] = useState<Saved>(() => {
     try {
       return JSON.parse(sessionStorage.getItem(storageKey) ?? '') as Saved;
@@ -94,7 +121,7 @@ export function AssistantChat({ suggestion }: { suggestion: { text: string; at: 
     try {
       await apiStream<AssistantChatEvent>(
         '/assistants/chat',
-        { messages, publish },
+        { messages, publish, ...(entryId ? { entryId } : {}) },
         (event) => {
           if (event.type === 'tool') {
             updateLast((turn) => ({
@@ -133,6 +160,14 @@ export function AssistantChat({ suggestion }: { suggestion: { text: string; at: 
 
   return (
     <div className="space-y-4 text-sm">
+      {entry.data && (
+        <p className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-sky-900">
+          {t('About “{title}”, made with {editor}.', {
+            title: entry.data.title || t('(no title)'),
+            editor: editor ? labelText(editor.title, me.user.locale) : (editorId ?? ''),
+          })}
+        </p>
+      )}
       {saved.turns.length === 0 ? (
         <p className="text-slate-600">
           {t(

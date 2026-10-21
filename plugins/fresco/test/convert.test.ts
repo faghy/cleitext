@@ -1,6 +1,6 @@
 import type { CxdDocument } from '@cleitext/blocks';
 import { describe, expect, it } from 'vitest';
-import { fromBlocks, inlineHtml, toBlocks } from '../src/editor/convert.js';
+import { fromBlocks, inlineHtml, toBlocks } from '../src/core/convert.js';
 
 const doc: CxdDocument = {
   schema: 1,

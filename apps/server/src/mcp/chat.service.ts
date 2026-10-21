@@ -11,7 +11,14 @@ import { AuditService } from '../audit/audit.service.js';
 import { seal, unseal } from '../common/secrets.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
-import { ASSISTANT_INSTRUCTIONS, callTool, toolList, type ToolContext } from './tools.js';
+import {
+  ASSISTANT_INSTRUCTIONS,
+  callTool,
+  siteTools,
+  toolList,
+  TOOLS,
+  type ToolContext,
+} from './tools.js';
 
 /**
  * The chat of Admin → AI assistants (RF-AI-03): the site's own AI provider
@@ -24,6 +31,19 @@ export const AI_NAMESPACE = 'ai';
 const MAX_ROUNDS = 16;
 /** Tool results kept in the conversation: enough for blocks, not whole sites. */
 const MAX_TOOL_TEXT = 12_000;
+/** The guide (rules, editor, plugins, theme, patterns) is read whole. */
+const MAX_GUIDE_TEXT = 40_000;
+
+/** The entry the chat was opened from, for the system prompt. */
+export interface ChatEntry {
+  id: string;
+  title: string;
+  type: string;
+  locale: string;
+  status: string;
+  /** `blocks` or a plugin editor's id. */
+  editor: string;
+}
 const PROVIDER_TIMEOUT_MS = 180_000;
 
 interface Provider {
@@ -128,13 +148,15 @@ export class ChatService {
     person: { name: string; locale: string },
     history: AssistantChatMessage[],
     emit: (event: AssistantChatEvent) => void,
+    entry: ChatEntry | null = null,
   ): Promise<void> {
     const provider = await this.load(siteId);
     if (!provider) {
       emit({ type: 'error', message: 'No AI provider is set up for the chat.' });
       return;
     }
-    const tools = toolList(ctx.scopes).map((tool) => ({
+    const available = await siteTools(ctx).catch(() => TOOLS);
+    const tools = toolList(ctx.scopes, available).map((tool) => ({
       type: 'function',
       function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
     }));
@@ -146,6 +168,16 @@ something, give the links to edit it and to preview it.${
       ctx.scopes.includes('publish')
         ? ''
         : '\nThis conversation may not publish: say so if asked, and leave drafts.'
+    }${
+      entry
+        ? `
+
+${person.name} opened the chat from the editor of the ${entry.type} "${entry.title.replace(/[\r\n]+/g, ' ')}"
+(id ${entry.id}, language ${entry.locale}, ${entry.status}), made with the "${entry.editor}" editor.
+"This page" means that entry: read it with get_entry, and read get_block_guide with
+editor "${entry.editor}" before changing it. Keep its editor. They have it open: after a change,
+tell them to reload the editor to see it.`
+        : ''
     }`;
     const messages: AssistantChatMessage[] = [...history];
 
@@ -192,8 +224,8 @@ something, give the links to edit it and to preview it.${
           role: 'tool',
           tool_call_id: call.id,
           content:
-            result.text.length > MAX_TOOL_TEXT
-              ? `${result.text.slice(0, MAX_TOOL_TEXT)}\n… (cut)`
+            result.text.length > (name === 'get_block_guide' ? MAX_GUIDE_TEXT : MAX_TOOL_TEXT)
+              ? `${result.text.slice(0, name === 'get_block_guide' ? MAX_GUIDE_TEXT : MAX_TOOL_TEXT)}\n… (cut)`
               : result.text,
         });
       }

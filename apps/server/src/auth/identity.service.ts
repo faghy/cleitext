@@ -10,7 +10,7 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import { effectiveCapabilities, type MeResponse } from '@cleitext/shared';
+import { coreSettingsSchema, effectiveCapabilities, type MeResponse } from '@cleitext/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, count, eq } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
@@ -114,7 +114,7 @@ export class IdentityService {
 
   /** Payload of `GET /auth/me` (and of a successful login). */
   async me(siteId: string, auth: AuthContext): Promise<MeResponse> {
-    const { site, timezone, mySites } = await withContext(
+    const { site, timezone, defaultEditors, mySites } = await withContext(
       this.database.db,
       { siteId, userId: auth.userId },
       async (tx) => ({
@@ -124,6 +124,12 @@ export class IdentityService {
             .select({ value: settings.value })
             .from(settings)
             .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'timezone')))
+        )[0],
+        defaultEditors: (
+          await tx
+            .select({ value: settings.value })
+            .from(settings)
+            .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'defaultEditors')))
         )[0],
         mySites: await listMySites(tx),
       }),
@@ -149,10 +155,17 @@ export class IdentityService {
         defaultLocale: site?.defaultLocale ?? 'en',
         timezone: typeof timezone?.value === 'string' ? timezone.value : (site?.timezone ?? 'UTC'),
         locales,
+        defaultEditors: editorsByType(defaultEditors?.value),
       },
       role: auth.role ? { slug: auth.role.slug, name: auth.role.name } : null,
       capabilities: auth.capabilities,
       sites: mySites,
     };
   }
+}
+
+/** The `defaultEditors` setting as stored, keeping only valid pairs. */
+function editorsByType(value: unknown): Record<string, string> {
+  const parsed = coreSettingsSchema.shape.defaultEditors.safeParse(value);
+  return parsed.success ? parsed.data : {};
 }

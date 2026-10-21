@@ -1,6 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { siteOrigin } from './origin.js';
+import type { PluginHost } from '../plugins/plugin-host.service.js';
+import type { SettingsService } from '../settings/settings.service.js';
+import { siteAi } from './site-ai.js';
 import type { ApiResult, ToolContext } from './tools.js';
 
 /**
@@ -13,6 +16,7 @@ export function apiContext(
   request: FastifyRequest,
   credentials: Record<string, string>,
   scopes: string[],
+  services: { plugins: PluginHost; settings: SettingsService },
 ): ToolContext {
   const forwarded = (name: string) => {
     const value = request.headers[name];
@@ -47,16 +51,23 @@ export function apiContext(
     }
     return { status: response.statusCode, data } satisfies ApiResult;
   };
+  const api: ToolContext['api'] = (method, path, body) =>
+    send(
+      method,
+      path,
+      body === undefined ? undefined : JSON.stringify(body),
+      body === undefined ? undefined : 'application/json',
+    );
   return {
     origin: siteOrigin(request),
     scopes,
-    api: (method, path, body) =>
-      send(
-        method,
-        path,
-        body === undefined ? undefined : JSON.stringify(body),
-        body === undefined ? undefined : 'application/json',
-      ),
+    api,
+    ai: siteAi(services.plugins, services.settings, {
+      siteId: request.site!.id,
+      userId: request.auth!.userId,
+      capabilities: request.auth!.capabilities,
+      api,
+    }),
     upload: (filename, data) => {
       const boundary = `cleitext${randomBytes(12).toString('hex')}`;
       const safeName = filename.replace(/["\r\n]/g, '');

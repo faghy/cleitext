@@ -148,6 +148,8 @@ export const assistantChatRequestSchema = z.object({
     .min(1)
     .max(400),
   publish: z.boolean().optional(),
+  /** The entry the chat was opened from (its editor's "Ask the AI"), as context. */
+  entryId: z.uuid().optional(),
 });
 
 /** One line of the streamed answer of the admin chat. */
@@ -214,6 +216,8 @@ export const meResponseSchema = z.object({
     /** IANA time zone of the site (dates and scheduling). */
     timezone: z.string(),
     locales: z.array(z.object({ code: z.string(), name: z.string(), isDefault: z.boolean() })),
+    /** The editor new entries open with, by content type (the block editor when missing). */
+    defaultEditors: z.record(z.string(), z.string()),
   }),
   role: z.object({ slug: z.string(), name: z.string() }).nullable(),
   /** Core capabilities, plus those of the plugins active on the site. */

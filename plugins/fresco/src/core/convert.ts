@@ -2,11 +2,14 @@
  * Switching editors: block editor content becomes Fresco elements
  * (`fromBlocks`), and back (`toBlocks`). Text keeps its formatting; what
  * has no counterpart becomes HTML, so nothing is lost silently.
+ *
+ * Pure code: the admin uses it when switching editors, the server when an
+ * AI assistant sends blocks for a Fresco page (`ctx.ai`, plugin API 1.40).
  */
 import type { CxdBlock, CxdDocument, CxdInline } from '@cleitext/blocks';
 import { htmlToBlocks, htmlToInline } from '@cleitext/blocks/inline';
-import { newId } from '../core/ids.js';
-import type { FrescoNode, Settings } from '../core/model.js';
+import { newId } from './ids.js';
+import type { FrescoNode, Settings } from './model.js';
 
 const escape = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

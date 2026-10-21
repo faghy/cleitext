@@ -5,6 +5,7 @@ import { FieldsForm, useT, type EditorDraft, type EditorHost } from '@cleitext/a
 import {
   fieldDefaults,
   labelText,
+  type AssistantsStatus,
   type ContentTypeView,
   type EntryListResponse,
   type EntryView,
@@ -507,6 +508,7 @@ function Editor({ initial }: { initial: EntryView }) {
         <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
           {t(STATUS_LABELS[entry.status])}
         </span>
+        {!readOnly && <AskAiLink entryId={entry.id} />}
         {editorId === null &&
           !readOnly &&
           pluginEditors.editors.map((editor) => (
@@ -682,13 +684,16 @@ function Editor({ initial }: { initial: EntryView }) {
           {editorId !== null && (
             <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-sm">
               {!readOnly ? (
-                <button
-                  type="button"
-                  className="text-sky-700 hover:underline"
-                  onClick={() => switchEditor(null)}
-                >
-                  {t('Use the block editor')}
-                </button>
+                <span className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="text-sky-700 hover:underline"
+                    onClick={() => switchEditor(null)}
+                  >
+                    {t('Use the block editor')}
+                  </button>
+                  <AskAiLink entryId={entry.id} plain />
+                </span>
               ) : (
                 <span />
               )}
@@ -1423,6 +1428,35 @@ export function mediaServices(locale: string): EditorServices {
       }
     },
   };
+}
+
+/**
+ * "Ask the AI": the admin chat in a new tab, about this entry (it knows the
+ * entry and its editor). Shown when the site has an AI provider for the chat.
+ */
+function AskAiLink({ entryId, plain = false }: { entryId: string; plain?: boolean }) {
+  const { t } = useT();
+  const status = useQuery({
+    queryKey: ['assistants'],
+    queryFn: () => api<AssistantsStatus>('GET', '/assistants'),
+    staleTime: 60_000,
+  });
+  if (!status.data?.chat) return null;
+  return (
+    <a
+      href={adminUrl(`/assistants?entry=${encodeURIComponent(entryId)}`)}
+      target="_blank"
+      rel="noopener"
+      className={
+        plain
+          ? 'text-sky-700 hover:underline'
+          : 'rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50'
+      }
+    >
+      {t('Ask the AI')}
+      <span className="sr-only"> {t('(opens in a new tab)')}</span>
+    </a>
+  );
 }
 
 /** The editor of a document: null for the block editor (also when it names itself `blocks`). */

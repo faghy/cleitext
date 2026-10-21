@@ -171,3 +171,66 @@ test("the chat writes a draft with the site's AI provider", async ({ page }) => 
   }
   expect(appErrors(errors)).toEqual([]);
 });
+
+test('the chat opened from an entry knows the entry and its editor', async ({ page, context }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  // A provider that answers with what the system prompt says about the entry.
+  const provider = createServer((req, res) => {
+    let data = '';
+    req.on('data', (chunk) => (data += chunk));
+    req.on('end', () => {
+      const system = (JSON.parse(data) as { messages: { content: string }[] }).messages[0]!.content;
+      const about = /made with the "(\w+)" editor/.exec(system)?.[1] ?? 'none';
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          choices: [{ message: { role: 'assistant', content: `Editor of the page: ${about}.` } }],
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => provider.listen(0, '127.0.0.1', resolve));
+  const port = (provider.address() as AddressInfo).port;
+  await page.goto('/cl-admin/login');
+  await signIn(page);
+  await page.waitForURL('**/cl-admin/');
+  const call = (method: string, path: string, body?: unknown) =>
+    page.evaluate(
+      async ({ method, path, body }) => {
+        const { token } = await (await fetch('/api/v1/auth/csrf')).json();
+        const response = await fetch(`/api/v1${path}`, {
+          method,
+          headers: { 'x-csrf-token': token, 'content-type': 'application/json' },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        });
+        return response.status === 204 ? null : response.json();
+      },
+      { method, path, body },
+    );
+  await call('PUT', '/assistants/provider', {
+    baseUrl: `http://127.0.0.1:${port}/v1`,
+    model: 'test-model',
+  });
+  const entry = (await call('POST', '/entries', { type: 'page', title: 'Opening hours' })) as {
+    id: string;
+  };
+  try {
+    await page.goto(`/cl-admin/entries/${entry.id}`);
+    const opened = context.waitForEvent('page');
+    await page.getByRole('link', { name: /Ask the AI/ }).click();
+    const chat = await opened;
+    await chat.waitForURL(`**/cl-admin/assistants?entry=${entry.id}`);
+    await expect(chat.getByText('About “Opening hours”, made with Block editor.')).toBeVisible();
+    await chat.getByLabel('Your request').fill('Shorten this page.');
+    await chat.getByRole('button', { name: 'Send' }).click();
+    await expect(chat.getByText('Editor of the page: blocks.')).toBeVisible();
+    await chat.getByRole('button', { name: 'New conversation' }).click();
+    await chat.close();
+  } finally {
+    await call('DELETE', '/assistants/provider');
+    await call('DELETE', `/entries/${entry.id}`);
+    provider.close();
+  }
+  expect(appErrors(errors)).toEqual([]);
+});

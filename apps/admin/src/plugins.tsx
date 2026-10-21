@@ -14,7 +14,7 @@ import type {
 import type { CxdDocument } from '@cleitext/blocks';
 import { labelText, type ContentTypeView, type PluginAdminInfo } from '@cleitext/shared';
 import * as reactQuery from '@tanstack/react-query';
-import { queryOptions, useQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import * as jsxRuntime from 'react/jsx-runtime';
@@ -511,4 +511,24 @@ class PluginErrorBoundary extends React.Component<
     }
     return this.props.children;
   }
+}
+
+/**
+ * What a new entry of a type starts with: an empty page of the editor its
+ * type opens with (Settings → Writing), when that editor is available to
+ * the user; undefined for the block editor.
+ */
+export function useNewEntryDocument(): (type: string) => Promise<CxdDocument | undefined> {
+  const me = useMe();
+  const queryClient = useQueryClient();
+  return async (type) => {
+    const id = me.site.defaultEditors?.[type];
+    if (!id || id === 'blocks') return undefined;
+    const plugins = await queryClient.fetchQuery(pluginAdminQuery).catch(() => []);
+    const editor = siteEditors(plugins, me.capabilities, type).find((e) => e.id === id);
+    if (!editor) return undefined;
+    const empty: CxdDocument = { schema: 1, blocks: [] };
+    const document = editor.fromBlocks ? editor.fromBlocks(empty) : empty;
+    return { schema: document.schema, blocks: document.blocks, editor: { ...document.editor, id } };
+  };
 }

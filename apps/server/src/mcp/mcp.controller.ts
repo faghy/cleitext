@@ -9,9 +9,10 @@ import { NoCsrf, Public } from '../common/decorators.js';
 import { DATABASE } from '../database/database.module.js';
 import { appRoot } from '../install/token.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
 import { apiContext } from './api-context.js';
 import { siteOrigin } from './origin.js';
-import { ASSISTANT_INSTRUCTIONS, callTool, toolList, TOOLS } from './tools.js';
+import { ASSISTANT_INSTRUCTIONS, callTool, siteTools, toolList, TOOLS } from './tools.js';
 
 /**
  * MCP server of a site (RF-AI-01): `POST /mcp`, JSON-RPC over the stateless
@@ -46,7 +47,19 @@ export class McpController {
     private readonly adapter: HttpAdapterHost,
     private readonly settings: SettingsService,
     @Inject(DATABASE) private readonly database: DatabaseClient,
+    private readonly plugins: PluginHost,
   ) {}
+
+  /** The tools' access to the site, as the token's owner. */
+  private toolContext(request: FastifyRequest, scopes: string[]) {
+    return apiContext(
+      this.adapter.httpAdapter.getInstance<FastifyInstance>(),
+      request,
+      { authorization: request.headers.authorization! },
+      scopes,
+      { plugins: this.plugins, settings: this.settings },
+    );
+  }
 
   /** MCP is off unless the site turned it on (Settings → AI assistants). */
   async enabled(siteId: string): Promise<boolean> {
@@ -135,19 +148,23 @@ export class McpController {
       }
       case 'ping':
         return rpcResult(id, {});
-      case 'tools/list':
-        return rpcResult(id, { tools: toolList(scopes) });
+      case 'tools/list': {
+        const tools = await siteTools(this.toolContext(request, scopes)).catch((error: unknown) => {
+          request.log.error(error, 'MCP plugin tools failed');
+          return TOOLS;
+        });
+        return rpcResult(id, { tools: toolList(scopes, tools) });
+      }
       case 'tools/call': {
         const name = String(message.params?.name ?? '');
-        const tool = TOOLS.find((t) => t.name === name);
-        if (!tool) return rpcError(id, -32602, `Unknown tool: ${name}`);
+        const ctx = this.toolContext(request, scopes);
+        if (!TOOLS.some((t) => t.name === name)) {
+          const tools = await siteTools(ctx).catch(() => TOOLS);
+          if (!tools.some((t) => t.name === name)) {
+            return rpcError(id, -32602, `Unknown tool: ${name}`);
+          }
+        }
         const args = (message.params?.arguments ?? {}) as Record<string, unknown>;
-        const ctx = apiContext(
-          this.adapter.httpAdapter.getInstance<FastifyInstance>(),
-          request,
-          { authorization: request.headers.authorization! },
-          scopes,
-        );
         const result = await callTool(ctx, name, args, (error) =>
           request.log.error(error, `MCP tool ${name} failed`),
         );

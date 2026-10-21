@@ -731,6 +731,72 @@ ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data }) => 
 });
 ```
 
+<a id="assistenti-ia"></a>
+
+### Assistenti IA
+
+Gli assistenti IA di Cleitext (MCP e la chat dell'admin, vedi [MCP.md](./MCP.md)) leggono una guida prima di scrivere e lavorano con degli strumenti. Con `ctx.ai` (API dei plugin 1.40, non serve alcun permesso) un plugin li istruisce. Chiamalo in `setup`; vale sui siti dove il plugin è attivo. Sui core più vecchi `ctx.ai` manca, quindi chiamalo come `ctx.ai?.…`.
+
+**Un editor.** Un plugin con un suo [editor](#editors) (per esempio un page builder) lo registra, così gli assistenti mantengono le sue pagine in quell'editor invece di trasformarle in pagine dell'editor a blocchi:
+
+```ts
+ctx.ai?.registerEditor({
+  id: 'builder', // l'id dell'editor dell'admin: `document.editor.id`
+  title: 'Builder',
+  types: ['page'], // tutti i tipi di contenuto se omesso
+  // Markdown, breve: il formato, gli elementi e le impostazioni principali, un esempio.
+  guide: async ({ siteId, locale }) => `Una pagina di Builder è un elenco di sezioni…`,
+  // Blocchi (CXD) dall'assistente (markup dei blocchi e HTML vengono letti prima) → documento di Builder.
+  fromBlocks: (blocks, { locale }) => ({
+    schema: 1,
+    blocks: toSections(blocks),
+    editor: { id: 'builder' },
+  }),
+  // Un documento di Builder → blocchi, per gli assistenti che lo leggono come blocchi (`as_blocks` di get_entry).
+  toBlocks: (document) => toCoreBlocks(document.blocks),
+  // Un documento nel formato di Builder (`native`): il documento ripulito, o cosa non va.
+  validate: (document) =>
+    problems(document).length ? { errors: problems(document) } : { document: clean(document) },
+});
+```
+
+- `get_site` elenca l'editor, `get_entry` restituisce i suoi documenti come `native` (ed `editor_settings`, le impostazioni di pagina in `editor.data`), e `get_block_guide` con `editor: 'builder'` dà le regole di Cleitext, la tua guida, le sezioni dei plugin, la guida del tema e i pattern.
+- `create_entry` e `update_entry` mantengono l'editor del contenuto e il suo `editor.data`: `content` e `blocks` passano da `fromBlocks`, `native` da `validate`. Senza `fromBlocks` (o `validate`) agli assistenti viene detto di inviare l'altra forma; se il plugin non è attivo, gli strumenti si rifiutano di scrivere quei contenuti invece di spostarli in un altro editor.
+- Il core valida e ripulisce comunque i blocchi del risultato, come per ogni salvataggio. `validate` dovrebbe controllare ciò che il core non può: tipi di elementi, annidamento, testo formattato (Fresco lo ripulisce con il suo sanitizzatore).
+- Le funzioni ricevono `{ siteId, userId, locale, type? }`. Gli errori che lanciano arrivano all'assistente come un breve messaggio.
+- **Impostazioni → Scrittura** sceglie, per tipo di contenuto, l'editor con cui si aprono i nuovi contenuti, nell'admin e per gli assistenti (`defaultEditors` delle impostazioni del core; `me.site.defaultEditors` nell'admin).
+
+**Una sezione della guida**, per esempio come si usano i blocchi o i campi del plugin:
+
+```ts
+ctx.ai?.addContext({
+  title: 'Prodotti',
+  markdown: ({ siteId, locale }) =>
+    'Mostra i prodotti con il blocco shop/products; i prezzi vengono dal negozio, non scriverli nel testo.',
+});
+```
+
+**Strumenti** del plugin, con nome `<slug del plugin>_<nome>` per l'assistente (i trattini diventano `_`). Agiscono come la persona per cui lavora l'assistente: `context.api` è la REST API del sito con i permessi di quella persona. Gli strumenti `write` richiedono una connessione che possa scrivere; `capability` nasconde uno strumento a chi non ce l'ha. Lancia un errore con `expose: true` per dare all'assistente il suo messaggio; gli altri errori diventano un messaggio generico e finiscono nel log.
+
+```ts
+ctx.ai?.registerTool({
+  name: 'low_stock',
+  title: 'Prodotti in esaurimento',
+  description: 'I prodotti con meno di `below` pezzi in magazzino.',
+  scope: 'read',
+  capability: 'manage_shop',
+  inputSchema: {
+    type: 'object',
+    properties: { below: { type: 'integer', minimum: 1 } },
+    additionalProperties: false,
+  },
+  async run(args, { api }) {
+    const { data } = await api('GET', `/ext/shop/products?stock_below=${Number(args.below ?? 5)}`);
+    return data;
+  },
+});
+```
+
 ## 10. Le tue tabelle
 
 Le tabelle si trovano nello schema PostgreSQL del plugin, `plg_<slug>`. Vengono create da migrazioni SQL in `migrations/`, chiamate `NNNN_description.sql` ed eseguite in ordine quando il plugin viene installato o aggiornato:
@@ -864,7 +930,7 @@ export default defineAdminPlugin({
 
 - La barra superiore mostra **Modifica con …** per ogni editor adatto al tipo della voce. Il passaggio converte il contenuto con `fromBlocks` (e all'indietro con `toBlocks`). Senza, dopo una conferma la pagina riparte vuota, e il contenuto precedente resta nelle revisioni.
 - I documenti salvati dall'editor portano `editor: { id, data? }`. In `data` vanno le impostazioni della pagina intera. Questi documenti si aprono sempre con quell'editor; se il suo plugin non è attivo, l'admin lo dice invece di aprirli nell'editor a blocchi.
-- I blocchi del contenuto sono normali blocchi CXD, di solito quelli del plugin (§7). Revisioni, salvataggi automatici, traduzioni, esportazione e assistenti AI continuano a funzionare.
+- I blocchi del contenuto sono normali blocchi CXD, di solito quelli del plugin (§7). Revisioni, salvataggi automatici, traduzioni, esportazione e assistenti IA continuano a funzionare; registra l'editor anche con [`ctx.ai`](#assistenti-ia), così gli assistenti scrivono le sue pagine nel suo formato.
 - Props:
   - `document`: il contenuto iniziale;
   - `onChange(document)`: da chiamare con il documento intero a ogni modifica;

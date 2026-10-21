@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { useMe } from '../auth';
 import { visibleSections } from '../navigation';
-import { usePluginMenu } from '../plugins';
+import { useNewEntryDocument, usePluginMenu } from '../plugins';
 import { useT } from './ui';
 
 interface Command {
@@ -50,9 +50,15 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     onClose();
     void navigate({ to });
   };
+  const newDocument = useNewEntryDocument();
   const create = (type: string) => async () => {
     onClose();
-    const entry = await api<EntryView>('POST', '/entries', { type, title: '' });
+    const document = await newDocument(type);
+    const entry = await api<EntryView>('POST', '/entries', {
+      type,
+      title: '',
+      ...(document ? { document } : {}),
+    });
     await navigate({ to: '/entries/$id', params: { id: entry.id } });
   };
 

@@ -13,7 +13,7 @@ import {
 } from './admin-pages.js';
 import { AdminDialogs, askText, confirmAction, notify } from './admin-dialogs.js';
 import { registerFreeElements } from './elements/index.js';
-import { fromBlocks, toBlocks } from './editor/convert.js';
+import { fromBlocks, toBlocks } from './core/convert.js';
 import { FrescoEditor } from './editor/editor.js';
 import { ColorPicker, ControlField, MediaPicker, Svg } from './editor/controls.js';
 import { EDITOR_CSS } from './editor/styles.js';
