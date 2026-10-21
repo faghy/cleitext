@@ -31,7 +31,7 @@ test.beforeAll(() => {
 test.afterAll(async ({ browser }) => {
   const page = await browser.newPage();
   await signIn(page);
-  await api(page, 'POST', '/plugins/fresco/deactivate').catch(() => undefined);
+  await api(page, 'POST', '/plugins/fresco/deactivate', {}).catch(() => undefined);
   await page.close();
 });
 
