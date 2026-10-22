@@ -166,6 +166,8 @@ label.fre-checks{flex-direction:row;align-items:center;gap:8px}
 .fre-menu button{display:flex;justify-content:space-between;gap:16px;width:100%;padding:9px 20px;border:0;border-radius:0;background:none;cursor:pointer;text-align:left;font:14px Roboto,system-ui,sans-serif}
 .fre-menu button:hover{background:#f1f2f3;color:#0c0d0e}
 .fre-menu button:disabled{opacity:.4;cursor:default;background:none;color:inherit}
+.fre-menu button>svg{flex:none;margin:1px -8px 0 0}
+.fre-menu button>svg+span{flex:1}
 .fre-menu kbd{font:11px system-ui,sans-serif;color:#9ca3af}
 .fre-ok{color:#15803d;margin:8px 0}
 .fre-library__save{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
@@ -202,6 +204,8 @@ button.fre-chip,.fre-chip button{border:0;background:none;padding:3px 9px;cursor
 .fre-bar__center{display:flex;align-items:center;gap:6px}
 .fre-bar__sep{width:1px;height:24px;margin:0 8px;background:#2f343a}
 .fre-bar__btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:4px;background:transparent;color:var(--fre-bar-ink);cursor:pointer}
+.fre-bar__ext{position:relative}
+.fre-bar__badge{position:absolute;top:2px;right:0;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:8px;background:#c2410c;color:#fff;font:600 10px/16px system-ui,sans-serif;text-align:center;pointer-events:none}
 .fre-bar__btn:hover{background:var(--fre-bar-2);color:#fff}
 .fre-bar__btn.is-on{background:#2a2f35;color:#fff;box-shadow:inset 0 -2px 0 var(--fre-accent)}
 .fre-bar__btn:disabled{opacity:.35;cursor:default;background:transparent}

@@ -308,7 +308,15 @@ export class UsersService {
           .update(users)
           .set({
             ...(input.displayName ? { displayName: input.displayName } : {}),
-            ...(input.email ? { email: input.email } : {}),
+            // A new address is not confirmed by its owner.
+            ...(input.email
+              ? {
+                  email: input.email,
+                  ...(input.email.toLowerCase() !== user.email.toLowerCase()
+                    ? { emailVerifiedAt: null }
+                    : {}),
+                }
+              : {}),
             ...(input.locale ? { locale: input.locale } : {}),
             ...(input.bio !== undefined ? { bio: input.bio } : {}),
             ...(input.website !== undefined ? { website: input.website || null } : {}),

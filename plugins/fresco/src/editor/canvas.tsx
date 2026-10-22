@@ -5,6 +5,7 @@
  * drop lines and inline text editing.
  */
 import {
+  Component,
   Fragment,
   memo,
   useCallback,
@@ -49,7 +50,8 @@ import {
 import { find, placeOf } from './tree.js';
 import { api as coreApi, t } from '@cleitext/admin-sdk';
 import type { BlockPage } from '@cleitext/plugin-sdk';
-import { extensions } from '../core/extensions.js';
+import { extensions, type EditorContext, type OverlayBox } from '../core/extensions.js';
+import { overlayIds, useExtensionsVersion } from './extension-hooks.js';
 import { askText, notify } from './dialogs.js';
 import { documentKind } from './document-kind.js';
 import { CONTENT_ATTRIBUTE, editorKitCss, editorPageCss, hiddenOn } from './frame-css.js';
@@ -101,6 +103,7 @@ const FRAME_STYLE = `
 .fr-empty::after{content:'+';display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#e6e8ea;font:400 20px/1 system-ui,sans-serif;color:#515962}
 .fr-empty:hover::after{background:#c2410c;color:#fff}
 .fre-overlay{position:absolute;left:0;top:0;width:0;height:0;z-index:2147483000;font:13px/1 system-ui,sans-serif}
+.fre-ext-overlays{position:absolute;left:0;top:0;width:0;height:0;z-index:2147482900}
 .fre-outline{position:absolute;pointer-events:none;outline-offset:-1px}
 .fre-drag-source{opacity:.35}
 .fre-dropline{position:absolute;background:#c2410c;border-radius:3px;box-shadow:0 0 0 2px rgba(255,255,255,.8);pointer-events:none;transition:left .08s,top .08s,width .08s,height .08s}
@@ -239,6 +242,7 @@ export function Canvas({
   title,
   saved = false,
   upload,
+  editor,
 }: {
   store: Store;
   /** Uploads to the media library: image files dropped from the desktop become Image elements. */
@@ -253,6 +257,8 @@ export function Canvas({
   context: CanvasContext;
   onContextMenu: (id: string, position: { x: number; y: number }) => void;
   api: React.MutableRefObject<CanvasApi>;
+  /** For the plugins' overlays (Fresco 2.5). */
+  editor?: EditorContext;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [src, setSrc] = useState<string | null>(null);
@@ -539,6 +545,12 @@ export function Canvas({
         )}
       {mount &&
         createPortal(<Overlay store={store} doc={mount.doc} frame={frameRef} />, mount.doc.body)}
+      {mount &&
+        editor &&
+        createPortal(
+          <ExtensionOverlays store={store} doc={mount.doc} editor={editor} />,
+          mount.doc.body,
+        )}
     </div>
   );
 }
@@ -1438,6 +1450,69 @@ function hiddenIds(blocks: FrescoNode[], device: Device): string[] {
   };
   visit(blocks);
   return out;
+}
+
+/**
+ * The plugins' layers over the canvas (Fresco 2.5), each with the boxes of
+ * the elements it asks for; drawn again on `editor.refresh()`.
+ */
+function ExtensionOverlays({
+  store,
+  doc,
+  editor,
+}: {
+  store: Store;
+  doc: Document;
+  editor: EditorContext;
+}) {
+  useExtensionsVersion();
+  // No layers: no measuring every frame.
+  if (!extensions().canvasOverlays.length) return null;
+  return <ExtensionLayers store={store} doc={doc} editor={editor} />;
+}
+
+function ExtensionLayers({
+  store,
+  doc,
+  editor,
+}: {
+  store: Store;
+  doc: Document;
+  editor: EditorContext;
+}) {
+  useExtensionsVersion();
+  const blocks = useStore(store, (s) => s.blocks);
+  useStore(store, (s) => s.selected);
+  const asked = overlayIds(editor);
+  const boxes = useBoxes(doc, [...new Set(Object.values(asked).flat())], blocks);
+  return (
+    <div className="fre-ext-overlays" data-fre-ui="">
+      {extensions().canvasOverlays.map((overlay) => {
+        const own: Record<string, OverlayBox> = {};
+        for (const id of asked[overlay.id] ?? []) if (boxes[id]) own[id] = boxes[id];
+        const Layer = overlay.component;
+        return (
+          <OverlayBoundary key={overlay.id}>
+            <Layer editor={editor} boxes={own} doc={doc} />
+          </OverlayBoundary>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A failing layer is left out; the canvas goes on. */
+class OverlayBoundary extends Component<{ children: React.ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  override componentDidCatch(error: unknown) {
+    console.error('Fresco: a canvas overlay failed', error);
+  }
+  override render() {
+    return this.state.failed ? null : this.props.children;
+  }
 }
 
 /** Boxes of elements in the frame's coordinates, measured every frame (layout, scroll, resize). */

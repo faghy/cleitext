@@ -11,6 +11,8 @@ import { useStore, type PanelView, type Store } from './store.js';
 import { SiteNav } from './site-nav.js';
 import { enterSafeMode, leaveSafeMode } from './availability.js';
 import { confirmAction } from './dialogs.js';
+import type { EditorContext } from '../core/extensions.js';
+import { safely, topbarItemsOf, useExtensionsVersion } from './extension-hooks.js';
 
 export const ICONS = {
   logo: 'M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z M9 8h6 M9 12h4 M9 8v8',
@@ -54,6 +56,8 @@ export interface TopBarProps {
   navigate: (to: string) => void;
   /** Saves and copies the page's preview link. */
   copyShare: () => Promise<void>;
+  /** For the plugins' buttons (Fresco 2.5). */
+  editor?: EditorContext;
 }
 
 export function TopBar({
@@ -68,6 +72,7 @@ export function TopBar({
   exit,
   navigate,
   copyShare,
+  editor,
 }: TopBarProps) {
   const { t } = useT();
   const view = useStore(store, (s) => s.view);
@@ -215,6 +220,9 @@ export function TopBar({
       </div>
 
       <div className="fre-bar__side fre-bar__side--end">
+        {editor && (
+          <ExtensionTopbarItems editor={editor} store={store} className="fre-bar__btn" size={18} />
+        )}
         <button
           type="button"
           className="fre-bar__btn"
@@ -374,5 +382,52 @@ function MenuItem({
     <button type="button" role="menuitem" onClick={onClick}>
       {inner}
     </button>
+  );
+}
+
+/**
+ * The plugins' buttons of the top bar (Fresco 2.5), with their badges; drawn
+ * again on `editor.refresh()` and on every change of the page.
+ */
+export function ExtensionTopbarItems({
+  editor,
+  store,
+  className,
+  size,
+}: {
+  editor: EditorContext;
+  store: Store;
+  className: string;
+  size: number;
+}) {
+  const { t } = useT();
+  useExtensionsVersion();
+  useStore(store, (s) => s.selected);
+  useStore(store, (s) => s.blocks);
+  return (
+    <>
+      {topbarItemsOf(editor).map(({ item, badge, active }) => {
+        const label = t(item.label);
+        return (
+          <button
+            key={item.id}
+            type="button"
+            className={`${className} fre-bar__ext${active ? ' is-on' : ''}`}
+            title={item.shortcut ? `${label} (${item.shortcut})` : label}
+            aria-label={badge ? `${label} (${badge})` : label}
+            aria-pressed={item.active ? active : undefined}
+            data-ext={item.id}
+            onClick={() => safely(() => item.onClick(editor), undefined)}
+          >
+            <Svg path={item.icon} size={size} />
+            {badge && (
+              <span className="fre-bar__badge" aria-hidden="true">
+                {badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </>
   );
 }

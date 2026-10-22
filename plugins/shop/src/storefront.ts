@@ -23,6 +23,7 @@ import {
   saveCoupons,
   type CartLine,
 } from './cart';
+import { cartJson, readQuantity, removeItem, setQuantity, type CartJson } from './cart-api';
 import type { CouponProblem } from './coupons';
 import { CouponError, orderByNumber, placeOrder, StockError } from './orders';
 import {
@@ -46,7 +47,7 @@ import {
   type Payments,
 } from './payments';
 import { couponOf, quote, type Quote, type QuoteInput } from './quote';
-import { coupons, products, type OrderRow } from './schema';
+import { coupons, products, type CartItem, type OrderRow } from './schema';
 import type { Destination } from './shipping';
 import { translator, type Translate } from './strings';
 
@@ -262,53 +263,91 @@ export function registerStorefront(
 
   // ---- Cart ------------------------------------------------------------------------
 
+  /** The cart page's content for a request: its lines, totals, notices and markup. */
+  const cartView = async (request: RouteRequest) => {
+    const t = translator(request.locale);
+    const values = inLanguage(await settings(request.siteId), request.locale);
+    const cart = await currentCart(request, values, t);
+    const notices: { kind: 'ok' | 'error'; text: string }[] = [];
+    if (request.query.added)
+      notices.push({
+        kind: 'ok',
+        text: t('Added to your cart: {name}.', { name: request.query.added.slice(0, 200) }),
+      });
+    if (request.query.updated) notices.push({ kind: 'ok', text: t('Cart updated.') });
+    if (request.query.error)
+      notices.push({ kind: 'error', text: request.query.error.slice(0, 300) });
+    if (request.query.coupon)
+      notices.push({
+        kind: 'ok',
+        text: t('Coupon applied: {code}.', { code: request.query.coupon.slice(0, 60) }),
+      });
+    for (const r of cart.quote.rejected)
+      notices.push({ kind: 'error', text: couponMessage(t, r.code, r.problem) });
+    for (const name of [...cart.dropped, ...cart.lowered])
+      notices.push({
+        kind: 'error',
+        text: t('Sorry, “{name}” is not available in that quantity any more.', { name }),
+      });
+    const money = moneyFormatter(request.locale, values.currency);
+    const urls = await urlsFor(request, cart.lines);
+    return {
+      t,
+      cart,
+      values,
+      notices,
+      money,
+      urls,
+      html: () =>
+        cartPage({
+          lines: cart.lines,
+          totals: cart.quote.totals,
+          t,
+          money,
+          urls,
+          includeTax: values.pricesIncludeTax,
+          notices,
+          coupons: couponViews(cart.quote),
+          needsShipping: cart.quote.shippingSetUp,
+        }),
+    };
+  };
+
   ctx.routes.public({
     method: 'GET',
     path: '/cart',
     async handler(request) {
-      const t = translator(request.locale);
-      const values = inLanguage(await settings(request.siteId), request.locale);
-      const cart = await currentCart(request, values, t);
-      const notices: { kind: 'ok' | 'error'; text: string }[] = [];
-      if (request.query.added)
-        notices.push({
-          kind: 'ok',
-          text: t('Added to your cart: {name}.', { name: request.query.added.slice(0, 200) }),
-        });
-      if (request.query.updated) notices.push({ kind: 'ok', text: t('Cart updated.') });
-      if (request.query.error)
-        notices.push({ kind: 'error', text: request.query.error.slice(0, 300) });
-      if (request.query.coupon)
-        notices.push({
-          kind: 'ok',
-          text: t('Coupon applied: {code}.', { code: request.query.coupon.slice(0, 60) }),
-        });
-      for (const r of cart.quote.rejected)
-        notices.push({ kind: 'error', text: couponMessage(t, r.code, r.problem) });
-      for (const name of [...cart.dropped, ...cart.lowered])
-        notices.push({
-          kind: 'error',
-          text: t('Sorry, “{name}” is not available in that quantity any more.', { name }),
-        });
+      const { t, cart, html } = await cartView(request);
       return {
         ...(cart.cookie ? { cookies: [cookieOf(cart.cookie)] } : {}),
-        page: {
-          title: t('Cart'),
-          html: cartPage({
-            lines: cart.lines,
-            totals: cart.quote.totals,
-            t,
-            money: moneyFormatter(request.locale, values.currency),
-            urls: await urlsFor(request, cart.lines),
-            includeTax: values.pricesIncludeTax,
-            notices,
-            coupons: couponViews(cart.quote),
-            needsShipping: cart.quote.shippingSetUp,
-          }),
-        },
+        page: { title: t('Cart'), html: html() },
       };
     },
   });
+
+  /** The cart as JSON (see `CartJson`), with the page's markup when `?html=1`. */
+  const cartData = async (request: RouteRequest): Promise<RouteResponse> => {
+    const view = await cartView(request);
+    const body: CartJson = cartJson({
+      lines: view.cart.lines,
+      totals: view.cart.quote.totals,
+      coupons: couponViews(view.cart.quote),
+      currency: view.values.currency,
+      includeTax: view.values.pricesIncludeTax,
+      money: view.money,
+      notices: view.notices,
+      urls: view.urls,
+    });
+    if (request.query.html === '1') body.html = view.html();
+    return {
+      body,
+      headers: { 'cache-control': 'private, no-store' },
+      ...(view.cart.cookie ? { cookies: [cookieOf(view.cart.cookie)] } : {}),
+    };
+  };
+
+  /** The visitor's cart, for page builders and scripts (never cached). */
+  ctx.routes.public({ method: 'GET', path: '/cart/data', handler: cartData });
 
   /** How many items the cart holds, for the cart link on cached pages. */
   ctx.routes.public({
@@ -412,6 +451,62 @@ export function registerStorefront(
       }
       return { status: 303, headers: { location: `${prefix}/cart?updated=1` } };
     },
+  });
+
+  /**
+   * Changes an item's quantity (0 removes it) or removes it, with the cart
+   * page's rules, and answers with the cart as JSON (`/cart/data`). Same-origin
+   * requests only, as every public form. JSON or form bodies: `key`, `quantity`.
+   */
+  const changeItem = async (
+    request: RouteRequest,
+    change: (items: CartItem[], key: string, body: Record<string, unknown>) => CartItem[] | null,
+  ): Promise<RouteResponse> => {
+    const t = translator(request.locale);
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const key = text(body, 'key', 100);
+    const token = request.cookies[CART_COOKIE];
+    const changed = token
+      ? await ctx.db.transaction(request.siteId, async (tx) => {
+          const next = change(await loadCart(tx, token), key, body);
+          if (!next) return false;
+          const priced = await priceCart(tx, next, request.locale);
+          await saveCart(tx, request.siteId, token, priced.items, request.user?.id ?? null);
+          return true;
+        })
+      : false;
+    if (!changed)
+      return {
+        status: 404,
+        body: { error: t('This product is not in your cart.') },
+        headers: { 'cache-control': 'private, no-store' },
+      };
+    return cartData({ ...request, query: {} });
+  };
+
+  ctx.routes.public({
+    method: 'POST',
+    path: '/cart/item',
+    async handler(request) {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      if (readQuantity(body.quantity) === null) {
+        const t = translator(request.locale);
+        return {
+          status: 400,
+          body: { error: t('Enter a quantity.') },
+          headers: { 'cache-control': 'private, no-store' },
+        };
+      }
+      return changeItem(request, (items, key, b) =>
+        setQuantity(items, key, readQuantity(b.quantity)!),
+      );
+    },
+  });
+
+  ctx.routes.public({
+    method: 'POST',
+    path: '/cart/item/remove',
+    handler: (request) => changeItem(request, (items, key) => removeItem(items, key)),
   });
 
   ctx.routes.public({
@@ -521,12 +616,13 @@ export function registerStorefront(
     };
   };
 
-  const renderCheckout = async (
+  /** The checkout's markup for a request; `empty` when the cart is (the cart page instead). */
+  const checkoutView = async (
     request: RouteRequest,
     values: CheckoutValues,
     errors: Record<string, string>,
     notice?: string,
-  ): Promise<RouteResponse> => {
+  ) => {
     const t = translator(request.locale);
     const store = inLanguage(await settings(request.siteId), request.locale);
     const money = moneyFormatter(request.locale, store.currency);
@@ -537,7 +633,7 @@ export function registerStorefront(
       payment: values.payment,
     });
     const prefix = prefixOf(request);
-    if (cart.lines.length === 0) return { status: 303, headers: { location: `${prefix}/cart` } };
+    if (cart.lines.length === 0) return { empty: true as const, prefix };
     // The site's bot protection, when a plugin gives one (e.g. Captcha).
     const challenge =
       (await ctx.forms
@@ -549,76 +645,113 @@ export function registerStorefront(
         })
         .catch(() => '')) ?? '';
     return {
-      ...(cart.cookie ? { cookies: [cookieOf(cart.cookie)] } : {}),
+      empty: false as const,
+      prefix,
+      cookie: cart.cookie,
       status: Object.keys(errors).length || notice ? 422 : 200,
-      page: {
-        title: t('Checkout'),
-        html: checkoutPage({
-          values: { ...values, rate: cart.quote.rate?.id ?? '' },
-          errors,
-          lines: cart.lines,
-          totals: cart.quote.totals,
-          coupons: couponViews(cart.quote),
+      title: t('Checkout'),
+      html: checkoutPage({
+        values: { ...values, rate: cart.quote.rate?.id ?? '' },
+        errors,
+        lines: cart.lines,
+        totals: cart.quote.totals,
+        coupons: couponViews(cart.quote),
+        needsShipping: cart.quote.needsShipping,
+        shippingSetUp: cart.quote.shippingSetUp,
+        rates: cart.quote.rates.map((r) => ({
+          id: r.id,
+          title: r.title,
+          cost: r.cost,
+          ...(r.note ? { note: r.note } : {}),
+        })),
+        rate: cart.quote.rate?.id ?? null,
+        ...(request.user
+          ? {}
+          : {
+              loginUrl: `${prefix}/account/login?redirect=${encodeURIComponent(`${prefix}/checkout`)}`,
+            }),
+        t,
+        money,
+        urls: await urlsFor(request, cart.lines),
+        locale: request.locale,
+        includeTax: store.pricesIncludeTax,
+        payments: payments(store, t, money, {
           needsShipping: cart.quote.needsShipping,
-          shippingSetUp: cart.quote.shippingSetUp,
-          rates: cart.quote.rates.map((r) => ({
-            id: r.id,
-            title: r.title,
-            cost: r.cost,
-            ...(r.note ? { note: r.note } : {}),
-          })),
-          rate: cart.quote.rate?.id ?? null,
-          ...(request.user
-            ? {}
-            : {
-                loginUrl: `${prefix}/account/login?redirect=${encodeURIComponent(`${prefix}/checkout`)}`,
-              }),
-          t,
-          money,
-          urls: await urlsFor(request, cart.lines),
-          locale: request.locale,
-          includeTax: store.pricesIncludeTax,
-          payments: payments(store, t, money, {
-            needsShipping: cart.quote.needsShipping,
-            rateId: cart.quote.rate?.id ?? null,
-            ready: store.ready,
-          }),
-          termsUrl: store.termsUrl,
-          phoneRequired: store.phoneRequired,
-          ...(notice ? { notice } : {}),
-          ...(challenge ? { challenge } : {}),
+          rateId: cart.quote.rate?.id ?? null,
+          ready: store.ready,
         }),
-      },
+        termsUrl: store.termsUrl,
+        phoneRequired: store.phoneRequired,
+        ...(notice ? { notice } : {}),
+        ...(challenge ? { challenge } : {}),
+      }),
+    };
+  };
+
+  const renderCheckout = async (
+    request: RouteRequest,
+    values: CheckoutValues,
+    errors: Record<string, string>,
+    notice?: string,
+  ): Promise<RouteResponse> => {
+    const view = await checkoutView(request, values, errors, notice);
+    if (view.empty) return { status: 303, headers: { location: `${view.prefix}/cart` } };
+    return {
+      ...(view.cookie ? { cookies: [cookieOf(view.cookie)] } : {}),
+      status: view.status,
+      page: { title: view.title, html: view.html },
+    };
+  };
+
+  /** The checkout's first values: a customer with an account finds their latest addresses. */
+  const initialValues = async (request: RouteRequest): Promise<CheckoutValues> => {
+    const customer = request.user
+      ? await ctx.db.transaction(request.siteId, (tx) => customerOf(tx, request.user!.id))
+      : null;
+    const billing = customer?.billing ?? emptyAddress();
+    const shipping = customer?.shipping ?? billing;
+    const invoice = customer?.invoice ?? { taxCode: '', vatNumber: '', sdi: '', pec: '' };
+    return {
+      email: customer?.email ?? '',
+      billing,
+      shipping,
+      differentShipping: JSON.stringify(shipping) !== JSON.stringify(billing),
+      wantsInvoice: Object.values(invoice).some(Boolean),
+      invoice,
+      note: '',
+      payment: '',
+      rate: '',
+      terms: false,
     };
   };
 
   ctx.routes.public({
     method: 'GET',
     path: '/checkout',
+    handler: async (request) => renderCheckout(request, await initialValues(request), {}),
+  });
+
+  /**
+   * The checkout's markup for the checkout block (pages are cached, carts are
+   * not): `{ empty, html, cartUrl, checkoutUrl }`; with an empty cart, the
+   * cart page's markup. The form posts to the checkout page as usual.
+   */
+  ctx.routes.public({
+    method: 'GET',
+    path: '/checkout/data',
     async handler(request) {
-      // Customers with an account find their latest addresses filled in.
-      const customer = request.user
-        ? await ctx.db.transaction(request.siteId, (tx) => customerOf(tx, request.user!.id))
-        : null;
-      const billing = customer?.billing ?? emptyAddress();
-      const shipping = customer?.shipping ?? billing;
-      const invoice = customer?.invoice ?? { taxCode: '', vatNumber: '', sdi: '', pec: '' };
-      return renderCheckout(
-        request,
-        {
-          email: customer?.email ?? '',
-          billing,
-          shipping,
-          differentShipping: JSON.stringify(shipping) !== JSON.stringify(billing),
-          wantsInvoice: Object.values(invoice).some(Boolean),
-          invoice,
-          note: '',
-          payment: '',
-          rate: '',
-          terms: false,
-        },
-        {},
-      );
+      const view = await checkoutView(request, await initialValues(request), {});
+      const urls = { cartUrl: `${view.prefix}/cart`, checkoutUrl: `${view.prefix}/checkout` };
+      const headers = { 'cache-control': 'private, no-store' };
+      if (view.empty) {
+        const cart = await cartView(request);
+        return { body: { empty: true, html: cart.html(), ...urls }, headers };
+      }
+      return {
+        body: { empty: false, html: view.html, ...urls },
+        headers,
+        ...(view.cookie ? { cookies: [cookieOf(view.cookie)] } : {}),
+      };
     },
   });
 

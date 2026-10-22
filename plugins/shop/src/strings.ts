@@ -213,6 +213,13 @@ const IT: Record<string, string> = {
   'Open the order': 'Apri l’ordine',
   'View your order': 'Vedi il tuo ordine',
   'Customer note': 'Nota del cliente',
+  'This product is not in your cart.': 'Questo prodotto non è nel tuo carrello.',
+  'Enter a quantity.': 'Inserisci una quantità.',
+  'Go to the cart': 'Vai al carrello',
+  'Go to the checkout': 'Vai alla cassa',
+  'The visitor’s cart appears here.': 'Qui compare il carrello del visitatore.',
+  'The checkout for the visitor’s cart appears here.':
+    'Qui compare la cassa per il carrello del visitatore.',
 };
 
 export type Translate = (text: string, values?: Record<string, string | number>) => string;

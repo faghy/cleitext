@@ -32,6 +32,7 @@ import { groupTranslations } from './translations';
 import { emailsForStatus } from './emails';
 import { onlinePayments } from './online-payments';
 import { registerStorefrontBlocks } from './storefront-blocks';
+import { registerCartBlocks } from './cart-blocks';
 import { loadPayments } from './rules-routes';
 import { registerRulesRoutes, TAXES_STORAGE, taxSettingsSchema } from './rules-routes';
 
@@ -327,6 +328,8 @@ export default definePlugin({
       const values = await ctx.settings.get(siteId);
       return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
     });
+    // The cart and the checkout as blocks, for page builders.
+    registerCartBlocks(ctx);
     registerPrivacy(ctx);
     // Products' data for other plugins (page builders' product widgets and tags).
     registerPublicApi(ctx, async (siteId) => {

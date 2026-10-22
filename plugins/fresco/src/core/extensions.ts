@@ -1,4 +1,5 @@
 import type { BlockPage } from '@cleitext/plugin-sdk';
+import type { ComponentType } from 'react';
 /**
  * How other plugins (Fresco Pro) extend every element: more controls, more
  * attributes on the root, more CSS, and conditions deciding whether an
@@ -62,6 +63,138 @@ export interface Extensions {
    * ready for one.
    */
   librarySources: LibrarySource[];
+  /**
+   * Editor (Fresco 2.5): buttons in the top bar, before the Finder, with an
+   * optional badge (a count).
+   */
+  topbarItems: TopbarItem[];
+  /**
+   * Editor (Fresco 2.5): keyboard shortcuts, listed in the Keyboard
+   * shortcuts window. Fresco's own shortcuts come first.
+   */
+  shortcuts: EditorShortcut[];
+  /**
+   * Editor (Fresco 2.5): React layers drawn over the canvas, given the boxes
+   * of the elements they ask for (e.g. pins of notes).
+   */
+  canvasOverlays: CanvasOverlay[];
+  /**
+   * Editor (Fresco 2.5): items of an element's right-click menu, in a group
+   * of their own, with an icon, a shortcut and the editor at hand.
+   * `menuActions` keep working as before.
+   */
+  contextMenuItems: ContextMenuItem[];
+}
+
+/**
+ * The editor as its extensions see it (Fresco 2.5): what is edited, the
+ * selection and the canvas. One per open editor.
+ */
+export interface EditorContext {
+  /** The entry being edited. */
+  entry: { id: string; type: string; locale: string };
+  /** The page can only be looked at. */
+  readOnly(): boolean;
+  /** The selected element's id, or null. */
+  selected(): string | null;
+  /** Selects an element (null: none), as a click in the canvas does. */
+  select(id: string | null): void;
+  /** An element of the page by its id, or null. */
+  node(id: string): FrescoNode | null;
+  /** The page shown in the canvas (null while it loads). */
+  canvas(): Document | null;
+  /** Scrolls the canvas to an element. */
+  reveal(id: string): void;
+  /**
+   * Draws the extensions' parts again (badges, overlays, menu items): call
+   * it when what they show changed outside the editor.
+   */
+  refresh(): void;
+  /** A short message at the bottom of the editor. */
+  notify(text: string, kind?: 'info' | 'success' | 'error'): void;
+}
+
+/** A button of the editor's top bar added by a plugin. */
+export interface TopbarItem {
+  id: string;
+  /** In English: the editor translates it (title and accessible name). */
+  label: string;
+  /** An SVG path (24×24). */
+  icon: string;
+  /** Shown in the button's title, e.g. `Shift+C`. */
+  shortcut?: string;
+  /** The badge: a positive number or a short text; 0, '' or null: none. */
+  badge?: (editor: EditorContext) => number | string | null | undefined;
+  /** Shown pressed (its panel is open). */
+  active?: (editor: EditorContext) => boolean;
+  /** Shown only when this answers true. */
+  when?: (editor: EditorContext) => boolean;
+  onClick(editor: EditorContext): void;
+}
+
+/** A keyboard shortcut of the editor added by a plugin. */
+export interface EditorShortcut {
+  id: string;
+  /**
+   * The keys, `+` between them: modifiers `Ctrl` (⌘ on a Mac), `Shift` and
+   * `Alt`, then one key (`C`, `?`, `Enter`, `Escape`, `F2`…). All modifiers
+   * must match: `Shift+C` does not run on Ctrl+Shift+C.
+   */
+  keys: string;
+  /** In English: shown (translated) in the Keyboard shortcuts window. */
+  label: string;
+  /** The group of the Keyboard shortcuts window (`Plugins` by default). */
+  group?: string;
+  /** Also while typing in a field or a text edited in place (false by default). */
+  whileTyping?: boolean;
+  /** Returns false to let the key go on (the shortcut did nothing). */
+  run(editor: EditorContext, event: KeyboardEvent): void | boolean;
+}
+
+/** An element's box in the canvas page, in the page's coordinates (px). */
+export interface OverlayBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** What a canvas overlay gets. */
+export interface CanvasOverlayProps {
+  editor: EditorContext;
+  /** The boxes of the asked elements that are on the page, by id (kept up to date). */
+  boxes: Record<string, OverlayBox>;
+  /** The page in the canvas. */
+  doc: Document;
+}
+
+/**
+ * A layer drawn over the canvas, inside its page: absolute positions are
+ * the page's coordinates. It is marked `data-fre-ui`, so the canvas never
+ * selects or drags from it; `pointer-events` are the layer's own.
+ */
+export interface CanvasOverlay {
+  id: string;
+  /** The ids of the elements it needs the boxes of (asked again on each refresh). */
+  elements(editor: EditorContext): string[];
+  component: ComponentType<CanvasOverlayProps>;
+}
+
+/** An item of an element's right-click menu added by a plugin. */
+export interface ContextMenuItem {
+  id: string;
+  /** In English: the editor translates it. */
+  label: string;
+  /** An SVG path (24×24), shown before the label. */
+  icon?: string;
+  /** Shown at the end of the item, e.g. `Shift+C`. */
+  shortcut?: string;
+  danger?: boolean;
+  /** Shown only for some elements. */
+  when?: (node: FrescoNode, editor: EditorContext) => boolean;
+  /** Shown greyed out. */
+  disabled?: (node: FrescoNode, editor: EditorContext) => boolean;
+  run(node: FrescoNode, editor: EditorContext): void | Promise<void>;
 }
 
 /** A template offered by a library source. */
@@ -175,12 +308,20 @@ export function extensions(): Extensions {
     globalWidgets: [],
     previewPages: [],
     librarySources: [],
+    topbarItems: [],
+    shortcuts: [],
+    canvasOverlays: [],
+    contextMenuItems: [],
   });
   // Lists added after the object was made (another copy of Fresco loaded first).
   all.siteSettings ??= [];
   all.globalWidgets ??= [];
   all.previewPages ??= [];
   all.librarySources ??= [];
+  all.topbarItems ??= [];
+  all.shortcuts ??= [];
+  all.canvasOverlays ??= [];
+  all.contextMenuItems ??= [];
   return all;
 }
 

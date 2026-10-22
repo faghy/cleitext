@@ -13,6 +13,7 @@ import { confirmAction } from './dialogs.js';
 import type { Store } from './store.js';
 import { siteMenu } from './site-settings.js';
 import { createEntry } from './site-nav.js';
+import { shortcutGroups } from './extension-hooks.js';
 
 const PAGE_ICON = 'M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6';
 
@@ -377,11 +378,11 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div className="fre-shortcuts__cols">
-          {SHORTCUTS.map((group) => (
+          {[...SHORTCUTS, ...shortcutGroups()].map((group) => (
             <section key={group.group}>
               <h3>{t(group.group)}</h3>
               {group.items.map(([label, combo]) => (
-                <p key={label}>
+                <p key={`${label} ${combo}`}>
                   <span>{t(label)}</span>
                   <span>{keys(combo)}</span>
                 </p>

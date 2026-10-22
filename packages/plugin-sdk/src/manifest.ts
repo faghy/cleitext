@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.41.0';
+export const SDK_VERSION = '1.42.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -31,6 +31,11 @@ export const PLUGIN_PERMISSIONS = [
    * any submission, sign-ins included.
    */
   'forms:protect',
+  /**
+   * Read the site's members (plugin API 1.42): names, roles, pictures and
+   * confirmed email addresses, e.g. to mention people and email them.
+   */
+  'users:read',
 ] as const;
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 

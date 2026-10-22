@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { CxdDocument } from '@cleitext/blocks';
 import {
   apiTokens,
@@ -11,6 +12,7 @@ import {
   media,
   menus,
   revisions,
+  roles,
   settings,
   sessions,
   siteMembers,
@@ -36,6 +38,8 @@ import {
   type ImportReport,
   type PersonalDataGroup,
   type PluginMedia,
+  type PluginUser,
+  type UserQuery,
   type PluginComment,
   type PluginTransaction,
   type RouteRequest,
@@ -77,6 +81,7 @@ import {
   trailingSlashIn,
 } from '../public/site-data.js';
 import { importDocument } from '../transfer/importer.js';
+import { avatarUrl } from '../profile/avatar.js';
 import { blockRegistry } from '../content/block-registry.js';
 import { sanitizeDocument } from '../content/html-sanitize.js';
 import { transferDocumentSchema } from '../transfer/model.js';
@@ -858,6 +863,72 @@ export class PluginServicesProvider implements PluginServices {
           alt: (row.alt as Record<string, string>) ?? {},
         }
       : null;
+  }
+
+  /**
+   * Active members of a site (`ctx.users`, plugin API 1.42). Row-level
+   * security keeps the query to the site's own members; addresses are given
+   * (and searched) only when confirmed.
+   */
+  async findUsers(
+    siteId: string,
+    query: Required<Pick<UserQuery, 'limit' | 'offset'>> & Omit<UserQuery, 'limit' | 'offset'>,
+  ): Promise<PluginUser[]> {
+    if (query.ids?.length === 0 || query.limit === 0) return [];
+    return withContext(this.database.db, { siteId }, async (tx) => {
+      const verified = isNotNull(users.emailVerifiedAt);
+      const words = (query.search ?? '').split(/\s+/).filter(Boolean).slice(0, 5);
+      const conditions = [
+        eq(siteMembers.siteId, siteId),
+        eq(users.status, 'active'),
+        ...(query.ids ? [inArray(users.id, query.ids)] : []),
+        ...(query.role ? [eq(roles.slug, query.role)] : []),
+        ...words.map((word) => {
+          const pattern = `%${word.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+          return or(
+            sql`${users.displayName} ilike ${pattern}`,
+            and(verified, sql`${users.email}::text ilike ${pattern}`),
+          )!;
+        }),
+      ];
+      const rows = await tx
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+          email: users.email,
+          emailVerifiedAt: users.emailVerifiedAt,
+          avatarKey: users.avatarKey,
+          role: roles.slug,
+        })
+        .from(siteMembers)
+        .innerJoin(users, eq(users.id, siteMembers.userId))
+        .innerJoin(roles, eq(roles.id, siteMembers.roleId))
+        .where(and(...conditions))
+        .orderBy(asc(users.displayName), asc(users.id))
+        .limit(query.limit)
+        .offset(query.offset);
+      const [avatars] = await tx
+        .select({ value: settings.value })
+        .from(settings)
+        .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'avatars')));
+      const gravatar = avatars?.value === 'gravatar';
+      return rows.map((row) => {
+        const email = row.emailVerifiedAt ? row.email : null;
+        return {
+          id: row.id,
+          displayName: row.displayName,
+          email,
+          avatarUrl:
+            avatarUrl(row.avatarKey) ??
+            (gravatar
+              ? `https://www.gravatar.com/avatar/${createHash('md5')
+                  .update(row.email.trim().toLowerCase())
+                  .digest('hex')}?s=88&d=mp`
+              : null),
+          role: row.role,
+        };
+      });
+    });
   }
 
   async findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]> {

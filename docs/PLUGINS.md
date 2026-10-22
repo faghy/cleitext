@@ -135,7 +135,7 @@ The context `ctx` contains:
 | Member                                                | What it does                                                                            |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `ctx.plugin`                                          | `{ slug, version }`                                                                     |
-| `ctx.apiVersion`                                      | The plugin API of the core, e.g. `1.41.0` (API 1.41; missing on older cores)            |
+| `ctx.apiVersion`                                      | The plugin API of the core, e.g. `1.42.0` (API 1.41; missing on older cores)            |
 | `ctx.log`                                             | `debug/info/warn/error(message, data?)`, written to the server log with the plugin name |
 | `ctx.hooks`                                           | Actions and filters ([§5](#5-hooks))                                                    |
 | `ctx.content`                                         | Content types, field groups, reading entries ([§6](#6-content-types-and-custom-fields)) |
@@ -143,6 +143,7 @@ The context `ctx` contains:
 | `ctx.routes`                                          | API endpoints and public addresses ([§8](#8-routes))                                    |
 | `ctx.settings`, `ctx.access`, `ctx.cache`, `ctx.mail` | [§9](#9-settings-capabilities-cache-mail)                                               |
 | `ctx.db`                                              | Your own tables ([§10](#10-your-own-tables))                                            |
+| `ctx.users`                                           | The site's members, read-only ([§9](#site-members-plugin-api-142), API 1.42)            |
 
 ## 5. Hooks
 
@@ -602,6 +603,8 @@ const font = ctx.assets.url('fonts/icons.woff2'); // the address, for your own m
 
 Styles go at the end of `<head>`, scripts before `</body>` (`defer`, or `type="module"` for `.mjs`). `when` receives the page's hook context and its final HTML.
 
+Plugins come in a stable order (plugin API 1.42): a plugin after the plugins it lists in `requires.plugins`, the others by slug, and each plugin's files in the order it enqueued them. So an add-on's stylesheet always loads after the one of the plugin it extends, and can override it with the same specificity.
+
 ### Extending a theme's options (plugin API 1.32)
 
 A plugin can add settings, sections, header or footer builder elements, ready-made styles and block areas to a theme, by its slug: an add-on such as a "Pro" version of the theme. Call `ctx.themes.extend` in `setup` (needs `theme:hooks`):
@@ -736,6 +739,22 @@ if (res.status >= 400) ctx.log.warn('Webhook refused', { status: res.status });
 `media:read`: `await ctx.media.get(siteId, id)` returns an item of the media library (`url`, `mime`, `width`, `height`, `alt` by language), e.g. the image chosen in a `media` field. Entries returned by `ctx.content.find` / `get` carry their `parentId`.
 
 `media:write` (API 1.30): `await ctx.media.fromUrl(siteId, url, { userId, alt?, filename? })` downloads a picture or a document from a public http(s) address into the library, as uploaded by that user (who needs `upload_media`); addresses of the server's own network are refused, the size limit of uploads applies and a file already in the library is reused. Imports use it for the pictures of other platforms.
+
+### Site members (plugin API 1.42)
+
+`users:read`: `ctx.users` reads the site's members, e.g. to @mention people in notes and email them. It is read-only and sees only the site's own members (row-level security), and only active accounts (not invited, pending or suspended ones).
+
+```ts
+const people = await ctx.users.find(siteId, { search: 'ann', limit: 10 });
+// [{ id, displayName, email, avatarUrl, role: 'editor' }, …] sorted by name
+const person = await ctx.users.get(siteId, userId); // null when not a member
+```
+
+- `find(siteId, query?)`: `search` matches words of the name, or of a confirmed address (case-insensitive, `%` and `_` are literal); `ids` (at most 100), `role` (a role slug), `limit` (default 20, at most 100) and `offset`.
+- `email` is the address only when its owner confirmed it: a confirmed sign-up, an accepted invitation or a password reset by email. It is `null` otherwise (e.g. an account given a password by an administrator, or an address changed in **Users** and not confirmed since), so an email to `email` reaches the person who owns the account.
+- `avatarUrl` is the profile picture, Gravatar when the site uses it (**Settings → Discussion**), or `null` for initials.
+- Activating a plugin that asks for `users:read` needs the administrator's consent: the admin asks before activating it.
+- On older cores `ctx.users` is missing: call it as `ctx.users?.find(...)` or require `"apiVersion": "^1.42"`.
 
 ### Personal data (GDPR)
 
@@ -1076,6 +1095,7 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 | `mail:send`     | `ctx.mail.send`                                                                                   |
 | `network`       | `ctx.http.send`                                                                                   |
 | `forms:protect` | filters `form.challenge` and `form.verify` (API 1.38)                                             |
+| `users:read`    | `ctx.users.find` / `get` (API 1.42); activating the plugin asks the administrator's consent       |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
 | `media:read`    | `ctx.media.get`                                                                                   |
 | `media:write`   | `ctx.media.fromUrl` (API 1.30)                                                                    |

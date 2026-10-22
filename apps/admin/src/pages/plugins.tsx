@@ -39,7 +39,11 @@ const PERMISSION_LABELS: Record<string, string> = {
   'mail:send': 'Send email',
   network: 'Send requests to other services',
   'forms:protect': 'Protect forms against bots (can refuse submissions)',
+  'users:read': "Read the site's users (names, roles, confirmed email addresses)",
 };
+
+/** Permissions over people's data: activating a plugin that asks for them needs consent. */
+const CONSENT_PERMISSIONS = ['users:read'];
 
 /** Plugins → Installed Plugins (RF-PLG-02). Installation is done with the CLI. */
 export function PluginsPage() {
@@ -76,6 +80,17 @@ export function PluginsPage() {
       );
     },
   });
+  /** Asks before activating a plugin that reads people's data (`users:read`). */
+  const consent = (plugin: PluginView): boolean => {
+    const sensitive = plugin.permissions.filter((p) => CONSENT_PERMISSIONS.includes(p));
+    if (sensitive.length === 0) return true;
+    return window.confirm(
+      t('{name} asks to: {permissions}. Activate it?', {
+        name: plugin.name,
+        permissions: sensitive.map((p) => t(PERMISSION_LABELS[p] ?? p)).join(' · '),
+      }),
+    );
+  };
   const toggle = useMutation({
     mutationFn: ({ slug, activate }: { slug: string; activate: boolean }) =>
       api<PluginView>('POST', `/plugins/${slug}/${activate ? 'activate' : 'deactivate'}`),
@@ -213,7 +228,10 @@ export function PluginsPage() {
                     <Button
                       variant={plugin.active ? 'secondary' : 'primary'}
                       disabled={toggle.isPending}
-                      onClick={() => toggle.mutate({ slug: plugin.slug, activate: !plugin.active })}
+                      onClick={() => {
+                        if (plugin.active || consent(plugin))
+                          toggle.mutate({ slug: plugin.slug, activate: !plugin.active });
+                      }}
                     >
                       {plugin.active ? t('Deactivate') : t('Activate')}
                     </Button>
@@ -223,7 +241,10 @@ export function PluginsPage() {
                       <Button
                         variant="secondary"
                         disabled={network.isPending}
-                        onClick={() => network.mutate({ slug: plugin.slug, on: !plugin.network })}
+                        onClick={() => {
+                          if (plugin.network || consent(plugin))
+                            network.mutate({ slug: plugin.slug, on: !plugin.network });
+                        }}
                       >
                         {plugin.network
                           ? t('Deactivate on every site')

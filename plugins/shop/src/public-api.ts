@@ -2,7 +2,9 @@
  * A read-only API for other plugins (page builders' product widgets and
  * dynamic tags): a product's commercial data as a product page shows it, in
  * the page's language. Installed on `globalThis[Symbol.for('cleitext.shop')]`,
- * as Fresco installs its own; nothing here writes or reads carts.
+ * as Fresco installs its own; nothing here writes or reads carts. Carts
+ * belong to each visitor: pages fetch them from the routes in `cartUrls`
+ * (Cleishop 1.7), or show the `shop/cart` and `shop/checkout` blocks.
  */
 import type { PluginContext } from '@cleitext/plugin-sdk';
 import { asc, eq } from 'drizzle-orm';
@@ -41,6 +43,39 @@ export interface ShopPublicApi {
   product(siteId: string, entryId: string, locale: string): Promise<ShopProductInfo | null>;
   /** Page-cache tags of a product: pages showing it refresh when it changes. */
   tags(entryId: string): string[];
+  /**
+   * Where the visitor's cart lives, in a language (`prefix` is `/it`, or ''
+   * for the default one), Cleishop 1.7: the pages, `data` (GET, the cart as
+   * JSON), `item` (POST `{ key, quantity }`), `remove` (POST `{ key }`),
+   * `count` (GET) and `checkoutData` (GET, the checkout's markup).
+   */
+  cartUrls?(prefix: string): ShopCartUrls;
+  /** The blocks that show the visitor's cart and checkout (Cleishop 1.7). */
+  blocks?: { cart: string; checkout: string };
+}
+
+export interface ShopCartUrls {
+  cart: string;
+  checkout: string;
+  data: string;
+  item: string;
+  remove: string;
+  count: string;
+  checkoutData: string;
+}
+
+/** The cart's addresses in a language (`/it`, or '' for the default one). */
+export function cartUrls(prefix: string): ShopCartUrls {
+  const base = /^\/[a-z]{2}(?:-[a-z]{2,4})?$/i.test(prefix) ? prefix : '';
+  return {
+    cart: `${base}/cart`,
+    checkout: `${base}/checkout`,
+    data: `${base}/cart/data`,
+    item: `${base}/cart/item`,
+    remove: `${base}/cart/item/remove`,
+    count: `${base}/cart/count`,
+    checkoutData: `${base}/checkout/data`,
+  };
 }
 
 type Settings = { currency: string; lowStock: number; weightUnit: string; dimensionUnit: string };
@@ -52,6 +87,8 @@ export function registerPublicApi(
   const api: ShopPublicApi = {
     version: 1,
     tags: (entryId) => [productTag(entryId)],
+    cartUrls,
+    blocks: { cart: 'shop/cart', checkout: 'shop/checkout' },
     async product(siteId, entryId, locale) {
       const values = await settings(siteId);
       return ctx.db.transaction(siteId, async (tx) => {

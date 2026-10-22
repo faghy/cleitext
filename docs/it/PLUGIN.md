@@ -137,7 +137,7 @@ Il contesto `ctx` contiene:
 | Membro                                                | Cosa fa                                                                                                    |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `ctx.plugin`                                          | `{ slug, version }`                                                                                        |
-| `ctx.apiVersion`                                      | L'API dei plugin del core, per esempio `1.41.0` (API 1.41; manca sui core più vecchi)                      |
+| `ctx.apiVersion`                                      | L'API dei plugin del core, per esempio `1.42.0` (API 1.41; manca sui core più vecchi)                      |
 | `ctx.log`                                             | `debug/info/warn/error(message, data?)`, scritto nel log del server con il nome del plugin                 |
 | `ctx.hooks`                                           | Azioni e filtri ([§5](#5-hook))                                                                            |
 | `ctx.content`                                         | Tipi di contenuto, gruppi di campi, lettura delle voci ([§6](#6-tipi-di-contenuto-e-campi-personalizzati)) |
@@ -145,6 +145,7 @@ Il contesto `ctx` contiene:
 | `ctx.routes`                                          | Endpoint API e indirizzi pubblici ([§8](#8-route))                                                         |
 | `ctx.settings`, `ctx.access`, `ctx.cache`, `ctx.mail` | [§9](#9-impostazioni-capability-cache-mail)                                                                |
 | `ctx.db`                                              | Le tue tabelle ([§10](#10-le-tue-tabelle))                                                                 |
+| `ctx.users`                                           | I membri del sito, in sola lettura ([§9](#membri-del-sito-api-dei-plugin-142), API 1.42)                   |
 
 ## 5. Hook
 
@@ -529,6 +530,8 @@ const font = ctx.assets.url('fonts/icons.woff2'); // l'indirizzo, per il proprio
 
 Gli stili vanno in fondo al `<head>`, gli script prima di `</body>` (`defer`, oppure `type="module"` per `.mjs`). `when` riceve il contesto dell'hook della pagina e il suo HTML finale.
 
+I plugin seguono un ordine stabile (API dei plugin 1.42): un plugin dopo quelli che elenca in `requires.plugins`, gli altri per slug, e i file di ciascun plugin nell'ordine in cui li ha aggiunti. Così il foglio di stile di un'estensione si carica sempre dopo quello del plugin che estende e può sovrascriverlo a parità di specificità.
+
 ### Estendere le opzioni di un tema (API dei plugin 1.32)
 
 Un plugin può aggiungere impostazioni, sezioni, elementi del costruttore di intestazione o piè di pagina, stili pronti e aree di blocchi a un tema, indicato per slug: un'estensione come la versione "Pro" del tema. Si chiama `ctx.themes.extend` in `setup` (serve `theme:hooks`):
@@ -667,6 +670,22 @@ if (res.status >= 400) ctx.log.warn('Webhook rifiutato', { status: res.status })
 `media:read`: `await ctx.media.get(siteId, id)` restituisce un elemento della libreria media (`url`, `mime`, `width`, `height`, `alt` per lingua), per esempio l'immagine scelta in un campo `media`. Le voci restituite da `ctx.content.find` / `get` hanno il loro `parentId`.
 
 `media:write` (API 1.30): `await ctx.media.fromUrl(siteId, url, { userId, alt?, filename? })` scarica un'immagine o un documento da un indirizzo pubblico http(s) nella libreria, come caricato da quell'utente (che deve avere `upload_media`); gli indirizzi della rete del server sono rifiutati, vale il limite di dimensione dei caricamenti e un file già presente viene riusato. Gli import lo usano per le immagini di altre piattaforme.
+
+### Membri del sito (API dei plugin 1.42)
+
+`users:read`: `ctx.users` legge i membri del sito, ad esempio per @menzionare le persone nelle note e scrivere loro un'email. È in sola lettura e vede soltanto i membri del sito (row-level security), e solo gli account attivi (non quelli invitati, in attesa o sospesi).
+
+```ts
+const people = await ctx.users.find(siteId, { search: 'ann', limit: 10 });
+// [{ id, displayName, email, avatarUrl, role: 'editor' }, …] in ordine di nome
+const person = await ctx.users.get(siteId, userId); // null se non è un membro
+```
+
+- `find(siteId, query?)`: `search` cerca parole del nome o di un indirizzo confermato (senza distinguere maiuscole, `%` e `_` valgono alla lettera); `ids` (al massimo 100), `role` (lo slug di un ruolo), `limit` (predefinito 20, al massimo 100) e `offset`.
+- `email` è l'indirizzo solo se il titolare l'ha confermato: un'iscrizione confermata, un invito accettato o una password reimpostata via email. Altrimenti è `null` (ad esempio un account a cui un amministratore ha dato la password, o un indirizzo cambiato in **Utenti** e non più confermato), così un'email a `email` arriva a chi possiede l'account.
+- `avatarUrl` è l'immagine del profilo, Gravatar se il sito lo usa (**Impostazioni → Discussione**), oppure `null` per le iniziali.
+- Attivare un plugin che chiede `users:read` richiede il consenso dell'amministratore: l'admin lo chiede prima di attivarlo.
+- Sui core più vecchi `ctx.users` manca: chiamalo come `ctx.users?.find(...)` oppure richiedi `"apiVersion": "^1.42"`.
 
 ### Dati personali (GDPR)
 
@@ -1000,6 +1019,7 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 | `mail:send`     | `ctx.mail.send`                                                                                   |
 | `network`       | `ctx.http.send`                                                                                   |
 | `forms:protect` | filtri `form.challenge` e `form.verify` (API 1.38)                                                |
+| `users:read`    | `ctx.users.find` / `get` (API 1.42); attivare il plugin chiede il consenso dell'amministratore    |
 | `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
 | `media:read`    | `ctx.media.get`                                                                                   |
 | `media:write`   | `ctx.media.fromUrl` (API 1.30)                                                                    |

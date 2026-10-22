@@ -98,6 +98,11 @@ products, with the catalog features shops expect.
   of a category or brand), **Cart link** with the number of items and
   **Product search** (the site's search among products only); the last two
   fit a theme's header area, such as Canvas's **Header (right side)**.
+- Blocks **Cart** and **Checkout**: the visitor's cart and the checkout, as
+  on `/cart` and `/checkout`, inside any page made with the block editor or
+  a page builder such as Fresco. Pages stay cached: the block fills itself
+  with the visitor's cart; in the cart, quantities, removals and coupons
+  change it in place. Without JavaScript it links the cart or checkout page.
 - In the visitor's account: their orders and their details, and the
   addresses that fill in the checkout. A signed-in customer finds their cart
   on another device.
@@ -146,5 +151,32 @@ the default text in their language.
 customer's data include their orders and saved addresses. Erasing deletes the
 saved addresses and carts and anonymizes orders that never became a sale;
 sales are kept for tax and accounting records, without IP address and browser.
+
+**For developers** (Cleishop 1.7): the visitor's cart for scripts and page
+builders, behind the language prefix too (`/it/cart/data`); never cached.
+
+- `GET /cart/data` (`?html=1` adds the cart page's markup as `html`):
+  `{ items: [{ key, productId, variationId, title, attributes, sku, quantity,
+soldIndividually, price, regularPrice, onSale, total, image, url,
+formatted: { price, total } }], count, currency, pricesIncludeTax,
+coupons: [{ code, discount, formatted }], totals: { subtotal, discount,
+shipping, fees, tax, total, formatted }, notices, cartUrl, checkoutUrl }`.
+  Amounts are numbers in the currency (12.5 is €12.50); `shipping` is null
+  until the checkout.
+- `POST /cart/item` with `{ key, quantity }` (JSON or a form; 0 removes the
+  item) and `POST /cart/item/remove` with `{ key }`: the cart page's rules
+  (stock, products sold one at a time, at most 9999), from the site's own
+  pages only (the same-origin check of every public form). They answer with
+  the cart as above; 404 when the item is not in the cart, 400 for a
+  quantity that is not a number.
+- `GET /checkout/data`: `{ empty, html, cartUrl, checkoutUrl }`, the
+  checkout's markup (the cart's when it is empty). Its form posts to
+  `/checkout` as usual.
+- `GET /cart/count`: `{ count, label }`.
+
+Other plugins find these addresses, and the names of the blocks, in
+Cleishop's read-only API on `globalThis[Symbol.for('cleitext.shop')]`:
+`cartUrls(prefix)` and `blocks` (`shop/cart`, `shop/checkout`), beside
+`product(siteId, entryId, locale)` and `tags(entryId)`.
 
 Requires Cleitext 0.30 or later. License: GPL-2.0-or-later.

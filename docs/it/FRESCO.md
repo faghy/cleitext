@@ -185,6 +185,17 @@ Fresco Pro aggiunge capacità che puoi dare ai ruoli nella scheda **Ruoli** di *
 | Configurare le integrazioni dei moduli          | Amministratore                                | Niente Integrazioni dei moduli               |
 | Aggiungere codice personalizzato e CSS del sito | Amministratore                                | Niente Codice personalizzato, Font e icone   |
 
+## Estendere l'editor (per chi scrive plugin)
+
+Gli altri plugin estendono Fresco con `extensions()`, liste a cui aggiungono elementi dal proprio ingresso admin. Da Fresco 2.5 l'editor ha quattro hook in più, ognuno riceve il contesto dell'editor aperto (`entry`, `selected()`, `select(id)`, `node(id)`, `canvas()`, `reveal(id)`, `refresh()`, `notify(testo)`):
+
+- **`topbarItems`**: pulsanti nella barra in alto, prima del Finder, con un badge (`badge(editor)` restituisce un numero o un breve testo; oltre 99 mostra `99+`).
+- **`shortcuts`**: scorciatoie da tastiera (`keys: 'Shift+C'`, Ctrl vale anche ⌘), nell'editor e nell'area di disegno, elencate nella finestra **Scorciatoie da tastiera** (Shift+?); quelle di Fresco hanno la precedenza.
+- **`canvasOverlays`**: livelli React disegnati sopra la pagina nell'area di disegno, con i riquadri degli elementi di cui chiedono gli id; un clic su di essi non seleziona mai un elemento.
+- **`contextMenuItems`**: voci del menu del tasto destro di un elemento, in un gruppo prima di **Elimina**.
+
+Un'estensione che dà errore non rompe mai l'editor: l'errore va nel log e l'estensione viene tralasciata. Tipi ed esempio completo nella [guida in inglese](../FRESCO.md#extending-the-editor-for-plugin-authors).
+
 ## Licenze
 
 Fresco è GPL-3.0-or-later. Anche Fresco Pro è GPL-3.0-or-later, venduto con l'accesso a download e aggiornamenti. Le icone vengono da Font Awesome Free (CC BY 4.0); le animazioni Lottie sono riprodotte con lottie-web (MIT).

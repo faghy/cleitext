@@ -299,7 +299,11 @@ export class AuthService {
     }
     const passwordHash = await hashPassword(input.password);
     await withContext(this.database.db, { siteId, userId: record.userId }, async (tx) => {
-      await tx.update(users).set({ passwordHash }).where(eq(users.id, record.userId));
+      // The link came by email: the address is confirmed (e.g. for `ctx.users`).
+      await tx
+        .update(users)
+        .set({ passwordHash, emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, now())` })
+        .where(eq(users.id, record.userId));
       await this.audit.record(tx, {
         siteId,
         userId: record.userId,
@@ -356,6 +360,8 @@ export class AuthService {
             passwordHash,
             status: 'active',
             lastLoginAt: sql`now()`,
+            // The invitation came by email: the address is confirmed.
+            emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, now())`,
             ...(input.displayName ? { displayName: input.displayName } : {}),
           })
           .where(eq(users.id, record.userId));

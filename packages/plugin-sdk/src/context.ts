@@ -446,6 +446,48 @@ export interface MediaApi {
   ): Promise<PluginMedia>;
 }
 
+/**
+ * A member of a site as plugins see it (plugin API 1.42), e.g. to mention
+ * people in notes and email them.
+ */
+export interface PluginUser {
+  id: string;
+  displayName: string;
+  /**
+   * The address only when its owner confirmed it (a confirmed sign-up, an
+   * accepted invitation or a password reset by email); null otherwise.
+   */
+  email: string | null;
+  /** The profile picture, or Gravatar when the site uses it; null for initials. */
+  avatarUrl: string | null;
+  /** The slug of the person's role on the site, e.g. `editor`. */
+  role: string;
+}
+
+/** What `ctx.users.find` looks for (plugin API 1.42). */
+export interface UserQuery {
+  /** Words of the name, or of a confirmed address (case-insensitive). */
+  search?: string;
+  /** Only these people (at most 100 ids). */
+  ids?: string[];
+  /** Only people with this role slug. */
+  role?: string;
+  /** Default 20, at most 100. */
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * The site's members, read-only (needs `users:read`, plugin API 1.42). Only
+ * active accounts of the site, sorted by name; missing on older cores, so
+ * call it as `ctx.users?.find(...)` there.
+ */
+export interface UsersApi {
+  find(siteId: string, query?: UserQuery): Promise<PluginUser[]>;
+  /** One member of the site; null for anyone else. */
+  get(siteId: string, id: string): Promise<PluginUser | null>;
+}
+
 // ---- Blocks -------------------------------------------------------------------------
 
 /** The page being rendered, for blocks that show its data (a theme builder's widgets). */
@@ -1206,7 +1248,7 @@ export interface AiApi {
 export interface PluginContext {
   readonly plugin: { slug: string; version: string };
   /**
-   * The plugin API this core implements, e.g. `1.41.0` (plugin API 1.41;
+   * The plugin API this core implements, e.g. `1.42.0` (plugin API 1.41;
    * missing on older cores), to use newer features only where they exist.
    */
   readonly apiVersion: string;
@@ -1233,6 +1275,8 @@ export interface PluginContext {
   readonly mail: MailApi;
   readonly http: HttpApi;
   readonly media: MediaApi;
+  /** The site's members, read-only (plugin API 1.42, needs `users:read`). */
+  readonly users: UsersApi;
   readonly privacy: PrivacyApi;
   readonly transfer: TransferApi;
   /** Bot protection of the plugin's own forms (plugin API 1.38). */

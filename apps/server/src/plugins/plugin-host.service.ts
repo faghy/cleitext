@@ -71,6 +71,7 @@ import { createPluginContext, type PluginServices } from './plugin-context.js';
 import { AuditService } from '../audit/audit.service.js';
 import { compileRoute, type CompiledRoute } from './route-matcher.js';
 import { extendTheme } from '../themes/theme-extensions.js';
+import { orderPluginSlugs } from './plugin-order.js';
 
 /** Default priority of hooks, as in WordPress. */
 const DEFAULT_PRIORITY = 10;
@@ -673,7 +674,10 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     return theme;
   }
 
-  /** Slugs of the plugins active on a site (loaded without errors). */
+  /**
+   * Slugs of the plugins active on a site (loaded without errors), in a
+   * deterministic order: a plugin after the plugins it requires, then by slug.
+   */
   async activeSlugs(siteId: string): Promise<Set<string>> {
     const cached = this.active.get(siteId);
     if (cached && cached.expiresAt > Date.now()) return cached.slugs;
@@ -689,10 +693,16 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         .from(plugins)
         .where(or(eq(plugins.network, true), eq(plugins.mustUse, true))),
     }));
+    // Dependencies first, then by slug: plugin assets load in a stable order.
     const slugs = new Set(
-      [...rows, ...everywhere]
-        .map((r) => r.slug)
-        .filter((slug) => this.loaded.get(slug)?.status === 'loaded'),
+      orderPluginSlugs(
+        new Set(
+          [...rows, ...everywhere]
+            .map((r) => r.slug)
+            .filter((slug) => this.loaded.get(slug)?.status === 'loaded'),
+        ),
+        (slug) => Object.keys(this.loaded.get(slug)?.manifest.requires?.plugins ?? {}),
+      ),
     );
     this.active.set(siteId, { slugs, expiresAt: Date.now() + ACTIVE_CACHE_MS });
     if (!this.synced.has(siteId)) {

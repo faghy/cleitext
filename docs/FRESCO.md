@@ -185,6 +185,142 @@ Fresco Pro adds capabilities you can give to roles in the **Roles** card of **Us
 | Set up form integrations          | Administrator                              | No Form integrations                  |
 | Add custom code and site CSS      | Administrator                              | No Custom code, no Fonts & icons      |
 
+## Extending the editor (for plugin authors)
+
+Other plugins extend Fresco through `extensions()`, a set of lists kept on `globalThis` and reached from Fresco's API (`globalThis[Symbol.for('cleitext.fresco')].extensions()`, once Fresco has loaded: plugins that load first queue a callback under `Symbol.for('cleitext.fresco.queue')`). A plugin pushes into the lists from its admin entry; the server lists (`controls`, `css`, `visible`, `resolve`…) are emptied and set up again whenever plugins reload. A failing extension never breaks the editor or the page: its error is logged and it is left out.
+
+Since Fresco 2.5 the editor has four more hooks. Each one gets the **editor context**, one per open editor:
+
+```ts
+interface EditorContext {
+  entry: { id: string; type: string; locale: string }; // the entry being edited
+  readOnly(): boolean;
+  selected(): string | null; // the selected element's id
+  select(id: string | null): void; // as a click in the canvas
+  node(id: string): FrescoNode | null;
+  canvas(): Document | null; // the page in the canvas (null while it loads)
+  reveal(id: string): void; // scrolls the canvas to an element
+  refresh(): void; // draws badges, overlays and menu items again
+  notify(text: string, kind?: 'info' | 'success' | 'error'): void;
+}
+```
+
+Labels are in English: the editor translates them with the admin's translations, so a plugin adds its own Italian strings as usual. Icons are SVG paths on a 24×24 grid, drawn with the current color.
+
+**`topbarItems`**: buttons in the editor's top bar, before the Finder (or in the toolbar of the editor shown inside the admin's bar), with a badge.
+
+```ts
+interface TopbarItem {
+  id: string;
+  label: string;
+  icon: string;
+  shortcut?: string; // shown in the title, e.g. 'Shift+C'
+  badge?: (editor) => number | string | null | undefined; // 0, '' or null: no badge; over 99: '99+'
+  active?: (editor) => boolean; // shown pressed
+  when?: (editor) => boolean; // shown only when true
+  onClick(editor): void;
+}
+```
+
+The badge and the state are read again when the page changes and when the plugin calls `editor.refresh()` (e.g. after loading its data).
+
+**`shortcuts`**: keyboard shortcuts, in the canvas and in the editor alike, listed in the **Keyboard shortcuts** window (Shift+?) under their `group` (**Plugins** by default).
+
+```ts
+interface EditorShortcut {
+  id: string;
+  keys: string; // 'Shift+C', 'Ctrl+Alt+N', 'Escape', 'F2'…; Ctrl is ⌘ on a Mac
+  label: string;
+  group?: string;
+  whileTyping?: boolean; // also in fields and texts edited in place (false by default)
+  run(editor, event: KeyboardEvent): void | boolean; // false: the key goes on
+}
+```
+
+Every modifier must match (`Shift+C` does not run on Ctrl+Shift+C). Fresco's own shortcuts come first: a plugin cannot take Ctrl+Z, Ctrl+S and the others. When `run` acts, the key is kept from the browser.
+
+**`canvasOverlays`**: React layers drawn over the canvas, inside its page, given the boxes of the elements they ask for.
+
+```ts
+interface CanvasOverlay {
+  id: string;
+  elements(editor): string[]; // the element ids it needs the boxes of
+  component: ComponentType<{
+    editor: EditorContext;
+    boxes: Record<string, { x: number; y: number; width: number; height: number }>;
+    doc: Document; // the canvas page
+  }>;
+}
+```
+
+Boxes are in the page's coordinates and follow layout, scrolling and resizing, so an overlay places its parts with `position: absolute` and these numbers. Elements not on the page have no box. The layers are marked `data-fre-ui`: a click on them never selects or drags an element. They take pointer events only where the overlay's own parts do; a layer that throws is left out. Overlays style themselves (inline styles, or a `<style>` they render: the canvas is a separate document).
+
+**`contextMenuItems`**: items of an element's right-click menu, in a group of their own before **Delete**.
+
+```ts
+interface ContextMenuItem {
+  id: string;
+  label: string;
+  icon?: string;
+  shortcut?: string; // shown at the end of the item
+  danger?: boolean;
+  when?: (node: FrescoNode, editor) => boolean; // shown only for some elements
+  disabled?: (node: FrescoNode, editor) => boolean;
+  run(node: FrescoNode, editor): void | Promise<void>; // a rejected promise is shown as an error
+}
+```
+
+`menuActions` (label, `when`, `run(node, { replace })`) keep working as before, in the group of **Save as template**.
+
+An example, a "Notes" button with a count, Shift+C, pins on the elements and "Add note" in the menu:
+
+```tsx
+onFresco((fresco) => {
+  const ext = fresco.extensions();
+  ext.topbarItems.push({
+    id: 'my-notes',
+    label: 'Notes',
+    icon: 'M4 4h16v12H8l-4 4z',
+    shortcut: 'Shift+C',
+    badge: () => openNotes.length,
+    onClick: (editor) => togglePanel(editor),
+  });
+  ext.shortcuts.push({
+    id: 'my-notes/mode',
+    keys: 'Shift+C',
+    label: 'Notes mode',
+    run: (editor) => toggleMode(editor),
+  });
+  ext.canvasOverlays.push({
+    id: 'my-notes/pins',
+    elements: () => openNotes.map((note) => note.elementId),
+    component: ({ boxes }) => (
+      <>
+        {openNotes.map((note) =>
+          boxes[note.elementId] ? (
+            <button
+              key={note.id}
+              style={{
+                position: 'absolute',
+                left: boxes[note.elementId].x + 18,
+                top: boxes[note.elementId].y + 6,
+              }}
+            >
+              {note.number}
+            </button>
+          ) : null,
+        )}
+      </>
+    ),
+  });
+  ext.contextMenuItems.push({
+    id: 'my-notes/add',
+    label: 'Add note',
+    run: (node, editor) => startNote(editor, node.id),
+  });
+});
+```
+
 ## Licenses
 
 Fresco is GPL-3.0-or-later. Fresco Pro is GPL-3.0-or-later too, sold with access to downloads and updates. Icons come from Font Awesome Free (CC BY 4.0); Lottie animations play with lottie-web (MIT).

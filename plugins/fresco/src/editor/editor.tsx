@@ -8,7 +8,7 @@ import { api as coreApi, t as translate, useT, type EditorProps } from '@cleitex
 import type { CxdDocument } from '@cleitext/blocks';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setIconData, iconDataLoaded, type IconData } from '../core/icons.js';
-import { extensions } from '../core/extensions.js';
+import { extensions, type EditorContext } from '../core/extensions.js';
 import { normalizeKit } from '../core/kit.js';
 import type { FrescoNode, MenuItem, RenderMediaItem, Settings } from '../core/model.js';
 import { getElement } from '../core/registry.js';
@@ -48,7 +48,7 @@ import {
   type Preferences,
 } from './prefs-model.js';
 import { topmost } from './store.js';
-import { TopBar } from './topbar.js';
+import { ExtensionTopbarItems, TopBar } from './topbar.js';
 import { NavigatorWindow } from './navigator.js';
 import { Finder, ShortcutsDialog } from './finder.js';
 import { askText, confirmAction, Dialogs, notify } from './dialogs.js';
@@ -56,6 +56,12 @@ import './i18n.js';
 import { nextDevice } from './frame-css.js';
 import { leaveSafeMode, normalizeElementManager, readSafeMode } from './availability.js';
 import { hasFiles } from './file-drop.js';
+import {
+  contextMenuItemsOf,
+  createEditorContext,
+  runExtensionShortcut,
+  safely,
+} from './extension-hooks.js';
 
 export { clampPanelWidth, PANEL_WIDTH };
 
@@ -121,6 +127,17 @@ export function FrescoEditor(props: EditorProps) {
     return () => setTextTranslator(null);
   }, []);
   const canvas = useRef<CanvasApi>({ frame: null, doc: null, root: null });
+  // What the extensions' top bar items, shortcuts, overlays and menu items get.
+  const editorContext = useMemo(
+    () =>
+      createEditorContext({
+        store,
+        entry: { id: props.entry.id, type: props.entry.type, locale: props.entry.locale },
+        canvas: () => canvas.current.doc,
+        notify,
+      }),
+    [store],
+  );
   const prefsLoaded = useRef(false);
   // Changed preferences are saved for the user (a moment later: a slider sends many).
   useEffect(() => {
@@ -378,6 +395,9 @@ export function FrescoEditor(props: EditorProps) {
       ) {
         setMenu(null);
         store.actions.select(null);
+      } else {
+        // Plugins' shortcuts (Fresco 2.5), after Fresco's own.
+        runExtensionShortcut(event, !!typing, editorContext);
       }
     };
     /**
@@ -489,7 +509,7 @@ export function FrescoEditor(props: EditorProps) {
       attachedTo?.document.removeEventListener('copy', onCopy);
       attachedTo?.document.removeEventListener('paste', onPaste);
     };
-  }, [store]);
+  }, [store, editorContext]);
 
   /**
    * Pastes elements from the system clipboard: those of another site get
@@ -669,6 +689,7 @@ export function FrescoEditor(props: EditorProps) {
           exit={exit}
           navigate={props.navigate}
           copyShare={copyShare}
+          editor={editorContext}
         />
         {host.error && (
           <div className="fre-hosterror" role="alert">
@@ -713,6 +734,7 @@ export function FrescoEditor(props: EditorProps) {
               context={{ media: mediaMap, locale: props.entry.locale, menus }}
               onContextMenu={(id, position) => setMenu({ id, ...position })}
               api={canvas}
+              editor={editorContext}
               title={host.title}
               saved={!host.dirty && !host.busy}
               upload={readOnly ? undefined : media.upload}
@@ -745,6 +767,7 @@ export function FrescoEditor(props: EditorProps) {
             menu={menu}
             onClose={() => setMenu(null)}
             pastePayload={pastePayload}
+            editor={editorContext}
           />
         )}
       </div>
@@ -754,7 +777,7 @@ export function FrescoEditor(props: EditorProps) {
   return (
     <div className="fre-root" data-icons={iconsReady ? 'ready' : 'loading'}>
       <aside className="fre-panel" aria-label="Fresco">
-        <Toolbar store={store} openSettings={openSettings} />
+        <Toolbar store={store} openSettings={openSettings} editor={editorContext} />
         <Panel
           store={store}
           media={media}
@@ -772,6 +795,7 @@ export function FrescoEditor(props: EditorProps) {
           context={{ media: mediaMap, locale: props.entry.locale, menus }}
           onContextMenu={(id, position) => setMenu({ id, ...position })}
           api={canvas}
+          editor={editorContext}
           upload={readOnly ? undefined : media.upload}
         />
       </main>
@@ -781,6 +805,7 @@ export function FrescoEditor(props: EditorProps) {
           menu={menu}
           onClose={() => setMenu(null)}
           pastePayload={pastePayload}
+          editor={editorContext}
         />
       )}
       <Dialogs />
@@ -849,7 +874,15 @@ function PanelHeader({ store }: { store: Store }) {
   );
 }
 
-function Toolbar({ store, openSettings }: { store: Store; openSettings: () => void }) {
+function Toolbar({
+  store,
+  openSettings,
+  editor,
+}: {
+  store: Store;
+  openSettings: () => void;
+  editor: EditorContext;
+}) {
   const { t } = useT();
   const view = useStore(store, (s) => s.view);
   // Re-render on every change so undo/redo know whether they can act.
@@ -872,6 +905,7 @@ function Toolbar({ store, openSettings }: { store: Store; openSettings: () => vo
         </button>
       ))}
       <span className="fre-toolbar__gap" />
+      <ExtensionTopbarItems editor={editor} store={store} className="fre-iconbtn" size={17} />
       <button
         type="button"
         className="fre-iconbtn"
@@ -935,12 +969,15 @@ function ContextMenu({
   menu,
   onClose,
   pastePayload,
+  editor,
 }: {
   store: Store;
   menu: { id: string; x: number; y: number };
   onClose: () => void;
   /** Pastes elements read from the system clipboard. */
   pastePayload: (payload: ClipboardPayload) => Promise<void>;
+  /** For the plugins' menu items. */
+  editor: EditorContext;
 }) {
   const { t } = useT();
   const node = menu.id ? find(store.get().blocks, menu.id) : null;
@@ -958,7 +995,7 @@ function ContextMenu({
   const item = (
     label: string,
     action: () => void,
-    options: { disabled?: boolean; shortcut?: string; danger?: boolean } = {},
+    options: { disabled?: boolean; shortcut?: string; danger?: boolean; icon?: string } = {},
   ) => (
     <button
       type="button"
@@ -970,6 +1007,7 @@ function ContextMenu({
         onClose();
       }}
     >
+      {options.icon && <Svg path={options.icon} size={14} />}
       <span>{label}</span>
       {options.shortcut && <kbd>{options.shortcut}</kbd>}
     </button>
@@ -1143,6 +1181,35 @@ function ContextMenu({
                 </Fragment>
               ))}
           </div>
+          {(() => {
+            // Plugins' items (Fresco 2.5), in a group of their own.
+            const extra = contextMenuItemsOf(node, editor);
+            if (!extra.length) return null;
+            return (
+              <div className="fre-menu__group">
+                {extra.map(({ item: entry, disabled }) => (
+                  <Fragment key={entry.id}>
+                    {item(
+                      t(entry.label),
+                      () => {
+                        void Promise.resolve(
+                          safely(() => entry.run(node, editor), undefined),
+                        ).catch((error: unknown) =>
+                          notify(String(error instanceof Error ? error.message : error), 'error'),
+                        );
+                      },
+                      {
+                        disabled,
+                        ...(entry.shortcut ? { shortcut: entry.shortcut } : {}),
+                        ...(entry.danger ? { danger: true } : {}),
+                        ...(entry.icon ? { icon: entry.icon } : {}),
+                      },
+                    )}
+                  </Fragment>
+                ))}
+              </div>
+            );
+          })()}
           <div className="fre-menu__group">
             {item(
               many ? t('Delete {count} elements', { count: many.length }) : t('Delete'),

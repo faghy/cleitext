@@ -8,6 +8,8 @@ import {
   type PersonalDataGroup,
   type PluginContext,
   type PluginMedia,
+  type PluginUser,
+  type UserQuery,
   type CommentsApi,
   type PluginComment,
   type RouteRequest,
@@ -87,6 +89,11 @@ export interface PluginServices {
   /** A message checked by `pluginMail` (plugin API 1.41). */
   sendMail(message: MailMessage, siteId?: string): Promise<void>;
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
+  /** Active members of a site (`ctx.users`, plugin API 1.42); the query is checked. */
+  findUsers(
+    siteId: string,
+    query: Required<Pick<UserQuery, 'limit' | 'offset'>> & Omit<UserQuery, 'limit' | 'offset'>,
+  ): Promise<PluginUser[]>;
   mediaFromUrl(
     plugin: LoadedPlugin,
     siteId: string,
@@ -140,6 +147,33 @@ export function pluginLogger(slug: string): PluginLogger {
     warn: (message, data) => logger.warn(format(message, data)),
     error: (message, data) => logger.error(format(message, data)),
   };
+}
+
+/** A `ctx.users.find` query, checked: bounded limit, valid ids, plain strings. */
+export function userQuery(
+  query: UserQuery,
+): Required<Pick<UserQuery, 'limit' | 'offset'>> & Omit<UserQuery, 'limit' | 'offset'> {
+  const integer = (value: unknown, fallback: number, max: number) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 0), max) : fallback;
+  };
+  const result: Required<Pick<UserQuery, 'limit' | 'offset'>> &
+    Omit<UserQuery, 'limit' | 'offset'> = {
+    limit: query.limit === undefined ? 20 : integer(query.limit, 20, 100),
+    offset: query.offset === undefined ? 0 : integer(query.offset, 0, 100_000),
+  };
+  if (query.search !== undefined && query.search !== null) {
+    const search = String(query.search).trim().slice(0, 100);
+    if (search) result.search = search;
+  }
+  if (query.role !== undefined && query.role !== null) result.role = String(query.role);
+  if (query.ids !== undefined) {
+    if (!Array.isArray(query.ids)) throw new TypeError('`ids` must be a list of user ids.');
+    if (query.ids.length > 100) throw new TypeError('At most 100 ids.');
+    // Ids that cannot exist find nobody.
+    result.ids = query.ids.filter((id) => typeof id === 'string' && UUID_RE.test(id));
+  }
+  return result;
 }
 
 /** The common part of the inputs of `ctx.forms`, checked. */
@@ -468,6 +502,21 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         assertSiteId(siteId);
         if (!UUID_RE.test(options.userId)) throw new Error('A user id is needed.');
         return services().mediaFromUrl(plugin, siteId, url, options);
+      },
+    },
+
+    users: {
+      async find(siteId, query = {}) {
+        require('users:read');
+        assertSiteId(siteId);
+        return services().findUsers(siteId, userQuery(query));
+      },
+      async get(siteId, id) {
+        require('users:read');
+        assertSiteId(siteId);
+        if (typeof id !== 'string' || !UUID_RE.test(id)) return null;
+        const [user] = await services().findUsers(siteId, { ids: [id], limit: 1, offset: 0 });
+        return user ?? null;
       },
     },
 
