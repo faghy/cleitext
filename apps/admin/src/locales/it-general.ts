@@ -86,6 +86,7 @@ export const itGeneral: Messages = {
   'Complete the spam check above, then try again.':
     'Completa il controllo anti-spam qui sopra, poi riprova.',
   Main: 'Principale',
+  'Cleitext version': 'Versione di Cleitext',
   Media: 'Media',
   Members: 'Membri',
   Name: 'Nome',

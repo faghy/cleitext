@@ -223,6 +223,8 @@ export const meResponseSchema = z.object({
   /** Core capabilities, plus those of the plugins active on the site. */
   capabilities: z.array(z.string()),
   sites: z.array(z.object({ id: z.uuid(), name: z.string(), host: z.string().nullable() })),
+  /** The running Cleitext version, shown at the foot of the admin menu. */
+  version: z.string(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;
 
