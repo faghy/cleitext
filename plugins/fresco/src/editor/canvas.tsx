@@ -37,6 +37,7 @@ import { buildStructure, FLEX_PRESETS, GRID_PRESETS, type Preset } from './struc
 import { find, placeOf, type Place } from './tree.js';
 import { t } from '@cleitext/admin-sdk';
 import { askText } from './dialogs.js';
+import { formatShortcut } from './format-keys.js';
 
 export interface CanvasApi {
   frame: HTMLIFrameElement | null;
@@ -496,6 +497,12 @@ function FrameTree({
         setEpoch((e) => ({ ...e, [id]: (e[id] ?? 0) + 1 }));
       };
       const keys = (event: KeyboardEvent) => {
+        const format = rich ? formatShortcut(event) : null;
+        if (format) {
+          event.preventDefault();
+          doc.execCommand(format, false);
+          return;
+        }
         if (event.key === 'Escape' || (event.key === 'Enter' && !rich && control.type === 'text')) {
           event.preventDefault();
           field.blur();

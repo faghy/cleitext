@@ -22,6 +22,7 @@ import { extensions } from '../core/extensions.js';
 import { isMedia } from '../core/media.js';
 import { reorder } from './tree.js';
 import { formatColor, hsvaToRgba, parseColor, rgbaToHsva, toHex, type Hsva } from './color.js';
+import { formatShortcut } from './format-keys.js';
 import {
   OPTIONAL_DEVICES,
   activeDevices,
@@ -581,6 +582,12 @@ function RichText({
           contentEditable={!readOnly}
           suppressContentEditableWarning
           onInput={(e) => onChange((e.target as HTMLDivElement).innerHTML)}
+          onKeyDown={(e) => {
+            const format = formatShortcut(e);
+            if (!format) return;
+            e.preventDefault();
+            command(format);
+          }}
         />
       )}
     </div>
