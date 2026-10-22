@@ -11,8 +11,20 @@ import {
   type AdminPageProps,
 } from '@cleitext/admin-sdk';
 import { useEffect, useRef, useState } from 'react';
-import { AdminDialogs, confirmAction, notify } from './admin-dialogs.js';
-import { download, toTemplate, type PatternView, type Template } from './editor/library.js';
+import { AdminDialogs, askText, confirmAction, notify } from './admin-dialogs.js';
+import {
+  download,
+  importTemplateFile,
+  renameTemplate,
+  searchTemplates,
+  templateFile,
+  toTemplate,
+  type PatternView,
+  type Template,
+} from './editor/library.js';
+import { TemplatePreview } from './editor/template-preview.js';
+import { SAFE_MODE_HASH } from './editor/availability.js';
+import { normalizeKit, type Kit } from './core/kit.js';
 import {
   systemReport,
   systemSections,
@@ -56,6 +68,8 @@ const PAGE_CSS = `
 .frx th{background:#f8fafc;color:#6b7280;font-weight:600}
 .frx td a{color:#c2410c;text-decoration:none;font-weight:600}
 .frx .muted{color:#6b7280}
+.frx select{padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font:inherit;background:#fff;max-width:340px}
+.frx input.search{min-width:240px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font:inherit}
 .frx .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
 .frx .error{color:#b91c1c}
 .frx .ok{color:#047857}
@@ -197,11 +211,23 @@ export function TemplatesPage(_props: AdminPageProps) {
   const { t, language } = useT();
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [preview, setPreview] = useState<Template | null>(null);
+  const [kit, setKit] = useState<Kit | null>(null);
   const load = () =>
     void coreApi<PatternView[]>('GET', '/patterns')
       .then((list) => setTemplates(list.map(toTemplate).filter((x): x is Template => x !== null)))
       .catch((e: unknown) => setError(String(e instanceof Error ? e.message : e)));
   useEffect(load, []);
+  const fail = (e: unknown) => setError(errorMessage(e));
+  const open = (template: Template) => {
+    setPreview(template);
+    if (!kit)
+      void coreApi<unknown>('GET', '/ext/fresco/kit')
+        .then((value) => setKit(normalizeKit(value)))
+        .catch(() => setKit(normalizeKit(null)));
+  };
+  const shown = searchTemplates(templates ?? [], search);
   return (
     <div className="frx">
       <Styles />
@@ -212,6 +238,37 @@ export function TemplatesPage(_props: AdminPageProps) {
           'Pages and sections saved from Fresco. Insert them from the folder button of the editor, or export them to another site.',
         )}
       </p>
+      <div className="row">
+        <input
+          type="search"
+          className="search"
+          placeholder={t('Search templates…')}
+          aria-label={t('Search templates')}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <label className="btn">
+          {t('Import')}
+          <input
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              setError(null);
+              try {
+                const parsed = await importTemplateFile(file);
+                notify(t('“{name}” imported.', { name: parsed.title }), 'success');
+                load();
+              } catch (err) {
+                fail(err);
+              }
+            }}
+          />
+        </label>
+      </div>
       {error && <p className="error">{error}</p>}
       {!templates && !error && <p className="muted">{t('Loading…')}</p>}
       {templates && templates.length === 0 && (
@@ -221,7 +278,10 @@ export function TemplatesPage(_props: AdminPageProps) {
           )}
         </p>
       )}
-      {templates && templates.length > 0 && (
+      {templates && templates.length > 0 && shown.length === 0 && (
+        <p className="muted">{t('No templates found.')}</p>
+      )}
+      {shown.length > 0 && (
         <table>
           <thead>
             <tr>
@@ -232,7 +292,7 @@ export function TemplatesPage(_props: AdminPageProps) {
             </tr>
           </thead>
           <tbody>
-            {templates.map((template) => (
+            {shown.map((template) => (
               <tr key={template.id}>
                 <td>
                   <strong>{template.title}</strong>
@@ -245,18 +305,30 @@ export function TemplatesPage(_props: AdminPageProps) {
                 </td>
                 <td>
                   <div className="row" style={{ margin: 0 }}>
+                    <button type="button" className="btn" onClick={() => open(template)}>
+                      {t('Preview')}
+                    </button>
                     <button
                       type="button"
                       className="btn"
                       onClick={() =>
-                        download({
-                          format: 'fresco-template',
-                          version: 1,
-                          title: template.title,
-                          kind: template.kind,
-                          blocks: template.blocks,
+                        void askText({
+                          title: t('Rename the template'),
+                          label: t('Name'),
+                          value: template.title,
+                        }).then((title) => {
+                          const name = title?.trim();
+                          if (!name || name === template.title) return;
+                          void renameTemplate(template.id, name).then(load, fail);
                         })
                       }
+                    >
+                      {t('Rename')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => download(templateFile(template))}
                     >
                       {t('Export')}
                     </button>
@@ -270,10 +342,7 @@ export function TemplatesPage(_props: AdminPageProps) {
                           danger: true,
                         }).then((ok) => {
                           if (!ok) return;
-                          void coreApi('DELETE', `/patterns/${template.id}`).then(
-                            load,
-                            (e: unknown) => setError(String(e instanceof Error ? e.message : e)),
-                          );
+                          void coreApi('DELETE', `/patterns/${template.id}`).then(load, fail);
                         })
                       }
                     >
@@ -285,6 +354,68 @@ export function TemplatesPage(_props: AdminPageProps) {
             ))}
           </tbody>
         </table>
+      )}
+      {preview && kit && (
+        <TemplatePreview
+          title={preview.title}
+          blocks={preview.blocks}
+          kit={kit}
+          locale={language}
+          onClose={() => setPreview(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Safe mode, for troubleshooting: opens a page in the editor with other
+ * plugins' blocks and the theme's and other plugins' styles off.
+ */
+function SafeModeCard() {
+  const { t } = useT();
+  const [pages, setPages] = useState<FrescoPage[] | null>(null);
+  const [chosen, setChosen] = useState('');
+  useEffect(() => {
+    void coreApi<FrescoPage[]>('GET', '/ext/fresco/pages')
+      .then((list) => {
+        setPages(list);
+        setChosen((id) => id || list[0]?.id || '');
+      })
+      .catch(() => setPages([]));
+  }, []);
+  return (
+    <div className="card">
+      <h2>{t('Safe mode')}</h2>
+      <p>
+        {t(
+          'If the editor does not load or a page looks wrong only in the editor, open it in Safe mode: other plugins’ blocks and the styles of the theme and of other plugins are off. If the problem is gone, one of them causes it.',
+        )}
+      </p>
+      {pages && pages.length === 0 ? (
+        <p className="muted">{t('No pages made with Fresco yet.')}</p>
+      ) : (
+        <div className="row">
+          <select
+            aria-label={t('Page')}
+            value={chosen}
+            onChange={(e) => setChosen(e.target.value)}
+            disabled={!pages}
+          >
+            {(pages ?? []).map((page) => (
+              <option key={page.id} value={page.id}>
+                {page.title || t('(no title)')}
+              </option>
+            ))}
+          </select>
+          <a
+            className="btn"
+            href={chosen ? `${editorUrl(chosen)}${SAFE_MODE_HASH}` : undefined}
+            aria-disabled={!chosen}
+          >
+            {t('Open in Safe mode')}
+          </a>
+        </div>
       )}
     </div>
   );
@@ -566,6 +697,8 @@ export function ToolsPage(_props: AdminPageProps) {
             </button>
           </div>
         </div>
+
+        <SafeModeCard />
 
         <div className="card">
           <h2>{t('Versions')}</h2>

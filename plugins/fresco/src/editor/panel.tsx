@@ -11,6 +11,7 @@ import {
   type Tab,
 } from '../core/model.js';
 import { getElement, listElements } from '../core/registry.js';
+import { offered } from './availability.js';
 import { ControlField, DragHandle, Svg, useDragReorder, type ControlEnv } from './controls.js';
 import { PAGE_STYLE_CONTROLS, pageStyleSettings } from '../core/page-css.js';
 import { AtomicStyle } from './atomic-style.js';
@@ -123,9 +124,12 @@ function ElementsView({ store, onDragStart, onDragNode }: PanelProps) {
   const [closed, setClosed] = useStored<string[]>('fresco:closed-categories', []);
   const [source, setSource] = useStored<string>('fresco:element-source', '');
   const [tileMenu, setTileMenu] = useState<{ type: string; x: number; y: number } | null>(null);
-  const elements = listElements();
+  // Without those switched off (Element manager), replaced by free ones, or of other plugins in Safe mode.
+  const disabled = useStore(store, (s) => s.disabledElements);
+  const safeMode = useStore(store, (s) => s.safeMode);
+  const elements = listElements().filter((e) => offered(e, { disabled, safeMode }));
   // The plugins the elements come from: a filter when there are others than Fresco.
-  const sources = [...new Set(elements.filter((e) => !e.hidden).map((e) => elementSource(e.type)))];
+  const sources = [...new Set(elements.map((e) => elementSource(e.type)))];
   const shownSource = sources.includes(source) ? source : '';
   const q = search.trim().toLowerCase();
   const matches = (title: string, keywords: string[] = [], plugin = '') =>
@@ -152,7 +156,6 @@ function ElementsView({ store, onDragStart, onDragNode }: PanelProps) {
   }, [tileMenu]);
   const visible = elements.filter(
     (e) =>
-      !e.hidden &&
       matches(e.title, e.keywords, elementSource(e.type)) &&
       (!shownSource || elementSource(e.type) === shownSource),
   );

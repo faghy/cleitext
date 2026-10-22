@@ -7,9 +7,11 @@ import { api as coreApi, t } from '@cleitext/admin-sdk';
 import { askText, confirmAction } from './dialogs.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { FrescoNode } from '../core/model.js';
+import { extensions, type LibraryItem } from '../core/extensions.js';
 import { getElement } from '../core/registry.js';
 import { Svg } from './controls.js';
 import { create, useStore, type Store } from './store.js';
+import { TemplatePreview } from './template-preview.js';
 import { cloneWithNewIds, find, placeOf, walk } from './tree.js';
 
 export interface Template {
@@ -105,13 +107,55 @@ export function download(file: TemplateFile): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Templates whose title has the words searched (any case, any order). */
+export function searchTemplates<T extends { title: string }>(list: T[], search: string): T[] {
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return list;
+  return list.filter((item) => {
+    const title = item.title.toLowerCase();
+    return words.every((word) => title.includes(word));
+  });
+}
+
+/** Renames a saved template. */
+export async function renameTemplate(id: string, title: string): Promise<void> {
+  await coreApi('PATCH', `/patterns/${encodeURIComponent(id)}`, { title });
+}
+
+/** Imports a template file (see `parseTemplateFile`) as a new template of the site. */
+export async function importTemplateFile(file: File): Promise<TemplateFile> {
+  const parsed = parseTemplateFile(await file.text());
+  await saveTemplate(parsed.title, parsed.kind, parsed.blocks);
+  return parsed;
+}
+
+/** The file a template is exported as. */
+export const templateFile = (
+  template: Pick<Template, 'title' | 'kind' | 'blocks'>,
+): TemplateFile => ({
+  format: 'fresco-template',
+  version: 1,
+  title: template.title,
+  kind: template.kind,
+  blocks: template.blocks,
+});
+
 export function LibraryView({ store }: { store: Store }) {
   const blocks = useStore(store, (s) => s.blocks);
   const selected = useStore(store, (s) => s.selected);
+  const kit = useStore(store, (s) => s.kit);
+  const locale = useStore(store, (s) => s.entry.locale);
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [filter, setFilter] = useState<'all' | 'page' | 'section'>('all');
+  const [search, setSearch] = useState('');
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<{ title: string; blocks: FrescoNode[] } | null>(null);
+  // Other sources of templates (a remote library), when a plugin adds one.
+  const sources = extensions().librarySources;
+  const [source, setSource] = useState('');
+  const remote = sources.find((s) => s.id === source) ?? null;
+  const [remoteItems, setRemoteItems] = useState<LibraryItem[] | null>(null);
 
   const load = useCallback(() => {
     coreApi<PatternView[]>('GET', '/patterns')
@@ -121,6 +165,25 @@ export function LibraryView({ store }: { store: Store }) {
       );
   }, []);
   useEffect(load, [load]);
+  useEffect(() => {
+    if (!remote) return;
+    let cancelled = false;
+    setRemoteItems(null);
+    const timer = setTimeout(() => {
+      remote
+        .list({ search, kind: filter })
+        .then((items) => !cancelled && setRemoteItems(items))
+        .catch((e: unknown) => {
+          if (cancelled) return;
+          setRemoteItems([]);
+          setMessage({ kind: 'error', text: String(e instanceof Error ? e.message : e) });
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [remote, search, filter]);
 
   const run = async (action: () => Promise<void>, done: string) => {
     setBusy(true);
@@ -136,8 +199,8 @@ export function LibraryView({ store }: { store: Store }) {
     }
   };
 
-  const insert = (template: Template) => {
-    const copies = template.blocks.map(cloneWithNewIds);
+  const insertBlocks = (title: string, list: FrescoNode[]) => {
+    const copies = list.map(cloneWithNewIds);
     // After the selected top-level element, or at the end of the page.
     let index = blocks.length;
     if (selected) {
@@ -157,7 +220,19 @@ export function LibraryView({ store }: { store: Store }) {
       return wrapper;
     });
     store.actions.insertNodes(nodes, { parent: null, index });
-    setMessage({ kind: 'ok', text: t('“{name}” inserted.', { name: template.title }) });
+    setMessage({ kind: 'ok', text: t('“{name}” inserted.', { name: title }) });
+  };
+  const insert = (template: Template) => insertBlocks(template.title, template.blocks);
+  const fromSource = async (item: LibraryItem, then: (nodes: FrescoNode[]) => void) => {
+    if (!remote) return;
+    setBusy(true);
+    try {
+      then(await remote.load(item.id));
+    } catch (e) {
+      setMessage({ kind: 'error', text: String(e instanceof Error ? e.message : e) });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const selectedNode = selected ? find(blocks, selected) : null;
@@ -166,7 +241,18 @@ export function LibraryView({ store }: { store: Store }) {
     walk(list, () => n++);
     return n;
   };
-  const shown = (templates ?? []).filter((t) => filter === 'all' || t.kind === filter);
+  const shown = searchTemplates(
+    (templates ?? []).filter((t) => filter === 'all' || t.kind === filter),
+    search,
+  );
+  const rename = (template: Template) =>
+    void askText({ title: t('Rename the template'), label: t('Name'), value: template.title }).then(
+      (title) => {
+        const name = title?.trim();
+        if (name && name !== template.title)
+          void run(() => renameTemplate(template.id, name), t('Template renamed.'));
+      },
+    );
 
   return (
     <div className="fre-library">
@@ -226,10 +312,7 @@ export function LibraryView({ store }: { store: Store }) {
               e.target.value = '';
               if (!file) return;
               await run(
-                async () => {
-                  const parsed = parseTemplateFile(await file.text());
-                  await saveTemplate(parsed.title, parsed.kind, parsed.blocks);
-                },
+                async () => void (await importTemplateFile(file)),
                 t('“{name}” imported.', { name: file.name }),
               );
             }}
@@ -239,6 +322,31 @@ export function LibraryView({ store }: { store: Store }) {
       {message && (
         <p className={message.kind === 'error' ? 'fre-error' : 'fre-ok'}>{message.text}</p>
       )}
+      {sources.length > 0 && (
+        <select
+          className="fre-input fre-library__source"
+          aria-label={t('Templates from')}
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+        >
+          <option value="">{t('This site')}</option>
+          {sources.map((s) => (
+            <option key={s.id} value={s.id}>
+              {t(s.title)}
+            </option>
+          ))}
+        </select>
+      )}
+      <div className="fre-searchbox fre-library__search">
+        <Svg path="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3" size={14} />
+        <input
+          type="search"
+          placeholder={t('Search templates…')}
+          aria-label={t('Search templates')}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
       <div className="fre-states" role="tablist">
         {(['all', 'page', 'section'] as const).map((f) => (
           <button
@@ -251,11 +359,58 @@ export function LibraryView({ store }: { store: Store }) {
           </button>
         ))}
       </div>
-      {templates === null ? (
+      {remote ? (
+        remoteItems === null ? (
+          <p className="fre-empty-note">{t('Loading…')}</p>
+        ) : remoteItems.length === 0 ? (
+          <p className="fre-empty-note">{t('No templates found.')}</p>
+        ) : (
+          <ul className="fre-library__list">
+            {remoteItems.map((item) => (
+              <li key={item.id} className="fre-library__item">
+                {item.thumbnail && (
+                  <img className="fre-library__thumb" src={item.thumbnail} alt="" />
+                )}
+                <div className="fre-library__info">
+                  <strong>{item.title}</strong>
+                  <span>{item.kind === 'page' ? t('Page') : t('Section')}</span>
+                </div>
+                <button
+                  type="button"
+                  className="fre-iconbtn"
+                  title={t('Preview')}
+                  aria-label={t('Preview')}
+                  disabled={busy}
+                  onClick={() =>
+                    void fromSource(item, (nodes) =>
+                      setPreview({ title: item.title, blocks: nodes }),
+                    )
+                  }
+                >
+                  <Svg
+                    path="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
+                    size={14}
+                  />
+                </button>
+                <button
+                  type="button"
+                  className="fre-button fre-button--primary"
+                  disabled={busy}
+                  onClick={() => void fromSource(item, (nodes) => insertBlocks(item.title, nodes))}
+                >
+                  {t('Insert')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : templates === null ? (
         <p className="fre-empty-note">{t('Loading…')}</p>
       ) : shown.length === 0 ? (
         <p className="fre-empty-note">
-          {t('No templates yet. Save a page or a section to reuse it.')}
+          {search.trim() || templates.length > 0
+            ? t('No templates found.')
+            : t('No templates yet. Save a page or a section to reuse it.')}
         </p>
       ) : (
         <ul className="fre-library__list">
@@ -270,6 +425,18 @@ export function LibraryView({ store }: { store: Store }) {
               </div>
               <button
                 type="button"
+                className="fre-iconbtn"
+                title={t('Preview')}
+                aria-label={t('Preview of “{name}”', { name: template.title })}
+                onClick={() => setPreview({ title: template.title, blocks: template.blocks })}
+              >
+                <Svg
+                  path="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
+                  size={14}
+                />
+              </button>
+              <button
+                type="button"
                 className="fre-button fre-button--primary"
                 disabled={busy}
                 onClick={() => insert(template)}
@@ -279,16 +446,19 @@ export function LibraryView({ store }: { store: Store }) {
               <button
                 type="button"
                 className="fre-iconbtn"
+                title={t('Rename')}
+                aria-label={t('Rename “{name}”', { name: template.title })}
+                disabled={busy}
+                onClick={() => rename(template)}
+              >
+                <Svg path="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z M13.5 6.5l3 3" size={14} />
+              </button>
+              <button
+                type="button"
+                className="fre-iconbtn"
                 title={t('Export to a file')}
-                onClick={() =>
-                  download({
-                    format: 'fresco-template',
-                    version: 1,
-                    title: template.title,
-                    kind: template.kind,
-                    blocks: template.blocks,
-                  })
-                }
+                aria-label={t('Export to a file')}
+                onClick={() => download(templateFile(template))}
               >
                 <Svg path="M12 16V4 M7 9l5-5 5 5 M5 20h14" size={14} />
               </button>
@@ -296,6 +466,7 @@ export function LibraryView({ store }: { store: Store }) {
                 type="button"
                 className="fre-iconbtn"
                 title={t('Delete')}
+                aria-label={t('Delete “{name}”', { name: template.title })}
                 onClick={() =>
                   void confirmAction({
                     title: t('Delete the template “{name}”?', { name: template.title }),
@@ -315,6 +486,23 @@ export function LibraryView({ store }: { store: Store }) {
             </li>
           ))}
         </ul>
+      )}
+      {preview && (
+        <TemplatePreview
+          title={preview.title}
+          blocks={preview.blocks}
+          kit={kit}
+          locale={locale}
+          onClose={() => setPreview(null)}
+          onInsert={
+            store.get().readOnly || store.get().contentOnly
+              ? undefined
+              : () => {
+                  insertBlocks(preview.title, preview.blocks);
+                  setPreview(null);
+                }
+          }
+        />
       )}
     </div>
   );

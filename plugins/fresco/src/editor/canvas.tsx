@@ -15,6 +15,9 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import type { EditorMedia } from '@cleitext/admin-sdk';
+import { attachFileDrop } from './file-drop.js';
+import { disableForeignStyles } from './availability.js';
 import { documentCss, withDefaults } from '../core/css.js';
 import { kitCss, pageLayout, safeSelector, usedGoogleFonts } from '../core/kit.js';
 import { canvasFontLinks, elementsGoogleFonts, renderedGoogleFonts } from './canvas-fonts.js';
@@ -47,7 +50,7 @@ import { find, placeOf } from './tree.js';
 import { api as coreApi, t } from '@cleitext/admin-sdk';
 import type { BlockPage } from '@cleitext/plugin-sdk';
 import { extensions } from '../core/extensions.js';
-import { askText } from './dialogs.js';
+import { askText, notify } from './dialogs.js';
 import { documentKind } from './document-kind.js';
 import { CONTENT_ATTRIBUTE, editorKitCss, editorPageCss, hiddenOn } from './frame-css.js';
 import {
@@ -235,8 +238,11 @@ export function Canvas({
   api,
   title,
   saved = false,
+  upload,
 }: {
   store: Store;
+  /** Uploads to the media library: image files dropped from the desktop become Image elements. */
+  upload?: (file: File) => Promise<EditorMedia>;
   /** The page has no unsaved changes (after a save): the canvas may be drawn again. */
   saved?: boolean;
   /** The entry's title, shown live in the theme's title (renamed from the top bar). */
@@ -319,9 +325,29 @@ export function Canvas({
     const siteKit = doc.querySelector<HTMLStyleElement>('style#fr-kit');
     if (siteKit?.textContent) siteKit.textContent = editorKitCss(siteKit.textContent);
     doc.documentElement.classList.add('fr-editing');
+    // Safe mode: the theme's and other plugins' styles are off (Fresco's stay).
+    if (store.get().safeMode) {
+      disableForeignStyles(doc);
+      doc.documentElement.classList.add('fre-safe-mode');
+    }
     api.current = { frame: frameRef.current, doc, root };
     setMount({ doc, root });
   };
+
+  // Image files dropped from the desktop (to the media library, then Image elements).
+  const uploadRef = useRef(upload);
+  uploadRef.current = upload;
+  useEffect(() => {
+    if (!mount) return;
+    return attachFileDrop(mount.doc, mount.root, store, {
+      upload: (file) =>
+        uploadRef.current
+          ? uploadRef.current(file)
+          : Promise.reject(new Error(t('The media library is not available here.'))),
+      notify,
+      showDropLine,
+    });
+  }, [mount, store]);
 
   // The theme's title follows the one typed in the top bar.
   const titleSelector = useStore(store, (s) => s.kit.titleSelector);
@@ -653,6 +679,7 @@ function FrameTree({
 }) {
   const blocks = useStore(store, (s) => s.blocks);
   const readOnly = useStore(store, (s) => s.readOnly);
+  const safeMode = useStore(store, (s) => s.safeMode);
   const active = useStore(store, (s) => s.active);
   const adding = useStore(store, (s) => s.adding);
   // Elements edited inline are mounted again after the edit (their DOM was changed by hand).
@@ -669,7 +696,13 @@ function FrameTree({
     site,
     ...(previewPage ? { page: previewPage } : {}),
     ui: { active: (id) => active[id] },
-    pluginBlock: (block) => <PluginBlockPreview block={block} entry={entry} />,
+    // Safe mode: other plugins' blocks are not drawn (their settings stay).
+    pluginBlock: (block) =>
+      safeMode ? (
+        <div className="fre-unknown">{t('{block}: off in Safe mode.', { block: block.type })}</div>
+      ) : (
+        <PluginBlockPreview block={block} entry={entry} />
+      ),
   };
 
   const elementAt = (target: EventTarget | null) =>

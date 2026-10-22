@@ -7,6 +7,7 @@ import { api as coreApi, useT, type EditorHost } from '@cleitext/admin-sdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FrescoNode } from '../core/model.js';
 import { getElement, listElements } from '../core/registry.js';
+import { offered } from './availability.js';
 import { Svg } from './controls.js';
 import { confirmAction } from './dialogs.js';
 import type { Store } from './store.js';
@@ -200,8 +201,9 @@ export function Finder({
       icon: PAGE_ICON,
       run: () => leave(() => navigate(`/entries/${found.id}`), found.title || t('(no title)')),
     }));
+    const { disabledElements, safeMode } = store.get();
     const toAdd: Result[] = listElements()
-      .filter((e) => !e.hidden)
+      .filter((e) => offered(e, { disabled: disabledElements, safeMode }))
       .map((element) => ({
         group: t('Add element'),
         title: t(element.title),

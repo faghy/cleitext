@@ -33,7 +33,9 @@ Le icone sopra la pagina passano tra i **dispositivi**: desktop, tablet e mobile
 
 ## Widget (Fresco)
 
-Titolo, Testo, Immagine, Pulsante, Video, Divisore, Spaziatore, Icona, Box con icona, Box con immagine, Elenco con icone, Contatore, Barra di avanzamento, Testimonianza, Schede, Fisarmonica, Interruttore, Icone social, Avviso, Valutazione a stelle, HTML, Àncora di menu, Google Maps, Testo su tracciato, Carosello di immagini, Galleria (con lightbox), SoundCloud e Menu di navigazione.
+Titolo, Testo, Immagine, Pulsante, Video, Divisore, Spaziatore, Icona, Box con icona, Box con immagine, Elenco con icone, Contatore, Barra di avanzamento, Testimonianza, Schede, Fisarmonica, Interruttore, Icone social, Avviso, Valutazione a stelle, HTML, Àncora di menu, Google Maps, Testo su tracciato, Carosello di immagini, Galleria (con lightbox), SoundCloud, Menu di navigazione, Pulsanti flottanti (WhatsApp, telefono, SMS, email, Telegram, Messenger e altri, tutti visibili, aperti da un solo pulsante o come riquadro chat) e Link in bio (con immagine di copertina facoltativa).
+
+**Immagini dal desktop**: trascina file di immagine dal computer sulla pagina nell'editor. Vanno nella libreria media e diventano elementi Immagine dove li rilasci; rilasciane uno su un elemento Immagine per sostituirne l'immagine.
 
 Schede, fisarmoniche e interruttori contengono contenitori, quindi dentro può andare qualunque cosa.
 
@@ -57,7 +59,7 @@ Gli elementi atomici (Flexbox, Griglia, Div, Titolo, Paragrafo, Pulsante, Immagi
 
 ## Modelli
 
-**Modelli** salva una sezione o una pagina intera per riusarla, e importa o esporta file `.fresco.json` per spostare i design tra siti.
+**Modelli** salva una sezione o una pagina intera per riusarla, e importa o esporta file `.fresco.json` per spostare i design tra siti. Puoi cercarli per nome, vederne l'anteprima alla larghezza di un desktop, di un tablet o di un telefono prima di inserirli, rinominarli ed eliminarli, nell'editor (Ctrl/⌘+Maiusc+L) o in **Fresco → Modelli**.
 
 ## Il menu di Fresco
 
@@ -65,6 +67,8 @@ Oltre alla panoramica e a **Modelli**, il menu **Fresco** dell'amministrazione h
 
 - **Impostazioni del sito**: apre l'editor sul pannello delle impostazioni del sito, anche prima di aver fatto una pagina con Fresco (viene creata una pagina in bozza apposta).
 - **Strumenti**: **Rigenera il CSS** (quando una pagina appare sbagliata dopo un aggiornamento), **Sostituisci URL** (dopo aver spostato il sito su un nuovo indirizzo o su HTTPS: conta il vecchio indirizzo in ogni pagina e modello di Fresco, poi lo sostituisce; le revisioni precedenti restano) e le versioni di Cleitext, Fresco e Fresco Pro.
+- **Gestione elementi**: tutti gli elementi dell'editor, con quanto il sito li usa (contato quando lo chiedi). Disattiva quelli che non ti servono: escono dal pannello dell'editor, e le pagine che li hanno continuano a mostrarli.
+- **Modalità sicura** (in **Strumenti**, o nel menu Fresco dell'editor): apre una pagina nell'editor con i blocchi degli altri plugin e gli stili del tema e degli altri plugin disattivati. Se lì il problema sparisce, la causa è uno di questi. Una barra sopra il canvas permette di uscirne.
 - **Informazioni di sistema**: versioni, server, sito, tema e plugin attivi, con un pulsante che li copia per una richiesta di assistenza.
 
 ## Assistenti IA
@@ -137,7 +141,7 @@ Il widget **Accesso** fa entrare i visitatori sul sito stesso, codici a due fatt
 
 ### Widget Pro
 
-Titolo animato, Tabella prezzi, Listino prezzi, Flip box, Call to action, Conto alla rovescia (verso una data, o per visitatore), Citazione, Indice, Pulsanti di condivisione, Codice evidenziato, Hotspot, Avanzamento di lettura, Slide, Carosello media, Carosello di testimonianze, Recensioni, Playlist video, Lottie, Contenuti Facebook (caricati dopo il consenso), Pulsanti flottanti, Link in bio, Pulsanti PayPal e Stripe, Mega menu, Off-canvas (si apre con un link a `#offcanvas-<nome>`), Carosello annidato, Modello, Modulo e Accesso.
+Titolo animato, Tabella prezzi, Listino prezzi, Flip box, Call to action, Conto alla rovescia (verso una data, o per visitatore), Citazione, Indice, Pulsanti di condivisione, Codice evidenziato, Hotspot, Avanzamento di lettura, Slide, Carosello media, Carosello di testimonianze, Recensioni, Playlist video, Lottie, Contenuti Facebook (caricati dopo il consenso), Pulsanti PayPal e Stripe, Mega menu, Off-canvas (si apre con un link a `#offcanvas-<nome>`), Carosello annidato, Modello, Modulo e Accesso.
 
 **Widget globali**: clic destro su un elemento → **Save as global widget**. Diventa un modello Sezione mostrato da un elemento Modello: cambi il modello e cambiano tutte le copie.
 

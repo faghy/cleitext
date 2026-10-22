@@ -20,6 +20,7 @@ import { eq } from 'drizzle-orm';
 import { orderDetail } from './order-admin';
 import { orderMail, registerOrderRoutes } from './orders-routes';
 import { productTags, registerBuyBox } from './buy-box';
+import { registerPublicApi } from './public-api';
 import { registerStorefront, type StoreSettings } from './storefront';
 import { COUNTRIES } from './address';
 import { registerAccount } from './account';
@@ -327,6 +328,16 @@ export default definePlugin({
       return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
     });
     registerPrivacy(ctx);
+    // Products' data for other plugins (page builders' product widgets and tags).
+    registerPublicApi(ctx, async (siteId) => {
+      const values = await ctx.settings.get(siteId);
+      return {
+        currency: String(values.currency ?? 'EUR'),
+        lowStock: Number(values.lowStock ?? 2),
+        weightUnit: String(values.weightUnit ?? 'kg'),
+        dimensionUnit: String(values.dimensionUnit ?? 'cm'),
+      };
+    });
     // Once per site: products translated before the shop kept groups share their data.
     ctx.schedule.every('group-translations', 5, async (siteId) => {
       if (await ctx.storage.get(siteId, GROUPED)) return;

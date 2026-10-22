@@ -12,6 +12,7 @@ import {
   ToolsPage,
 } from './admin-pages.js';
 import { AdminDialogs, askText, confirmAction, notify } from './admin-dialogs.js';
+import { ElementManagerPage } from './admin-elements.js';
 import { registerFreeElements } from './elements/index.js';
 import { fromBlocks, toBlocks } from './core/convert.js';
 import { FrescoEditor } from './editor/editor.js';
@@ -72,6 +73,13 @@ export default defineAdminPlugin({
       title: { en: 'Tools', it: 'Strumenti' },
       capability: 'manage_fresco',
       component: ToolsPage,
+    },
+    {
+      path: 'element-manager',
+      parent: '',
+      title: { en: 'Element manager', it: 'Gestione elementi' },
+      capability: 'manage_fresco',
+      component: ElementManagerPage,
     },
     {
       path: 'system-info',

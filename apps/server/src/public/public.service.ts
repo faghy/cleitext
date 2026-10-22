@@ -94,6 +94,7 @@ import { verifySameOrigin } from '../auth/auth.guard.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { routeRequest, sendRouteResponse, setPluginCookies } from '../plugins/plugin-routes.js';
 import { pluginPageBlock } from './plugin-page.js';
+import { pluginBlockInstances } from './block-instances.js';
 import { pluginAssetUrl } from '../plugins/plugin-assets.js';
 import { verifyPreviewToken } from './preview.js';
 import { themeFor } from './themes.js';
@@ -2102,14 +2103,9 @@ export class PublicService {
       ),
     );
     if (definitions.size === 0) return undefined;
-    const found = new Map<string, CxdBlock>();
-    const walk = (blocks: CxdBlock[]) => {
-      for (const block of blocks) {
-        if (definitions.has(block.type)) found.set(block.id, block);
-        if (block.children) walk(block.children);
-      }
-    };
-    for (const document of documents) walk(document.blocks);
+    // One instance per block: twins with one id in two documents get their own (block-instances.ts).
+    const { instances, resolve } = pluginBlockInstances(documents, (type) => definitions.has(type));
+    const found = new Map<string, CxdBlock>(instances.map((block) => [block.id, block]));
     if (found.size === 0) return undefined;
 
     const attrsOf = (instance: CxdBlock) => {
@@ -2268,7 +2264,8 @@ export class PublicService {
     );
     if (css.length > 0) (scope.blockCss ??= []).push(...css);
 
-    const renderer: BlockRenderer = ({ block: instance, children }) => {
+    const renderer: BlockRenderer = ({ block: original, children }) => {
+      const instance = resolve(original);
       const { plugin, block } = definitions.get(instance.type)!;
       if (!inPage(block)) {
         const html = markup.get(instance.id);

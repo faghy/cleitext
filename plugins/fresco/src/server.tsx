@@ -25,6 +25,7 @@ import { isVisible, resetExtensions, resolveSettings } from './core/extensions.j
 import { listElements } from './core/registry.js';
 import { registerFreeElements } from './elements/index.js';
 import { frescoEntries, registerTools } from './tools.js';
+import { registerElementManager } from './element-manager.js';
 import icons from './public/icons.json';
 
 const KIT_KEY = 'kit';
@@ -287,6 +288,9 @@ export default definePlugin({
         await ctx.cache.invalidate(siteId, [KIT_TAG]);
       },
     });
+
+    // The Element manager: usage of each element, and those the editor's panel no longer offers.
+    registerElementManager(ctx);
 
     // Imports (plugin API 1.28): site settings converted from another builder join the kit.
     ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data }) => {

@@ -633,6 +633,35 @@ register('menu', (root) => {
   });
 });
 
+/**
+ * Floating buttons: shown after their delay, fixed to the window (out of any
+ * transformed parent), and the button opening the others or the chat box.
+ */
+register('floating-buttons', (root) => {
+  const box = root.querySelector<HTMLElement>('.fr-fab');
+  if (!box) return;
+  const delay = Number(root.dataset.frFabDelay) || 0;
+  if (delay > 0) setTimeout(() => (box.hidden = false), Math.min(delay, 120) * 1000);
+  document.body.append(root);
+  const toggle = box.querySelector<HTMLButtonElement>('.fr-fab__toggle');
+  const panel = document.getElementById(toggle?.getAttribute('aria-controls') ?? '');
+  const set = (open: boolean) => {
+    toggle?.setAttribute('aria-expanded', String(open));
+    if (panel) panel.hidden = !open;
+  };
+  toggle?.addEventListener('click', () => set(toggle.getAttribute('aria-expanded') !== 'true'));
+  box.querySelector('[data-fr-fab-close]')?.addEventListener('click', () => {
+    set(false);
+    toggle?.focus();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && toggle?.getAttribute('aria-expanded') === 'true') {
+      set(false);
+      toggle.focus();
+    }
+  });
+});
+
 /** Background slideshows of containers: one image at a time, with an optional Ken Burns zoom. */
 register('bg-slideshow', (root) => {
   const slides = [...root.children] as HTMLElement[];

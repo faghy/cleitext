@@ -56,6 +56,32 @@ export interface Extensions {
    * with a chosen entry); the first one giving a page wins, none: no page.
    */
   previewPages: PreviewPage[];
+  /**
+   * Editor: more places templates come from, shown beside the site's own in
+   * Templates (a remote library of blocks and pages). None yet: the hook is
+   * ready for one.
+   */
+  librarySources: LibrarySource[];
+}
+
+/** A template offered by a library source. */
+export interface LibraryItem {
+  id: string;
+  title: string;
+  kind: 'page' | 'section';
+  /** A picture of it, if the source has one. */
+  thumbnail?: string;
+}
+
+/** A place templates come from, other than the site's own (Templates in the editor). */
+export interface LibrarySource {
+  id: string;
+  /** In English: the editor translates it. */
+  title: string;
+  /** Its templates, found by words of their title. */
+  list(query: { search: string; kind: 'all' | 'page' | 'section' }): Promise<LibraryItem[]>;
+  /** A template's elements, to insert (they get new ids) or preview. */
+  load(id: string): Promise<FrescoNode[]>;
 }
 
 /** What a preview page provider gets: the document being edited and the site. */
@@ -148,11 +174,13 @@ export function extensions(): Extensions {
     siteSettings: [],
     globalWidgets: [],
     previewPages: [],
+    librarySources: [],
   });
   // Lists added after the object was made (another copy of Fresco loaded first).
   all.siteSettings ??= [];
   all.globalWidgets ??= [];
   all.previewPages ??= [];
+  all.librarySources ??= [];
   return all;
 }
 

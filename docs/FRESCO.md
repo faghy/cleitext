@@ -33,7 +33,9 @@ The icons above the page switch between **devices**: desktop, tablet and mobile,
 
 ## Widgets (Fresco)
 
-Heading, Text, Image, Button, Video, Divider, Spacer, Icon, Icon box, Image box, Icon list, Counter, Progress bar, Testimonial, Tabs, Accordion, Toggle, Social icons, Alert, Star rating, HTML, Menu anchor, Google Maps, Text path, Image carousel, Image gallery (with lightbox), SoundCloud and Navigation menu.
+Heading, Text, Image, Button, Video, Divider, Spacer, Icon, Icon box, Image box, Icon list, Counter, Progress bar, Testimonial, Tabs, Accordion, Toggle, Social icons, Alert, Star rating, HTML, Menu anchor, Google Maps, Text path, Image carousel, Image gallery (with lightbox), SoundCloud, Navigation menu, Floating buttons (WhatsApp, phone, SMS, email, Telegram, Messenger and more, shown together, from one button or as a chat box) and Link in bio (with an optional cover picture).
+
+**Images from the desktop**: drag image files from your computer onto the page in the editor. They go to the media library and become Image elements where you drop them; drop one on an Image element to replace its picture.
 
 Tabs, accordions and toggles hold containers, so anything can go inside them.
 
@@ -57,7 +59,7 @@ Atomic elements (Flexbox, Grid, Div, Heading, Paragraph, Button, Image, SVG, Div
 
 ## Templates
 
-**Templates** saves a section or a whole page to reuse it, and imports or exports `.fresco.json` files to move designs between sites.
+**Templates** saves a section or a whole page to reuse it, and imports or exports `.fresco.json` files to move designs between sites. Search them by name, preview them at the width of a desktop, a tablet or a phone before inserting them, rename and delete them, in the editor (Ctrl/⌘+Shift+L) or in **Fresco → Templates**.
 
 ## Fresco's menu
 
@@ -65,6 +67,8 @@ Besides the overview and **Templates**, the **Fresco** menu of the admin has (fo
 
 - **Site settings**: opens the editor on its Site settings panel, also before any page is made with Fresco (a draft page is made for it).
 - **Tools**: **Regenerate CSS** (when a page looks wrong after an update), **Replace URL** (after moving the site to a new address or to HTTPS: counts the old address in every Fresco page and template, then replaces it; earlier revisions stay) and the versions of Cleitext, Fresco and Fresco Pro.
+- **Element manager**: every element of the editor with how much the site uses it (counted when you ask). Switch off those you do not need: they leave the editor's panel, and pages that have them keep showing them.
+- **Safe mode** (in **Tools**, or in the editor's Fresco menu): opens a page in the editor with other plugins' blocks and the styles of the theme and of other plugins switched off. If a problem goes away there, one of them causes it. A bar over the canvas leaves Safe mode.
 - **System info**: versions, server, site, active theme and plugins, with a button that copies them for a support request.
 
 ## AI assistants
@@ -137,7 +141,7 @@ The **Login** widget signs visitors in on the site itself, two-factor codes incl
 
 ### Pro widgets
 
-Animated headline, Price table, Price list, Flip box, Call to action, Countdown (to a date, or per visitor), Blockquote, Table of contents, Share buttons, Code highlight, Hotspot, Progress tracker, Slides, Media carousel, Testimonial carousel, Reviews, Video playlist, Lottie, Facebook embeds (loaded after consent), Floating buttons, Link in bio, PayPal and Stripe buttons, Mega menu, Off-canvas (open with a link to `#offcanvas-<name>`), Nested carousel, Template, Form and Login.
+Animated headline, Price table, Price list, Flip box, Call to action, Countdown (to a date, or per visitor), Blockquote, Table of contents, Share buttons, Code highlight, Hotspot, Progress tracker, Slides, Media carousel, Testimonial carousel, Reviews, Video playlist, Lottie, Facebook embeds (loaded after consent), PayPal and Stripe buttons, Mega menu, Off-canvas (open with a link to `#offcanvas-<name>`), Nested carousel, Template, Form and Login.
 
 **Global widgets**: right-click an element → **Save as global widget**. It becomes a section template shown by a Template element: change the template and every copy changes.
 

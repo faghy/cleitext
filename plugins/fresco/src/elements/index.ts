@@ -3,6 +3,7 @@ import { registerElement } from '../core/registry.js';
 import type { ElementDefinition } from '../core/model.js';
 import { button, divider, heading, image, spacer, text } from './basic.js';
 import { ATOMIC_ELEMENTS } from './atomic.js';
+import { floatingButtons, linkInBio } from './contact.js';
 import { container } from './container.js';
 import { navMenu } from './menu.js';
 import { pluginBlock } from './plugin-block.js';
@@ -45,6 +46,8 @@ export const FREE_ELEMENTS: ElementDefinition[] = [
   accordionWidget,
   toggleWidget,
   socialIcons,
+  floatingButtons,
+  linkInBio,
   alert,
   starRating,
   html,

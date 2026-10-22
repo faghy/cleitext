@@ -60,6 +60,13 @@ export interface EditorState {
   globalEdit: { id: string; title: string; node: FrescoNode; editId: string } | null;
   /** The user's preferences (theme, exit, favorites…). */
   prefs: Preferences;
+  /** Elements switched off in the Element manager: not offered in the panel. */
+  disabledElements: string[];
+  /**
+   * Safe mode, for troubleshooting: other plugins' blocks and the styles of
+   * the theme and of other plugins are off in the editor.
+   */
+  safeMode: boolean;
 }
 
 interface Snapshot {
@@ -154,6 +161,7 @@ export function createStore(initial: {
   readOnly: boolean;
   contentOnly?: boolean;
   entry?: { id: string; type: string; locale: string };
+  safeMode?: boolean;
 }) {
   let state: EditorState = {
     blocks: initial.blocks,
@@ -179,6 +187,8 @@ export function createStore(initial: {
     sitePending: {},
     globalEdit: null,
     prefs: storedPrefs(),
+    disabledElements: [],
+    safeMode: initial.safeMode === true,
   };
   const past: Snapshot[] = [];
   const future: Snapshot[] = [];
@@ -378,6 +388,10 @@ export function createStore(initial: {
       } catch {
         // Private mode: kept until the page closes.
       }
+    },
+    /** The elements switched off in the Element manager. */
+    setDisabledElements(types: string[]) {
+      set({ disabledElements: types });
     },
     /** Opens Site settings at a panel ('' for the menu). */
     openSite(section = '') {

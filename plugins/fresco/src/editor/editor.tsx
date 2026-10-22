@@ -54,6 +54,8 @@ import { Finder, ShortcutsDialog } from './finder.js';
 import { askText, confirmAction, Dialogs, notify } from './dialogs.js';
 import './i18n.js';
 import { nextDevice } from './frame-css.js';
+import { leaveSafeMode, normalizeElementManager, readSafeMode } from './availability.js';
+import { hasFiles } from './file-drop.js';
 
 export { clampPanelWidth, PANEL_WIDTH };
 
@@ -108,6 +110,7 @@ export function FrescoEditor(props: EditorProps) {
         readOnly: readOnly || access === 'none',
         contentOnly: access === 'content',
         entry: { id: props.entry.id, type: props.entry.type, locale: props.entry.locale },
+        safeMode: readSafeMode(),
       }),
     // The editor is mounted again when the document is replaced from outside.
     [],
@@ -146,6 +149,7 @@ export function FrescoEditor(props: EditorProps) {
   const theme = useStore(store, (s) => s.prefs.theme);
   const dark = useSystemDark(theme === 'auto') ? isDark(theme, true) : isDark(theme, false);
   const globalEdit = useStore(store, (s) => s.globalEdit);
+  const safeMode = useStore(store, (s) => s.safeMode);
   const [finder, setFinder] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
   const [panelHidden, setPanelHidden] = useState(false);
@@ -215,9 +219,14 @@ export function FrescoEditor(props: EditorProps) {
         ),
       )
       .catch(() => {});
-    // Blocks of the other plugins, offered in the panel.
-    void loadPluginBlocks(props.entry.locale)
-      .then(() => setPluginBlocks((n) => n + 1))
+    // Blocks of the other plugins, offered in the panel (not in Safe mode).
+    if (!store.get().safeMode)
+      void loadPluginBlocks(props.entry.locale)
+        .then(() => setPluginBlocks((n) => n + 1))
+        .catch(() => {});
+    // Elements switched off in the Element manager.
+    void api<unknown>('GET', '/element-manager')
+      .then((value) => store.actions.setDisabledElements(normalizeElementManager(value).disabled))
       .catch(() => {});
     void api<unknown>('GET', '/kit')
       .then((kit) => store.actions.setKit(normalizeKit(kit), false))
@@ -238,6 +247,21 @@ export function FrescoEditor(props: EditorProps) {
         prefsLoaded.current = true;
       });
     // Once: `api` is a new function on every render of the host.
+  }, []);
+
+  // A file dropped beside the canvas never opens in the browser (the editor would be left).
+  useEffect(() => {
+    const stop = (event: DragEvent) => {
+      if (!hasFiles(event.dataTransfer)) return;
+      if ((event.target as HTMLElement | null)?.closest?.('input[type=file]')) return;
+      event.preventDefault();
+    };
+    window.addEventListener('dragover', stop);
+    window.addEventListener('drop', stop);
+    return () => {
+      window.removeEventListener('dragover', stop);
+      window.removeEventListener('drop', stop);
+    };
   }, []);
 
   // A panel asked by the address (`#fresco-site` from Fresco's overview page).
@@ -671,6 +695,7 @@ export function FrescoEditor(props: EditorProps) {
             <PanelResizer width={panelWidth} onChange={setPanelWidth} />
           </aside>
           <main className="fre-main">
+            {safeMode && <SafeModeBar />}
             {globalEdit && <GlobalEditBar store={store} />}
             <button
               type="button"
@@ -690,6 +715,7 @@ export function FrescoEditor(props: EditorProps) {
               api={canvas}
               title={host.title}
               saved={!host.dirty && !host.busy}
+              upload={readOnly ? undefined : media.upload}
             />
           </main>
           {/* Floating over the canvas, or docked to the right edge beside it. */}
@@ -746,6 +772,7 @@ export function FrescoEditor(props: EditorProps) {
           context={{ media: mediaMap, locale: props.entry.locale, menus }}
           onContextMenu={(id, position) => setMenu({ id, ...position })}
           api={canvas}
+          upload={readOnly ? undefined : media.upload}
         />
       </main>
       {menu && (
@@ -757,6 +784,31 @@ export function FrescoEditor(props: EditorProps) {
         />
       )}
       <Dialogs />
+    </div>
+  );
+}
+
+/** Says the editor is in Safe mode, with the way out (the editor opens again). */
+function SafeModeBar() {
+  const { t } = useT();
+  return (
+    <div className="fre-safebar" role="status">
+      <strong>{t('Safe mode')}</strong>
+      <span>
+        {t(
+          'Other plugins’ blocks and the styles of the theme and of other plugins are off in the editor. If the problem is gone, one of them causes it.',
+        )}
+      </span>
+      <button
+        type="button"
+        className="fre-button"
+        onClick={() => {
+          leaveSafeMode();
+          window.location.reload();
+        }}
+      >
+        {t('Leave Safe mode')}
+      </button>
     </div>
   );
 }
