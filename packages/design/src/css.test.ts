@@ -190,3 +190,85 @@ describe('dictionaries and patterns', () => {
     expect(css(pattern, { tracks: 'auto' })).toBe('.x{grid-template-columns:auto}');
   });
 });
+
+describe('background groups: custom position and size, gradients per device', () => {
+  const background = {
+    name: 'bg',
+    type: 'background',
+    label: 'Background',
+    tab: 'style',
+    section: 'Background',
+    selector: '.x',
+  } as Control;
+  const css = (attrs: Record<string, unknown>) =>
+    printSheet(settingsSheet([background], attrs, attrs, '.x'), DEFAULT_BREAKPOINTS);
+
+  it('writes X and Y positions and a width instead of "custom"', () => {
+    expect(
+      css({
+        bg_type: 'classic',
+        bg_position: 'custom',
+        bg_xpos: { size: 10, unit: 'px' },
+        bg_ypos: { size: 50, unit: '%' },
+        'bg_xpos@mobile': { size: 0, unit: 'px' },
+        bg_size: 'custom',
+        bg_bg_width: { size: 40, unit: '%' },
+      }),
+    ).toBe(
+      '.x{background-position-x:10px;background-position-y:50%;background-size:40% auto}@media (max-width:767px){.x{background-position-x:0px}}',
+    );
+    // A keyword position on a device: no X and Y there.
+    expect(
+      css({
+        bg_type: 'classic',
+        'bg_position@tablet': 'left top',
+        'bg_xpos@tablet': { size: 5, unit: 'px' },
+      }),
+    ).toBe('@media (max-width:1024px){.x{background-position:left top}}');
+  });
+
+  it('writes a device’s gradient from its own values and the larger devices’', () => {
+    expect(
+      css({
+        bg_type: 'gradient',
+        bg_color: '#000',
+        bg_color_b: '#fff',
+        bg_angle: { size: 90, unit: 'deg' },
+        'bg_stop@tablet': { size: 20, unit: '%' },
+        'bg_angle@mobile': { size: 0, unit: 'deg' },
+      }),
+    ).toBe(
+      '.x{background-image:linear-gradient(90deg, #000 0%, #fff 100%)}' +
+        '@media (max-width:1024px){.x{background-image:linear-gradient(90deg, #000 20%, #fff 100%)}}' +
+        '@media (max-width:767px){.x{background-image:linear-gradient(0deg, #000 20%, #fff 100%)}}',
+    );
+    expect(
+      css({
+        bg_type: 'gradient',
+        bg_gradient: 'radial',
+        'bg_gradient_position@mobile': 'top left',
+      }),
+    ).toContain('@media (max-width:767px){.x{background-image:radial-gradient(at top left,');
+  });
+});
+
+describe('conditions', () => {
+  it('negates a condition whose key ends in "!"', () => {
+    const control = {
+      name: 'c',
+      type: 'color',
+      label: 'C',
+      tab: 'style',
+      section: 'S',
+      condition: { 'icon!': [undefined, ''] },
+      selectors: { '.x': 'color: {{value}}' },
+    } as Control;
+    expect(
+      printSheet(settingsSheet([control], { c: '#000' }, { c: '#000' }, '.x'), DEFAULT_BREAKPOINTS),
+    ).toBe('');
+    const set = { c: '#000', icon: 'star' };
+    expect(printSheet(settingsSheet([control], set, set, '.x'), DEFAULT_BREAKPOINTS)).toBe(
+      '.x{color:#000}',
+    );
+  });
+});

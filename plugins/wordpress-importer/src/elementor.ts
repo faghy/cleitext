@@ -24,6 +24,7 @@ import {
   evenBox,
   fa4Icon,
   hasLineHeight,
+  isColor,
   icon,
   itemLink,
   link,
@@ -150,6 +151,29 @@ export const ANIMATIONS: Record<string, string> = {
 
 const HEADING_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'p']);
 
+const BLEND_MODES = new Set([
+  'multiply',
+  'screen',
+  'overlay',
+  'darken',
+  'lighten',
+  'color-dodge',
+  'saturation',
+  'color',
+  'difference',
+  'exclusion',
+  'hue',
+  'luminosity',
+]);
+
+/** Elementor's logical positions (nested tabs) → Fresco's sides. */
+const SIDES: Record<string, string> = {
+  'block-start': 'top',
+  'block-end': 'bottom',
+  'inline-start': 'left',
+  'inline-end': 'right',
+};
+
 /** Inline HTML of a title (headings keep plain text with line breaks). */
 export function plainTitle(html: string): { text: string; formatted: boolean } {
   const formatted = /<(strong|b|em|i|span|a|u|mark|sup|sub|font)\b/i.test(html);
@@ -216,27 +240,118 @@ function background(c: Converter, out: Settings, src: Settings, from: string, to
   color(out, src, `${from}_color`, `${to}_color`);
   if (type === 'classic') {
     copy(out, src, `${from}_image`, `${to}_image`, (v) => c.media(v));
+    // "Custom" (Elementor's `initial`): X and Y positions, and a width.
     copy(out, src, `${from}_position`, `${to}_position`, (v) =>
-      str(v) && str(v) !== 'initial' ? str(v).replace(/-/g, ' ') : undefined,
+      str(v) === 'initial' ? 'custom' : str(v) ? str(v).replace(/-/g, ' ') : undefined,
     );
+    copy(out, src, `${from}_xpos`, `${to}_xpos`, (v) => size(v));
+    copy(out, src, `${from}_ypos`, `${to}_ypos`, (v) => size(v));
     copy(out, src, `${from}_repeat`, `${to}_repeat`);
     copy(out, src, `${from}_size`, `${to}_size`, (v) =>
-      str(v) && str(v) !== 'initial' ? str(v) : undefined,
+      str(v) === 'initial' ? 'custom' : str(v) || undefined,
     );
+    copy(out, src, `${from}_bg_width`, `${to}_bg_width`, (v) => size(v));
     if (str(src[`${from}_attachment`])) out[`${to}_attachment`] = str(src[`${from}_attachment`]);
   } else {
     color(out, src, `${from}_color_b`, `${to}_color_b`);
     // Elementor's default second color.
     if (!out[`${to}_color_b`]) out[`${to}_color_b`] = '#f2295b';
-    const stop = size(src[`${from}_color_stop`]);
-    if (stop) out[`${to}_stop`] = stop;
-    const stopB = size(src[`${from}_color_b_stop`]);
-    if (stopB) out[`${to}_stop_b`] = stopB;
+    // Locations, angle and radial position: per device.
+    copy(out, src, `${from}_color_stop`, `${to}_stop`, (v) => size(v));
+    copy(out, src, `${from}_color_b_stop`, `${to}_stop_b`, (v) => size(v));
     if (src[`${from}_gradient_type`] === 'radial') out[`${to}_gradient`] = 'radial';
-    const angle = size(src[`${from}_gradient_angle`]);
-    if (angle) out[`${to}_angle`] = angle;
+    copy(out, src, `${from}_gradient_angle`, `${to}_angle`, (v) => size(v));
+    copy(out, src, `${from}_gradient_position`, `${to}_gradient_position`, (v) =>
+      /^(center|top|bottom) (center|left|right)$/.test(str(v)) ? str(v) : undefined,
+    );
   }
   return type;
+}
+
+/** Elementor's Text Shadow group (`<name>_text_shadow_type`) → Fresco's. */
+function textShadow(out: Settings, src: Settings, from: string, to: string): void {
+  if (src[`${from}_text_shadow_type`] !== 'yes') return;
+  const v = asSettings(src[`${from}_text_shadow`]);
+  const shadowColor = str(v.color);
+  out[to] = {
+    x: num(v.horizontal) ?? 0,
+    y: num(v.vertical) ?? 0,
+    blur: num(v.blur) ?? 10,
+    color: isColor(shadowColor) ? shadowColor : 'rgba(0,0,0,0.3)',
+  };
+}
+
+/** Elementor's Text Stroke group → Fresco's width (`to`, per device) and color (`to_color`). */
+function textStroke(out: Settings, src: Settings, from: string, to: string): void {
+  if (src[`${from}_text_stroke_type`] !== 'yes') return;
+  copy(out, src, `${from}_text_stroke`, to, (v) => size(v));
+  color(out, src, `${from}_stroke_color`, `${to}_color`);
+  // Elementor's default stroke color.
+  if (!out[`${to}_color`]) out[`${to}_color`] = '#000';
+}
+
+/** Elementor's CSS Filters group (`<name>_css_filter: custom`) → Fresco's filters group. */
+function cssFilters(out: Settings, src: Settings, from: string, to: string): void {
+  if (src[`${from}_css_filter`] !== 'custom') return;
+  const units: Record<string, string> = {
+    blur: 'px',
+    brightness: '%',
+    contrast: '%',
+    saturate: '%',
+    hue: 'deg',
+  };
+  for (const [part, unit] of Object.entries(units)) {
+    const n = num(asSettings(src[`${from}_${part}`]).size);
+    if (n !== null) out[`${to}_${part}`] = { size: n, unit };
+  }
+}
+
+/** Elementor's hover animations: all of them have a Fresco counterpart of the same name. */
+const HOVER_ANIMATIONS = new Set([
+  'grow',
+  'shrink',
+  'pulse',
+  'pulse-grow',
+  'pulse-shrink',
+  'push',
+  'pop',
+  'bounce-in',
+  'bounce-out',
+  'rotate',
+  'grow-rotate',
+  'float',
+  'sink',
+  'bob',
+  'hang',
+  'skew',
+  'skew-forward',
+  'skew-backward',
+  'wobble-vertical',
+  'wobble-horizontal',
+  'wobble-to-bottom-right',
+  'wobble-to-top-right',
+  'wobble-top',
+  'wobble-bottom',
+  'wobble-skew',
+  'buzz',
+  'buzz-out',
+]);
+
+function hoverAnimation(out: Settings, src: Settings, from = 'hover_animation'): void {
+  if (HOVER_ANIMATIONS.has(str(src[from]))) out.hover_effect = str(src[from]);
+}
+
+/** A duration slider in seconds (Elementor's may be in ms). */
+const duration = (v: unknown) => {
+  const n = num(asSettings(v).size);
+  if (n === null) return undefined;
+  return { size: asSettings(v).unit === 'ms' ? n / 1000 : n, unit: 's' };
+};
+
+/** A background group's color only (Elementor's `<name>_color` with `<name>_background: classic`). */
+function groupColor(out: Settings, src: Settings, from: string, to: string): void {
+  const value = colorOf(src, `${from}_color`);
+  if (value && str(src[`${from}_background`]) !== 'gradient') out[to] = value;
 }
 
 function border(out: Settings, src: Settings, from: string, to: string): void {
@@ -559,8 +674,18 @@ function widgetCommon(c: Converter, out: Settings, src: Settings): void {
 
 function entrance(out: Settings, src: Settings, key: string, delayKey: string): void {
   const animation = ANIMATIONS[str(src[key])];
-  if (!animation) return;
-  out._animation = animation;
+  // Per device: its own animation, or none.
+  let devices = false;
+  for (const [suffix, target] of DEVICES.slice(1)) {
+    const value = str(src[`${key}${suffix}`]);
+    const own = value === 'none' ? 'none' : ANIMATIONS[value];
+    if (own) {
+      out[`_animation${target}`] = own;
+      devices ||= own !== 'none';
+    }
+  }
+  if (!animation && !devices) return;
+  if (animation) out._animation = animation;
   const delay = num(src[delayKey]);
   if (delay) out._animation_delay = delay;
   const duration = str(src.animation_duration);
@@ -687,21 +812,35 @@ function containerCommon(c: Converter, out: Settings, src: Settings): void {
     if (yes(src.background_slideshow_lazyload)) out.background_slideshow_lazyload = true;
   }
   background(c, out, src, 'background_hover', 'background_hover');
-  // Overlay: a plain color, or a gradient or an image (Fresco's overlay background), and its opacity.
+  // Overlay: a color, an image or a gradient (Fresco's overlay background), its
+  // opacity, CSS filters and blend mode, and the same on hover.
   const overlay = str(src.background_overlay_background);
   const overlayImage = str(asSettings(src.background_overlay_image).url);
-  if (overlay === 'gradient' || (overlay === 'classic' && overlayImage)) {
+  if (
+    overlay === 'gradient' ||
+    (overlay === 'classic' && (overlayImage || colorOf(src, 'background_overlay_color')))
+  ) {
     background(c, out, src, 'background_overlay', 'overlay_bg');
     const opacity = num(asSettings(src.background_overlay_opacity).size);
     out.overlay_opacity = { size: opacity ?? 0.5, unit: '' };
-  } else if (overlay === 'classic') {
-    const value = colorOf(src, 'background_overlay_color');
-    if (value) {
-      out.overlay_color = value;
-      const opacity = num(asSettings(src.background_overlay_opacity).size);
-      out.overlay_opacity = { size: opacity ?? 0.5, unit: '' };
-    }
   }
+  const hoverOverlay = str(src.background_overlay_hover_background);
+  if (hoverOverlay === 'classic' || hoverOverlay === 'gradient') {
+    background(c, out, src, 'background_overlay_hover', 'overlay_hover_bg');
+    const opacity = num(asSettings(src.background_overlay_hover_opacity).size);
+    out.overlay_hover_opacity = { size: opacity ?? 0.5, unit: '' };
+  }
+  cssFilters(out, src, 'css_filters', 'overlay_filters');
+  cssFilters(out, src, 'css_filters_hover', 'overlay_hover_filters');
+  if (BLEND_MODES.has(str(src.overlay_blend_mode))) out.overlay_blend = str(src.overlay_blend_mode);
+  copy(
+    out,
+    src,
+    'background_overlay_hover_transition',
+    'overlay_hover_transition',
+    duration,
+    false,
+  );
   border(out, src, 'border', 'border');
   const s = shadow(src, 'box_shadow');
   if (s) out.shadow = s;
@@ -723,6 +862,99 @@ function containerCommon(c: Converter, out: Settings, src: Settings): void {
   if (['left', 'center', 'right', 'justify'].includes(align))
     addCss(out, `selector{text-align:${align}}`);
   shapeDividers(c, out, src);
+}
+
+// ---- Nested tabs and accordion ------------------------------------------------------------------
+
+/** Elementor's nested tabs: direction, titles (normal, hover, active), icons and content box. */
+function nestedTabs(c: Converter, out: Settings, src: Settings): void {
+  copy(out, src, 'tabs_direction', 'tabs_direction', (v) => SIDES[str(v)]);
+  copy(out, src, 'tabs_width', 'tabs_width', (v) => size(v, c));
+  copy(out, src, 'title_alignment', 'title_align', (v) =>
+    ['start', 'center', 'end'].includes(str(v)) ? str(v) : undefined,
+  );
+  if (src.horizontal_scroll === 'enable') out.horizontal_scroll = true;
+  if (src.breakpoint_selector === 'none') out.mobile = 'tabs';
+  copy(out, src, 'tabs_title_space_between', 'title_gap', (v) => size(v, c));
+  copy(out, src, 'tabs_title_spacing', 'nav_gap', (v) => size(v, c));
+  groupColor(out, src, 'tabs_title_background_color', 'title_bg');
+  groupColor(out, src, 'tabs_title_background_color_hover', 'title_bg:hover');
+  groupColor(out, src, 'tabs_title_background_color_active', 'active_bg');
+  border(out, src, 'tabs_title_border', 'title_border');
+  border(out, src, 'tabs_title_border_hover', 'title_border_hover');
+  border(out, src, 'tabs_title_border_active', 'title_border_active');
+  copy(out, src, 'tabs_title_border_radius', 'title_border_radius', (v) => box(v, c));
+  for (const [from, to] of [
+    ['tabs_title_box_shadow', 'title_box_shadow'],
+    ['tabs_title_box_shadow_hover', 'title_box_shadow_hover'],
+    ['tabs_title_box_shadow_active', 'title_box_shadow_active'],
+  ] as const) {
+    const s = shadow(src, from);
+    if (s) out[to] = s;
+  }
+  copy(out, src, 'padding', 'title_padding', (v) => box(v, c));
+  c.typography(out, src, 'title_typography', 'title_typography');
+  color(out, src, 'title_text_color', 'title_color', 'title_text_color_hover');
+  color(out, src, 'title_text_color_active', 'active_color');
+  textShadow(out, src, 'title_text_shadow', 'title_text_shadow');
+  textShadow(out, src, 'title_text_shadow_hover', 'title_text_shadow_hover');
+  textShadow(out, src, 'title_text_shadow_active', 'title_text_shadow_active');
+  textStroke(out, src, 'title_text_stroke', 'title_stroke');
+  hoverAnimation(out, src);
+  copy(out, src, 'tabs_title_transition_duration', 'title_hover_transition', duration, false);
+  copy(out, src, 'icon_position', 'icon_position', (v) => SIDES[str(v)]);
+  copy(out, src, 'icon_size', 'icon_size', (v) => size(v, c));
+  copy(out, src, 'icon_spacing', 'icon_spacing', (v) => size(v, c));
+  color(out, src, 'icon_color', 'icon_color');
+  color(out, src, 'icon_color_hover', 'icon_hover_color');
+  color(out, src, 'icon_color_active', 'icon_active_color');
+  groupColor(out, src, 'box_background_color', 'panel_bg');
+  border(out, src, 'box_border', 'panel_border');
+  copy(out, src, 'box_border_radius', 'panel_border_radius', (v) => box(v, c));
+  const boxShadow = shadow(src, 'box_shadow_box_shadow');
+  if (boxShadow) out.panel_shadow = boxShadow;
+  copy(out, src, 'box_padding', 'panel_padding', (v) => box(v, c));
+}
+
+/** Elementor's nested accordion: items, title states (normal, hover, open), icons and content. */
+function nestedAccordion(c: Converter, out: Settings, src: Settings): void {
+  copy(out, src, 'accordion_item_title_position_horizontal', 'title_align', (v) =>
+    ['start', 'center', 'end', 'stretch'].includes(str(v)) ? str(v) : undefined,
+  );
+  if (src.accordion_item_title_icon_position === 'start') out.icon_position = 'start';
+  const expand = c.icon(src.accordion_item_title_icon);
+  if (expand) out.icon = expand;
+  const collapse = c.icon(src.accordion_item_title_icon_active);
+  if (collapse) out.icon_open = collapse;
+  if (HEADING_TAGS.has(str(src.title_tag))) out.title_tag = str(src.title_tag);
+  if (src.default_state === 'all_collapsed') out.open = 'none';
+  if (src.max_items_expended === 'multiple') out.multiple = true;
+  const ms = num(asSettings(src.n_accordion_animation_duration).size);
+  if (ms !== null)
+    out.animation_duration =
+      asSettings(src.n_accordion_animation_duration).unit === 's' ? ms * 1000 : ms;
+  copy(out, src, 'accordion_item_title_space_between', 'item_gap', (v) => size(v, c));
+  copy(out, src, 'accordion_padding', 'title_padding', (v) => box(v, c));
+  groupColor(out, src, 'accordion_background_normal', 'title_bg');
+  groupColor(out, src, 'accordion_background_hover', 'title_bg:hover');
+  groupColor(out, src, 'accordion_background_active', 'title_open_bg');
+  border(out, src, 'accordion_border_normal', 'title_border');
+  border(out, src, 'accordion_border_hover', 'title_border_hover');
+  border(out, src, 'accordion_border_active', 'title_border_open');
+  groupColor(out, src, 'content_background', 'content_bg');
+  border(out, src, 'content_border', 'content_border');
+  copy(out, src, 'content_padding', 'content_padding', (v) => box(v, c));
+  c.typography(out, src, 'title_typography', 'title_typography');
+  color(out, src, 'normal_title_color', 'title_color', 'hover_title_color');
+  color(out, src, 'active_title_color', 'title_open_color');
+  textShadow(out, src, 'title_normal_text_shadow', 'title_text_shadow');
+  textShadow(out, src, 'title_active_text_shadow', 'title_open_text_shadow');
+  textStroke(out, src, 'title_normal_stroke', 'title_stroke');
+  copy(out, src, 'icon_size', 'icon_size', (v) => size(v, c), false);
+  copy(out, src, 'icon_spacing', 'icon_spacing', (v) => size(v, c));
+  color(out, src, 'normal_icon_color', 'icon_color');
+  color(out, src, 'hover_icon_color', 'icon_hover_color');
+  color(out, src, 'active_icon_color', 'icon_open_color');
 }
 
 // ---- Conversion ------------------------------------------------------------------------------
@@ -849,6 +1081,16 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           else out.title_typography_line = { size: 1, unit: '' };
         }
         if (str(src.blend_mode)) out.blend = str(src.blend_mode);
+        textShadow(out, src, 'text_shadow', 'title_shadow');
+        textStroke(out, src, 'text_stroke', 'title_stroke');
+        copy(
+          out,
+          src,
+          'title_hover_color_transition_duration',
+          'title_hover_transition',
+          duration,
+          false,
+        );
         result = c.node('heading', out);
         break;
       }
@@ -863,6 +1105,34 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         if (num(src.text_columns)) out.columns = num(src.text_columns);
         copy(out, src, 'column_gap', 'column_gap', (v) => size(v, c));
         copy(out, src, 'paragraph_spacing', 'paragraph_spacing', (v) => size(v, c));
+        textShadow(out, src, 'text_shadow', 'text_shadow');
+        copy(
+          out,
+          src,
+          'link_hover_color_transition_duration',
+          'link_hover_transition',
+          duration,
+          false,
+        );
+        if (yes(src.drop_cap)) {
+          if (['stacked', 'framed'].includes(str(src.drop_cap_view)))
+            out.drop_cap_view = str(src.drop_cap_view);
+          color(out, src, 'drop_cap_primary_color', 'drop_cap_primary_color');
+          color(out, src, 'drop_cap_secondary_color', 'drop_cap_secondary_color');
+          copy(out, src, 'drop_cap_size', 'drop_cap_size', (v) => size(v, c), false);
+          copy(out, src, 'drop_cap_space', 'drop_cap_space', (v) => size(v, c), false);
+          copy(out, src, 'drop_cap_border_radius', 'drop_cap_radius', (v) => size(v, c), false);
+          copy(
+            out,
+            src,
+            'drop_cap_border_width',
+            'drop_cap_border_width',
+            (v) => size(v, c),
+            false,
+          );
+          c.typography(out, src, 'drop_cap_typography', 'drop_cap_typography');
+          textShadow(out, src, 'drop_cap_shadow', 'drop_cap_shadow');
+        }
         result = c.node('text', out);
         break;
       case 'image': {
@@ -888,20 +1158,36 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         if (src.caption_source === 'custom') {
           out.caption_source = 'custom';
           out.caption = str(src.caption);
-        } else if (src.caption_source === 'attachment') out.caption_source = 'alt';
+        } else if (src.caption_source === 'attachment') out.caption_source = 'attachment';
+        // The caption's look.
+        alignTo(out, src, 'caption_align', 'caption_align');
+        color(out, src, 'text_color', 'caption_color');
+        color(out, src, 'caption_background_color', 'caption_bg');
+        c.typography(out, src, 'caption_typography', 'caption_typography');
+        textShadow(out, src, 'caption_text_shadow', 'caption_shadow');
+        copy(out, src, 'caption_space', 'caption_space', (v) => size(v, c));
         copy(out, src, 'width', 'width', (v) => size(v, c));
         copy(out, src, 'space', 'max_width', (v) => size(v, c));
         copy(out, src, 'height', 'height', (v) => size(v, c));
         if (str(src.object_fit)) out.object_fit = str(src.object_fit);
+        copy(out, src, 'object-fit', 'object_fit', (v) =>
+          ['cover', 'contain', 'fill'].includes(str(v)) ? str(v) : undefined,
+        );
+        copy(out, src, 'object-position', 'object_position', (v) =>
+          /^(center|top|bottom) (center|left|right)$/.test(str(v)) ? str(v) : undefined,
+        );
         const opacity = num(asSettings(src.opacity).size);
         if (opacity !== null) out.opacity = { size: opacity, unit: '' };
+        const opacityHover = num(asSettings(src.opacity_hover).size);
+        if (opacityHover !== null) out['opacity:hover'] = { size: opacityHover, unit: '' };
+        cssFilters(out, src, 'css_filters', 'filters');
+        cssFilters(out, src, 'css_filters_hover', 'filters_hover');
+        copy(out, src, 'background_hover_transition', 'hover_transition', duration, false);
         border(out, src, 'image_border', 'image_border');
         copy(out, src, 'image_border_radius', 'image_border_radius', (v) => box(v));
         const s = shadow(src, 'image_box_shadow');
         if (s) out.image_shadow = s;
-        if (['grow', 'shrink', 'float', 'rotate'].includes(str(src.hover_animation))) {
-          out.hover_effect = str(src.hover_animation);
-        }
+        hoverAnimation(out, src);
         result = c.node('image', out);
         break;
       }
@@ -923,8 +1209,26 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         if (bg) out.background_color = bg;
         const bgHover = colorOf(src, 'button_background_hover_color');
         if (bgHover) out['background_color:hover'] = bgHover;
+        // Gradients (normal and hover): Fresco's background groups of the button.
         if (src.background_background === 'gradient')
-          c.note('gradient button backgrounds became their first color');
+          background(c, out, src, 'background', 'button_background');
+        if (src.button_background_hover_background === 'gradient')
+          background(c, out, src, 'button_background_hover', 'button_background_hover');
+        if (['info', 'success', 'warning', 'danger'].includes(str(src.button_type)))
+          out.button_type = str(src.button_type);
+        copy(out, src, 'content_align', 'content_align', (v) =>
+          v === 'start'
+            ? 'flex-start'
+            : v === 'end'
+              ? 'flex-end'
+              : v === 'center' || v === 'space-between'
+                ? str(v)
+                : undefined,
+        );
+        textShadow(out, src, 'text_shadow', 'text_shadow');
+        const shadowHover = shadow(src, 'button_hover_box_shadow');
+        if (shadowHover) out.shadow_hover = shadowHover;
+        copy(out, src, 'button_hover_transition_duration', 'hover_transition', duration, false);
         const borderHover = colorOf(src, 'button_hover_border_color');
         if (borderHover) out.border_hover_color = borderHover;
         c.typography(out, src, 'typography', 'typography');
@@ -932,9 +1236,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         border(out, src, 'border', 'border');
         const s = shadow(src, 'button_box_shadow');
         if (s) out.shadow = s;
-        if (['grow', 'shrink', 'float', 'pulse'].includes(str(src.hover_animation))) {
-          out.hover_effect = str(src.hover_animation);
-        }
+        hoverAnimation(out, src);
         if (/^[A-Za-z][\w-]*$/.test(str(src.button_css_id))) out.button_id = str(src.button_css_id);
         result = c.node('button', out);
         break;
@@ -964,7 +1266,15 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           if (dividerIcon) {
             out.element = 'icon';
             out.icon = dividerIcon;
+            color(out, src, 'primary_color', 'element_color');
+            copy(out, src, 'icon_size', 'element_size', (v) => size(v, c));
           }
+        }
+        if (out.element) {
+          if (src.text_align === 'left' || src.text_align === 'right')
+            out.element_position = str(src.text_align);
+          copy(out, src, 'text_spacing', 'element_spacing', (v) => size(v, c));
+          textStroke(out, src, 'text_stroke', 'element_stroke');
         }
         result = c.node('divider', out);
         break;
@@ -979,6 +1289,12 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         color(out, src, 'primary_color', 'primary_color', 'hover_primary_color');
         color(out, src, 'secondary_color', 'secondary_color', 'hover_secondary_color');
         copy(out, src, 'size', 'size', (v) => size(v, c));
+        copy(out, src, 'icon_padding', 'padding', (v) => size(v, c));
+        copy(out, src, 'rotate', 'rotate', (v) => size(v));
+        copy(out, src, 'border_width', 'border_width', (v) => size(v, c), false);
+        copy(out, src, 'border_radius', 'radius', (v) => box(v, c));
+        if (yes(src.fit_to_size)) out.fit_to_size = true;
+        hoverAnimation(out, src);
         result = c.node('icon', out);
         break;
       }
@@ -992,7 +1308,6 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         c.dynamic(out, src, 'description_text', 'description', 'text');
         if (link(src.link, ctx.origin)) out.link = link(src.link, ctx.origin);
         c.dynamic(out, src, 'link', 'link', 'url');
-        const position = str(src.position);
         copy(out, src, 'position', 'position', (v) =>
           v === 'left' || v === 'inline-start'
             ? 'left'
@@ -1000,10 +1315,10 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
               ? 'right'
               : v === 'top' || v === 'block-start'
                 ? 'top'
-                : undefined,
+                : v === 'bottom' || v === 'block-end'
+                  ? 'bottom'
+                  : undefined,
         );
-        if (position === 'block-end')
-          c.note('icon boxes with the icon below the text show it above');
         out.title_tag = HEADING_TAGS.has(str(src.title_size)) ? str(src.title_size) : 'h3';
         alignTo(out, src, 'text_align', 'align');
         const vertical = str(src.content_vertical_alignment);
@@ -1014,6 +1329,18 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         c.typography(out, src, 'title_typography', 'title_typography');
         c.typography(out, src, 'description_typography', 'description_typography');
         copy(out, src, 'title_bottom_space', 'title_spacing', (v) => size(v, c));
+        textStroke(out, src, type === 'icon-box' ? 'text_stroke' : 'title_stroke', 'title_stroke');
+        textShadow(out, src, 'title_shadow', 'title_shadow');
+        textShadow(out, src, 'description_shadow', 'description_shadow');
+        copy(
+          out,
+          src,
+          'hover_title_color_transition_duration',
+          'title_hover_transition',
+          duration,
+          false,
+        );
+        hoverAnimation(out, src);
         if (type === 'icon-box') {
           const value = c.icon(src.selected_icon);
           if (value) out.icon = value;
@@ -1023,6 +1350,18 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           color(out, src, 'secondary_color', 'icon_secondary_color', 'hover_secondary_color');
           copy(out, src, 'icon_size', 'icon_size', (v) => size(v, c));
           copy(out, src, 'icon_space', 'media_spacing', (v) => size(v, c));
+          copy(out, src, 'icon_padding', 'icon_padding', (v) => size(v, c));
+          copy(out, src, 'rotate', 'icon_rotate', (v) => size(v));
+          copy(out, src, 'border_width', 'icon_border_width', (v) => size(v, c), false);
+          copy(out, src, 'border_radius', 'icon_radius', (v) => box(v, c));
+          copy(
+            out,
+            src,
+            'hover_icon_colors_transition_duration',
+            'icon_hover_transition',
+            duration,
+            false,
+          );
         } else {
           const image = c.media(src.image);
           if (image) out.image = image;
@@ -1030,6 +1369,22 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           copy(out, src, 'image_space', 'media_spacing', (v) => size(v, c));
           border(out, src, 'image_border', 'image_border');
           copy(out, src, 'image_border_radius', 'image_border_radius', (v) => box(v));
+          copy(out, src, 'image_height', 'image_height', (v) => size(v, c));
+          copy(out, src, 'image_object_fit', 'image_object_fit', (v) =>
+            ['cover', 'contain', 'fill'].includes(str(v)) ? str(v) : undefined,
+          );
+          copy(out, src, 'image_object_position', 'image_object_position', (v) =>
+            /^(center|top|bottom) (center|left|right)$/.test(str(v)) ? str(v) : undefined,
+          );
+          const imageShadow = shadow(src, 'image_box_shadow');
+          if (imageShadow) out.image_shadow = imageShadow;
+          const opacity = num(asSettings(src.image_opacity).size);
+          if (opacity !== null) out.image_opacity = { size: opacity, unit: '' };
+          const opacityHover = num(asSettings(src.image_opacity_hover).size);
+          if (opacityHover !== null) out['image_opacity:hover'] = { size: opacityHover, unit: '' };
+          cssFilters(out, src, 'css_filters', 'image_filters');
+          cssFilters(out, src, 'css_filters_hover', 'image_filters_hover');
+          copy(out, src, 'background_hover_transition', 'image_hover_transition', duration, false);
         }
         result = c.node(type, out);
         break;
@@ -1055,6 +1410,28 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         copy(out, src, 'icon_size', 'icon_size', (v) => size(v, c));
         copy(out, src, 'text_indent', 'icon_gap', (v) => size(v, c));
         c.typography(out, src, 'icon_typography', 'text_typography');
+        if (src.link_click === 'inline') out.link_click = 'inline';
+        if (out.divider) {
+          if (['solid', 'double', 'dotted', 'dashed'].includes(str(src.divider_style)))
+            out.divider_style = str(src.divider_style);
+          copy(out, src, 'divider_weight', 'divider_weight', (v) => size(v, c), false);
+        }
+        copy(out, src, 'icon_self_align', 'icon_self_align', (v) =>
+          v === 'left' || v === 'start'
+            ? 'flex-start'
+            : v === 'right' || v === 'end'
+              ? 'flex-end'
+              : v === 'center'
+                ? 'center'
+                : undefined,
+        );
+        copy(out, src, 'icon_self_vertical_align', 'icon_self_vertical_align', (v) =>
+          ['flex-start', 'center', 'flex-end'].includes(str(v)) ? str(v) : undefined,
+        );
+        copy(out, src, 'icon_vertical_offset', 'icon_vertical_offset', (v) => size(v, c));
+        textShadow(out, src, 'text_shadow', 'text_shadow');
+        copy(out, src, 'icon_color_hover_transition', 'icon_hover_transition', duration, false);
+        copy(out, src, 'text_color_hover_transition', 'text_hover_transition', duration, false);
         result = c.node('icon-list', out);
         break;
       case 'counter':
@@ -1069,6 +1446,33 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         color(out, src, 'title_color', 'title_color');
         c.typography(out, src, 'typography_number', 'number_typography');
         c.typography(out, src, 'typography_title', 'title_typography');
+        if (/^[. _']$/.test(str(src.thousand_separator_char)))
+          out.separator_char = str(src.thousand_separator_char);
+        if (HEADING_TAGS.has(str(src.title_tag)) && src.title_tag !== 'div')
+          out.title_tag = str(src.title_tag);
+        if (['before', 'start', 'end'].includes(str(src.title_position)))
+          out.title_position = str(src.title_position);
+        copy(
+          out,
+          src,
+          'title_vertical_alignment',
+          'title_vertical_align',
+          (v) =>
+            v === 'start'
+              ? 'flex-start'
+              : v === 'end'
+                ? 'flex-end'
+                : v === 'center'
+                  ? 'center'
+                  : undefined,
+          false,
+        );
+        copy(out, src, 'title_gap', 'title_gap', (v) => size(v, c));
+        copy(out, src, 'number_gap', 'number_gap', (v) => size(v, c));
+        textStroke(out, src, 'number_stroke', 'number_stroke');
+        textShadow(out, src, 'number_shadow', 'number_shadow');
+        textStroke(out, src, 'title_stroke', 'title_stroke');
+        textShadow(out, src, 'title_shadow', 'title_shadow');
         result = c.node('counter', out);
         break;
       case 'progress':
@@ -1080,6 +1484,16 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         color(out, src, 'bar_bg_color', 'track_color');
         color(out, src, 'bar_inline_color', 'inner_color');
         copy(out, src, 'bar_height', 'height', (v) => size(v, c), false);
+        if (['info', 'success', 'warning', 'danger'].includes(str(src.progress_type)))
+          out.progress_type = str(src.progress_type);
+        if (HEADING_TAGS.has(str(src.title_tag)) && src.title_tag !== 'span')
+          out.title_tag = str(src.title_tag);
+        if (src.title_display === '') out.show_title = false;
+        color(out, src, 'title_color', 'title_color');
+        c.typography(out, src, 'typography', 'title_typography');
+        textShadow(out, src, 'title_shadow', 'title_shadow');
+        c.typography(out, src, 'bar_inner_typography', 'inner_typography');
+        textShadow(out, src, 'bar_inner_shadow', 'inner_shadow');
         result = c.node('progress', out);
         break;
       case 'testimonial': {
@@ -1096,6 +1510,10 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         color(out, src, 'content_content_color', 'content_color');
         color(out, src, 'name_text_color', 'name_color');
         color(out, src, 'job_text_color', 'job_color');
+        copy(out, src, 'image_size', 'image_size', (v) => size(v, c));
+        textShadow(out, src, 'content_shadow', 'content_shadow');
+        textShadow(out, src, 'name_shadow', 'name_shadow');
+        textShadow(out, src, 'job_shadow', 'job_shadow');
         result = c.node('testimonial', out);
         break;
       }
@@ -1108,8 +1526,24 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           ...(itemLink(item, ctx.entryRef, ctx.origin)
             ? { link: itemLink(item, ctx.entryRef, ctx.origin) }
             : {}),
+          // A network's own colors.
+          ...(item.item_icon_color === 'custom'
+            ? {
+                item_color: 'custom',
+                ...(colorOf(item, 'item_icon_primary_color')
+                  ? { item_primary: colorOf(item, 'item_icon_primary_color') }
+                  : {}),
+                ...(colorOf(item, 'item_icon_secondary_color')
+                  ? { item_secondary: colorOf(item, 'item_icon_secondary_color') }
+                  : {}),
+              }
+            : {}),
         }));
         if (['rounded', 'square', 'circle'].includes(str(src.shape))) out.shape = str(src.shape);
+        copy(out, src, 'columns', 'columns', (v) => num(v) ?? undefined);
+        copy(out, src, 'row_gap', 'row_gap', (v) => size(v, c));
+        color(out, src, 'hover_border_color', 'hover_border_color');
+        hoverAnimation(out, src);
         if (src.icon_color === 'custom') {
           out.look = 'custom';
           color(out, src, 'icon_primary_color', 'primary', 'hover_primary_color');
@@ -1132,31 +1566,82 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         if (src.show_dismiss === 'hide') out.dismiss = false;
         color(out, src, 'background', 'background');
         color(out, src, 'border_color', 'border_color');
+        copy(out, src, 'border_left-width', 'border_left_width', (v) => size(v, c));
+        color(out, src, 'title_color', 'title_color');
+        color(out, src, 'description_color', 'description_color');
+        textShadow(out, src, 'title_shadow', 'title_shadow');
+        textShadow(out, src, 'description_shadow', 'description_shadow');
+        if (out.dismiss !== false) {
+          const close = c.icon(src.dismiss_icon);
+          if (close) out.dismiss_icon = close;
+          copy(out, src, 'dismiss_icon_size', 'dismiss_size', (v) => size(v, c));
+          copy(out, src, 'dismiss_icon_vertical_position', 'dismiss_top', (v) => size(v, c));
+          copy(out, src, 'dismiss_icon_horizontal_position', 'dismiss_right', (v) => size(v, c));
+          color(out, src, 'dismiss_icon_normal_color', 'dismiss_color');
+          const closeHover = colorOf(src, 'dismiss_icon_hover_color');
+          if (closeHover) out['dismiss_color:hover'] = closeHover;
+          copy(
+            out,
+            src,
+            'dismiss_icon_hover_transition_duration',
+            'dismiss_transition',
+            duration,
+            false,
+          );
+        }
         result = c.node('alert', out);
         break;
       case 'video': {
         const source = str(src.video_type) || 'youtube';
         if (source === 'hosted') {
           out.source = 'hosted';
-          const file =
-            c.media(src.hosted_url) ??
-            (str(src.external_url)
-              ? { id: null, url: str(asSettings(src.external_url).url) }
-              : undefined);
-          if (file) out.file = file;
+          const external = str(asSettings(src.external_url).url);
+          if (yes(src.insert_url) && external) {
+            out.external = true;
+            out.external_url = external;
+          } else {
+            const file =
+              c.media(src.hosted_url) ?? (external ? { id: null, url: external } : undefined);
+            if (file) out.file = file;
+          }
+          // Elementor hides the download button unless asked.
+          if (!yes(src.download_button)) out.download = false;
+          if (['auto', 'none'].includes(str(src.preload))) out.preload = str(src.preload);
         } else {
-          out.source = source === 'vimeo' ? 'vimeo' : 'youtube';
+          out.source = source === 'vimeo' || source === 'dailymotion' ? source : 'youtube';
           out.url = str(src[`${out.source}_url`]);
-          if (source === 'dailymotion' || source === 'videopress') {
-            out.url = str(src[`${source}_url`]);
-            c.note(`videos from ${source} became links to the video`);
+          if (source === 'videopress') {
+            out.url = str(src.videopress_url);
+            c.note('videos from videopress became links to the video');
           }
         }
         for (const key of ['autoplay', 'mute', 'loop']) if (yes(src[key])) out[key] = true;
         if (src.controls === '') out.controls = false;
         if (num(src.start) !== null) out.start = num(src.start);
+        if (num(src.end) !== null) out.end = num(src.end);
+        if (src.rel === 'yes') out.rel = 'yes';
+        for (const key of ['vimeo_title', 'vimeo_portrait', 'vimeo_byline', 'logo']) {
+          if (src[key] === '') out[key] = false;
+        }
+        const playerColor = str(src.color);
+        if (/^#[0-9a-f]{6}$/i.test(playerColor)) out.player_color = playerColor;
         const poster = c.media(src.image_overlay);
-        if (poster && yes(src.show_image_overlay)) out.poster = poster;
+        if (poster && yes(src.show_image_overlay)) {
+          out.poster = poster;
+          if (src.show_play_icon === '') out.show_play_icon = false;
+          const play = c.icon(src.play_icon);
+          if (play) out.play_icon = play;
+          if (yes(src.lightbox)) {
+            out.lightbox = true;
+            color(out, src, 'lightbox_color', 'lightbox_color');
+            const width = num(asSettings(src.lightbox_video_width).size);
+            if (width !== null) out.lightbox_width = { size: width, unit: '%' };
+          }
+          color(out, src, 'play_icon_color', 'play_icon_color');
+          copy(out, src, 'play_icon_size', 'play_icon_size', (v) => size(v, c));
+          textShadow(out, src, 'play_icon_text_shadow', 'play_icon_shadow');
+        }
+        cssFilters(out, src, 'css_filters', 'filters');
         if (['169', '219', '43', '32', '11', '916'].includes(str(src.aspect_ratio))) {
           const r = str(src.aspect_ratio);
           out.ratio =
@@ -1180,6 +1665,9 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         // Elementor's default zoom is 10.
         out.zoom = size(src.zoom)?.size ?? 10;
         copy(out, src, 'height', 'height', (v) => size(v, c));
+        cssFilters(out, src, 'css_filters', 'filters');
+        cssFilters(out, src, 'css_filters_hover', 'filters_hover');
+        copy(out, src, 'hover_transition', 'hover_transition', duration, false);
         result = c.node('google-maps', out);
         break;
       case 'html':
@@ -1196,17 +1684,33 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         result = c.node('menu-anchor', out);
         break;
       case 'star-rating':
-      case 'rating':
+      case 'rating': {
         if (num(src.rating) !== null) out.rating = num(src.rating);
-        if (str(src.rating_scale) === '10') out.scale = '10';
+        if (num(src.rating_value) !== null) out.rating = num(src.rating_value);
+        // The scale: 5 or 10 (Star rating), or 1 to 10 (Rating).
+        const scale = num(asSettings(src.rating_scale).size) ?? num(src.rating_scale);
+        if (scale !== null && scale !== 5 && scale >= 1 && scale <= 10)
+          out.scale = String(Math.round(scale));
         out.title = str(src.title);
         color(out, src, 'stars_color', 'color');
+        color(out, src, 'icon_color', 'color');
         color(out, src, 'stars_unmarked_color', 'empty');
+        color(out, src, 'icon_unmarked_color', 'empty');
         copy(out, src, 'icon_size', 'size', (v) => size(v, c));
         copy(out, src, 'icon_space', 'spacing', (v) => size(v, c));
+        copy(out, src, 'icon_gap', 'spacing', (v) => size(v, c), false);
+        const ratingIcon = c.icon(src.rating_icon);
+        if (ratingIcon) out.icon = ratingIcon;
         alignTo(out, src, 'align');
+        if (src.star_style === 'star_unicode') out.star_style = 'unicode';
+        if (src.unmarked_star_style === 'outline') out.unmarked_style = 'outline';
+        color(out, src, 'title_color', 'title_color');
+        c.typography(out, src, 'title_typography', 'title_typography');
+        textShadow(out, src, 'title_shadow', 'title_shadow');
+        copy(out, src, 'title_gap', 'title_gap', (v) => size(v, c));
         result = c.node('star-rating', out);
         break;
+      }
       case 'image-carousel':
       case 'image-gallery': {
         const images = list(Array.isArray(src.carousel) ? src.carousel : src.wp_gallery)
@@ -1215,30 +1719,112 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         out.images = images;
         if (type === 'image-carousel') {
           copy(out, src, 'slides_to_show', 'per_view', num);
+          copy(out, src, 'slides_to_scroll', 'per_scroll', (v) => num(v) ?? undefined);
           if (src.autoplay === 'no') out.autoplay = false;
-          if (num(src.autoplay_speed)) out.interval = num(src.autoplay_speed)! / 1000;
+          // Elementor's autoplay speed is in milliseconds, as Fresco's.
+          if (num(src.autoplay_speed)) out.interval = num(src.autoplay_speed);
           if (src.infinite === 'no') out.loop = false;
+          if (src.pause_on_hover === 'no' || src.pause_on_hover === '') out.pause = false;
+          if (yes(src.pause_on_interaction)) out.pause_interaction = true;
+          if (src.effect === 'fade') out.effect = 'fade';
+          if (num(src.speed) !== null && num(src.speed) !== 500) out.speed = num(src.speed);
           if (str(src.navigation) && str(src.navigation) !== 'both')
             out.navigation = str(src.navigation);
+          const prev = c.icon(src.navigation_previous_icon);
+          if (prev) out.prev_icon = prev;
+          const next = c.icon(src.navigation_next_icon);
+          if (next) out.next_icon = next;
           if (src.link_to === 'file') out.link_to = 'file';
+          if (src.link_to === 'custom' && link(src.link, ctx.origin)) {
+            out.link_to = 'custom';
+            out.link = link(src.link, ctx.origin);
+          }
+          // Captions: the attachment's (Fresco has no titles nor descriptions of images).
+          if (src.caption_type === 'caption') out.caption_type = 'attachment';
+          else if (src.caption_type === 'title' || src.caption_type === 'description') {
+            out.caption_type = 'alt';
+            c.note(
+              'carousel captions from image titles or descriptions show the image description',
+            );
+          }
           copy(out, src, 'image_spacing_custom', 'gap', (v) => size(v, c), false);
+          // Arrows and dots.
+          if (src.arrows_position === 'outside') out.arrows_position = 'outside';
+          copy(out, src, 'arrows_size', 'arrows_size', (v) => size(v, c));
+          color(out, src, 'arrows_color', 'arrow_color');
+          if (src.dots_position === 'inside') out.dots_position = 'inside';
+          copy(out, src, 'dots_size', 'dots_size', (v) => size(v, c));
+          copy(out, src, 'dots_gap', 'dots_gap', (v) => size(v, c));
+          color(out, src, 'dots_inactive_color', 'dot_color');
+          color(out, src, 'dots_color', 'dot_active');
+          alignTo(out, src, 'caption_align', 'caption_align');
+          color(out, src, 'caption_text_color', 'caption_color');
+          c.typography(out, src, 'caption_typography', 'caption_typography');
+          textShadow(out, src, 'caption_shadow', 'caption_shadow');
+          copy(out, src, 'caption_space', 'caption_space', (v) => size(v, c));
           result = c.node('image-carousel', out);
         } else {
           if (num(src.gallery_columns) !== null) out.columns = num(src.gallery_columns);
           if (src.gallery_link === 'none') out.link_to = 'none';
           copy(out, src, 'image_spacing_custom', 'gap', (v) => size(v, c), false);
           if (src.gallery_display_caption === 'none') out.captions = false;
+          if (src.gallery_rand === 'rand') out.random = true;
+          alignTo(out, src, 'align', 'caption_align');
+          color(out, src, 'text_color', 'caption_color');
+          c.typography(out, src, 'typography', 'caption_typography');
+          textShadow(out, src, 'caption_shadow', 'caption_shadow');
+          copy(out, src, 'caption_space', 'caption_space', (v) => size(v, c));
           result = c.node('gallery', out);
         }
         break;
       }
-      case 'text-path':
+      case 'text-path': {
         out.text = str(src.text);
         if (str(src.path)) out.path = str(src.path);
+        if (src.path === 'custom') {
+          const svg = c.media(src.custom_path);
+          if (svg) out.custom_path = svg;
+        }
+        if (link(src.link, ctx.origin)) out.link = link(src.link, ctx.origin);
+        alignTo(out, src, 'align');
+        if (src.text_path_direction === 'rtl' || src.text_path_direction === 'ltr')
+          out.text_direction = str(src.text_path_direction);
+        if (yes(src.show_path)) out.show_path = true;
+        copy(out, src, 'size', 'width', (v) => size(v, c));
+        copy(out, src, 'rotation', 'rotation', (v) => size(v));
+        const start = num(asSettings(src.start_point).size);
+        if (start !== null) out.offset = { size: start, unit: '%' };
+        c.typography(out, src, 'text_typography', 'typography');
+        textStroke(out, src, 'text_stroke', 'text_stroke');
+        copy(out, src, 'word_spacing', 'word_spacing', (v) => size(v, c));
+        color(out, src, 'text_color_normal', 'color', 'text_color_hover');
+        copy(out, src, 'hover_transition', 'text_transition', duration, false);
+        color(out, src, 'path_fill_normal', 'path_fill');
+        color(out, src, 'stroke_color_normal', 'stroke', 'stroke_color_hover');
+        copy(out, src, 'stroke_width_normal', 'stroke_width', (v) => size(v, c), false);
+        copy(out, src, 'stroke_transition', 'stroke_transition', duration, false);
+        hoverAnimation(out, src);
         result = c.node('text-path', out);
         break;
+      }
       case 'audio':
         out.url = str(asSettings(src.link).url);
+        if (src.visual === 'no') out.visual = false;
+        if (yes(src.sc_auto_play)) out.autoplay = true;
+        if (/^#[0-9a-f]{6}$/i.test(str(src.sc_color))) out.color = str(src.sc_color);
+        // The player's options Elementor switched off.
+        for (const key of [
+          'buying',
+          'liking',
+          'download',
+          'show_artwork',
+          'sharing',
+          'show_comments',
+          'show_playcount',
+          'show_user',
+        ]) {
+          if (src[`sc_${key}`] === '') out[`sc_${key}`] = false;
+        }
         result = c.node('audio', out);
         break;
       case 'tabs':
@@ -1274,6 +1860,8 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           copy(out, src, 'title_padding', 'title_padding', (v) => box(v, c));
           copy(out, src, 'content_padding', 'content_padding', (v) => box(v, c));
         }
+        textStroke(out, src, 'text_stroke', 'title_stroke');
+        textShadow(out, src, 'title_shadow', 'title_text_shadow');
         if (type !== 'tabs' && src.faq_schema === 'yes') out.faq = true;
         if (type === 'toggle') out.multiple = true;
         if (type === 'accordion') out.open = 'first';
@@ -1286,15 +1874,23 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         const titles = list(Array.isArray(src.tabs) ? src.tabs : src.items);
         const children = (el.elements ?? []).map((child, i) => {
           const title = str(titles[i]?.tab_title ?? titles[i]?.item_title);
+          // Each tab's icons.
+          const own: Settings = { _title: title, content_width: 'full' };
+          const tabIcon = titles[i] ? c.icon(titles[i]!.tab_icon) : undefined;
+          const tabIconActive = titles[i] ? c.icon(titles[i]!.tab_icon_active) : undefined;
+          if (tabIcon) own._icon = tabIcon;
+          if (tabIcon && tabIconActive) own._icon_active = tabIconActive;
           const converted = element(child);
           const first = converted[0];
           if (converted.length === 1 && first && first.type === 'fresco/container') {
-            first.attrs = { ...first.attrs, _title: title, content_width: 'full' };
+            first.attrs = { ...first.attrs, ...own };
             return first;
           }
-          return c.node('container', { _title: title, content_width: 'full' }, converted);
+          return c.node('container', own, converted);
         });
         if (type === 'nested-accordion' && src.faq_schema === 'yes') out.faq = true;
+        if (type === 'nested-tabs') nestedTabs(c, out, src);
+        else nestedAccordion(c, out, src);
         result = c.node(type === 'nested-tabs' ? 'tabs' : 'accordion', out, children);
         break;
       }

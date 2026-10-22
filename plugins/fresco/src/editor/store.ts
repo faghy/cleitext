@@ -10,9 +10,10 @@ import { DEFAULT_KIT, type Kit } from '../core/kit.js';
 import type { Device, FrescoNode, NewNode, Settings, Tab } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import * as tree from './tree.js';
+import { DEFAULT_PREFERENCES, normalizePreferences, type Preferences } from './prefs-model.js';
 
 export type PanelView =
-  'elements' | 'element' | 'page' | 'site' | 'navigator' | 'library' | 'history';
+  'elements' | 'element' | 'page' | 'site' | 'navigator' | 'library' | 'history' | 'preferences';
 
 export interface EditorState {
   blocks: FrescoNode[];
@@ -48,6 +49,17 @@ export interface EditorState {
   navigatorDocked: boolean;
   /** Elements hidden in the editor only (the eye of the Structure window). */
   hidden: Record<string, true>;
+  /** The panel of Site settings shown ('' for its menu). */
+  siteSection: string;
+  /** Saves of other plugins' Site settings panels, run with the page's save. */
+  sitePending: Record<string, () => Promise<void>>;
+  /**
+   * A global widget being edited in place: the element showing it was
+   * replaced by its content (`editId`) until saved or cancelled.
+   */
+  globalEdit: { id: string; title: string; node: FrescoNode; editId: string } | null;
+  /** The user's preferences (theme, exit, favorites…). */
+  prefs: Preferences;
 }
 
 interface Snapshot {
@@ -72,6 +84,8 @@ export interface StepLabel {
     | 'all';
   /** Element type, when the step is about one. */
   type?: string;
+  /** The setting changed (its key), for edits. */
+  setting?: string;
   at: number;
 }
 
@@ -110,6 +124,22 @@ export function topmost(blocks: FrescoNode[], ids: readonly string[]): string[] 
   return out;
 }
 
+const PREFS_KEY = 'fresco:prefs';
+
+/** The preferences kept in this browser (the server's arrive later), with older keys. */
+function storedPrefs(): Preferences {
+  try {
+    const stored = localStorage.getItem(PREFS_KEY);
+    if (stored) return normalizePreferences(JSON.parse(stored));
+    // Before the preferences: the favorites and the panel's width were kept alone.
+    const favorites = JSON.parse(localStorage.getItem('fresco:favorites') ?? '[]') as unknown;
+    const width = Number(localStorage.getItem('fresco:panel-width'));
+    return normalizePreferences({ favorites, ...(width ? { panelWidth: width } : {}) });
+  } catch {
+    return DEFAULT_PREFERENCES;
+  }
+}
+
 function storedDock(): boolean {
   try {
     return localStorage.getItem(DOCK_KEY) === '1';
@@ -145,6 +175,10 @@ export function createStore(initial: {
     navigator: false,
     navigatorDocked: storedDock(),
     hidden: {},
+    siteSection: '',
+    sitePending: {},
+    globalEdit: null,
+    prefs: storedPrefs(),
   };
   const past: Snapshot[] = [];
   const future: Snapshot[] = [];
@@ -153,8 +187,8 @@ export function createStore(initial: {
   const futureLabels: StepLabel[] = [];
   let pending: Omit<StepLabel, 'at'> | null = null;
   const typeOf = (id: string) => tree.find(state.blocks, id)?.type;
-  const label = (kind: StepLabel['kind'], type?: string) => {
-    pending = { kind, ...(type ? { type } : {}) };
+  const label = (kind: StepLabel['kind'], type?: string, setting?: string) => {
+    pending = { kind, ...(type ? { type } : {}), ...(setting ? { setting } : {}) };
   };
   const listeners = new Set<() => void>();
   const changeListeners = new Set<(state: EditorState) => void>();
@@ -211,6 +245,10 @@ export function createStore(initial: {
       page: snapshot.page,
       selected: snapshot.selected,
       selection: snapshot.selected ? [snapshot.selected] : [],
+      // Undone back to before a global widget was opened: its editing is over.
+      ...(state.globalEdit && !tree.find(snapshot.blocks, state.globalEdit.editId)
+        ? { globalEdit: null }
+        : {}),
     });
     for (const listener of changeListeners) listener(state);
   };
@@ -299,6 +337,59 @@ export function createStore(initial: {
       if (view === 'navigator') set({ navigator: true });
       else set({ view });
     },
+    /**
+     * Edits a global widget in place: the element showing it (`nodeId`) gives
+     * way to the widget's content until `endGlobalEdit`. The page keeps the
+     * element: what is saved is never the content.
+     */
+    beginGlobalEdit(nodeId: string, global: { id: string; title: string }, content: FrescoNode) {
+      const node = tree.find(state.blocks, nodeId);
+      if (!node || state.globalEdit || state.readOnly) return;
+      const blocks = tree.update(state.blocks, nodeId, () => content);
+      set({
+        blocks,
+        globalEdit: { ...global, node, editId: content.id },
+        selected: content.id,
+        selection: [content.id],
+        view: 'element',
+      });
+    },
+    /** Ends the editing of a global widget: the element showing it is back (also in the history). */
+    endGlobalEdit() {
+      const edit = state.globalEdit;
+      if (!edit) return;
+      const back = (blocks: FrescoNode[]) =>
+        tree.find(blocks, edit.editId) ? tree.update(blocks, edit.editId, () => edit.node) : blocks;
+      for (const list of [past, future])
+        for (const snapshot of list) snapshot.blocks = back(snapshot.blocks);
+      set({
+        blocks: back(state.blocks),
+        globalEdit: null,
+        selected: edit.node.id,
+        selection: [edit.node.id],
+      });
+    },
+    /** Changes the user's preferences (kept in the browser; the editor saves them for the user). */
+    setPrefs(patch: Partial<Preferences>) {
+      const prefs = normalizePreferences({ ...state.prefs, ...patch });
+      set({ prefs });
+      try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+      } catch {
+        // Private mode: kept until the page closes.
+      }
+    },
+    /** Opens Site settings at a panel ('' for the menu). */
+    openSite(section = '') {
+      set({ view: 'site', siteSection: section });
+    },
+    /** A plugin's Site settings panel has changes to save (null: no more). */
+    setSitePending(id: string, save: (() => Promise<void>) | null) {
+      const sitePending = { ...state.sitePending };
+      if (save) sitePending[id] = save;
+      else delete sitePending[id];
+      set({ sitePending });
+    },
     toggleNavigator(open?: boolean) {
       set({ navigator: open ?? !state.navigator });
     },
@@ -324,7 +415,7 @@ export function createStore(initial: {
       set({ kit, kitDirty: dirty });
     },
     setSettings(id: string, changes: Settings, merge?: string) {
-      label('edit', typeOf(id));
+      label('edit', typeOf(id), Object.keys(changes)[0]);
       change({ blocks: tree.setSettings(state.blocks, id, changes) }, merge && `${id}:${merge}`);
     },
     /** Changes page settings; several edits of the same one in a row (`merge`) are one undo step. */
@@ -353,6 +444,17 @@ export function createStore(initial: {
       }
       set({ view: 'element', tab: 'content' });
       return node.id;
+    },
+    /** Adds a ready-made element (a global widget); at the top it gets a container. */
+    addNode(node: FrescoNode, place: tree.Place) {
+      if (state.contentOnly) return;
+      label('add', node.type);
+      const wrapped =
+        place.parent === null && !getElement(node.type)?.container
+          ? { ...create('fresco/container')!, children: [node] }
+          : node;
+      change({ blocks: tree.insert(state.blocks, wrapped, place), selected: node.id });
+      set({ view: 'element', tab: 'content' });
     },
     insertNodes(nodes: FrescoNode[], place: tree.Place) {
       if (state.contentOnly) return;
@@ -445,7 +547,12 @@ export function createStore(initial: {
       } catch {
         // Keep the in-page copy.
       }
-      const copies = (nodes ?? [])
+      actions.pasteNodes(nodes ?? [], after);
+    },
+    /** Pastes given elements (from the system clipboard) after an element, as copies. */
+    pasteNodes(nodes: FrescoNode[], after: string | null) {
+      if (state.contentOnly) return;
+      const copies = nodes
         .filter((node) => getElement(node.type))
         .map((node) => tree.cloneWithNewIds(node));
       if (copies.length === 0) return;
@@ -554,6 +661,13 @@ export function createStore(initial: {
 }
 
 export type Store = ReturnType<typeof createStore>;
+
+/** The page's elements as they are saved: a global widget being edited is its element again. */
+export function blocksToSave(state: Pick<EditorState, 'blocks' | 'globalEdit'>): FrescoNode[] {
+  const edit = state.globalEdit;
+  if (!edit || !tree.find(state.blocks, edit.editId)) return state.blocks;
+  return tree.update(state.blocks, edit.editId, () => edit.node);
+}
 
 /** Translates the sample texts of new elements into the editor's language. */
 let translateText: ((text: string) => string) | null = null;

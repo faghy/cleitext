@@ -152,6 +152,8 @@ export function advancedControls(options: { container?: boolean } = {}): Control
       tab,
       section: 'Motion',
       default: '',
+      // Per device: "Default" takes the larger device's, "None" switches it off there.
+      responsive: true,
       noCss: true,
     },
     {
@@ -166,7 +168,7 @@ export function advancedControls(options: { container?: boolean } = {}): Control
         { value: 'normal', label: 'Normal' },
         { value: 'fast', label: 'Fast' },
       ],
-      condition: { _animation: ANIMATIONS.map((a) => a.value).filter(Boolean) },
+      condition: { _animation: ENTRANCE_VALUES },
       noCss: true,
     },
     {
@@ -178,7 +180,7 @@ export function advancedControls(options: { container?: boolean } = {}): Control
       min: 0,
       max: 10000,
       step: 100,
-      condition: { _animation: ANIMATIONS.map((a) => a.value).filter(Boolean) },
+      condition: { _animation: ENTRANCE_VALUES },
       noCss: true,
     },
     ...transformControls(),
@@ -759,9 +761,14 @@ function maskControls(): Control[] {
   ];
 }
 
-/** Entrance animations (keyframes in public/fresco.css, written for Fresco). */
+/**
+ * Entrance animations (keyframes in public/fresco.css, written for Fresco).
+ * `''` is the default: none on desktop, the larger device's on the others;
+ * `none` switches the animation off on a device.
+ */
 export const ANIMATIONS: { value: string; label: string }[] = [
-  { value: '', label: 'None' },
+  { value: '', label: 'Default' },
+  { value: 'none', label: 'None' },
   { value: 'fade-in', label: 'Fade in' },
   { value: 'fade-up', label: 'Fade in up' },
   { value: 'fade-down', label: 'Fade in down' },
@@ -805,6 +812,105 @@ export const ANIMATIONS: { value: string; label: string }[] = [
   { value: 'wobble', label: 'Wobble' },
   { value: 'jello', label: 'Jello' },
 ];
+
+/** The animations that move the element (not `''` nor `none`). */
+const ENTRANCE_VALUES = ANIMATIONS.map((a) => a.value).filter((v) => v && v !== 'none');
+const isEntrance = (value: unknown): value is string =>
+  typeof value === 'string' && ENTRANCE_VALUES.includes(value);
+
+// ---- Hover animations ------------------------------------------------------------------------
+
+/** Hover animations (Elementor's 27), drawn by fresco.css as `fr-hover-<name>`. */
+export const HOVER_ANIMATIONS: { value: string; label: string }[] = [
+  { value: '', label: 'None' },
+  { value: 'grow', label: 'Grow' },
+  { value: 'shrink', label: 'Shrink' },
+  { value: 'pulse', label: 'Pulse' },
+  { value: 'pulse-grow', label: 'Pulse grow' },
+  { value: 'pulse-shrink', label: 'Pulse shrink' },
+  { value: 'push', label: 'Push' },
+  { value: 'pop', label: 'Pop' },
+  { value: 'bounce-in', label: 'Bounce in' },
+  { value: 'bounce-out', label: 'Bounce out' },
+  { value: 'rotate', label: 'Rotate' },
+  { value: 'grow-rotate', label: 'Grow rotate' },
+  { value: 'float', label: 'Float' },
+  { value: 'sink', label: 'Sink' },
+  { value: 'bob', label: 'Bob' },
+  { value: 'hang', label: 'Hang' },
+  { value: 'skew', label: 'Skew' },
+  { value: 'skew-forward', label: 'Skew forward' },
+  { value: 'skew-backward', label: 'Skew backward' },
+  { value: 'wobble-vertical', label: 'Wobble vertical' },
+  { value: 'wobble-horizontal', label: 'Wobble horizontal' },
+  { value: 'wobble-to-bottom-right', label: 'Wobble to bottom right' },
+  { value: 'wobble-to-top-right', label: 'Wobble to top right' },
+  { value: 'wobble-top', label: 'Wobble top' },
+  { value: 'wobble-bottom', label: 'Wobble bottom' },
+  { value: 'wobble-skew', label: 'Wobble skew' },
+  { value: 'buzz', label: 'Buzz' },
+  { value: 'buzz-out', label: 'Buzz out' },
+];
+
+/** The Hover animation select of a widget (`hover_effect`, as Image and Button have it). */
+export function hoverAnimationControl(
+  section: string,
+  tab: Tab = 'style',
+  name = 'hover_effect',
+): Control {
+  return {
+    name,
+    type: 'select',
+    label: 'Hover animation',
+    tab,
+    section,
+    options: HOVER_ANIMATIONS,
+    noCss: true,
+  };
+}
+
+/** The class of a hover animation (` fr-hover-grow`), or `''`. */
+export function hoverClass(value: unknown): string {
+  return typeof value === 'string' && value && HOVER_ANIMATIONS.some((a) => a.value === value)
+    ? ` fr-hover-${value}`
+    : '';
+}
+
+// ---- Text stroke -----------------------------------------------------------------------------
+
+/**
+ * Elementor's Text Stroke group as two settings: the stroke's width
+ * (`<name>`, per device) and its color (`<name>_color`).
+ */
+export function textStrokeControls(
+  name: string,
+  section: string,
+  selector: string,
+  tab: Tab = 'style',
+): Control[] {
+  return [
+    {
+      name,
+      type: 'slider',
+      label: 'Text stroke',
+      tab,
+      section,
+      responsive: true,
+      units: ['px', 'em'],
+      max: 10,
+      step: 0.1,
+      selectors: { [selector]: '-webkit-text-stroke-width: {{value}}; stroke-width: {{value}}' },
+    },
+    {
+      name: `${name}_color`,
+      type: 'color',
+      label: 'Stroke color',
+      tab,
+      section,
+      selectors: { [selector]: '-webkit-text-stroke-color: {{value}}; stroke: {{value}}' },
+    },
+  ];
+}
 
 const CLASS = /^-?[_a-zA-Z][_a-zA-Z0-9-]{0,63}$/;
 const CSS_ID = /^[A-Za-z][\w-]{0,63}$/;
@@ -859,13 +965,22 @@ export function rootProps(
   const props: ReturnType<typeof rootProps> = { className: classes.join(' ') };
   if (typeof settings._css_id === 'string' && CSS_ID.test(settings._css_id))
     props.id = settings._css_id;
+  // Entrance animation; other devices may have their own (frontend.js picks the one
+  // of the device in use, from the kit's `--fr-device`), or none (`none`).
   const animation = settings._animation;
-  if (typeof animation === 'string' && ANIMATIONS.some((a) => a.value === animation && a.value)) {
-    props['data-fr-anim'] = animation;
+  const perDevice: [string, string][] = [];
+  for (const device of OTHER_DEVICES) {
+    const value = node.attrs[`_animation@${device}`];
+    if (value === 'none' || isEntrance(value)) perDevice.push([device, value]);
+  }
+  const animated = isEntrance(animation) || perDevice.some(([, value]) => value !== 'none');
+  if (animated) {
+    props['data-fr-anim'] = isEntrance(animation) ? animation : '';
     props.className += ` fr-anim fr-anim-${settings._animation_duration === 'slow' ? 'slow' : settings._animation_duration === 'fast' ? 'fast' : 'normal'}`;
     const delay = Number(settings._animation_delay);
     if (Number.isFinite(delay) && delay > 0)
       props['data-fr-delay'] = String(Math.min(delay, 10000));
+    for (const [device, value] of perDevice) props[`data-fr-anim-${device}`] = value;
   }
   if (editing) props['data-fr-id'] = node.id;
   else {

@@ -12,7 +12,7 @@ import { getElement } from '../core/registry.js';
  * the container's own without `_`): shown in the Hover view only.
  */
 export function isHoverOnly(control: Pick<Control, 'name'>): boolean {
-  return /^_?(background|border|shadow)_hover(_|$)/.test(control.name);
+  return /^_?(background|border|shadow|overlay)_hover(_|$)/.test(control.name);
 }
 
 /** Item fields of a flex parent (align self, order, size). */

@@ -4,7 +4,14 @@
  * item's title, edited in the panel's Items list.
  */
 import type { ReactNode } from 'react';
-import { advancedControls, ElementRoot, UNITS } from '../core/common.js';
+import {
+  advancedControls,
+  ElementRoot,
+  hoverAnimationControl,
+  hoverClass,
+  textStrokeControls,
+  UNITS,
+} from '../core/common.js';
 import { content, groups, HEADING_TAGS, style, textStyle } from '../core/controls.js';
 import { Icon } from '../core/icons.js';
 import type { Control, ElementDefinition, FrescoNode, NewNode } from '../core/model.js';
@@ -35,8 +42,23 @@ const onlyContainers = (type: string) => type === 'fresco/container';
 
 // ---- Tabs -----------------------------------------------------------------------------
 
+const TITLE = '{{el}} > .fr-tabs__nav > .fr-tabs__title';
+const ACTIVE = '{{el}} > .fr-tabs__nav > .fr-tabs__title[aria-selected="true"]';
+const HOVER = '{{el}} > .fr-tabs__nav > .fr-tabs__title:hover';
+
+/** Where the titles go, as CSS variables of the tabs (fresco.css lays them out). */
+const DIRECTIONS: Record<string, string> = {
+  top: '--fr-tabs-flow: column; --fr-tabs-nav-flow: row; --fr-tabs-nav-flex: 0 1 auto; --fr-tabs-nav-bb: 1px; --fr-tabs-nav-bt: 0; --fr-tabs-line-y: -3px',
+  bottom:
+    '--fr-tabs-flow: column-reverse; --fr-tabs-nav-flow: row; --fr-tabs-nav-flex: 0 1 auto; --fr-tabs-nav-bb: 0; --fr-tabs-nav-bt: 1px; --fr-tabs-line-y: 3px',
+  left: '--fr-tabs-flow: row; --fr-tabs-nav-flow: column; --fr-tabs-nav-flex: 0 0 25%; --fr-tabs-nav-bb: 0; --fr-tabs-nav-bt: 0; --fr-tabs-line-y: -3px',
+  right:
+    '--fr-tabs-flow: row-reverse; --fr-tabs-nav-flow: column; --fr-tabs-nav-flex: 0 0 25%; --fr-tabs-nav-bb: 0; --fr-tabs-nav-bt: 0; --fr-tabs-line-y: -3px',
+};
+
 const tabsControls: Control[] = [
   content.heading('items', 'Tabs', 'Tabs', { type: 'children' } as Partial<Control>),
+  // Pages made before the per-device Direction: shown only when they use it.
   content.choose('direction', 'Position of the titles', 'Tabs', {
     default: 'top',
     options: [
@@ -44,7 +66,26 @@ const tabsControls: Control[] = [
       { value: 'left', label: 'Left', icon: 'M4 4h5v16H4z M11 4h9v16h-9z' },
       { value: 'right', label: 'Right', icon: 'M15 4h5v16h-5z M4 4h9v16H4z' },
     ],
+    condition: { direction: ['left', 'right'] },
     noCss: true,
+  }),
+  content.choose('tabs_direction', 'Direction', 'Tabs', {
+    responsive: true,
+    options: [
+      { value: 'top', label: 'Above', icon: 'M4 4h16v4H4z M4 10h16v10H4z' },
+      { value: 'bottom', label: 'Below', icon: 'M4 16h16v4H4z M4 4h16v10H4z' },
+      { value: 'left', label: 'Left', icon: 'M4 4h5v16H4z M11 4h9v16h-9z' },
+      { value: 'right', label: 'Right', icon: 'M15 4h5v16h-5z M4 4h9v16H4z' },
+    ],
+    dictionary: DIRECTIONS,
+    selectors: { '{{el}}.fr-tabs': '{{value}}' },
+  }),
+  content.slider('tabs_width', 'Titles width', 'Tabs', {
+    responsive: true,
+    units: ['%', 'px', 'em', 'rem', 'vw'],
+    max: 1000,
+    help: 'With the titles on the left or on the right.',
+    selectors: { '{{el}}.fr-tabs > .fr-tabs__nav': 'flex-basis: {{value}}' },
   }),
   content.choose('justify', 'Justify titles', 'Tabs', {
     responsive: true,
@@ -60,13 +101,48 @@ const tabsControls: Control[] = [
     },
     noCss: true,
   }),
-  content.select('mobile', 'On mobile', 'Tabs', {
-    default: 'accordion',
+  content.choose('title_align', 'Align title', 'Tabs', {
+    responsive: true,
     options: [
-      { value: 'accordion', label: 'Show as accordion' },
+      { value: 'start', label: 'Start', icon: 'M4 6h16 M4 12h10 M4 18h13' },
+      { value: 'center', label: 'Center', icon: 'M4 6h16 M7 12h10 M5.5 18h13' },
+      { value: 'end', label: 'End', icon: 'M4 6h16 M10 12h10 M7 18h13' },
+    ],
+    dictionary: {
+      start: 'text-align: start; justify-content: flex-start',
+      center: 'text-align: center; justify-content: center',
+      end: 'text-align: end; justify-content: flex-end',
+    },
+    selectors: { [TITLE]: '{{value}}' },
+  }),
+  content.select('mobile', 'Breakpoint', 'Tabs', {
+    default: 'accordion',
+    // From which device down the tabs show as an accordion (Mobile by default).
+    options: [
+      { value: 'laptop', label: 'Accordion from Laptop' },
+      { value: 'tablet_extra', label: 'Accordion from Tablet extra' },
+      { value: 'tablet', label: 'Accordion from Tablet' },
+      { value: 'mobile_extra', label: 'Accordion from Mobile extra' },
+      { value: 'accordion', label: 'Accordion on Mobile' },
       { value: 'tabs', label: 'Keep tabs' },
     ],
     noCss: true,
+  }),
+  content.switch('horizontal_scroll', 'Horizontal scroll', 'Tabs', {
+    help: 'Titles that do not fit stay on one line and scroll sideways.',
+    noCss: true,
+  }),
+  content.choose('icon_position', 'Icon position', 'Tabs', {
+    responsive: true,
+    options: [
+      { value: 'top', label: 'Above', icon: 'M9 3h6v6H9z M6 15h12' },
+      { value: 'right', label: 'After', icon: 'M14 8h6v8h-6z M4 12h7' },
+      { value: 'bottom', label: 'Below', icon: 'M9 15h6v6H9z M6 9h12' },
+      { value: 'left', label: 'Before', icon: 'M4 8h6v8H4z M13 12h7' },
+    ],
+    dictionary: { top: 'column', right: 'row-reverse', bottom: 'column-reverse', left: 'row' },
+    help: 'Each tab’s icon is set in its own settings (Tab icon).',
+    selectors: { [TITLE]: 'flex-direction: {{value}}' },
   }),
   style.slider('title_gap', 'Space between titles', 'Titles', {
     responsive: true,
@@ -119,6 +195,43 @@ const tabsControls: Control[] = [
     },
   }),
   groups.border('title_border', 'Border', 'Titles', '{{el}} > .fr-tabs__nav > .fr-tabs__title'),
+  groups.border('title_border_hover', 'Border on hover', 'Titles', HOVER),
+  groups.border('title_border_active', 'Active border', 'Titles', ACTIVE),
+  groups.shadow('title_box_shadow', 'Box shadow', 'Titles', TITLE),
+  groups.shadow('title_box_shadow_hover', 'Box shadow on hover', 'Titles', HOVER),
+  groups.shadow('title_box_shadow_active', 'Active box shadow', 'Titles', ACTIVE),
+  groups.textShadow('title_text_shadow', 'Text shadow', 'Titles', TITLE),
+  groups.textShadow('title_text_shadow_hover', 'Text shadow on hover', 'Titles', HOVER),
+  groups.textShadow('title_text_shadow_active', 'Active text shadow', 'Titles', ACTIVE),
+  ...textStrokeControls('title_stroke', 'Titles', TITLE),
+  style.slider('title_hover_transition', 'Transition duration (s)', 'Titles', {
+    units: ['s'],
+    max: 3,
+    step: 0.1,
+    selectors: { [TITLE]: 'transition-duration: {{value}}' },
+  }),
+  hoverAnimationControl('Titles'),
+  style.slider('icon_size', 'Size', 'Icon', {
+    responsive: true,
+    units: ['px', 'em', 'rem'],
+    max: 100,
+    selectors: { [`${TITLE} > .fr-tabs__icon`]: 'font-size: {{value}}' },
+  }),
+  style.slider('icon_spacing', 'Spacing', 'Icon', {
+    responsive: true,
+    units: ['px', 'em', 'rem'],
+    max: 100,
+    selectors: { [TITLE]: 'gap: {{value}}' },
+  }),
+  style.color('icon_color', 'Color', 'Icon', {
+    selectors: { [`${TITLE} > .fr-tabs__icon`]: 'color: {{value}}' },
+  }),
+  style.color('icon_hover_color', 'Color on hover', 'Icon', {
+    selectors: { [`${HOVER} > .fr-tabs__icon`]: 'color: {{value}}' },
+  }),
+  style.color('icon_active_color', 'Active color', 'Icon', {
+    selectors: { [`${ACTIVE} > .fr-tabs__icon`]: 'color: {{value}}' },
+  }),
   style.color('panel_bg', 'Background', 'Content', {
     selectors: { '{{el}} > .fr-tabs__panels': 'background-color: {{value}}' },
   }),
@@ -128,8 +241,36 @@ const tabsControls: Control[] = [
     selectors: { '{{el}} > .fr-tabs__panels': 'padding: {{top}} {{right}} {{bottom}} {{left}}' },
   }),
   groups.border('panel_border', 'Border', 'Content', '{{el}} > .fr-tabs__panels'),
+  groups.shadow('panel_shadow', 'Box shadow', 'Content', '{{el}} > .fr-tabs__panels'),
   ...advancedControls(),
 ];
+
+/** A tab's title: its text, with its icons when the item has some (`_icon`, `_icon_active`). */
+function tabTitle(child: FrescoNode | undefined, i: number): ReactNode {
+  const text = titleOf(child, i, 'Tab');
+  const icon = child?.attrs._icon;
+  if (!icon) return text;
+  const active = child?.attrs._icon_active;
+  return (
+    <>
+      <span className="fr-tabs__icon" aria-hidden="true">
+        <Icon value={icon} />
+      </span>
+      {active ? (
+        <span className="fr-tabs__icon fr-tabs__icon--active" aria-hidden="true">
+          <Icon value={active} />
+        </span>
+      ) : null}
+      <span className="fr-tabs__text">{text}</span>
+    </>
+  );
+}
+
+/** Classes of a title with icons. */
+const iconClasses = (child: FrescoNode | undefined) =>
+  child?.attrs._icon
+    ? ` fr-tabs__title--icon${child.attrs._icon_active ? ' fr-tabs__title--active-icon' : ''}`
+    : '';
 
 export const tabs: ElementDefinition = {
   type: 'fresco/tabs',
@@ -151,19 +292,32 @@ export const tabs: ElementDefinition = {
   render({ node, settings, items, context }) {
     const kids = node.children ?? [];
     const active = Math.min(context.ui?.active(node.id) ?? 0, Math.max(0, kids.length - 1));
-    const direction = ['left', 'right'].includes(settings.direction as string)
-      ? String(settings.direction)
-      : 'top';
+    // The per-device Direction (CSS variables), else the old one.
+    const own = ['top', 'bottom', 'left', 'right'].includes(settings.tabs_direction as string)
+      ? String(settings.tabs_direction)
+      : null;
+    const direction =
+      own ??
+      (['left', 'right'].includes(settings.direction as string)
+        ? String(settings.direction)
+        : 'top');
+    const scroll = settings.horizontal_scroll === true ? ' fr-tabs--scroll' : '';
+    const hover = hoverClass(settings.hover_effect);
     const justify = ['center', 'flex-end', 'stretch'].includes(settings.justify as string)
       ? ` fr-tabs--${String(settings.justify)}`
       : '';
-    const accordion = settings.mobile !== 'tabs' ? ' fr-tabs--accordion' : '';
+    const accordion =
+      settings.mobile === 'tabs'
+        ? ''
+        : ['laptop', 'tablet_extra', 'tablet', 'mobile_extra'].includes(settings.mobile as string)
+          ? ` fr-tabs--accordion fr-tabs--accordion-${String(settings.mobile)}`
+          : ' fr-tabs--accordion';
     const base = `fr-t-${node.id}`;
     return (
       <ElementRoot
         node={node}
         settings={settings}
-        name={`fr-tabs fr-tabs--${direction}${justify}${accordion}`}
+        name={`fr-tabs fr-tabs--${direction}${justify}${accordion}${scroll}`}
         editing={context.editing}
         extra={{ 'data-fr-handler': 'tabs' }}
       >
@@ -174,13 +328,13 @@ export const tabs: ElementDefinition = {
               type="button"
               role="tab"
               id={`${base}-t${i}`}
-              className="fr-tabs__title"
+              className={`fr-tabs__title${iconClasses(child)}${hover}`}
               aria-selected={i === active}
               aria-controls={`${base}-p${i}`}
               tabIndex={i === active ? 0 : -1}
               data-fr-tab={i}
             >
-              {titleOf(child, i, 'Tab')}
+              {tabTitle(child, i)}
             </button>
           ))}
         </div>
@@ -197,11 +351,11 @@ export const tabs: ElementDefinition = {
               {/* On narrow screens the titles move above their panel (accordion). */}
               <button
                 type="button"
-                className="fr-tabs__mobile-title"
+                className={`fr-tabs__mobile-title${iconClasses(kids[i])}`}
                 data-fr-tab={i}
                 aria-expanded={i === active}
               >
-                {titleOf(kids[i], i, 'Tab')}
+                {tabTitle(kids[i], i)}
               </button>
               {itemNode}
             </div>
@@ -244,6 +398,29 @@ function accordionControls(multiple: boolean): Control[] {
       ],
       noCss: true,
     }),
+    content.choose('title_align', 'Item position', 'Items', {
+      responsive: true,
+      options: [
+        { value: 'start', label: 'Start', icon: 'M4 4v16 M8 9h8v6H8z' },
+        { value: 'center', label: 'Center', icon: 'M12 4v16 M7 9h10v6H7z' },
+        { value: 'end', label: 'End', icon: 'M20 4v16 M8 9h8v6H8z' },
+        { value: 'stretch', label: 'Stretch', icon: 'M4 4v16 M20 4v16 M7 9h10v6H7z' },
+      ],
+      dictionary: {
+        start: 'justify-content: flex-start; --fr-acc-grow: 0',
+        center: 'justify-content: center; --fr-acc-grow: 0',
+        end: 'justify-content: flex-end; --fr-acc-grow: 0',
+        stretch: 'justify-content: space-between; --fr-acc-grow: 1',
+      },
+      selectors: { '{{el}} .fr-acc__title': '{{value}}' },
+    }),
+    content.number('animation_duration', 'Animation duration (ms)', 'Items', {
+      min: 0,
+      max: 3000,
+      step: 50,
+      help: 'How long an item takes to open and close (in browsers that can animate it).',
+      selectors: { '{{el}} .fr-acc__item': '--fr-acc-duration: {{value}}ms' },
+    }),
     content.switch('faq', 'FAQ schema', 'Items', {
       help: 'Tells search engines that the items are questions and answers.',
       noCss: true,
@@ -256,6 +433,31 @@ function accordionControls(multiple: boolean): Control[] {
     }),
     groups.border('item_border', 'Border', 'Items', '{{el}} .fr-acc__item'),
     ...textStyle('title_', 'Title', '{{el}} .fr-acc__title', { hover: true }),
+    groups.textShadow('title_text_shadow', 'Text shadow', 'Title', '{{el}} .fr-acc__title'),
+    groups.textShadow(
+      'title_open_text_shadow',
+      'Text shadow when open',
+      'Title',
+      '{{el}} .fr-acc__item[open] > .fr-acc__title',
+    ),
+    ...textStrokeControls('title_stroke', 'Title', '{{el}} .fr-acc__title'),
+    groups.border('title_border', 'Border', 'Title', '{{el}} .fr-acc__title'),
+    groups.border('title_border_hover', 'Border on hover', 'Title', '{{el}} .fr-acc__title:hover'),
+    groups.border(
+      'title_border_open',
+      'Border when open',
+      'Title',
+      '{{el}} .fr-acc__item[open] > .fr-acc__title',
+    ),
+    style.slider('title_hover_transition', 'Transition duration (s)', 'Title', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: {
+        '{{el}} .fr-acc__title':
+          'transition: color {{value}}, background-color {{value}}, border-color {{value}}',
+      },
+    }),
     style.color('title_bg', 'Background', 'Title', {
       hover: true,
       selectors: { '{{el}} .fr-acc__title': 'background-color: {{value}}' },
@@ -279,6 +481,20 @@ function accordionControls(multiple: boolean): Control[] {
       max: 60,
       selectors: { '{{el}} .fr-acc__icon': 'font-size: {{value}}' },
     }),
+    style.color('icon_hover_color', 'Icon color on hover', 'Title', {
+      selectors: { '{{el}} .fr-acc__title:hover .fr-acc__icon': 'color: {{value}}' },
+    }),
+    style.color('icon_open_color', 'Icon color when open', 'Title', {
+      selectors: {
+        '{{el}} .fr-acc__item[open] > .fr-acc__title .fr-acc__icon': 'color: {{value}}',
+      },
+    }),
+    style.slider('icon_spacing', 'Icon spacing', 'Title', {
+      responsive: true,
+      units: ['px', 'em', 'rem'],
+      max: 100,
+      selectors: { '{{el}} .fr-acc__title': 'gap: {{value}}' },
+    }),
     style.color('content_bg', 'Background', 'Content', {
       selectors: { '{{el}} .fr-acc__body': 'background-color: {{value}}' },
     }),
@@ -287,6 +503,7 @@ function accordionControls(multiple: boolean): Control[] {
       units: UNITS.box,
       selectors: { '{{el}} .fr-acc__body': 'padding: {{top}} {{right}} {{bottom}} {{left}}' },
     }),
+    groups.border('content_border', 'Border', 'Content', '{{el}} .fr-acc__body'),
     ...advancedControls(),
   ];
 }
@@ -345,7 +562,12 @@ function accordion(type: string, title: string, multiple: boolean): ElementDefin
           />
         ) : null;
       return (
-        <ElementRoot node={node} settings={settings} name="fr-accordion" editing={context.editing}>
+        <ElementRoot
+          node={node}
+          settings={settings}
+          name={`fr-accordion${Number(settings.animation_duration) > 0 ? ' fr-acc--animated' : ''}`}
+          editing={context.editing}
+        >
           <div className="fr-acc">
             {(items ?? []).map((itemNode, i) => {
               const isOpen = context.editing

@@ -19,7 +19,8 @@
 .fr-container {
   display: flex;
   width: 100%;
-  padding: 10px;
+  /* Site settings → Layout → Container padding (10px when unset). */
+  padding: var(--fr-container-padding, 10px);
 }
 .fr-container__in {
   display: flex;
@@ -316,6 +317,16 @@ a.fr-container {
   margin: 0.08em 0.12em 0 0;
   font-weight: 700;
 }
+/* Stacked and framed drop caps (their colors come with the element's styles). */
+.fr-drop-cap--stacked > p:first-child::first-letter {
+  padding: 0.25em 0.3em;
+  background-color: var(--fr-c-primary, #1d4ed8);
+  color: #fff;
+}
+.fr-drop-cap--framed > p:first-child::first-letter {
+  padding: 0.25em 0.3em;
+  border: 2px solid currentColor;
+}
 
 /* ---- Image ---- */
 
@@ -383,6 +394,19 @@ a.fr-container {
 .fr-button__icon {
   width: 1em;
   height: 1em;
+}
+/* Button types (Bootstrap-like presets, as Elementor's). */
+.fr-button--info {
+  background-color: #5bc0de;
+}
+.fr-button--success {
+  background-color: #5cb85c;
+}
+.fr-button--warning {
+  background-color: #f0ad4e;
+}
+.fr-button--danger {
+  background-color: #d9534f;
 }
 .fr-align-left {
   text-align: left;
@@ -499,6 +523,13 @@ a.fr-container {
   flex-direction: row-reverse;
   text-align: right;
 }
+.fr-box--bottom {
+  flex-direction: column-reverse;
+}
+.fr-shape-rounded .fr-icon-wrap,
+.fr-shape-rounded .fr-box__icon {
+  border-radius: 10%;
+}
 .fr-box__media {
   flex: 0 0 auto;
   max-width: 100%;
@@ -507,7 +538,8 @@ a.fr-container {
 :where(.fr-image-box) .fr-box__media {
   width: 30%;
 }
-:where(.fr-image-box .fr-box--top) .fr-box__media {
+:where(.fr-image-box .fr-box--top) .fr-box__media,
+:where(.fr-image-box .fr-box--bottom) .fr-box__media {
   width: 50%;
 }
 .fr-box__media img {
@@ -587,6 +619,29 @@ a.fr-container {
   transform: translate(-50%, -50%);
 }
 
+/* A play icon of the user's choice instead of the round button. */
+.fr-video__play--icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  margin: 0;
+  border-radius: 0;
+  background: none;
+  color: #fff;
+  font-size: 72px;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+}
+.fr-video__play--icon::after {
+  display: none;
+}
+.fr-video__play--icon .fr-icon {
+  width: 1em;
+  height: 1em;
+}
+
 /* ---- Hover effects ---- */
 
 .fr-hover-grow,
@@ -616,6 +671,268 @@ a.fr-container {
   }
   75% {
     transform: scale(0.96);
+  }
+}
+
+/* The other hover animations (Elementor's list), written for Fresco. */
+.fr-hover-bounce-in,
+.fr-hover-bounce-out,
+.fr-hover-grow-rotate,
+.fr-hover-sink,
+.fr-hover-skew,
+.fr-hover-skew-forward,
+.fr-hover-skew-backward {
+  transition: transform 0.3s;
+}
+.fr-hover-bounce-in,
+.fr-hover-bounce-out {
+  transition-duration: 0.5s;
+}
+.fr-hover-bounce-in:hover {
+  transform: scale(1.2);
+  transition-timing-function: cubic-bezier(0.47, 2.02, 0.31, -0.36);
+}
+.fr-hover-bounce-out:hover {
+  transform: scale(0.8);
+  transition-timing-function: cubic-bezier(0.47, 2.02, 0.31, -0.36);
+}
+.fr-hover-grow-rotate:hover {
+  transform: scale(1.1) rotate(4deg);
+}
+.fr-hover-sink:hover {
+  transform: translateY(8px);
+}
+.fr-hover-skew:hover {
+  transform: skew(-10deg);
+}
+.fr-hover-skew-forward,
+.fr-hover-skew-backward {
+  transform-origin: 0 100%;
+}
+.fr-hover-skew-forward:hover {
+  transform: skew(-10deg);
+}
+.fr-hover-skew-backward:hover {
+  transform: skew(10deg);
+}
+.fr-hover-pulse-grow:hover {
+  animation: fr-h-pulse-grow 0.3s linear infinite alternate;
+}
+.fr-hover-pulse-shrink:hover {
+  animation: fr-h-pulse-shrink 0.3s linear infinite alternate;
+}
+.fr-hover-push:hover {
+  animation: fr-h-push 0.3s linear 1;
+}
+.fr-hover-pop:hover {
+  animation: fr-h-pop 0.3s linear 1;
+}
+.fr-hover-bob:hover {
+  animation:
+    fr-h-bob-float 0.3s ease-out forwards,
+    fr-h-bob 1.5s ease-in-out 0.3s infinite alternate;
+}
+.fr-hover-hang:hover {
+  animation:
+    fr-h-hang-sink 0.3s ease-out forwards,
+    fr-h-hang 1.5s ease-in-out 0.3s infinite alternate;
+}
+.fr-hover-wobble-vertical:hover {
+  animation: fr-h-wobble-vertical 1s ease-in-out 1;
+}
+.fr-hover-wobble-horizontal:hover {
+  animation: fr-h-wobble-horizontal 1s ease-in-out 1;
+}
+.fr-hover-wobble-to-bottom-right:hover {
+  animation: fr-h-wobble-to-bottom-right 1s ease-in-out 1;
+}
+.fr-hover-wobble-to-top-right:hover {
+  animation: fr-h-wobble-to-top-right 1s ease-in-out 1;
+}
+.fr-hover-wobble-top {
+  transform-origin: 0 100%;
+}
+.fr-hover-wobble-top:hover {
+  animation: fr-h-wobble-skew 1s ease-in-out 1;
+}
+.fr-hover-wobble-bottom {
+  transform-origin: 100% 0;
+}
+.fr-hover-wobble-bottom:hover {
+  animation: fr-h-wobble-skew 1s ease-in-out 1;
+}
+.fr-hover-wobble-skew:hover {
+  animation: fr-h-wobble-skew 1s ease-in-out 1;
+}
+.fr-hover-buzz:hover {
+  animation: fr-h-buzz 0.15s linear infinite;
+}
+.fr-hover-buzz-out:hover {
+  animation: fr-h-buzz-out 0.75s linear 1;
+}
+@keyframes fr-h-pulse-grow {
+  to {
+    transform: scale(1.1);
+  }
+}
+@keyframes fr-h-pulse-shrink {
+  to {
+    transform: scale(0.9);
+  }
+}
+@keyframes fr-h-push {
+  50% {
+    transform: scale(0.8);
+  }
+}
+@keyframes fr-h-pop {
+  50% {
+    transform: scale(1.2);
+  }
+}
+@keyframes fr-h-bob-float {
+  to {
+    transform: translateY(-8px);
+  }
+}
+@keyframes fr-h-bob {
+  from {
+    transform: translateY(-8px);
+  }
+  to {
+    transform: translateY(-3px);
+  }
+}
+@keyframes fr-h-hang-sink {
+  to {
+    transform: translateY(6px);
+  }
+}
+@keyframes fr-h-hang {
+  from {
+    transform: translateY(6px);
+  }
+  to {
+    transform: translateY(2px);
+  }
+}
+@keyframes fr-h-wobble-vertical {
+  17% {
+    transform: translateY(8px);
+  }
+  33% {
+    transform: translateY(-6px);
+  }
+  50% {
+    transform: translateY(4px);
+  }
+  67% {
+    transform: translateY(-2px);
+  }
+  83% {
+    transform: translateY(1px);
+  }
+}
+@keyframes fr-h-wobble-horizontal {
+  17% {
+    transform: translateX(8px);
+  }
+  33% {
+    transform: translateX(-6px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+  67% {
+    transform: translateX(-2px);
+  }
+  83% {
+    transform: translateX(1px);
+  }
+}
+@keyframes fr-h-wobble-to-bottom-right {
+  17% {
+    transform: translate(8px, 8px);
+  }
+  33% {
+    transform: translate(-6px, -6px);
+  }
+  50% {
+    transform: translate(4px, 4px);
+  }
+  67% {
+    transform: translate(-2px, -2px);
+  }
+  83% {
+    transform: translate(1px, 1px);
+  }
+}
+@keyframes fr-h-wobble-to-top-right {
+  17% {
+    transform: translate(8px, -8px);
+  }
+  33% {
+    transform: translate(-6px, 6px);
+  }
+  50% {
+    transform: translate(4px, -4px);
+  }
+  67% {
+    transform: translate(-2px, 2px);
+  }
+  83% {
+    transform: translate(1px, -1px);
+  }
+}
+@keyframes fr-h-wobble-skew {
+  17% {
+    transform: skew(-12deg);
+  }
+  33% {
+    transform: skew(10deg);
+  }
+  50% {
+    transform: skew(-6deg);
+  }
+  67% {
+    transform: skew(4deg);
+  }
+  83% {
+    transform: skew(-2deg);
+  }
+}
+@keyframes fr-h-buzz {
+  50% {
+    transform: translateX(3px) rotate(2deg);
+  }
+  to {
+    transform: translateX(-3px) rotate(-2deg);
+  }
+}
+@keyframes fr-h-buzz-out {
+  10%,
+  30%,
+  50% {
+    transform: translateX(3px) rotate(2deg);
+  }
+  20%,
+  40%,
+  60% {
+    transform: translateX(-3px) rotate(-2deg);
+  }
+  70% {
+    transform: translateX(2px) rotate(1deg);
+  }
+  80% {
+    transform: translateX(-2px) rotate(-1deg);
+  }
+  90% {
+    transform: translateX(1px) rotate(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*='fr-hover-']:not(.fr-hover-pulse):hover {
+    animation: none !important;
   }
 }
 
@@ -1272,30 +1589,141 @@ a.fr-container {
   top: 50%;
   transform: translateY(-50%);
 }
+/* Counter and toolbar (Site settings → Lightbox). */
+.fr-lb__counter {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  font-size: 14px;
+  opacity: 0.85;
+}
+.fr-lb__tools {
+  position: absolute;
+  top: 8px;
+  right: 64px;
+  display: flex;
+  gap: 2px;
+}
+.fr-lb .fr-lb__tool {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: inherit;
+  text-decoration: none;
+}
+.fr-lb__tool svg {
+  width: 1em;
+  height: 1em;
+}
+.fr-lb figure.is-zoomed {
+  overflow: auto;
+  display: block;
+  cursor: zoom-out;
+}
+.fr-lb figure.is-zoomed img {
+  max-width: none;
+  max-height: none;
+}
+/* A video in the lightbox (Video widget with an image overlay). */
+.fr-lb--video {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fr-lb-bg, rgba(10, 10, 12, 0.92));
+}
+.fr-lb__video {
+  width: min(var(--fr-lb-video-width, 80%), calc((100vh - 120px) * 16 / 9));
+  aspect-ratio: 16 / 9;
+}
+.fr-lb__video iframe,
+.fr-lb__video video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
 
 /* ---- Tabs ---- */
 
+/* Where the titles go: variables set by the direction's class (or per device by
+   the element's Direction), declared on each tabs so nested ones do not inherit them. */
 .fr-tabs {
+  --fr-tabs-flow: column;
+  --fr-tabs-nav-flow: row;
+  --fr-tabs-nav-flex: 0 1 auto;
+  --fr-tabs-nav-bb: 1px;
+  --fr-tabs-nav-bt: 0;
+  --fr-tabs-line-y: -3px;
   display: flex;
-  flex-direction: column;
+  flex-direction: var(--fr-tabs-flow);
   gap: 0;
 }
-.fr-tabs--left {
-  flex-direction: row;
+.fr-tabs--bottom {
+  --fr-tabs-flow: column-reverse;
+  --fr-tabs-nav-bb: 0;
+  --fr-tabs-nav-bt: 1px;
+  --fr-tabs-line-y: 3px;
+}
+.fr-tabs--left,
+.fr-tabs--right {
+  --fr-tabs-flow: row;
+  --fr-tabs-nav-flow: column;
+  --fr-tabs-nav-flex: 0 0 25%;
+  --fr-tabs-nav-bb: 0;
 }
 .fr-tabs--right {
-  flex-direction: row-reverse;
+  --fr-tabs-flow: row-reverse;
 }
 .fr-tabs__nav {
   display: flex;
   gap: 4px;
   border-bottom: 1px solid #e2e8f0;
 }
-.fr-tabs--left > .fr-tabs__nav,
-.fr-tabs--right > .fr-tabs__nav {
-  flex-direction: column;
-  flex: 0 0 25%;
-  border-bottom: 0;
+.fr-tabs > .fr-tabs__nav {
+  flex-direction: var(--fr-tabs-nav-flow);
+  flex: var(--fr-tabs-nav-flex);
+  border-bottom-width: var(--fr-tabs-nav-bb);
+  border-top: var(--fr-tabs-nav-bt) solid #e2e8f0;
+}
+/* Titles that do not fit scroll sideways. */
+.fr-tabs--scroll > .fr-tabs__nav {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.fr-tabs--scroll > .fr-tabs__nav > .fr-tabs__title {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* Titles with icons (each tab's own). */
+.fr-tabs__title--icon,
+.fr-tabs__mobile-title.fr-tabs__title--icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.fr-tabs__mobile-title.fr-tabs__title--icon {
+  justify-content: flex-start;
+}
+.fr-tabs__icon {
+  display: inline-flex;
+  line-height: 1;
+}
+.fr-tabs__icon .fr-icon {
+  width: 1em;
+  height: 1em;
+}
+.fr-tabs__title--icon .fr-tabs__icon--active,
+.fr-tabs__title--active-icon[aria-selected='true'] > .fr-tabs__icon:not(.fr-tabs__icon--active),
+.fr-tabs__title--active-icon[aria-expanded='true'] > .fr-tabs__icon:not(.fr-tabs__icon--active) {
+  display: none;
+}
+.fr-tabs__title--active-icon[aria-selected='true'] > .fr-tabs__icon--active,
+.fr-tabs__title--active-icon[aria-expanded='true'] > .fr-tabs__icon--active {
+  display: inline-flex;
 }
 .fr-tabs--center > .fr-tabs__nav {
   justify-content: center;
@@ -1322,7 +1750,7 @@ a.fr-container {
 }
 .fr-tabs__title[aria-selected='true'] {
   color: var(--fr-c-primary, #1d4ed8);
-  box-shadow: inset 0 -3px 0 var(--fr-c-primary, #1d4ed8);
+  box-shadow: inset 0 var(--fr-tabs-line-y, -3px) 0 var(--fr-c-primary, #1d4ed8);
 }
 .fr-tabs__panels {
   flex: 1 1 auto;
@@ -1366,7 +1794,7 @@ a.fr-container {
   display: none;
 }
 .fr-acc__label {
-  flex: 1 1 auto;
+  flex: var(--fr-acc-grow, 1) 1 auto;
   margin: 0;
   font: inherit;
   color: inherit;
@@ -1381,6 +1809,20 @@ a.fr-container {
 }
 .fr-acc__body {
   padding: 0 20px 20px;
+}
+/* Items that open and close with an animation (Animation duration), where browsers can. */
+.fr-acc--animated .fr-acc {
+  interpolate-size: allow-keywords;
+}
+.fr-acc--animated .fr-acc__item::details-content {
+  height: 0;
+  overflow: clip;
+  transition:
+    height var(--fr-acc-duration, 0.4s) ease,
+    content-visibility var(--fr-acc-duration, 0.4s) allow-discrete;
+}
+.fr-acc--animated .fr-acc__item[open]::details-content {
+  height: auto;
 }
 
 /* ---- Icon list ---- */
@@ -1421,6 +1863,10 @@ a.fr-container {
   border-top: 1px solid #e2e8f0;
   padding-top: 8px;
 }
+/* "Apply link on: inline": only the icon and text are the link. */
+.fr-list--link-inline a.fr-list__item {
+  display: inline-flex;
+}
 .fr-list__icon {
   display: inline-flex;
   color: var(--fr-c-primary, #1d4ed8);
@@ -1446,6 +1892,16 @@ a.fr-container {
   margin-top: 6px;
   color: var(--fr-c-secondary, inherit);
 }
+/* The title beside the number (Title position: start or end). */
+.fr-counter--side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.fr-counter--side .fr-counter__title {
+  margin: 0;
+}
 .fr-progress__head {
   display: flex;
   justify-content: space-between;
@@ -1466,6 +1922,19 @@ a.fr-container {
 }
 .fr-js .fr-progress__fill[data-fr-percent]:not(.is-in) {
   width: 0 !important;
+}
+/* Progress types (Bootstrap-like presets, as Elementor's). */
+.fr-progress__fill--info {
+  background-color: #5bc0de;
+}
+.fr-progress__fill--success {
+  background-color: #5cb85c;
+}
+.fr-progress__fill--warning {
+  background-color: #f0ad4e;
+}
+.fr-progress__fill--danger {
+  background-color: #d9534f;
 }
 .fr-progress__inner {
   padding: 0 12px;
@@ -1581,6 +2050,10 @@ a.fr-container {
 .fr-e .fr-alert__description {
   margin: 4px 0 0;
 }
+.fr-alert__close .fr-icon {
+  width: 1em;
+  height: 1em;
+}
 .fr-alert__close {
   position: absolute;
   top: 8px;
@@ -1659,6 +2132,85 @@ a.fr-container {
 .fr-carousel__dot[aria-current='true'] {
   background: var(--fr-c-primary, #1d4ed8);
 }
+/* Arrows with icons of the user's choice. */
+.fr-carousel__arrow:has(.fr-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.fr-carousel__arrow .fr-icon {
+  width: 0.8em;
+  height: 0.8em;
+}
+/* Arrows outside the images: room on both sides. */
+.fr-carousel--arrows-outside {
+  padding-inline: 48px;
+}
+.fr-carousel--arrows-outside .fr-carousel__prev {
+  left: 0;
+}
+.fr-carousel--arrows-outside .fr-carousel__next {
+  right: 0;
+}
+/* Dots over the images. */
+.fr-carousel--dots-inside .fr-carousel__dots,
+.fr-carousel--dots-inside .fr-carousel__fraction {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  margin: 0;
+}
+.fr-carousel--dots-inside .fr-carousel__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+}
+/* Other paginations: "2 / 5", and a bar that fills up. */
+.fr-carousel__fraction {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.fr-carousel__progress {
+  height: 4px;
+  margin-top: 12px;
+  background: #e2e8f0;
+}
+.fr-carousel__progress > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--fr-c-primary, #1d4ed8);
+  transition: width var(--fr-carousel-speed, 0.3s);
+}
+.fr-carousel__caption {
+  margin-top: 8px;
+  font-size: 0.875em;
+  text-align: center;
+}
+/* Fade: the images on top of each other, one shown at a time. */
+.fr-carousel--fade .fr-carousel__track {
+  display: grid;
+  overflow: hidden;
+  scroll-snap-type: none;
+}
+.fr-carousel--fade .fr-carousel__slide {
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--fr-carousel-speed, 0.5s),
+    visibility var(--fr-carousel-speed, 0.5s);
+}
+.fr-carousel--fade .fr-carousel__slide.is-active {
+  opacity: 1;
+  visibility: visible;
+}
 .fr-gallery {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1677,6 +2229,19 @@ a.fr-container {
 .fr-gallery__item figcaption {
   font-size: 0.85em;
   margin-top: 4px;
+}
+/* Star ratings: unicode stars, and outlined empty stars. */
+.fr-star__char {
+  display: inline-block;
+  line-height: 1;
+}
+.fr-rating--outline .fr-star > .fr-icon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 32px;
+}
+.fr-rating--outline .fr-star {
+  color: var(--fr-c-primary, #f59e0b);
 }
 
 /* ---- Star rating ---- */

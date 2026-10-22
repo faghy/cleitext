@@ -7,9 +7,11 @@
  */
 import { useT } from '@cleitext/admin-sdk';
 import { useEffect, useRef, useState } from 'react';
-import type { FrescoNode } from '../core/model.js';
+import { activeDevices, type FrescoNode } from '../core/model.js';
 import { getElement } from '../core/registry.js';
-import { Svg } from './controls.js';
+import { DEVICE_NAMES, Svg } from './controls.js';
+import { globalOf } from './globals.js';
+import { indicatorsOf, navigatorKey, parentOf, type IndicatorKind } from './navigator-model.js';
 import { pluginBlockTitle } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
 import { find } from './tree.js';
@@ -53,7 +55,25 @@ function titleOf(node: FrescoNode, locale: string, t: (s: string) => string): st
 
 type Drop = { id: string; where: 'before' | 'after' | 'inside' };
 
-export function NavigatorWindow({ store }: { store: Store }) {
+const INDICATOR_ICONS: Record<IndicatorKind | 'global', string> = {
+  hidden:
+    'M3 3l18 18 M10.6 10.6a2 2 0 0 0 2.8 2.8 M9.9 5.1A9.8 9.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4 M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6',
+  position: 'M12 2v20 M2 12h20 M12 2l-3 3 M12 2l3 3 M22 12l-3-3 M22 12l-3 3',
+  css: 'M8 6l-6 6 6 6 M16 6l6 6-6 6',
+  motion: 'M5 12h10 M3 7h8 M7 17h8 M17 8l4 4-4 4',
+  conditions: 'M4 6h16 M7 12h10 M10 18h4',
+  global:
+    'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3 12h18 M12 3a14 14 0 0 1 0 18 M12 3a14 14 0 0 0 0 18',
+};
+
+export function NavigatorWindow({
+  store,
+  onContextMenu,
+}: {
+  store: Store;
+  /** Opens an element's right-click menu (the canvas's), at a point of the window. */
+  onContextMenu?: (id: string, position: { x: number; y: number }) => void;
+}) {
   const { t } = useT();
   const open = useStore(store, (s) => s.navigator);
   const blocks = useStore(store, (s) => s.blocks);
@@ -63,7 +83,11 @@ export function NavigatorWindow({ store }: { store: Store }) {
   const hidden = useStore(store, (s) => s.hidden);
   const locale = useStore(store, (s) => s.entry.locale);
   const readOnly = useStore(store, (s) => s.readOnly || s.contentOnly);
+  const breakpoints = useStore(store, (s) => s.kit.breakpoints);
   const [frame, setFrame] = useState<Frame>(loadFrame);
+  // The row the keyboard is on (a roving tab stop): the selected one, or the first.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const focusRequest = useRef<string | null>(null);
   const [closed, setClosed] = useState<Record<string, boolean>>({});
   const [renaming, setRenaming] = useState<string | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
@@ -85,6 +109,13 @@ export function NavigatorWindow({ store }: { store: Store }) {
       ?.querySelector(`[data-nav-id="${CSS.escape(selected)}"]`)
       ?.scrollIntoView({ block: 'nearest' });
   }, [selected, open]);
+  // A row reached with the keyboard takes the focus once it is drawn.
+  useEffect(() => {
+    const id = focusRequest.current;
+    if (!id) return;
+    focusRequest.current = null;
+    listRef.current?.querySelector<HTMLElement>(`[data-nav-id="${CSS.escape(id)}"]`)?.focus();
+  });
 
   if (!open) return null;
 
@@ -198,16 +229,75 @@ export function NavigatorWindow({ store }: { store: Store }) {
   };
 
   const allOpen = Object.values(closed).every((c) => !c);
+  const devices = activeDevices(breakpoints);
+  const tabStop = focusId && find(blocks, focusId) ? focusId : (selected ?? blocks[0]?.id ?? null);
+
+  /** The keyboard on a row: arrows, Home and End move; Enter or F2 renames; Space selects. */
+  const onRowKey = (event: React.KeyboardEvent, id: string) => {
+    if (renaming) return;
+    if (event.key === 'Enter' || event.key === 'F2') {
+      event.preventDefault();
+      if (!readOnly) setRenaming(id);
+      return;
+    }
+    if (event.key === ' ') {
+      event.preventDefault();
+      store.actions.select(id);
+      return;
+    }
+    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+      event.preventDefault();
+      const r = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      store.actions.select(id);
+      onContextMenu?.(id, { x: r.left + 24, y: r.bottom });
+      return;
+    }
+    const move = navigatorKey(event.key, id, blocks, closed, (x) => find(blocks, x));
+    if (!move) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (move.open) setClosed((c) => ({ ...c, [move.open!]: false }));
+    if (move.close) setClosed((c) => ({ ...c, [move.close!]: true }));
+    if (move.focus) {
+      setFocusId(move.focus);
+      focusRequest.current = move.focus;
+      store.actions.select(move.focus);
+    }
+  };
   const row = (node: FrescoNode, depth: number) => {
     const definition = getElement(node.type);
     const kids = node.type === 'fresco/block' ? [] : (node.children ?? []);
     const isClosed = closed[node.id] === true;
     const isHidden = hidden[node.id] === true;
     const dropHere = drop?.id === node.id ? drop.where : null;
+    const indicators: {
+      kind: IndicatorKind | 'global';
+      title: string;
+      devices?: typeof devices;
+    }[] = [
+      ...indicatorsOf(node, devices),
+      ...(globalOf(node) ? [{ kind: 'global' as const, title: 'Global widget' }] : []),
+    ];
     return (
       <li key={node.id}>
         <div
           data-nav-id={node.id}
+          role="treeitem"
+          aria-level={depth + 1}
+          aria-selected={selected === node.id || selection.includes(node.id)}
+          {...(kids.length ? { 'aria-expanded': !isClosed } : {})}
+          tabIndex={tabStop === node.id ? 0 : -1}
+          onKeyDown={(e) => {
+            if (e.target === e.currentTarget) onRowKey(e, node.id);
+          }}
+          onFocus={(e) => {
+            if (e.target === e.currentTarget) setFocusId(node.id);
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (!selection.includes(node.id)) store.actions.select(node.id);
+            onContextMenu?.(node.id, { x: e.clientX, y: e.clientY });
+          }}
           className={[
             'fre-navw__row',
             selected === node.id || selection.includes(node.id) ? 'is-on' : '',
@@ -224,6 +314,7 @@ export function NavigatorWindow({ store }: { store: Store }) {
           {kids.length > 0 ? (
             <button
               type="button"
+              tabIndex={-1}
               className="fre-navw__caret"
               aria-label={isClosed ? t('Expand') : t('Collapse')}
               onClick={() => setClosed((c) => ({ ...c, [node.id]: !isClosed }))}
@@ -262,8 +353,32 @@ export function NavigatorWindow({ store }: { store: Store }) {
               {titleOf(node, locale, t)}
             </span>
           )}
+          {indicators.length > 0 && (
+            <span className="fre-navw__signs">
+              {indicators.map((sign) => (
+                <span
+                  key={sign.kind}
+                  className={`fre-navw__sign fre-navw__sign--${sign.kind}`}
+                  title={t(sign.title, {
+                    devices: (sign.devices ?? [])
+                      .map((d) => t(DEVICE_NAMES[d]).toLowerCase())
+                      .join(', '),
+                  })}
+                  aria-label={t(sign.title, {
+                    devices: (sign.devices ?? [])
+                      .map((d) => t(DEVICE_NAMES[d]).toLowerCase())
+                      .join(', '),
+                  })}
+                  role="img"
+                >
+                  <Svg path={INDICATOR_ICONS[sign.kind]} size={11} />
+                </span>
+              ))}
+            </span>
+          )}
           <button
             type="button"
+            tabIndex={-1}
             className={`fre-navw__eye${isHidden ? ' is-on' : ''}`}
             title={isHidden ? t('Show in the editor') : t('Hide in the editor')}
             aria-label={isHidden ? t('Show in the editor') : t('Hide in the editor')}
@@ -362,7 +477,9 @@ export function NavigatorWindow({ store }: { store: Store }) {
         {blocks.length === 0 ? (
           <p className="fre-navw__empty">{t('The page is empty: add a container to start.')}</p>
         ) : (
-          <ul>{blocks.map((node) => row(node, 0))}</ul>
+          <ul role="tree" aria-label={t('Structure')}>
+            {blocks.map((node) => row(node, 0))}
+          </ul>
         )}
       </div>
       {!docked && (
@@ -374,13 +491,4 @@ export function NavigatorWindow({ store }: { store: Store }) {
       )}
     </div>
   );
-}
-
-function parentOf(blocks: FrescoNode[], id: string): FrescoNode | null {
-  for (const node of blocks) {
-    if (node.children?.some((c) => c.id === id)) return node;
-    const found = node.children ? parentOf(node.children, id) : null;
-    if (found) return found;
-  }
-  return null;
 }

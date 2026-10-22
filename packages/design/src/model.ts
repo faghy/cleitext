@@ -263,7 +263,11 @@ export interface Control {
   /** Help under the control. */
   help?: string;
   selectors?: Record<string, string>;
-  /** Shown only when other settings match, e.g. `{ layout: 'grid' }` or `{ layout: ['a', 'b'] }`. */
+  /**
+   * Shown only when other settings match, e.g. `{ layout: 'grid' }` or
+   * `{ layout: ['a', 'b'] }`; a key ending in `!` must NOT match, e.g.
+   * `{ 'icon!': [undefined, ''] }` (shown when an icon is set).
+   */
   condition?: Record<string, unknown>;
   /** Fields of each item of a `repeater`. */
   fields?: Control[];

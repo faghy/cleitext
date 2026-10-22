@@ -47,6 +47,67 @@ export interface Extensions {
   customFonts: string[];
   /** Editor: choices of `select` controls with a `source`, loaded when shown. */
   optionSources: Record<string, () => Promise<ControlOption[]>>;
+  /** Editor: more panels of the Site settings (e.g. Fresco Pro's custom CSS). */
+  siteSettings: SiteSettingsPanel[];
+  /** Editor: the site's global widgets, when a plugin keeps them (Fresco Pro). */
+  globalWidgets: GlobalWidgets[];
+  /**
+   * Editor: the page the canvas shows a document as (e.g. a template previewed
+   * with a chosen entry); the first one giving a page wins, none: no page.
+   */
+  previewPages: PreviewPage[];
+}
+
+/** What a preview page provider gets: the document being edited and the site. */
+export interface PreviewPageInput {
+  /** The entry's content type. */
+  type: string;
+  /** The document's page settings. */
+  page: Settings;
+  locale: string;
+  site: RenderContext['site'];
+}
+
+export type PreviewPage = (input: PreviewPageInput) => Promise<BlockPage | null> | BlockPage | null;
+
+/** What a panel of the Site settings gets from the editor. */
+export interface SiteSettingsPanelProps {
+  /**
+   * Marks the panel's changes as not saved: `save` runs when the page is
+   * saved (or with the Save button of the Site settings); null: nothing to save.
+   */
+  setPending(save: (() => Promise<void>) | null): void;
+  /** The page shown in the canvas, for live previews (null while it loads). */
+  canvas(): Document | null;
+  readOnly: boolean;
+}
+
+/** A panel of the Site settings added by a plugin. */
+export interface SiteSettingsPanel {
+  id: string;
+  /** In English: the editor translates it. */
+  title: string;
+  /** An SVG path (24×24). */
+  icon: string;
+  /** Its group in the menu (Settings by default). */
+  group?: 'design' | 'theme' | 'settings';
+  /** Shown only to users with this capability. */
+  capability?: string;
+  component: unknown;
+}
+
+/** Global widgets: elements saved once and shown in many places, edited in one. */
+export interface GlobalWidgets {
+  /** The global widgets of the site. */
+  list(): Promise<{ id: string; title: string }[]>;
+  /** The element that shows a global widget on a page. */
+  node(id: string): FrescoNode;
+  /** The global widget an element shows, or null. */
+  idOf(node: FrescoNode): string | null;
+  /** Its content (the elements saved in it). */
+  load(id: string): Promise<FrescoNode[]>;
+  /** Saves new content: every page showing it changes. */
+  save(id: string, nodes: FrescoNode[]): Promise<void>;
 }
 
 export interface MenuAction {
@@ -71,7 +132,7 @@ const KEY = Symbol.for('cleitext.fresco.extensions');
 
 export function extensions(): Extensions {
   const holder = globalThis as unknown as Record<symbol, Extensions | undefined>;
-  return (holder[KEY] ??= {
+  const all = (holder[KEY] ??= {
     controls: [],
     root: [],
     css: [],
@@ -84,7 +145,15 @@ export function extensions(): Extensions {
     iconSets: [],
     editorAccess: [],
     optionSources: {},
+    siteSettings: [],
+    globalWidgets: [],
+    previewPages: [],
   });
+  // Lists added after the object was made (another copy of Fresco loaded first).
+  all.siteSettings ??= [];
+  all.globalWidgets ??= [];
+  all.previewPages ??= [];
+  return all;
 }
 
 /** Empties the lists: on the server, plugins set them up again when they reload. */

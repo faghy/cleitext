@@ -2,49 +2,26 @@
 import { t as tr, useT, type EditorHost, type EditorMedia } from '@cleitext/admin-sdk';
 import { useEffect, useState, type ComponentType } from 'react';
 import { conditionMet, withDefaults } from '../core/css.js';
-import { DEFAULT_KIT, type Kit, type KitColor, type KitFont } from '../core/kit.js';
 import {
-  OPTIONAL_BREAKPOINTS,
-  OPTIONAL_DEVICES,
   activeDevices,
-  type Breakpoints,
   type Control,
-  type Device,
   type ElementCategory,
   type FrescoNode,
-  type OptionalDevice,
   type Settings,
   type Tab,
 } from '../core/model.js';
 import { getElement, listElements } from '../core/registry.js';
-import {
-  ColorPicker,
-  ControlField,
-  DEVICE_NAMES,
-  DragHandle,
-  Svg,
-  useDragReorder,
-  type ControlEnv,
-} from './controls.js';
+import { ControlField, DragHandle, Svg, useDragReorder, type ControlEnv } from './controls.js';
 import { PAGE_STYLE_CONTROLS, pageStyleSettings } from '../core/page-css.js';
 import { AtomicStyle } from './atomic-style.js';
-import { FontPicker, systemGroup } from './font-picker.js';
 import { controlsOf, extensions } from '../core/extensions.js';
 import { LibraryView } from './library.js';
 import { documentKind } from './document-kind.js';
 import { HistoryView } from './history.js';
-import { confirmAction } from './dialogs.js';
-import {
-  ButtonSettings,
-  FieldSettings,
-  IdentitySettings,
-  ImageSettings,
-  LightboxSettings,
-  MediaIdField,
-  SITE_MENU,
-  TypographySettings,
-} from './site-settings.js';
-import { PluginBlockFields, pluginBlockTitle } from './plugin-blocks.js';
+import { MediaIdField, SiteView } from './site-settings.js';
+import { elementSource, PluginBlockFields, pluginBlockTitle, pluginName } from './plugin-blocks.js';
+import { PreferencesView } from './preferences.js';
+import { GlobalsTab } from './globals.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
 import { controlShown, hasHoverView, parentLayout } from './panel-filter.js';
@@ -67,6 +44,8 @@ export interface PanelProps {
     list: (query: { kind?: 'image'; search?: string }) => Promise<EditorMedia[]>;
   };
   onDragStart: (event: React.PointerEvent, type: string, label: string) => void;
+  /** Drags ready-made elements (a global widget) onto the page. */
+  onDragNode?: (event: React.PointerEvent, make: () => FrescoNode, label: string) => void;
   canManageKit: boolean;
   onSaveKit: () => Promise<void>;
   /** The site settings are saved with the page (Publish), not with their own button. */
@@ -77,6 +56,10 @@ export interface PanelProps {
   canManageTheme?: boolean;
   /** The entry editor's actions (full screen): title, status, featured image. */
   host?: EditorHost;
+  /** The user's capabilities. */
+  capabilities?: readonly string[];
+  /** The page in the canvas (live previews of Site settings panels). */
+  canvas?: () => Document | null;
 }
 
 export function Panel(props: PanelProps) {
@@ -102,6 +85,7 @@ export function Panel(props: PanelProps) {
       {view === 'history' && <HistoryView store={props.store} />}
       {view === 'page' && <PageView {...props} />}
       {view === 'site' && <SiteView {...props} />}
+      {view === 'preferences' && <PreferencesView store={props.store} />}
     </div>
   );
 }
@@ -129,20 +113,27 @@ function useStored<T>(key: string, initial: T): [T, (value: T) => void] {
   return [value, set];
 }
 
-function ElementsView({ store, onDragStart }: PanelProps) {
+function ElementsView({ store, onDragStart, onDragNode }: PanelProps) {
   const { t } = useT();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'elements' | 'globals'>('elements');
-  const [favorites, setFavorites] = useStored<string[]>('fresco:favorites', []);
+  // The user's favorites (User preferences, kept for the user).
+  const favorites = useStore(store, (s) => s.prefs.favorites);
+  const setFavorites = (next: string[]) => store.actions.setPrefs({ favorites: next });
   const [closed, setClosed] = useStored<string[]>('fresco:closed-categories', []);
+  const [source, setSource] = useStored<string>('fresco:element-source', '');
   const [tileMenu, setTileMenu] = useState<{ type: string; x: number; y: number } | null>(null);
   const elements = listElements();
+  // The plugins the elements come from: a filter when there are others than Fresco.
+  const sources = [...new Set(elements.filter((e) => !e.hidden).map((e) => elementSource(e.type)))];
+  const shownSource = sources.includes(source) ? source : '';
   const q = search.trim().toLowerCase();
-  const matches = (title: string, keywords: string[] = []) =>
+  const matches = (title: string, keywords: string[] = [], plugin = '') =>
     !q ||
     title.toLowerCase().includes(q) ||
     t(title).toLowerCase().includes(q) ||
-    keywords.some((k) => k.includes(q));
+    keywords.some((k) => k.includes(q)) ||
+    pluginName(plugin).toLowerCase().includes(q);
   const addAtEnd = (type: string) => {
     const state = store.get();
     // After the selected element, or at the end of the page.
@@ -159,7 +150,12 @@ function ElementsView({ store, onDragStart }: PanelProps) {
     window.addEventListener('pointerdown', close);
     return () => window.removeEventListener('pointerdown', close);
   }, [tileMenu]);
-  const visible = elements.filter((e) => !e.hidden && matches(e.title, e.keywords));
+  const visible = elements.filter(
+    (e) =>
+      !e.hidden &&
+      matches(e.title, e.keywords, elementSource(e.type)) &&
+      (!shownSource || elementSource(e.type) === shownSource),
+  );
   const groups = [
     ...(favorites.length
       ? [
@@ -176,26 +172,35 @@ function ElementsView({ store, onDragStart }: PanelProps) {
       list: visible.filter((e) => e.category === category.id),
     })),
   ].filter((group) => group.list.length > 0);
-  const tile = (element: (typeof elements)[number]) => (
-    <button
-      key={element.type}
-      type="button"
-      className="fre-tile"
-      title={t('{element}: drag it onto the page, or click to add it', {
-        element: t(element.title),
-      })}
-      onPointerDown={(e) => onDragStart(e, element.type, t(element.title))}
-      onClick={() => addAtEnd(element.type)}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        setTileMenu({ type: element.type, x: e.clientX, y: e.clientY });
-      }}
-    >
-      <Svg path={element.icon} size={28} />
-      <span>{t(element.title)}</span>
-      {element.pro && <em className="fre-pro">Pro</em>}
-    </button>
-  );
+  const tile = (element: (typeof elements)[number]) => {
+    // Blocks of other plugins carry the plugin's name (they may share titles with Fresco's).
+    const from = elementSource(element.type);
+    const badge = from === 'fresco' || from === 'fresco-pro' ? null : pluginName(from);
+    return (
+      <button
+        key={element.type}
+        type="button"
+        className={`fre-tile${badge ? ' fre-tile--plugin' : ''}`}
+        data-source={from}
+        title={
+          (badge ? `${badge} · ` : '') +
+          t('{element}: drag it onto the page, or click to add it', {
+            element: t(element.title),
+          })
+        }
+        onPointerDown={(e) => onDragStart(e, element.type, t(element.title))}
+        onClick={() => addAtEnd(element.type)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setTileMenu({ type: element.type, x: e.clientX, y: e.clientY });
+        }}
+      >
+        <Svg path={element.icon} size={28} />
+        <span>{t(element.title)}</span>
+        {badge && <em className="fre-tile__badge">{badge}</em>}
+      </button>
+    );
+  };
   return (
     <div className="fre-elements">
       <div className="fre-subtabs" role="tablist">
@@ -213,11 +218,7 @@ function ElementsView({ store, onDragStart }: PanelProps) {
         ))}
       </div>
       {tab === 'globals' ? (
-        <p className="fre-empty-note">
-          {t(
-            'Global elements are saved once and used on many pages: change one and every copy changes. Right-click an element on the page and choose “Save as template”, then add it from Templates.',
-          )}
-        </p>
+        <GlobalsTab store={store} onDragNode={onDragNode} />
       ) : (
         <>
           <div className="fre-searchbox">
@@ -229,6 +230,23 @@ function ElementsView({ store, onDragStart }: PanelProps) {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          {sources.length > 1 && (
+            <div className="fre-sourcefilter">
+              <select
+                className="fre-input"
+                aria-label={t('Elements of')}
+                value={shownSource}
+                onChange={(e) => setSource(e.target.value)}
+              >
+                <option value="">{t('All plugins')}</option>
+                {sources.map((slug) => (
+                  <option key={slug} value={slug}>
+                    {pluginName(slug)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {groups.map((group) => {
             const isClosed = !q && closed.includes(group.id);
             return (
@@ -696,7 +714,14 @@ function PageSettingsTab({
 }) {
   const page = useStore(store, (s) => s.page);
   const readOnly = useStore(store, (s) => s.readOnly);
-  const wide = page.layout === 'full' || page.layout === 'canvas';
+  // The site's default layout (Site settings → Layout), for pages that keep it.
+  const siteLayout = useStore(store, (s) => s.kit.layout?.pageLayout);
+  const layoutNames: Record<string, string> = {
+    full: tr('Full width'),
+    canvas: tr('Canvas (no header and footer)'),
+  };
+  const effective = page.layout === 'theme' ? '' : (page.layout as string) || siteLayout || '';
+  const wide = effective === 'full' || effective === 'canvas';
   // Some documents (popups) have none of the theme's page settings.
   const pageFields =
     documentKind(
@@ -768,7 +793,12 @@ function PageSettingsTab({
                 value={typeof page.layout === 'string' ? page.layout : ''}
                 onChange={(e) => store.actions.setPage({ layout: e.target.value || undefined })}
               >
-                <option value="">{tr('Theme default')}</option>
+                <option value="">
+                  {siteLayout
+                    ? tr('Site default ({layout})', { layout: layoutNames[siteLayout]! })
+                    : tr('Theme default')}
+                </option>
+                {siteLayout && <option value="theme">{tr('Theme default')}</option>}
                 <option value="full">{tr('Full width')}</option>
                 <option value="canvas">{tr('Canvas (no header and footer)')}</option>
               </select>
@@ -849,597 +879,6 @@ function PageStyleTab({ store, media }: { store: Store; media: PanelProps['media
         {tr('The background covers the whole page; the padding is around the content.')}
       </p>
     </>
-  );
-}
-
-// ---- Site settings (kit) ---------------------------------------------------------------------------
-
-function SiteView({
-  store,
-  media,
-  canManageKit,
-  onSaveKit,
-  savesWithPage,
-  canManageSettings,
-  canManageTheme,
-}: PanelProps) {
-  const { t: tx } = useT();
-  const kit = useStore(store, (s) => s.kit);
-  const dirty = useStore(store, (s) => s.kitDirty);
-  const [section, setSection] = useState<string>('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const set = (patch: Partial<Kit>) => store.actions.setKit({ ...kit, ...patch });
-  // As in other builders: a menu, and each entry its own panel with the way back.
-  const sectionHead = (_id: string, _title: string) => null;
-  const setTheme = (theme: Kit['theme']) => set({ theme });
-  const current = SITE_MENU.flatMap((g) => g.items).find((item) => item.id === section);
-  if (!current) {
-    return (
-      <div className="fre-site fre-site--menu">
-        <p className="fre-help">
-          {tx('They apply to every Fresco page of the site.')}
-          {!canManageKit && ` ${tx('Only administrators can save them.')}`}
-        </p>
-        {SITE_MENU.map((group) => (
-          <section key={group.group} className="fre-sitemenu">
-            <h4>{tx(group.group)}</h4>
-            {group.items.map((item) => (
-              <button key={item.id} type="button" onClick={() => setSection(item.id)}>
-                <Svg path={item.icon} size={16} />
-                <span>{tx(item.title)}</span>
-                <Svg path="M9 6l6 6-6 6" size={12} />
-              </button>
-            ))}
-          </section>
-        ))}
-      </div>
-    );
-  }
-  return (
-    <div className="fre-site">
-      <button type="button" className="fre-site__back" onClick={() => setSection('')}>
-        <Svg path="M15 6l-6 6 6 6" size={14} />
-        <span>{tx(current.title)}</span>
-      </button>
-      {section === 'typography' && <TypographySettings kit={kit} setTheme={setTheme} />}
-      {section === 'buttons' && <ButtonSettings kit={kit} setTheme={setTheme} />}
-      {section === 'images' && <ImageSettings kit={kit} setTheme={setTheme} />}
-      {section === 'fields' && <FieldSettings kit={kit} setTheme={setTheme} />}
-      {section === 'lightbox' && <LightboxSettings kit={kit} setTheme={setTheme} />}
-      {section === 'identity' && (
-        <IdentitySettings
-          canManage={canManageSettings === true}
-          canManageTheme={canManageTheme === true}
-          media={media}
-        />
-      )}
-      <section className={`fre-section${section === 'colors' ? ' is-open' : ''}`}>
-        {sectionHead('colors', 'Global colors')}
-        {section === 'colors' && (
-          <div className="fre-section__body">
-            {kit.colors.map((color, index) => (
-              <ColorRow
-                key={color.id}
-                color={color}
-                kit={kit}
-                system={index < 4}
-                onChange={(next) =>
-                  set({ colors: kit.colors.map((c) => (c.id === color.id ? next : c)) })
-                }
-                onRemove={() => set({ colors: kit.colors.filter((c) => c.id !== color.id) })}
-              />
-            ))}
-            <button
-              type="button"
-              className="fre-button"
-              onClick={() => {
-                const id = `c${Math.random().toString(36).slice(2, 8)}`;
-                set({ colors: [...kit.colors, { id, title: 'New color', value: '#64748b' }] });
-              }}
-            >
-              {tx('+ Add color')}
-            </button>
-          </div>
-        )}
-      </section>
-      <section className={`fre-section${section === 'fonts' ? ' is-open' : ''}`}>
-        {sectionHead('fonts', 'Global fonts')}
-        {section === 'fonts' && (
-          <div className="fre-section__body">
-            {kit.fonts.map((font, index) => (
-              <FontRow
-                key={font.id}
-                font={font}
-                system={index < 4}
-                onChange={(next) =>
-                  set({ fonts: kit.fonts.map((f) => (f.id === font.id ? next : f)) })
-                }
-                onRemove={() => set({ fonts: kit.fonts.filter((f) => f.id !== font.id) })}
-              />
-            ))}
-            <button
-              type="button"
-              className="fre-button"
-              onClick={() => {
-                const id = `f${Math.random().toString(36).slice(2, 8)}`;
-                set({
-                  fonts: [...kit.fonts, { id, title: 'New font', family: 'Inter', weight: '400' }],
-                });
-              }}
-            >
-              {tx('+ Add font')}
-            </button>
-          </div>
-        )}
-      </section>
-      <section className={`fre-section${section === 'layout' ? ' is-open' : ''}`}>
-        {sectionHead('layout', 'Layout')}
-        {section === 'layout' && (
-          <div className="fre-section__body">
-            <NumberRow
-              label={tx('Content width (px)')}
-              value={Number(kit.containerWidth.size)}
-              min={300}
-              max={2400}
-              onChange={(v) => set({ containerWidth: { size: v, unit: 'px' } })}
-            />
-            <NumberRow
-              label={tx('Gap between elements (px)')}
-              value={Number(kit.gap.size)}
-              min={0}
-              max={200}
-              onChange={(v) => set({ gap: { size: v, unit: 'px' } })}
-            />
-            <BreakpointsSettings
-              breakpoints={kit.breakpoints}
-              onChange={(breakpoints) => set({ breakpoints })}
-            />
-            <div className="fre-control">
-              <div className="fre-control__head">
-                <span className="fre-control__label">{tx('Page title selector')}</span>
-              </div>
-              <input
-                className="fre-input fre-mono"
-                value={kit.titleSelector ?? ''}
-                placeholder={DEFAULT_KIT.titleSelector}
-                onChange={(e) => set({ titleSelector: e.target.value || undefined })}
-              />
-              <p className="fre-help">
-                {tx('What "Hide the page title" hides, as a CSS selector of your theme.')}
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
-      <section className={`fre-section${section === 'variables' ? ' is-open' : ''}`}>
-        {sectionHead('variables', 'Variables')}
-        {section === 'variables' && (
-          <div className="fre-section__body">
-            <p className="fre-help">
-              {tx('Named colors, fonts and sizes for the Style tab of atomic elements.')}
-            </p>
-            {kit.variables.map((variable) => (
-              <div key={variable.id} className="fre-kitrow">
-                <input
-                  className="fre-input"
-                  value={variable.label}
-                  aria-label={tx('Name')}
-                  onChange={(e) =>
-                    set({
-                      variables: kit.variables.map((v) =>
-                        v.id === variable.id ? { ...v, label: e.target.value } : v,
-                      ),
-                    })
-                  }
-                />
-                {variable.type === 'color' && (
-                  <input
-                    type="color"
-                    value={/^#[0-9a-f]{6}$/i.test(variable.value) ? variable.value : '#000000'}
-                    aria-label={tx('Color')}
-                    onChange={(e) =>
-                      set({
-                        variables: kit.variables.map((v) =>
-                          v.id === variable.id ? { ...v, value: e.target.value } : v,
-                        ),
-                      })
-                    }
-                  />
-                )}
-                <input
-                  className="fre-input fre-mono"
-                  value={variable.value}
-                  aria-label={tx('Value')}
-                  onChange={(e) =>
-                    set({
-                      variables: kit.variables.map((v) =>
-                        v.id === variable.id ? { ...v, value: e.target.value } : v,
-                      ),
-                    })
-                  }
-                />
-                <button
-                  type="button"
-                  className="fre-iconbtn"
-                  aria-label={tx('Remove {name}', { name: variable.label })}
-                  onClick={() =>
-                    set({ variables: kit.variables.filter((v) => v.id !== variable.id) })
-                  }
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            <div className="fre-library__save">
-              {(
-                [
-                  ['color', '#c2410c', 'Color'],
-                  ['font', 'Inter', 'Font'],
-                  ['size', '24px', 'Size'],
-                ] as const
-              ).map(([type, value, label]) => (
-                <button
-                  key={type}
-                  type="button"
-                  className="fre-button"
-                  onClick={() => {
-                    const id = `${type}-${Math.random().toString(36).slice(2, 7)}`;
-                    set({
-                      variables: [
-                        ...kit.variables,
-                        { id, label: `New ${label.toLowerCase()}`, type, value },
-                      ],
-                    });
-                  }}
-                >
-                  + {tx(label)}
-                </button>
-              ))}
-            </div>
-            {kit.classes.length > 0 && (
-              <>
-                <h4 className="fre-subheading">{tx('Global classes')}</h4>
-                {kit.classes.map((c) => (
-                  <div key={c.id} className="fre-kitrow">
-                    <input
-                      className="fre-input"
-                      value={c.label}
-                      aria-label={tx('Class name')}
-                      onChange={(e) =>
-                        set({
-                          classes: kit.classes.map((x) =>
-                            x.id === c.id ? { ...x, label: e.target.value } : x,
-                          ),
-                        })
-                      }
-                    />
-                    <code className="fre-mono">.fr-g-{c.id}</code>
-                    <button
-                      type="button"
-                      className="fre-iconbtn"
-                      aria-label={tx('Delete the class {name}', { name: c.label })}
-                      onClick={() =>
-                        void confirmAction({
-                          title: tr('Delete the class “{name}”?', { name: c.label }),
-                          text: tr('Elements keep the name but lose its style.'),
-                          action: tr('Delete'),
-                          danger: true,
-                        }).then((ok) => {
-                          if (ok) set({ classes: kit.classes.filter((x) => x.id !== c.id) });
-                        })
-                      }
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-      </section>
-      <section className={`fre-section${section === 'style' ? ' is-open' : ''}`}>
-        {sectionHead('style', 'Theme style')}
-        {section === 'style' && (
-          <div className="fre-section__body">
-            {(
-              [
-                ['text', 'Text color'],
-                ['link', 'Link color'],
-                ['linkHover', 'Link color on hover'],
-                ['background', 'Page background'],
-              ] as const
-            ).map(([key, label]) => (
-              <div key={key} className="fre-control fre-control--inline">
-                <div className="fre-control__head">
-                  <span className="fre-control__label">{tx(label)}</span>
-                </div>
-                <div className="fre-control__body">
-                  <ColorPicker
-                    value={kit.style[key] ?? ''}
-                    kit={kit}
-                    onChange={(v) => set({ style: { ...kit.style, [key]: v } })}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-      {canManageKit && !savesWithPage && (
-        <div className="fre-site__save">
-          {error && <p className="fre-error">{error}</p>}
-          <button
-            type="button"
-            className="fre-button fre-button--primary"
-            disabled={!dirty || saving}
-            onClick={async () => {
-              setSaving(true);
-              setError(null);
-              try {
-                await onSaveKit();
-              } catch (e) {
-                setError(String(e instanceof Error ? e.message : e));
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            {saving ? tx('Saving…') : dirty ? tx('Save site settings') : tx('Site settings saved')}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ColorRow({
-  color,
-  kit,
-  system,
-  onChange,
-  onRemove,
-}: {
-  color: KitColor;
-  kit: Kit;
-  system: boolean;
-  onChange: (c: KitColor) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="fre-kitrow">
-      <ColorPicker
-        value={color.value}
-        kit={{ ...kit, colors: [] }}
-        onChange={(v) => v && !v.startsWith('var(') && onChange({ ...color, value: v })}
-      />
-      <input
-        className="fre-input"
-        value={color.title}
-        aria-label={tr('Name')}
-        onChange={(e) => onChange({ ...color, title: e.target.value })}
-      />
-      <code className="fre-mono">{color.value}</code>
-      {!system && (
-        <button
-          type="button"
-          className="fre-iconbtn"
-          aria-label={tr('Remove {name}', { name: color.title })}
-          onClick={onRemove}
-        >
-          ×
-        </button>
-      )}
-    </div>
-  );
-}
-
-function FontRow({
-  font,
-  system,
-  onChange,
-  onRemove,
-}: {
-  font: KitFont;
-  system: boolean;
-  onChange: (f: KitFont) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="fre-kitfont">
-      <div className="fre-kitrow">
-        <input
-          className="fre-input"
-          value={font.title}
-          aria-label={tr('Name')}
-          onChange={(e) => onChange({ ...font, title: e.target.value })}
-        />
-        {!system && (
-          <button
-            type="button"
-            className="fre-iconbtn"
-            aria-label={tr('Remove {name}', { name: font.title })}
-            onClick={onRemove}
-          >
-            ×
-          </button>
-        )}
-      </div>
-      <div className="fre-kitrow">
-        <FontPicker
-          value={font.family}
-          ariaLabel={tr('Family')}
-          groups={[systemGroup()]}
-          onChange={(family) => family && onChange({ ...font, family })}
-        />
-        <select
-          className="fre-input"
-          value={font.weight}
-          aria-label={tr('Weight')}
-          onChange={(e) => onChange({ ...font, weight: e.target.value })}
-        >
-          {['300', '400', '500', '600', '700', '800'].map((w) => (
-            <option key={w} value={w}>
-              {w}
-            </option>
-          ))}
-        </select>
-        <input
-          className="fre-input fre-input--number"
-          type="number"
-          placeholder={tr('Size')}
-          aria-label={tr('Size (px)')}
-          value={typeof font.size?.size === 'number' ? font.size.size : ''}
-          onChange={(e) => {
-            const rest = { ...font };
-            delete rest.size;
-            onChange(
-              e.target.value
-                ? { ...rest, size: { size: Number(e.target.value), unit: 'px' } }
-                : rest,
-            );
-          }}
-        />
-      </div>
-      <p className="fre-preview-font" style={{ fontFamily: font.family, fontWeight: font.weight }}>
-        {tr('The quick brown fox')}
-      </p>
-    </div>
-  );
-}
-
-/** Labels of the breakpoint rows, from the smallest device. */
-const BREAKPOINT_ROWS: { device: Exclude<Device, 'desktop'>; label: string }[] = [
-  { device: 'mobile', label: 'Mobile up to (px)' },
-  { device: 'mobile_extra', label: 'Mobile extra up to (px)' },
-  { device: 'tablet', label: 'Tablet up to (px)' },
-  { device: 'tablet_extra', label: 'Tablet extra up to (px)' },
-  { device: 'laptop', label: 'Laptop up to (px)' },
-  { device: 'widescreen', label: 'Widescreen from (px)' },
-];
-
-/**
- * The breakpoints: tablet and mobile always, the other devices off until
- * switched on. Each value stays between its neighbours' (widescreen above all).
- */
-function BreakpointsSettings({
-  breakpoints,
-  onChange,
-}: {
-  breakpoints: Breakpoints;
-  onChange: (next: Breakpoints) => void;
-}) {
-  const { t: tx } = useT();
-  // Bounds of a device: past its active neighbours (widescreen starts at
-  // least two pixels above the widest max-width breakpoint, so desktop keeps a width).
-  const bounds = (device: Exclude<Device, 'desktop'>) => {
-    const index = BREAKPOINT_ROWS.findIndex((r) => r.device === device);
-    const active = (rows: typeof BREAKPOINT_ROWS) =>
-      rows.filter((r) => typeof breakpoints[r.device] === 'number');
-    const below = active(BREAKPOINT_ROWS.slice(0, index)).at(-1);
-    const above = active(BREAKPOINT_ROWS.slice(index + 1))[0];
-    const step = (a: Device, b: Device) => (a === 'widescreen' || b === 'widescreen' ? 2 : 1);
-    const cap =
-      device === 'widescreen' ? 5000 : device === 'tablet' || device === 'mobile' ? 2400 : 2999;
-    return {
-      min: below ? breakpoints[below.device]! + step(below.device, device) : 320,
-      max: above ? Math.min(cap, breakpoints[above.device]! - step(above.device, device)) : cap,
-    };
-  };
-  return (
-    <>
-      <h4 className="fre-subheading">{tx('Breakpoints')}</h4>
-      <p className="fre-help">
-        {tx(
-          'Extra devices are off until you switch them on; each one gets its own values and its own button in the top bar.',
-        )}
-      </p>
-      {BREAKPOINT_ROWS.map(({ device, label }) => {
-        const optional = (OPTIONAL_DEVICES as readonly string[]).includes(device);
-        const value = breakpoints[device];
-        const { min, max } = bounds(device);
-        const on = typeof value === 'number';
-        return (
-          <div key={device} className="fre-control fre-control--inline">
-            <div className="fre-control__head">
-              <span className="fre-control__label">{tx(label)}</span>
-            </div>
-            <div className="fre-control__body">
-              {optional && (
-                <label className="fre-switch" title={tx(on ? 'Switch off' : 'Switch on')}>
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    disabled={!on && min > max}
-                    aria-label={tx(DEVICE_NAMES[device])}
-                    onChange={(e) => {
-                      const next = { ...breakpoints };
-                      if (e.target.checked) {
-                        const wanted = OPTIONAL_BREAKPOINTS[device as OptionalDevice];
-                        next[device] = Math.max(min, Math.min(max, wanted));
-                      } else delete next[device];
-                      onChange(next);
-                    }}
-                  />
-                  <span />
-                </label>
-              )}
-              {on && (
-                <input
-                  className="fre-input fre-input--number"
-                  type="number"
-                  min={min}
-                  max={max}
-                  value={value}
-                  aria-label={tx(label)}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    if (Number.isFinite(v) && v > 0)
-                      onChange({ ...breakpoints, [device]: Math.max(min, Math.min(max, v)) });
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
-function NumberRow({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="fre-control fre-control--inline">
-      <div className="fre-control__head">
-        <span className="fre-control__label">{label}</span>
-      </div>
-      <div className="fre-control__body">
-        <input
-          className="fre-input fre-input--number"
-          type="number"
-          min={min}
-          max={max}
-          value={value}
-          onChange={(e) => {
-            const v = Number(e.target.value);
-            if (Number.isFinite(v)) onChange(Math.max(min, Math.min(max, v)));
-          }}
-        />
-      </div>
-    </div>
   );
 }
 

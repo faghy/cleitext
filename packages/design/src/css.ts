@@ -5,6 +5,7 @@
  */
 import {
   DEVICES,
+  MAX_WIDTH_DEVICES,
   SHEET_ORDER,
   deviceMedia,
   isGroup,
@@ -187,7 +188,11 @@ export function groupKeys(control: GroupControl): string[] {
   const n = control.name;
   switch (control.type) {
     case 'typography':
-      return [`${n}_global`, ...TYPOGRAPHY_PARTS.map(([part]) => `${n}_${part}`)];
+      return [
+        `${n}_global`,
+        `${n}_global_all`,
+        ...TYPOGRAPHY_PARTS.map(([part]) => `${n}_${part}`),
+      ];
     case 'background':
       return [
         `${n}_type`,
@@ -202,6 +207,10 @@ export function groupKeys(control: GroupControl): string[] {
         `${n}_stop_b`,
         `${n}_gradient`,
         `${n}_angle`,
+        `${n}_xpos`,
+        `${n}_ypos`,
+        `${n}_bg_width`,
+        `${n}_gradient_position`,
       ];
     case 'border':
       return [`${n}_style`, `${n}_width`, `${n}_color`, `${n}_radius`];
@@ -216,6 +225,21 @@ export function groupKeys(control: GroupControl): string[] {
 /** Value of a setting on a device: the device's own, else nothing (CSS cascades the rest). */
 const own = (settings: Settings, key: string, device: Device, hover = false) =>
   settings[settingKey(key, device, hover)];
+
+/** A part of a group on a device (its own value). */
+const at2 = (settings: Settings, name: string, part: string, device: Device) =>
+  own(settings, `${name}_${part}`, device);
+
+/**
+ * The devices a device's values fall back to, nearest first, desktop last
+ * (every device, as a group's CSS does not know which ones are in use).
+ */
+function largerDevices(device: Device): Device[] {
+  if (device === 'desktop') return [];
+  if (device === 'widescreen') return ['desktop'];
+  const index = MAX_WIDTH_DEVICES.indexOf(device);
+  return [...MAX_WIDTH_DEVICES.slice(0, index).reverse(), 'desktop'];
+}
 
 export function groupCss(
   sheet: Sheet,
@@ -238,6 +262,12 @@ export function groupCss(
             decl(`${prop}: var(--${prefix}-t-${global}-${part})`);
           }
           decl(`line-height: var(--${prefix}-t-${global}-line)`);
+          // Chosen since Fresco 2.3: the global font's style, decoration and spacing too.
+          if (settings[`${n}_global_all`] === true) {
+            for (const [part, prop] of TYPOGRAPHY_PARTS.slice(4)) {
+              if (part !== 'line') decl(`${prop}: var(--${prefix}-t-${global}-${part})`);
+            }
+          }
         }
         for (const [part, prop, type, responsive] of TYPOGRAPHY_PARTS) {
           if (!responsive && device !== 'desktop') continue;
@@ -250,29 +280,51 @@ export function groupCss(
       case 'background': {
         const type = settings[`${n}_type`];
         if (type === 'gradient') {
-          if (device !== 'desktop') break;
+          // Locations, angle and radial position may change per device (the colors do not).
+          const parts = ['stop', 'stop_b', 'angle', 'gradient_position'];
+          if (device !== 'desktop' && parts.every((part) => isEmpty(at(`${n}_${part}`)))) break;
+          const inherited = (part: string) => {
+            for (const d of [device, ...largerDevices(device)]) {
+              const value = d === 'desktop' ? settings[`${n}_${part}`] : at2(settings, n, part, d);
+              if (!isEmpty(value)) return value;
+            }
+            return undefined;
+          };
           const a = safeColor(settings[`${n}_color`]) ?? 'transparent';
           const b = safeColor(settings[`${n}_color_b`]) ?? 'transparent';
-          const stopA = num((settings[`${n}_stop`] as SizeValue | undefined)?.size ?? 0) ?? '0';
-          const stopB =
-            num((settings[`${n}_stop_b`] as SizeValue | undefined)?.size ?? 100) ?? '100';
+          const stopA = num((inherited('stop') as SizeValue | undefined)?.size ?? 0) ?? '0';
+          const stopB = num((inherited('stop_b') as SizeValue | undefined)?.size ?? 100) ?? '100';
           const radial = settings[`${n}_gradient`] === 'radial';
-          const angle =
-            num((settings[`${n}_angle`] as SizeValue | undefined)?.size ?? 180) ?? '180';
+          const angle = num((inherited('angle') as SizeValue | undefined)?.size ?? 180) ?? '180';
+          const at3 = keyword(inherited('gradient_position')) ?? 'center center';
           decl(
-            `background-image: ${radial ? 'radial-gradient(at center center' : `linear-gradient(${angle}deg`}, ${a} ${stopA}%, ${b} ${stopB}%)`,
+            `background-image: ${radial ? `radial-gradient(at ${at3}` : `linear-gradient(${angle}deg`}, ${a} ${stopA}%, ${b} ${stopB}%)`,
           );
         } else if (type === 'classic') {
           const color = safeColor(at(`${n}_color`));
           if (color) decl(`background-color: ${color}`);
           const image = cssValue({ type: 'media' }, at(`${n}_image`));
           if (image) decl(`background-image: ${image}`);
+          // "Custom": X and Y positions, and a width, of their own (per device).
+          const custom = (part: string) =>
+            at(`${n}_${part}`) === 'custom' ||
+            (isEmpty(at(`${n}_${part}`)) && settings[`${n}_${part}`] === 'custom');
           const position = keyword(at(`${n}_position`));
-          if (position) decl(`background-position: ${position}`);
+          if (position && position !== 'custom') decl(`background-position: ${position}`);
+          if (custom('position')) {
+            for (const axis of ['x', 'y'] as const) {
+              const value = cssValue({ type: 'slider' }, at(`${n}_${axis}pos`));
+              if (value !== null) decl(`background-position-${axis}: ${value}`);
+            }
+          }
           const repeat = keyword(at(`${n}_repeat`));
           if (repeat) decl(`background-repeat: ${repeat}`);
           const size = keyword(at(`${n}_size`));
-          if (size) decl(`background-size: ${size}`);
+          if (size && size !== 'custom') decl(`background-size: ${size}`);
+          if (custom('size')) {
+            const width = cssValue({ type: 'slider' }, at(`${n}_bg_width`));
+            if (width !== null) decl(`background-size: ${width} auto`);
+          }
           const attachment = device === 'desktop' ? keyword(at(`${n}_attachment`)) : null;
           if (attachment) decl(`background-attachment: ${attachment}`);
         }
@@ -343,8 +395,11 @@ export function groupCss(
 export function conditionMet(control: Control, settings: Settings): boolean {
   if (!control.condition) return true;
   return Object.entries(control.condition).every(([key, expected]) => {
-    const actual = settings[key];
-    return Array.isArray(expected) ? expected.includes(actual) : actual === expected;
+    // `key!`: the setting is NOT one of these values (as in Elementor).
+    const negated = key.endsWith('!');
+    const actual = settings[negated ? key.slice(0, -1) : key];
+    const met = Array.isArray(expected) ? expected.includes(actual) : actual === expected;
+    return negated ? !met : met;
   });
 }
 

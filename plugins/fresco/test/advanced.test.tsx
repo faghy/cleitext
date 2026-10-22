@@ -247,7 +247,8 @@ describe('container', () => {
 
 describe('entrance animations', () => {
   it('offers Elementor’s whole list, each with its own keyframes', async () => {
-    const values = ANIMATIONS.map((a) => a.value).filter(Boolean);
+    // `none` switches the animation off on a device: no keyframes.
+    const values = ANIMATIONS.map((a) => a.value).filter((v) => v && v !== 'none');
     expect(values.length).toBeGreaterThanOrEqual(40);
     // Node's fs, without Node's types in this package.
     const fs = (await import(/* @vite-ignore */ `node:${'fs'}`)) as {

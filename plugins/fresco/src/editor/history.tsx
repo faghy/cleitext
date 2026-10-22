@@ -4,7 +4,8 @@
  * are kept.
  */
 import { api as coreApi, useT } from '@cleitext/admin-sdk';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { controlsOf } from '../core/extensions.js';
 import type { FrescoNode, Settings } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import { useStore, type StepLabel, type Store } from './store.js';
@@ -22,6 +23,26 @@ const LABELS: Record<StepLabel['kind'], string> = {
   item: 'Added an item to {element}',
   all: 'Replaced the content',
 };
+
+/**
+ * The label of the setting a step changed: its control's, also for a device
+ * or the hover state (`size@tablet`, `color:hover`) and the parts of a group
+ * (`typography_size` → Typography).
+ */
+export function settingLabel(type: string | undefined, key: string | undefined): string | null {
+  if (!type || !key) return null;
+  const definition = getElement(type);
+  if (!definition) return null;
+  const base = key.split(/[@:]/)[0]!;
+  if (base === '_title') return 'Title';
+  const controls = controlsOf(definition);
+  const exact = controls.find((c) => c.name === base);
+  if (exact) return exact.label;
+  const group = controls
+    .filter((c) => base.startsWith(`${c.name}_`))
+    .sort((a, b) => b.name.length - a.name.length)[0];
+  return group?.label ?? null;
+}
 
 interface Revision {
   id: string;
@@ -52,12 +73,32 @@ export function HistoryView({ store }: { store: Store }) {
       .catch((e: unknown) => setError(String(e instanceof Error ? e.message : e)));
   }, [tab, revisions, entryId]);
 
-  const text = (step: StepLabel) =>
-    t(LABELS[step.kind], {
+  const text = (step: StepLabel) => {
+    const main = t(LABELS[step.kind], {
       element: step.type ? t(getElement(step.type)?.title ?? step.type) : '',
     });
+    // Which setting changed, as Elementor says it ("Edited Heading: Title").
+    const setting = step.kind === 'edit' ? settingLabel(step.type, step.setting) : null;
+    return setting ? `${main}: ${t(setting)}` : main;
+  };
   const time = (at: number | string) =>
     new Date(at).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' });
+
+  const listRef = useRef<HTMLUListElement>(null);
+  /** ↑ and ↓ show the next and previous revision (the one shown is put away first). */
+  const step = (by: 1 | -1) => {
+    if (!revisions?.length) return;
+    const index = revisions.findIndex((r) => r.id === previewing);
+    const next = revisions[Math.max(0, Math.min(revisions.length - 1, index + by))];
+    if (!next || next.id === previewing) return;
+    if (previewing) store.actions.undo();
+    setPreviewing(null);
+    void preview(next).then(() =>
+      listRef.current
+        ?.querySelector<HTMLElement>(`[data-revision="${CSS.escape(next.id)}"]`)
+        ?.focus(),
+    );
+  };
 
   const preview = async (revision: Revision) => {
     setError(null);
@@ -160,14 +201,32 @@ export function HistoryView({ store }: { store: Store }) {
             </div>
           )}
           {!revisions && !error && <p className="fre-empty-note">{t('Loading…')}</p>}
-          <ul className="fre-history__list">
+          <ul
+            className="fre-history__list"
+            ref={listRef}
+            aria-label={t('Revisions: ↑ and ↓ show the previous and next one')}
+            onKeyDown={(e) => {
+              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+              e.preventDefault();
+              e.stopPropagation();
+              step(e.key === 'ArrowDown' ? 1 : -1);
+            }}
+          >
             {revisions?.map((revision) => (
               <li key={revision.id}>
                 <button
                   type="button"
-                  className={`fre-history__rev${previewing === revision.id ? ' is-current' : ''}`}
-                  disabled={previewing !== null && previewing !== revision.id}
-                  onClick={() => void preview(revision)}
+                  data-revision={revision.id}
+                  aria-current={previewing === revision.id}
+                  className={`fre-history__rev${previewing === revision.id ? ' is-current' : ''}${previewing !== null && previewing !== revision.id ? ' is-other' : ''}`}
+                  onClick={() => {
+                    if (previewing === revision.id) return;
+                    if (previewing) {
+                      store.actions.undo();
+                      setPreviewing(null);
+                    }
+                    void preview(revision);
+                  }}
                 >
                   <span className="fre-history__avatar" aria-hidden="true">
                     {(revision.author?.displayName ?? '?').slice(0, 1).toUpperCase()}

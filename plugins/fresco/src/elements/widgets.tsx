@@ -5,13 +5,28 @@
  */
 import { uiText } from '../core/ui-text.js';
 import type { ReactNode } from 'react';
-import { advancedControls, ElementRoot } from '../core/common.js';
-import { ALIGN, content, groups, style, textStyle } from '../core/controls.js';
+import {
+  advancedControls,
+  ElementRoot,
+  hoverAnimationControl,
+  hoverClass,
+  textStrokeControls,
+} from '../core/common.js';
+import {
+  ALIGN,
+  content,
+  groups,
+  HEADING_TAGS,
+  style,
+  TEXT_ALIGN,
+  textStyle,
+} from '../core/controls.js';
 import { Icon } from '../core/icons.js';
 import { linkProps } from '../core/links.js';
 import { FrImage, IMAGE_SIZES, isMedia, mediaIds } from '../core/media.js';
 import type { Control, ElementDefinition, Settings } from '../core/model.js';
 import { plainText } from '../core/sanitize.js';
+import { attachmentCaption } from './basic.js';
 
 const items = (settings: Settings, name: string): Settings[] =>
   Array.isArray(settings[name]) ? (settings[name] as Settings[]) : [];
@@ -68,7 +83,28 @@ export const iconList: ElementDefinition = {
         '{{el}} .fr-list--column': 'align-items: {{value}}',
       },
     }),
+    content.select('link_click', 'Apply link on', 'List', {
+      options: [
+        { value: '', label: 'Full width' },
+        { value: 'inline', label: 'Inline' },
+      ],
+      noCss: true,
+    }),
     style.switch('divider', 'Divider', 'List', { noCss: true }),
+    style.select('divider_style', 'Divider style', 'List', {
+      options: ['', 'solid', 'double', 'dotted', 'dashed'].map((v) => ({
+        value: v,
+        label: v ? v[0]!.toUpperCase() + v.slice(1) : 'Default',
+      })),
+      condition: { divider: true },
+      selectors: { '{{el}} .fr-list--divider > li + li': 'border-top-style: {{value}}' },
+    }),
+    style.slider('divider_weight', 'Divider weight', 'List', {
+      units: ['px'],
+      max: 20,
+      condition: { divider: true },
+      selectors: { '{{el}} .fr-list--divider > li + li': 'border-top-width: {{value}}' },
+    }),
     style.color('divider_color', 'Divider color', 'List', {
       condition: { divider: true },
       selectors: { '{{el}} .fr-list--divider > li + li': 'border-color: {{value}}' },
@@ -88,12 +124,49 @@ export const iconList: ElementDefinition = {
       max: 40,
       selectors: { '{{el}} .fr-list__item': 'gap: {{value}}' },
     }),
+    style.choose('icon_self_align', 'Horizontal alignment', 'Icon', {
+      responsive: true,
+      options: ALIGN.map((o) => ({
+        ...o,
+        value: o.value === 'left' ? 'flex-start' : o.value === 'right' ? 'flex-end' : 'center',
+      })),
+      selectors: { '{{el}} .fr-list__icon': 'justify-content: {{value}}; min-width: 1em' },
+    }),
+    style.choose('icon_self_vertical_align', 'Vertical alignment', 'Icon', {
+      responsive: true,
+      options: [
+        { value: 'flex-start', label: 'Top', icon: 'M4 4h16 M9 8h6v6H9z' },
+        { value: 'center', label: 'Middle', icon: 'M4 12h16 M9 9h6v6H9z' },
+        { value: 'flex-end', label: 'Bottom', icon: 'M4 20h16 M9 10h6v6H9z' },
+      ],
+      selectors: { '{{el}} .fr-list__icon': 'align-self: {{value}}' },
+    }),
+    style.slider('icon_vertical_offset', 'Adjust vertical position', 'Icon', {
+      responsive: true,
+      units: ['px', 'em'],
+      min: -15,
+      max: 15,
+      selectors: { '{{el}} .fr-list__icon': 'position: relative; top: {{value}}' },
+    }),
+    style.slider('icon_hover_transition', 'Transition duration (s)', 'Icon', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: { '{{el}} .fr-list__icon': 'transition: color {{value}}' },
+    }),
     ...textStyle('text_', 'Text', '{{el}} .fr-list__text', { hover: true }),
+    groups.textShadow('text_shadow', 'Text shadow', 'Text', '{{el}} .fr-list__text'),
+    style.slider('text_hover_transition', 'Transition duration (s)', 'Text', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: { '{{el}} .fr-list__text': 'transition: color {{value}}' },
+    }),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
     const list = items(settings, 'items');
-    const classes = `fr-list fr-list--${settings.layout === 'inline' ? 'inline' : 'column'}${settings.divider === true ? ' fr-list--divider' : ''}`;
+    const classes = `fr-list fr-list--${settings.layout === 'inline' ? 'inline' : 'column'}${settings.divider === true ? ' fr-list--divider' : ''}${settings.link_click === 'inline' ? ' fr-list--link-inline' : ''}`;
     return (
       <ElementRoot node={node} settings={settings} name="fr-icon-list" editing={context.editing}>
         <ul className={classes}>
@@ -149,14 +222,59 @@ export const counter: ElementDefinition = {
       noCss: true,
     }),
     content.switch('separator', 'Thousands separator', 'Counter', { default: true, noCss: true }),
+    content.select('separator_char', 'Separator', 'Counter', {
+      options: [
+        { value: '', label: 'Default' },
+        { value: ',', label: 'Comma' },
+        { value: '.', label: 'Dot' },
+        { value: ' ', label: 'Space' },
+        { value: '_', label: 'Underline' },
+        { value: "'", label: 'Apostrophe' },
+      ],
+      condition: { separator: true },
+      noCss: true,
+    }),
     content.text('title', 'Title', 'Counter', { default: 'Cool number' }),
+    content.select('title_tag', 'Title HTML tag', 'Counter', {
+      options: [{ value: '', label: 'Default' }, ...HEADING_TAGS],
+      noCss: true,
+    }),
     content.choose('title_position', 'Title position', 'Counter', {
       default: 'after',
       options: [
         { value: 'before', label: 'Before' },
         { value: 'after', label: 'After' },
+        { value: 'start', label: 'Start' },
+        { value: 'end', label: 'End' },
       ],
       noCss: true,
+    }),
+    style.choose('title_vertical_align', 'Vertical alignment', 'Title', {
+      options: [
+        { value: 'flex-start', label: 'Top', icon: 'M4 4h16 M9 8h6v6H9z' },
+        { value: 'center', label: 'Middle', icon: 'M4 12h16 M9 9h6v6H9z' },
+        { value: 'flex-end', label: 'Bottom', icon: 'M4 20h16 M9 10h6v6H9z' },
+      ],
+      condition: { title_position: ['start', 'end'] },
+      selectors: { '{{el}}.fr-counter--side': 'align-items: {{value}}' },
+    }),
+    style.slider('title_gap', 'Spacing', 'Title', {
+      responsive: true,
+      units: ['px', 'em', 'rem'],
+      max: 100,
+      selectors: {
+        '{{el}} .fr-counter__title': 'margin-top: {{value}}',
+        '{{el}} .fr-counter__title:first-child': 'margin-top: 0; margin-bottom: {{value}}',
+        '{{el}}.fr-counter--side': 'gap: {{value}}',
+        '{{el}}.fr-counter--side .fr-counter__title': 'margin: 0',
+      },
+    }),
+    style.slider('number_gap', 'Spacing', 'Number', {
+      responsive: true,
+      units: ['px', 'em', 'rem'],
+      max: 100,
+      help: 'Between the prefix, the number and the suffix.',
+      selectors: { '{{el}} .fr-counter__number': 'gap: {{value}}' },
     }),
     style.choose('align', 'Alignment', 'Number', {
       responsive: true,
@@ -164,25 +282,47 @@ export const counter: ElementDefinition = {
       selectors: { '{{el}}': 'text-align: {{value}}' },
     }),
     ...textStyle('number_', 'Number', '{{el}} .fr-counter__number'),
+    ...textStrokeControls('number_stroke', 'Number', '{{el}} .fr-counter__number'),
+    groups.textShadow('number_shadow', 'Text shadow', 'Number', '{{el}} .fr-counter__number'),
     ...textStyle('title_', 'Title', '{{el}} .fr-counter__title'),
+    ...textStrokeControls('title_stroke', 'Title', '{{el}} .fr-counter__title'),
+    groups.textShadow('title_shadow', 'Text shadow', 'Title', '{{el}} .fr-counter__title'),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
     const end = num(settings.end, 100);
     const start = num(settings.start, 0);
+    // A separator of its own: the number in English, its commas replaced.
+    const char =
+      typeof settings.separator_char === 'string' && /^[,. _']$/.test(settings.separator_char)
+        ? settings.separator_char
+        : null;
     const format = (n: number) =>
-      settings.separator === false ? String(n) : new Intl.NumberFormat(context.locale).format(n);
+      settings.separator === false
+        ? String(n)
+        : char
+          ? new Intl.NumberFormat('en-US').format(n).replace(/,/g, char)
+          : new Intl.NumberFormat(context.locale).format(n);
     const title = plainText(settings.title);
-    const titleNode = title ? <div className="fr-counter__title">{title}</div> : null;
+    const TitleTag = (
+      HEADING_TAGS.some((t) => t.value === settings.title_tag) ? settings.title_tag : 'div'
+    ) as 'div';
+    const titleNode = title ? <TitleTag className="fr-counter__title">{title}</TitleTag> : null;
+    const position = String(settings.title_position ?? 'after');
+    const first = position === 'before' || position === 'start';
+    const side = position === 'start' || position === 'end';
     return (
       <ElementRoot
         node={node}
         settings={settings}
-        name="fr-counter"
+        name={side ? 'fr-counter fr-counter--side' : 'fr-counter'}
         editing={context.editing}
-        extra={{ 'data-fr-handler': 'counter' }}
+        extra={{
+          'data-fr-handler': 'counter',
+          ...(char && settings.separator !== false ? { 'data-fr-separator-char': char } : {}),
+        }}
       >
-        {settings.title_position === 'before' && titleNode}
+        {first && titleNode}
         <div className="fr-counter__number">
           <span className="fr-counter__prefix">{plainText(settings.prefix)}</span>
           <span
@@ -196,7 +336,7 @@ export const counter: ElementDefinition = {
           </span>
           <span className="fr-counter__suffix">{plainText(settings.suffix)}</span>
         </div>
-        {settings.title_position !== 'before' && titleNode}
+        {!first && titleNode}
       </ElementRoot>
     );
   },
@@ -213,6 +353,21 @@ export const progress: ElementDefinition = {
   handler: 'progress',
   controls: [
     content.text('title', 'Title', 'Progress bar', { default: 'My skill' }),
+    content.select('title_tag', 'Title HTML tag', 'Progress bar', {
+      options: [{ value: '', label: 'Default' }, ...HEADING_TAGS],
+      noCss: true,
+    }),
+    content.switch('show_title', 'Display title', 'Progress bar', { default: true, noCss: true }),
+    content.select('progress_type', 'Type', 'Progress bar', {
+      options: [
+        { value: '', label: 'Default' },
+        { value: 'info', label: 'Info' },
+        { value: 'success', label: 'Success' },
+        { value: 'warning', label: 'Warning' },
+        { value: 'danger', label: 'Danger' },
+      ],
+      noCss: true,
+    }),
     content.slider('percent', 'Percentage', 'Progress bar', {
       default: { size: 50, unit: '%' },
       units: ['%'],
@@ -245,7 +400,16 @@ export const progress: ElementDefinition = {
     style.color('inner_color', 'Inner text color', 'Bar', {
       selectors: { '{{el}} .fr-progress__inner': 'color: {{value}}' },
     }),
+    groups.typography(
+      'inner_typography',
+      'Inner text typography',
+      'Bar',
+      '{{el}} .fr-progress__inner',
+    ),
+    groups.textShadow('inner_shadow', 'Text shadow', 'Bar', '{{el}} .fr-progress__inner'),
     ...textStyle('title_', 'Title', '{{el}} .fr-progress__title'),
+    groups.textShadow('title_shadow', 'Text shadow', 'Title', '{{el}} .fr-progress__title'),
+    ...textStyle('percent_', 'Percentage', '{{el}} .fr-progress__percent'),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
@@ -253,7 +417,13 @@ export const progress: ElementDefinition = {
       0,
       Math.min(100, num((settings.percent as { size?: unknown } | undefined)?.size, 50)),
     );
-    const title = plainText(settings.title);
+    const title = settings.show_title === false ? '' : plainText(settings.title);
+    const TitleTag = (
+      HEADING_TAGS.some((t) => t.value === settings.title_tag) ? settings.title_tag : 'span'
+    ) as 'span';
+    const type = ['info', 'success', 'warning', 'danger'].includes(settings.progress_type as string)
+      ? ` fr-progress__fill--${String(settings.progress_type)}`
+      : '';
     return (
       <ElementRoot
         node={node}
@@ -264,7 +434,7 @@ export const progress: ElementDefinition = {
       >
         {title && (
           <div className="fr-progress__head">
-            <span className="fr-progress__title">{title}</span>
+            <TitleTag className="fr-progress__title">{title}</TitleTag>
             {settings.show_percent !== false && (
               <span className="fr-progress__percent">{value}%</span>
             )}
@@ -276,9 +446,13 @@ export const progress: ElementDefinition = {
           aria-valuenow={value}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={title || undefined}
+          aria-label={plainText(settings.title) || undefined}
         >
-          <div className="fr-progress__fill" style={{ width: `${value}%` }} data-fr-percent={value}>
+          <div
+            className={`fr-progress__fill${type}`}
+            style={{ width: `${value}%` }}
+            data-fr-percent={value}
+          >
             {plainText(settings.inner) && (
               <span className="fr-progress__inner">{plainText(settings.inner)}</span>
             )}
@@ -320,14 +494,18 @@ export const testimonial: ElementDefinition = {
       selectors: { '{{el}}': 'text-align: {{value}}' },
     }),
     ...textStyle('content_', 'Content', '{{el}} .fr-quote__content'),
+    groups.textShadow('content_shadow', 'Text shadow', 'Content', '{{el}} .fr-quote__content'),
     style.slider('image_size', 'Size', 'Image', {
+      responsive: true,
       units: ['px'],
       max: 200,
       selectors: { '{{el}} .fr-quote__image img': 'width: {{value}}; height: {{value}}' },
     }),
     groups.border('image_border', 'Border', 'Image', '{{el}} .fr-quote__image img'),
     ...textStyle('name_', 'Name', '{{el}} .fr-quote__name'),
+    groups.textShadow('name_shadow', 'Text shadow', 'Name', '{{el}} .fr-quote__name'),
     ...textStyle('job_', 'Title', '{{el}} .fr-quote__job'),
+    groups.textShadow('job_shadow', 'Text shadow', 'Title', '{{el}} .fr-quote__job'),
     ...advancedControls(),
   ],
   media: (settings) => mediaIds(settings.image),
@@ -395,6 +573,12 @@ const BRAND: Record<string, string> = {
   discord: '#5865f2',
 };
 
+/** A color for an inline style: hex or rgb() only. */
+const safeHex = (value: unknown): string | undefined =>
+  typeof value === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(value.trim())
+    ? value.trim()
+    : undefined;
+
 export const socialIcons: ElementDefinition = {
   type: 'fresco/social-icons',
   title: 'Social icons',
@@ -428,6 +612,18 @@ export const socialIcons: ElementDefinition = {
         content.icon('icon', 'Icon', 'Network', { default: { set: 'brands', name: 'facebook-f' } }),
         content.url('link', 'Link', 'Network'),
         content.text('label', 'Name', 'Network', { help: 'Read by screen readers.' }),
+        content.select('item_color', 'Color', 'Network', {
+          options: [
+            { value: '', label: 'Default' },
+            { value: 'custom', label: 'Custom' },
+          ],
+        }),
+        content.color('item_primary', 'Primary color', 'Network', {
+          condition: { item_color: 'custom' },
+        }),
+        content.color('item_secondary', 'Secondary color', 'Network', {
+          condition: { item_color: 'custom' },
+        }),
       ],
     }),
     content.select('shape', 'Shape', 'Social icons', {
@@ -444,6 +640,16 @@ export const socialIcons: ElementDefinition = {
       default: 'center',
       options: ALIGN,
       selectors: { '{{el}}': 'text-align: {{value}}' },
+    }),
+    content.number('columns', 'Columns', 'Social icons', {
+      responsive: true,
+      min: 0,
+      max: 12,
+      help: '0: as many as fit on a line.',
+      dictionary: { '0': '' },
+      selectors: {
+        '{{el}} .fr-social': 'display: inline-grid; grid-template-columns: repeat({{value}}, auto)',
+      },
     }),
     style.select('look', 'Color', 'Icon', {
       default: 'official',
@@ -481,7 +687,17 @@ export const socialIcons: ElementDefinition = {
       max: 60,
       selectors: { '{{el}} .fr-social': 'gap: {{value}}' },
     }),
+    style.slider('row_gap', 'Rows gap', 'Icon', {
+      responsive: true,
+      units: ['px', 'em'],
+      max: 60,
+      selectors: { '{{el}} .fr-social': 'row-gap: {{value}}' },
+    }),
     groups.border('border', 'Border', 'Icon', '{{el}} .fr-social__link'),
+    style.color('hover_border_color', 'Border color on hover', 'Icon', {
+      selectors: { '{{el}} .fr-social__link:hover': 'border-color: {{value}}' },
+    }),
+    hoverAnimationControl('Icon'),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
@@ -489,6 +705,7 @@ export const socialIcons: ElementDefinition = {
       ? String(settings.shape)
       : 'rounded';
     const official = settings.look !== 'custom';
+    const hover = hoverClass(settings.hover_effect);
     return (
       <ElementRoot
         node={node}
@@ -501,13 +718,23 @@ export const socialIcons: ElementDefinition = {
             const link = linkProps(entry.link);
             const name = (entry.icon as { name?: string } | undefined)?.name ?? '';
             const label = plainText(entry.label) || name.replace(/-.*/, '');
-            const color = official ? BRAND[name] : undefined;
+            // A network's own colors (set on the item) win over the official one.
+            const own = entry.item_color === 'custom';
+            const color = own ? safeHex(entry.item_primary) : official ? BRAND[name] : undefined;
+            const iconColor = own ? safeHex(entry.item_secondary) : undefined;
             const body = <Icon value={entry.icon} />;
             const props = {
-              className: 'fr-social__link',
+              className: `fr-social__link${hover}`,
               'aria-label': label,
               title: label,
-              ...(color ? { style: { backgroundColor: color } } : {}),
+              ...(color || iconColor
+                ? {
+                    style: {
+                      ...(color ? { backgroundColor: color } : {}),
+                      ...(iconColor ? { color: iconColor } : {}),
+                    },
+                  }
+                : {}),
             };
             return link ? (
               <a
@@ -556,14 +783,63 @@ export const alert: ElementDefinition = {
       default: 'Explain what happened and what to do next.',
     }),
     content.switch('dismiss', 'Close button', 'Alert', { default: true, noCss: true }),
+    content.icon('dismiss_icon', 'Close icon', 'Alert', { condition: { dismiss: true } }),
     style.color('background', 'Background', 'Alert', {
       selectors: { '{{el}} .fr-alert': 'background-color: {{value}}' },
     }),
     style.color('border_color', 'Border color', 'Alert', {
       selectors: { '{{el}} .fr-alert': 'border-color: {{value}}' },
     }),
+    style.slider('border_left_width', 'Left border width', 'Alert', {
+      responsive: true,
+      units: ['px', 'em'],
+      max: 50,
+      selectors: { '{{el}} .fr-alert': 'border-left-width: {{value}}' },
+    }),
     ...textStyle('title_', 'Title', '{{el}} .fr-alert__title'),
+    groups.textShadow('title_shadow', 'Text shadow', 'Title', '{{el}} .fr-alert__title'),
     ...textStyle('description_', 'Description', '{{el}} .fr-alert__description'),
+    groups.textShadow(
+      'description_shadow',
+      'Text shadow',
+      'Description',
+      '{{el}} .fr-alert__description',
+    ),
+    style.slider('dismiss_size', 'Size', 'Close button', {
+      responsive: true,
+      units: ['px', 'em'],
+      max: 100,
+      condition: { dismiss: true },
+      selectors: { '{{el}} .fr-alert__close': 'font-size: {{value}}' },
+    }),
+    style.slider('dismiss_top', 'Vertical position', 'Close button', {
+      responsive: true,
+      units: ['px', '%', 'em'],
+      min: -100,
+      max: 100,
+      condition: { dismiss: true },
+      selectors: { '{{el}} .fr-alert__close': 'top: {{value}}' },
+    }),
+    style.slider('dismiss_right', 'Horizontal position', 'Close button', {
+      responsive: true,
+      units: ['px', '%', 'em'],
+      min: -100,
+      max: 100,
+      condition: { dismiss: true },
+      selectors: { '{{el}} .fr-alert__close': 'right: {{value}}' },
+    }),
+    style.color('dismiss_color', 'Color', 'Close button', {
+      hover: true,
+      condition: { dismiss: true },
+      selectors: { '{{el}} .fr-alert__close': 'color: {{value}}' },
+    }),
+    style.slider('dismiss_transition', 'Transition duration (s)', 'Close button', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      condition: { dismiss: true },
+      selectors: { '{{el}} .fr-alert__close': 'transition: color {{value}}' },
+    }),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
@@ -595,7 +871,7 @@ export const alert: ElementDefinition = {
               aria-label={uiText(context.locale, 'Close')}
               data-fr-close=""
             >
-              ×
+              {settings.dismiss_icon ? <Icon value={settings.dismiss_icon} /> : '×'}
             </button>
           )}
         </div>
@@ -605,6 +881,17 @@ export const alert: ElementDefinition = {
 };
 
 // ---- Audio -----------------------------------------------------------------------------------------
+
+const SC_OPTIONS = [
+  'buying',
+  'liking',
+  'download',
+  'show_artwork',
+  'sharing',
+  'show_comments',
+  'show_playcount',
+  'show_user',
+];
 
 export const audio: ElementDefinition = {
   type: 'fresco/audio',
@@ -620,6 +907,20 @@ export const audio: ElementDefinition = {
     content.switch('visual', 'Visual player', 'Audio', { default: true, noCss: true }),
     content.switch('autoplay', 'Autoplay', 'Audio', { noCss: true }),
     content.color('color', 'Controls color', 'Audio', { noCss: true }),
+    ...(
+      [
+        ['buying', 'Buy button'],
+        ['liking', 'Like button'],
+        ['download', 'Download button'],
+        ['show_artwork', 'Artwork'],
+        ['sharing', 'Share button'],
+        ['show_comments', 'Comments'],
+        ['show_playcount', 'Play counts'],
+        ['show_user', 'Username'],
+      ] as const
+    ).map(([name, label]) =>
+      content.switch(`sc_${name}`, label, 'Audio', { default: true, noCss: true }),
+    ),
     style.slider('height', 'Height', 'Audio', {
       units: ['px'],
       max: 600,
@@ -635,12 +936,17 @@ export const audio: ElementDefinition = {
       typeof settings.color === 'string' && /^#[0-9a-f]{6}$/i.test(settings.color)
         ? settings.color.slice(1)
         : 'c2410c';
-    const src = `https://w.soundcloud.com/player/?${new URLSearchParams({
+    const params = new URLSearchParams({
       url,
       visual: settings.visual === false ? 'false' : 'true',
       auto_play: settings.autoplay === true ? 'true' : 'false',
       color,
-    }).toString()}`;
+    });
+    // The player's options: only those switched off are written.
+    for (const key of SC_OPTIONS) {
+      if (settings[`sc_${key}`] === false) params.set(key, 'false');
+    }
+    const src = `https://w.soundcloud.com/player/?${params.toString()}`;
     return (
       <ElementRoot node={node} settings={settings} name="fr-audio" editing={context.editing}>
         {ok ? (
@@ -664,6 +970,33 @@ export const audio: ElementDefinition = {
 const galleryControl = (name: string): Control =>
   content.gallery(name, 'Images', 'Images', { default: [] });
 
+const NO_FADE = { 'effect!': 'fade' };
+
+/** Captions under images (carousel and gallery): their alignment, colors and spacing. */
+function captionControls(section: string, selector: string, condition: Record<string, unknown>) {
+  return [
+    style.choose('caption_align', 'Alignment', section, {
+      responsive: true,
+      options: TEXT_ALIGN,
+      condition,
+      selectors: { [selector]: 'text-align: {{value}}' },
+    }),
+    style.color('caption_color', 'Text color', section, {
+      condition,
+      selectors: { [selector]: 'color: {{value}}' },
+    }),
+    { ...groups.typography('caption_typography', 'Typography', section, selector), condition },
+    { ...groups.textShadow('caption_shadow', 'Text shadow', section, selector), condition },
+    style.slider('caption_space', 'Spacing', section, {
+      responsive: true,
+      units: ['px', 'em', 'rem'],
+      max: 100,
+      condition,
+      selectors: { [selector]: 'margin-top: {{value}}' },
+    }),
+  ];
+}
+
 export const imageCarousel: ElementDefinition = {
   type: 'fresco/image-carousel',
   title: 'Image carousel',
@@ -683,7 +1016,15 @@ export const imageCarousel: ElementDefinition = {
       default: 3,
       min: 1,
       max: 10,
+      condition: NO_FADE,
       selectors: { '{{el}} .fr-carousel__track': '--fr-per-view: {{value}}' },
+    }),
+    content.number('per_scroll', 'Slides to scroll', 'Carousel', {
+      responsive: true,
+      min: 1,
+      max: 10,
+      condition: NO_FADE,
+      selectors: { '{{el}} .fr-carousel__track': '--fr-per-scroll: {{value}}' },
     }),
     content.select('navigation', 'Navigation', 'Carousel', {
       default: 'both',
@@ -695,11 +1036,36 @@ export const imageCarousel: ElementDefinition = {
       ],
       noCss: true,
     }),
+    content.select('pagination', 'Pagination', 'Carousel', {
+      options: [
+        { value: '', label: 'Dots' },
+        { value: 'fraction', label: 'Fraction' },
+        { value: 'progressbar', label: 'Progress bar' },
+      ],
+      condition: { navigation: ['both', 'dots'] },
+      noCss: true,
+    }),
+    content.icon('prev_icon', 'Previous arrow icon', 'Carousel', {
+      condition: { navigation: ['both', 'arrows'] },
+    }),
+    content.icon('next_icon', 'Next arrow icon', 'Carousel', {
+      condition: { navigation: ['both', 'arrows'] },
+    }),
     content.select('link_to', 'Link', 'Carousel', {
       default: 'none',
       options: [
         { value: 'none', label: 'None' },
         { value: 'file', label: 'Media file (lightbox)' },
+        { value: 'custom', label: 'Custom URL' },
+      ],
+      noCss: true,
+    }),
+    content.url('link', 'Link', 'Carousel', { condition: { link_to: 'custom' } }),
+    content.select('caption_type', 'Caption', 'Carousel', {
+      options: [
+        { value: '', label: 'None' },
+        { value: 'attachment', label: 'Attachment caption' },
+        { value: 'alt', label: 'Image description' },
       ],
       noCss: true,
     }),
@@ -713,6 +1079,26 @@ export const imageCarousel: ElementDefinition = {
     }),
     content.switch('loop', 'Infinite loop', 'Carousel', { default: true, noCss: true }),
     content.switch('pause', 'Pause on hover', 'Carousel', { default: true, noCss: true }),
+    content.switch('pause_interaction', 'Pause on interaction', 'Carousel', {
+      help: 'Autoplay stops once the visitor uses the arrows, the dots or swipes.',
+      condition: { autoplay: true },
+      noCss: true,
+    }),
+    content.select('effect', 'Effect', 'Carousel', {
+      options: [
+        { value: '', label: 'Slide' },
+        { value: 'fade', label: 'Fade' },
+      ],
+      help: 'Fade shows one image at a time.',
+      noCss: true,
+    }),
+    content.number('speed', 'Animation speed (ms)', 'Carousel', {
+      min: 100,
+      max: 5000,
+      step: 50,
+      placeholder: '500',
+      selectors: { '{{el}} .fr-carousel': '--fr-carousel-speed: {{value}}ms' },
+    }),
     style.slider('gap', 'Space between', 'Images', {
       responsive: true,
       units: ['px'],
@@ -731,13 +1117,78 @@ export const imageCarousel: ElementDefinition = {
     }),
     groups.border('image_border', 'Border', 'Images', '{{el}} .fr-carousel__slide img'),
     style.color('arrow_color', 'Arrow color', 'Navigation', {
+      hover: true,
       selectors: { '{{el}} .fr-carousel__arrow': 'color: {{value}}' },
+    }),
+    style.select('arrows_position', 'Arrows position', 'Navigation', {
+      options: [
+        { value: '', label: 'Inside' },
+        { value: 'outside', label: 'Outside' },
+      ],
+      noCss: true,
+    }),
+    style.slider('arrows_size', 'Arrows size', 'Navigation', {
+      responsive: true,
+      units: ['px', 'em'],
+      min: 10,
+      max: 100,
+      selectors: { '{{el}} .fr-carousel__arrow': 'font-size: {{value}}' },
+    }),
+    style.color('arrows_bg', 'Arrows background', 'Navigation', {
+      hover: true,
+      selectors: { '{{el}} .fr-carousel__arrow': 'background-color: {{value}}' },
+    }),
+    style.slider('arrows_box', 'Arrows box size', 'Navigation', {
+      units: ['px', 'em'],
+      min: 0,
+      max: 120,
+      selectors: { '{{el}} .fr-carousel__arrow': 'width: {{value}}; height: {{value}}' },
+    }),
+    style.slider('arrows_offset', 'Arrows distance from the edge', 'Navigation', {
+      responsive: true,
+      units: ['px', '%', 'em'],
+      min: -100,
+      max: 100,
+      selectors: {
+        '{{el}} .fr-carousel__prev': 'left: {{value}}',
+        '{{el}} .fr-carousel__next': 'right: {{value}}',
+      },
     }),
     style.color('dot_color', 'Dot color', 'Navigation', {
       selectors: { '{{el}} .fr-carousel__dot': 'background-color: {{value}}' },
     }),
     style.color('dot_active', 'Active dot color', 'Navigation', {
       selectors: { '{{el}} .fr-carousel__dot[aria-current="true"]': 'background-color: {{value}}' },
+    }),
+    style.select('dots_position', 'Dots position', 'Navigation', {
+      options: [
+        { value: '', label: 'Outside' },
+        { value: 'inside', label: 'Inside' },
+      ],
+      noCss: true,
+    }),
+    style.slider('dots_size', 'Dots size', 'Navigation', {
+      responsive: true,
+      units: ['px'],
+      min: 2,
+      max: 40,
+      selectors: { '{{el}} .fr-carousel__dot': 'width: {{value}}; height: {{value}}' },
+    }),
+    style.slider('dots_gap', 'Space between dots', 'Navigation', {
+      responsive: true,
+      units: ['px'],
+      max: 40,
+      selectors: { '{{el}} .fr-carousel__dots': 'gap: {{value}}' },
+    }),
+    style.color('pagination_color', 'Fraction and progress color', 'Navigation', {
+      condition: { pagination: ['fraction', 'progressbar'] },
+      selectors: {
+        '{{el}} .fr-carousel__fraction': 'color: {{value}}',
+        '{{el}} .fr-carousel__progress > span': 'background-color: {{value}}',
+      },
+    }),
+    ...captionControls('Caption', '{{el}} .fr-carousel__caption', {
+      'caption_type!': [undefined, ''],
     }),
     ...advancedControls(),
   ],
@@ -746,6 +1197,8 @@ export const imageCarousel: ElementDefinition = {
     const images = (Array.isArray(settings.images) ? settings.images : []).filter(isMedia);
     const nav = String(settings.navigation ?? 'both');
     const lightbox = settings.link_to === 'file';
+    const custom = settings.link_to === 'custom' ? linkProps(settings.link) : null;
+    const fade = settings.effect === 'fade';
     if (images.length === 0) {
       return (
         <ElementRoot
@@ -758,6 +1211,19 @@ export const imageCarousel: ElementDefinition = {
         </ElementRoot>
       );
     }
+    const speed = num(settings.speed, 0);
+    const pagination =
+      settings.pagination === 'fraction' || settings.pagination === 'progressbar'
+        ? settings.pagination
+        : 'bullets';
+    const classes = [
+      'fr-carousel',
+      fade ? 'fr-carousel--fade' : '',
+      settings.arrows_position === 'outside' ? 'fr-carousel--arrows-outside' : '',
+      settings.dots_position === 'inside' ? 'fr-carousel--dots-inside' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
     return (
       <ElementRoot
         node={node}
@@ -770,10 +1236,13 @@ export const imageCarousel: ElementDefinition = {
             settings.autoplay === false ? undefined : String(num(settings.interval, 5000)),
           'data-fr-loop': settings.loop === false ? undefined : '',
           'data-fr-pause': settings.pause === false ? undefined : '',
+          'data-fr-pause-interaction': settings.pause_interaction === true ? '' : undefined,
+          'data-fr-effect': fade ? 'fade' : undefined,
+          'data-fr-speed': speed > 0 ? String(Math.min(Math.round(speed), 5000)) : undefined,
         }}
       >
         <div
-          className="fr-carousel"
+          className={classes}
           role="region"
           aria-roledescription="carousel"
           aria-label={uiText(context.locale, 'Images')}
@@ -788,22 +1257,36 @@ export const imageCarousel: ElementDefinition = {
                   sizes="(max-width: 767px) 100vw, 33vw"
                 />
               );
-              const href = image.id ? (context.media.get(image.id)?.url ?? image.url) : image.url;
+              const item = image.id ? context.media.get(image.id) : undefined;
+              const href = image.id ? (item?.url ?? image.url) : image.url;
+              const caption =
+                settings.caption_type === 'attachment'
+                  ? attachmentCaption(image, item)
+                  : settings.caption_type === 'alt'
+                    ? (image.alt ?? item?.alt ?? '')
+                    : '';
               return (
                 <div
                   key={`${image.id ?? image.url}-${i}`}
-                  className="fr-carousel__slide"
+                  className={`fr-carousel__slide${fade && i === 0 ? ' is-active' : ''}`}
                   role="group"
                   aria-roledescription="slide"
                   aria-label={`${i + 1} / ${images.length}`}
                 >
                   {lightbox ? (
-                    <a href={href} data-fr-lightbox={`c-${node.id}`}>
+                    <a
+                      href={href}
+                      data-fr-lightbox={`c-${node.id}`}
+                      {...(caption ? { 'data-fr-caption': caption } : {})}
+                    >
                       {img}
                     </a>
+                  ) : custom ? (
+                    <a {...custom}>{img}</a>
                   ) : (
                     img
                   )}
+                  {caption ? <div className="fr-carousel__caption">{caption}</div> : null}
                 </div>
               );
             })}
@@ -816,7 +1299,7 @@ export const imageCarousel: ElementDefinition = {
                 aria-label={uiText(context.locale, 'Previous')}
                 data-fr-prev=""
               >
-                ‹
+                {settings.prev_icon ? <Icon value={settings.prev_icon} /> : '‹'}
               </button>
               <button
                 type="button"
@@ -824,13 +1307,20 @@ export const imageCarousel: ElementDefinition = {
                 aria-label={uiText(context.locale, 'Next')}
                 data-fr-next=""
               >
-                ›
+                {settings.next_icon ? <Icon value={settings.next_icon} /> : '›'}
               </button>
             </>
           )}
-          {(nav === 'both' || nav === 'dots') && (
-            <div className="fr-carousel__dots" data-fr-dots="" />
-          )}
+          {(nav === 'both' || nav === 'dots') &&
+            (pagination === 'fraction' ? (
+              <div className="fr-carousel__fraction" data-fr-fraction="" aria-hidden="true" />
+            ) : pagination === 'progressbar' ? (
+              <div className="fr-carousel__progress" data-fr-progress="" aria-hidden="true">
+                <span />
+              </div>
+            ) : (
+              <div className="fr-carousel__dots" data-fr-dots="" />
+            ))}
         </div>
       </ElementRoot>
     );
@@ -880,6 +1370,18 @@ export const gallery: ElementDefinition = {
       noCss: true,
     }),
     content.switch('captions', 'Captions', 'Gallery', { noCss: true }),
+    content.select('caption_source', 'Caption source', 'Gallery', {
+      options: [
+        { value: '', label: 'Image description' },
+        { value: 'attachment', label: 'Attachment caption' },
+      ],
+      condition: { captions: true },
+      noCss: true,
+    }),
+    content.switch('random', 'Random order', 'Gallery', {
+      help: 'The images are shuffled each time the page is shown.',
+      noCss: true,
+    }),
     style.slider('gap', 'Gap', 'Images', {
       responsive: true,
       units: ['px'],
@@ -888,6 +1390,13 @@ export const gallery: ElementDefinition = {
     }),
     groups.border('image_border', 'Border', 'Images', '{{el}} .fr-gallery img'),
     groups.filters('filters', 'CSS filters', 'Images', '{{el}} .fr-gallery img'),
+    groups.filters(
+      'filters_hover',
+      'CSS filters on hover',
+      'Images',
+      '{{el}} .fr-gallery a:hover img, {{el}} .fr-gallery__item:hover img',
+    ),
+    ...captionControls('Caption', '{{el}} .fr-gallery__item figcaption', { captions: true }),
     ...advancedControls(),
   ],
   media: (settings) => mediaIds(settings.images),
@@ -899,12 +1408,18 @@ export const gallery: ElementDefinition = {
         settings={settings}
         name="fr-gallery-widget"
         editing={context.editing}
+        extra={settings.random === true ? { 'data-fr-handler': 'shuffle' } : undefined}
       >
         {images.length === 0 && context.editing ? <span className="fr-placeholder" /> : null}
         <div className="fr-gallery">
           {images.map((image, i) => {
             const item = image.id ? context.media.get(image.id) : undefined;
-            const caption = settings.captions === true ? (image.alt ?? item?.alt ?? '') : '';
+            const caption =
+              settings.captions !== true
+                ? ''
+                : settings.caption_source === 'attachment'
+                  ? attachmentCaption(image, item)
+                  : (image.alt ?? item?.alt ?? '');
             const img = (
               <FrImage
                 value={image}
@@ -949,10 +1464,10 @@ export const starRating: ElementDefinition = {
   controls: [
     content.select('scale', 'Scale', 'Rating', {
       default: '5',
-      options: [
-        { value: '5', label: '0–5' },
-        { value: '10', label: '0–10' },
-      ],
+      options: Array.from({ length: 10 }, (_, i) => ({
+        value: String(i + 1),
+        label: `0–${i + 1}`,
+      })),
       noCss: true,
     }),
     content.number('rating', 'Rating', 'Rating', {
@@ -962,7 +1477,24 @@ export const starRating: ElementDefinition = {
       step: 0.1,
       noCss: true,
     }),
-    content.icon('icon', 'Icon', 'Rating', { default: { set: 'solid', name: 'star' } }),
+    content.select('star_style', 'Icon', 'Rating', {
+      options: [
+        { value: '', label: 'Icon' },
+        { value: 'unicode', label: 'Unicode' },
+      ],
+      noCss: true,
+    }),
+    content.icon('icon', 'Icon', 'Rating', {
+      default: { set: 'solid', name: 'star' },
+      condition: { 'star_style!': 'unicode' },
+    }),
+    content.select('unmarked_style', 'Unmarked style', 'Rating', {
+      options: [
+        { value: '', label: 'Solid' },
+        { value: 'outline', label: 'Outline' },
+      ],
+      noCss: true,
+    }),
     content.text('title', 'Title', 'Rating'),
     content.choose('align', 'Alignment', 'Rating', {
       responsive: true,
@@ -987,24 +1519,44 @@ export const starRating: ElementDefinition = {
       selectors: { '{{el}} .fr-star': 'color: {{value}}' },
     }),
     ...textStyle('title_', 'Title', '{{el}} .fr-rating__title'),
+    groups.textShadow('title_shadow', 'Text shadow', 'Title', '{{el}} .fr-rating__title'),
+    style.slider('title_gap', 'Spacing', 'Title', {
+      responsive: true,
+      units: ['px', 'em'],
+      max: 50,
+      selectors: { '{{el}} .fr-rating__title': 'margin-right: {{value}}' },
+    }),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
-    const scale = settings.scale === '10' ? 10 : 5;
+    const scale = Math.max(1, Math.min(10, Math.round(num(settings.scale, 5))));
+    const unicode = settings.star_style === 'unicode';
+    const outline = settings.unmarked_style === 'outline';
+    const glyph = (empty: boolean) =>
+      unicode ? (
+        <span className="fr-star__char">{empty && outline ? '☆' : '★'}</span>
+      ) : (
+        <Icon value={settings.icon} />
+      );
     const rating = Math.max(0, Math.min(scale, num(settings.rating, 4.5)));
     const title = plainText(settings.title);
     return (
-      <ElementRoot node={node} settings={settings} name="fr-rating" editing={context.editing}>
+      <ElementRoot
+        node={node}
+        settings={settings}
+        name={`fr-rating${outline && !unicode ? ' fr-rating--outline' : ''}`}
+        editing={context.editing}
+      >
         {title && <span className="fr-rating__title">{title}</span>}
         <span className="fr-stars" role="img" aria-label={`Rated ${rating} out of ${scale}`}>
           {Array.from({ length: scale }, (_, i) => {
             const fill = Math.max(0, Math.min(1, rating - i));
             return (
               <span key={i} className="fr-star" aria-hidden="true">
-                <Icon value={settings.icon} />
+                {glyph(true)}
                 {fill > 0 && (
                   <span className="fr-star__fill" style={{ width: `${Math.round(fill * 100)}%` }}>
-                    <Icon value={settings.icon} />
+                    {glyph(false)}
                   </span>
                 )}
               </span>
@@ -1095,6 +1647,13 @@ export const googleMaps: ElementDefinition = {
       selectors: { '{{el}} iframe': 'height: {{value}}' },
     }),
     groups.filters('filters', 'CSS filters', 'Map', '{{el}} iframe'),
+    groups.filters('filters_hover', 'CSS filters on hover', 'Map', '{{el}}:hover iframe'),
+    style.slider('hover_transition', 'Transition duration (s)', 'Map', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: { '{{el}} iframe': 'transition: filter {{value}}' },
+    }),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
@@ -1125,6 +1684,9 @@ const PATHS: Record<string, string> = {
   circle: 'M250,40 a210,210 0 1,1 -0.1,0 z',
   line: 'M0,150 L500,150',
   oval: 'M250,60 a230,150 0 1,1 -0.1,0 z',
+  // Half circles growing by 10 at each turn, from the center out.
+  spiral:
+    'M250,150 a10,10 0 0,1 20,0 a20,20 0 0,1 -40,0 a30,30 0 0,1 60,0 a40,40 0 0,1 -80,0 a50,50 0 0,1 100,0 a60,60 0 0,1 -120,0 a70,70 0 0,1 140,0 a80,80 0 0,1 -160,0 a90,90 0 0,1 180,0 a100,100 0 0,1 -200,0 a110,110 0 0,1 220,0 a120,120 0 0,1 -240,0',
 };
 
 export const textPath: ElementDefinition = {
@@ -1137,11 +1699,31 @@ export const textPath: ElementDefinition = {
     content.text('text', 'Text', 'Text path', { default: 'Add your curvy text here' }),
     content.select('path', 'Path', 'Text path', {
       default: 'wave',
-      options: Object.keys(PATHS).map((p) => ({
-        value: p,
-        label: p[0]!.toUpperCase() + p.slice(1),
-      })),
+      options: [
+        ...Object.keys(PATHS).map((p) => ({
+          value: p,
+          label: p[0]!.toUpperCase() + p.slice(1),
+        })),
+        { value: 'custom', label: 'Custom' },
+      ],
       noCss: true,
+    }),
+    content.media('custom_path', 'SVG', 'Text path', {
+      accept: 'svg',
+      help: 'An SVG file: its first path carries the text (on the page; the editor shows a wave).',
+      condition: { path: 'custom' },
+    }),
+    content.select('text_direction', 'Text direction', 'Text path', {
+      options: [
+        { value: '', label: 'Default' },
+        { value: 'rtl', label: 'Right to left' },
+        { value: 'ltr', label: 'Left to right' },
+      ],
+      noCss: true,
+    }),
+    content.switch('show_path', 'Show path', 'Text path', {
+      dictionary: { true: 'stroke: currentColor' },
+      selectors: { '{{el}} .fr-text-path__line': '{{value}}' },
     }),
     content.url('link', 'Link', 'Text path'),
     content.slider('width', 'Size', 'Text path', {
@@ -1162,19 +1744,63 @@ export const textPath: ElementDefinition = {
       options: ALIGN,
       selectors: { '{{el}}': 'text-align: {{value}}' },
     }),
-    ...textStyle('', 'Text', '{{el}} text'),
+    content.slider('rotation', 'Rotate', 'Text path', {
+      responsive: true,
+      units: ['deg'],
+      min: 0,
+      max: 360,
+      selectors: { '{{el}} svg': 'transform: rotate({{value}})' },
+    }),
+    ...textStyle('', 'Text', '{{el}} text', { hover: true }),
+    ...textStrokeControls('text_stroke', 'Text', '{{el}} text'),
+    style.slider('word_spacing', 'Word spacing', 'Text', {
+      responsive: true,
+      units: ['px', 'em'],
+      min: -20,
+      max: 50,
+      selectors: { '{{el}} text': 'word-spacing: {{value}}' },
+    }),
+    style.slider('text_transition', 'Transition duration (s)', 'Text', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: { '{{el}} text': 'transition: fill {{value}}, color {{value}}' },
+    }),
     style.color('stroke', 'Path color', 'Path', {
+      hover: true,
       selectors: { '{{el}} .fr-text-path__line': 'stroke: {{value}}' },
+    }),
+    style.color('path_fill', 'Path fill', 'Path', {
+      selectors: { '{{el}} .fr-text-path__line': 'fill: {{value}}' },
     }),
     style.slider('stroke_width', 'Path width', 'Path', {
       units: ['px'],
       max: 20,
       selectors: { '{{el}} .fr-text-path__line': 'stroke-width: {{value}}' },
     }),
+    style.slider('stroke_transition', 'Transition duration (s)', 'Path', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: { '{{el}} .fr-text-path__line': 'transition: stroke {{value}}, fill {{value}}' },
+    }),
+    hoverAnimationControl('Text'),
     ...advancedControls(),
   ],
+  media: (settings) => mediaIds(settings.custom_path),
   render({ node, settings, context }) {
     const shape = PATHS[String(settings.path)] ?? PATHS.wave!;
+    // A path from an SVG file: the front-end script reads it.
+    const svgUrl =
+      settings.path === 'custom' &&
+      isMedia(settings.custom_path) &&
+      /^(https?:\/\/|\/(?!\/))[^\s"'<>]*\.svg(\?[^\s"'<>]*)?$/i.test(settings.custom_path.url)
+        ? settings.custom_path.url
+        : null;
+    const direction =
+      settings.text_direction === 'rtl' || settings.text_direction === 'ltr'
+        ? settings.text_direction
+        : undefined;
     const id = `fr-tp-${node.id.replace(/[^A-Za-z0-9_-]/g, '')}`;
     const offset = num((settings.offset as { size?: unknown } | undefined)?.size, 0);
     const link = linkProps(settings.link);
@@ -1184,15 +1810,23 @@ export const textPath: ElementDefinition = {
       </textPath>
     );
     return (
-      <ElementRoot node={node} settings={settings} name="fr-text-path" editing={context.editing}>
+      <ElementRoot
+        node={node}
+        settings={settings}
+        name="fr-text-path"
+        editing={context.editing}
+        extra={svgUrl ? { 'data-fr-handler': 'text-path', 'data-fr-path': svgUrl } : undefined}
+      >
         <svg
           viewBox="0 0 500 300"
-          className="fr-text-path__svg"
+          className={`fr-text-path__svg${hoverClass(settings.hover_effect)}`}
           role="img"
           aria-label={plainText(settings.text)}
         >
           <path id={id} d={shape} className="fr-text-path__line" fill="none" />
-          <text>{link ? <a href={link.href}>{text}</a> : text}</text>
+          <text {...(direction ? { direction } : {})}>
+            {link ? <a href={link.href}>{text}</a> : text}
+          </text>
         </svg>
       </ElementRoot>
     );

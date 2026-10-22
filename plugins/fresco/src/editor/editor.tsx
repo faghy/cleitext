@@ -18,15 +18,44 @@ import { DEVICE_ICONS, DEVICE_NAMES, Svg } from './controls.js';
 import { saveTemplate } from './library.js';
 import { Panel } from './panel.js';
 import { loadPluginBlocks } from './plugin-blocks.js';
-import { createStore, setTextTranslator, useStore, type PanelView, type Store } from './store.js';
+import {
+  blocksToSave,
+  createStore,
+  setTextTranslator,
+  useStore,
+  type PanelView,
+  type Store,
+} from './store.js';
 import { EDITOR_CSS } from './styles.js';
 import { find, placeOf } from './tree.js';
+import {
+  CLIPBOARD_TYPE,
+  decodeClipboard,
+  encodeClipboard,
+  importMedia,
+  readSystemClipboard,
+  remapMedia,
+  writeSystemClipboard,
+  type ClipboardPayload,
+} from './clipboard.js';
+import { editGlobal, globalOf, saveGlobal, unlinkGlobal } from './globals.js';
+import {
+  clampPanelWidth,
+  exitUrl,
+  isDark,
+  normalizePreferences,
+  PANEL_WIDTH,
+  type Preferences,
+} from './prefs-model.js';
+import { topmost } from './store.js';
 import { TopBar } from './topbar.js';
 import { NavigatorWindow } from './navigator.js';
 import { Finder, ShortcutsDialog } from './finder.js';
 import { askText, confirmAction, Dialogs, notify } from './dialogs.js';
 import './i18n.js';
 import { nextDevice } from './frame-css.js';
+
+export { clampPanelWidth, PANEL_WIDTH };
 
 const VIEWS: { view: PanelView; title: string; icon: string }[] = [
   {
@@ -89,7 +118,34 @@ export function FrescoEditor(props: EditorProps) {
     return () => setTextTranslator(null);
   }, []);
   const canvas = useRef<CanvasApi>({ frame: null, doc: null, root: null });
-  const [panelWidth, setPanelWidth] = usePanelWidth();
+  const prefsLoaded = useRef(false);
+  // Changed preferences are saved for the user (a moment later: a slider sends many).
+  useEffect(() => {
+    let last: Preferences = store.get().prefs;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = store.subscribe(() => {
+      const prefs = store.get().prefs;
+      if (prefs === last) return;
+      last = prefs;
+      if (!prefsLoaded.current) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => void api('PUT', '/preferences', prefs).catch(() => {}), 600);
+    });
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
+    // `api` is a new function on every render of the host.
+  }, [store]);
+  const panelWidth = useStore(store, (s) => s.prefs.panelWidth ?? PANEL_WIDTH.initial);
+  const setPanelWidth = useCallback(
+    (width: number | null) =>
+      store.actions.setPrefs({ panelWidth: width === null ? undefined : clampPanelWidth(width) }),
+    [store],
+  );
+  const theme = useStore(store, (s) => s.prefs.theme);
+  const dark = useSystemDark(theme === 'auto') ? isDark(theme, true) : isDark(theme, false);
+  const globalEdit = useStore(store, (s) => s.globalEdit);
   const [finder, setFinder] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
   const [panelHidden, setPanelHidden] = useState(false);
@@ -166,6 +222,21 @@ export function FrescoEditor(props: EditorProps) {
     void api<unknown>('GET', '/kit')
       .then((kit) => store.actions.setKit(normalizeKit(kit), false))
       .catch(() => {});
+    // The user's preferences, kept for the user (this browser's until they arrive).
+    void api<unknown>('GET', '/preferences')
+      .then((prefs) => {
+        const local = store.get().prefs;
+        const saved = normalizePreferences(prefs);
+        // Favorites chosen before the preferences were kept for the user come along.
+        store.actions.setPrefs({
+          ...saved,
+          favorites: [...new Set([...saved.favorites, ...local.favorites])],
+        });
+        prefsLoaded.current = true;
+      })
+      .catch(() => {
+        prefsLoaded.current = true;
+      });
     // Once: `api` is a new function on every render of the host.
   }, []);
 
@@ -185,7 +256,8 @@ export function FrescoEditor(props: EditorProps) {
         const data = state.page;
         onChange({
           schema: 1,
-          blocks: state.blocks as unknown as CxdDocument['blocks'],
+          // A global widget edited in place is saved as its element, never as its content.
+          blocks: blocksToSave(state) as unknown as CxdDocument['blocks'],
           editor: { id: 'fresco', ...(Object.keys(data).length ? { data } : {}) },
         });
       }),
@@ -210,7 +282,14 @@ export function FrescoEditor(props: EditorProps) {
         setFinder(true);
       } else if (primary && !event.shiftKey && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        store.actions.setView('site');
+        store.actions.openSite('');
+      } else if (primary && event.shiftKey && event.key.toLowerCase() === 'l') {
+        // The templates library, as in Elementor.
+        event.preventDefault();
+        store.actions.setView('library');
+      } else if (primary && event.shiftKey && event.key.toLowerCase() === 'u') {
+        event.preventDefault();
+        store.actions.setView(state.view === 'preferences' ? 'elements' : 'preferences');
       } else if (primary && event.shiftKey && event.key.toLowerCase() === 'y') {
         event.preventDefault();
         store.actions.setView('page');
@@ -255,7 +334,10 @@ export function FrescoEditor(props: EditorProps) {
         if (many) store.actions.copyMany(many);
         else store.actions.copy(state.selected);
       } else if (primary && event.key.toLowerCase() === 'v' && !typing) {
-        store.actions.paste(state.selected);
+        // The paste event brings the system clipboard (elements copied on another
+        // site too); when the browser sends none, the copy kept here is pasted.
+        clearTimeout(pasteFallback.current);
+        pasteFallback.current = setTimeout(() => store.actions.paste(store.get().selected), 120);
       } else if (
         (event.key === 'Delete' || event.key === 'Backspace') &&
         state.selected &&
@@ -308,8 +390,55 @@ export function FrescoEditor(props: EditorProps) {
         );
       }
     };
+    /** Copy: the selected elements also go to the system clipboard, for other tabs and sites. */
+    const onCopy = (event: ClipboardEvent) => {
+      const state = store.get();
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+      if (
+        typing ||
+        !state.selected ||
+        window.getSelection()?.toString() ||
+        canvas.current.doc?.getSelection()?.toString()
+      )
+        return;
+      const ids = state.selection.length > 1 ? state.selection : [state.selected];
+      const nodes = topmost(state.blocks, ids)
+        .map((id) => find(state.blocks, id))
+        .filter((n): n is NonNullable<typeof n> => !!n);
+      if (!nodes.length || !event.clipboardData) return;
+      const text = encodeClipboard(nodes, window.location.origin);
+      event.clipboardData.setData('text/plain', text);
+      try {
+        event.clipboardData.setData(CLIPBOARD_TYPE, text);
+      } catch {
+        // Some browsers keep only standard types.
+      }
+      event.preventDefault();
+    };
+    /** Paste: Fresco elements in the system clipboard (from this site or another one). */
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      )
+        return;
+      const data = event.clipboardData;
+      const payload = data
+        ? decodeClipboard(data.getData(CLIPBOARD_TYPE) || data.getData('text/plain'))
+        : null;
+      if (!payload) return;
+      event.preventDefault();
+      clearTimeout(pasteFallback.current);
+      void pastePayload(payload);
+    };
     const frameWindow = () => canvas.current.frame?.contentWindow;
     window.addEventListener('keydown', handler);
+    window.document.addEventListener('copy', onCopy);
+    window.document.addEventListener('paste', onPaste);
     // Capture, on the window: before the admin's listener on the document.
     window.addEventListener('keydown', saveKey, true);
     const attached = new WeakSet<Window>();
@@ -321,16 +450,55 @@ export function FrescoEditor(props: EditorProps) {
         attachedTo = win;
         win.addEventListener('keydown', handler);
         win.addEventListener('keydown', saveKey, true);
+        win.document.addEventListener('copy', onCopy);
+        win.document.addEventListener('paste', onPaste);
       }
     }, 500);
     return () => {
       window.removeEventListener('keydown', handler);
       window.removeEventListener('keydown', saveKey, true);
+      window.document.removeEventListener('copy', onCopy);
+      window.document.removeEventListener('paste', onPaste);
       clearInterval(attach);
       attachedTo?.removeEventListener('keydown', handler);
       attachedTo?.removeEventListener('keydown', saveKey, true);
+      attachedTo?.document.removeEventListener('copy', onCopy);
+      attachedTo?.document.removeEventListener('paste', onPaste);
     };
   }, [store]);
+
+  /**
+   * Pastes elements from the system clipboard: those of another site get
+   * this site's copies of their images, when the other site lets them be read.
+   */
+  const pastePayload = useCallback(
+    async (payload: ClipboardPayload) => {
+      const here = window.location.origin;
+      let nodes = remapMedia(payload, here);
+      if (payload.origin && payload.origin !== here) {
+        const result = await importMedia(nodes, here, media.upload);
+        nodes = result.nodes;
+        if (result.failed)
+          notify(
+            t('{count} images stay on the site they were copied from.', {
+              count: String(result.failed),
+            }),
+            'info',
+          );
+      }
+      store.actions.pasteNodes(nodes, store.get().selected);
+    },
+    [media, store, t],
+  );
+  const pasteFallback = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const onDragNode = useCallback(
+    (event: React.PointerEvent, make: () => FrescoNode, label: string) => {
+      if (event.button !== 0 || readOnly || !canvas.current.frame) return;
+      startDrag(event, canvas.current.frame, store, { kind: 'node', make, label });
+    },
+    [readOnly, store],
+  );
 
   const onDragStart = useCallback(
     (event: React.PointerEvent, type: string, label: string) => {
@@ -343,6 +511,11 @@ export function FrescoEditor(props: EditorProps) {
   const saveKit = useCallback(async () => {
     const saved = await api<unknown>('PUT', '/kit', store.get().kit);
     store.actions.setKit(normalizeKit(saved), false);
+    // Without the page's Save (the editor inside the admin's bar): other panels too.
+    for (const [id, save] of Object.entries(store.get().sitePending)) {
+      await save();
+      store.actions.setSitePending(id, null);
+    }
   }, [api, store]);
 
   const saveAsTemplate = () => {
@@ -365,15 +538,23 @@ export function FrescoEditor(props: EditorProps) {
     : null;
 
   // The site settings are saved with the page, as in other builders.
-  const kitDirty = useStore(store, (s) => s.kitDirty);
+  const kitDirty = useStore(
+    store,
+    (s) => s.kitDirty || Object.keys(s.sitePending).length > 0 || s.globalEdit !== null,
+  );
   const withKit = (action: () => Promise<void>) => async (): Promise<void> => {
-    if (store.get().kitDirty && canManageKit) {
-      try {
-        await saveKit();
-      } catch (error) {
-        notify(String(error instanceof Error ? error.message : error), 'error');
-        return;
+    try {
+      const state = store.get();
+      if (state.kitDirty && canManageKit) await saveKit();
+      // Other plugins' Site settings panels (custom CSS…), and a global widget edited in place.
+      for (const [id, save] of Object.entries(store.get().sitePending)) {
+        await save();
+        store.actions.setSitePending(id, null);
       }
+      if (store.get().globalEdit) await saveGlobal(store);
+    } catch (error) {
+      notify(String(error instanceof Error ? error.message : error), 'error');
+      return;
     }
     await action();
   };
@@ -406,11 +587,50 @@ export function FrescoEditor(props: EditorProps) {
     // `api` is a new function on every render of the host.
   }, [published, props.entry.id]);
 
-  if (host) {
+  /** Copy and share: saves, then copies the page's preview link (a signed one, for others too). */
+  const copyShare = useCallback(async () => {
+    const current = hostRef.current;
+    if (!current) return;
+    await current.save();
+    try {
+      const { url } = await coreApi<{ url: string }>(
+        'POST',
+        `/entries/${encodeURIComponent(props.entry.id)}/preview`,
+      );
+      const link = new URL(url, window.location.origin).href;
+      try {
+        await navigator.clipboard.writeText(link);
+        notify(t('The preview link was copied: share it to show the page.'), 'success');
+      } catch {
+        // The browser did not let the page write the clipboard: the link is shown to copy.
+        await askText({ title: t('The preview link of the page'), label: t('Link'), value: link });
+      }
+    } catch (error) {
+      notify(String(error instanceof Error ? error.message : error), 'error');
+    }
+  }, [props.entry.id, t]);
+
+  // Where "Exit" goes (User preferences).
+  const exitTo = useStore(store, (s) => s.prefs.exitTo);
+  const adminBase = window.location.pathname.split('/entries/')[0] ?? '';
+  const exit = host
+    ? {
+        url: exitUrl(exitTo, { list: host.back.url, page: viewUrl, dashboard: `${adminBase}/` }),
+        label:
+          exitTo === 'page' && viewUrl
+            ? t('Exit to the page')
+            : exitTo === 'dashboard'
+              ? t('Exit to the dashboard')
+              : t('Exit to {list}', { list: host.back.label }),
+      }
+    : null;
+
+  if (host && exit) {
     return (
       <div
-        className={`fre-root fre-root--full${panelHidden ? ' is-panel-hidden' : ''}`}
+        className={`fre-root fre-root--full${panelHidden ? ' is-panel-hidden' : ''}${dark ? ' fre-root--dark' : ''}`}
         data-icons={iconsReady ? 'ready' : 'loading'}
+        data-theme={dark ? 'dark' : 'light'}
         style={{ '--fre-panel-width': `${panelWidth}px` } as React.CSSProperties}
       >
         <TopBar
@@ -422,6 +642,9 @@ export function FrescoEditor(props: EditorProps) {
           saveAsTemplate={saveAsTemplate}
           openFinder={() => setFinder(true)}
           viewUrl={viewUrl}
+          exit={exit}
+          navigate={props.navigate}
+          copyShare={copyShare}
         />
         {host.error && (
           <div className="fre-hosterror" role="alert">
@@ -435,16 +658,20 @@ export function FrescoEditor(props: EditorProps) {
               store={store}
               media={media}
               onDragStart={onDragStart}
+              onDragNode={onDragNode}
               canManageKit={canManageKit}
               onSaveKit={saveKit}
               savesWithPage
               canManageSettings={user.capabilities.includes('manage_settings')}
               canManageTheme={user.capabilities.includes('edit_theme_settings')}
               host={host}
+              capabilities={user.capabilities}
+              canvas={() => canvas.current.doc}
             />
             <PanelResizer width={panelWidth} onChange={setPanelWidth} />
           </aside>
           <main className="fre-main">
+            {globalEdit && <GlobalEditBar store={store} />}
             <button
               type="button"
               className="fre-paneltoggle"
@@ -466,7 +693,10 @@ export function FrescoEditor(props: EditorProps) {
             />
           </main>
           {/* Floating over the canvas, or docked to the right edge beside it. */}
-          <NavigatorWindow store={store} />
+          <NavigatorWindow
+            store={store}
+            onContextMenu={(id, position) => setMenu({ id, ...position })}
+          />
         </div>
         {finder && (
           <Finder
@@ -474,11 +704,23 @@ export function FrescoEditor(props: EditorProps) {
             host={host}
             onClose={() => setFinder(false)}
             navigate={props.navigate}
+            exit={exit}
+            themeBuilderUrl={themeBuilderUrl}
+            copyShare={copyShare}
+            canManageKit={canManageKit}
+            capabilities={user.capabilities}
           />
         )}
         {shortcuts && <ShortcutsDialog onClose={() => setShortcuts(false)} />}
         <Dialogs />
-        {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
+        {menu && (
+          <ContextMenu
+            store={store}
+            menu={menu}
+            onClose={() => setMenu(null)}
+            pastePayload={pastePayload}
+          />
+        )}
       </div>
     );
   }
@@ -506,7 +748,14 @@ export function FrescoEditor(props: EditorProps) {
           api={canvas}
         />
       </main>
-      {menu && <ContextMenu store={store} menu={menu} onClose={() => setMenu(null)} />}
+      {menu && (
+        <ContextMenu
+          store={store}
+          menu={menu}
+          onClose={() => setMenu(null)}
+          pastePayload={pastePayload}
+        />
+      )}
       <Dialogs />
     </div>
   );
@@ -521,6 +770,7 @@ function PanelHeader({ store }: { store: Store }) {
   const node = view === 'element' && selected ? find(blocks, selected) : null;
   const elementTitle = node ? (getElement(node.type)?.title ?? node.type) : '';
   const titles: Record<PanelView, string> = {
+    preferences: t('User preferences'),
     elements: t('Elements'),
     element: t('Edit {element}', { element: t(elementTitle) }),
     navigator: t('Structure'),
@@ -632,10 +882,13 @@ function ContextMenu({
   store,
   menu,
   onClose,
+  pastePayload,
 }: {
   store: Store;
   menu: { id: string; x: number; y: number };
   onClose: () => void;
+  /** Pastes elements read from the system clipboard. */
+  pastePayload: (payload: ClipboardPayload) => Promise<void>;
 }) {
   const { t } = useT();
   const node = menu.id ? find(store.get().blocks, menu.id) : null;
@@ -685,6 +938,55 @@ function ContextMenu({
     const last = state.blocks[state.blocks.length - 1];
     store.actions.paste(last?.id ?? null);
   };
+  const readOnly = store.get().readOnly || store.get().contentOnly;
+  /**
+   * Paste from other site: the system clipboard, read when the browser lets
+   * the page (it may ask); else the user pastes it into a box.
+   */
+  const pasteFromOtherSite = (after: string | null) => {
+    void (async () => {
+      let payload = await readSystemClipboard();
+      if (!payload) {
+        const text = await askText({
+          title: t('Paste from other site'),
+          label: t('Press Ctrl+V (⌘+V) here to paste the copied elements'),
+          value: '',
+        });
+        payload = decodeClipboard(text);
+        if (text && !payload) notify(t('The clipboard holds no Fresco elements.'), 'error');
+      }
+      if (!payload) return;
+      if (after) store.actions.select(after);
+      await pastePayload(payload);
+    })();
+  };
+  /** Copy: kept here and in the system clipboard (for other tabs and sites). */
+  const copy = (ids: readonly string[]) => {
+    store.actions.copyMany(ids);
+    const state = store.get();
+    const nodes = topmost(state.blocks, ids)
+      .map((id) => find(state.blocks, id))
+      .filter((n): n is NonNullable<typeof n> => !!n);
+    void writeSystemClipboard(nodes, window.location.origin);
+  };
+  /** Add new container (as in Elementor): inside a top-level one, or beside a nested one. */
+  const addContainer = (id: string | null) => {
+    const state = store.get();
+    const target = id ? find(state.blocks, id) : null;
+    if (!target) {
+      store.actions.add('fresco/container', { parent: null, index: state.blocks.length });
+      return;
+    }
+    const path = placeOf(state.blocks, target.id);
+    const parent = path?.parent ? find(state.blocks, path.parent) : null;
+    const holder = parent && getElement(parent.type)?.container ? parent : target;
+    const id2 = store.actions.add('fresco/container', {
+      parent: holder.id,
+      index: holder.children?.length ?? 0,
+    });
+    if (id2) store.actions.setSettings(id2, { content_width: 'full' });
+  };
+  const global = node ? globalOf(node) : null;
   return (
     <div
       className="fre-menu"
@@ -712,14 +1014,13 @@ function ContextMenu({
             )}
           </div>
           <div className="fre-menu__group">
-            {item(
-              t('Copy'),
-              () => (many ? store.actions.copyMany(many) : store.actions.copy(menu.id)),
-              { shortcut: 'Ctrl+C' },
-            )}
+            {item(t('Copy'), () => copy(many ?? [menu.id]), { shortcut: 'Ctrl+C' })}
             {item(t('Paste'), () => store.actions.paste(menu.id), {
               disabled: !hasClipboard,
               shortcut: 'Ctrl+V',
+            })}
+            {item(t('Paste from other site'), () => pasteFromOtherSite(menu.id), {
+              disabled: readOnly,
             })}
             {item(t('Paste style'), () => store.actions.pasteStyle(menu.id), {
               disabled: store.get().clipboard?.[0]?.type !== node.type,
@@ -727,6 +1028,29 @@ function ContextMenu({
             })}
             {item(t('Reset style'), () => store.actions.resetStyle(menu.id))}
           </div>
+          {getElement(node.type)?.container && !readOnly && (
+            <div className="fre-menu__group">
+              {item(t('Add new container'), () => addContainer(menu.id))}
+            </div>
+          )}
+          {global && !readOnly && (
+            <div className="fre-menu__group">
+              {item(
+                t('Edit global widget'),
+                () => {
+                  void editGlobal(store, node.id, title).catch((error: unknown) =>
+                    notify(String(error instanceof Error ? error.message : error), 'error'),
+                  );
+                },
+                { disabled: store.get().globalEdit !== null },
+              )}
+              {item(t('Unlink'), () => {
+                void unlinkGlobal(store, node.id).catch((error: unknown) =>
+                  notify(String(error instanceof Error ? error.message : error), 'error'),
+                );
+              })}
+            </div>
+          )}
           <div className="fre-menu__group">
             {item(t('Structure'), () => store.actions.setView('navigator'), {
               shortcut: 'Ctrl+I',
@@ -778,12 +1102,18 @@ function ContextMenu({
       ) : (
         <>
           <div className="fre-menu__group">
+            {item(t('Add new container'), () => addContainer(null), { disabled: readOnly })}
+          </div>
+          <div className="fre-menu__group">
             {item(t('Paste'), pasteAtEnd, { disabled: !hasClipboard, shortcut: 'Ctrl+V' })}
+            {item(t('Paste from other site'), () => pasteFromOtherSite(null), {
+              disabled: readOnly,
+            })}
             {item(
               t('Copy all'),
               () => {
                 const blocks = store.get().blocks;
-                store.actions.copyMany(blocks.map((block) => block.id));
+                copy(blocks.map((block) => block.id));
                 notify(
                   t('The whole page was copied: paste it here or on another page.'),
                   'success',
@@ -822,38 +1152,66 @@ function canvasWindowClose(close: () => void) {
   frame?.contentWindow?.addEventListener('pointerdown', close, { once: true });
 }
 
-// ---- Width of the panel -------------------------------------------------------------------
+// ---- Width of the panel, theme ------------------------------------------------------------
 
-const PANEL_KEY = 'fresco:panel-width';
-export const PANEL_WIDTH = { min: 280, max: 600, initial: 300 } as const;
-
-/** A width within the panel's limits. */
-export function clampPanelWidth(width: number): number {
-  if (!Number.isFinite(width)) return PANEL_WIDTH.initial;
-  return Math.round(Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, width)));
+/** Whether the system asks for dark colors (followed while `watch`). */
+function useSystemDark(watch: boolean): boolean {
+  const query = () =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)')
+      : null;
+  const [dark, setDark] = useState(() => query()?.matches === true);
+  useEffect(() => {
+    if (!watch) return;
+    const media = query();
+    if (!media) return;
+    const change = () => setDark(media.matches);
+    change();
+    media.addEventListener?.('change', change);
+    return () => media.removeEventListener?.('change', change);
+  }, [watch]);
+  return watch && dark;
 }
 
-/** The panel's width, kept in the browser for this user. */
-function usePanelWidth(): [number, (width: number | null) => void] {
-  const [width, setWidth] = useState<number>(() => {
-    try {
-      const stored = Number(localStorage.getItem(PANEL_KEY));
-      return stored ? clampPanelWidth(stored) : PANEL_WIDTH.initial;
-    } catch {
-      return PANEL_WIDTH.initial;
-    }
-  });
-  const change = useCallback((next: number | null) => {
-    const value = next === null ? PANEL_WIDTH.initial : clampPanelWidth(next);
-    setWidth(value);
-    try {
-      if (next === null) localStorage.removeItem(PANEL_KEY);
-      else localStorage.setItem(PANEL_KEY, String(value));
-    } catch {
-      // Private mode: kept until the page closes.
-    }
-  }, []);
-  return [width, change];
+/** Above the canvas while a global widget is edited in place: save it, or cancel. */
+function GlobalEditBar({ store }: { store: Store }) {
+  const { t } = useT();
+  const edit = useStore(store, (s) => s.globalEdit);
+  const [busy, setBusy] = useState(false);
+  if (!edit) return null;
+  return (
+    <div className="fre-globalbar" role="status">
+      <span>
+        {t('Editing the global widget “{name}”: saving it changes every page that shows it.', {
+          name: edit.title,
+        })}
+      </span>
+      <button
+        type="button"
+        className="fre-button fre-button--primary"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          saveGlobal(store)
+            .then(() => notify(t('Global widget saved.'), 'success'))
+            .catch((error: unknown) =>
+              notify(String(error instanceof Error ? error.message : error), 'error'),
+            )
+            .finally(() => setBusy(false));
+        }}
+      >
+        {busy ? t('Saving…') : t('Save global widget')}
+      </button>
+      <button
+        type="button"
+        className="fre-button"
+        disabled={busy}
+        onClick={() => store.actions.endGlobalEdit()}
+      >
+        {t('Cancel')}
+      </button>
+    </div>
+  );
 }
 
 /** The handle on the panel's right edge: drag to resize, double-click to reset. */

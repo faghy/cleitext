@@ -1,5 +1,13 @@
 /** Basic widgets: Heading, Text, Image, Button, Spacer, Divider. */
-import { advancedControls, ElementRoot, OTHER_DEVICES, UNITS } from '../core/common.js';
+import {
+  advancedControls,
+  ElementRoot,
+  hoverAnimationControl,
+  hoverClass,
+  OTHER_DEVICES,
+  textStrokeControls,
+  UNITS,
+} from '../core/common.js';
 import {
   ALIGN,
   content,
@@ -13,7 +21,7 @@ import {
 import { Icon } from '../core/icons.js';
 import { linkProps } from '../core/links.js';
 import { FrImage, IMAGE_SIZES, mediaIds } from '../core/media.js';
-import type { ElementDefinition } from '../core/model.js';
+import type { Control, ElementDefinition } from '../core/model.js';
 import { plainText, sanitizeRich } from '../core/sanitize.js';
 
 const textAlign = (selector: string) =>
@@ -65,6 +73,15 @@ export const heading: ElementDefinition = {
     textAlign('{{el}}'),
     ...textStyle('title_', 'Title', '{{el}} .fr-heading__title', { hover: true }),
     groups.textShadow('title_shadow', 'Text shadow', 'Title', '{{el}} .fr-heading__title'),
+    ...textStrokeControls('title_stroke', 'Title', '{{el}} .fr-heading__title'),
+    style.slider('title_hover_transition', 'Transition duration (s)', 'Title', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: {
+        '{{el}} .fr-heading__title, {{el}} .fr-heading__title a': 'transition: color {{value}}',
+      },
+    }),
     style.select('blend', 'Blend mode', 'Title', {
       options: [
         '',
@@ -102,6 +119,70 @@ export const heading: ElementDefinition = {
   },
 };
 
+const DROP_CAP = '{{el}} .fr-drop-cap > p:first-child::first-letter';
+
+/** The look of the drop cap (Elementor's Drop Cap section). */
+function dropCapControls(): Control[] {
+  const on = { drop_cap: true };
+  const framed = { drop_cap: true, drop_cap_view: ['stacked', 'framed'] };
+  return [
+    style.select('drop_cap_view', 'View', 'Drop cap', {
+      options: [
+        { value: '', label: 'Default' },
+        { value: 'stacked', label: 'Stacked' },
+        { value: 'framed', label: 'Framed' },
+      ],
+      condition: on,
+      noCss: true,
+    }),
+    style.color('drop_cap_primary_color', 'Primary color', 'Drop cap', {
+      condition: on,
+      selectors: {
+        '{{el}} .fr-drop-cap:not(.fr-drop-cap--stacked) > p:first-child::first-letter':
+          'color: {{value}}',
+        '{{el}} .fr-drop-cap--stacked > p:first-child::first-letter': 'background-color: {{value}}',
+        '{{el}} .fr-drop-cap--framed > p:first-child::first-letter': 'border-color: {{value}}',
+      },
+    }),
+    style.color('drop_cap_secondary_color', 'Secondary color', 'Drop cap', {
+      condition: framed,
+      selectors: {
+        '{{el}} .fr-drop-cap--stacked > p:first-child::first-letter': 'color: {{value}}',
+        '{{el}} .fr-drop-cap--framed > p:first-child::first-letter': 'background-color: {{value}}',
+      },
+    }),
+    style.slider('drop_cap_size', 'Size', 'Drop cap', {
+      units: ['px', 'em'],
+      max: 30,
+      condition: framed,
+      selectors: { [DROP_CAP]: 'padding: {{value}}' },
+    }),
+    style.slider('drop_cap_space', 'Space', 'Drop cap', {
+      units: ['px', 'em'],
+      max: 50,
+      condition: on,
+      selectors: { [DROP_CAP]: 'margin-right: {{value}}' },
+    }),
+    style.slider('drop_cap_radius', 'Border radius', 'Drop cap', {
+      units: ['%', 'px'],
+      max: 200,
+      condition: framed,
+      selectors: { [DROP_CAP]: 'border-radius: {{value}}' },
+    }),
+    style.slider('drop_cap_border_width', 'Border width', 'Drop cap', {
+      units: ['px'],
+      max: 20,
+      condition: { drop_cap: true, drop_cap_view: 'framed' },
+      selectors: { [DROP_CAP]: 'border-width: {{value}}' },
+    }),
+    {
+      ...groups.typography('drop_cap_typography', 'Typography', 'Drop cap', DROP_CAP),
+      condition: on,
+    },
+    { ...groups.textShadow('drop_cap_shadow', 'Text shadow', 'Drop cap', DROP_CAP), condition: on },
+  ];
+}
+
 export const text: ElementDefinition = {
   type: 'fresco/text',
   title: 'Text editor',
@@ -137,13 +218,25 @@ export const text: ElementDefinition = {
       max: 80,
       selectors: { '{{el}} .fr-text__body p': 'margin-block: 0 {{value}}' },
     }),
+    groups.textShadow('text_shadow', 'Text shadow', 'Text', '{{el}}'),
+    style.slider('link_hover_transition', 'Transition duration (s)', 'Text', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: { '{{el}} a': 'transition: color {{value}}' },
+    }),
+    ...dropCapControls(),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
+    const view =
+      settings.drop_cap === true && ['stacked', 'framed'].includes(settings.drop_cap_view as string)
+        ? ` fr-drop-cap--${String(settings.drop_cap_view)}`
+        : '';
     return (
       <ElementRoot node={node} settings={settings} name="fr-text" editing={context.editing}>
         <div
-          className={`fr-text__body${settings.drop_cap === true ? ' fr-drop-cap' : ''}`}
+          className={`fr-text__body${settings.drop_cap === true ? ' fr-drop-cap' : ''}${view}`}
           data-fr-inline={context.editing ? 'content' : undefined}
           dangerouslySetInnerHTML={{ __html: sanitizeRich(settings.content) }}
         />
@@ -174,6 +267,7 @@ export const image: ElementDefinition = {
       default: 'none',
       options: [
         { value: 'none', label: 'None' },
+        { value: 'attachment', label: 'Attachment caption' },
         { value: 'alt', label: 'Image description' },
         { value: 'custom', label: 'Custom' },
       ],
@@ -196,6 +290,7 @@ export const image: ElementDefinition = {
       options: ['', 'cover', 'contain', 'fill'].map((v) => ({ value: v, label: v || 'Default' })),
       selectors: { '{{el}} img': 'object-fit: {{value}}' },
     }),
+    objectPosition('object_position', 'Image', '{{el}} img', { object_fit: ['cover', 'contain'] }),
     style.slider('opacity', 'Opacity', 'Image', {
       hover: true,
       units: [''],
@@ -205,19 +300,32 @@ export const image: ElementDefinition = {
       selectors: { '{{el}} img': 'opacity: {{size}}' },
     }),
     groups.filters('filters', 'CSS filters', 'Image', '{{el}} img'),
+    groups.filters('filters_hover', 'CSS filters on hover', 'Image', '{{el}}:hover img'),
+    style.slider('hover_transition', 'Transition duration (s)', 'Image', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: { '{{el}} img': 'transition-duration: {{value}}' },
+    }),
     groups.border('image_border', 'Border', 'Image', '{{el}} img'),
     groups.shadow('image_shadow', 'Box shadow', 'Image', '{{el}} img'),
-    style.select('hover_effect', 'Hover animation', 'Image', {
-      options: [
-        { value: '', label: 'None' },
-        { value: 'grow', label: 'Grow' },
-        { value: 'shrink', label: 'Shrink' },
-        { value: 'float', label: 'Float' },
-        { value: 'rotate', label: 'Rotate' },
-      ],
-      noCss: true,
+    hoverAnimationControl('Image'),
+    style.choose('caption_align', 'Alignment', 'Caption', {
+      responsive: true,
+      options: TEXT_ALIGN,
+      selectors: { '{{el}} figcaption': 'text-align: {{value}}' },
     }),
     ...textStyle('caption_', 'Caption', '{{el}} figcaption'),
+    style.color('caption_bg', 'Background color', 'Caption', {
+      selectors: { '{{el}} figcaption': 'background-color: {{value}}' },
+    }),
+    groups.textShadow('caption_shadow', 'Text shadow', 'Caption', '{{el}} figcaption'),
+    style.slider('caption_space', 'Spacing', 'Caption', {
+      responsive: true,
+      units: ['px', 'em', 'rem'],
+      max: 100,
+      selectors: { '{{el}} figcaption': 'margin-top: {{value}}' },
+    }),
     ...advancedControls(),
   ],
   media: (settings) => mediaIds(settings.image),
@@ -227,12 +335,12 @@ export const image: ElementDefinition = {
     const caption =
       settings.caption_source === 'alt'
         ? (media?.alt ?? item?.alt ?? '')
-        : settings.caption_source === 'custom'
-          ? plainText(settings.caption)
-          : '';
-    const hover = ['grow', 'shrink', 'float', 'rotate'].includes(settings.hover_effect as string)
-      ? ` fr-hover-${String(settings.hover_effect)}`
-      : '';
+        : settings.caption_source === 'attachment'
+          ? attachmentCaption(media, item)
+          : settings.caption_source === 'custom'
+            ? plainText(settings.caption)
+            : '';
+    const hover = hoverClass(settings.hover_effect);
     const img = media?.url ? (
       <FrImage
         value={media}
@@ -265,6 +373,46 @@ export const image: ElementDefinition = {
   },
 };
 
+/** Where the visible part of a cropped image sits (`object-position`). */
+export function objectPosition(
+  name: string,
+  section: string,
+  selector: string,
+  condition: Record<string, unknown>,
+): Control {
+  return style.select(name, 'Object position', section, {
+    responsive: true,
+    options: [
+      { value: '', label: 'Default' },
+      ...[
+        'center center',
+        'center left',
+        'center right',
+        'top center',
+        'top left',
+        'top right',
+        'bottom center',
+        'bottom left',
+        'bottom right',
+      ].map((v) => ({ value: v, label: v[0]!.toUpperCase() + v.slice(1) })),
+    ],
+    condition,
+    selectors: { [selector]: 'object-position: {{value}}' },
+  });
+}
+
+/**
+ * The caption of a media file: its own (when the library gives one), else its
+ * description (alt text), as Elementor's "Attachment caption".
+ */
+export function attachmentCaption(
+  media: { alt?: string; caption?: unknown } | undefined,
+  item: { alt?: string; caption?: unknown } | undefined,
+): string {
+  const own = [item?.caption, media?.caption].find((c) => typeof c === 'string' && c.trim());
+  return typeof own === 'string' ? plainText(own) : (media?.alt ?? item?.alt ?? '');
+}
+
 const BUTTON_SIZES = [
   { value: 'xs', label: 'Extra small' },
   { value: 'sm', label: 'Small' },
@@ -290,6 +438,16 @@ export const button: ElementDefinition = {
       ],
       noCss: true,
     }),
+    content.select('button_type', 'Type', 'Button', {
+      options: [
+        { value: '', label: 'Default' },
+        { value: 'info', label: 'Info' },
+        { value: 'success', label: 'Success' },
+        { value: 'warning', label: 'Warning' },
+        { value: 'danger', label: 'Danger' },
+      ],
+      noCss: true,
+    }),
     content.select('size', 'Size', 'Button', { default: 'sm', options: BUTTON_SIZES, noCss: true }),
     content.icon('icon', 'Icon', 'Button'),
     content.choose('icon_position', 'Icon position', 'Button', {
@@ -301,9 +459,20 @@ export const button: ElementDefinition = {
       noCss: true,
     }),
     content.slider('icon_spacing', 'Icon spacing', 'Button', {
-      units: ['px', 'em'],
+      units: ['px', 'em', 'rem'],
       max: 50,
       selectors: { '{{el}} .fr-button__link': 'gap: {{value}}' },
+    }),
+    style.choose('content_align', 'Content alignment', 'Button', {
+      responsive: true,
+      options: [
+        { value: 'flex-start', label: 'Start', icon: 'M4 6h16 M4 12h10 M4 18h13' },
+        { value: 'center', label: 'Center', icon: 'M4 6h16 M7 12h10 M5.5 18h13' },
+        { value: 'flex-end', label: 'End', icon: 'M4 6h16 M10 12h10 M7 18h13' },
+        { value: 'space-between', label: 'Space between', icon: 'M4 6h16 M4 12h16 M4 18h16' },
+      ],
+      condition: { align: 'justify' },
+      selectors: { '{{el}} .fr-button__link': 'justify-content: {{value}}' },
     }),
     content.text('button_id', 'Button ID', 'Button', {
       help: 'For tracking: letters, digits, dashes and underscores.',
@@ -319,26 +488,36 @@ export const button: ElementDefinition = {
       hover: true,
       selectors: { '{{el}} .fr-button__link': 'background-color: {{value}}' },
     }),
+    groups.background('button_background', 'Background', 'Button', '{{el}} .fr-button__link'),
+    groups.background(
+      'button_background_hover',
+      'Background on hover',
+      'Button',
+      '{{el}} .fr-button__link:hover, {{el}} .fr-button__link:focus-visible',
+    ),
     style.color('border_hover_color', 'Border color on hover', 'Button', {
       selectors: { '{{el}} .fr-button__link:hover': 'border-color: {{value}}' },
     }),
     groups.border('border', 'Border', 'Button', '{{el}} .fr-button__link'),
     groups.shadow('shadow', 'Box shadow', 'Button', '{{el}} .fr-button__link'),
+    groups.shadow(
+      'shadow_hover',
+      'Box shadow on hover',
+      'Button',
+      '{{el}} .fr-button__link:hover, {{el}} .fr-button__link:focus-visible',
+    ),
+    style.slider('hover_transition', 'Transition duration (s)', 'Button', {
+      units: ['s'],
+      max: 3,
+      step: 0.1,
+      selectors: { '{{el}} .fr-button__link': 'transition-duration: {{value}}' },
+    }),
     style.box('padding', 'Padding', 'Button', {
       responsive: true,
       units: UNITS.box,
       selectors: { '{{el}} .fr-button__link': 'padding: {{top}} {{right}} {{bottom}} {{left}}' },
     }),
-    style.select('hover_effect', 'Hover animation', 'Button', {
-      options: [
-        { value: '', label: 'None' },
-        { value: 'grow', label: 'Grow' },
-        { value: 'shrink', label: 'Shrink' },
-        { value: 'float', label: 'Float' },
-        { value: 'pulse', label: 'Pulse' },
-      ],
-      noCss: true,
-    }),
+    hoverAnimationControl('Button'),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
@@ -350,9 +529,10 @@ export const button: ElementDefinition = {
         ? ` fr-align${device}-${String(value)}`
         : '';
     const classes = `fr-button${align('', settings.align)}${OTHER_DEVICES.map((d) => align(`-${d}`, node.attrs[`align@${d}`])).join('')}`;
-    const hover = ['grow', 'shrink', 'float', 'pulse'].includes(settings.hover_effect as string)
-      ? ` fr-hover-${String(settings.hover_effect)}`
+    const type = ['info', 'success', 'warning', 'danger'].includes(settings.button_type as string)
+      ? ` fr-button--${String(settings.button_type)}`
       : '';
+    const hover = `${hoverClass(settings.hover_effect)}${type}`;
     const id =
       typeof settings.button_id === 'string' && /^[A-Za-z][\w-]{0,63}$/.test(settings.button_id)
         ? settings.button_id
@@ -448,6 +628,11 @@ export const divider: ElementDefinition = {
       default: { set: 'solid', name: 'star' },
       condition: { element: 'icon' },
     }),
+    content.choose('element_position', 'Position', 'Divider', {
+      options: ALIGN,
+      condition: { element: ['text', 'icon'] },
+      noCss: true,
+    }),
     style.color('color', 'Color', 'Divider', {
       selectors: { '{{el}} .fr-divider__line': 'border-top-color: {{value}}' },
     }),
@@ -465,6 +650,21 @@ export const divider: ElementDefinition = {
       selectors: { '{{el}}': 'padding-block: {{value}}' },
     }),
     ...textStyle('element_', 'Element', '{{el}} .fr-divider__element'),
+    ...textStrokeControls('element_stroke', 'Element', '{{el}} .fr-divider__element'),
+    style.slider('element_size', 'Icon size', 'Element', {
+      responsive: true,
+      units: ['px', 'em'],
+      max: 100,
+      condition: { element: 'icon' },
+      selectors: { '{{el}} .fr-divider__element': 'font-size: {{value}}' },
+    }),
+    style.slider('element_spacing', 'Spacing', 'Element', {
+      responsive: true,
+      units: ['px', 'em'],
+      max: 50,
+      condition: { element: ['text', 'icon'] },
+      selectors: { '{{el}} .fr-divider__inner': 'gap: {{value}}' },
+    }),
     ...advancedControls(),
   ],
   render({ node, settings, context }) {
@@ -479,6 +679,8 @@ export const divider: ElementDefinition = {
           <Icon value={settings.icon} />
         </span>
       ) : null;
+    // The text or icon at the start or end of the line (in the middle by default).
+    const at = element && ['left', 'right'].includes(settings.element_position as string);
     return (
       <ElementRoot
         node={node}
@@ -487,9 +689,11 @@ export const divider: ElementDefinition = {
         editing={context.editing}
       >
         <div className="fr-divider__inner" role="separator">
-          <span className="fr-divider__line" />
+          {!(at && settings.element_position === 'left') && <span className="fr-divider__line" />}
           {element}
-          {element && <span className="fr-divider__line" />}
+          {element && !(at && settings.element_position === 'right') && (
+            <span className="fr-divider__line" />
+          )}
         </div>
       </ElementRoot>
     );

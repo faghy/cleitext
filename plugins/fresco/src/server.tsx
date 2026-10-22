@@ -13,9 +13,11 @@ import {
   kitCss,
   mergeKit,
   normalizeKit,
+  pageLayout,
   safeSelector,
   type Kit,
 } from './core/kit.js';
+import { normalizePreferences } from './editor/prefs-model.js';
 import type { ElementDefinition, FrescoNode, RenderContext } from './core/model.js';
 import { aiEditor } from './ai.js';
 import { installApi } from './api.js';
@@ -160,18 +162,20 @@ export default definePlugin({
     ctx.assets.enqueue({ file: 'fresco.css', when: ({ html }) => html.includes('class="fr-e ') });
     ctx.assets.enqueue({
       file: 'frontend.js',
-      when: ({ html }) => /data-fr-(anim|video|lightbox|handler)/.test(html),
+      // Also for the lightbox of image links (Site settings → Lightbox).
+      when: ({ html }) =>
+        /data-fr-(anim|video|lightbox|handler)/.test(html) || html.includes('--fr-lb-images:1'),
     });
 
     // Canvas pages: the theme's header and footer give way to nothing.
-    ctx.hooks.filter('render.locations', (locations, context) => {
+    ctx.hooks.filter('render.locations', async (locations, context) => {
       const editor = context.entry?.document.editor;
-      if (
-        editor?.id !== 'fresco' ||
-        (editor.data as Record<string, unknown> | undefined)?.layout !== 'canvas'
-      ) {
-        return locations;
-      }
+      if (editor?.id !== 'fresco') return locations;
+      // The page's own layout, else the site's default (Site settings → Layout).
+      const data = (editor.data ?? {}) as Record<string, unknown>;
+      const layout =
+        data.layout === 'canvas' ? 'canvas' : pageLayout(data, await kitFor(ctx, context.siteId));
+      if (layout !== 'canvas') return locations;
       const empty = { schema: 1 as const, blocks: [] };
       return { ...locations, header: empty, footer: empty };
     });
@@ -191,9 +195,14 @@ export default definePlugin({
     // Page settings of Fresco pages: layout, hidden title, page background and padding.
     ctx.hooks.filter('render.html', async (html, context) => {
       const editor = context.entry?.document.editor;
-      if (editor?.id !== 'fresco' || !editor.data) return html;
+      if (editor?.id !== 'fresco') return html;
       const kit = await kitFor(ctx, context.siteId);
-      const css = pageCss(editor.data, {
+      // The site's default layout, for pages that keep it.
+      const layout = pageLayout(editor.data ?? {}, kit);
+      const data =
+        layout === (editor.data?.layout ?? '') ? editor.data : { ...editor.data, layout };
+      if (!data) return html;
+      const css = pageCss(data, {
         titleSelector: safeSelector(kit.titleSelector),
         breakpoints: kit.breakpoints,
       });
@@ -221,11 +230,17 @@ export default definePlugin({
           ? `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${fonts.replace(/&/g, '&amp;')}">`
           : '') +
         `<style id="fr-kit">${css}</style>` +
+        // The color of the browser's bar on phones (Site settings → Background).
+        (kit.theme.background?.mobileColor
+          ? `<meta name="theme-color" content="${kit.theme.background.mobileColor}">`
+          : '') +
         // Animated elements wait hidden for their turn; without scripts they just show.
         (html.includes('data-fr-anim=')
           ? "<script>document.documentElement.classList.add('fr-js')</script>"
           : '');
-      const at = html.indexOf('</head>');
+      // Before the page's own settings (`#fr-page`), which win over the site's.
+      const page = html.indexOf('<style id="fr-page">');
+      const at = page !== -1 ? page : html.indexOf('</head>');
       return at === -1 ? html : html.slice(0, at) + head + html.slice(at);
     });
 
@@ -288,6 +303,32 @@ export default definePlugin({
         );
       }
       return { warnings };
+    });
+
+    // The editor's preferences of each user (User preferences).
+    ctx.routes.api({
+      method: 'GET',
+      path: '/preferences',
+      capability: 'edit_entries',
+      async handler(request) {
+        if (!request.user) return { status: 401, body: { message: 'Sign in first.' } };
+        return {
+          body: normalizePreferences(
+            await ctx.storage.get(request.siteId, `prefs:${request.user.id}`),
+          ),
+        };
+      },
+    });
+    ctx.routes.api({
+      method: 'PUT',
+      path: '/preferences',
+      capability: 'edit_entries',
+      async handler(request) {
+        if (!request.user) return { status: 401, body: { message: 'Sign in first.' } };
+        const prefs = normalizePreferences(request.body);
+        await ctx.storage.set(request.siteId, `prefs:${request.user.id}`, prefs);
+        return { body: prefs };
+      },
     });
 
     // Site settings, read by the editor and saved from it.

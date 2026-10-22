@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { activeDevices } from '../core/model.js';
 import { DEVICE_ICONS, DEVICE_NAMES, Svg } from './controls.js';
 import { useStore, type PanelView, type Store } from './store.js';
+import { SiteNav } from './site-nav.js';
 
 export const ICONS = {
   logo: 'M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z M9 8h6 M9 12h4 M9 8v8',
@@ -28,6 +29,7 @@ export const ICONS = {
   theme: 'M4 4h16v5H4z M4 11h7v9H4z M13 11h7v9h-7z',
   finder: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3',
   external: 'M14 4h6v6 M20 4l-9 9 M18 14v6H4V6h6',
+  prefs: 'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6',
 } as const;
 
 export interface TopBarProps {
@@ -43,6 +45,12 @@ export interface TopBarProps {
   openFinder: () => void;
   /** The page's public address once it is published, for "View page". */
   viewUrl: string | null;
+  /** Where "Exit" goes (User preferences). */
+  exit: { url: string; label: string };
+  /** Opens another admin address (another entry). */
+  navigate: (to: string) => void;
+  /** Saves and copies the page's preview link. */
+  copyShare: () => Promise<void>;
 }
 
 export function TopBar({
@@ -54,6 +62,9 @@ export function TopBar({
   saveAsTemplate,
   openFinder,
   viewUrl,
+  exit,
+  navigate,
+  copyShare,
 }: TopBarProps) {
   const { t } = useT();
   const view = useStore(store, (s) => s.view);
@@ -119,6 +130,11 @@ export function TopBar({
               )}
               <MenuItem icon={ICONS.entry} label={t('Entry settings')} onClick={openSettings} />
               <MenuItem
+                icon={ICONS.prefs}
+                label={t('User preferences')}
+                onClick={() => store.actions.setView('preferences')}
+              />
+              <MenuItem
                 icon={ICONS.keyboard}
                 label={t('Keyboard shortcuts')}
                 onClick={() => window.dispatchEvent(new Event('fresco:shortcuts'))}
@@ -130,11 +146,7 @@ export function TopBar({
                 external
               />
               <hr />
-              <MenuItem
-                icon={ICONS.exit}
-                label={t('Exit to {list}', { list: host.back.label })}
-                href={host.back.url}
-              />
+              <MenuItem icon={ICONS.exit} label={exit.label} href={exit.url} />
             </Dropdown>
           )}
         </div>
@@ -152,6 +164,13 @@ export function TopBar({
           aria-label={t('Title')}
           placeholder={t('Add title')}
           onChange={(e) => host.setTitle(e.target.value)}
+        />
+        <SiteNav
+          store={store}
+          host={host}
+          navigate={navigate}
+          viewUrl={viewUrl}
+          copyShare={copyShare}
         />
         <span className="fre-bar__sep" />
         <div className="fre-bar__devices" role="group" aria-label={t('Preview device')}>
@@ -251,6 +270,7 @@ export function TopBar({
               )}
               <MenuItem label={t('Save as template')} onClick={saveAsTemplate} />
               <MenuItem label={t('Preview changes')} onClick={() => void host.preview()} />
+              <MenuItem label={t('Copy and share')} onClick={() => void copyShare()} />
               {viewUrl && (
                 <MenuItem icon={ICONS.external} label={t('View page')} href={viewUrl} external />
               )}

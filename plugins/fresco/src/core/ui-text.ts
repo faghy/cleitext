@@ -10,6 +10,9 @@ const TEXTS = {
   Menu: { it: 'Menu' },
   'Play video': { it: 'Riproduci il video' },
   Images: { it: 'Immagini' },
+  Zoom: { it: 'Ingrandisci' },
+  Fullscreen: { it: 'Schermo intero' },
+  Download: { it: 'Scarica' },
 } as const;
 
 export type UiText = keyof typeof TEXTS;

@@ -40,6 +40,27 @@ function defaults(fields: FieldDefinition[]): FieldValues {
   return values;
 }
 
+/** A plugin's name from its slug: `kross-booking` → "Kross Booking". */
+export function pluginName(slug: string): string {
+  if (slug === 'fresco') return 'Fresco';
+  if (slug === 'fresco-pro') return 'Fresco Pro';
+  return slug
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part[0]!.toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+/**
+ * The plugin an element of the panel comes from (its slug): a plugin block's
+ * plugin, or the first part of the element's type (`fresco-pro/form`).
+ */
+export function elementSource(type: string): string {
+  const block = /^fresco\/block:(.+)$/.exec(type)?.[1];
+  if (block) return known.get(block)?.plugin ?? block.split('/')[0]!;
+  return type.split('/')[0] ?? 'fresco';
+}
+
 /** The title of a plugin block, in the editor's language. */
 export function pluginBlockTitle(type: string, locale: string): string {
   const view = known.get(type);

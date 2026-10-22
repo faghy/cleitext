@@ -85,6 +85,26 @@ const GRID_CONTENT = [
 const TRACKS =
   '((\\[[a-z][a-z0-9-]*\\]|-?\\d+(\\.\\d+)?(fr|px|%|em|rem|vw|vh)|auto|min-content|max-content|auto-fill|auto-fit|\\d+(?!\\d)|repeat\\(|minmax\\(|fit-content\\(|\\)|,)\\s?)+';
 
+/** CSS blend modes (`mix-blend-mode`). */
+export const BLEND_MODES = [
+  '',
+  'multiply',
+  'screen',
+  'overlay',
+  'darken',
+  'lighten',
+  'color-dodge',
+  'saturation',
+  'color',
+  'difference',
+  'exclusion',
+  'hue',
+  'luminosity',
+].map((v) => ({
+  value: v,
+  label: v ? v[0]!.toUpperCase() + v.slice(1).replace('-', ' ') : 'Normal',
+}));
+
 const TAGS = [
   'div',
   'section',
@@ -267,6 +287,11 @@ const controls: Control[] = [
     help: 'Empty: the gap above.',
     selectors: { [IN]: 'column-gap: {{value}}' },
   }),
+  // Items of Tabs (containers with a title): the icons next to the tab's title.
+  content.icon('_icon', 'Tab icon', 'Tab', { condition: { '_title!': [undefined, ''] } }),
+  content.icon('_icon_active', 'Active tab icon', 'Tab', {
+    condition: { '_title!': [undefined, ''], '_icon!': [undefined, null, ''] },
+  }),
   content.select('html_tag', 'HTML tag', 'Additional options', {
     default: 'div',
     options: TAGS.map((tag) => ({ value: tag, label: tag === 'a' ? 'a (link)' : tag })),
@@ -303,9 +328,12 @@ const controls: Control[] = [
     noCss: true,
   },
   ...slideshowControls(),
-  // A gradient or an image over the background (a plain color: "Overlay color" below).
+  // The overlay, as Elementor's: a background (color, image or gradient), its
+  // opacity, CSS filters and blend mode, and the same on hover.
   groups.background('overlay_bg', 'Overlay', 'Background overlay', '{{el}}::before'),
+  // Pages made before the overlay group had a color of its own: shown only when set.
   style.color('overlay_color', 'Overlay color', 'Background overlay', {
+    condition: { 'overlay_color!': [undefined, ''] },
     selectors: {
       '{{el}}::before':
         "content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; background-color: {{value}}",
@@ -317,6 +345,40 @@ const controls: Control[] = [
     max: 1,
     step: 0.05,
     selectors: { '{{el}}::before': 'opacity: {{size}}' },
+  }),
+  groups.filters('overlay_filters', 'CSS filters', 'Background overlay', '{{el}}::before'),
+  style.select('overlay_blend', 'Blend mode', 'Background overlay', {
+    options: BLEND_MODES,
+    selectors: { '{{el}}::before': 'mix-blend-mode: {{value}}' },
+  }),
+  groups.background(
+    'overlay_hover_bg',
+    'Overlay on hover',
+    'Background overlay',
+    '{{el}}:hover::before',
+  ),
+  style.slider('overlay_hover_opacity', 'Overlay opacity on hover', 'Background overlay', {
+    units: [''],
+    min: 0,
+    max: 1,
+    step: 0.05,
+    selectors: { '{{el}}:hover::before': 'opacity: {{size}}' },
+  }),
+  groups.filters(
+    'overlay_hover_filters',
+    'CSS filters on hover',
+    'Background overlay',
+    '{{el}}:hover::before',
+  ),
+  style.slider('overlay_hover_transition', 'Transition duration (s)', 'Background overlay', {
+    units: ['s'],
+    min: 0,
+    max: 3,
+    step: 0.1,
+    selectors: {
+      '{{el}}::before':
+        'transition: background {{value}}, opacity {{value}}, filter {{value}}, border-radius {{value}}',
+    },
   }),
   groups.border('border', 'Border', 'Border', '{{el}}'),
   groups.shadow('shadow', 'Box shadow', 'Border', '{{el}}'),
@@ -576,8 +638,9 @@ export const container: ElementDefinition = {
       /^(https?:\/\/|\/(?!\/))[^\s"'<>]*$/.test(video)
         ? video
         : null;
-    const overlay =
-      settings.overlay_bg_type === 'classic' || settings.overlay_bg_type === 'gradient';
+    const overlay = ['overlay_bg_type', 'overlay_hover_bg_type'].some(
+      (key) => settings[key] === 'classic' || settings[key] === 'gradient',
+    );
     // YouTube and Vimeo play in a frame, muted and looping, cut to cover the container.
     const embed =
       video && /^https:\/\//.test(video)
@@ -636,7 +699,12 @@ export const container: ElementDefinition = {
   },
   media: (settings) => {
     const ids: string[] = [];
-    for (const key of ['background_image', 'background_hover_image', 'overlay_bg_image']) {
+    for (const key of [
+      'background_image',
+      'background_hover_image',
+      'overlay_bg_image',
+      'overlay_hover_bg_image',
+    ]) {
       const value = settings[key] as { id?: string } | undefined;
       if (value?.id) ids.push(value.id);
     }

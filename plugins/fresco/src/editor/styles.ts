@@ -470,4 +470,71 @@ button.fre-chip,.fre-chip button{border:0;background:none;padding:3px 9px;cursor
 .fre-status{display:inline-block;padding:2px 8px;border-radius:999px;background:#f1f2f3;color:#515962;font-size:11px}
 .fre-status--published,.fre-status--private{background:#e6f4ef;color:#0a6b47}
 .fre-status--draft,.fre-status--pending{background:var(--fre-accent-soft);color:var(--fre-accent)}
+
+/* Elements from other plugins: their plugin's name (2.3), and the filter by plugin. */
+.fre-tile__badge{position:absolute;top:3px;right:3px;max-width:calc(100% - 6px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:normal;font-size:9px;font-weight:600;line-height:14px;padding:0 4px;border-radius:3px;background:var(--fre-hover,#f1f2f3);color:var(--fre-text,#515962)}
+.fre-sourcefilter{padding:8px 15px 0}
+.fre-sourcefilter .fre-input{min-height:28px;font-size:12px}
+.fre-globalslist .fre-tiles{padding:10px 15px}
+.fre-globalslist>.fre-help,.fre-globalslist>.fre-empty-note,.fre-globalslist>.fre-error{padding:0 15px}
+.fre-tile--global svg{color:var(--fre-accent)}
+/* The bar of a global widget edited in place. */
+.fre-globalbar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff7ed;border-bottom:1px solid #fed7aa;color:#7c2d12;font-size:12.5px}
+.fre-globalbar span{flex:1}
+/* Site navigation on the title. */
+.fre-bar__center{position:relative}
+.fre-sitenav{position:relative;display:inline-flex}
+.fre-sitenav__toggle{width:24px}
+.fre-dropdown--center{left:50%;transform:translateX(-50%);min-width:280px;max-height:70vh;overflow:auto}
+.fre-dropdown__title{margin:6px 16px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#818a96}
+.fre-dropdown__note{margin:4px 16px 8px;color:#818a96}
+.fre-dropdown small{margin-left:auto;color:#818a96;font-size:11px}
+.fre-dropdown span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Structure window: signs and the keyboard. */
+.fre-navw__signs{display:inline-flex;gap:3px;margin-left:auto;color:#9da5ae}
+.fre-navw__signs+.fre-navw__eye{margin-left:4px}
+.fre-navw__sign{display:inline-flex}
+.fre-navw__sign--global{color:var(--fre-accent)}
+.fre-navw__row:focus{outline:none}
+.fre-navw__row:focus-visible{box-shadow:inset 0 0 0 2px var(--fre-accent)}
+.fre-history__rev.is-other{opacity:.6}
+/* Rich text. */
+.fre-rich__bar{align-items:center}
+.fre-rich__group{display:inline-flex;gap:1px;padding-left:3px;margin-left:2px;border-left:1px solid var(--fre-line)}
+.fre-rich__format{height:26px;max-width:120px;border:1px solid var(--fre-line);border-radius:4px;background:#fff;font:inherit;font-size:12px;color:inherit}
+.fre-rich__area img{max-width:100%;height:auto}
+.fre-rich__area pre{white-space:pre-wrap;font-family:ui-monospace,monospace}
+.fre-rich__area blockquote{margin:0 0 .7em;padding-left:10px;border-left:3px solid var(--fre-line)}
+/* Site settings: a global font's other values; preferences. */
+.fre-kitfont__more{margin:6px 0 4px;padding:8px 8px 2px;border-radius:4px;background:var(--fre-hover,#f1f2f3)}
+.fre-prefs{padding:12px 16px}
+.fre-site .fre-sizefield{display:inline-flex;gap:4px}
+
+/* ---- Dark theme (User preferences) ---------------------------------------------------- */
+.fre-root--dark{--fre-line:#3f444b;--fre-border:#4b5159;--fre-text:#c7cbd1;--fre-ink:#f1f2f3;--fre-muted:#9da5ae;--fre-hover:#30353b;--fre-bg:#26292c;--fre-accent-soft:#4a2a1c;color:var(--fre-ink);background:#1d2126;color-scheme:dark}
+.fre-root--dark .fre-panel,.fre-root--dark.fre-root--full .fre-panel,.fre-root--dark .fre-panel__head,.fre-root--dark .fre-searchbox,.fre-root--dark .fre-popup,.fre-root--dark .fre-popover,.fre-root--dark .fre-navw,.fre-root--dark .fre-menu,.fre-root--dark .fre-dropdown,.fre-root--dark .fre-finder,.fre-root--dark .fre-dialog,.fre-root--dark .fre-modal__box,.fre-root--dark .fre-shortcuts,.fre-root--dark .fre-fontpick__menu,.fre-root--dark .fre-devices__list{background:#26292c;color:var(--fre-ink)}
+.fre-root--dark .fre-panel__head{border-color:var(--fre-line)}
+.fre-root--dark .fre-input,.fre-root--dark .fre-unit,.fre-root--dark .fre-rich__format,.fre-root--dark .fre-choose,.fre-root--dark .fre-choose button,.fre-root--dark .fre-states,.fre-root--dark .fre-states button,.fre-root--dark .fre-link,.fre-root--dark .fre-color__swatch,.fre-root--dark .fre-fontpick__value,.fre-root--dark .fre-chip,.fre-root--dark .fre-button,.fre-root--dark .fre-media__preview,.fre-root--dark .fre-repeater__item,.fre-root--dark .fre-history__item,.fre-root--dark .fre-history__rev,.fre-root--dark .fre-library__item,.fre-root--dark .fre-dialog input{background:#1f2124;border-color:var(--fre-border);color:var(--fre-ink)}
+.fre-root--dark .fre-choose button.is-on,.fre-root--dark .fre-button--primary{background:var(--fre-accent);color:#fff;border-color:var(--fre-accent)}
+.fre-root--dark .fre-states button.is-on,.fre-root--dark .fre-chip.is-on{background:var(--fre-accent-soft);color:#fdba74}
+.fre-root--dark .fre-tile,.fre-root--dark.fre-root--full .fre-tile{background:#2f343a;border-color:var(--fre-border);color:var(--fre-text)}
+.fre-root--dark .fre-tile:hover{background:#3a4048;color:#fff}
+.fre-root--dark .fre-tile__badge{background:#1f2124;color:var(--fre-muted)}
+.fre-root--dark .fre-control__label,.fre-root--dark .fre-sitemenu button,.fre-root--dark .fre-section__head,.fre-root--dark .fre-category__head,.fre-root--dark .fre-subtabs button.is-on,.fre-root--dark .fre-tabs button.is-on,.fre-root--dark .fre-site__back{color:var(--fre-ink)}
+.fre-root--dark .fre-sitemenu button{border-color:var(--fre-line)}
+.fre-root--dark .fre-sitemenu button:hover,.fre-root--dark .fre-menu button:hover,.fre-root--dark .fre-dropdown a:hover,.fre-root--dark .fre-dropdown button:hover,.fre-root--dark .fre-navw__row:hover,.fre-root--dark .fre-finder__item.is-active,.fre-root--dark .fre-history__item:hover,.fre-root--dark .fre-history__rev:hover,.fre-root--dark .fre-iconbtn:hover{background:var(--fre-hover);color:#fff}
+.fre-root--dark .fre-navw__row.is-on{background:#3a2a22;color:#fff}
+.fre-root--dark .fre-menu,.fre-root--dark .fre-navw{color:var(--fre-text)}
+.fre-root--dark .fre-menu button,.fre-root--dark .fre-dropdown a,.fre-root--dark .fre-dropdown button,.fre-root--dark .fre-finder__item{color:var(--fre-text)}
+.fre-root--dark .fre-menu kbd,.fre-root--dark .fre-shortcuts kbd{background:#1f2124;border-color:var(--fre-border);color:var(--fre-text)}
+.fre-root--dark .fre-finder__search input,.fre-root--dark .fre-searchbox input{color:var(--fre-ink)}
+.fre-root--dark .fre-rich__bar,.fre-root--dark .fre-kitfont__more,.fre-root--dark .fre-status{background:#1f2124}
+.fre-root--dark .fre-rich{border-color:var(--fre-border)}
+.fre-root--dark .fre-switch span{background:#4b5159}
+.fre-root--dark .fre-notice{background:#3d3220;color:#fcd34d}
+.fre-root--dark .fre-globalbar{background:#3a2a22;border-color:#7c2d12;color:#fed7aa}
+.fre-root--dark .fre-canvas{background:#1d2126}
+.fre-root--dark .fre-paneltoggle{background:#26292c;color:var(--fre-text)}
+.fre-root--dark .fre-preview-font{color:var(--fre-ink)}
+.fre-root--dark .fre-help,.fre-root--dark .fre-empty-note,.fre-root--dark .fre-subheading{color:var(--fre-muted)}
 `;

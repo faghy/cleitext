@@ -16,7 +16,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { documentCss, withDefaults } from '../core/css.js';
-import { googleFontsUrl, kitCss, safeSelector, usedGoogleFonts } from '../core/kit.js';
+import { kitCss, pageLayout, safeSelector, usedGoogleFonts } from '../core/kit.js';
+import { canvasFontLinks, elementsGoogleFonts, renderedGoogleFonts } from './canvas-fonts.js';
 import { pageCss } from '../core/page-css.js';
 import {
   activeDevices,
@@ -26,6 +27,7 @@ import {
   type FrescoNode,
   type MenuItem,
   type RenderContext,
+  type Settings,
   type RenderMediaItem,
 } from '../core/model.js';
 import { getElement } from '../core/registry.js';
@@ -33,9 +35,18 @@ import { plainText, sanitizeRich } from '../core/sanitize.js';
 import { dropTarget, trackPointer, type DropTarget } from './dnd.js';
 import { PluginBlockPreview } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
-import { buildStructure, FLEX_PRESETS, GRID_PRESETS, type Preset } from './structures.js';
+import {
+  buildStructure,
+  columnWidth,
+  FLEX_PRESETS,
+  GRID_PRESETS,
+  type FlexPreset,
+  type Preset,
+} from './structures.js';
 import { find, placeOf } from './tree.js';
-import { t } from '@cleitext/admin-sdk';
+import { api as coreApi, t } from '@cleitext/admin-sdk';
+import type { BlockPage } from '@cleitext/plugin-sdk';
+import { extensions } from '../core/extensions.js';
 import { askText } from './dialogs.js';
 import { documentKind } from './document-kind.js';
 import { CONTENT_ATTRIBUTE, editorKitCss, editorPageCss, hiddenOn } from './frame-css.js';
@@ -47,6 +58,7 @@ import {
   parseInlineKey,
 } from './inline.js';
 import { formatShortcut } from './format-keys.js';
+import { BLOCK_FORMATS, currentBlock } from './rich-text.js';
 import { DEVICE_NAMES } from '../core/common.js';
 
 export interface CanvasApi {
@@ -116,9 +128,15 @@ const FRAME_STYLE = `
 .fre-add__kind i{flex:1;background:#d5d8dc;border-radius:2px}
 .fre-add__kind--grid{display:grid;grid-template-columns:1fr 1fr}
 .fre-add__grid{display:grid;grid-template-columns:repeat(3,110px);gap:14px}
+.fre-add__presets{max-height:none}
 .fre-add__preset{display:flex;gap:3px;height:52px;padding:4px;border:2px solid #d5d8dc;border-radius:3px;background:#fff;cursor:pointer}
 .fre-add__preset:hover{border-color:#c2410c}
 .fre-add__preset i{flex:1 1 0;background:#d5d8dc;border-radius:2px}
+.fre-add__preset--cols i,.fre-add__preset--wrap i{flex-grow:0;flex-shrink:0}
+.fre-add__preset--wrap{flex-wrap:wrap;align-content:stretch}
+.fre-add__preset--wrap i{height:calc(50% - 2px)}
+.fre-add__preset--row i,.fre-add__preset--column i{display:flex;align-items:center;justify-content:center;color:#818a96}
+.fre-add__preset--split span{display:flex;flex:1 1 0;flex-direction:column;gap:3px}
 .fre-add__preset:has(style){display:grid}
 .fre-add__back,.fre-add__close{position:absolute;top:10px;border:0;background:none;color:#818a96;cursor:pointer;font:inherit}
 .fre-add__back{left:14px}
@@ -127,6 +145,10 @@ const FRAME_STYLE = `
 .fre-pen::after{content:'';position:absolute;left:18px;bottom:-6px;border:6px solid transparent;border-bottom:0;border-top-color:#1f2124}
 .fre-pen button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:0;background:none;color:#e6e8ea;cursor:pointer}
 .fre-pen button:hover{color:#fff;background:#3f444b}
+.fre-pen .fre-pen__format{width:auto;min-width:96px;padding:0 10px;font:600 12px/1 system-ui,sans-serif;justify-content:space-between;border-right:1px solid #3f444b}
+.fre-pen__formats{position:absolute;left:0;top:100%;display:flex;flex-direction:column;min-width:150px;padding:4px 0;border-radius:3px;background:#1f2124;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.fre-pen__formats[hidden]{display:none}
+.fre-pen .fre-pen__formats button{width:100%;height:30px;justify-content:flex-start;padding:0 12px;font:13px/1 system-ui,sans-serif}
 [data-fr-inline][contenteditable]{outline:none;cursor:text}
 .fre-tree a{cursor:default}
 .fre-tree .fr-anim{opacity:1!important}
@@ -289,6 +311,10 @@ export function Canvas({
       doc.documentElement.classList.remove('frp-no-scroll');
       doc.defaultView?.scrollTo(0, 0);
     }
+    // The site's kit, when the theme's parts drawn by the server use Fresco: its
+    // elements hidden on a device stay in the canvas, faded, as with the editor's kit.
+    const siteKit = doc.querySelector<HTMLStyleElement>('style#fr-kit');
+    if (siteKit?.textContent) siteKit.textContent = editorKitCss(siteKit.textContent);
     doc.documentElement.classList.add('fr-editing');
     api.current = { frame: frameRef.current, doc, root };
     setMount({ doc, root });
@@ -310,7 +336,9 @@ export function Canvas({
   // show at once, before the page is saved and drawn again.
   const page = useStore(store, (s) => s.page);
   const hideTitle = page.hideTitle === true;
-  const layout = typeof page.layout === 'string' ? page.layout : '';
+  // The page's layout, else the site's default (Site settings → Layout).
+  const siteLayout = useStore(store, (s) => s.kit.layout?.pageLayout);
+  const layout = pageLayout(page, { layout: siteLayout ? { pageLayout: siteLayout } : undefined });
   useEffect(() => {
     if (!mount) return;
     const { doc } = mount;
@@ -463,7 +491,11 @@ export function Canvas({
           </>
         )}
       </div>
-      {mount && createPortal(<FrameHead store={store} assetsBase={assetsBase} />, mount.doc.head)}
+      {mount &&
+        createPortal(
+          <FrameHead store={store} assetsBase={assetsBase} doc={mount.doc} />,
+          mount.doc.head,
+        )}
       {mount &&
         createPortal(
           <FrameTree
@@ -528,18 +560,52 @@ function titleBox(heading: HTMLElement): HTMLElement {
 }
 
 /** Styles inside the canvas: Fresco's, the kit's and the page's own, live. */
-function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) {
+/**
+ * The Google families the canvas shows that no CSS of Fresco names (looked
+ * up a moment after the page changes; the list grows, it is never emptied).
+ */
+function useRenderedFonts(doc: Document, blocks: unknown): string[] {
+  const [found, setFound] = useState<string[]>([]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const root = doc.querySelector('[data-cx-editor-canvas]') ?? doc.body;
+      const more = renderedGoogleFonts(root).filter((f) => !found.includes(f));
+      if (more.length) setFound((list) => [...list, ...more]);
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [doc, blocks, found]);
+  return found;
+}
+
+function FrameHead({
+  store,
+  assetsBase,
+  doc,
+}: {
+  store: Store;
+  assetsBase: string;
+  doc: Document;
+}) {
   const kit = useStore(store, (s) => s.kit);
   const blocks = useStore(store, (s) => s.blocks);
   const css = documentCss(blocks, getElement, kit.breakpoints);
   const kitStyle = editorKitCss(kitCss(kit));
-  // The fonts the page uses, as on the site (the list changes rarely: the address is stable).
-  const fonts = googleFontsUrl(kit, usedGoogleFonts(css + kitStyle).slice(0, 20));
+  // The fonts the page uses: those its CSS and its elements' settings name (as
+  // the site loads them), and those the canvas shows (styles of templates,
+  // other plugins' blocks, the site's custom CSS…). One stylesheet per family:
+  // a family Google refuses never keeps the others from loading.
+  const rendered = useRenderedFonts(doc, blocks);
+  const fonts = canvasFontLinks(kit, [
+    ...usedGoogleFonts(css + kitStyle),
+    ...elementsGoogleFonts(blocks),
+    ...rendered,
+  ]);
   const hidden = useStore(store, (s) => s.hidden);
   // The page settings (background, padding, title, layout), live.
   const page = useStore(store, (s) => s.page);
+  const effective = pageLayout(page, kit);
   const pageStyle = editorPageCss(
-    pageCss(page, {
+    pageCss(effective === (page.layout ?? '') ? page : { ...page, layout: effective }, {
       titleSelector: safeSelector(kit.titleSelector),
       breakpoints: kit.breakpoints,
     }),
@@ -555,7 +621,9 @@ function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) 
   return (
     <>
       <link rel="stylesheet" href={`${assetsBase}/fresco.css`} />
-      {fonts && <link rel="stylesheet" href={fonts} />}
+      {fonts.map((href) => (
+        <link key={href} rel="stylesheet" href={href} data-fre-font="" />
+      ))}
       <style>{kitStyle}</style>
       <style>{css}</style>
       {pageStyle && <style>{pageStyle}</style>}
@@ -587,12 +655,16 @@ function FrameTree({
   // Elements edited inline are mounted again after the edit (their DOM was changed by hand).
   const [epoch, setEpoch] = useState<Record<string, number>>({});
   const entry = useStore(store, (s) => s.entry);
+  const page = useStore(store, (s) => s.page);
+  const site = useSite();
+  const previewPage = usePreviewPage(entry.type, page, context.locale, site);
   const renderContext: RenderContext = {
     media: context.media,
     locale: context.locale,
     menus: context.menus,
     editing: true,
-    site: { title: '', tagline: '', home: '/' },
+    site,
+    ...(previewPage ? { page: previewPage } : {}),
     ui: { active: (id) => active[id] },
     pluginBlock: (block) => <PluginBlockPreview block={block} entry={entry} />,
   };
@@ -835,6 +907,61 @@ function FrameTree({
   );
 }
 
+/** The site's title and tagline (for elements showing them), once known. */
+let siteInfo: Promise<RenderContext['site']> | null = null;
+function useSite(): RenderContext['site'] {
+  const [site, setSite] = useState<RenderContext['site']>({ title: '', tagline: '', home: '/' });
+  useEffect(() => {
+    let live = true;
+    siteInfo ??= coreApi<{ title: string; tagline: string }>('GET', '/settings/core')
+      .then((s) => ({ title: s.title ?? '', tagline: s.tagline ?? '', home: '/' }))
+      .catch(() => ({ title: '', tagline: '', home: '/' }));
+    void siteInfo.then((value) => live && setSite(value));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return site;
+}
+
+/**
+ * The page the canvas shows the document as, from the plugins that give one
+ * (e.g. a template previewed with a chosen entry); none: no page, as before.
+ */
+function usePreviewPage(
+  type: string,
+  page: Settings,
+  locale: string,
+  site: RenderContext['site'],
+): BlockPage | null {
+  const [found, setFound] = useState<BlockPage | null>(null);
+  const key = JSON.stringify([type, page, locale, site]);
+  useEffect(() => {
+    const providers = extensions().previewPages;
+    if (!providers.length) return;
+    let live = true;
+    void (async () => {
+      for (const provider of providers) {
+        try {
+          const result = await provider({ type, page, locale, site });
+          if (result) {
+            if (live) setFound(result);
+            return;
+          }
+        } catch {
+          // A failing plugin gives no page.
+        }
+      }
+      if (live) setFound(null);
+    })();
+    return () => {
+      live = false;
+    };
+    // The key holds every input.
+  }, [key]);
+  return found;
+}
+
 /** Whether the title of a tab or accordion item belongs to the item shown. */
 function isShown(tab: HTMLElement): boolean {
   if (tab.tagName === 'SUMMARY') return tab.parentElement?.hasAttribute('open') === true;
@@ -912,12 +1039,60 @@ const FORMATS: {
   },
 ];
 
-/** A dark bar above a rich text being edited: bold, italic, lists, links. */
+/** A dark bar above a rich text being edited: block format, bold, italic, lists, links. */
 function formatBar(doc: Document, field: HTMLElement): HTMLElement {
   const bar = doc.createElement('div');
   bar.className = 'fre-pen';
   bar.setAttribute('role', 'toolbar');
+  bar.setAttribute('aria-label', t('Formatting'));
   bar.setAttribute('data-fre-ui', '');
+  // The block's format (paragraph, headings…), as the caret moves; a click lists them.
+  const format = doc.createElement('button');
+  format.type = 'button';
+  format.className = 'fre-pen__format';
+  format.setAttribute('aria-haspopup', 'menu');
+  format.setAttribute('aria-label', t('Format'));
+  const list = doc.createElement('div');
+  list.className = 'fre-pen__formats';
+  list.setAttribute('role', 'menu');
+  list.hidden = true;
+  const label = (tag: string) => t(BLOCK_FORMATS.find((f) => f.tag === tag)?.label ?? 'Paragraph');
+  const showBlock = () => {
+    const selection = doc.getSelection();
+    if (selection?.anchorNode && field.contains(selection.anchorNode))
+      format.textContent = `${label(currentBlock(doc))} ▾`;
+  };
+  format.textContent = `${label('p')} ▾`;
+  format.addEventListener('mousedown', (event) => event.preventDefault());
+  format.addEventListener('click', () => {
+    list.hidden = !list.hidden;
+    format.setAttribute('aria-expanded', String(!list.hidden));
+  });
+  for (const block of BLOCK_FORMATS) {
+    const item = doc.createElement('button');
+    item.type = 'button';
+    item.setAttribute('role', 'menuitem');
+    item.dataset.format = block.tag;
+    item.textContent = t(block.label);
+    item.addEventListener('mousedown', (event) => event.preventDefault());
+    item.addEventListener('click', () => {
+      doc.execCommand('formatBlock', false, `<${block.tag}>`);
+      list.hidden = true;
+      field.focus();
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      showBlock();
+    });
+    list.append(item);
+  }
+  bar.append(format, list);
+  doc.addEventListener('selectionchange', showBlock);
+  const stopWatching = new MutationObserver(() => {
+    if (!bar.isConnected) {
+      doc.removeEventListener('selectionchange', showBlock);
+      stopWatching.disconnect();
+    }
+  });
+  stopWatching.observe(doc.body, { childList: true });
   for (const format of FORMATS) {
     const button = doc.createElement('button');
     button.type = 'button';
@@ -1319,16 +1494,16 @@ function AddArea({ store, index }: { store: Store; index: number }) {
               <button
                 key={i}
                 type="button"
-                className="fre-add__preset"
-                title={
-                  preset.kind === 'flex'
-                    ? preset.columns.map((c) => `${Math.round(c)}%`).join(' + ')
-                    : `${preset.columns} × ${preset.rows}`
+                className={`fre-add__preset${preset.kind === 'flex' ? ` fre-add__preset--${presetShape(preset)}` : ''}`}
+                title={presetTitle(preset)}
+                aria-label={presetTitle(preset)}
+                data-preset={
+                  preset.kind === 'flex' ? preset.id : `grid-${preset.columns}x${preset.rows}`
                 }
                 onClick={() => insert(preset)}
               >
                 {preset.kind === 'flex'
-                  ? preset.columns.map((c, j) => <i key={j} style={{ flexGrow: c }} />)
+                  ? presetThumb(preset)
                   : Array.from({ length: preset.columns * preset.rows }, (_, j) => <i key={j} />)}
                 {preset.kind === 'grid' && (
                   <style>{`.fre-add__preset:nth-child(${i + 1}){grid-template-columns:repeat(${preset.columns},1fr)}`}</style>
@@ -1400,6 +1575,49 @@ function AddArea({ store, index }: { store: Store; index: number }) {
   );
 }
 
+/** How a structure's thumbnail is drawn. */
+function presetShape(preset: FlexPreset): string {
+  if (preset.id === 'c100-c50-50') return 'split';
+  if (preset.columns.length === 0) return preset.direction === 'row' ? 'row' : 'column';
+  return preset.columns.reduce((sum, n) => sum + n, 0) > 100 ? 'wrap' : 'cols';
+}
+
+/** "50% + 50%", "Column", "Row"… */
+function presetTitle(preset: Preset): string {
+  if (preset.kind === 'grid') return `${preset.columns} × ${preset.rows}`;
+  if (preset.id === 'c100-c50-50') return t('A column beside two stacked ones');
+  if (preset.columns.length === 0)
+    return preset.direction === 'row' ? t('Row (items side by side)') : t('Column (items stacked)');
+  return preset.columns.map((c) => `${Math.round(columnWidth(c))}%`).join(' + ');
+}
+
+/** The boxes of a structure's thumbnail. */
+function presetThumb(preset: FlexPreset): ReactNode {
+  if (preset.id === 'c100-c50-50') {
+    return (
+      <>
+        <i />
+        <span>
+          <i />
+          <i />
+        </span>
+      </>
+    );
+  }
+  if (preset.columns.length === 0) {
+    return (
+      <i>
+        <Svg
+          path={preset.direction === 'row' ? 'M5 12h14 M15 8l4 4-4 4' : 'M12 5v14 M8 15l4 4 4-4'}
+        />
+      </i>
+    );
+  }
+  return preset.columns.map((c, j) => (
+    <i key={j} style={{ flexBasis: `calc(${columnWidth(c)}% - 3px)` }} />
+  ));
+}
+
 // ---- Dragging ------------------------------------------------------------------------------
 
 /** The label following the pointer during a drag (in the admin's document). */
@@ -1422,7 +1640,9 @@ export function startDrag(
   frame: HTMLIFrameElement,
   store: Store,
   source:
-    { kind: 'new'; type: string; label: string } | { kind: 'move'; id: string; label: string },
+    | { kind: 'new'; type: string; label: string }
+    | { kind: 'move'; id: string; label: string }
+    | { kind: 'node'; make: () => FrescoNode; label: string },
 ): void {
   const doc = frame.contentDocument;
   const root = doc?.querySelector<HTMLElement>('[data-cx-editor-canvas]') ?? doc?.body;
@@ -1433,8 +1653,14 @@ export function startDrag(
     source.kind === 'move'
       ? doc.querySelector<HTMLElement>(`[data-fr-id="${CSS.escape(source.id)}"]`)
       : null;
+  // A ready-made element (a global widget) is made once, when the drag starts.
+  const made = source.kind === 'node' ? source.make() : null;
   const type =
-    source.kind === 'new' ? source.type : (find(store.get().blocks, source.id)?.type ?? '');
+    source.kind === 'new'
+      ? source.type
+      : source.kind === 'node'
+        ? made!.type
+        : (find(store.get().blocks, source.id)?.type ?? '');
   // The page never moves while dragging: the place is shown by a line over
   // it (as in Elementor), so the element under the pointer is the one the
   // user sees, and the drop goes where the line is.
@@ -1467,6 +1693,7 @@ export function startDrag(
       finish();
       if (!target) return;
       if (source.kind === 'new') store.actions.add(source.type, target.place);
+      else if (source.kind === 'node') store.actions.addNode(made!, target.place);
       else store.actions.move(source.id, target.place);
     },
     onCancel: finish,

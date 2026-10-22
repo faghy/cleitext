@@ -3,7 +3,6 @@
  * prefixed ones) of the selected element, for the device being edited.
  */
 import { t, type EditorMedia } from '@cleitext/admin-sdk';
-import { askText } from './dialogs.js';
 import {
   useCallback,
   useEffect,
@@ -22,8 +21,8 @@ import { extensions } from '../core/extensions.js';
 import { isMedia } from '../core/media.js';
 import { reorder } from './tree.js';
 import { formatColor, hsvaToRgba, parseColor, rgbaToHsva, toHex, type Hsva } from './color.js';
-import { formatShortcut } from './format-keys.js';
 import { VirtualGrid } from './virtual-grid.js';
+import { RichText } from './rich-text.js';
 import {
   OPTIONAL_DEVICES,
   activeDevices,
@@ -265,6 +264,7 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
             value={typeof value === 'string' ? value : ''}
             onChange={(v) => set(v)}
             readOnly={env.readOnly}
+            media={env.media}
           />
         </Row>
       );
@@ -458,148 +458,6 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
     case 'filters':
       return <Group control={control as GroupControl} env={env} />;
   }
-}
-
-// ---- Rich text ------------------------------------------------------------------------------
-
-function RichText({
-  value,
-  onChange,
-  readOnly,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  readOnly: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [source, setSource] = useState(false);
-  // Written only when the value changes from outside, so the caret stays put.
-  useEffect(() => {
-    if (ref.current && ref.current.innerHTML !== value && document.activeElement !== ref.current) {
-      ref.current.innerHTML = value;
-    }
-  }, [value, source]);
-  const command = (name: string, argument?: string) => {
-    ref.current?.focus();
-    document.execCommand(name, false, argument);
-    if (ref.current) onChange(ref.current.innerHTML);
-  };
-  return (
-    <div className="fre-rich">
-      <div className="fre-rich__bar" role="toolbar" aria-label={t('Formatting')}>
-        <button
-          type="button"
-          title={t('Bold')}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => command('bold')}
-        >
-          <b>B</b>
-        </button>
-        <button
-          type="button"
-          title={t('Italic')}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => command('italic')}
-        >
-          <i>I</i>
-        </button>
-        <button
-          type="button"
-          title={t('Underline')}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => command('underline')}
-        >
-          <u>U</u>
-        </button>
-        <button
-          type="button"
-          title={t('List')}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => command('insertUnorderedList')}
-        >
-          <Svg path="M9 6h11 M9 12h11 M9 18h11 M4.5 6h.01 M4.5 12h.01 M4.5 18h.01" size={14} />
-        </button>
-        <button
-          type="button"
-          title={t('Numbered list')}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => command('insertOrderedList')}
-        >
-          <Svg path="M10 6h10 M10 12h10 M10 18h10 M4 6h1v4 M4 10h2 M4 14h2l-2 3h2" size={14} />
-        </button>
-        <button
-          type="button"
-          title={t('Link')}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            // The dialog takes the focus: the selection is put back before linking.
-            const selection = window.getSelection();
-            const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
-            void askText({ title: t('Link address'), value: 'https://' }).then((url) => {
-              if (!url) return;
-              if (range) {
-                selection?.removeAllRanges();
-                selection?.addRange(range);
-              }
-              command('createLink', url);
-            });
-          }}
-        >
-          <Svg
-            path="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"
-            size={14}
-          />
-        </button>
-        <button
-          type="button"
-          title={t('Paragraph')}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => command('formatBlock', 'p')}
-        >
-          P
-        </button>
-        <button
-          type="button"
-          title={t('Heading')}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => command('formatBlock', 'h3')}
-        >
-          H
-        </button>
-        <button
-          type="button"
-          title="HTML"
-          className={source ? 'is-on' : ''}
-          onClick={() => setSource((s) => !s)}
-        >
-          {'</>'}
-        </button>
-      </div>
-      {source ? (
-        <textarea
-          className="fre-input fre-code"
-          rows={8}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          readOnly={readOnly}
-        />
-      ) : (
-        <div
-          ref={ref}
-          className="fre-rich__area"
-          contentEditable={!readOnly}
-          suppressContentEditableWarning
-          onInput={(e) => onChange((e.target as HTMLDivElement).innerHTML)}
-          onKeyDown={(e) => {
-            const format = formatShortcut(e);
-            if (!format) return;
-            e.preventDefault();
-            command(format);
-          }}
-        />
-      )}
-    </div>
-  );
 }
 
 // ---- Colors -----------------------------------------------------------------------------
@@ -1567,7 +1425,28 @@ export function DragHandle({
   );
 }
 
+/**
+ * The title of a repeater item: its `itemTitle` field, or, for a select
+ * (such as an entry picked from a list), the label of the chosen option.
+ */
+function repeaterTitle(control: Control, item: Settings): string {
+  const value = item[control.itemTitle ?? ''];
+  const field = control.fields?.find((c) => c.name === control.itemTitle);
+  if (field?.type === 'select' && value !== undefined && value !== '') {
+    const options = [
+      ...(field.options ?? []),
+      ...(field.source ? sourceOptions(field.source) : []),
+    ];
+    const option = options.find((o) => o.value === value);
+    if (option)
+      return field.source && !field.options?.includes(option) ? option.label : t(option.label);
+  }
+  return String(value ?? '');
+}
+
 function Repeater({ control, env }: { control: Control; env: ControlEnv }) {
+  // Titles may come from a select's source, loaded later.
+  useOptionSources();
   const items = (
     Array.isArray(env.settings[control.name]) ? env.settings[control.name] : []
   ) as Settings[];
@@ -1604,7 +1483,7 @@ function Repeater({ control, env }: { control: Control; env: ControlEnv }) {
                 className="fre-repeater__title"
                 onClick={() => setOpen(open === index ? null : index)}
               >
-                {String(item[control.itemTitle ?? ''] ?? '') || t('Item {n}', { n: index + 1 })}
+                {repeaterTitle(control, item) || t('Item {n}', { n: index + 1 })}
               </button>
               <button
                 type="button"
@@ -1761,8 +1640,20 @@ function groupFields(control: GroupControl): Control[] {
             'right top',
             'left center',
             'right center',
-          ].map((v) => ({ value: v, label: v || 'Default' })),
+            'left bottom',
+            'right bottom',
+            'custom',
+          ].map((v) => ({ value: v, label: v === 'custom' ? 'Custom' : v || 'Default' })),
         }),
+        ...(['x', 'y'] as const).map((axis) =>
+          f(`${axis}pos`, 'slider', axis === 'x' ? 'X position' : 'Y position', {
+            responsive: true,
+            units: ['px', '%', 'em', 'rem', 'vw'],
+            min: -800,
+            max: 800,
+            condition: { [`${n}_type`]: 'classic', [`${n}_position`]: 'custom' },
+          }),
+        ),
         f('repeat', 'select', 'Repeat', {
           responsive: true,
           condition: { [`${n}_type`]: 'classic' },
@@ -1774,18 +1665,29 @@ function groupFields(control: GroupControl): Control[] {
         f('size', 'select', 'Display size', {
           responsive: true,
           condition: { [`${n}_type`]: 'classic' },
-          options: ['', 'auto', 'cover', 'contain'].map((v) => ({
+          options: ['', 'auto', 'cover', 'contain', 'custom'].map((v) => ({
             value: v,
-            label: v || 'Default',
+            label: v === 'custom' ? 'Custom' : v || 'Default',
           })),
+        }),
+        f('bg_width', 'slider', 'Width', {
+          responsive: true,
+          units: ['px', '%', 'em', 'rem', 'vw'],
+          max: 1000,
+          condition: { [`${n}_type`]: 'classic', [`${n}_size`]: 'custom' },
         }),
         f('attachment', 'select', 'Attachment', {
           condition: { [`${n}_type`]: 'classic' },
           options: ['', 'scroll', 'fixed'].map((v) => ({ value: v, label: v || 'Default' })),
         }),
         f('color_b', 'color', 'Second color', { condition: { [`${n}_type`]: 'gradient' } }),
-        f('stop', 'slider', 'Location', { units: ['%'], condition: { [`${n}_type`]: 'gradient' } }),
+        f('stop', 'slider', 'Location', {
+          responsive: true,
+          units: ['%'],
+          condition: { [`${n}_type`]: 'gradient' },
+        }),
         f('stop_b', 'slider', 'Second location', {
+          responsive: true,
           units: ['%'],
           condition: { [`${n}_type`]: 'gradient' },
         }),
@@ -1797,9 +1699,25 @@ function groupFields(control: GroupControl): Control[] {
           ],
         }),
         f('angle', 'slider', 'Angle', {
+          responsive: true,
           units: ['deg'],
           max: 360,
-          condition: { [`${n}_type`]: 'gradient' },
+          condition: { [`${n}_type`]: 'gradient', [`${n}_gradient`]: ['linear', undefined] },
+        }),
+        f('gradient_position', 'select', 'Position', {
+          responsive: true,
+          condition: { [`${n}_type`]: 'gradient', [`${n}_gradient`]: 'radial' },
+          options: [
+            'center center',
+            'center left',
+            'center right',
+            'top center',
+            'top left',
+            'top right',
+            'bottom center',
+            'bottom left',
+            'bottom right',
+          ].map((v) => ({ value: v, label: v[0]!.toUpperCase() + v.slice(1) })),
         }),
       ];
     case 'border':
@@ -1953,13 +1871,22 @@ function Group({ control, env }: { control: GroupControl; env: ControlEnv }) {
                 fontWeight: font.weight || undefined,
               }}
               onClick={() => {
-                env.set({ [`${n}_global`]: global === font.id ? undefined : font.id });
+                // Chosen now, the global font gives all its values (style, spacing…).
+                const off = global === font.id;
+                env.set({
+                  [`${n}_global`]: off ? undefined : font.id,
+                  [`${n}_global_all`]: off ? undefined : true,
+                });
                 setOpen(null);
               }}
             >
               <span>{font.title}</span>
               <small>
-                {[font.family, font.weight, font.size ? `${font.size}px` : '']
+                {[
+                  font.family,
+                  font.weight,
+                  typeof font.size?.size === 'number' ? `${font.size.size}${font.size.unit}` : '',
+                ]
                   .filter(Boolean)
                   .join(' · ')}
               </small>
