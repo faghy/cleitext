@@ -347,7 +347,7 @@ export function AdminLayout() {
             })}
           </ul>
         </nav>
-        <p className="px-4 py-3 text-xs text-slate-500" title={t('Cleitext version')}>
+        <p className="px-4 py-3 text-xs text-slate-400" title={t('Cleitext version')}>
           Cleitext {me.version}
         </p>
       </aside>
