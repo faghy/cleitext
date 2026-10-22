@@ -276,6 +276,10 @@ export function Canvas({
       (doc.querySelector('main') ?? doc.body).append(root);
     }
     root.replaceChildren();
+    // The wrappers take no room (the elements sit in the theme's column, as on
+    // the site), from the first layout: WebKit lays the page out before the
+    // canvas's style sheet applies.
+    root.style.display = 'contents';
     // The theme's element holding the content: the page settings' padding goes there.
     root.parentElement?.setAttribute(CONTENT_ATTRIBUTE, '');
     // Popups never open over the page being edited (older versions of Fresco Pro sent them).
@@ -778,6 +782,7 @@ function FrameTree({
   return (
     <div
       className="fre-tree"
+      style={{ display: 'contents' }}
       onPointerDown={onPointerDown}
       onClick={(event) => {
         const target = event.target as Element;

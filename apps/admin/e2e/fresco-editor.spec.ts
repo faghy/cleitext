@@ -135,6 +135,15 @@ async function dragTile(page: Page, frame: Frame, tile: RegExp, target: string):
   return before;
 }
 
+// The other specs run without Fresco's blocks, even after a failure here
+// (the body `{}` is needed: without it the call fails).
+test.afterAll(async ({ browser }) => {
+  const page = await browser.newPage();
+  await signIn(page);
+  await api(page, 'POST', '/plugins/fresco/deactivate', {}).catch(() => undefined);
+  await page.close();
+});
+
 test.beforeEach(async ({ page }) => {
   await signIn(page);
   await activateFresco(page);
@@ -176,16 +185,19 @@ test('the canvas has the site layout, and drops land where the line shows', asyn
   await expect(canvas.locator('.fre-tree > .fr-container')).toHaveCount(3);
   await expect(canvas.locator('[data-fr-id="hero"] .fr-icon-box')).toHaveCount(0);
 
-  // An Image carousel into the empty section below (scrolled into view).
+  // An Image carousel into the empty section below (scrolled into view at
+  // once: the theme scrolls smoothly, and the page would still be moving).
   await frame.evaluate(() =>
-    document.querySelector('[data-fr-id="sec2"]')!.scrollIntoView({ block: 'center' }),
+    document
+      .querySelector('[data-fr-id="sec2"]')!
+      .scrollIntoView({ block: 'center', behavior: 'instant' }),
   );
   await dragTile(page, frame, /^(Image carousel|Carosello di immagini)$/, '[data-fr-id="sec2"]');
   await expect(canvas.locator('[data-fr-id="sec2"] .fr-image-carousel')).toHaveCount(1);
   await expect(canvas.locator('[data-fr-id="row"] .fr-image-carousel')).toHaveCount(0);
 
   // An element moved by its handle, from the first column to the third, below its box.
-  await frame.evaluate(() => window.scrollTo(0, 0));
+  await frame.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   const moved = canvas.locator('[data-fr-id="c1"] .fr-icon-box');
   await moved.hover();
   const grip = canvas.locator('.fre-handle--widget .fre-handle__grip[title*="Icon box"]');
