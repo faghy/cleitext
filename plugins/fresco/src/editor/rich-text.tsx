@@ -100,7 +100,11 @@ function restoreCaret(root: HTMLElement, caret: Caret): void {
   const point = (n: number, next: boolean): [Node, number] => {
     const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     let last: Text | null = null;
-    for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+    for (
+      let node = walker.nextNode() as Text | null;
+      node;
+      node = walker.nextNode() as Text | null
+    ) {
       last = node;
       if (n < node.length || (n === node.length && !next)) return [node, n];
       n -= node.length;

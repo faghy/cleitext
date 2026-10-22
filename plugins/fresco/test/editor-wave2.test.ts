@@ -127,7 +127,9 @@ describe('theme style', () => {
     );
     expect(css).toContain('body h2{text-transform:uppercase;line-height:1.1;letter-spacing:2px}');
     expect(css).toContain('.fr-e p{margin-block-end:1em}');
-    expect(css).toContain('.fr-e a:not(:where(.fr-button__link)){font-weight:600;text-decoration:none}');
+    expect(css).toContain(
+      '.fr-e a:not(:where(.fr-button__link)){font-weight:600;text-decoration:none}',
+    );
     expect(css).toContain('.fr-e a:not(:where(.fr-button__link)):hover{text-decoration:underline}');
     expect(css).toContain('@media (max-width:1024px){body h2{font-size:30px}}');
     expect(css).toContain('@media (max-width:767px){.fr-e p{margin-block-end:8px}}');
