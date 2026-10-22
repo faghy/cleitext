@@ -164,6 +164,23 @@ export default definePlugin({
       }),
     );
 
+    // The site's logo and the signed-in visitor (plugin API 1.41).
+    ctx.blocks.register(
+      defineBlock({
+        type: 'events/visitor',
+        title: 'Visitor',
+        render: ({ context }) => (
+          <p
+            className="visitor"
+            data-logo={context.page.site.logo?.url ?? ''}
+            data-role={context.page.user?.role?.slug ?? ''}
+          >
+            {context.page.user ? `Hello ${context.page.user.displayName}` : 'Hello guest'}
+          </p>
+        ),
+      }),
+    );
+
     // Where an archive's entries go: a plugin listing's own HTML (plugin API 1.20).
     ctx.blocks.register(
       defineBlock({

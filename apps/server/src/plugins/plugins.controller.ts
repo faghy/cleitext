@@ -337,11 +337,16 @@ export class PluginsController {
     @Req() request: FastifyRequest,
   ): Promise<{ html: string; css: string }> {
     const input = parseBody(previewBlockBody, body);
-    const result = await this.publicService.renderBlock(site.id, siteOrigin(request), {
-      block: input.block,
-      ...(input.locale ? { locale: input.locale } : {}),
-      ...(input.entryId ? { entryId: input.entryId } : {}),
-    });
+    const result = await this.publicService.renderBlock(
+      site.id,
+      siteOrigin(request),
+      {
+        block: input.block,
+        ...(input.locale ? { locale: input.locale } : {}),
+        ...(input.entryId ? { entryId: input.entryId } : {}),
+      },
+      request.auth ?? null,
+    );
     if (!result) throw new NotFoundException('No active plugin has this block.');
     return result;
   }

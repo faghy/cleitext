@@ -151,7 +151,7 @@ interface RequestScope {
   /** Signed-in visitor allowed to read private entries (never cached). */
   includePrivate: boolean;
   /** The signed-in visitor (pages for them are never cached). */
-  viewer?: Viewer | null;
+  viewer?: ScopeViewer | null;
   /** Renderers of plugin blocks for the entry being rendered. */
   blockRenderers?: ReadonlyMap<string, BlockRenderer>;
   /** Unsaved theme settings shown by the Customize preview (RF-THM-03). */
@@ -165,6 +165,27 @@ interface RequestScope {
     title: string;
     description: string;
     html: string;
+  };
+}
+
+/** The signed-in visitor, with what plugin blocks may show of them (plugin API 1.41). */
+type ScopeViewer = Viewer & { email?: string; role?: { slug: string; name: string } | null };
+
+function viewerOf(viewer: {
+  capabilities: readonly string[];
+  userId?: string;
+  displayName?: string;
+  avatarUrl?: string | null;
+  email?: string;
+  role?: { slug: string; name: string } | null;
+}): ScopeViewer {
+  return {
+    id: viewer.userId!,
+    displayName: viewer.displayName ?? '',
+    avatarUrl: viewer.avatarUrl ?? null,
+    capabilities: viewer.capabilities,
+    ...(viewer.email ? { email: viewer.email } : {}),
+    role: viewer.role ? { slug: viewer.role.slug, name: viewer.role.name } : null,
   };
 }
 
@@ -256,9 +277,11 @@ export class PublicService {
         return;
       }
 
-      // Signed-in users bypass the cache (they will see editing tools later).
+      // Signed-in users bypass the cache (they will see editing tools later),
+      // with a session or an API token: their pages may show private data.
       const cacheable =
         !request.cookies[SESSION_COOKIE] &&
+        !request.auth &&
         !url.pathname.startsWith('/search') &&
         !url.pathname.startsWith('/__preview/');
       const key = this.cache.key(site.id, request.host, request.url);
@@ -576,6 +599,8 @@ export class PublicService {
       userId?: string;
       displayName?: string;
       avatarUrl?: string | null;
+      email?: string;
+      role?: { slug: string; name: string } | null;
     } | null = null,
     /**
      * Previews (never cached): theme settings instead of the saved ones, or
@@ -633,14 +658,7 @@ export class PublicService {
       }
 
       const { scope, rest } = await this.scope(tx, siteId, origin, path, includePrivate);
-      if (viewer?.userId) {
-        scope.viewer = {
-          id: viewer.userId,
-          displayName: viewer.displayName ?? '',
-          avatarUrl: viewer.avatarUrl ?? null,
-          capabilities: viewer.capabilities,
-        };
-      }
+      if (viewer?.userId) scope.viewer = viewerOf(viewer);
       scope.params = Object.fromEntries(
         [...query].slice(0, 20).map(([k, v]) => [k.slice(0, 64), v.slice(0, 200)]),
       );
@@ -1930,7 +1948,14 @@ export class PublicService {
         logout: data.urls.account(locale, 'logout'),
         ...(scope.settings.registration ? { register: data.urls.account(locale, 'register') } : {}),
       },
-      viewer: scope.viewer ?? null,
+      viewer: scope.viewer
+        ? {
+            id: scope.viewer.id,
+            displayName: scope.viewer.displayName,
+            avatarUrl: scope.viewer.avatarUrl,
+            capabilities: scope.viewer.capabilities,
+          }
+        : null,
       ...(props.kind === 'entry' ? { entry: props.entry } : {}),
       view: props,
       share: scope.settings.shareButtons,
@@ -2091,8 +2116,12 @@ export class PublicService {
       const { block } = definitions.get(instance.type)!;
       return { ...fieldDefaults(block.attributes ?? []), ...instance.attrs };
     };
-    // Media the blocks use, preloaded with the page's.
+    // Media the blocks use, preloaded with the page's; the theme's logo (plugin API 1.41).
     const mediaIds = new Set<string>();
+    const themeValues = scope.themeSettings ?? (await themeSettings(scope.tx, scope.theme));
+    const logoId =
+      typeof themeValues.logo === 'string' && themeValues.logo ? themeValues.logo : null;
+    if (logoId && !media.has(logoId)) mediaIds.add(logoId);
     for (const instance of found.values()) {
       const { plugin, block } = definitions.get(instance.type)!;
       if (!block.media) continue;
@@ -2111,13 +2140,38 @@ export class PublicService {
     }
     const entry =
       props.kind === 'entry' ? { id: props.entry.id, type: props.entry.type } : undefined;
+    const logo = logoId ? media.get(logoId) : undefined;
+    const viewer = scope.viewer;
     const page: BlockPage = {
       route: props.kind,
       site: {
         title: scope.siteTitle,
         tagline: scope.settings.tagline,
         home: scope.data.urls.home(scope.locale),
+        ...(logo
+          ? {
+              logo: {
+                id: logo.id,
+                url: logo.url,
+                width: logo.width ?? null,
+                height: logo.height ?? null,
+                alt: logo.alt || scope.siteTitle,
+              },
+            }
+          : {}),
       },
+      // Signed-in visitors only: their pages are never cached (plugin API 1.41).
+      ...(viewer
+        ? {
+            user: {
+              id: viewer.id,
+              displayName: viewer.displayName,
+              avatarUrl: viewer.avatarUrl,
+              ...(viewer.email ? { email: viewer.email } : {}),
+              role: viewer.role ?? null,
+            },
+          }
+        : {}),
       ...(props.kind === 'entry' ? { entry: props.entry } : {}),
       ...(scope.params ? { params: scope.params } : {}),
       ...(props.kind === 'archive'
@@ -2340,14 +2394,7 @@ export class PublicService {
           html: page.html,
         };
       }
-      if (viewer?.userId) {
-        scope.viewer = {
-          id: viewer.userId,
-          displayName: viewer.displayName ?? '',
-          avatarUrl: viewer.avatarUrl ?? null,
-          capabilities: viewer.capabilities,
-        };
-      }
+      if (viewer?.userId) scope.viewer = viewerOf(viewer);
       // Plugins' addresses answer in both forms: the page names the site's own.
       const canonical = scope.data.urls.canonical(path);
       const entry: PublicEntry = {
@@ -2403,6 +2450,8 @@ export class PublicService {
     siteId: string,
     origin: string,
     input: { block: CxdBlock; locale?: string; entryId?: string },
+    /** The editor asking: blocks see them as the signed-in visitor (plugin API 1.41). */
+    viewer: FastifyRequest['auth'] | null = null,
   ): Promise<{ html: string; css: string } | null> {
     const active = await this.plugins.activePlugins(siteId);
     if (!active.some((plugin) => plugin.blocks.some((b) => b.type === input.block.type))) {
@@ -2410,6 +2459,7 @@ export class PublicService {
     }
     return withContext(this.database.db, { siteId }, async (tx) => {
       const { scope } = await this.scope(tx, siteId, origin, '/');
+      if (viewer?.userId) scope.viewer = viewerOf(viewer);
       if (input.locale && scope.data.locales.some((l) => l.code === input.locale)) {
         scope.locale = input.locale;
       }

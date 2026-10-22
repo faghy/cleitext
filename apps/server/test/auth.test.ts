@@ -91,6 +91,39 @@ describe('CSRF protection', () => {
     expect(res.statusCode).toBe(403);
   });
 
+  it('keeps the token when another tab or script asks for it again (B11)', async () => {
+    const csrf = (cookie?: string) =>
+      app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/csrf',
+        headers: { host: acme.host, ...(cookie ? { cookie } : {}) },
+      });
+    const first = await csrf();
+    const token = first.json().token as string;
+    const cookie = `cleitext_csrf=${token}`;
+    // A second tab, or another script of the same page, fetches the token too.
+    const second = await csrf(cookie);
+    expect(second.json().token).toBe(token);
+    expect(second.cookies).toHaveLength(0);
+    // So the first one's requests still pass the check (no 403).
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: {
+        host: acme.host,
+        origin: `http://${acme.host}`,
+        cookie,
+        'x-csrf-token': token,
+      },
+      payload: { email: 'admin@acme.test', password: PASSWORD },
+    });
+    expect(login.statusCode).toBe(200);
+    // A cookie that is not a token of ours is replaced.
+    const odd = await csrf('cleitext_csrf=short');
+    expect(odd.json().token).not.toBe('short');
+    expect(odd.json().token).toMatch(/^[\w-]{43}$/);
+  });
+
   it('rejects cross-origin requests even with a token', async () => {
     const client = new TestClient(app, acme.host);
     const res = await client.request(

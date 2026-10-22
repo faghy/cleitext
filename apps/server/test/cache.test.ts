@@ -151,6 +151,16 @@ describe('page cache', () => {
     expect(signedIn.headers['x-cache']).toBe('BYPASS');
     expect(signedIn.headers['cache-control']).toBe('private, no-cache');
     expect((await get(app, '/search?q=story')).headers['x-cache']).toBe('BYPASS');
+    // With an API token too: its pages may show private entries.
+    const created = await editor.post('/api/v1/tokens', {
+      name: 'Pages',
+      scopes: ['read'],
+      expiresInDays: 1,
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const token = (created.json() as { token: string }).token;
+    const withToken = await get(app, '/', { authorization: `Bearer ${token}` });
+    expect(withToken.headers['x-cache']).toBe('BYPASS');
   });
 
   it('refreshes after scheduled publishing, which runs inside the database', async () => {

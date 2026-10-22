@@ -67,7 +67,7 @@ import { EntriesService } from '../content/entries.service.js';
 import { defaultLocaleIn, LanguagesService, PENDING } from '../content/languages.service.js';
 import { TermsService } from '../content/terms.service.js';
 import { DATABASE, PLUGIN_DATABASE } from '../database/database.module.js';
-import { MailService } from '../mail/mail.service.js';
+import { MailService, type MailMessage } from '../mail/mail.service.js';
 import { MediaService } from '../media/media.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import {
@@ -1022,16 +1022,8 @@ export class PluginServicesProvider implements PluginServices {
     return this.cache.invalidate(siteId, tags);
   }
 
-  sendMail(message: {
-    to: string;
-    subject: string;
-    text: string;
-    html?: string;
-    replyTo?: string;
-    siteId?: string;
-  }): Promise<void> {
-    const { siteId, ...mail } = message;
-    return this.mail.send(mail, siteId);
+  sendMail(message: MailMessage, siteId?: string): Promise<void> {
+    return this.mail.send(message, siteId);
   }
 }
 

@@ -14,10 +14,27 @@ export interface MailMessage {
   /** An HTML version (plugin API 1.16); `text` stays for clients without HTML. */
   html?: string;
   replyTo?: string;
+  /** Copies (plugin API 1.41). */
+  cc?: string[];
+  /** Hidden copies (plugin API 1.41): in the envelope only, never in a header. */
+  bcc?: string[];
+  /** Files, from memory only (never read from disk or an address). */
+  attachments?: MailAttachment[];
+  /**
+   * Sender chosen by a plugin (plugin API 1.41): its address and/or its name,
+   * in place of the site's. A name alone goes with the site's address.
+   */
+  fromOverride?: { address?: string; name?: string };
+}
+
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
 }
 
 /** Messages kept by the `memory://` driver, with the sender actually used. */
-export interface SentMail extends MailMessage {
+export interface SentMail extends Omit<MailMessage, 'fromOverride'> {
   from: string;
   /** `site`: sent with the site's own SMTP settings. */
   via: 'site' | 'server';
@@ -69,20 +86,45 @@ export class MailService {
   /** Sends a message; with `siteId`, through the site's SMTP server when it has one. */
   async send(message: MailMessage, siteId?: string): Promise<void> {
     const site = siteId ? await this.siteTransport(siteId) : null;
-    const from = site?.from ?? this.config.mail.from;
+    const { fromOverride, ...rest } = message;
+    const from = senderOf(site?.from ?? this.config.mail.from, fromOverride);
     if (this.driver === 'memory') {
-      this.outbox.push({ ...message, from, via: site ? 'site' : 'server' });
+      this.outbox.push({ ...rest, from, via: site ? 'site' : 'server' });
       return;
     }
+    // Only these fields reach the mailer: never options of its own.
+    const mail = {
+      from,
+      to: rest.to,
+      subject: rest.subject,
+      text: rest.text,
+      ...(rest.html !== undefined ? { html: rest.html } : {}),
+      ...(rest.replyTo ? { replyTo: rest.replyTo } : {}),
+      ...(rest.cc?.length ? { cc: rest.cc } : {}),
+      ...(rest.bcc?.length ? { bcc: rest.bcc } : {}),
+      ...(rest.attachments?.length
+        ? {
+            attachments: rest.attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content,
+              contentType: a.contentType,
+            })),
+          }
+        : {}),
+    };
     if (site?.transport) {
-      await site.transport.sendMail({ from, ...message });
+      await site.transport.sendMail(mail);
       return;
     }
     if (this.driver === 'log') {
-      this.logger.log(`From: ${from} | To: ${message.to} | ${message.subject}\n${message.text}`);
+      const copies = rest.cc?.length ? ` | Cc: ${rest.cc.join(', ')}` : '';
+      const files = rest.attachments?.length ? ` | ${rest.attachments.length} attachment(s)` : '';
+      this.logger.log(
+        `From: ${from} | To: ${rest.to}${copies}${files} | ${rest.subject}\n${rest.text}`,
+      );
       return;
     }
-    await this.transport!.sendMail({ from, ...message });
+    await this.transport!.sendMail(mail);
   }
 
   /** Forgets cached site settings (after a change). */
@@ -151,6 +193,19 @@ export class MailService {
     this.sites.set(siteId, result);
     return result;
   }
+}
+
+/**
+ * The From header: the site's sender (`Name <address>` or an address), or a
+ * plugin's choice. A name alone keeps the site's address.
+ */
+export function senderOf(base: string, override?: { address?: string; name?: string }): string {
+  if (!override || (!override.address && !override.name)) return base;
+  const baseAddress = (/<([^<>]+)>\s*$/.exec(base)?.[1] ?? base).trim();
+  const baseName = /^\s*"?([^"<]*?)"?\s*</.exec(base)?.[1]?.trim() ?? '';
+  const address = override.address ?? baseAddress;
+  const name = override.name ?? (override.address ? '' : baseName);
+  return name ? `"${name.replace(/["\\]/g, '')}" <${address}>` : address;
 }
 
 /** `sendmail://` → /usr/sbin/sendmail; `sendmail:///usr/lib/sendmail` → that program. */

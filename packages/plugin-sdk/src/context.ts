@@ -451,7 +451,20 @@ export interface MediaApi {
 /** The page being rendered, for blocks that show its data (a theme builder's widgets). */
 export interface BlockPage {
   route: 'entry' | 'archive' | 'search' | '404' | 'maintenance';
-  site: { title: string; tagline: string; home: string };
+  site: {
+    title: string;
+    tagline: string;
+    home: string;
+    /** The logo chosen in the theme's settings (plugin API 1.41), when there is one. */
+    logo?: BlockPageLogo;
+  };
+  /**
+   * The signed-in visitor (plugin API 1.41), missing for everyone else. Pages
+   * of signed-in visitors are never cached, so blocks may show it (a "Hello,
+   * Ann" or an avatar); for visitors who are not signed in the same page is
+   * cached and shared, so show nothing personal without it.
+   */
+  user?: BlockPageUser;
   /** Query parameters of the address (plugin API 1.11), e.g. a loop's page number. */
   params?: Record<string, string>;
   /** Entry pages: the entry shown. */
@@ -474,6 +487,27 @@ export interface BlockPage {
   };
   /** Search results. */
   search?: { query: string; entries: PublicEntrySummary[]; pagination: Pagination };
+}
+
+/** The site's logo as blocks see it (plugin API 1.41). */
+export interface BlockPageLogo {
+  /** The media file's id. */
+  id: string;
+  url: string;
+  width: number | null;
+  height: number | null;
+  /** Its alternative text, or the site title. */
+  alt: string;
+}
+
+/** The signed-in visitor as blocks see it (plugin API 1.41). */
+export interface BlockPageUser {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  email?: string;
+  /** Their role on the site, e.g. `{ slug: 'editor', name: 'Editor' }`; null for none. */
+  role: { slug: string; name: string } | null;
 }
 
 /** Published entries for a listing (loops, related posts), like `WP_Query`. */
@@ -785,18 +819,55 @@ export interface CacheApi {
   invalidate(siteId: string, tags: string[]): Promise<void>;
 }
 
+/** A file attached to an email (plugin API 1.41), from memory. */
+export interface MailAttachment {
+  /** Shown to the recipient; folders and line breaks are removed. */
+  filename: string;
+  /** The bytes (a `Buffer` works), or text written as UTF-8. */
+  content: Uint8Array | string;
+  /** E.g. `application/pdf`; `application/octet-stream` when missing or invalid. */
+  contentType?: string;
+}
+
+/**
+ * An email (needs `mail:send`). Addresses are a string (several separated by
+ * commas) or a list, each a bare address or `Name <address>`; an address with
+ * a line break or that is not valid makes `send` fail (header injection).
+ * Subject and sender name are kept on one line. Limits (plugin API 1.41): 50
+ * recipients in To, Cc and Bcc together, 10 attachments of 20 MB together,
+ * 2,000,000 characters for `text` and for `html`.
+ */
+export interface MailMessage {
+  to: string | string[];
+  subject: string;
+  text: string;
+  /** An HTML version (plugin API 1.16), with `text` for clients without HTML. */
+  html?: string;
+  replyTo?: string;
+  /** With it, the site's own SMTP settings are used when it has them. */
+  siteId?: string;
+  /**
+   * The sender's address (plugin API 1.41), in place of the site's. Mail
+   * servers may refuse or flag addresses of other domains (SPF, DMARC):
+   * prefer `replyTo` for the visitor's address.
+   */
+  from?: string;
+  /** The sender's name (plugin API 1.41); alone, it goes with the site's address. */
+  fromName?: string;
+  /** Copies (plugin API 1.41). */
+  cc?: string | string[];
+  /** Hidden copies (plugin API 1.41): recipients do not see them. */
+  bcc?: string | string[];
+  /** Files (plugin API 1.41), never read from disk or an address. */
+  attachments?: MailAttachment[];
+}
+
 export interface MailApi {
-  /** Needs `mail:send`. */
-  /** With `siteId`, the site's own SMTP settings are used when it has them. */
-  send(message: {
-    to: string;
-    subject: string;
-    text: string;
-    /** An HTML version (plugin API 1.16), with `text` for clients without HTML. */
-    html?: string;
-    replyTo?: string;
-    siteId?: string;
-  }): Promise<void>;
+  /**
+   * Sends an email (needs `mail:send`). Before plugin API 1.41, only `to`,
+   * `subject`, `text`, `html`, `replyTo` and `siteId` are official.
+   */
+  send(message: MailMessage): Promise<void>;
 }
 
 /**
@@ -1134,6 +1205,11 @@ export interface AiApi {
 
 export interface PluginContext {
   readonly plugin: { slug: string; version: string };
+  /**
+   * The plugin API this core implements, e.g. `1.41.0` (plugin API 1.41;
+   * missing on older cores), to use newer features only where they exist.
+   */
+  readonly apiVersion: string;
   /** A site's name and languages (plugin API 1.16), e.g. for emails sent outside a request. */
   site(siteId: string): Promise<PluginSite>;
   readonly assets: AssetsApi;

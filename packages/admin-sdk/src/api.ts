@@ -17,11 +17,22 @@ export class ApiError extends Error {
 }
 
 let csrfToken: string | null = null;
+let pendingCsrf: Promise<string> | null = null;
 
-async function fetchCsrf(): Promise<string> {
-  const res = await fetch('/api/v1/auth/csrf', { credentials: 'same-origin' });
-  csrfToken = ((await res.json()) as { token: string }).token;
-  return csrfToken;
+/**
+ * The CSRF token, asked once even when several requests start together:
+ * concurrent asks used to set different cookies, failing all but the last.
+ */
+function fetchCsrf(): Promise<string> {
+  pendingCsrf ??= fetch('/api/v1/auth/csrf', { credentials: 'same-origin' })
+    .then(async (res) => {
+      csrfToken = ((await res.json()) as { token: string }).token;
+      return csrfToken;
+    })
+    .finally(() => {
+      pendingCsrf = null;
+    });
+  return pendingCsrf;
 }
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';

@@ -137,6 +137,7 @@ Il contesto `ctx` contiene:
 | Membro                                                | Cosa fa                                                                                                    |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `ctx.plugin`                                          | `{ slug, version }`                                                                                        |
+| `ctx.apiVersion`                                      | L'API dei plugin del core, per esempio `1.41.0` (API 1.41; manca sui core più vecchi)                      |
 | `ctx.log`                                             | `debug/info/warn/error(message, data?)`, scritto nel log del server con il nome del plugin                 |
 | `ctx.hooks`                                           | Azioni e filtri ([§5](#5-hook))                                                                            |
 | `ctx.content`                                         | Tipi di contenuto, gruppi di campi, lettura delle voci ([§6](#6-tipi-di-contenuto-e-campi-personalizzati)) |
@@ -400,6 +401,7 @@ ctx.blocks.register(
 - I contenitori e i blocchi senza wrapper vengono disegnati dentro la pagina, quindi il loro `render` non deve lanciare errori. Gli altri blocchi vengono prima disegnati a parte.
 - `css`: restituisce il CSS di un'istanza. Il CSS di tutte le istanze della pagina va in un unico `<style data-cx-blocks>` nel `<head>`.
 - `context.page` (anche in `load`) è la pagina che si sta disegnando: `route`, `site` (`title`, `tagline`, `home`), `params` (i parametri dell’indirizzo, per esempio un numero di pagina) e `entry` (la voce pubblica completa), `archive` (titolo, termine, voci, paginazione; `html` per gli elenchi dei plugin, API 1.20) o `search`, per i blocchi che mostrano i dati della pagina, come il titolo della voce o l'elenco di un archivio di un theme builder.
+- API dei plugin 1.41: `context.page.site.logo` è il logo scelto nelle impostazioni del tema (`{ id, url, width, height, alt }`), quando c'è. `context.page.user` è il visitatore connesso (`{ id, displayName, avatarUrl, email?, role }`, dove `role` è `{ slug, name }` o null) e manca per tutti gli altri. Le pagine dei visitatori connessi (con una sessione o un token API) non vanno mai in cache, quindi un blocco può salutarli o mostrarne l'avatar; senza `user` non deve mostrare nulla di personale, perché la pagina va in cache ed è condivisa.
 - `context.query({ type, terms, ids, exclude, orderBy, order, limit, offset })` in `load` (API plugin 1.11) elenca le voci pubblicate nella lingua della pagina, complete come le ricevono i temi (estratto, immagini, termini, campi), con il `total` per la paginazione; la pagina si aggiorna quando cambiano voci di quei tipi. `orderBy` è `date` (predefinito), `title`, `modified`, `random` o `order` (l'ordine manuale dell'admin, come il `menu_order` di WordPress, API 1.31); `terms` è `{ taxonomy, slugs }`; `limit` vale al massimo 100. Servono a loop, articoli correlati e portfolio.
 - `context.menus` contiene i menu del sito nella lingua della pagina, per posizione del tema (`{ id, label, url, target?, current, children }`), per i blocchi di navigazione.
 - `context.preview` (API dei plugin 1.36) vale `true` quando il blocco viene disegnato per l'anteprima di un editor (`POST /api/v1/blocks/preview`, es. il canvas di Fresco) e non per una pagina: un blocco il cui contenuto arriva da uno script (un widget di prenotazione) può mostrare lì un segnaposto.
@@ -613,6 +615,31 @@ Le pagine pubbliche sono in cache e vengono aggiornate tramite **tag**. Le pagin
 ### Mail
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, html?, replyTo?, siteId? })`, inviata con le impostazioni di posta del server, oppure con il server SMTP del sito indicando `siteId`. `html` (API dei plugin 1.16) è una versione HTML del messaggio, come una conferma d'ordine; `text` resta per i programmi di posta che mostrano solo testo.
+
+L'API dei plugin 1.41 aggiunge `from`, `fromName`, `cc`, `bcc` e `attachments`:
+
+```ts
+await ctx.mail.send({
+  siteId,
+  to: ['vendite@example.com', 'ufficio@example.com'],
+  cc: 'capo@example.com',
+  bcc: 'archivio@example.com',
+  replyTo: emailDelVisitatore,
+  fromName: 'Modulo del sito', // con l'indirizzo del sito
+  subject: 'Nuova richiesta',
+  text,
+  attachments: [
+    { filename: 'preventivo.pdf', content: bytesDelPdf, contentType: 'application/pdf' },
+  ],
+});
+```
+
+- Gli indirizzi (`to`, `cc`, `bcc`) sono una stringa, con più indirizzi separati da virgole, oppure un elenco; ognuno è un indirizzo o `Nome <indirizzo>`. Un indirizzo non valido, o con un a capo, fa fallire `send`: non parte nulla, quindi non si possono iniettare intestazioni. `replyTo` e `from` accettano un solo indirizzo. L'oggetto e `fromName` restano su una riga.
+- `from` sostituisce il mittente del sito. I server di posta possono rifiutare o segnalare mittenti di altri domini (SPF, DMARC): conviene tenere l'indirizzo del sito e mettere quello del visitatore in `replyTo`; `fromName` da solo cambia soltanto il nome mostrato.
+- I destinatari in `bcc` ricevono il messaggio senza comparire nelle intestazioni.
+- `attachments` sono file in memoria: `content` sono i byte (va bene un `Buffer`) oppure testo UTF-8. I file non vengono mai letti dal disco o da un indirizzo, e gli altri campi del programma di invio non passano.
+- Limiti: 50 destinatari fra To, Cc e Bcc; 10 allegati, 20 MB in tutto; 2.000.000 di caratteri per `text` e per `html`.
+- Sui core più vecchi questi campi non sono ufficiali: controlla `ctx.apiVersion` (manca prima della 1.41) oppure richiedi `"apiVersion": "^1.41"` nel manifest.
 
 ### Commenti di un plugin
 

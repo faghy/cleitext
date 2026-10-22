@@ -135,6 +135,7 @@ The context `ctx` contains:
 | Member                                                | What it does                                                                            |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `ctx.plugin`                                          | `{ slug, version }`                                                                     |
+| `ctx.apiVersion`                                      | The plugin API of the core, e.g. `1.41.0` (API 1.41; missing on older cores)            |
 | `ctx.log`                                             | `debug/info/warn/error(message, data?)`, written to the server log with the plugin name |
 | `ctx.hooks`                                           | Actions and filters ([§5](#5-hooks))                                                    |
 | `ctx.content`                                         | Content types, field groups, reading entries ([§6](#6-content-types-and-custom-fields)) |
@@ -422,6 +423,7 @@ defineBlock<{ gap: number; image?: string }>({
 - Containers and blocks without wrapper render inside the page, so their `render` must not throw. Other blocks are rendered on their own first.
 - `css` returns the CSS of one instance. The CSS of every instance on the page goes into one `<style data-cx-blocks>` at the end of `<head>`, after the plugins' stylesheets, so it overrides them.
 - `context.page` (also in `load`) is the page being rendered: `route`, `site` (`title`, `tagline`, `home`), `params` (the query parameters of the address, e.g. a page number), and `entry` (the full public entry), `archive` (title, term, entries, pagination; `html` for plugin listings, API 1.20) or `search`, for blocks that show the page's own data, such as a theme builder's post title or archive list.
+- Plugin API 1.41: `context.page.site.logo` is the logo chosen in the theme's settings (`{ id, url, width, height, alt }`), when there is one. `context.page.user` is the signed-in visitor (`{ id, displayName, avatarUrl, email?, role }`, `role` being `{ slug, name }` or null) and is missing for everyone else. Pages of signed-in visitors (with a session or an API token) are never cached, so a block may greet them or show their avatar; without `user` it must show nothing personal, as the page is cached and shared.
 - `context.query({ type, terms, ids, exclude, orderBy, order, limit, offset })` in `load` (plugin API 1.11) lists published entries in the page's language, complete as themes get them (excerpt, images, terms, fields), with the `total` for pagination; the page refreshes when entries of those types change. `orderBy` is `date` (default), `title`, `modified`, `random` or `order` (the manual order of the admin, as WordPress's `menu_order`, API 1.31); `terms` is `{ taxonomy, slugs }`; `limit` is at most 100. Loops, related posts and portfolios use it.
 - `context.menus` holds the site's menus in the page's language, by theme location (`{ id, label, url, target?, current, children }`), for navigation blocks.
 - `context.preview` (plugin API 1.36) is `true` when the block is rendered for an editor's preview (`POST /api/v1/blocks/preview`, e.g. Fresco's canvas), not for a page: a block whose content comes from a script (a booking widget) can show a placeholder there.
@@ -684,6 +686,29 @@ Public pages are cached and refreshed through **tags**. Pages showing an entry c
 ### Mail
 
 `mail:send`: `await ctx.mail.send({ to, subject, text, html?, replyTo?, siteId? })`, sent with the server's mail settings, or the site's own SMTP server with `siteId`. `html` (plugin API 1.16) is an HTML version of the message, such as an order confirmation; `text` stays for mail clients that show only text.
+
+Plugin API 1.41 adds `from`, `fromName`, `cc`, `bcc` and `attachments`:
+
+```ts
+await ctx.mail.send({
+  siteId,
+  to: ['sales@example.com', 'office@example.com'],
+  cc: 'boss@example.com',
+  bcc: 'archive@example.com',
+  replyTo: visitorEmail,
+  fromName: 'Website form', // with the site's own address
+  subject: 'New request',
+  text,
+  attachments: [{ filename: 'quote.pdf', content: pdfBytes, contentType: 'application/pdf' }],
+});
+```
+
+- Addresses (`to`, `cc`, `bcc`) are a string, several separated by commas, or a list; each one is an address or `Name <address>`. An invalid address, or one with a line break, makes `send` fail: nothing is sent, so header injection is not possible. `replyTo` and `from` take one address. The subject and `fromName` are kept on one line.
+- `from` replaces the site's sender. Mail servers may refuse or flag senders of other domains (SPF, DMARC), so keep the site's address and put the visitor's in `replyTo`; `fromName` alone changes only the name shown.
+- `bcc` recipients get the message without appearing in its headers.
+- `attachments` are files in memory: `content` is the bytes (a `Buffer` works) or UTF-8 text. Files are never read from disk or from an address, and other fields of the mailer are not passed on.
+- Limits: 50 recipients in To, Cc and Bcc together; 10 attachments, 20 MB together; 2,000,000 characters for `text` and for `html`.
+- On older cores these fields are not official: check `ctx.apiVersion` (missing before 1.41) or require `"apiVersion": "^1.41"` in the manifest.
 
 ### Comments of a plugin
 

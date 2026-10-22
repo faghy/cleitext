@@ -15,6 +15,7 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { inject } from 'vitest';
 import { PluginHost } from '../src/plugins/plugin-host.service.js';
+import sharp from 'sharp';
 import * as tar from 'tar';
 import {
   ownerDatabase,
@@ -291,6 +292,38 @@ describe('an active plugin', () => {
     const second = await visitor.get('/agenda');
     expect(second.headers['x-cache']).toBe('MISS');
     expect(second.body).toContain('Summer fair');
+  });
+
+  it("gives blocks the theme's logo, and the visitor only when signed in", async () => {
+    const png = await sharp({
+      create: { width: 60, height: 20, channels: 3, background: '#0f4c81' },
+    })
+      .png()
+      .toBuffer();
+    const logo = (await admin.upload('/api/v1/media', 'logo.png', png, 'image/png')).json();
+    const theme = await admin.request('PUT', '/api/v1/themes/active/settings', {
+      values: { logo: logo.id },
+    });
+    expect(theme.statusCode, theme.body).toBe(200);
+    const page = (
+      await editor.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Visitor',
+        document: doc({ id: 'vi', type: 'events/visitor', v: 1, attrs: {} }),
+      })
+    ).json();
+    await editor.post(`/api/v1/entries/${page.id}/publish`);
+
+    const guest = await visitor.get('/visitor');
+    expect(guest.body).toContain('Hello guest');
+    expect(guest.body).toMatch(/data-logo="\/media\/[^"]+"/);
+    expect((await visitor.get('/visitor')).headers['x-cache']).toBe('HIT');
+
+    const signedIn = await editor.get('/visitor');
+    expect(signedIn.headers['x-cache']).toBe('BYPASS');
+    expect(signedIn.body).toMatch(/data-role="editor"[^>]*>Hello /);
+    // The cached page never shows a signed-in visitor.
+    expect((await visitor.get('/visitor')).body).toContain('Hello guest');
   });
 
   it('lists published entries with the public query, refreshed when they change', async () => {

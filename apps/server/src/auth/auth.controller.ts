@@ -34,6 +34,7 @@ import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { AuthService, type ClientInfo } from './auth.service.js';
 import {
   clearSessionCookie,
+  CSRF_COOKIE,
   setCsrfCookie,
   setSessionCookie,
   setWebauthnCookie,
@@ -121,10 +122,17 @@ export class AuthController {
     }
   }
 
-  /** Issues the CSRF token (cookie + body) required by state-changing requests. */
+  /**
+   * Issues the CSRF token (cookie + body) required by state-changing
+   * requests. The browser's token is kept when it has one: tabs and scripts
+   * of the admin each ask for it, and a new one would make the requests of
+   * the others fail with 403 until they ask again (B11).
+   */
   @Public()
   @Get('csrf')
   csrf(@Req() request: FastifyRequest, @Res({ passthrough: true }) reply: FastifyReply) {
+    const current = request.cookies[CSRF_COOKIE];
+    if (current && /^[\w-]{43}$/.test(current)) return { token: current };
     const token = generateToken();
     setCsrfCookie(request, reply, token);
     return { token };

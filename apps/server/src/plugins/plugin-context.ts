@@ -1,5 +1,6 @@
 import {
   PluginPermissionError,
+  SDK_VERSION,
   type CopyOptions,
   type LanguageUsage,
   type PendingLanguages,
@@ -25,6 +26,8 @@ import type { FieldDefinition, FieldValues } from '@cleitext/shared';
 import { Logger } from '@nestjs/common';
 import type { LoadedPlugin, PluginHost } from './plugin-host.service.js';
 import { pluginAssetUrl } from './plugin-assets.js';
+import type { MailMessage } from '../mail/mail.service.js';
+import { pluginMail } from '../mail/plugin-mail.js';
 
 /** What plugin contexts need from the core, implemented by `PluginServices`. */
 export interface PluginServices {
@@ -81,14 +84,8 @@ export interface PluginServices {
     fn: (tx: PluginTransaction) => Promise<T>,
   ): Promise<T>;
   invalidate(siteId: string, tags: string[]): Promise<void>;
-  sendMail(message: {
-    to: string;
-    subject: string;
-    text: string;
-    html?: string;
-    replyTo?: string;
-    siteId?: string;
-  }): Promise<void>;
+  /** A message checked by `pluginMail` (plugin API 1.41). */
+  sendMail(message: MailMessage, siteId?: string): Promise<void>;
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
   mediaFromUrl(
     plugin: LoadedPlugin,
@@ -172,6 +169,7 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
 
   return {
     plugin: { slug: plugin.slug, version: plugin.version },
+    apiVersion: SDK_VERSION,
     site(siteId) {
       assertSiteId(siteId);
       return services().site(siteId);
@@ -437,9 +435,10 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
     },
 
     mail: {
-      send(message) {
+      async send(message) {
         require('mail:send');
-        return services().sendMail(message);
+        const { siteId, ...rest } = message;
+        return services().sendMail(pluginMail(rest), siteId);
       },
     },
 
