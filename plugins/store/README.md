@@ -51,6 +51,28 @@ The official Cleitext plugin that runs the **license server of paid themes and p
 
 Reports from development and test addresses (`localhost`, `.test`, `.local`, private networks) are ignored. Sites can turn reporting off in **Settings → General**; a site not heard from for 180 days is deleted from the registry. **Forget** removes a site until its next report.
 
+## Public downloads
+
+**Store → Public downloads** publishes free files of a product, such as the Cleitext Toolkit for Plesk. Choose the product, give the version (`0.6.0-1`) and upload the `.zip`.
+
+- Anyone can download it at `https://<shop>/downloads/<product>/<file>.zip`. The store counts the downloads; nothing about the visitor is kept.
+- `https://<shop>/downloads/<product>/latest.json` describes the **highest** version, not the last upload: `slug`, `name`, `version`, `file`, `url`, `size`, `sha256`, `publishedAt`. The Toolkit reads it to offer its own updates.
+- A published version never changes: uploading the same version or file name again is refused. Delete it first.
+- Only zip archives are accepted, with names of `a-z`, `0-9`, `.`, `-` and `_`. The SHA-256 is computed by the store and shown in the list.
+
+## Server reports (Plesk Toolkit)
+
+The Cleitext Toolkit for Plesk can send anonymous statistics, if its administrator turns them on (they are off by default). Once a day it calls `…/api/v1/ext/store/v1/server-report` with:
+
+- the product (`cleitext-toolkit`) and its version;
+- the panel and its version (`plesk`, `18.0.81`);
+- the number of Cleitext installations the Toolkit manages;
+- `server`, a SHA-256 hash of a random id made for this purpose. It cannot be linked to a license or a host name.
+
+Nothing else is kept: no domain, address or IP. Turning the statistics off sends `{ product, server, forget: true }`, which deletes the server's row. Rows not heard from for 180 days are deleted. Reports are limited per address and checked field by field; the product must exist in **Products**.
+
+**Store → Installations** shows them in **Plesk servers (Cleitext Toolkit)**: the number of servers and installations, by Toolkit version and by Plesk version.
+
 ## Permissions
 
-`routes:admin` (the license server, the webhook and the admin API), `settings:own` (settings and encrypted secrets) and `mail:send` (the keys). The capability `manage_store` goes to administrators.
+`routes:admin` (the license server, the webhook and the admin API), `routes:public` (public downloads), `settings:own` (settings and encrypted secrets) and `mail:send` (the keys). The capability `manage_store` goes to administrators.

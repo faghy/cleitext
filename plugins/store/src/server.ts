@@ -18,14 +18,18 @@ import {
   signDownload,
   verifyDownload,
 } from './keys';
+import { createHash } from 'node:crypto';
+import { isZip, latestOf, parseServerReport, safeFilename } from './downloads';
 import { findRelease, packageLocation, type PackageSource } from './packages';
 import { parseLemonSqueezy, renewalUrl, verifyLemonSqueezy, type OrderEvent } from './providers';
 import {
   activations,
   downloads,
+  files,
   installs,
   licenses,
   products,
+  serverReports,
   variants,
   type License,
   type Product,
@@ -51,6 +55,7 @@ const activateLimit = limiter(10, 10 * 60_000);
 const tokenLimit = limiter(60, 10 * 60_000);
 const demoLimit = limiter(10, 60 * 60_000);
 const reportLimit = limiter(60, 60 * 60_000);
+const serverReportLimit = limiter(30, 60 * 60_000);
 
 const text = (value: unknown, max: number) =>
   typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -579,6 +584,137 @@ export default definePlugin({
       },
     });
 
+    // ---- Server reports (Cleitext Toolkit for Plesk, opt-in, anonymous) -------------
+
+    ctx.routes.api({
+      method: 'POST',
+      path: '/v1/server-report',
+      webhook: true,
+      async handler(request) {
+        if (!serverReportLimit(request.ip)) return fail(429, 'Too many reports: try again later.');
+        const report = parseServerReport(request.body);
+        if (!report) return fail(400, 'The report is not valid.');
+        if (!(await productOf(ctx, request.siteId, report.product))) {
+          return fail(400, 'Unknown product.');
+        }
+        const key = and(
+          eq(serverReports.productSlug, report.product),
+          eq(serverReports.serverHash, report.server),
+        );
+        await ctx.db.transaction(request.siteId, async (tx) => {
+          if (report.forget) {
+            await tx.delete(serverReports).where(key);
+          } else {
+            const values = {
+              productVersion: report.version,
+              panel: report.panel,
+              panelVersion: report.panelVersion,
+              installations: report.installations,
+              lastSeenAt: new Date(),
+            };
+            await tx
+              .insert(serverReports)
+              .values({
+                siteId: request.siteId,
+                productSlug: report.product,
+                serverHash: report.server,
+                ...values,
+              })
+              .onConflictDoUpdate({
+                target: [serverReports.siteId, serverReports.productSlug, serverReports.serverHash],
+                set: values,
+              });
+          }
+          await tx
+            .delete(serverReports)
+            .where(
+              lt(serverReports.lastSeenAt, new Date(Date.now() - RETENTION_DAYS * 86_400_000)),
+            );
+        });
+        return { status: 204 };
+      },
+    });
+
+    // ---- Public downloads (free files of a product) --------------------------------------
+
+    const publicFiles = (siteId: string, slug: string) =>
+      ctx.db.transaction(siteId, (tx) =>
+        tx
+          .select({
+            version: files.version,
+            filename: files.filename,
+            sha256: files.sha256,
+            size: files.size,
+            createdAt: files.createdAt,
+          })
+          .from(files)
+          .where(eq(files.productSlug, slug)),
+      );
+
+    // Registered before `/downloads/:slug/:file`, so it wins.
+    ctx.routes.public({
+      method: 'GET',
+      path: '/downloads/:slug/latest.json',
+      async handler(request) {
+        const slug = request.params.slug ?? '';
+        const notFound = {
+          status: 404,
+          body: { message: 'Nothing to download here.' },
+          headers: { 'cache-control': 'no-store' },
+        };
+        if (!SLUG_RE.test(slug)) return notFound;
+        const product = await productOf(ctx, request.siteId, slug);
+        const latest = product ? latestOf(await publicFiles(request.siteId, slug)) : null;
+        if (!product || !latest) return notFound;
+        return {
+          body: {
+            slug,
+            name: product.name,
+            version: latest.version,
+            file: latest.filename,
+            url: `${request.origin}/downloads/${slug}/${latest.filename}`,
+            size: latest.size,
+            sha256: latest.sha256,
+            publishedAt: latest.createdAt.toISOString(),
+          },
+          contentType: 'application/json; charset=utf-8',
+          headers: { 'cache-control': 'public, max-age=300' },
+        };
+      },
+    });
+
+    ctx.routes.public({
+      method: 'GET',
+      path: '/downloads/:slug/:file',
+      async handler(request) {
+        const slug = request.params.slug ?? '';
+        const filename = safeFilename(request.params.file);
+        const notFound = {
+          status: 404,
+          body: { message: 'Not found.' },
+          headers: { 'cache-control': 'no-store' },
+        };
+        if (!SLUG_RE.test(slug) || !filename || filename !== request.params.file) return notFound;
+        const [file] = await ctx.db.transaction(request.siteId, (tx) =>
+          tx
+            .update(files)
+            .set({ downloads: sql`${files.downloads} + 1` })
+            .where(and(eq(files.productSlug, slug), eq(files.filename, filename)))
+            .returning({ data: files.data }),
+        );
+        if (!file) return notFound;
+        return {
+          body: Buffer.from(file.data),
+          contentType: 'application/zip',
+          headers: {
+            'content-disposition': `attachment; filename="${filename}"`,
+            'x-content-type-options': 'nosniff',
+            'cache-control': 'no-store',
+          },
+        };
+      },
+    });
+
     // ---- Admin ----------------------------------------------------------------------
 
     const admin = (
@@ -628,6 +764,94 @@ export default definePlugin({
       return { body: { ok: true } };
     });
 
+    admin('GET', '/admin/server-reports', async (request) => {
+      const days = Math.min(Math.max(Number(request.query.days) || 90, 1), RETENTION_DAYS);
+      const since = new Date(Date.now() - days * 86_400_000);
+      const rows = await ctx.db.transaction(request.siteId, (tx) =>
+        tx
+          .select()
+          .from(serverReports)
+          .where(gte(serverReports.lastSeenAt, since))
+          .orderBy(desc(serverReports.lastSeenAt)),
+      );
+      return { body: rows.map(({ siteId: _site, ...row }) => row) };
+    });
+
+    admin('GET', '/admin/files', async (request) => ({
+      body: await ctx.db.transaction(request.siteId, (tx) =>
+        tx
+          .select({
+            productSlug: files.productSlug,
+            version: files.version,
+            filename: files.filename,
+            sha256: files.sha256,
+            size: files.size,
+            downloads: files.downloads,
+            createdAt: files.createdAt,
+          })
+          .from(files)
+          .orderBy(files.productSlug, desc(files.createdAt)),
+      ),
+    }));
+
+    admin('POST', '/admin/products/:slug/files', async (request) => {
+      const slug = request.params.slug ?? '';
+      const version = text(request.query.version, 40);
+      if (!(await productOf(ctx, request.siteId, slug))) return fail(400, 'Unknown product.');
+      if (!VERSION_RE.test(version)) return fail(400, 'Give the version, e.g. 1.2.0 or 0.6.0-1.');
+      const upload = await request.file();
+      if (!upload) return fail(400, 'Choose the file (.zip).');
+      const filename = safeFilename(upload.filename);
+      if (!filename) {
+        return fail(400, 'The file name must end in .zip and use only a-z, 0-9, dot, - and _.');
+      }
+      if (!isZip(upload.data)) return fail(400, 'This is not a zip archive.');
+      const sha256 = createHash('sha256').update(upload.data).digest('hex');
+      const outcome = await ctx.db.transaction(request.siteId, async (tx) => {
+        const [taken] = await tx
+          .select({ version: files.version, productSlug: files.productSlug })
+          .from(files)
+          .where(
+            or(
+              and(eq(files.productSlug, slug), eq(files.version, version)),
+              eq(files.filename, filename),
+            ),
+          );
+        if (taken) return 'taken';
+        await tx.insert(files).values({
+          siteId: request.siteId,
+          productSlug: slug,
+          version,
+          filename,
+          sha256,
+          size: upload.data.length,
+          data: upload.data,
+        });
+        return 'ok';
+      });
+      if (outcome === 'taken') {
+        return fail(
+          409,
+          'This version or file name is already published: published files never change. Delete it first.',
+        );
+      }
+      return { body: { ok: true, version, filename, sha256, size: upload.data.length } };
+    });
+
+    admin('DELETE', '/admin/products/:slug/files/:version', async (request) => {
+      await ctx.db.transaction(request.siteId, (tx) =>
+        tx
+          .delete(files)
+          .where(
+            and(
+              eq(files.productSlug, request.params.slug ?? ''),
+              eq(files.version, request.params.version ?? ''),
+            ),
+          ),
+      );
+      return { body: { ok: true } };
+    });
+
     admin('PUT', '/admin/products/:slug', async (request) => {
       const slug = request.params.slug ?? '';
       const body = (request.body ?? {}) as Record<string, unknown>;
@@ -657,6 +881,7 @@ export default definePlugin({
       if ((used?.n ?? 0) > 0) return fail(409, 'This product has licenses: it cannot be deleted.');
       await ctx.db.transaction(request.siteId, async (tx) => {
         await tx.delete(variants).where(eq(variants.productSlug, slug));
+        await tx.delete(files).where(eq(files.productSlug, slug));
         await tx.delete(products).where(eq(products.slug, slug));
       });
       return { body: { ok: true } };

@@ -5,6 +5,7 @@ import {
   defineAdminPlugin,
   errorMessage,
   TextField,
+  uploadFile,
   type AdminPageProps,
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -288,6 +289,173 @@ function Activations({
   );
 }
 
+interface PublicFile {
+  productSlug: string;
+  version: string;
+  filename: string;
+  sha256: string;
+  size: number;
+  downloads: number;
+  createdAt: string;
+}
+
+const D = {
+  en: {
+    title: 'Public downloads',
+    hint: 'Free files anyone can download, such as the Cleitext Toolkit for Plesk. Each version is published once and never changes; /downloads/<product>/latest.json always describes the highest version.',
+    product: 'Product',
+    version: 'Version (e.g. 0.6.0-1)',
+    file: 'File (.zip)',
+    upload: 'Publish',
+    uploading: 'Publishing…',
+    published: 'Published.',
+    latest: 'Latest (manifest)',
+    downloads: 'downloads',
+    remove: 'Delete',
+    confirmRemove: 'Delete this version? Its address stops working.',
+    none: 'No public files yet.',
+  },
+  it: {
+    title: 'Download pubblici',
+    hint: 'File gratuiti che chiunque può scaricare, come il Cleitext Toolkit per Plesk. Ogni versione si pubblica una volta e non cambia più; /downloads/<prodotto>/latest.json descrive sempre la versione più alta.',
+    product: 'Prodotto',
+    version: 'Versione (es. 0.6.0-1)',
+    file: 'File (.zip)',
+    upload: 'Pubblica',
+    uploading: 'Pubblicazione…',
+    published: 'Pubblicato.',
+    latest: 'Ultima (manifest)',
+    downloads: 'download',
+    remove: 'Elimina',
+    confirmRemove: 'Eliminare questa versione? Il suo indirizzo smette di funzionare.',
+    none: 'Ancora nessun file pubblico.',
+  },
+};
+
+const sizeOf = (bytes: number) =>
+  bytes >= 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
+
+function PublicDownloads({
+  api,
+  locale,
+  products,
+}: {
+  api: AdminPageProps['api'];
+  locale: string;
+  products: Product[];
+}) {
+  const t = locale.startsWith('it') ? D.it : D.en;
+  const client = useQueryClient();
+  const list = useQuery({
+    queryKey: ['store', 'files'],
+    queryFn: () => api<PublicFile[]>('GET', '/admin/files'),
+  });
+  const [slug, setSlug] = useState('');
+  const [version, setVersion] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const publish = useMutation({
+    mutationFn: () =>
+      uploadFile(file!, {
+        path: `/ext/store/admin/products/${encodeURIComponent(slug)}/files?version=${encodeURIComponent(version.trim())}`,
+      }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['store', 'files'] }),
+  });
+  const remove = useMutation({
+    mutationFn: (f: PublicFile) =>
+      api(
+        'DELETE',
+        `/admin/products/${encodeURIComponent(f.productSlug)}/files/${encodeURIComponent(f.version)}`,
+      ),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['store', 'files'] }),
+  });
+  const origin = window.location.origin;
+  const slugs = [...new Set((list.data ?? []).map((f) => f.productSlug))];
+  return (
+    <Card title={t.title}>
+      <p className="mb-3 text-sm text-slate-600">{t.hint}</p>
+      {(list.error ?? publish.error ?? remove.error) && (
+        <Alert>{errorMessage(list.error ?? publish.error ?? remove.error)}</Alert>
+      )}
+      {publish.isSuccess && <p className="mb-2 text-sm text-emerald-700">{t.published}</p>}
+      <form
+        className="mb-4 grid gap-3 md:grid-cols-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (slug && version.trim() && file) publish.mutate();
+        }}
+      >
+        <label className="space-y-1 text-sm">
+          <span className="block font-medium">{t.product}</span>
+          <select
+            className={`${input} w-full`}
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+          >
+            <option value="" />
+            {products.map((p) => (
+              <option key={p.slug} value={p.slug}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <TextField label={t.version} value={version} onChange={(e) => setVersion(e.target.value)} />
+        <label className="space-y-1 text-sm">
+          <span className="block font-medium">{t.file}</span>
+          <input
+            type="file"
+            accept=".zip,application/zip"
+            className="block w-full text-sm"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+        </label>
+        <div className="flex items-end">
+          <Button type="submit" disabled={publish.isPending || !slug || !version.trim() || !file}>
+            {publish.isPending ? t.uploading : t.upload}
+          </Button>
+        </div>
+      </form>
+      {list.data?.length === 0 && <p className="text-sm text-slate-600">{t.none}</p>}
+      {slugs.map((s) => (
+        <p key={s} className="mb-2 text-sm">
+          {t.latest}:{' '}
+          <a
+            className="break-all text-sky-700 underline"
+            href={`${origin}/downloads/${s}/latest.json`}
+          >
+            {origin}/downloads/{s}/latest.json
+          </a>
+        </p>
+      ))}
+      <ul className="space-y-3 text-sm">
+        {list.data?.map((f) => (
+          <li key={`${f.productSlug}:${f.version}`} className="rounded border border-slate-200 p-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <strong>{f.productSlug}</strong> <code>{f.version}</code> · {sizeOf(f.size)} ·{' '}
+              {f.downloads} {t.downloads} · {new Date(f.createdAt).toLocaleDateString(locale)}
+              <Button
+                variant="danger"
+                onClick={() => {
+                  if (window.confirm(t.confirmRemove)) remove.mutate(f);
+                }}
+              >
+                {t.remove}
+              </Button>
+            </div>
+            <a
+              className="block break-all text-sky-700 underline"
+              href={`${origin}/downloads/${f.productSlug}/${f.filename}`}
+            >
+              {origin}/downloads/{f.productSlug}/{f.filename}
+            </a>
+            <code className="block break-all text-xs text-slate-600">SHA-256 {f.sha256}</code>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function StorePage({ api, user }: AdminPageProps) {
   const t = user.locale.startsWith('it') ? T.it : T.en;
   const locale = user.locale;
@@ -527,6 +695,8 @@ function StorePage({ api, user }: AdminPageProps) {
           </div>
         </form>
       </Card>
+
+      <PublicDownloads api={api} locale={locale} products={data?.products ?? []} />
 
       <Card title={t.licenses}>
         <form
@@ -813,6 +983,146 @@ function usageOf(rows: InstallRow[]): Usage[] {
 const byVersion = (a: string, b: string) =>
   b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
 
+interface ServerReportRow {
+  productSlug: string;
+  serverHash: string;
+  productVersion: string;
+  panel: string;
+  panelVersion: string;
+  installations: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+const P = {
+  en: {
+    title: 'Plesk servers (Cleitext Toolkit)',
+    hint: 'Servers whose administrator chose to send anonymous statistics from the Toolkit (off by default): a hash naming the server, the versions and how many Cleitext installations it manages. No domain, address or IP is kept.',
+    servers: 'servers',
+    installations: 'Cleitext installations',
+    byVersion: 'By Toolkit version',
+    byPanel: 'By Plesk version',
+    server: 'Server',
+    version: 'Toolkit',
+    panel: 'Panel',
+    firstSeen: 'First seen',
+    lastSeen: 'Last report',
+    none: 'No reports yet.',
+  },
+  it: {
+    title: 'Server Plesk (Cleitext Toolkit)',
+    hint: 'I server il cui amministratore ha scelto di inviare statistiche anonime dal Toolkit (spento di serie): un hash che identifica il server, le versioni e quante installazioni di Cleitext gestisce. Nessun dominio, indirizzo o IP viene conservato.',
+    servers: 'server',
+    installations: 'installazioni di Cleitext',
+    byVersion: 'Per versione del Toolkit',
+    byPanel: 'Per versione di Plesk',
+    server: 'Server',
+    version: 'Toolkit',
+    panel: 'Pannello',
+    firstSeen: 'Prima volta',
+    lastSeen: 'Ultimo invio',
+    none: 'Ancora nessun invio.',
+  },
+};
+
+function ServerReports({
+  api,
+  locale,
+  days,
+}: {
+  api: AdminPageProps['api'];
+  locale: string;
+  days: number;
+}) {
+  const t = locale.startsWith('it') ? P.it : P.en;
+  const rows = useQuery({
+    queryKey: ['store', 'server-reports', days],
+    queryFn: () => api<ServerReportRow[]>('GET', `/admin/server-reports?days=${days}`),
+  });
+  const data = rows.data ?? [];
+  const total = data.reduce((n, r) => n + r.installations, 0);
+  const group = (key: (r: ServerReportRow) => string) => {
+    const map = new Map<string, { servers: number; installations: number }>();
+    for (const r of data) {
+      const g = map.get(key(r)) ?? { servers: 0, installations: 0 };
+      g.servers++;
+      g.installations += r.installations;
+      map.set(key(r), g);
+    }
+    return [...map].sort((a, b) => b[1].servers - a[1].servers);
+  };
+  const breakdown = (title: string, groups: ReturnType<typeof group>) => (
+    <div>
+      <h3 className="mb-1 text-sm font-semibold">{title}</h3>
+      <ul className="space-y-0.5 text-sm">
+        {groups.map(([name, g]) => (
+          <li key={name}>
+            <code>{name}</code>: {g.servers} {t.servers}, {g.installations} {t.installations}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+  return (
+    <Card title={t.title}>
+      <p className="mb-3 text-sm text-slate-600">{t.hint}</p>
+      {rows.error && <Alert>{errorMessage(rows.error)}</Alert>}
+      {data.length === 0 ? (
+        <p className="text-sm text-slate-600">{t.none}</p>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-lg">
+            <strong>{data.length}</strong> {t.servers} · <strong>{total}</strong> {t.installations}
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {breakdown(
+              t.byVersion,
+              group((r) => r.productVersion),
+            )}
+            {breakdown(
+              t.byPanel,
+              group((r) => `${r.panel} ${r.panelVersion}`),
+            )}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="py-1 pr-3">{t.server}</th>
+                  <th className="py-1 pr-3">{t.version}</th>
+                  <th className="py-1 pr-3">{t.panel}</th>
+                  <th className="py-1 pr-3">Cleitext</th>
+                  <th className="py-1 pr-3">{t.firstSeen}</th>
+                  <th className="py-1">{t.lastSeen}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((r) => (
+                  <tr
+                    key={`${r.productSlug}:${r.serverHash}`}
+                    className="border-b border-slate-100"
+                  >
+                    <td className="py-1 pr-3 font-mono text-xs">{r.serverHash.slice(0, 8)}</td>
+                    <td className="py-1 pr-3 font-mono">{r.productVersion}</td>
+                    <td className="py-1 pr-3">
+                      {r.panel} <span className="font-mono">{r.panelVersion}</span>
+                    </td>
+                    <td className="py-1 pr-3">{r.installations}</td>
+                    <td className="py-1 pr-3">
+                      {new Date(r.firstSeenAt).toLocaleDateString(locale)}
+                    </td>
+                    <td className="py-1">{new Date(r.lastSeenAt).toLocaleString(locale)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function InstallationsPage({ api, user }: AdminPageProps) {
   const t = user.locale.startsWith('it') ? I.it : I.en;
   const locale = user.locale;
@@ -910,6 +1220,7 @@ function InstallationsPage({ api, user }: AdminPageProps) {
         <p className="text-sm text-slate-600">{t.intro}</p>
       </div>
       {rows.error && <Alert>{errorMessage(rows.error)}</Alert>}
+      <ServerReports api={api} locale={locale} days={days} />
       {forget.error && <Alert>{errorMessage(forget.error)}</Alert>}
       <div className="flex flex-wrap items-end gap-4">
         <label className="block space-y-1 text-sm">

@@ -1,4 +1,17 @@
-import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  customType,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => 'bytea',
+});
 
 export const products = pgTable('products', {
   siteId: uuid('site_id').notNull(),
@@ -73,6 +86,32 @@ export const installs = pgTable('installs', {
   themeVersion: text('theme_version'),
   plugins: jsonb('plugins').$type<ReportedPlugin[]>().notNull().default([]),
   themes: jsonb('themes').$type<{ slug: string; version: string }[]>().notNull().default([]),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Public downloads of a product, one per version. */
+export const files = pgTable('files', {
+  siteId: uuid('site_id').notNull(),
+  productSlug: text('product_slug').notNull(),
+  version: text('version').notNull(),
+  filename: text('filename').notNull(),
+  sha256: text('sha256').notNull(),
+  size: integer('size').notNull(),
+  data: bytea('data').notNull(),
+  downloads: integer('downloads').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Anonymous, opt-in reports of servers running a product (the Toolkit for Plesk). */
+export const serverReports = pgTable('server_reports', {
+  siteId: uuid('site_id').notNull(),
+  productSlug: text('product_slug').notNull(),
+  serverHash: text('server_hash').notNull(),
+  productVersion: text('product_version').notNull(),
+  panel: text('panel').notNull(),
+  panelVersion: text('panel_version').notNull(),
+  installations: integer('installations').notNull().default(0),
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
 });

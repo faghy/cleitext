@@ -484,6 +484,151 @@ describe('Store', () => {
     expect((await root.get(ext('/admin/installs'))).statusCode).toBe(404);
   });
 
+  it('publishes free files: immutable versions, a manifest of the highest, the bytes as uploaded', async () => {
+    // Public addresses of the shop, on its own host name.
+    const get = (url: string) =>
+      app.inject({ method: 'GET', url, headers: { host: shop.host }, remoteAddress: '10.90.0.7' });
+    const toolkit = await shopAdmin.request('PUT', ext('/admin/products/cleitext-toolkit'), {
+      name: 'Cleitext Toolkit',
+      updatesMonths: 12,
+      demo: false,
+    });
+    expect(toolkit.statusCode, toolkit.body).toBe(200);
+    const pack = (version: string) =>
+      Buffer.from(
+        zipSync({ 'meta.xml': strToU8(`<module><version>${version}</version></module>`) }),
+      );
+    const upload = (version: string, name: string, data: Buffer) =>
+      shopAdmin.upload(
+        ext(`/admin/products/cleitext-toolkit/files?version=${encodeURIComponent(version)}`),
+        name,
+        data,
+        'application/zip',
+      );
+    const v6 = pack('0.6.0');
+    const first = await upload('0.6.0-1', 'cleitext-toolkit-0.6.0-1.zip', v6);
+    expect(first.statusCode, first.body).toBe(200);
+    expect(first.json()).toMatchObject({
+      sha256: createHash('sha256').update(v6).digest('hex'),
+      size: v6.length,
+    });
+    // An older version uploaded later does not become the latest.
+    expect(
+      (await upload('0.5.1-1', 'cleitext-toolkit-0.5.1-1.zip', pack('0.5.1'))).statusCode,
+    ).toBe(200);
+    // Published files never change.
+    expect((await upload('0.6.0-1', 'other-name.zip', pack('x'))).statusCode).toBe(409);
+    expect((await upload('0.6.1-1', 'cleitext-toolkit-0.6.0-1.zip', pack('x'))).statusCode).toBe(
+      409,
+    );
+    expect(
+      (await upload('0.7.0-1', 'evil.zip', Buffer.from('<?php system($_GET[1]); ?>'.padEnd(64))))
+        .statusCode,
+    ).toBe(400);
+    expect((await upload('latest', 'a.zip', pack('x'))).statusCode).toBe(400);
+    expect(
+      (
+        await shopAdmin.upload(
+          ext('/admin/products/unknown/files?version=1.0.0'),
+          'a.zip',
+          pack('x'),
+        )
+      ).statusCode,
+    ).toBe(400);
+
+    const manifest = await get('/downloads/cleitext-toolkit/latest.json');
+    expect(manifest.statusCode, manifest.body).toBe(200);
+    expect(manifest.headers['cache-control']).toBe('public, max-age=300');
+    const latest = manifest.json() as Record<string, unknown>;
+    expect(latest).toMatchObject({
+      slug: 'cleitext-toolkit',
+      name: 'Cleitext Toolkit',
+      version: '0.6.0-1',
+      file: 'cleitext-toolkit-0.6.0-1.zip',
+      size: v6.length,
+      sha256: createHash('sha256').update(v6).digest('hex'),
+    });
+    expect(typeof latest.publishedAt).toBe('string');
+    // The site's own address (here the shop's primary host).
+    expect(latest.url).toMatch(
+      /^https?:\/\/[^/]+\/downloads\/cleitext-toolkit\/cleitext-toolkit-0\.6\.0-1\.zip$/,
+    );
+    const fileUrl = '/downloads/cleitext-toolkit/cleitext-toolkit-0.6.0-1.zip';
+
+    const file = await get(fileUrl);
+    expect(file.statusCode).toBe(200);
+    expect(file.headers['content-type']).toBe('application/zip');
+    expect(file.headers['content-disposition']).toContain('cleitext-toolkit-0.6.0-1.zip');
+    expect(createHash('sha256').update(file.rawPayload).digest('hex')).toBe(latest.sha256);
+    expect((await get('/downloads/cleitext-toolkit/nope.zip')).statusCode).toBe(404);
+    expect((await get('/downloads/vivid/latest.json')).statusCode).toBe(404);
+
+    const listed = (await shopAdmin.get(ext('/admin/files'))).json() as Record<string, unknown>[];
+    expect(listed).toHaveLength(2);
+    expect(listed.find((f) => f.version === '0.6.0-1')).toMatchObject({ downloads: 1 });
+    expect(JSON.stringify(listed)).not.toContain('"data"');
+
+    // Deleted: the previous version becomes the latest.
+    const removed = await shopAdmin.request(
+      'DELETE',
+      ext('/admin/products/cleitext-toolkit/files/0.6.0-1'),
+    );
+    expect(removed.statusCode).toBe(200);
+    const after = (await get('/downloads/cleitext-toolkit/latest.json')).json() as Record<
+      string,
+      unknown
+    >;
+    expect(after.version).toBe('0.5.1-1');
+    expect((await get(fileUrl)).statusCode).toBe(404);
+    expect((await root.get(ext('/admin/files'))).statusCode).toBe(404);
+  });
+
+  it('keeps anonymous server reports of the Toolkit, and forgets a server on request', async () => {
+    const server = createHash('sha256').update('a server').digest('hex');
+    const report = {
+      product: 'cleitext-toolkit',
+      server,
+      version: '0.6.0',
+      panel: 'plesk',
+      panelVersion: '18.0.81',
+      installations: 2,
+      domain: 'should-not-be-kept.example',
+    };
+    expect((await call('POST', '/server-report', report)).status).toBe(204);
+    expect((await call('POST', '/server-report', { ...report, installations: 5 })).status).toBe(
+      204,
+    );
+    expect(
+      (await call('POST', '/server-report', { ...report, server: 'b'.repeat(64) })).status,
+    ).toBe(204);
+    expect((await call('POST', '/server-report', { ...report, server: 'x' })).status).toBe(400);
+    expect((await call('POST', '/server-report', { ...report, product: 'nothing' })).status).toBe(
+      400,
+    );
+    const rows = (await shopAdmin.get(ext('/admin/server-reports'))).json() as Record<
+      string,
+      unknown
+    >[];
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.serverHash === server)).toMatchObject({
+      productSlug: 'cleitext-toolkit',
+      productVersion: '0.6.0',
+      panel: 'plesk',
+      panelVersion: '18.0.81',
+      installations: 5,
+    });
+    expect(JSON.stringify(rows)).not.toContain('should-not-be-kept');
+    expect(
+      (await call('POST', '/server-report', { product: 'cleitext-toolkit', server, forget: true }))
+        .status,
+    ).toBe(204);
+    const left = (await shopAdmin.get(ext('/admin/server-reports'))).json() as unknown[];
+    expect(left).toHaveLength(1);
+    expect((await root.get(ext('/admin/server-reports'))).statusCode).toBe(404);
+    const visitor = new TestClient(app, shop.host, '10.90.0.9');
+    expect((await visitor.get(ext('/admin/server-reports'))).statusCode).toBe(401);
+  });
+
   it('keeps the admin API for store managers only', async () => {
     expect((await root.get(ext('/admin/overview'))).statusCode).toBe(404);
     const visitor = new TestClient(app, shop.host, '10.90.0.9');
