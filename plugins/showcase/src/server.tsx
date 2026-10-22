@@ -19,6 +19,8 @@ interface Item {
   name: string;
   summary: Record<string, string>;
   tags: string[];
+  /** Plugins only: editor, tools, seo, analytics, shop… */
+  category?: string;
   icon: string | null;
   screenshots: string[];
   version: string;
@@ -44,6 +46,8 @@ interface Attrs {
   link?: string;
   /** Page slugs that differ from the catalog's: `shop=cleishop, …`. */
   aliases?: string;
+  /** Buttons above the list to show one category at a time. */
+  filters?: boolean;
 }
 
 /** The page of an item, when the block has a link pattern. */
@@ -57,6 +61,35 @@ function itemPage(attrs: Attrs, slug: string): string | null {
       .filter((pair): pair is [string, string] => pair.length === 2 && Boolean(pair[0] && pair[1])),
   );
   return pattern.replace('{slug}', encodeURIComponent(aliases.get(slug) ?? slug));
+}
+
+/** The category buttons, hidden until the script shows them. */
+function filterBar(items: Item[], it: boolean, t: (typeof TEXTS)['en']) {
+  const counts = new Map<string, number>();
+  for (const item of items) counts.set(filterKey(item), (counts.get(filterKey(item)) ?? 0) + 1);
+  if (counts.size < 2) return null;
+  const label = (key: string) =>
+    key === 'themes'
+      ? t.themes
+      : (CATEGORIES[key]?.[it ? 'it' : 'en'] ?? key.charAt(0).toUpperCase() + key.slice(1));
+  // Most items first; themes last.
+  const keys = [...counts.keys()].sort((a, b) =>
+    a === 'themes' ? 1 : b === 'themes' ? -1 : counts.get(b)! - counts.get(a)!,
+  );
+  return (
+    <div className="cx-catalog-filters" role="group" aria-label={t.filterBy} hidden>
+      <button type="button" data-filter="all" aria-pressed="true">
+        {t.all}
+        <span>{items.length}</span>
+      </button>
+      {keys.map((key) => (
+        <button key={key} type="button" data-filter={key} aria-pressed="false">
+          {label(key)}
+          <span>{counts.get(key)}</span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 const indexes = new Map<string, { items: Item[]; generatedAt: string; at: number }>();
@@ -114,6 +147,9 @@ const TEXTS = {
     empty: 'The catalog cannot be shown right now.',
     plugin: 'Plugin',
     theme: 'Theme',
+    all: 'All',
+    filterBy: 'Show',
+    themes: 'Themes',
   },
   it: {
     version: 'Versione',
@@ -130,8 +166,26 @@ const TEXTS = {
     empty: 'Il catalogo non è disponibile in questo momento.',
     plugin: 'Plugin',
     theme: 'Tema',
+    all: 'Tutti',
+    filterBy: 'Mostra',
+    themes: 'Temi',
   },
 };
+
+/** Names of the catalog's categories; others are shown as they are, capitalised. */
+const CATEGORIES: Record<string, { en: string; it: string }> = {
+  editor: { en: 'Editor and content', it: 'Editor e contenuti' },
+  tools: { en: 'Tools', it: 'Strumenti' },
+  seo: { en: 'SEO', it: 'SEO' },
+  analytics: { en: 'Analytics', it: 'Statistiche' },
+  shop: { en: 'Shop', it: 'Negozio' },
+};
+
+/** The filter key of an item: its category, or `themes` for themes. */
+const filterKey = (item: Item) => (item.type === 'theme' ? 'themes' : item.category || 'other');
+
+/** Shows the cards of the pressed category; without JavaScript every card stays visible. */
+const FILTER_SCRIPT = `document.querySelectorAll('.cx-catalog-filters').forEach(function(bar){var list=bar.nextElementSibling;bar.hidden=false;bar.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;bar.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});var k=b.getAttribute('data-filter');list.querySelectorAll(':scope>li').forEach(function(li){li.hidden=k!=='all'&&li.getAttribute('data-filter')!==k})})})`;
 
 const STYLE = `.cx-catalog{list-style:none;padding:0;display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fill,minmax(min(100%,19rem),1fr));margin:1.5rem 0;text-align:left}
 .cx-catalog__card{position:relative;display:flex;flex-direction:column;background:#fff;color:#1f2937;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06);transition:transform .15s,box-shadow .15s}
@@ -155,7 +209,13 @@ const STYLE = `.cx-catalog{list-style:none;padding:0;display:grid;gap:1.5rem;gri
 .cx-catalog__actions{position:relative;z-index:2;display:flex;gap:.5rem;flex-wrap:wrap}
 .cx-catalog__button{display:inline-block;padding:.55rem 1rem;border-radius:.5rem;font-weight:600;font-size:.9rem;text-decoration:none;border:2px solid #0f4c81;background:#0f4c81;color:#fff}
 .cx-catalog__button--plain{background:transparent;color:#0f4c81}
-.cx-catalog__button:hover{filter:brightness(1.1)}`;
+.cx-catalog__button:hover{filter:brightness(1.1)}
+.cx-catalog-filters{display:flex;flex-wrap:wrap;justify-content:center;gap:.5rem;margin:1.5rem 0 0}
+.cx-catalog-filters button{font:inherit;font-size:.9rem;font-weight:600;padding:.45rem 1rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#334155;cursor:pointer}
+.cx-catalog-filters button:hover{border-color:#0f4c81;color:#0f4c81}
+.cx-catalog-filters button[aria-pressed="true"]{background:#0f4c81;border-color:#0f4c81;color:#fff}
+.cx-catalog-filters button span{opacity:.7;font-weight:500;margin-left:.3rem}
+.cx-catalog>li[hidden]{display:none}`;
 
 export default definePlugin({
   setup(ctx) {
@@ -217,6 +277,16 @@ export default definePlugin({
             },
             maxLength: 500,
           },
+          {
+            name: 'filters',
+            type: 'boolean',
+            label: { en: 'Filter by category', it: 'Filtro per categorie' },
+            help: {
+              en: 'Buttons above the list to show one category at a time.',
+              it: 'Pulsanti sopra l’elenco per mostrare una categoria alla volta.',
+            },
+            default: false,
+          },
         ],
         async load(attrs, context) {
           context.tag(CACHE_TAG);
@@ -240,11 +310,16 @@ export default definePlugin({
           return (
             <>
               <style>{STYLE}</style>
+              {attrs.filters && filterBar(data, it, t)}
               <ul className="cx-catalog">
                 {data.map((item) => {
                   const page = itemPage(attrs, item.slug);
                   return (
-                    <li key={`${item.type}-${item.slug}`} className="cx-catalog__card">
+                    <li
+                      key={`${item.type}-${item.slug}`}
+                      className="cx-catalog__card"
+                      data-filter={filterKey(item)}
+                    >
                       {item.screenshots[0] && (
                         <img
                           className="cx-catalog__shot"
@@ -334,6 +409,7 @@ export default definePlugin({
                   );
                 })}
               </ul>
+              {attrs.filters && <script dangerouslySetInnerHTML={{ __html: FILTER_SCRIPT }} />}
             </>
           );
         },

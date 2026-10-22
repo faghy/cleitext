@@ -38,6 +38,7 @@ const ITEMS = [
     name: 'Privacy & GDPR',
     summary: { en: 'Cookie banner and policies.', it: 'Banner dei cookie e policy.' },
     tags: ['gdpr'],
+    category: 'tools',
     icon: 'https://example.com/privacy.svg',
     screenshots: [],
     version: '1.2.0',
@@ -148,7 +149,7 @@ afterAll(async () => {
   server?.close();
 });
 
-async function pageWith(kind: string, extra: Record<string, string> = {}) {
+async function pageWith(kind: string, extra: Record<string, string | boolean> = {}) {
   const created = (
     await admin.post('/api/v1/entries', {
       type: 'page',
@@ -196,5 +197,20 @@ describe('catalog showcase', () => {
     expect(html).toContain('href="https://store.example/vivid">Buy</a>');
     expect(html).toContain('then Live Preview');
     expect(html).not.toContain('download/vivid');
+  });
+
+  it('filters by category when asked, and only then', async () => {
+    const plain = await pageWith('all');
+    expect((await visitor.get(`/${plain.slug}`)).body).not.toContain('cx-catalog-filters"');
+    const page = await pageWith('all', { filters: true });
+    const html = (await visitor.get(`/${page.slug}`)).body;
+    expect(html).toMatch(
+      /<div class="cx-catalog-filters" role="group" aria-label="Show" hidden="">/,
+    );
+    expect(html).toContain('data-filter="all" aria-pressed="true">All<span>3</span>');
+    expect(html).toContain('data-filter="tools" aria-pressed="false">Tools<span>1</span>');
+    expect(html).toContain('data-filter="themes" aria-pressed="false">Themes<span>2</span>');
+    expect(html).toContain('class="cx-catalog__card" data-filter="tools"');
+    expect(html).toContain("querySelectorAll('.cx-catalog-filters')");
   });
 });
