@@ -9,6 +9,8 @@
 
 **CMS open source, multi-sito e multilingua, con sistema a plugin. Si usa come WordPress, ma non è costruito su WordPress.**
 
+**Aiuta Cleitext a crescere:** hai trovato un problema? [Segnalalo](https://github.com/faghy/cleitext/issues/new?template=bug_report.yml). Ti manca una funzione? [Chiedila](https://github.com/faghy/cleitext/issues/new?template=feature_request.yml). Ogni segnalazione viene letta e presa in carico. Se il progetto ti piace, **lascia una ⭐ stella** in alto in questa pagina: aiuta altre persone a trovarlo.
+
 > 🇬🇧 La versione di riferimento è quella inglese: [README.md](./README.md). Questa traduzione è secondaria e può essere meno aggiornata.
 >
 > Stato: **sviluppo iniziale**, tappe M0 (fondamenta), M1 (identità e siti), M2 (contenuti ed editor), M3 (sito pubblico) e M4 (plugin). Per ora è a uso interno; la distribuzione pubblica è prevista in seguito.

@@ -9,6 +9,8 @@
 
 **An open-source, multi-site, multilingual CMS with a plugin system. It works like WordPress, but it is not built on WordPress.**
 
+**Help Cleitext grow:** found a bug? [Report it](https://github.com/faghy/cleitext/issues/new?template=bug_report.yml). Missing a feature? [Ask for it](https://github.com/faghy/cleitext/issues/new?template=feature_request.yml). Every issue is read and taken care of. If you like the project, **leave a ⭐ star** at the top of this page: it helps others find it.
+
 > Status: **early development** — milestones M0 (foundations), M1 (identity and sites), M2 (content and editor), M3 (public site) and M4 (plugins). Currently intended for internal use, with a public release planned later.
 > License: **GPL-2.0-or-later** (same as WordPress) · 🇮🇹 [Leggi in italiano](./README.it.md)
 
