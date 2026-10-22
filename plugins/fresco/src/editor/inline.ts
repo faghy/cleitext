@@ -188,3 +188,22 @@ export function markInlineFields(
     }
   }
 }
+
+/**
+ * The text typed in a plain inline field, as written: `innerText` keeps the
+ * line breaks but applies `text-transform`, so a heading shown in capitals
+ * (Site settings → Typography, or its own style) would be saved in capitals.
+ */
+export function typedText(field: HTMLElement): string {
+  const doc = field.ownerDocument;
+  const style = doc.createElement('style');
+  style.textContent = '[data-fre-reading],[data-fre-reading] *{text-transform:none!important}';
+  doc.head.append(style);
+  field.setAttribute('data-fre-reading', '');
+  try {
+    return field.innerText;
+  } finally {
+    field.removeAttribute('data-fre-reading');
+    style.remove();
+  }
+}

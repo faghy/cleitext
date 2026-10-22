@@ -68,7 +68,12 @@ export async function editGlobal(store: Store, nodeId: string, title: string): P
   if (!node || !global) return;
   const content = contentNode(await global.provider.load(global.id));
   if (!content) return;
-  store.actions.beginGlobalEdit(nodeId, { id: global.id, title }, content);
+  // The widget's own name in the bar ("Editing the global widget “Footer CTA”"), not the element's.
+  const name = await global.provider
+    .list()
+    .then((list) => list.find((item) => item.id === global.id)?.title)
+    .catch(() => undefined);
+  store.actions.beginGlobalEdit(nodeId, { id: global.id, title: name || title }, content);
 }
 
 /** Saves the global widget being edited in place, and shows its element again. */

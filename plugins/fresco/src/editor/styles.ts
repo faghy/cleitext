@@ -514,6 +514,12 @@ button.fre-chip,.fre-chip button{border:0;background:none;padding:3px 9px;cursor
 .fre-root--dark{--fre-line:#3f444b;--fre-border:#4b5159;--fre-text:#c7cbd1;--fre-ink:#f1f2f3;--fre-muted:#9da5ae;--fre-hover:#30353b;--fre-bg:#26292c;--fre-accent-soft:#4a2a1c;color:var(--fre-ink);background:#1d2126;color-scheme:dark}
 .fre-root--dark .fre-panel,.fre-root--dark.fre-root--full .fre-panel,.fre-root--dark .fre-panel__head,.fre-root--dark .fre-searchbox,.fre-root--dark .fre-popup,.fre-root--dark .fre-popover,.fre-root--dark .fre-navw,.fre-root--dark .fre-menu,.fre-root--dark .fre-dropdown,.fre-root--dark .fre-finder,.fre-root--dark .fre-dialog,.fre-root--dark .fre-modal__box,.fre-root--dark .fre-shortcuts,.fre-root--dark .fre-fontpick__menu,.fre-root--dark .fre-devices__list{background:#26292c;color:var(--fre-ink)}
 .fre-root--dark .fre-panel__head{border-color:var(--fre-line)}
+.fre-root--dark .fre-panel__head h2{color:var(--fre-ink)}
+.fre-root--dark .fre-panel__headbtn{color:var(--fre-text)}
+.fre-root--dark .fre-panel__headbtn:hover{background:var(--fre-hover);color:#fff}
+.fre-root--dark .fre-site__back{background:#26292c;border-color:var(--fre-line)}
+.fre-root--dark .fre-site__back:hover{background:var(--fre-hover)}
+.fre-root--dark .fre-crumbs button{color:#fb923c}
 .fre-root--dark .fre-input,.fre-root--dark .fre-unit,.fre-root--dark .fre-rich__format,.fre-root--dark .fre-choose,.fre-root--dark .fre-choose button,.fre-root--dark .fre-states,.fre-root--dark .fre-states button,.fre-root--dark .fre-link,.fre-root--dark .fre-color__swatch,.fre-root--dark .fre-fontpick__value,.fre-root--dark .fre-chip,.fre-root--dark .fre-button,.fre-root--dark .fre-media__preview,.fre-root--dark .fre-repeater__item,.fre-root--dark .fre-history__item,.fre-root--dark .fre-history__rev,.fre-root--dark .fre-library__item,.fre-root--dark .fre-dialog input{background:#1f2124;border-color:var(--fre-border);color:var(--fre-ink)}
 .fre-root--dark .fre-choose button.is-on,.fre-root--dark .fre-button--primary{background:var(--fre-accent);color:#fff;border-color:var(--fre-accent)}
 .fre-root--dark .fre-states button.is-on,.fre-root--dark .fre-chip.is-on{background:var(--fre-accent-soft);color:#fdba74}

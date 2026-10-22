@@ -44,13 +44,15 @@ describe('theme style of the site settings', () => {
     expect(css).toContain('body{font-family:');
     expect(css).toContain('color:#333333');
     expect(css).toContain('body h2{font-family:var(--fr-t-secondary-family)');
-    expect(css).toContain('.fr-button__link{background-color:#111111;padding:10px 24px}');
+    // Stronger than fresco.css, which comes after the kit on the page.
+    expect(css).toContain('body .fr-button__link{background-color:#111111;padding:10px 24px}');
     expect(css).toContain(
       '.fr-button__link:hover,.fr-button__link:focus-visible{background-color:#222222}',
     );
     expect(css).toContain('.fr-image img:hover{opacity:0.5}');
     expect(css).toContain(':focus{border-color:#c2410c');
-    expect(css).toContain('.fr-lb{background:#000000}');
+    expect(css).toContain('body .fr-lb{background:#000000}');
+    expect(css).toContain('body .fr-lb .fr-lb__close,body .fr-lb .fr-lb__nav{color:#ffffff}');
   });
 
   it('is part of the kit and empty by default', () => {

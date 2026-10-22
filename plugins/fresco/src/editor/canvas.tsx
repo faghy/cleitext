@@ -56,9 +56,10 @@ import {
   inlineValue,
   markInlineFields,
   parseInlineKey,
+  typedText,
 } from './inline.js';
 import { formatShortcut } from './format-keys.js';
-import { BLOCK_FORMATS, currentBlock } from './rich-text.js';
+import { BLOCK_FORMATS, currentBlock, isListCommand, listCommand } from './rich-text.js';
 import { DEVICE_NAMES } from '../core/common.js';
 
 export interface CanvasApi {
@@ -91,6 +92,8 @@ export function previewLimits(
 
 const FRAME_STYLE = `
 [data-cx-editor-canvas],.fre-tree{display:contents}
+/* Embeds (videos, maps) take no clicks: a click selects their element, as in other builders. */
+.fr-e iframe{pointer-events:none}
 .fr-empty{display:flex;align-items:center;justify-content:center;min-height:80px;border:1px dashed #9da5ae;border-radius:3px;flex:1 1 auto;width:100%;cursor:pointer}
 .fr-empty::after{content:'+';display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#e6e8ea;font:400 20px/1 system-ui,sans-serif;color:#515962}
 .fr-empty:hover::after{background:#c2410c;color:#fff}
@@ -719,7 +722,7 @@ function FrameTree({
       if (!node || !definition || !key || !control) return;
       const rich = control.type === 'richtext';
       const read = () =>
-        rich ? sanitizeRich(field.innerHTML) : field.innerText.replace(/\n+$/, '');
+        rich ? sanitizeRich(field.innerHTML) : typedText(field).replace(/\n+$/, '');
       const current = () => {
         const now = find(store.get().blocks, id);
         if (!now) return undefined;
@@ -742,10 +745,15 @@ function FrameTree({
         if (change)
           store.actions.setSettings(change.id, change.changes, `inline:${field.dataset.frInline}`);
       };
+      let done = false;
       const finish = () => {
+        // A dialog of the formatting bar (the link's address) keeps the typing going.
+        if (done || field.hasAttribute(HOLD)) return;
+        done = true;
         field.removeEventListener('blur', finish);
         field.removeEventListener('keydown', keys);
         field.removeEventListener('input', write);
+        win?.removeEventListener('blur', finish);
         toolbar?.remove();
         write();
         field.removeAttribute('contenteditable');
@@ -777,6 +785,11 @@ function FrameTree({
       field.addEventListener('blur', finish);
       field.addEventListener('keydown', keys);
       field.addEventListener('input', write);
+      // The focus going to the panel ends the typing too: Firefox does not blur
+      // the text when the focus leaves the canvas, and the panel's changes would
+      // be mixed with the text typed.
+      const win = doc.defaultView;
+      win?.addEventListener('blur', finish);
     },
     [readOnly, store, doc],
   );
@@ -993,6 +1006,9 @@ function placeCaret(doc: Document, field: HTMLElement, point: { x: number; y: nu
 
 // ---- Formatting bar of rich texts edited in place ---------------------------------------------
 
+/** On a text being typed while a dialog of its formatting bar is open: the typing does not end. */
+const HOLD = 'data-fre-hold';
+
 const FORMATS: {
   command: string;
   title: string;
@@ -1103,14 +1119,17 @@ function formatBar(doc: Document, field: HTMLElement): HTMLElement {
     button.addEventListener('mousedown', (event) => event.preventDefault());
     button.addEventListener('click', () => {
       if (!format.value) {
-        doc.execCommand(format.command, false);
+        if (isListCommand(format.command)) listCommand(field, format.command);
+        else doc.execCommand(format.command, false);
         field.focus();
         return;
       }
-      // The dialog takes the focus: the selection is put back before applying.
+      // The dialog takes the focus: the typing goes on, the selection is put back before applying.
       const selection = doc.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+      field.setAttribute(HOLD, '');
       void format.value().then((value) => {
+        field.removeAttribute(HOLD);
         field.focus();
         if (range) {
           selection?.removeAllRanges();

@@ -870,7 +870,8 @@ export function themeCss(theme: ThemeStyle, context: ThemeCssContext = {}): stri
   }
   const link = theme.link;
   if (link) {
-    const selector = '.fr-e a:not(.fr-button__link)';
+    // Not buttons (they have their own colors), and no more specific than an element's own links.
+    const selector = '.fr-e a:not(:where(.fr-button__link))';
     rule(selector, typo(link));
     typoDevices(selector, link);
     rule(`${selector}:hover`, [link.hoverDecoration && `text-decoration:${link.hoverDecoration}`]);
@@ -880,7 +881,9 @@ export function themeCss(theme: ThemeStyle, context: ThemeCssContext = {}): stri
     const gradient = b.backgroundB
       ? gradientCss(b.background ?? 'transparent', b.backgroundB, b.angle)
       : null;
-    rule('.fr-button__link', [
+    // `body` outweighs fresco.css (loaded after the kit), not the button's own settings.
+    const button = 'body .fr-button__link';
+    rule(button, [
       ...font(b.font),
       b.color && `color:${safeColor(b.color)}`,
       b.background && `background-color:${safeColor(b.background)}`,
@@ -901,7 +904,7 @@ export function themeCss(theme: ThemeStyle, context: ThemeCssContext = {}): stri
       shadowCss(b.textShadow) && `text-shadow:${shadowCss(b.textShadow)}`,
       b.transition !== undefined && `transition:all ${b.transition}s`,
     ]);
-    typoDevices('.fr-button__link', b);
+    typoDevices(button, b);
     rule('.fr-button__link:hover,.fr-button__link:focus-visible', [
       b.hoverColor && `color:${safeColor(b.hoverColor)}`,
       b.hoverBackground && `background-color:${safeColor(b.hoverBackground)}`,
@@ -917,7 +920,7 @@ export function themeCss(theme: ThemeStyle, context: ThemeCssContext = {}): stri
       KitDevice,
       { y?: SizeValue; x?: SizeValue },
     ][]) {
-      deviceRule(device, '.fr-button__link', [
+      deviceRule(device, button, [
         (length(v.y) || length(v.x)) &&
           `padding:${length(v.y) ?? length(b.paddingY) ?? '12px'} ${length(v.x) ?? length(b.paddingX) ?? '24px'}`,
       ]);
@@ -992,18 +995,21 @@ export function themeCss(theme: ThemeStyle, context: ThemeCssContext = {}): stri
   }
   const lb = theme.lightbox;
   if (lb) {
-    rule('.fr-lb', [lb.background && `background:${safeColor(lb.background)}`]);
-    rule('.fr-lb__close,.fr-lb__nav', [lb.uiColor && `color:${safeColor(lb.uiColor)}`]);
+    // `body .fr-lb …` outweighs fresco.css (`.fr-lb`, `.fr-lb button`, `.fr-lb .fr-lb__tool`),
+    // which is loaded after the kit.
+    const lbx = (...names: string[]) => names.map((n) => `body .fr-lb ${n}`).join(',');
+    rule('body .fr-lb', [lb.background && `background:${safeColor(lb.background)}`]);
+    rule(lbx('.fr-lb__close', '.fr-lb__nav'), [lb.uiColor && `color:${safeColor(lb.uiColor)}`]);
     // Fresco 2.3.
     const tools = lb.fullscreen || lb.zoom || lb.download;
-    rule('.fr-lb__tool', [tools && lb.uiColor && `color:${lb.uiColor}`]);
-    rule('.fr-lb__close:hover,.fr-lb__nav:hover,.fr-lb__tool:hover', [
+    rule(lbx('.fr-lb__tool'), [tools && lb.uiColor && `color:${lb.uiColor}`]);
+    rule(lbx('.fr-lb__close:hover', '.fr-lb__nav:hover', '.fr-lb__tool:hover'), [
       lb.uiHoverColor && `color:${lb.uiHoverColor}`,
     ]);
-    rule('.fr-lb figcaption,.fr-lb__counter', [lb.textColor && `color:${lb.textColor}`]);
-    rule('.fr-lb__tool', [lb.iconSize !== undefined && `font-size:${lb.iconSize}px`]);
-    rule('.fr-lb__close', [lb.closeSize !== undefined && `font-size:${lb.closeSize}px`]);
-    rule('.fr-lb__nav', [lb.navSize !== undefined && `font-size:${lb.navSize}px`]);
+    rule(lbx('figcaption', '.fr-lb__counter'), [lb.textColor && `color:${lb.textColor}`]);
+    rule(lbx('.fr-lb__tool'), [lb.iconSize !== undefined && `font-size:${lb.iconSize}px`]);
+    rule(lbx('.fr-lb__close'), [lb.closeSize !== undefined && `font-size:${lb.closeSize}px`]);
+    rule(lbx('.fr-lb__nav'), [lb.navSize !== undefined && `font-size:${lb.navSize}px`]);
     // What the page's script reads (on/off as 1/0).
     const flag = (name: string, v: boolean | undefined) =>
       v !== undefined && `--fr-lb-${name}:${v ? 1 : 0}`;
@@ -1114,9 +1120,11 @@ export function kitCss(kit: Kit): string {
   const s = kit.style;
   const scoped: string[] = [];
   if (s.text && safeColor(s.text)) scoped.push(`.fr-e{color:${safeColor(s.text)}}`);
-  if (s.link && safeColor(s.link)) scoped.push(`.fr-e a{color:${safeColor(s.link)}}`);
+  // Links, but not buttons: the colors of Site settings → Buttons (or the default white) stay theirs.
+  const links = '.fr-e a:not(:where(.fr-button__link))';
+  if (s.link && safeColor(s.link)) scoped.push(`${links}{color:${safeColor(s.link)}}`);
   if (s.linkHover && safeColor(s.linkHover))
-    scoped.push(`.fr-e a:hover{color:${safeColor(s.linkHover)}}`);
+    scoped.push(`${links}:hover{color:${safeColor(s.linkHover)}}`);
   if (s.background && safeColor(s.background))
     scoped.push(`body.fr-page{background-color:${safeColor(s.background)}}`);
   css += scoped.join('');

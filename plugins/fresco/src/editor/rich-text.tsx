@@ -43,6 +43,78 @@ export function imageHtml(item: Pick<EditorMedia, 'url' | 'alt' | 'width' | 'hei
   return `<img src="${attr(item.url)}" alt="${attr(item.alt ?? '')}"${size}>`;
 }
 
+export const isListCommand = (name: string) =>
+  name === 'insertUnorderedList' || name === 'insertOrderedList';
+
+/**
+ * A bulleted or numbered list from the selection in `root`. Browsers put the
+ * new list inside the paragraph (`<p><ul>`, not valid HTML) and the caret at
+ * its start: the list takes the paragraph's place, the caret goes back where it was.
+ */
+export function listCommand(root: HTMLElement, name: string): void {
+  const caret = saveCaret(root);
+  root.ownerDocument.execCommand(name, false);
+  unwrapLists(root);
+  if (caret) restoreCaret(root, caret);
+}
+
+/** Lists the browser left inside a paragraph (`<p><ul>…</ul></p>`) take the paragraph's place. */
+export function unwrapLists(root: HTMLElement): void {
+  for (const list of root.querySelectorAll('p > ul, p > ol')) {
+    const p = list.parentElement!;
+    const alone = [...p.childNodes].every(
+      (n) => n === list || n.nodeName === 'BR' || (n.nodeType === 3 && !n.textContent?.trim()),
+    );
+    if (alone) p.replaceWith(list);
+  }
+}
+
+interface Caret {
+  start: number;
+  end: number;
+  /** At the start of a text: it stays there, not at the end of the text before. */
+  startsNode: boolean;
+}
+
+/** The selection in `root` as offsets in its text (they survive the nodes being replaced). */
+function saveCaret(root: HTMLElement): Caret | null {
+  const selection = root.ownerDocument.getSelection();
+  if (!selection?.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.startContainer)) return null;
+  const offset = (node: Node, at: number) => {
+    const r = root.ownerDocument.createRange();
+    r.setStart(root, 0);
+    r.setEnd(node, at);
+    return r.toString().length;
+  };
+  return {
+    start: offset(range.startContainer, range.startOffset),
+    end: offset(range.endContainer, range.endOffset),
+    startsNode: range.startOffset === 0,
+  };
+}
+
+function restoreCaret(root: HTMLElement, caret: Caret): void {
+  const doc = root.ownerDocument;
+  const point = (n: number, next: boolean): [Node, number] => {
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let last: Text | null = null;
+    for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+      last = node;
+      if (n < node.length || (n === node.length && !next)) return [node, n];
+      n -= node.length;
+    }
+    return last ? [last, last.length] : [root, 0];
+  };
+  const range = doc.createRange();
+  range.setStart(...point(caret.start, caret.startsNode));
+  range.setEnd(...point(caret.end, caret.startsNode && caret.end === caret.start));
+  const selection = doc.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
 const ICONS = {
   bold: 'M7 5h6a3.5 3.5 0 0 1 0 7H7z M7 12h7a3.5 3.5 0 0 1 0 7H7z',
   italic: 'M11 5h6 M7 19h6 M14 5l-4 14',
@@ -101,7 +173,8 @@ export function RichText({
     ref.current?.focus();
     // Alignments as styles (kept by the page), not `align` attributes.
     document.execCommand('styleWithCSS', false, name.startsWith('justify') ? 'true' : 'false');
-    document.execCommand(name, false, argument);
+    if (ref.current && isListCommand(name)) listCommand(ref.current, name);
+    else document.execCommand(name, false, argument);
     changed();
     setBlock(currentBlock(document));
   };
@@ -119,6 +192,8 @@ export function RichText({
       selection.removeAllRanges();
       selection.addRange(saved.current);
     }
+    // Used once: a later change starts from where the caret is then.
+    saved.current = null;
   };
   const button = (title: string, path: string, run: () => void) => (
     <button
@@ -142,6 +217,7 @@ export function RichText({
           value={BLOCK_FORMATS.some((f) => f.tag === block) ? block : 'p'}
           disabled={readOnly || source}
           onMouseDown={keep}
+          onFocus={keep}
           onChange={(e) => {
             restore();
             command('formatBlock', `<${e.target.value}>`);
@@ -180,9 +256,9 @@ export function RichText({
             {button('Link', ICONS.link, () => {
               keep();
               void askText({ title: t('Link address'), value: 'https://' }).then((url) => {
-                if (!url) return;
+                // Also when cancelled: the caret goes back where it was.
                 restore();
-                command('createLink', url);
+                if (url) command('createLink', url);
               });
             })}
             {button('Remove link', ICONS.unlink, () => command('unlink'))}
@@ -239,7 +315,10 @@ export function RichText({
         <MediaPicker
           env={{ media } as ControlEnv}
           kind="image"
-          onClose={() => setPicking(false)}
+          onClose={() => {
+            setPicking(false);
+            restore();
+          }}
           onPick={(items) => {
             setPicking(false);
             const item = items[0];

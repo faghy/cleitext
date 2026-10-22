@@ -127,10 +127,22 @@ describe('theme style', () => {
     );
     expect(css).toContain('body h2{text-transform:uppercase;line-height:1.1;letter-spacing:2px}');
     expect(css).toContain('.fr-e p{margin-block-end:1em}');
-    expect(css).toContain('.fr-e a:not(.fr-button__link){font-weight:600;text-decoration:none}');
-    expect(css).toContain('.fr-e a:not(.fr-button__link):hover{text-decoration:underline}');
+    expect(css).toContain('.fr-e a:not(:where(.fr-button__link)){font-weight:600;text-decoration:none}');
+    expect(css).toContain('.fr-e a:not(:where(.fr-button__link)):hover{text-decoration:underline}');
     expect(css).toContain('@media (max-width:1024px){body h2{font-size:30px}}');
     expect(css).toContain('@media (max-width:767px){.fr-e p{margin-block-end:8px}}');
+  });
+
+  it('colors links but not buttons, which keep the colors of Site settings → Buttons', () => {
+    const css = kitCss(
+      normalizeKit({
+        style: { link: '#ff0000', linkHover: '#00aa00' },
+        theme: { button: { color: '#ffffff' } },
+      }),
+    );
+    expect(css).toContain('.fr-e a:not(:where(.fr-button__link)){color:#ff0000}');
+    expect(css).toContain('.fr-e a:not(:where(.fr-button__link)):hover{color:#00aa00}');
+    expect(css).not.toMatch(/\.fr-e a(:hover)?\{/);
   });
 
   it('gives a global font all its values to a text only with fontAll', () => {
@@ -175,7 +187,7 @@ describe('theme style', () => {
     expect(css).toContain('text-shadow:1px 1px 0px 0px #000000');
     expect(css).toContain('transition:all 0.3s');
     expect(css).toContain('background-image:none;border-color:#ff0000');
-    expect(css).toContain('@media (max-width:767px){.fr-button__link{padding:8px 24px}}');
+    expect(css).toContain('@media (max-width:767px){body .fr-button__link{padding:8px 24px}}');
   });
 
   it('writes images, form fields with labels, and the lightbox options', () => {
@@ -199,7 +211,7 @@ describe('theme style', () => {
     expect(css).toContain(
       ':root{--fr-lb-images:0;--fr-lb-counter:1;--fr-lb-zoom:1;--fr-lb-caption:alt}',
     );
-    expect(css).toContain('.fr-lb__tool{color:#ffffff}');
+    expect(css).toContain('body .fr-lb .fr-lb__tool{color:#ffffff}');
   });
 
   it('writes the page background and keeps unsafe images out', () => {
