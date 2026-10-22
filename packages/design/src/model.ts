@@ -273,6 +273,19 @@ export interface Control {
   accept?: 'image' | 'video' | 'svg';
   /** Not in the panel's text: kept out of the page's CSS rules. */
   noCss?: boolean;
+  /**
+   * Values written as other CSS in `{{value}}`, e.g. `{ start: '-99999' }`, or
+   * `{ grow: 'flex-grow: 1; flex-shrink: 0' }` with the selector `{{value}}`.
+   * `''` writes nothing. Keys are the values as text (`true` for a switch).
+   */
+  dictionary?: Record<string, string>;
+  /**
+   * `text` values matching this pattern (a regular expression's source,
+   * matched whole) are written as they are, e.g. a grid template
+   * `1fr 2fr` or `repeat(auto-fill, minmax(200px, 1fr))`. Quotes,
+   * semicolons, braces and backslashes are never let through.
+   */
+  pattern?: string;
 }
 
 /** Group controls (typography, background…) expand into several settings with a prefix. */

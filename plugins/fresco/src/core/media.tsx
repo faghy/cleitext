@@ -18,6 +18,20 @@ export function mediaIds(...values: unknown[]): string[] {
 
 const SAFE_SRC = /^(https?:\/\/|\/(?!\/))[^\s"'<>]*$/i;
 
+/**
+ * The address of an image for a CSS background: its `large` variant when the
+ * library has one (WebP first), else the file. Null when it is not safe to use.
+ */
+export function mediaUrl(value: unknown, context: RenderContext, size = 'large'): string | null {
+  if (!isMedia(value)) return null;
+  const item = value.id ? context.media.get(value.id) : undefined;
+  const variant = item?.variants
+    .filter((v) => v.variant === size)
+    .sort((a, b) => (a.format === 'webp' ? -1 : 1) - (b.format === 'webp' ? -1 : 1))[0];
+  const url = variant?.url ?? item?.url ?? value.url;
+  return SAFE_SRC.test(url) ? url : null;
+}
+
 /** Sizes offered by the image controls, by their widest variant. */
 export const IMAGE_SIZES = [
   { value: 'thumb', label: 'Thumbnail' },

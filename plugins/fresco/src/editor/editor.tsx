@@ -26,6 +26,7 @@ import { NavigatorWindow } from './navigator.js';
 import { Finder, ShortcutsDialog } from './finder.js';
 import { askText, confirmAction, Dialogs, notify } from './dialogs.js';
 import './i18n.js';
+import { nextDevice } from './frame-css.js';
 
 const VIEWS: { view: PanelView; title: string; icon: string }[] = [
   {
@@ -215,7 +216,8 @@ export function FrescoEditor(props: EditorProps) {
         store.actions.setView('page');
       } else if (primary && event.shiftKey && event.key.toLowerCase() === 'm') {
         event.preventDefault();
-        store.actions.setDevice(state.device === 'desktop' ? 'tablet' : 'desktop');
+        // Every active device in turn, as in the top bar.
+        store.actions.setDevice(nextDevice(state.device, state.kit.breakpoints));
       } else if (primary && !event.shiftKey && event.key.toLowerCase() === 'p') {
         event.preventDefault();
         setPanelHidden((h) => !h);
@@ -459,6 +461,8 @@ export function FrescoEditor(props: EditorProps) {
               context={{ media: mediaMap, locale: props.entry.locale, menus }}
               onContextMenu={(id, position) => setMenu({ id, ...position })}
               api={canvas}
+              title={host.title}
+              saved={!host.dirty && !host.busy}
             />
           </main>
           {/* Floating over the canvas, or docked to the right edge beside it. */}

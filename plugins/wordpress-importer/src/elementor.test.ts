@@ -261,6 +261,150 @@ describe('Elementor pages to Fresco', () => {
     expect(block.attrs._border_style).toBeUndefined();
   });
 
+  it('converts flex and grid items, transforms, hover borders and masks', () => {
+    const { block, warnings } = one({
+      widgetType: 'heading',
+      settings: {
+        title: 'T',
+        _flex_order: 'custom',
+        _flex_order_custom: 3,
+        _flex_size: 'custom',
+        _flex_grow: 2,
+        _flex_shrink: 0,
+        _flex_size_mobile: 'grow',
+        _flex_basis_type: 'custom',
+        _flex_basis: { unit: '%', size: 30 },
+        _grid_column: '2',
+        _grid_row: 'custom',
+        _grid_row_custom: '1 / 3',
+        _transform_rotate_popover: 'transform',
+        _transform_rotateZ_effect: { unit: 'deg', size: 10 },
+        _transform_rotateZ_effect_tablet: { unit: 'deg', size: 5 },
+        _transform_rotate_3d: 'yes',
+        _transform_rotateX_effect: { unit: 'deg', size: 20 },
+        _transform_perspective_effect: { unit: 'px', size: 400 },
+        _transform_translate_popover_hover: 'transform',
+        _transform_translateY_effect_hover: { unit: 'px', size: -8 },
+        _transform_scale_popover: 'transform',
+        _transform_scale_effect: { unit: 'px', size: 1.1 },
+        _transform_scale_popover_hover: 'transform',
+        _transform_keep_proportions_hover: '',
+        _transform_scaleX_effect_hover: { unit: 'px', size: 1.3 },
+        _transform_skew_popover: '',
+        _transform_skewX_effect: { unit: 'deg', size: 30 },
+        _transform_flipX_effect_hover: 'transform',
+        _transform_transition_hover: { unit: 'ms', size: 600 },
+        motion_fx_transform_x_anchor_point: 'left',
+        _border_hover_border: 'solid',
+        _border_hover_width: { unit: 'px', top: 2, right: 2, bottom: 2, left: 2 },
+        _border_hover_color: '#ff0000',
+        _border_radius_hover: { unit: 'px', top: 8, right: 8, bottom: 8, left: 8 },
+        _box_shadow_hover_box_shadow_type: 'yes',
+        _box_shadow_hover_box_shadow: { horizontal: 0, vertical: 8, blur: 20, spread: 0 },
+        _border_hover_transition: { unit: 'px', size: 0.4 },
+        _background_hover_transition: { unit: 'px', size: 0.3 },
+        _mask_switch: 'yes',
+        _mask_shape: 'blob',
+        _mask_size: 'custom',
+        _mask_size_scale: { unit: '%', size: 80 },
+        _mask_position: 'top left',
+        _mask_repeat: 'repeat-x',
+      },
+    });
+    expect(block.attrs).toMatchObject({
+      _flex_order: 'custom',
+      _order: 3,
+      _flex_size: 'custom',
+      _flex_grow: 2,
+      _flex_shrink: 0,
+      '_flex_size@mobile': 'grow',
+      _flex_basis_type: 'custom',
+      _flex_basis: { size: 30, unit: '%' },
+      _grid_column: '2',
+      _grid_row: 'custom',
+      _grid_row_custom: '1 / 3',
+      _transform_rotate_popover: true,
+      _transform_rotateZ_effect: { size: 10, unit: 'deg' },
+      '_transform_rotateZ_effect@tablet': { size: 5, unit: 'deg' },
+      _transform_rotate_3d: true,
+      _transform_rotateX_effect: { size: 20, unit: 'deg' },
+      _transform_perspective_effect: { size: 400, unit: 'px' },
+      _transform_translate_popover: true,
+      '_transform_translateY_effect:hover': { size: -8, unit: 'px' },
+      _transform_scale_popover: true,
+      // The hover state scales X and Y apart: the normal scale goes to both.
+      _transform_scale_separate: true,
+      _transform_scaleX_effect: { size: 1.1, unit: '' },
+      _transform_scaleY_effect: { size: 1.1, unit: '' },
+      '_transform_scaleX_effect:hover': { size: 1.3, unit: '' },
+      '_transform_flipX_effect:hover': true,
+      _transform_transition_hover: { size: 600, unit: 'ms' },
+      _transform_origin_x: 'left',
+      _border_hover_style: 'solid',
+      _border_hover_width: { top: 2, right: 2, bottom: 2, left: 2, unit: 'px' },
+      _border_hover_color: '#ff0000',
+      _border_hover_radius: { top: 8, right: 8, bottom: 8, left: 8, unit: 'px' },
+      _shadow_hover: { x: 0, y: 8, blur: 20, spread: 0 },
+      _border_hover_transition: { size: 0.4, unit: 's' },
+      _background_hover_transition: { size: 0.3, unit: 's' },
+      _mask_switch: true,
+      _mask_shape: 'blob',
+      _mask_size: 'custom',
+      _mask_size_scale: { size: 80, unit: '%' },
+      _mask_position: 'top left',
+      _mask_repeat: 'repeat-x',
+    });
+    // Skew is off in Elementor: its leftover value stays out. No custom CSS for flex items.
+    expect(block.attrs._transform_skew_popover).toBeUndefined();
+    expect(block.attrs._transform_skewX_effect).toBeUndefined();
+    expect(block.attrs._transform_scale_effect).toBeUndefined();
+    expect(block.attrs._custom_css).toBeUndefined();
+    expect(warnings).toEqual([]);
+  });
+
+  it('converts grid containers: templates, content alignment, gaps; hover borders of containers', () => {
+    const { block } = container({
+      container_type: 'grid',
+      grid_columns_grid: { unit: 'custom', size: '1fr 2fr' },
+      grid_columns_grid_mobile: { unit: 'fr', size: 1 },
+      grid_rows_grid: { unit: 'custom', size: 'auto 200px' },
+      grid_justify_content: 'center',
+      grid_align_content: 'space-between',
+      grid_gaps: { unit: 'px', column: '20', row: '40', isLinked: false },
+      border_hover_border: 'dashed',
+      border_hover_color: '#00ff00',
+      border_radius_hover: { unit: 'px', top: 4, right: 4, bottom: 4, left: 4 },
+      border_hover_transition: { unit: 'px', size: 0.5 },
+      background_hover_transition: { unit: 'px', size: 1 },
+      _transform_flipY_effect: 'transform',
+      overflow: 'auto',
+    });
+    expect(block.attrs).toMatchObject({
+      container_type: 'grid',
+      overflow: 'auto',
+      grid_columns_custom: '1fr 2fr',
+      grid_columns: 2,
+      'grid_columns@mobile': 1,
+      grid_rows_custom: 'auto 200px',
+      grid_justify_content: 'center',
+      grid_align_content: 'space-between',
+      gap: { size: 20, unit: 'px' },
+      row_gap: { size: 40, unit: 'px' },
+      border_hover_style: 'dashed',
+      border_hover_color: '#00ff00',
+      border_hover_radius: { top: 4, right: 4, bottom: 4, left: 4, unit: 'px' },
+      border_hover_transition: { size: 0.5, unit: 's' },
+      background_hover_transition: { size: 1, unit: 's' },
+      _transform_flipY_effect: true,
+    });
+    const wrapped = container({
+      flex_direction: 'row',
+      flex_wrap: 'wrap',
+      flex_align_content: 'space-around',
+    });
+    expect(wrapped.block.attrs.align_content).toBe('space-around');
+  });
+
   it('converts the Advanced tab: width, position, animation, shadow, motion, sticky, CSS', () => {
     const { block, warnings } = one({
       widgetType: 'heading',
@@ -316,11 +460,11 @@ describe('Elementor pages to Fresco', () => {
       _width: 'custom',
       _width_custom: { size: 50, unit: '%' },
       _align_self: 'center',
-      _order: -99999,
+      _flex_order: 'start',
       _position: 'absolute',
       _offset_right: { size: 20, unit: 'px' },
       _offset_top: { size: 10, unit: 'px' },
-      _animation: 'zoom-in',
+      _animation: 'zoom-in-left',
       _animation_delay: 300,
       _animation_duration: 'slow',
       _shadow: { x: 0, y: 4, blur: 12, spread: 0, color: 'rgba(0,0,0,0.2)' },
@@ -382,19 +526,45 @@ describe('Elementor pages to Fresco', () => {
       background_hover_color: 'var(--fr-c-secondary)',
     });
     // A different row gap, and the centering of a narrower top container.
-    expect(block.attrs._custom_css).toContain('row-gap:10px');
+    expect(block.attrs.row_gap).toEqual({ size: 10, unit: 'px' });
+    expect(block.attrs._custom_css).not.toContain('row-gap');
     expect(block.attrs._custom_css).toContain('margin-left:auto');
     expect(warnings).toEqual([]);
 
     const slideshow = container({
       background_background: 'slideshow',
-      background_slideshow_gallery: [{ id: 12, url: 'https://old.test/wp-content/uploads/a.jpg' }],
+      background_slideshow_gallery: [
+        { id: 12, url: 'https://old.test/wp-content/uploads/a.jpg' },
+        { id: 13, url: 'https://old.test/wp-content/uploads/b.jpg' },
+      ],
+      background_slideshow_loop: '',
+      background_slideshow_slide_duration: 4000,
+      background_slideshow_slide_transition: 'slide_left',
+      background_slideshow_transition_duration: 800,
+      background_slideshow_background_size: 'contain',
+      background_slideshow_background_position: 'top center',
+      background_slideshow_ken_burns: 'yes',
+      background_slideshow_ken_burns_zoom_direction: 'out',
+      background_slideshow_lazyload: 'yes',
     });
     expect(slideshow.block.attrs).toMatchObject({
-      background_type: 'classic',
-      background_image: { id: 'att:12' },
+      // An image of another site stays an address.
+      background_slideshow_gallery: [
+        { id: 'att:12' },
+        { id: null, url: 'https://old.test/wp-content/uploads/b.jpg' },
+      ],
+      background_slideshow_loop: 'no',
+      background_slideshow_slide_duration: 4000,
+      background_slideshow_slide_transition: 'slide_left',
+      background_slideshow_transition_duration: 800,
+      background_slideshow_background_size: 'contain',
+      background_slideshow_background_position: 'top center',
+      background_slideshow_ken_burns: true,
+      background_slideshow_ken_burns_zoom_direction: 'out',
+      background_slideshow_lazyload: true,
     });
-    expect(slideshow.warnings.join('\n')).toContain('slideshows show their first image');
+    expect(slideshow.block.attrs.background_type).toBeUndefined();
+    expect(slideshow.warnings).toEqual([]);
   });
 
   it('converts gradient overlays, shape dividers and column margins as Elementor draws them', () => {
@@ -436,9 +606,20 @@ describe('Elementor pages to Fresco', () => {
       background_image: { id: 'att:12' },
     });
     expect(youtube.warnings).toEqual([]);
-    const other = container({ shape_divider_top: 'book' });
-    expect(other.block.attrs.shape_top).toBeUndefined();
-    expect(other.warnings.join('\n')).toContain('shape dividers "book" were not imported');
+    const other = container({
+      shape_divider_top: 'book',
+      shape_divider_top_negative: 'yes',
+      shape_divider_bottom: 'opacity-fan',
+    });
+    expect(other.block.attrs).toMatchObject({
+      shape_top: 'book',
+      shape_top_negative: true,
+      shape_bottom: 'opacity-fan',
+    });
+    expect(other.warnings).toEqual([]);
+    const unknown = container({ shape_divider_top: 'stars' });
+    expect(unknown.block.attrs.shape_top).toBeUndefined();
+    expect(unknown.warnings.join('\n')).toContain('shape dividers "stars" were not imported');
 
     // A column's margin is inside it (Elementor): the column keeps its width.
     const warnings2: string[] = [];

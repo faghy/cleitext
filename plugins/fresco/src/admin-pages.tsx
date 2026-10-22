@@ -24,6 +24,7 @@ import {
 import type { FrescoSystemInfo, ReplaceResult } from './tools.js';
 import './editor/i18n.js';
 import './admin-i18n.js';
+import './advanced-i18n.js';
 
 interface FrescoPage {
   id: string;

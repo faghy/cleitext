@@ -30,14 +30,24 @@ import {
 } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import { plainText, sanitizeRich } from '../core/sanitize.js';
-import { dropTarget, trackPointer, type Anchor, type DropTarget } from './dnd.js';
+import { dropTarget, trackPointer, type DropTarget } from './dnd.js';
 import { PluginBlockPreview } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
 import { buildStructure, FLEX_PRESETS, GRID_PRESETS, type Preset } from './structures.js';
-import { find, placeOf, type Place } from './tree.js';
+import { find, placeOf } from './tree.js';
 import { t } from '@cleitext/admin-sdk';
 import { askText } from './dialogs.js';
+import { documentKind } from './document-kind.js';
+import { CONTENT_ATTRIBUTE, editorKitCss, editorPageCss, hiddenOn } from './frame-css.js';
+import {
+  inlineChange,
+  inlineControl,
+  inlineValue,
+  markInlineFields,
+  parseInlineKey,
+} from './inline.js';
 import { formatShortcut } from './format-keys.js';
+import { DEVICE_NAMES } from '../core/common.js';
 
 export interface CanvasApi {
   frame: HTMLIFrameElement | null;
@@ -68,23 +78,16 @@ export function previewLimits(
 }
 
 const FRAME_STYLE = `
-.fre-tree{min-height:120px}
+[data-cx-editor-canvas],.fre-tree{display:contents}
 .fr-empty{display:flex;align-items:center;justify-content:center;min-height:80px;border:1px dashed #9da5ae;border-radius:3px;flex:1 1 auto;width:100%;cursor:pointer}
 .fr-empty::after{content:'+';display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#e6e8ea;font:400 20px/1 system-ui,sans-serif;color:#515962}
 .fr-empty:hover::after{background:#c2410c;color:#fff}
 .fre-overlay{position:absolute;left:0;top:0;width:0;height:0;z-index:2147483000;font:13px/1 system-ui,sans-serif}
 .fre-outline{position:absolute;pointer-events:none;outline-offset:-1px}
-.fre-placeholder{box-sizing:border-box;flex:0 0 auto;align-self:stretch;border:2px dashed #c2410c;border-radius:3px;background:rgba(194,65,12,.07);pointer-events:none;overflow:hidden}
-.fre-placeholder--column{width:100%;height:56px;animation:fre-open-v .18s ease-out}
-.fre-placeholder--row{width:72px;min-height:48px;animation:fre-open-h .18s ease-out}
-.fre-placeholder.is-leaving{animation:none;transition:height .15s ease-in,width .15s ease-in,opacity .15s;opacity:0}
-.fre-placeholder--column.is-leaving{height:0;border-width:0}
-.fre-placeholder--row.is-leaving{width:0;border-width:0}
-@keyframes fre-open-v{from{height:0;opacity:0}}
-@keyframes fre-open-h{from{width:0;opacity:0}}
 .fre-drag-source{opacity:.35}
-.fre-dropline{position:absolute;background:#c2410c;border-radius:3px;box-shadow:0 0 0 2px rgba(255,255,255,.8);pointer-events:none;animation:fre-grow .15s ease-out}
-@keyframes fre-grow{from{opacity:.2;transform:scale(.6)}}
+.fre-dropline{position:absolute;background:#c2410c;border-radius:3px;box-shadow:0 0 0 2px rgba(255,255,255,.8);pointer-events:none;transition:left .08s,top .08s,width .08s,height .08s}
+.fre-dropline--box{background:rgba(194,65,12,.08);border:2px dashed #c2410c;box-shadow:none}
+.fre-hiddenbadge{position:absolute;padding:3px 7px;border-radius:0 0 3px 0;background:#515962;color:#fff;font:600 11px/1.2 system-ui,sans-serif;pointer-events:none;white-space:nowrap}
 .fre-handle{position:absolute;display:flex;align-items:stretch;height:24px;color:#fff;pointer-events:auto;user-select:none;white-space:nowrap}
 .fre-handle--section{transform:translateX(-50%);background:#0e7490;border-radius:5px 5px 0 0;padding:0 2px}
 .fre-handle--section::before,.fre-handle--section::after{content:'';position:absolute;bottom:0;border-bottom:24px solid #0e7490}
@@ -127,6 +130,8 @@ const FRAME_STYLE = `
 [data-fr-inline][contenteditable]{outline:none;cursor:text}
 .fre-tree a{cursor:default}
 .fre-tree .fr-anim{opacity:1!important}
+[data-fre-title-box]{display:none!important}
+html[data-fre-layout="canvas"] .cx-location-header,html[data-fre-layout="canvas"] .cx-location-footer{display:none!important}
 .fre-unknown{padding:12px;border:1px dashed #f59e0b;color:#92400e;font:13px system-ui,sans-serif;background:#fffbeb}
 `;
 
@@ -141,11 +146,26 @@ const NodeView = memo(function NodeView({
   node,
   context,
   epoch,
+  frozen,
 }: {
   node: FrescoNode;
   context: RenderContext;
   epoch: Record<string, number>;
+  /** The element whose text is being typed in place: its markup stays as the user changes it. */
+  frozen: string | null;
 }): ReactNode {
+  const last = useRef<ReactNode>(null);
+  if (frozen === node.id && last.current) return last.current;
+  last.current = renderNode(node, context, epoch, frozen);
+  return last.current;
+});
+
+function renderNode(
+  node: FrescoNode,
+  context: RenderContext,
+  epoch: Record<string, number>,
+  frozen: string | null,
+): ReactNode {
   const definition = getElement(node.type);
   if (!definition) {
     return (
@@ -160,6 +180,7 @@ const NodeView = memo(function NodeView({
       node={child}
       context={context}
       epoch={epoch}
+      frozen={frozen}
     />
   ));
   try {
@@ -178,7 +199,7 @@ const NodeView = memo(function NodeView({
       </div>
     );
   }
-});
+}
 
 export function Canvas({
   store,
@@ -187,8 +208,14 @@ export function Canvas({
   context,
   onContextMenu,
   api,
+  title,
+  saved = false,
 }: {
   store: Store;
+  /** The page has no unsaved changes (after a save): the canvas may be drawn again. */
+  saved?: boolean;
+  /** The entry's title, shown live in the theme's title (renamed from the top bar). */
+  title?: string;
   frameUrl: () => Promise<string>;
   /** `/plugin-assets/fresco/<version>`. */
   assetsBase: string;
@@ -249,10 +276,59 @@ export function Canvas({
       (doc.querySelector('main') ?? doc.body).append(root);
     }
     root.replaceChildren();
+    // The theme's element holding the content: the page settings' padding goes there.
+    root.parentElement?.setAttribute(CONTENT_ATTRIBUTE, '');
+    // Popups never open over the page being edited (older versions of Fresco Pro sent them).
+    const popups = doc.querySelectorAll('.cx-location-overlay, .frp-popup');
+    if (popups.length) {
+      popups.forEach((popup) => popup.remove());
+      doc.documentElement.classList.remove('frp-no-scroll');
+      doc.defaultView?.scrollTo(0, 0);
+    }
     doc.documentElement.classList.add('fr-editing');
     api.current = { frame: frameRef.current, doc, root };
     setMount({ doc, root });
   };
+
+  // The theme's title follows the one typed in the top bar.
+  const titleSelector = useStore(store, (s) => s.kit.titleSelector);
+  const shownTitle = useRef<string | null>(null);
+  useEffect(() => {
+    if (!mount || title === undefined) return;
+    const before = shownTitle.current;
+    shownTitle.current = title;
+    if (before === null || before === title) return;
+    const heading = themeTitle(mount.doc, titleSelector, before);
+    if (heading) heading.textContent = title;
+  }, [mount, title, titleSelector]);
+
+  // The page settings the theme reads when it draws the page (title, layout)
+  // show at once, before the page is saved and drawn again.
+  const page = useStore(store, (s) => s.page);
+  const hideTitle = page.hideTitle === true;
+  const layout = typeof page.layout === 'string' ? page.layout : '';
+  useEffect(() => {
+    if (!mount) return;
+    const { doc } = mount;
+    if (layout) doc.documentElement.setAttribute('data-fre-layout', layout);
+    else doc.documentElement.removeAttribute('data-fre-layout');
+    for (const box of doc.querySelectorAll('[data-fre-title-box]'))
+      box.removeAttribute('data-fre-title-box');
+    if (!hideTitle) return;
+    const heading = themeTitle(doc, titleSelector, null);
+    if (heading) titleBox(heading).setAttribute('data-fre-title-box', '');
+  }, [mount, hideTitle, layout, titleSelector]);
+  // Once saved, the page is drawn again by the theme when those settings changed.
+  const drawn = useRef<string | null>(null);
+  const shape = JSON.stringify([hideTitle, layout, page.hideFeatured === true]);
+  useEffect(() => {
+    if (!mount) return;
+    if (drawn.current === null) drawn.current = shape;
+    else if (saved && drawn.current !== shape) {
+      drawn.current = shape;
+      mount.doc.defaultView?.location.reload();
+    }
+  }, [mount, saved, shape]);
 
   const responsive = device !== 'desktop';
   // Limits of the device being previewed: between the next smaller breakpoint and its own.
@@ -402,24 +478,76 @@ export function Canvas({
   );
 }
 
+/**
+ * The theme's title of the page in the canvas: the first node matching the
+ * kit's title selector, outside Fresco's elements and the theme's header and
+ * footer, that shows `text`.
+ */
+function themeTitle(
+  doc: Document,
+  selector: string | undefined,
+  text: string | null,
+): HTMLElement | null {
+  const safe = safeSelector(selector);
+  if (!safe) return null;
+  let nodes: HTMLElement[];
+  try {
+    nodes = [...doc.querySelectorAll<HTMLElement>(safe)];
+  } catch {
+    return null;
+  }
+  return (
+    nodes.find(
+      (node) =>
+        !node.closest('.fr-e, .cx-location, [data-fre-ui]') &&
+        (text === null || node.textContent?.trim() === text.trim()),
+    ) ?? null
+  );
+}
+
+/**
+ * What hiding the theme's title takes away: the title, and the wrappers
+ * holding nothing else (a page header with its padding), as themes that
+ * leave out their header when the title is hidden.
+ */
+function titleBox(heading: HTMLElement): HTMLElement {
+  let box = heading;
+  while (
+    box.parentElement &&
+    box.parentElement.children.length === 1 &&
+    !box.parentElement.matches('body, main, article, [data-fre-content]') &&
+    !box.parentElement.querySelector('[data-cx-editor-canvas]')
+  ) {
+    box = box.parentElement;
+  }
+  return box;
+}
+
 /** Styles inside the canvas: Fresco's, the kit's and the page's own, live. */
 function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) {
   const kit = useStore(store, (s) => s.kit);
   const blocks = useStore(store, (s) => s.blocks);
   const css = documentCss(blocks, getElement, kit.breakpoints);
-  const kitStyle = kitCss(kit);
+  const kitStyle = editorKitCss(kitCss(kit));
   // The fonts the page uses, as on the site (the list changes rarely: the address is stable).
   const fonts = googleFontsUrl(kit, usedGoogleFonts(css + kitStyle).slice(0, 20));
   const hidden = useStore(store, (s) => s.hidden);
   // The page settings (background, padding, title, layout), live.
   const page = useStore(store, (s) => s.page);
-  const pageStyle = pageCss(page, {
-    titleSelector: safeSelector(kit.titleSelector),
-    breakpoints: kit.breakpoints,
-  });
+  const pageStyle = editorPageCss(
+    pageCss(page, {
+      titleSelector: safeSelector(kit.titleSelector),
+      breakpoints: kit.breakpoints,
+    }),
+  );
   const hiddenCss = Object.keys(hidden)
     .map((id) => `[data-fr-id="${CSS.escape(id)}"]{display:none!important}`)
     .join('');
+  // Documents edited in another frame than a page (a popup's box), as plugins say.
+  const kindCss = documentKind(
+    useStore(store, (s) => s.entry.type),
+    page,
+  ).frameCss;
   return (
     <>
       <link rel="stylesheet" href={`${assetsBase}/fresco.css`} />
@@ -429,6 +557,7 @@ function FrameHead({ store, assetsBase }: { store: Store; assetsBase: string }) 
       {pageStyle && <style>{pageStyle}</style>}
       <style>{FRAME_STYLE}</style>
       {hiddenCss && <style>{hiddenCss}</style>}
+      {kindCss && <style>{kindCss}</style>}
     </>
   );
 }
@@ -467,33 +596,86 @@ function FrameTree({
   const elementAt = (target: EventTarget | null) =>
     target instanceof doc.defaultView!.Element ? target.closest<HTMLElement>('[data-fr-id]') : null;
 
+  // The text being typed in place: its element keeps the markup the user is changing.
+  const [frozen, setFrozen] = useState<string | null>(null);
+  const editing = useRef<{ id: string; field: HTMLElement } | null>(null);
+  // The press was on the title of the item already shown: the click edits it.
+  const editTitle = useRef(false);
+
+  // Texts of the elements that do not mark them themselves (icon boxes, tabs…).
+  useLayoutEffect(() => {
+    const tree = doc.querySelector('.fre-tree');
+    if (tree) markInlineFields(tree, getElement, (id) => find(store.get().blocks, id)?.type);
+  });
+
+  /**
+   * Starts typing in a text of an element, once the canvas has settled: the
+   * text typed before (if any) has just ended, and its element is drawn
+   * again, so the nodes are looked up afresh.
+   */
+  const startInlineSoon = (
+    element: HTMLElement,
+    field: HTMLElement,
+    point: { x: number; y: number },
+  ) => {
+    const id = element.dataset.frId!;
+    const key = field.dataset.frInline!;
+    setTimeout(() => {
+      const now = doc.querySelector<HTMLElement>(`[data-fr-id="${CSS.escape(id)}"]`);
+      // The one shown (tabs have their titles twice, for wide and narrow screens).
+      const text = now
+        ? [...now.querySelectorAll<HTMLElement>(`[data-fr-inline="${CSS.escape(key)}"]`)].find(
+            (node) => node.closest('[data-fr-id]') === now && node.getClientRects().length > 0,
+          )
+        : null;
+      if (now && text) startInline(now, text, point);
+    }, 0);
+  };
+
   const startInline = useCallback(
-    (element: HTMLElement, field: HTMLElement) => {
-      if (readOnly) return;
+    (element: HTMLElement, field: HTMLElement, point?: { x: number; y: number }) => {
+      if (readOnly || field.isContentEditable || !field.isConnected) return;
       const id = element.dataset.frId!;
-      const key = field.dataset.frInline!;
+      const key = parseInlineKey(field.dataset.frInline!);
       const node = find(store.get().blocks, id);
       const definition = node && getElement(node.type);
-      const control = definition?.controls.find((c) => c.name === key);
-      if (!node || !control) return;
+      const control = definition && key ? inlineControl(definition, key) : null;
+      if (!node || !definition || !key || !control) return;
       const rich = control.type === 'richtext';
+      const read = () =>
+        rich ? sanitizeRich(field.innerHTML) : field.innerText.replace(/\n+$/, '');
+      const current = () => {
+        const now = find(store.get().blocks, id);
+        if (!now) return undefined;
+        const value = inlineValue(now, withDefaults(definition, now.attrs), key);
+        return rich ? sanitizeRich(value) : plainText(value);
+      };
+      editing.current = { id, field };
+      setFrozen(id);
       field.contentEditable = rich ? 'true' : 'plaintext-only';
       field.focus();
+      // The caret goes where the text was clicked.
+      if (point) placeCaret(doc, field, point);
       const toolbar = rich ? formatBar(doc, field) : null;
+      // The panel follows the typing: one undo step for the whole edit.
+      const write = () => {
+        const now = find(store.get().blocks, id);
+        const value = read();
+        if (!now || value === current()) return;
+        const change = inlineChange(now, withDefaults(definition, now.attrs), key, value);
+        if (change)
+          store.actions.setSettings(change.id, change.changes, `inline:${field.dataset.frInline}`);
+      };
       const finish = () => {
         field.removeEventListener('blur', finish);
         field.removeEventListener('keydown', keys);
+        field.removeEventListener('input', write);
         toolbar?.remove();
-        const value = rich ? sanitizeRich(field.innerHTML) : field.innerText.replace(/\n+$/, '');
+        write();
         field.removeAttribute('contenteditable');
-        if (
-          value !==
-          (rich
-            ? sanitizeRich(node.attrs[key])
-            : plainText(node.attrs[key] ?? withDefaults(definition!, node.attrs)[key]))
-        ) {
-          store.actions.setSettings(id, { [key]: value });
-        }
+        if (editing.current?.field === field) editing.current = null;
+        setFrozen((f) => (f === id ? null : f));
+        // Its markup was changed by hand: it is drawn again from its settings.
         setEpoch((e) => ({ ...e, [id]: (e[id] ?? 0) + 1 }));
       };
       const keys = (event: KeyboardEvent) => {
@@ -503,13 +685,22 @@ function FrameTree({
           doc.execCommand(format, false);
           return;
         }
+        // In a button (titles of tabs) or a summary, the space would press it.
+        if (event.key === ' ' && field.closest('button, summary')) {
+          event.preventDefault();
+          doc.execCommand('insertText', false, ' ');
+          return;
+        }
         if (event.key === 'Escape' || (event.key === 'Enter' && !rich && control.type === 'text')) {
           event.preventDefault();
+          // Escape ends the typing only: the element stays selected.
+          event.stopPropagation();
           field.blur();
         }
       };
       field.addEventListener('blur', finish);
       field.addEventListener('keydown', keys);
+      field.addEventListener('input', write);
     },
     [readOnly, store, doc],
   );
@@ -530,7 +721,30 @@ function FrameTree({
   const onPointerDown = (event: React.PointerEvent) => {
     if (event.button !== 0) return;
     const target = event.target as Element;
-    if (target.closest('[contenteditable]') || target.closest('[data-fre-ui]')) return;
+    if (target.closest('[data-fre-ui]')) return;
+    // A press elsewhere ends the text being typed (the press itself keeps the focus).
+    const typing = editing.current;
+    if (typing && !typing.field.contains(target)) {
+      typing.field.blur();
+      // Its element is drawn again at once, so the click would land on a node
+      // that is gone: another text pressed starts its typing from here.
+      const field = target.closest<HTMLElement>('[data-fr-inline]');
+      const owner = elementAt(target);
+      if (
+        field &&
+        owner &&
+        owner.contains(field) &&
+        !target.closest('[data-fr-tab]') &&
+        !(event.metaKey || event.ctrlKey)
+      ) {
+        startInlineSoon(owner, field, { x: event.clientX, y: event.clientY });
+      }
+    }
+    // In the text being typed: the caret moves, and its element is the one the panel edits.
+    if (typing && typing.field.contains(target)) {
+      if (!(event.metaKey || event.ctrlKey)) store.actions.select(typing.id);
+      return;
+    }
     // The + of an empty container: the elements panel, to fill it.
     if (target.closest('.fr-empty')) {
       const holder = elementAt(event.target);
@@ -548,9 +762,11 @@ function FrameTree({
       store.actions.toggleSelect(element.dataset.frId!);
       return;
     }
-    // Titles of tabs and accordions switch the item shown.
+    // Titles of tabs and accordions switch the item shown; the title of the
+    // item already shown is edited instead (as in Elementor).
     const tab = target.closest<HTMLElement>('[data-fr-tab]');
-    if (tab && element.contains(tab)) {
+    editTitle.current = !!tab && isShown(tab) && !!target.closest('[data-fr-inline]');
+    if (tab && element.contains(tab) && !editTitle.current) {
       const index = Number(tab.dataset.frTab);
       const id = element.dataset.frId!;
       const current = store.get().active[id];
@@ -569,16 +785,22 @@ function FrameTree({
         event.preventDefault();
         if (event.metaKey || event.ctrlKey) return;
         // Texts are edited where they are, with one click (as in other builders).
+        // (Titles of tabs: the one shown; the others are shown first.)
         const field = target.closest<HTMLElement>('[data-fr-inline]');
         const element = elementAt(event.target);
-        if (field && element && element.contains(field) && !target.closest('[data-fr-tab]')) {
-          startInline(element, field);
+        const title = !!target.closest('[data-fr-tab]');
+        if (field && element && element.contains(field) && (!title || editTitle.current)) {
+          startInlineSoon(element, field, { x: event.clientX, y: event.clientY });
         }
       }}
       onDoubleClick={(event) => {
         const field = (event.target as Element).closest<HTMLElement>('[data-fr-inline]');
         const element = elementAt(event.target);
-        if (field && element && element.contains(field)) startInline(element, field);
+        if (field && element && element.contains(field)) {
+          // A summary would open or close its item.
+          event.preventDefault();
+          startInlineSoon(element, field, { x: event.clientX, y: event.clientY });
+        }
       }}
       onMouseOver={(event) => store.actions.hover(elementAt(event.target)?.dataset.frId ?? null)}
       onMouseLeave={() => store.actions.hover(null)}
@@ -600,12 +822,41 @@ function FrameTree({
       {blocks.map((node, index) => (
         <Fragment key={`${node.id}:${epoch[node.id] ?? 0}`}>
           {adding?.index === index && !readOnly && <AddArea store={store} index={index} />}
-          <NodeView node={node} context={renderContext} epoch={epoch} />
+          <NodeView node={node} context={renderContext} epoch={epoch} frozen={frozen} />
         </Fragment>
       ))}
       {!readOnly && <AddArea store={store} index={blocks.length} />}
     </div>
   );
+}
+
+/** Whether the title of a tab or accordion item belongs to the item shown. */
+function isShown(tab: HTMLElement): boolean {
+  if (tab.tagName === 'SUMMARY') return tab.parentElement?.hasAttribute('open') === true;
+  return (
+    tab.getAttribute('aria-selected') === 'true' || tab.getAttribute('aria-expanded') === 'true'
+  );
+}
+
+/** Puts the caret at a point of a text (where it was clicked), when the point is in it. */
+function placeCaret(doc: Document, field: HTMLElement, point: { x: number; y: number }): void {
+  const at = doc as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  let range: Range | null;
+  const position = at.caretPositionFromPoint?.(point.x, point.y);
+  if (position) {
+    range = doc.createRange();
+    range.setStart(position.offsetNode, position.offset);
+  } else {
+    range = at.caretRangeFromPoint?.(point.x, point.y) ?? null;
+  }
+  if (!range || !field.contains(range.startContainer)) return;
+  range.collapse(true);
+  const selection = doc.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
 }
 
 // ---- Formatting bar of rich texts edited in place ---------------------------------------------
@@ -709,6 +960,8 @@ interface Box {
   y: number;
   width: number;
   height: number;
+  /** The drop line as a box: the inside of an empty container. */
+  box?: boolean;
 }
 
 const ACCENT = '#c2410c';
@@ -760,6 +1013,7 @@ function Overlay({
   const hovered = useStore(store, (s) => s.hovered);
   const blocks = useStore(store, (s) => s.blocks);
   const readOnly = useStore(store, (s) => s.readOnly);
+  const device = useStore(store, (s) => s.device);
   const [line, setLine] = useState<Box | null>(null);
   // The element under the pointer stays "hovered" while the pointer is on its handle.
   const [shown, setShown] = useState<string | null>(null);
@@ -789,7 +1043,9 @@ function Overlay({
       ),
     ),
   ];
-  const boxes = useBoxes(doc, ids, blocks);
+  // Elements hidden on this device stay in the canvas, faded, with a badge (as in Elementor).
+  const hiddenHere = hiddenIds(blocks, device);
+  const boxes = useBoxes(doc, [...new Set([...ids, ...hiddenHere])], blocks);
 
   const startMove = (event: React.PointerEvent, id: string) => {
     const node = find(blocks, id);
@@ -916,9 +1172,17 @@ function Overlay({
           </Fragment>
         );
       })}
+      {hiddenHere.map((id) => {
+        const box = boxes[id];
+        return box ? (
+          <div key={`hidden:${id}`} className="fre-hiddenbadge" style={{ left: box.x, top: box.y }}>
+            {t('Hidden on {device}', { device: t(DEVICE_NAMES[device]).toLowerCase() })}
+          </div>
+        ) : null;
+      })}
       {line && (
         <div
-          className="fre-dropline"
+          className={`fre-dropline${line.box ? ' fre-dropline--box' : ''}`}
           style={{
             left: line.x,
             top: line.y,
@@ -929,6 +1193,19 @@ function Overlay({
       )}
     </div>
   );
+}
+
+/** The elements hidden on a device by their settings (not those inside one of them). */
+function hiddenIds(blocks: FrescoNode[], device: Device): string[] {
+  const out: string[] = [];
+  const visit = (nodes: FrescoNode[]) => {
+    for (const node of nodes) {
+      if (hiddenOn(node.attrs, device)) out.push(node.id);
+      else if (node.children) visit(node.children);
+    }
+  };
+  visit(blocks);
+  return out;
 }
 
 /** Boxes of elements in the frame's coordinates, measured every frame (layout, scroll, resize). */
@@ -1134,62 +1411,6 @@ function ghost(label: string): { move: (x: number, y: number) => void; remove: (
   };
 }
 
-/**
- * The placeholder opening the space where a dragged element will land: a
- * dashed box that grows in the canvas, and shrinks away when the place
- * changes. It is not React's: it is removed before the drop changes the page.
- */
-function placeholders(doc: Document) {
-  let current: { element: HTMLElement; place: string } | null = null;
-  const leaving = new Set<HTMLElement>();
-  const drop = (element: HTMLElement) => {
-    leaving.add(element);
-    element.classList.add('is-leaving');
-    setTimeout(() => {
-      element.remove();
-      leaving.delete(element);
-    }, 160);
-  };
-  return {
-    /** Shows it at a place; false when it is already there. */
-    show(anchor: Anchor, place: Place): boolean {
-      const key = `${place.parent ?? ''}:${place.index}`;
-      if (current?.place === key) return false;
-      if (current) drop(current.element);
-      const element = doc.createElement('div');
-      element.className = `fre-placeholder fre-placeholder--${anchor.axis}`;
-      element.setAttribute('data-fre-ui', '');
-      element.setAttribute('aria-hidden', 'true');
-      // `before` may be the old placeholder, which is on its way out.
-      const before =
-        anchor.before && anchor.before.parentNode === anchor.parent ? anchor.before : null;
-      anchor.parent.insertBefore(element, before);
-      current = { element, place: key };
-      return true;
-    },
-    /** The pointer is on it: the place stays (the space it opened moved the rest). */
-    contains(x: number, y: number): boolean {
-      if (!current) return false;
-      const r = current.element.getBoundingClientRect();
-      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-    },
-    /** False when there was none. */
-    hide(): boolean {
-      if (!current) return false;
-      drop(current.element);
-      current = null;
-      return true;
-    },
-    /** At once, before the page changes. */
-    clear() {
-      current?.element.remove();
-      for (const element of leaving) element.remove();
-      leaving.clear();
-      current = null;
-    },
-  };
-}
-
 /** Starts dragging a new element (from the panel) or an element of the page. */
 export function startDrag(
   event: PointerEvent | React.PointerEvent,
@@ -1203,20 +1424,16 @@ export function startDrag(
   if (!doc || !root) return;
   let label: ReturnType<typeof ghost> | null = null;
   let target: DropTarget | null = null;
-  const space = placeholders(doc);
   const moved =
     source.kind === 'move'
       ? doc.querySelector<HTMLElement>(`[data-fr-id="${CSS.escape(source.id)}"]`)
       : null;
-  // While the placeholder opens (or closes) the page moves under the pointer:
-  // the place is decided again once it has settled.
-  const SETTLE = 200;
-  let settled = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let last: { x: number; y: number } | null = null;
-  const decide = () => {
-    const canvas = last;
-    if (canvas && target && space.contains(canvas.x, canvas.y)) return;
+  const type =
+    source.kind === 'new' ? source.type : (find(store.get().blocks, source.id)?.type ?? '');
+  // The page never moves while dragging: the place is shown by a line over
+  // it (as in Elementor), so the element under the pointer is the one the
+  // user sees, and the drop goes where the line is.
+  const decide = (canvas: { x: number; y: number } | null) => {
     target = canvas
       ? dropTarget(
           doc,
@@ -1225,12 +1442,10 @@ export function startDrag(
           canvas.x,
           canvas.y,
           source.kind === 'move' ? source.id : null,
-          source.kind === 'new' ? source.type : (find(store.get().blocks, source.id)?.type ?? ''),
+          type,
         )
       : null;
-    const changed = target?.anchor ? space.show(target.anchor, target.place) : space.hide();
-    showDropLine(target?.anchor ? null : (target?.line ?? null));
-    if (changed) settled = performance.now() + SETTLE;
+    showDropLine(target ? { ...target.line, ...(target.empty ? { box: true } : {}) } : null);
   };
   trackPointer(event, frame, {
     onStart: () => {
@@ -1241,11 +1456,7 @@ export function startDrag(
     },
     onMove: (canvas, screen) => {
       label?.move(screen.x, screen.y);
-      last = canvas;
-      clearTimeout(timer);
-      const wait = settled - performance.now();
-      if (wait > 0) timer = setTimeout(decide, wait);
-      else decide();
+      decide(canvas);
     },
     onDrop: () => {
       finish();
@@ -1256,9 +1467,7 @@ export function startDrag(
     onCancel: finish,
   });
   function finish() {
-    clearTimeout(timer);
     label?.remove();
-    space.clear();
     moved?.classList.remove('fre-drag-source');
     showDropLine(null);
     doc!.documentElement.style.cursor = '';

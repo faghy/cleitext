@@ -148,3 +148,45 @@ describe('breakpoints', () => {
     expect(deviceRange('laptop', DEFAULT_BREAKPOINTS)).toBeNull();
   });
 });
+
+describe('dictionaries and patterns', () => {
+  const dictionary: Control = {
+    name: 'order',
+    type: 'choose',
+    label: 'Order',
+    tab: 'advanced',
+    section: 'Layout',
+    responsive: true,
+    dictionary: { start: '-99999', grow: 'flex-grow: 1; flex-shrink: 0', custom: '', true: '-1' },
+    selectors: { '{{el}}': 'order: {{value}}' },
+  };
+  const pattern: Control = {
+    name: 'tracks',
+    type: 'text',
+    label: 'Tracks',
+    tab: 'content',
+    section: 'Grid',
+    pattern: '(\\d+fr ?)+',
+    selectors: { '{{el}}': 'grid-template-columns: {{value}}' },
+  };
+  const css = (control: Control, attrs: Record<string, unknown>) =>
+    printSheet(settingsSheet([control], attrs, attrs, '.x'), DEFAULT_BREAKPOINTS);
+
+  it('writes the CSS of a value from the dictionary, or nothing for an empty one', () => {
+    expect(css(dictionary, { order: 'start', 'order@mobile': 'custom' })).toBe('.x{order:-99999}');
+    expect(css({ ...dictionary, selectors: { '{{el}}': '{{value}}' } }, { order: 'grow' })).toBe(
+      '.x{flex-grow:1;flex-shrink:0}',
+    );
+    // Switches: `true`.
+    expect(css({ ...dictionary, type: 'switch' }, { order: true })).toBe('.x{order:-1}');
+    // Values not in the dictionary are written as usual.
+    expect(css(dictionary, { order: 'inherit' })).toBe('.x{order:inherit}');
+  });
+
+  it('writes text matching the pattern as it is, else only a plain keyword', () => {
+    expect(css(pattern, { tracks: ' 1fr  2fr ' })).toBe('.x{grid-template-columns:1fr 2fr}');
+    expect(css(pattern, { tracks: '1fr;color:red' })).toBe('');
+    expect(css(pattern, { tracks: 'url(x)' })).toBe('');
+    expect(css(pattern, { tracks: 'auto' })).toBe('.x{grid-template-columns:auto}');
+  });
+});

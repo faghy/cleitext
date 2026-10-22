@@ -344,4 +344,14 @@ addMessages('it', {
     '<p>Scrivi qui il tuo testo. Fai clic per modificarlo, o cambialo nel pannello.</p>',
   'A short sentence from a happy customer, about what changed for them.':
     'Una breve frase di un cliente soddisfatto, su cosa è cambiato per lui.',
+  // Canvas, libraries and option labels.
+  'Hidden on {device}': 'Nascosto su {device}',
+  'No icons found.': 'Nessuna icona trovata.',
+  'Top left': 'In alto a sinistra',
+  'Top right': 'In alto a destra',
+  'Bottom left': 'In basso a sinistra',
+  'Bottom right': 'In basso a destra',
+  'Center left': 'Al centro a sinistra',
+  'Center right': 'Al centro a destra',
+  Fade: 'Dissolvenza',
 });

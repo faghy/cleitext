@@ -7,7 +7,15 @@ import type { ReactNode } from 'react';
 import { elementClass } from './css.js';
 import { extraRootProps } from './extensions.js';
 import { elementGoogleFonts } from './fonts.js';
-import { DEVICES, type Control, type Device, type FrescoNode, type Settings } from './model.js';
+import { MASK_SHAPES, MASK_URLS } from './masks.js';
+import {
+  DEVICES,
+  type Control,
+  type Device,
+  type FrescoNode,
+  type Settings,
+  type Tab,
+} from './model.js';
 
 /** Devices other than desktop (their values have a `@device` suffix). */
 export const OTHER_DEVICES: readonly Device[] = DEVICES.filter((d) => d !== 'desktop');
@@ -85,22 +93,8 @@ export function advancedControls(options: { container?: boolean } = {}): Control
             condition: { _width: 'custom' },
             selectors: { '{{el}}': 'width: {{value}}; max-width: {{value}}; flex: 0 0 auto' },
           },
-          {
-            name: '_align_self',
-            type: 'choose',
-            label: 'Align self',
-            tab,
-            section: 'Layout',
-            responsive: true,
-            options: [
-              { value: 'flex-start', label: 'Start', icon: 'M6 4v16 M10 8h8 M10 16h5' },
-              { value: 'center', label: 'Center', icon: 'M12 4v16 M7 8h10 M8 16h8' },
-              { value: 'flex-end', label: 'End', icon: 'M18 4v16 M6 8h8 M9 16h5' },
-              { value: 'stretch', label: 'Stretch', icon: 'M4 4v16 M20 4v16 M7 12h10' },
-            ],
-            selectors: { '{{el}}': 'align-self: {{value}}' },
-          },
         ] satisfies Control[])),
+    ...flexItemControls(),
     {
       name: '_order',
       type: 'number',
@@ -109,8 +103,11 @@ export function advancedControls(options: { container?: boolean } = {}): Control
       section: 'Layout',
       responsive: true,
       help: 'Lower numbers come first in the row or column.',
+      condition: { _flex_order: ['', 'custom'] },
       selectors: { '{{el}}': 'order: {{value}}' },
     },
+    ...flexSizeControls(),
+    ...gridItemControls(),
     {
       name: '_z_index',
       type: 'number',
@@ -184,6 +181,7 @@ export function advancedControls(options: { container?: boolean } = {}): Control
       condition: { _animation: ANIMATIONS.map((a) => a.value).filter(Boolean) },
       noCss: true,
     },
+    ...transformControls(),
     {
       name: '_background',
       type: 'background',
@@ -200,6 +198,7 @@ export function advancedControls(options: { container?: boolean } = {}): Control
       section: 'Background',
       selector: '{{el}}:hover',
     } as Control,
+    transitionControl('_background_hover_transition', 'Background', '--fr-bg-transition'),
     {
       name: '_border',
       type: 'border',
@@ -216,6 +215,8 @@ export function advancedControls(options: { container?: boolean } = {}): Control
       section: 'Border',
       selector: '{{el}}',
     } as Control,
+    ...hoverBorderControls('_', 'advanced', 'Border'),
+    ...maskControls(),
     // One switch per device; the panel shows those of the active devices.
     ...DEVICES.map((device): Control => ({
       name: `_hide_${device}`,
@@ -246,6 +247,518 @@ export function advancedControls(options: { container?: boolean } = {}): Control
   ];
 }
 
+// ---- Flex and grid items ------------------------------------------------------------------
+
+const ADVANCED = 'advanced' as const;
+
+/** Align self and the order's start/end/custom choice, inside a flex container. */
+function flexItemControls(): Control[] {
+  return [
+    {
+      name: '_align_self',
+      type: 'choose',
+      label: 'Align self',
+      tab: ADVANCED,
+      section: 'Layout',
+      responsive: true,
+      options: [
+        { value: 'flex-start', label: 'Start', icon: 'M6 4v16 M10 8h8 M10 16h5' },
+        { value: 'center', label: 'Center', icon: 'M12 4v16 M7 8h10 M8 16h8' },
+        { value: 'flex-end', label: 'End', icon: 'M18 4v16 M6 8h8 M9 16h5' },
+        { value: 'stretch', label: 'Stretch', icon: 'M4 4v16 M20 4v16 M7 12h10' },
+      ],
+      selectors: { '{{el}}': 'align-self: {{value}}' },
+    },
+    {
+      name: '_flex_order',
+      type: 'choose',
+      label: 'Order',
+      tab: ADVANCED,
+      section: 'Layout',
+      responsive: true,
+      default: '',
+      options: [
+        { value: 'start', label: 'First', icon: 'M4 6h4v12H4z M12 8h8 M12 12h8 M12 16h8' },
+        { value: 'end', label: 'Last', icon: 'M16 6h4v12h-4z M4 8h8 M4 12h8 M4 16h8' },
+        { value: 'custom', label: 'Custom', icon: 'M6 12h.01 M12 12h.01 M18 12h.01' },
+      ],
+      // Before or after every other item, whatever their own order.
+      dictionary: { start: '-99999', end: '99999', custom: '' },
+      selectors: { '{{el}}': 'order: {{value}}' },
+    },
+  ];
+}
+
+/** How the item grows and shrinks in a flex container, and its basis. */
+function flexSizeControls(): Control[] {
+  return [
+    {
+      name: '_flex_size',
+      type: 'choose',
+      label: 'Size',
+      tab: ADVANCED,
+      section: 'Layout',
+      responsive: true,
+      options: [
+        { value: 'none', label: 'None', icon: 'M5 5l14 14 M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z' },
+        { value: 'grow', label: 'Grow', icon: 'M3 12h18 M7 8l-4 4 4 4 M17 8l4 4-4 4' },
+        { value: 'shrink', label: 'Shrink', icon: 'M3 12h7 M14 12h7 M7 8l4 4-4 4 M17 8l-4 4 4 4' },
+        { value: 'custom', label: 'Custom', icon: 'M6 12h.01 M12 12h.01 M18 12h.01' },
+      ],
+      dictionary: {
+        none: 'flex-grow: 0; flex-shrink: 0',
+        grow: 'flex-grow: 1; flex-shrink: 0',
+        shrink: 'flex-grow: 0; flex-shrink: 1',
+        custom: '',
+      },
+      selectors: { '{{el}}': '{{value}}' },
+    },
+    {
+      name: '_flex_grow',
+      type: 'number',
+      label: 'Flex grow',
+      tab: ADVANCED,
+      section: 'Layout',
+      responsive: true,
+      min: 0,
+      placeholder: '1',
+      default: 1,
+      condition: { _flex_size: 'custom' },
+      selectors: { '{{el}}': 'flex-grow: {{value}}' },
+    },
+    {
+      name: '_flex_shrink',
+      type: 'number',
+      label: 'Flex shrink',
+      tab: ADVANCED,
+      section: 'Layout',
+      responsive: true,
+      min: 0,
+      placeholder: '1',
+      default: 1,
+      condition: { _flex_size: 'custom' },
+      selectors: { '{{el}}': 'flex-shrink: {{value}}' },
+    },
+    {
+      name: '_flex_basis_type',
+      type: 'select',
+      label: 'Flex basis',
+      tab: ADVANCED,
+      section: 'Layout',
+      responsive: true,
+      options: [
+        { value: '', label: 'Default' },
+        { value: 'custom', label: 'Custom' },
+      ],
+      noCss: true,
+    },
+    {
+      name: '_flex_basis',
+      type: 'slider',
+      label: 'Custom flex basis',
+      tab: ADVANCED,
+      section: 'Layout',
+      responsive: true,
+      units: ['%', 'px', 'em', 'rem', 'vw'],
+      max: 1000,
+      condition: { _flex_basis_type: 'custom' },
+      selectors: { '{{el}}': 'flex-basis: {{value}}' },
+    },
+  ];
+}
+
+const SPANS = Array.from({ length: 12 }, (_, i) => ({
+  value: String(i + 1),
+  label: String(i + 1),
+}));
+
+/** Grid item: columns and rows it spans, or its own start and end lines. */
+function gridItemControls(): Control[] {
+  return (['column', 'row'] as const).flatMap((axis): Control[] => [
+    {
+      name: `_grid_${axis}`,
+      type: 'select',
+      label: axis === 'column' ? 'Grid column' : 'Grid row',
+      tab: ADVANCED,
+      section: 'Layout',
+      responsive: true,
+      options: [{ value: '', label: 'Default' }, ...SPANS, { value: 'custom', label: 'Custom' }],
+      help:
+        axis === 'column'
+          ? 'Columns the item spans, in a grid container.'
+          : 'Rows the item spans, in a grid container.',
+      dictionary: { custom: '' },
+      selectors: { '{{el}}': `grid-${axis}: span {{value}}` },
+    },
+    {
+      name: `_grid_${axis}_custom`,
+      type: 'text',
+      label: axis === 'column' ? 'Custom grid column' : 'Custom grid row',
+      tab: ADVANCED,
+      section: 'Layout',
+      responsive: true,
+      placeholder: '1 / 3',
+      help: 'Start and end lines, e.g. 1 / 3 or 2 / span 2.',
+      condition: { [`_grid_${axis}`]: 'custom' },
+      pattern: '-?\\d{1,3}( ?/ ?(-?\\d{1,3}|span \\d{1,3}))?|span \\d{1,3}( ?/ ?-?\\d{1,3})?|auto',
+      selectors: { '{{el}}': `grid-${axis}: {{value}}` },
+    },
+  ]);
+}
+
+// ---- Transform -------------------------------------------------------------------------------
+
+/**
+ * One transform setting: a CSS variable on the element, on hover too; the
+ * transform itself is composed in fresco.css (`.fr-transform`).
+ */
+function transformSlider(
+  name: string,
+  label: string,
+  variable: string,
+  units: string[],
+  condition: Record<string, unknown>,
+  range: { min?: number; max?: number; step?: number },
+): Control {
+  return {
+    name: `_transform_${name}`,
+    type: 'slider',
+    label,
+    tab: ADVANCED,
+    section: 'Transform',
+    responsive: true,
+    hover: true,
+    units,
+    ...range,
+    condition,
+    selectors: {
+      '{{el}}': units[0] === '' ? `${variable}: {{size}}` : `${variable}: {{value}}`,
+    },
+  };
+}
+
+const toggle = (name: string, label: string, extra: Partial<Control> = {}): Control => ({
+  name: `_transform_${name}`,
+  type: 'switch',
+  label,
+  tab: ADVANCED,
+  section: 'Transform',
+  noCss: true,
+  ...extra,
+});
+
+/** The toggles that switch a transform on (the element then gets `fr-transform`). */
+export const TRANSFORM_TOGGLES = [
+  '_transform_rotate_popover',
+  '_transform_translate_popover',
+  '_transform_scale_popover',
+  '_transform_skew_popover',
+];
+
+function transformControls(): Control[] {
+  const deg = ['deg'];
+  const angle = { min: -360, max: 360 };
+  const rotate = { _transform_rotate_popover: true };
+  const rotate3d = { _transform_rotate_popover: true, _transform_rotate_3d: true };
+  const scale = { _transform_scale_popover: true };
+  const flip = (axis: 'X' | 'Y', label: string): Control => ({
+    name: `_transform_flip${axis}_effect`,
+    type: 'switch',
+    label,
+    tab: ADVANCED,
+    section: 'Transform',
+    hover: true,
+    dictionary: { true: '-1' },
+    selectors: { '{{el}}': `--fr-tr-flip-${axis.toLowerCase()}: {{value}}` },
+  });
+  return [
+    toggle('rotate_popover', 'Rotate'),
+    transformSlider('rotateZ_effect', 'Rotate (deg)', '--fr-tr-rotate', deg, rotate, angle),
+    toggle('rotate_3d', '3D rotate', { condition: rotate }),
+    transformSlider('rotateX_effect', 'Rotate X (deg)', '--fr-tr-rotate-x', deg, rotate3d, angle),
+    transformSlider('rotateY_effect', 'Rotate Y (deg)', '--fr-tr-rotate-y', deg, rotate3d, angle),
+    {
+      ...transformSlider('perspective_effect', 'Perspective (px)', '', ['px'], rotate3d, {
+        min: 0,
+        max: 1000,
+      }),
+      // The whole function, so that without it there is no perspective at all.
+      selectors: { '{{el}}': '--fr-tr-perspective: perspective({{value}})' },
+    },
+    toggle('translate_popover', 'Offset'),
+    ...(['X', 'Y'] as const).map((axis) =>
+      transformSlider(
+        `translate${axis}_effect`,
+        `Offset ${axis}`,
+        `--fr-tr-${axis.toLowerCase()}`,
+        ['px', '%', 'em', 'rem', axis === 'X' ? 'vw' : 'vh'],
+        { _transform_translate_popover: true },
+        { min: -1000, max: 1000 },
+      ),
+    ),
+    toggle('scale_popover', 'Scale'),
+    toggle('scale_separate', 'Scale X and Y separately', { condition: scale }),
+    transformSlider(
+      'scale_effect',
+      'Scale',
+      '--fr-tr-scale',
+      [''],
+      { ...scale, _transform_scale_separate: [undefined, false] },
+      { min: 0, max: 2, step: 0.05 },
+    ),
+    transformSlider(
+      'scaleX_effect',
+      'Scale X',
+      '--fr-tr-scale-x',
+      [''],
+      { ...scale, _transform_scale_separate: true },
+      { min: 0, max: 2, step: 0.05 },
+    ),
+    transformSlider(
+      'scaleY_effect',
+      'Scale Y',
+      '--fr-tr-scale-y',
+      [''],
+      { ...scale, _transform_scale_separate: true },
+      { min: 0, max: 2, step: 0.05 },
+    ),
+    toggle('skew_popover', 'Skew'),
+    ...(['X', 'Y'] as const).map((axis) =>
+      transformSlider(
+        `skew${axis}_effect`,
+        `Skew ${axis} (deg)`,
+        `--fr-tr-skew-${axis.toLowerCase()}`,
+        deg,
+        { _transform_skew_popover: true },
+        angle,
+      ),
+    ),
+    flip('X', 'Flip horizontal'),
+    flip('Y', 'Flip vertical'),
+    {
+      name: '_transform_transition_hover',
+      type: 'slider',
+      label: 'Transition duration (ms)',
+      tab: ADVANCED,
+      section: 'Transform',
+      units: ['ms'],
+      min: 0,
+      max: 10000,
+      step: 100,
+      selectors: { '{{el}}': '--fr-tr-duration: {{value}}' },
+    },
+    {
+      name: '_transform_origin_x',
+      type: 'choose',
+      label: 'X anchor point',
+      tab: ADVANCED,
+      section: 'Transform',
+      responsive: true,
+      options: [
+        { value: 'left', label: 'Left', icon: 'M4 4v16 M8 12h12' },
+        { value: 'center', label: 'Center', icon: 'M12 4v16 M4 12h16' },
+        { value: 'right', label: 'Right', icon: 'M20 4v16 M4 12h12' },
+      ],
+      selectors: { '{{el}}': '--fr-tr-origin-x: {{value}}' },
+    },
+    {
+      name: '_transform_origin_y',
+      type: 'choose',
+      label: 'Y anchor point',
+      tab: ADVANCED,
+      section: 'Transform',
+      responsive: true,
+      options: [
+        { value: 'top', label: 'Top', icon: 'M4 4h16 M12 8v12' },
+        { value: 'center', label: 'Center', icon: 'M4 12h16 M12 4v16' },
+        { value: 'bottom', label: 'Bottom', icon: 'M4 20h16 M12 4v12' },
+      ],
+      selectors: { '{{el}}': '--fr-tr-origin-y: {{value}}' },
+    },
+  ];
+}
+
+// ---- Hover border, transitions, mask ----------------------------------------------------------
+
+/** A transition duration in seconds, as a CSS variable (`.fr-transition` uses it). */
+export function transitionControl(
+  name: string,
+  section: string,
+  variable: string,
+  tab: Tab = ADVANCED,
+): Control {
+  return {
+    name,
+    type: 'slider',
+    label: 'Transition duration (s)',
+    tab,
+    section,
+    units: ['s'],
+    min: 0,
+    max: 3,
+    step: 0.1,
+    selectors: { '{{el}}': `${variable}: {{value}}` },
+  };
+}
+
+/** Border, radius and shadow on hover, and how long the change takes (`prefix`: `_` or ``). */
+export function hoverBorderControls(prefix: string, tab: Tab, section: string): Control[] {
+  return [
+    {
+      name: `${prefix}border_hover`,
+      type: 'border',
+      label: 'Border on hover',
+      tab,
+      section,
+      selector: '{{el}}:hover',
+    } as Control,
+    {
+      name: `${prefix}shadow_hover`,
+      type: 'shadow',
+      label: 'Box shadow on hover',
+      tab,
+      section,
+      selector: '{{el}}:hover',
+    } as Control,
+    transitionControl(`${prefix}border_hover_transition`, section, '--fr-border-transition', tab),
+  ];
+}
+
+/** Settings whose values make the element animate its hover changes. */
+export const TRANSITION_KEYS = [
+  '_background_hover_transition',
+  '_border_hover_transition',
+  'background_hover_transition',
+  'border_hover_transition',
+];
+
+function maskControls(): Control[] {
+  const on = { _mask_switch: true };
+  const section = 'Mask';
+  const selectors = (declaration: string) => ({
+    '{{el}}': `-webkit-${declaration}; ${declaration}`,
+  });
+  return [
+    {
+      name: '_mask_switch',
+      type: 'switch',
+      label: 'Mask',
+      tab: ADVANCED,
+      section,
+      noCss: true,
+    },
+    {
+      name: '_mask_shape',
+      type: 'select',
+      label: 'Shape',
+      tab: ADVANCED,
+      section,
+      default: 'circle',
+      options: MASK_SHAPES,
+      dictionary: MASK_URLS,
+      condition: on,
+      selectors: selectors('mask-image: {{value}}'),
+    },
+    {
+      name: '_mask_image',
+      type: 'media',
+      label: 'Image',
+      tab: ADVANCED,
+      section,
+      responsive: true,
+      accept: 'image',
+      help: 'An SVG or a PNG with transparency: the element shows where the image is opaque.',
+      condition: { ...on, _mask_shape: 'custom' },
+      selectors: selectors('mask-image: {{value}}'),
+    },
+    {
+      name: '_mask_size',
+      type: 'select',
+      label: 'Size',
+      tab: ADVANCED,
+      section,
+      responsive: true,
+      default: 'contain',
+      options: [
+        { value: 'contain', label: 'Fit' },
+        { value: 'cover', label: 'Fill' },
+        { value: 'custom', label: 'Custom' },
+      ],
+      dictionary: { custom: '' },
+      condition: on,
+      selectors: selectors('mask-size: {{value}}'),
+    },
+    {
+      name: '_mask_size_scale',
+      type: 'slider',
+      label: 'Scale',
+      tab: ADVANCED,
+      section,
+      responsive: true,
+      units: ['%', 'px', 'em', 'rem', 'vw'],
+      max: 500,
+      condition: { ...on, _mask_size: 'custom' },
+      selectors: selectors('mask-size: {{value}}'),
+    },
+    {
+      name: '_mask_position',
+      type: 'select',
+      label: 'Position',
+      tab: ADVANCED,
+      section,
+      responsive: true,
+      default: 'center center',
+      options: [
+        { value: 'center center', label: 'Center center' },
+        { value: 'center left', label: 'Center left' },
+        { value: 'center right', label: 'Center right' },
+        { value: 'top center', label: 'Top center' },
+        { value: 'top left', label: 'Top left' },
+        { value: 'top right', label: 'Top right' },
+        { value: 'bottom center', label: 'Bottom center' },
+        { value: 'bottom left', label: 'Bottom left' },
+        { value: 'bottom right', label: 'Bottom right' },
+        { value: 'custom', label: 'Custom' },
+      ],
+      dictionary: { custom: '' },
+      condition: on,
+      selectors: selectors('mask-position: {{value}}'),
+    },
+    ...(['x', 'y'] as const).map((axis): Control => ({
+      name: `_mask_position_${axis}`,
+      type: 'slider',
+      label: axis === 'x' ? 'X position' : 'Y position',
+      tab: ADVANCED,
+      section,
+      responsive: true,
+      units: ['%', 'px', 'em', 'rem', 'vw'],
+      min: -500,
+      max: 500,
+      condition: { ...on, _mask_position: 'custom' },
+      selectors: selectors(`mask-position-${axis}: {{value}}`),
+    })),
+    {
+      name: '_mask_repeat',
+      type: 'select',
+      label: 'Repeat',
+      tab: ADVANCED,
+      section,
+      responsive: true,
+      default: 'no-repeat',
+      options: [
+        { value: 'no-repeat', label: 'No-repeat' },
+        { value: 'repeat', label: 'Repeat' },
+        { value: 'repeat-x', label: 'Repeat-x' },
+        { value: 'repeat-y', label: 'Repeat-y' },
+        { value: 'round', label: 'Round' },
+        { value: 'space', label: 'Space' },
+      ],
+      condition: on,
+      selectors: selectors('mask-repeat: {{value}}'),
+    },
+  ];
+}
+
 /** Entrance animations (keyframes in public/fresco.css, written for Fresco). */
 export const ANIMATIONS: { value: string; label: string }[] = [
   { value: '', label: 'None' },
@@ -266,6 +779,31 @@ export const ANIMATIONS: { value: string; label: string }[] = [
   { value: 'pop', label: 'Pop' },
   { value: 'rotate-in', label: 'Rotate in' },
   { value: 'blur-in', label: 'Blur in' },
+  { value: 'zoom-in-up', label: 'Zoom in up' },
+  { value: 'zoom-in-down', label: 'Zoom in down' },
+  { value: 'zoom-in-left', label: 'Zoom in from the left' },
+  { value: 'zoom-in-right', label: 'Zoom in from the right' },
+  { value: 'bounce-in-up', label: 'Bounce in up' },
+  { value: 'bounce-in-down', label: 'Bounce in down' },
+  { value: 'bounce-in-left', label: 'Bounce in from the left' },
+  { value: 'bounce-in-right', label: 'Bounce in from the right' },
+  { value: 'rotate-in-down-left', label: 'Rotate in down left' },
+  { value: 'rotate-in-down-right', label: 'Rotate in down right' },
+  { value: 'rotate-in-up-left', label: 'Rotate in up left' },
+  { value: 'rotate-in-up-right', label: 'Rotate in up right' },
+  { value: 'light-speed-in', label: 'Light speed in' },
+  { value: 'roll-in', label: 'Roll in' },
+  // Attention seekers: the element is there from the start and moves once.
+  { value: 'bounce', label: 'Bounce' },
+  { value: 'flash', label: 'Flash' },
+  { value: 'pulse', label: 'Pulse' },
+  { value: 'rubber-band', label: 'Rubber band' },
+  { value: 'shake', label: 'Shake' },
+  { value: 'head-shake', label: 'Head shake' },
+  { value: 'swing', label: 'Swing' },
+  { value: 'tada', label: 'Tada' },
+  { value: 'wobble', label: 'Wobble' },
+  { value: 'jello', label: 'Jello' },
 ];
 
 const CLASS = /^-?[_a-zA-Z][_a-zA-Z0-9-]{0,63}$/;
@@ -292,6 +830,18 @@ export function rootProps(
   }
   for (const device of DEVICES) {
     if (settings[`_hide_${device}`] === true) classes.push(`fr-hide-${device}`);
+  }
+  // Transform (rotate, offset, scale, skew, flip) and hover transitions: composed in fresco.css.
+  if (
+    TRANSFORM_TOGGLES.some((key) => settings[key] === true) ||
+    Object.entries(node.attrs).some(
+      ([key, value]) => value === true && /^_transform_flip[XY]_effect\b/.test(key),
+    )
+  ) {
+    classes.push('fr-transform');
+  }
+  if (TRANSITION_KEYS.some((key) => node.attrs[key] !== undefined && node.attrs[key] !== '')) {
+    classes.push('fr-transition');
   }
   const width = settings._width;
   if (width === 'full') classes.push('fr-w-full');

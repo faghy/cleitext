@@ -113,39 +113,39 @@ export const ANIMATIONS: Record<string, string> = {
   fadeInLeft: 'fade-left',
   fadeInRight: 'fade-right',
   zoomIn: 'zoom-in',
-  zoomInUp: 'zoom-in',
-  zoomInDown: 'zoom-in',
-  zoomInLeft: 'zoom-in',
-  zoomInRight: 'zoom-in',
+  zoomInUp: 'zoom-in-up',
+  zoomInDown: 'zoom-in-down',
+  zoomInLeft: 'zoom-in-left',
+  zoomInRight: 'zoom-in-right',
   zoomOut: 'zoom-out',
   slideInUp: 'slide-up',
   slideInDown: 'slide-down',
   slideInLeft: 'slide-left',
   slideInRight: 'slide-right',
   bounceIn: 'bounce-in',
-  bounceInUp: 'bounce-in',
-  bounceInDown: 'bounce-in',
-  bounceInLeft: 'bounce-in',
-  bounceInRight: 'bounce-in',
+  bounceInUp: 'bounce-in-up',
+  bounceInDown: 'bounce-in-down',
+  bounceInLeft: 'bounce-in-left',
+  bounceInRight: 'bounce-in-right',
   rotateIn: 'rotate-in',
-  rotateInDownLeft: 'rotate-in',
-  rotateInDownRight: 'rotate-in',
-  rotateInUpLeft: 'rotate-in',
-  rotateInUpRight: 'rotate-in',
-  rollIn: 'rotate-in',
+  rotateInDownLeft: 'rotate-in-down-left',
+  rotateInDownRight: 'rotate-in-down-right',
+  rotateInUpLeft: 'rotate-in-up-left',
+  rotateInUpRight: 'rotate-in-up-right',
+  rollIn: 'roll-in',
   flipInX: 'flip-x',
   flipInY: 'flip-y',
-  lightSpeedIn: 'slide-right',
-  bounce: 'pop',
-  flash: 'fade-in',
-  pulse: 'pop',
-  rubberBand: 'pop',
-  shake: 'pop',
-  headShake: 'pop',
-  swing: 'pop',
-  tada: 'pop',
-  wobble: 'pop',
-  jello: 'pop',
+  lightSpeedIn: 'light-speed-in',
+  bounce: 'bounce',
+  flash: 'flash',
+  pulse: 'pulse',
+  rubberBand: 'rubber-band',
+  shake: 'shake',
+  headShake: 'head-shake',
+  swing: 'swing',
+  tada: 'tada',
+  wobble: 'wobble',
+  jello: 'jello',
 };
 
 const HEADING_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'p']);
@@ -345,18 +345,30 @@ function flexItem(out: Settings, src: Settings, widget: boolean): void {
   copy(out, src, '_flex_align_self', '_align_self', (v) =>
     ['flex-start', 'center', 'flex-end', 'stretch'].includes(str(v)) ? str(v) : undefined,
   );
-  copy(out, src, '_flex_order', '_order', (v) =>
-    v === 'start' ? -99999 : v === 'end' ? 99999 : undefined,
+  copy(out, src, '_flex_order', '_flex_order', (v) =>
+    ['start', 'end', 'custom'].includes(str(v)) ? str(v) : undefined,
   );
   copy(out, src, '_flex_order_custom', '_order', (v) => num(v) ?? undefined);
-  const grow = str(src._flex_size);
-  if (grow === 'grow') addCss(out, 'selector{flex-grow:1;flex-shrink:0}');
-  else if (grow === 'shrink') addCss(out, 'selector{flex-grow:0;flex-shrink:1}');
-  else if (grow === 'none') addCss(out, 'selector{flex-grow:0;flex-shrink:0}');
-  else if (grow === 'custom') {
-    addCss(
+  copy(out, src, '_flex_size', '_flex_size', (v) =>
+    ['none', 'grow', 'shrink', 'custom'].includes(str(v)) ? str(v) : undefined,
+  );
+  copy(out, src, '_flex_grow', '_flex_grow', (v) => num(v) ?? undefined);
+  copy(out, src, '_flex_shrink', '_flex_shrink', (v) => num(v) ?? undefined);
+  copy(out, src, '_flex_basis_type', '_flex_basis_type', (v) =>
+    v === 'custom' ? 'custom' : undefined,
+  );
+  copy(out, src, '_flex_basis', '_flex_basis', (v) => size(v));
+  // Grid item: the columns and rows it spans, or its own lines.
+  for (const axis of ['column', 'row']) {
+    copy(out, src, `_grid_${axis}`, `_grid_${axis}`, (v) =>
+      /^([1-9]|1[0-2]|custom)$/.test(str(v)) ? str(v) : undefined,
+    );
+    copy(
       out,
-      `selector{flex-grow:${num(src._flex_grow) ?? 1};flex-shrink:${num(src._flex_shrink) ?? 1}}`,
+      src,
+      `_grid_${axis}_custom`,
+      `_grid_${axis}_custom`,
+      (v) => str(v).trim() || undefined,
     );
   }
   if (widget) {
@@ -375,6 +387,155 @@ function flexItem(out: Settings, src: Settings, widget: boolean): void {
   }
 }
 
+/** Elementor's Transform section (Normal and Hover) → Fresco's (shared on/off switches). */
+function transform(out: Settings, src: Settings): void {
+  const tabs = [
+    ['', ''],
+    ['_hover', ':hover'],
+  ] as const;
+  const on = (popover: string, tab: string) =>
+    str(src[`_transform_${popover}_popover${tab}`]) !== '';
+  const deg = (v: unknown) => {
+    const s = size(v);
+    return s ? { size: s.size, unit: 'deg' } : undefined;
+  };
+  const plain = (v: unknown) => {
+    const n = num(asSettings(v).size);
+    return n === null ? undefined : { size: n, unit: '' };
+  };
+  // Scale X and Y apart when either state keeps them apart (Elementor's default keeps the proportions).
+  const separate = tabs.some(
+    ([tab]) => on('scale', tab) && src[`_transform_keep_proportions${tab}`] === '',
+  );
+  for (const [tab, state] of tabs) {
+    const set = (from: string, to: string, value: (v: unknown) => unknown) =>
+      copy(out, src, `_transform_${from}${tab}`, `_transform_${to}${state}`, value);
+    if (on('rotate', tab)) {
+      out._transform_rotate_popover = true;
+      set('rotateZ_effect', 'rotateZ_effect', deg);
+      if (yes(src[`_transform_rotate_3d${tab}`])) {
+        out._transform_rotate_3d = true;
+        set('rotateX_effect', 'rotateX_effect', deg);
+        set('rotateY_effect', 'rotateY_effect', deg);
+        set('perspective_effect', 'perspective_effect', (v) => size(v));
+      }
+    }
+    if (on('translate', tab)) {
+      out._transform_translate_popover = true;
+      set('translateX_effect', 'translateX_effect', (v) => size(v));
+      set('translateY_effect', 'translateY_effect', (v) => size(v));
+    }
+    if (on('scale', tab)) {
+      out._transform_scale_popover = true;
+      if (src[`_transform_keep_proportions${tab}`] === '') {
+        set('scaleX_effect', 'scaleX_effect', plain);
+        set('scaleY_effect', 'scaleY_effect', plain);
+      } else if (separate) {
+        set('scale_effect', 'scaleX_effect', plain);
+        set('scale_effect', 'scaleY_effect', plain);
+      } else set('scale_effect', 'scale_effect', plain);
+    }
+    if (on('skew', tab)) {
+      out._transform_skew_popover = true;
+      set('skewX_effect', 'skewX_effect', deg);
+      set('skewY_effect', 'skewY_effect', deg);
+    }
+    for (const axis of ['X', 'Y']) {
+      if (str(src[`_transform_flip${axis}_effect${tab}`])) {
+        out[`_transform_flip${axis}_effect${state}`] = true;
+      }
+    }
+  }
+  if (separate) out._transform_scale_separate = true;
+  const any = Object.keys(out).some((key) => key.startsWith('_transform_'));
+  if (!any) return;
+  const duration = num(asSettings(src._transform_transition_hover).size);
+  if (duration !== null) out._transform_transition_hover = { size: duration, unit: 'ms' };
+  copy(out, src, 'motion_fx_transform_x_anchor_point', '_transform_origin_x', (v) =>
+    ['left', 'center', 'right'].includes(str(v)) ? str(v) : undefined,
+  );
+  copy(out, src, 'motion_fx_transform_y_anchor_point', '_transform_origin_y', (v) =>
+    ['top', 'center', 'bottom'].includes(str(v)) ? str(v) : undefined,
+  );
+}
+
+/** A number on its own (not `1fr 2fr`, which parses as 1). */
+const plainNumber = (v: unknown) => /^\s*-?\d+(\.\d+)?\s*$/.test(str(v));
+
+/** A transition duration in seconds (Elementor's hover transitions). */
+const seconds = (v: unknown) => {
+  const n = num(asSettings(v).size);
+  return n === null ? undefined : { size: n, unit: 's' };
+};
+
+/**
+ * Border, radius and shadow on hover, and the durations of the hover changes
+ * (`from` and `to`: `_` for widgets, `` for sections, columns and containers).
+ */
+function hoverBorder(out: Settings, src: Settings, from: string, to: string): void {
+  border(out, src, `${from}border_hover`, `${to}border_hover`);
+  // The hover radius is a setting of its own in Elementor.
+  copy(out, src, `${from}border_radius_hover`, `${to}border_hover_radius`, (v) => box(v));
+  const s = shadow(src, `${from}box_shadow_hover`);
+  if (s) out[`${to}shadow_hover`] = s;
+  copy(
+    out,
+    src,
+    `${from}background_hover_transition`,
+    `${to}background_hover_transition`,
+    seconds,
+    false,
+  );
+  copy(out, src, `${from}border_hover_transition`, `${to}border_hover_transition`, seconds, false);
+}
+
+/** Elementor's Mask section → Fresco's (the same shapes, drawn by Fresco). */
+function mask(c: Converter, out: Settings, src: Settings): void {
+  if (!yes(src._mask_switch)) return;
+  out._mask_switch = true;
+  const shape = str(src._mask_shape) || 'circle';
+  out._mask_shape = MASK_SHAPES.has(shape) ? shape : 'circle';
+  if (shape === 'custom') copy(out, src, '_mask_image', '_mask_image', (v) => c.media(v));
+  copy(out, src, '_mask_size', '_mask_size', (v) =>
+    ['contain', 'cover', 'custom'].includes(str(v)) ? str(v) : undefined,
+  );
+  copy(out, src, '_mask_size_scale', '_mask_size_scale', (v) => size(v));
+  copy(out, src, '_mask_position', '_mask_position', (v) =>
+    /^((center|top|bottom) (center|left|right)|custom)$/.test(str(v)) ? str(v) : undefined,
+  );
+  copy(out, src, '_mask_position_x', '_mask_position_x', (v) => size(v));
+  copy(out, src, '_mask_position_y', '_mask_position_y', (v) => size(v));
+  copy(out, src, '_mask_repeat', '_mask_repeat', (v) =>
+    ['no-repeat', 'repeat', 'repeat-x', 'repeat-y', 'round', 'space'].includes(str(v))
+      ? str(v)
+      : undefined,
+  );
+}
+
+const MASK_SHAPES = new Set([
+  'circle',
+  'oval-vertical',
+  'oval-horizontal',
+  'pill-vertical',
+  'pill-horizontal',
+  'triangle',
+  'diamond',
+  'pentagon',
+  'hexagon-vertical',
+  'hexagon-horizontal',
+  'heptagon',
+  'octagon',
+  'parallelogram-right',
+  'parallelogram-left',
+  'trapezoid-up',
+  'trapezoid-down',
+  'flower',
+  'sketch',
+  'hexagon',
+  'blob',
+  'custom',
+]);
+
 /** The Advanced tab of a widget (spacing, background, border, motion…). */
 function widgetCommon(c: Converter, out: Settings, src: Settings): void {
   copy(out, src, '_margin', '_margin', (v) => box(v, c));
@@ -389,7 +550,10 @@ function widgetCommon(c: Converter, out: Settings, src: Settings): void {
   border(out, src, '_border', '_border');
   const s = shadow(src, '_box_shadow');
   if (s) out._shadow = s;
+  hoverBorder(out, src, '_', '_');
   flexItem(out, src, true);
+  transform(out, src);
+  mask(c, out, src);
   proAdvanced(c, out, src);
 }
 
@@ -416,8 +580,27 @@ function legacySocial(value: unknown): Settings | undefined {
   return name ? ({ ...fa4Icon(name) } as Settings) : undefined;
 }
 
-/** Shapes Fresco's containers draw (the others are left out). */
-const SHAPES = new Set(['tilt', 'triangle', 'curve', 'curve-asymmetrical', 'waves']);
+/** Shapes Fresco's containers draw: all of Elementor's, under the same names. */
+const SHAPES = new Set([
+  'mountains',
+  'drops',
+  'clouds',
+  'zigzag',
+  'pyramids',
+  'triangle',
+  'triangle-asymmetrical',
+  'tilt',
+  'opacity-tilt',
+  'opacity-fan',
+  'curve',
+  'curve-asymmetrical',
+  'waves',
+  'wave-brush',
+  'waves-pattern',
+  'arrow',
+  'split',
+  'book',
+]);
 
 /** Elementor's shape dividers → Fresco's (shape, color, size, flip, invert, in front). */
 function shapeDividers(c: Converter, out: Settings, src: Settings): void {
@@ -473,14 +656,35 @@ function containerCommon(c: Converter, out: Settings, src: Settings): void {
       out.background_position = 'center center';
     }
   } else if (type === 'slideshow') {
-    const first = c.media(list(src.background_slideshow_gallery)[0]);
-    if (first) {
-      out.background_type = 'classic';
-      out.background_image = first;
-      out.background_size = 'cover';
-      out.background_position = 'center center';
+    const gallery = list(src.background_slideshow_gallery)
+      .map((item) => c.media(item))
+      .filter((item): item is Settings => Boolean(item));
+    if (gallery.length) out.background_slideshow_gallery = gallery;
+    if (src.background_slideshow_loop === '') out.background_slideshow_loop = 'no';
+    const slide = num(src.background_slideshow_slide_duration);
+    if (slide !== null && slide !== 5000) out.background_slideshow_slide_duration = slide;
+    const effect = str(src.background_slideshow_slide_transition);
+    if (['slide_right', 'slide_left', 'slide_up', 'slide_down'].includes(effect)) {
+      out.background_slideshow_slide_transition = effect;
     }
-    c.note('background slideshows show their first image');
+    const speed = num(src.background_slideshow_transition_duration);
+    if (speed !== null && speed !== 500) out.background_slideshow_transition_duration = speed;
+    const fit = str(src.background_slideshow_background_size);
+    if (fit === 'contain' || fit === 'auto') out.background_slideshow_background_size = fit;
+    const position = str(src.background_slideshow_background_position).replace(/-/g, ' ');
+    if (
+      /^(center|top|bottom) (center|left|right)$/.test(position) &&
+      position !== 'center center'
+    ) {
+      out.background_slideshow_background_position = position;
+    }
+    if (yes(src.background_slideshow_ken_burns)) {
+      out.background_slideshow_ken_burns = true;
+      if (src.background_slideshow_ken_burns_zoom_direction === 'out') {
+        out.background_slideshow_ken_burns_zoom_direction = 'out';
+      }
+    }
+    if (yes(src.background_slideshow_lazyload)) out.background_slideshow_lazyload = true;
   }
   background(c, out, src, 'background_hover', 'background_hover');
   // Overlay: a plain color, or a gradient or an image (Fresco's overlay background), and its opacity.
@@ -501,7 +705,10 @@ function containerCommon(c: Converter, out: Settings, src: Settings): void {
   border(out, src, 'border', 'border');
   const s = shadow(src, 'box_shadow');
   if (s) out.shadow = s;
+  hoverBorder(out, src, '', '');
   flexItem(out, src, false);
+  transform(out, src);
+  mask(c, out, src);
   proAdvanced(c, out, src);
   // Text colors set on a section or column reach its widgets (as in Elementor).
   const text = colorOf(src, 'color_text');
@@ -1300,8 +1507,19 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         const grid = src.container_type === 'grid';
         if (grid) {
           extra.container_type = 'grid';
+          // A template written as CSS (`1fr 2fr`, `repeat(auto-fill, …)`) is kept as it is too.
+          for (const [from, to] of [
+            ['grid_columns_grid', 'grid_columns_custom'],
+            ['grid_rows_grid', 'grid_rows_custom'],
+          ] as const) {
+            copy(extra, src, from, to, (v) =>
+              str(asSettings(v).unit) === 'custom' && !plainNumber(asSettings(v).size)
+                ? str(asSettings(v).size).trim() || undefined
+                : undefined,
+            );
+          }
           copy(extra, src, 'grid_columns_grid', 'grid_columns', (v) => {
-            const n = num(asSettings(v).size);
+            const n = plainNumber(asSettings(v).size) ? num(asSettings(v).size) : null;
             if (n !== null) return n;
             const text = str(asSettings(v).size);
             return /repeat\(\s*(\d+)/.exec(text)?.[1]
@@ -1318,37 +1536,41 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
           copy(extra, src, 'grid_auto_flow', 'grid_flow', (v) => str(v) || undefined);
           copy(extra, src, 'grid_justify_items', 'grid_justify_items', (v) => str(v) || undefined);
           copy(extra, src, 'grid_align_items', 'grid_align_items', (v) => str(v) || undefined);
+          copy(
+            extra,
+            src,
+            'grid_justify_content',
+            'grid_justify_content',
+            (v) => str(v) || undefined,
+          );
+          copy(extra, src, 'grid_align_content', 'grid_align_content', (v) => str(v) || undefined);
         }
         copy(extra, src, 'flex_direction', 'flex_direction', (v) => str(v) || undefined);
         copy(extra, src, 'flex_justify_content', 'justify_content', (v) => str(v) || undefined);
         copy(extra, src, 'flex_align_items', 'align_items', (v) => str(v) || undefined);
         copy(extra, src, 'flex_wrap', 'flex_wrap', (v) => str(v) || undefined);
-        // Gaps: one value per device; a different row gap goes to custom CSS.
+        copy(extra, src, 'flex_align_content', 'align_content', (v) => str(v) || undefined);
+        // Gaps: the column gap for both, and the row gap when it differs.
         const gapKey = grid ? 'grid_gaps' : 'flex_gap';
-        const rowGaps: string[] = [];
-        copy(
-          extra,
-          src,
-          gapKey,
-          'gap',
-          (v) => {
-            const g = asSettings(v);
-            const column = num(g.column) ?? num(g.size);
-            const row = num(g.row);
-            const unit = str(g.unit) === 'custom' ? 'px' : str(g.unit) || 'px';
-            if (row !== null && column !== null && row !== column) rowGaps.push(`${row}${unit}`);
-            return column !== null ? { size: column, unit } : undefined;
-          },
-          true,
-        );
-        if (rowGaps.length && !grid)
-          addCss(extra, `selector > .fr-container__in{row-gap:${rowGaps[0]}}`);
-        if (rowGaps.length && grid)
-          addCss(extra, `selector > .fr-container__in{row-gap:${rowGaps[0]}}`);
+        const gapUnit = (g: Settings) => (str(g.unit) === 'custom' ? 'px' : str(g.unit) || 'px');
+        copy(extra, src, gapKey, 'gap', (v) => {
+          const g = asSettings(v);
+          const column = num(g.column) ?? num(g.size);
+          return column !== null ? { size: column, unit: gapUnit(g) } : undefined;
+        });
+        copy(extra, src, gapKey, 'row_gap', (v) => {
+          const g = asSettings(v);
+          const column = num(g.column) ?? num(g.size);
+          const row = num(g.row);
+          return row !== null && column !== null && row !== column
+            ? { size: row, unit: gapUnit(g) }
+            : undefined;
+        });
         copy(extra, src, 'width', 'width', (v) => size(v, c));
         copy(extra, src, 'boxed_width', 'boxed_width', (v) => size(v, c));
         copy(extra, src, 'min_height', 'min_height', (v) => size(v, c));
-        if (str(src.overflow) === 'hidden') extra.overflow = 'hidden';
+        if (str(src.overflow) === 'hidden' || str(src.overflow) === 'auto')
+          extra.overflow = str(src.overflow);
         if (str(src.html_tag) && str(src.html_tag) !== 'div') extra.html_tag = str(src.html_tag);
         if (src.html_tag === 'a' && link(src.link, ctx.origin))
           extra.link = link(src.link, ctx.origin);

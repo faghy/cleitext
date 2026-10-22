@@ -11,40 +11,17 @@ export interface DropTarget {
   place: Place;
   /** The line showing where it goes, in the canvas document's coordinates. */
   line: { x: number; y: number; width: number; height: number };
-  /** Where a placeholder opens the space in the canvas: in `parent`, before `before`. */
-  anchor?: Anchor;
+  /** Into an empty container: `line` is the container's inside. */
+  empty?: boolean;
 }
 
 export type Axis = 'row' | 'column';
 
-export interface Anchor {
-  parent: Element;
-  before: Node | null;
-  axis: Axis;
-}
-
-/** The place of the slot `index` among the elements of `parent`. */
-function anchorAt(parent: Element, siblings: HTMLElement[], index: number, axis: Axis): Anchor {
-  const before =
-    index < siblings.length
-      ? siblings[index]!
-      : siblings.length
-        ? siblings.at(-1)!.nextSibling
-        : parent.firstChild;
-  return { parent, before, axis };
-}
-
-/** Next to an element, before or after it. */
-function besideAnchor(element: HTMLElement, after: boolean): Anchor | undefined {
-  const parent = element.parentElement;
-  if (!parent) return undefined;
-  return { parent, before: after ? element.nextSibling : element, axis: axisOf(parent) };
-}
-
 function axisOf(inner: Element): Axis {
   const style = inner.ownerDocument.defaultView!.getComputedStyle(inner);
   if (style.display.includes('grid')) return 'row';
-  return style.flexDirection.startsWith('row') ? 'row' : 'column';
+  // Only a flex box lays its children in a row (the page's own column never does).
+  return style.display.includes('flex') && style.flexDirection.startsWith('row') ? 'row' : 'column';
 }
 
 /**
@@ -57,51 +34,54 @@ function childElements(inner: Element): HTMLElement[] {
   );
 }
 
+/** A box with room: wrappers shown with `display: contents` have none of their own. */
+function boxOf(element: Element): DOMRect {
+  let current: Element | null = element;
+  while (current) {
+    const r = current.getBoundingClientRect();
+    if (r.width > 0 || r.height > 0) return r;
+    current = current.parentElement;
+  }
+  return element.getBoundingClientRect();
+}
+
+const THICK = 3;
+
+/** The line before (or after) an element, across the axis of its parent. */
+function lineAt(r: DOMRect, axis: Axis, after: boolean, scroll: { x: number; y: number }) {
+  return axis === 'row'
+    ? {
+        x: (after ? r.right : r.left) + scroll.x - THICK / 2,
+        y: r.top + scroll.y,
+        width: THICK,
+        height: r.height,
+      }
+    : {
+        x: r.left + scroll.x,
+        y: (after ? r.bottom : r.top) + scroll.y - THICK / 2,
+        width: r.width,
+        height: THICK,
+      };
+}
+
 /** Index among siblings where a point falls, and the line before that index. */
-function slot(
-  siblings: HTMLElement[],
+export function slot(
+  siblings: { getBoundingClientRect(): DOMRect }[],
   axis: Axis,
   x: number,
   y: number,
   scroll: { x: number; y: number },
-  fallback: DOMRect,
-): { index: number; line: DropTarget['line'] } {
-  const thick = 3;
+): { index: number; line: DropTarget['line'] } | null {
   for (const [index, element] of siblings.entries()) {
     const r = element.getBoundingClientRect();
     const before =
       axis === 'row'
         ? y < r.top || (y <= r.bottom && x < r.left + r.width / 2)
         : y < r.top + r.height / 2;
-    if (before) {
-      return {
-        index,
-        line:
-          axis === 'row'
-            ? { x: r.left + scroll.x - thick, y: r.top + scroll.y, width: thick, height: r.height }
-            : { x: r.left + scroll.x, y: r.top + scroll.y - thick, width: r.width, height: thick },
-      };
-    }
+    if (before) return { index, line: lineAt(r, axis, false, scroll) };
   }
   const last = siblings.at(-1)?.getBoundingClientRect();
-  if (!last) {
-    return {
-      index: 0,
-      line: {
-        x: fallback.left + scroll.x,
-        y: fallback.top + scroll.y + fallback.height / 2,
-        width: fallback.width,
-        height: thick,
-      },
-    };
-  }
-  return {
-    index: siblings.length,
-    line:
-      axis === 'row'
-        ? { x: last.right + scroll.x, y: last.top + scroll.y, width: thick, height: last.height }
-        : { x: last.left + scroll.x, y: last.bottom + scroll.y, width: last.width, height: thick },
-  };
+  return last ? { index: siblings.length, line: lineAt(last, axis, true, scroll) } : null;
 }
 
 /** Where a drop at (x, y) of the canvas window goes, or null where it cannot. */
@@ -126,12 +106,12 @@ export function dropTarget(
   if (!element || !root.contains(element)) {
     // Outside every element: at the top level, by height.
     const tree = root.querySelector('.fre-tree') ?? root;
-    const top = childElements(tree);
-    const s = slot(top, 'column', x, y, scroll, root.getBoundingClientRect());
+    const s = slot(childElements(tree), 'column', x, y, scroll);
+    if (s) return { place: { parent: null, index: s.index }, line: s.line };
+    const r = boxOf(tree.querySelector('.fre-add') ?? tree);
     return {
-      place: { parent: null, index: s.index },
-      line: s.line,
-      anchor: anchorAt(tree, top, s.index, 'column'),
+      place: { parent: null, index: 0 },
+      line: { x: r.left + scroll.x, y: r.top + scroll.y, width: r.width, height: THICK },
     };
   }
   const id = element.dataset.frId!;
@@ -139,57 +119,38 @@ export function dropTarget(
   if (!node) return null;
   const definition = getElement(node.type);
   const r = element.getBoundingClientRect();
+  const place = placeOf(blocks, id);
+  const parentAxis = element.parentElement ? axisOf(element.parentElement) : 'column';
   if (definition?.container && (!definition.accepts || definition.accepts(type))) {
-    const edge = Math.min(12, r.height / 4);
-    const place = placeOf(blocks, id);
-    // Near the top or bottom edge: next to the container, not inside it.
-    if (place && (y - r.top < edge || r.bottom - y < edge)) {
-      const after = r.bottom - y < edge;
-      const anchor = besideAnchor(element, after);
-      return {
-        place: { parent: place.parent, index: place.index + (after ? 1 : 0) },
-        line: {
-          x: r.left + scroll.x,
-          y: (after ? r.bottom : r.top) + scroll.y - 1.5,
-          width: r.width,
-          height: 3,
-        },
-        ...(anchor ? { anchor } : {}),
-      };
-    }
     const inner = element.querySelector(':scope > .fr-container__in') ?? element;
     const siblings = childElements(inner);
-    const axis = axisOf(inner);
-    const s = slot(siblings, axis, x, y, scroll, inner.getBoundingClientRect());
+    // Near the edges of a container with elements: next to it, not inside it.
+    // An empty one takes the whole drop, as its "+" invites.
+    const size = parentAxis === 'row' ? r.width : r.height;
+    const edge = siblings.length ? Math.min(12, size / 4) : 0;
+    const from = parentAxis === 'row' ? x - r.left : y - r.top;
+    const to = parentAxis === 'row' ? r.right - x : r.bottom - y;
+    if (place && (from < edge || to < edge)) {
+      const after = to < edge;
+      return {
+        place: { parent: place.parent, index: place.index + (after ? 1 : 0) },
+        line: lineAt(r, parentAxis, after, scroll),
+      };
+    }
+    const s = slot(siblings, axisOf(inner), x, y, scroll);
+    if (s) return { place: { parent: id, index: s.index }, line: s.line };
+    const box = inner.getBoundingClientRect();
     return {
-      place: { parent: id, index: s.index },
-      line: s.line,
-      anchor: anchorAt(inner, siblings, s.index, axis),
+      place: { parent: id, index: 0 },
+      line: { x: box.left + scroll.x, y: box.top + scroll.y, width: box.width, height: box.height },
+      empty: true,
     };
   }
-  const place = placeOf(blocks, id);
   if (!place) return null;
-  const parentInner = element.parentElement;
-  const axis = parentInner ? axisOf(parentInner) : 'column';
-  const after = axis === 'row' ? x > r.left + r.width / 2 : y > r.top + r.height / 2;
-  const anchor = besideAnchor(element, after);
+  const after = parentAxis === 'row' ? x > r.left + r.width / 2 : y > r.top + r.height / 2;
   return {
-    ...(anchor ? { anchor } : {}),
     place: { parent: place.parent, index: place.index + (after ? 1 : 0) },
-    line:
-      axis === 'row'
-        ? {
-            x: (after ? r.right : r.left) + scroll.x - 1.5,
-            y: r.top + scroll.y,
-            width: 3,
-            height: r.height,
-          }
-        : {
-            x: r.left + scroll.x,
-            y: (after ? r.bottom : r.top) + scroll.y - 1.5,
-            width: r.width,
-            height: 3,
-          },
+    line: lineAt(r, parentAxis, after, scroll),
   };
 }
 

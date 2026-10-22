@@ -379,6 +379,54 @@ register('menu', (root) => {
   });
 });
 
+/** Background slideshows of containers: one image at a time, with an optional Ken Burns zoom. */
+register('bg-slideshow', (root) => {
+  const slides = [...root.children] as HTMLElement[];
+  const load = (slide: HTMLElement | undefined) => {
+    const image = slide?.firstElementChild as HTMLElement | null | undefined;
+    const url = image?.dataset.frBg;
+    if (!image || !url) return;
+    image.style.backgroundImage = `url("${url.replace(/["\\]/g, '')}")`;
+    delete image.dataset.frBg;
+  };
+  let started = false;
+  const begin = () => {
+    if (started) return;
+    started = true;
+    load(slides[0]);
+    load(slides[1]);
+    if (slides.length < 2) return;
+    const duration = Math.max(Number(root.dataset.frDuration) || 5000, 500);
+    const speed = Number(root.dataset.frSpeed) || 0;
+    const loop = root.dataset.frLoop !== 'no';
+    let index = 0;
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      const next = index + 1 < slides.length ? index + 1 : loop ? 0 : -1;
+      if (next < 0) {
+        clearInterval(timer);
+        return;
+      }
+      const leaving = slides[index]!;
+      leaving.classList.remove('is-active');
+      leaving.classList.add('is-prev');
+      slides[next]!.classList.add('is-active');
+      setTimeout(() => leaving.classList.remove('is-prev'), speed + 50);
+      load(slides[(next + 1) % slides.length]);
+      index = next;
+    }, duration);
+  };
+  // Lazy slideshows start (and load their images) when they come into view.
+  if (root.querySelector('[data-fr-bg]') && 'IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      begin();
+    });
+    observer.observe(root);
+  } else begin();
+});
+
 // ---- Start --------------------------------------------------------------------------------
 
 document.documentElement.classList.add('fr-js');

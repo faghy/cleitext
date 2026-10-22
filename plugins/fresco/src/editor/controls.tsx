@@ -23,6 +23,7 @@ import { isMedia } from '../core/media.js';
 import { reorder } from './tree.js';
 import { formatColor, hsvaToRgba, parseColor, rgbaToHsva, toHex, type Hsva } from './color.js';
 import { formatShortcut } from './format-keys.js';
+import { VirtualGrid } from './virtual-grid.js';
 import {
   OPTIONAL_DEVICES,
   activeDevices,
@@ -288,7 +289,8 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
       const options = [
         ...(control.type === 'animation' ? ANIMATIONS : (control.options ?? [])).map((o) => ({
           ...o,
-          label: t(o.label),
+          // A translation of the raw value (Fresco Pro has some) wins.
+          label: t(o.label) !== o.label ? t(o.label) : t(optionLabel(o)),
         })),
         ...(control.type !== 'animation' && control.source ? sourceOptions(control.source) : []),
       ].filter(
@@ -323,8 +325,14 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
       );
     }
     case 'choose':
+      // Many buttons (Justify content) go under their label, across the panel.
       return (
-        <Row control={control} env={env} inline reset={reset}>
+        <Row
+          control={control}
+          env={env}
+          inline={(control.options ?? []).length <= CHOOSE_INLINE}
+          reset={reset}
+        >
           <span className="fre-choose" role="group" aria-label={t(control.label)}>
             {(control.options ?? []).map((option) => (
               <button
@@ -1247,13 +1255,17 @@ export function MediaPicker({
           </button>
         </div>
         {error && <p className="fre-error">{error}</p>}
-        <div className="fre-modal__grid">
-          {items === null ? (
-            <p>{t('Loading…')}</p>
-          ) : items.length === 0 ? (
-            <p>{t('No files.')}</p>
-          ) : (
-            items.map((item) => (
+        {items === null || items.length === 0 ? (
+          <div className="fre-modal__grid">
+            <p>{items === null ? t('Loading…') : t('No files.')}</p>
+          </div>
+        ) : (
+          <VirtualGrid
+            className="fre-modal__grid"
+            items={items}
+            minCell={120}
+            rowHeight={(cell) => cell}
+            render={(item) => (
               <button
                 key={item.id}
                 type="button"
@@ -1262,14 +1274,14 @@ export function MediaPicker({
                 onClick={() => toggle(item)}
               >
                 {item.mime.startsWith('image/') ? (
-                  <img src={item.thumbnailUrl ?? item.url} alt="" />
+                  <img src={item.thumbnailUrl ?? item.url} alt="" loading="lazy" />
                 ) : (
                   <span>{item.url.split('/').pop()}</span>
                 )}
               </button>
-            ))
-          )}
-        </div>
+            )}
+          />
+        )}
         {multiple && (
           <div className="fre-modal__foot">
             <button
@@ -1285,6 +1297,20 @@ export function MediaPicker({
       </div>
     </div>
   );
+}
+
+/** Buttons of a "choose" control that fit beside its label. */
+const CHOOSE_INLINE = 4;
+
+/**
+ * The label of a select's option: a definition naming it by its value
+ * (`bottom-left`) gets words ("Bottom left"), to be translated.
+ */
+export function optionLabel(option: { value: string; label: string }): string {
+  if (option.label !== option.value || !/^[a-z][a-z0-9]*([-_][a-z0-9]+)*$/.test(option.value))
+    return option.label;
+  const words = option.value.replace(/[-_]+/g, ' ');
+  return words[0]!.toUpperCase() + words.slice(1);
 }
 
 function IconInput({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
@@ -1314,6 +1340,19 @@ function IconInput({ value, onChange }: { value: unknown; onChange: (v: unknown)
   );
 }
 
+/** The name of an icon set, as the set menu shows it. */
+function setLabel(set: string): string {
+  const custom = extensions().iconSets.find((group) => group.id === set);
+  if (custom) return custom.label;
+  return set === 'solid'
+    ? t('Solid')
+    : set === 'regular'
+      ? t('Regular')
+      : set === 'brands'
+        ? t('Brands')
+        : set;
+}
+
 function IconPicker({
   onPick,
   onClose,
@@ -1332,12 +1371,18 @@ function IconPicker({
     ],
     [],
   );
-  const shown = all
-    .filter(
-      ([s, name]) =>
-        (set === 'all' || s === set) && (!search || name.includes(search.toLowerCase().trim())),
-    )
-    .slice(0, 400);
+  const shown = useMemo(() => {
+    const query = search.toLowerCase().trim();
+    return all.filter(
+      ([s, name]) => (set === 'all' || s === set) && (!query || name.includes(query)),
+    );
+  }, [all, set, search]);
+  // The same name in two styles (solid and regular "truck") says which is which.
+  const shared = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const [, name] of shown) seen.set(name, (seen.get(name) ?? 0) + 1);
+    return seen;
+  }, [shown]);
   return (
     <div
       className="fre-modal"
@@ -1376,20 +1421,33 @@ function IconPicker({
             ×
           </button>
         </div>
-        <div className="fre-modal__grid fre-modal__grid--icons">
-          {shown.map(([s, name, url]) => (
-            <button
-              key={`${s}:${name}`}
-              type="button"
-              className="fre-thumb fre-thumb--icon"
-              title={`${name} (${s})`}
-              onClick={() => onPick(url ? { set: s, name, url } : { set: s, name })}
-            >
-              <Icon value={url ? { set: s, name, url } : { set: s, name }} />
-              <span>{name}</span>
-            </button>
-          ))}
-        </div>
+        {shown.length === 0 ? (
+          <div className="fre-modal__grid">
+            <p>{t('No icons found.')}</p>
+          </div>
+        ) : (
+          <VirtualGrid
+            className="fre-modal__grid fre-modal__grid--icons"
+            items={shown}
+            minCell={92}
+            rowHeight={84}
+            render={([s, name, url]) => (
+              <button
+                key={`${s}:${name}`}
+                type="button"
+                className="fre-thumb fre-thumb--icon"
+                title={`${name} (${setLabel(s)})`}
+                onClick={() => onPick(url ? { set: s, name, url } : { set: s, name })}
+              >
+                <Icon value={url ? { set: s, name, url } : { set: s, name }} />
+                <span>{name}</span>
+                {(shared.get(name) ?? 0) > 1 && (
+                  <small className="fre-thumb__set">{setLabel(s)}</small>
+                )}
+              </button>
+            )}
+          />
+        )}
         <p className="fre-help">{t('Icons: Font Awesome Free (CC BY 4.0).')}</p>
       </div>
     </div>

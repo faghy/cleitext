@@ -31,6 +31,7 @@ import { AtomicStyle } from './atomic-style.js';
 import { FontPicker, systemGroup } from './font-picker.js';
 import { controlsOf, extensions } from '../core/extensions.js';
 import { LibraryView } from './library.js';
+import { documentKind } from './document-kind.js';
 import { HistoryView } from './history.js';
 import { confirmAction } from './dialogs.js';
 import {
@@ -46,6 +47,7 @@ import {
 import { PluginBlockFields, pluginBlockTitle } from './plugin-blocks.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
+import { controlShown, hasHoverView, parentLayout } from './panel-filter.js';
 
 const CATEGORIES: { id: ElementCategory; title: string }[] = [
   { id: 'layout', title: 'Layout' },
@@ -314,11 +316,17 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
   const shownTab = contentOnly ? 'content' : tab;
   // "Hide on <device>" only for the devices in use.
   const devices: readonly string[] = activeDevices(kit.breakpoints);
+  // Item fields of the parent's layout only: flex (align self, size) or grid (spans).
+  const parentPath = pathTo(blocks, node.id);
+  const layout = parentLayout(
+    parentPath.length > 1 ? find(blocks, parentPath[parentPath.length - 2]!) : null,
+  );
   const controls = allControls.filter(
     (c) =>
       c.tab === shownTab &&
       conditionMet(c, settings) &&
-      !(c.name.startsWith('_hide_') && !devices.includes(c.name.slice(6))),
+      !(c.name.startsWith('_hide_') && !devices.includes(c.name.slice(6))) &&
+      (controlShown(c, { hover: false, layout }) || controlShown(c, { hover: true, layout })),
   );
   const sections = [...new Set(controls.map((c) => c.section))];
   const sectionKey = `${node.type}:${tab}`;
@@ -382,7 +390,7 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
       )}
       {sections.map((section) => {
         const inSection = controls.filter((c) => c.section === section);
-        const hoverable = inSection.some((c) => c.hover);
+        const hoverable = hasHoverView(inSection);
         const key = `${node.type}:${tab}:${section}`;
         const isHover = hover[key] === true;
         const env: ControlEnv = {
@@ -429,7 +437,7 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
                   </div>
                 )}
                 {inSection
-                  .filter((c) => !isHover || c.hover)
+                  .filter((c) => controlShown(c, { hover: hoverable && isHover, layout }))
                   .map((control) =>
                     control.type === 'pluginBlock' ? (
                       <PluginBlockFields
@@ -689,6 +697,12 @@ function PageSettingsTab({
   const page = useStore(store, (s) => s.page);
   const readOnly = useStore(store, (s) => s.readOnly);
   const wide = page.layout === 'full' || page.layout === 'canvas';
+  // Some documents (popups) have none of the theme's page settings.
+  const pageFields =
+    documentKind(
+      useStore(store, (s) => s.entry.type),
+      page,
+    ).pageFields !== false;
   return (
     <>
       {host && (
@@ -717,7 +731,7 @@ function PageSettingsTab({
           <p className="fre-help">
             {tr('Publish, update or save a draft with the button at the top right.')}
           </p>
-          {host.setFeaturedMediaId && (
+          {host.setFeaturedMediaId && pageFields && (
             <MediaIdField
               label={tr('Featured image')}
               help={tr('Saved with the page; shown in lists and social previews.')}
@@ -729,56 +743,62 @@ function PageSettingsTab({
           )}
         </>
       )}
-      <label className="fre-checks">
-        <input
-          type="checkbox"
-          checked={page.hideTitle === true}
-          onChange={(e) => store.actions.setPage({ hideTitle: e.target.checked || undefined })}
-        />
-        {tr('Hide the page title')}
-      </label>
-      <p className="fre-help">
-        {tr(
-          "Hides the theme's title of this page (Site settings → Layout says which element that is).",
-        )}
-      </p>
-      <div className="fre-control fre-control--inline">
-        <div className="fre-control__head">
-          <span className="fre-control__label">{tr('Layout')}</span>
-        </div>
-        <div className="fre-control__body">
-          <select
-            className="fre-input"
-            value={typeof page.layout === 'string' ? page.layout : ''}
-            onChange={(e) => store.actions.setPage({ layout: e.target.value || undefined })}
-          >
-            <option value="">{tr('Theme default')}</option>
-            <option value="full">{tr('Full width')}</option>
-            <option value="canvas">{tr('Canvas (no header and footer)')}</option>
-          </select>
-        </div>
-      </div>
-      <p className="fre-help">
-        {tr(
-          'Full width: top-level containers span the whole window. Canvas: also without the theme’s header and footer. Seen on the page after saving.',
-        )}
-      </p>
-      <label className="fre-checks">
-        <input
-          type="checkbox"
-          checked={page.hideFeatured === true || wide}
-          disabled={wide}
-          onChange={(e) => store.actions.setPage({ hideFeatured: e.target.checked || undefined })}
-        />
-        {tr('Hide the featured image')}
-      </label>
-      <p className="fre-help">
-        {wide
-          ? tr('Full width and Canvas pages never show the theme’s featured image.')
-          : tr(
-              'The theme does not show it above the page; archives, loops and social previews still use it.',
+      {pageFields && (
+        <>
+          <label className="fre-checks">
+            <input
+              type="checkbox"
+              checked={page.hideTitle === true}
+              onChange={(e) => store.actions.setPage({ hideTitle: e.target.checked || undefined })}
+            />
+            {tr('Hide the page title')}
+          </label>
+          <p className="fre-help">
+            {tr(
+              "Hides the theme's title of this page (Site settings → Layout says which element that is).",
             )}
-      </p>
+          </p>
+          <div className="fre-control fre-control--inline">
+            <div className="fre-control__head">
+              <span className="fre-control__label">{tr('Layout')}</span>
+            </div>
+            <div className="fre-control__body">
+              <select
+                className="fre-input"
+                value={typeof page.layout === 'string' ? page.layout : ''}
+                onChange={(e) => store.actions.setPage({ layout: e.target.value || undefined })}
+              >
+                <option value="">{tr('Theme default')}</option>
+                <option value="full">{tr('Full width')}</option>
+                <option value="canvas">{tr('Canvas (no header and footer)')}</option>
+              </select>
+            </div>
+          </div>
+          <p className="fre-help">
+            {tr(
+              'Full width: top-level containers span the whole window. Canvas: also without the theme’s header and footer. Seen on the page after saving.',
+            )}
+          </p>
+          <label className="fre-checks">
+            <input
+              type="checkbox"
+              checked={page.hideFeatured === true || wide}
+              disabled={wide}
+              onChange={(e) =>
+                store.actions.setPage({ hideFeatured: e.target.checked || undefined })
+              }
+            />
+            {tr('Hide the featured image')}
+          </label>
+          <p className="fre-help">
+            {wide
+              ? tr('Full width and Canvas pages never show the theme’s featured image.')
+              : tr(
+                  'The theme does not show it above the page; archives, loops and social previews still use it.',
+                )}
+          </p>
+        </>
+      )}
     </>
   );
 }

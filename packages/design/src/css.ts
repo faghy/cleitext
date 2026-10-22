@@ -102,8 +102,19 @@ export function safeFont(value: unknown): string | null {
 }
 
 /** The CSS text of a value for `{{value}}`, or null when it cannot be used. */
-export function cssValue(control: Pick<Control, 'type'>, value: unknown): string | null {
+export function cssValue(
+  control: Pick<Control, 'type'> & Partial<Pick<Control, 'dictionary' | 'pattern'>>,
+  value: unknown,
+): string | null {
   if (isEmpty(value)) return null;
+  const { dictionary, pattern } = control;
+  if (dictionary && Object.hasOwn(dictionary, String(value))) {
+    return dictionary[String(value)] || null;
+  }
+  if (pattern && typeof value === 'string' && !/[;{}<>"'\\]/.test(value)) {
+    const text = value.trim().replace(/\s+/g, ' ');
+    if (text.length <= 200 && new RegExp(`^(?:${pattern})$`, 'i').test(text)) return text;
+  }
   switch (control.type) {
     case 'color':
       return safeColor(value);
