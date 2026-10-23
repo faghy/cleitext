@@ -605,6 +605,8 @@ Styles go at the end of `<head>`, scripts before `</body>` (`defer`, or `type="m
 
 Plugins come in a stable order (plugin API 1.42): a plugin after the plugins it lists in `requires.plugins`, the others by slug, and each plugin's files in the order it enqueued them. So an add-on's stylesheet always loads after the one of the plugin it extends, and can override it with the same specificity.
 
+Installing or updating a plugin from the catalog first installs or updates, from the same catalog, the plugins its `requires.plugins` asks for when they are missing or older than the range: a site left a few versions behind is never stuck. Only when the catalog has no version in the range does the installation stop, saying which plugin to update first.
+
 ### Extending a theme's options (plugin API 1.32)
 
 A plugin can add settings, sections, header or footer builder elements, ready-made styles and block areas to a theme, by its slug: an add-on such as a "Pro" version of the theme. Call `ctx.themes.extend` in `setup` (needs `theme:hooks`):

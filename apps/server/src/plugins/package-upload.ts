@@ -166,7 +166,8 @@ export async function runCli(
     const detail = (failure.stderr || failure.message || String(error))
       .trim()
       .split('\n')
-      .slice(-3);
+      .slice(-3)
+      .map((line) => line.replace(/^Error:\s*/, ''));
     throw new BadRequestException(`Installation failed: ${detail.join(' ')}`);
   }
 }

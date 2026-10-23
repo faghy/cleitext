@@ -36,17 +36,23 @@ const otherKeys = generateKeyPairSync('ed25519');
 /** What the fake catalog serves, by path. */
 const files = new Map<string, Buffer>();
 
-function pluginZip(version: string, apiVersion = '^1.0') {
+function pluginZip(
+  version: string,
+  apiVersion = '^1.0',
+  slug = 'tiny',
+  requires?: Record<string, string>,
+) {
   return Buffer.from(
     zipSync({
-      'tiny/cleitext.plugin.json': strToU8(
+      [`${slug}/cleitext.plugin.json`]: strToU8(
         JSON.stringify({
-          slug: 'tiny',
-          name: 'Tiny',
+          slug,
+          name: slug === 'tiny' ? 'Tiny' : 'Add-on',
           version,
           apiVersion,
           license: 'GPL-2.0-or-later',
           permissions: [],
+          ...(requires ? { requires: { plugins: requires } } : {}),
         }),
       ),
     }),
@@ -74,7 +80,7 @@ function item(type: 'plugin' | 'theme', slug: string, version: string, zip: Buff
   return {
     type,
     slug,
-    name: slug === 'tiny' ? 'Tiny' : 'Sparkle',
+    name: ({ tiny: 'Tiny', addon: 'Add-on' } as Record<string, string>)[slug] ?? 'Sparkle',
     summary: { en: `The ${slug} ${type}.`, it: `Il ${type} ${slug}.` },
     tags: [],
     icon: null,
@@ -289,5 +295,36 @@ describe('automatic updates', () => {
     expect(allowed('all', '0.26.1', '0.27.0-beta.1')).toBe(false);
     expect(allowed('off', '0.26.0', '0.26.1')).toBe(false);
     expect(allowed('all', '0.27.0', '0.26.1')).toBe(false);
+  });
+});
+
+describe('required plugins', () => {
+  it('are updated from the catalog first, so a site left behind is never stuck', async () => {
+    publish([
+      item('plugin', 'tiny', '1.5.0', pluginZip('1.5.0')),
+      item('plugin', 'addon', '1.0.0', pluginZip('1.0.0', '^1.0', 'addon', { tiny: '^1.5.0' })),
+    ]);
+    expect((await catalog()).items[0]).toMatchObject({ installed: '1.3.0', update: true });
+    const res = await root.post('/api/v1/catalog/plugin/addon/install');
+    expect(res.statusCode).toBe(200);
+    expect(res.json().message).toContain('Tiny updated from 1.3.0 to 1.5.0 (required by addon).');
+    expect((await catalog()).items.map((i: { installed: string }) => i.installed)).toEqual([
+      '1.5.0',
+      '1.0.0',
+    ]);
+  });
+
+  it('that the catalog cannot satisfy say what is missing', async () => {
+    publish([
+      item('plugin', 'tiny', '1.5.0', pluginZip('1.5.0')),
+      item('plugin', 'addon', '1.1.0', pluginZip('1.1.0', '^1.0', 'addon', { tiny: '^3.0.0' })),
+    ]);
+    await catalog();
+    const res = await root.post('/api/v1/catalog/plugin/addon/install');
+    expect(res.statusCode).toBe(400);
+    expect(res.json().detail).toContain(
+      'Add-on 1.1.0 needs Tiny ^3.0.0 (1.5.0 is installed): update Tiny first, then Add-on.',
+    );
+    expect(res.json().detail).not.toContain('Error:');
   });
 });

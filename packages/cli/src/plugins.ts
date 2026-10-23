@@ -315,11 +315,15 @@ export async function installPlugin(db: Database, options: InstallOptions): Prom
 async function assertDependencies(db: Database, manifest: PluginManifest): Promise<void> {
   for (const [slug, range] of Object.entries(manifest.requires?.plugins ?? {})) {
     const [dependency] = await db.select().from(plugins).where(eq(plugins.slug, slug));
-    if (!dependency)
-      throw new OperationError(`${manifest.slug} requires the plugin ${slug} (${range}).`);
-    if (!semver.satisfies(dependency.version, range)) {
+    if (!dependency) {
       throw new OperationError(
-        `${manifest.slug} requires ${slug} ${range}; version ${dependency.version} is installed.`,
+        `${manifest.name} ${manifest.version} needs the plugin ${slug} (${range}): install it first, then ${manifest.name}.`,
+      );
+    }
+    if (!semver.satisfies(dependency.version, range)) {
+      const name = (dependency.manifest as { name?: string } | null)?.name ?? slug;
+      throw new OperationError(
+        `${manifest.name} ${manifest.version} needs ${name} ${range} (${dependency.version} is installed): update ${name} first, then ${manifest.name}.`,
       );
     }
   }

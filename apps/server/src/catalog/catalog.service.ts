@@ -140,11 +140,17 @@ export class CatalogService {
     };
   }
 
-  /** Downloads, checks and installs (or updates) an item; the CLI does the rest. */
+  /**
+   * Downloads, checks and installs (or updates) an item; the CLI does the rest.
+   * The plugins it requires are installed or updated first from the catalog,
+   * so a site left a few versions behind never stays stuck (`chain`: the
+   * plugins waiting for this one).
+   */
   async install(
     type: 'plugin' | 'theme',
     slug: string,
     site: { id: string; auth: AuthContext; origin: string },
+    chain: readonly string[] = [],
   ): Promise<{ version: string; message: string }> {
     if (!this.enabled)
       throw new ServiceUnavailableException('The catalog is turned off on this server.');
@@ -183,10 +189,15 @@ export class CatalogService {
       const root = await packageRoot(dir, manifestName);
       const manifest = JSON.parse(await readFile(path.join(root, manifestName), 'utf8')) as {
         slug?: string;
+        requires?: { plugins?: Record<string, string> };
       };
       if (manifest.slug !== slug)
         throw new BadRequestException('The package is not the one expected.');
-      const message = await runCli([`${type}:install`, root], this.config);
+      const before =
+        type === 'plugin'
+          ? await this.installRequired(slug, manifest.requires?.plugins ?? {}, site, chain)
+          : [];
+      const message = [...before, await runCli([`${type}:install`, root], this.config)].join('\n');
       // Ready when the answer comes, not when the notice reaches this process.
       if (type === 'plugin') await this.plugins.reload();
       else await loadThemes(this.config.themes.path);
@@ -210,6 +221,34 @@ export class CatalogService {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  }
+
+  /**
+   * The required plugins missing, or older than the range asks, installed or
+   * updated from the catalog. One the catalog cannot satisfy is left to the
+   * CLI, which says what is missing.
+   */
+  private async installRequired(
+    slug: string,
+    required: Record<string, string>,
+    site: { id: string; auth: AuthContext; origin: string },
+    chain: readonly string[],
+  ): Promise<string[]> {
+    const messages: string[] = [];
+    for (const [dependency, range] of Object.entries(required)) {
+      const installed = this.plugins.get(dependency)?.version ?? null;
+      if (installed && semver.satisfies(installed, range)) continue;
+      if (dependency === slug || chain.includes(dependency)) continue;
+      const item = (await this.items()).find((i) => i.type === 'plugin' && i.slug === dependency);
+      if (!item || !semver.satisfies(item.version, range)) continue;
+      const result = await this.install('plugin', dependency, site, [...chain, slug]);
+      messages.push(
+        installed
+          ? `${item.name} updated from ${installed} to ${result.version} (required by ${slug}).`
+          : `${item.name} ${result.version} installed (required by ${slug}).`,
+      );
+    }
+    return messages;
   }
 
   private async fetch(url: string, maxBytes = 5 * 1024 * 1024): Promise<Buffer> {
