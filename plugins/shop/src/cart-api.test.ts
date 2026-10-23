@@ -190,6 +190,7 @@ describe('the cart for other plugins and blocks', () => {
       remove: '/it/cart/item/remove',
       count: '/it/cart/count',
       checkoutData: '/it/checkout/data',
+      add: '/it/cart/add',
     });
     expect(cartUrls('').data).toBe('/cart/data');
     expect(cartUrls('//evil.example').cart).toBe('/cart');

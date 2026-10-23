@@ -259,3 +259,70 @@ describe('the cart and checkout blocks', () => {
     expect(full.html).toContain('Place order');
   });
 });
+
+describe('add-to-cart links (Cleishop 1.8)', () => {
+  it('add a simple product and go to the cart, never cached nor indexed', async () => {
+    const fede = visitor();
+    const res = await fede.request('GET', `/cart/add?product=${mug}&quantity=2`);
+    expect(res.statusCode).toBe(303);
+    expect(res.headers.location).toBe('/cart?added=Mug');
+    expect(res.headers['cache-control']).toContain('no-store');
+    expect(res.headers['x-robots-tag']).toContain('noindex');
+    expect((await fede.get('/cart/data')).json()).toMatchObject({
+      count: 2,
+      items: [{ productId: mug }],
+    });
+    // Back to the product, with WooCommerce's parameter on the cart page.
+    const back = await fede.request('GET', `/cart?add-to-cart=${print}&to=product`);
+    expect(back.statusCode).toBe(303);
+    const printSlug = (await admin.get(`/api/v1/entries/${print}`)).json().slug;
+    expect(back.headers.location).toContain(printSlug);
+    expect((await fede.get('/cart/count')).json().count).toBe(3);
+  });
+
+  it('apply the stock and the quantity cap; products with options go to their page', async () => {
+    const gino = visitor();
+    // 3 in stock: 10 asked (the cap), 3 added.
+    await gino.request('GET', `/cart/add?product=${mug}&quantity=50`);
+    expect((await gino.get('/cart/data')).json().items[0].quantity).toBe(3);
+    const options = await gino.request('GET', `/cart/add?product=${shirt}`);
+    expect(options.statusCode).toBe(303);
+    const shirtSlug = (await admin.get(`/api/v1/entries/${shirt}`)).json().slug;
+    expect(options.headers.location).toContain(shirtSlug);
+    expect((await gino.get('/cart/count')).json().count).toBe(3);
+    const unknown = await gino.request(
+      'GET',
+      '/cart/add?product=00000000-0000-4000-8000-000000000000',
+    );
+    expect(unknown.headers.location).toMatch(/^\/cart\?error=/);
+  });
+
+  it('add nothing from another site’s picture or script, or for a bot', async () => {
+    const inject = (headers: Record<string, string>, ip: string) =>
+      app.inject({
+        method: 'GET',
+        url: `/cart/add?product=${mug}`,
+        remoteAddress: ip,
+        headers: { host: site.host, ...headers },
+      });
+    const refused: Record<string, string>[] = [
+      { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'image' },
+      { 'sec-purpose': 'prefetch' },
+      { 'user-agent': 'Googlebot/2.1' },
+    ];
+    for (const [i, headers] of refused.entries()) {
+      const res = await inject(headers, `10.95.2.${i + 1}`);
+      expect(res.statusCode).toBe(303);
+      expect(res.cookies).toHaveLength(0);
+    }
+  });
+
+  it('are limited for each visitor', async () => {
+    const hugo = visitor();
+    const codes: number[] = [];
+    for (let i = 0; i < 31; i++)
+      codes.push((await hugo.request('GET', `/cart/add?product=${print}`)).statusCode);
+    expect(codes.slice(0, 30).every((c) => c === 303)).toBe(true);
+    expect(codes[30]).toBe(429);
+  });
+});

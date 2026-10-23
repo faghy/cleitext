@@ -152,6 +152,35 @@ customer's data include their orders and saved addresses. Erasing deletes the
 saved addresses and carts and anonymizes orders that never became a sale;
 sales are kept for tax and accounting records, without IP address and browser.
 
+**Add-to-cart links** (Cleishop 1.8): a link can put a product in the
+visitor's cart, as WooCommerce's `?add-to-cart=` links do, e.g. in a
+newsletter, a button or a page imported from WooCommerce:
+
+- `/cart/add?product=<id>&quantity=2` adds the product and opens the cart;
+  `&to=product` goes back to the product's page instead. Behind the language
+  prefix too (`/it/cart/add?…`). `<id>` is the product's entry id.
+- `/cart?add-to-cart=<id>&quantity=2` is read the same way (WooCommerce's
+  form, with Cleishop's ids).
+
+A link that changes something can be opened from any site, so it does as
+little as it can:
+
+- **Simple products only.** A product with options (variations) goes to its
+  page, where the visitor chooses them; nothing is added.
+- **At most 10 pieces per link**, with the cart's rules: stock (a product out
+  of stock is not added, a larger quantity is lowered to the stock), products
+  sold one at a time, published products only.
+- **A few links per visitor**: 30 every 10 minutes for each address; then
+  "Too many requests" (429).
+- **Only a page the visitor opens.** Browsers say what a request is for: a
+  picture, a script or a background request from another site, a prefetch,
+  a `HEAD`, a search engine or a link preview only get the redirect, and
+  nothing is added.
+- **Never cached, never indexed** (`Cache-Control: private, no-store`,
+  `X-Robots-Tag: noindex, nofollow`), and the only thing that changes is the
+  visitor's own cart: no coupons, no checkout, no account. The redirect goes
+  to the site's own cart or product page, never to an address in the link.
+
 **For developers** (Cleishop 1.7): the visitor's cart for scripts and page
 builders, behind the language prefix too (`/it/cart/data`); never cached.
 
@@ -173,10 +202,16 @@ shipping, fees, tax, total, formatted }, notices, cartUrl, checkoutUrl }`.
   checkout's markup (the cart's when it is empty). Its form posts to
   `/checkout` as usual.
 - `GET /cart/count`: `{ count, label }`.
+- Scripts that change the cart (a page builder's mini cart removing an
+  item) dispatch `cleishop:cart-changed` on `document` (Cleishop 1.8): the
+  `shop/cart` blocks on the page read the cart again.
 
 Other plugins find these addresses, and the names of the blocks, in
 Cleishop's read-only API on `globalThis[Symbol.for('cleitext.shop')]`:
 `cartUrls(prefix)` and `blocks` (`shop/cart`, `shop/checkout`), beside
-`product(siteId, entryId, locale)` and `tags(entryId)`.
+`product(siteId, entryId, locale)` and `tags(entryId)`. Since 1.8,
+`cartAddUrl(prefix, productId, { quantity, to })` builds an add-to-cart link
+('' for an id that is not a product's) and `events.cartChanged` names the
+event above.
 
 Requires Cleitext 0.30 or later. License: GPL-2.0-or-later.

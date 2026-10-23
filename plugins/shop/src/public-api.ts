@@ -4,11 +4,14 @@
  * the page's language. Installed on `globalThis[Symbol.for('cleitext.shop')]`,
  * as Fresco installs its own; nothing here writes or reads carts. Carts
  * belong to each visitor: pages fetch them from the routes in `cartUrls`
- * (Cleishop 1.7), or show the `shop/cart` and `shop/checkout` blocks.
+ * (Cleishop 1.7), or show the `shop/cart` and `shop/checkout` blocks, and
+ * link to `cartAddUrl` (Cleishop 1.8) to add a product to them.
  */
 import type { PluginContext } from '@cleitext/plugin-sdk';
 import { asc, eq } from 'drizzle-orm';
 import { productTag } from './buy-box';
+import { CART_CHANGED_EVENT } from './cart-api';
+import { cartAddUrl, safePrefix, type CartLinkOptions } from './cart-link';
 import { currentPrice, isOnSale } from './pricing';
 import { attributes, attributeValues, productAttributes, products, variations } from './schema';
 import { textIn } from './texts';
@@ -52,6 +55,19 @@ export interface ShopPublicApi {
   cartUrls?(prefix: string): ShopCartUrls;
   /** The blocks that show the visitor's cart and checkout (Cleishop 1.7). */
   blocks?: { cart: string; checkout: string };
+  /**
+   * A link that adds a simple product to the visitor's cart (Cleishop 1.8),
+   * e.g. `/it/cart/add?product=<id>&quantity=2`: '' when the id is not a
+   * product's. Products with options go to their page instead. Limits in
+   * the README ("Add-to-cart links").
+   */
+  cartAddUrl?(prefix: string, productId: string, options?: CartLinkOptions): string;
+  /**
+   * Events on `document` (Cleishop 1.8): dispatch `cartChanged` after changing
+   * the cart from a script (e.g. a mini cart removing an item) and the
+   * `shop/cart` blocks on the page read the cart again.
+   */
+  events?: { cartChanged: string };
 }
 
 export interface ShopCartUrls {
@@ -62,11 +78,13 @@ export interface ShopCartUrls {
   remove: string;
   count: string;
   checkoutData: string;
+  /** The add-to-cart links' route (Cleishop 1.8); see `cartAddUrl`. */
+  add: string;
 }
 
 /** The cart's addresses in a language (`/it`, or '' for the default one). */
 export function cartUrls(prefix: string): ShopCartUrls {
-  const base = /^\/[a-z]{2}(?:-[a-z]{2,4})?$/i.test(prefix) ? prefix : '';
+  const base = safePrefix(prefix);
   return {
     cart: `${base}/cart`,
     checkout: `${base}/checkout`,
@@ -75,6 +93,7 @@ export function cartUrls(prefix: string): ShopCartUrls {
     remove: `${base}/cart/item/remove`,
     count: `${base}/cart/count`,
     checkoutData: `${base}/checkout/data`,
+    add: `${base}/cart/add`,
   };
 }
 
@@ -89,6 +108,8 @@ export function registerPublicApi(
     tags: (entryId) => [productTag(entryId)],
     cartUrls,
     blocks: { cart: 'shop/cart', checkout: 'shop/checkout' },
+    cartAddUrl,
+    events: { cartChanged: CART_CHANGED_EVENT },
     async product(siteId, entryId, locale) {
       const values = await settings(siteId);
       return ctx.db.transaction(siteId, async (tx) => {

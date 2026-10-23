@@ -209,6 +209,7 @@ const IT: Record<string, string> = {
   'This order does not exist.': 'Questo ordine non esiste.',
   'Back to the cart': 'Torna al carrello',
   'This product cannot be bought now.': 'Questo prodotto non si può acquistare ora.',
+  'Too many requests: try again later.': 'Troppe richieste: riprova più tardi.',
   'Sale!': 'In offerta!',
   'Open the order': 'Apri l’ordine',
   'View your order': 'Vedi il tuo ordine',

@@ -158,6 +158,9 @@ export function setQuantity(items: CartItem[], key: string, quantity: number): C
 export const removeItem = (items: CartItem[], key: string): CartItem[] | null =>
   setQuantity(items, key, 0);
 
+/** Dispatched on `document` by scripts that changed the cart: the cart blocks read it again. */
+export const CART_CHANGED_EVENT = 'cleishop:cart-changed';
+
 /**
  * The script of the cart and checkout blocks (pages are cached, carts are
  * not): it fetches the visitor's cart or checkout from `data-shop-embed`
@@ -165,6 +168,9 @@ export const removeItem = (items: CartItem[], key: string): CartItem[] | null =>
  * protection). In the cart, its forms (quantities, remove, coupons) post in
  * the background and the cart is drawn again, with the cart page's notices;
  * the cart links' counts follow. Without scripts the block links the page.
+ * Since Cleishop 1.8 the cart blocks read the cart again when a script on
+ * the page dispatches `CART_CHANGED_EVENT` on `document` (e.g. a page
+ * builder's mini cart that removed an item).
  */
 export const EMBED_JS = `(()=>{const run=el=>{for(const old of el.querySelectorAll('script')){const s=document.createElement('script');for(const a of old.attributes)s.setAttribute(a.name,a.value);s.text=old.text;old.replaceWith(s);}};
 const load=(el,query)=>{const u=new URL(el.dataset.shopEmbed,location.href);u.searchParams.set('html','1');if(query)new URLSearchParams(query).forEach((v,k)=>u.searchParams.set(k,v));el.setAttribute('aria-busy','true');
@@ -174,5 +180,6 @@ el.dispatchEvent(new CustomEvent('shop:cart',{bubbles:true,detail:d}));}).catch(
 for(const el of document.querySelectorAll('[data-shop-embed]')){if(el.dataset.shopReady)continue;el.dataset.shopReady='1';load(el,'');if(el.dataset.shopKind!=='cart')continue;
 el.addEventListener('submit',e=>{const f=e.target;if(!(f instanceof HTMLFormElement))return;const a=new URL(f.action,location.href);
 if(a.origin!==location.origin||!/\\/cart\\/(update|coupon)$/.test(a.pathname))return;e.preventDefault();
-fetch(a,{method:'POST',body:new URLSearchParams(new FormData(f,e.submitter)),credentials:'same-origin'}).then(r=>load(el,new URL(r.url).search)).catch(()=>f.submit());});}})();`;
+fetch(a,{method:'POST',body:new URLSearchParams(new FormData(f,e.submitter)),credentials:'same-origin'}).then(r=>load(el,new URL(r.url).search)).catch(()=>f.submit());});}
+if(!window.__cleishopEmbed){window.__cleishopEmbed=1;document.addEventListener('${CART_CHANGED_EVENT}',()=>{for(const el of document.querySelectorAll('[data-shop-embed][data-shop-kind="cart"]'))load(el,'');});}})();`;
 export const EMBED_JS_PATH = `/shop-assets/embed-${Buffer.from(EMBED_JS).length.toString(36)}.js`;

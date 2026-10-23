@@ -24,6 +24,14 @@ import {
   type CartLine,
 } from './cart';
 import { cartJson, readQuantity, removeItem, setQuantity, type CartJson } from './cart-api';
+import {
+  LINK_HEADERS,
+  LINK_LIMIT,
+  limiter,
+  linkRefusal,
+  readCartLink,
+  type CartLink,
+} from './cart-link';
 import type { CouponProblem } from './coupons';
 import { CouponError, orderByNumber, placeOrder, StockError } from './orders';
 import {
@@ -49,6 +57,7 @@ import {
 import { couponOf, quote, type Quote, type QuoteInput } from './quote';
 import { coupons, products, type CartItem, type OrderRow } from './schema';
 import type { Destination } from './shipping';
+import { escape } from './html';
 import { translator, type Translate } from './strings';
 
 /** The checkout's id for the site's bot protection (`ctx.forms`, plugin API 1.38). */
@@ -313,10 +322,99 @@ export function registerStorefront(
     };
   };
 
+  /** Add-to-cart links (`cart-link.ts`): one per visitor and a while. */
+  const linkAllowed = limiter(LINK_LIMIT.max, LINK_LIMIT.windowMs);
+
+  /**
+   * Adds a simple product to the visitor's own cart from a link, then goes
+   * to the cart or back to the product. See `cart-link.ts` for the limits.
+   */
+  const openCartLink = async (request: RouteRequest, link: CartLink): Promise<RouteResponse> => {
+    const t = translator(request.locale);
+    const prefix = prefixOf(request);
+    const to = (location: string, extra: Partial<RouteResponse> = {}): RouteResponse => ({
+      status: 303,
+      ...extra,
+      headers: { ...LINK_HEADERS, location },
+    });
+    if (linkRefusal(request.method, request.headers)) return to(`${prefix}/cart`);
+    if (!linkAllowed(`${request.siteId}|${request.ip}`))
+      return {
+        status: 429,
+        headers: { ...LINK_HEADERS, 'retry-after': '600' },
+        page: {
+          title: t('Cart'),
+          html: `<p class="shop-notice shop-notice--error">${escape(
+            t('Too many requests: try again later.'),
+          )}</p><p><a href="${prefix}/cart">${escape(t('Cart'))}</a></p>`,
+        },
+      };
+    const productUrl = async () => {
+      const [entry] = await ctx.content.find(request.siteId, { ids: [link.productId], limit: 1 });
+      return entry?.url ?? `${prefix}/cart`;
+    };
+    const token = request.cookies[CART_COOKIE] || newToken();
+    const outcome = await ctx.db.transaction(request.siteId, async (tx) => {
+      const [product] = await tx
+        .select()
+        .from(products)
+        .where(eq(products.entryId, link.productId));
+      if (!product || product.status !== 'published')
+        return { error: t('This product cannot be bought now.') };
+      // Options (variations) are chosen on the product page.
+      if (product.kind !== 'simple') return { choose: true as const };
+      const items = addItem(
+        await loadCart(tx, token),
+        { product: product.entryId, variation: null, quantity: link.quantity },
+        product.soldIndividually,
+      );
+      const priced = await priceCart(tx, items, request.locale);
+      const line = priced.lines.find(
+        (l) => l.key === itemKey({ product: product.entryId, variation: null }),
+      );
+      if (!line)
+        return {
+          error: t('Sorry, “{name}” is not available in that quantity any more.', {
+            name: product.title,
+          }),
+        };
+      await saveCart(tx, request.siteId, token, priced.items, request.user?.id ?? null);
+      return { name: line.title, lowered: priced.lowered.includes(line.title) };
+    });
+    if ('choose' in outcome) return to(await productUrl());
+    if ('error' in outcome) return to(withQuery(`${prefix}/cart`, { error: outcome.error! }));
+    const cookies = [cookieOf(token)];
+    if (link.to === 'product') return to(await productUrl(), { cookies });
+    return to(
+      outcome.lowered ? `${prefix}/cart` : withQuery(`${prefix}/cart`, { added: outcome.name! }),
+      { cookies },
+    );
+  };
+
+  /** `/cart/add?product=<id>&quantity=1&to=product`: see `cart-link.ts`. */
+  ctx.routes.public({
+    method: 'GET',
+    path: '/cart/add',
+    handler(request) {
+      const link = readCartLink(request.query);
+      if (!link)
+        return Promise.resolve({
+          status: 303,
+          headers: { ...LINK_HEADERS, location: `${prefixOf(request)}/cart` },
+        });
+      return openCartLink(request, link);
+    },
+  });
+
   ctx.routes.public({
     method: 'GET',
     path: '/cart',
     async handler(request) {
+      // WooCommerce's links, e.g. from imported pages: `/cart/?add-to-cart=<id>`.
+      if (request.query['add-to-cart'] !== undefined) {
+        const link = readCartLink({ ...request.query, product: undefined });
+        if (link) return openCartLink(request, link);
+      }
       const { t, cart, html } = await cartView(request);
       return {
         ...(cart.cookie ? { cookies: [cookieOf(cart.cookie)] } : {}),
