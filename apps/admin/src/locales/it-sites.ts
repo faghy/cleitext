@@ -42,6 +42,8 @@ export const itSites: Messages = {
     'Questo sito invia le email attraverso il proprio server SMTP.',
   'The server has no email settings: messages (invitations, password resets, forms) are only written to its log. Enter an SMTP server below.':
     'Il server non ha impostazioni email: i messaggi (inviti, reimpostazione password, moduli) vengono solo scritti nel suo log. Inserisci qui sotto un server SMTP.',
+  'Emails cannot be sent: password resets, invitations and forms are only written to the server log. Enter an SMTP server in Settings → Email, or set MAIL_URL on the server.':
+    'Le email non possono partire: reimpostazione password, inviti e moduli vengono solo scritti nel log del server. Inserisci un server SMTP in Impostazioni → Email, oppure imposta MAIL_URL sul server.',
   'This site uses the server email settings. Enter an SMTP server to send from this site’s address.':
     'Questo sito usa le impostazioni email del server. Inserisci un server SMTP per inviare dall’indirizzo del sito.',
   Unchanged: 'Invariata',

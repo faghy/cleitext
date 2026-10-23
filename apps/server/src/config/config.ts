@@ -56,6 +56,8 @@ const envSchema = z.object({
    * Outgoing mail: `smtp://user:pass@host:587`, `smtps://…`, `sendmail://` (the
    * server's /usr/sbin/sendmail, or `sendmail:///path/to/sendmail`), `log://`
    * (print to the log, development) or `memory://` (kept in memory, tests).
+   * Not set: the server's sendmail in production when there is one (as
+   * WordPress does), the log otherwise.
    */
   MAIL_URL: z
     .string()
@@ -63,8 +65,9 @@ const envSchema = z.object({
       /^(smtps?|sendmail|log|memory):\/\//,
       'Use smtp://, smtps://, sendmail://, log:// or memory://',
     )
-    .default('log://'),
-  MAIL_FROM: z.string().min(3).default('Cleitext <no-reply@localhost>'),
+    .optional(),
+  /** Not set: each site sends as `"Site name" <no-reply@its domain>`. */
+  MAIL_FROM: z.string().min(3).optional(),
   /** Uploaded files (disk storage driver). Relative paths start from the working directory. */
   MEDIA_PATH: z.string().min(1).default('cleitext-data/media'),
   /** Built admin (apps/admin/dist). Default: next to the server in the release. */
@@ -116,7 +119,8 @@ export interface AppConfig {
   /** The resolved trusted set, Cloudflare included; turned into Fastify's option by `fastifyTrustProxy`. */
   trustProxy: TrustProxy;
   session: { ttlHours: number; rememberDays: number };
-  mail: { url: string; from: string };
+  /** `from`: MAIL_FROM, or null (each site sends as itself). */
+  mail: { url: string; from: string | null };
   schedulerIntervalSeconds: number;
   media: { path: string; maxBytes: number; allowSvg: boolean };
   plugins: { path: string };
@@ -167,7 +171,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     logLevel: e.LOG_LEVEL,
     trustProxy: e.TRUST_CLOUDFLARE ? withCloudflare(e.TRUST_PROXY) : e.TRUST_PROXY,
     session: { ttlHours: e.SESSION_TTL_HOURS, rememberDays: e.SESSION_REMEMBER_DAYS },
-    mail: { url: e.MAIL_URL, from: e.MAIL_FROM },
+    mail: { url: e.MAIL_URL ?? defaultMailUrl(e.NODE_ENV), from: e.MAIL_FROM ?? null },
     schedulerIntervalSeconds: e.SCHEDULER_INTERVAL_SECONDS,
     media: {
       path: resolve(e.MEDIA_PATH),
@@ -192,6 +196,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     // Development and tests only: production refuses to start without one.
     appSecret: e.APP_SECRET ?? 'cleitext-development-secret-not-for-production',
   };
+}
+
+/** Where servers keep sendmail (Postfix, Exim…): Debian, RHEL, Plesk, cPanel. */
+const SENDMAIL_PATHS = ['/usr/sbin/sendmail', '/usr/lib/sendmail'];
+
+/**
+ * MAIL_URL when it is not set: in production the server's sendmail, as
+ * WordPress does with PHP's mail(), so password resets and invitations leave
+ * without any setting; the log in development and tests, or without sendmail.
+ */
+export function defaultMailUrl(
+  env: string,
+  exists: (file: string) => boolean = existsSync,
+): string {
+  if (env !== 'production') return 'log://';
+  const found = SENDMAIL_PATHS.find((file) => exists(file));
+  if (!found) return 'log://';
+  return found === SENDMAIL_PATHS[0] ? 'sendmail://' : `sendmail://${found}`;
 }
 
 /** The installation registry of cleitext.com (the Store plugin). */

@@ -1,7 +1,7 @@
-import { settings, withContext, type DatabaseClient } from '@cleitext/db';
+import { settings, siteDomains, sites, withContext, type DatabaseClient } from '@cleitext/db';
 import type { MailSettingsView } from '@cleitext/shared';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { createTransport, type Transporter } from 'nodemailer';
 import { unseal } from '../common/secrets.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
@@ -42,6 +42,9 @@ export interface SentMail extends Omit<MailMessage, 'fromOverride'> {
 
 export const MAIL_NAMESPACE = 'mail';
 
+/** The sender without MAIL_FROM nor a site: messages of the server itself. */
+const SERVER_FROM = 'Cleitext <no-reply@localhost>';
+
 interface SiteTransport {
   transport: Transporter | null;
   from: string;
@@ -53,7 +56,7 @@ interface SiteTransport {
  * the server's MAIL_URL is used:
  * - `smtp://` / `smtps://`: real delivery (nodemailer);
  * - `sendmail://`: handed to the server's sendmail (Plesk, cPanel…), no mailbox needed;
- * - `log://`: printed to the log (development);
+ * - `log://`: printed to the log (development, or a server without sendmail);
  * - `memory://`: kept in `outbox` (tests), site settings included.
  */
 @Injectable()
@@ -62,6 +65,8 @@ export class MailService {
   private readonly transport: Transporter | null;
   private readonly driver: 'smtp' | 'log' | 'memory';
   private readonly sites = new Map<string, SiteTransport | null>();
+  /** Without MAIL_FROM: each site's own sender, from its name and domain. */
+  private readonly senders = new Map<string, { from: string; expiresAt: number }>();
   /** Messages sent with the `memory://` driver. */
   readonly outbox: SentMail[] = [];
 
@@ -87,7 +92,7 @@ export class MailService {
   async send(message: MailMessage, siteId?: string): Promise<void> {
     const site = siteId ? await this.siteTransport(siteId) : null;
     const { fromOverride, ...rest } = message;
-    const from = senderOf(site?.from ?? this.config.mail.from, fromOverride);
+    const from = senderOf(site?.from ?? (await this.serverSender(siteId)), fromOverride);
     if (this.driver === 'memory') {
       this.outbox.push({ ...rest, from, via: site ? 'site' : 'server' });
       return;
@@ -130,6 +135,35 @@ export class MailService {
   /** Forgets cached site settings (after a change). */
   forget(siteId: string): void {
     this.sites.delete(siteId);
+    this.senders.delete(siteId);
+  }
+
+  /**
+   * The sender used without the site's own SMTP settings: MAIL_FROM, or else,
+   * as WordPress does, `"Site name" <no-reply@site domain>`.
+   */
+  private async serverSender(siteId?: string): Promise<string> {
+    if (this.config.mail.from) return this.config.mail.from;
+    if (!siteId) return SERVER_FROM;
+    const cached = this.senders.get(siteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.from;
+    const { title, name, host } = await withContext(this.database.db, { siteId }, async (tx) => {
+      const [setting] = await tx
+        .select({ value: settings.value })
+        .from(settings)
+        .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'title')));
+      const [site] = await tx.select({ name: sites.name }).from(sites).where(eq(sites.id, siteId));
+      const [domain] = await tx
+        .select({ host: siteDomains.host })
+        .from(siteDomains)
+        .where(eq(siteDomains.siteId, siteId))
+        .orderBy(desc(siteDomains.isPrimary))
+        .limit(1);
+      return { title: setting?.value, name: site?.name, host: domain?.host };
+    });
+    const from = siteSender(typeof title === 'string' && title ? title : (name ?? ''), host);
+    this.senders.set(siteId, { from, expiresAt: Date.now() + 60_000 });
+    return from;
   }
 
   /** The site's settings, without the password. */
@@ -206,6 +240,20 @@ export function senderOf(base: string, override?: { address?: string; name?: str
   const address = override.address ?? baseAddress;
   const name = override.name ?? (override.address ? '' : baseName);
   return name ? `"${name.replace(/["\\]/g, '')}" <${address}>` : address;
+}
+
+/**
+ * `"Site name" <no-reply@domain>`, `www.` left out of the domain. A site
+ * without a real domain (localhost, an address) sends as the server.
+ */
+export function siteSender(name: string, host: string | null | undefined): string {
+  const domain = (host ?? '')
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+    .replace(/^www\./, '');
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(domain)) return SERVER_FROM;
+  const label = name.replace(/["\\<>\r\n]/g, '').trim();
+  return label ? `"${label}" <no-reply@${domain}>` : `no-reply@${domain}`;
 }
 
 /** `sendmail://` → /usr/sbin/sendmail; `sendmail:///usr/lib/sendmail` → that program. */

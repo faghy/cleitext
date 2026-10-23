@@ -4,7 +4,7 @@
  * stopping the others.
  */
 import { execFile } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { accessSync, constants, existsSync, readdirSync, statSync } from 'node:fs';
 import { lstat, readdir, statfs } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -254,6 +254,8 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
       }, 'owner_createrole');
     }
 
+    await add(() => mailCheck(owner), 'mail');
+
     await add(async () => {
       const pgDump = findPgDump();
       if (!pgDump) {
@@ -354,6 +356,67 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
     'ok',
   );
   return { checks, status };
+}
+
+/** Where servers keep sendmail; the server looks in the same places (config.ts). */
+const SENDMAIL_PATHS = ['/usr/sbin/sendmail', '/usr/lib/sendmail'];
+
+const runnable = (file: string) => {
+  try {
+    accessSync(file, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * How emails leave, as the server decides it: MAIL_URL, or else the server's
+ * sendmail in production, or else only the log, where password resets and
+ * invitations are lost unless a site has its own SMTP server.
+ */
+async function mailCheck(owner: Database | null): Promise<Check> {
+  const url = process.env.MAIL_URL?.trim() || '';
+  const production = (process.env.NODE_ENV ?? 'production') === 'production';
+  if (/^smtps?:\/\//.test(url)) {
+    return ok('mail', `Emails leave through the SMTP server ${new URL(url).host}.`);
+  }
+  if (url.startsWith('sendmail://') || (!url && production)) {
+    const given = url.slice('sendmail://'.length);
+    const file = url
+      ? /^\/[\w./-]+$/.test(given)
+        ? given
+        : SENDMAIL_PATHS[0]!
+      : SENDMAIL_PATHS.find((f) => existsSync(f));
+    if (file && runnable(file)) {
+      return ok(
+        'mail',
+        `Emails are handed to the server's sendmail (${file})${url ? '' : ', as MAIL_URL is not set'}.`,
+      );
+    }
+    if (url) {
+      return fail(
+        'mail',
+        `MAIL_URL=${url}, but ${file} cannot be run: no email leaves.`,
+        'Install a mail server (Postfix), or set MAIL_URL=smtp://user:password@host:587 in .env, then restart.',
+      );
+    }
+  }
+  let without: number | null = null;
+  if (owner) {
+    const [row] = await owner.execute<{ n: number }>(
+      sql`select count(*)::int as n from sites s where not exists (select 1 from settings m where m.site_id = s.id and m.namespace = 'mail' and m.key = 'host')`,
+    );
+    without = row?.n ?? 0;
+  }
+  if (without === 0) {
+    return ok('mail', 'The server only logs emails, but every site has its own SMTP server.');
+  }
+  return warn(
+    'mail',
+    `Emails are only written to the log${without ? `: ${without} site(s) without their own SMTP server cannot send password resets, invitations or forms` : ''}.`,
+    'Set MAIL_URL=sendmail:// (or smtp://user:password@host:587) in .env and restart, or enter an SMTP server in Settings → Email.',
+  );
 }
 
 export function formatDoctor(report: DoctorReport): string[] {

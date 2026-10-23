@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigError, loadConfig } from '../src/config/config.js';
+import { ConfigError, defaultMailUrl, loadConfig } from '../src/config/config.js';
 import {
   CLOUDFLARE_IPV4,
   CLOUDFLARE_IPV6,
@@ -16,6 +16,27 @@ describe('loadConfig', () => {
       port: 3000,
       trustProxy: false,
       database: { poolMax: 10 },
+    });
+  });
+
+  it('sends with the server sendmail in production when MAIL_URL is not set, as WordPress', () => {
+    expect(defaultMailUrl('development', () => true)).toBe('log://');
+    expect(defaultMailUrl('test', () => true)).toBe('log://');
+    expect(defaultMailUrl('production', () => true)).toBe('sendmail://');
+    expect(defaultMailUrl('production', (f) => f === '/usr/lib/sendmail')).toBe(
+      'sendmail:///usr/lib/sendmail',
+    );
+    expect(defaultMailUrl('production', () => false)).toBe('log://');
+    const config = loadConfig({ DATABASE_URL: 'postgres://u:p@localhost:5432/db' });
+    expect(config.mail).toEqual({ url: 'log://', from: null });
+    const set = loadConfig({
+      DATABASE_URL: 'postgres://u:p@localhost:5432/db',
+      MAIL_URL: 'smtp://mail.example.com:587',
+      MAIL_FROM: 'Example <no-reply@example.com>',
+    });
+    expect(set.mail).toEqual({
+      url: 'smtp://mail.example.com:587',
+      from: 'Example <no-reply@example.com>',
     });
   });
 

@@ -29,7 +29,7 @@ The easiest way, as with WordPress: nothing to build, no configuration file to w
 
 **Install right after enabling Node.js**: until the wizard is completed, whoever opens the site first can complete it with their own database and administrator. To require a setup token as well, set `CLEITEXT_SETUP_TOKEN=true` in the environment of the Node.js application before enabling it: the wizard then asks for the token printed in the domain's **Logs** and kept in `cleitext/tmp/setup-token`.
 
-**Email**: until you add `MAIL_URL` and `MAIL_FROM` to `cleitext-shared/.env` (§5) and restart the app, emails (invitations, password resets) are only written to the log.
+**Email**: as WordPress does, emails (invitations, password resets, forms) leave through the server's sendmail (Postfix on Plesk) with no setting, from `no-reply@` the site's domain with the site's name. A site can use its own SMTP server (**Settings → Email**), and `MAIL_URL`/`MAIL_FROM` in `cleitext-shared/.env` (§5) change it for the whole server. Without sendmail, emails are only written to the log: the dashboard and `cleitext doctor` say so.
 
 **Plugins and themes from the catalog.** Super admins install the official plugins (Multilingual, Privacy & GDPR, Analytics…) and themes (Canvas, Pulsar…) from **Plugins → Add New** and **Appearance → Themes → Add New**, and update them from there or from **Updates**. The [Cleitext catalog](https://github.com/faghy/cleitext-catalog) is an index signed with Ed25519; every package is checked against its SHA-256 before installing. `CATALOG_URL` (empty: off) and `CATALOG_PUBLIC_KEY` change where it comes from.
 
@@ -116,8 +116,8 @@ TRUST_PROXY=true                  # behind nginx (loopback and private networks)
 MEDIA_PATH=/var/www/vhosts/example.com/cleitext-shared/media
 PLUGINS_PATH=/var/www/vhosts/example.com/cleitext-shared/plugins
 THEMES_PATH=/var/www/vhosts/example.com/cleitext-shared/themes
-MAIL_URL=smtp://user:password@localhost:587   # or sendmail:// (the server's sendmail, no mailbox)
-MAIL_FROM=Example <no-reply@example.com>
+# MAIL_URL=smtp://user:password@localhost:587 # not set: the server's sendmail
+# MAIL_FROM=Example <no-reply@example.com>    # not set: "Site name" <no-reply@site domain>
 ```
 
 On Plesk, `localhost:25` without the credentials of a mailbox delivers only to the server's own domains ("Relay access denied"): use `MAIL_URL=sendmail://`, which hands the messages to the server's mail system, or the SMTP settings of a mailbox.

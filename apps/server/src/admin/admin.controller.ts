@@ -154,6 +154,11 @@ export class AdminController {
         const status = await getMigrationStatus(this.database.db).catch(() => null);
         if (status && !status.upToDate)
           warnings.push('Database migrations are pending: run cleitext migrate.');
+        if (!(await this.mail.delivers(site.id))) {
+          warnings.push(
+            'Emails cannot be sent: password resets, invitations and forms are only written to the server log. Enter an SMTP server in Settings → Email, or set MAIL_URL on the server.',
+          );
+        }
       }
       return {
         counts: visible.map((t) => ({

@@ -45,7 +45,14 @@ describe('site email settings', () => {
   it('uses the server settings until the site has its own', async () => {
     expect((await admin.get('/api/v1/settings/mail')).json()).toMatchObject({ configured: false });
     await admin.post('/api/v1/settings/mail/test', { to: 'me@mailing.test' });
-    expect(mail.outbox.at(-1)).toMatchObject({ to: 'me@mailing.test', via: 'server' });
+    // Without MAIL_FROM, as the site: its name, no-reply at its domain.
+    expect(mail.outbox.at(-1)).toMatchObject({
+      to: 'me@mailing.test',
+      via: 'server',
+      from: expect.stringMatching(
+        new RegExp(`^".+" <no-reply@${site.host.replace(/\./g, '\\.')}>$`),
+      ),
+    });
   });
 
   it('stores SMTP settings with an encrypted password, never returned', async () => {

@@ -70,7 +70,7 @@ export function DashboardPage() {
         </div>
       )}
       {data?.warnings.map((warning) => (
-        <Alert key={warning}>{warning}</Alert>
+        <Alert key={warning}>{t(warning)}</Alert>
       ))}
       {data && data.pluginNotices.length > 0 && (
         <Alert>
