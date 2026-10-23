@@ -72,5 +72,17 @@ test('upload, describe, search and filter media', async ({ page }) => {
   await page.getByLabel('Filter by type').selectOption('document');
   await expect(page.getByText('Nothing found.')).toBeVisible();
 
+  // The image fields of the settings find it by name, whatever its age.
+  await page.goto('/cl-admin/appearance');
+  await page
+    .getByRole('listitem', { name: 'Aurora' })
+    .getByRole('button', { name: 'Customize Aurora' })
+    .click();
+  await page.getByRole('button', { name: 'Select image' }).first().click();
+  await page.getByLabel('Search media').fill(stamp);
+  await expect(page.getByRole('button', { name })).toBeVisible();
+  await page.getByLabel('Search media').fill(`nothing-${stamp}`);
+  await expect(page.getByText('Nothing found.')).toBeVisible();
+
   expect(appErrors(errors)).toEqual([]);
 });

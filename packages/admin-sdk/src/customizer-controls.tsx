@@ -6,16 +6,14 @@ import {
   type ColorPalette,
   type Device,
   type FieldValues,
-  type MediaListResponse,
   type Side,
   type SpacingValue,
   type TypographyValue,
 } from '@cleitext/shared';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api } from './api.js';
 import { DEVICE_ICONS, useDevice } from './compound-fields.js';
 import { useT } from './i18n.js';
+import { useMediaPicker } from './media-picker.js';
 
 /*
  * The controls of the customizer look of forms (`FieldsForm` with
@@ -924,12 +922,8 @@ export function CzMedia({
 }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
-  const images = useQuery({
-    queryKey: ['media', 'picker'],
-    queryFn: () => api<MediaListResponse>('GET', '/media?kind=image&limit=60'),
-    enabled: open || value !== null,
-  });
-  const selected = images.data?.items.find((m) => m.id === value);
+  const picker = useMediaPicker(open, value);
+  const { selected, items } = picker;
   return (
     <div className="space-y-2">
       {value ? (
@@ -977,29 +971,57 @@ export function CzMedia({
         </button>
       )}
       {open && (
-        <ul className="grid max-h-56 grid-cols-3 gap-1.5 overflow-y-auto rounded-[3px] border border-[#dcdcde] bg-white p-1.5">
-          {images.data?.items.map((media) => (
-            <li key={media.id}>
-              <button
-                type="button"
-                className={`block w-full rounded-[2px] border-2 ${media.id === value ? 'border-[#2271b1]' : 'border-transparent'} ${czFocus}`}
-                aria-label={media.filename}
-                aria-pressed={media.id === value}
-                onClick={() => {
-                  onChange(media.id);
-                  setOpen(false);
-                }}
-              >
-                <img src={media.url} alt="" className="aspect-square w-full object-cover" />
-              </button>
-            </li>
-          ))}
-          {images.data?.items.length === 0 && (
-            <li className="col-span-3 p-1 text-[12px] text-slate-500">
-              {t('The media library is empty.')}
-            </li>
-          )}
-        </ul>
+        <div className="space-y-1.5 rounded-[3px] border border-[#dcdcde] bg-white p-1.5">
+          <input
+            type="search"
+            value={picker.search}
+            placeholder={t('Search media')}
+            aria-label={t('Search media')}
+            className={`h-8 w-full rounded-[3px] border border-[#8c8f94] px-2 text-[13px] ${czFocus}`}
+            onChange={(e) => picker.setSearch(e.target.value)}
+          />
+          <ul className="grid max-h-72 grid-cols-3 gap-1.5 overflow-y-auto">
+            {items.map((media) => (
+              <li key={media.id}>
+                <button
+                  type="button"
+                  className={`block w-full rounded-[2px] border-2 ${media.id === value ? 'border-[#2271b1]' : 'border-transparent'} ${czFocus}`}
+                  aria-label={media.filename}
+                  aria-pressed={media.id === value}
+                  title={media.filename}
+                  onClick={() => {
+                    onChange(media.id);
+                    setOpen(false);
+                  }}
+                >
+                  <img
+                    src={media.url}
+                    alt=""
+                    loading="lazy"
+                    className="aspect-square w-full object-cover"
+                  />
+                </button>
+              </li>
+            ))}
+            {picker.loaded && items.length === 0 && (
+              <li className="col-span-3 p-1 text-[12px] text-slate-500">
+                {picker.searching ? t('Nothing found.') : t('The media library is empty.')}
+              </li>
+            )}
+            {picker.more && (
+              <li className="col-span-3 text-center">
+                <button
+                  type="button"
+                  disabled={picker.loadingMore}
+                  className={czButton}
+                  onClick={picker.loadMore}
+                >
+                  {t('Load more')}
+                </button>
+              </li>
+            )}
+          </ul>
+        </div>
       )}
     </div>
   );

@@ -8,16 +8,14 @@ import {
   type ListField,
   type BackgroundValue,
   type Device,
-  type MediaListResponse,
   type ResponsiveValue,
   type SpacingValue,
   type TypographyValue,
   type ZonesValue,
 } from '@cleitext/shared';
-import { useQuery } from '@tanstack/react-query';
 import { useId, useState } from 'react';
-import { api } from './api.js';
 import { useT } from './i18n.js';
+import { useMediaPicker } from './media-picker.js';
 import { ZonesBuilder } from './zones-builder.js';
 import { CustomizerForm } from './customizer-fields.js';
 import {
@@ -765,7 +763,7 @@ function toLocalInput(iso: string): string {
   return local.toISOString().slice(0, 16);
 }
 
-/** Chooses an image of the media library. */
+/** Chooses an image of the media library: every image, newest first, with a search. */
 function MediaPicker({
   id,
   value,
@@ -779,12 +777,8 @@ function MediaPicker({
 }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
-  const images = useQuery({
-    queryKey: ['media', 'picker'],
-    queryFn: () => api<MediaListResponse>('GET', '/media?kind=image&limit=60'),
-    enabled: open || value !== null,
-  });
-  const selected = images.data?.items.find((m) => m.id === value);
+  const picker = useMediaPicker(open, value);
+  const { selected, items } = picker;
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -813,28 +807,56 @@ function MediaPicker({
         )}
       </div>
       {open && (
-        <ul className="grid max-h-56 grid-cols-4 gap-2 overflow-y-auto rounded border border-slate-200 p-2">
-          {images.data?.items.map((media) => (
-            <li key={media.id}>
-              <button
-                type="button"
-                className={`block w-full rounded border-2 ${media.id === value ? 'border-sky-600' : 'border-transparent'}`}
-                aria-label={media.filename}
-                onClick={() => {
-                  onChange(media.id);
-                  setOpen(false);
-                }}
-              >
-                <img src={media.url} alt="" className="aspect-square w-full object-cover" />
-              </button>
-            </li>
-          ))}
-          {images.data?.items.length === 0 && (
-            <li className="col-span-4 text-sm text-slate-500">
-              {t('The media library is empty.')}
-            </li>
-          )}
-        </ul>
+        <div className="space-y-2 rounded border border-slate-200 p-2">
+          <input
+            type="search"
+            value={picker.search}
+            placeholder={t('Search media')}
+            aria-label={t('Search media')}
+            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            onChange={(e) => picker.setSearch(e.target.value)}
+          />
+          <ul className="grid max-h-72 grid-cols-4 gap-2 overflow-y-auto">
+            {items.map((media) => (
+              <li key={media.id}>
+                <button
+                  type="button"
+                  className={`block w-full rounded border-2 ${media.id === value ? 'border-sky-600' : 'border-transparent'}`}
+                  aria-label={media.filename}
+                  title={media.filename}
+                  onClick={() => {
+                    onChange(media.id);
+                    setOpen(false);
+                  }}
+                >
+                  <img
+                    src={media.url}
+                    alt=""
+                    loading="lazy"
+                    className="aspect-square w-full object-cover"
+                  />
+                </button>
+              </li>
+            ))}
+            {picker.loaded && items.length === 0 && (
+              <li className="col-span-4 text-sm text-slate-500">
+                {picker.searching ? t('Nothing found.') : t('The media library is empty.')}
+              </li>
+            )}
+            {picker.more && (
+              <li className="col-span-4 text-center">
+                <button
+                  type="button"
+                  disabled={picker.loadingMore}
+                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm hover:bg-slate-50"
+                  onClick={picker.loadMore}
+                >
+                  {t('Load more')}
+                </button>
+              </li>
+            )}
+          </ul>
+        </div>
       )}
     </div>
   );
