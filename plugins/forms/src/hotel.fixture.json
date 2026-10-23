@@ -1,0 +1,75 @@
+{
+  "attrs": {
+    "formName": "Prenotazione",
+    "buttonLabel": "INVIA LA RICHIESTA",
+    "successMessage": "Grazie, ti risponderemo presto.",
+    "subject": "Sito Hotel aurora Varazze",
+    "submitInline": true,
+    "fields": [
+      {
+        "name": "your-name",
+        "type": "text",
+        "placeholder": "Nome*",
+        "required": true,
+        "width": "1/6"
+      },
+      {
+        "name": "your-email",
+        "type": "email",
+        "placeholder": "Email*",
+        "required": true,
+        "width": "1/6"
+      },
+      {
+        "name": "your-tel",
+        "type": "tel",
+        "placeholder": "Telefono",
+        "width": "1/6"
+      },
+      {
+        "name": "guests",
+        "type": "number",
+        "placeholder": "Numero ospiti",
+        "width": "1/6",
+        "min": "1",
+        "max": "20"
+      },
+      {
+        "name": "arrival",
+        "type": "date",
+        "label": "Arrivo*",
+        "required": true,
+        "width": "1/6"
+      },
+      {
+        "name": "departure",
+        "type": "date",
+        "label": "Partenza*",
+        "required": true,
+        "width": "1/6"
+      },
+      {
+        "name": "requests",
+        "type": "textarea",
+        "placeholder": "Richieste particolari*",
+        "required": true,
+        "width": "full"
+      },
+      {
+        "name": "privacy",
+        "type": "acceptance",
+        "label": "Ho letto e accetto la <a href=\"/privacy-policy\">privacy policy</a>"
+      }
+    ]
+  },
+  "request": {
+    "your-name": "Mario Rossi",
+    "your-email": "Mario@Example.com",
+    "your-tel": "+39 019 123456",
+    "guests": "2",
+    "arrival": "2027-07-10",
+    "departure": "2027-07-17",
+    "requests": "Camera vista mare,\nse possibile.",
+    "privacy": "1"
+  }
+}

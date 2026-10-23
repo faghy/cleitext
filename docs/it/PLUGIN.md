@@ -137,7 +137,7 @@ Il contesto `ctx` contiene:
 | Membro                                                | Cosa fa                                                                                                    |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `ctx.plugin`                                          | `{ slug, version }`                                                                                        |
-| `ctx.apiVersion`                                      | L'API dei plugin del core, per esempio `1.42.0` (API 1.41; manca sui core più vecchi)                      |
+| `ctx.apiVersion`                                      | L'API dei plugin del core, per esempio `1.43.0` (API 1.41; manca sui core più vecchi)                      |
 | `ctx.log`                                             | `debug/info/warn/error(message, data?)`, scritto nel log del server con il nome del plugin                 |
 | `ctx.hooks`                                           | Azioni e filtri ([§5](#5-hook))                                                                            |
 | `ctx.content`                                         | Tipi di contenuto, gruppi di campi, lettura delle voci ([§6](#6-tipi-di-contenuto-e-campi-personalizzati)) |
@@ -409,6 +409,7 @@ ctx.blocks.register(
 - `items` (contenitori): ogni figlio disegnato a parte, per avvolgerli uno per uno (schede, accordion, caroselli).
 - `html`: elenca gli attributi che contengono HTML libero; per gli autori senza `unfiltered_html` vengono ripuliti al salvataggio, come il blocco HTML personalizzato.
 - `media`: elenca gli id dei media usati da un'istanza. Vengono precaricati in `context.media`, con `url`, dimensioni, `alt` e varianti ridimensionate (`variants`).
+- API dei plugin 1.43: un attributo `list` (elementi con gli stessi campi, nessuna lista dentro una lista) si modifica nel modulo del blocco: gli elementi si aggiungono, si rimuovono, si spostano su e giù e si aprono uno alla volta; `itemLabel` indica il campo mostrato come titolo di ciascun elemento. Il valore è un array di oggetti. Sui core più vecchi l'editor a blocchi non lo mostra, quindi richiedi `"apiVersion": "^1.43"`. I campi personalizzati del plugin **Moduli** lo usano.
 
 **Blocchi con un editor proprio** (API dei plugin 1.23). Per la maggior parte dei blocchi basta un modulo di campi. I blocchi di design chiedono di più: anteprima dal vivo nel canvas, impostazioni nella barra laterale, blocchi annidati. Un plugin così fornisce uno script per l'editor a blocchi e registra lui stesso i suoi blocchi in Gutenberg:
 

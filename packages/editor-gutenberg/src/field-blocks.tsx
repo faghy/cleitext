@@ -1,8 +1,15 @@
 import type { BlockRegistry } from '@cleitext/blocks';
 import type { FieldBlockDefinition } from '@cleitext/editor-core';
-import { fieldsValidator, labelText, type FieldDefinition } from '@cleitext/shared';
+import {
+  fieldsValidator,
+  labelText,
+  type FieldDefinition,
+  type FieldValues,
+  type ListField,
+} from '@cleitext/shared';
 import { MediaUpload, MediaUploadCheck, useBlockProps } from '@wordpress/block-editor';
 import { getBlockType, registerBlockType } from '@wordpress/blocks';
+import { useState } from 'react';
 import {
   Button,
   Placeholder,
@@ -65,7 +72,8 @@ export function registerFieldBlocks(
   }
 }
 
-function jsonType(field: FieldDefinition): 'string' | 'number' | 'boolean' {
+function jsonType(field: FieldDefinition): 'string' | 'number' | 'boolean' | 'array' {
+  if (field.type === 'list') return 'array';
   if (field.type === 'number') return 'number';
   if (field.type === 'boolean') return 'boolean';
   return 'string';
@@ -203,5 +211,133 @@ function FieldControl({
           />
         </MediaUploadCheck>
       );
+    case 'list':
+      return (
+        <ListControl
+          field={field}
+          locale={locale}
+          value={Array.isArray(value) ? (value as FieldValues[]) : []}
+          onChange={onChange}
+        />
+      );
   }
+}
+
+/**
+ * A list attribute (plugin API 1.43): items added, removed and moved up or
+ * down, each one a small form of the list's fields, opened one at a time.
+ */
+function ListControl({
+  field,
+  locale,
+  value,
+  onChange,
+}: {
+  field: ListField;
+  locale: string;
+  value: FieldValues[];
+  onChange: (value: unknown) => void;
+}) {
+  const [open, setOpen] = useState<number | null>(null);
+  const label = labelText(field.label, locale);
+  const help = labelText(field.help, locale);
+  const it = locale.startsWith('it');
+  const change = (items: FieldValues[]) => onChange(items.length > 0 ? items : undefined);
+  const move = (from: number, to: number) => {
+    const items = [...value];
+    const [item] = items.splice(from, 1);
+    items.splice(to, 0, item!);
+    change(items);
+    setOpen(open === from ? to : open === to ? from : open);
+  };
+  const defaults = () =>
+    Object.fromEntries(
+      field.fields.flatMap((f) =>
+        'default' in f && f.default !== undefined ? [[f.name, f.default]] : [],
+      ),
+    );
+  const itemTitle = (item: FieldValues, index: number) => {
+    const named = field.itemLabel ? item[field.itemLabel] : undefined;
+    const text = typeof named === 'string' ? named.replace(/<[^>]*>|\]\([^)]*\)|\[/g, '') : '';
+    return text.trim() || `${it ? 'Elemento' : 'Item'} ${index + 1}`;
+  };
+  return (
+    <fieldset className="cleitext-field-list" style={{ border: 0, margin: 0, padding: 0 }}>
+      <legend style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', padding: 0 }}>
+        {label}
+      </legend>
+      {help && <p style={{ margin: '4px 0 8px', fontSize: 12, color: '#757575' }}>{help}</p>}
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
+        {value.map((item, index) => (
+          <li key={index} style={{ border: '1px solid #ddd', borderRadius: 2, padding: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Button
+                variant="tertiary"
+                aria-expanded={open === index}
+                onClick={() => setOpen(open === index ? null : index)}
+                style={{ flex: 1, justifyContent: 'flex-start', minWidth: 0 }}
+              >
+                <span
+                  style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {itemTitle(item, index)}
+                </span>
+              </Button>
+              <Button
+                icon="arrow-up-alt2"
+                label={it ? 'Sposta su' : 'Move up'}
+                size="small"
+                disabled={index === 0}
+                onClick={() => move(index, index - 1)}
+              />
+              <Button
+                icon="arrow-down-alt2"
+                label={it ? 'Sposta giù' : 'Move down'}
+                size="small"
+                disabled={index === value.length - 1}
+                onClick={() => move(index, index + 1)}
+              />
+              <Button
+                icon="trash"
+                label={it ? 'Rimuovi' : 'Remove'}
+                size="small"
+                isDestructive
+                onClick={() => {
+                  change(value.filter((_, i) => i !== index));
+                  setOpen(null);
+                }}
+              />
+            </div>
+            {open === index && (
+              <div style={{ display: 'grid', gap: 12, padding: '8px 4px 4px' }}>
+                {field.fields.map((sub) => (
+                  <FieldControl
+                    key={sub.name}
+                    field={sub}
+                    locale={locale}
+                    value={item[sub.name]}
+                    onChange={(v) =>
+                      change(value.map((x, i) => (i === index ? { ...x, [sub.name]: v } : x)))
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
+      {(field.max === undefined || value.length < field.max) && (
+        <Button
+          variant="secondary"
+          style={{ marginTop: 8 }}
+          onClick={() => {
+            change([...value, defaults()]);
+            setOpen(value.length);
+          }}
+        >
+          {it ? 'Aggiungi' : 'Add'}
+        </Button>
+      )}
+    </fieldset>
+  );
 }

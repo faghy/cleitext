@@ -135,7 +135,7 @@ The context `ctx` contains:
 | Member                                                | What it does                                                                            |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `ctx.plugin`                                          | `{ slug, version }`                                                                     |
-| `ctx.apiVersion`                                      | The plugin API of the core, e.g. `1.42.0` (API 1.41; missing on older cores)            |
+| `ctx.apiVersion`                                      | The plugin API of the core, e.g. `1.43.0` (API 1.41; missing on older cores)            |
 | `ctx.log`                                             | `debug/info/warn/error(message, data?)`, written to the server log with the plugin name |
 | `ctx.hooks`                                           | Actions and filters ([§5](#5-hooks))                                                    |
 | `ctx.content`                                         | Content types, field groups, reading entries ([§6](#6-content-types-and-custom-fields)) |
@@ -431,6 +431,7 @@ defineBlock<{ gap: number; image?: string }>({
 - `items` (containers): each child rendered on its own, to wrap them one by one (tabs, accordions, carousels).
 - `html` lists attributes holding raw HTML: for authors without `unfiltered_html` they are cleaned on save, like the Custom HTML block.
 - `media` lists the media ids an instance uses. They are preloaded into `context.media`, with their `url`, size, `alt` and resized `variants`.
+- Plugin API 1.43: a `list` attribute (items with the same fields, no list inside a list) is edited in the block's form: items are added, removed, moved up and down, and opened one at a time; `itemLabel` names the field shown as each item's title. The value is an array of objects. On older cores the block editor does not show it, so require `"apiVersion": "^1.43"`. The **Forms** plugin's custom fields use it.
 
 **Blocks with their own editor** (plugin API 1.23). A form of fields is enough for most blocks. Design blocks need more: a live preview in the canvas, settings in the sidebar, nested blocks. Such a plugin ships a block editor entry and registers its blocks in Gutenberg itself:
 

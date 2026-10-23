@@ -1,4 +1,12 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+
+/** A field's value in a message with custom fields. */
+export interface SubmissionField {
+  name: string;
+  label: string;
+  type: string;
+  value: string;
+}
 
 export const submissions = pgTable('submissions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -9,6 +17,8 @@ export const submissions = pgTable('submissions', {
   email: text('email').notNull(),
   phone: text('phone'),
   message: text('message').notNull(),
+  /** Every field of a custom form, in order (null for the classic form). */
+  data: jsonb('data').$type<SubmissionField[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -21,5 +31,7 @@ export interface Submission {
   email: string;
   phone: string | null;
   message: string;
+  /** Every field of a custom form, in order (null for the classic form). */
+  fields: SubmissionField[] | null;
   createdAt: string;
 }

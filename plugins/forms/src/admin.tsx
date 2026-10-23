@@ -34,15 +34,31 @@ function SubmissionsPage({ api, user }: AdminPageProps) {
       <ul className="space-y-3" aria-label={it ? 'Messaggi' : 'Messages'}>
         {list.data?.map((s) => (
           <li key={s.id}>
-            <Card title={`${s.name} · ${s.formName}`}>
+            <Card title={`${s.name || s.email || (it ? 'Messaggio' : 'Message')} · ${s.formName}`}>
               <p className="text-xs text-slate-500">
-                {new Date(s.createdAt).toLocaleString(user.locale)} ·{' '}
-                <a className="text-sky-700" href={`mailto:${s.email}`}>
-                  {s.email}
-                </a>
+                {new Date(s.createdAt).toLocaleString(user.locale)}
+                {s.email && (
+                  <>
+                    {' · '}
+                    <a className="text-sky-700" href={`mailto:${s.email}`}>
+                      {s.email}
+                    </a>
+                  </>
+                )}
                 {s.phone && ` · ${s.phone}`} · {s.pagePath}
               </p>
-              <p className="mt-2 whitespace-pre-wrap text-sm">{s.message}</p>
+              {s.fields ? (
+                <dl className="mt-2 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[minmax(8rem,auto)_1fr]">
+                  {s.fields.map((f) => (
+                    <div key={f.name} className="contents">
+                      <dt className="font-medium text-slate-700">{f.label}</dt>
+                      <dd className="whitespace-pre-wrap text-slate-900">{f.value || '—'}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="mt-2 whitespace-pre-wrap text-sm">{s.message}</p>
+              )}
               <div className="mt-3">
                 <Button
                   variant="danger"

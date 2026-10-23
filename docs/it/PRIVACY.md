@@ -34,7 +34,7 @@ Ogni scelta viene registrata come prova (art. 7.1 GDPR): un id casuale conservat
 
 **Privacy → Policy** chiede chi è il titolare del trattamento e cosa fa il sito (moduli di contatto, account, newsletter, statistiche, contenuti incorporati, hosting), poi crea le bozze **Privacy policy** e **Cookie policy** in ogni lingua del sito, fatte di blocchi normali da modificare nell'editor. La cookie policy contiene il blocco **Tabella dei cookie**, sempre allineato a **Privacy → Cookie**, e il **Pulsante preferenze cookie**. Una volta pubblicate, il banner le collega, e l'elenco delle pagine le segna con l'etichetta _Privacy policy_ o _Cookie policy_.
 
-Il modulo di contatto del plugin **Moduli** ha un _Indirizzo della privacy policy_: se impostato, sotto il modulo compare una breve informativa con il link.
+Il modulo di contatto del plugin **Moduli** ha un _Indirizzo della privacy policy_: se impostato, sotto il modulo compare una breve informativa con il link. Un modulo con campi propri (Moduli 1.3.0) può chiedere anche un **consenso**: una casella obbligatoria la cui etichetta può avere il link all'informativa.
 
 ## Richieste sui dati personali
 

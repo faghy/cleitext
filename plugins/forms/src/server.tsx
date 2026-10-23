@@ -1,8 +1,27 @@
-import { defineBlock, definePlugin } from '@cleitext/plugin-sdk';
+import { defineBlock, definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
 import { asc, desc, eq } from 'drizzle-orm';
+import type { ReactNode } from 'react';
+import {
+  checkValues,
+  EMAIL_RE,
+  FIELD_TYPES,
+  FIELD_WIDTHS,
+  GRID_CSS,
+  importKey,
+  labelParts,
+  messageText,
+  normalizeFields,
+  readSpec,
+  replyToField,
+  signSpec,
+  subjectOf,
+  widthClass,
+  type FieldValue,
+  type FormField,
+  type SavedField,
+} from './fields';
 import { submissions, type Submission } from './schema';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SUBMIT_PATH = '/_forms/submit';
 /** At most this many messages per address and site in the window. */
 const RATE_LIMIT = { max: 5, windowMs: 10 * 60_000 };
@@ -13,7 +32,45 @@ interface FormAttrs {
   askPhone?: boolean;
   successMessage: string;
   privacyUrl?: string;
+  /** Custom fields (1.3.0): when empty, the classic name, email and message. */
+  fields?: SavedField[];
+  /** Subject template with `{form}` and `{field-name}`. */
+  subject?: string;
+  /** The email field used as Reply-To (default: the first). */
+  replyTo?: string;
+  /** The consent and the button on one row. */
+  submitInline?: boolean;
 }
+
+/** What a message keeps and sends. */
+interface Message {
+  formName: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string;
+  /** Every field of a custom form, in order. */
+  data: FieldValue[] | null;
+  replyTo: string | null;
+  subject: string;
+  text: string;
+}
+
+const TYPE_LABELS: Record<(typeof FIELD_TYPES)[number], { en: string; it: string }> = {
+  text: { en: 'Text', it: 'Testo' },
+  email: { en: 'Email', it: 'Email' },
+  tel: { en: 'Phone', it: 'Telefono' },
+  number: { en: 'Number', it: 'Numero' },
+  date: { en: 'Date', it: 'Data' },
+  textarea: { en: 'Long text', it: 'Testo lungo' },
+  select: { en: 'Drop-down menu', it: 'Menu a tendina' },
+  checkbox: { en: 'Checkboxes', it: 'Caselle di spunta' },
+  radio: { en: 'Radio buttons', it: 'Scelta singola' },
+  acceptance: { en: 'Consent (required)', it: 'Consenso (obbligatorio)' },
+};
+
+const SECRET = 'form-key';
+const keys = new Map<string, Promise<CryptoKey>>();
 
 /** Per-process limiter: enough against casual abuse on a single server. */
 const recent = new Map<string, number[]>();
@@ -48,6 +105,208 @@ const FORM_ID = 'forms/contact';
 const text = (value: unknown, max: number) =>
   typeof value === 'string' ? value.trim().slice(0, max) : '';
 
+/** A label with its links. */
+function Label({ label }: { label: string }) {
+  return (
+    <>
+      {labelParts(label).map((part, i) =>
+        'href' in part ? (
+          <a key={i} href={part.href}>
+            {part.text}
+          </a>
+        ) : (
+          part.text
+        ),
+      )}
+    </>
+  );
+}
+
+/** One custom field. */
+function Field({ field }: { field: FormField }) {
+  const classes = (...extra: string[]) =>
+    ['cf-field', `cf-${field.type}`, widthClass(field.width), ...extra, field.className]
+      .filter(Boolean)
+      .join(' ');
+  const title = field.label ? (
+    <span className="cf-label">
+      <Label label={field.label} />
+    </span>
+  ) : null;
+  const aria = field.label ? undefined : field.placeholder || field.name;
+  const placeholder = field.placeholder || undefined;
+  switch (field.type) {
+    case 'textarea':
+      return (
+        <label className={classes()}>
+          {title}
+          <textarea
+            name={field.name}
+            required={field.required}
+            maxLength={5000}
+            rows={6}
+            placeholder={placeholder}
+            aria-label={aria}
+          />
+        </label>
+      );
+    case 'select':
+      return (
+        <label className={classes()}>
+          {title}
+          <select name={field.name} required={field.required} aria-label={aria} defaultValue="">
+            <option value="">{field.placeholder || '—'}</option>
+            {field.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      );
+    case 'radio':
+    case 'checkbox':
+      if (field.type === 'radio' || field.options.length > 0) {
+        return (
+          <fieldset className={classes()}>
+            {field.label && (
+              <legend className="cf-label">
+                <Label label={field.label} />
+              </legend>
+            )}
+            {field.options.map((o, i) => (
+              <label key={o.value} className="cf-choice">
+                <input
+                  type={field.type}
+                  name={field.name}
+                  value={o.value}
+                  // One radio button required is enough for the browser.
+                  required={field.type === 'radio' && field.required && i === 0}
+                />
+                <span>{o.label}</span>
+              </label>
+            ))}
+          </fieldset>
+        );
+      }
+      return (
+        <label className={classes('cf-choice')}>
+          <input type="checkbox" name={field.name} value="1" required={field.required} />
+          <span>
+            <Label label={field.label || field.placeholder || field.name} />
+          </span>
+        </label>
+      );
+    case 'acceptance':
+      return (
+        <label className={classes()}>
+          <input type="checkbox" name={field.name} value="1" required />
+          <span>
+            <Label label={field.label || field.placeholder || field.name} />
+          </span>
+        </label>
+      );
+    default:
+      return (
+        <label className={classes()}>
+          {title}
+          <input
+            name={field.name}
+            type={field.type}
+            required={field.required}
+            maxLength={
+              field.type === 'number' || field.type === 'date'
+                ? undefined
+                : field.type === 'tel'
+                  ? 40
+                  : 200
+            }
+            min={field.min}
+            max={field.max}
+            placeholder={placeholder}
+            aria-label={aria}
+            autoComplete={
+              field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : undefined
+            }
+          />
+        </label>
+      );
+  }
+}
+
+/** The custom fields, the hidden ones and the button. */
+function CustomFields({
+  fields,
+  submitInline,
+  button,
+  privacy,
+  challenge,
+}: {
+  fields: FormField[];
+  submitInline: boolean;
+  button: ReactNode;
+  privacy: ReactNode;
+  challenge: ReactNode;
+}) {
+  const inRow = (f: FormField) => submitInline && f.type === 'acceptance';
+  return (
+    <>
+      {fields
+        .filter((f) => !inRow(f))
+        .map((f) => (
+          <Field key={f.name} field={f} />
+        ))}
+      {privacy}
+      {challenge}
+      {submitInline ? (
+        <div className="cf-submit-row">
+          {fields.filter(inRow).map((f) => (
+            <Field key={f.name} field={f} />
+          ))}
+          {button}
+        </div>
+      ) : (
+        button
+      )}
+    </>
+  );
+}
+
+/** The site's signing key for the forms' fields, made on first use. */
+function formKey(ctx: PluginContext, siteId: string): Promise<CryptoKey> {
+  let key = keys.get(siteId);
+  if (!key) {
+    key = (async () => {
+      let raw = await ctx.secrets.get(siteId, SECRET);
+      if (!raw) {
+        const bytes = crypto.getRandomValues(new Uint8Array(32));
+        raw = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+        await ctx.secrets.set(siteId, SECRET, raw);
+      }
+      return importKey(raw);
+    })();
+    // A failure is not kept: the next form tries again.
+    key.catch(() => keys.delete(siteId));
+    keys.set(siteId, key);
+  }
+  return key;
+}
+
+/** What a message of a custom form keeps in the table's own columns. */
+function columnsOf(values: FieldValue[], replyTo: string | null) {
+  const first = (type: FieldValue['type']) => values.find((v) => v.type === type && v.value);
+  const reply = values.find((v) => v.name === replyTo);
+  return {
+    name:
+      values.find((v) => (v.name === 'name' || v.name === 'your-name') && v.value)?.value ??
+      first('text')?.value ??
+      '',
+    email: reply?.value && EMAIL_RE.test(reply.value) ? reply.value : '',
+    phone: first('tel')?.value ?? null,
+    message: first('textarea')?.value ?? '',
+  };
+}
+
 /**
  * Forms (official plugin): a contact form block that works without
  * JavaScript. Messages are stored and, if set, emailed to the site owner.
@@ -76,7 +335,7 @@ export default definePlugin({
     );
 
     ctx.blocks.register(
-      defineBlock<FormAttrs, { challenge: string }>({
+      defineBlock<FormAttrs, { challenge: string; spec?: string }>({
         type: 'forms/contact',
         title: { en: 'Contact form', it: 'Modulo di contatto' },
         description: { en: 'Name, email and message.', it: 'Nome, email e messaggio.' },
@@ -118,9 +377,129 @@ export default definePlugin({
             },
             maxLength: 300,
           },
+          {
+            name: 'fields',
+            type: 'list',
+            label: { en: 'Fields', it: 'Campi' },
+            help: {
+              en: 'Your own fields, in order. Without any, the form asks for name, email and message.',
+              it: 'I tuoi campi, in ordine. Senza campi, il modulo chiede nome, email e messaggio.',
+            },
+            itemLabel: 'label',
+            max: 30,
+            fields: [
+              {
+                name: 'label',
+                type: 'text',
+                label: { en: 'Label', it: 'Etichetta' },
+                help: {
+                  en: 'A link is written [text](/address), e.g. in a consent.',
+                  it: 'Un link si scrive [testo](/indirizzo), ad esempio in un consenso.',
+                },
+                maxLength: 500,
+              },
+              {
+                name: 'name',
+                type: 'text',
+                label: { en: 'Name (in the subject: {name})', it: 'Nome (nell’oggetto: {nome})' },
+                help: {
+                  en: 'Letters, digits and dashes, e.g. arrival-date.',
+                  it: 'Lettere, cifre e trattini, ad esempio data-arrivo.',
+                },
+                maxLength: 40,
+              },
+              {
+                name: 'type',
+                type: 'select',
+                label: { en: 'Type', it: 'Tipo' },
+                default: 'text',
+                options: FIELD_TYPES.map((value) => ({ value, label: TYPE_LABELS[value] })),
+              },
+              {
+                name: 'placeholder',
+                type: 'text',
+                label: { en: 'Placeholder', it: 'Testo segnaposto' },
+                maxLength: 200,
+              },
+              {
+                name: 'required',
+                type: 'boolean',
+                label: { en: 'Required', it: 'Obbligatorio' },
+              },
+              {
+                name: 'width',
+                type: 'select',
+                label: { en: 'Width on desktop', it: 'Larghezza su desktop' },
+                default: 'full',
+                options: FIELD_WIDTHS.map((value) => ({
+                  value,
+                  label: value === 'full' ? { en: 'Full', it: 'Intera' } : value,
+                })),
+              },
+              {
+                name: 'options',
+                type: 'text',
+                multiline: true,
+                label: { en: 'Options', it: 'Opzioni' },
+                help: {
+                  en: 'Select, checkboxes, radio buttons: one per line, as value|label or just the text.',
+                  it: 'Menu, caselle, scelta singola: una per riga, come valore|etichetta o solo il testo.',
+                },
+                maxLength: 5000,
+              },
+              {
+                name: 'min',
+                type: 'text',
+                label: { en: 'Minimum (number or date)', it: 'Minimo (numero o data)' },
+                help: { en: 'Dates as YYYY-MM-DD.', it: 'Date come AAAA-MM-GG.' },
+                maxLength: 20,
+              },
+              {
+                name: 'max',
+                type: 'text',
+                label: { en: 'Maximum (number or date)', it: 'Massimo (numero o data)' },
+                maxLength: 20,
+              },
+              {
+                name: 'className',
+                type: 'text',
+                label: { en: 'Extra CSS class', it: 'Classe CSS aggiuntiva' },
+                maxLength: 200,
+              },
+            ],
+          },
+          {
+            name: 'subject',
+            type: 'text',
+            label: { en: 'Email subject', it: 'Oggetto dell’email' },
+            help: {
+              en: '{form} is the form name, {field-name} a field’s value. Empty: [form name] name.',
+              it: '{form} è il nome del modulo, {nome-campo} il valore di un campo. Vuoto: [nome del modulo] nome.',
+            },
+            maxLength: 200,
+          },
+          {
+            name: 'replyTo',
+            type: 'text',
+            label: { en: 'Reply-To field', it: 'Campo per Rispondi a' },
+            help: {
+              en: 'The name of the email field to reply to. Empty: the first email field.',
+              it: 'Il nome del campo email a cui rispondere. Vuoto: il primo campo email.',
+            },
+            maxLength: 40,
+          },
+          {
+            name: 'submitInline',
+            type: 'boolean',
+            label: {
+              en: 'Consent and button on one row',
+              it: 'Consenso e pulsante sulla stessa riga',
+            },
+          },
         ],
-        // The site's bot protection, when a plugin gives one (e.g. Captcha).
-        async load(_attrs, context) {
+        // The site's bot protection, when a plugin gives one (e.g. Captcha),
+        // and the custom fields, signed for the server.
+        async load(attrs, context) {
           const challenge = await ctx.forms
             ?.challenge({
               siteId: context.siteId,
@@ -129,11 +508,38 @@ export default definePlugin({
               signedIn: context.signedIn === true,
             })
             .catch(() => '');
-          return { challenge: challenge ?? '' };
+          const fields = normalizeFields(attrs.fields);
+          let spec = '';
+          if (fields.length > 0) {
+            spec = await signSpec(await formKey(ctx, context.siteId), {
+              form: text(attrs.formName, 80) || 'Contact',
+              fields,
+              subject: text(attrs.subject, 200),
+              replyTo: replyToField(fields, attrs.replyTo),
+            }).catch((error: unknown) => {
+              ctx.log.error('Form key not available', { error: String(error) });
+              return '';
+            });
+          }
+          return { challenge: challenge ?? '', spec };
         },
         render({ attrs, block, context, data }) {
           const it = context.locale.startsWith('it');
           const id = `form-${block.id}`;
+          const fields = normalizeFields(attrs.fields);
+          const custom = fields.length > 0;
+          const privacy = attrs.privacyUrl && /^(\/|https?:\/\/)/.test(attrs.privacyUrl) && (
+            <p className="form-privacy">
+              {it
+                ? 'Inviando il messaggio, i tuoi dati saranno trattati per risponderti, come descritto nella '
+                : 'By sending the message, your data will be used to reply to you, as described in the '}
+              <a href={attrs.privacyUrl}>privacy policy</a>.
+            </p>
+          );
+          const challenge = data?.challenge ? (
+            <div className="form-challenge" dangerouslySetInnerHTML={{ __html: data.challenge }} />
+          ) : null;
+          const button = <button type="submit">{attrs.buttonLabel}</button>;
           return (
             <section className="contact-form" id={id}>
               <style>
@@ -141,7 +547,8 @@ export default definePlugin({
                   `.contact-form form{display:grid;gap:.75rem;max-width:36rem}` +
                   `.contact-form label{display:grid;gap:.25rem}` +
                   `.contact-form .form-privacy{font-size:.875em;margin:0}` +
-                  `.contact-form .hp{position:absolute;left:-10000px}`}
+                  `.contact-form .hp{position:absolute;left:-10000px}` +
+                  (custom ? GRID_CSS : '')}
               </style>
               <p id={`${id}-sent`} role="status">
                 {attrs.successMessage}
@@ -156,48 +563,62 @@ export default definePlugin({
                   ? 'Il controllo anti-spam non è riuscito: riprova.'
                   : 'The spam check did not pass: please try again.'}
               </p>
-              <form method="post" action={SUBMIT_PATH}>
-                <input type="hidden" name="_form" value={attrs.formName} />
-                <input type="hidden" name="_block" value={block.id} />
-                <label>
-                  {it ? 'Nome' : 'Name'}
-                  <input name="name" required maxLength={120} autoComplete="name" />
-                </label>
-                <label>
-                  Email
-                  <input name="email" type="email" required maxLength={200} autoComplete="email" />
-                </label>
-                {attrs.askPhone && (
-                  <label>
-                    {it ? 'Telefono' : 'Phone'}
-                    <input name="phone" type="tel" maxLength={40} autoComplete="tel" />
+              {custom ? (
+                <form method="post" action={SUBMIT_PATH} className="cf-grid">
+                  <input type="hidden" name="_form" value={attrs.formName} />
+                  <input type="hidden" name="_block" value={block.id} />
+                  <input type="hidden" name="_spec" value={data?.spec ?? ''} />
+                  {/* Left empty by people; bots fill it in. */}
+                  <label className="hp" aria-hidden="true">
+                    Website
+                    <input name="website" tabIndex={-1} autoComplete="off" />
                   </label>
-                )}
-                <label>
-                  {it ? 'Messaggio' : 'Message'}
-                  <textarea name="message" required maxLength={5000} rows={6} />
-                </label>
-                {/* Left empty by people; bots fill it in. */}
-                <label className="hp" aria-hidden="true">
-                  Website
-                  <input name="website" tabIndex={-1} autoComplete="off" />
-                </label>
-                {attrs.privacyUrl && /^(\/|https?:\/\/)/.test(attrs.privacyUrl) && (
-                  <p className="form-privacy">
-                    {it
-                      ? 'Inviando il messaggio, i tuoi dati saranno trattati per risponderti, come descritto nella '
-                      : 'By sending the message, your data will be used to reply to you, as described in the '}
-                    <a href={attrs.privacyUrl}>privacy policy</a>.
-                  </p>
-                )}
-                {data?.challenge ? (
-                  <div
-                    className="form-challenge"
-                    dangerouslySetInnerHTML={{ __html: data.challenge }}
+                  <CustomFields
+                    fields={fields}
+                    submitInline={attrs.submitInline === true}
+                    button={button}
+                    privacy={privacy}
+                    challenge={challenge}
                   />
-                ) : null}
-                <button type="submit">{attrs.buttonLabel}</button>
-              </form>
+                </form>
+              ) : (
+                <form method="post" action={SUBMIT_PATH}>
+                  <input type="hidden" name="_form" value={attrs.formName} />
+                  <input type="hidden" name="_block" value={block.id} />
+                  <label>
+                    {it ? 'Nome' : 'Name'}
+                    <input name="name" required maxLength={120} autoComplete="name" />
+                  </label>
+                  <label>
+                    Email
+                    <input
+                      name="email"
+                      type="email"
+                      required
+                      maxLength={200}
+                      autoComplete="email"
+                    />
+                  </label>
+                  {attrs.askPhone && (
+                    <label>
+                      {it ? 'Telefono' : 'Phone'}
+                      <input name="phone" type="tel" maxLength={40} autoComplete="tel" />
+                    </label>
+                  )}
+                  <label>
+                    {it ? 'Messaggio' : 'Message'}
+                    <textarea name="message" required maxLength={5000} rows={6} />
+                  </label>
+                  {/* Left empty by people; bots fill it in. */}
+                  <label className="hp" aria-hidden="true">
+                    Website
+                    <input name="website" tabIndex={-1} autoComplete="off" />
+                  </label>
+                  {privacy}
+                  {challenge}
+                  {button}
+                </form>
+              )}
             </section>
           );
         },
@@ -218,11 +639,43 @@ export default definePlugin({
         // Bots: pretend it worked.
         if (text(form.website, 200)) return redirect('sent');
 
-        const name = text(form.name, 120);
-        const email = text(form.email, 200).toLowerCase();
-        const message = text(form.message, 5000);
-        const phone = text(form.phone, 40) || null;
-        if (!name || !EMAIL_RE.test(email) || !message) return redirect('error');
+        let message: Message;
+        if (form._spec !== undefined) {
+          // Custom fields: the form's own copy, signed when the page was drawn.
+          const spec = await readSpec(await formKey(ctx, request.siteId), form._spec).catch(
+            () => null,
+          );
+          if (!spec || spec.fields.length === 0) return redirect('error');
+          const checked = checkValues(spec.fields, form, request.locale);
+          if (checked.invalid.length > 0) return redirect('error');
+          const columns = columnsOf(checked.values, spec.replyTo);
+          message = {
+            formName: spec.form,
+            ...columns,
+            data: checked.values,
+            replyTo: columns.email || null,
+            subject: subjectOf(spec.subject, spec.form, checked.values),
+            text: messageText(checked.values, back, request.locale),
+          };
+        } else {
+          const name = text(form.name, 120);
+          const email = text(form.email, 200).toLowerCase();
+          const body = text(form.message, 5000);
+          const phone = text(form.phone, 40) || null;
+          if (!name || !EMAIL_RE.test(email) || !body) return redirect('error');
+          const formName = text(form._form, 80) || 'Contact';
+          message = {
+            formName,
+            name,
+            email,
+            phone,
+            message: body,
+            data: null,
+            replyTo: email,
+            subject: `[${formName}] ${name}`,
+            text: `${name} <${email}>${phone ? `\nPhone: ${phone}` : ''}\nPage: ${back}\n\n${body}`,
+          };
+        }
         if (!allowed(`${request.siteId}|${request.ip}`)) {
           return { status: 429, body: 'Too many messages. Try again later.' };
         }
@@ -238,16 +691,16 @@ export default definePlugin({
         });
         if (verdict && !verdict.ok) return redirect('check');
 
-        const formName = text(form._form, 80) || 'Contact';
         await ctx.db.transaction(request.siteId, (tx) =>
           tx.insert(submissions).values({
             siteId: request.siteId,
-            formName,
+            formName: message.formName,
             pagePath: back,
-            name,
-            email,
-            phone,
-            message,
+            name: message.name,
+            email: message.email,
+            phone: message.phone,
+            message: message.message,
+            data: message.data,
           }),
         );
         const { recipient } = await ctx.settings.get(request.siteId);
@@ -256,9 +709,9 @@ export default definePlugin({
             .send({
               siteId: request.siteId,
               to: recipient,
-              replyTo: email,
-              subject: `[${formName}] ${name}`,
-              text: `${name} <${email}>${phone ? `\nPhone: ${phone}` : ''}\nPage: ${back}\n\n${message}`,
+              ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+              subject: message.subject,
+              text: message.text,
             })
             .catch((error: unknown) => ctx.log.error('Mail not sent', { error: String(error) }));
         }
@@ -285,6 +738,8 @@ export default definePlugin({
                 id: 'forms.submissions',
                 label: { en: 'Form messages', it: 'Messaggi dei moduli' },
                 items: rows.map((r) => ({
+                  // A custom form's fields, by label (the columns below win a clash).
+                  ...Object.fromEntries((r.data ?? []).map((f) => [f.label, f.value])),
                   form: r.formName,
                   page: r.pagePath,
                   name: r.name,
@@ -327,6 +782,7 @@ export default definePlugin({
           email: r.email,
           phone: r.phone,
           message: r.message,
+          fields: r.data ?? null,
           createdAt: r.createdAt.toISOString(),
         }));
         return { body };

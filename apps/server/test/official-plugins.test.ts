@@ -2,7 +2,7 @@
  * Official plugins (milestone M4): SEO and Forms, built from plugins/ and
  * installed like any other plugin.
  */
-import { cp, mkdtemp } from 'node:fs/promises';
+import { cp, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -351,6 +351,72 @@ describe('Forms', () => {
     const statuses = [];
     for (let i = 0; i < 6; i++) statuses.push((await send()).statusCode);
     expect(statuses).toEqual([303, 303, 303, 303, 303, 429]);
+  });
+
+  it('takes custom fields, as a hotel booking form from Contact Form 7', async () => {
+    const { attrs: HOTEL_ATTRS, request: HOTEL_REQUEST } = JSON.parse(
+      await readFile(join(pluginsRoot, 'forms/src/hotel.fixture.json'), 'utf8'),
+    ) as { attrs: Record<string, unknown>; request: Record<string, string> };
+    const hotel = await publish('page', 'Prenota', {
+      document: {
+        schema: 1,
+        blocks: [{ id: 'hotel1', type: 'forms/contact', v: 1, attrs: HOTEL_ATTRS }],
+      } satisfies CxdDocument,
+    });
+    const html = (await visitor.get(`/${hotel.slug}`)).body;
+    expect(html).toContain('class="cf-grid"');
+    expect(html).toContain('class="cf-field cf-date cf-w-1-6"');
+    expect(html).toContain('<div class="cf-submit-row">');
+    const spec = /name="_spec" value="([^"]+)"/.exec(html)![1]!;
+    const post = (fields: Record<string, string>) =>
+      app.inject({
+        method: 'POST',
+        url: '/_forms/submit',
+        headers: {
+          host: site.host,
+          origin: `http://${site.host}`,
+          referer: `http://${site.host}/${hotel.slug}`,
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        remoteAddress: '10.9.3.1',
+        payload: new URLSearchParams({ _block: 'hotel1', _spec: spec, ...fields }).toString(),
+      });
+
+    const missing = await post({ ...HOTEL_REQUEST, privacy: '' });
+    expect(missing.headers.location).toBe(`/${hotel.slug}#form-hotel1-error`);
+    const sent = await post(HOTEL_REQUEST);
+    expect(sent.headers.location).toBe(`/${hotel.slug}#form-hotel1-sent`);
+
+    const [message] = (await admin.get('/api/v1/ext/forms/submissions')).json();
+    expect(message).toMatchObject({
+      formName: 'Prenotazione',
+      name: 'Mario Rossi',
+      email: 'mario@example.com',
+      message: 'Camera vista mare,\nse possibile.',
+    });
+    expect(message.fields.map((f: { name: string; value: string }) => [f.name, f.value])).toEqual([
+      ['your-name', 'Mario Rossi'],
+      ['your-email', 'mario@example.com'],
+      ['your-tel', '+39 019 123456'],
+      ['guests', '2'],
+      ['arrival', '2027-07-10'],
+      ['departure', '2027-07-17'],
+      ['requests', 'Camera vista mare,\nse possibile.'],
+      ['privacy', 'Yes'],
+    ]);
+    const mail = app.get(MailService).outbox.at(-1)!;
+    expect(mail).toMatchObject({
+      to: 'owner@official.test',
+      replyTo: 'mario@example.com',
+      subject: 'Sito Hotel aurora Varazze',
+    });
+    expect(mail.text).toContain('Arrivo*: 2027-07-10\nPartenza*: 2027-07-17');
+
+    // The classic form's messages have no fields.
+    const classic = (await admin.get('/api/v1/ext/forms/submissions'))
+      .json()
+      .find((m: { formName: string }) => m.formName === 'Contact us');
+    expect(classic.fields).toBeNull();
   });
 
   it('lets editors read and delete messages', async () => {
