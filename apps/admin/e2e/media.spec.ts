@@ -78,7 +78,8 @@ test('upload, describe, search and filter media', async ({ page }) => {
     .getByRole('listitem', { name: 'Aurora' })
     .getByRole('button', { name: 'Customize Aurora' })
     .click();
-  await page.getByRole('button', { name: 'Select image' }).first().click();
+  // The picker button is named by its field's label.
+  await page.getByRole('button', { name: 'Logo', exact: true }).click();
   await page.getByLabel('Search media').fill(stamp);
   await expect(page.getByRole('button', { name })).toBeVisible();
   await page.getByLabel('Search media').fill(`nothing-${stamp}`);
