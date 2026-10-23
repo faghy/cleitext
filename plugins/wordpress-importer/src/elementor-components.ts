@@ -3,13 +3,22 @@
  * elements (`_elementor_data`) and the settings instances may override
  * (`_elementor_component_overridable_props`). They become Fresco components
  * (Fresco's plugin data `components`); instances (`e-component`) become
- * `fresco/component` elements (elementor-atomic.ts).
+ * `fresco/component` elements (`@cleitext/blocks/elementor`).
  */
 import type { CxdBlock } from '@cleitext/blocks';
 import { newBlockId } from '@cleitext/blocks';
-import { convertElements, type ElementorContext, type ElementorNode } from './elementor.js';
-import { SETTING_NAMES, componentId, overrideKey, type ComponentInfo } from './elementor-atomic.js';
-import { asSettings, str, type Settings } from './elementor-values.js';
+import {
+  convertElements,
+  type ElementorContext,
+  type ElementorNode,
+  SETTING_NAMES,
+  componentId,
+  overrideKey,
+  type ComponentInfo,
+  asSettings,
+  str,
+  type Settings,
+} from '@cleitext/blocks/elementor';
 
 /** The overridable properties of a component, by override key. */
 export function componentInfo(meta: unknown): ComponentInfo {

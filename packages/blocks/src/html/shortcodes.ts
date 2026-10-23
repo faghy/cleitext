@@ -4,6 +4,8 @@
  * `shortcode_parse_atts`), so that plugins can turn the ones standing alone
  * into their blocks (the `import.shortcode` filter, plugin API 1.36).
  */
+import { newBlockId } from '../block-id.js';
+import type { CxdBlock } from '../cxd.js';
 
 /** A shortcode as written in the content. */
 export interface Shortcode {
@@ -201,4 +203,32 @@ export function splitShortcodes(html: string): ShortcodePiece[] {
   const tail = pending + html.slice(rest);
   if (hasContent(tail)) pieces.push({ html: tail.trim() });
   return pieces;
+}
+
+/** Placeholder of a WordPress block without an equivalent, during an import. */
+export const IMPORTED_BLOCK = 'core/imported';
+
+/**
+ * Placeholder of a shortcode standing alone, during an import: a plugin may
+ * turn it into its blocks (`import.shortcode`); otherwise `fallback` (its
+ * text) is kept. `wrap`, when set, is the element each of the plugin's
+ * blocks goes into (e.g. a page builder's element for plugin blocks).
+ */
+export function shortcodePlaceholder(
+  shortcode: Shortcode,
+  fallback: CxdBlock[],
+  wrap?: { type: string; v?: number; attrs?: Record<string, unknown> },
+): CxdBlock {
+  return {
+    id: newBlockId(),
+    type: IMPORTED_BLOCK,
+    v: 1,
+    attrs: {
+      name: 'core/shortcode',
+      shortcode,
+      html: shortcode.text,
+      fallback,
+      ...(wrap ? { wrap } : {}),
+    },
+  };
 }

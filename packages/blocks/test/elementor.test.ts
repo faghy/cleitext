@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { CxdBlock } from '@cleitext/blocks';
-import { elementorToFresco, takeStretched, type ElementorContext } from './elementor';
-import { relativeUrl } from './elementor-values';
+import type { CxdBlock } from '../src/index.js';
+import {
+  elementorToFresco,
+  relativeUrl,
+  takeStretched,
+  type ElementorContext,
+} from '../src/elementor.js';
 
 // The shape of `_elementor_data`, as Elementor saves it (sections and containers).
 const data = JSON.stringify([

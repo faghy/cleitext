@@ -5,8 +5,8 @@
  * tabs and accordions and the other free widgets.
  */
 import { describe, expect, it } from 'vitest';
-import type { CxdBlock } from '@cleitext/blocks';
-import { elementorToFresco, type ElementorContext } from './elementor';
+import type { CxdBlock } from '../src/index.js';
+import { elementorToFresco, type ElementorContext } from '../src/elementor.js';
 
 const context = (warnings: string[]): ElementorContext => ({
   mediaRef: (id) => (id === 12 ? 'att:12' : id === 13 ? 'att:13' : undefined),

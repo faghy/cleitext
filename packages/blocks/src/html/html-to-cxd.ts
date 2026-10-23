@@ -11,7 +11,12 @@ import {
 } from '../index.js';
 import { HTMLElement, parse, TextNode, type Node } from 'node-html-parser';
 import { parseBlocks, type WpBlock } from './wp-blocks.js';
-import { shortcodeLines, type Shortcode } from './shortcodes.js';
+import {
+  IMPORTED_BLOCK,
+  shortcodeLines,
+  shortcodePlaceholder,
+  type Shortcode,
+} from './shortcodes.js';
 
 export interface ConvertOptions {
   /** Media ref of a WordPress attachment id (e.g. `att:123`). */
@@ -27,29 +32,6 @@ export interface ConvertOptions {
    * `import.shortcode` filter, plugin API 1.36).
    */
   keepUnknown?: boolean;
-}
-
-/** Placeholder of a WordPress block without an equivalent, during an import. */
-export const IMPORTED_BLOCK = 'core/imported';
-
-/**
- * Placeholder of a shortcode standing alone, during an import: a plugin may
- * turn it into its blocks (`import.shortcode`); otherwise `fallback` (its
- * text) is kept. `wrap`, when set, is the element each of the plugin's
- * blocks goes into (e.g. a page builder's element for plugin blocks).
- */
-export function shortcodePlaceholder(
-  shortcode: Shortcode,
-  fallback: CxdBlock[],
-  wrap?: { type: string; v?: number; attrs?: Record<string, unknown> },
-): CxdBlock {
-  return make(IMPORTED_BLOCK, {
-    name: 'core/shortcode',
-    shortcode,
-    html: shortcode.text,
-    fallback,
-    ...(wrap ? { wrap } : {}),
-  });
 }
 
 /**

@@ -61,6 +61,8 @@ Gli elementi atomici (Flexbox, Griglia, Div, Titolo, Paragrafo, Pulsante, Immagi
 
 **Modelli** salva una sezione o una pagina intera per riusarla, e importa o esporta file `.fresco.json` per spostare i design tra siti. Puoi cercarli per nome, vederne l'anteprima alla larghezza di un desktop, di un tablet o di un telefono prima di inserirli, rinominarli ed eliminarli, nell'editor (Ctrl/⌘+Maiusc+L) o in **Fresco → Modelli**.
 
+**Importa** accetta anche i **modelli di Elementor**: i file `.json` che Elementor esporta da **Modelli → Esporta**, o che distribuiscono i siti di modelli (non i kit in `.zip`). Vengono convertiti come l'importatore di WordPress converte le pagine di Elementor; il titolo resta, un modello di tipo pagina diventa una pagina, ogni altro tipo una sezione. Le immagini restano al loro indirizzo originale (non viene scaricato nulla): un avviso dice quante sono, così puoi caricarle nella libreria media e sostituirle. I widget senza un equivalente in Fresco mantengono solo il loro testo, e gli elementi che questo sito non ha (quelli di Fresco Pro, senza Fresco Pro) vengono tralasciati; un avviso ne indica il numero. I colori e i font globali si riferiscono a quelli di questo sito.
+
 ## Il menu di Fresco
 
 Oltre alla panoramica e a **Modelli**, il menu **Fresco** dell'amministrazione ha (per gli amministratori):

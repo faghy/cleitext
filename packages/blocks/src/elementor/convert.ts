@@ -7,11 +7,11 @@
  * differ from Fresco's, the value is written explicitly so the page looks
  * the same. Widgets with no counterpart keep their text and are reported.
  */
-import type { CxdBlock } from '@cleitext/blocks';
-import { newBlockId } from '@cleitext/blocks';
-import { shortcodePlaceholder, splitShortcodes } from '@cleitext/blocks/html';
-import { atomicElement, isAtomic, type ComponentInfo } from './elementor-atomic.js';
-import { proWidget } from './elementor-pro.js';
+import { newBlockId } from '../block-id.js';
+import type { CxdBlock } from '../cxd.js';
+import { shortcodePlaceholder, splitShortcodes } from '../html/shortcodes.js';
+import { atomicElement, isAtomic, type ComponentInfo } from './atomic.js';
+import { proWidget } from './pro.js';
 import {
   asSettings,
   DEVICE_NAMES,
@@ -40,9 +40,9 @@ import {
   type BoxValue,
   type Notes,
   type Settings,
-} from './elementor-values.js';
+} from './values.js';
 
-export type { Settings } from './elementor-values.js';
+export type { Settings } from './values.js';
 
 export interface ElementorNode {
   id?: string;
@@ -92,6 +92,8 @@ export interface ElementorContext {
   components?: Map<string, ComponentInfo>;
   /** Keep each atomic element's Elementor id (`__elementor_id`), when converting a component. */
   keepElementIds?: boolean;
+  /** Widgets without a counterpart (their text is kept), by type, once per conversion. */
+  unconverted?: (type: string, count: number) => void;
 }
 
 /** The tools widget converters share. */
@@ -2195,6 +2197,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
 
   const blocks = elements.flatMap((el) => element(el));
   for (const [type, n] of unknown) {
+    ctx.unconverted?.(type, n);
     ctx.warn(
       `${n} Elementor widget(s) "${type}" have no Fresco counterpart yet: their text was kept.`,
     );

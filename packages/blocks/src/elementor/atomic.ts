@@ -5,16 +5,9 @@
  * elements (`fresco/a-*`) with the same variants (`_styles`) and global
  * classes (`_classes`).
  */
-import type { CxdBlock } from '@cleitext/blocks';
-import type { Converter, ElementorNode } from './elementor.js';
-import {
-  asSettings,
-  DEVICE_NAMES,
-  num,
-  relativeUrl,
-  str,
-  type Settings,
-} from './elementor-values.js';
+import type { CxdBlock } from '../cxd.js';
+import type { Converter, ElementorNode } from './convert.js';
+import { asSettings, DEVICE_NAMES, num, relativeUrl, str, type Settings } from './values.js';
 
 const BOXES: Record<string, string> = {
   e_flexbox: 'flexbox',

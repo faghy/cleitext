@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CxdBlock } from '@cleitext/blocks';
-import { elementorToFresco, type ElementorContext } from './elementor';
 import {
+  elementorToFresco,
+  type ElementorContext,
   atomicClasses,
   atomicInteractions,
   atomicVariables,
   componentId,
-} from './elementor-atomic';
+} from '@cleitext/blocks/elementor';
 import { componentInfo, convertComponent } from './elementor-components';
 import { wxrToDocument } from './wxr';
 

@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AdminDialogs, askText, confirmAction, notify } from './admin-dialogs.js';
 import {
   download,
+  importNotes,
   importTemplateFile,
   renameTemplate,
   searchTemplates,
@@ -259,8 +260,9 @@ export function TemplatesPage(_props: AdminPageProps) {
               if (!file) return;
               setError(null);
               try {
-                const parsed = await importTemplateFile(file);
-                notify(t('“{name}” imported.', { name: parsed.title }), 'success');
+                const imported = await importTemplateFile(file);
+                notify(t('“{name}” imported.', { name: imported.file.title }), 'success');
+                for (const note of importNotes(imported)) notify(note, 'info');
                 load();
               } catch (err) {
                 fail(err);

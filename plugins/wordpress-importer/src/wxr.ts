@@ -1,9 +1,15 @@
 import { XMLParser } from 'fast-xml-parser';
 import { htmlToCxd, IMPORTED_BLOCK, texturizeHtml, texturizeText } from '@cleitext/blocks/html';
 import { assignLanguages } from './wpml';
-import { elementorToFresco, takeStretched, type ElementorContext } from './elementor.js';
+import {
+  elementorToFresco,
+  takeStretched,
+  type ElementorContext,
+  type ComponentInfo,
+  asSettings,
+  type Settings,
+} from '@cleitext/blocks/elementor';
 import { componentInfo, convertComponent } from './elementor-components.js';
-import type { ComponentInfo } from './elementor-atomic.js';
 import {
   convertConditions,
   customFont,
@@ -16,7 +22,6 @@ import {
   type ConditionContext,
   type KitResult,
 } from './elementor-site.js';
-import { asSettings, type Settings } from './elementor-values.js';
 import { metaValue } from './php.js';
 import { WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
 import type { CxdBlock } from '@cleitext/blocks';

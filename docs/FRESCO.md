@@ -61,6 +61,8 @@ Atomic elements (Flexbox, Grid, Div, Heading, Paragraph, Button, Image, SVG, Div
 
 **Templates** saves a section or a whole page to reuse it, and imports or exports `.fresco.json` files to move designs between sites. Search them by name, preview them at the width of a desktop, a tablet or a phone before inserting them, rename and delete them, in the editor (Ctrl/⌘+Shift+L) or in **Fresco → Templates**.
 
+**Import** also takes **Elementor template files**: the `.json` files Elementor exports from **Templates → Export**, or that template sites distribute (not kit `.zip` files). They are converted as the WordPress importer converts Elementor pages; the title is kept, and a template of type page becomes a page, any other type a section. Images stay at their original address (nothing is downloaded): a notice says how many, so you can upload them to the media library and replace them. Widgets with no Fresco counterpart keep only their text, and elements this site does not have (Fresco Pro's, without Fresco Pro) are left out; a notice gives their count. Global colors and fonts refer to this site's.
+
 ## Fresco's menu
 
 Besides the overview and **Templates**, the **Fresco** menu of the admin has (for administrators):

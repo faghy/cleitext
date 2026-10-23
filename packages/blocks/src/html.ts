@@ -3,16 +3,13 @@
  * assistants. A separate entry (`@cleitext/blocks/html`): it brings an HTML
  * parser that the admin does not need.
  */
-export {
-  htmlToCxd,
-  IMPORTED_BLOCK,
-  shortcodePlaceholder,
-  type ConvertOptions,
-} from './html/html-to-cxd.js';
+export { htmlToCxd, type ConvertOptions } from './html/html-to-cxd.js';
 export {
   findShortcodes,
+  IMPORTED_BLOCK,
   parseShortcodeAttrs,
   shortcodeLines,
+  shortcodePlaceholder,
   splitShortcodes,
   wholeShortcode,
   type Shortcode,

@@ -5,9 +5,10 @@
  * They become Fresco's kit, Fresco Pro's templates (`fresco_template`
  * entries) and Fresco Pro's site settings.
  */
-import { atomicClasses, atomicVariables } from './elementor-atomic.js';
-import type { ElementorKitInfo } from './elementor.js';
 import {
+  atomicClasses,
+  atomicVariables,
+  type ElementorKitInfo,
   asSettings,
   DEVICE_NAMES,
   box,
@@ -22,7 +23,7 @@ import {
   type Notes,
   type Settings,
   type SizeValue,
-} from './elementor-values.js';
+} from '@cleitext/blocks/elementor';
 
 // ---- Kit ----------------------------------------------------------------------------------
 

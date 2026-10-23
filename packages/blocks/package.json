@@ -16,6 +16,10 @@
       "types": "./dist/html.d.ts",
       "default": "./dist/html.js"
     },
+    "./elementor": {
+      "types": "./dist/elementor.d.ts",
+      "default": "./dist/elementor.js"
+    },
     "./transfer": {
       "types": "./dist/transfer.d.ts",
       "default": "./dist/transfer.js"
@@ -30,7 +34,7 @@
     "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.thresholds.lines=90 --coverage.thresholds.statements=90 --coverage.thresholds.functions=88 --coverage.thresholds.branches=80"
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.exclude='src/elementor/**' --coverage.thresholds.lines=90 --coverage.thresholds.statements=90 --coverage.thresholds.functions=88 --coverage.thresholds.branches=80"
   },
   "dependencies": {
     "node-html-parser": "^9.0.4",

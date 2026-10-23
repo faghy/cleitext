@@ -6,7 +6,7 @@
  */
 import type { CxdBlock } from '@cleitext/blocks';
 import { describe, expect, it } from 'vitest';
-import { elementorToFresco, type ElementorContext } from './elementor';
+import { elementorToFresco, type ElementorContext } from '@cleitext/blocks/elementor';
 import { wxrToDocument } from './wxr';
 
 const context = (notes: string[] = []): ElementorContext => ({

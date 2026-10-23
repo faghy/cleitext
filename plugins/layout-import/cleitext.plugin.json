@@ -1,7 +1,7 @@
 {
   "slug": "layout-import",
   "name": "Layout Import",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "apiVersion": "^1.26",
   "description": "Turn layouts into native blocks of the block editor: WordPress pages laid out with the old theme's [av_…] shortcodes, page-builder JSON from WordPress exports (Elementor's sections, columns, containers and widgets), and Fresco pages of this site, so it can do without Fresco. Sections, columns, texts, headings, images, galleries, buttons and more become the closest blocks; what has no block is reported. Each page gets a new revision, undone from Revisions.",
   "author": "Cleitext",

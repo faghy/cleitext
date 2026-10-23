@@ -567,6 +567,15 @@ addMessages('it', {
   'The template uses elements this site does not have.':
     'Il modello usa elementi che questo sito non ha.',
   'Imported template': 'Modello importato',
+  'This file is neither a Fresco template nor an Elementor template (.json file).':
+    'Questo file non è né un modello di Fresco né un modello di Elementor (file .json).',
+  'The Elementor template is empty.': 'Il modello di Elementor è vuoto.',
+  '{count} elements this site does not have were left out.':
+    '{count} elementi che questo sito non ha sono stati tralasciati.',
+  '{count} Elementor widgets have no Fresco counterpart: only their text was kept.':
+    '{count} widget di Elementor non hanno un equivalente in Fresco: è stato mantenuto solo il loro testo.',
+  '{count} images are still loaded from their original address: upload them to the media library and replace them to keep them.':
+    '{count} immagini sono ancora caricate dal loro indirizzo originale: caricale nella libreria media e sostituiscile per conservarle.',
   '“{name}” inserted.': '«{name}» inserito.',
   'Save the page': 'Salva la pagina',
   'Select an element first': 'Prima seleziona un elemento',

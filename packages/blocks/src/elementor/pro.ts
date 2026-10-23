@@ -4,9 +4,9 @@
  * contents, main options and colors. Fresco Pro has to be active for the
  * Pro elements to show; their settings are kept either way.
  */
-import type { CxdBlock } from '@cleitext/blocks';
-import type { Converter, ElementorNode } from './elementor.js';
-import { plainTitle } from './elementor.js';
+import type { CxdBlock } from '../cxd.js';
+import type { Converter, ElementorNode } from './convert.js';
+import { plainTitle } from './convert.js';
 import {
   asSettings,
   box,
@@ -22,7 +22,7 @@ import {
   str,
   yes,
   type Settings,
-} from './elementor-values.js';
+} from './values.js';
 
 const HEADING_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'p']);
 const tag = (value: unknown, fallback: string) =>

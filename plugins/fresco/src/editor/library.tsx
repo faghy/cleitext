@@ -1,7 +1,8 @@
 /**
  * Templates: whole pages or sections saved for reuse, kept as the site's
  * patterns (document.editor = fresco). Inserting one copies it with new ids;
- * templates can be exported to a file and imported on another site.
+ * templates can be exported to a file and imported on another site, and
+ * Elementor's template files (`.json`) are imported too.
  */
 import { api as coreApi, t } from '@cleitext/admin-sdk';
 import { askText, confirmAction } from './dialogs.js';
@@ -10,6 +11,7 @@ import type { FrescoNode } from '../core/model.js';
 import { extensions, type LibraryItem } from '../core/extensions.js';
 import { getElement } from '../core/registry.js';
 import { Svg } from './controls.js';
+import { convertElementorTemplate, isElementorTemplate } from './elementor-template.js';
 import { create, useStore, type Store } from './store.js';
 import { TemplatePreview } from './template-preview.js';
 import { cloneWithNewIds, find, placeOf, walk } from './tree.js';
@@ -61,18 +63,26 @@ export async function saveTemplate(
   });
 }
 
-/** A file made by `exportTemplate`, checked: only known elements are kept. */
-export function parseTemplateFile(text: string): TemplateFile {
-  const data = JSON.parse(text) as Partial<TemplateFile>;
-  if (data.format !== 'fresco-template' || !Array.isArray(data.blocks)) {
-    throw new Error(t('This is not a Fresco template file.'));
-  }
-  let unknown = 0;
+/** A template file read for import, with what was left out or kept as it was. */
+export interface ImportedTemplate {
+  file: TemplateFile;
+  source: 'fresco' | 'elementor';
+  /** Elements this site does not have (left out). */
+  skipped: number;
+  /** Elementor widgets with no Fresco counterpart (their text was kept). */
+  unconverted: number;
+  /** Images still loaded from their original address. */
+  externalImages: number;
+}
+
+/** Only elements this site has are kept; the others are counted. */
+function knownElements(list: FrescoNode[]): { blocks: FrescoNode[]; skipped: number } {
+  let skipped = 0;
   const keep = (nodes: FrescoNode[]): FrescoNode[] =>
     nodes
       .filter((node) => {
         const ok = typeof node?.type === 'string' && Boolean(getElement(node.type));
-        if (!ok) unknown++;
+        if (!ok) skipped++;
         return ok;
       })
       .map((node) => ({
@@ -82,19 +92,100 @@ export function parseTemplateFile(text: string): TemplateFile {
         attrs: node.attrs && typeof node.attrs === 'object' ? node.attrs : {},
         ...(Array.isArray(node.children) ? { children: keep(node.children) } : {}),
       }));
-  const blocks = keep(data.blocks);
-  if (unknown > 0 && blocks.length === 0)
-    throw new Error(t('The template uses elements this site does not have.'));
-  return {
-    format: 'fresco-template',
-    version: 1,
-    title:
-      typeof data.title === 'string' && data.title.trim()
-        ? data.title.trim().slice(0, 200)
-        : t('Imported template'),
-    kind: data.kind === 'page' ? 'page' : 'section',
-    blocks,
-  };
+  return { blocks: keep(list), skipped };
+}
+
+const templateTitle = (title: unknown): string =>
+  typeof title === 'string' && title.trim() ? title.trim().slice(0, 200) : t('Imported template');
+
+/**
+ * A Fresco template file (made by `templateFile`) or an Elementor template
+ * file (`.json`, exported from Elementor's Templates), checked: only known
+ * elements are kept.
+ */
+export function readTemplateFile(text: string): ImportedTemplate {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(
+      t('This file is neither a Fresco template nor an Elementor template (.json file).'),
+    );
+  }
+  const fresco = data as Partial<TemplateFile> | null;
+  if (fresco?.format === 'fresco-template') {
+    if (!Array.isArray(fresco.blocks)) throw new Error(t('This is not a Fresco template file.'));
+    const { blocks, skipped } = knownElements(fresco.blocks);
+    if (skipped > 0 && blocks.length === 0)
+      throw new Error(t('The template uses elements this site does not have.'));
+    return {
+      file: {
+        format: 'fresco-template',
+        version: 1,
+        title: templateTitle(fresco.title),
+        kind: fresco.kind === 'page' ? 'page' : 'section',
+        blocks,
+      },
+      source: 'fresco',
+      skipped,
+      unconverted: 0,
+      externalImages: 0,
+    };
+  }
+  if (isElementorTemplate(data)) {
+    const converted = convertElementorTemplate(data);
+    const { blocks, skipped } = knownElements(converted.blocks);
+    if (blocks.length === 0)
+      throw new Error(
+        skipped > 0
+          ? t('The template uses elements this site does not have.')
+          : t('The Elementor template is empty.'),
+      );
+    return {
+      file: {
+        format: 'fresco-template',
+        version: 1,
+        title: templateTitle(converted.title),
+        kind: converted.kind,
+        blocks,
+      },
+      source: 'elementor',
+      skipped,
+      unconverted: converted.unconverted,
+      externalImages: converted.externalImages,
+    };
+  }
+  throw new Error(
+    t('This file is neither a Fresco template nor an Elementor template (.json file).'),
+  );
+}
+
+/** A file made by `templateFile` (or an Elementor template), checked: only known elements are kept. */
+export function parseTemplateFile(text: string): TemplateFile {
+  return readTemplateFile(text).file;
+}
+
+/** What an import left out or kept as it was, to tell the user. */
+export function importNotes(imported: ImportedTemplate): string[] {
+  const notes: string[] = [];
+  if (imported.skipped > 0)
+    notes.push(
+      t('{count} elements this site does not have were left out.', { count: imported.skipped }),
+    );
+  if (imported.unconverted > 0)
+    notes.push(
+      t('{count} Elementor widgets have no Fresco counterpart: only their text was kept.', {
+        count: imported.unconverted,
+      }),
+    );
+  if (imported.externalImages > 0)
+    notes.push(
+      t(
+        '{count} images are still loaded from their original address: upload them to the media library and replace them to keep them.',
+        { count: imported.externalImages },
+      ),
+    );
+  return notes;
 }
 
 export function download(file: TemplateFile): void {
@@ -122,11 +213,11 @@ export async function renameTemplate(id: string, title: string): Promise<void> {
   await coreApi('PATCH', `/patterns/${encodeURIComponent(id)}`, { title });
 }
 
-/** Imports a template file (see `parseTemplateFile`) as a new template of the site. */
-export async function importTemplateFile(file: File): Promise<TemplateFile> {
-  const parsed = parseTemplateFile(await file.text());
-  await saveTemplate(parsed.title, parsed.kind, parsed.blocks);
-  return parsed;
+/** Imports a template file (see `readTemplateFile`) as a new template of the site. */
+export async function importTemplateFile(file: File): Promise<ImportedTemplate> {
+  const imported = readTemplateFile(await file.text());
+  await saveTemplate(imported.file.title, imported.file.kind, imported.file.blocks);
+  return imported;
 }
 
 /** The file a template is exported as. */
@@ -311,10 +402,17 @@ export function LibraryView({ store }: { store: Store }) {
               const file = e.target.files?.[0];
               e.target.value = '';
               if (!file) return;
+              let notes: string[] = [];
               await run(
-                async () => void (await importTemplateFile(file)),
+                async () => void (notes = importNotes(await importTemplateFile(file))),
                 t('“{name}” imported.', { name: file.name }),
               );
+              if (notes.length)
+                setMessage((current) =>
+                  current?.kind === 'ok'
+                    ? { kind: 'ok', text: [current.text, ...notes].join(' ') }
+                    : current,
+                );
             }}
           />
         </label>
