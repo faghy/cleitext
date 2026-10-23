@@ -8,7 +8,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { expect, test, type Frame, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Frame, type Page } from '@playwright/test';
 import { appErrors } from './fixtures/errors.js';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
@@ -112,23 +112,60 @@ async function siteSettings(page: Page, name: RegExp) {
 
 /** The kit as it was, put back after each test (it is the site's). */
 let savedKit: unknown = null;
+/** Components a test made, deleted after it even when it fails. */
+const madeComponents = new Set<string>();
 
-test.afterAll(async ({ browser }) => {
+/**
+ * Runs the clean-up from a page of its own, signed in: the test's page may be
+ * closed, crashed, or held by a dialog of the editor when a test fails.
+ */
+async function cleanUp(browser: Browser, work: (page: Page) => Promise<void>) {
   const page = await browser.newPage();
-  await signIn(page);
-  await api(page, 'POST', '/plugins/fresco/deactivate', {}).catch(() => undefined);
-  await page.close();
+  try {
+    await signIn(page);
+    await work(page);
+  } finally {
+    await page.close();
+  }
+}
+
+// The other specs run without Fresco, even after a failure here (unless a
+// plugin that requires it, such as Fresco Pro, keeps it on).
+test.afterAll(async ({ browser }) => {
+  await cleanUp(browser, async (page) => {
+    await api(page, 'POST', '/plugins/fresco/deactivate', {}).catch(() => undefined);
+  });
 });
 
 test.beforeEach(async ({ page }) => {
+  savedKit = null;
+  madeComponents.clear();
   await signIn(page);
   await activateFresco(page);
   savedKit = await api(page, 'GET', '/ext/fresco/kit');
 });
 
-test.afterEach(async ({ page }) => {
-  if (savedKit) await api(page, 'PUT', '/ext/fresco/kit', savedKit).catch(() => undefined);
+// The site's kit as it was (classes, variables), and no component left behind.
+test.afterEach(async ({ browser, page }) => {
+  // The editor first: nothing of it saves after the kit is put back.
+  await page.close();
+  if (!savedKit && !madeComponents.size) return;
+  await cleanUp(browser, async (admin) => {
+    for (const id of madeComponents) {
+      await api(admin, 'DELETE', `/ext/fresco/components/${id}`, {}).catch(() => undefined);
+    }
+    if (savedKit) await api(admin, 'PUT', '/ext/fresco/kit', savedKit);
+  });
+  savedKit = null;
+  madeComponents.clear();
 });
+
+/** The color of an element of the canvas. */
+const colorOf = (frame: Frame, id: string) =>
+  frame.evaluate(
+    (id) => getComputedStyle(document.querySelector(`[data-fr-id="${id}"]`)!).color,
+    id,
+  );
 
 test('class manager and variables manager', async ({ page }) => {
   const errors: string[] = [];
@@ -165,9 +202,9 @@ test('class manager and variables manager', async ({ page }) => {
   ]);
   const frame = await openEditor(page, id, 'h');
   // The class higher in priority (the last in the kit) wins: the variable's red.
-  expect(
-    await frame.evaluate(() => getComputedStyle(document.querySelector('[data-fr-id="h"]')!).color),
-  ).toBe('rgb(255, 0, 0)');
+  // The editor asks for the kit after the canvas shows (a site whose theme has
+  // no parts drawn by Fresco has no kit from the server): it may come later.
+  await expect.poll(() => colorOf(frame, 'h')).toBe('rgb(255, 0, 0)');
 
   // Class manager: the strongest class first, with how many elements use it.
   await siteSettings(page, /Class manager|Gestione classi/);
@@ -180,11 +217,7 @@ test('class manager and variables manager', async ({ page }) => {
   await high.locator('.fre-draghandle').focus();
   await page.keyboard.press('ArrowDown');
   await expect(rows.first().locator('input')).toHaveValue(`Low ${stamp}`);
-  await expect
-    .poll(() =>
-      frame.evaluate(() => getComputedStyle(document.querySelector('[data-fr-id="h"]')!).color),
-    )
-    .toBe('rgb(0, 255, 0)');
+  await expect.poll(() => colorOf(frame, 'h')).toBe('rgb(0, 255, 0)');
   // Duplicate, then delete the copy (nobody uses it).
   await low.locator('button', { hasText: '⧉' }).click();
   const copy = rows.filter({
@@ -212,11 +245,13 @@ test('class manager and variables manager', async ({ page }) => {
   const deleted = page.locator('.fre-dsrow.is-deleted', { hasText: `Brand ${stamp}` });
   await expect(deleted).toHaveCount(1);
   // Deleted, it still styles the elements that use it.
-  expect(
-    await frame.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--fr-v-w4-brand'),
-    ),
-  ).toContain('#ff0000');
+  await expect
+    .poll(() =>
+      frame.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--fr-v-w4-brand'),
+      ),
+    )
+    .toContain('#ff0000');
   await deleted.locator('button').click();
   await expect(brand).toHaveCount(1);
   const before = await page.locator('.fre-varmanager .fre-dsrow:not(.is-deleted)').count();
@@ -225,9 +260,9 @@ test('class manager and variables manager', async ({ page }) => {
   });
   if (await importButton.isEnabled()) {
     await importButton.click();
-    expect(
-      await page.locator('.fre-varmanager .fre-dsrow:not(.is-deleted)').count(),
-    ).toBeGreaterThan(before);
+    await expect
+      .poll(() => page.locator('.fre-varmanager .fre-dsrow:not(.is-deleted)').count())
+      .toBeGreaterThan(before);
     await expect(importButton).toBeDisabled();
   }
 
@@ -262,6 +297,7 @@ test('components: create, edit in place, override, detach, on the page', async (
   );
   const component = components.find((c) => c.title === `Card ${stamp}`)!;
   expect(component).toBeTruthy();
+  madeComponents.add(component.id);
 
   // Edit component: its heading is editable; its title becomes overridable.
   await instance.click({ button: 'right' });
@@ -320,6 +356,7 @@ test('components: create, edit in place, override, detach, on the page', async (
   await expect(canvas.locator('.fr-a-heading', { hasText: `Mine ${stamp}` })).toHaveCount(1);
 
   await api(page, 'DELETE', `/ext/fresco/components/${component.id}`, {});
+  madeComponents.delete(component.id);
   expect(appErrors(errors)).toEqual([]);
 });
 
