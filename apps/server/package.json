@@ -48,7 +48,7 @@
     "semver": "^7.8.5",
     "sharp": "^0.35.5",
     "tar": "^7.5.22",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cleitext/cli": "workspace:*",

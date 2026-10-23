@@ -28,7 +28,7 @@
     "@cleitext/blocks": "workspace:*",
     "@cleitext/shared": "workspace:*",
     "@cleitext/theme-sdk": "workspace:*",
-    "zod": "^4.6.5",
+    "zod": "^4.6.7",
     "drizzle-orm": "^0.45.4"
   },
   "peerDependencies": {
