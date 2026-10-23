@@ -27,7 +27,7 @@ import { cartJson, readQuantity, removeItem, setQuantity, type CartJson } from '
 import {
   LINK_HEADERS,
   LINK_LIMIT,
-  limiter,
+  sharedLimiter,
   linkRefusal,
   readCartLink,
   type CartLink,
@@ -323,7 +323,7 @@ export function registerStorefront(
   };
 
   /** Add-to-cart links (`cart-link.ts`): one per visitor and a while. */
-  const linkAllowed = limiter(LINK_LIMIT.max, LINK_LIMIT.windowMs);
+  const linkAllowed = sharedLimiter('cart-link', LINK_LIMIT.max, LINK_LIMIT.windowMs);
 
   /**
    * Adds a simple product to the visitor's own cart from a link, then goes

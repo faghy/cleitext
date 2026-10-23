@@ -31,7 +31,10 @@
   position: relative;
   z-index: 1;
 }
-/* Background video: behind the overlay and the content; not on phones unless asked. */
+/*
+ * Background video: behind the overlay and the content; not on phones unless asked.
+ * Shown also with reduced motion, as in Elementor: muted, it is part of the design.
+ */
 .fr-bg-video {
   position: absolute;
   inset: 0;
@@ -210,11 +213,6 @@
 }
 @media (max-width: 767px) {
   .fr-bg-video--wide {
-    display: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .fr-bg-video {
     display: none;
   }
 }

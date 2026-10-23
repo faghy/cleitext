@@ -6,6 +6,7 @@ import {
   LINK_MAX_QUANTITY,
   limiter,
   linkQuantity,
+  sharedLimiter,
   linkRefusal,
   readCartLink,
 } from './cart-link';
@@ -86,6 +87,14 @@ describe('add-to-cart links', () => {
     expect(allowed('b')).toBe(true);
     now = 1001;
     expect(allowed('a')).toBe(true);
+  });
+
+  it('keeps the counts when the plugin is loaded again', () => {
+    const first = sharedLimiter('test-reload', 1, 60_000);
+    expect(first('a')).toBe(true);
+    const again = sharedLimiter('test-reload', 1, 60_000);
+    expect(again).toBe(first);
+    expect(again('a')).toBe(false);
   });
 });
 

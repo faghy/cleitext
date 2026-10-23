@@ -123,5 +123,21 @@ export function limiter(max: number, windowMs: number, now: () => number = Date.
   };
 }
 
+/**
+ * A limiter kept by name for the whole process: reloading the plugins (an
+ * install or update anywhere on the server) does not reset its counts.
+ */
+export function sharedLimiter(name: string, max: number, windowMs: number) {
+  const key = Symbol.for('cleishop.limiters');
+  const holder = globalThis as unknown as Record<symbol, Map<string, (key: string) => boolean>>;
+  const limiters = (holder[key] ??= new Map());
+  let check = limiters.get(name);
+  if (!check) {
+    check = limiter(max, windowMs);
+    limiters.set(name, check);
+  }
+  return check;
+}
+
 /** Links one visitor (site and IP address) may open: 30 every 10 minutes. */
 export const LINK_LIMIT = { max: 30, windowMs: 10 * 60_000 };
