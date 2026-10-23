@@ -4,8 +4,10 @@
  */
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { IdentityService } from '../src/auth/identity.service.js';
+import { DATABASE } from '../src/database/database.module.js';
 import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -61,5 +63,22 @@ describe('installing plugins and themes', () => {
     expect((await admin.get('/api/v1/updates')).statusCode).toBe(200);
     // Not for the other roles.
     expect(await caps(editor)).not.toContain('manage_plugins');
+  });
+
+  it('counts every site, although the application role sees only its own', async () => {
+    const identity = app.get(IdentityService) as unknown as {
+      single: null;
+      singleSite(): Promise<boolean>;
+    };
+    identity.single = null;
+    const rows = await owner.db.execute<{ n: number }>(sql`select count(*)::int as n from sites`);
+    expect(await identity.singleSite()).toBe(Number(rows[0]!.n) === 1);
+    // Through the application role, outside any site: every site, not none.
+    const appDb = app.get<DatabaseClient>(DATABASE);
+    const [count] = await appDb.db.execute<{ n: number }>(
+      sql`select cleitext_app_site_count() as n`,
+    );
+    expect(count!.n).toBe(Number(rows[0]!.n));
+    expect(count!.n).toBeGreaterThan(0);
   });
 });

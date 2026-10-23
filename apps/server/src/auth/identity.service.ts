@@ -14,7 +14,7 @@ import {
 } from '@cleitext/db';
 import { coreSettingsSchema, effectiveCapabilities, type MeResponse } from '@cleitext/shared';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { LanguagesService } from '../content/languages.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
@@ -47,7 +47,10 @@ export class IdentityService {
 
   private async singleSite(): Promise<boolean> {
     if (this.single && Date.now() - this.single.at < 60_000) return this.single.value;
-    const [row] = await this.database.db.select({ n: count() }).from(sites);
+    // `sites` shows the application role only the current site: a function counts them all.
+    const [row] = await this.database.db.execute<{ n: number }>(
+      sql`select cleitext_app_site_count() as n`,
+    );
     this.single = { value: Number(row?.n ?? 0) === 1, at: Date.now() };
     return this.single.value;
   }
