@@ -4,6 +4,7 @@
  */
 import { addMessages } from '@cleitext/admin-sdk';
 import './i18n-elements.js';
+import './i18n-v4.js';
 
 addMessages('it', {
   'Fresco menu': 'Menu di Fresco',

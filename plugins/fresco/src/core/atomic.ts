@@ -34,6 +34,11 @@ export interface Variable {
   label: string;
   type: 'color' | 'font' | 'size';
   value: string;
+  /**
+   * Deleted in the Variables manager, as in Elementor: kept so the elements
+   * using it look the same, no longer offered, and can be restored.
+   */
+  deleted?: boolean;
 }
 
 export type StylePropType =

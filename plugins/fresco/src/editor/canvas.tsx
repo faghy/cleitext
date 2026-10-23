@@ -629,6 +629,8 @@ function FrameHead({
 }) {
   const kit = useStore(store, (s) => s.kit);
   const blocks = useStore(store, (s) => s.blocks);
+  // The CSS of component instances comes from their components.
+  useStore(store, (s) => s.components);
   const css = documentCss(blocks, getElement, kit.breakpoints);
   const kitStyle = editorKitCss(kitCss(kit));
   // The fonts the page uses: those its CSS and its elements' settings name (as
@@ -692,6 +694,8 @@ function FrameTree({
   const blocks = useStore(store, (s) => s.blocks);
   const readOnly = useStore(store, (s) => s.readOnly);
   const safeMode = useStore(store, (s) => s.safeMode);
+  // Component instances are drawn from the site's components: drawn again when they change.
+  useStore(store, (s) => s.components);
   const active = useStore(store, (s) => s.active);
   const adding = useStore(store, (s) => s.adding);
   // Elements edited inline are mounted again after the edit (their DOM was changed by hand).

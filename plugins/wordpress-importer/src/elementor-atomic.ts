@@ -36,8 +36,94 @@ const WIDGETS: Record<string, string> = {
 
 export function isAtomic(el: ElementorNode): boolean {
   return Boolean(
-    BOXES[el.elType ?? ''] || (el.elType === 'widget' && WIDGETS[el.widgetType ?? '']),
+    BOXES[el.elType ?? ''] ||
+    (el.elType === 'widget' &&
+      (WIDGETS[el.widgetType ?? ''] || el.widgetType === COMPONENT_WIDGET)),
   );
+}
+
+/** Elementor 4's component instance. */
+const COMPONENT_WIDGET = 'e-component';
+
+/** Settings of Elementor's atomic widgets → those of Fresco's (for overridable properties). */
+export const SETTING_NAMES: Record<string, Record<string, string>> = {
+  'e-heading': { title: 'title', link: 'link', tag: 'tag' },
+  'e-paragraph': { paragraph: 'content', link: 'link' },
+  'e-button': { text: 'text', link: 'link' },
+  'e-image': { image: 'image', link: 'link' },
+  'e-svg': { svg: 'svg', link: 'link' },
+  'e-youtube': { source: 'url' },
+  'e-self-hosted-video': { source: 'file' },
+  'e-div-block': { link: 'link' },
+  'e-flexbox': { link: 'link' },
+  'e-grid': { link: 'link' },
+};
+
+/** The Fresco component of an Elementor component (its post id). */
+export const componentId = (post: number | string) => `el-${String(post).replace(/\D/g, '')}`;
+
+/** An override key as Fresco keeps it. */
+export const overrideKey = (key: string) =>
+  key
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .slice(0, 40) || 'prop';
+
+/** What instances need to know of a component: its overridable properties, by override key. */
+export interface ComponentInfo {
+  props: Record<string, { elType: string; widgetType: string; propKey: string }>;
+}
+
+/** Elementor 4's interactions of an element (`interactions`) → Fresco's `_interactions`. */
+export function atomicInteractions(value: unknown): Settings[] {
+  let data: unknown = value;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return [];
+    }
+  }
+  const items = asSettings(data).items;
+  if (!Array.isArray(items)) return [];
+  const ms = (raw: unknown, fallback: number) => {
+    const v = unwrap(raw);
+    if (typeof v === 'number') return v;
+    const s = asSettings(v);
+    const size = num(s.size);
+    if (size === null) return fallback;
+    return str(s.unit) === 's' ? size * 1000 : size;
+  };
+  const out: Settings[] = [];
+  for (const raw of items) {
+    const item = asSettings(
+      asSettings(raw).$$type === 'interaction-item' ? asSettings(raw).value : raw,
+    );
+    const trigger = str(unwrap(item.trigger)) || 'load';
+    const animation = asSettings(unwrap(item.animation));
+    // Older data: the whole animation in a name ("scrollIn-fade-in-left-600-0").
+    const id = str(animation.animation_id);
+    const [t, effect, type, direction, duration, delay] = id ? id.split('-') : [];
+    const timing = asSettings(animation.timing_config);
+    const config = asSettings(animation.config);
+    const entry: Settings = {
+      id: `i${out.length + 1}`,
+      trigger: id ? t : trigger,
+      effect: id ? effect : str(animation.effect) || 'fade',
+      type: id ? type : str(animation.type) || 'in',
+      direction: id ? (direction ?? '') : str(animation.direction),
+      duration: id ? Number(duration) || 600 : ms(timing.duration, 600),
+      delay: id ? Number(delay) || 0 : ms(timing.delay, 0),
+      easing: str(config.easing) || 'easeIn',
+    };
+    // Only what Fresco plays: entrance and scroll triggers, fade, slide and scale.
+    if (!['load', 'scrollIn'].includes(String(entry.trigger))) continue;
+    if (!['fade', 'slide', 'scale'].includes(String(entry.effect))) continue;
+    // Corner directions slide along one side (the first named).
+    entry.direction = String(entry.direction).split('-')[0] ?? '';
+    out.push(entry);
+  }
+  return out;
 }
 
 /** A typed value `{ $$type, value }` → a plain one (sizes, colors, boxes, links…). */
@@ -50,6 +136,9 @@ export function unwrap(value: unknown): unknown {
   }
   const inner = v.value;
   switch (v.$$type) {
+    // A setting of a component's element that instances may override: its own value.
+    case 'overridable':
+      return unwrap(asSettings(inner).origin_value);
     case 'size': {
       const s = asSettings(inner);
       return num(s.size) === null ? undefined : { size: num(s.size), unit: str(s.unit) || 'px' };
@@ -227,7 +316,59 @@ export function atomicLink(value: unknown, origin?: string): Settings | undefine
   return { url, ...(link.isTargetBlank === true ? { newTab: true } : {}) };
 }
 
+/** An Elementor 4 component instance → Fresco's (`fresco/component`) with its overrides. */
+function componentInstance(c: Converter, el: ElementorNode): CxdBlock[] {
+  const settings = asSettings(el.settings);
+  const instance = asSettings(asSettings(settings.component_instance).value);
+  const post = num(unwrap(instance.component_id));
+  if (post === null) return [];
+  const info = c.ctx.components?.get(String(post));
+  if (!info) {
+    c.note('a component instance shows a component that is not in the export: it was left out');
+    return [];
+  }
+  const overrides: Settings = {};
+  const wrapped = asSettings(instance.overrides).value ?? instance.overrides;
+  for (const raw of Array.isArray(wrapped) ? wrapped : []) {
+    const item = asSettings(raw);
+    // An override, or an overridable one (a component inside a component): its value.
+    const override = asSettings(
+      item.$$type === 'overridable'
+        ? asSettings(asSettings(item.value).origin_value).value
+        : item.value,
+    );
+    const key = str(override.override_key);
+    const prop = info.props[key];
+    if (!key || !prop) continue;
+    const value = overrideValue(c, prop, override.override_value);
+    if (value !== undefined) overrides[overrideKey(key)] = value;
+  }
+  return [
+    c.node('component', {
+      component: componentId(post),
+      ...(Object.keys(overrides).length ? { overrides } : {}),
+    }),
+  ];
+}
+
+/** An override's value, converted as the element's own setting would be. */
+function overrideValue(
+  c: Converter,
+  prop: ComponentInfo['props'][string],
+  value: unknown,
+): unknown {
+  const setting = SETTING_NAMES[prop.widgetType]?.[prop.propKey];
+  if (!setting) return undefined;
+  const [node] = atomicElement(c, {
+    elType: prop.elType,
+    widgetType: prop.widgetType,
+    settings: { [prop.propKey]: value },
+  });
+  return node?.attrs[setting];
+}
+
 export function atomicElement(c: Converter, el: ElementorNode): CxdBlock[] {
+  if (el.elType === 'widget' && el.widgetType === COMPONENT_WIDGET) return componentInstance(c, el);
   const settings = asSettings(el.settings);
   const value = (key: string) => unwrap(settings[key]);
   const classes = Array.isArray(value('classes')) ? (value('classes') as unknown[]).map(str) : [];
@@ -240,6 +381,10 @@ export function atomicElement(c: Converter, el: ElementorNode): CxdBlock[] {
   if (global.length) attrs._classes = global;
   const extra = asSettings(value('attributes'));
   if (str(extra.id)) attrs._css_id = str(extra.id);
+  const interactions = atomicInteractions(el.interactions);
+  if (interactions.length) attrs._interactions = interactions;
+  // Elements of a component: their Elementor id, to find its overridable properties.
+  if (c.ctx.keepElementIds && el.id) attrs.__elementor_id = el.id;
   if (skipped.size)
     c.note(`atomic style properties ${[...skipped].sort().join(', ')} were left out`);
   const link = atomicLink(settings.link, c.ctx.origin);
@@ -326,7 +471,14 @@ export function atomicElement(c: Converter, el: ElementorNode): CxdBlock[] {
 export function atomicClasses(value: unknown): Settings[] {
   const data = asSettings(value);
   const items = asSettings(data.items);
-  const order = Array.isArray(data.order) ? data.order.map(str) : Object.keys(items);
+  const listed = Array.isArray(data.order)
+    ? data.order.map((id) => str(asSettings(id).id || id))
+    : [];
+  // Elementor lists the class with the highest priority first; in Fresco the last one wins.
+  const order = [
+    ...listed.filter((id) => id in items),
+    ...Object.keys(items).filter((id) => !listed.includes(id)),
+  ].reverse();
   const skipped = new Set<string>();
   const out: Settings[] = [];
   for (const id of order) {
@@ -342,9 +494,27 @@ export function atomicClasses(value: unknown): Settings[] {
 export function atomicVariables(value: unknown): Settings[] {
   const data = asSettings(asSettings(value).data);
   const out: Settings[] = [];
-  for (const [id, raw] of Object.entries(data)) {
+  const rows = Object.entries(data).sort(
+    ([, a], [, b]) => (num(asSettings(a).order) ?? 0) - (num(asSettings(b).order) ?? 0),
+  );
+  for (const [id, raw] of rows) {
     const variable = asSettings(raw);
-    if (variable.deleted) continue;
+    // Deleted ones still style the elements that use them (Elementor keeps them too).
+    const deleted = Boolean(variable.deleted || variable.deleted_at);
+    // Format 2: typed values (`{ $$type: 'color', value }`, sizes as `{ size, unit }`).
+    let plain = variable.value;
+    if (plain && typeof plain === 'object') {
+      const inner = asSettings(plain).value;
+      const size = asSettings(inner);
+      plain =
+        typeof inner === 'string'
+          ? inner
+          : size.unit === 'custom'
+            ? str(size.size)
+            : num(size.size) !== null
+              ? `${num(size.size)}${str(size.unit) || 'px'}`
+              : undefined;
+    }
     const kind = str(variable.type);
     const type = kind.includes('color')
       ? 'color'
@@ -354,8 +524,14 @@ export function atomicVariables(value: unknown): Settings[] {
           ? 'size'
           : '';
     const own = variableId(id);
-    if (!type || !own || typeof variable.value !== 'string') continue;
-    out.push({ id: own, label: str(variable.label) || own, type, value: variable.value });
+    if (!type || !own || typeof plain !== 'string' || !plain) continue;
+    out.push({
+      id: own,
+      label: str(variable.label) || own,
+      type,
+      value: plain,
+      ...(deleted ? { deleted: true } : {}),
+    });
   }
   return out;
 }

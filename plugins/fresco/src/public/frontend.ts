@@ -4,6 +4,7 @@
  * accordions, counters…), registered by name.
  */
 
+import { parseInteractionsAttribute, playInteractions } from '../core/interactions.js';
 import { uiText } from '../core/ui-text.js';
 
 type Handler = (element: HTMLElement) => void;
@@ -100,6 +101,17 @@ function animations(): void {
     { rootMargin: '0px 0px -8% 0px' },
   );
   items.forEach((item) => observer.observe(item));
+}
+
+// ---- Interactions (atomic elements) ----------------------------------------------------
+
+function interactions(root: ParentNode = document): void {
+  for (const element of root.querySelectorAll<HTMLElement>('[data-fr-ia]')) {
+    const list = parseInteractionsAttribute(element.getAttribute('data-fr-ia'));
+    element.removeAttribute('data-fr-ia');
+    if (list.length) playInteractions(element, list);
+    else element.removeAttribute('data-fr-ia-wait');
+  }
 }
 
 // ---- Videos behind an image -----------------------------------------------------------
@@ -717,6 +729,7 @@ document.documentElement.classList.add('fr-js');
 
 const ready = () => {
   animations();
+  interactions();
   videos();
   backgroundEmbeds();
   lightbox();

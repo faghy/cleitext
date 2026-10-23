@@ -13,6 +13,8 @@ import {
   type StyleVariant,
 } from '../core/atomic.js';
 import { isBox, isSize } from '../core/css.js';
+import { localStyleToClass, liveVariables } from '../core/design-system.js';
+import { askText } from './dialogs.js';
 import type { Kit } from '../core/kit.js';
 import {
   inheritChain,
@@ -182,6 +184,27 @@ export function AtomicStyle({
             {t('Add')}
           </button>
         </form>
+        {!globalClass && canManageKit && variantsOf(node.attrs._styles).length > 0 && (
+          <button
+            type="button"
+            className="fre-button fre-button--small"
+            onClick={() =>
+              void askText({
+                title: t('Convert to class'),
+                label: t('Class name'),
+                value: '',
+              }).then((label) => {
+                const result = label && localStyleToClass(store.get().kit, node.attrs, label);
+                if (!result) return;
+                store.actions.setKit({ ...store.get().kit, classes: result.classes });
+                store.actions.setSettings(node.id, result.attrs);
+                setTarget(result.attrs._classes[result.attrs._classes.length - 1]!);
+              })
+            }
+          >
+            {t('Convert to class')}
+          </button>
+        )}
         {globalClass && (
           <p className="fre-help">
             {withStrong(
@@ -286,8 +309,9 @@ function PropInput({
         <Svg path="M4 12a8 8 0 1 0 2.3-5.6 M4 4v4h4" size={12} />
       </button>
     ) : null;
-  const variables = kit.variables.filter(
-    (v) => v.type === (prop.type === 'color' ? 'color' : prop.type === 'font' ? 'font' : 'size'),
+  const variables = liveVariables(
+    kit.variables,
+    prop.type === 'color' ? 'color' : prop.type === 'font' ? 'font' : 'size',
   );
   const variableSelect =
     variables.length > 0 && ['color', 'font', 'size'].includes(prop.type) ? (

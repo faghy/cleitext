@@ -554,4 +554,32 @@ button.fre-chip,.fre-chip button{border:0;background:none;padding:3px 9px;cursor
 .fre-root--dark .fre-paneltoggle{background:#26292c;color:var(--fre-text)}
 .fre-root--dark .fre-preview-font{color:var(--fre-ink)}
 .fre-root--dark .fre-help,.fre-root--dark .fre-empty-note,.fre-root--dark .fre-subheading{color:var(--fre-muted)}
+/* Wave 4: components, class and variables managers, interactions */
+.fre-componentslist{padding:10px 12px 0}
+.fre-componentslist .fre-tiles{margin-top:8px}
+.fre-componentslist>.fre-empty-note{padding:6px 0}
+.fre-tilewrap{position:relative;display:block}
+.fre-tilewrap .fre-tile{width:100%}
+.fre-tile__delete{position:absolute;top:2px;right:2px}
+.fre-tile--component svg{color:#7c3aed}
+.fre-component-panel{padding:12px}
+.fre-component-panel__title{display:flex;align-items:center;gap:6px;margin:0 0 10px;color:#7c3aed}
+.fre-compprops .fre-section__head{cursor:default}
+.fre-check{display:flex;align-items:center;gap:6px;flex:1;font-size:12px}
+.fre-button--small{padding:3px 9px;font-size:12px;margin-top:6px}
+.fre-dstable{display:flex;flex-direction:column}
+.fre-dsrow>.fre-input{flex:1;min-width:0}
+.fre-dsrow>.fre-mono{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fre-dsrow.is-deleted{opacity:.75}
+.fre-dsrow .fre-dsname{flex:1}
+.fre-dstype{flex:none;width:34px;font-size:10px;text-transform:uppercase;color:var(--fre-muted);text-align:center}
+.fre-swatch{display:inline-block;width:18px;height:18px;border-radius:4px;border:1px solid var(--fre-line);vertical-align:middle}
+.fre-dsusage{flex:none;min-width:22px;text-align:right;font-size:11px;color:var(--fre-muted)}
+.fre-ia{padding:12px;display:flex;flex-direction:column;gap:10px}
+.fre-ia__item{border:1px solid var(--fre-line);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px}
+.fre-ia__head{display:flex;align-items:center;gap:6px}
+.fre-ia__head strong{flex:1;font-size:12px}
+.fre-ia__field{display:flex;align-items:center;gap:8px;font-size:12px}
+.fre-ia__field>span{flex:0 0 92px;color:var(--fre-muted)}
+.fre-ia__field>.fre-input{flex:1;min-width:0}
 `;

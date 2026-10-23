@@ -10,7 +10,7 @@
 import type { CxdBlock } from '@cleitext/blocks';
 import { newBlockId } from '@cleitext/blocks';
 import { shortcodePlaceholder, splitShortcodes } from '@cleitext/blocks/html';
-import { atomicElement, isAtomic } from './elementor-atomic.js';
+import { atomicElement, isAtomic, type ComponentInfo } from './elementor-atomic.js';
 import { proWidget } from './elementor-pro.js';
 import {
   asSettings,
@@ -55,6 +55,8 @@ export interface ElementorNode {
   templateID?: number | string;
   /** Atomic elements: their local styles. */
   styles?: Record<string, unknown> | unknown[];
+  /** Atomic elements: their interactions (Elementor 4), as JSON or as data. */
+  interactions?: unknown;
 }
 
 /** What the kit says about defaults the conversion needs. */
@@ -86,6 +88,10 @@ export interface ElementorContext {
   /** Called for each form given that protection (to count them). */
   protectedForm?: () => void;
   kit?: ElementorKitInfo;
+  /** Elementor 4 components (by post id), for their instances. */
+  components?: Map<string, ComponentInfo>;
+  /** Keep each atomic element's Elementor id (`__elementor_id`), when converting a component. */
+  keepElementIds?: boolean;
 }
 
 /** The tools widget converters share. */

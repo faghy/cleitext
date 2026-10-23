@@ -13,6 +13,7 @@ import {
 import type { ElementDefinition, FrescoNode } from './model.js';
 import { normalizeVariants, variantsCss } from './atomic.js';
 import { controlsOf, extraCss } from './extensions.js';
+import { COMPONENT_TYPE, componentSource, expandInstance } from './components.js';
 
 export {
   boxCss,
@@ -62,6 +63,12 @@ export function documentCss(
   let css = '';
   const walk = (list: FrescoNode[]) => {
     for (const node of list) {
+      // Component instances: the elements they show (editor; the page has them drawn already).
+      if (node.type === COMPONENT_TYPE) {
+        const expanded = expandInstance(node, componentSource());
+        if (expanded) walk([expanded]);
+        continue;
+      }
       const definition = lookup(node.type);
       if (definition) css += elementCss(definition, node, breakpoints);
       if (node.children) walk(node.children);

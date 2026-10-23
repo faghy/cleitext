@@ -40,6 +40,14 @@ import {
 } from './clipboard.js';
 import { editGlobal, globalOf, saveGlobal, unlinkGlobal } from './globals.js';
 import {
+  canBeComponent,
+  createComponent,
+  detachComponent,
+  editComponent,
+  loadComponents,
+} from './components.js';
+import { COMPONENT_TYPE } from '../core/components.js';
+import {
   clampPanelWidth,
   exitUrl,
   isDark,
@@ -248,6 +256,8 @@ export function FrescoEditor(props: EditorProps) {
     void api<unknown>('GET', '/kit')
       .then((kit) => store.actions.setKit(normalizeKit(kit), false))
       .catch(() => {});
+    // The site's components (their instances are drawn from them).
+    void loadComponents(store).catch(() => {});
     // The user's preferences, kept for the user (this browser's until they arrive).
     void api<unknown>('GET', '/preferences')
       .then((prefs) => {
@@ -1123,6 +1133,27 @@ function ContextMenu({
               {item(t('Add new container'), () => addContainer(menu.id))}
             </div>
           )}
+          {node.type === COMPONENT_TYPE && !readOnly && (
+            <div className="fre-menu__group">
+              {item(t('Edit component'), () => editComponent(store, node.id), {
+                disabled: store.get().globalEdit !== null,
+              })}
+              {item(t('Detach'), () => detachComponent(store, node.id))}
+            </div>
+          )}
+          {node.type !== COMPONENT_TYPE &&
+            getElement(node.type)?.atomic &&
+            canBeComponent(node) &&
+            !readOnly &&
+            !store.get().globalEdit && (
+              <div className="fre-menu__group">
+                {item(t('Create component'), () => {
+                  void createComponent(store, node.id).catch((error: unknown) =>
+                    notify(String(error instanceof Error ? error.message : error), 'error'),
+                  );
+                })}
+              </div>
+            )}
           {global && !readOnly && (
             <div className="fre-menu__group">
               {item(
@@ -1301,9 +1332,13 @@ function GlobalEditBar({ store }: { store: Store }) {
   return (
     <div className="fre-globalbar" role="status">
       <span>
-        {t('Editing the global widget “{name}”: saving it changes every page that shows it.', {
-          name: edit.title,
-        })}
+        {edit.component
+          ? t('Editing the component “{name}”: saving it changes every instance.', {
+              name: edit.title,
+            })
+          : t('Editing the global widget “{name}”: saving it changes every page that shows it.', {
+              name: edit.title,
+            })}
       </span>
       <button
         type="button"
@@ -1312,14 +1347,16 @@ function GlobalEditBar({ store }: { store: Store }) {
         onClick={() => {
           setBusy(true);
           saveGlobal(store)
-            .then(() => notify(t('Global widget saved.'), 'success'))
+            .then(() =>
+              notify(edit.component ? t('Component saved.') : t('Global widget saved.'), 'success'),
+            )
             .catch((error: unknown) =>
               notify(String(error instanceof Error ? error.message : error), 'error'),
             )
             .finally(() => setBusy(false));
         }}
       >
-        {busy ? t('Saving…') : t('Save global widget')}
+        {busy ? t('Saving…') : edit.component ? t('Save component') : t('Save global widget')}
       </button>
       <button
         type="button"

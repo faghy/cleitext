@@ -947,6 +947,10 @@ a.fr-container {
 .fr-anim-fast {
   --fr-anim-time: 0.45s;
 }
+/* Interactions of atomic elements: an element brought in waits hidden for its turn. */
+.fr-js [data-fr-ia-wait] {
+  visibility: hidden;
+}
 /* Hidden until the script starts the animation; visible without scripts. */
 .fr-js .fr-anim:not(.fr-anim-in) {
   opacity: 0;

@@ -2,6 +2,8 @@ import { XMLParser } from 'fast-xml-parser';
 import { htmlToCxd, IMPORTED_BLOCK, texturizeHtml, texturizeText } from '@cleitext/blocks/html';
 import { assignLanguages } from './wpml';
 import { elementorToFresco, takeStretched, type ElementorContext } from './elementor.js';
+import { componentInfo, convertComponent } from './elementor-components.js';
+import type { ComponentInfo } from './elementor-atomic.js';
 import {
   convertConditions,
   customFont,
@@ -717,6 +719,9 @@ const INTERNAL_TYPES = new Set([
   'elementor_snippet',
   'elementor_font',
   'elementor_icons',
+  // Elementor 4: components and global classes (imported into Fresco, not as content).
+  'elementor_component',
+  'e_global_class',
   'acf-field-group',
   'acf-field',
   'wpcf7_contact_form',
@@ -1013,12 +1018,23 @@ function prepareElementor(
     kit = kitToFresco(
       asSettings(metaValue(meta(kits[0], '_elementor_page_settings'))),
       {
-        classes: metaValue(meta(kits[0], '_elementor_global_classes')),
+        classes: globalClasses(kits[0], items),
         variables: metaValue(meta(kits[0], '_elementor_global_variables')),
       },
       { note, font },
     );
   }
+
+  // Elementor 4 components: what their instances may override (pages need it), then themselves.
+  const componentPosts = items.filter(
+    (item) => typeOf(item) === 'elementor_component' && text(item['wp:status']) !== 'trash',
+  );
+  const components = new Map<string, ComponentInfo>(
+    componentPosts.map((item) => [
+      String(idOf(item)),
+      componentInfo(metaValue(meta(item, '_elementor_component_overridable_props'))),
+    ]),
+  );
 
   // Hello (the theme made for Elementor): pages had the whole width.
   const hello = items.some(
@@ -1041,6 +1057,7 @@ function prepareElementor(
     font,
     ...forms,
     ...(kit ? { kit: kit.info } : {}),
+    ...(components.size ? { components } : {}),
   });
 
   const conditions = (value: unknown, warn: (message: string) => void) => {
@@ -1128,8 +1145,26 @@ function prepareElementor(
     const out: Record<string, unknown> = {};
     for (const [message, n] of notes)
       warnings.push(`Elementor kit: ${message}${n > 1 ? ` (${n}×)` : ''}.`);
-    if (kit || families.size) {
-      out.fresco = { kit: { ...(kit?.kit ?? {}), googleFonts: [...families].slice(0, 30) } };
+    const converted = componentPosts
+      .map((item) =>
+        convertComponent(
+          {
+            id: idOf(item),
+            title: decode(text(item.title)),
+            data: meta(item, '_elementor_data') ?? '[]',
+            props: metaValue(meta(item, '_elementor_component_overridable_props')),
+          },
+          context((message) =>
+            warnings.push(`Component "${decode(text(item.title))}": ${message}`),
+          ),
+        ),
+      )
+      .filter((c) => c !== null);
+    if (kit || families.size || converted.length) {
+      out.fresco = {
+        kit: { ...(kit?.kit ?? {}), googleFonts: [...families].slice(0, 30) },
+        ...(converted.length ? { components: converted } : {}),
+      };
     }
     // Fresco Pro: site CSS, custom code and custom fonts.
     const snippets = items
@@ -1178,3 +1213,24 @@ function prepareElementor(
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+/**
+ * Elementor 4's global classes: kept in the kit (`_elementor_global_classes`),
+ * or, since 4.x, one post each (`e_global_class`) with the order in the kit.
+ */
+function globalClasses(kit: Node, items: Node[]): unknown {
+  const legacy = asSettings(metaValue(meta(kit, '_elementor_global_classes')));
+  const all: Record<string, unknown> = { ...asSettings(legacy.items) };
+  for (const item of items) {
+    if (text(item['wp:post_type']) !== 'e_global_class' || text(item['wp:status']) === 'trash')
+      continue;
+    const data = asSettings(metaValue(meta(item, '_elementor_global_class_data')));
+    const id = meta(item, '_elementor_global_class_id') || str(data.id);
+    if (id) all[id] = { label: decode(text(item.title)), ...data };
+  }
+  const order = asSettings(metaValue(meta(kit, '_elementor_global_classes_order'))).order;
+  return {
+    items: all,
+    order: Array.isArray(order) ? order : Array.isArray(legacy.order) ? legacy.order : [],
+  };
+}

@@ -47,8 +47,9 @@ import {
   type ControlEnv,
 } from './controls.js';
 import { FontPicker, systemGroup } from './font-picker.js';
-import { confirmAction, notify } from './dialogs.js';
+import { notify } from './dialogs.js';
 import { useStore, type Store } from './store.js';
+import { ClassManager, VariablesManager } from './design-managers.js';
 
 /** The panels of Site settings (other plugins add theirs by id). */
 export type SiteSection =
@@ -62,7 +63,8 @@ export type SiteSection =
   | 'style'
   | 'layout'
   | 'lightbox'
-  | 'variables';
+  | 'variables'
+  | 'classes';
 
 interface MenuItem {
   id: string;
@@ -86,6 +88,16 @@ export const SITE_MENU: {
         icon: 'M12 3a9 9 0 0 0 0 18c1.2 0 1.9-1 1.5-2-.5-1.3.4-2.3 1.7-2.3H17a4 4 0 0 0 4-4C21 7.3 17 3 12 3z M7 11.5h.01 M10.5 7.5h.01 M15 9h.01',
       },
       { id: 'fonts', title: 'Global fonts', icon: 'M4 20l6-16h2l6 16 M7 14h10' },
+      {
+        id: 'variables',
+        title: 'Variables manager',
+        icon: 'M8 4H6a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h2 M16 4h2a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-2',
+      },
+      {
+        id: 'classes',
+        title: 'Class manager',
+        icon: 'M4 6h16 M4 12h10 M4 18h6 M17 15l3 3-3 3',
+      },
     ],
   },
   {
@@ -110,11 +122,6 @@ export const SITE_MENU: {
       { id: 'style', title: 'Background', icon: 'M4 4h16v16H4z M4 15l16-11' },
       { id: 'layout', title: 'Layout', icon: 'M4 4h16v16H4z M4 9h16 M9 9v11' },
       { id: 'lightbox', title: 'Lightbox', icon: 'M3 3h18v18H3z M8 8h8v8H8z' },
-      {
-        id: 'variables',
-        title: 'Variables and classes',
-        icon: 'M8 4H6a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h2 M16 4h2a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-2',
-      },
     ],
   },
 ];
@@ -2082,134 +2089,6 @@ function BreakpointsSettings({
   );
 }
 
-// ---- Variables and classes ----------------------------------------------------------------
-
-function VariablesSettings({ kit, set }: { kit: Kit; set: SetKit }) {
-  const { t: tx } = useT();
-  return (
-    <>
-      <p className="fre-help">
-        {tx('Named colors, fonts and sizes for the Style tab of atomic elements.')}
-      </p>
-      {kit.variables.map((variable) => (
-        <div key={variable.id} className="fre-kitrow">
-          <input
-            className="fre-input"
-            value={variable.label}
-            aria-label={tx('Name')}
-            onChange={(e) =>
-              set({
-                variables: kit.variables.map((v) =>
-                  v.id === variable.id ? { ...v, label: e.target.value } : v,
-                ),
-              })
-            }
-          />
-          {variable.type === 'color' && (
-            <input
-              type="color"
-              value={/^#[0-9a-f]{6}$/i.test(variable.value) ? variable.value : '#000000'}
-              aria-label={tx('Color')}
-              onChange={(e) =>
-                set({
-                  variables: kit.variables.map((v) =>
-                    v.id === variable.id ? { ...v, value: e.target.value } : v,
-                  ),
-                })
-              }
-            />
-          )}
-          <input
-            className="fre-input fre-mono"
-            value={variable.value}
-            aria-label={tx('Value')}
-            onChange={(e) =>
-              set({
-                variables: kit.variables.map((v) =>
-                  v.id === variable.id ? { ...v, value: e.target.value } : v,
-                ),
-              })
-            }
-          />
-          <button
-            type="button"
-            className="fre-iconbtn"
-            aria-label={tx('Remove {name}', { name: variable.label })}
-            onClick={() => set({ variables: kit.variables.filter((v) => v.id !== variable.id) })}
-          >
-            ×
-          </button>
-        </div>
-      ))}
-      <div className="fre-library__save">
-        {(
-          [
-            ['color', '#c2410c', 'Color'],
-            ['font', 'Inter', 'Font'],
-            ['size', '24px', 'Size'],
-          ] as const
-        ).map(([type, value, label]) => (
-          <button
-            key={type}
-            type="button"
-            className="fre-button"
-            onClick={() => {
-              const id = `${type}-${Math.random().toString(36).slice(2, 7)}`;
-              set({
-                variables: [
-                  ...kit.variables,
-                  { id, label: `New ${label.toLowerCase()}`, type, value },
-                ],
-              });
-            }}
-          >
-            + {tx(label)}
-          </button>
-        ))}
-      </div>
-      {kit.classes.length > 0 && (
-        <>
-          <h4 className="fre-subheading">{tx('Global classes')}</h4>
-          {kit.classes.map((c) => (
-            <div key={c.id} className="fre-kitrow">
-              <input
-                className="fre-input"
-                value={c.label}
-                aria-label={tx('Class name')}
-                onChange={(e) =>
-                  set({
-                    classes: kit.classes.map((x) =>
-                      x.id === c.id ? { ...x, label: e.target.value } : x,
-                    ),
-                  })
-                }
-              />
-              <code className="fre-mono">.fr-g-{c.id}</code>
-              <button
-                type="button"
-                className="fre-iconbtn"
-                aria-label={tx('Delete the class {name}', { name: c.label })}
-                onClick={() =>
-                  void confirmAction({
-                    title: tr('Delete the class “{name}”?', { name: c.label }),
-                    text: tr('Elements keep the name but lose its style.'),
-                    action: tr('Delete'),
-                    danger: true,
-                  }).then((ok) => {
-                    if (ok) set({ classes: kit.classes.filter((x) => x.id !== c.id) });
-                  })
-                }
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </>
-      )}
-    </>
-  );
-}
-
 // ---- The Site settings panel -----------------------------------------------------------------
 
 export interface SiteViewProps {
@@ -2398,7 +2277,12 @@ export function SiteView({
       {section === 'lightbox' && <LightboxSettings {...props} />}
       {section === 'style' && <BackgroundSettings {...props} media={media} />}
       {section === 'layout' && <LayoutSettings {...props} />}
-      {section === 'variables' && <VariablesSettings kit={kit} set={set} />}
+      {section === 'variables' && (
+        <VariablesManager kit={kit} set={set} readOnly={readOnly || !canManageKit} />
+      )}
+      {section === 'classes' && (
+        <ClassManager kit={kit} set={set} readOnly={readOnly || !canManageKit} />
+      )}
       {section === 'identity' && (
         <IdentitySettings
           canManage={canManageSettings === true}

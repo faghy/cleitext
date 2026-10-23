@@ -23,6 +23,9 @@ import { MediaIdField, SiteView } from './site-settings.js';
 import { elementSource, PluginBlockFields, pluginBlockTitle, pluginName } from './plugin-blocks.js';
 import { PreferencesView } from './preferences.js';
 import { GlobalsTab } from './globals.js';
+import { ComponentInstancePanel, ComponentPropsEditor } from './components.js';
+import { InteractionsPanel } from './interactions-panel.js';
+import { COMPONENT_TYPE } from '../core/components.js';
 import { useStore, type Store } from './store.js';
 import { find, pathTo } from './tree.js';
 import { controlShown, hasHoverView, parentLayout } from './panel-filter.js';
@@ -114,7 +117,7 @@ function useStored<T>(key: string, initial: T): [T, (value: T) => void] {
   return [value, set];
 }
 
-function ElementsView({ store, onDragStart, onDragNode }: PanelProps) {
+function ElementsView({ store, onDragStart, onDragNode, canManageKit }: PanelProps) {
   const { t } = useT();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'elements' | 'globals'>('elements');
@@ -221,7 +224,7 @@ function ElementsView({ store, onDragStart, onDragNode }: PanelProps) {
         ))}
       </div>
       {tab === 'globals' ? (
-        <GlobalsTab store={store} onDragNode={onDragNode} />
+        <GlobalsTab store={store} onDragNode={onDragNode} canManage={canManageKit} />
       ) : (
         <>
           <div className="fre-searchbox">
@@ -389,7 +392,9 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
       <div className="fre-tabs" role="tablist">
         {(contentOnly ? (['content'] as Tab[]) : (['content', 'style', 'advanced'] as Tab[])).map(
           (t) =>
-            allControls.some((c) => c.tab === t) || (definition.atomic && t === 'style') ? (
+            allControls.some((c) => c.tab === t) ||
+            (definition.atomic && t !== 'content') ||
+            (node.type === COMPONENT_TYPE && t === 'content') ? (
               <button
                 key={t}
                 type="button"
@@ -400,7 +405,16 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
               >
                 <Svg path={TAB_ICONS[t]} size={16} />
                 <span>
-                  {tr(t === 'content' ? 'Content' : t === 'style' ? 'Style' : 'Advanced')}
+                  {tr(
+                    t === 'content'
+                      ? 'Content'
+                      : t === 'style'
+                        ? 'Style'
+                        : // Atomic elements: their Interactions, as in Elementor 4.
+                          definition.atomic
+                          ? 'Interactions'
+                          : 'Advanced',
+                  )}
                 </span>
               </button>
             ) : null,
@@ -409,6 +423,23 @@ function ElementView({ store, media, canManageKit }: PanelProps) {
       {definition.atomic && shownTab === 'style' && (
         <AtomicStyle store={store} node={node} canManageKit={canManageKit} />
       )}
+      {definition.atomic && shownTab === 'advanced' && (
+        <InteractionsPanel store={store} node={node} readOnly={readOnly} />
+      )}
+      {node.type === COMPONENT_TYPE && shownTab === 'content' && (
+        <ComponentInstancePanel
+          store={store}
+          node={node}
+          env={{
+            device,
+            kit,
+            media,
+            readOnly,
+            setDevice: (d) => store.actions.setDevice(d),
+          }}
+        />
+      )}
+      {shownTab === 'content' && <ComponentPropsEditor store={store} node={node} />}
       {sections.map((section) => {
         const inSection = controls.filter((c) => c.section === section);
         const hoverable = hasHoverView(inSection);

@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { elementClass } from './css.js';
 import { extraRootProps } from './extensions.js';
 import { elementGoogleFonts } from './fonts.js';
+import { interactionsAttribute, waitsHidden } from './interactions.js';
 import { MASK_SHAPES, MASK_URLS } from './masks.js';
 import {
   DEVICES,
@@ -984,6 +985,12 @@ export function rootProps(
   }
   if (editing) props['data-fr-id'] = node.id;
   else {
+    // Interactions (atomic elements): played by frontend.js.
+    const interactions = interactionsAttribute(node.attrs._interactions);
+    if (interactions) {
+      props['data-fr-ia'] = interactions;
+      if (waitsHidden(node.attrs._interactions)) props['data-fr-ia-wait'] = '';
+    }
     // Google fonts it uses, for the page to load (see the kit's render.html filter).
     const fonts = elementGoogleFonts(node.attrs);
     if (fonts.length) props['data-fr-fonts'] = fonts.join('|');

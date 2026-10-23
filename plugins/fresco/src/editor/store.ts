@@ -7,6 +7,7 @@
 import { useSyncExternalStore } from 'react';
 import { newId } from '../core/ids.js';
 import { DEFAULT_KIT, type Kit } from '../core/kit.js';
+import type { Component, ComponentProp } from '../core/components.js';
 import type { Device, FrescoNode, NewNode, Settings, Tab } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 import * as tree from './tree.js';
@@ -57,7 +58,20 @@ export interface EditorState {
    * A global widget being edited in place: the element showing it was
    * replaced by its content (`editId`) until saved or cancelled.
    */
-  globalEdit: { id: string; title: string; node: FrescoNode; editId: string } | null;
+  globalEdit: {
+    id: string;
+    title: string;
+    node: FrescoNode;
+    editId: string;
+    /**
+     * A component edited in place (not a global widget): its overridable
+     * properties as they are being changed, and the ids its elements had
+     * (they get new ones while edited, so the page never has them twice).
+     */
+    component?: { props: ComponentProp[]; ids: Record<string, string> };
+  } | null;
+  /** The site's components (Globals → Components), also drawn by their instances. */
+  components: Component[];
   /** The user's preferences (theme, exit, favorites…). */
   prefs: Preferences;
   /** Elements switched off in the Element manager: not offered in the panel. */
@@ -186,6 +200,7 @@ export function createStore(initial: {
     siteSection: '',
     sitePending: {},
     globalEdit: null,
+    components: [],
     prefs: storedPrefs(),
     disabledElements: [],
     safeMode: initial.safeMode === true,
@@ -352,7 +367,25 @@ export function createStore(initial: {
      * way to the widget's content until `endGlobalEdit`. The page keeps the
      * element: what is saved is never the content.
      */
-    beginGlobalEdit(nodeId: string, global: { id: string; title: string }, content: FrescoNode) {
+    /** The site's components, as the server has them. */
+    setComponents(components: Component[]) {
+      set({ components });
+    },
+    /** The overridable properties of the component being edited in place. */
+    setComponentProps(props: ComponentProp[]) {
+      const edit = state.globalEdit;
+      if (!edit?.component) return;
+      set({ globalEdit: { ...edit, component: { ...edit.component, props } } });
+    },
+    beginGlobalEdit(
+      nodeId: string,
+      global: {
+        id: string;
+        title: string;
+        component?: { props: ComponentProp[]; ids: Record<string, string> };
+      },
+      content: FrescoNode,
+    ) {
       const node = tree.find(state.blocks, nodeId);
       if (!node || state.globalEdit || state.readOnly) return;
       const blocks = tree.update(state.blocks, nodeId, () => content);

@@ -361,6 +361,7 @@ export function normalizeKit(value: unknown): Kit {
             label: v.label.slice(0, 60),
             type: v.type,
             value: v.value.slice(0, 200),
+            ...(v.deleted === true ? { deleted: true } : {}),
           }))
       : [],
     googleFonts: Array.isArray(input.googleFonts)

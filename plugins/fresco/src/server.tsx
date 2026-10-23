@@ -27,6 +27,15 @@ import { registerFreeElements } from './elements/index.js';
 import { frescoEntries, registerTools } from './tools.js';
 import { registerElementManager } from './element-manager.js';
 import icons from './public/icons.json';
+import { COMPONENT_TYPE } from './core/components.js';
+import { componentInstance, type ComponentData } from './elements/component.js';
+import {
+  COMPONENTS_TAG,
+  componentsFor,
+  drawInstances,
+  importComponents,
+  registerComponents,
+} from './components-server.js';
 
 const KIT_KEY = 'kit';
 const KIT_TAG = 'fresco:kit';
@@ -144,8 +153,24 @@ export default definePlugin({
       blockFor: (pluginCtx: PluginContext, definition: ElementDefinition) =>
         blockFor(pluginCtx, definition),
     });
+    // Component instances the pages could not draw beforehand (templates of other plugins)
+    // read their components here.
+    const instance: ElementDefinition = {
+      ...componentInstance,
+      load: async (_settings, context): Promise<ComponentData> => {
+        context.tag(COMPONENTS_TAG);
+        const list = await componentsFor(ctx, context.siteId);
+        return {
+          components: Object.fromEntries(list.map((c) => [c.id, c])),
+          breakpoints: context.breakpoints,
+        };
+      },
+    };
     for (const definition of listElements()) {
-      if (definition.type.startsWith('fresco/')) ctx.blocks.register(blockFor(ctx, definition));
+      if (!definition.type.startsWith('fresco/')) continue;
+      ctx.blocks.register(
+        blockFor(ctx, definition.type === COMPONENT_TYPE ? instance : definition),
+      );
     }
 
     // Cleitext's AI assistants write Fresco pages as Fresco pages (plugin API 1.40).
@@ -165,7 +190,32 @@ export default definePlugin({
       file: 'frontend.js',
       // Also for the lightbox of image links (Site settings → Lightbox).
       when: ({ html }) =>
-        /data-fr-(anim|video|lightbox|handler)/.test(html) || html.includes('--fr-lb-images:1'),
+        /data-fr-(anim|video|lightbox|handler|ia=)/.test(html) || html.includes('--fr-lb-images:1'),
+    });
+
+    // Components: kept site-wide; instances are drawn into the page before it renders, so
+    // their elements are loaded, styled and given their media like the page's own.
+    registerComponents(ctx, (siteId) => kitFor(ctx, siteId));
+    ctx.hooks.filter('render.blocks', async (blocks, context) =>
+      context.entry.document.editor?.id === 'fresco'
+        ? ((await drawInstances(ctx, context.siteId, blocks, context.tag)) as typeof blocks)
+        : blocks,
+    );
+    ctx.hooks.filter('render.locations', async (locations, context) => {
+      const out = { ...locations };
+      for (const [key, document] of Object.entries(locations)) {
+        if (!document || document.editor?.id !== 'fresco') continue;
+        out[key as keyof typeof out] = {
+          ...document,
+          blocks: (await drawInstances(
+            ctx,
+            context.siteId,
+            document.blocks,
+            context.tag,
+          )) as typeof document.blocks,
+        };
+      }
+      return out;
     });
 
     // Canvas pages: the theme's header and footer give way to nothing.
@@ -236,7 +286,7 @@ export default definePlugin({
           ? `<meta name="theme-color" content="${kit.theme.background.mobileColor}">`
           : '') +
         // Animated elements wait hidden for their turn; without scripts they just show.
-        (html.includes('data-fr-anim=')
+        (html.includes('data-fr-anim=') || html.includes('data-fr-ia-wait')
           ? "<script>document.documentElement.classList.add('fr-js')</script>"
           : '');
       // Before the page's own settings (`#fr-page`), which win over the site's.
@@ -297,6 +347,13 @@ export default definePlugin({
       if (slug !== 'fresco') return result;
       const kit = (data as { kit?: unknown } | null)?.kit;
       const warnings = [...(result?.warnings ?? [])];
+      // Components of Elementor 4 (their instances are in the imported pages).
+      const imported = await importComponents(
+        ctx,
+        siteId,
+        (data as { components?: unknown } | null)?.components,
+      );
+      if (imported) warnings.push(`${imported} component(s) were added to Fresco.`);
       if (kit && typeof kit === 'object') {
         const merged = mergeKit(normalizeKit(await ctx.storage.get(siteId, KIT_KEY)), kit);
         await ctx.storage.set(siteId, KIT_KEY, merged);

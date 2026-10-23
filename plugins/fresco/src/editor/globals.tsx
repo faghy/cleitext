@@ -14,6 +14,7 @@ import { Svg } from './controls.js';
 import { notify } from './dialogs.js';
 import { create, useStore, type Store } from './store.js';
 import { cloneWithNewIds, find, placeOf } from './tree.js';
+import { ComponentsList, saveComponentEdit } from './components.js';
 
 /** The plugin keeping the global widgets, if any. */
 export function globalWidgets(): GlobalWidgets | null {
@@ -80,6 +81,8 @@ export async function editGlobal(store: Store, nodeId: string, title: string): P
 export async function saveGlobal(store: Store): Promise<void> {
   const edit = store.get().globalEdit;
   if (!edit) return;
+  // A component edited in place (Fresco's own, not a plugin's global widget).
+  if (edit.component) return saveComponentEdit(store);
   const global = globalOf(edit.node);
   const content = find(store.get().blocks, edit.editId);
   if (!global || !content) {
@@ -92,6 +95,25 @@ export async function saveGlobal(store: Store): Promise<void> {
 
 /** The Globals tab of the panel: the site's global widgets. */
 export function GlobalsTab({
+  store,
+  onDragNode,
+  canManage = false,
+}: {
+  store: Store;
+  onDragNode?: (event: React.PointerEvent, make: () => FrescoNode, label: string) => void;
+  /** The user may delete components. */
+  canManage?: boolean;
+}) {
+  return (
+    <>
+      <ComponentsList store={store} canManage={canManage} {...(onDragNode ? { onDragNode } : {})} />
+      <h4 className="fre-subheading">{tr('Global widgets')}</h4>
+      <GlobalWidgetsList store={store} {...(onDragNode ? { onDragNode } : {})} />
+    </>
+  );
+}
+
+function GlobalWidgetsList({
   store,
   onDragNode,
 }: {
