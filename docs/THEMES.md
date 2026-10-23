@@ -162,6 +162,18 @@ settings: [
 
 Fields use the same types as custom fields ([PLUGINS.md §14](PLUGINS.md#14-reference-field-types)). Administrators change them in **Appearance → Customize** with a live preview; values are checked against the schema. Read them with `useThemeSettings()`; media fields hold an id, and the media is preloaded in `usePage().media`.
 
+**The site icon is required** (RF-THM-12). Every theme built for Cleitext has a media setting named exactly `favicon`, and writes it in the head of every page (empty: the theme's own icon or the Cleitext mark). The core answers `/favicon.ico` with it, for browsers, bookmarks and feed readers that ask there.
+
+```tsx
+settings: [
+  { name: 'favicon', type: 'media', label: { en: 'Site icon (favicon)', it: 'Icona del sito (favicon)' } },
+],
+// In Layout:
+const favicon = settings.favicon ? page.media.get(settings.favicon) : undefined;
+<link rel="icon" href={favicon?.url ?? ICON} />
+{favicon && <link rel="apple-touch-icon" href={favicon.url} />}
+```
+
 With many settings, group them like a theme panel:
 
 ```tsx

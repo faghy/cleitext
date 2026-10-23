@@ -226,19 +226,20 @@ I nomi sono gli stessi di WordPress per familiarità. Tutti i ruoli sono persona
 
 ### 4.8 Temi e sito pubblico
 
-| ID        | Requisito                                                                                                                        | Priorità                                     |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| RF-THM-01 | Installazione (da cartella locale, upload dall'admin o CLI; dal registro nella fase pubblica) e attivazione di un tema per sito. | MVP (CLI), 1.0 (upload), Pubblico (registro) |
-| RF-THM-02 | Gerarchia dei template (ARCHITETTURA §12.2).                                                                                     | MVP                                          |
-| RF-THM-03 | Impostazioni del tema da schema (logo, colori, font, social…), con anteprima in tempo reale.                                     | 1.0                                          |
-| RF-THM-04 | Aree del tema composte a blocchi (header, footer).                                                                               | 1.0                                          |
-| RF-THM-05 | Tema predefinito `aurora`: responsive, accessibile (AA), punteggio Lighthouse ≥ 95 su tutte le categorie.                        | MVP                                          |
-| RF-THM-06 | Meta di base generati dal core: `<title>`, description, canonical, hreflang, Open Graph minimo.                                  | MVP                                          |
-| RF-THM-07 | Sitemap XML (indice più una sitemap per tipo e lingua) e `robots.txt` configurabile.                                             | MVP                                          |
-| RF-THM-08 | Feed RSS/Atom per gli articoli e per termine.                                                                                    | 1.0                                          |
-| RF-THM-09 | Pagina 404 personalizzabile (entry designata nelle impostazioni).                                                                | MVP                                          |
-| RF-THM-10 | Ricerca pubblica full-text per lingua, con evidenziazione dei termini.                                                           | MVP                                          |
-| RF-THM-11 | Temi figli (override di template e stili).                                                                                       | Poi                                          |
+| ID        | Requisito                                                                                                                                                                                          | Priorità                                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| RF-THM-01 | Installazione (da cartella locale, upload dall'admin o CLI; dal registro nella fase pubblica) e attivazione di un tema per sito.                                                                   | MVP (CLI), 1.0 (upload), Pubblico (registro) |
+| RF-THM-02 | Gerarchia dei template (ARCHITETTURA §12.2).                                                                                                                                                       | MVP                                          |
+| RF-THM-03 | Impostazioni del tema da schema (logo, colori, font, social…), con anteprima in tempo reale.                                                                                                       | 1.0                                          |
+| RF-THM-04 | Aree del tema composte a blocchi (header, footer).                                                                                                                                                 | 1.0                                          |
+| RF-THM-05 | Tema predefinito `aurora`: responsive, accessibile (AA), punteggio Lighthouse ≥ 95 su tutte le categorie.                                                                                          | MVP                                          |
+| RF-THM-06 | Meta di base generati dal core: `<title>`, description, canonical, hreflang, Open Graph minimo.                                                                                                    | MVP                                          |
+| RF-THM-07 | Sitemap XML (indice più una sitemap per tipo e lingua) e `robots.txt` configurabile.                                                                                                               | MVP                                          |
+| RF-THM-08 | Feed RSS/Atom per gli articoli e per termine.                                                                                                                                                      | 1.0                                          |
+| RF-THM-09 | Pagina 404 personalizzabile (entry designata nelle impostazioni).                                                                                                                                  | MVP                                          |
+| RF-THM-10 | Ricerca pubblica full-text per lingua, con evidenziazione dei termini.                                                                                                                             | MVP                                          |
+| RF-THM-11 | Temi figli (override di template e stili).                                                                                                                                                         | Poi                                          |
+| RF-THM-12 | Ogni tema offre l'icona del sito: un'impostazione media `favicon`, scritta come `<link rel="icon">` (e `apple-touch-icon`) nell'head di ogni pagina; il core risponde a `/favicon.ico` con quella. | 1.0                                          |
 
 ### 4.9 Plugin
 

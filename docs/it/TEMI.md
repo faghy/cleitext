@@ -107,6 +107,18 @@ Gli archivi autore (`/author/<slug>`) sono archivi con `props.author`; i templat
 
 I campi usano gli stessi tipi dei campi personalizzati ([PLUGIN.md §14](PLUGIN.md#14-riferimento-tipi-di-campo)). Gli amministratori li modificano in **Aspetto → Personalizza** con l'anteprima dal vivo; i valori vengono controllati sullo schema. Si leggono con `useThemeSettings()`; i campi media contengono un id e il file è precaricato in `usePage().media`.
 
+**L'icona del sito è obbligatoria** (RF-THM-12). Ogni tema costruito per Cleitext ha un'impostazione media che si chiama esattamente `favicon` e la scrive nell'head di ogni pagina (se è vuota: l'icona del tema o il marchio di Cleitext). Il core risponde a `/favicon.ico` con quella, per i browser, i preferiti e i lettori di feed che la chiedono lì.
+
+```tsx
+settings: [
+  { name: 'favicon', type: 'media', label: { en: 'Site icon (favicon)', it: 'Icona del sito (favicon)' } },
+],
+// Nel Layout:
+const favicon = settings.favicon ? page.media.get(settings.favicon) : undefined;
+<link rel="icon" href={favicon?.url ?? ICON} />
+{favicon && <link rel="apple-touch-icon" href={favicon.url} />}
+```
+
 Con molte impostazioni, raggruppale come un pannello del tema:
 
 ```tsx
