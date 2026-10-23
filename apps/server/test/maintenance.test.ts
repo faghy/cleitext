@@ -137,9 +137,14 @@ describe('Maintenance plugin', () => {
       .toBuffer();
     const logo = (await admin.upload('/api/v1/media', 'logo.png', png, 'image/png')).json();
     const theme = await admin.request('PUT', '/api/v1/themes/active/settings', {
-      values: { logo: logo.id },
+      values: { logo: logo.id, favicon: logo.id },
     });
     expect(theme.statusCode, theme.body).toBe(200);
+    // The site icon, also at /favicon.ico (browsers and bookmarks ask there).
+    expect((await visitor.get('/')).body).toContain(`<link rel="icon" href="${logo.url}"/>`);
+    const icon = await visitor.get('/favicon.ico');
+    expect(icon.statusCode).toBe(302);
+    expect(icon.headers.location).toBe(logo.url);
 
     const returnAt = new Date(Date.now() + 2 * 3600_000).toISOString();
     expect((await editor.request('PUT', '/api/v1/ext/maintenance/config', {})).statusCode).toBe(

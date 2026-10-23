@@ -27,6 +27,7 @@ const ICON = `data:image/svg+xml,${encodeURIComponent(
 
 interface Settings extends Record<string, unknown> {
   logo?: string;
+  favicon?: string;
   accentColor?: string;
   showTagline?: boolean;
   showSearch?: boolean;
@@ -41,6 +42,7 @@ function Layout({ head, css, children }: LayoutProps) {
   const t = strings(page.locale);
   const settings = useThemeSettings<Settings>();
   const logo = settings.logo ? page.media.get(settings.logo) : undefined;
+  const favicon = settings.favicon ? page.media.get(settings.favicon) : undefined;
   const accent =
     settings.accentColor && HEX.test(settings.accentColor) ? settings.accentColor : null;
   return (
@@ -48,7 +50,8 @@ function Layout({ head, css, children }: LayoutProps) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href={ICON} />
+        <link rel="icon" href={favicon?.url ?? ICON} />
+        {favicon && <link rel="apple-touch-icon" href={favicon.url} />}
         <title>{head.title}</title>
         {head.description && <meta name="description" content={head.description} />}
         {head.robots && <meta name="robots" content={head.robots} />}
@@ -318,11 +321,20 @@ function PageLinks({ pagination }: { pagination: Pagination }) {
 export const theme = defineTheme({
   slug: 'aurora',
   name: 'Aurora',
-  version: '0.1.0',
+  version: '0.2.0',
   description: 'Clean and readable, light and dark, without JavaScript.',
   menuLocations: { primary: 'Main menu', footer: 'Footer menu' },
   settings: [
     { name: 'logo', type: 'media', label: { en: 'Logo', it: 'Logo' } },
+    {
+      name: 'favicon',
+      type: 'media',
+      label: { en: 'Site icon (favicon)', it: 'Icona del sito (favicon)' },
+      help: {
+        en: 'A square PNG, at least 512×512 px. Empty: the Cleitext mark.',
+        it: 'Un PNG quadrato, almeno 512×512 px. Vuoto: il marchio di Cleitext.',
+      },
+    },
     {
       name: 'accentColor',
       type: 'text',

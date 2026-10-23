@@ -672,6 +672,11 @@ export class PublicService {
       // Routes match addresses without the trailing slash.
       const route = rest.replace(/\/+$/, '') || '/';
       if (path === '/robots.txt') return await this.robots(scope);
+      // Browsers, feed readers and bookmarks ask /favicon.ico whatever the page says.
+      if (path === '/favicon.ico') {
+        const icon = await this.siteIcon(scope);
+        if (icon) return { status: 302, redirect: icon, tags: ['site'] };
+      }
       // The addresses of WordPress and Yoast SEO, for sites moved from there.
       if (path === '/sitemap_index.xml' || path === '/wp-sitemap.xml') {
         return { status: 301, redirect: '/sitemap.xml', tags: [] };
@@ -903,6 +908,14 @@ export class PublicService {
       { isFrontPage: false, preview: true },
     );
     return { ...response, headers: { 'x-robots-tag': 'noindex, nofollow' } };
+  }
+
+  /** The site icon chosen in the theme options (`favicon`, as in Canvas), or null. */
+  private async siteIcon(scope: RequestScope): Promise<string | null> {
+    const values = await themeSettings(scope.tx, scope.theme);
+    const id = typeof values.favicon === 'string' ? values.favicon : null;
+    if (!id) return null;
+    return (await loadMedia(scope.tx, [id], scope.locale)).get(id)?.url ?? null;
   }
 
   private async robots(scope: RequestScope): Promise<PublicResponse> {
