@@ -84,6 +84,24 @@ export interface Actions {
     referrer: string | null;
     userAgent: string | null;
   };
+  /**
+   * A submission kept aside as spam was released as not spam (plugin API
+   * 1.45, `ctx.forms.release` of a protection plugin): the plugin that owns
+   * `form` (it starts with its slug) delivers it now, as if it had just
+   * been sent and passed every check. Only forms verified with `hold: true`
+   * are ever released.
+   */
+  'form.released': FormReleasedEvent;
+}
+
+/** A held submission released as not spam (`form.released`, plugin API 1.45). */
+export interface FormReleasedEvent {
+  /** The form's id, e.g. `forms/contact`. */
+  form: string;
+  /** The language of the page it was sent from. */
+  locale: string;
+  /** The submitted values, as they were given to `form.verify`. */
+  fields: Record<string, unknown>;
 }
 
 export interface CommentEvent {
@@ -201,6 +219,13 @@ export interface FormVerifyContext {
   /** Host name of the request, without the port, when known. */
   host?: string;
   signedIn: boolean;
+  /**
+   * The form can keep a submission aside as spam and deliver it later, when
+   * it is released (`form.released`, plugin API 1.45): core comments and
+   * the forms that listen to `form.released`. Without it, a `spam` verdict
+   * refuses the submission.
+   */
+  hold?: boolean;
 }
 
 /**
@@ -218,6 +243,26 @@ export interface FormVerifyResult {
   ok: boolean;
   /** Shown to the visitor when `ok` is false, in `locale`. */
   message?: string;
+  /**
+   * With `ok: true` (plugin API 1.45): the submission looks like spam. A
+   * form verified with `hold` keeps it aside (core comments get the `spam`
+   * status) and answers the visitor as if it went through; other forms
+   * refuse it with `message`.
+   */
+  spam?: boolean;
+  /**
+   * With `ok: false` (plugin API 1.45): answer the visitor as if the
+   * submission went through, and drop it (for obvious bots).
+   */
+  silent?: boolean;
+  /**
+   * A challenge (a captcha) decides (plugin API 1.45). With `ok: true`, set
+   * by a plugin that is unsure: a captcha plugin that runs later checks the
+   * submission and clears `spam` when it passes; when no plugin takes it up,
+   * it is ignored. With `ok: false`: the visitor must solve the challenge
+   * first, so the form shows it (see `window.cleitextChallenge.require`).
+   */
+  challenge?: boolean;
 }
 
 /** Filters (transformations): `[value, context]` by name. */
@@ -235,7 +280,9 @@ export interface Filters {
    * `forms:protect`): `{ ok: false, message }` refuses it with that message,
    * `{ ok: true }` or `null` (the starting value) lets it through. Keep a
    * refusal given by another plugin. A handler that throws or times out is
-   * skipped, so catch your own errors and decide.
+   * skipped, so catch your own errors and decide. Since plugin API 1.45 the
+   * result can also flag spam, drop a bot silently or ask for a challenge
+   * (see `FormVerifyResult`).
    */
   'form.verify': [result: FormVerifyResult | null, context: FormVerifyContext];
   /**

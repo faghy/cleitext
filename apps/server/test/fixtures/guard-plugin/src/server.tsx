@@ -14,7 +14,12 @@ export default definePlugin({
     );
     ctx.hooks.filter('form.verify', (result, context) => {
       if (result && !result.ok) return result;
-      if (context.fields['guard-token'] === 'pass') return { ok: true };
+      const token = context.fields['guard-token'];
+      if (token === 'pass') return { ok: true };
+      // The verdicts of plugin API 1.45.
+      if (token === 'spam') return { ok: true, spam: true, message: 'Held as spam' };
+      if (token === 'silent') return { ok: false, silent: true };
+      if (token === 'challenge') return { ok: false, challenge: true, message: 'Solve it' };
       return {
         ok: false,
         message: context.locale.startsWith('it') ? 'La guardia dice no' : 'The guard says no',
@@ -42,6 +47,7 @@ export default definePlugin({
           ...input,
           fields: (request.body ?? {}) as Record<string, unknown>,
           ip: request.ip,
+          ...((request.body as Record<string, unknown> | null)?.hold === '1' ? { hold: true } : {}),
         });
         return { body: { ...verdict, challenge: await ctx.forms.challenge(input) } };
       },

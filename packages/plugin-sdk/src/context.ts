@@ -22,6 +22,7 @@ import type {
   FormChallengeContext,
   FormVerifyContext,
   FormVerifyResult,
+  FormReleasedEvent,
   HookApi,
   RenderHookContext,
 } from './hooks.js';
@@ -396,6 +397,29 @@ export interface CommentsApi {
       authorEmail?: string;
     },
   ): Promise<{ id: string; status: PluginComment['status'] }>;
+  /**
+   * Moves comments of any type to a status (plugin API 1.45), as the
+   * moderation screen does: counts, the page cache, the `comment.status`
+   * action and the emails follow. With `userId` the plugin acts for that
+   * person, who must be able to moderate comments; without it, for itself
+   * (e.g. a scheduled task). `origin` (`https://example.com`) makes the
+   * links of the emails. Gives how many comments it found.
+   */
+  setStatus(
+    siteId: string,
+    input: {
+      ids: string[];
+      status: PluginComment['status'];
+      origin: string;
+      userId?: string;
+    },
+  ): Promise<number>;
+  /**
+   * Deletes comments for good (plugin API 1.45): only those in the spam or
+   * the trash, at most 500 at a time; replies move up a level. Gives how
+   * many were deleted.
+   */
+  remove(siteId: string, input: { ids: string[]; userId?: string }): Promise<number>;
 }
 
 export interface SecretsApi {
@@ -1151,6 +1175,13 @@ export interface FormsApi {
    * without a protection plugin.
    */
   verify(input: FormVerifyContext): Promise<FormVerifyResult>;
+  /**
+   * Releases a submission kept aside as spam (plugin API 1.45, needs
+   * `forms:protect`): the `form.released` action reaches the plugin that
+   * owns the form, which delivers it. For protection plugins that keep
+   * held submissions, when someone marks one as not spam.
+   */
+  release(input: { siteId: string } & FormReleasedEvent): Promise<void>;
 }
 
 // ---- AI (plugin API 1.40) ---------------------------------------------------------------

@@ -105,6 +105,19 @@ export interface PluginServices {
     request: RouteRequest,
     input: Parameters<CommentsApi['post']>[1],
   ): Promise<{ id: string; status: PluginComment['status'] }>;
+  /** `ctx.comments.setStatus` (API 1.45): for a user, or for the plugin itself. */
+  setCommentStatus(
+    siteId: string,
+    ids: string[],
+    status: PluginComment['status'],
+    options: { origin: string; plugin: string; userId?: string },
+  ): Promise<number>;
+  /** `ctx.comments.remove` (API 1.45): spam and trash only. */
+  removeComments(
+    siteId: string,
+    ids: string[],
+    options: { plugin: string; userId?: string },
+  ): Promise<number>;
   /** A request to a public address for a plugin (`ctx.http.send`); tests replace it. */
   httpSend(
     plugin: LoadedPlugin,
@@ -175,6 +188,12 @@ export function userQuery(
     result.ids = query.ids.filter((id) => typeof id === 'string' && UUID_RE.test(id));
   }
   return result;
+}
+
+/** Comment ids given by a plugin: valid ones only, at most 500. */
+function commentIds(ids: unknown): string[] {
+  if (!Array.isArray(ids)) throw new TypeError('`ids` must be a list of comment ids.');
+  return ids.filter((id): id is string => typeof id === 'string' && UUID_RE.test(id)).slice(0, 500);
 }
 
 /** The common part of the inputs of `ctx.forms`, checked. */
@@ -539,6 +558,32 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           throw new Error(`Plugins post comments of their own type, not "${input.type}"`);
         return services().postComment(request, input);
       },
+      async setStatus(siteId, input) {
+        require('comments');
+        assertSiteId(siteId);
+        if (!['pending', 'approved', 'spam', 'trash'].includes(input.status))
+          throw new TypeError(`Invalid comment status: ${String(input.status)}`);
+        let origin: string;
+        try {
+          origin = new URL(String(input.origin)).origin;
+        } catch {
+          throw new TypeError('`origin` must be an address such as https://example.com.');
+        }
+        if (!/^https?:/.test(origin)) throw new TypeError('`origin` must be http or https.');
+        return services().setCommentStatus(siteId, commentIds(input.ids), input.status, {
+          origin,
+          plugin: plugin.slug,
+          ...(input.userId ? { userId: String(input.userId) } : {}),
+        });
+      },
+      async remove(siteId, input) {
+        require('comments');
+        assertSiteId(siteId);
+        return services().removeComments(siteId, commentIds(input.ids), {
+          plugin: plugin.slug,
+          ...(input.userId ? { userId: String(input.userId) } : {}),
+        });
+      },
     },
 
     schedule: {
@@ -590,6 +635,17 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           fields: input.fields && typeof input.fields === 'object' ? input.fields : {},
           ip: String(input.ip ?? ''),
           ...(input.host ? { host: String(input.host) } : {}),
+          ...(input.hold === true ? { hold: true } : {}),
+        });
+      },
+      async release(input) {
+        require('forms:protect');
+        assertSiteId(input.siteId);
+        const { form } = formInput({ ...input, signedIn: false });
+        await host.formRelease(input.siteId, {
+          form,
+          locale: String(input.locale ?? ''),
+          fields: input.fields && typeof input.fields === 'object' ? { ...input.fields } : {},
         });
       },
     },

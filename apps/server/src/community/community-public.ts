@@ -107,10 +107,18 @@ export class CommunityPublic {
     };
 
     /**
-     * Bot protection from a plugin (`form.verify`, plugin API 1.38): the
-     * refusal's message, or null when the submission may go on.
+     * Bot protection from a plugin (`form.verify`, plugin API 1.38). `null`
+     * when the submission may go on; `spam` (API 1.45) when it goes on but
+     * is kept aside (forms with `hold`); otherwise the refusal: its message,
+     * whether to pretend it went through (`silent`) and whether the visitor
+     * must solve a challenge first (`challenge`).
      */
-    const refused = async (form: string): Promise<string | null> => {
+    const verdict = async (
+      form: string,
+      hold = false,
+    ): Promise<
+      null | { spam: true } | { spam?: never; message: string; silent: boolean; challenge: boolean }
+    > => {
       const result = await this.plugins.formVerify({
         siteId,
         form,
@@ -122,16 +130,42 @@ export class CommunityPublic {
         ip: request.ip,
         host: request.hostname,
         signedIn: Boolean(request.auth && !request.auth.apiToken),
+        ...(hold ? { hold: true } : {}),
       });
-      if (result.ok) return null;
-      return (
-        result.message ??
-        say(
-          locale,
-          'Please confirm that you are not a robot, then try again.',
-          'Conferma di non essere un robot, poi riprova.',
-        )
-      );
+      if (result.ok) return result.spam ? { spam: true } : null;
+      return {
+        message:
+          result.message ??
+          say(
+            locale,
+            'Please confirm that you are not a robot, then try again.',
+            'Conferma di non essere un robot, poi riprova.',
+          ),
+        silent: result.silent === true,
+        challenge: result.challenge === true,
+      };
+    };
+    const refused = async (form: string): Promise<string | null> => {
+      const result = await verdict(form);
+      return result && !result.spam ? result.message : null;
+    };
+    /**
+     * A refusal that asks for a challenge (API 1.45): the page shows it
+     * (`cl-challenge` in the address), and JSON says so.
+     */
+    const refuse = async (
+      result: { message: string; challenge: boolean },
+      form: string,
+      location: (params: Record<string, string>) => string,
+    ) => {
+      const params: Record<string, string> = result.challenge ? { 'cl-challenge': form } : {};
+      if (json)
+        await reply.code(400).send({
+          ok: false,
+          message: result.message,
+          ...(result.challenge ? { challenge: true } : {}),
+        });
+      else await reply.code(303).header('location', location(params)).send();
     };
 
     let handled = true;
@@ -203,11 +237,13 @@ export class CommunityPublic {
         case 'account/register': {
           if (isBot()) return void (await go(`${base}/register?sent=1`));
           const values = { name: text(body, 'name', 80), email: text(body, 'email', 200) };
-          const blocked = await refused('core/register');
-          if (blocked)
-            return void (await fail(
-              withQuery(`${base}/register`, { error: blocked, ...values }),
-              blocked,
+          const blocked = await verdict('core/register');
+          // Silent: bots are told to check their email, as with the hidden field.
+          if (blocked && !blocked.spam && blocked.silent)
+            return void (await go(`${base}/register?sent=1`));
+          if (blocked && !blocked.spam)
+            return void (await refuse(blocked, 'core/register', (params) =>
+              withQuery(`${base}/register`, { error: blocked.message, ...values, ...params }),
             ));
           try {
             const result = await this.accounts.register(
@@ -347,11 +383,13 @@ export class CommunityPublic {
           // Signed-in people are known: the bot traps are for guests.
           if (!viewer && isBot())
             return void (await go(withQuery(back, { comment: 'pending' }, '#comments')));
-          const blocked = await refused('core/comment');
-          if (blocked)
-            return void (await fail(
-              withQuery(back, { 'comment-error': blocked }, '#respond'),
-              blocked,
+          // Spam is kept in the spam queue (`hold`), not refused.
+          const blocked = await verdict('core/comment', true);
+          if (blocked && !blocked.spam && blocked.silent)
+            return void (await go(withQuery(back, { comment: 'pending' }, '#comments')));
+          if (blocked && !blocked.spam)
+            return void (await refuse(blocked, 'core/comment', (params) =>
+              withQuery(back, { 'comment-error': blocked.message, ...params }, '#respond'),
             ));
           try {
             const result = await this.comments.post(
@@ -374,6 +412,8 @@ export class CommunityPublic {
                   }
                 : null,
               client,
+              // Spam for the site's protection (API 1.45): kept in the spam queue.
+              blocked?.spam ? { status: 'spam' } : {},
             );
             const hash = result.status === 'approved' ? `#comment-${result.id}` : '#comments';
             return void (await go(
@@ -382,7 +422,8 @@ export class CommunityPublic {
                 { comment: result.status === 'approved' ? 'posted' : 'pending' },
                 hash,
               ),
-              { status: result.status, id: result.id },
+              // Spam is not told apart from comments awaiting moderation.
+              { status: result.status === 'spam' ? 'pending' : result.status, id: result.id },
             ));
           } catch (error) {
             return void (await fail(

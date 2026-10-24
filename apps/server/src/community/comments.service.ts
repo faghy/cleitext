@@ -162,8 +162,17 @@ export class CommentsService {
     input: NewComment,
     who: Commenter | null,
     client: { ip: string; userAgent: string | null; locale: string; origin: string },
-    /** Plugins: their own type and data, on entries whose comments they manage. */
-    options: { type?: string; meta?: Record<string, unknown>; anyEntry?: boolean } = {},
+    /**
+     * Plugins: their own type and data, on entries whose comments they
+     * manage. `status: 'spam'`: the site's protection says spam (plugin API
+     * 1.45), so it goes to the spam queue unless the commenter is trusted.
+     */
+    options: {
+      type?: string;
+      meta?: Record<string, unknown>;
+      anyEntry?: boolean;
+      status?: 'spam';
+    } = {},
   ): Promise<{ id: string; status: CommentStatus }> {
     const L = (en: string, it: string) => say(client.locale, en, it);
     const settings = await this.settings.getCore(siteId);
@@ -239,11 +248,14 @@ export class CommentsService {
               .from(comments)
               .where(and(eq(comments.authorEmail, authorEmail), eq(comments.status, 'approved')))
           : [{ n: 0 }];
-        const status = moderate(
-          settings,
-          { content, authorName: authorName || 'Anonymous', authorEmail, authorUrl },
-          { trusted, approvedBefore: Number(before?.n ?? 0) > 0 },
-        );
+        const status =
+          options.status === 'spam' && !trusted
+            ? 'spam'
+            : moderate(
+                settings,
+                { content, authorName: authorName || 'Anonymous', authorEmail, authorUrl },
+                { trusted, approvedBefore: Number(before?.n ?? 0) > 0 },
+              );
         const [row] = await tx
           .insert(comments)
           .values({
@@ -404,19 +416,24 @@ export class CommentsService {
     });
   }
 
+  /**
+   * Moves comments to a status. `auth` null: a plugin acting for itself
+   * (`ctx.comments.setStatus`, plugin API 1.45), recorded without a user.
+   */
   async setStatus(
     siteId: string,
-    auth: AuthContext,
+    auth: AuthContext | null,
     ids: string[],
     status: CommentStatus,
     origin: string,
+    actor?: string,
   ): Promise<number> {
-    this.assertModerator(auth);
+    if (auth) this.assertModerator(auth);
     const valid = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500);
     if (valid.length === 0) return 0;
     const changed = await withContext(
       this.database.db,
-      { siteId, userId: auth.userId },
+      { siteId, ...(auth?.userId ? { userId: auth.userId } : {}) },
       async (tx) => {
         const before = await tx.select().from(comments).where(inArray(comments.id, valid));
         const rows = await tx
@@ -427,10 +444,10 @@ export class CommentsService {
         for (const entryId of new Set(rows.map((r) => r.entryId))) await this.recount(tx, entryId);
         await this.audit.record(tx, {
           siteId,
-          userId: auth.userId,
+          userId: auth?.userId ?? null,
           action: `comment.${status}`,
           targetType: 'comment',
-          meta: { ids: valid },
+          meta: { ids: valid, ...(actor ? { plugin: actor } : {}) },
         });
         return rows.map((row) => ({
           row,
@@ -525,11 +542,21 @@ export class CommentsService {
     return row.id;
   }
 
-  /** Deletes comments for good (from the trash or spam), with their replies. */
-  async remove(siteId: string, auth: AuthContext, ids: string[]): Promise<number> {
-    this.assertModerator(auth);
+  /**
+   * Deletes comments for good (from the trash or spam), with their replies.
+   * `auth` null: a plugin acting for itself (plugin API 1.45).
+   */
+  async remove(
+    siteId: string,
+    auth: AuthContext | null,
+    ids: string[],
+    actor?: string,
+  ): Promise<number> {
+    if (auth) this.assertModerator(auth);
     const valid = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500);
-    return withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
+    if (valid.length === 0) return 0;
+    const context = { siteId, ...(auth?.userId ? { userId: auth.userId } : {}) };
+    return withContext(this.database.db, context, async (tx) => {
       const rows = await tx
         .delete(comments)
         .where(and(inArray(comments.id, valid), inArray(comments.status, ['trash', 'spam'])))
@@ -548,10 +575,10 @@ export class CommentsService {
       for (const entryId of new Set(rows.map((r) => r.entryId))) await this.recount(tx, entryId);
       await this.audit.record(tx, {
         siteId,
-        userId: auth.userId,
+        userId: auth?.userId ?? null,
         action: 'comment.deleted',
         targetType: 'comment',
-        meta: { ids: rows.map((r) => r.id) },
+        meta: { ids: rows.map((r) => r.id), ...(actor ? { plugin: actor } : {}) },
       });
       return rows.length;
     });

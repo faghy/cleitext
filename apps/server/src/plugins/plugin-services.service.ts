@@ -784,6 +784,32 @@ export class PluginServicesProvider implements PluginServices {
     }
   }
 
+  async setCommentStatus(
+    siteId: string,
+    ids: string[],
+    status: PluginComment['status'],
+    options: { origin: string; plugin: string; userId?: string },
+  ): Promise<number> {
+    const auth = options.userId ? await this.actor(siteId, options.userId) : null;
+    return this.commentsService.setStatus(
+      siteId,
+      auth,
+      ids,
+      status,
+      options.origin,
+      options.plugin,
+    );
+  }
+
+  async removeComments(
+    siteId: string,
+    ids: string[],
+    options: { plugin: string; userId?: string },
+  ): Promise<number> {
+    const auth = options.userId ? await this.actor(siteId, options.userId) : null;
+    return this.commentsService.remove(siteId, auth, ids, options.plugin);
+  }
+
   async httpSend(
     plugin: LoadedPlugin,
     request: {

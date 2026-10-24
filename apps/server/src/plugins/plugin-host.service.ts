@@ -38,6 +38,7 @@ import {
   type FormSources,
   type FormVerifyContext,
   type FormVerifyResult,
+  type FormReleasedEvent,
   type LanguageProvider,
   type PersonalDataEraser,
   type PersonalDataExporter,
@@ -879,14 +880,35 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
    */
   async formVerify(input: FormVerifyContext): Promise<FormVerifyResult> {
     const result = await this.applyFilter('form.verify', null, input, input.siteId);
-    if (result && typeof result === 'object' && result.ok === false) {
-      const message =
-        typeof result.message === 'string' && result.message.trim()
-          ? result.message.trim().slice(0, 300)
-          : undefined;
-      return message ? { ok: false, message } : { ok: false };
+    if (!result || typeof result !== 'object') return { ok: true };
+    const message =
+      typeof result.message === 'string' && result.message.trim()
+        ? result.message.trim().slice(0, 300)
+        : undefined;
+    if (result.ok === false) {
+      return {
+        ok: false,
+        ...(message ? { message } : {}),
+        // Silent: the visitor is told it went through (API 1.45).
+        ...(result.silent === true ? { silent: true } : {}),
+        // The visitor must solve a challenge first (API 1.45).
+        ...(result.challenge === true && result.silent !== true ? { challenge: true } : {}),
+      };
+    }
+    // Spam (API 1.45): kept aside by forms that can hold it, refused by the others.
+    if (result.spam === true) {
+      if (input.hold === true) return { ok: true, spam: true };
+      return { ok: false, ...(message ? { message } : {}) };
     }
     return { ok: true };
+  }
+
+  /**
+   * A held submission released as not spam (`ctx.forms.release`, plugin API
+   * 1.45): the `form.released` action, for the plugin that owns the form.
+   */
+  async formRelease(siteId: string, event: FormReleasedEvent): Promise<void> {
+    await this.emit('form.released', event, siteId);
   }
 
   /**
