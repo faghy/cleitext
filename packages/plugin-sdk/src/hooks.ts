@@ -399,6 +399,15 @@ export interface Filters {
     },
   ];
   /**
+   * The plugins' own data in a site export (`cleitext export`, plugin API
+   * 1.46): `document.plugins`, by plugin slug. Add your data under your slug
+   * and keep the others' (`{ ...data, [slug]: mine }`); it comes back through
+   * `import.pluginData`. Write media as objects `{ id: <media id>, url }`
+   * and entries as `{ $entry: <entry id> }`: the import remaps them to the
+   * new site's media and entries.
+   */
+  'export.pluginData': [data: Record<string, unknown>, context: { siteId: string }];
+  /**
    * Data for this plugin in an imported transfer document (plugin API 1.28):
    * `document.plugins[slug]`, e.g. a page builder's site settings converted
    * from another system. Called once per slug, after the entries, media and

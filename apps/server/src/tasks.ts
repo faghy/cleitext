@@ -86,6 +86,10 @@ export async function exportTask(
       locales: await languages.locales(site.id, site.defaultLocale),
       translations: (kind, ids) => languages.translations(site.id, kind, ids),
     },
+    // The active plugins' own data (plugin API 1.46), back through `import.pluginData`.
+    await context.app
+      .get(PluginHost)
+      .applyFilter('export.pluginData', {}, { siteId: site.id }, site.id),
   );
   const storage = new DiskStorage(context.config.media.path);
   await writeArchive(options.out, document, files, (key) => storage.pathOf(key));

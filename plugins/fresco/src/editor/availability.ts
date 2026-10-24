@@ -1,7 +1,8 @@
 /**
  * Which elements the editor's panel offers: not those switched off in the
  * Element manager, not Fresco Pro's elements that free Fresco now has with
- * the same settings, and in Safe mode only Fresco's and Fresco Pro's.
+ * the same settings, not plugin blocks that their plugin gives as elements,
+ * and in Safe mode only Fresco's and Fresco Pro's.
  */
 import type { ElementDefinition } from '../core/model.js';
 import { getElement } from '../core/registry.js';
@@ -33,7 +34,11 @@ export function offered(
   if (options.disabled.includes(definition.type)) return false;
   if (options.safeMode && !isFrescoElement(definition.type)) return false;
   const free = REPLACED_BY_FREE[definition.type];
-  return !(free && getElement(free));
+  if (free && getElement(free)) return false;
+  // A plugin block that its plugin also gives as an element of its own (e.g. Diorama's
+  // slider) is offered once, as that element.
+  const block = /^fresco\/block:(.+)$/.exec(definition.type)?.[1];
+  return !(block && getElement(block));
 }
 
 /** The settings of the Element manager, as saved (unknown values dropped). */

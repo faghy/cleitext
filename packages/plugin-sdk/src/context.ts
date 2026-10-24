@@ -612,6 +612,14 @@ export interface BlockLoadContext {
    * `ctx.forms.challenge`. Their pages are never cached.
    */
   signedIn?: boolean;
+  /**
+   * Media of the library by id, as `context.media` gives them in `render`
+   * (resized variants, focal point, alternative text in the page's
+   * language), for media named by the plugin's own data rather than by the
+   * block's attributes (plugin API 1.46; missing on older cores). Unknown
+   * ids are left out; at most 200 ids.
+   */
+  loadMedia?(ids: string[]): Promise<ReadonlyMap<string, BlockMedia>>;
 }
 
 export interface BlockRenderContext {

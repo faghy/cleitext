@@ -205,6 +205,7 @@ ctx.hooks.filter(
 | `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                                                     | `{ siteId, locale, userId, base }`                     |
 | `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)                                                                             | `{ siteId, name, attrs, html, children }`              |
 | `import.shortcode`         | a WordPress shortcode standing alone on import (own line or paragraph, Shortcode block, Elementor shortcode/text/HTML widget): the plugin's blocks instead (API 1.36) | `{ siteId, tag, attrs, content, text }`                |
+| `export.pluginData`        | the plugins' own data in a site export (`document.plugins`, by slug): add yours under your slug, keep the others (API 1.46)                                           | `{ siteId }`                                           |
 | `import.pluginData`        | the plugin's data of an imported document (`document.plugins[slug]`): `{ warnings? }` when taken, `null` otherwise (API 1.28)                                         | `{ siteId, slug, data, idMap, userId }`                |
 | `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                                                                                                     | `{ siteId, locale, siteTitle, term }`                  |
 | `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                                                                                                 | `{ siteId }`                                           |
@@ -435,6 +436,7 @@ defineBlock<{ gap: number; image?: string }>({
 - `context.page` (also in `load`) is the page being rendered: `route`, `site` (`title`, `tagline`, `home`), `params` (the query parameters of the address, e.g. a page number), and `entry` (the full public entry), `archive` (title, term, entries, pagination; `html` for plugin listings, API 1.20) or `search`, for blocks that show the page's own data, such as a theme builder's post title or archive list.
 - Plugin API 1.41: `context.page.site.logo` is the logo chosen in the theme's settings (`{ id, url, width, height, alt }`), when there is one. `context.page.user` is the signed-in visitor (`{ id, displayName, avatarUrl, email?, role }`, `role` being `{ slug, name }` or null) and is missing for everyone else. Pages of signed-in visitors (with a session or an API token) are never cached, so a block may greet them or show their avatar; without `user` it must show nothing personal, as the page is cached and shared.
 - `context.query({ type, terms, ids, exclude, orderBy, order, limit, offset })` in `load` (plugin API 1.11) lists published entries in the page's language, complete as themes get them (excerpt, images, terms, fields), with the `total` for pagination; the page refreshes when entries of those types change. `orderBy` is `date` (default), `title`, `modified`, `random` or `order` (the manual order of the admin, as WordPress's `menu_order`, API 1.31); `terms` is `{ taxonomy, slugs }`; `limit` is at most 100. Loops, related posts and portfolios use it.
+- `context.loadMedia(ids)` in `load` (plugin API 1.46; missing on older cores) gives media of the library as `context.media` has them (variants, focal point, alternative text in the page's language), for media named by the plugin's own data rather than by the block's attributes, e.g. the slides of a slider kept in the plugin's tables. At most 200 ids; unknown ones are left out.
 - `context.menus` holds the site's menus in the page's language, by theme location (`{ id, label, url, target?, current, children }`), for navigation blocks.
 - `context.preview` (plugin API 1.36) is `true` when the block is rendered for an editor's preview (`POST /api/v1/blocks/preview`, e.g. Fresco's canvas), not for a page: a block whose content comes from a script (a booking widget) can show a placeholder there.
 - `items` (containers): each child rendered on its own, to wrap them one by one (tabs, accordions, carousels).
@@ -853,6 +855,15 @@ ctx.hooks.filter(
 Media files are given by their http(s) address and downloaded only from public addresses, never from the server's own network. What is already on the site is kept, and old addresses (`oldPaths`) become redirects. A big site takes minutes: start the import without awaiting it in the route, and keep its progress in `ctx.storage`.
 
 Entries may point to each other in any order: inside a document (or plugin data), `{ "$entry": "<entry ref>", "prefix": "entry:" }` becomes `prefix + <new id>` once every entry exists (`null` when that entry was not imported). Entries of a content type the site does not have (e.g. a plugin that is not active) are left out with one report line per type. Settings meant for a plugin go in `document.plugins` by plugin slug (API 1.28): after the entries, each active plugin gets its own through the `import.pluginData` filter, with media objects and entry references already remapped and `idMap` (`{ entries, terms, media }` by `ref`) for anything else; data that no active plugin takes is reported.
+
+**Exporting plugin data** (plugin API 1.46). `cleitext export` asks the active plugins for their own data with the `export.pluginData` filter, so that data kept in a plugin's tables moves with the site: add it under your slug, write media as `{ id: <media id>, url }` and entries as `{ $entry: <entry id> }`, and take it back with `import.pluginData`. The official **Diorama** plugin moves its sliders this way:
+
+```ts
+ctx.hooks.filter('export.pluginData', async (data, { siteId }) => ({
+  ...data,
+  [ctx.plugin.slug]: { sliders: await allSliders(siteId) },
+}));
+```
 
 ```ts
 ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data }) => {

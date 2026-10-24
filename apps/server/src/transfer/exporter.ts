@@ -46,6 +46,8 @@ export async function exportSite(
   siteId: string,
   source: { name?: string; url?: string } = {},
   languages?: ExportLanguages,
+  /** The plugins' own data (`export.pluginData`, plugin API 1.46), by plugin slug. */
+  plugins: Record<string, unknown> = {},
 ): Promise<ExportResult> {
   return withContext(db, { siteId }, async (tx) => {
     const files = new Map<string, string>();
@@ -244,6 +246,7 @@ export async function exportSite(
         to: r.toPath,
         status: r.status as 301 | 410,
       })),
+      ...(Object.keys(plugins).length > 0 ? { plugins } : {}),
     };
     return { document, files };
   });

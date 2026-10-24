@@ -307,6 +307,25 @@ describe('Element manager and Safe mode', () => {
     }
   });
 
+  it('offers a plugin block once when its plugin gives it as an element', () => {
+    const options = { disabled: [], safeMode: false };
+    expect(offered({ type: 'fresco/block:diorama/slider' }, options)).toBe(true);
+    registerElement({
+      type: 'diorama/slider',
+      title: 'Slider',
+      icon: 'M3 5h18v14H3z',
+      category: 'media',
+      controls: [],
+      render: () => null,
+    });
+    try {
+      expect(offered({ type: 'fresco/block:diorama/slider' }, options)).toBe(false);
+      expect(offered({ type: 'diorama/slider' }, options)).toBe(true);
+    } finally {
+      unregisterElement('diorama/slider');
+    }
+  });
+
   it('counts the elements of the site’s documents', () => {
     const usage = elementUsage([
       {

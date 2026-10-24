@@ -2266,6 +2266,13 @@ export class PublicService {
                   },
                   query: (query) => this.queryEntries(scope, query),
                   signedIn: Boolean(scope.viewer),
+                  // Media named by the plugin's own data (plugin API 1.46).
+                  loadMedia: (ids) =>
+                    loadMedia(
+                      scope.tx,
+                      ids.filter((id) => typeof id === 'string').slice(0, 200),
+                      scope.locale,
+                    ),
                 })
               : undefined;
             const style = block.css ? block.css({ attrs, block: instance, context }) : '';
