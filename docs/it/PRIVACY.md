@@ -30,9 +30,39 @@ In **Privacy → Banner cookie** incolla il codice di statistiche, pubblicità o
 
 Gli script del sito possono leggere la scelta: `window.cleitextConsent.get()` restituisce le categorie accettate, `window.cleitextConsent.open()` apre il banner, e a ogni scelta viene emesso l'evento `cleitext:consent`.
 
+## Gestori dei consensi: iubenda, Cookiebot, CookieYes
+
+I siti che usano già un gestore dei consensi esterno (CMP) lo scelgono in **Privacy → Banner cookie → Gestore dei consensi**; **Privacy (banner integrato)** resta il predefinito, e nulla viene caricato da un CMP finché non se ne sceglie uno. Ogni scelta collega la dashboard del CMP e dice dove trovare i suoi ID, controllati mentre si scrivono:
+
+- **iubenda** (Cookie Solution): l'ID del sito e l'ID della cookie policy (numeri, in Cookie Solution → Incorpora). iubenda ha una policy per lingua: in un sito multilingua indica l'ID di ogni lingua. Il banner parla la lingua della pagina, o una fissa; altre opzioni di `_iub.csConfiguration` si aggiungono in JSON (`siteId`, `cookiePolicyId`, `lang` e le callback le imposta il plugin; `perPurposeConsent` è attivo).
+- **Cookiebot** (Usercentrics): l'ID del gruppo di domini (cbid) e la modalità di blocco. **Manuale** (il predefinito) lascia a questo plugin il blocco di script e contenuti incorporati; **automatica** fa riscrivere a Cookiebot da sé gli script della pagina, e può entrare in conflitto con quelli trattenuti qui: usala solo per qualcosa che non viene trattenuto altrimenti. La lingua del banner segue la pagina (`data-culture`).
+- **CookieYes**: la chiave del sito, presa dal codice di installazione o dall'indirizzo dello script (`https://cdn-cookieyes.com/client_data/<chiave>/script.js`) quando li incolli. Attiva il suo rilevamento della lingua per il banner nella lingua della pagina.
+
+Con un gestore dei consensi il banner integrato, il suo pulsante nell'angolo e il cookie `cx_consent` sono spenti, e lo script ufficiale del CMP è il primo nel `<head>`, dopo i valori predefiniti di Google Consent Mode quando li imposta questo plugin. Tutto ciò che è trattenuto continua ad aspettare il consenso: gli script incollati per categoria, gli script `type="text/plain" data-cx-category`, gli iframe `data-cx-src` e i video, le mappe e i post di altri siti. Un piccolo script segue la scelta del CMP, all'apertura della pagina e a ogni cambiamento, e li rilascia per categoria:
+
+| Categoria qui | iubenda (finalità)          | Cookiebot                       | CookieYes                  |
+| ------------- | --------------------------- | ------------------------------- | -------------------------- |
+| Preferenze    | 2 Interazioni, 3 Esperienza | `Cookiebot.consent.preferences` | `functional`               |
+| Statistiche   | 4 Misurazione               | `Cookiebot.consent.statistics`  | `analytics`, `performance` |
+| Marketing     | 5 Marketing                 | `Cookiebot.consent.marketing`   | `advertisement`            |
+
+La scelta si legge da `_iub.cs.api.getPreferences()` (con `onPreferenceExpressedOrNotNeeded` e le altre callback; quando iubenda dice che il consenso non serve, tutto viene rilasciato), da `Cookiebot.consent` (con `CookiebotOnConsentReady`, `CookiebotOnAccept`, `CookiebotOnDecline`) e da `getCkyConsent()` e l'evento `cookieyes_consent_update`. Quando si revoca una categoria i cui script sono già partiti, la pagina si ricarica, così si fermano.
+
+Il pulsante **Preferenze cookie** di un contenuto trattenuto, le voci di menu con `#cookie-preferences`, il blocco **Pulsante preferenze cookie** e gli elementi `[data-cx-open]` aprono le preferenze del CMP (`_iub.cs.api.openPreferences()`, `Cookiebot.renew()`, il banner di CookieYes). **Accetta e mostra** dà il consenso al Marketing tramite il CMP (`_iub.cs.api.setPreferences()`, `Cookiebot.submitCustomConsent()`, `performBannerAction('accept_partial')` di CookieYes con i suoi interruttori) e apre il CMP quando non è possibile. Gli altri script continuano a usare `window.cleitextConsent.get()`, `window.cleitextConsent.open()` e l'evento `cleitext:consent`; `window.cleitextConsent.allow('marketing')` chiede una categoria al CMP.
+
+**Google Consent Mode**, se attiva (o attivata da Analytics), la imposta il gestore dei consensi per impostazione predefinita: iubenda riceve `googleConsentMode: true`; lascia attivo il Consent Mode in Cookiebot (il predefinito); attiva _Support Google Consent Mode (GCM)_ in CookieYes. Il plugin allora non emette valori predefiniti propri, così non vengono mai inviati due volte. Scegli invece **Questo plugin** perché sia il plugin a impostare i valori predefiniti (tutto negato) prima del CMP e a inviare gli aggiornamenti: `googleConsentMode` di iubenda e il Consent Mode di Cookiebot (`data-consentmode="disabled"`) vengono disattivati per te, mentre in CookieYes spegni tu il GCM.
+
+**Registro dei consensi**: il CMP registra ogni consenso come prova e lo conserva nella sua dashboard, quindi il registro di questo plugin non viene scritto (`/_privacy/consent` risponde 404); le registrazioni fatte prima restano. La tabella dei cookie elenca il cookie di consenso del CMP (`_iub_cs-<id>`, `CookieConsent`, `cookieyes-consent`) al posto di `cx_consent`.
+
+**Policy**: con iubenda, **Mostra la privacy e cookie policy di iubenda nelle pagine delle policy** fa creare a **Privacy → Policy** pagine con il blocco **Policy del gestore dei consensi**, che mostra la policy di iubenda nella lingua della pagina con il suo codice ufficiale: un link che la apre (tutti i piani) o il testo nella pagina (`iub-body-embed`, piani Advanced e Ultimate); il blocco **Tabella dei cookie** mostra la cookie policy di iubenda. Con Cookiebot, **Mostra la dichiarazione dei cookie di Cookiebot** fa mostrare al blocco **Tabella dei cookie** la dichiarazione dei cookie trovati da Cookiebot (`cd.js`); la privacy policy resta quella scritta qui. Con CookieYes restano le policy scritte qui.
+
+**Content Security Policy**: le pagine pubbliche di Cleitext inviano una policy che vieta solo i plugin del browser, il dirottamento di `<base>` e l'inclusione in frame da altri siti, quindi script e frame dei CMP non richiedono nulla. Una policy più severa aggiunta da un proxy deve permettere le loro origini: `cdn.iubenda.com`, `www.iubenda.com`, `cs.iubenda.com`; `consent.cookiebot.com`, `consentcdn.cookiebot.com`; `cdn-cookieyes.com`, `log.cookieyes.com`.
+
+Il controllo **Font da Google** e gli altri controlli funzionano allo stesso modo con un gestore dei consensi.
+
 ## Registro dei consensi
 
-Ogni scelta viene registrata come prova (art. 7.1 GDPR): un id casuale conservato nel cookie `cx_consent` del visitatore, le categorie, la versione del banner, l'IP senza l'ultima parte e il browser. **Privacy → Registro consensi** mostra i totali e le ultime scelte, e le scarica tutte in CSV. Le registrazioni più vecchie del periodo di conservazione (24 mesi di default) vengono cancellate.
+Ogni scelta viene registrata come prova (art. 7.1 GDPR): un id casuale conservato nel cookie `cx_consent` del visitatore, le categorie, la versione del banner, l'IP senza l'ultima parte e il browser. **Privacy → Registro consensi** mostra i totali e le ultime scelte, e le scarica tutte in CSV. Le registrazioni più vecchie del periodo di conservazione (24 mesi di default) vengono cancellate. Con un gestore dei consensi esterno il registro lo tiene lui (vedi sopra).
 
 ## Policy
 

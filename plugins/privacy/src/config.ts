@@ -60,6 +60,49 @@ export interface PrivacyConfig {
   pages: Record<string, { privacy?: string; cookies?: string }>;
   /** Consent records older than this are deleted. */
   consentRetentionMonths: number;
+  /** An external consent manager instead of the built-in banner. */
+  cmp: CmpConfig;
+}
+
+/** External consent managers (CMPs) the plugin can work with. */
+export const CMP_PROVIDERS = ['iubenda', 'cookiebot', 'cookieyes'] as const;
+export type CmpProvider = (typeof CMP_PROVIDERS)[number];
+
+export interface CmpConfig {
+  /** `none`: the built-in banner. */
+  provider: 'none' | CmpProvider;
+  /**
+   * Who sets Google Consent Mode, when it is on: the CMP (`cmp`, it emits
+   * the defaults and updates itself) or this plugin (`privacy`: the CMP's
+   * own Consent Mode must then be off).
+   */
+  consentMode: 'cmp' | 'privacy';
+  /** Policy pages show the CMP's policy (iubenda) or cookie declaration (iubenda, Cookiebot). */
+  policies: boolean;
+  iubenda: {
+    /** The site's ID, the same for every language. */
+    siteId: string;
+    /** The cookie policy's ID (also the privacy policy's), for the default language. */
+    cookiePolicyId: string;
+    /** Other policy IDs by site language (iubenda has one policy per language). */
+    cookiePolicyIds: Record<string, string>;
+    /** Banner language: empty follows the page's language, or a fixed code such as `it`. */
+    lang: string;
+    /** Extra `_iub.csConfiguration` options, as a JSON object. */
+    options: string;
+    /** Policies as a link opening iubenda's window (all plans) or as text in the page (Advanced, Ultimate). */
+    embed: 'button' | 'text';
+  };
+  cookiebot: {
+    /** The domain group ID. */
+    cbid: string;
+    /** `manual`: scripts are held by this plugin; `auto`: Cookiebot rewrites them. */
+    blocking: 'manual' | 'auto';
+  };
+  cookieyes: {
+    /** The site key, from `https://cdn-cookieyes.com/client_data/<key>/script.js`. */
+    key: string;
+  };
 }
 
 export const DEFAULT_CONFIG: PrivacyConfig = {
@@ -96,6 +139,21 @@ export const DEFAULT_CONFIG: PrivacyConfig = {
   },
   pages: {},
   consentRetentionMonths: 24,
+  cmp: {
+    provider: 'none',
+    consentMode: 'cmp',
+    policies: false,
+    iubenda: {
+      siteId: '',
+      cookiePolicyId: '',
+      cookiePolicyIds: {},
+      lang: '',
+      options: '',
+      embed: 'button',
+    },
+    cookiebot: { cbid: '', blocking: 'manual' },
+    cookieyes: { key: '' },
+  },
 };
 
 /** The saved settings over the defaults, so new options get a value. */
@@ -109,7 +167,73 @@ export function withDefaults(saved: Partial<PrivacyConfig> | null): PrivacyConfi
     processing: { ...DEFAULT_CONFIG.processing, ...value.processing },
     cookies: value.cookies ?? DEFAULT_CONFIG.cookies,
     pages: value.pages ?? {},
+    cmp: {
+      ...DEFAULT_CONFIG.cmp,
+      ...value.cmp,
+      iubenda: { ...DEFAULT_CONFIG.cmp.iubenda, ...value.cmp?.iubenda },
+      cookiebot: { ...DEFAULT_CONFIG.cmp.cookiebot, ...value.cmp?.cookiebot },
+      cookieyes: { ...DEFAULT_CONFIG.cmp.cookieyes, ...value.cmp?.cookieyes },
+    },
   };
+}
+
+export const CMP_PATTERNS = {
+  /** iubenda: numeric IDs. */
+  iubendaId: /^\d{4,12}$/,
+  /** Cookiebot: a UUID. */
+  cbid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  /** CookieYes: letters and digits. */
+  cookieyesKey: /^[a-z0-9]{16,64}$/i,
+  lang: /^[a-z]{2,3}([-_][A-Za-z]{2,4})?$/,
+};
+
+/** The CookieYes key from the key itself, the script's address or its whole tag. */
+export function cookieyesKey(input: string): string {
+  const value = input.trim();
+  const fromUrl = /client_data\/([A-Za-z0-9]+)\/script\.js/.exec(value);
+  return fromUrl ? fromUrl[1]! : value;
+}
+
+/** The extra iubenda options as an object, or null when they are not a JSON object. */
+export function iubendaOptions(json: string): Record<string, unknown> | null {
+  if (!json.trim()) return {};
+  try {
+    const value: unknown = JSON.parse(json);
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export type CmpProblem =
+  | 'iubenda.siteId'
+  | 'iubenda.cookiePolicyId'
+  | 'iubenda.cookiePolicyIds'
+  | 'iubenda.lang'
+  | 'iubenda.options'
+  | 'cookiebot.cbid'
+  | 'cookieyes.key';
+
+/** What is missing or malformed for the chosen consent manager. */
+export function cmpProblems(cmp: CmpConfig): CmpProblem[] {
+  const problems: CmpProblem[] = [];
+  if (cmp.provider === 'iubenda') {
+    const i = cmp.iubenda;
+    if (!CMP_PATTERNS.iubendaId.test(i.siteId)) problems.push('iubenda.siteId');
+    if (!CMP_PATTERNS.iubendaId.test(i.cookiePolicyId)) problems.push('iubenda.cookiePolicyId');
+    if (Object.values(i.cookiePolicyIds).some((id) => id && !CMP_PATTERNS.iubendaId.test(id))) {
+      problems.push('iubenda.cookiePolicyIds');
+    }
+    if (i.lang && !CMP_PATTERNS.lang.test(i.lang)) problems.push('iubenda.lang');
+    if (iubendaOptions(i.options) === null) problems.push('iubenda.options');
+  } else if (cmp.provider === 'cookiebot') {
+    if (!CMP_PATTERNS.cbid.test(cmp.cookiebot.cbid)) problems.push('cookiebot.cbid');
+  } else if (cmp.provider === 'cookieyes') {
+    if (!CMP_PATTERNS.cookieyesKey.test(cmp.cookieyes.key)) problems.push('cookieyes.key');
+  }
+  return problems;
 }
 
 /** Texts of the public side, by language (others use English). */

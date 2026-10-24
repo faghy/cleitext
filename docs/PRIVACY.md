@@ -30,9 +30,39 @@ In **Privacy → Cookie banner**, paste the code of analytics, ads or pixels int
 
 Scripts of the site can read the choice: `window.cleitextConsent.get()` returns the accepted categories, `window.cleitextConsent.open()` opens the banner, and the `cleitext:consent` event fires on every choice.
 
+## Consent managers: iubenda, Cookiebot, CookieYes
+
+Sites that already use an external consent manager (CMP) choose it in **Privacy → Cookie banner → Consent manager**; **Privacy (built-in banner)** stays the default, and nothing is loaded from a CMP until one is chosen. Each choice links to the CMP's dashboard and says where to find its IDs, which are checked as they are typed:
+
+- **iubenda** (Cookie Solution): the site ID and the cookie policy ID (numbers, in Cookie Solution → Embed). iubenda has one policy per language: on a multilingual site give the ID of each language. The banner speaks the language of the page, or a fixed one; more `_iub.csConfiguration` options can be added as JSON (`siteId`, `cookiePolicyId`, `lang` and the callbacks are set by the plugin; `perPurposeConsent` is on).
+- **Cookiebot** (Usercentrics): the domain group ID (cbid), and the blocking mode. **Manual** (the default) leaves the holding of scripts and embeds to this plugin; **automatic** makes Cookiebot rewrite the page's scripts by itself, which may clash with the scripts held here: use it only for something that is not held otherwise. The banner language follows the page (`data-culture`).
+- **CookieYes**: the site key, taken from the installation code or the script address (`https://cdn-cookieyes.com/client_data/<key>/script.js`) when pasted. Turn on its language detection for the banner in the page's language.
+
+With a consent manager, the built-in banner, its corner button and the `cx_consent` cookie are off, and the CMP's official script is the first one in `<head>`, after the Google Consent Mode defaults when this plugin sets them. Everything held keeps waiting for consent: scripts pasted by category, `type="text/plain" data-cx-category` scripts, `data-cx-src` iframes and the videos, maps and posts of other sites. A small script follows the CMP's choice, when the page opens and whenever it changes, and releases them by category:
+
+| Category here | iubenda (purposes)           | Cookiebot                       | CookieYes                  |
+| ------------- | ---------------------------- | ------------------------------- | -------------------------- |
+| Preferences   | 2 Interactions, 3 Experience | `Cookiebot.consent.preferences` | `functional`               |
+| Statistics    | 4 Measurement                | `Cookiebot.consent.statistics`  | `analytics`, `performance` |
+| Marketing     | 5 Marketing                  | `Cookiebot.consent.marketing`   | `advertisement`            |
+
+The choice is read from `_iub.cs.api.getPreferences()` (on `onPreferenceExpressedOrNotNeeded` and the other callbacks; when iubenda says no consent is needed, everything is released), from `Cookiebot.consent` (on `CookiebotOnConsentReady`, `CookiebotOnAccept`, `CookiebotOnDecline`) and from `getCkyConsent()` and the `cookieyes_consent_update` event. When a category whose scripts already ran is withdrawn, the page loads again, so they stop.
+
+The **Cookie preferences** button of a held embed, menu items with `#cookie-preferences`, the **Cookie preferences button** block and `[data-cx-open]` elements open the CMP's preferences (`_iub.cs.api.openPreferences()`, `Cookiebot.renew()`, CookieYes's banner). **Accept and show** gives consent to Marketing through the CMP (`_iub.cs.api.setPreferences()`, `Cookiebot.submitCustomConsent()`, CookieYes's `performBannerAction('accept_partial')` with its switches) and opens the CMP when that is not possible. Other scripts keep using `window.cleitextConsent.get()`, `window.cleitextConsent.open()` and the `cleitext:consent` event; `window.cleitextConsent.allow('marketing')` asks the CMP for a category.
+
+**Google Consent Mode**, when on (or turned on by Analytics), is set by the consent manager by default: iubenda gets `googleConsentMode: true`; keep Consent Mode on in Cookiebot (the default); turn on _Support Google Consent Mode (GCM)_ in CookieYes. The plugin then emits no defaults of its own, so they are never sent twice. Choose **This plugin** instead to have the plugin set the defaults (all denied) before the CMP and send the updates: iubenda's `googleConsentMode` and Cookiebot's Consent Mode (`data-consentmode="disabled"`) are turned off for you, and in CookieYes switch GCM off yourself.
+
+**Consent log**: the CMP records every consent as proof and keeps it in its dashboard, so this plugin's log is not written (`/_privacy/consent` answers 404); the records written before stay. The cookie table lists the CMP's consent cookie (`_iub_cs-<id>`, `CookieConsent`, `cookieyes-consent`) instead of `cx_consent`.
+
+**Policies**: with iubenda, **Show iubenda's privacy and cookie policy in the policy pages** makes **Privacy → Policies** create pages with the **Policy of the consent manager** block, which shows iubenda's policy in the page's language with its official embed: a link opening it (all plans) or its text in the page (`iub-body-embed`, Advanced and Ultimate plans); the **Cookie table** block shows iubenda's cookie policy. With Cookiebot, **Show Cookiebot's cookie declaration** makes the **Cookie table** block show the declaration of the cookies Cookiebot found (`cd.js`); the privacy policy stays the one written here. With CookieYes the policies written here stay.
+
+**Content Security Policy**: Cleitext's public pages send a policy that only forbids plugins, `<base>` hijacking and framing by other sites, so the CMPs' scripts and frames need nothing. A stricter policy added by a proxy must allow their origins: `cdn.iubenda.com`, `www.iubenda.com`, `cs.iubenda.com`; `consent.cookiebot.com`, `consentcdn.cookiebot.com`; `cdn-cookieyes.com`, `log.cookieyes.com`.
+
+The **Fonts from Google** check and the other checks work the same with a consent manager.
+
 ## Consent log
 
-Every choice is recorded as proof (GDPR art. 7.1): a random id kept in the visitor's cookie `cx_consent`, the categories, the banner version, the IP without its last part and the browser. **Privacy → Consent log** shows the totals and the latest choices, and downloads them all as CSV. Records older than the retention period (24 months by default) are deleted.
+Every choice is recorded as proof (GDPR art. 7.1): a random id kept in the visitor's cookie `cx_consent`, the categories, the banner version, the IP without its last part and the browser. **Privacy → Consent log** shows the totals and the latest choices, and downloads them all as CSV. Records older than the retention period (24 months by default) are deleted. With an external consent manager the log is kept by it (see above).
 
 ## Policies
 

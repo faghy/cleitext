@@ -96,9 +96,16 @@ export function gateEmbeds(html: string, texts: EmbedTexts, color = '#0f4c81'): 
   return html.slice(0, start) + body;
 }
 
-/** Google Consent Mode v2 defaults, before any Google tag: everything denied until chosen. */
-export function consentModeScript(version: string): string {
-  return `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}(function(){var g={ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'denied',personalization_storage:'denied',security_storage:'granted',wait_for_update:500};try{var m=document.cookie.match(/(?:^|; )cx_consent=([^;]*)/);var c=m&&JSON.parse(decodeURIComponent(m[1]));if(c&&c.v===${JSON.stringify(version)}){var k=c.c||[];if(k.indexOf('statistics')>=0)g.analytics_storage='granted';if(k.indexOf('marketing')>=0){g.ad_storage='granted';g.ad_user_data='granted';g.ad_personalization='granted';}if(k.indexOf('preferences')>=0){g.functionality_storage='granted';g.personalization_storage='granted';}}}catch(e){}gtag('consent','default',g);})();</script>`;
+/**
+ * Google Consent Mode v2 defaults, before any Google tag: everything denied
+ * until chosen. With `fromCookie`, a choice already made in the built-in
+ * banner is the default (with an external CMP the bridge updates instead).
+ */
+export function consentModeScript(version: string, fromCookie = true): string {
+  const saved = fromCookie
+    ? `try{var m=document.cookie.match(/(?:^|; )cx_consent=([^;]*)/);var c=m&&JSON.parse(decodeURIComponent(m[1]));if(c&&c.v===${JSON.stringify(version)}){var k=c.c||[];if(k.indexOf('statistics')>=0)g.analytics_storage='granted';if(k.indexOf('marketing')>=0){g.ad_storage='granted';g.ad_user_data='granted';g.ad_personalization='granted';}if(k.indexOf('preferences')>=0){g.functionality_storage='granted';g.personalization_storage='granted';}}}catch(e){}`
+    : '';
+  return `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}(function(){var g={ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'denied',personalization_storage:'denied',security_storage:'granted',wait_for_update:500};${saved}gtag('consent','default',g);})();</script>`;
 }
 
 export interface BannerLinks {
@@ -192,8 +199,23 @@ const STYLE = `.cx-consent{position:fixed;z-index:2147483000;box-sizing:border-b
 @media (max-width:40rem){.cx-consent--box{left:.5rem;right:.5rem;bottom:.5rem;max-width:none}.cx-consent__button{flex:1 1 auto}}
 @media print{.cx-consent,.cx-consent-reopen{display:none!important}}`;
 
+/**
+ * Shared by the built-in banner and the bridge of the external consent
+ * managers: `release` runs the held scripts and loads the held iframes of the
+ * accepted categories (`mark` hears each category released), `consentUpdate`
+ * sends the choice to Google Consent Mode, `wire` makes the buttons of an
+ * embed's notice answer (`allow(category)`, `open()`).
+ */
+export const SHARED_SCRIPT = `function release(ok,mark){
+Array.prototype.forEach.call(document.querySelectorAll('script[type="text/plain"][data-cx-category]'),function(s){var k=s.getAttribute('data-cx-category');if(ok.indexOf(k)<0)return;if(mark)mark(k);var n=document.createElement('script');for(var i=0;i<s.attributes.length;i++){var a=s.attributes[i];if(a.name!=='type'&&a.name!=='data-cx-category'&&a.name!=='data-cx-type')n.setAttribute(a.name,a.value);}var t=s.getAttribute('data-cx-type');if(t)n.type=t;n.text=s.text;s.parentNode.replaceChild(n,s);});
+Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][data-cx-category]'),function(f){var k=f.getAttribute('data-cx-category');if(ok.indexOf(k)>=0&&!f.getAttribute('src')){if(mark)mark(k);var n=f.cloneNode(false);n.removeAttribute('srcdoc');n.removeAttribute('loading');n.setAttribute('src',f.getAttribute('data-cx-src'));f.parentNode.replaceChild(n,f);}});}
+function consentUpdate(ok){if(typeof window.gtag==='function'){var has=function(k){return ok.indexOf(k)>=0?'granted':'denied';};window.gtag('consent','update',{analytics_storage:has('statistics'),ad_storage:has('marketing'),ad_user_data:has('marketing'),ad_personalization:has('marketing'),functionality_storage:has('preferences'),personalization_storage:has('preferences')});}}
+function wire(f,allow,open){try{var d=f.contentDocument;if(!d||!d.body||d.body.getAttribute('data-cx-wired'))return;d.body.setAttribute('data-cx-wired','1');d.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-cx-allow],[data-cx-open]');if(!b)return;e.preventDefault();if(b.hasAttribute('data-cx-allow'))allow(b.getAttribute('data-cx-allow'));else open();});}catch(x){}}
+function wireAll(allow,open){Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][srcdoc]'),function(f){f.addEventListener('load',function(){wire(f,allow,open);});wire(f,allow,open);});}`;
+
 /** Plain ES2017, no dependencies: runs on every page, before or without any framework. */
 const SCRIPT = `(function(){
+${SHARED_SCRIPT}
 var root=document.getElementById('cx-consent');if(!root)return;
 var V=root.getAttribute('data-version'),M=+root.getAttribute('data-months')||6;
 var OFFERED=(root.getAttribute('data-categories')||'').split(',').filter(Boolean);
@@ -208,9 +230,8 @@ document.cookie='cx_consent='+encodeURIComponent(JSON.stringify(c))+'; Path=/; M
 try{fetch('CONSENT_PATH',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:c.id,categories:cats,version:V}),keepalive:true,credentials:'same-origin'});}catch(e){}
 return c;}
 function apply(c){var ok=c?c.c:[];
-Array.prototype.forEach.call(document.querySelectorAll('script[type="text/plain"][data-cx-category]'),function(s){if(ok.indexOf(s.getAttribute('data-cx-category'))<0)return;var n=document.createElement('script');for(var i=0;i<s.attributes.length;i++){var a=s.attributes[i];if(a.name!=='type'&&a.name!=='data-cx-category'&&a.name!=='data-cx-type')n.setAttribute(a.name,a.value);}var t=s.getAttribute('data-cx-type');if(t)n.type=t;n.text=s.text;s.parentNode.replaceChild(n,s);});
-Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][data-cx-category]'),function(f){if(ok.indexOf(f.getAttribute('data-cx-category'))>=0&&!f.getAttribute('src')){var n=f.cloneNode(false);n.removeAttribute('srcdoc');n.removeAttribute('loading');n.setAttribute('src',f.getAttribute('data-cx-src'));f.parentNode.replaceChild(n,f);}});
-if(CM&&typeof window.gtag==='function'){var has=function(k){return ok.indexOf(k)>=0?'granted':'denied';};window.gtag('consent','update',{analytics_storage:has('statistics'),ad_storage:has('marketing'),ad_user_data:has('marketing'),ad_personalization:has('marketing'),functionality_storage:has('preferences'),personalization_storage:has('preferences')});}
+release(ok);
+if(CM)consentUpdate(ok);
 window.cleitextConsent.categories=ok.slice();
 try{document.dispatchEvent(new CustomEvent('cleitext:consent',{detail:{categories:ok.slice()}}));}catch(e){}}
 function boxes(){return root.querySelectorAll('input[name="cx-category"]');}
@@ -220,8 +241,7 @@ function hide(){root.hidden=true;if(reopen)reopen.hidden=!read();if(lastFocus&&l
 function done(cats){apply(write(cats));hide();}
 window.cleitextConsent={categories:[],open:function(){show(true);},get:function(){var c=read();return c?c.c.slice():[];}};
 function allow(k){var c=read();var cats=c?c.c.slice():[];if(cats.indexOf(k)<0)cats.push(k);done(cats);}
-function wire(f){try{var d=f.contentDocument;if(!d||!d.body||d.body.getAttribute('data-cx-wired'))return;d.body.setAttribute('data-cx-wired','1');d.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-cx-allow],[data-cx-open]');if(!b)return;e.preventDefault();if(b.hasAttribute('data-cx-allow'))allow(b.getAttribute('data-cx-allow'));else show(true);});}catch(x){}}
-Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][srcdoc]'),function(f){f.addEventListener('load',function(){wire(f);});wire(f);});
+wireAll(allow,function(){show(true);});
 root.addEventListener('click',function(e){var b=e.target.closest('[data-cx]');if(!b)return;var k=b.getAttribute('data-cx');
 if(k==='accept')done(OFFERED.slice());else if(k==='reject')done([]);else if(k==='customize'){customize(true);var first=boxes()[0];if(first)first.focus();}
 else if(k==='save')done(Array.prototype.filter.call(boxes(),function(x){return x.checked;}).map(function(x){return x.value;}));});

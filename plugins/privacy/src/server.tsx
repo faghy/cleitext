@@ -7,15 +7,20 @@ import {
 } from '@cleitext/plugin-sdk';
 import { count, desc, eq, lt, sql } from 'drizzle-orm';
 import { bannerHtml, CONSENT_PATH, consentModeScript, gateEmbeds } from './banner';
+import { activeCmp, cmpBodyHtml, cmpCookie, cmpHasPolicy, cmpHeadHtml, cmpPolicyHtml } from './cmp';
 import {
   CATEGORIES,
   categoryLabel,
+  CMP_PROVIDERS,
+  cmpProblems,
+  cookieyesKey,
   textsFor,
   withDefaults,
+  type CmpConfig,
   type CookieRow,
   type PrivacyConfig,
 } from './config';
-import { policy, type PolicyKind } from './policies';
+import { cmpPolicy, policy, type PolicyKind } from './policies';
 import { consents, requests } from './schema';
 
 const CACHE_TAG = 'privacy';
@@ -88,6 +93,10 @@ function cleanConfig(input: unknown, current: PrivacyConfig): PrivacyConfig {
     const entry = { privacy: uuid(v.privacy), cookies: uuid(v.cookies) };
     if (entry.privacy || entry.cookies) pages[locale] = entry;
   }
+  const cmp = (body.cmp ?? current.cmp) as Partial<CmpConfig>;
+  const iubenda = (cmp.iubenda ?? {}) as Partial<CmpConfig['iubenda']>;
+  const cookiebot = (cmp.cookiebot ?? {}) as Partial<CmpConfig['cookiebot']>;
+  const cookieyes = (cmp.cookieyes ?? {}) as Partial<CmpConfig['cookieyes']>;
   const next: PrivacyConfig = {
     banner: {
       enabled: bool(banner.enabled, current.banner.enabled),
@@ -123,6 +132,31 @@ function cleanConfig(input: unknown, current: PrivacyConfig): PrivacyConfig {
     },
     pages,
     consentRetentionMonths: Math.min(Math.max(Number(body.consentRetentionMonths) || 24, 6), 120),
+    cmp: {
+      provider: (CMP_PROVIDERS as readonly string[]).includes(String(cmp.provider))
+        ? (cmp.provider as CmpConfig['provider'])
+        : 'none',
+      consentMode: cmp.consentMode === 'privacy' ? 'privacy' : 'cmp',
+      policies: bool(cmp.policies, false),
+      iubenda: {
+        siteId: text(iubenda.siteId, 20),
+        cookiePolicyId: text(iubenda.cookiePolicyId, 20),
+        cookiePolicyIds: Object.fromEntries(
+          Object.entries((iubenda.cookiePolicyIds ?? {}) as Record<string, unknown>)
+            .filter(([k]) => /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(k))
+            .map(([k, v]) => [k, text(v, 20)])
+            .filter(([, v]) => v),
+        ),
+        lang: text(iubenda.lang, 10),
+        options: text(iubenda.options, 5000),
+        embed: iubenda.embed === 'text' ? 'text' : 'button',
+      },
+      cookiebot: {
+        cbid: text(cookiebot.cbid, 64),
+        blocking: cookiebot.blocking === 'auto' ? 'auto' : 'manual',
+      },
+      cookieyes: { key: cookieyesKey(text(cookieyes.key, 500)) },
+    },
   };
   // New categories or cookies: what visitors agreed to changed, so they answer again.
   const changed =
@@ -185,14 +219,21 @@ async function effective(ctx: PluginContext, siteId: string): Promise<Effective>
   };
 }
 
-/** Whether visitors see the banner. */
-const bannerShown = (e: Effective) => e.cfg.banner.enabled && e.cfg.banner.categories.length > 0;
+/** The external consent manager in use, when its settings are complete. */
+const cmpOf = (cfg: PrivacyConfig) =>
+  cfg.banner.enabled && cmpProblems(cfg.cmp).length === 0 ? activeCmp(cfg) : null;
+
+/** Whether visitors see the built-in banner. */
+const bannerShown = (e: Effective) =>
+  e.cfg.banner.enabled && e.cfg.banner.categories.length > 0 && !cmpOf(e.cfg);
 
 /** The cookie table: the banner's own cookie, the listed ones, those of the trackers. */
 function cookieRows(e: Effective, locale: string): CookieRow[] {
   const t = textsFor(locale);
   const rows: CookieRow[] = [];
-  if (bannerShown(e)) {
+  const cmpRow = cmpOf(e.cfg) ? cmpCookie(e.cfg.cmp, locale, t.consentCookie) : null;
+  if (cmpRow) rows.push(cmpRow);
+  else if (bannerShown(e)) {
     rows.push({
       name: 'cx_consent',
       provider: 'This site',
@@ -201,7 +242,9 @@ function cookieRows(e: Effective, locale: string): CookieRow[] {
       duration: `${e.cfg.banner.months} ${t.months}`,
     });
   }
-  rows.push(...e.cfg.cookies.filter((row) => row.name !== 'cx_consent'));
+  rows.push(
+    ...e.cfg.cookies.filter((row) => row.name !== 'cx_consent' && row.name !== cmpRow?.name),
+  );
   for (const tracker of e.trackers) {
     for (const cookie of tracker.cookies) {
       rows.push({
@@ -268,6 +311,24 @@ export default definePlugin({
       const e = await effective(ctx, context.siteId);
       const cfg = e.cfg;
       if (!cfg.banner.enabled) return html;
+      const cmp = cmpOf(cfg);
+      if (cmp) {
+        // The CMP's banner and record; the scripts and embeds are still held here.
+        const ownDefaults = cfg.banner.consentMode && cfg.cmp.consentMode === 'privacy';
+        const head = `${ownDefaults ? consentModeScript(e.version, false) : ''}${cmpHeadHtml(
+          cfg.cmp,
+          context.locale,
+          cfg.banner.consentMode,
+        )}`;
+        let page = html.replace(/<head\b[^>]*>/i, (tag) => `${tag}${head}`);
+        if (cfg.banner.categories.includes('marketing')) {
+          const t = textsFor(context.locale);
+          page = gateEmbeds(page, { ...t.embed, preferences: t.preferences }, cfg.banner.color);
+        }
+        const tail = cmpBodyHtml(cfg, cmp, e.version, cfg.banner.consentMode);
+        const close = page.lastIndexOf('</body>');
+        return close >= 0 ? `${page.slice(0, close)}${tail}${page.slice(close)}` : `${page}${tail}`;
+      }
       let out = html;
       if (cfg.banner.consentMode) {
         out = out.replace(/<head\b[^>]*>/i, (head) => `${head}${consentModeScript(e.version)}`);
@@ -294,6 +355,8 @@ export default definePlugin({
         if (!/^[A-Za-z0-9-]{8,64}$/.test(consentId)) return { status: 400 };
         if (!allowed(`${request.siteId}|${request.ip}`)) return { status: 429 };
         const { cfg } = await effective(ctx, request.siteId);
+        // An external consent manager keeps its own record.
+        if (cmpOf(cfg)) return { status: 404 };
         const chosen = Array.isArray(body.categories) ? body.categories : [];
         const categories = cfg.banner.categories.filter((c) => chosen.includes(c));
         await ctx.db.transaction(request.siteId, async (tx) => {
@@ -324,7 +387,7 @@ export default definePlugin({
     // ---- Blocks for the cookie policy -------------------------------------------------
 
     ctx.blocks.register(
-      defineBlock<Record<string, never>, CookieRow[]>({
+      defineBlock<Record<string, never>, { rows: CookieRow[]; declaration: string }>({
         type: 'privacy/cookie-table',
         title: { en: 'Cookie table', it: 'Tabella dei cookie' },
         description: {
@@ -335,10 +398,24 @@ export default definePlugin({
         category: 'widgets',
         async load(_attrs, context) {
           context.tag(CACHE_TAG);
-          return cookieRows(await effective(ctx, context.siteId), context.locale);
+          const e = await effective(ctx, context.siteId);
+          // The CMP's own cookie declaration, when chosen (Cookiebot, iubenda).
+          const declaration = cmpOf(e.cfg)
+            ? cmpPolicyHtml(e.cfg.cmp, 'cookies', context.locale)
+            : '';
+          return { rows: declaration ? [] : cookieRows(e, context.locale), declaration };
         },
-        render({ data, context }) {
+        render({ data: loaded, context }) {
           const t = textsFor(context.locale);
+          if (loaded?.declaration) {
+            return (
+              <div
+                className="privacy-cookie-declaration"
+                dangerouslySetInnerHTML={{ __html: loaded.declaration }}
+              />
+            );
+          }
+          const data = loaded?.rows;
           if (!data || data.length === 0) return <p>{t.noCookies}</p>;
           return (
             <figure className="wp-block-table privacy-cookie-table">
@@ -368,6 +445,45 @@ export default definePlugin({
               </table>
             </figure>
           );
+        },
+      }),
+    );
+
+    ctx.blocks.register(
+      defineBlock<{ kind: PolicyKind }, string>({
+        type: 'privacy/cmp-policy',
+        title: { en: 'Policy of the consent manager', it: 'Policy del gestore dei consensi' },
+        description: {
+          en: 'The privacy or cookie policy kept by iubenda, or the cookie declaration of Cookiebot, in the language of the page.',
+          it: 'La privacy o cookie policy gestita da iubenda, o la dichiarazione dei cookie di Cookiebot, nella lingua della pagina.',
+        },
+        icon: 'shield',
+        category: 'widgets',
+        attributes: [
+          {
+            name: 'kind',
+            type: 'select',
+            label: { en: 'Policy', it: 'Policy' },
+            options: [
+              { value: 'privacy', label: { en: 'Privacy policy', it: 'Privacy policy' } },
+              { value: 'cookies', label: { en: 'Cookie policy', it: 'Cookie policy' } },
+            ],
+            default: 'privacy',
+          },
+        ],
+        async load(attrs, context) {
+          context.tag(CACHE_TAG);
+          const cfg = await config(ctx, context.siteId);
+          if (!cmpOf(cfg)) return '';
+          return cmpPolicyHtml(
+            cfg.cmp,
+            attrs.kind === 'cookies' ? 'cookies' : 'privacy',
+            context.locale,
+          );
+        },
+        render({ data }) {
+          if (!data) return null;
+          return <div className="privacy-cmp-policy" dangerouslySetInnerHTML={{ __html: data }} />;
         },
       }),
     );
@@ -448,6 +564,18 @@ export default definePlugin({
       capability: 'manage_privacy',
       async handler(request) {
         const next = cleanConfig(request.body, await config(ctx, request.siteId));
+        const problems = cmpProblems(next.cmp);
+        if (problems.length > 0) {
+          return {
+            status: 400,
+            body: {
+              title: 'Bad Request',
+              status: 400,
+              detail: `Check the consent manager's settings: ${problems.join(', ')}.`,
+              problems,
+            },
+          };
+        }
         await ctx.storage.set(request.siteId, 'config', next);
         await ctx.cache.invalidate(request.siteId, [CACHE_TAG]);
         return { body: next };
@@ -464,6 +592,10 @@ export default definePlugin({
         const { cfg, trackers } = await effective(ctx, request.siteId);
         // The admin passes the site's name and address, as it shows them.
         const locale = text(request.query.locale, 20) || 'en';
+        // iubenda keeps the policies: the page shows them.
+        if (cfg.cmp.provider === 'iubenda' && cmpOf(cfg) && cmpHasPolicy(cfg.cmp, kind)) {
+          return { body: cmpPolicy(kind, locale) };
+        }
         const origin = /^https?:\/\/[^/]+$/.test(request.query.origin ?? '')
           ? request.query.origin!
           : `https://${request.headers.host ?? 'localhost'}`;
@@ -492,6 +624,7 @@ export default definePlugin({
             categories: e.cfg.banner.categories,
             consentMode: e.cfg.banner.consentMode,
             bannerShown: bannerShown(e),
+            cmp: cmpOf(e.cfg),
           },
         };
       },

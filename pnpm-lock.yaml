@@ -1237,6 +1237,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@opentelemetry/api@1.9.1)(pg@8.23.1)(postgres@3.4.9)
+      jsdom:
+        specifier: ^30.1.2
+        version: 30.1.2
       react:
         specifier: ^19.3.0
         version: 19.3.0

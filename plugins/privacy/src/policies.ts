@@ -398,3 +398,31 @@ function trackerBlocks(trackers: TrackerDeclaration[], it: boolean): CxdBlock[] 
     return [heading(escape(t.name), 3), paragraph(parts.join(' '))];
   });
 }
+
+/**
+ * A policy page kept by iubenda: its policy, in the page's language, with
+ * the cookie preferences button under the cookie policy.
+ */
+export function cmpPolicy(
+  kind: PolicyKind,
+  locale: string,
+): { title: string; slug: string; document: CxdDocument } {
+  const it = locale.toLowerCase().startsWith('it');
+  const blocks: CxdBlock[] = [{ id: id(), type: 'privacy/cmp-policy', v: 1, attrs: { kind } }];
+  if (kind === 'cookies') {
+    blocks.push(
+      heading(it ? 'Come scegliere' : 'How to choose'),
+      paragraph(
+        it
+          ? 'Puoi cambiare la tua scelta sui cookie in qualsiasi momento:'
+          : 'You can change your cookie choice at any time:',
+      ),
+      pluginBlock('privacy/preferences'),
+    );
+  }
+  return {
+    title: kind === 'privacy' ? 'Privacy policy' : 'Cookie policy',
+    slug: kind === 'privacy' ? 'privacy-policy' : 'cookie-policy',
+    document: { schema: 1, blocks } as CxdDocument,
+  };
+}

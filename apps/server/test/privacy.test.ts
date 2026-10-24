@@ -112,6 +112,9 @@ describe('cookie banner', () => {
     expect(html).toMatch(/data-cx="accept">Accept all</);
     // Nothing is pre-checked.
     expect(html).not.toMatch(/name="cx-category" value="\w+" checked/);
+    // Nothing of an external consent manager.
+    expect(html).not.toMatch(/iubenda|cookiebot|cookieyes/i);
+    expect(html).not.toContain('data-cmp=');
   });
 
   it('keeps scripts inert until consent, and sets Google Consent Mode defaults', async () => {
@@ -431,5 +434,189 @@ describe('requests about personal data', () => {
       (await admin.post('/api/v1/ext/privacy/requests', { kind: 'export', email: 'nope' }))
         .statusCode,
     ).toBe(400);
+  });
+});
+
+describe('external consent managers', () => {
+  const CBID = '1a2b3c4d-1111-2222-3333-444455556666';
+  let videoSlug: string;
+  const withCmp = async (cmp: Record<string, unknown>, banner: Record<string, unknown> = {}) => {
+    const current = await config();
+    return saveConfig({
+      ...current,
+      banner: { ...current.banner, ...banner },
+      cmp: { ...current.cmp, ...cmp },
+    });
+  };
+
+  beforeAll(async () => {
+    videoSlug = (
+      await publish('page', 'Video with a manager', {
+        document: {
+          schema: 1,
+          blocks: [
+            {
+              id: 'yt2',
+              type: 'core/embed',
+              v: 1,
+              attrs: { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+            },
+          ],
+        },
+      })
+    ).slug;
+  });
+
+  afterAll(async () => {
+    await withCmp({ provider: 'none', policies: false });
+  });
+
+  it('refuses IDs in the wrong format', async () => {
+    const current = await config();
+    const bad = await withCmp({
+      provider: 'iubenda',
+      iubenda: { ...current.cmp.iubenda, siteId: 'abc', cookiePolicyId: '123' },
+    });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json().problems).toEqual(['iubenda.siteId', 'iubenda.cookiePolicyId']);
+    const cookiebot = await withCmp({ provider: 'cookiebot', cookiebot: { cbid: 'x' } });
+    expect(cookiebot.json().problems).toEqual(['cookiebot.cbid']);
+    // Nothing was saved.
+    expect((await config()).cmp.provider).toBe('none');
+  });
+
+  it('iubenda: its script first in the head, no banner of this plugin, embeds still held', async () => {
+    const current = await config();
+    const saved = await withCmp({
+      provider: 'iubenda',
+      iubenda: {
+        ...current.cmp.iubenda,
+        siteId: '1234567',
+        cookiePolicyId: '7654321',
+        options: '{"banner":{"position":"float-bottom-center"}}',
+      },
+    });
+    expect(saved.statusCode).toBe(200);
+    const html = (await visitor.get('/')).body;
+    expect(html).toMatch(/<head[^>]*><script>\(function\(\)\{function n\(\)/);
+    expect(html).toContain('"siteId":1234567');
+    expect(html).toContain('"cookiePolicyId":7654321');
+    expect(html).toContain('"lang":"en"');
+    expect(html).toContain('"position":"float-bottom-center"');
+    // iubenda sets Google Consent Mode: not twice.
+    expect(html).toContain('"googleConsentMode":true');
+    expect(html).not.toContain('window.dataLayer=window.dataLayer||[];function gtag');
+    expect(html).toContain(
+      '<script src="https://cdn.iubenda.com/cs/iubenda_cs.js" charset="UTF-8" async></script>',
+    );
+    expect(html).toContain('<div id="cx-consent" hidden data-cmp="iubenda"');
+    expect(html).not.toContain('class="cx-consent ');
+    expect(html).not.toContain('cx-consent-reopen');
+    expect(html).not.toContain('CONSENT_PATH');
+    expect(html).not.toContain('/_privacy/consent');
+    // Scripts pasted by category stay inert, and the bridge releases them.
+    expect(html).toContain('<script type="text/plain" data-cx-category="statistics">track()');
+    expect(html).toContain('A.listen(sync)');
+
+    const video = (await visitor.get(`/${videoSlug}`)).body;
+    expect(video).toMatch(
+      /<iframe data-cx-category="marketing" data-cx-src="https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ[^"]*" srcdoc="[^"]*Accept and show/,
+    );
+    expect(video).not.toMatch(/<iframe[^>]*\ssrc="https:\/\/www\.youtube/);
+  });
+
+  it('does not write the consent log: the manager keeps it', async () => {
+    const before = (await admin.get('/api/v1/ext/privacy/consents')).json().total;
+    expect((await consent({ id: 'cmp123cmp456', categories: ['statistics'] })).statusCode).toBe(
+      404,
+    );
+    expect((await admin.get('/api/v1/ext/privacy/consents')).json().total).toBe(before);
+  });
+
+  it('iubenda: the policy pages show its policy in their language', async () => {
+    const current = await config();
+    await withCmp({
+      policies: true,
+      iubenda: { ...current.cmp.iubenda, cookiePolicyIds: { it: '1111111' } },
+    });
+    const draft = (await admin.get('/api/v1/ext/privacy/policy/privacy?locale=en')).json();
+    expect(draft.document.blocks.map((b: { type: string }) => b.type)).toEqual([
+      'privacy/cmp-policy',
+    ]);
+    const cookies = (await admin.get('/api/v1/ext/privacy/policy/cookies?locale=en')).json();
+    expect(cookies.document.blocks.map((b: { type: string }) => b.type)).toContain(
+      'privacy/preferences',
+    );
+    const page = await publish('page', 'iubenda privacy', {
+      slug: 'iubenda-privacy',
+      document: draft.document,
+    });
+    const html = (await visitor.get(`/${page.slug}`)).body;
+    expect(html).toContain(
+      '<a href="https://www.iubenda.com/privacy-policy/7654321" class="iubenda-white iubenda-noiframe iubenda-embed" title="Privacy Policy">',
+    );
+    expect(html).toContain('https://cdn.iubenda.com/iubenda.js');
+    // The Cookie table block shows iubenda's cookie policy.
+    const cookiePage = (await visitor.get('/cookie-policy')).body;
+    expect(cookiePage).toContain('https://www.iubenda.com/privacy-policy/7654321/cookie-policy');
+    expect(cookiePage).not.toContain('<code>cx_consent</code>');
+  });
+
+  it('Cookiebot: its script with Consent Mode left to this plugin, and its cookie declaration', async () => {
+    const saved = await withCmp({
+      provider: 'cookiebot',
+      consentMode: 'privacy',
+      policies: false,
+      cookiebot: { cbid: CBID, blocking: 'manual' },
+    });
+    expect(saved.statusCode).toBe(200);
+    const html = (await visitor.get('/')).body;
+    // The defaults (all denied, the old cx_consent cookie is not read), then Cookiebot.
+    expect(html).toMatch(
+      /<head[^>]*><script>window\.dataLayer=window\.dataLayer\|\|\[\];function gtag\(\)\{dataLayer\.push\(arguments\);\}\(function\(\)\{var g=\{[^}]*\};gtag\('consent','default',g\);\}\)\(\);<\/script><script id="Cookiebot" src="https:\/\/consent\.cookiebot\.com\/uc\.js" data-cbid="1a2b3c4d-1111-2222-3333-444455556666" data-culture="EN" data-consentmode="disabled"><\/script>/,
+    );
+    expect(html).toContain('data-cmp="cookiebot"');
+    expect(html).toContain('data-consent-mode="1"');
+    expect(html).not.toContain('data-blockingmode');
+    expect(html).not.toContain('class="cx-consent ');
+
+    // Its consent cookie in the cookie table.
+    expect((await visitor.get('/cookie-policy')).body).toContain('<code>CookieConsent</code>');
+    await withCmp({ policies: true, cookiebot: { cbid: CBID, blocking: 'auto' } });
+    expect((await visitor.get('/')).body).toContain('data-blockingmode="auto"');
+    const declaration = (await visitor.get('/cookie-policy')).body;
+    expect(declaration).toContain(
+      `<script id="CookieDeclaration" src="https://consent.cookiebot.com/${CBID}/cd.js" data-culture="EN" async></script>`,
+    );
+    // The privacy policy stays the one written here.
+    const draft = (await admin.get('/api/v1/ext/privacy/policy/privacy?locale=en')).json();
+    expect(draft.document.blocks[0].type).toBe('core/paragraph');
+  });
+
+  it('CookieYes: its script, with the key taken from the pasted code', async () => {
+    const saved = await withCmp({
+      provider: 'cookieyes',
+      consentMode: 'cmp',
+      cookieyes: {
+        key: '<script id="cookieyes" type="text/javascript" src="https://cdn-cookieyes.com/client_data/abcdef0123456789abcdef01/script.js"></script>',
+      },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().cmp.cookieyes.key).toBe('abcdef0123456789abcdef01');
+    const html = (await visitor.get('/')).body;
+    expect(html).toMatch(
+      /<head[^>]*><script id="cookieyes" src="https:\/\/cdn-cookieyes\.com\/client_data\/abcdef0123456789abcdef01\/script\.js"><\/script>/,
+    );
+    expect(html).toContain('class="cky-banner-element"');
+    expect(html).not.toContain("gtag('consent','default'");
+    const video = (await visitor.get(`/${videoSlug}`)).body;
+    expect(video).toContain('srcdoc=');
+  });
+
+  it('back to the built-in banner, nothing of the managers is left', async () => {
+    await withCmp({ provider: 'none' });
+    const html = (await visitor.get('/')).body;
+    expect(html).toContain('class="cx-consent ');
+    expect(html).not.toMatch(/iubenda|cookiebot|cookieyes/i);
   });
 });

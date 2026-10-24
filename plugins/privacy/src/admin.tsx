@@ -16,12 +16,17 @@ import { useState, type ReactNode } from 'react';
 import {
   CATEGORIES,
   categoryLabel,
+  cmpProblems,
+  cookieyesKey,
   textsFor,
   type Category,
+  type CmpConfig,
+  type CmpProblem,
   type CookieRow,
   type PrivacyConfig,
 } from './config';
 import { scanGoogleFonts } from './checks';
+import { CMP_DASHBOARDS, CMP_NAMES } from './cmp';
 
 type Tab = 'banner' | 'cookies' | 'policies' | 'requests' | 'consents';
 
@@ -30,6 +35,7 @@ interface TrackersView {
   categories: Category[];
   consentMode: boolean;
   bannerShown: boolean;
+  cmp: CmpConfig['provider'] | null;
 }
 
 interface ConsentStats {
@@ -132,7 +138,9 @@ function PrivacyPage(props: AdminPageProps) {
         />
       )}
       {tab === 'requests' && <RequestsTab {...props} tr={tr} />}
-      {tab === 'consents' && <ConsentsTab {...props} tr={tr} it={it} />}
+      {tab === 'consents' && (
+        <ConsentsTab {...props} tr={tr} it={it} cmp={saved.data?.cmp.provider ?? 'none'} />
+      )}
     </div>
   );
 }
@@ -255,6 +263,369 @@ function Labeled({ label, hint, children }: { label: string; hint?: string; chil
   );
 }
 
+/**
+ * An external consent manager (iubenda, Cookiebot, CookieYes) instead of the
+ * built-in banner: its IDs, checked as they are typed, and short instructions.
+ */
+function CmpCard({
+  cmp,
+  setCmp,
+  consentMode,
+  languages,
+  tr,
+}: {
+  cmp: CmpConfig;
+  setCmp: (update: (cmp: CmpConfig) => CmpConfig) => void;
+  consentMode: boolean;
+  languages: { code: string; name: string }[];
+  tr: Tr;
+}) {
+  const problems = new Set(cmpProblems(cmp));
+  const error = (key: CmpProblem, message: string) =>
+    problems.has(key) ? <span className="block text-xs text-red-700">{message}</span> : null;
+  const iub = (change: Partial<CmpConfig['iubenda']>) =>
+    setCmp((c) => ({ ...c, iubenda: { ...c.iubenda, ...change } }));
+  const provider = cmp.provider === 'none' ? null : cmp.provider;
+  return (
+    <Card title={tr('Consent manager', 'Gestore dei consensi')}>
+      <div className="space-y-3 text-sm">
+        <Labeled
+          label={tr('Who asks for consent', 'Chi chiede il consenso')}
+          hint={tr(
+            'With an external consent manager (CMP) its banner, its preferences window and its record of consents take the place of the built-in ones; scripts and embeds held here keep waiting for the consent it collects.',
+            'Con un gestore esterno (CMP) il suo banner, la sua finestra delle preferenze e il suo registro dei consensi prendono il posto di quelli integrati; script e contenuti incorporati trattenuti qui continuano ad aspettare il consenso che raccoglie.',
+          )}
+        >
+          <select
+            className={field}
+            value={cmp.provider}
+            onChange={(e) =>
+              setCmp((c) => ({ ...c, provider: e.target.value as CmpConfig['provider'] }))
+            }
+          >
+            <option value="none">
+              {tr('Privacy (built-in banner)', 'Privacy (banner integrato)')}
+            </option>
+            <option value="iubenda">iubenda (Cookie Solution)</option>
+            <option value="cookiebot">Cookiebot (Usercentrics)</option>
+            <option value="cookieyes">CookieYes</option>
+          </select>
+        </Labeled>
+
+        {provider && (
+          <p className="text-slate-600">
+            <a
+              className="text-sky-700 underline"
+              href={CMP_DASHBOARDS[provider]}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {tr(
+                `Open the ${CMP_NAMES[provider]} dashboard`,
+                `Apri la dashboard di ${CMP_NAMES[provider]}`,
+              )}{' '}
+              ↗
+            </a>
+          </p>
+        )}
+
+        {cmp.provider === 'iubenda' && (
+          <div className="space-y-3">
+            <p className="text-slate-600">
+              {tr(
+                'In iubenda, open the site, then Cookie Solution → Embed: the code shows "siteId" and "cookiePolicyId". iubenda has one policy per language, each with its own ID; the site ID is the same.',
+                'In iubenda apri il sito, poi Cookie Solution → Incorpora: il codice mostra "siteId" e "cookiePolicyId". iubenda ha una policy per lingua, ognuna con il suo ID; l’ID del sito è lo stesso.',
+              )}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Labeled label={tr('Site ID', 'ID del sito')}>
+                <input
+                  className={field}
+                  inputMode="numeric"
+                  value={cmp.iubenda.siteId}
+                  onChange={(e) => iub({ siteId: e.target.value.trim() })}
+                />
+                {error('iubenda.siteId', tr('A number, e.g. 1234567.', 'Un numero, es. 1234567.'))}
+              </Labeled>
+              <Labeled
+                label={tr('Cookie policy ID', 'ID della cookie policy')}
+                hint={
+                  languages.length > 1
+                    ? tr('For the main language.', 'Per la lingua principale.')
+                    : undefined
+                }
+              >
+                <input
+                  className={field}
+                  inputMode="numeric"
+                  value={cmp.iubenda.cookiePolicyId}
+                  onChange={(e) => iub({ cookiePolicyId: e.target.value.trim() })}
+                />
+                {error(
+                  'iubenda.cookiePolicyId',
+                  tr('A number, e.g. 12345678.', 'Un numero, es. 12345678.'),
+                )}
+              </Labeled>
+            </div>
+            {languages.length > 1 && (
+              <div className="space-y-2">
+                <p className="font-medium text-slate-800">
+                  {tr('Policy ID by language', 'ID della policy per lingua')}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {languages.map((l) => (
+                    <Labeled key={l.code} label={l.name}>
+                      <input
+                        className={field}
+                        inputMode="numeric"
+                        placeholder={cmp.iubenda.cookiePolicyId}
+                        value={cmp.iubenda.cookiePolicyIds[l.code] ?? ''}
+                        onChange={(e) =>
+                          iub({
+                            cookiePolicyIds: {
+                              ...cmp.iubenda.cookiePolicyIds,
+                              [l.code]: e.target.value.trim(),
+                            },
+                          })
+                        }
+                      />
+                    </Labeled>
+                  ))}
+                </div>
+                {error(
+                  'iubenda.cookiePolicyIds',
+                  tr('Each ID is a number.', 'Ogni ID è un numero.'),
+                )}
+              </div>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Labeled
+                label={tr('Banner language', 'Lingua del banner')}
+                hint={tr(
+                  'Empty: the language of each page. Or a fixed code such as it or en.',
+                  'Vuoto: la lingua di ogni pagina. Oppure un codice fisso come it o en.',
+                )}
+              >
+                <input
+                  className={field}
+                  value={cmp.iubenda.lang}
+                  onChange={(e) => iub({ lang: e.target.value.trim() })}
+                />
+                {error(
+                  'iubenda.lang',
+                  tr('A code such as it or pt-BR.', 'Un codice come it o pt-BR.'),
+                )}
+              </Labeled>
+              <Labeled
+                label={tr('Policies in the pages', 'Policy nelle pagine')}
+                hint={tr(
+                  'The text in the page needs the Advanced or Ultimate plan of iubenda.',
+                  'Il testo nella pagina richiede il piano Advanced o Ultimate di iubenda.',
+                )}
+              >
+                <select
+                  className={field}
+                  value={cmp.iubenda.embed}
+                  onChange={(e) => iub({ embed: e.target.value as 'button' | 'text' })}
+                >
+                  <option value="button">
+                    {tr('A link opening the policy', 'Un link che apre la policy')}
+                  </option>
+                  <option value="text">
+                    {tr('The text in the page', 'Il testo nella pagina')}
+                  </option>
+                </select>
+              </Labeled>
+            </div>
+            <Labeled
+              label={tr('More options (JSON, optional)', 'Altre opzioni (JSON, facoltativo)')}
+              hint={tr(
+                'Other keys of _iub.csConfiguration from the iubenda code, e.g. {"banner":{"position":"float-bottom-center"}}. siteId, cookiePolicyId, lang and the callbacks are set here.',
+                'Altre chiavi di _iub.csConfiguration dal codice di iubenda, es. {"banner":{"position":"float-bottom-center"}}. siteId, cookiePolicyId, lang e le callback sono impostati qui.',
+              )}
+            >
+              <textarea
+                rows={4}
+                className={`${field} font-mono text-xs`}
+                spellCheck={false}
+                value={cmp.iubenda.options}
+                onChange={(e) => iub({ options: e.target.value })}
+              />
+              {error('iubenda.options', tr('Not a JSON object.', 'Non è un oggetto JSON.'))}
+            </Labeled>
+          </div>
+        )}
+
+        {cmp.provider === 'cookiebot' && (
+          <div className="space-y-3">
+            <p className="text-slate-600">
+              {tr(
+                'In Cookiebot, Settings → Your scripts shows the domain group ID (cbid), e.g. 00000000-0000-0000-0000-000000000000. Add the site’s domain to the group.',
+                'In Cookiebot, Impostazioni → I tuoi script mostra l’ID del gruppo di domini (cbid), es. 00000000-0000-0000-0000-000000000000. Aggiungi il dominio del sito al gruppo.',
+              )}
+            </p>
+            <Labeled label={tr('Domain group ID (cbid)', 'ID del gruppo di domini (cbid)')}>
+              <input
+                className={`${field} font-mono`}
+                value={cmp.cookiebot.cbid}
+                onChange={(e) =>
+                  setCmp((c) => ({
+                    ...c,
+                    cookiebot: { ...c.cookiebot, cbid: e.target.value.trim() },
+                  }))
+                }
+              />
+              {error(
+                'cookiebot.cbid',
+                tr(
+                  'An ID like 00000000-0000-0000-0000-000000000000.',
+                  'Un ID come 00000000-0000-0000-0000-000000000000.',
+                ),
+              )}
+            </Labeled>
+            <Labeled
+              label={tr('Blocking mode', 'Modalità di blocco')}
+              hint={tr(
+                'Manual (recommended): this plugin holds scripts and embeds and releases them on Cookiebot’s consent. Automatic: Cookiebot rewrites the scripts of the page by itself, which may clash with the scripts held here; use it only if something is not held otherwise.',
+                'Manuale (consigliata): questo plugin trattiene script e contenuti incorporati e li rilascia con il consenso di Cookiebot. Automatica: Cookiebot riscrive da sé gli script della pagina, e può entrare in conflitto con quelli trattenuti qui; usala solo se qualcosa non viene trattenuto altrimenti.',
+              )}
+            >
+              <select
+                className={field}
+                value={cmp.cookiebot.blocking}
+                onChange={(e) =>
+                  setCmp((c) => ({
+                    ...c,
+                    cookiebot: { ...c.cookiebot, blocking: e.target.value as 'manual' | 'auto' },
+                  }))
+                }
+              >
+                <option value="manual">{tr('Manual', 'Manuale')}</option>
+                <option value="auto">
+                  {tr('Automatic (auto-blocking)', 'Automatica (auto-blocking)')}
+                </option>
+              </select>
+            </Labeled>
+          </div>
+        )}
+
+        {cmp.provider === 'cookieyes' && (
+          <div className="space-y-3">
+            <p className="text-slate-600">
+              {tr(
+                'In CookieYes, Advanced settings → Get installation code: paste the code or the script address (https://cdn-cookieyes.com/client_data/…/script.js); the key is taken from it. For the banner in the page’s language, turn on the language detection of CookieYes.',
+                'In CookieYes, Impostazioni avanzate → Ottieni il codice di installazione: incolla il codice o l’indirizzo dello script (https://cdn-cookieyes.com/client_data/…/script.js); la chiave viene presa da lì. Per il banner nella lingua della pagina attiva il rilevamento della lingua di CookieYes.',
+              )}
+            </p>
+            <Labeled label={tr('Site key', 'Chiave del sito')}>
+              <input
+                className={`${field} font-mono`}
+                value={cmp.cookieyes.key}
+                onChange={(e) =>
+                  setCmp((c) => ({ ...c, cookieyes: { key: cookieyesKey(e.target.value) } }))
+                }
+              />
+              {error(
+                'cookieyes.key',
+                tr(
+                  'The key of the script address, letters and digits.',
+                  'La chiave dell’indirizzo dello script, lettere e cifre.',
+                ),
+              )}
+            </Labeled>
+          </div>
+        )}
+
+        {provider && (
+          <>
+            {consentMode && (
+              <Labeled
+                label={tr('Google Consent Mode set by', 'Google Consent Mode impostato da')}
+                hint={
+                  cmp.consentMode === 'cmp'
+                    ? {
+                        iubenda: tr(
+                          'iubenda sets the defaults and the updates (googleConsentMode is turned on for you).',
+                          'iubenda imposta i valori predefiniti e gli aggiornamenti (googleConsentMode viene attivato per te).',
+                        ),
+                        cookiebot: tr(
+                          'Cookiebot sets the defaults and the updates: keep Google Consent Mode on in Cookiebot (the default).',
+                          'Cookiebot imposta i valori predefiniti e gli aggiornamenti: lascia attivo Google Consent Mode in Cookiebot (il predefinito).',
+                        ),
+                        cookieyes: tr(
+                          'Turn on “Support Google Consent Mode (GCM)” in CookieYes: it sets the defaults and the updates.',
+                          'Attiva “Support Google Consent Mode (GCM)” in CookieYes: imposta i valori predefiniti e gli aggiornamenti.',
+                        ),
+                      }[provider]
+                    : {
+                        iubenda: tr(
+                          'This plugin sets the defaults before iubenda and the updates; iubenda’s googleConsentMode is turned off for you.',
+                          'Questo plugin imposta i valori predefiniti prima di iubenda e gli aggiornamenti; googleConsentMode di iubenda viene disattivato per te.',
+                        ),
+                        cookiebot: tr(
+                          'This plugin sets the defaults before Cookiebot and the updates; Cookiebot’s Consent Mode is turned off for you (data-consentmode="disabled").',
+                          'Questo plugin imposta i valori predefiniti prima di Cookiebot e gli aggiornamenti; il Consent Mode di Cookiebot viene disattivato per te (data-consentmode="disabled").',
+                        ),
+                        cookieyes: tr(
+                          'This plugin sets the defaults and the updates: turn off “Support Google Consent Mode (GCM)” in CookieYes, or they are sent twice.',
+                          'Questo plugin imposta i valori predefiniti e gli aggiornamenti: disattiva “Support Google Consent Mode (GCM)” in CookieYes, altrimenti vengono inviati due volte.',
+                        ),
+                      }[provider]
+                }
+              >
+                <select
+                  className={field}
+                  value={cmp.consentMode}
+                  onChange={(e) =>
+                    setCmp((c) => ({ ...c, consentMode: e.target.value as 'cmp' | 'privacy' }))
+                  }
+                >
+                  <option value="cmp">{CMP_NAMES[provider]}</option>
+                  <option value="privacy">{tr('This plugin', 'Questo plugin')}</option>
+                </select>
+              </Labeled>
+            )}
+            {provider !== 'cookieyes' && (
+              <Check
+                label={
+                  provider === 'iubenda'
+                    ? tr(
+                        'Show iubenda’s privacy and cookie policy in the policy pages',
+                        'Mostra la privacy e cookie policy di iubenda nelle pagine delle policy',
+                      )
+                    : tr(
+                        'Show Cookiebot’s cookie declaration in place of the cookie table',
+                        'Mostra la dichiarazione dei cookie di Cookiebot al posto della tabella dei cookie',
+                      )
+                }
+                hint={
+                  provider === 'iubenda'
+                    ? tr(
+                        'Privacy → Policies then creates pages showing iubenda’s policy in each language; the Cookie table block shows iubenda’s cookie policy.',
+                        'Privacy → Policy crea allora pagine che mostrano la policy di iubenda in ogni lingua; il blocco Tabella dei cookie mostra la cookie policy di iubenda.',
+                      )
+                    : tr(
+                        'The Cookie table block shows the cookies Cookiebot found by scanning the site. The privacy policy stays the one written here.',
+                        'Il blocco Tabella dei cookie mostra i cookie trovati da Cookiebot analizzando il sito. La privacy policy resta quella scritta qui.',
+                      )
+                }
+                checked={cmp.policies}
+                onChange={(v) => setCmp((c) => ({ ...c, policies: v }))}
+              />
+            )}
+            <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
+              {tr(
+                'Consents are recorded by the consent manager, as proof: this plugin’s consent log is not written. The categories below still decide which scripts and embeds are held: preferences, statistics and marketing follow the consent manager’s categories (see the guide).',
+                'I consensi sono registrati dal gestore, come prova: il registro consensi di questo plugin non viene scritto. Le categorie qui sotto decidono ancora quali script e contenuti incorporati sono trattenuti: preferenze, statistiche e marketing seguono le categorie del gestore (vedi la guida).',
+              )}
+            </p>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function BannerTab({
   config,
   save,
@@ -270,6 +641,9 @@ function BannerTab({
   tr: Tr;
 }) {
   const [banner, setBanner] = useState(config.banner);
+  const [cmp, setCmp] = useState(config.cmp);
+  const external = cmp.provider !== 'none';
+  const cmpInvalid = cmpProblems(cmp).length > 0;
   const trackers = useQuery({
     queryKey: ['privacy', 'trackers', config],
     queryFn: () => api<TrackersView>('GET', '/trackers'),
@@ -308,9 +682,17 @@ function BannerTab({
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
-        save({ ...config, banner, consentRetentionMonths: retention });
+        save({ ...config, banner, cmp, consentRetentionMonths: retention });
       }}
     >
+      <CmpCard
+        cmp={cmp}
+        setCmp={setCmp}
+        consentMode={banner.consentMode || !!trackers.data?.consentMode}
+        languages={languages}
+        tr={tr}
+      />
+
       <Card title={tr('Tracking services', 'Servizi di tracciamento')}>
         {trackers.data && trackers.data.trackers.length > 0 ? (
           <div className="space-y-3 text-sm">
@@ -363,11 +745,25 @@ function BannerTab({
       <Card title={tr('Banner', 'Banner')}>
         <div className="space-y-3">
           <Check
-            label={tr('Show the cookie banner', 'Mostra il banner dei cookie')}
-            hint={tr(
-              'Needed when the site uses cookies or scripts that are not technical. With no category below, no banner is shown.',
-              'Serve se il sito usa cookie o script non tecnici. Senza nessuna categoria qui sotto, il banner non compare.',
-            )}
+            label={
+              external
+                ? tr(
+                    'Ask for consent with the consent manager',
+                    'Chiedi il consenso con il gestore dei consensi',
+                  )
+                : tr('Show the cookie banner', 'Mostra il banner dei cookie')
+            }
+            hint={
+              external
+                ? tr(
+                    'Off: neither the consent manager’s script nor the holding of scripts and embeds is added to the pages.',
+                    'Spento: né lo script del gestore né il blocco di script e contenuti incorporati vengono aggiunti alle pagine.',
+                  )
+                : tr(
+                    'Needed when the site uses cookies or scripts that are not technical. With no category below, no banner is shown.',
+                    'Serve se il sito usa cookie o script non tecnici. Senza nessuna categoria qui sotto, il banner non compare.',
+                  )
+            }
             checked={banner.enabled}
             onChange={(v) => set('enabled', v)}
           />
@@ -385,89 +781,95 @@ function BannerTab({
               />
             ))}
           </fieldset>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Labeled label={tr('Layout', 'Aspetto')}>
-              <select
-                className={field}
-                value={banner.layout}
-                onChange={(e) => set('layout', e.target.value as 'bar' | 'box')}
+          {!external && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Labeled label={tr('Layout', 'Aspetto')}>
+                <select
+                  className={field}
+                  value={banner.layout}
+                  onChange={(e) => set('layout', e.target.value as 'bar' | 'box')}
+                >
+                  <option value="bar">{tr('Bar at the bottom', 'Barra in basso')}</option>
+                  <option value="box">{tr('Box in a corner', 'Riquadro in un angolo')}</option>
+                </select>
+              </Labeled>
+              <Labeled label={tr('Color', 'Colore')}>
+                <input
+                  type="color"
+                  className="h-9 w-20 rounded border border-slate-300"
+                  value={banner.color}
+                  onChange={(e) => set('color', e.target.value)}
+                />
+              </Labeled>
+              <Labeled
+                label={tr('Ask again after (months)', 'Richiedi di nuovo dopo (mesi)')}
+                hint={tr('The Garante suggests at most 6.', 'Il Garante indica al massimo 6.')}
               >
-                <option value="bar">{tr('Bar at the bottom', 'Barra in basso')}</option>
-                <option value="box">{tr('Box in a corner', 'Riquadro in un angolo')}</option>
-              </select>
-            </Labeled>
-            <Labeled label={tr('Color', 'Colore')}>
-              <input
-                type="color"
-                className="h-9 w-20 rounded border border-slate-300"
-                value={banner.color}
-                onChange={(e) => set('color', e.target.value)}
-              />
-            </Labeled>
-            <Labeled
-              label={tr('Ask again after (months)', 'Richiedi di nuovo dopo (mesi)')}
-              hint={tr('The Garante suggests at most 6.', 'Il Garante indica al massimo 6.')}
-            >
-              <input
-                type="number"
-                min={1}
-                max={12}
-                className={field}
-                value={banner.months}
-                onChange={(e) => set('months', Number(e.target.value))}
-              />
-            </Labeled>
-          </div>
-          <Check
-            label={tr(
-              'Button to change the choice in a corner of every page',
-              'Pulsante per cambiare la scelta in un angolo di ogni pagina',
-            )}
-            hint={tr(
-              'Or add a menu item with the address #cookie-preferences, or the “Cookie preferences button” block.',
-              'Oppure aggiungi una voce di menu con indirizzo #cookie-preferences, o il blocco “Pulsante preferenze cookie”.',
-            )}
-            checked={banner.floatingButton}
-            onChange={(v) => set('floatingButton', v)}
-          />
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  className={field}
+                  value={banner.months}
+                  onChange={(e) => set('months', Number(e.target.value))}
+                />
+              </Labeled>
+            </div>
+          )}
+          {!external && (
+            <Check
+              label={tr(
+                'Button to change the choice in a corner of every page',
+                'Pulsante per cambiare la scelta in un angolo di ogni pagina',
+              )}
+              hint={tr(
+                'Or add a menu item with the address #cookie-preferences, or the “Cookie preferences button” block.',
+                'Oppure aggiungi una voce di menu con indirizzo #cookie-preferences, o il blocco “Pulsante preferenze cookie”.',
+              )}
+              checked={banner.floatingButton}
+              onChange={(v) => set('floatingButton', v)}
+            />
+          )}
         </div>
       </Card>
 
-      <Card title={tr('Texts', 'Testi')}>
-        <div className="space-y-4">
-          <p className="text-xs text-slate-500">
-            {tr(
-              'Leave empty to use the standard text.',
-              'Lascia vuoto per usare il testo standard.',
-            )}
-          </p>
-          {languages.map((l) => {
-            const t = textsFor(l.code);
-            return (
-              <div key={l.code} className="space-y-2">
-                <p className="text-sm font-semibold">{l.name}</p>
-                <TextField
-                  label={tr('Title', 'Titolo')}
-                  placeholder={t.title}
-                  value={banner.title[l.code] ?? ''}
-                  onChange={(e) => set('title', { ...banner.title, [l.code]: e.target.value })}
-                />
-                <Labeled label={tr('Message', 'Messaggio')}>
-                  <textarea
-                    rows={3}
-                    className={field}
-                    placeholder={t.message}
-                    value={banner.message[l.code] ?? ''}
-                    onChange={(e) =>
-                      set('message', { ...banner.message, [l.code]: e.target.value })
-                    }
+      {!external && (
+        <Card title={tr('Texts', 'Testi')}>
+          <div className="space-y-4">
+            <p className="text-xs text-slate-500">
+              {tr(
+                'Leave empty to use the standard text.',
+                'Lascia vuoto per usare il testo standard.',
+              )}
+            </p>
+            {languages.map((l) => {
+              const t = textsFor(l.code);
+              return (
+                <div key={l.code} className="space-y-2">
+                  <p className="text-sm font-semibold">{l.name}</p>
+                  <TextField
+                    label={tr('Title', 'Titolo')}
+                    placeholder={t.title}
+                    value={banner.title[l.code] ?? ''}
+                    onChange={(e) => set('title', { ...banner.title, [l.code]: e.target.value })}
                   />
-                </Labeled>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+                  <Labeled label={tr('Message', 'Messaggio')}>
+                    <textarea
+                      rows={3}
+                      className={field}
+                      placeholder={t.message}
+                      value={banner.message[l.code] ?? ''}
+                      onChange={(e) =>
+                        set('message', { ...banner.message, [l.code]: e.target.value })
+                      }
+                    />
+                  </Labeled>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <Card
         title={tr('Scripts loaded only after consent', 'Script caricati solo dopo il consenso')}
@@ -503,47 +905,51 @@ function BannerTab({
         </div>
       </Card>
 
-      <Card title={tr('Consent log', 'Registro consensi')}>
-        <Labeled
-          label={tr('Keep consent records for (months)', 'Conserva i consensi per (mesi)')}
-          hint={tr(
-            'Proof of consent (GDPR art. 7.1); older records are deleted.',
-            'Prova del consenso (art. 7.1 GDPR); i più vecchi vengono cancellati.',
-          )}
-        >
-          <input
-            type="number"
-            min={6}
-            max={120}
-            className={`${field} max-w-32`}
-            value={retention}
-            onChange={(e) => setRetention(Number(e.target.value))}
-          />
-        </Labeled>
-      </Card>
+      {!external && (
+        <Card title={tr('Consent log', 'Registro consensi')}>
+          <Labeled
+            label={tr('Keep consent records for (months)', 'Conserva i consensi per (mesi)')}
+            hint={tr(
+              'Proof of consent (GDPR art. 7.1); older records are deleted.',
+              'Prova del consenso (art. 7.1 GDPR); i più vecchi vengono cancellati.',
+            )}
+          >
+            <input
+              type="number"
+              min={6}
+              max={120}
+              className={`${field} max-w-32`}
+              value={retention}
+              onChange={(e) => setRetention(Number(e.target.value))}
+            />
+          </Labeled>
+        </Card>
+      )}
 
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || cmpInvalid}>
           {tr('Save', 'Salva')}
         </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={busy}
-          onClick={() => {
-            if (
-              window.confirm(
-                tr(
-                  'Ask every visitor to choose again?',
-                  'Chiedere di nuovo la scelta a tutti i visitatori?',
-                ),
+        {!external && (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => {
+              if (
+                window.confirm(
+                  tr(
+                    'Ask every visitor to choose again?',
+                    'Chiedere di nuovo la scelta a tutti i visitatori?',
+                  ),
+                )
               )
-            )
-              save({ ...config, banner, consentRetentionMonths: retention, askAgain: true });
-          }}
-        >
-          {tr('Save and ask everyone again', 'Salva e chiedi di nuovo a tutti')}
-        </Button>
+                save({ ...config, banner, cmp, consentRetentionMonths: retention, askAgain: true });
+            }}
+          >
+            {tr('Save and ask everyone again', 'Salva e chiedi di nuovo a tutti')}
+          </Button>
+        )}
       </div>
     </form>
   );
@@ -795,6 +1201,14 @@ function PoliciesTab({
         </div>
       </Card>
       <Card title={tr('Create the pages', 'Crea le pagine')}>
+        {config.cmp.provider === 'iubenda' && config.cmp.policies && (
+          <p className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            {tr(
+              'iubenda keeps the policies: the pages created here show iubenda’s policy in their language (the ID of that language in Cookie banner → Consent manager), with the “Policy of the consent manager” block.',
+              'iubenda gestisce le policy: le pagine create qui mostrano la policy di iubenda nella loro lingua (l’ID di quella lingua in Banner cookie → Gestore dei consensi), con il blocco “Policy del gestore dei consensi”.',
+            )}
+          </p>
+        )}
         <p className="mb-3 text-sm text-slate-600">
           {tr(
             'Each button saves the answers above and creates a draft page made of ordinary blocks, to review in the editor and publish. Once published, the banner links to it.',
@@ -991,7 +1405,13 @@ function RequestsTab({ api, tr, user }: AdminPageProps & { tr: Tr }) {
   );
 }
 
-function ConsentsTab({ api, tr, it, user }: AdminPageProps & { tr: Tr; it: boolean }) {
+function ConsentsTab({
+  api,
+  tr,
+  it,
+  user,
+  cmp,
+}: AdminPageProps & { tr: Tr; it: boolean; cmp: CmpConfig['provider'] }) {
   const stats = useQuery({
     queryKey: ['privacy', 'consents'],
     queryFn: () => api<ConsentStats>('GET', '/consents'),
@@ -1000,6 +1420,24 @@ function ConsentsTab({ api, tr, it, user }: AdminPageProps & { tr: Tr; it: boole
   const s = stats.data;
   return (
     <div className="space-y-4">
+      {cmp !== 'none' && (
+        <Card title={tr('Kept by the consent manager', 'Tenuto dal gestore dei consensi')}>
+          <p className="text-sm text-slate-600">
+            {tr(
+              `With ${CMP_NAMES[cmp]} the consents are recorded by ${CMP_NAMES[cmp]}, which keeps the proof (GDPR art. 7.1): see or export them from its dashboard. This log keeps the choices recorded before, and no new ones.`,
+              `Con ${CMP_NAMES[cmp]} i consensi sono registrati da ${CMP_NAMES[cmp]}, che ne conserva la prova (art. 7.1 GDPR): consultali o esportali dalla sua dashboard. Questo registro conserva le scelte registrate prima, e nessuna nuova.`,
+            )}{' '}
+            <a
+              className="text-sky-700 underline"
+              href={CMP_DASHBOARDS[cmp]}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {CMP_NAMES[cmp]} ↗
+            </a>
+          </p>
+        </Card>
+      )}
       {stats.error && <Alert>{errorMessage(stats.error)}</Alert>}
       {s && (
         <Card title={tr('Choices of visitors', 'Scelte dei visitatori')}>

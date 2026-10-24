@@ -1,9 +1,9 @@
 {
   "slug": "privacy",
   "name": "Privacy & GDPR",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "apiVersion": "^1.15",
-  "description": "Cookie banner with consent by category and a consent log, privacy and cookie policy pages, and requests to export or erase personal data.",
+  "description": "Cookie banner with consent by category and a consent log, or iubenda, Cookiebot or CookieYes; privacy and cookie policy pages, and requests to export or erase personal data.",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
