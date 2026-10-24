@@ -7,7 +7,7 @@ import type {
   Anchor,
   Device,
   EasingId,
-  FontFamily,
+  FontPreset,
   HoverId,
   KenBurns,
   MotionId,
@@ -110,7 +110,7 @@ export const KEN_BURNS: readonly { id: KenBurns; label: string }[] = [
   { id: 'pan', label: 'Pan across' },
 ];
 
-export const FONT_STACKS: Record<FontFamily, string> = {
+export const FONT_STACKS: Record<FontPreset, string> = {
   inherit: 'inherit',
   sans: 'system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif',
   serif: 'Georgia,"Times New Roman",Times,serif',

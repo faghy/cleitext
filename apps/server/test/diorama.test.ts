@@ -4,7 +4,10 @@
  * lifts the limit), the block on a public page with the media library's
  * responsive pictures (plugin API 1.46, `context.loadMedia`), the runtime
  * only where a slider is, the latest posts as slides, the `[diorama]`
- * shortcode, and the sliders in a site export and back.
+ * shortcode, and the sliders in a site export and back. Diorama 1.2: a
+ * Google font chosen for a layer is kept on the site by Cleitext's web fonts
+ * (no address of Google on the page), and the editor's page of the site's
+ * fonts answers only people who manage sliders. Google is a fake here.
  */
 import { cp, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -14,12 +17,13 @@ import { buildPlugin, installPlugin } from '@cleitext/cli';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import sharp from 'sharp';
-import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
 import { APP_CONFIG, type AppConfig } from '../src/config/config.js';
 import { MediaService } from '../src/media/media.service.js';
 import { DiskStorage } from '../src/media/storage.js';
 import { PluginHost } from '../src/plugins/plugin-host.service.js';
 import { PageCacheService } from '../src/public/page-cache.service.js';
+import { WebFontsService } from '../src/public/web-fonts.service.js';
 import { fileReader, openArchive, writeArchive } from '../src/transfer/archive.js';
 import { exportSite } from '../src/transfer/exporter.js';
 import { importDocument } from '../src/transfer/importer.js';
@@ -36,20 +40,49 @@ const PASSWORD = 'correct horse battery staple';
 const pluginsRoot = fileURLToPath(new URL('../../../plugins', import.meta.url));
 const ext = (path: string) => `/api/v1/ext/diorama${path}`;
 
+const WOFF2 = Buffer.concat([Buffer.from('wOF2'), Buffer.alloc(60, 7)]);
+const GOOGLE = /fonts\.googleapis\.com|fonts\.gstatic\.com/;
+
 let app: NestFastifyApplication;
 let owner: DatabaseClient;
 let site: SeededSite;
 let admin: TestClient;
 let visitor: TestClient;
 let sliderId = '';
+const calls: string[] = [];
+
+async function fakeGoogle(request: { url: string }) {
+  calls.push(request.url);
+  const url = new URL(request.url);
+  if (url.pathname === '/css2') {
+    const family = url.searchParams.get('family')!.split(':')[0]!;
+    const slug = family.toLowerCase().replace(/ /g, '');
+    return {
+      status: 200,
+      type: 'text/css',
+      text: `@font-face {\n  font-family: '${family}';\n  font-weight: 700;\n  src: url(https://fonts.gstatic.com/s/${slug}/v1/latin.woff2) format('woff2');\n}\n`,
+    };
+  }
+  if (url.pathname.endsWith('.woff2'))
+    return { status: 200, type: 'font/woff2', text: '', base64: WOFF2.toString('base64') };
+  return { status: 404, type: 'text/plain', text: '' };
+}
+
+const copies = (html: string) =>
+  [
+    ...html.matchAll(
+      /<link rel="stylesheet" href="(\/_fonts\/[a-f0-9]{32}\.css)" data-font-family="([^"]+)">/g,
+    ),
+  ].map((m) => m[2]!);
 
 async function install(slug: string, pluginsPath: string) {
   const source = join(await mkdtemp(join(tmpdir(), `${slug}-src-`)), slug);
+  // Built where it lives: it bundles the workspace's font helpers (Diorama 1.2).
+  await buildPlugin(join(pluginsRoot, slug));
   await cp(join(pluginsRoot, slug), source, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules') && !file.includes(`${slug}/dist`),
+    filter: (file) => !file.includes('node_modules'),
   });
-  await buildPlugin(source);
   await installPlugin(owner.db, {
     source,
     pluginsPath,
@@ -81,6 +114,7 @@ beforeAll(async () => {
   const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
   await install('diorama', pluginsPath);
   app = await startTestApp({ pluginsPath });
+  vi.spyOn(app.get(WebFontsService), 'download').mockImplementation(fakeGoogle);
   site = await seedSite(owner, 'diorama');
   await seedUser(owner, {
     email: 'admin@diorama.test',
@@ -165,7 +199,7 @@ describe('Diorama', () => {
     expect(html).toContain('aria-roledescription="carousel"');
     expect(html).toContain('aria-label="Home slider"');
     expect(html).toContain('class="dio dio--slider dio--fullwidth dio-nav--pill');
-    expect(html).toMatch(/<script[^>]+plugin-assets\/diorama\/1\.1\.0\/diorama\.js/);
+    expect(html).toMatch(/<script[^>]+plugin-assets\/diorama\/1\.2\.0\/diorama\.js/);
     // The height is reserved in CSS, in the head (no layout shift).
     expect(html).toMatch(/<style[^>]*>[^<]*\.dio__stage\{position:relative;height:var\(--dio-h\)/);
     // The media library's picture: responsive sources, its alternative text, the first one first.
@@ -342,5 +376,116 @@ describe('Diorama', () => {
   it('keeps its API for people who manage sliders', async () => {
     expect((await visitor.get(ext('/sliders'))).statusCode).toBe(401);
     expect((await admin.get(ext('/sliders/not-an-id'))).statusCode).toBe(404);
+  });
+});
+
+async function setMode(fontsAdmin: TestClient, mode: 'local' | 'provider' | 'theme') {
+  const saved = await fontsAdmin.request('PATCH', '/api/v1/settings/core', { webFonts: mode });
+  expect(saved.statusCode, saved.body).toBe(200);
+}
+
+describe('Diorama’s fonts (1.2)', () => {
+  let path = '';
+  let fontsAdmin: TestClient;
+  let fontsVisitor: TestClient;
+
+  beforeAll(async () => {
+    // Another site: the free version keeps one slider per site.
+    const other = await seedSite(owner, 'diorama-fonts');
+    await seedUser(owner, {
+      email: 'admin@diorama-fonts.test',
+      password: PASSWORD,
+      site: other,
+      role: 'administrator',
+    });
+    fontsAdmin = new TestClient(app, other.host, '10.62.0.5');
+    await fontsAdmin.login('admin@diorama-fonts.test', PASSWORD);
+    fontsVisitor = new TestClient(app, other.host, '10.62.0.6');
+    expect((await fontsAdmin.post('/api/v1/plugins/diorama/activate')).statusCode).toBe(200);
+  });
+
+  it('keeps a Google font chosen in a slider on the site: no address of Google on the page', async () => {
+    const created = await fontsAdmin.post(ext('/sliders'), {
+      title: 'Outdoor',
+      data: {
+        type: 'hero',
+        slides: [
+          {
+            layers: [
+              {
+                type: 'heading',
+                content: { text: 'Cimone\nOutdoor', tag: 'h1' },
+                style: {
+                  base: { fontFamily: 'Rubik', fontWeight: 700, strokeWidth: 2, outline: true },
+                },
+              },
+              {
+                type: 'button',
+                content: { text: 'Book' },
+                style: { base: { fontFamily: 'Rubik', minHeight: 52 } },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const entry = await fontsAdmin.post('/api/v1/entries', {
+      type: 'page',
+      title: 'Outdoor',
+      document: {
+        schema: 1,
+        blocks: [
+          {
+            id: 'bfont1',
+            type: 'diorama/slider',
+            v: 1,
+            attrs: { slider: created.json().id },
+          },
+        ],
+      },
+    });
+    const published = await fontsAdmin.post(`/api/v1/entries/${entry.json().id}/publish`);
+    expect(published.statusCode, published.body).toBe(200);
+    path = `/${published.json().slug as string}`;
+
+    const html = (await fontsVisitor.get(path)).body;
+    expect(html).toContain('font-family:"Rubik",sans-serif');
+    expect(html).toContain('-webkit-text-stroke:2px #000000');
+    expect(html).toContain('Cimone<br/>Outdoor');
+    expect(html).not.toMatch(GOOGLE);
+    expect(html).not.toContain('data-dio-fonts');
+    // One copy of the family, in the head.
+    expect(copies(html)).toEqual(['Rubik']);
+    const head = html.slice(0, html.indexOf('</head>'));
+    expect(copies(head)).toEqual(['Rubik']);
+    // Asked of Google once, with the weights the slider uses.
+    expect(calls.filter((c) => c.includes('/css2'))).toEqual([
+      'https://fonts.googleapis.com/css2?family=Rubik:wght@600;700&display=swap',
+    ]);
+  });
+
+  it('links Google once when the site lets pages use the services', async () => {
+    await setMode(fontsAdmin, 'provider');
+    try {
+      const html = (await fontsVisitor.get(path)).body;
+      const links = html.match(/https:\/\/fonts\.googleapis\.com\/css2\?[^"]+/g) ?? [];
+      expect(links).toEqual([
+        'https://fonts.googleapis.com/css2?family=Rubik:wght@600;700&amp;display=swap',
+      ]);
+      expect(html.indexOf(links[0]!)).toBeLessThan(html.indexOf('</head>'));
+    } finally {
+      await setMode(fontsAdmin, 'local');
+    }
+  });
+
+  it('gives the editor the site’s copies of the fonts asked for, only to people who manage sliders', async () => {
+    const page = await fontsAdmin.get('/_diorama/fonts?f=Rubik:700');
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('data-dio-probe="heading"');
+    expect(page.body).toContain('data-dio-probe="text"');
+    expect(copies(page.body)).toContain('Rubik');
+    expect(page.body).not.toMatch(GOOGLE);
+    expect((await fontsVisitor.get('/_diorama/fonts?f=Rubik:700')).statusCode).toBe(404);
   });
 });

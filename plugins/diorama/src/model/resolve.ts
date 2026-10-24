@@ -101,6 +101,10 @@ export function layerStyle(layer: Layer, device: Device, autoMobile: boolean): L
   if (device === 'mobile' && layer.type === 'button' && !(own && 'paddingX' in own)) {
     out.paddingX = Math.min(value.paddingX, 22);
   }
+  // One line set on larger screens would run off a phone: it wraps there unless set by hand.
+  if (device === 'mobile' && value.textWrap === 'nowrap' && !(own && 'textWrap' in own)) {
+    out.textWrap = 'auto';
+  }
   return out;
 }
 

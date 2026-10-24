@@ -73,7 +73,23 @@ export type LayerType = 'heading' | 'text' | 'button' | 'image' | 'icon' | 'shap
 export type Anchor = 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br';
 export type ShapeKind = 'rect' | 'circle' | 'line' | 'blob';
 export type TextTag = 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'div';
-export type FontFamily = 'inherit' | 'sans' | 'serif' | 'display' | 'mono';
+/** The font stacks Diorama has by itself: `inherit` is the theme's font for text. */
+export type FontPreset = 'inherit' | 'sans' | 'serif' | 'display' | 'mono';
+/**
+ * A preset, `heading` (the theme's font for the layer's kind of heading,
+ * Diorama 1.2), or a family's name (Diorama 1.2): one of the site's fonts
+ * (the theme's, Fresco's, those Cleitext keeps on the site) or a Google
+ * font, loaded on the pages that show it.
+ */
+export type FontFamily = FontPreset | 'heading' | (string & {});
+/**
+ * How the lines of a text break (Diorama 1.2): `auto` is what Diorama did
+ * before (balanced headings and buttons, "pretty" texts), `normal` the
+ * browser's own breaks, `nowrap` one line (with the line breaks typed).
+ */
+export type TextWrap = 'auto' | 'balance' | 'pretty' | 'normal' | 'nowrap';
+/** The width of a button (Diorama 1.2): its text's, fixed in pixels, or all the room. */
+export type WidthMode = 'auto' | 'fixed' | 'full';
 
 /** The size of the slider: height (auto and full width) and the header's offset (full screen). */
 export interface SizeValues {
@@ -202,6 +218,17 @@ export interface LayerStyle {
   gap: number;
   shadow: boolean;
   opacity: number;
+  /** Outline of the letters (`-webkit-text-stroke`), pixels; 0: none (Diorama 1.2). */
+  strokeWidth: number;
+  strokeColor: string;
+  /** Outlined letters: no fill, only the outline (at least 1 px). */
+  outline: boolean;
+  textWrap: TextWrap;
+  /** Buttons: the least height, pixels, the text centred in it; 0: from the padding (Diorama 1.2). */
+  minHeight: number;
+  /** Buttons: `fixed` uses `fixedWidth` (pixels, never wider than the room). */
+  widthMode: WidthMode;
+  fixedWidth: number;
 }
 
 /** Where a layer sits: its anchor point at x/y (% of the slide); width and height in % (0: auto). */

@@ -1,7 +1,8 @@
 /**
  * Diorama, the slider plugin: the fast path (two pictures, a title, done),
  * the slider on a published page that changes slide, and the visual editor
- * (a layer dragged on the canvas, then saved). The site may have one slider
+ * (a layer dragged on the canvas, then saved; a Google font picked for its
+ * heading, drawn in the canvas and kept on the site). The site may have one slider
  * in the free version, so the test starts by removing the site's sliders.
  */
 import { execFileSync } from 'node:child_process';
@@ -168,6 +169,32 @@ test('Diorama: the fast path, a slider that moves on a page, and a layer dragged
   );
   expect(saved.data.slides[0]!.layers[0]!.pos.base.x).toBeGreaterThan(7.5);
 
+  // Diorama 1.2: a Google font from the picker's search, drawn in the canvas, and line breaks.
+  await canvas.locator('.dio-heading').first().click();
+  await page.getByRole('tab', { name: /^(Style|Stile)$/ }).click();
+  await page.getByTestId('dio-font').click();
+  await page.getByTestId('dio-font-search').fill('Rubik');
+  await page.getByRole('option', { name: 'Rubik', exact: true }).click();
+  await expect(page.getByTestId('dio-font')).toContainText('Rubik');
+  await expect
+    .poll(() =>
+      canvas
+        .locator('.dio-heading')
+        .first()
+        .evaluate((el) => getComputedStyle(el).fontFamily),
+    )
+    .toContain('Rubik');
+  await page.getByTestId('dio-text-wrap').selectOption('normal');
+  await page.getByTestId('dio-save').click();
+  await expect(page.getByTestId('dio-save')).toHaveText(/Saved|Salvato/);
+  const styled = await api<{
+    data: { slides: { layers: { children: { style: { base: Record<string, unknown> } }[] }[] }[] };
+  }>(page, 'GET', `/ext/diorama/sliders/${id}`);
+  expect(styled.data.slides[0]!.layers[0]!.children[0]!.style.base).toMatchObject({
+    fontFamily: 'Rubik',
+    textWrap: 'normal',
+  });
+
   // A page with the block, published: the slider shows and changes slide.
   const entry = await api<{ id: string }>(page, 'POST', '/entries', {
     type: 'page',
@@ -188,6 +215,8 @@ test('Diorama: the fast path, a slider that moves on a page, and a layer dragged
   const slide = (n: number) => slider.locator(`.dio__slide[data-index="${n}"]`);
   await expect(slide(0)).toHaveClass(/is-active/);
   await expect(slide(0)).toContainText('Welcome to the harbour');
+  // The slider's Google font is kept on the site: the page never names Google.
+  expect(await site.content()).not.toMatch(/fonts\.googleapis\.com|fonts\.gstatic\.com/);
   await slider.locator('[data-dio-next]').click();
   await expect(slide(1)).toHaveClass(/is-active/);
   await expect(slide(0)).not.toHaveClass(/is-active/);

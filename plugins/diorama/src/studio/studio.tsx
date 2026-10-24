@@ -24,6 +24,7 @@ import type {
 } from '../model/types';
 import { messageOf, sliderApi } from './api';
 import { Canvas } from './canvas';
+import { applyFonts, useSiteFonts, type SiteFonts } from './fonts';
 import { useHistory } from './history';
 import { MediaDialog, refOf, type MediaItem } from './media';
 import {
@@ -101,6 +102,8 @@ export function Studio({
 
   const slide = slider.slides[slideIndex];
   const found = findLayer(slide, selected);
+  // The site's fonts and the slider's Google fonts, in the canvas too (Diorama 1.2).
+  const fonts = useSiteFonts(slider);
 
   useEffect(() => {
     if (slideIndex >= slider.slides.length) setSlideIndex(Math.max(0, slider.slides.length - 1));
@@ -705,6 +708,7 @@ export function Studio({
                 </Btn>
               </div>
               <LayerPanel
+                siteFonts={fonts.families}
                 layer={found.layer}
                 parent={found.parent}
                 slider={slider}
@@ -840,6 +844,7 @@ export function Studio({
       {preview && (
         <PreviewDialog
           slider={preview.slider}
+          fonts={fonts}
           title={title}
           version={version}
           locale={locale}
@@ -857,12 +862,14 @@ export function Studio({
  */
 function PreviewDialog({
   slider,
+  fonts,
   title,
   version,
   locale,
   onClose,
 }: {
   slider: SliderData;
+  fonts: SiteFonts;
   title: string;
   version: string;
   locale: string;
@@ -877,6 +884,7 @@ function PreviewDialog({
     if (!root) return;
     const timer = window.setTimeout(() => {
       const doc = root.ownerDocument;
+      applyFonts(doc, fonts, 'body');
       for (const href of extensions.styles) {
         const link = doc.createElement('link');
         link.rel = 'stylesheet';

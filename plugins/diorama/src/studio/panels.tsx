@@ -18,12 +18,11 @@ import {
   NAV_STYLES,
   TRANSITIONS,
 } from '../model/presets';
-import { isOverridden, layerPos, layerStyle, valueFor } from '../model/resolve';
+import { isOverridden, layerPos, layerStyle, setFor, valueFor } from '../model/resolve';
 import type {
   Anchor,
   Device,
   EasingId,
-  FontFamily,
   Layer,
   LayerPos,
   LayerStyle,
@@ -34,9 +33,12 @@ import type {
   Slide,
   SliderData,
   SizeValues,
+  TextWrap,
   TransitionId,
+  WidthMode,
 } from '../model/types';
 import { AnchorGrid, FocalPicker, LinkEditor } from './fields';
+import { FontPicker } from './fonts';
 import { proAdmin } from './pro';
 import { Btn, ColorInput, Field, ICON, NumberInput, Segmented, Svg, Toggle } from './ui';
 
@@ -102,6 +104,8 @@ export interface LayerPanelProps {
   onSelect: (id: string) => void;
   onPickMedia: (done: (ref: MediaRef) => void) => void;
   onPlay: () => void;
+  /** The site's fonts, by name (Diorama 1.2). */
+  siteFonts?: string[];
 }
 
 export function LayerPanel(props: LayerPanelProps) {
@@ -174,10 +178,15 @@ function LayerContentTab({
           }
         >
           {layer.type === 'button' ? (
-            <input
-              className="dst-input"
+            <textarea
+              className="dst-textarea dst-textarea--line"
               data-dio-text=""
+              rows={1}
               value={c.text}
+              onKeyDown={(e) => {
+                // One line unless Shift+Enter starts another, as in a heading.
+                if (e.key === 'Enter' && !e.shiftKey) e.preventDefault();
+              }}
               onChange={(e) => set({ text: e.target.value }, `text:${layer.id}`)}
             />
           ) : (
@@ -403,9 +412,12 @@ function LayerStyleTab({
   onResetStyle,
   onPos,
   onResetPos,
+  onChange,
+  siteFonts,
 }: LayerPanelProps) {
   const { t } = useT();
   const s = layerStyle(layer, device, slider.autoMobile);
+  const lettered = layer.type === 'heading' || layer.type === 'text' || layer.type === 'button';
   const p = layerPos(layer, device, slider.autoMobile);
   const mark = (key: keyof LayerStyle) => (
     <Marker
@@ -425,19 +437,18 @@ function LayerStyleTab({
       {textual && (
         <Section title={layer.type === 'icon' ? t('Icon') : t('Text')}>
           {layer.type !== 'icon' && (
-            <Field label={t('Font')} marker={mark('fontFamily')}>
-              <select
-                className="dst-select"
+            <div className="dst-field">
+              <span>
+                {t('Font')}
+                {mark('fontFamily')}
+              </span>
+              <FontPicker
+                label={t('Font')}
                 value={s.fontFamily}
-                onChange={(e) => onStyle('fontFamily', e.target.value as FontFamily)}
-              >
-                <option value="inherit">{t('The site’s')}</option>
-                <option value="sans">{t('Sans serif')}</option>
-                <option value="serif">{t('Serif')}</option>
-                <option value="display">{t('Display')}</option>
-                <option value="mono">{t('Monospace')}</option>
-              </select>
-            </Field>
+                site={siteFonts ?? []}
+                onChange={(v) => onStyle('fontFamily', v)}
+              />
+            </div>
           )}
           <Field
             label={layer.type === 'icon' ? t('Size') : t('Font size')}
@@ -506,6 +517,34 @@ function LayerStyleTab({
                   onChange={(v) => onStyle('italic', v)}
                 />
               </div>
+              {lettered && (
+                <Field
+                  label={t('Line breaks')}
+                  marker={mark('textWrap')}
+                  help={
+                    s.textWrap === 'nowrap'
+                      ? t('On phones it wraps anyway, unless you choose one line there too.')
+                      : t('Shift+Enter in the text starts a new line, kept as it is.')
+                  }
+                >
+                  <select
+                    className="dst-select"
+                    value={s.textWrap}
+                    data-testid="dio-text-wrap"
+                    onChange={(e) => onStyle('textWrap', e.target.value as TextWrap)}
+                  >
+                    <option value="auto">
+                      {layer.type === 'text'
+                        ? t('Automatic (even lines at the end)')
+                        : t('Automatic (balanced lines)')}
+                    </option>
+                    <option value="balance">{t('Balanced lines')}</option>
+                    <option value="pretty">{t('Even lines at the end')}</option>
+                    <option value="normal">{t('As the browser breaks them')}</option>
+                    <option value="nowrap">{t('One line')}</option>
+                  </select>
+                </Field>
+              )}
               {(layer.type === 'box' ||
                 ((layer.type === 'heading' || layer.type === 'text') && !parent)) && (
                 <Field label={t('Alignment')} marker={mark('textAlign')}>
@@ -531,6 +570,90 @@ function LayerStyleTab({
               onChange={(v) => onStyle('color', v)}
             />
           </Field>
+        </Section>
+      )}
+      {lettered && (
+        <Section title={t('Outline of the letters')}>
+          <Toggle
+            label={t('Outlined letters (no fill)')}
+            checked={s.outline}
+            onChange={(v) =>
+              // On with no outline yet: 2 px in the text's colour, in one step.
+              onChange((l) => {
+                let style = setFor(l.style, device, 'outline', v);
+                if (v && s.strokeWidth === 0) {
+                  style = setFor(style, device, 'strokeWidth', 2);
+                  style = setFor(style, device, 'strokeColor', s.color);
+                }
+                return { ...l, style };
+              })
+            }
+          />
+          <div className="dst-grid2">
+            <Field label={t('Outline')} marker={mark('strokeWidth')}>
+              <NumberInput
+                label={t('Outline')}
+                value={s.strokeWidth}
+                min={0}
+                max={20}
+                step={0.5}
+                range={false}
+                unit="px"
+                onChange={(v) => onStyle('strokeWidth', v)}
+              />
+            </Field>
+            <Field label={t('Outline colour')} marker={mark('strokeColor')}>
+              <ColorInput
+                label={t('Outline colour')}
+                value={s.strokeColor}
+                onChange={(v) => onStyle('strokeColor', v)}
+              />
+            </Field>
+          </div>
+        </Section>
+      )}
+      {layer.type === 'button' && (
+        <Section title={t('Button size')}>
+          <Field
+            label={t('Height')}
+            marker={mark('minHeight')}
+            help={t('0: from the space inside. The text stays in the middle.')}
+          >
+            <NumberInput
+              label={t('Height')}
+              value={s.minHeight}
+              min={0}
+              max={400}
+              range={false}
+              unit="px"
+              onChange={(v) => onStyle('minHeight', v)}
+            />
+          </Field>
+          <Field label={t('Width')} marker={mark('widthMode')}>
+            <Segmented
+              label={t('Width')}
+              value={s.widthMode}
+              options={[
+                { value: 'auto' as WidthMode, label: t('As its text') },
+                { value: 'fixed' as WidthMode, label: t('Fixed') },
+                { value: 'full' as WidthMode, label: t('Full width') },
+              ]}
+              onChange={(v) => onStyle('widthMode', v)}
+            />
+          </Field>
+          {s.widthMode === 'fixed' && (
+            <Field label={t('Fixed width')} marker={mark('fixedWidth')}>
+              <NumberInput
+                label={t('Fixed width')}
+                value={s.fixedWidth}
+                min={20}
+                max={1200}
+                range={false}
+                unit="px"
+                onChange={(v) => onStyle('fixedWidth', v)}
+              />
+            </Field>
+          )}
         </Section>
       )}
       {(layer.type === 'button' ||

@@ -9,7 +9,7 @@ import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import { EASINGS, ICONS, NAV_ICONS } from '../model/presets';
 import type { Device, Layer, Link, MediaRef, Slide, SliderData } from '../model/types';
 import { BASE_CSS } from './base-css';
-import { sliderCss } from './css';
+import { sliderCss, themeHeadingFont } from './css';
 import { stringsFor } from './strings';
 
 /** A media file as blocks get it from Cleitext: the original and its resized variants. */
@@ -141,7 +141,7 @@ export interface RuntimeConfig {
 }
 
 function lines(value: string): ReactNode {
-  const parts = value.split('\n');
+  const parts = value.split(/\r?\n/);
   return parts.map((part, i) => (i === 0 ? part : [<br key={i} />, part]));
 }
 
@@ -393,6 +393,8 @@ export function LayerView({
   ];
   if (layer.motion.hover !== 'none' && layer.type === 'button')
     classes.push(`dio-h-${layer.motion.hover}`);
+  // The theme's font for its kind of heading (Diorama 1.2): the theme's rules give the family.
+  if (themeHeadingFont(layer)) classes.push('dio-fh');
   const attrs: Record<string, string> = {};
   if (layer.motion.in.preset !== 'none') attrs['data-in'] = '';
   if (layer.motion.out && layer.motion.out.preset !== 'none') attrs['data-out'] = '';

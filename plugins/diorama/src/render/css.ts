@@ -4,9 +4,10 @@
  * phones get media queries with only what changes; in the editor's canvas
  * one device is drawn without them.
  */
-import { BREAKPOINT, DESIGN_WIDTH, EASINGS, FONT_STACKS, ANCHOR_SHIFT } from '../model/presets';
+import { fontCss, THEME_HEADING } from '../model/fonts';
+import { BREAKPOINT, DESIGN_WIDTH, EASINGS, ANCHOR_SHIFT } from '../model/presets';
 import { layerPos, layerStyle, layerVisible, sizeFor } from '../model/resolve';
-import type { Device, Layer, SliderData } from '../model/types';
+import type { Device, Layer, LayerStyle, SliderData, TextWrap } from '../model/types';
 
 const px = (n: number) => `${Math.round(n * 100) / 100}px`;
 const pct = (n: number) => `${Math.round(n * 100) / 100}%`;
@@ -20,6 +21,66 @@ export function fluidSize(size: number, device: Device): string {
 }
 
 const ALIGN_ITEMS = { left: 'flex-start', center: 'center', right: 'flex-end' } as const;
+
+/** What `textWrap` writes; `auto` writes nothing (the shared CSS: balanced, "pretty" texts). */
+const WRAP_CSS: Record<Exclude<TextWrap, 'auto'>, string> = {
+  balance: 'text-wrap:balance',
+  pretty: 'text-wrap:pretty',
+  normal: 'text-wrap:wrap',
+  nowrap: 'white-space:nowrap',
+};
+
+/** The device whose rules also apply on this one (media queries add up), or null on desktop. */
+const LARGER: Record<Device, Device | null> = {
+  desktop: null,
+  tablet: 'desktop',
+  mobile: 'tablet',
+};
+
+/** Whether a layer takes the theme's font for its kind of heading (class `dio-fh`, Diorama 1.2). */
+export const themeHeadingFont = (layer: Layer): boolean =>
+  layer.style.base.fontFamily === THEME_HEADING &&
+  layer.type !== 'image' &&
+  layer.type !== 'shape' &&
+  layer.type !== 'icon';
+
+/**
+ * Text outline, line breaking and a button's size (Diorama 1.2), written
+ * only when set: a smaller device that drops what a larger one set writes
+ * it back, as media queries add up.
+ */
+function textExtras(
+  layer: Layer,
+  s: LayerStyle,
+  larger: LayerStyle | null,
+  placed: boolean,
+): string[] {
+  const out: string[] = [];
+  const textual = layer.type === 'heading' || layer.type === 'text' || layer.type === 'button';
+  if (!textual) return out;
+  const stroke = (v: LayerStyle) => (v.outline ? Math.max(1, v.strokeWidth) : v.strokeWidth);
+  if (stroke(s) > 0) out.push(`-webkit-text-stroke:${px(stroke(s))} ${s.strokeColor}`);
+  else if (larger && stroke(larger) > 0) out.push('-webkit-text-stroke:0 transparent');
+  if (s.outline) out.push('-webkit-text-fill-color:transparent');
+  else if (larger?.outline) out.push('-webkit-text-fill-color:currentcolor');
+  if (s.textWrap !== 'auto') {
+    if (larger?.textWrap === 'nowrap' && s.textWrap !== 'nowrap') out.push('white-space:normal');
+    out.push(WRAP_CSS[s.textWrap]);
+  } else if (larger && larger.textWrap !== 'auto') {
+    if (larger.textWrap === 'nowrap') out.push('white-space:normal');
+    out.push(layer.type === 'text' ? WRAP_CSS.pretty : WRAP_CSS.balance);
+  }
+  if (layer.type === 'button') {
+    if (s.minHeight > 0) out.push(`min-height:${px(s.minHeight)}`);
+    else if (larger && larger.minHeight > 0) out.push('min-height:0');
+    if (s.widthMode === 'fixed') out.push(`width:${px(s.fixedWidth)}`, 'max-width:100%');
+    else if (s.widthMode === 'full') out.push('width:100%');
+    else if (larger && larger.widthMode !== 'auto' && !placed) out.push('width:auto');
+    // Lines typed in a button follow its alignment (centred by default).
+    if (layer.content.text.includes('\n')) out.push(`text-align:${s.textAlign}`);
+  }
+  return out;
+}
 
 /** The declarations of a layer on a device (position only for layers placed on the slide). */
 export function layerDeclarations(
@@ -55,7 +116,14 @@ export function layerDeclarations(
   if (layer.type !== 'image' && layer.type !== 'shape') {
     out.push(`color:${s.color}`);
     out.push(`font-size:${fluidSize(s.fontSize, device)}`);
-    if (s.fontFamily !== 'inherit') out.push(`font-family:${FONT_STACKS[s.fontFamily]}`);
+    const family = fontCss(s.fontFamily);
+    if (s.fontFamily === THEME_HEADING || family === null) {
+      // The theme's font for its kind of heading follows the desktop's choice (the class).
+      if (!themeHeadingFont(layer)) {
+        if (layer.style.base.fontFamily !== 'inherit') out.push('font-family:inherit');
+      }
+    } else if (s.fontFamily !== 'inherit') out.push(`font-family:${family}`);
+    else if (device !== 'desktop' && themeHeadingFont(layer)) out.push('font-family:inherit');
     out.push(`font-weight:${s.fontWeight}`, `line-height:${s.lineHeight}`);
     if (s.letterSpacing) out.push(`letter-spacing:${s.letterSpacing}em`);
     if (s.uppercase) out.push('text-transform:uppercase');
@@ -85,6 +153,8 @@ export function layerDeclarations(
     const p = layerPos(layer, device, autoMobile);
     if (!placed || p.h === 0) out.push('height:auto');
   }
+  const larger = LARGER[device];
+  out.push(...textExtras(layer, s, larger ? layerStyle(layer, larger, autoMobile) : null, placed));
   return out.join(';');
 }
 

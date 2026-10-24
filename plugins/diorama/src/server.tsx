@@ -5,7 +5,17 @@ import {
   type PluginContext,
   type RouteRequest,
 } from '@cleitext/plugin-sdk';
+import { familiesToLoad } from '@cleitext/design/fonts';
 import { randomBytes } from 'node:crypto';
+import {
+  FONTS_ATTRIBUTE,
+  FONTS_PATH,
+  fontsMarker,
+  googleFontsHref,
+  markedFonts,
+  parseFonts,
+  sliderGoogleFonts,
+} from './model/fonts';
 import { allLayers, cleanTitle, LIMITS, mediaIdsOf, normalizeSlider } from './model/normalize';
 import { expandPosts, fillTemplate, type PostItem } from './model/posts';
 import { templateSlider, quickSlider, TEMPLATES, type QuickSlide } from './model/templates';
@@ -292,21 +302,74 @@ export default definePlugin({
             }
           }
           input.decorate = mergeDecorators(decorators);
+          // The Google fonts of its layers: an ordinary link, which Cleitext keeps on the site.
+          const fonts = sliderGoogleFonts(data.slider);
+          const href = googleFontsHref(fonts);
+          const fontsLink = href ? (
+            <link rel="stylesheet" href={href} {...{ [FONTS_ATTRIBUTE]: fontsMarker(fonts) }} />
+          ) : null;
           for (const renderer of api.renderers) {
             try {
               const out = renderer(input);
-              if (out !== undefined) return out;
+              if (out !== undefined)
+                return (
+                  <>
+                    {out}
+                    {fontsLink}
+                  </>
+                );
             } catch (error) {
               warn(`A Diorama renderer failed: ${String(error)}`);
             }
           }
-          return <SliderView {...input} />;
+          return (
+            <>
+              <SliderView {...input} />
+              {fontsLink}
+            </>
+          );
         },
       }),
     );
 
     // The runtime, only on pages with a slider (and Pro's files, when it adds some).
     ctx.assets.enqueue({ file: 'diorama.js', when: ({ html }) => html.includes('data-dio=') });
+
+    // The sliders' Google fonts: one link in the head for the page, without the families the
+    // page loads already (the theme's, Fresco's). Cleitext then links the site's copies
+    // instead (Settings → Privacy → Web fonts), each family once.
+    ctx.hooks.filter('render.html', (html) => {
+      if (!html.includes(`${FONTS_ATTRIBUTE}=`)) return html;
+      const at = html.indexOf('</head>');
+      if (at === -1) return html;
+      const fonts = markedFonts(html);
+      const without = html.replace(/<link\b[^>]*\sdata-dio-fonts="[^"]*"[^>]*>/g, '');
+      const wanted = new Set(familiesToLoad([...fonts.keys()], without));
+      const href = googleFontsHref(new Map([...fonts].filter(([name]) => wanted.has(name))));
+      const head = href ? `<link rel="stylesheet" href="${href.replace(/&/g, '&amp;')}">` : '';
+      const end = without.indexOf('</head>');
+      return without.slice(0, end) + head + without.slice(end);
+    });
+
+    // The editor's fonts: a page of the site in its theme, with probes of its fonts for headings
+    // and texts and the Google fonts asked for (`?f=Rubik:400;700|…`), which Cleitext turns into
+    // its copies like on any page. Only for people who manage sliders.
+    ctx.routes.public({
+      method: 'GET',
+      path: FONTS_PATH,
+      handler(request) {
+        if (!request.user?.capabilities.includes(CAPABILITY))
+          return { status: 404, body: 'Not found', contentType: 'text/plain; charset=utf-8' };
+        const href = googleFontsHref(parseFonts([String(request.query.f ?? '')]));
+        return {
+          headers: { 'cache-control': 'no-store' },
+          page: {
+            title: 'Diorama',
+            html: `<div class="dio-font-probe"><h2 data-dio-probe="heading">Diorama</h2><p data-dio-probe="text">Diorama</p></div>${href ? `<link rel="stylesheet" href="${href.replace(/&/g, '&amp;')}">` : ''}`,
+          },
+        };
+      },
+    });
 
     // `[diorama id="…"]` standing alone in a paragraph, a shortcode or an HTML block.
     ctx.hooks.filter('render.blocks', (blocks) => replaceShortcodes(blocks));

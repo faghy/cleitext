@@ -865,9 +865,15 @@ importers:
       '@cleitext/cli':
         specifier: workspace:*
         version: link:../../packages/cli
+      '@cleitext/design':
+        specifier: workspace:*
+        version: link:../../packages/design
       '@cleitext/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+      '@cleitext/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@tanstack/react-query':
         specifier: ^5.104.1
         version: 5.104.1(react@19.3.0)

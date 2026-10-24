@@ -36,6 +36,7 @@ export const STUDIO_CSS = `
 .dst-help{font-size:12px;color:var(--dst-muted)}
 .dst-input,.dst-select,.dst-textarea{width:100%;min-height:34px;padding:6px 9px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:var(--dst-ink);font:inherit}
 .dst-textarea{min-height:70px;resize:vertical}
+.dst-textarea--line{min-height:34px}
 .dst-input:focus,.dst-select:focus,.dst-textarea:focus{outline:2px solid #a5b4fc;outline-offset:0;border-color:var(--dst-accent)}
 .dst-row{display:flex;gap:8px;align-items:center}
 .dst-row>*{min-width:0}
@@ -80,6 +81,16 @@ export const STUDIO_CSS = `
 .dst-card:hover{border-color:#a5b4fc;box-shadow:0 8px 24px rgba(79,70,229,.12)}
 .dst-empty{padding:40px 20px;border:2px dashed #cbd5e1;border-radius:14px;text-align:center;color:var(--dst-muted)}
 .dst-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:12px;font-weight:600}
+.dst-font{position:relative}
+.dst-font__button{display:flex;align-items:center;text-align:left;cursor:pointer}
+.dst-font__button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dst-font__panel{margin-top:4px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;overflow:hidden}
+.dst-font__panel .dst-input{border:0;border-bottom:1px solid var(--dst-line);border-radius:0}
+.dst-font__list{max-height:240px;margin:0;padding:4px 0;overflow-y:auto;list-style:none}
+.dst-font__list [role=option]{padding:4px 10px;font-size:13px;cursor:pointer}
+.dst-font__list [role=option][aria-selected=true]{color:var(--dst-accent);font-weight:600}
+.dst-font__list [role=option].is-active{background:var(--dst-accent);color:#fff}
+.dst-font__group{padding:8px 10px 2px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--dst-muted)}
 .dst-kbd{font-family:ui-monospace,monospace;font-size:11.5px;padding:1px 5px;border:1px solid var(--dst-line);border-radius:4px;background:#f8fafc}
 `;
 

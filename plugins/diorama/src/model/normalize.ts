@@ -4,13 +4,13 @@
  * Unknown keys are dropped, except `ext` (other plugins' data, kept as it is
  * within a size limit). Per-device values keep only valid overrides.
  */
+import { cleanFamily } from './fonts';
 import { ICONS } from './presets';
 import type {
   Anchor,
   Background,
   Device,
   EasingId,
-  FontFamily,
   HoverId,
   KenBurns,
   Layer,
@@ -31,7 +31,9 @@ import type {
   SliderData,
   SliderSource,
   TextTag,
+  TextWrap,
   TransitionId,
+  WidthMode,
 } from './types';
 
 export const LIMITS = {
@@ -197,6 +199,13 @@ const BASE_STYLE: LayerStyle = {
   gap: 16,
   shadow: false,
   opacity: 1,
+  strokeWidth: 0,
+  strokeColor: '#000000',
+  outline: false,
+  textWrap: 'auto',
+  minHeight: 0,
+  widthMode: 'auto',
+  fixedWidth: 220,
 };
 
 /** The style a new layer of a type starts with. */
@@ -423,7 +432,8 @@ const TYPES: readonly LayerType[] = ['heading', 'text', 'button', 'image', 'icon
 const ANCHORS: readonly Anchor[] = ['tl', 't', 'tr', 'l', 'c', 'r', 'bl', 'b', 'br'];
 const SHAPES: readonly ShapeKind[] = ['rect', 'circle', 'line', 'blob'];
 const TAGS: readonly TextTag[] = ['h1', 'h2', 'h3', 'h4', 'p', 'div'];
-const FONTS: readonly FontFamily[] = ['inherit', 'sans', 'serif', 'display', 'mono'];
+const WRAPS: readonly TextWrap[] = ['auto', 'balance', 'pretty', 'normal', 'nowrap'];
+const WIDTHS: readonly WidthMode[] = ['auto', 'fixed', 'full'];
 
 function size(input: unknown, fallback: SizeValues): SizeValues {
   const o = obj(input);
@@ -446,7 +456,7 @@ function motion(input: unknown, fallback: Motion): Motion {
 function style(input: unknown, fallback: LayerStyle): LayerStyle {
   const o = obj(input);
   return {
-    fontFamily: oneOf(o.fontFamily, FONTS, fallback.fontFamily),
+    fontFamily: cleanFamily(o.fontFamily) ?? fallback.fontFamily,
     fontSize: num(o.fontSize, 8, 240, fallback.fontSize),
     fontWeight: num(o.fontWeight, 100, 900, fallback.fontWeight),
     lineHeight: num(o.lineHeight, 0.8, 3, fallback.lineHeight),
@@ -464,6 +474,13 @@ function style(input: unknown, fallback: LayerStyle): LayerStyle {
     gap: num(o.gap, 0, 120, fallback.gap),
     shadow: bool(o.shadow, fallback.shadow),
     opacity: num(o.opacity, 0, 1, fallback.opacity),
+    strokeWidth: num(o.strokeWidth, 0, 20, fallback.strokeWidth),
+    strokeColor: color(o.strokeColor, fallback.strokeColor),
+    outline: bool(o.outline, fallback.outline),
+    textWrap: oneOf(o.textWrap, WRAPS, fallback.textWrap),
+    minHeight: num(o.minHeight, 0, 400, fallback.minHeight),
+    widthMode: oneOf(o.widthMode, WIDTHS, fallback.widthMode),
+    fixedWidth: num(o.fixedWidth, 20, 1200, fallback.fixedWidth),
   };
 }
 

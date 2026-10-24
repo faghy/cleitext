@@ -34,7 +34,9 @@ export const BASE_CSS = `.dio{position:relative;box-sizing:border-box;margin-top
 .dio__link{position:absolute;inset:0;z-index:1}
 .dio__layers{position:absolute;inset:0;z-index:2;pointer-events:none}
 .dio__layers>.dio-l{position:absolute}
-.dio-l{margin:0;padding:0;pointer-events:auto;overflow-wrap:break-word;color:inherit;font:inherit;text-wrap:balance}
+.dio-l{margin:0;padding:0;pointer-events:auto;overflow-wrap:break-word;color:inherit;text-wrap:balance}
+.dio-l:not(:where(.dio-fh)){font:inherit}
+.dio-fh{font-style:inherit;font-variant:inherit;text-transform:inherit;letter-spacing:inherit}
 .dio-l.dio-text{text-wrap:pretty}
 .dio-box{display:flex;flex-direction:column;align-items:flex-start;pointer-events:none}
 .dio-box>*{pointer-events:auto;max-width:100%}

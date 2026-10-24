@@ -352,7 +352,6 @@ export const IT: Record<string, string> = {
   'The page continues here.': 'Qui continua la pagina.',
   'The post of the slide': 'L’articolo della slide',
   'The post’s featured image, when it has one': 'L’immagine in evidenza dell’articolo, se ce l’ha',
-  'The site’s': 'Quello del sito',
   'The slider’s': 'Quella dello slider',
   'The whole slide leads to': 'Tutta la slide porta a',
   Thickness: 'Spessore',
@@ -424,4 +423,33 @@ export const IT: Record<string, string> = {
   'Unknown template.': 'Modello sconosciuto.',
   'The free version of Diorama keeps one slider per site, with as many slides as you like. Diorama Pro gives you as many sliders as you need.':
     'La versione gratuita di Diorama tiene uno slider per sito, con tutte le slide che vuoi. Diorama Pro ti dà tutti gli slider che ti servono.',
+  // Diorama 1.2: fonts, outlines, line breaks, button sizes.
+  'Theme font for texts': 'Font del tema per i testi',
+  'Theme font for headings': 'Font del tema per i titoli',
+  Theme: 'Tema',
+  'This site’s fonts': 'Font di questo sito',
+  'Google Fonts': 'Google Fonts',
+  'System fonts': 'Font di sistema',
+  'Search fonts': 'Cerca un font',
+  'No font found.': 'Nessun font trovato.',
+  'Line breaks': 'A capo',
+  'On phones it wraps anyway, unless you choose one line there too.':
+    'Sui telefoni va comunque a capo, a meno che non scegli una riga anche lì.',
+  'Shift+Enter in the text starts a new line, kept as it is.':
+    'Maiusc+Invio nel testo va a capo, e l’a capo resta così com’è.',
+  'Automatic (even lines at the end)': 'Automatico (righe finali equilibrate)',
+  'Automatic (balanced lines)': 'Automatico (righe bilanciate)',
+  'Balanced lines': 'Righe bilanciate',
+  'Even lines at the end': 'Righe finali equilibrate',
+  'As the browser breaks them': 'Come le spezza il browser',
+  'One line': 'Una riga',
+  'Outline of the letters': 'Contorno delle lettere',
+  'Outlined letters (no fill)': 'Lettere solo contorno (senza riempimento)',
+  'Outline colour': 'Colore del contorno',
+  'Button size': 'Dimensioni del pulsante',
+  '0: from the space inside. The text stays in the middle.':
+    '0: dallo spazio interno. Il testo resta al centro.',
+  'As its text': 'Come il testo',
+  Fixed: 'Fissa',
+  'Fixed width': 'Larghezza fissa',
 };
