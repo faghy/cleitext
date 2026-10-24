@@ -197,7 +197,10 @@ export function PluginsPage() {
                   {plugin.homepage && (
                     <>
                       {' · '}
-                      <a className="text-sky-700 underline hover:no-underline" href={plugin.homepage}>
+                      <a
+                        className="text-sky-700 underline hover:no-underline"
+                        href={plugin.homepage}
+                      >
                         {t('Website')}
                       </a>
                     </>
