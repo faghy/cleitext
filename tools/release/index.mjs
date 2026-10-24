@@ -65,6 +65,7 @@ const SEPARATE = [
   'kross-booking',
   'captcha',
   'social-feed',
+  'antispam',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {

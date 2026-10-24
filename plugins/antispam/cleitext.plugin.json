@@ -1,0 +1,13 @@
+{
+  "slug": "antispam",
+  "name": "Antispam",
+  "version": "1.0.0",
+  "apiVersion": "^1.45",
+  "description": "Stops spam on comments, sign-ups, the Forms plugin and the forms of Prisma and Fresco Pro with local checks only: a hidden field, a time check that works on cached pages, links, words and addresses you block, foreign alphabets, repeated texts and senders of past spam. Doubtful messages ask for the Captcha plugin when it is active or go to a spam queue to review. Nothing is sent to other services; addresses are kept only as salted hashes.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "public": "dist/public",
+  "permissions": ["forms:protect", "comments", "settings:own", "routes:admin", "routes:public"]
+}

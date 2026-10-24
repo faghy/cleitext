@@ -1,0 +1,25 @@
+{
+  "name": "@cleitext/plugin-antispam",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Official Cleitext plugin: local spam protection for comments, sign-ups and forms, with no outside service.",
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "cleitext plugin:build .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cleitext/admin-sdk": "workspace:*",
+    "@cleitext/cli": "workspace:*",
+    "@cleitext/plugin-sdk": "workspace:*",
+    "@tanstack/react-query": "^5.104.1",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "drizzle-orm": "^0.45.4",
+    "jsdom": "^30.1.2",
+    "react": "^19.3.0",
+    "vitest": "^5.0.3"
+  }
+}
