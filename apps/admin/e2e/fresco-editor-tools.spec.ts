@@ -108,7 +108,7 @@ test('site settings, structures and preferences', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const stamp = Date.now().toString(36);
-  const frame = await openPage(page, `Fresco kit ${stamp}`, [
+  let frame = await openPage(page, `Fresco kit ${stamp}`, [
     container('w', {}, [
       {
         id: 'btn',
@@ -120,8 +120,23 @@ test('site settings, structures and preferences', async ({ page }) => {
   ]);
   const canvas = page.frameLocator('.fre-iframe');
 
-  // The Google font of the button is loaded in the canvas.
-  await expect(canvas.locator('link[data-fre-font][href*="family=Lobster"]')).toHaveCount(1);
+  // The Google font of the button is loaded in the canvas. Fonts hosted on the
+  // site need the server to reach Google (covered by fresco-fonts.test.ts with
+  // a fake Google): here the site loads them from Google, its other choice.
+  const kit = await api<Record<string, unknown>>(page, 'GET', '/ext/fresco/kit');
+  await api(page, 'PUT', '/ext/fresco/kit', { ...kit, googleFontsMode: 'google' });
+  try {
+    await page.reload();
+    await expect(
+      page.frameLocator('.fre-iframe').locator('link[data-fre-font][href*="family=Lobster"]'),
+    ).toHaveCount(1);
+  } finally {
+    await api(page, 'PUT', '/ext/fresco/kit', kit);
+  }
+  // The editor again with the site's own settings.
+  await page.reload();
+  await expect(canvas.locator('[data-fr-id="btn"]')).toBeVisible();
+  frame = page.frames().find((f) => f.url().includes('/__preview/'))!;
 
   // The Finder opens a panel of Site settings; Esc goes back to the menu.
   await page.keyboard.press('ControlOrMeta+e');
