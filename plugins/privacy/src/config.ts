@@ -200,12 +200,61 @@ export const TEXTS = {
     consentCookie: 'Ricorda le tue scelte sui cookie.',
     months: 'mesi',
   },
+  de: {
+    title: 'Ihre Privatsphäre',
+    message:
+      'Diese Website verwendet technisch notwendige Cookies und, nur mit Ihrer Einwilligung, weitere Cookies, wie in der Cookie-Richtlinie beschrieben. Wählen Sie „Alle akzeptieren“, „Alle ablehnen“ oder die Kategorien unter „Anpassen“. Sie können Ihre Wahl jederzeit ändern.',
+    accept: 'Alle akzeptieren',
+    reject: 'Alle ablehnen',
+    customize: 'Anpassen',
+    save: 'Auswahl speichern',
+    close: 'Schließen und ohne Zustimmung fortfahren',
+    preferences: 'Cookie-Einstellungen',
+    privacyPolicy: 'Datenschutzerklärung',
+    cookiePolicy: 'Cookie-Richtlinie',
+    alwaysOn: 'Immer aktiv',
+    necessary: 'Notwendig',
+    necessaryHelp: 'Für den Betrieb der Website nötig, zum Beispiel um diese Wahl zu speichern.',
+    preferencesLabel: 'Präferenzen',
+    preferencesHelp: 'Speichern Einstellungen wie die Sprache.',
+    statistics: 'Statistiken',
+    statisticsHelp: 'Helfen in zusammengefasster Form zu verstehen, wie die Website genutzt wird.',
+    marketing: 'Marketing',
+    marketingHelp:
+      'Zeigen personalisierte Werbung oder Inhalte anderer Websites wie Videos, Karten und Social-Media-Beiträge.',
+    embed: {
+      title: (name: string) => `Inhalt von ${name}`,
+      map: (name: string) =>
+        `Um die Karte zu sehen, akzeptieren Sie die „Marketing“-Cookies: ${name} kann Cookies verwenden und Daten erheben.`,
+      other: (name: string) =>
+        `Um ihn zu sehen, akzeptieren Sie die „Marketing“-Cookies: ${name} kann Cookies verwenden und Daten erheben.`,
+      accept: 'Akzeptieren und anzeigen',
+      open: (name: string) => `Auf ${name} öffnen`,
+    },
+    table: {
+      name: 'Name',
+      provider: 'Anbieter',
+      purpose: 'Zweck',
+      category: 'Kategorie',
+      duration: 'Dauer',
+    },
+    noCookies: 'Noch keine Cookies aufgeführt.',
+    thisSite: 'Diese Website',
+    consentCookie: 'Speichert Ihre Cookie-Auswahl.',
+    months: 'Monate',
+  },
 };
 
 export type Texts = (typeof TEXTS)['en'];
 
+/** The language of the built-in texts for a locale (`it-IT` → `it`), English when there are none. */
+export function textsLang(locale: string): keyof typeof TEXTS {
+  const lang = locale.toLowerCase().slice(0, 2);
+  return lang === 'it' || lang === 'de' ? lang : 'en';
+}
+
 export function textsFor(locale: string): Texts {
-  return locale.toLowerCase().startsWith('it') ? TEXTS.it : TEXTS.en;
+  return TEXTS[textsLang(locale)];
 }
 
 export function categoryLabel(texts: Texts, category: CookieRow['category']): string {

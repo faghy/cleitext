@@ -172,7 +172,7 @@ describe('cookie banner', () => {
     expect(html).toContain('data-cx-allow');
     expect(html).not.toMatch(/<iframe[^>]*\ssrc="https:\/\/www\.youtube/);
     // The consent script swaps the notice for the video.
-    expect(html).toContain("f.removeAttribute('srcdoc')");
+    expect(html).toContain("n.removeAttribute('srcdoc')");
   });
 
   it('asks again when categories or cookies change', async () => {

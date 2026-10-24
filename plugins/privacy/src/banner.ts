@@ -1,4 +1,4 @@
-import { CATEGORIES, textsFor, type Category, type PrivacyConfig } from './config';
+import { CATEGORIES, textsFor, textsLang, type Category, type PrivacyConfig } from './config';
 
 /**
  * The cookie banner of the public site, following the Italian Garante's
@@ -113,9 +113,18 @@ export function bannerHtml(
   version: string,
 ): string {
   const t = textsFor(locale);
-  const lang = locale.toLowerCase().startsWith('it') ? 'it' : 'en';
-  const title = config.banner.title[locale] || config.banner.title[lang] || t.title;
-  const message = config.banner.message[locale] || config.banner.message[lang] || t.message;
+  const lang = textsLang(locale);
+  const short = locale.toLowerCase().slice(0, 2);
+  const title =
+    config.banner.title[locale] ||
+    config.banner.title[short] ||
+    config.banner.title[lang] ||
+    t.title;
+  const message =
+    config.banner.message[locale] ||
+    config.banner.message[short] ||
+    config.banner.message[lang] ||
+    t.message;
   const offered = CATEGORIES.filter((c) => config.banner.categories.includes(c));
   const help: Record<Category, [string, string]> = {
     preferences: [t.preferencesLabel, t.preferencesHelp],
@@ -200,7 +209,7 @@ try{fetch('CONSENT_PATH',{method:'POST',headers:{'content-type':'application/jso
 return c;}
 function apply(c){var ok=c?c.c:[];
 Array.prototype.forEach.call(document.querySelectorAll('script[type="text/plain"][data-cx-category]'),function(s){if(ok.indexOf(s.getAttribute('data-cx-category'))<0)return;var n=document.createElement('script');for(var i=0;i<s.attributes.length;i++){var a=s.attributes[i];if(a.name!=='type'&&a.name!=='data-cx-category'&&a.name!=='data-cx-type')n.setAttribute(a.name,a.value);}var t=s.getAttribute('data-cx-type');if(t)n.type=t;n.text=s.text;s.parentNode.replaceChild(n,s);});
-Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][data-cx-category]'),function(f){if(ok.indexOf(f.getAttribute('data-cx-category'))>=0&&!f.getAttribute('src')){f.removeAttribute('srcdoc');f.setAttribute('src',f.getAttribute('data-cx-src'));}});
+Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][data-cx-category]'),function(f){if(ok.indexOf(f.getAttribute('data-cx-category'))>=0&&!f.getAttribute('src')){var n=f.cloneNode(false);n.removeAttribute('srcdoc');n.removeAttribute('loading');n.setAttribute('src',f.getAttribute('data-cx-src'));f.parentNode.replaceChild(n,f);}});
 if(CM&&typeof window.gtag==='function'){var has=function(k){return ok.indexOf(k)>=0?'granted':'denied';};window.gtag('consent','update',{analytics_storage:has('statistics'),ad_storage:has('marketing'),ad_user_data:has('marketing'),ad_personalization:has('marketing'),functionality_storage:has('preferences'),personalization_storage:has('preferences')});}
 window.cleitextConsent.categories=ok.slice();
 try{document.dispatchEvent(new CustomEvent('cleitext:consent',{detail:{categories:ok.slice()}}));}catch(e){}}
