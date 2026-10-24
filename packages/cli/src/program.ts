@@ -5,7 +5,7 @@
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import semver from 'semver';
 import type * as ServerTasks from './server-tasks.js';
@@ -154,7 +154,7 @@ async function announcePluginChange(db: Database): Promise<void> {
 
 // ---- Core updates ------------------------------------------------------------------------
 
-interface UpdateStatus {
+export interface UpdateStatus {
   state: 'running' | 'done' | 'failed';
   from: string;
   to: string;
@@ -165,12 +165,33 @@ interface UpdateStatus {
   error?: string;
 }
 
-/** Written atomically: the admin of any server process reads it while it changes. */
-async function writeStatus(file: string | undefined, status: UpdateStatus): Promise<void> {
-  if (!file) return;
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(`${file}.tmp`, JSON.stringify(status));
-  await rename(`${file}.tmp`, file);
+/** The status writes of this process, one after the other (steps come a few ms apart). */
+let statusWrites: Promise<void> = Promise.resolve();
+let statusSerial = 0;
+
+/**
+ * Writes the status file read by the admin and hosting panels, atomically
+ * (the admin of any server process reads it while it changes). Writes queue
+ * up, each through a temporary file of its own; a status that cannot be
+ * written never stops the update.
+ */
+export function writeStatus(file: string | undefined, status: UpdateStatus): Promise<void> {
+  if (!file) return Promise.resolve();
+  const snapshot = JSON.stringify(status);
+  const tmp = `${file}.${process.pid}-${++statusSerial}.tmp`;
+  statusWrites = statusWrites.then(async () => {
+    try {
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(tmp, snapshot);
+      await rename(tmp, file);
+    } catch (error) {
+      await rm(tmp, { force: true }).catch(() => {});
+      process.stderr.write(
+        `Could not write the status file ${file}: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    }
+  });
+  return statusWrites;
 }
 
 const run = promisify(execFile);
