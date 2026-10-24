@@ -54,24 +54,59 @@ export function googleFonts(a: Attrs): string[] {
   return out;
 }
 
+const FAMILY = /^[A-Za-z0-9][\w -]{0,59}$/;
+
+/**
+ * Families and their weights from `Family:weight` items (those of
+ * `data-pr-fonts`): 400 and 700 always, and the weights the blocks chose.
+ */
+export function fontWeights(items: Iterable<string>): Map<string, string[]> {
+  const weights = new Map<string, Set<string>>();
+  for (const item of items) {
+    const [family, weight] = item.split(':');
+    if (!family || !FAMILY.test(family)) continue;
+    const set = weights.get(family) ?? new Set(['400', '700']);
+    if (weight && /^\d{3}$/.test(weight)) set.add(weight);
+    weights.set(family, set);
+  }
+  return new Map(
+    [...weights]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([family, set]) => [family, [...set].sort()]),
+  );
+}
+
+/** The Google fonts a page's blocks use, from their `data-pr-fonts`, with their weights. */
+export function pageFonts(html: string): Map<string, string[]> {
+  return fontWeights(
+    [...html.matchAll(/data-pr-fonts="([^"]*)"/g)].flatMap((match) => match[1]!.split('|')),
+  );
+}
+
+/** A family with its weights, as Google is asked for it: `Poiret One:400;700`. */
+export function fontItem(family: string, weights: readonly string[]): string {
+  return `${family}:${weights.join(';')}`;
+}
+
+/** The family of a `fontItem`. */
+export const itemFamily = (item: string): string => item.split(':')[0]!;
+
+/** The Google Fonts stylesheet of some `fontItem`s, or null when there are none. */
+export function googleCssUrl(items: readonly string[]): string | null {
+  const query = items
+    .map((item) => {
+      const [family, weights] = item.split(':');
+      if (!family || !FAMILY.test(family) || !weights || !/^\d{3}(;\d{3})*$/.test(weights))
+        return null;
+      return `family=${family.replace(/ /g, '+')}:wght@${weights}`;
+    })
+    .filter(Boolean);
+  return query.length ? `https://fonts.googleapis.com/css2?${query.join('&')}&display=swap` : null;
+}
+
 /** The stylesheet of the Google fonts a page uses, from its blocks' `data-pr-fonts`. */
 export function googleFontsLink(html: string): string | null {
-  const weights = new Map<string, Set<string>>();
-  for (const match of html.matchAll(/data-pr-fonts="([^"]*)"/g)) {
-    for (const item of match[1]!.split('|')) {
-      const [family, weight] = item.split(':');
-      if (!family || !/^[A-Za-z0-9][\w -]{0,59}$/.test(family)) continue;
-      const set = weights.get(family) ?? new Set(['400', '700']);
-      if (weight && /^\d{3}$/.test(weight)) set.add(weight);
-      weights.set(family, set);
-    }
-  }
-  if (weights.size === 0) return null;
-  const query = [...weights]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([family, set]) => `family=${family.replace(/ /g, '+')}:wght@${[...set].sort().join(';')}`)
-    .join('&');
-  return `https://fonts.googleapis.com/css2?${query}&display=swap`;
+  return googleCssUrl([...pageFonts(html)].map(([family, weights]) => fontItem(family, weights)));
 }
 
 export function extensionProps(a: Attrs): { className: string; data: Record<string, string> } {

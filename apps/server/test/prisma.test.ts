@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { buildPlugin, installPlugin } from '@cleitext/cli';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
+import { PluginServicesProvider } from '../src/plugins/plugin-services.service.js';
 import {
   ownerDatabase,
   seedSite,
@@ -63,6 +64,14 @@ beforeAll(async () => {
   await install('prisma', pluginsPath);
   await install('wordpress-importer', pluginsPath);
   app = await startTestApp({ pluginsPath });
+  // No Google here: copies of Google fonts are not made (prisma-fonts.test.ts has a fake one).
+  const services = app.get(PluginServicesProvider);
+  const send = services.httpSend.bind(services);
+  vi.spyOn(services, 'httpSend').mockImplementation((plugin, request) =>
+    /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(request.url)
+      ? Promise.resolve({ status: 503, type: 'text/plain', text: '' })
+      : send(plugin, request),
+  );
   site = await seedSite(owner, 'prisma');
   await seedUser(owner, {
     email: 'admin@prisma.test',
@@ -277,9 +286,9 @@ describe('Prisma blocks', () => {
     // Heading with its highlight, info box, buttons with an entrance animation.
     expect(html).toContain('<h2 class="pr-heading__text">Cocktails <mark>twist</mark></h2>');
     expect(html).toContain('font-family:"Poiret One"');
-    expect(html).toContain(
-      'href="https://fonts.googleapis.com/css2?family=Poiret+One:wght@400;700&amp;display=swap"',
-    );
+    // Its Google font is kept on the site: never a link to Google (prisma-fonts.test.ts).
+    expect(html).toContain('data-pr-fonts="Poiret One"');
+    expect(html).not.toMatch(/fonts\.googleapis\.com|fonts\.gstatic\.com/);
     expect(html).toContain(
       '<span class="pr-info-box__prefix">Al</span><h1 class="pr-info-box__title">Duomo</h1>',
     );

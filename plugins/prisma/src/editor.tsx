@@ -5,6 +5,7 @@ import { setIconData, type IconData } from './lib/icons';
 import { registerPrismaBlocks, setGlobals } from './editor/register';
 import { addEditorStyles } from './editor/styles';
 import { registerFormats } from './editor/formats';
+import { followCanvasFonts } from './editor/fonts';
 
 /** Prisma's blocks in the block editor (plugin API 1.23). */
 addEditorStyles();
@@ -20,3 +21,5 @@ void fetch('/api/v1/plugins/prisma/settings', { credentials: 'same-origin' })
   .then((settings: Record<string, unknown> | null) => setGlobals(normalizeGlobals(settings)))
   .catch(() => {});
 registerPrismaBlocks(BLOCKS, SETTINGS);
+// The blocks' Google fonts in the canvas, as the site loads them.
+followCanvasFonts();

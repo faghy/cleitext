@@ -2,19 +2,23 @@
   "name": "@cleitext/design",
   "version": "0.0.0",
   "private": true,
-  "description": "Responsive design settings and their CSS, shared by Fresco and Prisma.",
+  "description": "Responsive design settings and their CSS, and Google Fonts kept on the site, shared by Fresco and Prisma.",
   "license": "GPL-2.0-or-later",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./model": "./src/model.ts",
-    "./css": "./src/css.ts"
+    "./css": "./src/css.ts",
+    "./fonts": "./src/fonts.ts",
+    "./font-copies": "./src/font-copies.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "devDependencies": {
+    "@cleitext/plugin-sdk": "workspace:*",
+    "drizzle-orm": "^0.45.4",
     "vitest": "^5.0.3"
   }
 }

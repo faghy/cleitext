@@ -1,7 +1,7 @@
 {
   "slug": "fresco",
   "name": "Fresco",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "apiVersion": "^1.44",
   "description": "A visual page builder: drag containers and widgets, style every element for desktop, tablet and mobile, with global colors and fonts.",
   "author": "Cleitext",

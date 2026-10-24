@@ -147,7 +147,9 @@ describe('Google Fonts of Fresco pages', () => {
     expect(html).toContain('data-fr-fonts="Lora"');
     expect(html).not.toMatch(/fonts\.googleapis\.com|fonts\.gstatic\.com/);
     const links = [
-      ...html.matchAll(/<link rel="stylesheet" href="(\/_fresco\/gfonts\/[a-f0-9]{32}\.css)">/g),
+      ...html.matchAll(
+        /<link rel="stylesheet" href="(\/_fresco\/gfonts\/[a-f0-9]{32}\.css)" data-font-family="[^"]+">/g,
+      ),
     ].map((m) => m[1]!);
     // The kit's Inter and the heading's Lora.
     expect(links).toHaveLength(2);

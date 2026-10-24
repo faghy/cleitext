@@ -12,7 +12,16 @@ import { DEFAULT_GLOBALS, normalizeGlobals, variablesCss, type Globals } from '.
 import { FORM_SETTINGS, registerFormRoutes } from './blocks/form/route';
 import { buildTablesOfContents } from './blocks/table-of-contents/server';
 import { fromCover, fromSpectra } from './import';
-import { extensionProps, googleFontsLink } from './lib/extensions';
+import {
+  extensionProps,
+  fontItem,
+  fontWeights,
+  googleCssUrl,
+  itemFamily,
+  pageFonts,
+} from './lib/extensions';
+import { familiesToLoad, fontLink } from '@cleitext/design/fonts';
+import { databaseFonts, LocalFonts, registerFontRoute } from '@cleitext/design/font-copies';
 import { setIconData, type IconData } from './lib/icons';
 import icons from './public/icons.json';
 import { safeTag } from './lib/tags';
@@ -43,6 +52,14 @@ function styleObject(css: string): Record<string, string> {
       }),
   );
 }
+
+/** Where the site serves its copies of Google fonts (Settings → Prisma → Google Fonts). */
+export const FONTS_ROUTE = '/_prisma/gfonts';
+/** Pages waiting for a Google font's copy on the site. */
+const FONTS_TAG = 'prisma:fonts';
+
+/** Google Fonts kept on the site, set up with the plugin. */
+let localFonts: LocalFonts | null = null;
 
 /** The site's defaults, read before the page's blocks are drawn (`load`). */
 const siteGlobals = new Map<string, Globals>();
@@ -169,11 +186,63 @@ export default definePlugin({
           max: 400,
           default: DEFAULT_GLOBALS.elementsGap,
         },
+        {
+          name: 'googleFonts',
+          type: 'select',
+          label: { en: 'Google Fonts', it: 'Google Fonts' },
+          help: {
+            en: 'The fonts chosen in the blocks. Kept on this site, visitors never reach Google (needed in the EU without consent); from Google, their address reaches Google; “Don’t load” when the theme provides them.',
+            it: 'I font scelti nei blocchi. Ospitati su questo sito, i visitatori non contattano mai Google (necessario in UE senza consenso); da Google, il loro indirizzo arriva a Google; “Non caricare” quando li fornisce il tema.',
+          },
+          options: [
+            { value: 'local', label: { en: 'Host on this site', it: 'Ospita su questo sito' } },
+            { value: 'google', label: { en: 'Load from Google', it: 'Carica da Google' } },
+            { value: 'none', label: { en: 'Don’t load', it: 'Non caricare' } },
+          ],
+          default: DEFAULT_GLOBALS.googleFonts,
+        },
         // Where forms send their messages, and the reCAPTCHA keys.
         ...FORM_SETTINGS,
       ],
       { title: { en: 'Prisma', it: 'Prisma' } },
     );
+    // Google fonts kept on the site: Prisma's own table, storage and route.
+    const fontStore = databaseFonts(ctx);
+    localFonts = new LocalFonts({
+      http: (request) => ctx.http.send(request),
+      store: fontStore,
+      log: ctx.log,
+      route: FONTS_ROUTE,
+      cssUrl: (item) => googleCssUrl([item]),
+      label: 'Prisma',
+      onReady(siteId) {
+        // Again a little later: a page that went without the font may be stored after the first.
+        setTimeout(() => void ctx.cache.invalidate(siteId, [FONTS_TAG]).catch(() => {}), 10_000);
+        return ctx.cache.invalidate(siteId, [FONTS_TAG]);
+      },
+    });
+    registerFontRoute(ctx, fontStore, FONTS_ROUTE);
+    // The editor: how the site loads fonts, and its copies of some (null while not ready).
+    ctx.routes.api({
+      method: 'GET',
+      path: '/fonts/local',
+      capability: 'edit_entries',
+      async handler(request) {
+        const { googleFonts: mode } = await loadGlobals(ctx, request.siteId);
+        const weights = fontWeights((request.query.fonts ?? '').split('|').slice(0, 200));
+        const out: Record<string, string | null> = {};
+        if (mode === 'local' && localFonts) {
+          const items = [...weights].slice(0, 40).map(([family, w]) => fontItem(family, w));
+          await Promise.all(
+            items.map(async (item) => {
+              const [sheet] = (await localFonts?.sheets(request.siteId, [item], 1500)) ?? [];
+              out[itemFamily(item)] = sheet?.href ?? null;
+            }),
+          );
+        }
+        return { body: { mode, fonts: out } };
+      },
+    });
     for (const block of BLOCKS) ctx.blocks.register(register(ctx, block));
     registerFormRoutes(ctx);
     // Pages built with Spectra, on WordPress import (plugin API 1.23).
@@ -198,14 +267,28 @@ export default definePlugin({
       const html = buildTablesOfContents(page);
       const at = html.indexOf('</head>');
       if (at === -1) return html;
-      const fonts = html.includes('data-pr-fonts=') ? googleFontsLink(html) : null;
-      const variables = variablesCss(
-        siteGlobals.get(context.siteId) ?? (await loadGlobals(ctx, context.siteId)),
-      );
-      const head =
-        (fonts
-          ? `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${fonts.replace(/&/g, '&amp;')}">`
-          : '') + (variables ? `<style id="pr-variables">${variables}</style>` : '');
+      const globals = siteGlobals.get(context.siteId) ?? (await loadGlobals(ctx, context.siteId));
+      const variables = variablesCss(globals);
+      // Google fonts the blocks chose, but none the page loads already (the
+      // theme's, Fresco's): kept on the site unless the settings say otherwise.
+      let fonts = '';
+      if (globals.googleFonts !== 'none' && html.includes('data-pr-fonts=')) {
+        const weights = pageFonts(html);
+        const items = familiesToLoad([...weights.keys()], html).map((family) =>
+          fontItem(family, weights.get(family)!),
+        );
+        if (globals.googleFonts === 'google') {
+          const url = googleCssUrl(items);
+          if (url) {
+            fonts = `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${url.replace(/&/g, '&amp;')}">`;
+          }
+        } else if (items.length && localFonts) {
+          context.tag(FONTS_TAG);
+          const sheets = await localFonts.sheets(context.siteId, items.slice(0, 30), 2500);
+          fonts = sheets.map((sheet) => fontLink(sheet.href, itemFamily(sheet.family))).join('');
+        }
+      }
+      const head = fonts + (variables ? `<style id="pr-variables">${variables}</style>` : '');
       return html.slice(0, at) + head + html.slice(at);
     });
     // Each block's script, only on the pages that show the block.

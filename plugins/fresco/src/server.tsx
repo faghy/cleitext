@@ -8,7 +8,7 @@ import { elementCss, withDefaults } from './core/css.js';
 import { pageCss } from './core/page-css.js';
 import { isGoogleFont, pageGoogleFonts, usedGoogleFonts } from './core/fonts.js';
 import { setIconData, type IconData } from './core/icons.js';
-import { familiesToLoad, googleFontsMode } from './core/font-host.js';
+import { familiesToLoad, fontLink, googleFontsMode } from './core/font-host.js';
 import { databaseFonts, LocalFonts, registerFontRoute } from './local-fonts.js';
 import {
   googleCssUrl,
@@ -310,8 +310,9 @@ export default definePlugin({
           }
         } else if (families.length && localFonts) {
           context.tag(FONTS_TAG);
-          const sheets = await localFonts.stylesheets(context.siteId, families.slice(0, 30), 2500);
-          fonts = sheets.map((href) => `<link rel="stylesheet" href="${href}">`).join('');
+          const sheets = await localFonts.sheets(context.siteId, families.slice(0, 30), 2500);
+          // Each link names its family: Prisma, on the same page, does not load it again.
+          fonts = sheets.map((sheet) => fontLink(sheet.href, sheet.family)).join('');
         }
       }
       const head =

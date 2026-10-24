@@ -1,3 +1,5 @@
+import { fontsMode, type GoogleFontsMode } from '@cleitext/design/fonts';
+
 /**
  * Site-wide defaults of the blocks (Settings → Prisma): containers left at
  * the default use them, so changing a setting changes all of them.
@@ -11,6 +13,13 @@ export interface Globals {
   elementsGap: number;
   /** CSS variables of the pages, e.g. a former theme's palette: `--name: value` lines. */
   cssVariables: string;
+  /**
+   * How pages get the Google fonts the blocks choose: copies kept on this
+   * site (`local`, the default, also for sites made before the setting: no
+   * visitor reaches Google), from Google's servers (`google`), or not at all
+   * (`none`: the theme or the site provides them).
+   */
+  googleFonts: GoogleFontsMode;
 }
 
 export const DEFAULT_GLOBALS: Globals = {
@@ -18,6 +27,7 @@ export const DEFAULT_GLOBALS: Globals = {
   containerPadding: 10,
   elementsGap: 20,
   cssVariables: '',
+  googleFonts: 'local',
 };
 
 export function normalizeGlobals(value: Record<string, unknown> | null | undefined): Globals {
@@ -30,6 +40,7 @@ export function normalizeGlobals(value: Record<string, unknown> | null | undefin
     containerPadding: n(value?.containerPadding, DEFAULT_GLOBALS.containerPadding, 0, 400),
     elementsGap: n(value?.elementsGap, DEFAULT_GLOBALS.elementsGap, 0, 400),
     cssVariables: typeof value?.cssVariables === 'string' ? value.cssVariables : '',
+    googleFonts: fontsMode(value?.googleFonts),
   };
 }
 
