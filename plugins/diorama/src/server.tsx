@@ -12,7 +12,13 @@ import { templateSlider, quickSlider, TEMPLATES, type QuickSlide } from './model
 import type { Link, SliderData, SliderRecord } from './model/types';
 import { installServerApi, sliderLimit, type DioramaServerApi } from './pro';
 import { BASE_CSS } from './render/base-css';
-import { SliderView, type RenderMedia } from './render/render';
+import {
+  mergeDecorators,
+  SliderView,
+  type RenderDecorator,
+  type RenderInput,
+  type RenderMedia,
+} from './render/render';
 import { databaseStore, UUID, summaryOf, type Store } from './store';
 import {
   BLOCK_TYPE,
@@ -131,7 +137,13 @@ function uidOf(blockId: string): string {
 export default definePlugin({
   setup(ctx: PluginContext) {
     const store = databaseStore(ctx);
-    const api: DioramaServerApi = installServerApi();
+    const api: DioramaServerApi = installServerApi({
+      list: (siteId) => store.list(siteId),
+      async get(siteId, ref) {
+        if (UUID.test(ref)) return store.get(siteId, ref);
+        return ref ? store.byAlias(siteId, ref) : null;
+      },
+    });
     const warn = (message: string) => ctx.log.warn(message);
 
     ctx.access.defineCapability(CAPABILITY, {
@@ -260,15 +272,26 @@ export default definePlugin({
               </div>
             );
           }
-          const input = {
+          const input: RenderInput = {
             slider: data.slider,
             scope: keyOf(data.record.id),
             uid: uidOf(block.id),
             title: data.record.title,
+            alias: data.record.alias,
+            sliderId: data.record.id,
             locale: context.locale,
             media: new Map(data.media),
             links: data.links,
           };
+          const decorators: (RenderDecorator | undefined)[] = [];
+          for (const decorator of api.decorators) {
+            try {
+              decorators.push(decorator(input));
+            } catch (error) {
+              warn(`A Diorama decorator failed: ${String(error)}`);
+            }
+          }
+          input.decorate = mergeDecorators(decorators);
           for (const renderer of api.renderers) {
             try {
               const out = renderer(input);

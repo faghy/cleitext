@@ -5,10 +5,10 @@
  * runtime, and Save (Ctrl/⌘+S).
  */
 import { useT } from '@cleitext/admin-sdk';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { expandPosts } from '../model/posts';
-import { SliderView, type RenderMedia } from '../render/render';
+import { mergeDecorators, SliderView, type RenderInput, type RenderMedia } from '../render/render';
 import { defaultLayer, defaultSlide } from '../model/normalize';
 import { layerPos, resetFor, setFor } from '../model/resolve';
 import type {
@@ -663,6 +663,26 @@ export function Studio({
               );
             }}
           />
+          {extensions.canvasPanels
+            .filter((panel) => advanced || !panel.advancedOnly)
+            .map((panel) => (
+              <section
+                key={panel.id}
+                aria-label={panel.title}
+                style={{ borderTop: '1px solid #e2e8f0', maxHeight: '42%', overflow: 'auto' }}
+              >
+                <panel.component
+                  slider={slider}
+                  slideIndex={slideIndex}
+                  selected={selected}
+                  device={device}
+                  advanced={advanced}
+                  onSelect={setSelected}
+                  onChange={(fn, group) => history.change(fn, group)}
+                  onPlay={() => setMotion((n) => n + 1)}
+                />
+              </section>
+            ))}
         </main>
 
         {/* Settings */}
@@ -852,15 +872,57 @@ function PreviewDialog({
   const [width, setWidth] = useState<'100%' | '768px' | '390px'>('100%');
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const doc = `<!doctype html><html lang="${locale.replace(/[^\w-]/g, '')}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}p.note{font:14px system-ui;color:#64748b;text-align:center;margin:24px}</style></head><body><main id="root"></main><p class="note">${t('The page continues here.')}</p></body></html>`;
+  const extensions = proAdmin().preview;
   useEffect(() => {
     if (!root) return;
     const timer = window.setTimeout(() => {
-      const script = root.ownerDocument.createElement('script');
-      script.src = `/plugin-assets/diorama/${encodeURIComponent(version)}/diorama.js`;
-      root.ownerDocument.body.appendChild(script);
+      const doc = root.ownerDocument;
+      for (const href of extensions.styles) {
+        const link = doc.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        doc.head.appendChild(link);
+      }
+      // Extensions' scripts first, in order: they run before the sliders start, as on pages.
+      for (const src of [
+        ...extensions.scripts,
+        `/plugin-assets/diorama/${encodeURIComponent(version)}/diorama.js`,
+      ]) {
+        const script = doc.createElement('script');
+        script.src = src;
+        script.async = false;
+        doc.body.appendChild(script);
+      }
     }, 50);
     return () => window.clearTimeout(timer);
   }, [root, version]);
+  const input: RenderInput = {
+    slider,
+    scope: 'preview',
+    uid: 'dio-preview',
+    title,
+    locale,
+    media: NO_MEDIA,
+    withBaseCss: true,
+  };
+  input.decorate = mergeDecorators(
+    extensions.decorators.map((fn) => {
+      try {
+        return fn(input);
+      } catch {
+        return undefined;
+      }
+    }),
+  );
+  let drawn: ReactNode;
+  for (const renderer of extensions.renderers) {
+    try {
+      drawn = renderer(input);
+    } catch {
+      drawn = undefined;
+    }
+    if (drawn !== undefined) break;
+  }
   return (
     <Dialog
       title={t('Preview')}
@@ -900,19 +962,7 @@ function PreviewDialog({
           background: '#fff',
         }}
       />
-      {root &&
-        createPortal(
-          <SliderView
-            slider={slider}
-            scope="preview"
-            uid="dio-preview"
-            title={title}
-            locale={locale}
-            media={NO_MEDIA}
-            withBaseCss
-          />,
-          root,
-        )}
+      {root && createPortal(drawn !== undefined ? drawn : <SliderView {...input} />, root)}
     </Dialog>
   );
 }

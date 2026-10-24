@@ -5,7 +5,7 @@
  * arrows and bullets as buttons with names, inactive slides hidden from
  * assistive technologies; layers keep the order they are read in.
  */
-import type { CSSProperties, ReactNode } from 'react';
+import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import { EASINGS, ICONS, NAV_ICONS } from '../model/presets';
 import type { Device, Layer, Link, MediaRef, Slide, SliderData } from '../model/types';
 import { BASE_CSS } from './base-css';
@@ -30,6 +30,9 @@ export interface RenderInput {
   /** Unique on the page: the prefix of element ids. */
   uid: string;
   title: string;
+  /** The slider's short name and id, on pages (Diorama 1.1; e.g. a popup opened by `#…-<alias>`). */
+  alias?: string;
+  sliderId?: string;
   locale: string;
   media: ReadonlyMap<string, RenderMedia>;
   /** Addresses of the site's entries that links point to, by id. */
@@ -42,6 +45,87 @@ export interface RenderInput {
   withBaseCss?: boolean;
   /** Canvas: play the layers' entrance effects (the editor's "Play"). */
   motion?: boolean;
+  /**
+   * What other plugins add to the markup (Diorama 1.1): classes and
+   * attributes, more CSS, global layers, thumbnails (see `RenderDecorator`).
+   */
+  decorate?: RenderDecorator;
+}
+
+/** Classes and attributes another plugin adds to an element of the slider. */
+export interface DecoratedElement {
+  className?: string;
+  attrs?: Record<string, string>;
+}
+
+/**
+ * How another plugin (Diorama Pro) changes a slider's markup without drawing
+ * it again (Diorama 1.1). Every part is optional; attributes are added after
+ * Diorama's own, so they may replace them (e.g. `data-transition`).
+ */
+export interface RenderDecorator {
+  /** The slider's root (`.dio`). */
+  root?: DecoratedElement;
+  /** Merged into the runtime's settings (`data-dio`), e.g. another `effect`. */
+  config?: Record<string, unknown>;
+  /** More CSS, after the slider's own. */
+  css?: string;
+  /** Inside the stage, after the slides (e.g. layers shown on every slide). */
+  stage?: ReactNode;
+  /** Inside the root, after the navigation (e.g. thumbnails or tabs). */
+  after?: ReactNode;
+  slide?: (slide: Slide, index: number) => DecoratedElement | undefined;
+  /** `children` replaces the text of a heading, a text or a button (e.g. text split in letters). */
+  layer?: (layer: Layer) => (DecoratedElement & { children?: ReactNode }) | undefined;
+}
+
+/** Several decorators as one: classes and CSS joined, attributes merged in order. */
+export function mergeDecorators(
+  list: (RenderDecorator | undefined | null)[],
+): RenderDecorator | undefined {
+  const all = list.filter((d): d is RenderDecorator => Boolean(d));
+  if (all.length === 0) return undefined;
+  if (all.length === 1) return all[0];
+  const join = (parts: (DecoratedElement | undefined)[]): DecoratedElement | undefined => {
+    const shown = parts.filter((p): p is DecoratedElement => Boolean(p));
+    if (shown.length === 0) return undefined;
+    return {
+      className: shown
+        .map((p) => p.className)
+        .filter(Boolean)
+        .join(' '),
+      attrs: Object.assign({}, ...shown.map((p) => p.attrs ?? {})) as Record<string, string>,
+    };
+  };
+  return {
+    root: join(all.map((d) => d.root)),
+    config: Object.assign({}, ...all.map((d) => d.config ?? {})) as Record<string, unknown>,
+    css: all.map((d) => d.css ?? '').join(''),
+    stage: all.some((d) => d.stage)
+      ? all.map((d, i) => <Fragment key={i}>{d.stage}</Fragment>)
+      : undefined,
+    after: all.some((d) => d.after)
+      ? all.map((d, i) => <Fragment key={i}>{d.after}</Fragment>)
+      : undefined,
+    slide: (slide, index) => join(all.map((d) => d.slide?.(slide, index))),
+    layer: (layer) => {
+      const parts = all.map((d) => d.layer?.(layer));
+      const joined = join(parts);
+      const children = parts.find((p) => p?.children !== undefined)?.children;
+      return joined || children !== undefined ? { ...joined, children } : undefined;
+    },
+  };
+}
+
+/** Adds a decorator's class and attributes to an element's props. */
+function decorated<T extends Record<string, unknown>>(
+  props: T,
+  extra: DecoratedElement | undefined,
+): T {
+  if (!extra) return props;
+  const out: Record<string, unknown> = { ...props, ...(extra.attrs ?? {}) };
+  if (extra.className) out.className = `${String(props.className ?? '')} ${extra.className}`.trim();
+  return out as T;
 }
 
 /** What the runtime reads from `data-dio`. */
@@ -290,7 +374,7 @@ function iconSvg(name: string, className?: string) {
   );
 }
 
-function LayerView({
+export function LayerView({
   layer,
   input,
   first,
@@ -313,14 +397,18 @@ function LayerView({
   if (layer.motion.in.preset !== 'none') attrs['data-in'] = '';
   if (layer.motion.out && layer.motion.out.preset !== 'none') attrs['data-out'] = '';
   if (canvas) attrs['data-dio-layer'] = layer.id;
+  const extra = canvas ? undefined : input.decorate?.layer?.(layer);
+  if (extra?.className) classes.push(extra.className);
+  Object.assign(attrs, extra?.attrs ?? {});
   const c = layer.content;
+  const text = extra?.children !== undefined ? extra.children : lines(c.text);
   switch (layer.type) {
     case 'heading':
     case 'text': {
       const Tag = c.tag;
       return (
         <Tag className={classes.join(' ')} {...attrs}>
-          {lines(c.text)}
+          {text}
         </Tag>
       );
     }
@@ -328,7 +416,7 @@ function LayerView({
       const link = canvas ? null : linkProps(c.link, input.uid, input.links);
       const inner = (
         <>
-          <span>{lines(c.text)}</span>
+          <span>{text}</span>
           {layer.motion.hover === 'shift' && (
             <svg
               className="dio-btn__arrow"
@@ -407,7 +495,7 @@ function LayerView({
   }
 }
 
-function SlideView({
+export function SlideView({
   slide,
   index,
   total,
@@ -442,8 +530,9 @@ function SlideView({
   if (slide.transition) props['data-transition'] = slide.transition;
   if (slide.duration) props['data-duration'] = slide.duration;
   const overlay = slide.overlay.opacity > 0;
+  const extra = canvas ? undefined : input.decorate?.slide?.(slide, index);
   return (
-    <div {...props}>
+    <div {...decorated(props, extra)}>
       <Background slide={slide} input={input} eager={index === 0} />
       {overlay && (
         <div
@@ -510,7 +599,9 @@ export function SliderView(input: RenderInput) {
     easing: EASINGS[slider.transition.easing].css,
     labels: { pause: t.pause, play: t.play, slideOf: t.slideOf(0, 0) },
   };
-  const css = `${input.withBaseCss ? BASE_CSS : ''}${sliderCss(slider, input.scope, canvas ? { device: input.device ?? 'desktop' } : {})}`;
+  const decorate = canvas ? undefined : input.decorate;
+  if (decorate?.config) Object.assign(config, decorate.config);
+  const css = `${input.withBaseCss ? BASE_CSS : ''}${sliderCss(slider, input.scope, canvas ? { device: input.device ?? 'desktop' } : {})}${decorate?.css ?? ''}`;
   const stageId = `${input.uid}-slides`;
   // Controls wait for the script: without it the first slide shows alone.
   const hidden = canvas ? {} : { hidden: true };
@@ -524,10 +615,15 @@ export function SliderView(input: RenderInput) {
   return (
     <>
       <Root
-        id={input.uid}
-        className={classes.join(' ')}
-        {...rootProps}
-        {...(canvas ? {} : { 'data-dio': JSON.stringify(config) })}
+        {...decorated(
+          {
+            id: input.uid,
+            className: classes.join(' '),
+            ...rootProps,
+            ...(canvas ? {} : { 'data-dio': JSON.stringify(config) }),
+          },
+          decorate?.root,
+        )}
       >
         <style>{css}</style>
         {autoplay && (
@@ -560,6 +656,7 @@ export function SliderView(input: RenderInput) {
               />
             );
           })}
+          {decorate?.stage}
         </div>
         {carousel &&
           nav.arrows &&
@@ -607,6 +704,7 @@ export function SliderView(input: RenderInput) {
             <span />
           </div>
         )}
+        {decorate?.after}
       </Root>
       {!canvas && <span id={`${input.uid}-after`} className="dio-after" />}
     </>

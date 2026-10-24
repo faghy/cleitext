@@ -34,7 +34,12 @@ export function layerDeclarations(
   if (placed) {
     const p = layerPos(layer, device, autoMobile);
     const [ax, ay] = ANCHOR_SHIFT[p.anchor];
-    out.push(`left:${pct(p.x)}`, `top:${pct(p.y)}`, `translate:${ax}% ${ay}%`);
+    // `--dio-tx`/`--dio-ty` (Diorama 1.1): offsets other plugins add (parallax, loops).
+    out.push(
+      `left:${pct(p.x)}`,
+      `top:${pct(p.y)}`,
+      `translate:calc(${ax}% + var(--dio-tx,0px)) calc(${ay}% + var(--dio-ty,0px))`,
+    );
     out.push(p.w > 0 ? `width:${pct(p.w)}` : 'width:max-content', 'max-width:100%');
     if (p.h > 0 && layer.type !== 'heading' && layer.type !== 'text' && layer.type !== 'button')
       out.push(

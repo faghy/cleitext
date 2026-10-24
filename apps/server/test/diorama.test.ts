@@ -165,7 +165,7 @@ describe('Diorama', () => {
     expect(html).toContain('aria-roledescription="carousel"');
     expect(html).toContain('aria-label="Home slider"');
     expect(html).toContain('class="dio dio--slider dio--fullwidth dio-nav--pill');
-    expect(html).toMatch(/<script[^>]+plugin-assets\/diorama\/1\.0\.0\/diorama\.js/);
+    expect(html).toMatch(/<script[^>]+plugin-assets\/diorama\/1\.1\.0\/diorama\.js/);
     // The height is reserved in CSS, in the head (no layout shift).
     expect(html).toMatch(/<style[^>]*>[^<]*\.dio__stage\{position:relative;height:var\(--dio-h\)/);
     // The media library's picture: responsive sources, its alternative text, the first one first.

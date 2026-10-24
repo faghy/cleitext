@@ -58,9 +58,17 @@ Diorama tiene i suoi punti di estensione su `globalThis`, come Fresco, così un 
 
 Ogni slider, slide e livello ha un oggetto `ext` che Diorama conserva così com'è (fino a 32 KB): Pro ci tiene le sue impostazioni.
 
-**Amministrazione** — `globalThis[Symbol.for('cleitext.diorama.admin')]` (`src/studio/pro.ts`): `sliderPanels` (altre sezioni delle impostazioni dello Slider, con lo slider, il dispositivo e un `onChange`), `templates` (altri modelli nella galleria), `canCreate` e `invitation` (il testo dell'invito).
+Da Diorama 1.1 l'API del server ha anche:
 
-**Browser** — `window.cleitextDiorama`: `transitions[nome] = (from, to, { duration, easing, direction }) => Animation[]` aggiunge una transizione (usata quando l'effetto di una slide o dello slider ha quel nome), e `listeners` vengono chiamati con ogni slider su `'ready'` e `'change'`. Gli script aggiunti da un altro plugin dopo quello di Diorama girano prima che gli slider partano.
+- `decorators`: `(input) => RenderDecorator | undefined`, chiamati prima dei `renderers`; le risposte sono unite in `input.decorate`. Un decoratore aggiunge classi e attributi alla radice dello slider, alle slide e ai livelli (gli attributi vengono dopo quelli di Diorama, quindi `data-transition` può indicare un'altra transizione), impostazioni unite a quelle del runtime (`data-dio`, per esempio `effect`), altro CSS, contenuto nello stage dopo le slide (livelli mostrati su ogni slide) e dopo la navigazione (miniature, schede), e il testo di un titolo, un testo o un pulsante (per esempio diviso in lettere). La tela dell'editor non disegna decorazioni.
+- `sliders`: `list(siteId)` e `get(siteId, idOAlias)`, in sola lettura (per esempio i popup messi su ogni pagina).
+- `lib`: il disegno di Diorama (`SliderView`, `SlideView`, `LayerView`, `sliderCss`, `BASE_CSS`, `stringsFor`, punti di interruzione…), così un'estensione lo riusa senza includerlo.
+- I renderer ricevono anche `alias` e `sliderId` dello slider.
+- I livelli posizionati sulla slide aggiungono `--dio-tx` e `--dio-ty` (lunghezze, `0px` di base) alla loro posizione: spostamenti che un'estensione può animare (parallasse, loop).
+
+**Amministrazione** — `globalThis[Symbol.for('cleitext.diorama.admin')]` (`src/studio/pro.ts`): `sliderPanels` (altre sezioni delle impostazioni dello Slider, con lo slider, il dispositivo e un `onChange`), `templates` (altri modelli nella galleria), `canCreate` e `invitation` (il testo dell'invito). Da 1.1: `layerPanels` (sezioni di una scheda del livello, Movimento se non indicata, con un `onChange` del livello), `slidePanels` (sezioni delle impostazioni della Slide), `canvasPanels` (pannelli sotto la tela, anche solo con l'interruttore Avanzate, per esempio una linea del tempo), `preview` (`decorators`, `renderers`, `scripts` e `styles` per la cornice dell'Anteprima, come nelle pagine) e `lib` (i componenti di Diorama, i controlli del suo editor e le funzioni del modello, impostati quando si carica l'amministrazione di Diorama). I modelli delle estensioni si creano dai loro dati.
+
+**Browser** — `window.cleitextDiorama`: `transitions[nome] = (from, to, { duration, easing, direction }) => Animation[]` aggiunge una transizione (usata quando l'effetto di una slide o dello slider ha quel nome), e `listeners` vengono chiamati con ogni slider su `'ready'` e `'change'`. Gli script aggiunti da un altro plugin dopo quello di Diorama girano prima che gli slider partano. Da 1.1: i pulsanti con `data-dio-go="<n>"` ovunque nella radice dello slider (miniature, schede) portano alla slide `n` e ricevono `aria-current`; uno slider ha `setPaused(boolean)` e `paused`; `scan()` avvia gli slider aggiunti dopo alla pagina.
 
 **Modello dei dati** — `src/model/types.ts`. I valori che cambiano per dispositivo sono `{ base, tablet?, mobile? }` e salvano solo le modifiche; i media sono oggetti `{ id, url }`; la normalizzazione (`src/model/normalize.ts`) limita ogni valore e scarta ciò che non conosce.
 

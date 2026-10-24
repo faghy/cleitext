@@ -9,7 +9,7 @@ import { useT } from '@cleitext/admin-sdk';
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { defaultSlide, defaultSlider, normalizeSlider } from '../model/normalize';
 import { TEMPLATES, type QuickSlide, type Template } from '../model/templates';
-import type { Link, SliderRecord, SliderSummary } from '../model/types';
+import type { Link, SliderData, SliderRecord, SliderSummary } from '../model/types';
 import { SliderView, type RenderMedia } from '../render/render';
 import { isLimit, messageOf, sliderApi, type Overview } from './api';
 import { LinkEditor } from './fields';
@@ -111,6 +111,7 @@ function StartDialog({
     template?: string;
     quick?: QuickSlide[];
     blank?: boolean;
+    data?: SliderData;
   }) => Promise<void>;
 }) {
   const { t } = useT();
@@ -290,7 +291,14 @@ function StartDialog({
               type="button"
               className="dst-card"
               disabled={busy}
-              onClick={() => void create({ template: template.id, title: t(template.name) })}
+              onClick={() =>
+                void create(
+                  TEMPLATES.includes(template)
+                    ? { template: template.id, title: t(template.name) }
+                    : // An extension's template (Diorama 1.1): the server knows only Diorama's own.
+                      { data: normalizeSlider(template.build()), title: t(template.name) },
+                )
+              }
               data-testid={`dio-template-${template.id}`}
             >
               <TemplateThumb template={template} locale={locale} />
@@ -420,6 +428,7 @@ export function SlidersList({
     template?: string;
     quick?: QuickSlide[];
     blank?: boolean;
+    data?: SliderData;
   }) => {
     try {
       const record = await sliderApi.create(

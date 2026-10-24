@@ -37,6 +37,7 @@ import type {
   TransitionId,
 } from '../model/types';
 import { AnchorGrid, FocalPicker, LinkEditor } from './fields';
+import { proAdmin } from './pro';
 import { Btn, ColorInput, Field, ICON, NumberInput, Segmented, Svg, Toggle } from './ui';
 
 export type PanelTab = 'content' | 'style' | 'motion';
@@ -125,6 +126,19 @@ export function LayerPanel(props: LayerPanelProps) {
         {tab === 'content' && <LayerContentTab {...props} />}
         {tab === 'style' && <LayerStyleTab {...props} />}
         {tab === 'motion' && <LayerMotionTab {...props} />}
+        {proAdmin()
+          .layerPanels.filter((panel) => (panel.tab ?? 'motion') === tab)
+          .map((panel) => (
+            <Section key={panel.id} title={panel.title}>
+              <panel.component
+                layer={props.layer}
+                slider={props.slider}
+                device={props.device}
+                advanced={props.advanced}
+                onChange={props.onChange}
+              />
+            </Section>
+          ))}
       </div>
     </div>
   );
@@ -1150,6 +1164,11 @@ export function SlidePanel({
           )}
         </Section>
       )}
+      {proAdmin().slidePanels.map((panel) => (
+        <Section key={panel.id} title={panel.title}>
+          <panel.component slide={slide} slider={slider} advanced={advanced} onChange={onSlide} />
+        </Section>
+      ))}
     </div>
   );
 }

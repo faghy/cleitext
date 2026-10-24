@@ -31,6 +31,8 @@ interface DioramaGlobal {
   sliders: Slider[];
   /** Called with each slider once it is ready, and after every change of slide. */
   listeners: ((slider: Slider, event: 'ready' | 'change') => void)[];
+  /** Starts sliders added to the page later (Diorama 1.1). */
+  scan: () => void;
 }
 
 const w = window as unknown as {
@@ -41,6 +43,7 @@ const registry: DioramaGlobal = {
   transitions: {},
   sliders: [],
   listeners: [],
+  scan: () => start(),
   ...w.cleitextDiorama,
 } as DioramaGlobal;
 w.cleitextDiorama = registry;
@@ -144,6 +147,17 @@ class Slider {
     this.setUp();
   }
 
+  /** Pauses or plays autoplay as the pause button does (Diorama 1.1; e.g. a layer's action). */
+  setPaused(paused: boolean) {
+    this.userPaused = paused;
+    this.update();
+  }
+
+  /** Whether autoplay is paused by the visitor (or by reduced motion). */
+  get paused(): boolean {
+    return this.userPaused;
+  }
+
   private get multi() {
     return this.slides.length > 1;
   }
@@ -155,7 +169,10 @@ class Slider {
     });
     this.prev?.addEventListener('click', () => this.step(-1, true));
     this.next?.addEventListener('click', () => this.step(1, true));
-    this.bullets.forEach((b, i) => b.addEventListener('click', () => this.go(i, true)));
+    // Buttons with `data-dio-go`: bullets, and thumbnails or tabs another plugin adds.
+    this.bullets.forEach((b) =>
+      b.addEventListener('click', () => this.go(Number(b.getAttribute('data-dio-go')) || 0, true)),
+    );
     this.pauseButton?.addEventListener('click', () => {
       this.userPaused = !this.userPaused;
       this.update();
@@ -386,8 +403,9 @@ class Slider {
   }
 
   private syncBullets() {
-    this.bullets.forEach((b, i) => {
-      if (i === this.index) b.setAttribute('aria-current', 'true');
+    this.bullets.forEach((b) => {
+      if (Number(b.getAttribute('data-dio-go')) === this.index)
+        b.setAttribute('aria-current', 'true');
       else b.removeAttribute('aria-current');
     });
   }

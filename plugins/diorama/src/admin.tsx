@@ -8,12 +8,16 @@ import type { SliderRecord } from './model/types';
 import { messageOf, sliderApi, type Overview } from './studio/api';
 import { registerFrescoWidget, SLIDER_ICON } from './studio/fresco';
 import { IT } from './studio/it';
+import { ADMIN_LIB } from './studio/lib';
+import { proAdmin } from './studio/pro';
 import { SlidersList } from './studio/list';
 import { Studio } from './studio/studio';
 import { useStudioCss } from './studio/ui';
 
 addMessages('it', IT);
 registerFrescoWidget();
+// Diorama 1.1: extensions draw with Diorama's components.
+proAdmin().lib = ADMIN_LIB;
 
 function currentId(): string | null {
   return new URLSearchParams(window.location.search).get('slider');

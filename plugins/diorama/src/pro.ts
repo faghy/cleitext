@@ -7,9 +7,20 @@
  */
 import type { BlockLoadContext } from '@cleitext/plugin-sdk';
 import type { ReactNode } from 'react';
+import { BREAKPOINT, DESIGN_WIDTH, EASINGS } from './model/presets';
+import { BASE_CSS } from './render/base-css';
+import { layerDeclarations, sliderCss } from './render/css';
 import type { PostItem } from './model/posts';
 import type { SliderData, SliderRecord } from './model/types';
-import type { RenderInput, RenderMedia } from './render/render';
+import {
+  LayerView,
+  SlideView,
+  SliderView,
+  type RenderDecorator,
+  type RenderInput,
+  type RenderMedia,
+} from './render/render';
+import { stringsFor } from './render/strings';
 
 /** Sliders a site may have without Diorama Pro. */
 export const FREE_SLIDERS = 1;
@@ -46,11 +57,40 @@ export interface DioramaServerApi {
   media: ((slider: SliderData) => string[])[];
   /** The address of the Diorama Pro page shown in the invitation. */
   upgradeUrl: string;
+  /**
+   * Diorama 1.1: changes to the markup of every slider (classes, attributes,
+   * CSS, global layers, thumbnails), asked before `renderers`; their answers
+   * are merged into `input.decorate`.
+   */
+  decorators: ((input: RenderInput) => RenderDecorator | undefined)[];
+  /** Diorama 1.1: the site's sliders, read only (e.g. popups placed on every page). */
+  sliders: DioramaSliders;
+  /** Diorama 1.1: Diorama's own drawing, for renderers that reuse it (nothing is bundled twice). */
+  lib: DioramaLib;
 }
+
+export interface DioramaSliders {
+  list(siteId: string): Promise<SliderRecord[]>;
+  get(siteId: string, idOrAlias: string): Promise<SliderRecord | null>;
+}
+
+export const LIB = {
+  SliderView,
+  SlideView,
+  LayerView,
+  sliderCss,
+  layerDeclarations,
+  BASE_CSS,
+  stringsFor,
+  BREAKPOINT,
+  DESIGN_WIDTH,
+  EASINGS,
+};
+export type DioramaLib = typeof LIB;
 
 const KEY = Symbol.for('cleitext.diorama');
 
-export function installServerApi(): DioramaServerApi {
+export function installServerApi(sliders: DioramaSliders): DioramaServerApi {
   const api: DioramaServerApi = {
     version: 1,
     sliderLimit: [() => FREE_SLIDERS],
@@ -59,6 +99,9 @@ export function installServerApi(): DioramaServerApi {
     renderers: [],
     media: [],
     upgradeUrl: 'https://cleitext.com/plugins/diorama-pro',
+    decorators: [],
+    sliders,
+    lib: LIB,
   };
   (globalThis as unknown as Record<symbol, unknown>)[KEY] = api;
   return api;
@@ -86,4 +129,4 @@ export async function sliderLimit(
   return limit;
 }
 
-export type { RenderMedia };
+export type { RenderDecorator, RenderInput, RenderMedia };
