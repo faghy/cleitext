@@ -276,7 +276,8 @@ export default definePlugin({
       if (!bannerShown(e)) return out;
       // Videos, maps and posts of other sites wait for consent, as the policies say.
       if (cfg.banner.categories.includes('marketing')) {
-        out = gateEmbeds(out, textsFor(context.locale).embedNotice);
+        const t = textsFor(context.locale);
+        out = gateEmbeds(out, { ...t.embed, preferences: t.preferences }, cfg.banner.color);
       }
       const links = await policyLinks(ctx, context.siteId, cfg, context.locale);
       const banner = bannerHtml(cfg, context.locale, links, e.version);

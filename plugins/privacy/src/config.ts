@@ -136,8 +136,15 @@ export const TEXTS = {
     marketing: 'Marketing',
     marketingHelp:
       'Show personalized ads, or content of other sites such as videos, maps and social posts.',
-    embedNotice: (host: string) =>
-      `This content of ${host} is shown after you accept the “Marketing” cookies (cookie preferences, at the bottom of the page).`,
+    embed: {
+      title: (name: string) => `Content of ${name}`,
+      map: (name: string) =>
+        `To see the map, accept the “Marketing” cookies: ${name} may use cookies and collect data.`,
+      other: (name: string) =>
+        `To see it, accept the “Marketing” cookies: ${name} may use cookies and collect data.`,
+      accept: 'Accept and show',
+      open: (name: string) => `Open on ${name}`,
+    },
     table: {
       name: 'Name',
       provider: 'Provider',
@@ -172,8 +179,15 @@ export const TEXTS = {
     marketing: 'Marketing',
     marketingHelp:
       'Mostrano pubblicità personalizzata, o contenuti di altri siti come video, mappe e post social.',
-    embedNotice: (host: string) =>
-      `Questo contenuto di ${host} viene mostrato dopo che accetti i cookie “Marketing” (preferenze dei cookie, in fondo alla pagina).`,
+    embed: {
+      title: (name: string) => `Contenuto di ${name}`,
+      map: (name: string) =>
+        `Per vedere la mappa accetta i cookie “Marketing”: ${name} potrebbe usare cookie e raccogliere dati.`,
+      other: (name: string) =>
+        `Per vederlo accetta i cookie “Marketing”: ${name} potrebbe usare cookie e raccogliere dati.`,
+      accept: 'Accetta e mostra',
+      open: (name: string) => `Apri su ${name}`,
+    },
     table: {
       name: 'Nome',
       provider: 'Fornitore',

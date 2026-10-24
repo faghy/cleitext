@@ -33,12 +33,48 @@ export function gateHtml(html: string, category: Category): string {
     );
 }
 
+/** The name shown for a host (Google Maps, YouTube…), or the host itself. */
+export function embedName(host: string): { name: string; map: boolean } {
+  const h = host.replace(/^www\./, '');
+  if (/(^|\.)google\.[a-z.]+$/.test(h) || h === 'maps.google.com') {
+    return { name: 'Google Maps', map: true };
+  }
+  if (/openstreetmap\.org$/.test(h)) return { name: 'OpenStreetMap', map: true };
+  if (/(^|\.)(youtube(-nocookie)?\.com|youtu\.be)$/.test(h)) return { name: 'YouTube', map: false };
+  if (/(^|\.)vimeo\.com$/.test(h)) return { name: 'Vimeo', map: false };
+  if (/(^|\.)(facebook|instagram)\.com$/.test(h)) {
+    return { name: h.includes('instagram') ? 'Instagram' : 'Facebook', map: false };
+  }
+  if (/(^|\.)spotify\.com$/.test(h)) return { name: 'Spotify', map: false };
+  return { name: h, map: false };
+}
+
+/** A street map drawn here, faded behind the notice: no request to the map's site. */
+const MAP_BACKGROUND = `url("data:image/svg+xml,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='480' height='320' viewBox='0 0 480 320'><rect width='480' height='320' fill='#ece9e1'/><path d='M0 230C90 205 150 262 240 236S390 186 480 206V252C400 232 340 280 250 272S100 246 0 268Z' fill='#aad3df'/><rect x='300' y='34' width='110' height='78' rx='8' fill='#cde6c0'/><rect x='40' y='150' width='70' height='50' rx='6' fill='#cde6c0'/><g fill='none' stroke='#fff' stroke-linecap='round'><path stroke-width='12' d='M0 128H480M150 0V320M0 44L480 176'/><path stroke-width='6' d='M310 0V320M0 88H480M44 320L236 0M390 140L480 320'/></g><path d='M0 186C140 164 330 140 480 104' fill='none' stroke='#f7d38a' stroke-width='9'/></svg>",
+)}") center/cover`;
+
+type EmbedTexts = ReturnType<typeof textsFor>['embed'] & { preferences: string };
+
+/** The notice inside a held iframe: a card over a faded map or a dark frame. */
+function embedDoc(src: string, host: string, texts: EmbedTexts, color: string): string {
+  const { name, map } = embedName(host);
+  const pin =
+    '<svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path fill="COLOR" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>';
+  const play =
+    '<svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="COLOR"/><path fill="#fff" d="M10 7.5v9l7-4.5z"/></svg>';
+  const style = `html,body{margin:0;height:100%}body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f2937;display:flex;align-items:center;justify-content:center;overflow:auto;background:${map ? MAP_BACKGROUND : 'linear-gradient(135deg,#1f2937,#4b5563)'}}body::before{content:"";position:fixed;inset:0;background:${map ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.25)'}}.cx-card{position:relative;box-sizing:border-box;max-width:25rem;margin:1rem;padding:1.25rem 1.4rem;background:#fff;border-radius:.75rem;box-shadow:0 10px 30px rgba(0,0,0,.18);text-align:center}h2{margin:.35rem 0 .3rem;font-size:1.05rem}p{margin:0 0 1rem;font-size:.9rem;color:#4b5563}.cx-row{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}button{font:inherit;font-size:.9rem;font-weight:600;padding:.55rem 1rem;border-radius:.5rem;cursor:pointer;border:2px solid COLOR}.cx-primary{background:COLOR;color:#fff}.cx-plain{background:#fff;color:COLOR}a{display:inline-block;margin-top:.8rem;font-size:.85rem;color:#374151}button:focus-visible,a:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}`;
+  const body = `<div class="cx-card" role="group" aria-label="${escape(texts.title(name))}">${map ? pin : play}<h2>${escape(texts.title(name))}</h2><p>${escape(map ? texts.map(name) : texts.other(name))}</p><div class="cx-row"><button type="button" class="cx-primary" data-cx-allow="marketing">${escape(texts.accept)}</button><button type="button" class="cx-plain" data-cx-open>${escape(texts.preferences)}</button></div><a href="${escape(src)}" target="_blank" rel="noopener noreferrer">${escape(texts.open(name))} ↗</a></div>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${style.replaceAll('COLOR', color)}</style></head><body>${body.replaceAll('COLOR', color)}</body></html>`;
+}
+
 /**
  * Iframes of other sites in the page (videos, maps, posts), held until
- * consent to marketing, with a notice inside them until then. Those
- * already held (plugins' own, `data-cx-src`) stay as they are.
+ * consent to marketing, with a notice inside them until then: what it is,
+ * "Accept and show", the cookie preferences, and a link to see it on its
+ * own site. Those already held (plugins' own, `data-cx-src`) stay as they are.
  */
-export function gateEmbeds(html: string, notice: (host: string) => string): string {
+export function gateEmbeds(html: string, texts: EmbedTexts, color = '#0f4c81'): string {
   const start = html.search(/<body\b/i);
   if (start < 0) return html;
   const body = html
@@ -49,11 +85,11 @@ export function gateEmbeds(html: string, notice: (host: string) => string): stri
         if (/\bsrcdoc\s*=/i.test(before + after)) return match;
         let host: string;
         try {
-          host = new URL(src, 'https://x.invalid').hostname.replace(/^www\./, '');
+          host = new URL(src, 'https://x.invalid').hostname;
         } catch {
           return match;
         }
-        const doc = `<p style="font:15px/1.5 system-ui,sans-serif;margin:0;padding:1.5em;color:#333;background:#f3f3f3;min-height:100vh;box-sizing:border-box">${escape(notice(host))}</p>`;
+        const doc = embedDoc(src, host, texts, safeColor(color));
         return `<iframe${before} data-cx-category="marketing" data-cx-src="${src}" srcdoc="${escape(doc)}"${after}>`;
       },
     );
@@ -174,6 +210,9 @@ function show(open){var c=read();Array.prototype.forEach.call(boxes(),function(b
 function hide(){root.hidden=true;if(reopen)reopen.hidden=!read();if(lastFocus&&lastFocus.focus)lastFocus.focus();}
 function done(cats){apply(write(cats));hide();}
 window.cleitextConsent={categories:[],open:function(){show(true);},get:function(){var c=read();return c?c.c.slice():[];}};
+function allow(k){var c=read();var cats=c?c.c.slice():[];if(cats.indexOf(k)<0)cats.push(k);done(cats);}
+function wire(f){try{var d=f.contentDocument;if(!d||!d.body||d.body.getAttribute('data-cx-wired'))return;d.body.setAttribute('data-cx-wired','1');d.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-cx-allow],[data-cx-open]');if(!b)return;e.preventDefault();if(b.hasAttribute('data-cx-allow'))allow(b.getAttribute('data-cx-allow'));else show(true);});}catch(x){}}
+Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][srcdoc]'),function(f){f.addEventListener('load',function(){wire(f);});wire(f);});
 root.addEventListener('click',function(e){var b=e.target.closest('[data-cx]');if(!b)return;var k=b.getAttribute('data-cx');
 if(k==='accept')done(OFFERED.slice());else if(k==='reject')done([]);else if(k==='customize'){customize(true);var first=boxes()[0];if(first)first.focus();}
 else if(k==='save')done(Array.prototype.filter.call(boxes(),function(x){return x.checked;}).map(function(x){return x.value;}));});

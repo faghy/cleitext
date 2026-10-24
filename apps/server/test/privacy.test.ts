@@ -159,8 +159,17 @@ describe('cookie banner', () => {
     });
     const html = (await visitor.get(`/${page.slug}`)).body;
     expect(html).toMatch(
-      /<iframe data-cx-category="marketing" data-cx-src="https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ[^"]*" srcdoc="[^"]*youtube-nocookie\.com is shown after you accept/,
+      /<iframe data-cx-category="marketing" data-cx-src="https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ[^"]*" srcdoc="[^"]*Content of YouTube/,
     );
+    // The notice: accept and show, the cookie preferences, the video on its own site.
+    const notice = /srcdoc="([^"]*)"/.exec(html)![1]!;
+    expect(notice).toContain('data-cx-allow=&#34;marketing&#34;');
+    expect(notice).toContain('Accept and show');
+    expect(notice).toContain('Cookie preferences');
+    expect(notice).toContain('Open on YouTube');
+    expect(notice).not.toContain('youtube.com/vi');
+    // The page's consent script answers the notice's buttons.
+    expect(html).toContain('data-cx-allow');
     expect(html).not.toMatch(/<iframe[^>]*\ssrc="https:\/\/www\.youtube/);
     // The consent script swaps the notice for the video.
     expect(html).toContain("f.removeAttribute('srcdoc')");
