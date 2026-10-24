@@ -1,6 +1,6 @@
 import type { CxdBlock, PluginContext, RouteHandler, RouteRequest } from '@cleitext/plugin-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { registerFormRoutes } from '../src/blocks/form/route';
+import { registerFormRelease, registerFormRoutes } from '../src/blocks/form/route';
 import {
   checkValues,
   composeEmail,
@@ -205,8 +205,13 @@ describe('spam and recipients', () => {
 });
 
 describe('the route', () => {
-  function setup(settings: Record<string, unknown> = {}) {
+  function setup(
+    settings: Record<string, unknown> = {},
+    verdict: Record<string, unknown> | null = null,
+  ) {
     let handler: RouteHandler | null = null;
+    const actions = new Map<string, (payload: unknown, context: { siteId: string }) => unknown>();
+    const verified: Record<string, unknown>[] = [];
     const secrets = new Map<string, string>();
     const send = vi.fn(async () => {});
     const ctx = {
@@ -227,8 +232,16 @@ describe('the route', () => {
       http: { send: vi.fn() },
       site: async () => ({ id: 's', name: 'Site', defaultLocale: 'en', locales: ['en'] }),
       log: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
+      forms: {
+        verify: async (input: Record<string, unknown>) => {
+          verified.push(input);
+          return verdict ?? { ok: true };
+        },
+      },
+      hooks: { on: (name: string, fn: never) => void actions.set(name, fn) },
     } as unknown as PluginContext;
     registerFormRoutes(ctx);
+    registerFormRelease(ctx);
     const post = (body: Record<string, unknown>, json = true) =>
       handler!({
         siteId: 's',
@@ -240,7 +253,8 @@ describe('the route', () => {
           referer: 'https://site.test/contact',
         },
       } as unknown as RouteRequest);
-    return { ctx, post, send };
+    const emit = (name: string, payload: unknown) => actions.get(name)!(payload, { siteId: 's' });
+    return { ctx, post, send, verified, emit };
   }
 
   async function token(ctx: PluginContext) {
@@ -296,5 +310,39 @@ describe('the route', () => {
       status: 429,
     });
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it('keeps spam aside and sends it when it is released (plugin API 1.45)', async () => {
+    const { ctx, post, send, verified, emit } = setup({}, { ok: true, spam: true });
+    const body = { ...VALID, _pr_form: 'f1', _pr_entry: 'e1', _pr_token: await token(ctx) };
+    expect(await post(body)).toMatchObject({ status: 200, body: { ok: true } });
+    expect(send).not.toHaveBeenCalled();
+    expect(verified[0]).toMatchObject({ form: 'prisma/form', hold: true });
+    const fields = verified[0]!.fields as Record<string, unknown>;
+    expect(fields._pr_origin).toBe('https://site.test');
+    await emit('form.released', { form: 'forms/contact', locale: 'en', fields });
+    expect(send).not.toHaveBeenCalled();
+    await emit('form.released', { form: 'prisma/form', locale: 'en', fields });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]).toMatchObject([
+      { to: 'owner@site.test', replyTo: 'ada@example.com' },
+    ]);
+  });
+
+  it('drops silently, or asks for the captcha', async () => {
+    const silent = setup({}, { ok: false, silent: true });
+    const body = { ...VALID, _pr_form: 'f1', _pr_entry: 'e1', _pr_token: await token(silent.ctx) };
+    expect(await silent.post(body)).toMatchObject({ status: 200, body: { ok: true } });
+    expect(silent.send).not.toHaveBeenCalled();
+
+    const ask = setup({}, { ok: false, challenge: true, message: 'Solve it' });
+    expect(await ask.post(body)).toMatchObject({
+      status: 403,
+      body: { ok: false, message: 'Solve it', challenge: true },
+    });
+    expect(await ask.post(body, false)).toEqual({
+      status: 303,
+      headers: { location: '/contact?cl-challenge=prisma%2Fform#pr-form-f1-error' },
+    });
   });
 });

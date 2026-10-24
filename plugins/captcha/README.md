@@ -30,6 +30,8 @@ Also:
 - your own **error message**, in every language of the site (Italian and English are built in);
 - a **failsafe** if Cloudflare is down: show a reCAPTCHA v2 checkbox instead (with its own keys), let the messages through while Cloudflare does not answer, or refuse them.
 
+**Only when needed** (1.1.0). With the free **Antispam** plugin active, set **When to ask** to _Only when Antispam is unsure_: the widget stays hidden and most visitors never see it. When Antispam doubts a message (a few points of its score, or no JavaScript), the form refuses it once with your error message and shows the widget; the visitor solves it and sends again. Without Antispam this mode protects nothing, so keep _Always_.
+
 Every check is made on the server, with the service's own answer: the token, your domain, the form it was solved for and, for reCAPTCHA v3, the score.
 
 ## How to use it
@@ -58,6 +60,6 @@ The admin's security policy normally lets in no outside scripts: while the admin
 
 ## For developers
 
-The plugin answers the core's `form.challenge`, `form.verify` and `form.sources` filters (plugin API 1.38, permission `forms:protect`): the core's own forms ask by themselves, and a plugin with forms of its own asks with `ctx.forms.challenge(…)` and `ctx.forms.verify(…)`, under a form id such as `events/rsvp` (covered by the "Forms of other plugins" switch). Forms sent with JavaScript call `window.cleitextChallenge.prepare(form)` before reading their fields and `reset(form)` after a refused submission. See the plugin guide, "Protecting forms".
+The plugin answers the core's `form.challenge`, `form.verify` and `form.sources` filters (plugin API 1.38, permission `forms:protect`): the core's own forms ask by themselves, and a plugin with forms of its own asks with `ctx.forms.challenge(…)` and `ctx.forms.verify(…)`, under a form id such as `events/rsvp` (covered by the "Forms of other plugins" switch). Forms sent with JavaScript call `window.cleitextChallenge.prepare(form)` before reading their fields and `reset(form)` after a refused submission; `require(form)` shows a widget kept hidden on demand (also shown by `reset`, and by `?cl-challenge=<form id>` in the page's address after a refusal without JavaScript). See the plugin guide, "Protecting forms".
 
 Permissions: `forms:protect`, `settings:own` (settings and encrypted keys), `routes:admin` (the settings page) and `network` (the services' checks).

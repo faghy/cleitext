@@ -17,7 +17,7 @@ Di serie il modulo chiede nome, email e messaggio (e il telefono, se vuoi). Dall
 - Il **Rispondi a** è il campo email del visitatore: il primo, o quello che indichi.
 - L'email elenca tutti i campi con la loro etichetta, nell'ordine del modulo, e **Messaggi** li mostra allo stesso modo.
 
-Il server ricontrolla ogni messaggio, qualunque cosa abbia fatto il browser: campi obbligatori, indirizzi email, numeri e date entro i limiti, opzioni esistenti, lunghezze. I campi che il modulo non ha vengono ignorati. Lo spam resta fuori grazie a un campo nascosto, a un limite di cinque messaggi ogni dieci minuti per visitatore e, con il plugin **Captcha**, a Turnstile o reCAPTCHA.
+Il server ricontrolla ogni messaggio, qualunque cosa abbia fatto il browser: campi obbligatori, indirizzi email, numeri e date entro i limiti, opzioni esistenti, lunghezze. I campi che il modulo non ha vengono ignorati. Lo spam resta fuori grazie a un campo nascosto, a un limite di cinque messaggi ogni dieci minuti per visitatore e, con il plugin **Captcha**, a Turnstile o reCAPTCHA. Con il plugin **Antispam**, i messaggi che giudica spam restano nella sua coda dello spam invece di essere inviati; lì **Non è spam** li salva e li invia per email come se fossero appena arrivati.
 
 I messaggi fanno parte degli strumenti privacy del sito: **Privacy → Richieste** li esporta e li cancella per indirizzo email.
 

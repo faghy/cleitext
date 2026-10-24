@@ -36,7 +36,16 @@ describe('challenge markup', () => {
       failsafe: 'off',
       msg: 'Conferma di non essere un robot, poi riprova.',
       err: expect.stringContaining('Il controllo anti-spam non si è caricato'),
+      f: 'core/login',
     });
+  });
+
+  it('marks a captcha shown only when asked, without the note (1.1.0)', () => {
+    const config = normalizeConfig({ siteKey: '1x00000000000000000000AA', mode: 'on-demand' });
+    const html = challengeHtml(config, { form: 'core/comment', locale: 'en' }, SCRIPT);
+    expect(optionsOf(html)).toMatchObject({ d: true, f: 'core/comment' });
+    expect(html).not.toContain('noscript');
+    expect(normalizeConfig({ mode: 'sometimes' }).mode).toBe('always');
   });
 
   it('marks invisible checks and escapes custom texts', () => {

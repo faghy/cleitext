@@ -25,7 +25,10 @@ type Route = {
 };
 
 /** The plugin set up against a fake context: what it registered and did. */
-function setUp(options: { challenge?: string; refuse?: boolean } = {}) {
+function setUp(
+  options: { challenge?: string; refuse?: boolean; verdict?: Record<string, unknown> } = {},
+) {
+  const actions = new Map<string, (payload: never, context: { siteId: string }) => unknown>();
   const blocks: PluginBlockDefinition<Record<string, unknown>, Data>[] = [];
   const routes: Route[] = [];
   const secrets = new Map<string, string>();
@@ -52,8 +55,13 @@ function setUp(options: { challenge?: string; refuse?: boolean } = {}) {
       challenge: async () => options.challenge ?? '',
       verify: async (context: unknown) => {
         verified.push(context);
+        if (options.verdict) return options.verdict;
         return options.refuse ? { ok: false, message: 'No' } : { ok: true };
       },
+    },
+    hooks: {
+      on: (name: string, handler: (payload: never, context: { siteId: string }) => unknown) =>
+        void actions.set(name, handler),
     },
     db: {
       transaction: async (_siteId: string, fn: (tx: unknown) => Promise<unknown>) =>
@@ -105,7 +113,10 @@ function setUp(options: { challenge?: string; refuse?: boolean } = {}) {
       headers: { host: 'hotel.test', referer: 'http://hotel.test/prenota' },
     });
 
-  return { block, render, send, inserted, mails, verified };
+  const emit = (name: string, payload: unknown) =>
+    actions.get(name)!(payload as never, { siteId: 's' });
+
+  return { block, render, send, inserted, mails, verified, emit };
 }
 
 /** The classic form's markup before 1.3.0, which must not change. */
@@ -251,5 +262,41 @@ describe('the hotel booking form', () => {
     expect(await location({})).toBe('/prenota#form-b1-check');
     expect(inserted).toHaveLength(0);
     expect(mails).toHaveLength(0);
+  });
+
+  it('keeps spam aside and delivers it when it is released (plugin API 1.45)', async () => {
+    const { render, send, inserted, mails, verified, emit } = setUp({
+      verdict: { ok: true, spam: true },
+    });
+    const { data } = await render(HOTEL_ATTRS);
+    const response = await send({ _form: 'Prenotazione', _spec: data.spec, ...HOTEL_REQUEST });
+    // The visitor reads the usual thanks; nothing is stored or sent yet.
+    expect(response.headers!.location).toBe('/prenota#form-b1-sent');
+    expect(inserted).toHaveLength(0);
+    expect(mails).toHaveLength(0);
+    const asked = verified[0] as { hold: boolean; fields: Record<string, unknown> };
+    expect(asked.hold).toBe(true);
+    expect(asked.fields._back).toBe('/prenota');
+
+    // Another plugin's form is not ours.
+    await emit('form.released', { form: 'prisma/form', locale: 'it', fields: asked.fields });
+    expect(inserted).toHaveLength(0);
+    await emit('form.released', { form: 'forms/contact', locale: 'it', fields: asked.fields });
+    expect(inserted[0]).toMatchObject({ formName: 'Prenotazione', pagePath: '/prenota' });
+    expect(mails[0]).toMatchObject({ to: 'hotel@example.com', replyTo: 'mario@example.com' });
+  });
+
+  it('drops silently, or asks for the captcha on the page', async () => {
+    const silent = setUp({ verdict: { ok: false, silent: true } });
+    const { data } = await silent.render(HOTEL_ATTRS);
+    expect((await silent.send({ _spec: data.spec, ...HOTEL_REQUEST })).headers!.location).toBe(
+      '/prenota#form-b1-sent',
+    );
+    expect(silent.inserted).toHaveLength(0);
+
+    const challenge = setUp({ verdict: { ok: false, challenge: true, message: 'Solve it' } });
+    expect((await challenge.send({ _spec: data.spec, ...HOTEL_REQUEST })).headers!.location).toBe(
+      '/prenota?cl-challenge=forms%2Fcontact#form-b1-check',
+    );
   });
 });

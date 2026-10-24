@@ -27,6 +27,10 @@ export interface WidgetOptions {
   msg: string;
   /** Message when the widget cannot load and no failsafe applies. */
   err: string;
+  /** The form's id. */
+  f: string;
+  /** Shown only when asked (`on-demand` mode, 1.1.0). */
+  d?: true;
 }
 
 const escapeAttr = (value: string) =>
@@ -51,6 +55,8 @@ export function widgetOptions(config: CaptchaConfig, form: string, locale: strin
       : {}),
     msg: messageFor(config, locale),
     err: loadErrorFor(locale),
+    f: form,
+    ...(config.mode === 'on-demand' ? { d: true as const } : {}),
   };
 }
 
@@ -66,9 +72,14 @@ export function challengeHtml(
     ? 'Per inviare questo modulo attiva JavaScript: serve al controllo anti-spam.'
     : 'Turn on JavaScript to send this form: the spam check needs it.';
   const invisible = config.provider === 'recaptcha3' || config.provider === 'recaptcha2-invisible';
+  // On demand, most visitors never see it: no note for them.
+  const note =
+    config.mode === 'on-demand'
+      ? ''
+      : `<noscript><p class="cl-captcha__noscript">${escapeText(noscript)}</p></noscript>`;
   return (
     `<div class="cl-captcha${invisible ? ' cl-captcha--invisible' : ''}" data-cl-captcha="${escapeAttr(JSON.stringify(options))}"></div>` +
-    `<noscript><p class="cl-captcha__noscript">${escapeText(noscript)}</p></noscript>` +
+    note +
     `<script src="${escapeAttr(scriptUrl)}" defer></script>`
   );
 }

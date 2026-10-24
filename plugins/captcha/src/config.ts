@@ -84,6 +84,7 @@ export function normalizeConfig(input: unknown): CaptchaConfig {
     language: LANGUAGE_RE.test(language) ? language : 'auto',
     disableSubmit: raw.disableSubmit === true,
     messages,
+    mode: pick(raw.mode, ['always', 'on-demand'] as const, 'always'),
   };
 }
 

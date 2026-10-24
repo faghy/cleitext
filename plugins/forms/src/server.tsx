@@ -625,6 +625,79 @@ export default definePlugin({
       }),
     );
 
+    /**
+     * The message of a submission, from the form's fields: a custom form's
+     * own copy (signed when the page was drawn) or the classic fields.
+     * Null when it is not valid.
+     */
+    async function messageOf(
+      siteId: string,
+      form: Record<string, unknown>,
+      back: string,
+      locale: string,
+    ): Promise<Message | null> {
+      if (form._spec !== undefined) {
+        const spec = await readSpec(await formKey(ctx, siteId), form._spec).catch(() => null);
+        if (!spec || spec.fields.length === 0) return null;
+        const checked = checkValues(spec.fields, form, locale);
+        if (checked.invalid.length > 0) return null;
+        const columns = columnsOf(checked.values, spec.replyTo);
+        return {
+          formName: spec.form,
+          ...columns,
+          data: checked.values,
+          replyTo: columns.email || null,
+          subject: subjectOf(spec.subject, spec.form, checked.values),
+          text: messageText(checked.values, back, locale),
+        };
+      }
+      const name = text(form.name, 120);
+      const email = text(form.email, 200).toLowerCase();
+      const body = text(form.message, 5000);
+      const phone = text(form.phone, 40) || null;
+      if (!name || !EMAIL_RE.test(email) || !body) return null;
+      const formName = text(form._form, 80) || 'Contact';
+      return {
+        formName,
+        name,
+        email,
+        phone,
+        message: body,
+        data: null,
+        replyTo: email,
+        subject: `[${formName}] ${name}`,
+        text: `${name} <${email}>${phone ? `\nPhone: ${phone}` : ''}\nPage: ${back}\n\n${body}`,
+      };
+    }
+
+    /** Stores the message and sends it to the site's recipient. */
+    async function deliver(siteId: string, message: Message, back: string): Promise<void> {
+      await ctx.db.transaction(siteId, (tx) =>
+        tx.insert(submissions).values({
+          siteId,
+          formName: message.formName,
+          pagePath: back,
+          name: message.name,
+          email: message.email,
+          phone: message.phone,
+          message: message.message,
+          data: message.data,
+        }),
+      );
+      const { recipient } = await ctx.settings.get(siteId);
+      if (typeof recipient === 'string' && EMAIL_RE.test(recipient)) {
+        await ctx.mail
+          .send({
+            siteId,
+            to: recipient,
+            ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+            subject: message.subject,
+            text: message.text,
+          })
+          .catch((error: unknown) => ctx.log.error('Mail not sent', { error: String(error) }));
+      }
+    }
+
     ctx.routes.public({
       method: 'POST',
       path: SUBMIT_PATH,
@@ -632,91 +705,55 @@ export default definePlugin({
         const form = (request.body ?? {}) as Record<string, unknown>;
         const block = text(form._block, 64).replace(/[^\w-]/g, '');
         const back = returnPath(request.headers.referer, request.headers.host);
-        const redirect = (outcome: 'sent' | 'error' | 'check') => ({
+        const redirect = (outcome: 'sent' | 'error' | 'check', challenge = false) => ({
           status: 303,
-          headers: { location: `${back}#form-${block}-${outcome}` },
+          headers: {
+            // A captcha shown only when asked (plugin API 1.45) appears on the page.
+            location: `${back}${challenge ? `?cl-challenge=${encodeURIComponent(FORM_ID)}` : ''}#form-${block}-${outcome}`,
+          },
         });
         // Bots: pretend it worked.
         if (text(form.website, 200)) return redirect('sent');
 
-        let message: Message;
-        if (form._spec !== undefined) {
-          // Custom fields: the form's own copy, signed when the page was drawn.
-          const spec = await readSpec(await formKey(ctx, request.siteId), form._spec).catch(
-            () => null,
-          );
-          if (!spec || spec.fields.length === 0) return redirect('error');
-          const checked = checkValues(spec.fields, form, request.locale);
-          if (checked.invalid.length > 0) return redirect('error');
-          const columns = columnsOf(checked.values, spec.replyTo);
-          message = {
-            formName: spec.form,
-            ...columns,
-            data: checked.values,
-            replyTo: columns.email || null,
-            subject: subjectOf(spec.subject, spec.form, checked.values),
-            text: messageText(checked.values, back, request.locale),
-          };
-        } else {
-          const name = text(form.name, 120);
-          const email = text(form.email, 200).toLowerCase();
-          const body = text(form.message, 5000);
-          const phone = text(form.phone, 40) || null;
-          if (!name || !EMAIL_RE.test(email) || !body) return redirect('error');
-          const formName = text(form._form, 80) || 'Contact';
-          message = {
-            formName,
-            name,
-            email,
-            phone,
-            message: body,
-            data: null,
-            replyTo: email,
-            subject: `[${formName}] ${name}`,
-            text: `${name} <${email}>${phone ? `\nPhone: ${phone}` : ''}\nPage: ${back}\n\n${body}`,
-          };
-        }
+        const message = await messageOf(request.siteId, form, back, request.locale);
+        if (!message) return redirect('error');
         if (!allowed(`${request.siteId}|${request.ip}`)) {
           return { status: 429, body: 'Too many messages. Try again later.' };
         }
-        // The site's bot protection (Captcha plugin), when there is one.
+        // The site's bot protection (Captcha, Antispam), when there is one.
         const verdict = await ctx.forms?.verify({
           siteId: request.siteId,
           form: FORM_ID,
           locale: request.locale,
-          fields: form,
+          // The page, for a message delivered later (`form.released`).
+          fields: { ...form, _back: back },
           ip: request.ip,
           host: (request.headers.host ?? '').replace(/:\d+$/, ''),
           signedIn: request.user !== null,
+          // Spam is kept aside and delivered if released (plugin API 1.45).
+          hold: true,
         });
-        if (verdict && !verdict.ok) return redirect('check');
+        if (verdict && !verdict.ok)
+          return verdict.silent ? redirect('sent') : redirect('check', verdict.challenge === true);
+        // Held as spam: the visitor reads the usual thanks.
+        if (verdict?.spam) return redirect('sent');
 
-        await ctx.db.transaction(request.siteId, (tx) =>
-          tx.insert(submissions).values({
-            siteId: request.siteId,
-            formName: message.formName,
-            pagePath: back,
-            name: message.name,
-            email: message.email,
-            phone: message.phone,
-            message: message.message,
-            data: message.data,
-          }),
-        );
-        const { recipient } = await ctx.settings.get(request.siteId);
-        if (typeof recipient === 'string' && EMAIL_RE.test(recipient)) {
-          await ctx.mail
-            .send({
-              siteId: request.siteId,
-              to: recipient,
-              ...(message.replyTo ? { replyTo: message.replyTo } : {}),
-              subject: message.subject,
-              text: message.text,
-            })
-            .catch((error: unknown) => ctx.log.error('Mail not sent', { error: String(error) }));
-        }
+        await deliver(request.siteId, message, back);
         return redirect('sent');
       },
+    });
+
+    // A message held as spam and released as not spam (plugin API 1.45).
+    ctx.hooks.on('form.released', async ({ form, fields, locale }, { siteId }) => {
+      if (form !== FORM_ID) return;
+      const back =
+        typeof fields._back === 'string' && /^\/(?![/\\])/.test(fields._back) ? fields._back : '/';
+      const message = await messageOf(siteId, fields, back, locale);
+      if (!message) {
+        ctx.log.warn('Released message not valid', { form });
+        return;
+      }
+      await deliver(siteId, message, back);
     });
 
     // GDPR requests (Privacy plugin): the messages sent with an email address.

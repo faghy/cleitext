@@ -9,6 +9,10 @@
  * Forms sent with JavaScript call `window.cleitextChallenge.prepare(form)`
  * before reading their fields and `reset(form)` after a refused submission
  * (the core's convention, plugin API 1.38).
+ *
+ * On demand (1.1.0), a box stays empty until it is asked for: by
+ * `require(form)` or `reset(form)` after a refusal, or by the page's address
+ * (`?cl-challenge=<form id>`) when a form without JavaScript came back.
  */
 import type { WidgetOptions } from '../challenge';
 
@@ -28,6 +32,8 @@ interface ChallengeApi {
   prepare(form: HTMLFormElement): Promise<void>;
   reset(form: HTMLFormElement): void;
   render(root?: ParentNode): void;
+  /** Shows the form's captcha when it appears only when asked (plugin API 1.45). */
+  require(form: HTMLFormElement): void;
 }
 type Win = Window & {
   cleitextChallenge?: ChallengeApi;
@@ -298,14 +304,20 @@ interface Widget {
   const inForm = (form: HTMLFormElement) =>
     widgets.filter((w) => w.form === form && w.box.isConnected);
 
+  /** The form ids the page's address asks a captcha for. */
+  const asked = new URLSearchParams(window.location.search).getAll('cl-challenge');
+
   function setUp(box: HTMLElement) {
-    box.setAttribute('data-cl-ready', '');
     let o: WidgetOptions;
     try {
       o = JSON.parse(box.dataset.clCaptcha ?? '') as WidgetOptions;
     } catch {
+      box.setAttribute('data-cl-ready', '');
       return;
     }
+    // On demand: nothing until asked.
+    if (o.d && !box.hasAttribute('data-cl-reveal') && !asked.includes(o.f)) return;
+    box.setAttribute('data-cl-ready', '');
     const form = box.closest('form');
     widgets.push(
       o.p === 'turnstile'
@@ -334,8 +346,18 @@ interface Widget {
     },
     reset(form) {
       inForm(form).forEach((w) => w.reset());
+      // After a refusal, a captcha shown on demand appears.
+      api.require(form);
     },
     render,
+    require(form) {
+      form
+        .querySelectorAll<HTMLElement>('[data-cl-captcha]:not([data-cl-ready])')
+        .forEach((box) => {
+          box.setAttribute('data-cl-reveal', '');
+          setUp(box);
+        });
+    },
   };
   win.cleitextChallenge = api;
 

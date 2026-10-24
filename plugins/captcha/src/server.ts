@@ -82,6 +82,9 @@ export default definePlugin({
       const state = await states.get(context.siteId);
       if (!active(state) || !protects(state.config, context)) return result;
       if (isTrusted(context.ip, state.config.trustedIps)) return result;
+      // On demand: only when a plugin before this one is unsure (plugin API 1.45).
+      const asked = result?.challenge === true;
+      if (state.config.mode === 'on-demand' && !asked) return result;
       const outcome = await verifySubmission(
         state.config,
         { secret: state.secret!, fallbackSecret: state.fallbackSecret },
@@ -97,10 +100,16 @@ export default definePlugin({
       if (outcome.ok) {
         if (outcome.via === 'failsafe')
           ctx.log.warn('Submission let through by the failsafe', { form: context.form });
-        return { ok: true };
+        // A person: a doubt of the plugins before goes; their spam verdicts stay.
+        return asked || !result ? { ok: true } : result;
       }
       ctx.log.info('Submission refused', { form: context.form, reason: outcome.reason });
-      return { ok: false, message: messageFor(state.config, context.locale) };
+      return {
+        ok: false,
+        message: messageFor(state.config, context.locale),
+        // On demand the widget is hidden: the form shows it now.
+        ...(state.config.mode === 'on-demand' ? { challenge: true } : {}),
+      };
     });
 
     // Settings. Secret keys are never sent back: only whether they are set.

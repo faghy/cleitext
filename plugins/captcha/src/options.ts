@@ -50,6 +50,13 @@ export interface CaptchaConfig {
   disableSubmit: boolean;
   /** The message when a check fails, by language; empty uses the default. */
   messages: Record<string, string>;
+  /**
+   * `always`: every submission of a protected form is checked. `on-demand`
+   * (1.1.0): the widget appears and is checked only when another plugin is
+   * unsure of a submission (the Antispam plugin, `challenge` of plugin API
+   * 1.45); the others go through without it.
+   */
+  mode: 'always' | 'on-demand';
 }
 
 export const DEFAULT_FORMS: Record<FormGroup, boolean> = {
@@ -81,6 +88,7 @@ export const DEFAULT_CONFIG: CaptchaConfig = {
   language: 'auto',
   disableSubmit: false,
   messages: {},
+  mode: 'always',
 };
 
 export const DEFAULT_MESSAGES: Record<string, string> = {

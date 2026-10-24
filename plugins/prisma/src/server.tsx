@@ -9,7 +9,7 @@ import { createElement, type ReactNode } from 'react';
 import { BLOCKS } from './blocks';
 import { blockCss, withDefaults } from './lib/css';
 import { DEFAULT_GLOBALS, normalizeGlobals, variablesCss, type Globals } from './lib/globals';
-import { FORM_SETTINGS, registerFormRoutes } from './blocks/form/route';
+import { FORM_SETTINGS, registerFormRelease, registerFormRoutes } from './blocks/form/route';
 import { buildTablesOfContents } from './blocks/table-of-contents/server';
 import { fromCover, fromSpectra } from './import';
 import {
@@ -245,6 +245,7 @@ export default definePlugin({
     });
     for (const block of BLOCKS) ctx.blocks.register(register(ctx, block));
     registerFormRoutes(ctx);
+    registerFormRelease(ctx);
     // Pages built with Spectra, on WordPress import (plugin API 1.23).
     ctx.hooks.filter(
       'import.block',

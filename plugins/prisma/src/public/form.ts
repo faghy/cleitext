@@ -17,6 +17,8 @@ interface FormConfig {
 interface SiteChallenge {
   prepare(form: HTMLFormElement): Promise<void>;
   reset(form: HTMLFormElement): void;
+  /** Shows a captcha that appears only when asked (plugin API 1.45). */
+  require?(form: HTMLFormElement): void;
 }
 
 interface Grecaptcha {
@@ -207,9 +209,12 @@ function init(form: HTMLFormElement) {
           errors?: Record<string, string>;
           redirect?: string;
           message?: string;
+          challenge?: boolean;
         };
         // Tokens of the site's captcha work once.
         if (!answer.ok && config.siteCaptcha) window.cleitextChallenge?.reset(form);
+        // The site's protection wants a captcha solved first.
+        if (!answer.ok && answer.challenge) window.cleitextChallenge?.require?.(form);
         if (!answer.ok && answer.message && res.status === 403) {
           if (captchaError) captchaError.textContent = answer.message;
           return;

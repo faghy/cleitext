@@ -274,6 +274,82 @@ describe('with a protection plugin', () => {
     expect(passed.json()).toMatchObject({ ok: true });
   });
 
+  it('holds spam, drops it silently or asks for a challenge (plugin API 1.45)', async () => {
+    resetLimits();
+    const guest = new TestClient(app, host, '10.81.0.14');
+    const fields = {
+      entry: postId,
+      back: postPath,
+      comment: 'Cheap watches here',
+      name: 'Spammy',
+      email: 'spammy@guarded.test',
+      ts: later(),
+    };
+    // Spam: the comment is kept in the spam queue; the visitor reads "pending".
+    const held = await guest.postForm('/comments', { ...fields, 'guard-token': 'spam' });
+    expect(held.headers.location).toBe(`${postPath}?comment=pending#comments`);
+    const spam = (await admin.get('/api/v1/comments?status=spam')).json();
+    expect(spam.items.map((c: { content: string }) => c.content)).toContain('Cheap watches here');
+
+    // Silent: nothing stored, the visitor reads "pending" too.
+    resetLimits();
+    const silent = await guest.postForm('/comments', {
+      ...fields,
+      comment: 'Silent spam',
+      'guard-token': 'silent',
+    });
+    expect(silent.headers.location).toBe(`${postPath}?comment=pending#comments`);
+    const all = (await admin.get('/api/v1/comments?status=spam')).json();
+    expect(all.items.map((c: { content: string }) => c.content)).not.toContain('Silent spam');
+
+    // A challenge first: the page shows it (cl-challenge), JSON says so.
+    resetLimits();
+    const challenge = await guest.postForm('/comments', { ...fields, 'guard-token': 'challenge' });
+    expect(where(challenge.headers.location)).toBe(
+      `${postPath}?comment-error=Solve it&cl-challenge=core/comment#respond`,
+    );
+    const json = await app.inject({
+      method: 'POST',
+      url: '/comments',
+      remoteAddress: '10.81.0.14',
+      headers: {
+        host,
+        origin: `http://${host}`,
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      payload: new URLSearchParams({ ...fields, 'guard-token': 'challenge' }).toString(),
+    });
+    expect(json.json()).toEqual({ ok: false, message: 'Solve it', challenge: true });
+
+    // Sign-ups cannot be held: spam is refused; silent pretends it worked.
+    const signUp = { name: 'Sam Pam', email: 'sam@guarded.test', password: 'a-long-password-9' };
+    const refusedSpam = await guest.postForm('/account/register', {
+      ...signUp,
+      ts: later(),
+      'guard-token': 'spam',
+    });
+    expect(where(refusedSpam.headers.location)).toContain('/account/register?error=Held as spam');
+    const quiet = await guest.postForm('/account/register', {
+      ...signUp,
+      ts: later(),
+      'guard-token': 'silent',
+    });
+    expect(quiet.headers.location).toBe('/account/register?sent=1');
+
+    // Plugins: spam is held only when the form says it can (`hold`).
+    expect((await guest.postForm('/_guard/send', { 'guard-token': 'spam' })).json()).toMatchObject({
+      ok: false,
+      message: 'Held as spam',
+    });
+    expect(
+      (await guest.postForm('/_guard/send', { 'guard-token': 'spam', hold: '1' })).json(),
+    ).toMatchObject({ ok: true, spam: true });
+    expect(
+      (await guest.postForm('/_guard/send', { 'guard-token': 'silent' })).json(),
+    ).toMatchObject({ ok: false, silent: true });
+  });
+
   it('protects the admin sign-in (password step) and opens its policy to the widget only', async () => {
     const client = new TestClient(app, host, '10.81.1.2');
     const challenge = (await client.get('/api/v1/auth/challenge?form=core/admin-login')).json() as {
@@ -370,7 +446,7 @@ describe('the Captcha plugin', () => {
     const visitor = new TestClient(app, host, '10.81.0.12');
     const page = (await visitor.get('/account/login')).body;
     expect(page).toContain('data-cl-captcha="');
-    expect(page).toContain('/plugin-assets/captcha/1.0.0/captcha.js');
+    expect(page).toContain('/plugin-assets/captcha/1.1.0/captcha.js');
     const refused = await visitor.postForm('/account/login', {
       email: 'admin@guarded.test',
       password: PASSWORD,

@@ -141,6 +141,7 @@ export function registerFormRoutes(ctx: PluginContext): void {
           redirect?: string;
           status?: number;
           message?: string;
+          challenge?: boolean;
         } = {},
       ): RouteResponse => {
         if (json) {
@@ -151,13 +152,18 @@ export function registerFormRoutes(ctx: PluginContext): void {
               ...(extra.errors ? { errors: extra.errors } : {}),
               ...(extra.message ? { message: extra.message } : {}),
               ...(extra.redirect ? { redirect: extra.redirect } : {}),
+              ...(extra.challenge ? { challenge: true } : {}),
             },
           };
         }
+        // A captcha shown only when asked (plugin API 1.45) appears on the page.
+        const query = extra.challenge
+          ? `${back.includes('?') ? '&' : '?'}cl-challenge=${encodeURIComponent(SITE_CAPTCHA_FORM)}`
+          : '';
         const location =
           ok && extra.redirect
             ? extra.redirect
-            : `${back}#pr-form-${formId}-${ok ? 'sent' : 'error'}`;
+            : `${back}${query}#pr-form-${formId}-${ok ? 'sent' : 'error'}`;
         return { status: 303, headers: { location } };
       };
 
@@ -204,63 +210,136 @@ export function registerFormRoutes(ctx: PluginContext): void {
       if (!allowed(`${request.siteId}|${request.ip}`)) return reply(false, { status: 429 });
 
       const settings = ((await ctx.settings.get(request.siteId).catch(() => ({}))) ?? {}) as Attrs;
+      // Mistakes in the fields first: the visitor fixes them before any check.
+      const checked = checkValues(formFields(form), body);
+      if (Object.keys(checked.errors).length)
+        return reply(false, { errors: checked.errors, status: 422 });
       if (!(await captchaPassed(ctx, attrs, settings, one(body, '_pr_captcha'), request.ip)))
         return reply(false, { status: 403 });
       if (captchaMode(attrs, settings) === 'site') {
-        // The site's bot protection (Captcha plugin), when there is one.
+        // The site's bot protection (Captcha, Antispam), when there is one.
         const site = await ctx.forms?.verify({
           siteId: request.siteId,
           form: SITE_CAPTCHA_FORM,
           locale: request.locale,
-          fields: body,
+          // The site's address, for a message delivered later (`form.released`).
+          fields: { ...body, _pr_origin: request.origin },
           ip: request.ip,
           host: (request.headers.host ?? '').replace(/:\d+$/, ''),
           signedIn: request.user !== null,
+          // Spam is kept aside and delivered if released (plugin API 1.45).
+          hold: true,
         });
-        if (site && !site.ok)
-          return reply(false, { status: 403, ...(site.message ? { message: site.message } : {}) });
+        if (site && !site.ok) {
+          if (site.silent) return success();
+          return reply(false, {
+            status: 403,
+            ...(site.message ? { message: site.message } : {}),
+            ...(site.challenge ? { challenge: true } : {}),
+          });
+        }
+        // Held as spam: the visitor reads the usual confirmation.
+        if (site?.spam) return success();
       }
 
-      const checked = checkValues(formFields(form), body);
-      if (Object.keys(checked.errors).length)
-        return reply(false, { errors: checked.errors, status: 422 });
-
-      if (attrs.sendAfterSubmitEmail === false) return success();
-      const { to, cc, bcc } = recipientsOf(attrs, settings.formRecipient);
-      if (to.length === 0) {
-        ctx.log.warn('Form without recipients', { entry: entryId, form: formId });
-        return reply(false, { status: 500 });
-      }
-      const site = await ctx.site(request.siteId).catch(() => null);
-      const mail = composeEmail({
-        subject: attrs.afterSubmitEmailSubject,
-        entries: checked.entries,
-        siteName: site?.name ?? '',
-        pageUrl: entry.url ? new URL(entry.url, request.origin).href : '',
-      });
-      // One message per address: the mail API has no Cc/Bcc, and no
-      // recipient sees the others' addresses.
-      const send = (address: string) =>
-        ctx.mail.send({
-          siteId: request.siteId,
-          to: address,
-          subject: mail.subject,
-          text: mail.text,
-          html: mail.html,
-          ...(checked.replyTo ? { replyTo: checked.replyTo } : {}),
-        });
-      const results = await Promise.allSettled(to.map(send));
-      for (const address of [...cc, ...bcc])
-        await send(address).catch((error: unknown) =>
-          ctx.log.error('Form copy not sent', { error: String(error) }),
-        );
-      if (results.some((r) => r.status === 'rejected')) {
-        ctx.log.error('Form message not sent', {
-          error: String(results.find((r) => r.status === 'rejected')?.reason ?? ''),
-        });
-        if (results.every((r) => r.status === 'rejected')) return reply(false, { status: 502 });
-      }
+      const sent = await deliver(ctx, request.siteId, entry, form, body, request.origin);
+      if (sent === 'no-recipients') return reply(false, { status: 500 });
+      if (sent === 'failed') return reply(false, { status: 502 });
       return success();
     },
+  });
+}
+
+type Entry = { id: string; url?: string | null };
+
+/**
+ * Sends a checked message to the form's addresses (one email each), as
+ * saved in the page: `sent`, or why not.
+ */
+async function deliver(
+  ctx: PluginContext,
+  siteId: string,
+  entry: Entry,
+  form: NonNullable<ReturnType<typeof findForm>>,
+  body: Record<string, unknown>,
+  origin: string,
+): Promise<'sent' | 'off' | 'no-recipients' | 'failed' | 'invalid'> {
+  const attrs = (form.attrs ?? {}) as Attrs;
+  const checked = checkValues(formFields(form), body);
+  if (Object.keys(checked.errors).length) return 'invalid';
+  if (attrs.sendAfterSubmitEmail === false) return 'off';
+  const settings = ((await ctx.settings.get(siteId).catch(() => ({}))) ?? {}) as Attrs;
+  const { to, cc, bcc } = recipientsOf(attrs, settings.formRecipient);
+  if (to.length === 0) {
+    ctx.log.warn('Form without recipients', { entry: entry.id, form: String(attrs.blockId ?? '') });
+    return 'no-recipients';
+  }
+  const site = await ctx.site(siteId).catch(() => null);
+  const mail = composeEmail({
+    subject: attrs.afterSubmitEmailSubject,
+    entries: checked.entries,
+    siteName: site?.name ?? '',
+    pageUrl: entry.url ? new URL(entry.url, origin).href : '',
+  });
+  // One message per address: the mail API has no Cc/Bcc, and no
+  // recipient sees the others' addresses.
+  const send = (address: string) =>
+    ctx.mail.send({
+      siteId,
+      to: address,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+      ...(checked.replyTo ? { replyTo: checked.replyTo } : {}),
+    });
+  const results = await Promise.allSettled(to.map(send));
+  for (const address of [...cc, ...bcc])
+    await send(address).catch((error: unknown) =>
+      ctx.log.error('Form copy not sent', { error: String(error) }),
+    );
+  if (results.some((r) => r.status === 'rejected')) {
+    ctx.log.error('Form message not sent', {
+      error: String(results.find((r) => r.status === 'rejected')?.reason ?? ''),
+    });
+    if (results.every((r) => r.status === 'rejected')) return 'failed';
+  }
+  return 'sent';
+}
+
+/**
+ * A message held as spam and released as not spam (plugin API 1.45): the
+ * form is read again from the saved page and the message sent.
+ */
+export function registerFormRelease(ctx: PluginContext): void {
+  ctx.hooks.on('form.released', async ({ form: formName, fields }, { siteId }) => {
+    if (formName !== SITE_CAPTCHA_FORM) return;
+    const formId = one(fields, '_pr_form')
+      .replace(/[^A-Za-z0-9_-]/g, '')
+      .slice(0, 40);
+    const entryId = one(fields, '_pr_entry').slice(0, 64);
+    const entry = entryId
+      ? (
+          await ctx.content.find(siteId, {
+            ids: [entryId],
+            status: 'any',
+            withDocument: true,
+            limit: 1,
+          })
+        )[0]
+      : undefined;
+    const form = entry ? findForm(entry.document?.blocks, formId) : null;
+    if (!entry || !form) {
+      ctx.log.warn('Released message of a form that is gone', { entry: entryId, form: formId });
+      return;
+    }
+    let origin = one(fields, '_pr_origin');
+    try {
+      origin = new URL(origin).origin;
+    } catch {
+      origin = 'http://localhost';
+    }
+    const sent = await deliver(ctx, siteId, entry, form, fields, origin);
+    if (sent !== 'sent' && sent !== 'off')
+      ctx.log.warn('Released message not sent', { entry: entryId, form: formId, reason: sent });
   });
 }

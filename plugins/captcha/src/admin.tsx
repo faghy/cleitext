@@ -249,6 +249,24 @@ function CaptchaPage(props: AdminPageProps) {
               </p>
             )}
             <hr className="my-3 border-slate-200" />
+            <Field
+              label={tr('When to ask', 'Quando chiederlo')}
+              hint={tr(
+                'With the Antispam plugin active, the captcha can appear only for the few messages it is unsure about; the others are sent without it.',
+                'Con il plugin Antispam attivo, il captcha può comparire solo per i pochi messaggi di cui non è sicuro; gli altri si inviano senza.',
+              )}
+            >
+              <select
+                className={select}
+                value={draft.mode}
+                onChange={(e) => set({ mode: e.target.value as CaptchaConfig['mode'] })}
+              >
+                <option value="always">{tr('Always', 'Sempre')}</option>
+                <option value="on-demand">
+                  {tr('Only when Antispam is unsure', 'Solo quando Antispam ha dei dubbi')}
+                </option>
+              </select>
+            </Field>
             <Check checked={draft.skipSignedIn} onChange={(v) => set({ skipSignedIn: v })}>
               {tr(
                 'Do not ask people who are signed in',
