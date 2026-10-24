@@ -25,7 +25,7 @@ import {
   type CookieRow,
   type PrivacyConfig,
 } from './config';
-import { scanGoogleFonts } from './checks';
+import { scanFonts } from './checks';
 import { CMP_DASHBOARDS, CMP_NAMES } from './cmp';
 
 type Tab = 'banner' | 'cookies' | 'policies' | 'requests' | 'consents';
@@ -148,8 +148,8 @@ function PrivacyPage(props: AdminPageProps) {
 type Tr = (en: string, it: string) => string;
 
 /**
- * Google Fonts loaded before consent: some pages of the site are read as a
- * visitor (without cookies), with the site's stylesheets they use.
+ * Google and Bunny Fonts loaded before consent: some pages of the site are
+ * read as a visitor (without cookies), with the site's stylesheets they use.
  */
 function FontsCheck({ api, tr }: { api: AdminPageProps['api']; tr: Tr }) {
   const check = useMutation({
@@ -159,7 +159,7 @@ function FontsCheck({ api, tr }: { api: AdminPageProps['api']; tr: Tr }) {
         const res = await fetch(url, { credentials: 'omit', cache: 'no-store' });
         return res.ok ? res.text() : null;
       };
-      return scanGoogleFonts(
+      return scanFonts(
         pages.map((path) => new URL(path, window.location.origin).href),
         (url) => read(url).catch(() => null),
       );
@@ -168,12 +168,12 @@ function FontsCheck({ api, tr }: { api: AdminPageProps['api']; tr: Tr }) {
   const found = check.data ?? [];
   const byPage = [...new Set(found.map((f) => f.page))];
   return (
-    <Card title={tr('Fonts from Google', 'Font da Google')}>
+    <Card title={tr('Fonts from Google and Bunny', 'Font da Google e Bunny')}>
       <div className="space-y-3 text-sm">
         <p className="text-slate-600">
           {tr(
-            'Pages that load Google Fonts (fonts.googleapis.com, fonts.gstatic.com) send the visitor’s IP address to Google as soon as they open, before any consent: a German court fined a site for it in 2022 and the Italian Garante agrees. Keep the fonts on the site instead (Fresco: Site settings → Global fonts → Google Fonts → Host on this site).',
-            'Le pagine che caricano Google Fonts (fonts.googleapis.com, fonts.gstatic.com) inviano a Google l’indirizzo IP del visitatore appena si aprono, prima di qualsiasi consenso: un tribunale tedesco ha sanzionato un sito per questo nel 2022 e il Garante italiano è dello stesso avviso. Ospita invece i font sul sito (Fresco: Impostazioni del sito → Font globali → Google Fonts → Ospita su questo sito).',
+            'Pages that load fonts from Google Fonts (fonts.googleapis.com, fonts.gstatic.com) or Bunny Fonts (fonts.bunny.net) send the visitor’s IP address to that service as soon as they open, before any consent: a German court fined a site for it in 2022 and the Italian Garante agrees. Bunny is in the EU and keeps no logs, but it is still a third party. Keep the fonts on the site instead: Settings → General → Privacy → Web fonts → Host them on this site (the default) does it for the links and imports of every theme and plugin; Fresco and Prisma have the same choice in their settings.',
+            'Le pagine che caricano font da Google Fonts (fonts.googleapis.com, fonts.gstatic.com) o Bunny Fonts (fonts.bunny.net) inviano a quel servizio l’indirizzo IP del visitatore appena si aprono, prima di qualsiasi consenso: un tribunale tedesco ha sanzionato un sito per questo nel 2022 e il Garante italiano è dello stesso avviso. Bunny è nell’UE e non tiene log, ma resta una terza parte. Ospita invece i font sul sito: Impostazioni → Generali → Privacy → Web font → Ospitali su questo sito (il predefinito) lo fa per i link e gli import di ogni tema e plugin; Fresco e Prisma hanno la stessa scelta nelle loro impostazioni.',
           )}
         </p>
         <Button
@@ -190,16 +190,16 @@ function FontsCheck({ api, tr }: { api: AdminPageProps['api']; tr: Tr }) {
         {check.isSuccess && byPage.length === 0 && (
           <Alert kind="success">
             {tr(
-              'No checked page loads Google Fonts before consent.',
-              'Nessuna pagina controllata carica Google Fonts prima del consenso.',
+              'No checked page loads Google or Bunny Fonts before consent.',
+              'Nessuna pagina controllata carica Google o Bunny Fonts prima del consenso.',
             )}
           </Alert>
         )}
         {byPage.length > 0 && (
           <Alert>
             {tr(
-              'These pages load Google Fonts before consent:',
-              'Queste pagine caricano Google Fonts prima del consenso:',
+              'These pages load Google or Bunny Fonts before consent:',
+              'Queste pagine caricano Google o Bunny Fonts prima del consenso:',
             )}
             <ul className="mt-2 list-disc space-y-1 pl-5">
               {byPage.map((page) => (
@@ -216,6 +216,14 @@ function FontsCheck({ api, tr }: { api: AdminPageProps['api']; tr: Tr }) {
                       {tr('from the stylesheet', 'dal foglio di stile')} {new URL(source).pathname}
                     </span>
                   ))}
+                  {found.some((f) => f.page === page && f.source === page) && (
+                    <span className="block text-xs">
+                      {tr(
+                        'In the page itself: Settings → General → Privacy → Web fonts → Host them on this site fixes it.',
+                        'Nella pagina stessa: lo risolve Impostazioni → Generali → Privacy → Web font → Ospitali su questo sito.',
+                      )}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

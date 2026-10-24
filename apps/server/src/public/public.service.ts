@@ -76,6 +76,7 @@ import { avatarUrl } from '../profile/avatar.js';
 import { adminBarEditLink, withAdminBar } from './admin-bar.js';
 import { LanguagesService } from '../content/languages.service.js';
 import { PageCacheService } from './page-cache.service.js';
+import { WebFontsService } from './web-fonts.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
   loadMedia,
@@ -205,6 +206,7 @@ export class PublicService {
     private readonly comments: CommentsService,
     private readonly community: CommunityPublic,
     private readonly accounts: AccountsService,
+    private readonly webFonts: WebFontsService,
   ) {}
 
   /** The site's default language and every language code (for public forms). */
@@ -858,9 +860,15 @@ export class PublicService {
       typeof page.retryAfter === 'number' && Number.isFinite(page.retryAfter) && page.retryAfter > 0
         ? Math.min(Math.ceil(page.retryAfter), 31_536_000)
         : 3600;
+    const html = await this.webFonts.page(
+      scope.siteId,
+      page.html,
+      scope.settings.webFonts,
+      () => {},
+    );
     return {
       status: 503,
-      html: page.html,
+      html,
       headers: { 'retry-after': String(retryAfter), 'x-robots-tag': 'noindex' },
       tags: [],
     };
@@ -2033,6 +2041,10 @@ export class PublicService {
     // Base styles of tables and galleries, before the plugins' (themes may restyle them).
     html = withCoreBlockCss(html);
     if (scope.blockCss && scope.blockCss.length > 0) html = withBlockCss(html, scope.blockCss);
+    // Last: the Google and Bunny Fonts the theme and the plugins link, kept on the site.
+    html = await this.webFonts.page(scope.siteId, html, scope.settings.webFonts, (tag) =>
+      scope.tags.add(tag),
+    );
     return {
       status,
       html,

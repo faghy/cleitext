@@ -1,6 +1,7 @@
 /**
  * Google Fonts kept on the site (like Elementor's "Load Google Fonts
- * Locally"), shared by Fresco and Prisma: the stylesheet of a family is
+ * Locally"), shared by Fresco, Prisma and the core (which also keeps the
+ * Google and Bunny Fonts that themes link): the stylesheet of a family is
  * downloaded once by the server, with its font files, and pages link to the
  * site's copy. No visitor's browser talks to Google, which in the EU needs
  * consent (LG München, 20 January 2022; the Italian Garante follows it).
@@ -68,6 +69,48 @@ export function isGoogleFileUrl(value: string): boolean {
   );
 }
 
+/**
+ * A Bunny Fonts stylesheet address (the Google Fonts mirror many themes
+ * use): https, fonts.bunny.net, `/css` or `/css2`.
+ */
+export function isBunnyCssUrl(value: string): boolean {
+  const url = parse(value);
+  return (
+    !!url &&
+    url.protocol === 'https:' &&
+    url.hostname === 'fonts.bunny.net' &&
+    !url.port &&
+    !url.username &&
+    (url.pathname === '/css2' || url.pathname === '/css')
+  );
+}
+
+/** A Bunny font file address: https, fonts.bunny.net, `/<family>/files/<file>.woff2` or `.woff`. */
+export function isBunnyFileUrl(value: string): boolean {
+  const url = parse(value);
+  return (
+    !!url &&
+    url.protocol === 'https:' &&
+    url.hostname === 'fonts.bunny.net' &&
+    !url.port &&
+    !url.username &&
+    /^\/[a-z0-9-]+\/files\/[\w.-]+\.(woff2|woff)$/.test(url.pathname) &&
+    !url.pathname.includes('..')
+  );
+}
+
+/** A stylesheet of a font service whose copies a site may keep: Google Fonts or Bunny Fonts. */
+export function isFontServiceCssUrl(value: string): boolean {
+  return isGoogleCssUrl(value) || isBunnyCssUrl(value);
+}
+
+/** The check of the font files a service stylesheet may name: on the same service only. */
+export function fontFileCheck(cssUrl: string): ((value: string) => boolean) | null {
+  if (isGoogleCssUrl(cssUrl)) return isGoogleFileUrl;
+  if (isBunnyCssUrl(cssUrl)) return isBunnyFileUrl;
+  return null;
+}
+
 function parse(value: string): URL | null {
   try {
     return new URL(value);
@@ -81,18 +124,64 @@ const URL_RE = /url\(\s*(['"]?)([^'")\s]+)\1\s*\)/g;
 /**
  * The font files a Google stylesheet names, each once; null when the
  * stylesheet is not one to copy: too large, with `@import`, or naming a
- * file anywhere else than fonts.gstatic.com.
+ * file anywhere else than fonts.gstatic.com (or where `isFile` allows).
  */
-export function cssFileUrls(css: string): string[] | null {
+export function cssFileUrls(
+  css: string,
+  isFile: (value: string) => boolean = isGoogleFileUrl,
+): string[] | null {
   if (css.length > FONT_LIMITS.cssBytes || /@import|<\/?[a-z]/i.test(css)) return null;
   if (!/@font-face/.test(css)) return null;
   const found = new Set<string>();
   for (const match of css.matchAll(URL_RE)) {
-    if (!isGoogleFileUrl(match[2]!)) return null;
+    if (!isFile(match[2]!)) return null;
     found.add(match[2]!);
   }
   if (found.size === 0 || found.size > FONT_LIMITS.files) return null;
   return [...found];
+}
+
+/**
+ * Each `src` reduced to its WOFF2 files when it has some: Bunny Fonts also
+ * lists WOFF files, which every browser of the last years skips, and
+ * copying them would double the files kept.
+ */
+export function woff2Only(css: string): string {
+  return css.replace(/\bsrc\s*:\s*([^;}]+)/g, (all, value: string) => {
+    const parts = value.split(/,(?=\s*(?:url|local)\()/);
+    const kept = parts.filter((part) => /format\(\s*['"]?woff2['"]?\s*\)|^\s*local\(/.test(part));
+    if (!kept.some((part) => /url\(/.test(part))) return all;
+    return `src: ${kept.map((part) => part.trim()).join(', ')}`;
+  });
+}
+
+/**
+ * A font service stylesheet (Google Fonts, Bunny Fonts) split into one
+ * address per family, with the other parameters (`display`, `subset`) of
+ * each: every family is kept on the site once, within its own limits, and
+ * its link names it. An address with `text` (a few letters) stays whole.
+ * Empty when `href` is not such a stylesheet (`&amp;` and `//` are read).
+ */
+export function familyStylesheets(href: string): { family: string; url: string }[] {
+  const url = parse(decode(href.trim()).replace(/^\/\//, 'https://'));
+  if (!url || !isFontServiceCssUrl(url.href)) return [];
+  const specs = url.searchParams
+    .getAll('family')
+    .flatMap((value) => (url.pathname === '/css' ? value.split('|') : [value]))
+    .map((spec) => spec.trim())
+    .filter(Boolean);
+  const nameOf = (spec: string) => spec.split(':')[0]!.trim();
+  if (specs.length === 0) return [];
+  if (specs.length === 1 || url.searchParams.has('text')) {
+    return [{ family: nameOf(specs[0]!), url: url.href }];
+  }
+  const others = [...url.searchParams].filter(([key]) => key !== 'family');
+  return specs.map((spec) => {
+    const one = new URL(url.pathname, url.origin);
+    one.searchParams.append('family', spec);
+    for (const [key, value] of others) one.searchParams.append(key, value);
+    return { family: nameOf(spec), url: one.href };
+  });
 }
 
 /**

@@ -2,23 +2,45 @@
   "name": "@cleitext/design",
   "version": "0.0.0",
   "private": true,
-  "description": "Responsive design settings and their CSS, and Google Fonts kept on the site, shared by Fresco and Prisma.",
+  "description": "Responsive design settings and their CSS, and web fonts kept on the site, shared by Fresco, Prisma and the server.",
   "license": "GPL-2.0-or-later",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./model": "./src/model.ts",
-    "./css": "./src/css.ts",
-    "./fonts": "./src/fonts.ts",
-    "./font-copies": "./src/font-copies.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./model": {
+      "types": "./dist/model.d.ts",
+      "default": "./dist/model.js"
+    },
+    "./css": {
+      "types": "./dist/css.d.ts",
+      "default": "./dist/css.js"
+    },
+    "./fonts": {
+      "types": "./dist/fonts.d.ts",
+      "default": "./dist/fonts.js"
+    },
+    "./font-copies": {
+      "types": "./dist/font-copies.d.ts",
+      "default": "./dist/font-copies.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4"
+  },
   "devDependencies": {
     "@cleitext/plugin-sdk": "workspace:*",
-    "drizzle-orm": "^0.45.4",
     "vitest": "^5.0.3"
   }
 }

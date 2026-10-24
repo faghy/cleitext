@@ -1,21 +1,23 @@
 /**
  * Checks of the public site, run from the admin: which pages make visitors'
- * browsers load Google Fonts (fonts.googleapis.com, fonts.gstatic.com) as
- * soon as they open, before any consent. Since the LG München ruling of
- * 20 January 2022 (followed by the Italian Garante) that sends the visitor's
- * IP address to Google without a legal basis. The pages are read as a
- * visitor (no cookies), with the stylesheets of the site they link.
+ * browsers load web fonts from Google Fonts (fonts.googleapis.com,
+ * fonts.gstatic.com) or Bunny Fonts (fonts.bunny.net) as soon as they open,
+ * before any consent. Since the LG München ruling of 20 January 2022
+ * (followed by the Italian Garante) that sends the visitor's IP address to
+ * the service without a legal basis; Bunny is in the EU and keeps no logs,
+ * but it is still a third party. The pages are read as a visitor (no
+ * cookies), with the stylesheets of the site they link.
  */
 
 /** The font services whose addresses are looked for. */
-export const GOOGLE_FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'] as const;
+export const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'fonts.bunny.net'] as const;
 
 export interface FontFinding {
   /** The page where it was found. */
   page: string;
   /** The page itself, or the site's stylesheet that loads it. */
   source: string;
-  host: (typeof GOOGLE_FONT_HOSTS)[number];
+  host: (typeof FONT_HOSTS)[number];
 }
 
 /**
@@ -28,9 +30,9 @@ export function activeHtml(html: string): string {
     .replace(/<script\b[^>]*\btype\s*=\s*["']?text\/plain[^>]*>[\s\S]*?<\/script>/gi, '');
 }
 
-/** The Google font hosts a page or a stylesheet names, each once. */
-export function googleFontHosts(text: string): FontFinding['host'][] {
-  return GOOGLE_FONT_HOSTS.filter((host) =>
+/** The font service hosts a page or a stylesheet names, each once. */
+export function fontHosts(text: string): FontFinding['host'][] {
+  return FONT_HOSTS.filter((host) =>
     new RegExp(`(?:https?:)?//${host.replace(/\./g, '\\.')}[/"'\\s)]`, 'i').test(text),
   );
 }
@@ -58,11 +60,13 @@ export function siteStylesheets(html: string, pageUrl: string, limit = 12): stri
 }
 
 /**
- * Looks for Google Fonts on some pages of the site and in the site's
- * stylesheets they use (and those these import). `read` gets a text as a
- * visitor would, or null.
+ * Looks for Google and Bunny Fonts on some pages of the site and in the
+ * site's stylesheets they use (and those these import). `read` gets a text
+ * as a visitor would, or null. Found in the page itself, the core's setting
+ * (Settings → General → Privacy → Web fonts → Host them on this site) fixes it; in a
+ * stylesheet file, the theme or plugin that wrote it has to.
  */
-export async function scanGoogleFonts(
+export async function scanFonts(
   pages: readonly string[],
   read: (url: string) => Promise<string | null>,
 ): Promise<FontFinding[]> {
@@ -76,7 +80,7 @@ export async function scanGoogleFonts(
     const html = await read(page);
     if (html === null) continue;
     const active = activeHtml(html);
-    for (const host of googleFontHosts(active)) findings.push({ page, source: page, host });
+    for (const host of fontHosts(active)) findings.push({ page, source: page, host });
     const queue = siteStylesheets(active, page).map((url) => ({ url, depth: 0 }));
     const seen = new Set<string>();
     while (queue.length) {
@@ -85,7 +89,7 @@ export async function scanGoogleFonts(
       seen.add(url);
       const css = await readSheet(url);
       if (css === null) continue;
-      for (const host of googleFontHosts(css)) findings.push({ page, source: url, host });
+      for (const host of fontHosts(css)) findings.push({ page, source: url, host });
       if (depth < 1)
         for (const next of siteStylesheets(css, url)) queue.push({ url: next, depth: 1 });
     }

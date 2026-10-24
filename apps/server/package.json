@@ -19,6 +19,7 @@
   "dependencies": {
     "@cleitext/blocks": "workspace:*",
     "@cleitext/db": "workspace:*",
+    "@cleitext/design": "workspace:*",
     "@cleitext/plugin-sdk": "workspace:*",
     "@cleitext/renderer": "workspace:*",
     "@cleitext/shared": "workspace:*",

@@ -67,6 +67,7 @@ import { TwoFactorController } from './profile/two-factor.controller.js';
 import { PasskeysController } from './profile/passkeys.controller.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { PublicService } from './public/public.service.js';
+import { WebFontsService } from './public/web-fonts.service.js';
 import { MailSettingsController } from './settings/mail-settings.controller.js';
 import { SitesController } from './settings/sites.controller.js';
 import { SettingsController } from './settings/settings.controller.js';
@@ -182,6 +183,7 @@ export class AppModule {
         PluginRoutes,
         PluginServicesProvider,
         PublicService,
+        WebFontsService,
         SchedulerService,
         SettingsService,
         SessionService,

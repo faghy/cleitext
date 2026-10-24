@@ -16,6 +16,7 @@ import { SessionService } from './auth/session.service.js';
 import { ApiTokenService } from './auth/api-token.service.js';
 import type { AppConfig } from './config/config.js';
 import { fastifyTrustProxy } from './config/trust-proxy.js';
+import { WebFontsService } from './public/web-fonts.service.js';
 import { PublicService } from './public/public.service.js';
 import { createRequestHook } from './tenancy/request-hook.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
@@ -166,6 +167,19 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
   fastify.get('/plugin-assets/:slug/:version/*', (request, reply) =>
     servePluginAsset(app.get(PluginHost), request, reply, 'public'),
   );
+
+  // Web fonts kept on the site (Settings → Privacy): names change with the content.
+  const webFonts = app.get(WebFontsService);
+  fastify.get('/_fonts/:file', async (request, reply) => {
+    const { file } = request.params as { file: string };
+    const found = request.site ? await webFonts.file(request.site.id, file) : null;
+    if (!found) return reply.code(404).type('text/plain; charset=utf-8').send('Not found');
+    return reply
+      .header('cache-control', 'public, max-age=31536000, immutable')
+      .header('access-control-allow-origin', '*')
+      .type(found.mime)
+      .send(Buffer.from(found.bytes.buffer, found.bytes.byteOffset, found.bytes.byteLength));
+  });
 
   // Public site: every other GET/HEAD (docs/ARCHITECTURE.md §12).
   const publicService = app.get(PublicService);

@@ -18,9 +18,21 @@ Segue il GDPR e, per l'Italia, le linee guida cookie del Garante del 10 giugno 2
 
 I servizi aggiunti da altri plugin, come **Analytics** (Matomo, Google Analytics, Tag Manager, Meta Pixel), portano le proprie regole: la loro categoria viene offerta nel banner, i loro cookie entrano nella tabella dei cookie, la Google Consent Mode si attiva per i servizi Google e la privacy policy li descrive. **Privacy → Banner cookie → Servizi di tracciamento** li mostra.
 
-### Font da Google
+### Font da Google e Bunny
 
-Le pagine che caricano **Google Fonts** (`fonts.googleapis.com`, `fonts.gstatic.com`) inviano a Google l'indirizzo IP del visitatore appena si aprono, prima di qualsiasi consenso: un tribunale tedesco ha sanzionato un sito per questo (LG München, 20 gennaio 2022) e il Garante italiano è dello stesso avviso. **Privacy → Banner cookie → Font da Google → Controlla il sito** legge la home page e le ultime pagine e articoli come un visitatore (senza cookie), con i fogli di stile del sito che usano (e quelli che importano), ed elenca le pagine che caricano Google Fonts e da dove. Gli script bloccati fino al consenso e i commenti HTML non contano. Vengono lette solo quelle pagine: un font caricato da uno script dopo l'apertura della pagina non viene visto. Per correggere, ospita i font sul sito: con **Fresco**, **Impostazioni del sito → Font globali → Google Fonts → Ospita su questo sito** (il predefinito da Fresco 2.8); con **Prisma**, **Impostazioni → Prisma → Google Fonts → Ospita su questo sito** (il predefinito da Prisma 0.7; con entrambi in una pagina, una famiglia è collegata una volta sola); con un tema o un plugin che collega Google Fonts, la sua impostazione per i font locali, oppure font caricati e dichiarati con `@font-face`.
+Le pagine che caricano **Google Fonts** (`fonts.googleapis.com`, `fonts.gstatic.com`) o **Bunny Fonts** (`fonts.bunny.net`) inviano a quel servizio l'indirizzo IP del visitatore appena si aprono, prima di qualsiasi consenso: un tribunale tedesco ha sanzionato un sito per questo (LG München, 20 gennaio 2022) e il Garante italiano è dello stesso avviso. Bunny è nell'UE e non tiene log, ma resta una terza parte. **Privacy → Banner cookie → Font da Google e Bunny → Controlla il sito** legge la home page e le ultime pagine e articoli come un visitatore (senza cookie), con i fogli di stile del sito che usano (e quelli che importano), ed elenca le pagine che caricano quei font e da dove. Gli script bloccati fino al consenso e i commenti HTML non contano. Vengono lette solo quelle pagine: un font caricato da uno script dopo l'apertura della pagina non viene visto.
+
+Per correggere, ospita i font sul sito. Cleitext lo fa da sé per ogni tema e plugin (vedi [Web font ospitati sul sito](#web-font-ospitati-sul-sito) qui sotto): quello che il controllo elenca ancora viene da un file di stile di un tema o di un plugin (indicato sotto la pagina), da correggere lì, oppure da un sito in cui l'impostazione è stata cambiata. **Fresco** (**Impostazioni del sito → Font globali → Google Fonts → Ospita su questo sito**, il predefinito da Fresco 2.8) e **Prisma** (**Impostazioni → Prisma → Google Fonts → Ospita su questo sito**, il predefinito da Prisma 0.7) ospitano i propri font allo stesso modo; con più di uno in una pagina, una famiglia è collegata una volta sola.
+
+### Web font ospitati sul sito
+
+Fa parte di Cleitext stesso, con o senza il plugin Privacy. **Impostazioni → Generali → Privacy → Web font da Google Fonts e Bunny Fonts**:
+
+- **Ospitali su questo sito** (il predefinito, anche per i siti esistenti): dopo che il tema e i plugin hanno generato una pagina, il core sostituisce ogni link a un foglio di stile di Google Fonts o Bunny Fonts (`<link rel="stylesheet">`, un preload di stile, `@import` in uno `<style>`) con i link alle copie tenute dal sito, uno per famiglia (`/_fonts/<hash>.css`, con il suo `data-font-family`), e toglie i `preconnect`, i `dns-prefetch` e i preload di font verso quei servizi. Il server scarica ogni famiglia una volta (solo da `fonts.googleapis.com`, `fonts.gstatic.com` e `fonts.bunny.net`, in https, con limiti di dimensione e di tempo; solo file WOFF2), la tiene nel database del sito e la serve con una cache di un anno. Finché la copia di una famiglia non è pronta (una pagina la attende al massimo 2,5 secondi; un download fallito viene ritentato più tardi, da 10 minuti fino a 6 ore di distanza) la pagina è senza quella famiglia, mai con il link al servizio, e le pagine in cache vengono rigenerate quando la copia è pronta. L'editor a blocchi riceve i font del tema dalle stesse copie.
+- **Caricali da Google o Bunny Fonts**: i link restano; vengono tolti solo quelli verso famiglie che Fresco o Prisma ospitano già sul sito per quella pagina.
+- **Lascia le pagine come le ha scritte il tema**: il core non tocca le pagine.
+
+I font dichiarati solo dentro un file di stile di un tema o di un plugin (un `@import` o un `@font-face` in un file `.css`), o caricati da uno script, non vengono visti: il controllo qui sopra li elenca. I font di icone dei servizi (`fonts.googleapis.com/icon`, Material Icons) restano come sono.
 
 ### Script bloccati fino al consenso
 
@@ -58,7 +70,7 @@ Il pulsante **Preferenze cookie** di un contenuto trattenuto, le voci di menu co
 
 **Content Security Policy**: le pagine pubbliche di Cleitext inviano una policy che vieta solo i plugin del browser, il dirottamento di `<base>` e l'inclusione in frame da altri siti, quindi script e frame dei CMP non richiedono nulla. Una policy più severa aggiunta da un proxy deve permettere le loro origini: `cdn.iubenda.com`, `www.iubenda.com`, `cs.iubenda.com`; `consent.cookiebot.com`, `consentcdn.cookiebot.com`; `cdn-cookieyes.com`, `log.cookieyes.com`.
 
-Il controllo **Font da Google** e gli altri controlli funzionano allo stesso modo con un gestore dei consensi.
+Il controllo **Font da Google e Bunny** e gli altri controlli funzionano allo stesso modo con un gestore dei consensi.
 
 ## Registro dei consensi
 

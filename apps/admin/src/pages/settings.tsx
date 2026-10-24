@@ -484,6 +484,31 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
             </Link>
           </div>
         </Card>
+        <Card id="privacy" title={t('Privacy')}>
+          <label className="block space-y-1 text-sm">
+            <span className="block font-medium text-slate-800">
+              {t('Web fonts from Google Fonts and Bunny Fonts')}
+            </span>
+            <select
+              className={selectClass}
+              value={values.webFonts}
+              onChange={(e) => set('webFonts', e.target.value as CoreSettings['webFonts'])}
+            >
+              <option value="local">{t('Host them on this site (recommended)')}</option>
+              <option value="provider">{t('Load them from Google or Bunny Fonts')}</option>
+              <option value="theme">{t('Leave the pages as the theme wrote them')}</option>
+            </select>
+            <span className="block text-xs text-slate-500">
+              {values.webFonts === 'local'
+                ? t(
+                    'The fonts the theme and the plugins link are downloaded once by the site and served from here: visitors’ browsers never contact the font services, so no IP address is sent to them before consent.',
+                  )
+                : t(
+                    'Visitors’ browsers load the fonts from the service, which receives their IP address as soon as a page opens: in the EU this needs their consent (LG München, 2022).',
+                  )}
+            </span>
+          </label>
+        </Card>
         <Card id="install-report" title={t('Installation report')}>
           <label className="flex items-start gap-2 text-sm">
             <input

@@ -1,5 +1,6 @@
 import {
   bigint,
+  customType,
   foreignKey,
   integer,
   jsonb,
@@ -60,4 +61,39 @@ export const mediaVariants = pgTable(
       foreignColumns: [media.siteId, media.id],
     }).onDelete('cascade'),
   ],
+);
+
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => 'bytea',
+});
+
+/**
+ * Web fonts kept on the site (Settings → Privacy → Web fonts): the files of
+ * the Google Fonts and Bunny Fonts stylesheets that pages link, downloaded
+ * once by the server and served at `/_fonts/<name>`. Names are hashes of
+ * the content (`<32 hex>.css`, `.woff2`…): a file never changes.
+ */
+export const webFontFiles = pgTable(
+  'web_font_files',
+  {
+    siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    mime: text('mime').notNull(),
+    bytes: bytea('bytes').notNull(),
+    size: integer('size').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.siteId, t.name] })],
+);
+
+/** The site's stylesheet (a file of `web_font_files`) of each font service address, by its hash. */
+export const webFontSheets = pgTable(
+  'web_font_sheets',
+  {
+    siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    css: text('css').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.siteId, t.key] })],
 );

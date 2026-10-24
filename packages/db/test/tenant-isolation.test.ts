@@ -379,6 +379,18 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
     await tx
       .insert(s.patterns)
       .values({ siteId, title: 'Pattern', document: { schema: 1, blocks: [] }, createdBy: userId });
+    await tx.insert(s.webFontFiles).values({
+      siteId,
+      name: `${'a'.repeat(32)}.css`,
+      mime: 'text/css; charset=utf-8',
+      bytes: new TextEncoder().encode('@font-face{}'),
+      size: 12,
+    });
+    await tx.insert(s.webFontSheets).values({
+      siteId,
+      key: 'b'.repeat(32),
+      css: `${'a'.repeat(32)}.css`,
+    });
     return { siteId, host, userId, entryId, termId };
   });
 }

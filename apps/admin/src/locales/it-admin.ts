@@ -113,6 +113,15 @@ export const itAdmin: Messages = {
   'You have the latest version.': 'Hai l’ultima versione.',
   'Last checked: {date}.': 'Ultimo controllo: {date}.',
   'Check again': 'Controlla di nuovo',
+  Privacy: 'Privacy',
+  'Web fonts from Google Fonts and Bunny Fonts': 'Web font da Google Fonts e Bunny Fonts',
+  'Host them on this site (recommended)': 'Ospitali su questo sito (consigliato)',
+  'Load them from Google or Bunny Fonts': 'Caricali da Google o Bunny Fonts',
+  'Leave the pages as the theme wrote them': 'Lascia le pagine come le ha scritte il tema',
+  'The fonts the theme and the plugins link are downloaded once by the site and served from here: visitors’ browsers never contact the font services, so no IP address is sent to them before consent.':
+    'I font collegati dal tema e dai plugin vengono scaricati una volta dal sito e serviti da qui: i browser dei visitatori non contattano mai i servizi di font, quindi nessun indirizzo IP viene inviato loro prima del consenso.',
+  'Visitors’ browsers load the fonts from the service, which receives their IP address as soon as a page opens: in the EU this needs their consent (LG München, 2022).':
+    'I browser dei visitatori caricano i font dal servizio, che riceve il loro indirizzo IP appena si apre una pagina: nell’UE serve il loro consenso (LG München, 2022).',
   'Installation report': 'Resoconto delle installazioni',
   'Tell cleitext.com which versions this site runs':
     'Comunica a cleitext.com quali versioni usa questo sito',

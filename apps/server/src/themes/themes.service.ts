@@ -23,6 +23,8 @@ import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { validateDocument } from '../content/entries.service.js';
 import { DATABASE } from '../database/database.module.js';
 import { PageCacheService } from '../public/page-cache.service.js';
+import { WebFontsService } from '../public/web-fonts.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 import {
   AREAS_NAMESPACE,
   storedThemeSettings,
@@ -55,6 +57,8 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     private readonly audit: AuditService,
     private readonly licenses: LicensesService,
     private readonly plugins: PluginHost,
+    private readonly coreSettings: SettingsService,
+    private readonly webFonts: WebFontsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -371,6 +375,13 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
   }
 
   async editorCss(siteId: string, auth: AuthContext): Promise<string> {
+    const css = await this.themeEditorCss(siteId, auth);
+    // Fonts imported from Google or Bunny Fonts: the site's copies, as on the public pages.
+    const { webFonts } = await this.coreSettings.getCore(siteId);
+    return this.webFonts.editorCss(siteId, css, webFonts);
+  }
+
+  private async themeEditorCss(siteId: string, auth: AuthContext): Promise<string> {
     const theme = await this.activeTheme(siteId, auth);
     if (typeof theme.editorCss !== 'function') return theme.editorCss ?? '';
     // The chosen colors and fonts, as on the site.

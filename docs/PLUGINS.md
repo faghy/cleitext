@@ -739,6 +739,8 @@ Since plugin API 1.45, a plugin also moderates comments of any type: `ctx.commen
 
 `network` (plugin API 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` returns `{ status, type, text }`. Use it for webhooks, mailing lists and chat notifications. Only public `https` addresses are accepted: names resolving to the server's own network are refused when connecting, redirects are not followed, answers are cut at 1 MB and requests last 10 seconds by default (30 at most). With `binary: true` (plugin API 1.36) the answer is a file: its bytes come as `base64` (up to 5 MB) and `text` is empty, e.g. to copy a font or an image from an imported site. `userAgent` (plugin API 1.44; printable ASCII, 200 characters at most) replaces the default `Cleitext-Plugin/<slug>`, e.g. to be given what a browser gets: Fresco asks Google Fonts as a browser to copy WOFF2 files.
 
+**Web fonts in pages.** After `render.html`, the core keeps on the site the Google Fonts and Bunny Fonts stylesheets a page links or imports (**Settings → General → Privacy → Web fonts**, on by default; see [Privacy](./PRIVACY.md#web-fonts-kept-on-the-site)): a plugin may link them as usual and they never reach visitors as third-party requests. A plugin that keeps its own copies (Fresco, Prisma) links each with `data-font-family="<family>"` (`fontLink` of `@cleitext/design/fonts`): the core then never links that family again, and plugins read the families a page already loads with `pageFamilies`. No new plugin API: the SDK version is unchanged.
+
 ```ts
 const res = await ctx.http.send({
   url: 'https://hooks.example.com/notify',

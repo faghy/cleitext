@@ -96,6 +96,11 @@ async function setMode(mode: 'local' | 'google' | 'none' | null) {
     googleFonts: mode,
   });
   expect(saved.statusCode, saved.body).toBe(200);
+  // Links to Google stay only when the core leaves them (Settings → General → Privacy).
+  const core = await admin.request('PATCH', '/api/v1/settings/core', {
+    webFonts: mode === 'google' ? 'provider' : 'local',
+  });
+  expect(core.statusCode, core.body).toBe(200);
 }
 
 beforeAll(async () => {

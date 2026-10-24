@@ -20,11 +20,13 @@ import {
   base64Head,
   base64Size,
   cssFileUrls,
+  fontFileCheck,
   fontType,
   hashName,
-  isGoogleCssUrl,
+  isBunnyCssUrl,
   rewriteCss,
   servedFile,
+  woff2Only,
 } from './fonts.js';
 
 export type HttpSend = PluginContext['http']['send'];
@@ -46,10 +48,10 @@ export interface FontStore {
 }
 
 /**
- * Downloads one family's stylesheet (the Google address of that family) and
- * its files, keeps them and returns the name of the site's stylesheet, whose
- * files are served under `route`. Throws, keeping nothing usable, when
- * anything is not as expected.
+ * Downloads one family's stylesheet (the Google address of that family, or
+ * its Bunny Fonts one) and its files, keeps them and returns the name of
+ * the site's stylesheet, whose files are served under `route`. Throws,
+ * keeping nothing usable, when anything is not as expected.
  */
 export async function copyFamily(
   http: HttpSend,
@@ -58,13 +60,17 @@ export async function copyFamily(
   url: string,
   route: string,
 ): Promise<string> {
-  if (!isGoogleCssUrl(url)) throw new Error('Not a Google Fonts stylesheet.');
+  const isFile = fontFileCheck(url);
+  if (!isFile) throw new Error('Not a Google Fonts or Bunny Fonts stylesheet.');
   const res = await http({ url, method: 'GET', userAgent: BROWSER_AGENT, timeoutMs: 15_000 });
+  const service = isBunnyCssUrl(url) ? 'Bunny Fonts' : 'Google Fonts';
   if (res.status !== 200 || !/css/.test(res.type)) {
-    throw new Error(`Google Fonts answered ${res.status} (${res.type || 'no type'}).`);
+    throw new Error(`${service} answered ${res.status} (${res.type || 'no type'}).`);
   }
-  const files = cssFileUrls(res.text);
-  if (!files) throw new Error('The stylesheet names files outside fonts.gstatic.com, or too many.');
+  // Bunny Fonts lists WOFF files beside the WOFF2 ones: only these are kept.
+  const sheet = isBunnyCssUrl(url) ? woff2Only(res.text) : res.text;
+  const files = cssFileUrls(sheet, isFile);
+  if (!files) throw new Error(`The stylesheet names files outside ${service}, or too many.`);
   const names = new Map<string, string>();
   for (const file of files) {
     const ext = /\.(woff2|woff|ttf|otf)$/.exec(new URL(file).pathname)?.[1];
@@ -92,7 +98,7 @@ export async function copyFamily(
       }),
     );
   }
-  const css = rewriteCss(res.text, names, route);
+  const css = rewriteCss(sheet, names, route);
   if (!css) throw new Error('The stylesheet could not be rewritten.');
   const cssName = `${await hashName(css)}.css`;
   await store.put(siteId, cssName, 'text/css; charset=utf-8', { text: css });

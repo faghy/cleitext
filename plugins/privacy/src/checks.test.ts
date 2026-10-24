@@ -1,32 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { activeHtml, googleFontHosts, scanGoogleFonts, siteStylesheets } from './checks';
+import { activeHtml, fontHosts, scanFonts, siteStylesheets } from './checks';
 
 const SITE = 'https://example.test';
 
-describe('Google Fonts loaded before consent', () => {
+describe('Google and Bunny Fonts loaded before consent', () => {
   it('finds the Google font hosts a page or a stylesheet names', () => {
     expect(
-      googleFontHosts(
+      fontHosts(
         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter&amp;display=swap">',
       ),
     ).toEqual(['fonts.googleapis.com']);
-    expect(
-      googleFontHosts('@font-face{src:url(https://fonts.gstatic.com/s/inter/v1/a.woff2)}'),
-    ).toEqual(['fonts.gstatic.com']);
-    expect(googleFontHosts('<link href="//fonts.googleapis.com/css?family=Lato">')).toEqual([
+    expect(fontHosts('@font-face{src:url(https://fonts.gstatic.com/s/inter/v1/a.woff2)}')).toEqual([
+      'fonts.gstatic.com',
+    ]);
+    expect(fontHosts('<link href="//fonts.googleapis.com/css?family=Lato">')).toEqual([
       'fonts.googleapis.com',
     ]);
+    // Bunny Fonts too: in the EU and without logs, but a third party all the same.
     expect(
-      googleFontHosts('<link rel="stylesheet" href="https://fonts.bunny.net/css?family=inter">'),
-    ).toEqual([]);
-    expect(googleFontHosts('<p>We use fonts.googleapis.com.evil.test</p>')).toEqual([]);
+      fontHosts('<link rel="stylesheet" href="https://fonts.bunny.net/css?family=inter">'),
+    ).toEqual(['fonts.bunny.net']);
+    expect(fontHosts('<link rel="preconnect" href="https://fonts.bunny.net">')).toEqual([
+      'fonts.bunny.net',
+    ]);
+    expect(fontHosts('<p>We use fonts.googleapis.com.evil.test</p>')).toEqual([]);
   });
 
   it('ignores comments and scripts the banner keeps inert until consent', () => {
     const html = `<!-- <link href="https://fonts.googleapis.com/css2?family=A"> -->
 <script type="text/plain" data-cx-category="marketing">load('https://fonts.googleapis.com/css2?family=B')</script>
 <p>Hello</p>`;
-    expect(googleFontHosts(activeHtml(html))).toEqual([]);
+    expect(fontHosts(activeHtml(html))).toEqual([]);
   });
 
   it('follows the site’s own stylesheets, not other sites’', () => {
@@ -50,7 +54,7 @@ describe('Google Fonts loaded before consent', () => {
       [`${SITE}/fonts.css`]: '@import url(https://fonts.googleapis.com/css2?family=Lora);',
       [`${SITE}/theme-clean.css`]: '@font-face{font-family:Lora;src:url(/_fresco/gfonts/a.woff2)}',
     };
-    const findings = await scanGoogleFonts(
+    const findings = await scanFonts(
       [`${SITE}/`, `${SITE}/clean`, `${SITE}/direct`, `${SITE}/missing`],
       async (url) => texts[url] ?? null,
     );

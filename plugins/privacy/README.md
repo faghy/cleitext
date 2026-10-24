@@ -16,9 +16,9 @@ It follows the GDPR and, for Italy, the Garante's cookie guidelines of 10 June 2
 
 Services added by other plugins, such as **Analytics** (Matomo, Google Analytics, Tag Manager, Meta Pixel), bring their own rules: their category is offered in the banner, their cookies join the cookie table, Google Consent Mode turns on for Google services, and the privacy policy describes them. **Privacy → Cookie banner → Tracking services** shows them.
 
-### Fonts from Google
+### Fonts from Google and Bunny
 
-Pages that load **Google Fonts** (`fonts.googleapis.com`, `fonts.gstatic.com`) send the visitor's IP address to Google as soon as they open, before any consent: a German court fined a site for it (LG München, 20 January 2022) and the Italian Garante agrees. **Privacy → Cookie banner → Fonts from Google → Check the site** reads the home page and the latest pages and articles as a visitor (without cookies), with the site's own stylesheets they use (and those these import), and lists the pages that load Google Fonts and where from. Scripts held until consent and HTML comments are not counted. Only those pages are read: a font loaded by a script after the page opens is not seen. To fix what it finds, keep the fonts on the site: with **Fresco**, **Site settings → Global fonts → Google Fonts → Host on this site** (the default since Fresco 2.8); with a theme or a plugin that links Google Fonts, its own setting for local fonts, or fonts uploaded and declared with `@font-face`.
+Pages that load **Google Fonts** (`fonts.googleapis.com`, `fonts.gstatic.com`) or **Bunny Fonts** (`fonts.bunny.net`) send the visitor's IP address to that service as soon as they open, before any consent: a German court fined a site for it (LG München, 20 January 2022) and the Italian Garante agrees. Bunny is in the EU and keeps no logs, but it is still a third party. **Privacy → Cookie banner → Fonts from Google and Bunny → Check the site** reads the home page and the latest pages and articles as a visitor (without cookies), with the site's own stylesheets they use (and those these import), and lists the pages that load those fonts and where from. Scripts held until consent and HTML comments are not counted. Only those pages are read: a font loaded by a script after the page opens is not seen. To fix what it finds, keep the fonts on the site: **Settings → General → Privacy → Web fonts → Host them on this site** (Cleitext 0.71, the default) does it for every link and `@import` in the pages, whatever the theme or plugin wrote them; what is left comes from a stylesheet file of a theme or plugin (shown under the page), to be fixed there. **Fresco** and **Prisma** have the same choice in their own settings.
 
 ### Scripts held until consent
 
@@ -56,7 +56,7 @@ The **Cookie preferences** button of a held embed, menu items with `#cookie-pref
 
 **Content Security Policy**: Cleitext's public pages send a policy that only forbids plugins, `<base>` hijacking and framing by other sites, so the CMPs' scripts and frames need nothing. A stricter policy added by a proxy must allow their origins: `cdn.iubenda.com`, `www.iubenda.com`, `cs.iubenda.com`; `consent.cookiebot.com`, `consentcdn.cookiebot.com`; `cdn-cookieyes.com`, `log.cookieyes.com`.
 
-The **Fonts from Google** check and the other checks work the same with a consent manager.
+The **Fonts from Google and Bunny** check and the other checks work the same with a consent manager.
 
 ## Consent log
 

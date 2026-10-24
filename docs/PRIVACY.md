@@ -18,9 +18,21 @@ It follows the GDPR and, for Italy, the Garante's cookie guidelines of 10 June 2
 
 Services added by other plugins, such as **Analytics** (Matomo, Google Analytics, Tag Manager, Meta Pixel), bring their own rules: their category is offered in the banner, their cookies join the cookie table, Google Consent Mode turns on for Google services, and the privacy policy describes them. **Privacy → Cookie banner → Tracking services** shows them.
 
-### Fonts from Google
+### Fonts from Google and Bunny
 
-Pages that load **Google Fonts** (`fonts.googleapis.com`, `fonts.gstatic.com`) send the visitor's IP address to Google as soon as they open, before any consent: a German court fined a site for it (LG München, 20 January 2022) and the Italian Garante agrees. **Privacy → Cookie banner → Fonts from Google → Check the site** reads the home page and the latest pages and articles as a visitor (without cookies), with the site's own stylesheets they use (and those these import), and lists the pages that load Google Fonts and where from. Scripts held until consent and HTML comments are not counted. Only those pages are read: a font loaded by a script after the page opens is not seen. To fix what it finds, keep the fonts on the site: with **Fresco**, **Site settings → Global fonts → Google Fonts → Host on this site** (the default since Fresco 2.8); with **Prisma**, **Settings → Prisma → Google Fonts → Host on this site** (the default since Prisma 0.7; with both on a page, a family is linked once); with a theme or a plugin that links Google Fonts, its own setting for local fonts, or fonts uploaded and declared with `@font-face`.
+Pages that load **Google Fonts** (`fonts.googleapis.com`, `fonts.gstatic.com`) or **Bunny Fonts** (`fonts.bunny.net`) send the visitor's IP address to that service as soon as they open, before any consent: a German court fined a site for it (LG München, 20 January 2022) and the Italian Garante agrees. Bunny is in the EU and keeps no logs, but it is still a third party. **Privacy → Cookie banner → Fonts from Google and Bunny → Check the site** reads the home page and the latest pages and articles as a visitor (without cookies), with the site's own stylesheets they use (and those these import), and lists the pages that load those fonts and where from. Scripts held until consent and HTML comments are not counted. Only those pages are read: a font loaded by a script after the page opens is not seen.
+
+To fix what it finds, keep the fonts on the site. Cleitext does it by itself for every theme and plugin (see [Web fonts kept on the site](#web-fonts-kept-on-the-site) below): what the check still lists comes from a stylesheet file of a theme or plugin (shown under the page), to be fixed there, or from a site where the setting was changed. **Fresco** (**Site settings → Global fonts → Google Fonts → Host on this site**, the default since Fresco 2.8) and **Prisma** (**Settings → Prisma → Google Fonts → Host on this site**, the default since Prisma 0.7) keep their own fonts the same way; with several of them on a page, a family is linked once.
+
+### Web fonts kept on the site
+
+This is part of Cleitext itself, with or without the Privacy plugin. **Settings → General → Privacy → Web fonts from Google Fonts and Bunny Fonts**:
+
+- **Host them on this site** (the default, also for existing sites): after the theme and the plugins render a page, the core replaces each link to a Google Fonts or Bunny Fonts stylesheet (`<link rel="stylesheet">`, a style preload, `@import` in a `<style>`) with links to copies kept by the site, one per family (`/_fonts/<hash>.css`, with its `data-font-family`), and removes the `preconnect`, `dns-prefetch` and font preloads to those services. The server downloads each family once (only `fonts.googleapis.com`, `fonts.gstatic.com` and `fonts.bunny.net`, over https, with size limits and timeouts; WOFF2 files only), keeps it in the site's database and serves it with a one-year cache. Until a family's copy is ready (a page waits for it at most 2.5 seconds; a failed download is retried later, from 10 minutes up to 6 hours apart) the page goes without that family, never with the service's link, and cached pages are made again once the copy is ready. The block editor gets the theme's fonts from the same copies.
+- **Load them from Google or Bunny Fonts**: the links stay; only those to families Fresco or Prisma already keep on the site for the page are dropped.
+- **Leave the pages as the theme wrote them**: the core does not touch the pages.
+
+Fonts declared only inside a theme's or plugin's stylesheet file (an `@import` or `@font-face` in a `.css` file), or loaded by a script, are not seen: the check above lists them. Icon fonts of the services (`fonts.googleapis.com/icon`, Material Icons) are left as they are.
 
 ### Scripts held until consent
 
@@ -58,7 +70,7 @@ The **Cookie preferences** button of a held embed, menu items with `#cookie-pref
 
 **Content Security Policy**: Cleitext's public pages send a policy that only forbids plugins, `<base>` hijacking and framing by other sites, so the CMPs' scripts and frames need nothing. A stricter policy added by a proxy must allow their origins: `cdn.iubenda.com`, `www.iubenda.com`, `cs.iubenda.com`; `consent.cookiebot.com`, `consentcdn.cookiebot.com`; `cdn-cookieyes.com`, `log.cookieyes.com`.
 
-The **Fonts from Google** check and the other checks work the same with a consent manager.
+The **Fonts from Google and Bunny** check and the other checks work the same with a consent manager.
 
 ## Consent log
 

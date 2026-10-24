@@ -52,6 +52,17 @@ const coreSettingsFields = {
   /** The corner the arrow sits in. */
   backToTopPosition: z.enum(['right', 'left']),
 
+  // ---- Privacy ----
+  /**
+   * Web fonts of Google Fonts and Bunny Fonts that pages link (themes,
+   * plugins): `local` keeps a copy on the site and links that, so visitors'
+   * browsers never reach the font services; `provider` leaves the links to
+   * the services (only families a plugin already keeps on the site are not
+   * loaded twice); `theme` leaves the pages exactly as the theme and the
+   * plugins wrote them.
+   */
+  webFonts: z.enum(['local', 'provider', 'theme']),
+
   // ---- Membership (RF-USR-11) ----
   /** Anyone can create an account on the site. */
   registration: z.boolean(),
@@ -124,6 +135,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   backToTop: false,
   backToTopColor: null,
   backToTopPosition: 'right',
+  webFonts: 'local',
   registration: false,
   defaultRole: 'subscriber',
   verifyEmail: true,
