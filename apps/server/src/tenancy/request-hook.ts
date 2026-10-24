@@ -37,6 +37,20 @@ export function createRequestHook({
 
     const resolution = await sites.resolve(request.hostname);
     if (!resolution) {
+      // www.example.com when the site is example.com (or the other way round):
+      // led to the site's address, as hosting panels do, instead of a 404.
+      const host = request.hostname.toLowerCase();
+      const twin = host.startsWith('www.') ? host.slice(4) : `www.${host}`;
+      const site = host.includes('.') ? await sites.resolve(twin) : null;
+      if (site) {
+        const isRead = request.method === 'GET' || request.method === 'HEAD';
+        const scheme = site.forceHttps ? 'https' : request.protocol;
+        await reply.redirect(
+          `${scheme}://${site.primaryHost ?? twin}${request.url}`,
+          isRead ? 301 : 308,
+        );
+        return reply;
+      }
       await reply
         .code(404)
         .type('application/problem+json')

@@ -67,6 +67,18 @@ describe('site resolution', () => {
     expect((await alias.get('/api/v1/auth/csrf')).statusCode).toBe(200);
   });
 
+  it('leads www (or its absence) to the site when only the other is configured', async () => {
+    // secure.test has no www alias: www.secure.test goes to it, with its HTTPS.
+    const www = new TestClient(app, 'www.secure.test');
+    const page = await www.get('/contact?x=1');
+    expect(page.statusCode).toBe(301);
+    expect(page.headers.location).toBe('https://secure.test/contact?x=1');
+    const api = await www.request('POST', '/api/v1/auth/login', {}, { csrf: false });
+    expect(api.statusCode).toBe(308);
+    // Other subdomains stay unknown.
+    expect((await new TestClient(app, 'shop.secure.test').get('/')).statusCode).toBe(404);
+  });
+
   it('forces HTTPS when the domain requires it', async () => {
     const res = await new TestClient(app, 'secure.test').get('/api/v1/auth/csrf');
     expect(res.statusCode).toBe(308);
