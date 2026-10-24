@@ -462,6 +462,10 @@ describe('other widgets', () => {
     expect(player).toContain('buying=false');
     expect(player).toContain('show_user=false');
     expect(html(gallery, { images: [MEDIA], random: true })).toContain('data-fr-handler="shuffle"');
+    // The crop reaches the page CSS, the default square and every ratio.
+    expect(css(gallery, {})).toContain('aspect-ratio:1/1');
+    expect(css(gallery, { ratio: '3/2' })).toContain('aspect-ratio:3/2');
+    expect(css(gallery, { ratio: '' })).not.toContain('aspect-ratio');
     const path = html(textPath, {
       path: 'custom',
       custom_path: { id: null, url: '/p.svg' },

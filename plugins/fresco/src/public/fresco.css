@@ -216,6 +216,15 @@
     display: none;
   }
 }
+/*
+ * A fixed background works only on desktop, as in Elementor: phones and
+ * tablets do not paint it (iOS shows nothing), so there it scrolls.
+ */
+@media (max-width: 1024px), (hover: none) {
+  .fr-e {
+    background-attachment: scroll !important;
+  }
+}
 .fr-container--boxed > .fr-container__in {
   max-width: var(--fr-container-width, 1140px);
 }

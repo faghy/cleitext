@@ -1359,6 +1359,8 @@ export const gallery: ElementDefinition = {
         { value: '16/9', label: '16:9' },
         { value: '3/4', label: 'Portrait 3:4' },
       ],
+      // Ratios such as 3/2 are not plain keywords: the pattern lets them through.
+      pattern: '\\d{1,2} ?/ ?\\d{1,2}',
       selectors: { '{{el}} .fr-gallery img': 'aspect-ratio: {{value}}; object-fit: cover' },
     }),
     content.select('link_to', 'Link', 'Gallery', {
