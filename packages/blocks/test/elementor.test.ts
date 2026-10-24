@@ -622,9 +622,20 @@ describe('Elementor pages to Fresco', () => {
       shape_bottom: 'opacity-fan',
     });
     expect(other.warnings).toEqual([]);
-    const unknown = container({ shape_divider_top: 'stars' });
-    expect(unknown.block.attrs.shape_top).toBeUndefined();
-    expect(unknown.warnings.join('\n')).toContain('shape dividers "stars" were not imported');
+    // A theme's own shape: Fresco's custom shape, its SVG chosen afterwards.
+    const unknown = container({
+      shape_divider_top: 'stars',
+      shape_divider_top_color: '#123456',
+      shape_divider_top_negative: 'yes',
+    });
+    expect(unknown.block.attrs).toMatchObject({
+      shape_top: 'custom',
+      shape_top_name: 'stars',
+      shape_top_color: '#123456',
+      shape_top_negative: true,
+    });
+    expect(unknown.block.attrs.shape_top_svg).toBeUndefined();
+    expect(unknown.warnings.join('\n')).toContain('shape dividers ("stars") became custom shapes');
 
     // A column's margin is inside it (Elementor): the column keeps its width.
     const warnings2: string[] = [];

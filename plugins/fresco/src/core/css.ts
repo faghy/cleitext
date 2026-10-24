@@ -46,12 +46,30 @@ export function elementCss(
   const atomic = definition.atomic
     ? variantsCss(scope, normalizeVariants(node.attrs._styles), breakpoints)
     : '';
-  const sheet = settingsSheet(controlsOf(definition), settings, node.attrs, scope);
+  const controls = controlsOf(definition);
+  const sheet = settingsSheet(controls, settings, node.attrs, scope);
   return (
     atomic +
     printSheet(sheet, breakpoints) +
+    importedCss(node.attrs, controls, scope) +
     extraCss(node, settings, scope).replace(/<\/?style/gi, '')
   );
+}
+
+/**
+ * The custom CSS an import gave an element (`_custom_css` with
+ * `_custom_css_imported`: the page's own CSS, and rules the conversion
+ * needs), `selector` being the element. Custom CSS is a Fresco Pro field:
+ * with Fresco Pro on, Fresco Pro draws it (its field shows it); without,
+ * Fresco draws imported CSS only, so imported pages look as they did.
+ */
+export function importedCss(attrs: Settings, controls: readonly { name: string }[], scope: string) {
+  if (attrs._custom_css_imported !== true || typeof attrs._custom_css !== 'string') return '';
+  if (controls.some((control) => control.name === '_custom_css')) return '';
+  return attrs._custom_css
+    .replace(/\bselector\b/g, scope)
+    .replace(/</g, '')
+    .slice(0, 20_000);
 }
 
 /** CSS of every element of a tree, in document order. */

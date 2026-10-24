@@ -72,6 +72,10 @@ export const heading: ElementDefinition = {
     }),
     textAlign('{{el}}'),
     ...textStyle('title_', 'Title', '{{el}} .fr-heading__title', { hover: true }),
+    style.switch('title_theme_font', 'Theme font', 'Title', {
+      help: 'Without a font of its own, the heading takes the theme’s font for its tag (h1–h6) instead of the primary global font, as imported Elementor headings did.',
+      noCss: true,
+    }),
     groups.textShadow('title_shadow', 'Text shadow', 'Title', '{{el}} .fr-heading__title'),
     ...textStrokeControls('title_stroke', 'Title', '{{el}} .fr-heading__title'),
     style.slider('title_hover_transition', 'Transition duration (s)', 'Title', {
@@ -103,9 +107,10 @@ export const heading: ElementDefinition = {
     const Tag = (HEADING_TAGS.some((t) => t.value === settings.tag) ? settings.tag : 'h2') as 'h2';
     const link = linkProps(settings.link);
     const text = <Lines text={plainText(settings.title)} />;
-    const size = HEADING_SIZES.some((s) => s.value === settings.size && s.value)
-      ? ` fr-size-${String(settings.size)}`
-      : '';
+    const size =
+      (HEADING_SIZES.some((s) => s.value === settings.size && s.value)
+        ? ` fr-size-${String(settings.size)}`
+        : '') + (settings.title_theme_font === true ? ' fr-heading__title--theme' : '');
     return (
       <ElementRoot node={node} settings={settings} name="fr-heading" editing={context.editing}>
         <Tag
@@ -285,6 +290,13 @@ export const image: ElementDefinition = {
     }),
     content.url('link', 'Link', 'Image', { condition: { link_to: 'custom' } }),
     ...sizeControls('', 'Image', '{{el}} img'),
+    style.text('aspect_ratio', 'Aspect ratio', 'Image', {
+      responsive: true,
+      // Width / height, as CSS writes it (e.g. 4/3 or 820/580).
+      pattern: '\\d{1,4}(\\.\\d{1,3})? ?/ ?\\d{1,4}(\\.\\d{1,3})?',
+      help: 'Width / height, e.g. 4/3 or 820/580: the image is cut to it (with Object fit: Cover).',
+      selectors: { '{{el}} img': 'aspect-ratio: {{value}}' },
+    }),
     style.select('object_fit', 'Object fit', 'Image', {
       responsive: true,
       options: ['', 'cover', 'contain', 'fill'].map((v) => ({ value: v, label: v || 'Default' })),

@@ -157,11 +157,27 @@ export const evenBox = (n: number, unit = 'px'): BoxValue => ({
 
 const COLOR = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%]+\)|transparent)$/i;
 
+/**
+ * The id of a global color or font as Fresco's kit keeps it (lower case,
+ * letters, digits and dashes): Elementor's `primary_hover` is `primary-hover`.
+ * The kit, its references and the pages all use this one form.
+ */
+export const globalId = (id: string): string =>
+  id
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .slice(0, 40);
+
+/** The global id of a reference such as `globals/colors?id=primary_hover` (kind `colors`). */
+export function globalRef(value: unknown, kind: 'colors' | 'typography'): string | undefined {
+  const id = new RegExp(`globals/${kind}\\?id=([\\w-]+)`).exec(str(value))?.[1];
+  return id ? globalId(id) : undefined;
+}
+
 /** A global color reference (`globals/colors?id=primary`) → the kit variable. */
 export function globalColor(globals: Settings, key: string): string | undefined {
-  const ref = str(globals[key]);
-  const id = /globals\/colors\?id=([\w-]+)/.exec(ref)?.[1];
-  return id ? `var(--fr-c-${id.toLowerCase()})` : undefined;
+  const id = globalRef(globals[key], 'colors');
+  return id ? `var(--fr-c-${id})` : undefined;
 }
 
 /** The color of a setting: its global color, or its own value. */
@@ -205,35 +221,72 @@ export function color(
 
 const keyword = (v: unknown) => (/^[a-z-]{1,30}$/.test(str(v)) ? str(v) : undefined);
 
+/** The parts of a Fresco typography, as a global font may give them. */
+export const TYPOGRAPHY_PARTS = [
+  'family',
+  'size',
+  'weight',
+  'transform',
+  'style',
+  'decoration',
+  'line',
+  'letter',
+  'word',
+] as const;
+export type TypographyPart = (typeof TYPOGRAPHY_PARTS)[number];
+
+export interface TypographyOptions extends Notes {
+  font?(family: string): void;
+  /**
+   * The kit's global fonts and the parts each one sets (on desktop, as
+   * Elementor checks them). Unknown: a global font is taken to set them all.
+   */
+  globals?: Readonly<Record<string, readonly string[]>>;
+}
+
 /**
  * Elementor typography group (prefix `from`) → Fresco typography (prefix
  * `to`): its global font, or its own family, sizes and styles per device.
+ *
+ * As in Elementor, a global font wins over the element's own values (they
+ * stay in Elementor's data, unused): Fresco gets the global with all its
+ * values (`_global_all`), and the element's own values only for the parts
+ * the global font does not set.
  */
 export function typography(
   out: Settings,
   src: Settings,
   from: string,
   to: string,
-  notes?: Notes & { font?(family: string): void },
+  notes?: TypographyOptions,
 ): void {
   const globals = asSettings(src.__globals__);
-  const global = /globals\/typography\?id=([\w-]+)/.exec(str(globals[`${from}_typography`]))?.[1];
-  if (global) out[`${to}_global`] = global.toLowerCase();
+  const global = globalRef(globals[`${from}_typography`], 'typography');
+  const given = new Set<string>(
+    global ? (notes?.globals ? (notes.globals[global] ?? []) : TYPOGRAPHY_PARTS) : [],
+  );
+  if (global) {
+    out[`${to}_global`] = global;
+    out[`${to}_global_all`] = true;
+  }
   if (src[`${from}_typography`] !== 'custom') return;
+  const own = (part: TypographyPart) => !given.has(part);
   const family = str(src[`${from}_font_family`]).trim();
-  if (family && /^[\w\s'"-]{1,80}$/.test(family)) {
+  if (own('family') && family && /^[\w\s'"-]{1,80}$/.test(family)) {
     out[`${to}_family`] = family;
     notes?.font?.(family);
   }
-  copy(out, src, `${from}_font_size`, `${to}_size`, (v) => size(v, notes));
+  if (own('size')) copy(out, src, `${from}_font_size`, `${to}_size`, (v) => size(v, notes));
   const weight = str(src[`${from}_font_weight`]);
-  if (/^([1-9]00|normal|bold)$/.test(weight)) out[`${to}_weight`] = weight;
-  copy(out, src, `${from}_text_transform`, `${to}_transform`, keyword, false);
-  copy(out, src, `${from}_font_style`, `${to}_style`, keyword, false);
-  copy(out, src, `${from}_text_decoration`, `${to}_decoration`, keyword, false);
-  copy(out, src, `${from}_line_height`, `${to}_line`, (v) => lineSize(v, notes));
-  copy(out, src, `${from}_letter_spacing`, `${to}_letter`, (v) => size(v, notes));
-  copy(out, src, `${from}_word_spacing`, `${to}_word`, (v) => size(v, notes));
+  if (own('weight') && /^([1-9]00|normal|bold)$/.test(weight)) out[`${to}_weight`] = weight;
+  if (own('transform')) copy(out, src, `${from}_text_transform`, `${to}_transform`, keyword, false);
+  if (own('style')) copy(out, src, `${from}_font_style`, `${to}_style`, keyword, false);
+  if (own('decoration'))
+    copy(out, src, `${from}_text_decoration`, `${to}_decoration`, keyword, false);
+  if (own('line')) copy(out, src, `${from}_line_height`, `${to}_line`, (v) => lineSize(v, notes));
+  if (own('letter'))
+    copy(out, src, `${from}_letter_spacing`, `${to}_letter`, (v) => size(v, notes));
+  if (own('word')) copy(out, src, `${from}_word_spacing`, `${to}_word`, (v) => size(v, notes));
 }
 
 /** Whether a typography group sets a line height (its own or through a global). */
@@ -627,4 +680,43 @@ export function itemLink(
   if (value?.key === 'close') return { url: '#popup-close' };
   if (value?.key) return { url: { ...asSettings(value.key), prefix: '#popup-' } };
   return link(item.link, origin);
+}
+
+// ---- Emoji -------------------------------------------------------------------------------
+
+const EMOJI_IMG = /<img\b[^>]*>/gi;
+
+/**
+ * WordPress shows emoji as images (`<img class="emoji" alt="😀"
+ * src="https://s.w.org/images/core/emoji/…">`); copied from a page into an
+ * editor, those images were saved with the text. Back to the characters
+ * (their `alt`), so they are text again, as big as the text around them.
+ */
+export function restoreEmoji(html: string): string {
+  if (!/<img\b/i.test(html)) return html;
+  return html.replace(EMOJI_IMG, (tag) => {
+    const quote = (name: string) =>
+      new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(tag);
+    const className = quote('class');
+    const src = quote('src');
+    const isEmoji =
+      /(^|\s)(emoji|wp-smiley)(\s|$)/.test(className?.[1] ?? className?.[2] ?? '') ||
+      /\/\/s\.w\.org\/images\/core\/emoji\//.test(src?.[1] ?? src?.[2] ?? '');
+    const alt = quote('alt');
+    const text = alt?.[1] ?? alt?.[2] ?? '';
+    // Only short texts (an emoji, or a smiley like ":)").
+    return isEmoji && text && text.length <= 16 && !/[<>]/.test(text) ? text : tag;
+  });
+}
+
+/** Every text of some settings (nested lists too) with `restoreEmoji` applied. */
+export function restoreEmojiIn<T>(value: T): T {
+  if (typeof value === 'string') return restoreEmoji(value) as T;
+  if (Array.isArray(value)) return value.map((v) => restoreEmojiIn(v)) as T;
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, v] of Object.entries(value)) out[key] = restoreEmojiIn(v);
+    return out as T;
+  }
+  return value;
 }

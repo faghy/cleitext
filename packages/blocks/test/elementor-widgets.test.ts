@@ -560,3 +560,267 @@ describe('Elementor widgets: secondary options', () => {
     ).toEqual({ size: 150, unit: '%' });
   });
 });
+
+describe('Elementor sites as WordPress showed them', () => {
+  /** One widget converted with a kit and the attachments the import knows. */
+  const convert = (
+    widgetType: string,
+    settings: Record<string, unknown>,
+    extra: Partial<ElementorContext> = {},
+  ) => {
+    const warnings: string[] = [];
+    const blocks = elementorToFresco(
+      JSON.stringify([{ id: 'x', elType: 'widget', widgetType, settings, elements: [] }]),
+      { ...context(warnings), ...extra },
+    )!;
+    return { block: blocks[0]!.children![0]!, warnings };
+  };
+  // A theme's kit: its own system fonts instead of Elementor's (no "primary").
+  const kit = {
+    fonts: {
+      'heading-title': ['family', 'size', 'weight', 'transform', 'line'],
+      'heading-sub': ['family', 'size', 'weight', 'transform', 'line', 'letter'],
+      'only-family': ['family', 'weight'],
+    },
+  };
+
+  it('writes global ids with underscores as the kit keeps them (hyphens)', () => {
+    const { block } = convert(
+      'heading',
+      {
+        title: 'Title',
+        typography_typography: 'custom',
+        __globals__: {
+          title_color: 'globals/colors?id=primary_hover',
+          typography_typography: 'globals/typography?id=heading_title',
+        },
+      },
+      { kit },
+    );
+    expect(block.attrs).toMatchObject({
+      title_color: 'var(--fr-c-primary-hover)',
+      title_typography_global: 'heading-title',
+      title_typography_global_all: true,
+    });
+    const button = convert('button', {
+      text: 'Go',
+      __globals__: {
+        background_color: 'globals/colors?id=Accent_2',
+        typography_typography: 'globals/typography?id=heading_sub',
+      },
+    }).block;
+    expect(JSON.stringify(button.attrs)).toContain('var(--fr-c-accent-2)');
+    expect(JSON.stringify(button.attrs)).toContain('"heading-sub"');
+  });
+
+  it('lets a global font win over the element’s own values, which fill only what it does not set', () => {
+    const { block } = convert(
+      'heading',
+      {
+        title: 'Title',
+        typography_typography: 'custom',
+        typography_font_family: 'Inter',
+        typography_font_size: { unit: 'px', size: 36 },
+        typography_font_size_mobile: { unit: 'px', size: 20 },
+        typography_font_weight: '700',
+        typography_letter_spacing: { unit: 'px', size: 1 },
+        typography_font_style: 'italic',
+        __globals__: { typography_typography: 'globals/typography?id=heading_title' },
+      },
+      { kit },
+    );
+    expect(block.attrs).toMatchObject({
+      title_typography_global: 'heading-title',
+      title_typography_global_all: true,
+      // Not set by the global font: the element's own.
+      title_typography_letter: { size: 1, unit: 'px' },
+      title_typography_style: 'italic',
+    });
+    for (const key of [
+      'title_typography_family',
+      'title_typography_size',
+      'title_typography_size@mobile',
+      'title_typography_weight',
+      // The global font sets a line height: no line height of 1.
+      'title_typography_line',
+    ]) {
+      expect(block.attrs[key]).toBeUndefined();
+    }
+    // Without the kit's details, the global font gives everything.
+    const bare = convert('heading', {
+      title: 'Title',
+      typography_typography: 'custom',
+      typography_font_size: { unit: 'px', size: 36 },
+      __globals__: { typography_typography: 'globals/typography?id=heading_title' },
+    }).block;
+    expect(bare.attrs.title_typography_size).toBeUndefined();
+    expect(bare.attrs.title_typography_global).toBe('heading-title');
+  });
+
+  it('turns a line break typed in a heading into a space, keeping <br>', () => {
+    const { block } = convert('heading', { title: 'Corso\nbase<br>di sopravvivenza' });
+    expect(block.attrs.title).toBe('Corso base\ndi sopravvivenza');
+    const box = convert('icon-box', { title_text: 'Two\r\n  lines', description_text: 'A\nB' });
+    expect(box.block.attrs).toMatchObject({ title: 'Two lines' });
+  });
+
+  it('leaves headings without a font to the theme when the kit has no primary font', () => {
+    const own = convert('heading', { title: 'Title' }, { kit });
+    expect(own.block.attrs.title_theme_font).toBe(true);
+    expect(own.block.attrs.title_typography_global).toBeUndefined();
+    expect(own.block.attrs.title_typography_line).toEqual({ size: 1, unit: '' });
+    // Its own family: no need.
+    const family = convert(
+      'heading',
+      { title: 'Title', typography_typography: 'custom', typography_font_family: 'Rubik' },
+      { kit },
+    );
+    expect(family.block.attrs.title_theme_font).toBeUndefined();
+    // A kit with a primary font: Elementor's default for headings, with its size.
+    const primary = convert(
+      'heading',
+      { title: 'Title' },
+      { kit: { fonts: { primary: ['family', 'weight', 'size', 'line'] } } },
+    );
+    expect(primary.block.attrs).toMatchObject({
+      title_typography_global: 'primary',
+      title_typography_global_all: true,
+    });
+    expect(primary.block.attrs.title_theme_font).toBeUndefined();
+    expect(primary.block.attrs.title_typography_line).toBeUndefined();
+    // Only a family and weight: Fresco's default for headings (the primary font) is the same.
+    const plain = convert(
+      'heading',
+      { title: 'Title' },
+      { kit: { fonts: { primary: ['family', 'weight'] } } },
+    );
+    expect(plain.block.attrs.title_typography_global).toBeUndefined();
+    expect(plain.block.attrs.title_theme_font).toBeUndefined();
+    // No kit at all: as before.
+    const none = convert('heading', { title: 'Title' });
+    expect(none.block.attrs.title_theme_font).toBeUndefined();
+  });
+
+  it('keeps the width and crop of WordPress, theme and custom image sizes', () => {
+    const image = { id: 12, url: 'https://old.test/wp-content/uploads/a.jpg' };
+    const imageInfo = (id: number) =>
+      id === 12
+        ? {
+            width: 2000,
+            height: 1500,
+            sizes: {
+              'activland-post-grid': { width: 820, height: 580 },
+              medium_large: { width: 768, height: 576 },
+            },
+          }
+        : undefined;
+    const theme = convert(
+      'image',
+      { image, image_size: 'activland-post-grid' },
+      { imageInfo },
+    ).block;
+    expect(theme.attrs).toMatchObject({
+      image_size: 'large',
+      width: { size: 820, unit: 'px' },
+      aspect_ratio: '820/580',
+      object_fit: 'cover',
+    });
+    const mediumLarge = convert('image', { image, image_size: 'medium_large' }, { imageInfo });
+    expect(mediumLarge.block.attrs).toMatchObject({ width: { size: 768, unit: 'px' } });
+    expect(mediumLarge.block.attrs.aspect_ratio).toBeUndefined();
+    const custom = convert(
+      'image',
+      { image, image_size: 'custom', image_custom_dimension: { width: '400', height: '400' } },
+      { imageInfo },
+    );
+    expect(custom.block.attrs).toMatchObject({
+      image_size: 'full',
+      width: { size: 400, unit: 'px' },
+      aspect_ratio: '400/400',
+      object_fit: 'cover',
+    });
+    // WordPress's own sizes, without the import's details.
+    const thumb = convert('image', { image, image_size: 'thumbnail' });
+    expect(thumb.block.attrs).toMatchObject({
+      image_size: 'thumb',
+      width: { size: 150, unit: 'px' },
+      aspect_ratio: '150/150',
+    });
+    const medium = convert('image', { image, image_size: 'medium' }, { imageInfo });
+    expect(medium.block.attrs).toMatchObject({
+      image_size: 'medium',
+      width: { size: 300, unit: 'px' },
+    });
+    // The element's own width and height win.
+    const sized = convert(
+      'image',
+      {
+        image,
+        image_size: 'activland-post-grid',
+        width: { unit: '%', size: 100 },
+        height: { unit: 'px', size: 300 },
+      },
+      { imageInfo },
+    );
+    expect(sized.block.attrs.width).toEqual({ size: 100, unit: '%' });
+    expect(sized.block.attrs.aspect_ratio).toBeUndefined();
+    // A theme size the import does not know: large, reported.
+    const unknown = convert('image', { image, image_size: 'theme-wide' });
+    expect(unknown.block.attrs.image_size).toBe('large');
+    expect(unknown.warnings.join('\n')).toContain('"theme-wide"');
+    expect(convert('image', { image, image_size: 'full' }).block.attrs.width).toBeUndefined();
+  });
+
+  it('marks imported custom CSS so Fresco draws it without Fresco Pro', () => {
+    const { block } = convert('heading', { title: 'T', custom_css: 'selector{opacity:.5}' });
+    expect(block.attrs).toMatchObject({
+      _custom_css: 'selector{opacity:.5}',
+      _custom_css_imported: true,
+    });
+  });
+
+  it('keeps a theme’s shape dividers as custom shapes with their SVG file', () => {
+    const blocks = elementorToFresco(
+      JSON.stringify([
+        {
+          id: 'k',
+          elType: 'container',
+          settings: {
+            shape_divider_bottom: 'custom-shape-1',
+            shape_divider_bottom_negative: 'yes',
+            shape_divider_bottom_color: '#ffffff',
+            shape_divider_bottom_width: { unit: '%', size: 120 },
+          },
+          elements: [],
+        },
+      ]),
+      {
+        ...context([]),
+        shapeFile: (name, negative) =>
+          name === 'custom-shape-1' && negative
+            ? { id: 'att:30', url: '/uploads/custom-shape-1-negative.svg' }
+            : undefined,
+      },
+    )!;
+    expect(blocks[0]!.attrs).toMatchObject({
+      shape_bottom: 'custom',
+      shape_bottom_name: 'custom-shape-1',
+      shape_bottom_svg: { id: 'att:30', url: '/uploads/custom-shape-1-negative.svg' },
+      shape_bottom_negative: true,
+      shape_bottom_color: '#ffffff',
+      shape_bottom_width: { size: 120, unit: '%' },
+    });
+  });
+
+  it('turns WordPress’s emoji images back into characters', () => {
+    const img =
+      '<img draggable="false" role="img" class="emoji" alt="🔥" src="https://s.w.org/images/core/emoji/15.0.3/svg/1f525.svg">';
+    const text = convert('text-editor', { editor: `<p>Hot ${img} news</p>` }).block;
+    expect(text.attrs.content).toBe('<p>Hot 🔥 news</p>');
+    const heading = convert('heading', { title: `Fire ${img}` }).block;
+    expect(heading.attrs.title).toBe('Fire 🔥');
+    // Other images stay.
+    const photo = '<p><img class="size-full" alt="Photo" src="/a.jpg"></p>';
+    expect(convert('text-editor', { editor: photo }).block.attrs.content).toBe(photo);
+  });
+});

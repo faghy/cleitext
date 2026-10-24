@@ -23,7 +23,6 @@ import {
   dynamicTag,
   evenBox,
   fa4Icon,
-  hasLineHeight,
   isColor,
   icon,
   itemLink,
@@ -32,6 +31,7 @@ import {
   mediaValue,
   num,
   parseDynamic,
+  restoreEmojiIn,
   shadow,
   size,
   str,
@@ -65,6 +65,20 @@ export interface ElementorKitInfo {
   containerPadding?: BoxValue;
   /** Global fonts (ids) that set a line height. */
   fontsWithLine?: string[];
+  /**
+   * The kit's global fonts (Fresco ids) and the typography parts each one
+   * sets on desktop (`family`, `size`, `weight`, `line`…). Without it, a
+   * global font is taken to set them all.
+   */
+  fonts?: Record<string, string[]>;
+}
+
+/** An image of the media library as WordPress knew it: its size and the sizes it made. */
+export interface ElementorImageInfo {
+  width: number;
+  height: number;
+  /** WordPress's image sizes made of it (`medium`, `large`, a theme's own…). */
+  sizes?: Record<string, { width: number; height: number }>;
 }
 
 export interface ElementorContext {
@@ -94,6 +108,13 @@ export interface ElementorContext {
   keepElementIds?: boolean;
   /** Widgets without a counterpart (their text is kept), by type, once per conversion. */
   unconverted?: (type: string, count: number) => void;
+  /** A WordPress attachment's dimensions and image sizes (for Elementor's image sizes). */
+  imageInfo?: (attachment: number) => ElementorImageInfo | undefined;
+  /**
+   * The SVG file of a custom shape divider (a theme's own, e.g.
+   * `custom-shape-1`), when the import has it.
+   */
+  shapeFile?: (name: string, negative: boolean) => Settings | undefined;
 }
 
 /** The tools widget converters share. */
@@ -186,6 +207,8 @@ const SIDES: Record<string, string> = {
 export function plainTitle(html: string): { text: string; formatted: boolean } {
   const formatted = /<(strong|b|em|i|span|a|u|mark|sup|sub|font)\b/i.test(html);
   const text = html
+    // In HTML a line break typed in the field is a space; only <br> breaks the line.
+    .replace(/[ \t]*\r?\n[ \t\r\n]*/g, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
@@ -197,10 +220,16 @@ export function plainTitle(html: string): { text: string; formatted: boolean } {
   return { text, formatted };
 }
 
-/** Adds a rule to an element's custom CSS (Fresco Pro), `selector` being the element. */
+/**
+ * Adds a rule to an element's custom CSS, `selector` being the element.
+ * Marked as imported (`_custom_css_imported`): Fresco draws it without
+ * Fresco Pro too, as the page had it (Fresco Pro's Custom CSS field shows
+ * and edits it).
+ */
 export function addCss(out: Settings, css: string): void {
   const current = str(out._custom_css);
   out._custom_css = current ? `${current}\n${css}` : css;
+  out._custom_css_imported = true;
 }
 
 /**
@@ -735,18 +764,141 @@ const SHAPES = new Set([
   'book',
 ]);
 
-/** Elementor's shape dividers → Fresco's (shape, color, size, flip, invert, in front). */
+/**
+ * The font of a heading as Elementor draws it: its global font, or its own
+ * values; else Elementor's default for headings, the kit's "primary" font
+ * (part by part: what the heading sets itself wins). A kit without a
+ * primary font (themes often replace the system fonts) leaves headings to
+ * the theme's style, so Fresco's own default (its primary font) is turned
+ * off (`title_theme_font`). The line height is 1 (Elementor's) unless a
+ * font sets one.
+ */
+function headingFont(out: Settings, src: Settings, kit?: ElementorKitInfo): void {
+  const sets = (font: string, part: string) =>
+    kit?.fonts
+      ? Boolean(kit.fonts[font]?.includes(part))
+      : part === 'line' && Boolean(kit?.fontsWithLine?.includes(font));
+  let global = str(out.title_typography_global);
+  if (!global && kit?.fonts) {
+    const primary = kit.fonts.primary ?? [];
+    if (!primary.includes('family')) {
+      if (!out.title_typography_family) out.title_theme_font = true;
+    } else if (
+      (primary.includes('size') || out.title_typography_size) &&
+      primary.some((part) => part !== 'family' && part !== 'weight')
+    ) {
+      // Its size and the rest too (Fresco's default gives only its family and weight).
+      global = 'primary';
+      out.title_typography_global = global;
+      out.title_typography_global_all = true;
+    }
+  } else if (!global && src.typography_typography !== 'custom' && sets('primary', 'line')) {
+    global = 'primary';
+    out.title_typography_global = global;
+  }
+  if (out.title_typography_line === undefined && !(global && sets(global, 'line'))) {
+    out.title_typography_line = { size: 1, unit: '' };
+  }
+}
+
+/** WordPress's own image sizes: the box they fit in, and whether they are cropped to it. */
+const WP_SIZES: Record<string, [number, number, boolean]> = {
+  thumbnail: [150, 150, true],
+  medium: [300, 300, false],
+  medium_large: [768, 0, false],
+  large: [1024, 1024, false],
+  '1536x1536': [1536, 1536, false],
+  '2048x2048': [2048, 2048, false],
+};
+
+/**
+ * Elementor's image size → Fresco's. Elementor draws the file of that size
+ * (its width, cropped for cropped sizes): the image gets that width (unless
+ * it has its own) and, when cropped, its aspect ratio with `object-fit:
+ * cover`. The sizes WordPress made of each image (the import knows them)
+ * give the exact dimensions, theme sizes included (e.g. 820×580); custom
+ * dimensions are cropped when both are given, as Elementor does.
+ */
+function imageSize(c: Converter, out: Settings, src: Settings): void {
+  const name = str(src.image_size);
+  if (!name) return;
+  out.image_size =
+    name === 'thumbnail'
+      ? 'thumb'
+      : name === 'medium' || name === 'full'
+        ? name
+        : name === 'custom'
+          ? 'full'
+          : 'large';
+  if (name === 'full') return;
+  const id = num(asSettings(src.image).id);
+  const info = id !== null ? c.ctx.imageInfo?.(id) : undefined;
+  const ow = info?.width ?? 0;
+  const oh = info?.height ?? 0;
+  let target: { width: number; height: number; crop: boolean } | undefined;
+  if (name === 'custom') {
+    const custom = asSettings(src.image_custom_dimension);
+    const w = num(custom.width) ?? 0;
+    const h = num(custom.height) ?? 0;
+    if (w > 0 && h > 0) target = { width: w, height: h, crop: true };
+    else if (w > 0) target = { width: w, height: 0, crop: false };
+    else if (h > 0 && ow && oh)
+      target = { width: Math.round((h * ow) / oh), height: h, crop: false };
+  } else if (info?.sizes?.[name]) {
+    const made = info.sizes[name]!;
+    const crop =
+      ow > 0 && oh > 0 && Math.abs(made.width / made.height - ow / oh) > 0.02 * (ow / oh);
+    target = { width: made.width, height: made.height, crop };
+  } else if (WP_SIZES[name]) {
+    const [bw, bh, crop] = WP_SIZES[name]!;
+    if (crop) target = { width: bw, height: bh, crop };
+    else if (ow && oh) {
+      // Fitted in its box, never larger than the image.
+      const scale = Math.min(1, bw / ow, bh ? bh / oh : 1);
+      target = { width: Math.round(ow * scale), height: Math.round(oh * scale), crop: false };
+    }
+  } else if (!info) {
+    c.note(`images of the theme's size "${name}" are shown at the large size`);
+  }
+  if (!target) return;
+  // WordPress never makes a size larger than the image.
+  const width = ow ? Math.min(target.width, ow) : target.width;
+  const height =
+    target.crop && ow && target.width > ow
+      ? Math.round((target.height * ow) / target.width)
+      : target.height;
+  if (!(ow && width >= ow && !target.crop) && !size(src.width)) {
+    out.width = { size: width, unit: 'px' };
+  }
+  if (target.crop && height > 0 && !size(src.height)) {
+    out.aspect_ratio = `${width}/${height}`;
+    if (!str(src.object_fit) && !str(src['object-fit'])) out.object_fit = 'cover';
+  }
+}
+
+/**
+ * Elementor's shape dividers → Fresco's (shape, color, size, flip, invert,
+ * in front). Shapes a theme added to Elementor's (`custom-shape-1`…) become
+ * Fresco's custom shape, an SVG file drawn in the divider's color: the file
+ * when the import has it, else chosen afterwards in the container.
+ */
 function shapeDividers(c: Converter, out: Settings, src: Settings): void {
   for (const edge of ['top', 'bottom']) {
     const from = `shape_divider_${edge}`;
     const shape = str(src[from]);
     if (!shape) continue;
-    if (!SHAPES.has(shape)) {
-      c.note(`shape dividers "${shape}" were not imported`);
-      continue;
-    }
     const to = `shape_${edge}`;
-    out[to] = shape;
+    if (SHAPES.has(shape)) out[to] = shape;
+    else if (/^[\w-]{1,80}$/.test(shape)) {
+      out[to] = 'custom';
+      out[`${to}_name`] = shape;
+      const file = c.ctx.shapeFile?.(shape, yes(src[`${from}_negative`]));
+      if (file) out[`${to}_svg`] = file;
+      else
+        c.note(
+          `the theme's shape dividers ("${shape}") became custom shapes: choose their SVG file in the container's settings`,
+        );
+    } else continue;
     color(out, src, `${from}_color`, `${to}_color`);
     copy(out, src, `${from}_width`, `${to}_width`, (v) => size(v));
     copy(out, src, `${from}_height`, `${to}_height`, (v) => size(v));
@@ -1005,7 +1157,9 @@ export function elementorToFresco(data: string, ctx: ElementorContext): CxdBlock
 }
 
 /** Elementor elements → Fresco blocks (reported once per page). */
-export function convertElements(elements: ElementorNode[], ctx: ElementorContext): CxdBlock[] {
+export function convertElements(input: ElementorNode[], ctx: ElementorContext): CxdBlock[] {
+  // Emoji saved as WordPress's images: the characters again.
+  const elements = /emoji|wp-smiley/.test(JSON.stringify(input)) ? restoreEmojiIn(input) : input;
   const unknown = new Map<string, number>();
   const notes = new Map<string, number>();
   const padding = ctx.kit?.containerPadding ?? evenBox(10);
@@ -1040,7 +1194,11 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
       unknown.set(type, (unknown.get(type) ?? 0) + 1);
     },
     typography: (out, src, from, to) =>
-      typography(out, src, from, to, { note: c.note, ...(ctx.font ? { font: ctx.font } : {}) }),
+      typography(out, src, from, to, {
+        note: c.note,
+        ...(ctx.font ? { font: ctx.font } : {}),
+        ...(ctx.kit?.fonts ? { globals: ctx.kit.fonts } : {}),
+      }),
   };
 
   const alignTo = (out: Settings, src: Settings, from: string, to = 'align') =>
@@ -1081,13 +1239,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         alignTo(out, src, 'align');
         color(out, src, 'title_color', 'title_color', 'title_hover_color');
         c.typography(out, src, 'typography', 'title_typography');
-        // Elementor's headings have a line height of 1 unless their font sets one.
-        if (!hasLineHeight(src, 'typography')) {
-          const custom = src.typography_typography === 'custom';
-          const font = custom ? undefined : str(out.title_typography_global) || 'primary';
-          if (font && ctx.kit?.fontsWithLine?.includes(font)) out.title_typography_global = font;
-          else out.title_typography_line = { size: 1, unit: '' };
-        }
+        headingFont(out, src, ctx.kit);
         if (str(src.blend_mode)) out.blend = str(src.blend_mode);
         textShadow(out, src, 'text_shadow', 'title_shadow');
         textStroke(out, src, 'text_stroke', 'title_stroke');
@@ -1147,13 +1299,7 @@ export function convertElements(elements: ElementorNode[], ctx: ElementorContext
         const image = c.media(src.image);
         if (image) out.image = image;
         c.dynamic(out, src, 'image', 'image', 'media');
-        const imageSize = str(src.image_size);
-        if (imageSize)
-          out.image_size = ['thumbnail', 'medium', 'large', 'full'].includes(imageSize)
-            ? imageSize.replace('thumbnail', 'thumb')
-            : imageSize === 'custom'
-              ? 'full'
-              : 'large';
+        imageSize(c, out, src);
         alignTo(out, src, 'align');
         // Elementor centers images unless told otherwise; Fresco keeps the text alignment.
         if (!out.align) out.align = 'center';

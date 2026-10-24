@@ -388,21 +388,43 @@ const controls: Control[] = [
     const at = `{{el}} > .fr-shape--${edge}`;
     return [
       style.select(`shape_${edge}`, 'Shape', section, { options: SHAPE_OPTIONS, noCss: true }),
+      {
+        name: `shape_${edge}_svg`,
+        type: 'media',
+        label: 'SVG file',
+        tab: 'style',
+        section,
+        accept: 'image',
+        help: 'The shape, drawn in the color below: its filled parts show.',
+        condition: { [`shape_${edge}`]: 'custom' },
+        selectors: {
+          [`${at} .fr-shape__custom`]: '-webkit-mask-image: {{value}}; mask-image: {{value}}',
+        },
+      } as Control,
       style.color(`shape_${edge}_color`, 'Color', section, {
-        selectors: { [`${at} .fr-shape__fill`]: 'fill: {{value}}' },
+        selectors: {
+          [`${at} .fr-shape__fill`]: 'fill: {{value}}',
+          [`${at} .fr-shape__custom`]: 'background-color: {{value}}',
+        },
       }),
       style.slider(`shape_${edge}_width`, 'Width', section, {
         responsive: true,
         units: ['%'],
         min: 100,
         max: 300,
-        selectors: { [`${at} svg`]: 'width: calc({{size}}% + 1.3px)' },
+        selectors: {
+          [`${at} svg`]: 'width: calc({{size}}% + 1.3px)',
+          [`${at} .fr-shape__custom`]: 'width: calc({{size}}% + 1.3px)',
+        },
       }),
       style.slider(`shape_${edge}_height`, 'Height', section, {
         responsive: true,
         units: ['px'],
         max: 500,
-        selectors: { [`${at} svg`]: 'height: {{value}}' },
+        selectors: {
+          [`${at} svg`]: 'height: {{value}}',
+          [`${at} .fr-shape__custom`]: 'height: {{value}}',
+        },
       }),
       style.switch(`shape_${edge}_flip`, 'Flip', section, { noCss: true }),
       style.switch(`shape_${edge}_negative`, 'Invert', section, { noCss: true }),
@@ -585,16 +607,28 @@ function slideshow(settings: Settings, context: RenderContext) {
 
 /** A shape divider at an edge of a container (none when no shape is chosen). */
 function shapeDivider(settings: Record<string, unknown>, edge: 'top' | 'bottom') {
-  const shape = SHAPES[String(settings[`shape_${edge}`] ?? '')];
-  if (!shape) return null;
-  const negative = settings[`shape_${edge}_negative`] === true && Boolean(shape.negative);
-  const classes = [
+  const name = String(settings[`shape_${edge}`] ?? '');
+  const flags = (negative: boolean) => [
     'fr-shape',
     `fr-shape--${edge}`,
     negative ? 'fr-shape--negative' : '',
     settings[`shape_${edge}_flip`] === true ? 'fr-shape--flip' : '',
     settings[`shape_${edge}_front`] === true ? 'fr-shape--front' : '',
   ];
+  if (name === 'custom') {
+    // An SVG file of one's own: a mask over the color (its file and color come with the CSS).
+    if (!isMedia(settings[`shape_${edge}_svg`])) return null;
+    const classes = [...flags(settings[`shape_${edge}_negative`] === true), 'fr-shape--custom'];
+    return (
+      <div className={classes.filter(Boolean).join(' ')} aria-hidden="true">
+        <span className="fr-shape__custom" />
+      </div>
+    );
+  }
+  const shape = SHAPES[name];
+  if (!shape) return null;
+  const negative = settings[`shape_${edge}_negative`] === true && Boolean(shape.negative);
+  const classes = flags(negative);
   return (
     <div className={classes.filter(Boolean).join(' ')} aria-hidden="true">
       <svg
@@ -704,6 +738,8 @@ export const container: ElementDefinition = {
       'background_hover_image',
       'overlay_bg_image',
       'overlay_hover_bg_image',
+      'shape_top_svg',
+      'shape_bottom_svg',
     ]) {
       const value = settings[key] as { id?: string } | undefined;
       if (value?.id) ids.push(value.id);

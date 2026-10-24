@@ -79,6 +79,23 @@
 .fr-shape__fill {
   fill: #fff;
 }
+/* A custom shape: its SVG file as a mask over the color, stretched like Elementor's shapes. */
+.fr-shape__custom {
+  display: block;
+  position: relative;
+  left: 50%;
+  width: calc(100% + 1.3px);
+  height: 50px;
+  transform: translateX(-50%);
+  background-color: #fff;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+.fr-shape--flip .fr-shape__custom {
+  transform: translateX(-50%) rotateY(180deg);
+}
 .fr-shape--front {
   z-index: 2;
 }
@@ -281,6 +298,9 @@ a.fr-container {
   margin: 0;
   line-height: 1.2;
   color: var(--fr-c-primary, inherit);
+}
+/* The primary font, unless the heading takes the theme's (same weight as the rule above). */
+.fr-heading__title:where(:not(.fr-heading__title--theme)) {
   font-family: var(--fr-t-primary-family, inherit);
   font-weight: var(--fr-t-primary-weight, 600);
 }

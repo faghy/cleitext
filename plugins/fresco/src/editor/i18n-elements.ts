@@ -223,6 +223,14 @@ addMessages('it', {
   'Shown until the visitor plays the video; nothing is loaded from the video site before.':
     'Si vede finché il visitatore non avvia il video; prima non viene caricato nulla dal sito del video.',
   'Aspect ratio': 'Proporzioni',
+  'Width / height, e.g. 4/3 or 820/580: the image is cut to it (with Object fit: Cover).':
+    'Larghezza / altezza, ad es. 4/3 o 820/580: l’immagine viene ritagliata così (con Adattamento: Copri).',
+  'Theme font': 'Font del tema',
+  'Without a font of its own, the heading takes the theme’s font for its tag (h1–h6) instead of the primary global font, as imported Elementor headings did.':
+    'Senza un font proprio, il titolo usa il font del tema per il suo tag (h1–h6) invece del font globale principale, come i titoli importati da Elementor.',
+  'Custom (SVG file)': 'Personalizzata (file SVG)',
+  'The shape, drawn in the color below: its filled parts show.':
+    'La forma, disegnata nel colore qui sotto: si vedono le sue parti piene.',
   Solid: 'Solido',
   Double: 'Doppio',
   Dotted: 'Punteggiato',

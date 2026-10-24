@@ -258,4 +258,6 @@ export const SHAPES: Record<string, Shape> = {
 export const SHAPE_OPTIONS = [
   { value: '', label: 'None' },
   ...Object.entries(SHAPES).map(([value, shape]) => ({ value, label: shape.label })),
+  // An SVG file of one's own (e.g. a theme's shape imported from Elementor), drawn in the color.
+  { value: 'custom', label: 'Custom (SVG file)' },
 ];

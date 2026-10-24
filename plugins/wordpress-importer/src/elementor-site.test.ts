@@ -4,6 +4,8 @@ import {
   convertConditions,
   kitToFresco,
   popupSettings,
+  themeHeadingFonts,
+  withHeadingFonts,
   type ConditionContext,
 } from './elementor-site';
 import { metaValue, unserialize } from './php';
@@ -142,11 +144,12 @@ describe('Elementor kit to Fresco', () => {
       },
       theme: {
         texts: {
-          h1: { font: 'primary' },
+          h1: { font: 'primary', fontAll: true },
           h2: { family: 'Lora', size: { size: 36, unit: 'px' }, color: '#222222' },
         },
         button: {
           font: 'primary',
+          fontAll: true,
           color: '#ffffff',
           background: '#ff6600',
           hoverBackground: '#cc5200',
@@ -162,6 +165,7 @@ describe('Elementor kit to Fresco', () => {
     expect(String(kit.titleSelector)).toMatch(/\.entry-title.*\.hello-title$/);
     expect(info).toEqual({
       fontsWithLine: ['primary'],
+      fonts: { primary: ['family', 'weight', 'line'], f00d: ['family', 'size'] },
       containerPadding: { top: 0, right: 0, bottom: 0, left: 0, unit: 'px', linked: true },
     });
     expect(css).toBe('body { letter-spacing: .01em }');
@@ -662,5 +666,219 @@ describe('Links of Elementor widgets to the old site', () => {
       '/contact/',
       'https://elsewhere.example/',
     ]);
+  });
+});
+
+describe('A theme’s Elementor kit (cimoneoutdoor.com)', () => {
+  const themeKit = {
+    system_colors: [
+      { _id: 'primary', title: 'Primary', color: '#e36b28' },
+      { _id: 'primary_hover', title: 'Primary hover', color: '#c55515' },
+    ],
+    // The theme's own system fonts: no "primary".
+    system_typography: [
+      {
+        _id: 'heading_title',
+        title: 'Heading Title',
+        typography_typography: 'custom',
+        typography_font_family: 'Rubik',
+        typography_font_weight: '800',
+        typography_text_transform: 'uppercase',
+        typography_font_size: { unit: 'px', size: 48 },
+        typography_font_size_tablet: { unit: 'px', size: 32 },
+        typography_font_size_mobile: { unit: 'px', size: 26 },
+        typography_line_height: { unit: 'px', size: 48 },
+        typography_line_height_tablet: { unit: 'px', size: 32 },
+        typography_line_height_mobile: { unit: 'px', size: 26 },
+      },
+      {
+        _id: 'heading_sub',
+        title: 'Heading Sub',
+        typography_typography: 'custom',
+        typography_font_family: 'Inter',
+        typography_font_weight: '700',
+        typography_font_size: { unit: 'px', size: 12 },
+        typography_letter_spacing: { unit: 'px', size: 3.5 },
+        typography_letter_spacing_mobile: { unit: 'px', size: 2 },
+        typography_word_spacing: { unit: 'em', size: 0.1 },
+        typography_text_decoration: 'underline',
+      },
+    ],
+  };
+
+  it('keeps ids with hyphens, letter spacing and the values of tablets and phones', () => {
+    const { kit, info } = kitToFresco(themeKit, {}, { note: () => {}, font: () => {} });
+    expect(kit.colors).toEqual([
+      { id: 'primary', title: 'Primary', value: '#e36b28' },
+      { id: 'primary-hover', title: 'Primary hover', value: '#c55515' },
+    ]);
+    expect(kit.fonts).toEqual([
+      {
+        id: 'heading-title',
+        title: 'Heading Title',
+        family: 'Rubik',
+        weight: '800',
+        size: { size: 48, unit: 'px' },
+        line: { size: 48, unit: 'px' },
+        transform: 'uppercase',
+        devices: {
+          tablet: { size: { size: 32, unit: 'px' }, line: { size: 32, unit: 'px' } },
+          mobile: { size: { size: 26, unit: 'px' }, line: { size: 26, unit: 'px' } },
+        },
+      },
+      {
+        id: 'heading-sub',
+        title: 'Heading Sub',
+        family: 'Inter',
+        weight: '700',
+        size: { size: 12, unit: 'px' },
+        letter: { size: 3.5, unit: 'px' },
+        word: { size: 0.1, unit: 'em' },
+        decoration: 'underline',
+        devices: { mobile: { letter: { size: 2, unit: 'px' } } },
+      },
+    ]);
+    expect(info.fonts).toEqual({
+      'heading-title': ['family', 'weight', 'size', 'line', 'transform'],
+      'heading-sub': ['family', 'weight', 'size', 'letter', 'word', 'decoration'],
+    });
+  });
+
+  it('reads the theme’s heading fonts from the global styles and the additional CSS', () => {
+    const fonts = themeHeadingFonts(
+      `/* theme */ h1, body h2 { font-family: "Rubik", sans-serif; font-weight: 800 !important }
+       @media (max-width: 600px) { h2 { font-family: Arial } }
+       .site h3 { font-family: Lora } h4 { font-weight: bold }`,
+      {
+        styles: {
+          elements: {
+            heading: { typography: { fontFamily: 'Karla', fontWeight: '600' } },
+            h6: { typography: { fontFamily: 'var:preset|font-family|serif' } },
+          },
+        },
+      },
+    );
+    expect(fonts).toEqual({
+      h1: { family: 'Rubik', weight: '800' },
+      h2: { family: 'Rubik', weight: '800' },
+      h3: { family: 'Karla', weight: '600' },
+      h4: { family: 'Karla', weight: '700' },
+      h5: { family: 'Karla', weight: '600' },
+      h6: { family: 'Karla', weight: '600' },
+    });
+    const loaded: string[] = [];
+    const kit = withHeadingFonts(
+      { theme: { texts: { h1: { font: 'heading-title' }, h2: { weight: '900' } } } },
+      fonts,
+      (f) => loaded.push(f),
+    );
+    expect(kit.theme).toEqual({
+      texts: {
+        // A global font of the kit's own theme style wins.
+        h1: { font: 'heading-title' },
+        h2: { family: 'Rubik', weight: '900' },
+        h3: { family: 'Karla', weight: '600' },
+        h4: { family: 'Karla', weight: '700' },
+        h5: { family: 'Karla', weight: '600' },
+        h6: { family: 'Karla', weight: '600' },
+      },
+    });
+    expect(loaded).toContain('Rubik');
+  });
+
+  it('imports pages as WordPress showed them', () => {
+    const wxr = `<?xml version="1.0"?>
+<rss version="2.0" xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel><title>Cimone</title><link>https://cimone.example</link><wp:wxr_version>1.2</wp:wxr_version><wp:base_blog_url>https://cimone.example</wp:base_blog_url>
+<wp:author><wp:author_id>1</wp:author_id><wp:author_login>ann</wp:author_login><wp:author_email>ann@cimone.example</wp:author_email></wp:author>
+${item({
+  id: 5,
+  title: 'Fire',
+  type: 'attachment',
+  metas: meta(
+    '_wp_attachment_metadata',
+    php({
+      width: 2000,
+      height: 1500,
+      file: '2025/01/fire.jpg',
+      sizes: { 'activland-post-grid': { file: 'fire-820x580.jpg', width: 820, height: 580 } },
+    }),
+  ),
+}).replace(
+  '</item>',
+  '<wp:attachment_url>https://cimone.example/wp-content/uploads/2025/01/fire.jpg</wp:attachment_url></item>',
+)}
+${item({ id: 6, title: 'Shape', type: 'attachment' }).replace('</item>', '<wp:attachment_url>https://cimone.example/wp-content/uploads/custom-1.svg</wp:attachment_url></item>')}
+${item({ id: 2, title: 'Kit', type: 'elementor_library', metas: meta('_elementor_template_type', 'kit') + meta('_elementor_page_settings', php(themeKit)) })}
+${item({ id: 7, title: 'activland-child', type: 'custom_css', content: 'h2 { font-family: Rubik; font-weight: 800 }' })}
+${item({
+  id: 30,
+  title: 'Corsi',
+  type: 'page',
+  metas: builder([
+    {
+      id: 's',
+      elType: 'container',
+      settings: { shape_divider_bottom: 'custom-shape-1' },
+      elements: [
+        {
+          id: 'h',
+          elType: 'widget',
+          widgetType: 'heading',
+          settings: {
+            title:
+              'Corso\nbase 🔥 <img class="emoji" alt="🔥" src="https://s.w.org/images/core/emoji/15.0.3/svg/1f525.svg">',
+            __globals__: {
+              title_color: 'globals/colors?id=primary_hover',
+              typography_typography: 'globals/typography?id=heading_title',
+            },
+          },
+        },
+        { id: 'p', elType: 'widget', widgetType: 'heading', settings: { title: 'Plain' } },
+        {
+          id: 'i',
+          elType: 'widget',
+          widgetType: 'image',
+          settings: {
+            image: { id: 5, url: 'https://cimone.example/wp-content/uploads/2025/01/fire.jpg' },
+            image_size: 'activland-post-grid',
+            custom_css: 'selector img { border-radius: 4px }',
+          },
+        },
+      ],
+    },
+  ]),
+})}
+${item({ id: 31, title: 'News', type: 'post', content: '<p>Hot <img class="emoji" alt="🔥" src="https://s.w.org/images/core/emoji/15.0.3/svg/1f525.svg"> news</p>' })}
+</channel></rss>`;
+    const { document } = wxrToDocument(wxr, { locale: 'it' });
+    const page = document.entries!.find((e) => e.ref === 'post:30')!;
+    const section = page.document.blocks[0] as CxdBlock;
+    const [title, plain, image] = section.children!;
+    expect(title!.attrs).toMatchObject({
+      title: 'Corso base 🔥 🔥',
+      title_color: 'var(--fr-c-primary-hover)',
+      title_typography_global: 'heading-title',
+      title_typography_global_all: true,
+    });
+    expect(plain!.attrs.title_theme_font).toBe(true);
+    expect(image!.attrs).toMatchObject({
+      width: { size: 820, unit: 'px' },
+      aspect_ratio: '820/580',
+      object_fit: 'cover',
+      _custom_css_imported: true,
+    });
+    expect(section.attrs).toMatchObject({
+      shape_bottom: 'custom',
+      shape_bottom_svg: {
+        id: 'att:6',
+        url: 'https://cimone.example/wp-content/uploads/custom-1.svg',
+      },
+    });
+    const kit = (document.plugins?.fresco as { kit: Record<string, unknown> }).kit;
+    expect(kit.theme).toMatchObject({ texts: { h2: { family: 'Rubik', weight: '800' } } });
+    const post = document.entries!.find((e) => e.ref === 'post:31')!;
+    expect(JSON.stringify(post.document.blocks)).toContain('Hot 🔥 news');
+    expect(JSON.stringify(post.document.blocks)).not.toContain('s.w.org');
   });
 });

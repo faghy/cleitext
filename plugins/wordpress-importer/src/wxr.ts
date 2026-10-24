@@ -3,10 +3,13 @@ import { htmlToCxd, IMPORTED_BLOCK, texturizeHtml, texturizeText } from '@cleite
 import { assignLanguages } from './wpml';
 import {
   elementorToFresco,
+  restoreEmoji,
   takeStretched,
   type ElementorContext,
+  type ElementorImageInfo,
   type ComponentInfo,
   asSettings,
+  num,
   type Settings,
 } from '@cleitext/blocks/elementor';
 import { componentInfo, convertComponent } from './elementor-components.js';
@@ -19,6 +22,8 @@ import {
   popupSettings,
   snippet,
   templateKind,
+  themeHeadingFonts,
+  withHeadingFonts,
   type ConditionContext,
   type KitResult,
 } from './elementor-site.js';
@@ -303,7 +308,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
             : (custom as string);
     // WordPress shows titles and content with curly quotes and dashes (wptexturize).
     const title = texturizeText(decode(text(item.title)));
-    const content = texturizeHtml(text(item['content:encoded']));
+    // Emoji pasted as WordPress's images are characters again.
+    const content = texturizeHtml(restoreEmoji(text(item['content:encoded'])));
     let document = htmlToCxd(content, {
       // Blocks of other plugins (e.g. block libraries) are left to active plugins.
       keepUnknown: true,
@@ -1028,7 +1034,67 @@ function prepareElementor(
       },
       { note, font },
     );
+    // The theme's heading fonts (global styles, additional CSS), for headings without their own.
+    const theme = items
+      .filter((item) => typeOf(item) === 'wp_global_styles')
+      .flatMap((item) => (item.category as Node[] | undefined) ?? [])
+      .find((c) => c['@_domain'] === 'wp_theme')?.['@_nicename'];
+    const css = items
+      .filter((item) => typeOf(item) === 'custom_css' && text(item['wp:status']) === 'publish')
+      .sort(
+        (a, b) =>
+          Number(text(b.title) === theme) - Number(text(a.title) === theme) ||
+          text(b['wp:post_modified_gmt']).localeCompare(text(a['wp:post_modified_gmt'])),
+      )[0];
+    const styles = items.find(
+      (item) => typeOf(item) === 'wp_global_styles' && text(item['wp:status']) === 'publish',
+    );
+    let globalStyles: unknown;
+    try {
+      globalStyles = styles ? JSON.parse(text(styles['content:encoded'])) : null;
+    } catch {
+      globalStyles = null;
+    }
+    kit.kit = withHeadingFonts(
+      kit.kit,
+      themeHeadingFonts(css ? text(css['content:encoded']) : '', globalStyles),
+      font,
+    );
   }
+
+  // Images as WordPress made them (Elementor's image sizes): dimensions and sizes by attachment.
+  const attachments = new Map<number, Node>(
+    items.filter((item) => typeOf(item) === 'attachment').map((item) => [idOf(item), item]),
+  );
+  const imageInfo = (attachment: number): ElementorImageInfo | undefined => {
+    const item = attachments.get(attachment);
+    const data = item ? asSettings(metaValue(meta(item, '_wp_attachment_metadata'))) : {};
+    const width = num(data.width);
+    const height = num(data.height);
+    if (!width || !height) return undefined;
+    const sizes: Record<string, { width: number; height: number }> = {};
+    for (const [name, value] of Object.entries(asSettings(data.sizes))) {
+      const w = num(asSettings(value).width);
+      const h = num(asSettings(value).height);
+      if (w && h) sizes[name] = { width: w, height: h };
+    }
+    return { width, height, sizes };
+  };
+  // A theme's custom shape divider: an SVG of the media library with its name, when there is one.
+  const svgs = new Map<string, number>();
+  for (const [id, item] of attachments) {
+    const file = text(item['wp:attachment_url']).split('/').pop()?.toLowerCase() ?? '';
+    if (file.endsWith('.svg')) svgs.set(file.slice(0, -4), id);
+  }
+  const shapeFile = (name: string, negative: boolean) => {
+    const base = name.toLowerCase();
+    for (const candidate of [base, base.replace(/-shape(?=-|$)/, '')]) {
+      const id = svgs.get(negative ? `${candidate}-negative` : candidate);
+      const ref = id !== undefined ? attachmentRefs.get(id) : undefined;
+      if (ref) return { id: ref, url: text(attachments.get(id!)!['wp:attachment_url']) };
+    }
+    return undefined;
+  };
 
   // Elementor 4 components: what their instances may override (pages need it), then themselves.
   const componentPosts = items.filter(
@@ -1060,6 +1126,8 @@ function prepareElementor(
     typeSlug: (type: string) => ownType(type),
     menuLocation,
     font,
+    imageInfo,
+    shapeFile,
     ...forms,
     ...(kit ? { kit: kit.info } : {}),
     ...(components.size ? { components } : {}),

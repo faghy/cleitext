@@ -14,6 +14,8 @@ import {
   box,
   colorOf,
   cssLength,
+  globalId,
+  globalRef,
   lineSize,
   list,
   num,
@@ -65,12 +67,58 @@ export interface KitResult {
   css: string;
 }
 
-/** A font id as Fresco's kit keeps it. */
-const fontId = (id: string) =>
-  id
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .slice(0, 40);
+/** A color or font id as Fresco's kit keeps it (`primary_hover` → `primary-hover`). */
+const fontId = globalId;
+
+/** Elementor's device suffixes → the devices of Fresco's kit (desktop has none). */
+const KIT_DEVICES: [string, string][] = [
+  ['_widescreen', 'widescreen'],
+  ['_laptop', 'laptop'],
+  ['_tablet_extra', 'tablet_extra'],
+  ['_tablet', 'tablet'],
+  ['_mobile_extra', 'mobile_extra'],
+  ['_mobile', 'mobile'],
+];
+
+const keywordOf = (value: unknown) => (/^[a-z-]{1,30}$/.test(str(value)) ? str(value) : undefined);
+
+/**
+ * An Elementor typography (`<prefix>_font_family`, `_font_size`…, per
+ * device) → the values of a Fresco kit font or text style: family, weight,
+ * size, line height, letter and word spacing, transform, style, decoration,
+ * and the sizes and spacing of the other devices.
+ */
+function kitTypography(t: Settings, prefix: string, notes: Notes): Settings {
+  const out: Settings = {};
+  const put = (key: string, value: unknown) => {
+    if (value !== undefined && value !== null && value !== '') out[key] = value;
+  };
+  put('family', str(t[`${prefix}_font_family`]).trim() || undefined);
+  const weight = str(t[`${prefix}_font_weight`]);
+  put('weight', /^([1-9]00|normal|bold)$/.test(weight) ? weight : undefined);
+  put('size', size(t[`${prefix}_font_size`], notes));
+  put('line', lineSize(t[`${prefix}_line_height`], notes));
+  put('letter', size(t[`${prefix}_letter_spacing`], notes));
+  put('word', size(t[`${prefix}_word_spacing`], notes));
+  put('transform', keywordOf(t[`${prefix}_text_transform`]));
+  put('style', keywordOf(t[`${prefix}_font_style`]));
+  put('decoration', keywordOf(t[`${prefix}_text_decoration`]));
+  const devices: Settings = {};
+  for (const [suffix, device] of KIT_DEVICES) {
+    const d: Settings = {};
+    const deviceSize = size(t[`${prefix}_font_size${suffix}`], notes);
+    if (deviceSize) d.size = deviceSize;
+    const line = lineSize(t[`${prefix}_line_height${suffix}`], notes);
+    if (line) d.line = line;
+    const letter = size(t[`${prefix}_letter_spacing${suffix}`], notes);
+    if (letter) d.letter = letter;
+    const word = size(t[`${prefix}_word_spacing${suffix}`], notes);
+    if (word) d.word = word;
+    if (Object.keys(d).length) devices[device] = d;
+  }
+  if (Object.keys(devices).length) out.devices = devices;
+  return out;
+}
 
 /** Whether a family should be loaded from Google Fonts. */
 export const isWebFont = (family: string, custom: ReadonlySet<string>): boolean =>
@@ -104,35 +152,33 @@ export function kitToFresco(
     }))
     .filter((c) => c.id && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(c.value));
   if (colors.length) kit.colors = colors;
-  // Global fonts.
+  // Global fonts, with what each one sets (a global font on an element gives those values).
   const withLine: string[] = [];
+  const parts: Record<string, string[]> = {};
   const fonts = [...list(settings.system_typography), ...list(settings.custom_typography)]
     .map((t) => {
       const id = fontId(str(t._id));
-      const family = str(t.typography_font_family);
-      if (family) notes.font(family);
-      const fontSize = size(t.typography_font_size, notes);
-      const line = lineSize(t.typography_line_height, notes);
-      if (line) withLine.push(id);
-      const weight = str(t.typography_font_weight);
+      const { family, weight, ...rest } = kitTypography(t, 'typography', notes);
+      if (family) notes.font(str(family));
+      if (rest.line) withLine.push(id);
+      // What Elementor gives from it: its values on desktop.
+      parts[id] = [
+        ...(family ? ['family'] : []),
+        ...(weight ? ['weight'] : []),
+        ...Object.keys(rest).filter((key) => key !== 'devices'),
+      ];
       return {
         id,
         title: str(t.title) || id,
-        family,
-        weight: /^([1-9]00|normal|bold)$/.test(weight) ? weight : '400',
-        ...(fontSize ? { size: fontSize } : {}),
-        ...(line ? { line } : {}),
-        ...(/^[a-z]+$/.test(str(t.typography_text_transform))
-          ? { transform: str(t.typography_text_transform) }
-          : {}),
-        ...(/^[a-z]+$/.test(str(t.typography_font_style))
-          ? { style: str(t.typography_font_style) }
-          : {}),
+        family: str(family),
+        weight: str(weight) || '400',
+        ...rest,
       };
     })
     .filter((f) => f.id);
   if (fonts.length) kit.fonts = fonts;
   info.fontsWithLine = withLine;
+  info.fonts = Object.fromEntries(fonts.map((f) => [f.id, parts[f.id]!]));
   // Breakpoints: max widths (recent kits), or the old min widths (tablet = lg - 1).
   const tablet =
     num(settings.viewport_tablet) ??
@@ -181,20 +227,14 @@ export function kitToFresco(
   const globals = asSettings(settings.__globals__);
   const textStyle = (prefix: string): Settings | undefined => {
     const out: Settings = {};
-    const global = /globals\/typography\?id=([\w-]+)/.exec(
-      str(globals[`${prefix}_typography_typography`]),
-    )?.[1];
-    if (global) out.font = fontId(global);
-    else if (settings[`${prefix}_typography_typography`] === 'custom') {
-      const family = str(settings[`${prefix}_typography_font_family`]);
-      if (family) {
-        out.family = family;
-        notes.font(family);
-      }
-      const s = size(settings[`${prefix}_typography_font_size`], notes);
-      if (s) out.size = s;
-      const weight = str(settings[`${prefix}_typography_font_weight`]);
-      if (/^[1-9]00$/.test(weight)) out.weight = weight;
+    const global = globalRef(globals[`${prefix}_typography_typography`], 'typography');
+    if (global) {
+      // As in Elementor, the global font gives all its values.
+      out.font = global;
+      out.fontAll = true;
+    } else if (settings[`${prefix}_typography_typography`] === 'custom') {
+      Object.assign(out, kitTypography(settings, `${prefix}_typography`, notes));
+      if (out.family) notes.font(str(out.family));
     }
     const c = colorOf(settings, `${prefix}_color`);
     if (c) out.color = c;
@@ -208,10 +248,11 @@ export function kitToFresco(
   const theme: Settings = {};
   if (Object.keys(texts).length) theme.texts = texts;
   const button: Settings = {};
-  const buttonFont = /globals\/typography\?id=([\w-]+)/.exec(
-    str(globals.button_typography_typography),
-  )?.[1];
-  if (buttonFont) button.font = fontId(buttonFont);
+  const buttonFont = globalRef(globals.button_typography_typography, 'typography');
+  if (buttonFont) {
+    button.font = buttonFont;
+    button.fontAll = true;
+  }
   const put = (target: Settings, key: string, value: unknown) => {
     if (value !== undefined && value !== null && value !== '') target[key] = value;
   };
@@ -269,6 +310,129 @@ export function kitToFresco(
   const variables = atomicVariables(extra.variables);
   if (variables.length) kit.variables = variables;
   return { kit, info, css: str(settings.custom_css).trim() };
+}
+
+// ---- The theme's headings -------------------------------------------------------------------
+
+export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+export type HeadingFonts = Partial<Record<HeadingTag, { family?: string; weight?: string }>>;
+
+const HEADING_TAGS: HeadingTag[] = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+
+/** A font family as CSS writes it (`"Rubik", sans-serif`) → its first family, when plain. */
+function cssFamily(value: string): string | undefined {
+  const first = value
+    .replace(/!important/i, '')
+    .split(',')[0]
+    ?.trim()
+    .replace(/^["']|["']$/g, '');
+  return first &&
+    /^[A-Za-z0-9][\w -]{0,59}$/.test(first) &&
+    !/^(inherit|initial|unset)$/i.test(first)
+    ? first
+    : undefined;
+}
+
+const cssWeight = (value: string): string | undefined => {
+  const v = value
+    .replace(/!important/i, '')
+    .trim()
+    .toLowerCase();
+  return /^([1-9]00|normal|bold)$/.test(v)
+    ? v === 'bold'
+      ? '700'
+      : v === 'normal'
+        ? '400'
+        : v
+    : undefined;
+};
+
+/** The top-level rules of a style sheet (not those inside @media and the like). */
+function topRules(css: string): { selector: string; body: string }[] {
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules: { selector: string; body: string }[] = [];
+  let start = 0;
+  let i = 0;
+  while (i < text.length) {
+    const open = text.indexOf('{', i);
+    if (open < 0) break;
+    let depth = 1;
+    let j = open + 1;
+    while (j < text.length && depth > 0) {
+      if (text[j] === '{') depth++;
+      else if (text[j] === '}') depth--;
+      j++;
+    }
+    const selector = text.slice(start, open).trim();
+    if (!selector.startsWith('@')) rules.push({ selector, body: text.slice(open + 1, j - 1) });
+    start = i = j;
+  }
+  return rules;
+}
+
+/**
+ * The fonts of the theme's headings, as far as the export tells them: the
+ * site's global styles (`wp_global_styles`: headings, then h1–h6) and its
+ * additional CSS (rules for `h1`…`h6`, `body h2`…), the later winning. Only
+ * plain families (no presets or variables) and weights.
+ */
+export function themeHeadingFonts(css: string, globalStyles: unknown): HeadingFonts {
+  const out: HeadingFonts = {};
+  const set = (tag: HeadingTag, family: string | undefined, weight: string | undefined) => {
+    if (!family && !weight) return;
+    out[tag] = { ...out[tag], ...(family ? { family } : {}), ...(weight ? { weight } : {}) };
+  };
+  const elements = asSettings(asSettings(asSettings(globalStyles).styles).elements);
+  const typo = (key: string) => asSettings(asSettings(elements[key]).typography);
+  const heading = typo('heading');
+  for (const tag of HEADING_TAGS) {
+    for (const t of [heading, typo(tag)]) {
+      set(tag, cssFamily(str(t.fontFamily)), cssWeight(str(t.fontWeight)));
+    }
+  }
+  for (const { selector, body } of topRules(css)) {
+    const tags = selector
+      .split(',')
+      .map((part) => /^(?:(?:html|body)\s+)*h([1-6])$/i.exec(part.trim())?.[1])
+      .filter(Boolean)
+      .map((n) => `h${n}` as HeadingTag);
+    if (!tags.length) continue;
+    const decl = (name: string) =>
+      new RegExp(`(?:^|;)\\s*${name}\\s*:\\s*([^;]+)`, 'i').exec(body)?.[1] ?? '';
+    const family = cssFamily(decl('font-family'));
+    const weight = cssWeight(decl('font-weight'));
+    for (const tag of tags) set(tag, family, weight);
+  }
+  return out;
+}
+
+/**
+ * The theme's heading fonts into the kit's theme style, for the headings
+ * whose style does not set its own (a global font, a family, a weight).
+ * Imported headings without a font of their own show them, as they did.
+ */
+export function withHeadingFonts(
+  kit: Settings,
+  fonts: HeadingFonts,
+  font: (family: string) => void,
+): Settings {
+  const tags = HEADING_TAGS.filter((tag) => fonts[tag]);
+  if (!tags.length) return kit;
+  const theme = asSettings(kit.theme);
+  const texts = { ...asSettings(theme.texts) };
+  for (const tag of tags) {
+    const current = asSettings(texts[tag]);
+    if (current.font) continue;
+    const { family, weight } = fonts[tag]!;
+    const next: Settings = { ...current };
+    if (family && !current.family) {
+      next.family = family;
+      font(family);
+    }
+    if (weight && !current.weight) next.weight = weight;
+    texts[tag] = next;
+  }
+  return { ...kit, theme: { ...theme, texts } };
 }
 
 /** The optional breakpoints of an Elementor kit, with Elementor's default values. */
