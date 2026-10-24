@@ -137,7 +137,7 @@ Il contesto `ctx` contiene:
 | Membro                                                | Cosa fa                                                                                                    |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `ctx.plugin`                                          | `{ slug, version }`                                                                                        |
-| `ctx.apiVersion`                                      | L'API dei plugin del core, per esempio `1.43.0` (API 1.41; manca sui core più vecchi)                      |
+| `ctx.apiVersion`                                      | L'API dei plugin del core, per esempio `1.44.0` (API 1.41; manca sui core più vecchi)                      |
 | `ctx.log`                                             | `debug/info/warn/error(message, data?)`, scritto nel log del server con il nome del plugin                 |
 | `ctx.hooks`                                           | Azioni e filtri ([§5](#5-hook))                                                                            |
 | `ctx.content`                                         | Tipi di contenuto, gruppi di campi, lettura delle voci ([§6](#6-tipi-di-contenuto-e-campi-personalizzati)) |
@@ -655,7 +655,7 @@ await ctx.mail.send({
 
 ### Richieste ad altri servizi
 
-`network` (API plugin 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` restituisce `{ status, type, text }`. Serve per webhook, liste di contatti e notifiche in chat. Sono accettati solo indirizzi `https` pubblici: i nomi che portano alla rete del server vengono rifiutati al momento della connessione, i reindirizzamenti non vengono seguiti, le risposte sono tagliate a 1 MB e le richieste durano 10 secondi se non indicato diversamente (30 al massimo). Con `binary: true` (API plugin 1.36) la risposta è un file: i byte arrivano in `base64` (fino a 5 MB) e `text` è vuoto, ad esempio per copiare un font o un'immagine da un sito importato.
+`network` (API plugin 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` restituisce `{ status, type, text }`. Serve per webhook, liste di contatti e notifiche in chat. Sono accettati solo indirizzi `https` pubblici: i nomi che portano alla rete del server vengono rifiutati al momento della connessione, i reindirizzamenti non vengono seguiti, le risposte sono tagliate a 1 MB e le richieste durano 10 secondi se non indicato diversamente (30 al massimo). Con `binary: true` (API plugin 1.36) la risposta è un file: i byte arrivano in `base64` (fino a 5 MB) e `text` è vuoto, ad esempio per copiare un font o un'immagine da un sito importato. `userAgent` (API plugin 1.44; ASCII stampabile, al massimo 200 caratteri) sostituisce il predefinito `Cleitext-Plugin/<slug>`, per esempio per ricevere quello che riceve un browser: Fresco chiede i Google Fonts come un browser per copiarne i file WOFF2.
 
 ```ts
 const res = await ctx.http.send({

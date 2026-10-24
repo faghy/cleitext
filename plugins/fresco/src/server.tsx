@@ -6,11 +6,14 @@
 import { definePlugin, type PluginBlockDefinition, type PluginContext } from '@cleitext/plugin-sdk';
 import { elementCss, withDefaults } from './core/css.js';
 import { pageCss } from './core/page-css.js';
-import { pageGoogleFonts, usedGoogleFonts } from './core/fonts.js';
+import { isGoogleFont, pageGoogleFonts, usedGoogleFonts } from './core/fonts.js';
 import { setIconData, type IconData } from './core/icons.js';
+import { familiesToLoad, googleFontsMode } from './core/font-host.js';
+import { databaseFonts, LocalFonts, registerFontRoute } from './local-fonts.js';
 import {
-  googleFontsUrl,
+  googleCssUrl,
   kitCss,
+  kitGoogleFamilies,
   mergeKit,
   normalizeKit,
   pageLayout,
@@ -39,6 +42,11 @@ import {
 
 const KIT_KEY = 'kit';
 const KIT_TAG = 'fresco:kit';
+/** Pages waiting for a Google font's copy on the site (Site settings → Global fonts). */
+const FONTS_TAG = 'fresco:fonts';
+
+/** Google Fonts kept on the site, set up with the plugin. */
+let localFonts: LocalFonts | null = null;
 
 /** Kits by site, kept for a minute (and dropped when saved). */
 const kits = new Map<string, { kit: Kit; at: number }>();
@@ -144,6 +152,18 @@ export default definePlugin({
   setup(ctx) {
     kitContext = ctx;
     kits.clear();
+    const fontStore = databaseFonts(ctx);
+    localFonts = new LocalFonts({
+      http: (request) => ctx.http.send(request),
+      store: fontStore,
+      log: ctx.log,
+      onReady(siteId) {
+        // Again a little later: a page that went without the font may be stored after the first.
+        setTimeout(() => void ctx.cache.invalidate(siteId, [FONTS_TAG]).catch(() => {}), 10_000);
+        return ctx.cache.invalidate(siteId, [FONTS_TAG]);
+      },
+    });
+    registerFontRoute(ctx, fontStore);
     setIconData(icons as unknown as IconData);
     // Plugins load again after installs and updates: extensions start empty.
     resetExtensions();
@@ -271,15 +291,31 @@ export default definePlugin({
       const kit = await kitFor(ctx, context.siteId);
       const css = kitCss(kit);
       // Google fonts: the kit's, and those this page's elements use (they name
-      // them in `data-fr-fonts`); the theme's own fonts stay its business.
-      const fonts = googleFontsUrl(
-        kit,
-        [...new Set([...pageGoogleFonts(html), ...usedGoogleFonts(css)])].slice(0, 20),
-      );
+      // them in `data-fr-fonts`), but none the page loads already (the
+      // theme's). Kept on the site unless the site settings say otherwise.
+      const mode = googleFontsMode(kit);
+      let fonts = '';
+      if (mode !== 'none') {
+        const families = familiesToLoad(
+          kitGoogleFamilies(
+            kit,
+            [...new Set([...pageGoogleFonts(html), ...usedGoogleFonts(css)])].slice(0, 20),
+          ),
+          html,
+        );
+        if (mode === 'google') {
+          const url = googleCssUrl(families);
+          if (url) {
+            fonts = `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${url.replace(/&/g, '&amp;')}">`;
+          }
+        } else if (families.length && localFonts) {
+          context.tag(FONTS_TAG);
+          const sheets = await localFonts.stylesheets(context.siteId, families.slice(0, 30), 2500);
+          fonts = sheets.map((href) => `<link rel="stylesheet" href="${href}">`).join('');
+        }
+      }
       const head =
-        (fonts
-          ? `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${fonts.replace(/&/g, '&amp;')}">`
-          : '') +
+        fonts +
         `<style id="fr-kit">${css}</style>` +
         // The color of the browser's bar on phones (Site settings → Background).
         (kit.theme.background?.mobileColor
@@ -335,6 +371,8 @@ export default definePlugin({
     registerTools(ctx, {
       async regenerate(siteId) {
         kits.delete(siteId);
+        // Google fonts whose copy failed are tried again now.
+        localFonts?.retryNow(siteId);
         await ctx.cache.invalidate(siteId, [KIT_TAG]);
       },
     });
@@ -389,6 +427,26 @@ export default definePlugin({
         const prefs = normalizePreferences(request.body);
         await ctx.storage.set(request.siteId, `prefs:${request.user.id}`, prefs);
         return { body: prefs };
+      },
+    });
+
+    // The editor's canvas: the site's copies of some Google families (null while not ready).
+    ctx.routes.api({
+      method: 'GET',
+      path: '/fonts/local',
+      capability: 'edit_entries',
+      async handler(request) {
+        const families = [
+          ...new Set((request.query.families ?? '').split('|').filter((f) => isGoogleFont(f))),
+        ].slice(0, 40);
+        const out: Record<string, string | null> = {};
+        await Promise.all(
+          families.map(async (family) => {
+            const [href] = (await localFonts?.stylesheets(request.siteId, [family], 1500)) ?? [];
+            out[family] = href ?? null;
+          }),
+        );
+        return { body: { fonts: out } };
       },
     });
 

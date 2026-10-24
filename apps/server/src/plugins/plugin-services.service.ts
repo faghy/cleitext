@@ -793,6 +793,7 @@ export class PluginServicesProvider implements PluginServices {
       body?: string;
       timeoutMs: number;
       binary?: boolean;
+      userAgent?: string;
     },
   ): Promise<{ status: number; type: string; text: string; base64?: string }> {
     const res = await sendPublic(request.url, {
@@ -802,7 +803,7 @@ export class PluginServicesProvider implements PluginServices {
       // Files (fonts, images) may be larger than API answers.
       maxBytes: request.binary ? 5 * 1024 * 1024 : 1024 * 1024,
       timeoutMs: request.timeoutMs,
-      userAgent: `Cleitext-Plugin/${plugin.slug}`,
+      userAgent: request.userAgent ?? `Cleitext-Plugin/${plugin.slug}`,
     });
     if (request.binary)
       return { status: res.status, type: res.type, text: '', base64: res.data.toString('base64') };

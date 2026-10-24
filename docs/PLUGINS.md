@@ -135,7 +135,7 @@ The context `ctx` contains:
 | Member                                                | What it does                                                                            |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `ctx.plugin`                                          | `{ slug, version }`                                                                     |
-| `ctx.apiVersion`                                      | The plugin API of the core, e.g. `1.43.0` (API 1.41; missing on older cores)            |
+| `ctx.apiVersion`                                      | The plugin API of the core, e.g. `1.44.0` (API 1.41; missing on older cores)            |
 | `ctx.log`                                             | `debug/info/warn/error(message, data?)`, written to the server log with the plugin name |
 | `ctx.hooks`                                           | Actions and filters ([§5](#5-hooks))                                                    |
 | `ctx.content`                                         | Content types, field groups, reading entries ([§6](#6-content-types-and-custom-fields)) |
@@ -726,7 +726,7 @@ await ctx.mail.send({
 
 ### Requests to other services
 
-`network` (plugin API 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` returns `{ status, type, text }`. Use it for webhooks, mailing lists and chat notifications. Only public `https` addresses are accepted: names resolving to the server's own network are refused when connecting, redirects are not followed, answers are cut at 1 MB and requests last 10 seconds by default (30 at most). With `binary: true` (plugin API 1.36) the answer is a file: its bytes come as `base64` (up to 5 MB) and `text` is empty, e.g. to copy a font or an image from an imported site.
+`network` (plugin API 1.11): `await ctx.http.send({ url, method?, headers?, body?, timeoutMs? })` returns `{ status, type, text }`. Use it for webhooks, mailing lists and chat notifications. Only public `https` addresses are accepted: names resolving to the server's own network are refused when connecting, redirects are not followed, answers are cut at 1 MB and requests last 10 seconds by default (30 at most). With `binary: true` (plugin API 1.36) the answer is a file: its bytes come as `base64` (up to 5 MB) and `text` is empty, e.g. to copy a font or an image from an imported site. `userAgent` (plugin API 1.44; printable ASCII, 200 characters at most) replaces the default `Cleitext-Plugin/<slug>`, e.g. to be given what a browser gets: Fresco asks Google Fonts as a browser to copy WOFF2 files.
 
 ```ts
 const res = await ctx.http.send({

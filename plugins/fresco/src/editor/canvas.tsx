@@ -21,7 +21,13 @@ import { attachFileDrop } from './file-drop.js';
 import { disableForeignStyles } from './availability.js';
 import { documentCss, withDefaults } from '../core/css.js';
 import { kitCss, pageLayout, safeSelector, usedGoogleFonts } from '../core/kit.js';
-import { canvasFontLinks, elementsGoogleFonts, renderedGoogleFonts } from './canvas-fonts.js';
+import {
+  canvasFamilies,
+  canvasFontSheets,
+  elementsGoogleFonts,
+  renderedGoogleFonts,
+} from './canvas-fonts.js';
+import { googleFontsMode } from '../core/font-host.js';
 import { pageCss } from '../core/page-css.js';
 import {
   activeDevices,
@@ -618,6 +624,41 @@ function useRenderedFonts(doc: Document, blocks: unknown): string[] {
   return found;
 }
 
+/**
+ * The site's copies of some Google families (Site settings → Global fonts →
+ * "Host on this site"). A family picked for the first time is copied by
+ * the server in a few seconds: asked again until it is ready.
+ */
+function useLocalFonts(families: readonly string[]): Record<string, string | null> {
+  const [found, setFound] = useState<Record<string, string | null>>({});
+  const [round, setRound] = useState(0);
+  const missing = families.filter((family) => !found[family]);
+  const key = missing.join('|');
+  useEffect(() => {
+    if (!key || round > 8) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    coreApi<{ fonts: Record<string, string | null> }>(
+      'GET',
+      `/ext/fresco/fonts/local?families=${encodeURIComponent(key)}`,
+    )
+      .then((answer) => {
+        if (!live) return;
+        const fonts = answer?.fonts ?? {};
+        setFound((current) => ({ ...current, ...fonts }));
+        if (key.split('|').some((family) => !fonts[family])) {
+          timer = setTimeout(() => live && setRound((n) => n + 1), 4000);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [key, round]);
+  return found;
+}
+
 function FrameHead({
   store,
   assetsBase,
@@ -638,11 +679,9 @@ function FrameHead({
   // other plugins' blocks, the site's custom CSS…). One stylesheet per family:
   // a family Google refuses never keeps the others from loading.
   const rendered = useRenderedFonts(doc, blocks);
-  const fonts = canvasFontLinks(kit, [
-    ...usedGoogleFonts(css + kitStyle),
-    ...elementsGoogleFonts(blocks),
-    ...rendered,
-  ]);
+  const more = [...usedGoogleFonts(css + kitStyle), ...elementsGoogleFonts(blocks), ...rendered];
+  const local = useLocalFonts(googleFontsMode(kit) === 'local' ? canvasFamilies(kit, more) : []);
+  const fonts = canvasFontSheets(kit, more, local);
   const hidden = useStore(store, (s) => s.hidden);
   // The page settings (background, padding, title, layout), live.
   const page = useStore(store, (s) => s.page);

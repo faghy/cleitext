@@ -229,6 +229,13 @@ export interface Kit {
   };
   /** Fonts to load from Google Fonts (family names, any family Google serves). */
   googleFonts: string[];
+  /**
+   * How pages get their Google Fonts (Site settings → Global fonts): copies
+   * kept on this site (`local`, the default, kept unset: no visitor reaches Google), from
+   * Google's servers (`google`), or not at all (`none`: the theme or the
+   * site provides them).
+   */
+  googleFontsMode?: 'local' | 'google' | 'none';
   /** The theme's page title, hidden by the page setting "Hide the page title". */
   titleSelector?: string;
   /** Atomic styling: classes shared by elements. */
@@ -364,6 +371,9 @@ export function normalizeKit(value: unknown): Kit {
             ...(v.deleted === true ? { deleted: true } : {}),
           }))
       : [],
+    ...(input.googleFontsMode === 'google' || input.googleFontsMode === 'none'
+      ? { googleFontsMode: input.googleFontsMode }
+      : {}),
     googleFonts: Array.isArray(input.googleFonts)
       ? [
           ...new Set(
@@ -1211,15 +1221,25 @@ function familyQuery(family: string): string {
  * `more`, e.g. those a page's CSS uses (see `usedGoogleFonts`).
  */
 export function googleFontsUrl(kit: Kit, more: readonly string[] = []): string | null {
-  const families = [
+  return googleCssUrl(kitGoogleFamilies(kit, more));
+}
+
+/** The Google families to load: the kit's (its list and its global fonts) and `more`, each once. */
+export function kitGoogleFamilies(kit: Kit, more: readonly string[] = []): string[] {
+  return [
     ...new Set([
       ...kit.googleFonts.filter((f) => GOOGLE_FAMILY.test(f)),
       ...kit.fonts.map((f) => f.family).filter(isGoogleFont),
       ...more.filter((f) => GOOGLE_FAMILY.test(f) && isGoogleFont(f)),
     ]),
   ];
-  if (families.length === 0) return null;
-  return `https://fonts.googleapis.com/css2?${families.map(familyQuery).join('&')}&display=swap`;
+}
+
+/** The Google Fonts stylesheet address of some families, or null when there are none. */
+export function googleCssUrl(families: readonly string[]): string | null {
+  const valid = families.filter((f) => GOOGLE_FAMILY.test(f));
+  if (valid.length === 0) return null;
+  return `https://fonts.googleapis.com/css2?${valid.map(familyQuery).join('&')}&display=swap`;
 }
 
 /** Popular Google Fonts, first in the font pickers. */

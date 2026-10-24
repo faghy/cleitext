@@ -18,6 +18,10 @@ It follows the GDPR and, for Italy, the Garante's cookie guidelines of 10 June 2
 
 Services added by other plugins, such as **Analytics** (Matomo, Google Analytics, Tag Manager, Meta Pixel), bring their own rules: their category is offered in the banner, their cookies join the cookie table, Google Consent Mode turns on for Google services, and the privacy policy describes them. **Privacy → Cookie banner → Tracking services** shows them.
 
+### Fonts from Google
+
+Pages that load **Google Fonts** (`fonts.googleapis.com`, `fonts.gstatic.com`) send the visitor's IP address to Google as soon as they open, before any consent: a German court fined a site for it (LG München, 20 January 2022) and the Italian Garante agrees. **Privacy → Cookie banner → Fonts from Google → Check the site** reads the home page and the latest pages and articles as a visitor (without cookies), with the site's own stylesheets they use (and those these import), and lists the pages that load Google Fonts and where from. Scripts held until consent and HTML comments are not counted. Only those pages are read: a font loaded by a script after the page opens is not seen. To fix what it finds, keep the fonts on the site: with **Fresco**, **Site settings → Global fonts → Google Fonts → Host on this site** (the default since Fresco 2.8); with a theme or a plugin that links Google Fonts, its own setting for local fonts, or fonts uploaded and declared with `@font-face`.
+
 ### Scripts held until consent
 
 In **Privacy → Cookie banner**, paste the code of analytics, ads or pixels into its category: it reaches the page inert (`<script type="text/plain">`, iframes without `src`) and runs only after the visitor accepts that category. In pages and themes, write scripts as `<script type="text/plain" data-cx-category="statistics">` and iframes with `data-cx-src="…" data-cx-category="marketing"` to get the same behavior. Videos, maps and posts of other sites in the pages (YouTube, also `youtube-nocookie.com`, Vimeo, embeds…) wait for the **Marketing** category when the banner offers it, with a notice in their place until then.

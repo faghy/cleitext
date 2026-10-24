@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { buildPlugin, installPlugin } from '@cleitext/cli';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
+import { PluginServicesProvider } from '../src/plugins/plugin-services.service.js';
 import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -96,6 +97,12 @@ beforeAll(async () => {
     });
   }
   app = await startTestApp({ pluginsPath });
+  // No request leaves the tests: Fresco's copies of Google fonts are not made.
+  vi.spyOn(app.get(PluginServicesProvider), 'httpSend').mockResolvedValue({
+    status: 503,
+    type: 'text/plain',
+    text: '',
+  });
   const site = await seedSite(owner, 'elementor-import');
   await seedUser(owner, {
     email: 'admin@eli.test',
@@ -150,6 +157,7 @@ describe('Elementor sites into Fresco', () => {
     expect(html).toContain('Fresh from Elementor');
     expect(html).toContain('--fr-c-c0ffee1:#6f4e37');
     expect(html).toContain('background-color:var(--fr-c-c0ffee1)');
-    expect(html).toContain('family=Abel:');
+    // Google fonts are kept on the site (Fresco 2.8): no link to Google.
+    expect(html).not.toContain('fonts.googleapis.com');
   });
 });

@@ -21,6 +21,7 @@ import {
   type CookieRow,
   type PrivacyConfig,
 } from './config';
+import { scanGoogleFonts } from './checks';
 
 type Tab = 'banner' | 'cookies' | 'policies' | 'requests' | 'consents';
 
@@ -137,6 +138,85 @@ function PrivacyPage(props: AdminPageProps) {
 }
 
 type Tr = (en: string, it: string) => string;
+
+/**
+ * Google Fonts loaded before consent: some pages of the site are read as a
+ * visitor (without cookies), with the site's stylesheets they use.
+ */
+function FontsCheck({ api, tr }: { api: AdminPageProps['api']; tr: Tr }) {
+  const check = useMutation({
+    mutationFn: async () => {
+      const { pages } = await api<{ pages: string[] }>('GET', '/checks/pages');
+      const read = async (url: string) => {
+        const res = await fetch(url, { credentials: 'omit', cache: 'no-store' });
+        return res.ok ? res.text() : null;
+      };
+      return scanGoogleFonts(
+        pages.map((path) => new URL(path, window.location.origin).href),
+        (url) => read(url).catch(() => null),
+      );
+    },
+  });
+  const found = check.data ?? [];
+  const byPage = [...new Set(found.map((f) => f.page))];
+  return (
+    <Card title={tr('Fonts from Google', 'Font da Google')}>
+      <div className="space-y-3 text-sm">
+        <p className="text-slate-600">
+          {tr(
+            'Pages that load Google Fonts (fonts.googleapis.com, fonts.gstatic.com) send the visitor’s IP address to Google as soon as they open, before any consent: a German court fined a site for it in 2022 and the Italian Garante agrees. Keep the fonts on the site instead (Fresco: Site settings → Global fonts → Google Fonts → Host on this site).',
+            'Le pagine che caricano Google Fonts (fonts.googleapis.com, fonts.gstatic.com) inviano a Google l’indirizzo IP del visitatore appena si aprono, prima di qualsiasi consenso: un tribunale tedesco ha sanzionato un sito per questo nel 2022 e il Garante italiano è dello stesso avviso. Ospita invece i font sul sito (Fresco: Impostazioni del sito → Font globali → Google Fonts → Ospita su questo sito).',
+          )}
+        </p>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => check.mutate()}
+          disabled={check.isPending}
+        >
+          {check.isPending
+            ? tr('Checking…', 'Controllo in corso…')
+            : tr('Check the site', 'Controlla il sito')}
+        </Button>
+        {check.error && <Alert>{errorMessage(check.error)}</Alert>}
+        {check.isSuccess && byPage.length === 0 && (
+          <Alert kind="success">
+            {tr(
+              'No checked page loads Google Fonts before consent.',
+              'Nessuna pagina controllata carica Google Fonts prima del consenso.',
+            )}
+          </Alert>
+        )}
+        {byPage.length > 0 && (
+          <Alert>
+            {tr(
+              'These pages load Google Fonts before consent:',
+              'Queste pagine caricano Google Fonts prima del consenso:',
+            )}
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {byPage.map((page) => (
+                <li key={page}>
+                  <span className="font-medium">{new URL(page).pathname}</span>
+                  {[
+                    ...new Set(
+                      found
+                        .filter((f) => f.page === page && f.source !== page)
+                        .map((f) => f.source),
+                    ),
+                  ].map((source) => (
+                    <span key={source} className="block text-xs">
+                      {tr('from the stylesheet', 'dal foglio di stile')} {new URL(source).pathname}
+                    </span>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          </Alert>
+        )}
+      </div>
+    </Card>
+  );
+}
 
 function Check({
   label,
@@ -277,6 +357,8 @@ function BannerTab({
           </p>
         )}
       </Card>
+
+      <FontsCheck api={api} tr={tr} />
 
       <Card title={tr('Banner', 'Banner')}>
         <div className="space-y-3">

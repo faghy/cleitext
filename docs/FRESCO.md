@@ -53,6 +53,18 @@ The **Site settings** (the kit) apply to every Fresco page:
 - **Page title selector**, so pages can hide the theme's title. Aurora, Canvas, Pulsar and Vitality leave the title out of the page by themselves, so it never shows twice.
 - **Lightbox** settings.
 
+### Google Fonts and privacy
+
+**Site settings → Global fonts → Google Fonts** says where pages get the Google fonts of the kit and of the elements (since Fresco 2.8):
+
+- **Host on this site** (the default, also for sites made before): the first time a page needs a family, the server downloads its stylesheet and font files from Google once (only `fonts.googleapis.com` and `fonts.gstatic.com`, over https, with size limits and timeouts, as a modern browser so the files are WOFF2 split by alphabet) and keeps them in Fresco's own table. Pages link the site's copy (`/_fresco/gfonts/<name>.css`, its files beside it, cached for a year): **no visitor's browser talks to Google**, so no consent is needed for fonts (LG München, 20 January 2022; the Italian Garante agrees). A page waits up to 2.5 seconds for a new family; when the download takes longer or fails, the page shows the fallback font, never Google's link, the failure is written to the log and the download is tried again later (10 minutes, then longer; **Tools → Regenerate CSS** tries again at once). When a copy becomes ready, the cached pages that went without it are refreshed.
+- **Load from Google**: pages link `fonts.googleapis.com`, as before 2.8. Visitors' IP addresses reach Google: in the EU this needs their consent.
+- **Don't load**: Fresco adds no Google font at all; the theme or your own CSS provides them (e.g. with `@font-face` rules of fonts kept on the site).
+
+Whatever the choice, Fresco never adds a family the page already loads by itself: one the theme links from Google Fonts or Bunny Fonts (`<link rel="stylesheet">` or `@import`), or declares with `@font-face` in a `<style>` of the page (themes write their CSS there; Fresco Pro's custom fonts too). A family declared only inside a linked stylesheet file is not seen: if your theme does that, choose **Don't load**. Families are compared by name, not by weight: a weight the theme lacks is drawn by the browser.
+
+The editor's canvas follows the same choice: with **Host on this site** it uses the site's copies too (a family picked for the first time shows after a few seconds, while the server copies it), with **Load from Google** it loads them from Google, with **Don't load** none. The **Privacy & GDPR** plugin can check the pages: **Privacy → Cookie banner → Fonts from Google**.
+
 ## Atomic mode
 
 Atomic elements (Flexbox, Grid, Div, Heading, Paragraph, Button, Image, SVG, Divider, YouTube, Video) are styled with **classes and variables** instead of per-element settings: create global classes, give them styles per device and state (hover, focus, active), and reuse them. Variables hold colors, fonts and sizes.
@@ -82,7 +94,7 @@ Besides the overview and **Templates**, the **Fresco** menu of the admin has (fo
 The WordPress importer (**Import from WordPress** in the admin menu) turns a site built with Elementor (and Elementor Pro) into Fresco:
 
 - **Pages** (and landing pages) become Fresco pages: sections, columns and containers, every common widget with its texts, links, images, global colors and fonts, typography, spacing, per-device values, hover colors, backgrounds (with overlays and videos), borders, shadows and entrance animations. Atomic elements keep their style variants and classes. The page settings come along: full width or canvas layout, hidden title, page background and custom CSS.
-- **The kit** joins Fresco's **Site settings**: global colors and fonts (Google fonts are loaded), breakpoints, content width, space between widgets and the theme style (texts, headings, buttons, images, form fields, lightbox).
+- **The kit** joins Fresco's **Site settings**: global colors and fonts (Google fonts are loaded, kept on the site by default), breakpoints, content width, space between widgets and the theme style (texts, headings, buttons, images, form fields, lightbox).
 - **Pro widgets** become their Fresco Pro elements (form, slides, call to action, flip box, price table and list, countdown, animated headline, posts and loops, carousels, theme elements and more), and motion effects, sticky, custom CSS, custom attributes and dynamic tags their Fresco Pro settings.
 - **Theme Builder templates** (header, footer, single, archive, popups, loop items, saved sections and global widgets) become Fresco Pro templates with their conditions; popups keep their trigger, frequency and layout. Custom code, custom fonts and the kit's custom CSS go to Fresco Pro's site settings.
 

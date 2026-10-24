@@ -226,6 +226,16 @@ addMessages('it', {
   'Opacity on hover': 'Opacità al passaggio del mouse',
   'The fields of the forms on Fresco pages.': 'I campi dei moduli nelle pagine Fresco.',
   'Border color when focused': 'Colore del bordo quando è attivo',
+  'Load from': 'Carica da',
+  'Host on this site (recommended)': 'Ospita su questo sito (consigliato)',
+  'Load from Google': 'Carica da Google',
+  "Don't load": 'Non caricare',
+  "Visitors' browsers download the fonts from Google's servers: in the EU this needs their consent (GDPR).":
+    'I browser dei visitatori scaricano i font dai server di Google: nell’UE serve il loro consenso (GDPR).',
+  'Fresco adds no Google font: the theme or your own CSS provides them (self-hosted @font-face).':
+    'Fresco non aggiunge nessun Google Font: li fornisce il tema o il tuo CSS (@font-face ospitati da te).',
+  'The fonts are downloaded once by the server and served by your site: no visitor talks to Google. Fonts the theme already loads are never added again.':
+    'I font vengono scaricati una volta dal server e serviti dal tuo sito: nessun visitatore contatta Google. I font che il tema carica già non vengono mai aggiunti di nuovo.',
   'The window that shows images enlarged.': 'La finestra che mostra le immagini ingrandite.',
   'Buttons color': 'Colore dei pulsanti',
   'Only administrators can change the identity of the site.':

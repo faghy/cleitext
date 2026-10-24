@@ -1396,6 +1396,43 @@ export function FieldSettings({ kit, setTheme, responsive }: SectionProps) {
 
 type LightboxStyle = NonNullable<ThemeStyle['lightbox']>;
 
+/**
+ * Where pages get their Google Fonts. Kept on the site by default: visitors'
+ * browsers never reach Google, which in the EU needs their consent.
+ */
+export function GoogleFontsSetting({ kit, set }: Pick<SectionProps, 'kit' | 'set'>) {
+  const { t } = useT();
+  const mode = kit.googleFontsMode;
+  return (
+    <>
+      <h4 className="fre-subheading">{t('Google Fonts')}</h4>
+      <SelectField
+        label={t('Load from')}
+        value={mode === 'local' ? undefined : mode}
+        emptyLabel={t('Host on this site (recommended)')}
+        options={[
+          { value: 'google', label: 'Load from Google' },
+          { value: 'none', label: "Don't load" },
+        ]}
+        onChange={(googleFontsMode) => set({ googleFontsMode: googleFontsMode ?? 'local' })}
+      />
+      <p className="fre-help">
+        {mode === 'google'
+          ? t(
+              "Visitors' browsers download the fonts from Google's servers: in the EU this needs their consent (GDPR).",
+            )
+          : mode === 'none'
+            ? t(
+                'Fresco adds no Google font: the theme or your own CSS provides them (self-hosted @font-face).',
+              )
+            : t(
+                'The fonts are downloaded once by the server and served by your site: no visitor talks to Google. Fonts the theme already loads are never added again.',
+              )}
+      </p>
+    </>
+  );
+}
+
 export function LightboxSettings({ kit, setTheme }: SectionProps) {
   const { t } = useT();
   const l = kit.theme.lightbox ?? {};
@@ -2268,6 +2305,7 @@ export function SiteView({
           >
             {tx('+ Add font')}
           </button>
+          <GoogleFontsSetting kit={kit} set={set} />
         </div>
       )}
       {section === 'typography' && <TypographySettings {...props} />}

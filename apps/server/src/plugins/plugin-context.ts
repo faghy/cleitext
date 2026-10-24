@@ -115,6 +115,7 @@ export interface PluginServices {
       body?: string;
       timeoutMs: number;
       binary?: boolean;
+      userAgent?: string;
     },
   ): Promise<{ status: number; type: string; text: string; base64?: string }>;
   /** What the core keeps about an email on a site: account, sessions, activity. */
@@ -486,6 +487,11 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           ...(request.body !== undefined ? { body: request.body } : {}),
           timeoutMs: Math.min(Math.max(request.timeoutMs ?? 10_000, 1000), 30_000),
           ...(request.binary ? { binary: true } : {}),
+          // A browser's, e.g. to be given the files a browser gets (plugin API 1.44).
+          ...(typeof request.userAgent === 'string' &&
+          /^[\x20-\x7e]{1,200}$/.test(request.userAgent)
+            ? { userAgent: request.userAgent }
+            : {}),
         });
       },
     },

@@ -53,6 +53,18 @@ Le impostazioni del sito (**Site settings**, il kit) valgono per tutte le pagine
 - **Selettore del titolo della pagina**, perché le pagine possano nascondere il titolo del tema. Aurora, Canvas, Pulsar e Vitality lo tolgono da soli dalla pagina, così non compare mai due volte.
 - Impostazioni della **lightbox**.
 
+### Google Fonts e privacy
+
+**Impostazioni del sito → Font globali → Google Fonts** stabilisce da dove le pagine prendono i Google Font del kit e degli elementi (da Fresco 2.8):
+
+- **Ospita su questo sito** (il predefinito, anche per i siti creati prima): la prima volta che una pagina usa una famiglia, il server scarica una sola volta da Google il suo foglio di stile e i file dei font (solo da `fonts.googleapis.com` e `fonts.gstatic.com`, in https, con limiti di dimensione e di tempo, presentandosi come un browser moderno così i file sono WOFF2 divisi per alfabeto) e li conserva nella tabella di Fresco. Le pagine collegano la copia del sito (`/_fresco/gfonts/<nome>.css`, con i suoi file accanto, in cache per un anno): **nessun browser dei visitatori contatta Google**, quindi per i font non serve il consenso (LG München, 20 gennaio 2022; il Garante italiano è dello stesso avviso). Una pagina aspetta al massimo 2,5 secondi una famiglia nuova; se il download dura di più o non riesce, la pagina mostra il font di riserva, mai il link a Google, l'errore finisce nel log e il download viene ritentato più tardi (dopo 10 minuti, poi a intervalli più lunghi; **Strumenti → Rigenera CSS** lo ritenta subito). Quando la copia è pronta, le pagine in cache rimaste senza vengono aggiornate.
+- **Carica da Google**: le pagine collegano `fonts.googleapis.com`, come prima della 2.8. L'indirizzo IP dei visitatori arriva a Google: nell'UE serve il loro consenso.
+- **Non caricare**: Fresco non aggiunge nessun Google Font; li fornisce il tema o il tuo CSS (per esempio con regole `@font-face` di font ospitati sul sito).
+
+Qualunque sia la scelta, Fresco non aggiunge mai una famiglia che la pagina carica già da sé: una che il tema collega da Google Fonts o Bunny Fonts (`<link rel="stylesheet">` o `@import`) o dichiara con `@font-face` in uno `<style>` della pagina (i temi scrivono lì il loro CSS; anche i font personalizzati di Fresco Pro). Una famiglia dichiarata solo dentro un file CSS collegato non viene vista: se il tuo tema fa così, scegli **Non caricare**. Le famiglie si confrontano per nome, non per peso: un peso che il tema non ha viene simulato dal browser.
+
+La tela dell'editor segue la stessa scelta: con **Ospita su questo sito** usa anch'essa le copie del sito (una famiglia scelta per la prima volta compare dopo qualche secondo, mentre il server la copia), con **Carica da Google** le carica da Google, con **Non caricare** nessuna. Il plugin **Privacy e GDPR** può controllare le pagine: **Privacy → Banner cookie → Font da Google**.
+
 ## Modalità atomica
 
 Gli elementi atomici (Flexbox, Griglia, Div, Titolo, Paragrafo, Pulsante, Immagine, SVG, Divisore, YouTube, Video) si stilizzano con **classi e variabili** invece che con impostazioni per singolo elemento: crei classi globali, gli dai stili per dispositivo e stato (hover, focus, active) e le riusi. Le variabili contengono colori, font e misure.
@@ -82,7 +94,7 @@ Oltre alla panoramica e a **Modelli**, il menu **Fresco** dell'amministrazione h
 L'importatore di WordPress (**Importa da WordPress** nel menu dell'amministrazione) trasforma un sito costruito con Elementor (ed Elementor Pro) in Fresco:
 
 - **Le pagine** (e le landing page) diventano pagine di Fresco: sezioni, colonne e contenitori, tutti i widget comuni con testi, link, immagini, colori e font globali, tipografia, spaziature, valori per dispositivo, colori al passaggio del mouse, sfondi (con sovrapposizioni e video), bordi, ombre e animazioni d'ingresso. Gli elementi atomici mantengono le varianti di stile e le classi. Arrivano anche le impostazioni della pagina: layout a tutta larghezza o canvas, titolo nascosto, sfondo della pagina e CSS personalizzato.
-- **Il kit** confluisce nelle **Impostazioni del sito** di Fresco: colori e font globali (i Google Font vengono caricati), breakpoint, larghezza del contenuto, spazio tra i widget e stile del tema (testi, titoli, pulsanti, immagini, campi dei moduli, lightbox).
+- **Il kit** confluisce nelle **Impostazioni del sito** di Fresco: colori e font globali (i Google Font vengono caricati, ospitati sul sito per impostazione predefinita), breakpoint, larghezza del contenuto, spazio tra i widget e stile del tema (testi, titoli, pulsanti, immagini, campi dei moduli, lightbox).
 - **I widget Pro** diventano i rispettivi elementi di Fresco Pro (modulo, slide, call to action, flip box, tabella e listino prezzi, conto alla rovescia, titolo animato, articoli e loop, caroselli, elementi del tema e altri), ed effetti di movimento, sticky, CSS personalizzato, attributi personalizzati e tag dinamici le rispettive impostazioni di Fresco Pro.
 - **I modelli del Theme Builder** (header, footer, singolo, archivio, popup, elementi del loop, sezioni salvate e widget globali) diventano modelli di Fresco Pro con le loro condizioni; i popup mantengono attivatore, frequenza e layout. Codice personalizzato, font personalizzati e CSS personalizzato del kit vanno nelle impostazioni del sito di Fresco Pro.
 

@@ -496,6 +496,25 @@ export default definePlugin({
       },
     });
 
+    // Pages the admin reads, as a visitor, to look for Google Fonts loaded before consent.
+    ctx.routes.api({
+      method: 'GET',
+      path: '/checks/pages',
+      capability: 'manage_privacy',
+      async handler(request) {
+        const [pages, articles] = await Promise.all(
+          ['page', 'article'].map((type) =>
+            ctx.content.find(request.siteId, { type, limit: 5 }).catch(() => []),
+          ),
+        );
+        const paths = [
+          '/',
+          ...[...(pages ?? []), ...(articles ?? []).slice(0, 2)].map((entry) => entry.url),
+        ].filter((url) => typeof url === 'string' && url.startsWith('/') && !url.startsWith('//'));
+        return { body: { pages: [...new Set(paths)].slice(0, 8) } };
+      },
+    });
+
     ctx.routes.api({
       method: 'GET',
       path: '/consents',

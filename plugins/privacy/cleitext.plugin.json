@@ -1,7 +1,7 @@
 {
   "slug": "privacy",
   "name": "Privacy & GDPR",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "apiVersion": "^1.15",
   "description": "Cookie banner with consent by category and a consent log, privacy and cookie policy pages, and requests to export or erase personal data.",
   "author": "Cleitext",

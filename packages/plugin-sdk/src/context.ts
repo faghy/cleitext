@@ -932,6 +932,12 @@ export interface HttpApi {
      * `base64`, up to 5 MB, and `text` is empty.
      */
     binary?: boolean;
+    /**
+     * The `User-Agent` sent (plugin API 1.44; printable ASCII, 200 characters
+     * at most), e.g. a browser's to be given the files a browser gets.
+     * `Cleitext-Plugin/<slug>` when left out, or on older cores.
+     */
+    userAgent?: string;
   }): Promise<{ status: number; type: string; text: string; base64?: string }>;
 }
 
