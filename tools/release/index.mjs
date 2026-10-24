@@ -66,6 +66,7 @@ const SEPARATE = [
   'captcha',
   'social-feed',
   'antispam',
+  'diorama',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
