@@ -583,6 +583,7 @@ export function EntryCommunity({ entry }: { entry?: PublicEntry }) {
 /** Default look, added to pages that show comments or likes. Themes override it. */
 export const COMMUNITY_CSS = `
 .cx-community{margin:3rem auto 0;max-width:var(--cx-content-width,46rem);padding:0 1rem}
+.cx-community:empty{display:none}
 .cx-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem 1.5rem;padding:1rem 0;border-top:1px solid rgba(127,127,127,.25);border-bottom:1px solid rgba(127,127,127,.25)}
 .cx-like{margin:0}.cx-like__button{display:inline-flex;align-items:center;gap:.4em;padding:.4em .9em;border:1px solid currentColor;border-radius:999px;background:none;color:inherit;font:inherit;cursor:pointer}
 .cx-like__button[aria-pressed=true]{color:#e11d48}
