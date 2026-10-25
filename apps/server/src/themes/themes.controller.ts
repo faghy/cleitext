@@ -413,10 +413,20 @@ export class ThemesController {
     return this.themes.entryFields(site.id, auth);
   }
 
-  /** CSS of the active theme for the editor's canvas (RF-THM-03, editor styles). */
+  /**
+   * CSS of the active theme for the editor's canvas (RF-THM-03, editor
+   * styles), and the site's Additional CSS (core 0.80), applied after it.
+   */
   @Get('active/editor-styles')
   @RequireCapability('edit_entries')
-  async editorStyles(@CurrentSite() site: SiteContext, @CurrentAuth() auth: AuthContext) {
-    return { css: await this.themes.editorCss(site.id, auth) };
+  async editorStyles(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<{ css: string; additionalCss: string }> {
+    const [css, additionalCss] = await Promise.all([
+      this.themes.editorCss(site.id, auth),
+      this.themes.editorAdditionalCss(site.id, auth),
+    ]);
+    return { css, additionalCss };
   }
 }

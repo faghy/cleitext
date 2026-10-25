@@ -38,6 +38,7 @@ import { mountEditorRoot } from './editor-root';
 import { buildBlocks, defaultsOf, isRegistered } from './gutenberg-tree';
 import { registerMediaUpload, setMediaServices } from './media-upload';
 import { registerFieldBlocks } from './field-blocks';
+import { canvasStyles } from './canvas-styles';
 import { registerCoreBlocks } from './register-blocks';
 import { BINDINGS_SUPPORTED_ATTRIBUTES, refreshBindings, setBindingsLanguage } from './bindings';
 import { DEVICE_WIDTHS, editorStore, registerEditorStore, type DeviceType } from './device';
@@ -312,17 +313,7 @@ function GutenbergEditor({
       __experimentalBlockBindingsSupportedAttributes: BINDINGS_SUPPORTED_ATTRIBUTES,
       __unstableResolvedAssets: {
         ...RESOLVED_ASSETS,
-        styles: [
-          RESOLVED_ASSETS.styles,
-          // The theme's editor styles (RF-THM-03), after the defaults.
-          options.styles
-            ? `<style>${options.styles.replace(/<\/style/gi, '<\\/style')}</style>`
-            : '',
-          // Plugins' block styles (plugin API 1.23), as on the site.
-          ...(options.styleUrls ?? []).map(
-            (url) => `<link rel="stylesheet" href="${url.replace(/["<>]/g, '')}">`,
-          ),
-        ].join(''),
+        styles: RESOLVED_ASSETS.styles + canvasStyles(options),
       },
       ...(options.services.uploadMedia ? { mediaUpload: makeMediaUpload(options) } : {}),
     }),

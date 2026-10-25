@@ -78,6 +78,34 @@ export async function writeAdditionalCss(
     });
 }
 
+export type MergeOutcome = 'added' | 'appended' | 'present';
+
+/**
+ * Imported Additional CSS joined to what the site has (core 0.80): the site's
+ * own CSS is never replaced. Into an empty part it goes as it is; otherwise it
+ * is appended under a comment naming where it comes from, unless the site
+ * already has it (an import made again), in which case nothing changes.
+ */
+export function mergeAdditionalCss(
+  existing: string,
+  incoming: string,
+  from: string,
+): { css: string; outcome: MergeOutcome } {
+  const css = incoming.trim();
+  if (css === '' || existing.includes(css)) return { css: existing, outcome: 'present' };
+  if (existing.trim() === '') return { css, outcome: 'added' };
+  // The source's name may not close the comment.
+  const label =
+    from
+      .replace(/\*\//g, '* /')
+      .replace(/[\r\n]+/g, ' ')
+      .trim() || 'an import';
+  return {
+    css: `${existing.trimEnd()}\n\n/* Imported from ${label} */\n${css}\n`,
+    outcome: 'appended',
+  };
+}
+
 /** A `<style>` put just before `</head>` (at the start when there is none). */
 export function beforeHeadEnd(html: string, id: string, css: string): string {
   if (!css.trim()) return html;

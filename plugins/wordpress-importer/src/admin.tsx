@@ -26,6 +26,7 @@ const KINDS: Record<string, [string, string]> = {
   contentTypes: ['content types', 'tipi di contenuto'],
   taxonomies: ['taxonomies', 'tassonomie'],
   locales: ['languages', 'lingue'],
+  additionalCss: ['Additional CSS', 'CSS aggiuntivo'],
 };
 
 function Counts({ counts, tr }: { counts: Record<string, number>; tr: Tr }) {

@@ -375,6 +375,16 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     return { ...css, themeSlug, max: ADDITIONAL_CSS_MAX };
   }
 
+  /**
+   * Additional CSS for the editor's canvas (core 0.80): for every theme, then
+   * the active theme's, as the pages print it.
+   */
+  async editorAdditionalCss(siteId: string, auth: AuthContext): Promise<string> {
+    const themeSlug = await this.activeSlug(siteId, auth);
+    const css = await this.run(siteId, auth, (tx) => readAdditionalCss(tx, themeSlug));
+    return [css.site, css.theme].filter((part) => part.trim()).join('\n');
+  }
+
   /** Checks a part of Additional CSS: 400 with the reason when it cannot be saved. */
   checkAdditionalCss(css: string | undefined): void {
     const problem = css === undefined ? null : additionalCssProblem(css);

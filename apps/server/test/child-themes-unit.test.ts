@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import type { ThemeDefinition } from '@cleitext/theme-sdk';
 import { unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { beforeHeadEnd, withAdditionalCss } from '../src/themes/additional-css.js';
+import {
+  beforeHeadEnd,
+  mergeAdditionalCss,
+  withAdditionalCss,
+} from '../src/themes/additional-css.js';
 import { childDefinition, mergeChildTheme } from '../src/themes/child-themes.js';
 import { zipThemeFolder } from '../src/themes/theme-package.js';
 
@@ -189,6 +193,22 @@ describe('Additional CSS in the page', () => {
     expect(beforeHeadEnd('<p>no head</p>', 'x', '.c{}')).toBe(
       '<style id="x">.c{}</style><p>no head</p>',
     );
+  });
+});
+
+describe('mergeAdditionalCss (imports, core 0.80)', () => {
+  it('adds, appends under a comment, or leaves the site’s CSS as it is', () => {
+    expect(mergeAdditionalCss('', ' .a{} ', 'X')).toEqual({ css: '.a{}', outcome: 'added' });
+    expect(mergeAdditionalCss('.own{}\n.a{}', '.a{}', 'X')).toEqual({
+      css: '.own{}\n.a{}',
+      outcome: 'present',
+    });
+    expect(mergeAdditionalCss('.own{}', '  ', 'X').outcome).toBe('present');
+    expect(mergeAdditionalCss('.own{}\n', '.a{}', 'Old */ site\nx')).toEqual({
+      css: '.own{}\n\n/* Imported from Old * / site x */\n.a{}\n',
+      outcome: 'appended',
+    });
+    expect(mergeAdditionalCss('.own{}', '.a{}', '').css).toContain('/* Imported from an import */');
   });
 });
 

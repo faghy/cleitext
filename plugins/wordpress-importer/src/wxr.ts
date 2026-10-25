@@ -28,6 +28,7 @@ import {
   type KitResult,
 } from './elementor-site.js';
 import { metaValue } from './php.js';
+import { wxrAdditionalCss } from './additional-css.js';
 import { DIVI_TAXONOMIES, DIVI_TYPES, prepareDivi, type DiviItem } from './divi-site.js';
 import { diviPageCss, diviToFresco } from '@cleitext/blocks/divi';
 import { WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
@@ -775,6 +776,10 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     };
   });
 
+  // ---- Additional CSS (the Customizer's, a `custom_css` post per theme) ---------------
+  const additionalCss = wxrAdditionalCss(items);
+  warnings.push(...additionalCss.warnings);
+
   return {
     warnings,
     meta: {
@@ -797,6 +802,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       site: {
         ...(text(channel.title) ? { title: decode(text(channel.title)) } : {}),
         ...(text(channel.description) ? { tagline: decode(text(channel.description)) } : {}),
+        ...(additionalCss.css ? { additionalCss: { site: additionalCss.css } } : {}),
       },
       users: authors.filter((a) => a.email),
       contentTypes,

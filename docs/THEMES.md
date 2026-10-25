@@ -481,6 +481,18 @@ cleitext theme:build ./my-zenit && cleitext theme:install ./my-zenit
 - **CSS for every theme**: kept by the site, so it survives theme updates and theme switches;
 - **CSS for &lt;theme&gt; only**: printed only while that theme is active.
 
+Both are code editors (core 0.80): syntax highlighting, line numbers, bracket matching and completion of CSS properties, light or dark with the admin. Tab moves on to the next field as usual; the editor is loaded only when the section opens.
+
 The preview shows the CSS while it is written; **Publish** saves it with the theme's options. It is printed last in `<head>` (`<style id="cx-additional-css">`), after the theme's CSS, a child theme's and the blocks'. Each box holds up to 100,000 characters and cannot contain `<style`, `</style` or `<script` (it could close the element); whatever is stored is escaped again when printed. It is kept in the site's settings (namespace `additional-css`, keys `site` and `theme:<slug>`), so backups have it, and site exports (`cleitext export`) carry it to the new site (`site.additionalCss` of the transfer document).
 
 Themes do not need their own "Custom CSS" option any more. Zenit's moved here with core 0.79: its value became the site's Additional CSS (for every theme where Zenit was the site's theme, for Zenit only elsewhere), and Zenit 1.0.5 no longer has the option.
+
+### In the block editor
+
+The block editor's canvas applies the Additional CSS too (core 0.80): the part for every theme and the active theme's, after the theme's editor styles (`editorCss`, `editor.css`, a child theme's included) and the plugins' block styles, as the pages print it last. It stays inside the canvas (an iframe), so the admin's interface is not touched; `GET /themes/active/editor-styles` answers `{ css, additionalCss }`. CSS written for the site's own markup (a header, `.site-content p`) has nothing to match there; rules on blocks, their classes and `body` do. Changes made in Customize show in an editor opened afterwards (reload one already open). Fresco's canvas is the page itself, so it already has it; the Classic Editor's box shows neither the theme's editor styles nor this CSS.
+
+### Imported from WordPress
+
+WordPress keeps its Additional CSS as a `custom_css` post per theme. The WordPress Importer (1.24) brings it into **CSS for every theme**: the only one in the export, or the one of the export's theme (block themes name it), or else the most recently changed; the others are named in the import report. CSS that could not be printed (markup, more than 100,000 characters) is reported and left out.
+
+Imports never replace the site's CSS (a site export included): into an empty box the CSS goes as it is, otherwise it is appended under a comment, `/* Imported from <site name>, <address> */`, and the report says so. CSS the site already has is not added again, so importing the same export twice changes nothing. When the two together would be over the limit, the imported part is left out and reported.

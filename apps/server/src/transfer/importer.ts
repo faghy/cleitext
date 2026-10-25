@@ -1,5 +1,11 @@
 import { newCommentStatus } from '../community/defaults.js';
-import { SITE_CSS_KEY, themeCssKey, writeAdditionalCss } from '../themes/additional-css.js';
+import {
+  allAdditionalCss,
+  mergeAdditionalCss,
+  SITE_CSS_KEY,
+  themeCssKey,
+  writeAdditionalCss,
+} from '../themes/additional-css.js';
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import { documentText, newBlockId } from '@cleitext/blocks';
 import { IMPORTED_BLOCK } from '@cleitext/blocks/html';
@@ -33,6 +39,7 @@ import {
 import {
   CAPABILITIES,
   additionalCssProblem,
+  ADDITIONAL_CSS_MAX,
   fieldGroupSchema,
   fieldListSchema,
   importFieldRefs,
@@ -606,17 +613,51 @@ export async function importDocument(
           set: { value },
         });
     }
-    // Additional CSS (core 0.79): only what can be printed safely.
+    // Additional CSS (core 0.79): only what can be printed safely, added to
+    // the site's own (core 0.80: appended under a comment, never replacing it,
+    // and not again when the site already has it).
     const css = doc.site.additionalCss;
-    const parts: [string, string][] = [
-      ...(css?.site ? [[SITE_CSS_KEY, css.site] as [string, string]] : []),
+    const parts: [string, string, string][] = [
+      ...(css?.site
+        ? [[SITE_CSS_KEY, css.site, 'for every theme'] as [string, string, string]]
+        : []),
       ...Object.entries(css?.themes ?? {}).map(
-        ([slug, text]) => [themeCssKey(slug), text] as [string, string],
+        ([slug, text]) =>
+          [themeCssKey(slug), text, `for the theme “${slug}”`] as [string, string, string],
       ),
     ];
-    for (const [key, text] of parts) {
-      if (additionalCssProblem(text)) continue;
-      await writeAdditionalCss(tx, siteId, key, text);
+    if (parts.length > 0) {
+      const all = await allAdditionalCss(tx);
+      const stored = (key: string) =>
+        (key === SITE_CSS_KEY ? all.site : all.themes?.[key.slice('theme:'.length)]) ?? '';
+      const from = [doc.source.name, doc.source.url].filter(Boolean).join(', ') || doc.source.kind;
+      for (const [key, text, what] of parts) {
+        const refused = additionalCssProblem(text);
+        if (refused) {
+          report.warnings.push(`Additional CSS ${what} not imported: ${refused}`);
+          count(report, 'additionalCss', 'skipped');
+          continue;
+        }
+        const merged = mergeAdditionalCss(stored(key), text, from);
+        if (merged.outcome === 'present') {
+          count(report, 'additionalCss', 'skipped');
+          continue;
+        }
+        if (additionalCssProblem(merged.css)) {
+          report.warnings.push(
+            `Additional CSS ${what} not imported: with the site's own it would be longer than ${ADDITIONAL_CSS_MAX.toLocaleString('en')} characters.`,
+          );
+          count(report, 'additionalCss', 'skipped');
+          continue;
+        }
+        await writeAdditionalCss(tx, siteId, key, merged.css);
+        count(report, 'additionalCss');
+        if (merged.outcome === 'appended') {
+          report.warnings.push(
+            `Additional CSS ${what}: the imported CSS was added after the site's own, under the comment “Imported from ${from}”.`,
+          );
+        }
+      }
     }
 
     const takenMenus = new Set((await tx.select().from(menus)).map((m) => `${m.locale}|${m.slug}`));

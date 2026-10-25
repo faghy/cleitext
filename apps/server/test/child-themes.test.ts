@@ -2,13 +2,14 @@
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { DatabaseClient } from '@cleitext/db';
+import { withContext, type DatabaseClient } from '@cleitext/db';
 import { sql } from 'drizzle-orm';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { exportSite } from '../src/transfer/exporter.js';
 import { importDocument } from '../src/transfer/importer.js';
+import { allAdditionalCss } from '../src/themes/additional-css.js';
 import { MediaService } from '../src/media/media.service.js';
 import { PageCacheService } from '../src/public/page-cache.service.js';
 import { PluginServicesProvider } from '../src/plugins/plugin-services.service.js';
@@ -394,6 +395,10 @@ describe('Additional CSS', () => {
     expect(at).toBeGreaterThan(page.indexOf('.kid-css{color:red}'));
     expect(at).toBeGreaterThan(page.indexOf('.base{color:blue}'));
     expect(page.indexOf('</head>')).toBeGreaterThan(at);
+    // The block editor's canvas gets it too, after the theme's editor styles (core 0.80).
+    expect((await editor.get('/api/v1/themes/active/editor-styles')).json()).toMatchObject({
+      additionalCss: '.site-wide{color:teal}\n.only-kid{color:gold}',
+    });
 
     // The preview shows CSS being written; nothing is saved.
     const preview = await admin.post('/api/v1/themes/active/preview', {
@@ -460,5 +465,84 @@ describe('Additional CSS', () => {
     // Unsafe parts are left out.
     expect(page).toContain('.copied{}\n.for-aurora{}');
     expect(page.match(/id="cx-additional-css"/g)).toHaveLength(1);
+  });
+
+  it('is added to the site’s own when imported, once (core 0.80)', async () => {
+    const target = await seedSite(owner, 'css-merge');
+    const [importer] = (await owner.db.execute(
+      sql`select id from users where email = 'root@children.test'`,
+    )) as unknown as { id: string }[];
+    const stored = async () => {
+      const all = await withContext(owner.db, { siteId: target.id }, (tx) => allAdditionalCss(tx));
+      return [
+        ...(all.site ? [{ key: 'site', value: all.site }] : []),
+        ...Object.entries(all.themes ?? {}).map(([slug, value]) => ({
+          key: `theme:${slug}`,
+          value,
+        })),
+      ];
+    };
+    const run = (additionalCss: Record<string, unknown>) =>
+      importDocument(
+        {
+          format: 'cleitext-transfer',
+          version: 1,
+          source: {
+            kind: 'wordpress',
+            name: 'Old blog',
+            url: 'https://old.example.com',
+            exportedAt: new Date().toISOString(),
+          },
+          site: { additionalCss },
+        },
+        {
+          db: owner.db,
+          siteId: target.id,
+          asUserId: importer!.id,
+          media: app.get(MediaService),
+          cache: app.get(PageCacheService),
+          readFile: async () => Buffer.alloc(0),
+        },
+      );
+
+    // Into an empty site: as it is.
+    const first = await run({ site: '.wp{color:red}' });
+    expect(first.errors).toEqual([]);
+    expect(first.created.additionalCss).toBe(1);
+    expect(await stored()).toEqual([{ key: 'site', value: '.wp{color:red}' }]);
+
+    // The same import again: nothing added twice.
+    const again = await run({ site: '.wp{color:red}\n' });
+    expect(again.skipped.additionalCss).toBe(1);
+    expect(await stored()).toEqual([{ key: 'site', value: '.wp{color:red}' }]);
+
+    // Other CSS: after the site's own, under a comment; a theme's part too.
+    const other = await run({
+      site: '.more{color:blue}',
+      themes: { aurora: '.for-aurora{}' },
+    });
+    expect(other.created.additionalCss).toBe(2);
+    expect(other.warnings).toContainEqual(
+      expect.stringContaining(
+        "added after the site's own, under the comment “Imported from Old blog",
+      ),
+    );
+    expect(await stored()).toEqual([
+      {
+        key: 'site',
+        value:
+          '.wp{color:red}\n\n/* Imported from Old blog, https://old.example.com */\n.more{color:blue}\n',
+      },
+      { key: 'theme:aurora', value: '.for-aurora{}' },
+    ]);
+    expect((await run({ site: '.more{color:blue}' })).skipped.additionalCss).toBe(1);
+
+    // Too long together with the site's own, or unsafe: reported, the site's CSS kept.
+    const long = await run({ site: `.x{content:"${'x'.repeat(99_950)}"}` });
+    const unsafe = await run({ site: '</style>' });
+    expect(long.warnings).toContainEqual(expect.stringContaining('would be longer than 100,000'));
+    expect(unsafe.warnings).toContainEqual(expect.stringContaining('cannot contain <style>'));
+    expect((await stored())[0]!.value).toContain('.more{color:blue}');
+    expect((await stored())[0]!.value).not.toContain('xxxx');
   });
 });

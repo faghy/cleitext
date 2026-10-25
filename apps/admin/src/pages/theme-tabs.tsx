@@ -496,7 +496,9 @@ function DocumentEditor({
     void Promise.all([
       import('@cleitext/editor-gutenberg'),
       load(),
-      api<{ css: string }>('GET', '/themes/active/editor-styles').catch(() => ({ css: '' })),
+      api<{ css: string; additionalCss?: string }>('GET', '/themes/active/editor-styles').catch(
+        () => ({ css: '', additionalCss: '' }),
+      ),
       // Plugins' blocks in theme areas too (sidebars, footers).
       editorExtensions(locale),
     ]).then(([{ gutenbergAdapter }, document, styles, extensions]) => {
@@ -509,6 +511,8 @@ function DocumentEditor({
         services: mediaServices(locale),
         locale,
         styles: styles.css,
+        // The site's Additional CSS, last, as on its pages (core 0.80).
+        additionalCss: styles.additionalCss ?? '',
         fieldBlocks: extensions.fieldBlocks,
         styleUrls: extensions.styleUrls,
         onChange: () => save.reset(),

@@ -34,6 +34,11 @@ export interface EditorMountOptions {
   /** Stylesheets of plugins' blocks for the canvas (plugin API 1.23), after the theme's. */
   styleUrls?: string[];
   /**
+   * The site's Additional CSS (core 0.80): for every theme and the active
+   * theme's, applied last in the canvas, as the pages print it last.
+   */
+  additionalCss?: string;
+  /**
    * Shortcuts handled by the host page (e.g. save), listed in the editor's
    * keyboard shortcuts help next to the editor's own (RF-EDT-06).
    */

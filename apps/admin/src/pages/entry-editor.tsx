@@ -182,11 +182,15 @@ function Editor({ initial }: { initial: EntryView }) {
       // Blocks of the plugins active on the site, and their editor entries.
       editorExtensions(userLocale),
       // The theme's styles for the canvas.
-      api<{ css: string }>('GET', '/themes/active/editor-styles').catch(() => ({ css: '' })),
+      api<{ css: string; additionalCss?: string }>('GET', '/themes/active/editor-styles').catch(
+        () => ({ css: '', additionalCss: '' }),
+      ),
     ]).then(([{ gutenbergAdapter }, extensions, styles]) => {
       if (cancelled || !canvasRef.current) return;
       editorRef.current = gutenbergAdapter.mount({
         styles: styles.css,
+        // The site's Additional CSS, last, as on its pages (core 0.80).
+        additionalCss: styles.additionalCss ?? '',
         // Plugin blocks' forms (media, relation fields) read data with the admin's cache.
         queryClient,
         document: documentRef.current,

@@ -420,6 +420,18 @@ cleitext theme:build ./mio-zenit && cleitext theme:install ./mio-zenit
 - **CSS per ogni tema**: appartiene al sito, quindi resta dopo gli aggiornamenti e i cambi di tema;
 - **CSS solo per &lt;tema&gt;**: stampato solo finché quel tema è attivo.
 
+Entrambi sono editor di codice (core 0.80): evidenziazione della sintassi, numeri di riga, parentesi abbinate e completamento delle proprietà CSS, chiari o scuri come l'admin. Tab passa al campo successivo come sempre; l'editor viene caricato solo quando si apre la sezione.
+
 L'anteprima mostra il CSS mentre lo scrivi; **Pubblica** lo salva con le opzioni del tema. Viene stampato per ultimo nell'`<head>` (`<style id="cx-additional-css">`), dopo il CSS del tema, quello di un tema child e quello dei blocchi. Ogni riquadro contiene fino a 100.000 caratteri e non può contenere `<style`, `</style` o `<script` (potrebbe chiudere l'elemento); quanto è salvato viene comunque protetto di nuovo quando si stampa. È conservato nelle impostazioni del sito (namespace `additional-css`, chiavi `site` e `theme:<slug>`), quindi i backup lo comprendono e le esportazioni del sito (`cleitext export`) lo portano nel nuovo sito (`site.additionalCss` del documento di trasferimento).
 
 I temi non hanno più bisogno di un'opzione "CSS personalizzato" propria. Quella di Zenit si è spostata qui con il core 0.79: il suo valore è diventato il CSS aggiuntivo del sito (per ogni tema dove Zenit era il tema del sito, solo per Zenit altrove), e Zenit 1.0.5 non ha più l'opzione.
+
+### Nell'editor a blocchi
+
+Anche l'area di modifica dell'editor a blocchi applica il CSS aggiuntivo (core 0.80): la parte per ogni tema e quella del tema attivo, dopo gli stili per l'editor del tema (`editorCss`, `editor.css`, compresi quelli di un tema child) e gli stili dei blocchi dei plugin, come le pagine lo stampano per ultimo. Resta dentro l'area di modifica (un iframe), quindi l'interfaccia dell'admin non cambia; `GET /themes/active/editor-styles` risponde `{ css, additionalCss }`. Il CSS scritto per il markup del sito (un header, `.site-content p`) lì non trova nulla; le regole sui blocchi, le loro classi e `body` sì. Le modifiche fatte in Personalizza si vedono in un editor aperto dopo (ricarica quello già aperto). L'area di Fresco è la pagina stessa, quindi lo ha già; il riquadro dell'Editor classico non mostra né gli stili per l'editor del tema né questo CSS.
+
+### Importato da WordPress
+
+WordPress conserva il suo CSS aggiuntivo in un post `custom_css` per ogni tema. Il WordPress Importer (1.24) lo porta in **CSS per ogni tema**: l'unico dell'esportazione, oppure quello del tema dell'esportazione (i temi a blocchi lo indicano), altrimenti quello modificato più di recente; gli altri sono nominati nel resoconto dell'importazione. Il CSS che non si potrebbe stampare (markup, più di 100.000 caratteri) viene segnalato e lasciato fuori.
+
+Le importazioni non sostituiscono mai il CSS del sito (comprese quelle di un'esportazione del sito): in un riquadro vuoto il CSS va così com'è, altrimenti viene aggiunto in fondo sotto un commento, `/* Imported from <nome del sito>, <indirizzo> */`, e il resoconto lo dice. Il CSS che il sito ha già non viene aggiunto di nuovo, quindi importare due volte la stessa esportazione non cambia nulla. Quando i due insieme supererebbero il limite, la parte importata resta fuori e viene segnalata.
