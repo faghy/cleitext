@@ -7,6 +7,12 @@ import { CodeEditor, type CodeEditorProps } from '../src/code-editor.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+// jsdom has no layout: CodeMirror measures text ranges after rendering, so give
+// ranges empty rectangles instead of letting a late measurement throw.
+const emptyRects = () => Object.assign([], { item: () => null }) as unknown as DOMRectList;
+Range.prototype.getClientRects ??= emptyRects;
+Range.prototype.getBoundingClientRect ??= () => new DOMRect();
+
 const roots: { root: Root; element: HTMLElement }[] = [];
 afterEach(() => {
   for (const { root, element } of roots.splice(0)) {
