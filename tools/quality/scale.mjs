@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDatabase, migrate } from '../../packages/db/dist/index.js';
 import { createSite } from '../../packages/cli/dist/index.js';
-import { setupTestDatabase } from '../../packages/testing/dist/index.js';
+import { setupTestDatabase, startTempRun } from '../../packages/testing/dist/index.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 // drizzle-orm is a dependency of the db package, not of the workspace root.
@@ -40,6 +40,8 @@ const check = (ok, message) => {
 };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Temporary files (database, media, plugins, themes) in one folder, removed at the end.
+const temp = await startTempRun();
 const db = await setupTestDatabase({ migrate });
 const env = {
   ...process.env,
@@ -179,6 +181,7 @@ try {
   await superuser.close();
   await owner.close();
   await db.teardown();
+  await temp.cleanup();
 }
 
 if (failures.length > 0) {

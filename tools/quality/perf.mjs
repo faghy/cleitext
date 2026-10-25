@@ -19,7 +19,7 @@ import { chromium } from '@playwright/test';
 import lighthouse from 'lighthouse';
 import { launch } from 'chrome-launcher';
 import { migrate } from '../../packages/db/dist/index.js';
-import { setupTestDatabase } from '../../packages/testing/dist/index.js';
+import { setupTestDatabase, startTempRun } from '../../packages/testing/dist/index.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const PORT = 3990;
@@ -41,6 +41,8 @@ const check = (ok, message) => {
 };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Temporary files (database, media, plugins, themes) in one folder, removed at the end.
+const temp = await startTempRun();
 const db = await setupTestDatabase({ migrate });
 const env = {
   ...process.env,
@@ -168,6 +170,7 @@ try {
   server?.kill('SIGINT');
   await wait(500);
   await db.teardown();
+  await temp.cleanup();
 }
 
 if (failures.length > 0) {

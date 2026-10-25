@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [swc.vite({ module: { type: 'es6' } })],
   test: {
     globalSetup: ['./test/global-setup.ts'],
+    // Each test file gets its own temporary folder, removed when it ends.
+    setupFiles: ['@cleitext/testing/vitest-setup'],
     testTimeout: 30_000,
     hookTimeout: 120_000,
     // A transaction that takes a second connection of its pool fails the test (pool exhaustion).

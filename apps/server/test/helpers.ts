@@ -1,6 +1,3 @@
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import {
   createDatabase,
   roles,
@@ -13,6 +10,7 @@ import {
   withSiteContext,
   type DatabaseClient,
 } from '@cleitext/db';
+import { tempDir } from '@cleitext/testing';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { and, eq, isNull } from 'drizzle-orm';
 import { inject } from 'vitest';
@@ -23,8 +21,9 @@ import { loadConfig } from '../src/config/config.js';
 export async function startTestApp(
   options: { pluginsPath?: string; env?: Record<string, string> } = {},
 ): Promise<NestFastifyApplication> {
-  const mediaPath = await mkdtemp(join(tmpdir(), 'cleitext-media-'));
-  const pluginsPath = options.pluginsPath ?? (await mkdtemp(join(tmpdir(), 'cleitext-plugins-')));
+  // Inside the test file's temporary folder (see test/global-setup.ts), removed when it ends.
+  const mediaPath = tempDir('media-');
+  const pluginsPath = options.pluginsPath ?? tempDir('plugins-');
   return createApp(
     loadConfig({
       MEDIA_PATH: mediaPath,

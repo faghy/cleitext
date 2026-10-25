@@ -6,6 +6,7 @@ import {
 } from './postgres.js';
 
 export * from './postgres.js';
+export * from './temp.js';
 
 export interface TestDatabase extends ProvisionedDatabase {
   /** Superuser connection, for tests that create their own roles and databases. */

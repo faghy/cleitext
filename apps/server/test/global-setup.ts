@@ -1,5 +1,5 @@
 import { migrate } from '@cleitext/db';
-import { setupTestDatabase } from '@cleitext/testing';
+import { setupTestDatabase, startTempRun } from '@cleitext/testing';
 import type { TestProject } from 'vitest/node';
 
 declare module 'vitest' {
@@ -11,9 +11,21 @@ declare module 'vitest' {
 }
 
 export default async function setup(project: TestProject) {
-  const db = await setupTestDatabase({ migrate });
+  // Temporary files of the whole run (database included) go in one folder,
+  // removed at the end; folders of runs that were killed are swept here.
+  const temp = await startTempRun();
+  const db = await setupTestDatabase({ migrate }).catch(async (error: unknown) => {
+    await temp.cleanup();
+    throw error;
+  });
   project.provide('appUrl', db.appUrl);
   project.provide('ownerUrl', db.ownerUrl);
   project.provide('superuserUrl', db.superuserUrl);
-  return () => db.teardown();
+  return async () => {
+    try {
+      await db.teardown();
+    } finally {
+      await temp.cleanup();
+    }
+  };
 }
