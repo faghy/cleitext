@@ -76,6 +76,15 @@ const CSS = `
 .agx-preview-label{font-size:.8em;color:var(--agx-muted);margin:0 0 .5rem;text-transform:uppercase;letter-spacing:.04em}
 .agx-days td,.agx-days th{padding:.3rem .4rem;vertical-align:middle}
 .agx-muted{color:var(--agx-muted)}
+.agx-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0}
+.agx-form-list{list-style:none;margin:0;padding:0;display:grid;gap:.6rem}
+.agx-form-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.75rem;align-items:start;border:1px solid var(--agx-border);border-radius:10px;padding:.75rem;background:var(--agx-bg)}
+.agx-form-row.is-hidden{background:var(--agx-soft)}
+.agx-form-row.is-hidden strong{color:var(--agx-muted)}
+.agx-form-row.is-over{border-color:var(--agx-accent);box-shadow:0 0 0 2px var(--agx-accent)}
+.agx-handle{cursor:grab;color:var(--agx-muted);user-select:none;padding-top:.15rem;letter-spacing:-.15em}
+.agx-form-tools{display:grid;gap:.3rem}
+.agx-form-tools .agx-btn{justify-content:center;min-width:2.4rem}
 `;
 
 let injected = false;

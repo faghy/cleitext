@@ -13,6 +13,8 @@ export interface Overview {
   timeZone: string;
   setupDone: boolean;
   services: number;
+  /** How a new service asks the phone (Settings). */
+  phone: Settings['phone'];
   today: number;
   week: number;
   pending: number;

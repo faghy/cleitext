@@ -18,7 +18,7 @@
  * ~/.claude/plans/bookings-research.md (SSA's GPL sources, names only).
  */
 import { csvObjects } from '../model/csv';
-import { COLORS, normalizeService } from '../model/normalize';
+import { COLORS, normalizeFields, normalizeService } from '../model/normalize';
 import { isDate, isTimeZone, parseTime } from '../model/time';
 import type { CustomField, DayHours, EmailKind, EmailText, Status } from '../model/types';
 import { readDump } from './sql';
@@ -141,17 +141,28 @@ export function ssaCustomer(value: unknown) {
 
 const CORE_FIELD = /^(name|email|phone)$/i;
 
+const standardField = (name: 'name' | 'email' | 'phone', state: CustomField['state']) => ({
+  name,
+  label: '',
+  state,
+});
+
 /**
- * The questions of a type: the standard ones SSA shows besides name, email
- * and phone (`customer_information` with `display`: Address, City, Notes…)
- * and the custom ones of its paid versions (`custom_customer_information`).
+ * The booking form of a type: name, email and phone as SSA asks them (name
+ * and email are always required in Agenda), then the standard questions SSA
+ * shows (`customer_information` with `display`: Address, City, Notes…) and
+ * the custom ones of its paid versions (`custom_customer_information`).
+ * The questions are imported optional, even when SSA required them: the
+ * site's owner decides in the service's form which ones to require.
+ * `relaxed` lists those that were required.
  */
-function questionsOf(t: Record<string, unknown>): CustomField[] {
+export function ssaForm(t: Record<string, unknown>): { fields: CustomField[]; relaxed: string[] } {
   const standard = list(t.customer_information)
     .map((f) => obj(f))
     .filter((f) => f.display === undefined || yes(f.display));
   const custom = list(t.custom_customer_information).map((f) => obj(f));
-  const out: CustomField[] = [];
+  const questions: Record<string, unknown>[] = [];
+  const relaxed: string[] = [];
   for (const f of [...standard, ...custom]) {
     const label = text(f.field, 200);
     if (!label || CORE_FIELD.test(label)) continue;
@@ -160,7 +171,8 @@ function questionsOf(t: Record<string, unknown>): CustomField[] {
       .split(/\r?\n|;/)
       .map((o) => o.trim())
       .filter(Boolean);
-    out.push({
+    if (yes(f.required)) relaxed.push(label);
+    questions.push({
       name: fieldName(label),
       label,
       type:
@@ -171,11 +183,21 @@ function questionsOf(t: Record<string, unknown>): CustomField[] {
             : type === 'checkbox' && options.length <= 1
               ? 'checkbox'
               : 'text',
-      required: yes(f.required),
+      state: 'optional',
       options,
     });
   }
-  return out;
+  const phone = phoneOf(t);
+  const fields = normalizeFields([
+    standardField('name', 'required'),
+    standardField('email', 'required'),
+    standardField('phone', phone === 'off' ? 'hidden' : phone),
+    ...questions,
+  ]);
+  // SSA has no notes of its own unless asked: Agenda's stay hidden.
+  if (!fields.some((f) => f.name === 'notes'))
+    fields.push(...normalizeFields([{ name: 'notes', label: '', state: 'hidden' }]));
+  return { fields, relaxed };
 }
 
 /** Whether a type asks the phone, and whether it is required. */
@@ -472,6 +494,7 @@ export function planFromSsa(input: SsaData): ImportPlan {
     const label = labels.get(text(t.label_id, 40));
     const labelName = text(label?.name, 100);
     const labelColor = LABEL_COLORS[text(label?.color, 40)];
+    const form = ssaForm(t);
     const service = normalizeService({
       name: title,
       // SSA's "instructions" are shown to customers when they book.
@@ -492,12 +515,18 @@ export function planFromSsa(input: SsaData): ImportPlan {
         step: fixed ? 0 : step,
         days: ssaDays(t.availability, fixed),
       },
-      fields: questionsOf(t),
+      fields: form.fields,
       data: { import: { from: 'ssa', id, slug: text(t.slug, 100), status: ssaStatus } },
     });
-    // The phone is asked by the site's setting; a type that requires it requires it here too.
-    if (phoneOf(t) === 'required') service.data.askPhone = true;
     plan.services.push({ externalId: `ssa:type:${id}`, service });
+    if (form.relaxed.length)
+      plan.notes.push(
+        note(
+          'info',
+          '“{name}”: {fields} were required in SSA and are imported as optional. You decide which ones to require in the service’s booking form, and can change it at any time.',
+          { name: title, fields: form.relaxed.join(', ') },
+        ),
+      );
     if (ssaStatus !== 'publish')
       plan.notes.push(
         ssaStatus === 'delete' || ssaStatus === 'trash'
@@ -548,6 +577,13 @@ export function planFromSsa(input: SsaData): ImportPlan {
         ),
       );
   });
+  if (plan.services.length)
+    plan.notes.push(
+      note(
+        'info',
+        'Booking forms: name and email are required, the phone is asked as in SSA, every other question is optional. Change them in each service at any time; existing appointments keep their answers.',
+      ),
+    );
   if (plan.services.length)
     plan.notes.push(
       note('info', '{n} appointment type(s) became services: {active} bookable, {hidden} hidden.', {

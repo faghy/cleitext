@@ -32,14 +32,42 @@ export interface Schedule {
 
 export type FieldType = 'text' | 'textarea' | 'select' | 'checkbox' | 'number' | 'date';
 
-/** A question asked with the booking (besides name, email and phone). */
+/** Whether a field of the booking form must be filled in, may be, or is not asked. */
+export const FIELD_STATES = ['required', 'optional', 'hidden'] as const;
+export type FieldState = (typeof FIELD_STATES)[number];
+
+/**
+ * The fields every service has (they cannot be removed, only hidden):
+ * name and email are always required, the booking needs them. Their label
+ * is the visitors' standard text unless one is written.
+ */
+export const STANDARD_FIELDS = ['name', 'email', 'phone', 'notes'] as const;
+export type StandardField = (typeof STANDARD_FIELDS)[number];
+
+/** A field's texts in another language. */
+export interface FieldText {
+  label?: string;
+  help?: string;
+}
+
+/**
+ * A field of the booking form: a standard one (`name`, `email`, `phone`,
+ * `notes`) or a question of the service. The list's order is the form's.
+ */
 export interface CustomField {
   name: string;
+  /** In the site's language (a standard field: empty for the standard text). */
   label: string;
+  /** A short explanation under the field. */
+  help: string;
   type: FieldType;
+  state: FieldState;
+  /** `state === 'required'`, kept for whoever read it before 1.0.1. */
   required: boolean;
   /** Choices of a select, one per line in the admin. */
   options: string[];
+  /** Label and help in the site's other languages. */
+  translations: Record<string, FieldText>;
 }
 
 export interface ServiceText {

@@ -240,6 +240,101 @@ describe('Agenda', () => {
     expect(foreign.statusCode).toBe(403);
   });
 
+  it('asks the fields as each service’s form sets them, for new bookings only', async () => {
+    type Field = { name: string; state: string; label: string; help?: string };
+    const listed = (await admin.get(ext('/services'))).json() as {
+      id: string;
+      fields: Field[];
+    }[];
+    const consulenza = listed.find((x) => x.id === serviceId)!;
+    // Saved before the form was edited: the standard fields, the phone as the settings ask it.
+    expect(consulenza.fields.map((f) => [f.name, f.state])).toEqual([
+      ['name', 'required'],
+      ['email', 'required'],
+      ['phone', 'optional'],
+      ['notes', 'hidden'],
+    ]);
+    const save = (fields: Field[]) =>
+      admin.request('PUT', ext(`/services/${serviceId}`), { ...consulenza, fields });
+    const reason = { name: 'motivo', label: 'Motivo', state: 'required', help: 'In breve' };
+    const form = [
+      ...consulenza.fields.map((f) =>
+        f.name === 'phone'
+          ? { ...f, state: 'required' }
+          : f.name === 'notes'
+            ? { ...f, state: 'optional' }
+            : f,
+      ),
+      reason,
+    ];
+    // Reordered: the question first.
+    expect((await save([form[4]!, ...form.slice(0, 4)])).statusCode).toBe(200);
+    const page = await admin.post('/api/v1/entries', {
+      type: 'page',
+      title: 'Prenota il modulo',
+      document: {
+        schema: 1,
+        blocks: [{ id: 'b_agform', type: 'agenda/booking', v: 1, attrs: { service: serviceId } }],
+      },
+    });
+    const slug = (await admin.post(`/api/v1/entries/${page.json().id}/publish`)).json().slug;
+    let html = (await visitor().get(`/${slug}`)).body;
+    expect(html.indexOf('name="f_motivo"')).toBeLessThan(html.indexOf('name="name"'));
+    expect(html).toContain('In breve');
+    expect(html).toContain('name="f_notes"');
+
+    const [first, second] = (await slots(serviceId)).slots;
+    const missing = await visitor().post(
+      ext('/public/book'),
+      booking(serviceId, first!.start, { phone: '', email: 'form@example.test' }),
+    );
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json().fields).toEqual(['f_motivo', 'phone']);
+    const ok = await visitor().post(
+      ext('/public/book'),
+      booking(serviceId, first!.start, {
+        email: 'form@example.test',
+        fields: { motivo: 'Controllo', notes: 'Prima volta' },
+      }),
+    );
+    expect(ok.statusCode, ok.body).toBe(201);
+
+    // The question hidden and renamed: not asked any more, ignored if sent; the booking keeps it.
+    expect(
+      (
+        await save(
+          form.map((f) =>
+            f.name === 'motivo'
+              ? { ...f, state: 'hidden', label: 'Ragione' }
+              : f.name === 'phone'
+                ? { ...f, state: 'optional' }
+                : f,
+          ),
+        )
+      ).statusCode,
+    ).toBe(200);
+    html = (await visitor().get(`/${slug}`)).body;
+    expect(html).not.toContain('name="f_motivo"');
+    const later = await visitor().post(
+      ext('/public/book'),
+      booking(serviceId, second!.start, {
+        phone: '',
+        email: 'form2@example.test',
+        fields: { motivo: 'Ignorato' },
+      }),
+    );
+    expect(later.statusCode, later.body).toBe(201);
+    const items = (await admin.get(ext('/appointments?q=example.test'))).json().items as {
+      email: string;
+      fields: { name: string; label: string; value: string }[];
+    }[];
+    expect(items.find((a) => a.email === 'form@example.test')!.fields).toEqual([
+      { name: 'motivo', label: 'Motivo', value: 'Controllo' },
+      { name: 'notes', label: 'Note', value: 'Prima volta' },
+    ]);
+    expect(items.find((a) => a.email === 'form2@example.test')!.fields).toEqual([]);
+  });
+
   it('never books the same place twice, even at the same moment', async () => {
     const start = (await slots(serviceId)).slots[3]!.start;
     const answers = await Promise.all(
@@ -358,6 +453,16 @@ describe('Agenda', () => {
     expect(preview.json().preview).toMatchObject({ appointments: 3, future: 2, timezone: ROME });
     const run = await admin.post(ext('/import/run'), { kind: 'ssa' });
     expect(run.json().result).toMatchObject({ services: 3, appointments: 3, exceptions: 1 });
+    // The questions are imported optional; what the owner decides here survives a new import.
+    const imported = ((await admin.get(ext('/services'))).json() as Record<string, unknown>[]).find(
+      (x) => (x.data as { import?: { id?: string } }).import?.id === '2',
+    )!;
+    const fields = imported.fields as { name: string; state: string }[];
+    expect(fields.find((f) => f.name === 'note')!.state).toBe('optional');
+    await admin.request('PUT', ext(`/services/${imported.id as string}`), {
+      ...imported,
+      fields: fields.map((f) => (f.name === 'note' ? { ...f, state: 'required' } : f)),
+    });
     await admin.upload(ext('/import/files'), 'ssa.json', json, 'application/json');
     const again = await admin.post(ext('/import/run'), { kind: 'ssa' });
     expect(again.json().result).toMatchObject({
@@ -367,6 +472,10 @@ describe('Agenda', () => {
       existing: 3,
     });
     expect((await admin.get(ext('/overview'))).json().limit.used).toBe(before);
+    const reimported = ((await admin.get(ext('/services'))).json() as { id: string }[]).find(
+      (x) => x.id === imported.id,
+    ) as unknown as { fields: { name: string; state: string }[] };
+    expect(reimported.fields.find((f) => f.name === 'note')!.state).toBe('required');
 
     // [ssa_booking type="1"] of a WordPress page becomes the block, which finds the imported service.
     const blocks = await app.get(PluginHost).applyFilter(

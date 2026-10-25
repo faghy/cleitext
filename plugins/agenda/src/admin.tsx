@@ -154,6 +154,7 @@ function AgendaPage({ plugin, site }: AdminPageProps) {
           timeZone={overview.timeZone}
           locales={site.locales.map((l) => l.code)}
           defaultLocale={site.defaultLocale}
+          phone={overview.phone}
           onChanged={refresh}
         />
       ) : tab === 'closures' ? (

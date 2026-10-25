@@ -45,6 +45,7 @@ import {
   serviceText,
   str,
 } from './model/normalize';
+import { formOf, readAnswers } from './model/form';
 import { stringsFor } from './model/strings';
 import { addDays, daysBetween, isDate, isTimeZone, localDate, formatWhen } from './model/time';
 import { readLink } from './model/tokens';
@@ -549,26 +550,15 @@ export default definePlugin({
         if (!service || service.status === 'archived')
           return { status: 404, body: { code: 'service', message: s.unavailable } };
         const start = Date.parse(str(input.start, 40));
-        const name = str(input.name, 200);
-        const email = str(input.email, 200).toLowerCase();
-        const phone = str(input.phone, 40);
-        const phoneRequired = settings.phone === 'required' || service.data.askPhone === true;
-        const bad: string[] = [];
-        if (!name) bad.push('name');
-        if (!isEmail(email)) bad.push('email');
-        if (phoneRequired && !/^[0-9+()\-./\s]{5,40}$/.test(phone)) bad.push('phone');
+        // Checked against the service's form as it is now; existing bookings keep their answers.
+        const answers = readAnswers(
+          formOf(service, settings.phone),
+          input,
+          stringsFor(site.defaultLocale),
+        );
+        const { name, email, phone, fields } = answers;
+        const bad = answers.bad;
         if (input.consent !== true && input.consent !== '1') bad.push('consent');
-        const answers = (
-          input.fields && typeof input.fields === 'object' ? input.fields : {}
-        ) as Record<string, unknown>;
-        const fields: Appointment['fields'] = [];
-        for (const field of service.fields) {
-          const value = str(answers[field.name], 2000);
-          if (field.required && !value) bad.push(`f_${field.name}`);
-          if (field.type === 'select' && value && !field.options.includes(value))
-            bad.push(`f_${field.name}`);
-          if (value) fields.push({ name: field.name, label: field.label, value });
-        }
         if (Number.isNaN(start)) bad.push('start');
         if (bad.length)
           return { status: 400, body: { code: 'invalid', message: s.invalid, fields: bad } };
@@ -942,6 +932,7 @@ export default definePlugin({
           timeZone: site.timeZone,
           setupDone: settings.setupDone || services.length > 0,
           services: services.length,
+          phone: settings.phone,
           today: upcoming.filter(
             (a) => localDate(Date.parse(a.start), site.timeZone) === today(site.timeZone),
           ).length,
@@ -953,11 +944,21 @@ export default definePlugin({
       };
     });
 
-    adminRoute('GET', '/services', async (request) => ({
-      body: await store.listServices(request.siteId, { archived: request.query.archived === '1' }),
-    }));
+    // The admin edits the whole form: services saved before 1.0.1 get their standard fields.
+    adminRoute('GET', '/services', async (request) => {
+      const { phone } = await settingsOf(request.siteId);
+      const list = await store.listServices(request.siteId, {
+        archived: request.query.archived === '1',
+      });
+      return { body: list.map((s) => ({ ...s, fields: formOf(s, phone) })) };
+    });
     adminRoute('POST', '/services', async (request) => {
-      const service = await store.createService(request.siteId, normalizeService(body(request)));
+      const { phone } = await settingsOf(request.siteId);
+      const input = normalizeService(body(request));
+      const service = await store.createService(request.siteId, {
+        ...input,
+        fields: formOf(input, phone),
+      });
       await ctx.cache.invalidate(request.siteId, [CACHE_TAG]);
       return { status: 201, body: service };
     });

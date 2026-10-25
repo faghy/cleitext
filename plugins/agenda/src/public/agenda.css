@@ -292,6 +292,17 @@
 .ag-label {
   font-weight: 600;
 }
+.ag-checkfield {
+  display: grid;
+  gap: 0.2rem;
+}
+.ag-help {
+  font-size: 0.9em;
+  color: var(--agenda-muted);
+}
+.ag-checkfield .ag-help {
+  padding-left: 2.15rem;
+}
 .ag-optional {
   font-weight: 400;
   color: var(--agenda-muted);

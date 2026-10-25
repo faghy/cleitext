@@ -244,8 +244,37 @@ describe('normalizing', () => {
         { label: 'Scelta', type: 'select', options: 'a\nb\n\n' },
       ]),
     ).toEqual([
-      { name: 'et', label: 'Età', type: 'number', required: false, options: [] },
-      { name: 'field-2', label: 'Scelta', type: 'select', required: false, options: ['a', 'b'] },
+      {
+        name: 'et',
+        label: 'Età',
+        help: '',
+        type: 'number',
+        state: 'optional',
+        required: false,
+        options: [],
+        translations: {},
+      },
+      // A standard field: always required, its own type.
+      {
+        name: 'email',
+        label: 'Email',
+        help: '',
+        type: 'text',
+        state: 'required',
+        required: true,
+        options: [],
+        translations: {},
+      },
+      {
+        name: 'field-3',
+        label: 'Scelta',
+        help: '',
+        type: 'select',
+        state: 'optional',
+        required: false,
+        options: ['a', 'b'],
+        translations: {},
+      },
     ]);
     expect(normalizeException({ from: '2030-02-30' })).toBeNull();
     expect(normalizeException({ from: '2030-02-10', to: '2030-02-01' })).toBeNull();

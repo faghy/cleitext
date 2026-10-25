@@ -1,14 +1,17 @@
 /**
  * The services: a list, and the editor of one with the essentials first
- * (name, duration, hours) and the rest under "More options" (buffers,
- * notice, places, approval, questions, other languages), with the live
- * preview beside it.
+ * (name, duration, hours, the booking form) and the rest under "More
+ * options" (buffers, notice, places, approval, other languages), with the
+ * live preview of the calendar and of the form beside it.
  */
 import { useT } from '@cleitext/admin-sdk';
 import { useState } from 'react';
 import { COLORS, defaultSchedule, normalizeService } from '../model/normalize';
-import type { CustomField, Service } from '../model/types';
+import { formOf } from '../model/form';
+import { stringsFor } from '../model/strings';
+import type { Service, Settings } from '../model/types';
 import { agenda, messageOf } from './api';
+import { FormEditor } from './form';
 import { Preview } from './preview';
 import { ScheduleEditor } from './schedule';
 import { Check, Field } from './ui';
@@ -18,12 +21,15 @@ export function Services({
   timeZone,
   locales,
   defaultLocale,
+  phone,
   onChanged,
 }: {
   services: Service[];
   timeZone: string;
   locales: string[];
   defaultLocale: string;
+  /** The settings' phone: how a new service asks it. */
+  phone: Settings['phone'];
   onChanged: () => void;
 }) {
   const { t } = useT();
@@ -34,6 +40,7 @@ export function Services({
         initial={editing}
         timeZone={timeZone}
         locales={locales.filter((l) => l !== defaultLocale)}
+        defaultLocale={defaultLocale}
         onClose={() => setEditing(null)}
         onSaved={() => {
           setEditing(null);
@@ -57,6 +64,7 @@ export function Services({
                 duration: 30,
                 schedule: defaultSchedule(),
                 color: COLORS[services.length % COLORS.length],
+                fields: formOf({ fields: [], data: {} }, phone),
               }),
             )
           }
@@ -132,12 +140,15 @@ function ServiceEditor({
   initial,
   timeZone,
   locales,
+  defaultLocale,
   onClose,
   onSaved,
 }: {
   initial: Service;
   timeZone: string;
+  /** The site's other languages. */
   locales: string[];
+  defaultLocale: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -147,8 +158,6 @@ function ServiceEditor({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<Service>) => setS((x) => ({ ...x, ...patch }));
-  const setField = (i: number, patch: Partial<CustomField>) =>
-    set({ fields: s.fields.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
 
   async function save() {
     setBusy(true);
@@ -271,6 +280,15 @@ function ServiceEditor({
             />
           </div>
           <div className="agx-card agx-grid">
+            <h3>{t('Booking form')}</h3>
+            <FormEditor
+              fields={s.fields}
+              onChange={(fields) => set({ fields })}
+              locales={locales}
+              strings={stringsFor(defaultLocale)}
+            />
+          </div>
+          <div className="agx-card agx-grid">
             <button
               type="button"
               className="agx-link"
@@ -372,86 +390,6 @@ function ServiceEditor({
                   checked={s.approval}
                   onChange={(approval) => set({ approval })}
                 />
-                <div className="agx-grid">
-                  <h3>{t('Questions for the customer')}</h3>
-                  <p className="agx-help">
-                    {t(
-                      'Name, email and phone are always asked (the phone as set in Settings). Add only what you really need.',
-                    )}
-                  </p>
-                  {s.fields.map((f, i) => (
-                    <div key={i} className="agx-row" style={{ alignItems: 'flex-end' }}>
-                      <Field label={t('Question')}>
-                        <input
-                          type="text"
-                          value={f.label}
-                          onChange={(e) =>
-                            setField(i, { label: e.target.value, name: f.name || e.target.value })
-                          }
-                        />
-                      </Field>
-                      <Field label={t('Answer')}>
-                        <select
-                          value={f.type}
-                          onChange={(e) =>
-                            setField(i, { type: e.target.value as CustomField['type'] })
-                          }
-                        >
-                          <option value="text">{t('Short text')}</option>
-                          <option value="textarea">{t('Long text')}</option>
-                          <option value="select">{t('A choice')}</option>
-                          <option value="checkbox">{t('Yes/no box')}</option>
-                          <option value="number">{t('Number')}</option>
-                          <option value="date">{t('Date')}</option>
-                        </select>
-                      </Field>
-                      {f.type === 'select' ? (
-                        <Field label={t('Choices (one per line)')}>
-                          <textarea
-                            value={f.options.join('\n')}
-                            onChange={(e) => setField(i, { options: e.target.value.split('\n') })}
-                            style={{ minHeight: '2.4rem' }}
-                          />
-                        </Field>
-                      ) : null}
-                      <Check
-                        label={t('Required')}
-                        checked={f.required}
-                        onChange={(required) => setField(i, { required })}
-                      />
-                      <button
-                        type="button"
-                        className="agx-btn"
-                        aria-label={t('Remove')}
-                        onClick={() => set({ fields: s.fields.filter((_, j) => j !== i) })}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  <div>
-                    <button
-                      type="button"
-                      className="agx-link"
-                      onClick={() =>
-                        set({
-                          fields: [
-                            ...s.fields,
-                            {
-                              name: `question-${s.fields.length + 1}`,
-                              label: '',
-                              type: 'text',
-                              required: false,
-                              options: [],
-                            },
-                          ],
-                        })
-                      }
-                    >
-                      + {t('Add a question')}
-                    </button>
-                  </div>
-                </div>
                 {locales.length ? (
                   <div className="agx-grid">
                     <h3>{t('Other languages')}</h3>
@@ -493,7 +431,11 @@ function ServiceEditor({
             ) : null}
           </div>
         </div>
-        <Preview service={normalizeService(s)} timeZone={timeZone} />
+        <Preview
+          service={normalizeService(s)}
+          timeZone={timeZone}
+          locales={[defaultLocale, ...locales]}
+        />
       </div>
     </div>
   );

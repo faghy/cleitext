@@ -21,6 +21,10 @@ import { IT } from '../src/admin/it';
 import { parseWpbc, parseWpbcForm } from '../src/import/wpbc';
 import { csvObjects, parseCsv, toCsv } from '../src/model/csv';
 import { localDate, localMinutes } from '../src/model/time';
+import type { CustomField } from '../src/model/types';
+
+const STANDARD = ['name', 'email', 'phone', 'notes'];
+const states = (fields: CustomField[]) => fields.map((f) => [f.name, f.state]);
 
 const fixture = (name: string) =>
   readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
@@ -50,13 +54,28 @@ describe('Simply Schedule Appointments', () => {
     expect(one!.schedule.mode).toBe('fixed');
     expect(one!.schedule.days[4]!.times).toEqual([780, 855, 930]);
     expect(one!.schedule.days[1]!.times).toEqual([]);
-    expect(one!.data.askPhone).toBe(true);
+    // SSA required the phone: it stays required (name and email always are).
+    expect(states(one!.fields).slice(0, 3)).toEqual([
+      ['name', 'required'],
+      ['email', 'required'],
+      ['phone', 'required'],
+    ]);
+    expect(one!.data.askPhone).toBeUndefined();
     expect(one!.data.import).toMatchObject({ from: 'ssa', id: '1', slug: 'consulenza-online' });
     expect(group).toMatchObject({ capacity: 8, status: 'hidden' });
     expect(group!.schedule).toMatchObject({ mode: 'intervals', step: 30 });
     expect(group!.schedule.days[6]!.windows).toEqual([{ start: 540, end: 720 }]);
-    expect(group!.fields).toEqual([
-      { name: 'note', label: 'Note', type: 'textarea', required: false, options: [] },
+    expect(group!.fields.filter((f) => f.name === 'note')).toEqual([
+      {
+        name: 'note',
+        label: 'Note',
+        help: '',
+        type: 'textarea',
+        state: 'optional',
+        required: false,
+        options: [],
+        translations: {},
+      },
     ]);
   });
 
@@ -170,14 +189,33 @@ describe('Simply Schedule Appointments, its tables as JSON rows', () => {
     expect(online!.schedule.mode).toBe('fixed');
     expect(online!.schedule.days[2]!.times).toEqual([600, 675, 750]);
     expect(online!.schedule.days.filter((d) => d.times.length)).toHaveLength(1);
-    expect(online!.data.askPhone).toBe(true);
-    // Shown standard questions become the service's; hidden ones (Notes) do not.
-    expect(online!.fields.map((f) => [f.name, f.required])).toEqual([
-      ['address', true],
-      ['zip', false],
+    // Shown standard questions become the service's, optional even when SSA
+    // required them (Address); hidden ones (Notes) do not: Agenda's notes stay hidden.
+    expect(states(online!.fields)).toEqual([
+      ['name', 'required'],
+      ['email', 'required'],
+      ['phone', 'required'],
+      ['address', 'optional'],
+      ['zip', 'optional'],
+      ['notes', 'hidden'],
     ]);
-    expect(studio).toMatchObject({ status: 'hidden', fields: [] });
-    expect(studio!.data.askPhone).toBeUndefined();
+    expect(texts).toContain(
+      '“{name}”: {fields} were required in SSA and are imported as optional. You decide which ones to require in the service’s booking form, and can change it at any time.',
+    );
+    expect(plan.notes.find((n) => n.text.includes('were required in SSA'))?.values).toEqual({
+      name: online!.name,
+      fields: 'Address',
+    });
+    expect(texts.some((t) => t.startsWith('Booking forms: name and email are required'))).toBe(
+      true,
+    );
+    expect(studio).toMatchObject({ status: 'hidden' });
+    expect(states(studio!.fields)).toEqual([
+      ['name', 'required'],
+      ['email', 'required'],
+      ['phone', 'hidden'],
+      ['notes', 'hidden'],
+    ]);
     expect(call).toMatchObject({ status: 'hidden', category: 'Telefono', color: '#009688' });
     expect(texts).toContain(
       '“{name}” was deleted in SSA: it is imported hidden, with its appointments.',
@@ -323,15 +361,30 @@ describe('Simply Schedule Appointments, its tables as JSON rows', () => {
       body: 'Ci vediamo {date}, {time}',
     });
     expect(withReminder.settings!.shared).toBe(false);
-    expect(withReminder.services[0]!.service.fields).toEqual([
+    expect(
+      withReminder.services[0]!.service.fields.filter((f) => !STANDARD.includes(f.name)),
+    ).toEqual([
       {
         name: 'colore',
         label: 'Colore',
+        help: '',
         type: 'select',
-        required: true,
+        // Required in SSA: optional here, the owner decides.
+        state: 'optional',
+        required: false,
         options: ['Rosso', 'Blu'],
+        translations: {},
       },
-      { name: 'privacy', label: 'Privacy', type: 'checkbox', required: false, options: [] },
+      {
+        name: 'privacy',
+        label: 'Privacy',
+        help: '',
+        type: 'checkbox',
+        state: 'optional',
+        required: false,
+        options: [],
+        translations: {},
+      },
     ]);
     expect(withReminder.notes.filter((n) => n.kind === 'skipped').map((n) => n.values)).toEqual([
       { title: 'Follow-up' },

@@ -119,7 +119,12 @@ export function SettingsTab({ onSaved }: { onSaved: () => void }) {
           checked={s.shared}
           onChange={(shared) => set({ shared })}
         />
-        <Field label={t('Phone number')}>
+        <Field
+          label={t('Phone number of new services')}
+          help={t(
+            'Each service can ask it differently, and its other fields too, in its booking form (Services).',
+          )}
+        >
           <select
             value={s.phone}
             onChange={(e) => set({ phone: e.target.value as Settings['phone'] })}
@@ -131,7 +136,7 @@ export function SettingsTab({ onSaved }: { onSaved: () => void }) {
         </Field>
       </div>
       <div className="agx-card agx-grid">
-        <h2>{t('Customers’ changes and reminders')}</h2>
+        <h2>{t('Customers’ changes')}</h2>
         <Check
           label={t('Customers may cancel from the link in their email')}
           checked={s.allowCancel}
@@ -151,23 +156,31 @@ export function SettingsTab({ onSaved }: { onSaved: () => void }) {
             style={{ width: '8rem' }}
           />
         </Field>
+      </div>
+      <div className="agx-card agx-grid" data-agx-reminder="">
+        <h2>{t('Reminder')}</h2>
         <Check
-          label={t('Send a reminder before the appointment')}
+          label={t('Send customers a reminder email before the appointment')}
+          help={t(
+            'On by default, 24 hours before. You can turn it off or change the hours at any time; its text is in “Customers’ emails” below.',
+          )}
           checked={s.reminders}
           onChange={(reminders) => set({ reminders })}
         />
-        {s.reminders ? (
-          <Field label={t('Hours before')}>
-            <input
-              type="number"
-              min={1}
-              max={168}
-              value={s.reminderHours}
-              onChange={(e) => set({ reminderHours: Number(e.target.value) })}
-              style={{ width: '8rem' }}
-            />
-          </Field>
-        ) : null}
+        <Field
+          label={t('Hours before')}
+          help={s.reminders ? undefined : t('Reminders are off: no reminder is sent.')}
+        >
+          <input
+            type="number"
+            min={1}
+            max={168}
+            value={s.reminderHours}
+            disabled={!s.reminders}
+            onChange={(e) => set({ reminderHours: Number(e.target.value) })}
+            style={{ width: '8rem' }}
+          />
+        </Field>
       </div>
       <div className="agx-card agx-grid">
         <h2>{t('Privacy')}</h2>

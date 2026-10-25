@@ -4,7 +4,9 @@
  * time on it (service → day → time → details → done), the administrator
  * sees the appointment, and the cancel link of the confirmation works.
  * Then two visitors try the same time at once: only one gets it, the
- * other is told and sees the free times again. The plugin is installed
+ * other is told and sees the free times again. The owner shapes a
+ * service's booking form (required, hidden, a question moved up with the
+ * keyboard) and a visitor gets that form. The plugin is installed
  * fresh at the start and uninstalled (with all its data) at the end, so the
  * three browsers sharing the database start from the same state.
  */
@@ -168,6 +170,86 @@ test('the wizard makes a booking page, and a visitor books, sees the admin and c
   await visitor.context().close();
   expect(errors).toEqual([]);
   expect(visitorErrors).toEqual([]);
+});
+
+test('the owner shapes a service’s booking form, and visitors get it', async ({
+  page,
+  browser,
+}) => {
+  const stamp = Date.now().toString(36);
+  await signIn(page);
+  await activate(page);
+  const days = Array.from({ length: 7 }, () => ({
+    windows: [{ start: '09:00', end: '17:00' }],
+    times: [],
+  }));
+  const service = await api<{ id: string }>(page, 'POST', '/ext/agenda/services', {
+    name: `Form ${stamp}`,
+    duration: 60,
+    schedule: { mode: 'intervals', step: 60, days },
+  });
+  await page.goto('/cl-admin/ext/agenda?tab=services');
+  await page.getByRole('button', { name: `Form ${stamp}` }).click();
+  const editor = page.locator('.agx-form-list');
+  // The phone required, the notes hidden… and a question of the service, moved up with the keyboard.
+  await editor
+    .locator('[data-field="phone"]')
+    .getByRole('button', { name: 'Required', exact: true })
+    .click();
+  await page.getByRole('button', { name: '+ Add a question' }).click();
+  const question = editor.locator('li').last();
+  await question.getByLabel('Question').fill('Allergies');
+  await question.getByLabel('Help text (optional)').fill('So we can prepare');
+  await question.getByRole('button', { name: /^Move up/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(editor.locator('li').nth(3)).toHaveAttribute('data-field', 'question-5');
+  const preview = page.locator('[data-agx-form-preview]');
+  await expect(preview).toContainText('Allergies');
+  await expect(preview).toContainText('So we can prepare');
+  await expect(preview.locator('textarea')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.agx-table')).toContainText(`Form ${stamp}`);
+
+  const entry = await api<{ id: string }>(page, 'POST', '/entries', {
+    type: 'page',
+    title: `Form ${stamp}`,
+    document: {
+      schema: 1,
+      blocks: [{ id: `b_${stamp}`, type: 'agenda/booking', v: 1, attrs: { service: service.id } }],
+    },
+  });
+  pages.push(entry.id);
+  const published = await api<{ slug: string }>(page, 'POST', `/entries/${entry.id}/publish`);
+  const visitor = await newVisitor(browser);
+  await visitor.goto(new URL(`/${published.slug}`, SITE).toString());
+  const times = await chooseDay(visitor);
+  await times.first().click();
+  await fillDetails(visitor, `Form ${stamp}`, `form-${stamp}@example.com`);
+  const form = visitor.locator('.ag-form');
+  await expect(form.locator('input[name="phone"]')).toHaveAttribute('required', '');
+  await expect(form.locator('[name="f_notes"]')).toHaveCount(0);
+  const names = await form
+    .locator('fieldset:not([disabled]) [name]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('name')));
+  expect(names).toEqual(['name', 'email', 'phone', 'f_question-5']);
+  // The phone is required now: the booking waits for it.
+  await visitor.getByRole('button', { name: /^(Book|Prenota)$/ }).click();
+  await expect(form.locator('input[name="phone"]')).toHaveAttribute('aria-invalid', 'true');
+  await form.locator('input[name="phone"]').fill('+39 333 1234567');
+  await form.locator('[name="f_question-5"]').fill('None');
+  await visitor.getByRole('button', { name: /^(Book|Prenota)$/ }).click();
+  await expect(
+    visitor.getByRole('heading', { name: /You are booked!|Prenotazione fatta!/ }),
+  ).toBeVisible();
+  const list = await api<{ items: { fields: { label: string; value: string }[] }[] }>(
+    page,
+    'GET',
+    `/ext/agenda/appointments?service=${service.id}`,
+  );
+  expect(list.items[0]!.fields).toEqual([
+    { name: 'question-5', label: 'Allergies', value: 'None' },
+  ]);
+  await visitor.context().close();
 });
 
 test('the same time cannot be booked twice', async ({ page, browser }) => {

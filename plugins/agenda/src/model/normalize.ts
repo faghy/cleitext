@@ -5,16 +5,21 @@
 import { formatTime, isDate, isTimeZone, parseTime } from './time';
 import {
   EMAIL_KINDS,
+  FIELD_STATES,
+  STANDARD_FIELDS,
   type CustomField,
   type DayHours,
   type EmailKind,
   type EmailText,
   type Exception,
+  type FieldState,
+  type FieldText,
   type FieldType,
   type Schedule,
   type Service,
   type ServiceText,
   type Settings,
+  type StandardField,
   type Window,
 } from './types';
 
@@ -107,13 +112,48 @@ export function normalizeSchedule(value: unknown): Schedule {
 }
 
 const FIELD_TYPES: FieldType[] = ['text', 'textarea', 'select', 'checkbox', 'number', 'date'];
-const RESERVED = new Set(['name', 'email', 'phone', 'consent', 'website', 'service', 'start']);
+/** Names of the form's other inputs: never a question's. */
+const RESERVED = new Set([
+  'consent',
+  'website',
+  'service',
+  'start',
+  'fields',
+  'locale',
+  'timezone',
+]);
+const LOCALE = /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/i;
+
+export const isStandardField = (name: string): name is StandardField =>
+  (STANDARD_FIELDS as readonly string[]).includes(name);
+/** Name and email: the booking needs them, so they are always asked and required. */
+export const isFixedField = (name: string) => name === 'name' || name === 'email';
+
+function normalizeFieldTexts(value: unknown): Record<string, FieldText> {
+  const out: Record<string, FieldText> = {};
+  for (const [locale, v] of Object.entries(obj(value)).slice(0, 30)) {
+    if (!LOCALE.test(locale)) continue;
+    const o = obj(v);
+    const t: FieldText = {};
+    if (str(o.label, 300)) t.label = str(o.label, 300);
+    if (str(o.help, 500)) t.help = str(o.help, 500);
+    if (Object.keys(t).length) out[locale] = t;
+  }
+  return out;
+}
+
+function fieldState(o: Record<string, unknown>, name: string): FieldState {
+  if (isFixedField(name)) return 'required';
+  if ((FIELD_STATES as readonly unknown[]).includes(o.state)) return o.state as FieldState;
+  // Before 1.0.1: a boolean.
+  return bool(o.required, false) ? 'required' : 'optional';
+}
 
 export function normalizeFields(value: unknown): CustomField[] {
   const list = Array.isArray(value) ? value : [];
   const out: CustomField[] = [];
   const seen = new Set<string>();
-  for (const item of list.slice(0, 20)) {
+  for (const item of list.slice(0, 30)) {
     const o = obj(item);
     const label = str(o.label, 300);
     let name = str(o.name, 40)
@@ -122,9 +162,16 @@ export function normalizeFields(value: unknown): CustomField[] {
       .replace(/^[^a-z]+/, '')
       .replace(/-+$/, '');
     if (!name) name = `field-${out.length + 1}`;
-    if (!label || RESERVED.has(name) || seen.has(name)) continue;
+    const standard = isStandardField(name);
+    if ((!label && !standard) || RESERVED.has(name) || seen.has(name)) continue;
     seen.add(name);
-    const type = FIELD_TYPES.includes(o.type as FieldType) ? (o.type as FieldType) : 'text';
+    const type = standard
+      ? name === 'notes'
+        ? 'textarea'
+        : 'text'
+      : FIELD_TYPES.includes(o.type as FieldType)
+        ? (o.type as FieldType)
+        : 'text';
     const options = (
       Array.isArray(o.options)
         ? o.options
@@ -135,7 +182,17 @@ export function normalizeFields(value: unknown): CustomField[] {
       .map((x) => str(x, 200))
       .filter(Boolean)
       .slice(0, 50);
-    out.push({ name, label, type, required: bool(o.required, false), options });
+    const state = fieldState(o, name);
+    out.push({
+      name,
+      label,
+      help: str(o.help, 500),
+      type,
+      state,
+      required: state === 'required',
+      options: type === 'select' ? options : [],
+      translations: normalizeFieldTexts(o.translations),
+    });
   }
   return out;
 }
@@ -143,7 +200,7 @@ export function normalizeFields(value: unknown): CustomField[] {
 function normalizeTranslations(value: unknown): Record<string, ServiceText> {
   const out: Record<string, ServiceText> = {};
   for (const [locale, v] of Object.entries(obj(value)).slice(0, 30)) {
-    if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})?$/i.test(locale)) continue;
+    if (!LOCALE.test(locale)) continue;
     const o = obj(v);
     const t: ServiceText = {};
     if (str(o.name, 200)) t.name = str(o.name, 200);

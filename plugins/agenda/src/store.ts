@@ -25,6 +25,7 @@ import {
 import { boolean, date, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import type { ImportPlan } from './import/types';
 import { COUNTED_SOURCES } from './model/limit';
+import { mergeImportedFields } from './model/form';
 import { normalizeException, normalizeService } from './model/normalize';
 import { freeSlots, placesLeft, type Busy } from './model/slots';
 import { localDate } from './model/time';
@@ -826,8 +827,13 @@ export function databaseStore(ctx: PluginContext) {
           const known = ids.get(item.externalId);
           if (known) {
             const [row] = await tx.select().from(services).where(eq(services.id, known));
-            // Keep what was changed here; take the other plugin's settings again.
-            const merged = normalizeService({ ...item.service, color: serviceOf(row!).color });
+            // Keep what was changed here (the colour, the booking form); take the other plugin's settings again.
+            const before = serviceOf(row!);
+            const merged = normalizeService({
+              ...item.service,
+              color: before.color,
+              fields: mergeImportedFields(before.fields, item.service.fields),
+            });
             await tx
               .update(services)
               .set({ ...serviceColumns(merged), status: row!.status, updatedAt: new Date() })

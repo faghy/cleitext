@@ -1,17 +1,32 @@
 /**
  * What the customer will see, live, while a service is set up: the booking
  * widget's own stylesheet with its month calendar and the first free day's
- * times, computed by the same function as the site (no appointments yet).
+ * times, computed by the same function as the site (no appointments yet),
+ * and the booking form as the site draws it, in each language of the site.
  */
 import { useT } from '@cleitext/admin-sdk';
 import { useMemo, useState } from 'react';
+import { formOf, visibleFields } from '../model/form';
 import { freeSlots } from '../model/slots';
+import { stringsFor } from '../model/strings';
 import { addDays, localDate } from '../model/time';
 import type { Service } from '../model/types';
+import { FormField } from '../render';
 import { pad } from './ui';
 
-export function Preview({ service, timeZone }: { service: Service; timeZone: string }) {
+export function Preview({
+  service,
+  timeZone,
+  locales = [],
+}: {
+  service: Service;
+  timeZone: string;
+  /** The site's languages, its own first: the form is shown in each (none: the admin's). */
+  locales?: string[];
+}) {
   const { t, language } = useT();
+  const [formLocale, setFormLocale] = useState(locales[0] ?? language);
+  const strings = stringsFor(formLocale);
   const lang = language === 'it' ? 'it-IT' : 'en-GB';
   const today = localDate(Date.now(), timeZone);
   const first = `${today.slice(0, 7)}-01`;
@@ -112,6 +127,46 @@ export function Preview({ service, timeZone }: { service: Service; timeZone: str
           ) : (
             <p className="ag-note">{t('No free times this month with these hours.')}</p>
           )}
+        </div>
+      </div>
+      <div className="agx-row" style={{ justifyContent: 'space-between', margin: '1rem 0 .5rem' }}>
+        <p className="agx-preview-label" style={{ margin: 0 }}>
+          {t('The booking form')}
+        </p>
+        {locales.length > 1 ? (
+          <div className="agx-chips" role="group" aria-label={t('Language of the preview')}>
+            {locales.map((l) => (
+              <button
+                key={l}
+                type="button"
+                className="agx-chip"
+                aria-pressed={l === formLocale}
+                onClick={() => setFormLocale(l)}
+              >
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="agx-preview" data-agx-form-preview="">
+        <div className="ag" style={{ maxWidth: '100%' }} lang={formLocale}>
+          <div className="ag-form">
+            <div className="ag-fields">
+              {visibleFields(formOf(service)).map((field) => (
+                <FormField
+                  key={field.name}
+                  field={field}
+                  uid="agx-preview"
+                  strings={strings}
+                  locale={formLocale}
+                />
+              ))}
+            </div>
+            <span className="ag-primary" style={{ textAlign: 'center' }}>
+              {strings.book}
+            </span>
+          </div>
         </div>
       </div>
     </div>

@@ -59,7 +59,6 @@ export const IT: Record<string, string> = {
   'Customers may cancel from the link in their email':
     'I clienti possono annullare dal link nella loro email',
   'Customers may move to another time': 'I clienti possono spostare l’appuntamento',
-  'Customers’ changes and reminders': 'Modifiche dei clienti e promemoria',
   'Customers’ emails': 'Email ai clienti',
   Date: 'Data',
   Day: 'Giorno',
@@ -120,8 +119,6 @@ export const IT: Record<string, string> = {
   Moved: 'Spostamento',
   Name: 'Nome',
   'Name of the service': 'Nome del servizio',
-  'Name, email and phone are always asked (the phone as set in Settings). Add only what you really need.':
-    'Nome, email e telefono si chiedono sempre (il telefono come da Impostazioni). Aggiungi solo ciò che ti serve davvero.',
   'Name, email, phone and answers are erased this many months after the appointment; the appointment stays, without them. 0: kept.':
     'Nome, email, telefono e risposte vengono cancellati dopo questi mesi dall’appuntamento; l’appuntamento resta, senza di essi. 0: conservati.',
   'Needs approval': 'Da approvare',
@@ -157,7 +154,6 @@ export const IT: Record<string, string> = {
   Past: 'Passati',
   Pending: 'In attesa',
   Phone: 'Telefono',
-  'Phone number': 'Numero di telefono',
   Places: 'Posti',
   'Places per time': 'Posti per orario',
   Previous: 'Precedente',
@@ -168,7 +164,6 @@ export const IT: Record<string, string> = {
   'Privacy policy page': 'Pagina della privacy policy',
   'Private notes': 'Note private',
   Question: 'Domanda',
-  'Questions for the customer': 'Domande per il cliente',
   Reminder: 'Promemoria',
   Remove: 'Rimuovi',
   'Remove this service? With appointments it is archived, and they are kept.':
@@ -179,7 +174,6 @@ export const IT: Record<string, string> = {
   'Save notes': 'Salva le note',
   'Save settings': 'Salva le impostazioni',
   'Search name, email, phone': 'Cerca nome, email, telefono',
-  'Send a reminder before the appointment': 'Manda un promemoria prima dell’appuntamento',
   'Send bookings and cancellations to': 'Manda prenotazioni e annullamenti a',
   'Send the confirmation to the customer': 'Manda la conferma al cliente',
   Service: 'Servizio',
@@ -342,4 +336,36 @@ export const IT: Record<string, string> = {
   '{n} resource(s) became services, {a} booking(s) became appointments.':
     '{n} risorse diventano servizi, {a} prenotazioni diventano appuntamenti.',
   '{n} booking(s) left out: without dates.': '{n} prenotazioni non importate: senza date.',
+  'New question': 'Nuova domanda',
+  '{field} moved to position {n} of {total}.': '{field} spostato in posizione {n} di {total}.',
+  Optional: 'Facoltativo',
+  'Choose for each field whether it is required, optional or hidden, and its order: drag it, or use the arrows. Name and email are always required, the booking needs them. Changes apply to new bookings; existing ones keep their answers.':
+    'Scegli per ogni campo se è obbligatorio, facoltativo o nascosto, e il suo ordine: trascinalo, oppure usa le frecce. Nome ed email sono sempre obbligatori, servono alla prenotazione. Le modifiche valgono per le nuove prenotazioni; quelle esistenti tengono le loro risposte.',
+  'Drag to move': 'Trascina per spostare',
+  'Standard field': 'Campo standard',
+  'Always required: the booking needs it.': 'Sempre obbligatorio: serve alla prenotazione.',
+  '{field}: how it is asked': '{field}: come viene chiesto',
+  Label: 'Etichetta',
+  'Help text (optional)': 'Testo di aiuto (facoltativo)',
+  'The standard text of the language': 'Il testo standard della lingua',
+  'Move up: {field}': 'Sposta su: {field}',
+  'Move down: {field}': 'Sposta giù: {field}',
+  'Remove: {field}': 'Rimuovi: {field}',
+  'The booking form': 'Il modulo di prenotazione',
+  'Language of the preview': 'Lingua dell’anteprima',
+  'Booking form': 'Modulo di prenotazione',
+  'Phone number of new services': 'Telefono dei nuovi servizi',
+  'Each service can ask it differently, and its other fields too, in its booking form (Services).':
+    'Ogni servizio può chiederlo in modo diverso, come gli altri campi, nel suo modulo di prenotazione (Servizi).',
+  'Customers’ changes': 'Modifiche dei clienti',
+  'Send customers a reminder email before the appointment':
+    'Manda ai clienti un’email di promemoria prima dell’appuntamento',
+  'On by default, 24 hours before. You can turn it off or change the hours at any time; its text is in “Customers’ emails” below.':
+    'Attivo di base, 24 ore prima. Puoi spegnerlo o cambiare le ore quando vuoi; il suo testo è in “Email ai clienti” qui sotto.',
+  'Reminders are off: no reminder is sent.':
+    'Promemoria spenti: non viene mandato nessun promemoria.',
+  '“{name}”: {fields} were required in SSA and are imported as optional. You decide which ones to require in the service’s booking form, and can change it at any time.':
+    '“{name}”: {fields} erano obbligatori in SSA e sono importati come facoltativi. Decidi tu quali rendere obbligatori nel modulo di prenotazione del servizio, e puoi cambiarlo quando vuoi.',
+  'Booking forms: name and email are required, the phone is asked as in SSA, every other question is optional. Change them in each service at any time; existing appointments keep their answers.':
+    'Moduli di prenotazione: nome ed email sono obbligatori, il telefono è chiesto come in SSA, ogni altra domanda è facoltativa. Puoi cambiarli in ogni servizio quando vuoi; gli appuntamenti esistenti tengono le loro risposte.',
 };
