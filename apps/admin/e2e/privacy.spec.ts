@@ -150,6 +150,116 @@ test('the cookie banner asks, remembers and holds scripts until consent', async 
   expect(appErrors(errors)).toEqual([]);
 });
 
+/** A theme that restyles every button, like Zenit (from Astra) or Aurora. */
+const HOSTILE_THEME = `button,.button,input[type=button]{padding:15px 30px;line-height:2;margin:4px;background:#2e7d32;color:#fff;border:1px solid #2e7d32;border-radius:0;text-transform:uppercase;letter-spacing:2px;min-height:60px;min-width:120px;font:700 18px/2 serif}
+body button:hover,body button:focus,.ast-button:hover{background:green;color:yellow;border-color:green;box-shadow:0 0 0 4px red;outline:none}
+button svg{width:15px;height:15px}`;
+
+const LOOK = [
+  'padding',
+  'margin',
+  'lineHeight',
+  'backgroundColor',
+  'color',
+  'borderTopWidth',
+  'borderTopColor',
+  'borderRadius',
+  'boxShadow',
+  'textTransform',
+  'letterSpacing',
+  'fontSize',
+  'fontWeight',
+  'width',
+  'height',
+] as const;
+
+test("the banner's buttons keep their look on a theme that restyles every button", async ({
+  page,
+  browser,
+}) => {
+  await signIn(page);
+  await call(page, 'POST', '/plugins/privacy/activate');
+  const config = await call<Record<string, Record<string, unknown>>>(
+    page,
+    'GET',
+    '/ext/privacy/config',
+  );
+  await call(page, 'PUT', '/ext/privacy/config', {
+    ...config,
+    banner: {
+      ...config.banner,
+      enabled: true,
+      floatingButton: true,
+      color: '#0f4c81',
+      categories: ['statistics', 'marketing'],
+    },
+    cmp: { ...config.cmp, provider: 'none' },
+    askAgain: true,
+  });
+
+  const context = await browser.newContext({ baseURL: SITE });
+  const visitor = await context.newPage();
+  await visitor.goto('/');
+  const banner = visitor.getByRole('dialog', { name: 'Your privacy' });
+  await expect(banner).toBeVisible();
+  const look = (selector: string) =>
+    visitor.$eval(
+      selector,
+      (el, props) => {
+        const style = getComputedStyle(el) as unknown as Record<string, string>;
+        return Object.fromEntries(props.map((p) => [p, style[p]]));
+      },
+      [...LOOK],
+    );
+  const buttons = [
+    '[data-cx="accept"]',
+    '.cx-consent__buttons [data-cx="reject"]',
+    '[data-cx="customize"]',
+  ];
+  const before: Record<string, Record<string, string>> = {};
+  for (const b of [...buttons, '.cx-consent__close']) before[b] = await look(b);
+
+  await visitor.addStyleTag({ content: HOSTILE_THEME });
+  await visitor.mouse.move(0, 0);
+  for (const b of buttons) {
+    expect(await look(b), `${b} at rest`).toEqual(before[b]);
+    await visitor.hover(b);
+    expect(await look(b), `${b} on hover`).toEqual(before[b]);
+    await visitor.focus(b);
+    expect(await look(b), `${b} on focus`).toEqual(before[b]);
+  }
+  // The close button: an × with no box around it, also on hover.
+  await visitor.hover('.cx-consent__close');
+  const close = await look('.cx-consent__close');
+  expect(close).toEqual(before['.cx-consent__close']);
+  expect(close.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+  expect(close.padding).toBe('0px');
+  expect(close.borderTopWidth).toBe('0px');
+  expect(close.boxShadow).toBe('none');
+  // From the keyboard the focus ring stays.
+  await visitor.focus('[data-cx="accept"]');
+  await visitor.keyboard.press('Shift+Tab');
+  await visitor.keyboard.press('Tab');
+  const ring = await visitor.$eval(':focus', (el) => getComputedStyle(el).outlineStyle);
+  expect(ring).toBe('solid');
+
+  // The floating button: a circle with its icon at full size.
+  await banner.getByRole('button', { name: 'Reject all' }).click();
+  const reopen = visitor.getByRole('button', { name: 'Cookie preferences' });
+  await expect(reopen).toBeVisible();
+  await reopen.hover();
+  const circle = await look('.cx-consent-reopen');
+  expect(circle.width).toBe('44px');
+  expect(circle.height).toBe('44px');
+  expect(circle.padding).toBe('0px');
+  expect(circle.borderRadius).toBe('50%');
+  expect(circle.backgroundColor).toBe('rgb(15, 76, 129)');
+  const icon = await visitor.locator('.cx-consent-reopen svg').boundingBox();
+  expect(icon?.width).toBe(22);
+  expect(icon?.height).toBe(22);
+  await context.close();
+});
+
 test('the admin page writes a privacy policy as a draft made of blocks', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

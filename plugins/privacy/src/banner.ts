@@ -178,25 +178,41 @@ ${gated}
 <script>${SCRIPT.replace('CONSENT_PATH', CONSENT_PATH)}</script>`;
 }
 
+/**
+ * The banner's controls are kept apart from the theme's global `button`
+ * styles (padding, line-height, colours on hover and focus…): each one first
+ * goes back to the browser's own look (`all: revert`), then gets this
+ * plugin's values, under selectors that outweigh the usual theme rules
+ * (`button`, `.button`, `body button:hover`, `.ast-button:focus`…) in every
+ * state, without `!important`. The root class is doubled for the banner and
+ * tripled for the floating button, which lives outside it.
+ */
+const ROOT = '.cx-consent.cx-consent';
+const REOPEN = '.cx-consent-reopen.cx-consent-reopen.cx-consent-reopen';
+const RESET =
+  'all:revert;box-sizing:border-box;margin:0;font:inherit;text-transform:none;letter-spacing:normal;word-spacing:normal;text-align:center;text-indent:0;text-shadow:none;text-decoration:none;white-space:normal;box-shadow:none;min-width:0;min-height:0;max-width:none;max-height:none;opacity:1;filter:none;transform:none;transition:none;cursor:pointer;-webkit-appearance:none;appearance:none';
+
 const STYLE = `.cx-consent{position:fixed;z-index:2147483000;box-sizing:border-box;background:#fff;color:#1f2937;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 -4px 24px rgba(0,0,0,.15);padding:1.25rem 3rem 1.25rem 1.5rem}
 .cx-consent[hidden],.cx-consent [hidden],.cx-consent-reopen[hidden]{display:none!important}
 .cx-consent--bar{left:0;right:0;bottom:0}
 .cx-consent--box{left:1rem;bottom:1rem;max-width:26rem;border-radius:.75rem;box-shadow:0 8px 32px rgba(0,0,0,.2)}
 .cx-consent__title{margin:0 0 .35rem;font-size:1.1rem;line-height:1.3;color:inherit}
 .cx-consent__text{margin:0 0 1rem;max-width:62rem}
-.cx-consent a{color:COLOR;text-decoration:underline}
+${ROOT} a,${ROOT} a:hover,${ROOT} a:focus{color:COLOR;text-decoration:underline}
 .cx-consent__choices{display:grid;gap:.6rem;margin:0 0 1rem}
 .cx-consent--bar .cx-consent__choices{grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))}
 .cx-consent__choice{display:flex;gap:.5rem;align-items:flex-start;cursor:pointer}
 .cx-consent__choice input{margin-top:.3rem;accent-color:COLOR}
 .cx-consent__choice small{color:#4b5563}
 .cx-consent__buttons{display:flex;flex-wrap:wrap;gap:.5rem}
-.cx-consent__button{font:inherit;font-weight:600;padding:.6rem 1.1rem;border-radius:.4rem;border:2px solid COLOR;background:COLOR;color:#fff;cursor:pointer}
-.cx-consent__button--plain{background:transparent;color:COLOR}
-.cx-consent__button:focus-visible,.cx-consent__close:focus-visible,.cx-consent-reopen:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
-.cx-consent__close{position:absolute;top:.5rem;right:.6rem;width:2.25rem;height:2.25rem;border:0;background:transparent;color:#374151;font-size:1.6rem;line-height:1;cursor:pointer;border-radius:.4rem}
-.cx-consent-reopen{position:fixed;z-index:2147482999;left:1rem;bottom:1rem;width:2.75rem;height:2.75rem;border-radius:50%;border:0;background:COLOR;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;display:flex;align-items:center;justify-content:center}
-@media (max-width:40rem){.cx-consent--box{left:.5rem;right:.5rem;bottom:.5rem;max-width:none}.cx-consent__button{flex:1 1 auto}}
+${ROOT} .cx-consent__button{${RESET};display:inline-block;width:auto;height:auto;font-weight:600;line-height:1.5;padding:.6rem 1.1rem;border-radius:.4rem;border:2px solid COLOR;background:COLOR;color:#fff}
+${ROOT} .cx-consent__button--plain{background:transparent;color:COLOR}
+${ROOT} .cx-consent__close{${RESET};position:absolute;top:.5rem;right:.6rem;display:block;width:2.25rem;height:2.25rem;padding:0;border:0;border-radius:.4rem;background:transparent;color:#374151;font-size:1.6rem;font-weight:400;line-height:1}
+${REOPEN}{${RESET};position:fixed;z-index:2147482999;left:1rem;bottom:1rem;display:flex;align-items:center;justify-content:center;width:2.75rem;height:2.75rem;padding:0;border:0;border-radius:50%;background:COLOR;color:#fff;line-height:1;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+${REOPEN} svg{all:revert;display:block;flex:none;width:22px;height:22px;max-width:none;max-height:none;margin:0}
+${REOPEN} svg path{fill:currentColor}
+${ROOT} .cx-consent__button:focus-visible,${ROOT} .cx-consent__close:focus-visible,${REOPEN}:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
+@media (max-width:40rem){.cx-consent--box{left:.5rem;right:.5rem;bottom:.5rem;max-width:none}${ROOT} .cx-consent__button{flex:1 1 auto}}
 @media print{.cx-consent,.cx-consent-reopen{display:none!important}}`;
 
 /**
