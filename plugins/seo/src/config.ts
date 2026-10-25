@@ -50,9 +50,13 @@ export const TITLE_VARIABLES = [
 ] as const;
 
 export function applyTemplate(template: string, values: Record<string, string>): string {
-  return template
-    .replace(/%%([a-z_]+)%%/g, (_m, name: string) => values[name] ?? '')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/^\s*[-–—|·:]\s*|\s*[-–—|·:]\s*$/g, '')
-    .trim();
+  return (
+    template
+      .replace(/%%([a-z_]+)%%/g, (_m, name: string) => values[name] ?? '')
+      .replace(/\s{2,}/g, ' ')
+      // A variable without a value leaves no double separator ("Title – – Site").
+      .replace(/(\s[-–—|·:])(?:\s+[-–—|·:])+(?=\s|$)/g, '$1')
+      .replace(/^\s*[-–—|·:]\s*|\s*[-–—|·:]\s*$/g, '')
+      .trim()
+  );
 }

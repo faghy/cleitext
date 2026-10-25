@@ -107,5 +107,8 @@ describe('title templates', () => {
     expect(
       applyTemplate('%%title%% %%sep%% %%category%%', { title: 'Hi', sep: '–', category: '' }),
     ).toBe('Hi');
+    expect(
+      applyTemplate('%%title%% - %%sitedesc%% - %%sitename%%', { title: 'Hi', sitename: 'Site' }),
+    ).toBe('Hi - Site');
   });
 });

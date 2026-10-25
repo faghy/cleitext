@@ -138,6 +138,33 @@ describe('SEO', () => {
     await admin.request('PATCH', '/api/v1/plugins/seo/settings', { separator: '|' });
   });
 
+  it('shows imported titles as the whole title, without the site’s name again', async () => {
+    // From Yoast SEO: an old home page that is now an ordinary page.
+    const imported = await publish('page', 'Old home', {
+      fields: { seo: { title: 'Hotel Aurora - Welcome', fullTitle: true } },
+    });
+    expect((await visitor.get(`/${imported.slug}`)).body).toContain(
+      '<title>Hotel Aurora - Welcome</title>',
+    );
+    // Titles with variables are whole titles too, the variables resolved.
+    const templated = await publish('page', 'Rooms', {
+      fields: {
+        seo: {
+          title: '%%title%% %%sep%% %%sitedesc%% %%sep%% %%sitename%%',
+          description: 'Our %%title%%',
+        },
+      },
+    });
+    const html = (await visitor.get(`/${templated.slug}`)).body;
+    expect(html).toContain('<title>Rooms | Site official</title>');
+    expect(html).toContain('<meta name="description" content="Our Rooms"/>');
+    await admin.request('PATCH', '/api/v1/settings/core', { tagline: 'By the sea' });
+    expect((await visitor.get(`/${templated.slug}`)).body).toContain(
+      '<title>Rooms | By the sea | Site official</title>',
+    );
+    await admin.request('PATCH', '/api/v1/settings/core', { tagline: '' });
+  });
+
   it('keeps out of the sitemaps what is kept out of search', async () => {
     const shown = await publish('page', 'Shown page', {
       document: {

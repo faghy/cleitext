@@ -9,6 +9,8 @@ interface SeoFields {
   canonical?: string | null;
   keyphrase?: string | null;
   socialImage?: string | null;
+  /** Imported from Yoast SEO or Rank Math: the whole title, as there. */
+  fullTitle?: boolean | null;
 }
 
 interface Crumb {
@@ -103,6 +105,8 @@ function canonicalOf(seo: SeoFields): string | null {
   const value = seo.canonical?.trim();
   return value && /^https?:\/\/[^\s"'<>]+$/.test(value) ? value : null;
 }
+
+const hasVariables = (value: string) => /%%[a-z_]+%%/.test(value);
 
 const sameUrl = (a: string, b: string) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 
@@ -252,10 +256,39 @@ export default definePlugin({
         const entry = context.entry;
         const seo = (entry?.fields.seo ?? {}) as SeoFields;
         context.tag('seo');
+        const ownTitle = seo.title?.trim() ?? '';
+        // Imported titles and those with variables are the whole title, as in Yoast SEO.
+        const fullTitle = Boolean(ownTitle) && (seo.fullTitle === true || hasVariables(ownTitle));
+        const tagline = async (locale: string) => {
+          try {
+            // Plugin API 1.47; missing on older cores.
+            const v = await (ctx as Partial<PluginContext>).dynamic?.resolve(
+              context.siteId,
+              'site.tagline',
+              { locale },
+            );
+            return typeof v === 'string' ? v : '';
+          } catch {
+            return '';
+          }
+        };
+        const values = async (template: string) => ({
+          title: entry?.title ?? '',
+          sep: separator,
+          sitename: siteName,
+          sitedesc: template.includes('%%sitedesc%%') ? await tagline(context.locale) : '',
+          excerpt: entry?.excerpt ?? '',
+          category: entry?.terms?.category?.[0]?.name ?? '',
+          name: entry?.author?.displayName ?? '',
+          currentyear: String(new Date().getFullYear()),
+        });
 
         // Title: the template of the content type, "<page> <separator> <site>" by default.
-        if (entry && !isHome(entry.url)) {
-          const pageTitle = seo.title?.trim() || entry.title;
+        if (entry && fullTitle) {
+          next.title = applyTemplate(ownTitle, await values(ownTitle)) || head.title;
+          next.og['og:title'] = next.title;
+        } else if (entry && !isHome(entry.url)) {
+          const pageTitle = ownTitle || entry.title;
           const template = cfg.titles[entry.type]?.trim();
           next.title = template
             ? applyTemplate(template, {
@@ -283,8 +316,13 @@ export default definePlugin({
           next.title = head.title.replace(' – ', ` ${separator} `);
         }
 
+        const ownDescription = seo.description?.trim() ?? '';
         const description =
-          seo.description?.trim() || head.description || String(settings.defaultDescription ?? '');
+          (hasVariables(ownDescription)
+            ? applyTemplate(ownDescription, await values(ownDescription))
+            : ownDescription) ||
+          head.description ||
+          String(settings.defaultDescription ?? '');
         if (description) {
           next.description = description;
           next.og['og:description'] = description;
@@ -340,7 +378,7 @@ export default definePlugin({
           entry && !isHome(context.path)
             ? await trail(ctx, context.siteId, {
                 id: entry.id,
-                title: seo.title?.trim() || entry.title,
+                title: (!fullTitle && ownTitle) || entry.title,
                 url: entry.url,
                 locale: entry.locale,
               })
@@ -356,7 +394,7 @@ export default definePlugin({
           entry: entry
             ? {
                 type: entry.type,
-                title: seo.title?.trim() || entry.title,
+                title: (!fullTitle && ownTitle) || entry.title,
                 publishedAt: entry.publishedAt,
                 author: entry.author?.displayName ?? null,
                 sections: Object.values(entry.terms ?? {})

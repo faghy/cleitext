@@ -56,6 +56,8 @@ export interface HeadInput {
   archive?: { taxonomy?: string; term?: string; type?: string; home?: boolean };
   entry?: HeadEntry;
   seo: EntrySeo;
+  /** The site's tagline, for `%sitedesc%` in an entry's own title. */
+  sitedesc?: string;
   /** The social image chosen for the page, or the site's default one. */
   image?: { url: string; width?: number | null; height?: number | null; alt?: string } | null;
   now?: Date;
@@ -220,7 +222,7 @@ export function buildHead(input: HeadInput): Head {
     // A title of the SEO plugin is the page's part only: the template adds the rest.
     title =
       seo.title && !seo.legacyTitle
-        ? replaceVariables(seo.title, vars)
+        ? replaceVariables(seo.title, { ...vars, sitedesc: input.sitedesc ?? '' })
         : replaceVariables(
             typeTitle,
             seo.title ? { ...vars, title: replaceVariables(seo.title, vars) } : vars,

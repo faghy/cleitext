@@ -163,6 +163,26 @@ describe('Vetta SEO', () => {
     expect(meta(html, 'description')).toBe('Kept description');
   });
 
+  it('shows titles imported from Yoast SEO as they are, without the site’s name again', async () => {
+    const home = await publish('page', 'Old home', {
+      fields: { seo: { title: 'Hotel Aurora - Welcome', fullTitle: true } },
+    });
+    expect((await visitor.get(`/${home.slug}`)).body).toContain(
+      '<title>Hotel Aurora - Welcome</title>',
+    );
+    const rooms = await publish('page', 'Rooms', {
+      fields: { seo: { title: '%%title%% - %%sitedesc%% - %%sitename%%', fullTitle: true } },
+    });
+    expect((await visitor.get(`/${rooms.slug}`)).body).toContain(
+      '<title>Rooms - Site vetta</title>',
+    );
+    await admin.request('PATCH', '/api/v1/settings/core', { tagline: 'By the sea' });
+    expect((await visitor.get(`/${rooms.slug}`)).body).toContain(
+      '<title>Rooms - By the sea - Site vetta</title>',
+    );
+    await admin.request('PATCH', '/api/v1/settings/core', { tagline: '' });
+  });
+
   it('serves robots.txt and llms.txt, and logs pages not found', async () => {
     await admin.request('PUT', '/api/v1/ext/vetta/config', {
       config: {

@@ -69,6 +69,36 @@ describe('the head', () => {
     expect(typed.title).toBe('Espresso (Coffee) – Bar');
   });
 
+  it('shows titles imported from Yoast SEO as the whole title, without the site’s name again', () => {
+    const title = (seo: Record<string, unknown>, over: Partial<HeadInput> = {}) =>
+      buildHead(input({ seo: entrySeo({ seo }), ...over })).title;
+    // The old SEO plugin's own titles stay the page's part.
+    expect(title({ title: 'Our espresso' })).toBe('Our espresso – Bar');
+    // Imported: shown as they are, the variables resolved.
+    expect(title({ title: 'Home - Bar Aurora', fullTitle: true })).toBe('Home - Bar Aurora');
+    expect(title({ title: '%%title%% - %%sitename%%', fullTitle: true })).toBe('Espresso - Bar');
+    // With variables they were always meant as the whole title.
+    expect(title({ title: '%%title%% | %%sitename%%' })).toBe('Espresso | Bar');
+    expect(
+      title(
+        {
+          title:
+            '%%title%% %%page%% - %%category%% - %%sitedesc%% - %%excerpt%% %%currentyear%% %%name%%',
+          fullTitle: true,
+        },
+        { sitedesc: 'Coffee since 1950', now: new Date('2026-10-25T00:00:00Z') },
+      ),
+    ).toBe('Espresso - Coffee - Coffee since 1950 - How we make it. 2026 Ada');
+    expect(
+      title(
+        { title: '%%title%% %%page%% - %%sitedesc%% - %%sitename%%', fullTitle: true },
+        {
+          path: '/espresso/page/2',
+        },
+      ),
+    ).toBe('Espresso – Page 2 - Bar');
+  });
+
   it('follows the robots precedence: entry, then content type, then the site', () => {
     expect(robotsFor(input({ config: { robots_noindex: true } })).noindex).toBe(true);
     expect(
@@ -188,6 +218,9 @@ describe('the fields and settings', () => {
       entrySeo({ seo: { title: 'Old', keyphrase: 'tea', noindex: true, socialImage: 'm1' } }),
     ).toMatchObject({ title: 'Old', keywords: 'tea', noindex: true, ogImage: 'm1' });
     expect(entrySeo({ vetta: { title: 'New' }, seo: { title: 'Old' } }).title).toBe('New');
+    expect(entrySeo({ seo: { title: 'Old' } }).legacyTitle).toBe(true);
+    expect(entrySeo({ seo: { title: 'Old - Site', fullTitle: true } }).legacyTitle).toBeUndefined();
+    expect(entrySeo({ seo: { title: '%%title%% - %%sitename%%' } }).legacyTitle).toBeUndefined();
   });
 
   it('keep plain values only', () => {

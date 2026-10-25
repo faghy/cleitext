@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { wxrToDocument } from './wxr';
+import { seoTemplate, wxrToDocument } from './wxr';
 
 // The export of a small WordPress site, shared with the core's import tests,
 // which import the transfer document saved next to it.
@@ -215,8 +215,8 @@ ${meta('_yoast_wpseo_title', 'About us %%sep%% %%sitename%%')}${meta('_yoast_wps
       type: 'portfolio',
       featuredMediaRef: 'att:5',
       fields: {
+        // Rank Math's own pattern: left to the site's.
         seo: {
-          title: '%%title%% %%sep%% %%sitename%%',
           description: 'Our work for a shop.',
           keyphrase: 'shop site',
           noindex: true,
@@ -226,7 +226,8 @@ ${meta('_yoast_wpseo_title', 'About us %%sep%% %%sitename%%')}${meta('_yoast_wps
     });
     expect(document.entries!.find((e) => e.ref === 'post:11')!.fields).toEqual({
       seo: {
-        title: 'About us %%sep%% %%sitename%%',
+        title: 'About us - %%sitename%%',
+        fullTitle: true,
         description: 'Who we are.',
         keyphrase: 'web agency',
       },
@@ -234,5 +235,82 @@ ${meta('_yoast_wpseo_title', 'About us %%sep%% %%sitename%%')}${meta('_yoast_wps
     // WordPress's and builders' own records are neither content nor worth a warning.
     expect(document.entries!.some((e) => e.ref === 'post:12')).toBe(false);
     expect(warnings.join('\n')).not.toContain('elementor_library');
+  });
+});
+
+describe('Yoast SEO titles', () => {
+  it('keep the variables Cleitext’s SEO plugins know, under their names', () => {
+    expect(seoTemplate('%%title%% at %%sitename%%')).toBe('%%title%% at %%sitename%%');
+    expect(seoTemplate('%%sitename%%: %%sitedesc%%')).toBe('%%sitename%%: %%sitedesc%%');
+    expect(seoTemplate('%%title%% %%page%%')).toBe('%%title%% %%page%%');
+    expect(seoTemplate('%%primary_category%% news')).toBe('%%category%% news');
+    expect(seoTemplate('%%category%% news')).toBe('%%category%% news');
+    expect(seoTemplate('%%excerpt%%')).toBe('%%excerpt%%');
+    expect(seoTemplate('Offers %%currentyear%%')).toBe('Offers %%currentyear%%');
+    expect(seoTemplate('Posts by %%name%%')).toBe('Posts by %%name%%');
+  });
+
+  it('write the separator the old site used, a hyphen by default', () => {
+    expect(seoTemplate('Rooms %%sep%% Hotel')).toBe('Rooms - Hotel');
+    expect(seoTemplate('Rooms %%sep%% Hotel', 'sc-pipe')).toBe('Rooms | Hotel');
+    expect(seoTemplate('Rooms %%sep%% Hotel', 'sc-ndash')).toBe('Rooms – Hotel');
+    expect(seoTemplate('Rooms %%sep%% Hotel', '•')).toBe('Rooms • Hotel');
+  });
+
+  it('drop unknown variables without double separators or stray spaces', () => {
+    expect(seoTemplate('%%title%% %%sep%% %%cf_price%% %%sep%% %%sitename%%')).toBe(
+      '%%title%% - %%sitename%%',
+    );
+    expect(seoTemplate('%%ct_brand%% | %%title%%  |  %%focuskw%%')).toBe('%%title%%');
+    expect(seoTemplate('  %%term404%%   Contacts  ')).toBe('Contacts');
+    // A hyphen inside words is not a separator.
+    expect(seoTemplate('Check-in %%unknown%% - Hotel')).toBe('Check-in - Hotel');
+  });
+
+  const page = (yoast: Record<string, string>, options: { seoSeparator?: string } = {}) => {
+    const metas = Object.entries(yoast)
+      .map(
+        ([k, v]) =>
+          `<wp:postmeta><wp:meta_key>${k}</wp:meta_key><wp:meta_value><![CDATA[${v}]]></wp:meta_value></wp:postmeta>`,
+      )
+      .join('');
+    const xml = `<?xml version="1.0"?>
+<rss xmlns:wp="http://wordpress.org/export/1.2/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Hotel</title><wp:wxr_version>1.2</wp:wxr_version><wp:base_blog_url>https://h.example</wp:base_blog_url>
+<item><title>Home</title><link>https://h.example/home/</link><dc:creator>ann</dc:creator><wp:post_id>2</wp:post_id><wp:post_name>home</wp:post_name><wp:status>publish</wp:status><wp:post_type>page</wp:post_type><content:encoded>Hi</content:encoded>${metas}</item>
+</channel></rss>`;
+    return wxrToDocument(xml, { locale: 'en', ...options }).document.entries![0]!.fields;
+  };
+
+  it('are the whole title, shown as it is: the site’s name is not added again', () => {
+    expect(page({ _yoast_wpseo_title: 'Hotel Aurora &amp; Spa - Welcome' })).toEqual({
+      seo: { title: 'Hotel Aurora & Spa - Welcome', fullTitle: true },
+    });
+    expect(
+      page({ _yoast_wpseo_title: '%%title%% %%sep%% %%sitedesc%%' }, { seoSeparator: 'sc-pipe' }),
+    ).toEqual({
+      seo: { title: '%%title%% | %%sitedesc%%', fullTitle: true },
+    });
+  });
+
+  it('are left empty when they are the site’s default pattern', () => {
+    expect(page({ _yoast_wpseo_title: '%%title%% - %%sitename%%' })).toBeUndefined();
+    expect(page({ _yoast_wpseo_title: '%%title%% %%page%% %%sep%% %%sitename%%' })).toBeUndefined();
+    expect(
+      page({
+        _yoast_wpseo_title: '%%title%% %%sep%% %%sitename%%',
+        _yoast_wpseo_metadesc: '%%excerpt%%',
+      }),
+    ).toBeUndefined();
+    // A description with variables keeps them, the unknown ones go.
+    expect(
+      page({ _yoast_wpseo_metadesc: '%%excerpt%% %%sep%% %%cf_x%% %%sep%% Book now' }),
+    ).toEqual({
+      seo: { description: '%%excerpt%% - Book now' },
+    });
+  });
+
+  it('never end with half a variable when cut to 70 characters', () => {
+    const fields = page({ _yoast_wpseo_title: `${'a'.repeat(58)} %%sep%% %%sitename%%` });
+    expect(fields).toEqual({ seo: { title: 'a'.repeat(58), fullTitle: true } });
   });
 });

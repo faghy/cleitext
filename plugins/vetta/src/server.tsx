@@ -399,6 +399,15 @@ export default definePlugin({
               : null) ??
             (await mediaUrl(value(config, 'og_image')));
         }
+        // The tagline, read only by titles that show it (plugin API 1.47; missing on older cores).
+        const tagline = async (locale: string) => {
+          try {
+            const v = await ctx.dynamic?.resolve(context.siteId, 'site.tagline', { locale });
+            return typeof v === 'string' ? v : '';
+          } catch {
+            return '';
+          }
+        };
         const words = entry
           ? parseDocument(entry.document as never)
               .text.split(/\s+/)
@@ -430,6 +439,7 @@ export default definePlugin({
             : {}),
           seo,
           image,
+          ...(seo.title?.includes('sitedesc') ? { sitedesc: await tagline(context.locale) } : {}),
         });
 
         if (moduleOn(config, 'schema') && next.canonical !== null) {

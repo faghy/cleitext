@@ -92,6 +92,12 @@ export interface WxrOptions {
    * colors, fonts, presets and layout of pages built with Divi.
    */
   diviOptions?: Record<string, unknown> | null;
+  /**
+   * The title separator of Yoast SEO (`wpseo_titles.separator`, e.g.
+   * `sc-pipe`, or the character itself), for the `%%sep%%` of the imported
+   * titles. A hyphen without it, Yoast's default.
+   */
+  seoSeparator?: string;
 }
 
 export interface WxrResult {
@@ -545,7 +551,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         (taxonomyTypes.get(taxonomy.slug) ?? new Set()).add(entryType),
       );
     }
-    const seo = seoFields(item);
+    const seo = seoFields(item, options.seoSeparator);
     sources.set(ref, { link, text: `${title} ${content}` });
     entries.push({
       ref,
@@ -1010,13 +1016,96 @@ function label(name: string): string {
   return (words.charAt(0).toUpperCase() + words.slice(1)).slice(0, 100) || name;
 }
 
+/** Yoast SEO's title separators (`wpseo_titles.separator`), by the option's value. */
+const YOAST_SEPARATORS: Record<string, string> = {
+  'sc-dash': '-',
+  'sc-ndash': '–',
+  'sc-mdash': '—',
+  'sc-colon': ':',
+  'sc-middot': '·',
+  'sc-bull': '•',
+  'sc-star': '*',
+  'sc-smstar': '⋆',
+  'sc-pipe': '|',
+  'sc-tilde': '~',
+  'sc-laquo': '«',
+  'sc-raquo': '»',
+  'sc-lt': '<',
+  'sc-gt': '>',
+};
+
+/**
+ * The variables of Yoast SEO's titles that Cleitext's SEO plugins also know
+ * (Vetta and SEO read `%%name%%`), by Yoast's name. The others are dropped.
+ */
+const SEO_VARIABLES: Record<string, string> = {
+  title: 'title',
+  sitename: 'sitename',
+  sitedesc: 'sitedesc',
+  page: 'page',
+  primary_category: 'category',
+  category: 'category',
+  excerpt: 'excerpt',
+  currentyear: 'currentyear',
+  name: 'name',
+};
+
+/** A separator standing between two parts of a title (a hyphen inside a word is not one). */
+const SEP_CHARS = '[-–—|:·•*⋆~«»<>]';
+
+/**
+ * A title or description of Yoast SEO (or Rank Math, already in `%%name%%`
+ * form) as a template of Cleitext's SEO plugins: `%%sep%%` becomes the
+ * separator the old site used, the variables both plugins know stay (so the
+ * title follows the page), and the others go without leaving a double
+ * separator or stray spaces behind.
+ */
+export function seoTemplate(value: string, separator = '-'): string {
+  const sep = YOAST_SEPARATORS[separator] ?? (separator.trim() || '-');
+  return (
+    value
+      .replace(/%%([a-z0-9_]+)%%/gi, (_m, name: string) => {
+        const key = name.toLowerCase();
+        if (key === 'sep') return ` ${sep} `;
+        const known = SEO_VARIABLES[key];
+        return known ? `%%${known}%%` : ' ';
+      })
+      .replace(/\s+/g, ' ')
+      // Parts left empty: one separator between the others, none at the ends.
+      .replace(new RegExp(`(?:^|\\s)${SEP_CHARS}(?:\\s+${SEP_CHARS})+(?=\\s|$)`, 'g'), (m) =>
+        m.replace(/(\S)[\s\S]*/, '$1'),
+      )
+      .replace(new RegExp(`^\\s*${SEP_CHARS}\\s+|\\s+${SEP_CHARS}\\s*$`, 'g'), '')
+      .trim()
+  );
+}
+
+/** Yoast's and Rank Math's own title, which Cleitext's SEO plugins give anyway: no need to keep it. */
+function defaultTitle(template: string): boolean {
+  const plain = template
+    .replace(/%%page%%/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return new RegExp(`^%%title%% ${SEP_CHARS} %%sitename%%$`).test(plain);
+}
+
 /** Search title, description, keyphrase, indexing and canonical from Yoast SEO or Rank Math. */
-function seoFields(item: Node): Record<string, unknown> | null {
+function seoFields(item: Node, separator?: string): Record<string, unknown> | null {
   // Rank Math writes %title%, Yoast and Cleitext %%title%%.
   const rankVars = (value: string) => value.replace(/(?<!%)%([a-z_]+)%(?!%)/g, '%%$1%%');
-  const title = meta(item, '_yoast_wpseo_title') || rankVars(meta(item, 'rank_math_title') ?? '');
-  const description =
+  const rawTitle =
+    meta(item, '_yoast_wpseo_title') || rankVars(meta(item, 'rank_math_title') ?? '');
+  const rawDescription =
     meta(item, '_yoast_wpseo_metadesc') || rankVars(meta(item, 'rank_math_description') ?? '');
+  let title = rawTitle ? seoTemplate(decode(rawTitle), separator) : '';
+  // The pattern every page has anyway: left empty, the site's own one applies.
+  if (defaultTitle(title)) title = '';
+  // At most 70 characters, without half a variable at the end.
+  title = title.slice(0, 70);
+  if ((title.match(/%%/g)?.length ?? 0) % 2 === 1) title = title.slice(0, title.lastIndexOf('%%'));
+  title = title.replace(new RegExp(`\\s+${SEP_CHARS}\\s*$`), '').trim();
+  let description = rawDescription ? seoTemplate(decode(rawDescription), separator) : '';
+  if (description === '%%excerpt%%') description = '';
   const keyphrase =
     meta(item, '_yoast_wpseo_focuskw') ||
     (meta(item, 'rank_math_focus_keyword') ?? '').split(',')[0]!.trim();
@@ -1025,8 +1114,10 @@ function seoFields(item: Node): Record<string, unknown> | null {
     /"noindex"/.test(meta(item, 'rank_math_robots') ?? '');
   const canonical = meta(item, '_yoast_wpseo_canonical') || meta(item, 'rank_math_canonical_url');
   const seo: Record<string, unknown> = {
-    ...(title ? { title: decode(title).slice(0, 70) } : {}),
-    ...(description ? { description: decode(description).slice(0, 160) } : {}),
+    // In Yoast SEO and Rank Math a page's own title is the whole title: the
+    // SEO plugins show it as it is, without adding the site's name again.
+    ...(title ? { title, fullTitle: true } : {}),
+    ...(description ? { description: description.slice(0, 160) } : {}),
     ...(keyphrase ? { keyphrase: decode(keyphrase).slice(0, 100) } : {}),
     ...(noindex ? { noindex: true } : {}),
     ...(canonical && /^https?:\/\//.test(canonical) ? { canonical } : {}),

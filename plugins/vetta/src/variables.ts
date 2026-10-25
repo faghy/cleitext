@@ -237,8 +237,16 @@ function tidy(value: string, sep: string): string {
       .replace(new RegExp(`^(?:\\s*${s}\\s*)+`), '')
       .replace(new RegExp(`(?:\\s*${s}\\s*)+$`), '');
   }
-  return out.replace(/\s+/g, ' ').trim();
+  // Separators written in the template (imported titles keep the old site's) collapse too.
+  return out
+    .replace(new RegExp(`(\\s${SEPARATOR})(?:\\s+${SEPARATOR})+(?=\\s|$)`, 'g'), '$1')
+    .replace(new RegExp(`^${SEPARATOR}\\s+|\\s+${SEPARATOR}$`, 'g'), '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
+
+/** A character that stands between two parts of a title, with spaces around it. */
+const SEPARATOR = '[-–—|:·•*⋆~«»<>]';
 
 /** Capitalised titles ("The Best Way To Learn"), for sites that want them. */
 export function capitalize(value: string): string {

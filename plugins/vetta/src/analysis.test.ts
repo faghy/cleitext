@@ -177,6 +177,15 @@ describe('variables', () => {
       }),
     ).toBe('Blog – Page 2 of 5 – Bar');
     expect(replaceVariables('%unknown% %title%', { sep: '–', sitename: '', title: 'X' })).toBe('X');
+    // Separators written in the template collapse too (titles imported from Yoast SEO).
+    expect(
+      replaceVariables('%%title%% - %%sitedesc%% - %%sitename%% |', {
+        sep: '–',
+        sitename: 'Bar',
+        title: 'X',
+      }),
+    ).toBe('X - Bar');
+    expect(replaceVariables('Check-in - %%unknown%%', { sep: '–', sitename: '' })).toBe('Check-in');
     expect(
       replaceVariables('%title% (%category%) %sep% %sitename%', {
         sep: '–',

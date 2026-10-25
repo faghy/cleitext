@@ -238,8 +238,16 @@ export function entrySeo(fields: Record<string, unknown> | undefined): EntrySeo 
     noindex?: boolean | null;
     canonical?: string | null;
     socialImage?: string | null;
+    /** Imported from Yoast SEO or Rank Math: the whole title, as there. */
+    fullTitle?: boolean | null;
   };
-  const legacy = !own.title?.trim() && Boolean(old.title?.trim());
+  // The SEO plugin's own titles are the page's part; imported ones and those
+  // with variables (`%%title%% - %%sitename%%`) are already the whole title.
+  const legacy =
+    !own.title?.trim() &&
+    Boolean(old.title?.trim()) &&
+    old.fullTitle !== true &&
+    !/%%[a-z_]+%%/.test(old.title ?? '');
   return {
     ...own,
     title: own.title?.trim() || old.title?.trim() || null,
