@@ -81,7 +81,7 @@ test('the sidebar of a plugin block with media and relation fields opens without
     });
 
     await canvas.getByText('E2E media block').click();
-    const photo = page.getByRole('button', { name: 'Photo' });
+    const photo = page.getByRole('button', { name: 'Photo', exact: true });
     await expect(photo).toHaveText('Choose image');
     await expect(page.getByText('Choose an entry')).toBeVisible();
     await photo.click();
