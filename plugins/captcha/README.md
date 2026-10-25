@@ -24,7 +24,7 @@ Also:
 
 - people who are **signed in** are not asked (you can change it);
 - **trusted addresses**: your office, for example (single addresses or ranges such as `203.0.113.0/24`);
-- Turnstile's **look**: light, dark or automatic theme, normal, full-width or compact size, always shown or only when the visitor has to click;
+- Turnstile's **look**: light, dark or automatic theme (automatic follows the page: a site set to always light or always dark gets a matching widget, otherwise the visitor's device; 1.1.1), normal, full-width or compact size, always shown or only when the visitor has to click;
 - the widget speaks the **language of the page**, or one you choose;
 - the send button can stay **disabled until the check is passed**;
 - your own **error message**, in every language of the site (Italian and English are built in);

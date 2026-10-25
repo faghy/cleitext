@@ -15,6 +15,7 @@
  * (`?cl-challenge=<form id>`) when a form without JavaScript came back.
  */
 import type { WidgetOptions } from '../challenge';
+import { widgetTheme } from './_scheme';
 
 interface TurnstileApi {
   render(box: HTMLElement, options: Record<string, unknown>): string;
@@ -104,7 +105,8 @@ interface Widget {
     return api;
   }
 
-  const prefersDark = () => window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
+  /** Light or dark, "automatic" following the page (its colour scheme, then the system). */
+  const themeOf = (o: WidgetOptions) => widgetTheme(o.theme, document.documentElement, window);
   const hl = (o: WidgetOptions) =>
     o.lang && o.lang !== 'auto' ? `&hl=${encodeURIComponent(o.lang)}` : '';
 
@@ -207,7 +209,7 @@ interface Widget {
         const id = api.render(box, {
           sitekey: o.k,
           action: o.a,
-          theme: o.theme,
+          theme: themeOf(o),
           size: o.size,
           appearance: o.appearance,
           language: o.lang || 'auto',
@@ -240,7 +242,7 @@ interface Widget {
     const api = await recaptcha(`?render=explicit${hl(o)}`);
     const id = api.render(box, {
       sitekey: o.k,
-      theme: o.theme === 'dark' || (o.theme === 'auto' && prefersDark()) ? 'dark' : 'light',
+      theme: themeOf(o),
       size: o.size === 'compact' ? 'compact' : 'normal',
       callback: solved,
       'expired-callback': expired,

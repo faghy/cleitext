@@ -303,8 +303,8 @@ function CaptchaPage(props: AdminPageProps) {
                   >
                     <option value="auto">
                       {tr(
-                        'Automatic (as the visitor’s device)',
-                        'Automatico (come il dispositivo del visitatore)',
+                        'Automatic (as the page: its colour scheme, else the visitor’s device)',
+                        'Automatico (come la pagina: il suo schema di colori, altrimenti il dispositivo del visitatore)',
                       )}
                     </option>
                     <option value="light">{tr('Light', 'Chiaro')}</option>
