@@ -71,6 +71,13 @@ export function pageCss(data: Settings, options: PageCssOptions): string {
       '.fr-container:not(.fr-container .fr-container):not(.cx-location .fr-container){width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}html,body{overflow-x:clip}',
     );
   }
+  if ((data.layout === 'full' || data.layout === 'canvas') && data.flush === true) {
+    // Fresco 2.11: no space between the theme's header, the content and the footer
+    // (the elements holding the page's Fresco elements lose their vertical padding and margins).
+    rules.push(
+      ':where(:has(.fr-e):not(html,body,.fr-e,.fr-e *,.cx-location,.cx-location *)){padding-top:0!important;padding-bottom:0!important;margin-top:0!important;margin-bottom:0!important}',
+    );
+  }
   const settings = pageStyleSettings(data);
   // A gradient is painted on the whole page, also below short content.
   if (settings.bg_type === 'gradient') rules.push('body{min-height:100vh}');

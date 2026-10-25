@@ -186,12 +186,30 @@ describe('Elementor template files', () => {
     expect(() => readTemplateFile(elementorFile('page', []))).toThrow(/empty/);
   });
 
-  it('tells files of neither format apart', () => {
-    expect(() => readTemplateFile('PK\u0003\u0004 zip')).toThrow(/neither/);
-    expect(() => readTemplateFile('{"title":"x"}')).toThrow(/neither/);
-    expect(() => readTemplateFile('[]')).toThrow(/neither/);
+  it('tells files of no known format apart', () => {
+    expect(() => readTemplateFile('PK\u0003\u0004 zip')).toThrow(
+      /not a Fresco, Elementor or Divi template/,
+    );
+    expect(() => readTemplateFile('{"title":"x"}')).toThrow(
+      /not a Fresco, Elementor or Divi template/,
+    );
+    expect(() => readTemplateFile('[]')).toThrow(/not a Fresco, Elementor or Divi template/);
     expect(isElementorTemplate({ version: '0.4', content: [] })).toBe(true);
     expect(isElementorTemplate({ format: 'fresco-template', blocks: [] })).toBe(false);
+  });
+
+  it('reads Divi layout files too', () => {
+    const divi = (content: string) =>
+      JSON.stringify({ context: 'et_builder', data: { '1': content } });
+    const imported = readTemplateFile(
+      divi(
+        '[et_pb_section][et_pb_row][et_pb_column type="4_4"][et_pb_text]Hi[/et_pb_text][et_pb_counters]x[/et_pb_counters][/et_pb_column][/et_pb_row][/et_pb_section]',
+      ),
+    );
+    expect(imported.source).toBe('divi');
+    expect(imported.file.kind).toBe('section');
+    expect(importNotes(imported)).toEqual([expect.stringContaining('Divi modules')]);
+    expect(() => readTemplateFile(divi('no layout'))).toThrow(/empty/);
   });
 
   it('finds images by address only, not those of the media library', () => {

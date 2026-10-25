@@ -124,6 +124,7 @@ addMessages('it', {
   Pyramids: 'Piramidi',
   'Triangle, asymmetrical': 'Triangolo, asimmetrico',
   'Tilt, layered': 'Inclinazione, a strati',
+  'Waves, layered': 'Onde, a strati',
   'Fan, layered': 'Ventaglio, a strati',
   'Brush stroke': 'Pennellata',
   Ripples: 'Increspature',

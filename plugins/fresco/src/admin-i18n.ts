@@ -12,6 +12,12 @@ addMessages('it', {
   // Tools
   Tools: 'Strumenti',
   'Regenerate CSS': 'Rigenera il CSS',
+  'Imported header and footer': 'Header e footer importati',
+  'The header and footer of the imported site, shown by Fresco in the theme’s place. With Fresco Pro, import again to have them as theme templates you can edit.':
+    'L’header e il footer del sito importato, mostrati da Fresco al posto di quelli del tema. Con Fresco Pro, importa di nuovo per averli come modelli del tema da modificare.',
+  'Remove "{title}"?': 'Rimuovere "{title}"?',
+  'The theme shows its own header or footer again.':
+    'Il tema torna a mostrare il proprio header o footer.',
   'Pages made with Fresco keep their styles ready to be fast. If a page looks wrong after an update or a change of the site settings, generate them again.':
     'Le pagine fatte con Fresco tengono pronti i loro stili per essere veloci. Se una pagina appare sbagliata dopo un aggiornamento o una modifica delle impostazioni del sito, rigenerali.',
   'The CSS of the Fresco pages is generated again.':

@@ -68,7 +68,7 @@ const escapeText = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escapeAttr = (text: string) => escapeText(text).replace(/"/g, '&quot;');
 
-/** Inline styles kept from pasted or imported text: alignment, colors and font styles only. */
+/** Inline styles kept from pasted or imported text: alignment, colors and fonts only. */
 const STYLE_RULES: Record<string, RegExp> = {
   'text-align': /^(left|right|center|justify|start|end)$/,
   color: /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%]+\)|[a-z]{3,20})$/i,
@@ -76,6 +76,9 @@ const STYLE_RULES: Record<string, RegExp> = {
   'font-weight': /^(normal|bold|[1-9]00)$/,
   'font-style': /^(normal|italic)$/,
   'text-decoration': /^(none|underline|line-through)$/,
+  // Fresco 2.11: a family and size chosen in the text (imported pages, e.g. Divi's).
+  'font-family': /^[\w\s,'"-]{1,100}$/,
+  'font-size': /^\d{1,3}(\.\d{1,3})?(px|em|rem|%|pt|vw)$/,
 };
 
 export function safeStyle(value: string): string | null {

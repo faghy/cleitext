@@ -95,6 +95,19 @@ export function advancedControls(options: { container?: boolean } = {}): Control
             selectors: { '{{el}}': 'width: {{value}}; max-width: {{value}}; flex: 0 0 auto' },
           },
         ] satisfies Control[])),
+    {
+      // Fresco 2.11: a limit to the width, as Divi's modules and rows have
+      // (also over the 100% cap of items in a container).
+      name: '_max_width',
+      type: 'slider',
+      label: 'Max width',
+      tab,
+      section: 'Layout',
+      responsive: true,
+      units: UNITS.length,
+      max: 1600,
+      selectors: { '{{el}}, .fr-container__in > {{el}}.fr-e': 'max-width: {{value}}' },
+    },
     ...flexItemControls(),
     {
       name: '_order',

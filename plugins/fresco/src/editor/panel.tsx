@@ -843,6 +843,23 @@ function PageSettingsTab({
               'Full width: top-level containers span the whole window. Canvas: also without the theme’s header and footer. Seen on the page after saving.',
             )}
           </p>
+          {wide && (
+            <>
+              <label className="fre-checks">
+                <input
+                  type="checkbox"
+                  checked={page.flush === true}
+                  onChange={(e) => store.actions.setPage({ flush: e.target.checked || undefined })}
+                />
+                {tr('No space around the content')}
+              </label>
+              <p className="fre-help">
+                {tr(
+                  'The page starts right under the theme’s header and ends right above its footer, without the theme’s spacing.',
+                )}
+              </p>
+            </>
+          )}
           <label className="fre-checks">
             <input
               type="checkbox"

@@ -196,8 +196,11 @@ describe('container', () => {
   });
 
   it('draws every shape divider, layered ones with their opacities', () => {
-    expect(Object.keys(SHAPES)).toHaveLength(18);
+    expect(Object.keys(SHAPES)).toHaveLength(19);
     const out = html(container, { shape_top: 'opacity-fan', shape_bottom: 'drops' });
+    const waves = html(container, { shape_bottom: 'waves-layered' });
+    expect(waves).toContain('opacity="0.3"');
+    expect(waves).toContain('opacity="0.5"');
     expect(out).toContain('opacity="0.33"');
     expect(out).toContain('preserveAspectRatio="xMidYMax slice"');
     const negative = html(container, { shape_top: 'book', shape_top_negative: true });

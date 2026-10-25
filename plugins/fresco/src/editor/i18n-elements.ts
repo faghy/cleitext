@@ -534,6 +534,9 @@ addMessages('it', {
   "Hides the theme's title of this page (Site settings → Layout says which element that is).":
     'Nasconde il titolo del tema su questa pagina (Impostazioni del sito → Layout indica quale elemento è).',
   'Hide the featured image': 'Nascondi l’immagine in evidenza',
+  'No space around the content': 'Nessuno spazio intorno al contenuto',
+  'The page starts right under the theme’s header and ends right above its footer, without the theme’s spacing.':
+    'La pagina comincia subito sotto l’header del tema e finisce subito sopra il suo footer, senza le spaziature del tema.',
   'Full width and Canvas pages never show the theme’s featured image.':
     'Le pagine a larghezza piena e Canvas non mostrano mai l’immagine in evidenza del tema.',
   'The theme does not show it above the page; archives, loops and social previews still use it.':
@@ -575,8 +578,11 @@ addMessages('it', {
   'The template uses elements this site does not have.':
     'Il modello usa elementi che questo sito non ha.',
   'Imported template': 'Modello importato',
-  'This file is neither a Fresco template nor an Elementor template (.json file).':
-    'Questo file non è né un modello di Fresco né un modello di Elementor (file .json).',
+  'This file is not a Fresco, Elementor or Divi template (.json file).':
+    'Questo file non è un modello di Fresco, di Elementor né di Divi (file .json).',
+  'The Divi layout is empty.': 'Il layout di Divi è vuoto.',
+  '{count} Divi modules have no Fresco counterpart: only their text was kept.':
+    '{count} moduli di Divi non hanno un corrispondente in Fresco: è stato tenuto solo il loro testo.',
   'The Elementor template is empty.': 'Il modello di Elementor è vuoto.',
   '{count} elements this site does not have were left out.':
     '{count} elementi che questo sito non ha sono stati tralasciati.',

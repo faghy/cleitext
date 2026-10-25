@@ -543,6 +543,55 @@ export function SystemInfoPage(_props: AdminPageProps) {
 
 // ---- Tools ---------------------------------------------------------------------------
 
+/** The header and footer an import gave Fresco (without Fresco Pro): listed, and removed. */
+function ImportedLocationsCard() {
+  const { t } = useT();
+  const [locations, setLocations] = useState<{ kind: string; title: string }[]>([]);
+  const load = () =>
+    coreApi<{ locations: { kind: string; title: string }[] }>('GET', '/ext/fresco/tools/locations')
+      .then((result) => setLocations(result.locations))
+      .catch(() => setLocations([]));
+  useEffect(() => {
+    void load();
+  }, []);
+  if (locations.length === 0) return null;
+  const remove = async (kind: string, title: string) => {
+    const ok = await confirmAction({
+      title: t('Remove "{title}"?', { title }),
+      text: t('The theme shows its own header or footer again.'),
+      action: t('Remove'),
+      danger: true,
+    });
+    if (!ok) return;
+    await coreApi('DELETE', `/ext/fresco/tools/locations?kind=${encodeURIComponent(kind)}`);
+    await load();
+  };
+  return (
+    <div className="card">
+      <h2>{t('Imported header and footer')}</h2>
+      <p>
+        {t(
+          'The header and footer of the imported site, shown by Fresco in the theme’s place. With Fresco Pro, import again to have them as theme templates you can edit.',
+        )}
+      </p>
+      <ul>
+        {locations.map((location) => (
+          <li key={location.kind}>
+            {location.title}{' '}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void remove(location.kind, location.title)}
+            >
+              {t('Remove')}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function ToolsPage(_props: AdminPageProps) {
   const { t } = useT();
   const { data } = useSystem();
@@ -699,6 +748,8 @@ export function ToolsPage(_props: AdminPageProps) {
             </button>
           </div>
         </div>
+
+        <ImportedLocationsCard />
 
         <SafeModeCard />
 

@@ -103,6 +103,8 @@ The WordPress importer (**Import from WordPress** in the admin menu) turns a sit
 
 Shortcodes of other plugins standing alone in a shortcode, text or HTML widget become those plugins' blocks when an active plugin converts them (e.g. Kross Booking's `[kross-booking]`), inside a plugin block element; the others stay text.
 
+A site built with **Divi** comes in the same way (Fresco 2.11, WordPress Importer 1.23): pages become Fresco pages laid out as Divi lays them out (sections, specialty and fullwidth sections, rows with Divi's widths, gutters and spacing per device, backgrounds, gradients, borders, shadows, section dividers, and the text, heading, image, button, blurb, divider, gallery, icon, code, post title, fullwidth header and menu modules); Divi's theme options (`et_divi.json`, uploaded with the export) become the site settings (global colors, fonts, breakpoints, content width); the Theme Builder and the Library become Fresco Pro templates. Without Fresco Pro, Fresco shows the imported header and footer in the theme's place, on the pages the templates chose; **Tools → Imported header and footer** removes them. The Library's **Import** also takes Divi's layout files (`.json`, Divi Library → Export). Pages imported from Divi use two settings of Fresco 2.11 that any page can use: **Max width** in the Advanced tab of every element, and **No space around the content** for full width pages. Texts also keep a font family and size set inline, and containers have a **Waves, layered** shape divider.
+
 Pro widgets, templates and Pro settings show with Fresco Pro: activate it before importing so that templates are imported too. The import report lists what had no counterpart or was approximated.
 
 ---

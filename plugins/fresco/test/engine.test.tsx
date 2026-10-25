@@ -394,6 +394,14 @@ describe('sanitizeRich', () => {
     expect(sanitizeRich('<span style="color: expression(alert(1))">x</span>')).toBe(
       '<span>x</span>',
     );
+    // A family and size of the text's own (Fresco 2.11), only when plain.
+    expect(
+      sanitizeRich(
+        '<span style="font-family: Shrikhand, \'Open Sans\'; font-size: 16px">x</span><span style="font-family: x;}body{; font-size: 1e9px">y</span>',
+      ),
+    ).toBe(
+      '<span style="font-family: Shrikhand, \'Open Sans\'; font-size: 16px">x</span><span style="font-family: x">y</span>',
+    );
   });
 
   it('closes what was left open and escapes text', () => {

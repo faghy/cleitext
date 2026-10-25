@@ -178,6 +178,15 @@ const arrow = fills('M0,0H486L500,14L514,0H1000', 14);
 const zigzag = fills(zigzagLine(), 3.6);
 const ripples = fills(ripplesLine(), 4);
 
+/** A smooth wave across the width: its mean depth, height, number of crests and phase. */
+function wave(depth: number, height: number, crests: number, phase: number): string {
+  const points: Point[] = [];
+  for (let x = 0; x <= 1000; x += 50) {
+    points.push([x, depth + height * Math.sin((x / 1000) * crests * 2 * Math.PI + phase)]);
+  }
+  return `${smooth(points)}V0H0Z`;
+}
+
 export const SHAPES: Record<string, Shape> = {
   // The first five, as they always were.
   tilt: { label: 'Tilt', path: 'M0,6V0h1000v100L0,6z' },
@@ -249,6 +258,16 @@ export const SHAPES: Record<string, Shape> = {
     path: ripples.path,
     viewBox: '0 0 1000 4',
     aspect: 'xMidYMin slice',
+  },
+  // Fresco 2.11: overlapping waves of different opacity (as Divi's "waves" dividers).
+  'waves-layered': {
+    label: 'Waves, layered',
+    path: '',
+    layers: [
+      { opacity: 0.3, d: wave(70, 22, 1.5, 0.6) },
+      { opacity: 0.5, d: wave(52, 20, 1.2, 2.4) },
+      { opacity: 1, d: wave(30, 14, 1, 4.2) },
+    ],
   },
   book: { label: 'Book', ...book },
   split: { label: 'Split', ...split, viewBox: '0 0 1000 20' },

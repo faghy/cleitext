@@ -28,6 +28,7 @@ import { isVisible, resetExtensions, resolveSettings } from './core/extensions.j
 import { resolveFieldTags } from './core/field-tags.js';
 import { listElements } from './core/registry.js';
 import { registerFreeElements } from './elements/index.js';
+import { importLocations, registerImportedLocations } from './imported-locations.js';
 import { frescoEntries, registerTools } from './tools.js';
 import { registerElementManager } from './element-manager.js';
 import icons from './public/icons.json';
@@ -394,8 +395,11 @@ export default definePlugin({
     // The Element manager: usage of each element, and those the editor's panel no longer offers.
     registerElementManager(ctx);
 
+    // An imported site's header and footer, in the theme's place without Fresco Pro.
+    registerImportedLocations(ctx);
+
     // Imports (plugin API 1.28): site settings converted from another builder join the kit.
-    ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data }) => {
+    ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data, idMap }) => {
       if (slug !== 'fresco') return result;
       const kit = (data as { kit?: unknown } | null)?.kit;
       const warnings = [...(result?.warnings ?? [])];
@@ -406,6 +410,18 @@ export default definePlugin({
         (data as { components?: unknown } | null)?.components,
       );
       if (imported) warnings.push(`${imported} component(s) were added to Fresco.`);
+      // The header and footer of the imported site, where Fresco Pro did not take them.
+      const locations = await importLocations(
+        ctx,
+        siteId,
+        (data as { locations?: unknown } | null)?.locations,
+        idMap,
+      );
+      if (locations) {
+        warnings.push(
+          `${locations === 1 ? 'The imported header or footer is' : 'The imported header and footer are'} shown by Fresco in the theme’s place (Fresco → Tools to remove them; with Fresco Pro they become theme templates).`,
+        );
+      }
       if (kit && typeof kit === 'object') {
         const merged = mergeKit(normalizeKit(await ctx.storage.get(siteId, KIT_KEY)), kit);
         await ctx.storage.set(siteId, KIT_KEY, merged);

@@ -11,6 +11,7 @@ import type { FrescoNode } from '../core/model.js';
 import { extensions, type LibraryItem } from '../core/extensions.js';
 import { getElement } from '../core/registry.js';
 import { Svg } from './controls.js';
+import { convertDiviTemplate, isDiviTemplate } from './divi-template.js';
 import { convertElementorTemplate, isElementorTemplate } from './elementor-template.js';
 import { create, useStore, type Store } from './store.js';
 import { TemplatePreview } from './template-preview.js';
@@ -66,7 +67,7 @@ export async function saveTemplate(
 /** A template file read for import, with what was left out or kept as it was. */
 export interface ImportedTemplate {
   file: TemplateFile;
-  source: 'fresco' | 'elementor';
+  source: 'fresco' | 'elementor' | 'divi';
   /** Elements this site does not have (left out). */
   skipped: number;
   /** Elementor widgets with no Fresco counterpart (their text was kept). */
@@ -108,9 +109,7 @@ export function readTemplateFile(text: string): ImportedTemplate {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(
-      t('This file is neither a Fresco template nor an Elementor template (.json file).'),
-    );
+    throw new Error(t('This file is not a Fresco, Elementor or Divi template (.json file).'));
   }
   const fresco = data as Partial<TemplateFile> | null;
   if (fresco?.format === 'fresco-template') {
@@ -155,9 +154,30 @@ export function readTemplateFile(text: string): ImportedTemplate {
       externalImages: converted.externalImages,
     };
   }
-  throw new Error(
-    t('This file is neither a Fresco template nor an Elementor template (.json file).'),
-  );
+  if (isDiviTemplate(data)) {
+    const converted = convertDiviTemplate(data);
+    const { blocks, skipped } = knownElements(converted.blocks);
+    if (blocks.length === 0)
+      throw new Error(
+        skipped > 0
+          ? t('The template uses elements this site does not have.')
+          : t('The Divi layout is empty.'),
+      );
+    return {
+      file: {
+        format: 'fresco-template',
+        version: 1,
+        title: templateTitle(converted.title),
+        kind: converted.kind,
+        blocks,
+      },
+      source: 'divi',
+      skipped,
+      unconverted: converted.unconverted,
+      externalImages: converted.externalImages,
+    };
+  }
+  throw new Error(t('This file is not a Fresco, Elementor or Divi template (.json file).'));
 }
 
 /** A file made by `templateFile` (or an Elementor template), checked: only known elements are kept. */
@@ -174,9 +194,12 @@ export function importNotes(imported: ImportedTemplate): string[] {
     );
   if (imported.unconverted > 0)
     notes.push(
-      t('{count} Elementor widgets have no Fresco counterpart: only their text was kept.', {
-        count: imported.unconverted,
-      }),
+      t(
+        imported.source === 'divi'
+          ? '{count} Divi modules have no Fresco counterpart: only their text was kept.'
+          : '{count} Elementor widgets have no Fresco counterpart: only their text was kept.',
+        { count: imported.unconverted },
+      ),
     );
   if (imported.externalImages > 0)
     notes.push(
