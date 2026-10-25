@@ -36,17 +36,27 @@ describe('WordPress export to transfer document', () => {
     const xml = `<?xml version="1.0"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
 <channel><title>Site</title><wp:wxr_version>1.2</wp:wxr_version><wp:base_blog_url>https://s.example.com</wp:base_blog_url>
+<wp:author><wp:author_id>3</wp:author_id><wp:author_login>ann</wp:author_login><wp:author_email>ann@example.com</wp:author_email><wp:author_display_name>${cdata('Ann B.')}</wp:author_display_name></wp:author>
 <wp:category><wp:term_id>5</wp:term_id><wp:category_nicename>news</wp:category_nicename><wp:cat_name>News</wp:cat_name><wp:termmeta><wp:meta_key>color</wp:meta_key><wp:meta_value>${cdata('#ff0000')}</wp:meta_value></wp:termmeta></wp:category>
 <wp:term><wp:term_id>7</wp:term_id><wp:term_taxonomy>nav_menu</wp:term_taxonomy><wp:term_slug>main</wp:term_slug><wp:term_name>Main</wp:term_name></wp:term>
 <item><title>Price</title><wp:post_id>11</wp:post_id><wp:post_name>field_price</wp:post_name><wp:status>publish</wp:status><wp:post_type>acf-field</wp:post_type><wp:post_parent>10</wp:post_parent><wp:menu_order>2</wp:menu_order><excerpt:encoded>price</excerpt:encoded><content:encoded>${cdata('a:1:{s:4:"type";s:6:"number";}')}</content:encoded></item>
+<wp:term><wp:term_id>8</wp:term_id><wp:term_taxonomy>genre</wp:term_taxonomy><wp:term_slug>noir</wp:term_slug><wp:term_name>Noir</wp:term_name></wp:term>
+<item><title>A book</title><wp:post_id>30</wp:post_id><wp:post_name>a-book</wp:post_name><wp:status>publish</wp:status><wp:post_type>book</wp:post_type><category domain="genre" nicename="noir"><![CDATA[Noir]]></category></item>
 <item><title>Options</title><wp:post_id>12</wp:post_id><wp:post_name>options</wp:post_name><wp:status>publish</wp:status><wp:post_type>acf-ui-options-page</wp:post_type></item>
 <item><title>A post</title><dc:creator>ann</dc:creator><wp:post_id>20</wp:post_id><wp:post_name>a-post</wp:post_name><wp:status>publish</wp:status><wp:post_type>post</wp:post_type><content:encoded>${cdata('<p>Hi</p>')}</content:encoded>
 <wp:postmeta><wp:meta_key>price</wp:meta_key><wp:meta_value>12</wp:meta_value></wp:postmeta><wp:postmeta><wp:meta_key>_price</wp:meta_key><wp:meta_value>field_price</wp:meta_value></wp:postmeta><wp:postmeta><wp:meta_key>price</wp:meta_key><wp:meta_value>99</wp:meta_value></wp:postmeta></item>
 </channel></rss>`;
     const { meta, document, warnings } = wxrToDocument(xml, { locale: 'en' });
     expect(meta.options).toBeNull();
+    // Authors and the slugs of custom types and taxonomies (plugin API 1.49).
+    expect(meta.authors).toEqual([
+      { id: 3, login: 'ann', email: 'ann@example.com', displayName: 'Ann B.', ref: 'user:ann' },
+    ]);
+    expect(meta.types).toEqual({ book: 'book' });
+    expect(meta.taxonomies).toEqual({ genre: 'genre' });
     expect(meta.items.map((i) => [i.ref, i.type, i.imported])).toEqual([
       ['post:11', 'acf-field', false],
+      ['post:30', 'book', true],
       ['post:12', 'acf-ui-options-page', false],
       ['post:20', 'post', true],
     ]);
@@ -60,8 +70,8 @@ describe('WordPress export to transfer document', () => {
       content: 'a:1:{s:4:"type";s:6:"number";}',
     });
     // The first value of a key, as WordPress's get_post_meta( …, true ).
-    expect(meta.items[2]!.meta).toEqual({ price: '12', _price: 'field_price' });
-    expect(meta.terms).toEqual([
+    expect(meta.items[3]!.meta).toEqual({ price: '12', _price: 'field_price' });
+    expect(meta.terms.filter((t) => t.taxonomy !== 'genre')).toEqual([
       {
         ref: 'category:news',
         id: 5,
@@ -82,8 +92,8 @@ describe('WordPress export to transfer document', () => {
       },
     ]);
     // ACF's records are not content.
-    expect(document.entries?.map((e) => e.ref)).toEqual(['post:20']);
-    expect(document.contentTypes).toEqual([]);
+    expect(document.entries?.map((e) => e.ref)).toEqual(['post:30', 'post:20']);
+    expect(document.contentTypes?.map((t) => t.slug)).toEqual(['book']);
     expect(warnings.join('\n')).not.toContain('acf');
   });
 

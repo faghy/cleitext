@@ -12,6 +12,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { mergeFieldValues } from '../content/terms.service.js';
+import { PluginHost } from '../plugins/plugin-host.service.js';
 import { FieldGroupsService } from './field-groups.service.js';
 
 /**
@@ -23,6 +24,7 @@ export class UserFieldsService {
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
     private readonly fieldGroups: FieldGroupsService,
+    private readonly plugins: PluginHost,
   ) {}
 
   /** A member's role slug on the site; null for someone who is not a member. */
@@ -114,6 +116,13 @@ export class UserFieldsService {
             target: [userFields.siteId, userFields.userId],
             set: { fields: result.values, updatedAt: sql`now()` },
           }),
+    );
+    // Plugins see the values as saved and those before (plugin API 1.49).
+    await this.plugins.emit(
+      'user.saved',
+      { user: { id: userId, siteId, fields: result.values }, previous: current },
+      siteId,
+      auth?.userId,
     );
     return { values: result.values, groups: result.groups };
   }

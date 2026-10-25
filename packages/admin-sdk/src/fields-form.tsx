@@ -16,7 +16,14 @@ import {
   type ZonesValue,
 } from '@cleitext/shared';
 import { useContext, useId, useState } from 'react';
-import { FormOptionsContext, useAdminFieldType } from './field-types.js';
+import {
+  adminFieldType,
+  FormOptionsContext,
+  useAdminFieldType,
+  useAdminFieldTypes,
+  type FieldControlProps,
+} from './field-types.js';
+import { planLayout } from './layout-fields.js';
 import { useT } from './i18n.js';
 import { useMediaPicker } from './media-picker.js';
 import { ZonesBuilder } from './zones-builder.js';
@@ -91,32 +98,15 @@ export function FieldsForm({
   }
   const shown = fields.filter((field) => fieldVisible(field, values, defaults));
   const form = (
-    <div className="space-y-3">
-      {shown.map((field, i) => {
-        const heading =
-          field.group !== undefined &&
-          labelText(field.group, locale) !== labelText(shown[i - 1]?.group, locale);
-        return (
-          <div key={field.name} className={heading && i > 0 ? 'pt-3' : undefined}>
-            {heading && (
-              <h3 className="mb-2 border-b border-slate-200 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {labelText(field.group, locale)}
-              </h3>
-            )}
-            <Field
-              field={field}
-              value={values[field.name] ?? undefined}
-              placeholder={defaults[field.name]}
-              locale={locale}
-              disabled={disabled}
-              error={errors[field.name]}
-              form={{ ...defaults, ...values }}
-              onChange={(value) => onChange({ ...values, [field.name]: value })}
-            />
-          </div>
-        );
-      })}
-    </div>
+    <FieldList
+      fields={shown}
+      values={values}
+      onChange={onChange}
+      locale={locale}
+      disabled={disabled}
+      errors={errors}
+      defaults={defaults}
+    />
   );
   return options.rowIds === inherited.rowIds &&
     options.labelPlacement === inherited.labelPlacement ? (
@@ -124,6 +114,98 @@ export function FieldsForm({
   ) : (
     <FormOptionsContext.Provider value={options}>{form}</FormOptionsContext.Provider>
   );
+}
+
+/**
+ * Fields drawn one under the other, with the headings of their `group`;
+ * layout fields (plugin API 1.49) draw the fields they group.
+ */
+function FieldList({
+  fields,
+  values,
+  onChange,
+  locale,
+  disabled,
+  errors,
+  defaults,
+}: {
+  fields: readonly FieldDefinition[];
+  values: FieldValues;
+  onChange: (values: FieldValues) => void;
+  locale: string;
+  disabled: boolean;
+  errors: Record<string, string>;
+  defaults: FieldValues;
+}) {
+  useAdminFieldTypes();
+  const slots = planLayout(fields, adminFieldType);
+  const render = (list: readonly FieldDefinition[]) => (
+    <FieldList
+      fields={list}
+      values={values}
+      onChange={onChange}
+      locale={locale}
+      disabled={disabled}
+      errors={errors}
+      defaults={defaults}
+    />
+  );
+  return (
+    <div className="space-y-3">
+      {slots.map(({ field, index, layout, grouped }, i) => {
+        const heading =
+          field.group !== undefined &&
+          labelText(field.group, locale) !== labelText(slots[i - 1]?.field.group, locale);
+        return (
+          <div key={field.name} className={heading && i > 0 ? 'pt-3' : undefined}>
+            {heading && (
+              <h3 className="mb-2 border-b border-slate-200 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {labelText(field.group, locale)}
+              </h3>
+            )}
+            {layout ? (
+              <LayoutField
+                field={field as CustomField}
+                value={values[field.name] ?? undefined}
+                locale={locale}
+                disabled={disabled}
+                error={errors[field.name]}
+                form={{ ...defaults, ...values }}
+                onChange={(value) => onChange({ ...values, [field.name]: value })}
+                layout={{
+                  siblings: [...fields],
+                  index,
+                  values: { ...defaults, ...values },
+                  fields: grouped,
+                  render,
+                }}
+              />
+            ) : (
+              <Field
+                field={field}
+                value={values[field.name] ?? undefined}
+                placeholder={defaults[field.name]}
+                locale={locale}
+                disabled={disabled}
+                error={errors[field.name]}
+                form={{ ...defaults, ...values }}
+                onChange={(value) => onChange({ ...values, [field.name]: value })}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A layout field (plugin API 1.49): its type's control alone, without label or help. */
+function LayoutField(props: Omit<FieldControlProps, 'id'>) {
+  const id = useId();
+  const type = useAdminFieldType(props.field.type);
+  if (!type) return null;
+  const Control = type.component;
+  return <Control {...props} id={id} />;
 }
 
 function Field({

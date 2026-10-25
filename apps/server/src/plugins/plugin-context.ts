@@ -46,6 +46,15 @@ import { pluginMail } from '../mail/plugin-mail.js';
 export interface PluginServices {
   /** Custom fields (plugin API 1.47). */
   fieldGroups(siteId: string, object?: FieldObject): Promise<FieldGroupView[]>;
+  /** The fields of a plugin block (plugin API 1.49). */
+  blockFields(
+    siteId: string,
+    block: string,
+  ): Promise<{ fields: FieldDefinition[]; groups: FieldGroupView[] }>;
+  /** The site's theme and its files (plugin API 1.49). */
+  activeTheme(siteId: string): Promise<{ slug: string; name: string; version: string }>;
+  themeFiles(siteId: string, dir: string): Promise<string[]>;
+  themeFile(siteId: string, path: string): Promise<string | null>;
   matchingFieldGroups(siteId: string, screen: LocationScreen): Promise<FieldGroupView[]>;
   siteFieldGroups(siteId: string): Promise<FieldGroupInput[]>;
   saveSiteFieldGroup(siteId: string, group: unknown): Promise<FieldGroupInput>;
@@ -472,6 +481,18 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         require('theme:hooks');
         host.addThemeExtension(plugin, theme, extension);
       },
+      async active(siteId) {
+        assertSiteId(siteId);
+        return services().activeTheme(siteId);
+      },
+      async files(siteId, dir) {
+        assertSiteId(siteId);
+        return services().themeFiles(siteId, String(dir ?? ''));
+      },
+      async readFile(siteId, file) {
+        assertSiteId(siteId);
+        return services().themeFile(siteId, String(file ?? ''));
+      },
     },
 
     blocks: {
@@ -655,6 +676,11 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           assertSiteId(siteId);
           return services().removeSiteOptionsPage(siteId, String(slug));
         },
+      },
+      async blockFields(siteId, block) {
+        require('content:read');
+        assertSiteId(siteId);
+        return services().blockFields(siteId, String(block ?? ''));
       },
       async options(siteId, page, options) {
         require('content:read');

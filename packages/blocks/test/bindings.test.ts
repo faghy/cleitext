@@ -261,6 +261,27 @@ describe('applyBindings', () => {
     expect(typed.children).toHaveLength(1);
     expect(none.children).toEqual([]);
   });
+
+  it('starts from the scope given (a plugin block rendering its own data)', async () => {
+    const seen: BindingScope[] = [];
+    const scoped: BindingResolver = (key, scope) => {
+      seen.push(scope);
+      return key === 'row.field:title' ? { value: scope.row?.title } : undefined;
+    };
+    const d = doc(
+      block('p', 'core/paragraph', bind({ content: 'row.field:title' })),
+      block('f', FIELD_BLOCK, { source: 'row.field:title' }),
+    );
+    const out = await applyBindings(d, {
+      resolve: scoped,
+      locale: 'en',
+      scope: { row: { title: 'From the block' }, rowSource: 'campus:hero' },
+    });
+    const [p, f] = all(out.blocks);
+    expect(p.content).toEqual([{ text: 'From the block' }]);
+    expect(bound(f)).toEqual({ value: 'From the block', locale: 'en' });
+    expect(seen.every((s) => s.rowSource === 'campus:hero')).toBe(true);
+  });
 });
 
 describe('entry references', () => {

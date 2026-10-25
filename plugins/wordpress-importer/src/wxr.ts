@@ -31,7 +31,7 @@ import { metaValue } from './php.js';
 import { WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
 import type { CxdBlock } from '@cleitext/blocks';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
-import type { WxrMetaInput, WxrMetaItem, WxrMetaTerm } from '@cleitext/plugin-sdk';
+import type { WxrMetaAuthor, WxrMetaInput, WxrMetaItem, WxrMetaTerm } from '@cleitext/plugin-sdk';
 
 type Node = Record<string, unknown>;
 
@@ -131,6 +131,16 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     displayName: text(a['wp:author_display_name']) || text(a['wp:author_login']),
     role: options.authorRole ?? 'author',
   }));
+  // For plugins reading user ids in meta (`import.wxrMeta`, plugin API 1.49).
+  const metaAuthors: WxrMetaAuthor[] = ((channel['wp:author'] as Node[] | undefined) ?? []).map(
+    (a) => ({
+      id: Number(text(a['wp:author_id'])) || 0,
+      login: text(a['wp:author_login']),
+      email: text(a['wp:author_email']),
+      displayName: decode(text(a['wp:author_display_name'])) || text(a['wp:author_login']),
+      ref: `user:${text(a['wp:author_login'])}`,
+    }),
+  );
 
   // ---- Terms ----------------------------------------------------------------------------
   const terms: NonNullable<TransferDocumentInput['terms']> = [];
@@ -661,7 +671,14 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
 
   return {
     warnings,
-    meta: { items: metaItems, terms: metaTerms, options: null },
+    meta: {
+      items: metaItems,
+      terms: metaTerms,
+      options: null,
+      authors: metaAuthors,
+      types: Object.fromEntries([...customTypes].map(([wp, t]) => [wp, t.slug])),
+      taxonomies: Object.fromEntries([...customTaxonomies].map(([wp, t]) => [wp, t.slug])),
+    },
     document: {
       format: 'cleitext-transfer',
       version: 1,

@@ -62,6 +62,20 @@ export interface Actions {
   'entry.copied': { entry: EntryEvent; from: { id: string; locale: string } };
   'term.created': { term: TermEvent };
   'term.deleted': { term: TermEvent };
+  /**
+   * A term was created or changed (plugin API 1.49), with its field values
+   * as saved (`term.fields`) and those it had before (`previous`, null for
+   * a new term): e.g. to keep a two-way relation on the other side.
+   */
+  'term.saved': { term: TermEvent & { fields: FieldValues }; previous: FieldValues | null };
+  /**
+   * A person's user fields were saved on a site (plugin API 1.49): the
+   * values as saved (every group) and those they had before.
+   */
+  'user.saved': {
+    user: { id: string; siteId: string; fields: FieldValues };
+    previous: FieldValues;
+  };
   /** Languages and translations were imported for the site: see `ctx.languages.pending`. */
   'languages.pending': Record<string, never>;
   'media.uploaded': { media: { id: string; mime: string; filename: string; url: string } };
@@ -570,6 +584,19 @@ export interface WxrMetaContext {
   terms: WxrMetaTerm[];
   /** Site options by name, when the export has them; null otherwise (a WordPress export has none). */
   options: Record<string, string> | null;
+  /**
+   * The export's authors (plugin API 1.49), e.g. for user fields: WordPress
+   * stores a person as their id, written in values as `{ $user: author.ref }`.
+   * The import gives refs the imported member (or the member of the site
+   * with that email); people not imported become null.
+   */
+  authors: WxrMetaAuthor[];
+  /**
+   * The content types and taxonomies the importer made of WordPress's
+   * custom ones (plugin API 1.49): Cleitext slug by WordPress name.
+   */
+  types: Record<string, string>;
+  taxonomies: Record<string, string>;
   /** PHP's `unserialize()` (undefined for text that is not serialized). */
   unserialize(text: string): PhpValue | undefined;
   /** A meta value: serialized PHP or JSON decoded, the text otherwise. */
@@ -588,8 +615,47 @@ export interface WxrMetaResult {
   optionsPages: OptionsPageInput[];
   /** Values of options pages (all of them in the default language unless `locale`). */
   options: { page: string; locale?: string; fields: FieldValues }[];
+  /**
+   * Content types to create or describe (plugin API 1.49), e.g. from ACF's
+   * post types: by slug, their name, `hierarchical` and permalink replace
+   * what the importer guessed; new slugs are added (the import creates them
+   * before the entries). Missing on older cores.
+   */
+  contentTypes?: WxrMetaContentType[];
+  /** Taxonomies to create or describe, likewise (their `contentTypes` are added). */
+  taxonomies?: WxrMetaTaxonomy[];
   /** Lines added to the import report. */
   warnings: string[];
+}
+
+/** An author of a WordPress export (`import.wxrMeta`, plugin API 1.49). */
+export interface WxrMetaAuthor {
+  /** WordPress's user id, as user fields store it. */
+  id: number;
+  login: string;
+  email: string;
+  displayName: string;
+  /** The ref to write in values: `{ $user: ref }` (`user:<login>`). */
+  ref: string;
+}
+
+/** A content type made or described by a plugin during a WordPress import (plugin API 1.49). */
+export interface WxrMetaContentType {
+  /** Lowercase letters, digits, `-` and `_`, at most 32 characters. */
+  slug: string;
+  name: Record<string, string>;
+  hierarchical?: boolean;
+  /** `/events/{slug}`; built from the slug when omitted. */
+  permalink?: string;
+}
+
+/** A taxonomy made or described by a plugin during a WordPress import (plugin API 1.49). */
+export interface WxrMetaTaxonomy {
+  slug: string;
+  name: Record<string, string>;
+  hierarchical?: boolean;
+  /** Content type slugs it groups. */
+  contentTypes?: string[];
 }
 
 /** The input of `import.wxrMeta`, as an import plugin gives it with its document. */
@@ -597,6 +663,11 @@ export interface WxrMetaInput {
   items: WxrMetaItem[];
   terms: WxrMetaTerm[];
   options?: Record<string, string> | null;
+  /** The export's authors (plugin API 1.49). */
+  authors?: WxrMetaAuthor[];
+  /** Cleitext slugs of WordPress's custom post types and taxonomies (plugin API 1.49). */
+  types?: Record<string, string>;
+  taxonomies?: Record<string, string>;
 }
 
 /** New ids of the records of an imported transfer document, by their `ref`. */

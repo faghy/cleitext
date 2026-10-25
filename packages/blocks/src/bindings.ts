@@ -227,6 +227,11 @@ export interface ApplyBindingsOptions {
   resolve: BindingResolver;
   /** The page's language (dates). */
   locale: string;
+  /**
+   * What the document is resolved against at its top (plugin API 1.49):
+   * e.g. a plugin block's own data as the row, for a template it renders.
+   */
+  scope?: BindingScope;
 }
 
 /**
@@ -313,7 +318,7 @@ export async function applyBindings(
     return out;
   };
 
-  return { ...document, blocks: await walk(document.blocks, {}) };
+  return { ...document, blocks: await walk(document.blocks, options.scope ?? {}) };
 }
 
 /** Blocks with a suffix added to their ids (and their children's), keeping resolved values. */

@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.48**
+> API dei plugin **1.49**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -171,22 +171,24 @@ ctx.hooks.filter(
 
 **Azioni** (vengono eseguite dopo che la modifica è stata salvata):
 
-| Nome                                      | Payload                                                                                                                                              |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `entry.created` · `entry.saved`           | `{ entry }`                                                                                                                                          |
-| `entry.published` · `entry.unpublished`   | `{ entry }`                                                                                                                                          |
-| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                                                                                                          |
-| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; vedi sotto)                                                                                             |
-| `term.created` · `term.deleted`           | `{ term }`                                                                                                                                           |
-| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                                                                                             |
-| `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue))                                                                              |
-| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                                                                                                  |
-| `cache.invalidated`                       | `{ tags }`: sono cambiate le pagine con questi tag (`site`: tutte), API 1.9                                                                          |
-| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                                                                                                     |
-| `comment.created`                         | `{ comment }`, qualunque sia il suo stato, API 1.12                                                                                                  |
-| `comment.status`                          | `{ comment, from }`: approvato, trattenuto, spam o cestinato, API 1.12                                                                               |
-| `request.notFound`                        | `{ path, query, referrer, userAgent }`: un visitatore ha avuto una pagina “non trovata”, anche dalla cache delle pagine (dopo la risposta), API 1.24 |
-| `form.released`                           | `{ form, locale, fields }`: un invio trattenuto come spam è stato rilasciato come non spam; il plugin che possiede `form` lo consegna, API 1.45      |
+| Nome                                      | Payload                                                                                                                                                      |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `entry.created` · `entry.saved`           | `{ entry }`                                                                                                                                                  |
+| `entry.published` · `entry.unpublished`   | `{ entry }`                                                                                                                                                  |
+| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                                                                                                                  |
+| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; vedi sotto)                                                                                                     |
+| `term.created` · `term.deleted`           | `{ term }`                                                                                                                                                   |
+| `term.saved`                              | `{ term, previous }`: un termine è stato creato o modificato, `term.fields` sono i suoi valori salvati, `previous` quelli di prima (null se nuovo), API 1.49 |
+| `user.saved`                              | `{ user: { id, siteId, fields }, previous }`: i campi utente di una persona sono stati salvati in un sito, con i valori di prima, API 1.49                   |
+| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                                                                                                     |
+| `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue))                                                                                      |
+| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                                                                                                          |
+| `cache.invalidated`                       | `{ tags }`: sono cambiate le pagine con questi tag (`site`: tutte), API 1.9                                                                                  |
+| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                                                                                                             |
+| `comment.created`                         | `{ comment }`, qualunque sia il suo stato, API 1.12                                                                                                          |
+| `comment.status`                          | `{ comment, from }`: approvato, trattenuto, spam o cestinato, API 1.12                                                                                       |
+| `request.notFound`                        | `{ path, query, referrer, userAgent }`: un visitatore ha avuto una pagina “non trovata”, anche dalla cache delle pagine (dopo la risposta), API 1.24         |
+| `form.released`                           | `{ form, locale, fields }`: un invio trattenuto come spam è stato rilasciato come non spam; il plugin che possiede `form` lo consegna, API 1.45              |
 
 `entry` è `{ id, siteId, type, locale, slug, title, status, fields }`, più (API 1.13), quando la modifica li conosce, `terms` (id dei termini per slug di tassonomia) e `featuredMediaId`, così un plugin può tenere aggiornata la sua copia delle voci; `term` è `{ id, siteId, taxonomy, locale, slug, name }`, `comment` è `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`. `term.created` viene emesso per i termini creati dalla schermata dei termini, dall'API e dai plugin (non per i tag digitati nell'editor).
 
@@ -359,8 +361,9 @@ ctx.fields.addGroup({
 | `userForm`        | dove si modifica una persona: `edit` (Utenti → Modifica) o `profile` (il proprio profilo) | `edit`, `profile`, `all`               |
 | `currentUserRole` | il ruolo di chi sta modificando (insieme a una delle altre)                               | lo slug di un ruolo                    |
 | `optionsPage`     | una pagina di opzioni (API dei plugin 1.48, vedi sotto)                                   | il suo slug                            |
+| `block`           | un blocco di un plugin (API dei plugin 1.49, vedi sotto)                                  | il suo nome, `*` per qualsiasi         |
 
-`operator` è `==` o `!=`. Una lista interna deve controllare un solo oggetto (voci, termini, utenti o pagine di opzioni): una lista con il solo `currentUserRole`, o con regole di due oggetti, non corrisponde a niente. `ctx.fields.addGroup` si può chiamare in qualsiasi momento (lo stesso id lo sostituisce) e `ctx.fields.removeGroup(id)` lo toglie. I gruppi che dipendono dal sito, per esempio costruiti dalle tue tabelle, arrivano da un fornitore, chiamato ogni volta che servono i gruppi (tieni in cache quello che legge):
+`operator` è `==` o `!=`. Una lista interna deve controllare un solo oggetto (voci, termini, utenti, pagine di opzioni o blocchi): una lista con il solo `currentUserRole`, o con regole di due oggetti, non corrisponde a niente. `ctx.fields.addGroup` si può chiamare in qualsiasi momento (lo stesso id lo sostituisce) e `ctx.fields.removeGroup(id)` lo toglie. I gruppi che dipendono dal sito, per esempio costruiti dalle tue tabelle, arrivano da un fornitore, chiamato ogni volta che servono i gruppi (tieni in cache quello che legge):
 
 ```ts
 ctx.fields.provideGroups(async (siteId) => mieiGruppiDalDatabase(siteId));
@@ -375,6 +378,36 @@ ctx.fields.provideGroups(async (siteId) => mieiGruppiDalDatabase(siteId));
 **Leggere i gruppi** (`content:read`): `await ctx.fields.groups(siteId, 'entry')` dà tutti i gruppi di un oggetto con le regole e la `source` (`site`, `theme` o `plugin:<slug>`); `await ctx.fields.matching(siteId, { object: 'entry', contentType: 'page', template: 'landing' })` quelli che corrispondono. L'admin li legge da `GET /api/v1/field-screens/<entry|term|user>` (con i modelli di pagina del tema). `ctx.content.fields(siteId, type)` e i `fieldGroups` dei tipi di contenuto elencano tutti i gruppi che possono comparire su un tipo.
 
 **Valori.** Come prima, i valori di un gruppo sono salvati in `fields[<id>]` della revisione, quindi hanno revisioni, bozze, salvataggi automatici e traduzioni (`translation` di ogni campo). I valori di un gruppo non mostrato (per esempio dopo un cambio di modello) restano come sono. Ogni riga di un campo `list` ha un `_id` stabile, conservato da salvataggi, copie, traduzioni ed esportazioni. I modelli leggono i valori con `useField` (TEMI.md).
+
+**Nascondi nella schermata** (API dei plugin 1.49). Come in ACF, un gruppo può nascondere parti dell'editor delle voci dove compare, con `hideOnScreen`:
+
+| Nome             | Nasconde                                                 |
+| ---------------- | -------------------------------------------------------- |
+| `excerpt`        | il riassunto                                             |
+| `featuredImage`  | l'immagine in evidenza                                   |
+| `slug`           | il permalink (slug)                                      |
+| `template`       | il modello di pagina                                     |
+| `author`         | l'autore                                                 |
+| `pageAttributes` | gli attributi della pagina: pagina madre e ordine        |
+| `categories`     | le categorie (tassonomia `category`)                     |
+| `tags`           | i tag (tassonomia `tag`)                                 |
+| `taxonomies`     | tutte le tassonomie, anche quelle dei plugin             |
+| `comments`       | il riquadro della discussione (commenti aperti o chiusi) |
+| `revisions`      | l'elenco delle revisioni                                 |
+
+```ts
+ctx.fields.addGroup({
+  id: 'myplugin-event',
+  title: 'Evento',
+  location,
+  fields,
+  hideOnScreen: ['excerpt', 'tags'],
+});
+```
+
+Gli elenchi di tutti i gruppi mostrati si sommano. Si nascondono solo i riquadri dell'editor: i valori restano come sono. Altri nomi vengono rifiutati quando il gruppo è salvato; l'elenco è `HIDE_ON_SCREEN`, e `hiddenOnScreen(groups)` dice cosa nasconde un insieme di gruppi (`@cleitext/plugin-sdk`).
+
+<a id="campi-dei-blocchi"></a>**Campi dei blocchi** (API dei plugin 1.49). I gruppi con una regola `block` sono i campi di un blocco di un plugin, come gli ACF Blocks: `[[{ param: 'block', operator: '==', value: 'myplugin/hero' }]]`. Non compaiono mai su voci, termini o persone e non sono fonti di dati dinamici. Il blocco tiene i loro valori nei suoi attributi, come decide il plugin (il core non li controlla). Sul server `await ctx.fields.blockFields?.(siteId, 'myplugin/hero')` (`content:read`) dà `{ fields, groups }`: i gruppi la cui regola nomina il blocco, in ordine, e i loro campi, vince il primo di un nome. Nell'editor a blocchi `useBlockFields(name)` di `@cleitext/admin-sdk` dà lo stesso con `loading` (e `blockFields(name)` fuori da React), letto da `GET /api/v1/field-screens/block`, per disegnarli con `FieldsForm` nella barra laterale del blocco. `mayMatchBlock(rules, name)` dice se delle regole possono nominare un blocco.
 
 <a id="controlli-prima-del-salvataggio"></a>**Controlli prima del salvataggio** (API dei plugin 1.47). I valori dei gruppi mostrati sono controllati quando si salva una voce; i campi `required` quando la si pubblica (le bozze possono essere incomplete), tranne quelli nascosti dal loro `showIf`. Poi il filtro `entry.validate` permette ai plugin di rifiutare il salvataggio, con messaggi mostrati sotto i campi nell'editor:
 
@@ -439,11 +472,24 @@ ctx.fields.registerType({
   export: (value, field, refs) => value, // refs.media(id), refs.entry(id)… per i riferimenti
   kind: 'number', // text, url, number, boolean, date, media, list, object; dalla 1.48 anche richtext, link, entry, term, user, file
   // kindOf: (field) => …, // il tipo per una certa definizione (API dei plugin 1.48)
+  // rows: (field) => …, // cosa contiene ogni riga di una lista (API dei plugin 1.49, vedi sotto)
 });
 // Un campo di questo tipo: { name: 'score', type: 'myplugin/rating', label: 'Voto', settings: { max: 3 } }
 ```
 
 `format` riceve `context.media(id)` e `context.entry(id)` (caricati insieme per tutta la pagina), dall'API 1.48 anche `context.term?.(id)`, `context.user?.(id)` e `context.file?.(id)` (un file media di qualsiasi tipo, con il suo `filename`), e `context.format(fields, values)` per i campi annidati. Dalla 1.48 `normalize` si applica ai valori dopo il controllo, quindi quello che restituisce è quello che viene salvato. L'admin disegna il tipo con il componente di [`fieldTypes`](#tipi-di-campo-nell-admin) nell'entry admin del plugin, in tutti i moduli (voci, termini, utenti, impostazioni, blocchi, righe delle liste). Finché il plugin non è attivo i valori sono conservati e mostrati in sola lettura; le definizioni sono comunque accettate.
+
+**Liste dei plugin** (API dei plugin 1.49). Un tipo i cui valori sono righe (un ripetitore, un contenuto flessibile, una galleria) dice cosa contiene ogni riga con `rows(field)`: `{ kind: 'fields', fields }` (ogni campo è una fonte `row.field:<nome>` della riga, anche le liste annidate) oppure `{ kind: 'entry' | 'term' | 'user' }` per i record collegati; null per le definizioni che non sono liste. Le fonti di dati dinamici, il blocco Righe di un campo, i collegamenti dei blocchi e i page builder offrono allora i campi delle righe, come per la `list` del core (che lo ha, come le relazioni multiple):
+
+```ts
+ctx.fields.registerType({
+  type: 'myplugin/repeater',
+  kind: 'list',
+  rows: (field) => ({ kind: 'fields', fields: (field as CustomField).settings?.fields ?? [] }),
+});
+```
+
+`fieldRows(field)` (`@cleitext/plugin-sdk`) lo dà per qualsiasi campo. L'SDK esporta anche `fieldDefinitionSchema` e `fieldListSchema` (API dei plugin 1.49): i controlli del core sulle definizioni dei campi, per controllare le definizioni annidate nelle impostazioni di un tipo esattamente come farà il core.
 
 ### Dati dinamici (API dei plugin 1.47)
 
@@ -467,6 +513,8 @@ const photo = await ctx.dynamic.resolve(siteId, 'entry.field:hero.photo', {
 `DynamicContext` è `{ locale, page?, entry?: { id }, term?: { id }, user?: { id }, row? }`: senza `entry` si usa la voce della pagina (i suoi valori sono già formattati, nessuna query). L'admin elenca le fonti con `GET /api/v1/dynamic-sources`. Fresco legge il suo tag **Campo personalizzato** attraverso queste fonti (Fresco 2.10), quindi i campi immagine compaiono come immagini.
 
 Dall'API dei plugin 1.48 ci sono anche i campi delle pagine di opzioni (`option.field:<pagina>.<nome>`, `<pagina>.<gruppo>.<nome>`), la persona data in `user` (`user.name`, `user.url`, `user.avatar`) e la riga di una lista (`row.field:<nome>`, letta da `row`). La fonte di un campo `list` dice cosa sono le sue righe: `rowKind: 'fields'` con le fonti delle righe in `rows` (`row.field:<nome>`), oppure `entry`, `term`, `user` per le relazioni con più record. `POST /api/v1/dynamic-sources/resolve` (`edit_entries`) con `{ ids, entryId?, locale?, fields?, title? }` dà i valori di una voce in modifica, con i campi non ancora salvati: l'editor a blocchi mostra così l'anteprima dei collegamenti.
+
+Una fonte con `hidden: true` (API dei plugin 1.49) viene risolta ma resta fuori dagli elenchi dei selettori (`GET /api/v1/dynamic-sources`, `ctx.dynamic.sources`): un vecchio id tenuto per i contenuti che lo usano ancora.
 
 <a id="block-bindings"></a>**Collegamenti dei blocchi** (block bindings, API dei plugin 1.48). I blocchi del core mostrano una fonte al posto di quello che è stato scritto, come i Block Bindings di WordPress: il testo di un paragrafo, di un titolo o di una voce di elenco, il testo e il link di un pulsante, un'immagine (`id` e `url` insieme), il suo testo alternativo, la didascalia e il link, l'indirizzo di un incorporamento. Un blocco li tiene in `attrs.metadata.bindings`, `{ <attributo>: { source: 'cleitext/field', args: { key: '<id della fonte>' } } }`; quello che è stato scritto resta e si vede quando la fonte non ha un valore. Il server li risolve prima di disegnare la pagina (`applyBindings` di `@cleitext/blocks`), anche nelle aree, nelle posizioni del tema e nei pattern sincronizzati. Il testo formattato tiene grassetto, corsivo e link (i paragrafi diventano a capo), le date compaiono nella lingua della pagina, un campo link dà a un pulsante il suo indirizzo e la nuova scheda. Con loro vanno due blocchi del core: **Campo** (`cleitext/field`, `{ source, label?, tagName?, fallback? }`) mostra un valore con il formato del suo tipo (un'immagine, un link, un elenco di voci collegate, testo formattato…), e **Righe di un campo** (`cleitext/field-rows`, `{ source, limit?, emptyText?, layout?: 'grid', columns? }`) ripete i blocchi che contiene per ogni riga di una lista, o per ogni voce, termine o persona collegati, e i loro collegamenti leggono la riga (`row.field:<nome>`, oppure `entry.*`, `term.*`, `user.*` del record collegato). Nell'editor a blocchi il pannello **Collega a un campo** delle impostazioni del blocco sceglie la fonte e il canvas mostra il valore vero; dentro Righe di un campo, quello della prima riga.
 
@@ -563,6 +611,25 @@ ctx.blocks.register(
 - API dei plugin 1.41: `context.page.site.logo` è il logo scelto nelle impostazioni del tema (`{ id, url, width, height, alt }`), quando c'è. `context.page.user` è il visitatore connesso (`{ id, displayName, avatarUrl, email?, role }`, dove `role` è `{ slug, name }` o null) e manca per tutti gli altri. Le pagine dei visitatori connessi (con una sessione o un token API) non vanno mai in cache, quindi un blocco può salutarli o mostrarne l'avatar; senza `user` non deve mostrare nulla di personale, perché la pagina va in cache ed è condivisa.
 - `context.query({ type, terms, ids, exclude, orderBy, order, limit, offset })` in `load` (API plugin 1.11) elenca le voci pubblicate nella lingua della pagina, complete come le ricevono i temi (estratto, immagini, termini, campi), con il `total` per la paginazione; la pagina si aggiorna quando cambiano voci di quei tipi. `orderBy` è `date` (predefinito), `title`, `modified`, `random` o `order` (l'ordine manuale dell'admin, come il `menu_order` di WordPress, API 1.31); `terms` è `{ taxonomy, slugs }`; `limit` vale al massimo 100. Servono a loop, articoli correlati e portfolio.
 - `context.loadMedia(ids)` in `load` (API plugin 1.46; manca nei core più vecchi) dà i media della libreria come li ha `context.media` (varianti, punto focale, testo alternativo nella lingua della pagina), per i media indicati dai dati del plugin invece che dagli attributi del blocco, ad esempio le slide di uno slider conservate nelle tabelle del plugin. Al massimo 200 id; quelli sconosciuti restano fuori.
+- `context.renderBlocks(blocks, options)` in `load` (API dei plugin 1.49; manca nei core più vecchi) disegna dei blocchi come farebbe la pagina e ne dà l'HTML, da mettere in `render`: blocchi del core, blocchi dei plugin (caricati anche loro, al massimo per qualche livello), collegamenti e i blocchi Campo e Righe di un campo, risolti rispetto alla pagina e a `options`. `row` è la riga mostrata (le fonti `row.field:<nome>` la leggono; valori come li ricevono i modelli, per esempio `{ id, url, alt }` per un campo media), `fields` le sue definizioni (cos'è ogni valore: un'immagine, testo formattato, righe…), `entry`, `term`, `user` (`{ id }`) un record al posto di quello della pagina. I blocchi sono controllati come i documenti salvati, l'HTML libero è ripulito (come per gli autori senza `unfiltered_html`) e i media che mostrano vengono caricati. Un blocco fatto da un modello di blocchi del core:
+
+```tsx
+defineBlock<{ title?: string }, string>({
+  type: 'myplugin/card',
+  title: 'Scheda',
+  schema: 'json',
+  async load(attrs, context) {
+    const { fields } = (await ctx.fields.blockFields?.(context.siteId, 'myplugin/card')) ?? {
+      fields: [],
+    };
+    return (
+      (await context.renderBlocks?.(myTemplate, { row: { title: attrs.title }, fields })) ?? ''
+    );
+  },
+  render: ({ data }) => <div dangerouslySetInnerHTML={{ __html: data }} />,
+});
+```
+
 - `context.menus` contiene i menu del sito nella lingua della pagina, per posizione del tema (`{ id, label, url, target?, current, children }`), per i blocchi di navigazione.
 - `context.preview` (API dei plugin 1.36) vale `true` quando il blocco viene disegnato per l'anteprima di un editor (`POST /api/v1/blocks/preview`, es. il canvas di Fresco) e non per una pagina: un blocco il cui contenuto arriva da uno script (un widget di prenotazione) può mostrare lì un segnaposto.
 - `items` (contenitori): ogni figlio disegnato a parte, per avvolgerli uno per uno (schede, accordion, caroselli).
@@ -691,6 +758,10 @@ const font = ctx.assets.url('fonts/icons.woff2'); // l'indirizzo, per il proprio
 Gli stili vanno in fondo al `<head>`, gli script prima di `</body>` (`defer`, oppure `type="module"` per `.mjs`). `when` riceve il contesto dell'hook della pagina e il suo HTML finale.
 
 I plugin seguono un ordine stabile (API dei plugin 1.42): un plugin dopo quelli che elenca in `requires.plugins`, gli altri per slug, e i file di ciascun plugin nell'ordine in cui li ha aggiunti. Così il foglio di stile di un'estensione si carica sempre dopo quello del plugin che estende e può sovrascriverlo a parità di specificità.
+
+### Il tema del sito (API dei plugin 1.49)
+
+`await ctx.themes.active?.(siteId)` dà `{ slug, name, version }` del tema usato da un sito. Un plugin può leggere i file che un tema gli fornisce (per esempio definizioni in JSON): `await ctx.themes.files?.(siteId, 'myplugin-json')` elenca i nomi di una cartella del tema (file normali, al massimo 200, senza sottocartelle) e `await ctx.themes.readFile?.(siteId, 'myplugin-json/hero.json')` ne legge uno come testo (null se manca). I percorsi restano dentro la cartella del tema: niente `..`, niente file nascosti, niente collegamenti che portano fuori; i file oltre 1 MB non vengono letti. Aurora, incluso in Cleitext, non ha una cartella (`[]` e null). Non serve nessun permesso.
 
 ### Estendere le opzioni di un tema (API dei plugin 1.32)
 
@@ -949,6 +1020,13 @@ ctx.hooks.filter('import.wxrMeta', (result, { items, terms, unserialize, metaVal
 
 Ogni elemento è `{ ref, id, type, status, name, title, content, excerpt, parent, menuOrder, imported, meta }` (`meta`: il primo valore di ogni chiave, come `get_post_meta(…, true)`), ogni termine `{ ref, id, taxonomy, slug, name, imported, meta }`; `options` è null (un'esportazione di WordPress non le contiene). `unserialize` legge il formato di `serialize()` di PHP e `metaValue` decodifica PHP serializzato o JSON (esportati anche come `phpUnserialize` e `phpMetaValue`). Media, voci e termini nei valori sono ref (`{ $media: 'att:<id dell'allegato>' }`, `{ $entry: 'post:<id dell'articolo>' }`, `{ $term: '<ref del termine>' }`). Un plugin di importazione passa i meta con il suo documento: `ctx.transfer.importDocument(siteId, document, { userId, wxrMeta: { items, terms } })`.
 
+Dall'API dei plugin 1.49 (WordPress Importer 1.22.0):
+
+- Il contesto ha gli autori dell'esportazione, `authors`, `{ id, login, email, displayName, ref }`: WordPress salva una persona come il suo id, che nei valori si scrive `{ $user: author.ref }` (`user:<login>`). Un ref di utente diventa il membro importato (o l'account con la stessa email); un ref `user:<email>` l'account con quell'email, se c'è; gli altri diventano null.
+- `types` e `taxonomies` danno lo slug Cleitext di ogni tipo di contenuto e tassonomia personalizzati creati dall'importatore, per nome WordPress.
+- Il risultato può avere `contentTypes` (`{ slug, name, hierarchical?, permalink? }`) e `taxonomies` (`{ slug, name, hierarchical?, contentTypes? }`), per esempio dai tipi di contenuto di ACF: per slug sostituiscono il nome e le impostazioni indovinati dall'importatore (i `contentTypes` di una tassonomia si aggiungono), oppure vengono creati prima delle voci.
+- I ref `{ $media | $term | $user }` negli attributi dei blocchi, per esempio nei blocchi creati da un plugin con `import.block`, sono risolti come quelli dei valori dei campi.
+
 **Esportare i dati dei plugin** (API plugin 1.46). `cleitext export` chiede ai plugin attivi i loro dati con il filtro `export.pluginData`, così i dati conservati nelle tabelle di un plugin si spostano con il sito: aggiungili sotto il tuo slug, scrivi i media come `{ id: <id del media>, url }` e le voci come `{ $entry: <id della voce> }`, e riprendili con `import.pluginData`. Il plugin ufficiale **Diorama** sposta così i suoi slider:
 
 ```ts
@@ -1172,6 +1250,28 @@ export default defineAdminPlugin({
 
 `FieldsForm` accetta anche `labelPlacement` (`top`, `left`) e `rowIds` (le nuove righe delle liste ricevono un `_id`).
 
+**Tipi di campo di impaginazione** (API dei plugin 1.49). Un tipo con `layout: true` non ha un valore e dispone i campi che lo seguono, come schede e fisarmoniche: `FieldsForm` non gli disegna etichetta, aiuto né colonna dell'etichetta, e `groups(field, following)` dice quanti dei campi mostrati dopo di lui prende (predefinito 0). Il modulo li lascia al componente, che riceve `layout`: `{ siblings, index, values, fields, render }` (i campi mostrati del modulo, il suo posto fra loro, i valori del modulo con i predefiniti, i campi che raggruppa e `render(fields)`, che disegna dei campi come farebbe il modulo, con i loro errori e le loro modifiche):
+
+```tsx
+{
+  type: 'myplugin/tab',
+  layout: true,
+  // Fino alla scheda successiva.
+  groups: (field, following) => {
+    const next = following.findIndex((f) => f.type === 'myplugin/tab');
+    return next === -1 ? following.length : next;
+  },
+  component: ({ field, layout, locale }: FieldControlProps) => (
+    <details open>
+      <summary>{labelText(field.label, locale)}</summary>
+      {layout?.render(layout.fields)}
+    </details>
+  ),
+}
+```
+
+`adminFieldType(type)` legge un tipo registrato fuori da React.
+
 <a id="editors"></a>**Editor** (API dei plugin 1.11). Un plugin può offrire un editor per le voci al posto dell'editor a blocchi, per esempio un page builder. Occupa tutto lo schermo sotto la barra superiore dell'editor, che mantiene titolo, salvataggio, anteprima e pubblicazione:
 
 ```tsx
@@ -1280,7 +1380,7 @@ Usati dai campi dei tipi di contenuto, dai gruppi di campi, dagli attributi dei 
 
 I plugin aggiungono tipi chiamati `<plugin>/<nome>`, con le loro opzioni in `settings` ([tipi di campo dei plugin](#tipi-di-campo-dei-plugin-api-dei-plugin-147)). Le righe di una `list` salvate con voci, termini e utenti hanno un `_id` stabile (API dei plugin 1.47).
 
-Opzioni comuni: `name` (lettere, cifre, `_`), `label`, `help`, `required`, `translation` e `hidden` (mai mostrato nei moduli: dati conservati con gli altri, per esempio impostazioni importate da un altro sito). Nei moduli di impostazioni, `section` mette un campo in una scheda (opzioni del tema, §4 di TEMI.md), `group` gli mette sopra un titolo e `showIf` lo mostra solo quando altri campi hanno certi valori: `{ field: 'header', equals: 'transparent' }`, `{ field: 'layout', in: ['left', 'right'] }`, `{ field: 'sidebar', not: 'none' }`, oppure più condizioni con `{ all: [...] }` / `{ any: [...] }`. Dall'API dei plugin 1.47 anche `{ field, empty: true }` (vuoto) e `empty: false` (non vuoto), `contains` (un pezzo di testo, o un elemento di una lista), `gt` e `lt` (maggiore o minore di un numero; le date si confrontano come date); una condizione può unire più controlli, che devono passare tutti. Il server controlla un campo obbligatorio solo finché il suo `showIf` lo mostra. Un campo senza valore conta come il suo predefinito. `inline: true` disegna un campo sulla stessa riga di quello prima, solo con il suo controllo e con l'etichetta come suggerimento (in Personalizza: il campione del colore al passaggio del mouse accanto a quello del colore normale). Le etichette sono stringhe oppure oggetti per lingua (`{ en: 'Date', it: 'Data' }`). Un campo facoltativo può essere vuoto (`null`).
+Opzioni comuni: `name` (lettere, cifre, `_`), `label`, `help`, `required`, `translation` e `hidden` (mai mostrato nei moduli: dati conservati con gli altri, per esempio impostazioni importate da un altro sito). Nei moduli di impostazioni, `section` mette un campo in una scheda (opzioni del tema, §4 di TEMI.md), `group` gli mette sopra un titolo e `showIf` lo mostra solo quando altri campi hanno certi valori: `{ field: 'header', equals: 'transparent' }`, `{ field: 'layout', in: ['left', 'right'] }`, `{ field: 'sidebar', not: 'none' }`, oppure più condizioni con `{ all: [...] }` / `{ any: [...] }`. Dall'API dei plugin 1.47 anche `{ field, empty: true }` (vuoto) e `empty: false` (non vuoto), `contains` (un pezzo di testo, o un elemento di una lista), `gt` e `lt` (maggiore o minore di un numero; le date si confrontano come date); dall'API dei plugin 1.49 anche `notContains` (il testo o la lista non lo contiene) e `pattern` (un'espressione regolare JavaScript senza barre, al massimo 200 caratteri, controllata quando la definizione è salvata: il valore è provato come testo, una lista quando corrisponde un suo elemento qualsiasi; `conditionPattern` la compila); una condizione può unire più controlli, che devono passare tutti. Il server controlla un campo obbligatorio solo finché il suo `showIf` lo mostra. Un campo senza valore conta come il suo predefinito. `inline: true` disegna un campo sulla stessa riga di quello prima, solo con il suo controllo e con l'etichetta come suggerimento (in Personalizza: il campione del colore al passaggio del mouse accanto a quello del colore normale). Le etichette sono stringhe oppure oggetti per lingua (`{ en: 'Date', it: 'Data' }`). Un campo facoltativo può essere vuoto (`null`).
 
 `responsive: true` (su `number`, `select`, `choice`, `boolean`, `spacing`, `background`, `color` e `text`) tiene un valore per dispositivo, `{ desktop, tablet, mobile }`: un dispositivo senza valore usa quello del più grande (`deviceValue(value, device)` in `@cleitext/shared`). Un `number` responsive può avere `units` (`['px', 'em']`), salvate come `desktopUnit`, `tabletUnit`, `mobileUnit`. In Personalizza il selettore del dispositivo accanto all'etichetta segue l'anteprima. Un `color` o un `background` con `palette: { field, prefix }` offre anche i colori globali del tema: `field` è una lista di elementi `{ color }` dello stesso modulo, e il valore è `var(<prefix><indice>)`, per esempio `var(--zn-global-color-0)`. Dei caratteri dei campi `typography` si controlla solo la scrittura; `googleFonts()` in `@cleitext/shared` elenca famiglie e spessori di Google.
 

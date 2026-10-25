@@ -25,7 +25,7 @@ import { UserFieldsService } from './user-fields.service.js';
 import { FieldPickersService, type PickerItem } from './field-pickers.service.js';
 import type { UserFieldsView } from '@cleitext/shared';
 
-const OBJECTS = new Set<FieldObject>(['entry', 'term', 'user']);
+const OBJECTS = new Set<FieldObject>(['entry', 'term', 'user', 'block']);
 const valuesSchema = z.object({ fields: z.record(z.string(), z.unknown()) });
 
 /**
@@ -97,8 +97,9 @@ export class FieldGroupsController {
   }
 
   /**
-   * Every group an admin screen may show (`entry`, `term`, `user`), with its
-   * rules: the editor shows those that match, live, as the entry changes.
+   * Every group an admin screen may show (`entry`, `term`, `user`; `block`
+   * for the fields of plugin blocks, plugin API 1.49), with its rules: the
+   * editor shows those that match, live, as the entry changes.
    */
   @Get('field-screens/:object')
   async screen(

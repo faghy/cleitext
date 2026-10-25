@@ -2,6 +2,7 @@ export * from './api.js';
 export * from './ui.js';
 export * from './fields-form.js';
 export * from './field-types.js';
+export { blockFields, useBlockFields, type BlockFields } from './block-fields.js';
 export * from './zones-builder.js';
 export { DeviceContext, useDevice } from './compound-fields.js';
 export * from './plugin.js';
@@ -10,6 +11,7 @@ export {
   adminUrl,
   labelText,
   type FieldDefinition,
+  type FieldGroupView,
   type FieldValues,
   type Label,
 } from '@cleitext/shared';

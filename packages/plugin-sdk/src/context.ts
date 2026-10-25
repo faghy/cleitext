@@ -620,6 +620,16 @@ export interface FieldsApi {
    */
   options?(siteId: string, page: string, options?: { locale?: string }): Promise<FieldValues>;
   /**
+   * The fields of a plugin block (plugin API 1.49; missing on older cores):
+   * those of the groups whose `block` rule names it (e.g. `myplugin/hero`),
+   * in order, the first of a name winning. The block editor shows them with
+   * `useBlockFields(name)` of the admin SDK. Needs `content:read`.
+   */
+  blockFields?(
+    siteId: string,
+    block: string,
+  ): Promise<{ fields: FieldDefinition[]; groups: FieldGroupView[] }>;
+  /**
    * Saves new values of an options page (needs `content:write`), checked like
    * the admin's; other values are kept. In a language other than the
    * default one, only translatable fields are saved, for that language.
@@ -675,6 +685,11 @@ export interface DynamicSource {
    */
   rowKind?: 'fields' | 'entry' | 'term' | 'user';
   rows?: Omit<DynamicSource, 'resolve'>[];
+  /**
+   * Resolved but left out of the lists of pickers (plugin API 1.49), e.g. an
+   * old id kept for content that still uses it.
+   */
+  hidden?: boolean;
   /** The value, formatted as `useField` gives it; undefined when there is none. */
   resolve(context: DynamicContext & { siteId: string }): unknown;
 }
@@ -802,6 +817,31 @@ export interface BlockLoadContext {
    * ids are left out; at most 200 ids.
    */
   loadMedia?(ids: string[]): Promise<ReadonlyMap<string, BlockMedia>>;
+  /**
+   * Renders blocks as the page would (plugin API 1.49; missing on older
+   * cores): core blocks, plugin blocks, bindings and the Field and Field
+   * rows blocks, resolved against the page and `scope`, e.g. a template of
+   * the plugin shown with its own data as the row (`row.field:<name>`).
+   * Gives the HTML to place in `render` (with `dangerouslySetInnerHTML`);
+   * the CSS of the blocks goes to the page. Blocks are checked as saved
+   * documents are; nested calls stop after a few levels.
+   */
+  renderBlocks?(blocks: CxdBlock[], options?: RenderBlocksOptions): Promise<string>;
+}
+
+/** What `renderBlocks` resolves bindings against (plugin API 1.49). */
+export interface RenderBlocksOptions {
+  /**
+   * The row shown: `row.field:<name>` sources read it. Values as templates
+   * get them (formatted, e.g. a media field's `{ id, url, alt… }`).
+   */
+  row?: Record<string, unknown>;
+  /** The definitions of the row's fields: what each value is (an image, rich text, rows…). */
+  fields?: FieldDefinition[];
+  /** An entry, term or person instead of the page's. */
+  entry?: { id: string };
+  term?: { id: string };
+  user?: { id: string };
 }
 
 export interface BlockRenderContext {
@@ -1343,6 +1383,23 @@ export interface ThemesApi {
    * when the plugin is deactivated, but no longer reach the theme.
    */
   extend(theme: string, extension: ThemeExtension): void;
+  /**
+   * The theme a site uses (plugin API 1.49; missing on older cores). No
+   * permission needed.
+   */
+  active?(siteId: string): Promise<{ slug: string; name: string; version: string }>;
+  /**
+   * Names of the files of a folder of the site's theme (plugin API 1.49),
+   * e.g. `files(siteId, 'campus-json')`; `[]` when it has none (or the theme
+   * has no folder, as the bundled Aurora). At most 200, no sub-folders.
+   */
+  files?(siteId: string, dir: string): Promise<string[]>;
+  /**
+   * A text file of the site's theme, by its path inside the theme's folder
+   * (plugin API 1.49), e.g. `campus-json/group_hero.json`; null when there is
+   * none. Paths may not leave the folder; files over 1 MB are not read.
+   */
+  readFile?(siteId: string, path: string): Promise<string | null>;
 }
 
 /**

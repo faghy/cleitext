@@ -141,7 +141,20 @@ export interface FieldTypeDefinition {
   kind?: FieldValueKind;
   /** The kind for a given definition, when it depends on its settings (plugin API 1.48). */
   kindOf?: (field: FieldDefinition) => FieldValueKind;
+  /**
+   * What each row of a list holds (plugin API 1.49), for Field rows, page
+   * builders and block bindings: `{ kind: 'fields', fields }` for rows of
+   * fields (each a `row.field:<name>` source, nested lists included), or
+   * `{ kind: 'entry' | 'term' | 'user' }` for related records. Null for a
+   * value that is not a list. The core's `list` and multiple relations
+   * have it.
+   */
+  rows?: (field: FieldDefinition) => FieldRows | null | undefined;
 }
+
+/** What each row of a list field holds (`FieldTypeDefinition.rows`, plugin API 1.49). */
+export type FieldRows =
+  { kind: 'fields'; fields: readonly FieldDefinition[] } | { kind: 'entry' | 'term' | 'user' };
 
 const types = new Map<string, FieldTypeDefinition>();
 let version = 0;
@@ -187,6 +200,20 @@ export function onFieldTypesChange(listener: () => void): () => void {
 export function fieldValueKind(field: FieldDefinition): FieldValueKind {
   const type = types.get(field.type);
   return type?.kindOf?.(field) ?? type?.kind ?? 'text';
+}
+
+/** What each row of a field's list holds (see `rows`); null for fields that are not lists. */
+export function fieldRows(field: FieldDefinition): FieldRows | null {
+  const hook = types.get(field.type)?.rows;
+  if (!hook) return null;
+  try {
+    const rows = hook(field);
+    if (!rows || typeof rows !== 'object') return null;
+    if (rows.kind === 'fields') return Array.isArray(rows.fields) ? rows : null;
+    return rows.kind === 'entry' || rows.kind === 'term' || rows.kind === 'user' ? rows : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Whether a value counts as empty for a field (see `isEmpty`). */

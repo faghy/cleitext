@@ -17,14 +17,18 @@ import {
   type SiteTransaction,
 } from '@cleitext/db';
 import {
+  applyBindings,
   boundMediaIds,
   cxdDocumentSchema,
   documentText,
+  hasBindings,
+  type BindingScope,
   type CxdBlock,
   type CxdDocument,
 } from '@cleitext/blocks';
 import type {
   BlockPage,
+  RenderBlocksOptions,
   PluginPageContent,
   PublicQuery,
   RenderHookContext,
@@ -104,6 +108,7 @@ import { verifySameOrigin } from '../auth/auth.guard.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { routeRequest, sendRouteResponse, setPluginCookies } from '../plugins/plugin-routes.js';
 import { pluginPageBlock } from './plugin-page.js';
+import { sanitizeDocument } from '../content/html-sanitize.js';
 import { pluginBlockInstances } from './block-instances.js';
 import { pluginAssetUrl } from '../plugins/plugin-assets.js';
 import { verifyPreviewToken } from './preview.js';
@@ -2194,7 +2199,7 @@ export class PublicService {
     props: TemplateProps,
     media: Map<string, RenderMedia>,
     menus: Record<string, MenuItemView[]>,
-    options: { preview?: boolean } = {},
+    options: { preview?: boolean; depth?: number } = {},
   ): Promise<Map<string, BlockRenderer> | undefined> {
     const definitions = new Map(
       (await this.plugins.activePlugins(scope.siteId)).flatMap((plugin) =>
@@ -2347,6 +2352,16 @@ export class PublicService {
                       ids.filter((id) => typeof id === 'string').slice(0, 200),
                       scope.locale,
                     ),
+                  // Blocks of the plugin's own, with bindings against its data (plugin API 1.49).
+                  renderBlocks: (blocks, given) =>
+                    this.renderPluginBlocks(scope, plugin, blocks, given ?? {}, {
+                      props,
+                      media,
+                      menus,
+                      depth: options.depth ?? 0,
+                      preview: options.preview === true,
+                      html: (type) => definitions.get(type)?.block.html,
+                    }),
                 })
               : undefined;
             const style = block.css ? block.css({ attrs, block: instance, context }) : '';
@@ -2407,6 +2422,83 @@ export class PublicService {
       }
     };
     return new Map([...definitions.keys()].map((type) => [type, renderer]));
+  }
+
+  /**
+   * Blocks a plugin block renders with its own data (`renderBlocks`, plugin
+   * API 1.49): checked as saved documents, raw HTML cleaned, bindings and
+   * Field / Field rows resolved against the page and the given row, plugin
+   * blocks loaded (a few levels deep at most), rendered to HTML.
+   */
+  private async renderPluginBlocks(
+    scope: RequestScope,
+    plugin: string,
+    blocks: CxdBlock[],
+    given: RenderBlocksOptions,
+    env: {
+      props: TemplateProps;
+      media: Map<string, RenderMedia>;
+      menus: Record<string, MenuItemView[]>;
+      depth: number;
+      preview: boolean;
+      html: (type: string) => string[] | undefined;
+    },
+  ): Promise<string> {
+    if (env.depth >= 3 || !Array.isArray(blocks) || blocks.length === 0) return '';
+    const parsed = cxdDocumentSchema.safeParse({ schema: 1, blocks });
+    if (!parsed.success) {
+      this.logger.warn(`Blocks rendered by ${plugin} are not valid: ${parsed.error.message}`);
+      return '';
+    }
+    let document = sanitizeDocument(parsed.data as CxdDocument, env.html);
+    if (hasBindings(document)) {
+      const rowSource = `${plugin}:row`;
+      const row =
+        given.row && typeof given.row === 'object' && !Array.isArray(given.row)
+          ? given.row
+          : undefined;
+      const fields = Array.isArray(given.fields) ? given.fields : [];
+      const resolve = await this.bindings.resolver(
+        scope.siteId,
+        { locale: scope.locale, page: this.bindingPage(scope, env.props) },
+        row ? { source: rowSource, fields } : undefined,
+      );
+      const id = (value: { id?: unknown } | undefined) =>
+        typeof value?.id === 'string' ? { id: value.id } : undefined;
+      const start: BindingScope = {
+        ...(row ? { row, rowSource } : {}),
+        ...(id(given.entry) ? { entry: id(given.entry)! } : {}),
+        ...(id(given.term) ? { term: id(given.term)! } : {}),
+        ...(id(given.user) ? { user: id(given.user)! } : {}),
+      };
+      document = await applyBindings(document, { resolve, locale: scope.locale, scope: start });
+    }
+    const wanted = [...collectMediaIds(document), ...boundMediaIds(document)].filter(
+      (mediaId) => !env.media.has(mediaId),
+    );
+    if (wanted.length > 0) {
+      for (const [mediaId, item] of await loadMedia(scope.tx, wanted.slice(0, 200), scope.locale))
+        env.media.set(mediaId, item);
+    }
+    const renderers = await this.pluginBlockRenderers(
+      scope,
+      [document],
+      env.props,
+      env.media,
+      env.menus,
+      { preview: env.preview, depth: env.depth + 1 },
+    );
+    return renderToStaticMarkup(
+      createElement(Blocks, {
+        document,
+        context: {
+          media: env.media,
+          locale: scope.locale,
+          eagerFirstImage: false,
+          ...(renderers ? { renderers } : {}),
+        },
+      }),
+    );
   }
 
   /** The page as bindings see it (plugin API 1.48): its entry or archive, and the site. */

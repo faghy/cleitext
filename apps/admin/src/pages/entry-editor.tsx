@@ -5,7 +5,9 @@ import { FieldsForm, useT, type EditorDraft, type EditorHost } from '@cleitext/a
 import {
   fieldDefaults,
   labelText,
+  hiddenOnScreen,
   matchesLocation,
+  type HideOnScreen,
   type AssistantsStatus,
   type FieldGroupView,
   type ContentTypeView,
@@ -495,6 +497,8 @@ function Editor({ initial }: { initial: EntryView }) {
       currentUserRole: me.role?.slug ?? null,
     }),
   );
+  // Parts of the editor the groups shown hide (plugin API 1.49); values are kept.
+  const hidden = hiddenOnScreen(shownGroups);
   const themeGroup = shownGroups.find((g) => g.storage === 'document');
   // Under the content in the block editor; plugin editors keep every group in the sidebar.
   const mainGroups =
@@ -801,7 +805,11 @@ function Editor({ initial }: { initial: EntryView }) {
           <div className="min-h-0 flex-1 overflow-y-auto">
             {tab === 'document' && contentType && (
               <SummaryPanel
-                supports={contentType.supports}
+                supports={contentType.supports.filter(
+                  (feature) =>
+                    !(feature === 'excerpt' && hidden.has('excerpt')) &&
+                    !(feature === 'featured_image' && hidden.has('featuredImage')),
+                )}
                 values={summary}
                 errors={fieldErrors}
                 locale={userLocale}
@@ -824,9 +832,12 @@ function Editor({ initial }: { initial: EntryView }) {
                 />
               </section>
             )}
-            {tab === 'document' && contentType?.supports.includes('comments') && entry && (
-              <DiscussionPanel entryId={entry.id} comments={entry.comments} readOnly={readOnly} />
-            )}
+            {tab === 'document' &&
+              contentType?.supports.includes('comments') &&
+              !hidden.has('comments') &&
+              entry && (
+                <DiscussionPanel entryId={entry.id} comments={entry.comments} readOnly={readOnly} />
+              )}
             {tab === 'document' && contentType && (
               <FieldsPanel
                 type={contentType}
@@ -852,6 +863,7 @@ function Editor({ initial }: { initial: EntryView }) {
                 setFields={(group, values) =>
                   changeFields({ ...fieldsRef.current, [group]: values })
                 }
+                hidden={hidden}
                 visibility={visibility}
                 onVisibility={(value) => {
                   setVisibility(value);
@@ -1169,6 +1181,7 @@ function DocumentPanel({
   onSaved,
   onRestored,
   templates,
+  hidden,
 }: {
   draft: EditorDraft;
   setFields: (group: string, values: Record<string, unknown>) => void;
@@ -1177,6 +1190,8 @@ function DocumentPanel({
   entry: EntryView;
   /** The theme's page templates for this type (plugin API 1.47). */
   templates: { name: string; label: Label }[];
+  /** Parts hidden by the field groups shown (plugin API 1.49). */
+  hidden: ReadonlySet<HideOnScreen>;
   readOnly: boolean;
   busy: boolean;
   onAction: (kind: 'unpublish' | 'trash' | { schedule: string }) => void;
@@ -1308,21 +1323,23 @@ function DocumentPanel({
         </section>
       )}
 
-      <section className="space-y-2">
-        <h3 className="font-medium">{t('Permalink')}</h3>
-        <label className="block">
-          <span className="text-xs text-slate-600">{t('Slug')}</span>
-          <input
-            value={slug}
-            readOnly={readOnly}
-            onChange={(e) => setSlug(e.target.value)}
-            onBlur={() => slug !== entry.slug && saveSettings.mutate({ slug })}
-            className="w-full rounded border border-slate-300 px-2 py-1"
-          />
-        </label>
-      </section>
+      {!hidden.has('slug') && (
+        <section className="space-y-2">
+          <h3 className="font-medium">{t('Permalink')}</h3>
+          <label className="block">
+            <span className="text-xs text-slate-600">{t('Slug')}</span>
+            <input
+              value={slug}
+              readOnly={readOnly}
+              onChange={(e) => setSlug(e.target.value)}
+              onBlur={() => slug !== entry.slug && saveSettings.mutate({ slug })}
+              className="w-full rounded border border-slate-300 px-2 py-1"
+            />
+          </label>
+        </section>
+      )}
 
-      {(templates.length > 0 || entry.template) && (
+      {(templates.length > 0 || entry.template) && !hidden.has('template') && (
         <section className="space-y-2">
           <h3 className="font-medium">{t('Template')}</h3>
           <label className="block">
@@ -1347,7 +1364,7 @@ function DocumentPanel({
         </section>
       )}
 
-      {canReassign && (
+      {canReassign && !hidden.has('author') && (
         <section className="space-y-2">
           <h3 className="font-medium">{t('Author')}</h3>
           <label className="block">
@@ -1372,7 +1389,7 @@ function DocumentPanel({
         </section>
       )}
 
-      {hierarchical && (
+      {hierarchical && !hidden.has('pageAttributes') && (
         <section className="space-y-2">
           <h3 className="font-medium">{t('Page attributes')}</h3>
           <label className="block">
@@ -1421,7 +1438,7 @@ function DocumentPanel({
         </section>
       )}
 
-      <EntryTerms entry={entry} readOnly={readOnly} onSaved={onSaved} />
+      <EntryTerms entry={entry} readOnly={readOnly} onSaved={onSaved} hidden={hidden} />
 
       {/* Sections of plugins, e.g. the translations of the language plugin. */}
       <PluginEditorPanels
@@ -1438,47 +1455,49 @@ function DocumentPanel({
         setFields={setFields}
       />
 
-      <section className="space-y-2">
-        <h3 className="font-medium">{t('Revisions')}</h3>
-        <ul className="space-y-1">
-          {revisions.data?.map((revision) => (
-            <li key={revision.id} className="flex items-center justify-between gap-2">
-              <span>
-                {formatDate(revision.createdAt)}
-                <span className="block text-xs text-slate-500">
-                  {revision.author?.displayName ?? '—'}
-                  {revision.current && ` · ${t('current')}`}
-                  {revision.published && ` · ${t('published')}`}
+      {!hidden.has('revisions') && (
+        <section className="space-y-2">
+          <h3 className="font-medium">{t('Revisions')}</h3>
+          <ul className="space-y-1">
+            {revisions.data?.map((revision) => (
+              <li key={revision.id} className="flex items-center justify-between gap-2">
+                <span>
+                  {formatDate(revision.createdAt)}
+                  <span className="block text-xs text-slate-500">
+                    {revision.author?.displayName ?? '—'}
+                    {revision.current && ` · ${t('current')}`}
+                    {revision.published && ` · ${t('published')}`}
+                  </span>
                 </span>
-              </span>
-              {!revision.current && (
-                <span className="flex gap-2">
-                  <button
-                    type="button"
-                    className="text-sky-700 hover:underline"
-                    onClick={() => setComparing(revision.id)}
-                  >
-                    {t('Compare')}
-                  </button>
-                  {!readOnly && (
+                {!revision.current && (
+                  <span className="flex gap-2">
                     <button
                       type="button"
                       className="text-sky-700 hover:underline"
-                      disabled={restore.isPending}
-                      onClick={() => restore.mutate(revision.id)}
+                      onClick={() => setComparing(revision.id)}
                     >
-                      {t('Restore')}
+                      {t('Compare')}
                     </button>
-                  )}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-        {comparing && (
-          <RevisionDiff entry={entry} revisionId={comparing} onClose={() => setComparing(null)} />
-        )}
-      </section>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        className="text-sky-700 hover:underline"
+                        disabled={restore.isPending}
+                        onClick={() => restore.mutate(revision.id)}
+                      >
+                        {t('Restore')}
+                      </button>
+                    )}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          {comparing && (
+            <RevisionDiff entry={entry} revisionId={comparing} onClose={() => setComparing(null)} />
+          )}
+        </section>
+      )}
 
       {entry.permissions.delete && entry.status !== 'trashed' && (
         <section>

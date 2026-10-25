@@ -17,6 +17,7 @@ import type {
   DynamicSourceInfo,
 } from '@cleitext/plugin-sdk';
 import {
+  fieldRows,
   fieldValueKind,
   labelText,
   type FieldDefinition,
@@ -82,22 +83,27 @@ const CORE_SOURCES: DynamicSourceInfo[] = [
   { id: 'user.avatar', label: { en: 'Picture', it: 'Immagine' }, group: PERSON, type: 'media' },
 ];
 
-/** Rows of a list field or a relation to several records, for Field rows (plugin API 1.48). */
-function rowsOf(field: FieldDefinition): Pick<DynamicSourceInfo, 'rowKind' | 'rows'> {
-  if (field.type === 'list') {
-    return {
-      rowKind: 'fields',
-      rows: field.fields.map((sub) => ({
-        id: `row.field:${sub.name}`,
-        label: labelText(sub.label),
-        type: fieldValueKind(sub),
-        ...rowsOf(sub),
-      })),
-    };
-  }
-  if ((field.type === 'entry' || field.type === 'term' || field.type === 'user') && field.multiple)
-    return { rowKind: field.type };
-  return {};
+/**
+ * Rows of a list field or a relation to several records, for Field rows
+ * (plugin API 1.48): the core's lists, multiple relations and, since 1.49,
+ * plugin lists that say what their rows hold (`rows` of their field type).
+ */
+export function rowsOf(
+  field: FieldDefinition,
+  depth = 0,
+): Pick<DynamicSourceInfo, 'rowKind' | 'rows'> {
+  const rows = depth < 6 ? fieldRows(field) : null;
+  if (!rows) return {};
+  if (rows.kind !== 'fields') return { rowKind: rows.kind };
+  return {
+    rowKind: 'fields',
+    rows: rows.fields.map((sub) => ({
+      id: `row.field:${sub.name}`,
+      label: labelText(sub.label),
+      type: fieldValueKind(sub),
+      ...rowsOf(sub, depth + 1),
+    })),
+  };
 }
 
 /** A field as a source: `<object>.field:<name>` or `<object>.field:<group>.<name>`. */
@@ -174,8 +180,11 @@ export class DynamicSourcesService {
     return result;
   }
 
-  /** Every source of a site, as pickers list them. */
-  async sources(siteId: string): Promise<DynamicSourceInfo[]> {
+  /**
+   * Every source of a site, as pickers list them; `hidden` ones (plugin API
+   * 1.49, kept for content that uses them) only when asked, for resolving.
+   */
+  async sources(siteId: string, options: { hidden?: boolean } = {}): Promise<DynamicSourceInfo[]> {
     const fieldSources: DynamicSourceInfo[] = [];
     const fieldsHeading: Label = { en: 'Fields', it: 'Campi' };
     const { types, taxonomyRows } = await withContext(this.database.db, { siteId }, async (tx) => ({
@@ -199,7 +208,7 @@ export class DynamicSourcesService {
         for (const rule of and) {
           if (['taxonomy'].includes(rule.param)) objects.add('term');
           else if (['userRole', 'userForm'].includes(rule.param)) objects.add('user');
-          else if (rule.param !== 'currentUserRole' && rule.param !== 'optionsPage')
+          else if (!['currentUserRole', 'optionsPage', 'block'].includes(rule.param))
             objects.add('entry');
         }
       }
@@ -225,7 +234,9 @@ export class DynamicSourcesService {
         if (named) for (const field of group.fields) add(optionSource(page, field, group));
       }
     }
-    const plugin = (await this.pluginSources(siteId)).map(({ resolve: _resolve, ...info }) => info);
+    const plugin = (await this.pluginSources(siteId))
+      .filter((source) => options.hidden || source.hidden !== true)
+      .map(({ resolve: _resolve, ...info }) => info);
     return [...CORE_SOURCES, ...fieldSources, ...plugin];
   }
 

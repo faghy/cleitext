@@ -71,8 +71,11 @@ export type ResponsiveValue<T> = Partial<Record<Device, T | null>> &
  * When a field is shown: another field `equals` a value (==), is one of
  * `in`, is not `not` (!=), is `empty` (true) or not (false), `contains` a
  * value (text or list), or is greater (`gt`) or less (`lt`) than a number
- * (plugin API 1.47 for the last four); `all` / `any` combine conditions.
- * A field without a value counts as its default. Every test given must pass.
+ * (plugin API 1.47 for the last four), does not contain a value
+ * (`notContains`) or matches a regular expression (`pattern`, tested on
+ * the value as text; plugin API 1.49 for the last two); `all` / `any`
+ * combine conditions. A field without a value counts as its default. Every
+ * test given must pass.
  */
 export type FieldCondition =
   | {
@@ -84,6 +87,10 @@ export type FieldCondition =
       contains?: unknown;
       gt?: number;
       lt?: number;
+      /** The text or list does not contain this (plugin API 1.49). */
+      notContains?: unknown;
+      /** A JavaScript regular expression (without slashes) the value matches (plugin API 1.49). */
+      pattern?: string;
     }
   | { all: FieldCondition[] }
   | { any: FieldCondition[] };
@@ -436,6 +443,13 @@ const condition: z.ZodType<FieldCondition> = z.lazy(() =>
       contains: z.unknown().optional(),
       gt: z.number().optional(),
       lt: z.number().optional(),
+      notContains: z.unknown().optional(),
+      pattern: z
+        .string()
+        .min(1)
+        .max(200)
+        .refine((p) => conditionPattern(p) !== null, 'Not a valid regular expression')
+        .optional(),
     }),
     z.object({ all: z.array(condition).max(10) }),
     z.object({ any: z.array(condition).max(10) }),
@@ -1021,6 +1035,8 @@ export function fieldVisible(
     if (c.contains !== undefined && !containsValue(value, c.contains)) return false;
     if (typeof c.gt === 'number' && !(toNumber(value) > c.gt)) return false;
     if (typeof c.lt === 'number' && !(toNumber(value) < c.lt)) return false;
+    if (c.notContains !== undefined && containsValue(value, c.notContains)) return false;
+    if (typeof c.pattern === 'string' && !matchesPattern(value, c.pattern)) return false;
     return true;
   };
   return field.showIf ? test(field.showIf) : true;
@@ -1031,6 +1047,39 @@ function containsValue(value: unknown, wanted: unknown): boolean {
   if (typeof value === 'string') return typeof wanted === 'string' && value.includes(wanted);
   if (Array.isArray(value)) return value.includes(wanted);
   return false;
+}
+
+const patterns = new Map<string, RegExp | null>();
+
+/** A condition's `pattern` compiled (cached), or null when it is not a valid expression. */
+export function conditionPattern(pattern: string): RegExp | null {
+  if (patterns.has(pattern)) return patterns.get(pattern)!;
+  const compile = (flags: string): RegExp | null => {
+    try {
+      return new RegExp(pattern, flags);
+    } catch {
+      return null;
+    }
+  };
+  const compiled = pattern.length <= 200 ? (compile('u') ?? compile('')) : null;
+  if (patterns.size > 500) patterns.clear();
+  patterns.set(pattern, compiled);
+  return compiled;
+}
+
+/** Whether a value, as text, matches a condition's `pattern` (lists: any item). */
+function matchesPattern(value: unknown, pattern: string): boolean {
+  const re = conditionPattern(pattern);
+  if (!re) return false;
+  const test = (v: unknown) =>
+    re.test(
+      typeof v === 'string'
+        ? v.slice(0, 10_000)
+        : typeof v === 'number' || typeof v === 'boolean'
+          ? String(v)
+          : '',
+    );
+  return Array.isArray(value) ? value.some(test) : test(value);
 }
 
 /** A number for `gt` / `lt`: numbers, numeric text and dates (as time); NaN otherwise. */
@@ -1238,6 +1287,7 @@ function relation(kind: 'entry' | 'term' | 'user'): Partial<FieldTypeDefinition>
           ? refs[kind](value)
           : value,
     kindOf: (field) => ('multiple' in field && field.multiple ? 'list' : kind),
+    rows: (field) => ('multiple' in field && field.multiple ? { kind } : null),
   };
 }
 
@@ -1264,6 +1314,7 @@ const BUILTIN_EXTRAS: Partial<Record<string, Partial<FieldTypeDefinition>>> = {
             ),
           )
         : value,
+    rows: (field) => (field.type === 'list' ? { kind: 'fields', fields: field.fields } : null),
     index: (value, field) =>
       Array.isArray(value) && field.type === 'list'
         ? value

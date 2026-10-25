@@ -16,6 +16,7 @@ let installed = new Map<string, ThemeDefinition>();
 let failures = new Map<string, string>();
 let paid = new Map<string, NonNullable<ThemeManifest['paid']>>();
 let bundledPlugins = new Map<string, string[]>();
+let directories = new Map<string, string>();
 let generation = 0;
 
 export const DEFAULT_THEME = 'aurora';
@@ -42,6 +43,14 @@ export function themeFailures(): ReadonlyMap<string, string> {
 /** The plugins that come with a theme (theme.json `plugins`). */
 export function themePlugins(slug: string | null | undefined): string[] {
   return (slug && bundledPlugins.get(slug)) || [];
+}
+
+/**
+ * The folder of an installed theme (plugin API 1.49: plugins read files of
+ * the site's theme); null for the bundled Aurora and unknown themes.
+ */
+export function themeDirectory(slug: string | null | undefined): string | null {
+  return (slug && directories.get(slug)) || null;
 }
 
 /** Paid themes (RF-CAT-03): their license server, from theme.json. */
@@ -79,6 +88,7 @@ async function load(dir: string): Promise<void> {
   const errors = new Map<string, string>();
   const nextPaid = new Map<string, NonNullable<ThemeManifest['paid']>>();
   const nextPlugins = new Map<string, string[]>();
+  const nextDirectories = new Map<string, string>();
   const folders = existsSync(dir)
     ? // `x.staging` and `x.previous` belong to an installation in progress.
       (await readdir(dir, { withFileTypes: true })).filter(
@@ -107,6 +117,7 @@ async function load(dir: string): Promise<void> {
       next.set(theme.slug, { ...theme, version: manifest.version });
       if (manifest.paid) nextPaid.set(theme.slug, manifest.paid);
       if (manifest.plugins?.length) nextPlugins.set(theme.slug, manifest.plugins);
+      nextDirectories.set(theme.slug, base);
     } catch (error) {
       errors.set(folder.name, error instanceof Error ? error.message : String(error));
     }
@@ -115,4 +126,5 @@ async function load(dir: string): Promise<void> {
   failures = errors;
   paid = nextPaid;
   bundledPlugins = nextPlugins;
+  directories = nextDirectories;
 }

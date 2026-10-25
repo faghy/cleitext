@@ -8,8 +8,8 @@ import { fieldListSchema, type FieldDefinition, type Label } from './fields.js';
  * core evaluates the rules, on the server and live in the admin.
  */
 
-/** What the fields of a group are attached to. */
-export type FieldObject = 'entry' | 'term' | 'user' | 'options';
+/** What the fields of a group are attached to (`block`: a plugin block, plugin API 1.49). */
+export type FieldObject = 'entry' | 'term' | 'user' | 'options' | 'block';
 
 /**
  * Rule parameters, by the object they test:
@@ -21,7 +21,9 @@ export type FieldObject = 'entry' | 'term' | 'user' | 'options';
  *   (`edit`: an administrator edits the person, `profile`: their own
  *   profile, `all`);
  * - any object: `currentUserRole` (the role of the person editing);
- * - options pages: `optionsPage` (the page's slug, plugin API 1.48).
+ * - options pages: `optionsPage` (the page's slug, plugin API 1.48);
+ * - plugin blocks: `block` (the block's name, e.g. `myplugin/hero`, plugin
+ *   API 1.49): the fields of the block, edited in its sidebar.
  */
 export const LOCATION_PARAMS = [
   'contentType',
@@ -35,6 +37,7 @@ export const LOCATION_PARAMS = [
   'userRole',
   'userForm',
   'optionsPage',
+  'block',
 ] as const;
 export type LocationParam = (typeof LOCATION_PARAMS)[number];
 
@@ -50,6 +53,7 @@ const PARAM_OBJECT: Record<LocationParam, FieldObject | null> = {
   userRole: 'user',
   userForm: 'user',
   optionsPage: 'options',
+  block: 'block',
 };
 
 export interface LocationRule {
@@ -81,6 +85,8 @@ export interface LocationScreen {
   userForm?: 'edit' | 'profile';
   // Options pages (plugin API 1.48)
   optionsPage?: string;
+  // Plugin blocks (plugin API 1.49): the block's name.
+  block?: string;
 }
 
 export const locationRuleSchema = z.object({
@@ -144,6 +150,9 @@ function ruleMatches(rule: LocationRule, screen: LocationScreen): boolean {
     case 'optionsPage':
       equal = screen.optionsPage === v;
       break;
+    case 'block':
+      equal = v === '*' || screen.block === v;
+      break;
   }
   return rule.operator === '==' ? equal : !equal;
 }
@@ -193,11 +202,61 @@ export function mayMatchOptionsPage(rules: LocationRules, slug: string): boolean
   );
 }
 
+/**
+ * Whether rules could show a group on a plugin block (plugin API 1.49),
+ * whatever the role of the person editing: the block's fields.
+ */
+export function mayMatchBlock(rules: LocationRules, block: string): boolean {
+  return rules.some(
+    (and) =>
+      and.some((r) => r.param === 'block') &&
+      and.every((r) => PARAM_OBJECT[r.param] === null || PARAM_OBJECT[r.param] === 'block') &&
+      and.every((r) => r.param !== 'block' || ruleMatches(r, { object: 'block', block })),
+  );
+}
+
 /** Rules for the content types of a plugin group (`types`, `'*'` for all). */
 export function typesLocation(types: readonly string[]): LocationRules {
   return types.includes('*')
     ? [[{ param: 'contentType', operator: '==', value: '*' }]]
     : types.map((type) => [{ param: 'contentType', operator: '==', value: type }]);
+}
+
+/**
+ * Parts of the entry editor a group can hide where it shows (`hideOnScreen`,
+ * plugin API 1.49), as ACF's "Hide on screen":
+ * - `excerpt`, `featuredImage`: the summary fields;
+ * - `slug`: the permalink; `template`: the page template; `author`;
+ * - `pageAttributes`: the parent page and the order;
+ * - `categories`, `tags`: those taxonomies; `taxonomies`: every taxonomy;
+ * - `comments`: the discussion box; `revisions`: the list of revisions.
+ */
+export const HIDE_ON_SCREEN = [
+  'excerpt',
+  'featuredImage',
+  'slug',
+  'template',
+  'author',
+  'pageAttributes',
+  'categories',
+  'tags',
+  'taxonomies',
+  'comments',
+  'revisions',
+] as const;
+export type HideOnScreen = (typeof HIDE_ON_SCREEN)[number];
+
+/** What the entry editor hides for the groups shown: every group's `hideOnScreen` together. */
+export function hiddenOnScreen(
+  groups: readonly { hideOnScreen?: readonly string[] }[],
+): Set<HideOnScreen> {
+  const hidden = new Set<HideOnScreen>();
+  for (const group of groups) {
+    for (const part of group.hideOnScreen ?? []) {
+      if ((HIDE_ON_SCREEN as readonly string[]).includes(part)) hidden.add(part as HideOnScreen);
+    }
+  }
+  return hidden;
 }
 
 /** Where the group's box goes in the entry editor. */
@@ -220,6 +279,8 @@ export interface FieldGroupInput {
   description?: Label;
   /** `false`: kept but not shown (default true). */
   active?: boolean;
+  /** Parts of the entry editor hidden where the group shows (plugin API 1.49, `HIDE_ON_SCREEN`). */
+  hideOnScreen?: HideOnScreen[];
 }
 
 export const FIELD_GROUP_ID_RE = /^[a-z][a-z0-9_-]{0,63}$/;
@@ -235,6 +296,7 @@ export const fieldGroupSchema = z.object({
   labelPlacement: z.enum(['top', 'left']).optional(),
   description: label.optional(),
   active: z.boolean().optional(),
+  hideOnScreen: z.array(z.enum(HIDE_ON_SCREEN)).max(HIDE_ON_SCREEN.length).optional(),
 });
 
 /** A field group of the site's owners, as the API stores it. */

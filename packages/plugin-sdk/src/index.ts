@@ -16,6 +16,9 @@ export {
 } from '@cleitext/blocks';
 export {
   fieldDefaults,
+  /** Checks field definitions exactly as the core does (plugin API 1.49), nested ones too. */
+  fieldDefinitionSchema,
+  fieldListSchema,
   fieldsValidator,
   labelText,
   type FieldDefinition,
@@ -25,11 +28,18 @@ export {
 } from '@cleitext/shared';
 /** Custom fields (plugin API 1.47): types, conditions, groups and their rules. */
 export {
+  conditionPattern,
   ensureRowIds,
+  fieldRows,
   fieldVisible,
+  hiddenOnScreen,
   isEmptyValue,
   matchesLocation,
+  mayMatchBlock,
   typesLocation,
+  HIDE_ON_SCREEN,
+  type FieldRows,
+  type HideOnScreen,
   type CustomField,
   type FieldCondition,
   type FieldFormatContext,

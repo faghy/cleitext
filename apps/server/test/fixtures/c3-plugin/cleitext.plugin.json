@@ -1,0 +1,10 @@
+{
+  "slug": "c3-kit",
+  "name": "C3 kit (test fixture)",
+  "version": "1.0.0",
+  "apiVersion": "^1.49",
+  "description": "Plugin API 1.49 from a plugin: a list type that says what its rows hold, a hidden source, a block rendering core blocks with its own data, block fields, term and user save actions, and files of the site's theme.",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": ["content:read", "content:write", "routes:admin", "blocks", "users:read"]
+}

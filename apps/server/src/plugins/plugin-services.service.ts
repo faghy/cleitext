@@ -101,6 +101,8 @@ import { OptionsPagesService } from '../fields/options-pages.service.js';
 import { emptyWxrMetaResult, withWxrMeta } from '../transfer/wxr-meta.js';
 import { phpMetaValue, phpUnserialize } from '@cleitext/plugin-sdk';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
+import { themeDirectory, themeFor } from '../public/themes.js';
+import { readThemeFile, themeFiles } from '../themes/theme-files.js';
 
 /** Core services exposed to plugins through their context facades. */
 @Injectable()
@@ -161,6 +163,35 @@ export class PluginServicesProvider implements PluginServices {
 
   fieldGroups(siteId: string, object?: FieldObject): Promise<FieldGroupView[]> {
     return this.fieldGroupsService.groups(siteId, object);
+  }
+
+  blockFields(
+    siteId: string,
+    block: string,
+  ): Promise<{ fields: FieldDefinition[]; groups: FieldGroupView[] }> {
+    return this.fieldGroupsService.blockFields(siteId, block);
+  }
+
+  // ---- The site's theme (plugin API 1.49) -------------------------------------------------
+
+  private async themeSlug(siteId: string): Promise<string | null> {
+    const [row] = await withContext(this.database.db, { siteId }, (tx) =>
+      tx.select({ theme: sites.themeSlug }).from(sites).where(eq(sites.id, siteId)),
+    );
+    return themeFor(row?.theme).slug;
+  }
+
+  async activeTheme(siteId: string): Promise<{ slug: string; name: string; version: string }> {
+    const theme = themeFor(await this.themeSlug(siteId));
+    return { slug: theme.slug, name: theme.name, version: theme.version };
+  }
+
+  async themeFiles(siteId: string, dir: string): Promise<string[]> {
+    return themeFiles(themeDirectory(await this.themeSlug(siteId)), dir);
+  }
+
+  async themeFile(siteId: string, file: string): Promise<string | null> {
+    return readThemeFile(themeDirectory(await this.themeSlug(siteId)), file);
   }
 
   matchingFieldGroups(siteId: string, screen: LocationScreen): Promise<FieldGroupView[]> {
@@ -783,6 +814,10 @@ export class PluginServicesProvider implements PluginServices {
               items: Array.isArray(options.wxrMeta.items) ? options.wxrMeta.items : [],
               terms: Array.isArray(options.wxrMeta.terms) ? options.wxrMeta.terms : [],
               options: options.wxrMeta.options ?? null,
+              // Authors and the slugs given to custom types (plugin API 1.49).
+              authors: Array.isArray(options.wxrMeta.authors) ? options.wxrMeta.authors : [],
+              types: recordOfStrings(options.wxrMeta.types),
+              taxonomies: recordOfStrings(options.wxrMeta.taxonomies),
               unserialize: phpUnserialize,
               metaValue: phpMetaValue,
             },
@@ -1313,4 +1348,14 @@ function storageKey(key: string): string {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** A record of strings from a plugin's input (anything else left out). */
+function recordOfStrings(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  );
 }

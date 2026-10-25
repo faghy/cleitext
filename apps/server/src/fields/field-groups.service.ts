@@ -5,6 +5,7 @@ import {
   fieldsValidator,
   locationObjects,
   matchesLocation,
+  mayMatchBlock,
   sortFieldGroups,
   typesLocation,
   type FieldDefinition,
@@ -208,6 +209,29 @@ export class FieldGroupsService {
     if (themeGroup) all.push(themeGroup);
     const wanted = object ? all.filter((g) => locationObjects(g.location ?? []).has(object)) : all;
     return sortFieldGroups(wanted);
+  }
+
+  /**
+   * The fields of a plugin block (plugin API 1.49): those of the groups whose
+   * `block` rule names it, in order; the first field of a name wins.
+   */
+  async blockFields(
+    siteId: string,
+    block: string,
+  ): Promise<{ fields: FieldDefinition[]; groups: FieldGroupView[] }> {
+    const groups = (await this.groups(siteId, 'block')).filter(
+      (g) => g.storage !== 'document' && mayMatchBlock(g.location ?? [], block),
+    );
+    const seen = new Set<string>();
+    const fields: FieldDefinition[] = [];
+    for (const group of groups) {
+      for (const field of group.fields) {
+        if (seen.has(field.name)) continue;
+        seen.add(field.name);
+        fields.push(field);
+      }
+    }
+    return { fields, groups };
   }
 
   /** The groups whose rules match what is edited. */

@@ -2,9 +2,9 @@
   "slug": "options-kit",
   "name": "Options kit (test fixture)",
   "version": "1.0.0",
-  "apiVersion": "^1.48",
+  "apiVersion": "^1.49",
   "description": "An options page, the options API and an import.wxrMeta filter that maps ACF-like meta, used by the server tests of options pages, bindings and WordPress meta.",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
-  "permissions": ["content:read", "content:write", "routes:admin", "import"]
+  "permissions": ["content:read", "content:write", "routes:admin", "import", "blocks"]
 }

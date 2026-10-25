@@ -299,6 +299,28 @@ export async function importDocument(
       );
     }
   });
+  // People named in field values but not imported (plugin API 1.49): a ref
+  // `user:<email>` points to the account with that email, when there is one.
+  {
+    const named = new Set<string>();
+    const values = [
+      ...doc.entries.map((e) => e.fields),
+      ...doc.terms.map((t) => t.fields),
+      ...doc.users.map((u) => u.fields),
+      ...doc.options.map((o) => o.fields),
+    ];
+    for (const value of values) collectUserRefs(value, named);
+    for (const ref of named) {
+      if (userIds.has(ref)) continue;
+      const email = ref
+        .replace(/^user:/, '')
+        .trim()
+        .toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+      const found = existing.get(email) ?? (await findLogin(db, email))?.userId;
+      if (found) userIds.set(ref, found);
+    }
+  }
 
   // ---- Terms -----------------------------------------------------------------------
   const termIds = new Map<string, string>();
@@ -873,12 +895,9 @@ async function insertEntry(
     );
   }
 
-  const document = remapMedia(
-    entry.document,
-    context.media,
-    context.urls,
-    context.report,
-    entry.title,
+  const document = blockRefs(
+    remapMedia(entry.document, context.media, context.urls, context.report, entry.title),
+    context.refs,
   );
   const fields = importFieldRefs(entry.fields ?? {}, context.refs) as Record<string, unknown>;
   const id = newId();
@@ -951,6 +970,23 @@ async function insertEntry(
     }
   }
   return { id, revisionId, document, fields };
+}
+
+/**
+ * Refs to media, terms and people in blocks' attributes (plugin API 1.49),
+ * e.g. a plugin block made of a WordPress block's data: `{ $media: ref }`
+ * (also `$term`, `$user`) becomes the new id, as in field values. Entry
+ * refs are resolved later, with the entries.
+ */
+function blockRefs(document: CxdDocument, refs: Partial<ImportRefMaps>): CxdDocument {
+  if (!JSON.stringify(document.blocks).match(/"\$(media|term|user)"/)) return document;
+  const walk = (blocks: CxdBlock[]): CxdBlock[] =>
+    blocks.map((block) => ({
+      ...block,
+      attrs: importFieldRefs(block.attrs, refs) as CxdBlock['attrs'],
+      ...(block.children ? { children: walk(block.children) } : {}),
+    }));
+  return { ...document, blocks: walk(document.blocks) };
 }
 
 /** Image blocks: media refs become the imported media ids and URLs. */
@@ -1228,4 +1264,20 @@ async function resolveImportedBlocks(
       `Shortcode [${tag}] has no equivalent (${count}×): kept as text. A plugin may add it.`,
     );
   }
+}
+
+/** The `{ $user: ref }` refs of field values, anywhere in them (at most 1000). */
+function collectUserRefs(value: unknown, into: Set<string>, depth = 0): void {
+  if (into.size >= 1000 || depth > 20 || !value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectUserRefs(item, into, depth + 1);
+    return;
+  }
+  const object = value as Record<string, unknown>;
+  const keys = Object.keys(object);
+  if (keys.length === 1 && keys[0] === '$user' && typeof object.$user === 'string') {
+    into.add(object.$user);
+    return;
+  }
+  for (const item of Object.values(object)) collectUserRefs(item, into, depth + 1);
 }

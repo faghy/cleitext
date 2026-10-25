@@ -83,7 +83,7 @@ export class TermsService {
    * API 1.47): the others keep theirs; groups are merged one level down.
    */
   async updateTermFields(siteId: string, id: string, values: Record<string, unknown>) {
-    await withContext(this.database.db, { siteId }, async (tx) => {
+    const saved = await withContext(this.database.db, { siteId }, async (tx) => {
       const term = await this.term(tx, id);
       const [taxonomy] = await tx
         .select()
@@ -96,8 +96,13 @@ export class TermsService {
         mergeFieldValues(term.fields as Record<string, unknown>, values),
       );
       await tx.update(terms).set({ fields }).where(eq(terms.id, id));
+      return {
+        view: toView({ ...term, fields }, taxonomy!.slug, 0),
+        previous: term.fields as Record<string, unknown>,
+      };
     });
     await this.cache.invalidate(siteId, ['site']);
+    await this.emitSaved(siteId, saved.view, saved.previous);
   }
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: SiteTransaction) => Promise<T>) {
@@ -160,6 +165,7 @@ export class TermsService {
       );
     });
     await this.emitTerm(siteId, 'term.created', view, auth.userId);
+    await this.emitSaved(siteId, view, null, auth.userId);
     return view;
   }
 
@@ -195,6 +201,7 @@ export class TermsService {
       return toView(term, taxonomy!.slug, 0);
     });
     await this.emitTerm(siteId, 'term.created', view, auth.userId);
+    await this.emitSaved(siteId, view, null, auth.userId);
     return view;
   }
 
@@ -211,10 +218,12 @@ export class TermsService {
       position?: number | undefined;
     },
   ): Promise<TermView> {
+    const before: { fields: Record<string, unknown> | null } = { fields: null };
     const view = await this.run(siteId, auth, async (tx) => {
       if (!auth.capabilities.includes('manage_terms'))
         throw new ForbiddenException('You cannot manage terms.');
       const term = await this.term(tx, id);
+      before.fields = term.fields as Record<string, unknown>;
       const [taxonomy] = await tx
         .select()
         .from(taxonomies)
@@ -243,12 +252,16 @@ export class TermsService {
         );
       }
       // Nothing new (e.g. the same slug again): the term as it is.
-      if (Object.keys(changes).length === 0) return toView(term, taxonomy!.slug, 0);
+      if (Object.keys(changes).length === 0) {
+        before.fields = null;
+        return toView(term, taxonomy!.slug, 0);
+      }
       const [updated] = await tx.update(terms).set(changes).where(eq(terms.id, id)).returning();
       return toView(updated!, taxonomy!.slug, 0);
     });
     // Term names and slugs appear on many pages: refresh the whole site.
     await this.cache.invalidate(siteId, ['site']);
+    if (before.fields) await this.emitSaved(siteId, view, before.fields, auth.userId);
     return view;
   }
 
@@ -268,6 +281,32 @@ export class TermsService {
     });
     await this.cache.invalidate(siteId, ['site']);
     await this.emitTerm(siteId, 'term.deleted', view, auth.userId);
+  }
+
+  /** `term.saved` (plugin API 1.49): the term with its values, and those it had (null: new). */
+  private async emitSaved(
+    siteId: string,
+    view: TermView,
+    previous: Record<string, unknown> | null,
+    userId?: string,
+  ): Promise<void> {
+    await this.plugins.emit(
+      'term.saved',
+      {
+        term: {
+          id: view.id,
+          siteId,
+          taxonomy: view.taxonomy,
+          locale: view.locale,
+          slug: view.slug,
+          name: view.name,
+          fields: view.fields ?? {},
+        },
+        previous,
+      },
+      siteId,
+      userId,
+    );
   }
 
   /** Runs plugin actions after the change is committed. */

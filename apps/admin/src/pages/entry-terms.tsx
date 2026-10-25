@@ -1,4 +1,4 @@
-import type { EntryView, TaxonomyView, TermView } from '@cleitext/shared';
+import type { EntryView, HideOnScreen, TaxonomyView, TermView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useT } from '@cleitext/admin-sdk';
 import { useState } from 'react';
@@ -11,16 +11,26 @@ export function EntryTerms({
   entry,
   readOnly,
   onSaved,
+  hidden,
 }: {
   entry: EntryView;
   readOnly: boolean;
   onSaved: (view: EntryView) => void;
+  /** Taxonomies hidden by field groups (plugin API 1.49): values are kept. */
+  hidden?: ReadonlySet<HideOnScreen>;
 }) {
   const taxonomies = useQuery({
     queryKey: ['taxonomies'],
     queryFn: () => api<TaxonomyView[]>('GET', '/taxonomies'),
   });
-  const applicable = taxonomies.data?.filter((t) => t.contentTypes.includes(entry.type)) ?? [];
+  const applicable =
+    taxonomies.data?.filter(
+      (t) =>
+        t.contentTypes.includes(entry.type) &&
+        !hidden?.has('taxonomies') &&
+        !(t.slug === 'category' && hidden?.has('categories')) &&
+        !(t.slug === 'tag' && hidden?.has('tags')),
+    ) ?? [];
   return (
     <>
       {applicable.map((taxonomy) =>

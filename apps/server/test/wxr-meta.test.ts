@@ -80,18 +80,29 @@ const WXR = `<?xml version="1.0" encoding="UTF-8" ?>
 <wp:wxr_version>1.2</wp:wxr_version>
 <wp:base_blog_url>https://acf.example.com</wp:base_blog_url>
 <wp:author><wp:author_id>1</wp:author_id><wp:author_login>${cdata('marta')}</wp:author_login><wp:author_email>${cdata('marta@acf.example.com')}</wp:author_email><wp:author_display_name>${cdata('Marta')}</wp:author_display_name></wp:author>
-<wp:category><wp:term_id>5</wp:term_id><wp:category_nicename>${cdata('news')}</wp:category_nicename><wp:category_parent>${cdata('')}</wp:category_parent><wp:cat_name>${cdata('News')}</wp:cat_name>${meta({ color: '#ff0000' }, 'wp:termmeta')}</wp:category>
+<wp:category><wp:term_id>5</wp:term_id><wp:category_nicename>${cdata('news')}</wp:category_nicename><wp:category_parent>${cdata('')}</wp:category_parent><wp:cat_name>${cdata('News')}</wp:cat_name>${meta({ color: '#ff0000', curator: 'admin@wxr-meta.test' }, 'wp:termmeta')}</wp:category>
 <wp:term><wp:term_id>6</wp:term_id><wp:term_taxonomy>${cdata('genre')}</wp:term_taxonomy><wp:term_slug>${cdata('jazz')}</wp:term_slug><wp:term_name>${cdata('Jazz')}</wp:term_name>${meta({ icon: 'star' }, 'wp:termmeta')}</wp:term>
 ${item({ id: 10, type: 'acf-field-group', title: 'Book details', name: 'group_books', content: 'a:1:{s:8:"position";s:6:"normal";}' })}
 ${item({ id: 11, type: 'acf-field', title: 'Price', name: 'field_price', excerpt: 'price', parent: 10, content: 'a:2:{s:4:"type";s:6:"number";s:3:"min";i:0;}' })}
 ${item({ id: 12, type: 'acf-field', title: 'Cover', name: 'field_cover', excerpt: 'cover', parent: 10, content: 'a:1:{s:4:"type";s:5:"image";}' })}
+${item({ id: 13, type: 'acf-field', title: 'Host', name: 'field_host', excerpt: 'host', parent: 10, content: 'a:1:{s:4:"type";s:4:"user";}' })}
+${item({ id: 40, type: 'book', title: 'A novel', name: 'a-novel', categories: `<category domain="genre" nicename="jazz">${cdata('Jazz')}</category>` })}
 ${item({
   id: 20,
   type: 'post',
   title: 'A good book',
   name: 'a-good-book',
-  content: '<p>Read it.</p>',
-  meta: { price: '12', _price: 'field_price', cover: '30', _cover: 'field_cover', _edit_last: '1' },
+  content:
+    '<!-- wp:paragraph --><p>Read it.</p><!-- /wp:paragraph --><!-- wp:acf/quote {"name":"acf/quote","data":{"text":"Hi"}} /-->',
+  meta: {
+    price: '12',
+    _price: 'field_price',
+    cover: '30',
+    _cover: 'field_cover',
+    host: '1',
+    _host: 'field_host',
+    _edit_last: '1',
+  },
   categories: `<category domain="category" nicename="news">${cdata('News')}</category><category domain="genre" nicename="jazz">${cdata('Jazz')}</category>`,
 })}
 </channel>
@@ -172,7 +183,11 @@ describe('import.wxrMeta', () => {
     expect(report.errors).toEqual([]);
     // The plugin saw every item (ACF's own too), the terms with their meta, no options.
     expect(report.warnings).toContain(
-      'options-kit saw 4 items (2 ACF fields), 2 terms (2 with meta), options: none, in en',
+      'options-kit saw 6 items (3 ACF fields), 2 terms (2 with meta), options: none, in en',
+    );
+    // The export's authors and the slugs of its custom types (plugin API 1.49).
+    expect(report.warnings).toContain(
+      'options-kit saw authors 1=user:marta and types {"book":"book"} {"genre":"genre"}',
     );
     // ACF's records are not content (nor reported as unknown types).
     expect(JSON.stringify(report.warnings)).not.toContain('acf-field');
@@ -184,16 +199,37 @@ describe('import.wxrMeta', () => {
       fields: [
         { name: 'price', type: 'number', label: 'Price' },
         { name: 'cover', type: 'media', label: 'Cover' },
+        { name: 'host', type: 'user', label: 'Host' },
       ],
     });
     const posts = (await admin.get('/api/v1/entries?type=article')).json().items;
     const post = (await admin.get(`/api/v1/entries/${posts[0].id}`)).json();
-    // The attachment was not in the export: its reference becomes null.
-    expect(post.revision.fields.acf).toEqual({ price: 12, cover: null });
+    const members = (await admin.get('/api/v1/users')).json();
+    const list = Array.isArray(members) ? members : members.items;
+    const marta = list.find((u: any) => u.email === 'marta@acf.example.com');
+    const me = list.find((u: any) => u.email === 'admin@wxr-meta.test');
+    // The attachment was not in the export: its reference becomes null; the
+    // author named by a user field is the imported member.
+    expect(post.revision.fields.acf).toEqual({ price: 12, cover: null, host: marta.id });
     const news = (await admin.get('/api/v1/taxonomies/category/terms'))
       .json()
       .find((t: any) => t.slug === 'news');
-    expect(news.fields).toEqual({ 'acf-term': { color: '#ff0000' } });
+    // A person named by email is the member with that email.
+    expect(news.fields).toEqual({ 'acf-term': { color: '#ff0000', curator: me.id } });
+    // The ACF block became the plugin's block, its refs resolved like field values.
+    const quote = post.revision.document.blocks.find((b: any) => b.type === 'options-kit/quote');
+    expect(quote.attrs).toEqual({ text: 'Hi', who: marta.id, topic: news.id, photo: null });
+    // The plugin described the custom post type and taxonomy.
+    const types = (await admin.get('/api/v1/content-types')).json();
+    expect(types.find((t: any) => t.slug === 'book')).toMatchObject({
+      hierarchical: true,
+      name: { en: 'Books' },
+    });
+    const genre = (await admin.get('/api/v1/taxonomies'))
+      .json()
+      .find((t: any) => t.slug === 'genre');
+    expect(genre).toMatchObject({ name: { en: 'Genres' } });
+    expect(genre.contentTypes).toContain('book');
     expect((await admin.get('/api/v1/options/acf-options')).json().values).toEqual({
       phone: '010 555',
     });

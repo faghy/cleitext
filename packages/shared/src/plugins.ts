@@ -1,7 +1,12 @@
 import type { LicenseView } from './licenses.js';
 
 import type { FieldDefinition, Label } from './fields.js';
-import type { FieldGroupPosition, FieldGroupSource, LocationRules } from './field-groups.js';
+import type {
+  FieldGroupPosition,
+  FieldGroupSource,
+  HideOnScreen,
+  LocationRules,
+} from './field-groups.js';
 
 /** A plugin as listed in Plugins (RF-PLG-02). */
 export interface PluginView {
@@ -79,6 +84,8 @@ export interface FieldGroupView {
   order?: number;
   labelPlacement?: 'top' | 'left';
   description?: Label;
+  /** Parts of the entry editor hidden where the group shows (plugin API 1.49). */
+  hideOnScreen?: HideOnScreen[];
   /** `site` (the owners'), `theme` or `plugin:<slug>`. */
   source?: FieldGroupSource;
   /**

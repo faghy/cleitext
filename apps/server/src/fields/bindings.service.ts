@@ -6,8 +6,9 @@ import {
   type CxdDocument,
 } from '@cleitext/blocks';
 import type { BlockPage, DynamicSourceInfo } from '@cleitext/plugin-sdk';
+import { fieldValueKind, labelText, type FieldDefinition } from '@cleitext/shared';
 import { Injectable } from '@nestjs/common';
-import { DynamicSourcesService } from './dynamic-sources.service.js';
+import { DynamicSourcesService, rowsOf } from './dynamic-sources.service.js';
 
 /** What bindings are resolved against when a page is rendered. */
 export interface BindingPageContext {
@@ -27,8 +28,16 @@ export interface BindingPageContext {
 export class BindingsService {
   constructor(private readonly dynamic: DynamicSourcesService) {}
 
-  /** A resolver for a page: values with their kind, rows with what each row is. */
-  async resolver(siteId: string, context: BindingPageContext): Promise<BindingResolver> {
+  /**
+   * A resolver for a page: values with their kind, rows with what each row
+   * is. `rows` (plugin API 1.49) describes a row given by a plugin block
+   * (`renderBlocks`): the fields of the rows whose scope has that `rowSource`.
+   */
+  async resolver(
+    siteId: string,
+    context: BindingPageContext,
+    rows?: { source: string; fields: readonly FieldDefinition[] },
+  ): Promise<BindingResolver> {
     const infos = new Map<string, DynamicSourceInfo>();
     const index = (list: DynamicSourceInfo[], prefix = '') => {
       for (const info of list) {
@@ -36,7 +45,18 @@ export class BindingsService {
         if (info.rows) index(info.rows as DynamicSourceInfo[], `${prefix}${info.id}|`);
       }
     };
-    index(await this.dynamic.sources(siteId));
+    index(await this.dynamic.sources(siteId, { hidden: true }));
+    if (rows) {
+      index(
+        rows.fields.map((field) => ({
+          id: `row.field:${field.name}`,
+          label: labelText(field.label),
+          type: fieldValueKind(field),
+          ...rowsOf(field),
+        })),
+        `${rows.source}|`,
+      );
+    }
     const info = (key: string, rowSource?: string) =>
       (rowSource && key.startsWith('row.field:') ? infos.get(`${rowSource}|${key}`) : undefined) ??
       infos.get(key);
