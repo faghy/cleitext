@@ -3,6 +3,7 @@ import { ApiError, pluginApi, t } from '@cleitext/admin-sdk';
 import { SLUG } from '../config';
 import type { LimitState } from '../model/limit';
 import type { Appointment, Exception, Service, Settings, Status } from '../model/types';
+import type { ImportNote } from '../import/types';
 
 export const agendaApi = pluginApi(SLUG);
 
@@ -26,13 +27,19 @@ export interface SettingsAnswer {
 }
 
 export interface ImportPreview {
-  services: { name: string; duration: number; status: string }[];
+  services: {
+    name: string;
+    duration: number;
+    status: string;
+    bufferBefore: number;
+    bufferAfter: number;
+  }[];
   appointments: number;
   future: number;
   exceptions: number;
   timezone: string | null;
   siteTimeZone: string;
-  warnings: string[];
+  notes: ImportNote[];
 }
 
 export interface ImportResult {
@@ -42,6 +49,7 @@ export interface ImportResult {
   appointments: number;
   existing: number;
   orphans: number;
+  settings: { notify: string[]; emails: string[]; shared: boolean | null };
 }
 
 export function messageOf(error: unknown): string {

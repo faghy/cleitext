@@ -51,6 +51,8 @@ import { readLink } from './model/tokens';
 import {
   STATUSES,
   type Appointment,
+  type EmailKind,
+  type EmailText,
   type Service,
   type Settings,
   type Status,
@@ -1327,9 +1329,11 @@ export default definePlugin({
       if (!file) return { status: 400, body: { message: 'Choose a file.' } };
       if (file.data.length > 8 * 1024 * 1024)
         return { status: 413, body: { message: 'The file is too large (8 MB at most).' } };
+      const name = file.filename.slice(0, 200);
+      // The same file uploaded again replaces the one before (else it would be read twice).
       const list = [
-        ...(await staged(request.siteId)),
-        { name: file.filename.slice(0, 200), content: file.data.toString('utf8') },
+        ...(await staged(request.siteId)).filter((f) => f.name !== name),
+        { name, content: file.data.toString('utf8') },
       ].slice(-5);
       await ctx.storage.set(request.siteId, STAGING_KEY, list);
       return { body: { files: list.map((f) => ({ name: f.name, size: f.content.length })) } };
@@ -1346,6 +1350,48 @@ export default definePlugin({
         })),
       },
     }));
+
+    /**
+     * The other plugin's settings, without undoing what was set here: its
+     * addresses join the notified ones, its email texts fill the kinds that
+     * have no text of the site yet. What changed, for the report.
+     */
+    const importSettings = async (
+      siteId: string,
+      plan: ImportPlan,
+      before: Settings,
+    ): Promise<{ notify: string[]; emails: string[]; shared: boolean | null }> => {
+      const done = {
+        notify: [] as string[],
+        emails: [] as string[],
+        shared: null as boolean | null,
+      };
+      const from = plan.settings;
+      if (!from) return done;
+      const notify = emailList(before.notify);
+      for (const address of from.notify)
+        if (!notify.includes(address)) {
+          notify.push(address);
+          done.notify.push(address);
+        }
+      const site = await ctx.site(siteId);
+      const locale = from.locale ?? site.defaultLocale.split('-')[0]!;
+      const own = { ...(before.emails[locale] ?? {}) };
+      for (const [kind, text] of Object.entries(from.emails) as [EmailKind, EmailText][])
+        if (!own[kind]) {
+          own[kind] = text;
+          done.emails.push(`${kind} (${locale})`);
+        }
+      if (from.shared !== undefined && from.shared !== before.shared) done.shared = from.shared;
+      const next = normalizeSettings({
+        ...before,
+        notify: notify.join(', '),
+        emails: { ...before.emails, [locale]: own },
+        shared: from.shared ?? before.shared,
+      });
+      await ctx.storage.set(siteId, SETTINGS_KEY, next);
+      return done;
+    };
 
     adminRoute('POST', '/import/run', async (request) => {
       const input = body(request);
@@ -1368,7 +1414,8 @@ export default definePlugin({
                   services: [...all.services, ...p.services],
                   exceptions: [...all.exceptions, ...p.exceptions],
                   appointments: [...all.appointments, ...p.appointments],
-                  warnings: [...all.warnings, ...p.warnings],
+                  settings: all.settings ?? p.settings,
+                  notes: [...all.notes, ...p.notes],
                 }));
       } catch (error) {
         return {
@@ -1382,16 +1429,21 @@ export default definePlugin({
           name: s.service.name,
           duration: s.service.duration,
           status: s.service.status,
+          bufferBefore: s.service.bufferBefore,
+          bufferAfter: s.service.bufferAfter,
         })),
         appointments: plan.appointments.length,
         future: plan.appointments.filter((a) => a.start > now && a.status !== 'cancelled').length,
         exceptions: plan.exceptions.length,
         timezone: plan.timezone,
         siteTimeZone: site.timeZone,
-        warnings: plan.warnings,
+        notes: plan.notes,
       };
       if (input.dryRun === true) return { body: { preview: summary } };
-      const result = await store.importPlan(siteId, plan);
+      const result = {
+        ...(await store.importPlan(siteId, plan)),
+        settings: await importSettings(siteId, plan, settings),
+      };
       await ctx.storage.delete(siteId, STAGING_KEY);
       await ctx.cache.invalidate(siteId, [CACHE_TAG]);
       return { body: { preview: summary, result } };

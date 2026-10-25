@@ -75,7 +75,11 @@ export function startsOf(service: Service, hours: DayHours): number[] {
  * Whether a new appointment of `service` at [start, end) clashes with an
  * existing one: the free time between them must be at least the larger of
  * the buffers that face each other (the new one's "before" and the old
- * one's "after", and the other way round).
+ * one's "after", and the other way round). Buffers may overlap each other,
+ * never an appointment. It is Simply Schedule Appointments' rule too (a
+ * new appointment's buffered time may not cover another appointment, its
+ * own time may not fall in another's buffers), so services imported from
+ * SSA offer the same times as there.
  */
 export function clashes(
   start: number,

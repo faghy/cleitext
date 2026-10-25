@@ -11,7 +11,7 @@ import { csvObjects } from '../model/csv';
 import { COLORS, normalizeService } from '../model/normalize';
 import { addDays, localToUtc, parseTime } from '../model/time';
 import { readDump, type SqlRow } from './sql';
-import type { ImportedAppointment, ImportPlan } from './types';
+import { note, type ImportedAppointment, type ImportPlan } from './types';
 
 const DATE_TIME = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2}):(\d{2})/;
 
@@ -52,14 +52,13 @@ export function planFromWpbc(
   tables: { booking: SqlRow[]; bookingdates: SqlRow[]; bookingtypes: SqlRow[] },
   timeZone: string,
 ): ImportPlan {
-  const warnings: string[] = [];
   const plan: ImportPlan = {
     source: 'wpbc',
     timezone: null,
     services: [],
     exceptions: [],
     appointments: [],
-    warnings,
+    notes: [],
   };
 
   const datesOf = new Map<
@@ -168,11 +167,19 @@ export function planFromWpbc(
         : null,
     });
   }
-  if (skipped) warnings.push(`${skipped} booking(s) left out: without dates.`);
   if (plan.services.length)
-    warnings.push(
-      'Resources became hidden services: review their duration and weekly hours before showing them.',
+    plan.notes.push(
+      note('info', '{n} resource(s) became services, {a} booking(s) became appointments.', {
+        n: plan.services.length,
+        a: plan.appointments.length,
+      }),
+      note(
+        'review',
+        'Resources became hidden services: review their duration and weekly hours before showing them.',
+      ),
     );
+  if (skipped)
+    plan.notes.push(note('skipped', '{n} booking(s) left out: without dates.', { n: skipped }));
   return plan;
 }
 

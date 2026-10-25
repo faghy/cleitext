@@ -9,7 +9,15 @@ import {
   replaceShortcodes,
 } from '../src/import/shortcodes';
 import { readDump } from '../src/import/sql';
-import { parseSsa, ssaCustomer, ssaDays } from '../src/import/ssa';
+import {
+  convertTemplate,
+  htmlToText,
+  parseSsa,
+  ssaCustomer,
+  ssaDays,
+  ssaTables,
+} from '../src/import/ssa';
+import { IT } from '../src/admin/it';
 import { parseWpbc, parseWpbcForm } from '../src/import/wpbc';
 import { csvObjects, parseCsv, toCsv } from '../src/model/csv';
 import { localDate, localMinutes } from '../src/model/time';
@@ -22,8 +30,13 @@ describe('Simply Schedule Appointments', () => {
 
   it('turns appointment types into services', () => {
     expect(plan.timezone).toBe('Europe/Rome');
-    expect(plan.services.map((s) => s.externalId)).toEqual(['ssa:type:1', 'ssa:type:2']);
-    const [one, group] = plan.services.map((s) => s.service);
+    expect(plan.services.map((s) => s.externalId)).toEqual([
+      'ssa:type:1',
+      'ssa:type:2',
+      'ssa:type:3',
+    ]);
+    const [one, group, old] = plan.services.map((s) => s.service);
+    expect(old!.status).toBe('hidden');
     expect(one).toMatchObject({
       name: 'Consulenza online',
       duration: 50,
@@ -80,7 +93,13 @@ describe('Simply Schedule Appointments', () => {
         note: 'SSA',
       },
     ]);
-    expect(plan.warnings.join(' ')).toMatch(/1 appointment/);
+    expect(plan.notes).toContainEqual({
+      kind: 'skipped',
+      text: '{n} appointment(s) never completed (abandoned, waiting for a form or a payment) or without a valid time.',
+      values: { n: 1 },
+    });
+    expect(plan.notes[0]!.text).toMatch(/export of Simply/);
+    expect(plan.settings!.notify).toEqual(['studio@example.test']);
   });
 
   it('reads a dump of its tables and refuses broken JSON', () => {
@@ -102,6 +121,246 @@ INSERT INTO \`wp_ssa_appointments\` (\`id\`,\`appointment_type_id\`,\`start_date
     expect(
       ssaCustomer({ 'Full Name': 'A', 'Email Address': 'a@b.c', Tags: ['x', 'y'] }),
     ).toMatchObject({ name: 'A', email: 'a@b.c', fields: [{ value: 'x, y' }] });
+  });
+});
+
+describe('Simply Schedule Appointments, its tables as JSON rows', () => {
+  const content = fixture('ssa-tables.json');
+  const plan = parseSsa(content, 'ssa.json');
+  const texts = plan.notes.map((n) => n.text);
+
+  it('detects the shape, also with prefixed names and from phpMyAdmin', () => {
+    expect(texts[0]).toMatch(/tables of Simply Schedule Appointments/);
+    const raw = JSON.parse(content) as Record<string, unknown>;
+    const prefixed = Object.fromEntries(
+      Object.entries(raw).map(([k, v]) => [
+        k === 'settings' ? 'wp_ssa_settings_json' : k === 'source' ? k : `wp_ssa_${k}`,
+        k === 'settings' ? JSON.stringify(v) : v,
+      ]),
+    );
+    const again = parseSsa(JSON.stringify(prefixed), 'x.json');
+    expect(again.services).toHaveLength(3);
+    expect(again.appointments).toHaveLength(4);
+    expect(again.settings!.notify).toContain('studio@example.test');
+    const phpMyAdmin = [
+      { type: 'header', version: '5.2' },
+      { type: 'table', name: 'wp_ssa_appointment_types', data: raw.appointment_types },
+      { type: 'table', name: 'wp_ssa_appointments', data: raw.appointments },
+    ];
+    expect(ssaTables(phpMyAdmin).format).toBe('tables');
+    expect(parseSsa(JSON.stringify(phpMyAdmin), 'x.json').appointments).toHaveLength(4);
+    expect(() => parseSsa('{"posts": []}', 'x.json')).toThrow(/No appointment types/);
+  });
+
+  it('imports every type: the published one bookable, the others hidden', () => {
+    const [online, studio, call] = plan.services.map((s) => s.service);
+    expect(online).toMatchObject({
+      name: 'Colloquio online',
+      description: 'Il link arriva per email.',
+      category: '',
+      color: '#8bc34a',
+      duration: 45,
+      bufferBefore: 70,
+      bufferAfter: 10,
+      minNotice: 720,
+      maxNotice: 86400,
+      capacity: 1,
+      status: 'active',
+    });
+    expect(online!.schedule.mode).toBe('fixed');
+    expect(online!.schedule.days[2]!.times).toEqual([600, 675, 750]);
+    expect(online!.schedule.days.filter((d) => d.times.length)).toHaveLength(1);
+    expect(online!.data.askPhone).toBe(true);
+    // Shown standard questions become the service's; hidden ones (Notes) do not.
+    expect(online!.fields.map((f) => [f.name, f.required])).toEqual([
+      ['address', true],
+      ['zip', false],
+    ]);
+    expect(studio).toMatchObject({ status: 'hidden', fields: [] });
+    expect(studio!.data.askPhone).toBeUndefined();
+    expect(call).toMatchObject({ status: 'hidden', category: 'Telefono', color: '#009688' });
+    expect(texts).toContain(
+      '“{name}” was deleted in SSA: it is imported hidden, with its appointments.',
+    );
+    expect(texts).toContain('“{name}” was not bookable in SSA: it is imported hidden.');
+  });
+
+  it('keeps the appointments with their customer, status and UTC time', () => {
+    expect(plan.appointments.map((a) => [a.externalId, a.status])).toEqual([
+      ['ssa:appointment:1', 'confirmed'],
+      ['ssa:appointment:2', 'confirmed'],
+      ['ssa:appointment:3', 'cancelled'],
+      ['ssa:appointment:4', 'confirmed'],
+    ]);
+    const [winter, summer, cancelled] = plan.appointments;
+    // 10:00 in Rome in winter (UTC+1) and in summer (UTC+2).
+    expect(localMinutes(winter!.start, winter!.timezone)).toBe(600);
+    expect(localDate(winter!.start, 'Europe/Rome')).toBe('2031-02-04');
+    expect(localMinutes(summer!.start, 'Europe/Rome')).toBe(600);
+    expect(summer).toMatchObject({
+      name: 'Cliente Finto 2',
+      email: 'finto2@example.test',
+      phone: '+39 000 111 0002',
+      locale: 'it',
+      fields: [
+        { name: 'address', label: 'Address', value: 'Via Esempio 1' },
+        { name: 'zip', label: 'Zip', value: '00000' },
+      ],
+    });
+    expect(cancelled!.notes).toBe('Impegno di lavoro');
+    expect(plan.exceptions).toEqual([]);
+    expect(texts).toContain('{n} blackout date(s): turned off in SSA.');
+    expect(plan.notes).toContainEqual({
+      kind: 'skipped',
+      text: '{n} appointment meta row(s): the page each booking was made on, not needed in Agenda.',
+      values: { n: 12 },
+    });
+    expect(plan.notes.find((n) => n.text.startsWith('{n} availability row'))!.values).toEqual({
+      n: 2,
+    });
+  });
+
+  it('takes the administrator’s addresses and the customers’ email texts', () => {
+    expect(plan.timezone).toBe('Europe/Rome');
+    expect(plan.settings).toMatchObject({
+      notify: ['studio@example.test', 'segreteria@example.test'],
+      locale: 'it',
+    });
+    expect(plan.settings!.shared).toBeUndefined();
+    expect(texts).toContain('The company name “{name}” is written in the imported email texts.');
+    const { confirmed, cancelled } = plan.settings!.emails;
+    expect(confirmed!.subject).toBe('Conferma del tuo appuntamento');
+    expect(confirmed!.body).toBe(
+      [
+        'Gentile {name},',
+        'la prenotazione è confermata.',
+        'Data e ora: {date}, {time}',
+        'Tipo: {service}',
+        'Modulo: compila il modulo (https://example.test/modulo) & firma',
+        'Saluti,\nStudio Esempio',
+        'Per modificare: {manage_url}',
+      ].join('\n\n'),
+    );
+    expect(cancelled!.body).toBe(
+      'Ciao {name},\nil tuo appuntamento di "{service}" è stato annullato',
+    );
+    expect(plan.notes).toContainEqual(
+      expect.objectContaining({ kind: 'skipped', values: { n: 2 } }),
+    );
+    expect(texts).toContain(
+      'SSA sent no reminder; Agenda sends one the day before: turn it off in Settings if you do not want it.',
+    );
+  });
+
+  it('converts SSA’s templates', () => {
+    const missing = new Set<string>();
+    expect(
+      convertTemplate(
+        '{% if a %}A{% if b %}B{% else %}C{% endif %}{% else %}D{% endif %}{{ Appointment.customer_information.Name }}{{ x|raw }}{% if Appointment.public_edit_url %}E{% endif %}',
+        '',
+        missing,
+      ),
+    ).toBe('D{name}E');
+    expect([...missing]).toEqual(['b', 'a', 'x']);
+    expect(convertTemplate('{{ Global.company_name }}', '', new Set())).toBe('{site}');
+    expect(
+      htmlToText('<ul><li>Uno</li><li>Due&nbsp;&#8364; &#x41;</li></ul><a href="u">u</a>'),
+    ).toBe('- Uno\n\n- Due € A\n\nu');
+    // Reminders and follow-ups: the reminder is taken, follow-ups have no equivalent.
+    const withReminder = parseSsa(
+      JSON.stringify({
+        settings: {
+          notifications: {
+            notifications: [
+              {
+                sent_to: ['{{customer_email}}'],
+                trigger: 'appointment_start_date',
+                when: 'before',
+                duration: 120,
+                subject: 'Domani',
+                message: 'Ci vediamo {{ Appointment.customer_start_date }}',
+                appointment_types: [3],
+              },
+              {
+                sent_to: ['{{customer_email}}'],
+                trigger: 'appointment_booked',
+                when: 'after',
+                duration: 60,
+                title: 'Follow-up',
+                message: 'x',
+              },
+              {
+                sent_to: ['{{customer_email}}'],
+                trigger: 'appointment_start_date',
+                when: 'before',
+                duration: 60,
+                title: 'Second',
+                message: 'y',
+              },
+            ],
+          },
+          developer: { separate_appointment_type_availability: true },
+          advanced_scheduling: { enabled: true },
+        },
+        appointment_types: [
+          {
+            id: '9',
+            title: 'T',
+            status: 'publish',
+            max_event_count: '2',
+            booking_start_date: '2031-01-01 00:00:00',
+            web_meetings: '{"provider":"zoom"}',
+            custom_customer_information: [
+              { field: 'Colore', type: 'dropdown', values: 'Rosso\nBlu', required: '1' },
+              { field: 'Privacy', type: 'checkbox' },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(withReminder.settings!.emails.reminder).toEqual({
+      subject: 'Domani',
+      body: 'Ci vediamo {date}, {time}',
+    });
+    expect(withReminder.settings!.shared).toBe(false);
+    expect(withReminder.services[0]!.service.fields).toEqual([
+      {
+        name: 'colore',
+        label: 'Colore',
+        type: 'select',
+        required: true,
+        options: ['Rosso', 'Blu'],
+      },
+      { name: 'privacy', label: 'Privacy', type: 'checkbox', required: false, options: [] },
+    ]);
+    expect(withReminder.notes.filter((n) => n.kind === 'skipped').map((n) => n.values)).toEqual([
+      { title: 'Follow-up' },
+      { title: 'Second' },
+    ]);
+    const kinds = withReminder.notes.map((n) => `${n.kind}:${n.text.slice(0, 20)}`);
+    expect(kinds).toEqual(
+      expect.arrayContaining([
+        'info:The reminder is sent',
+        'review:The email “{title}” ',
+        'skipped:The email “{title}” ',
+        'info:Each service keeps i',
+        'review:SSA’s advanced sched',
+        'review:“{name}”: SSA allowe',
+        'review:“{name}” could be bo',
+        'review:“{name}”: the video ',
+        'review:The imported email t',
+      ]),
+    );
+  });
+
+  it('has every line of the report in Italian', () => {
+    const missing: string[] = [];
+    for (const file of ['ssa.ts', 'wpbc.ts']) {
+      const source = readFileSync(new URL(`../src/import/${file}`, import.meta.url), 'utf8');
+      for (const m of source.matchAll(/note\(\s*'(?:info|skipped|review)',\s*'((?:[^'\\]|\\.)*)'/g))
+        if (!(m[1]! in IT)) missing.push(m[1]!);
+    }
+    expect(missing).toEqual([]);
   });
 });
 
@@ -132,7 +391,7 @@ describe('Booking Calendar', () => {
     expect(days!.name).toBe("O'Brien");
     expect(localDate(days!.start, 'Europe/Rome')).toBe('2030-07-01');
     expect(localDate(days!.end, 'Europe/Rome')).toBe('2030-07-03');
-    expect(plan.warnings.join(' ')).toMatch(/hidden services/);
+    expect(plan.notes.map((n) => n.text).join(' ')).toMatch(/hidden services/);
   });
 
   it('reads CSVs of its tables', () => {

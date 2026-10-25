@@ -9,6 +9,12 @@ import { useEffect, useState } from 'react';
 import { SLUG } from '../config';
 import { agenda, messageOf, type ImportPreview, type ImportResult } from './api';
 
+const NOTE_GROUPS = [
+  ['info', 'Read from the file'],
+  ['skipped', 'Left out'],
+  ['review', 'To check after importing'],
+] as const;
+
 export function ImportTab({ onImported }: { onImported: () => void }) {
   const { t } = useT();
   const [kind, setKind] = useState<'ssa' | 'wpbc'>('ssa');
@@ -94,7 +100,7 @@ export function ImportTab({ onImported }: { onImported: () => void }) {
         {kind === 'ssa' ? (
           <p className="agx-help">
             {t(
-              'In WordPress: Appointments → Settings → Import/Export → Export, with appointment types and appointments; save the code in a .json file and upload it here. A dump of the wp_ssa_ tables (.sql) works too.',
+              'In WordPress: Appointments → Settings → Import/Export → Export, with settings, appointment types and appointments; save the code in a .json file and upload it here. The wp_ssa_ tables work too: a dump (.sql) or their rows as JSON.',
             )}
           </p>
         ) : (
@@ -147,8 +153,18 @@ export function ImportTab({ onImported }: { onImported: () => void }) {
           <h3>{result ? t('Imported') : t('What will be imported')}</h3>
           <ul style={{ margin: 0 }}>
             <li>
-              {t('{n} services', { n: preview.services.length })}:{' '}
-              {preview.services.map((s) => `${s.name} (${s.duration}′)`).join(', ')}
+              {t('{n} services', { n: preview.services.length })}:
+              <ul>
+                {preview.services.map((s, i) => (
+                  <li key={i}>
+                    {s.name} ({s.duration}′
+                    {s.bufferBefore || s.bufferAfter
+                      ? `, ${t('buffers {b}′ / {a}′', { b: s.bufferBefore, a: s.bufferAfter })}`
+                      : ''}
+                    ) — {s.status === 'active' ? t('bookable') : t('hidden')}
+                  </li>
+                ))}
+              </ul>
             </li>
             <li>
               {t('{n} appointments, {f} of them still to come', {
@@ -166,23 +182,52 @@ export function ImportTab({ onImported }: { onImported: () => void }) {
               )}
             </p>
           ) : null}
-          {preview.warnings.map((w) => (
-            <p key={w} className="agx-help">
-              {t(w)}
-            </p>
-          ))}
+          {NOTE_GROUPS.map(([kind, title]) => {
+            const notes = preview.notes.filter((n) => n.kind === kind);
+            return notes.length ? (
+              <div key={kind}>
+                <h4 style={{ margin: '0 0 .25rem' }}>{t(title)}</h4>
+                <ul style={{ margin: 0 }} className={kind === 'review' ? 'agx-warn' : 'agx-help'}>
+                  {notes.map((n, i) => (
+                    <li key={i}>{t(n.text, n.values)}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null;
+          })}
           {result ? (
-            <p className="agx-ok" role="status">
-              {t(
-                'Done: {s} services added, {u} updated, {a} appointments added, {e} already there.',
-                {
-                  s: result.services,
-                  u: result.servicesUpdated,
-                  a: result.appointments,
-                  e: result.existing,
-                },
-              )}
-            </p>
+            <div className="agx-ok" role="status">
+              <p style={{ margin: 0 }}>
+                {t(
+                  'Done: {s} services added, {u} updated, {a} appointments added, {e} already there.',
+                  {
+                    s: result.services,
+                    u: result.servicesUpdated,
+                    a: result.appointments,
+                    e: result.existing,
+                  },
+                )}
+              </p>
+              {result.orphans ? (
+                <p style={{ margin: 0 }}>
+                  {t('{n} appointments left out: their appointment type is not in the file.', {
+                    n: result.orphans,
+                  })}
+                </p>
+              ) : null}
+              {result.settings.notify.length ? (
+                <p style={{ margin: 0 }}>
+                  {t('Bookings are now notified to {list} too.', {
+                    list: result.settings.notify.join(', '),
+                  })}
+                </p>
+              ) : null}
+              {result.settings.emails.length ? (
+                <p style={{ margin: 0 }}>
+                  {t('Email texts set: {list}.', { list: result.settings.emails.join(', ') })}
+                </p>
+              ) : null}
+            </div>
           ) : (
             <div>
               <button

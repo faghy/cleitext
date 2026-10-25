@@ -101,8 +101,8 @@ export const IT: Record<string, string> = {
   'Imported bookings do not count toward the limit of the free version. Importing again updates what was imported and adds only what is new.':
     'Le prenotazioni importate non contano nel limite della versione gratuita. Importando di nuovo, quello che c’era viene aggiornato e si aggiunge solo ciò che è nuovo.',
   'Importing…': 'Importazione…',
-  'In WordPress: Appointments → Settings → Import/Export → Export, with appointment types and appointments; save the code in a .json file and upload it here. A dump of the wp_ssa_ tables (.sql) works too.':
-    'In WordPress: Appointments → Settings → Import/Export → Export, con i tipi di appuntamento e gli appuntamenti; salva il codice in un file .json e caricalo qui. Va bene anche un dump delle tabelle wp_ssa_ (.sql).',
+  'In WordPress: Appointments → Settings → Import/Export → Export, with settings, appointment types and appointments; save the code in a .json file and upload it here. The wp_ssa_ tables work too: a dump (.sql) or their rows as JSON.':
+    'In WordPress: Appointments → Settings → Import/Export → Export, con impostazioni, tipi di appuntamento e appuntamenti; salva il codice in un file .json e caricalo qui. Vanno bene anche le tabelle wp_ssa_: un dump (.sql) o le loro righe in JSON.',
   'Kept free after each appointment.': 'Lasciato libero dopo ogni appuntamento.',
   'Kept free before each appointment.': 'Lasciato libero prima di ogni appuntamento.',
   'Kind of hours': 'Tipo di orario',
@@ -272,4 +272,74 @@ export const IT: Record<string, string> = {
     'Le risorse sono diventate servizi nascosti: controlla durata e orario settimanale prima di mostrarli.',
   'The file is not valid JSON: copy the whole export of Simply Schedule Appointments.':
     'Il file non è un JSON valido: copia tutta l’esportazione di Simply Schedule Appointments.',
+  // The import report (src/import).
+  'buffers {b}′ / {a}′': 'margini {b}′ / {a}′',
+  bookable: 'prenotabile',
+  hidden: 'nascosto',
+  'Read from the file': 'Letto dal file',
+  'Left out': 'Non importato',
+  'To check after importing': 'Da controllare dopo l’importazione',
+  '{n} appointments left out: their appointment type is not in the file.':
+    '{n} appuntamenti non importati: il loro tipo di appuntamento non è nel file.',
+  'Bookings are now notified to {list} too.': 'Le prenotazioni ora sono notificate anche a {list}.',
+  'Email texts set: {list}.': 'Testi delle email impostati: {list}.',
+  'No appointment types, appointments or settings of Simply Schedule Appointments in this file.':
+    'In questo file non ci sono tipi di appuntamento, appuntamenti o impostazioni di Simply Schedule Appointments.',
+  'Bookings will be notified to {email} (the administrator’s email of SSA).':
+    'Le prenotazioni saranno notificate a {email} (l’email dell’amministratore in SSA).',
+  'The company name “{name}” is written in the imported email texts.':
+    'Il nome dell’attività “{name}” è scritto nei testi delle email importati.',
+  'Each service keeps its own calendar, as in SSA.':
+    'Ogni servizio ha il suo calendario, come in SSA.',
+  'The email “{title}” of SSA: Agenda has no such email.':
+    'L’email “{title}” di SSA: Agenda non ha un’email così.',
+  'The email “{title}” of SSA: only the first one of each kind is imported.':
+    'L’email “{title}” di SSA: si importa solo la prima di ogni tipo.',
+  'The email “{title}” was only for some appointment types in SSA: in Agenda it is for every service.':
+    'In SSA l’email “{title}” era solo per alcuni tipi di appuntamento: in Agenda vale per tutti i servizi.',
+  'The reminder is sent {n} hours before, as in SSA.':
+    'Il promemoria parte {n} ore prima, come in SSA.',
+  'Customers’ email texts imported: {kinds}.': 'Testi delle email ai clienti importati: {kinds}.',
+  'The imported email texts have no link to cancel or move the appointment: add {manage_url} in Settings → Emails if you want it.':
+    'I testi importati non hanno il link per annullare o spostare l’appuntamento: aggiungi {manage_url} in Impostazioni → Email se lo vuoi.',
+  'Parts of the SSA email texts without an equivalent in Agenda were left out ({list}): check the texts in Settings → Emails.':
+    'Le parti dei testi di SSA senza un equivalente in Agenda sono state tolte ({list}): controlla i testi in Impostazioni → Email.',
+  '{n} email(s) to the administrator: Agenda sends its own notification, with every detail of the booking.':
+    '{n} email all’amministratore: Agenda manda la sua notifica, con tutti i dati della prenotazione.',
+  'SSA sent no reminder; Agenda sends one the day before: turn it off in Settings if you do not want it.':
+    'SSA non mandava promemoria; Agenda ne manda uno il giorno prima: disattivalo in Impostazioni se non lo vuoi.',
+  '“{name}” was deleted in SSA: it is imported hidden, with its appointments.':
+    '“{name}” era stato eliminato in SSA: viene importato nascosto, con i suoi appuntamenti.',
+  '“{name}” was not bookable in SSA: it is imported hidden.':
+    '“{name}” non era prenotabile in SSA: viene importato nascosto.',
+  '“{name}”: SSA allowed at most {n} appointments a day; Agenda has no such limit.':
+    '“{name}”: SSA accettava al massimo {n} appuntamenti al giorno; Agenda non ha questo limite.',
+  '“{name}” could be booked only between two dates in SSA: add closures in Agenda for the days outside.':
+    '“{name}” in SSA era prenotabile solo tra due date: aggiungi in Agenda le chiusure per i giorni fuori.',
+  '“{name}”: the video call link of SSA is not imported; write it in the service’s description.':
+    '“{name}”: il link della videochiamata di SSA non viene importato; scrivilo nella descrizione del servizio.',
+  '{n} appointment type(s) became services: {active} bookable, {hidden} hidden.':
+    '{n} tipi di appuntamento diventano servizi: {active} prenotabili, {hidden} nascosti.',
+  '{n} blackout date(s): turned off in SSA.': '{n} giorni di chiusura: disattivati in SSA.',
+  'SSA’s advanced scheduling options are not imported: check each service’s notice.':
+    'Le opzioni di pianificazione avanzata di SSA non vengono importate: controlla il preavviso di ogni servizio.',
+  '{n} appointment(s): {confirmed} confirmed, {cancelled} cancelled, {other} pending or no-show; times in UTC, as SSA stores them.':
+    '{n} appuntamenti: {confirmed} confermati, {cancelled} annullati, {other} in attesa o non presentati; orari in UTC, come li salva SSA.',
+  '{n} appointment(s) never completed (abandoned, waiting for a form or a payment) or without a valid time.':
+    '{n} appuntamenti mai completati (abbandonati, in attesa di un modulo o di un pagamento) o senza un orario valido.',
+  '{n} appointment meta row(s): the page each booking was made on, not needed in Agenda.':
+    '{n} righe di appointment_meta: la pagina da cui è stata fatta ogni prenotazione, non serve in Agenda.',
+  '{n} availability row(s): SSA’s cache of free times; Agenda works them out from the weekly hours.':
+    '{n} righe di availability: la cache degli orari liberi di SSA; Agenda li calcola dall’orario settimanale.',
+  'Read as the export of Simply Schedule Appointments.':
+    'Letto come esportazione di Simply Schedule Appointments.',
+  'Read as the tables of Simply Schedule Appointments (JSON rows).':
+    'Letto come tabelle di Simply Schedule Appointments (righe JSON).',
+  'Read as a CSV of a Simply Schedule Appointments table.':
+    'Letto come CSV di una tabella di Simply Schedule Appointments.',
+  'Read as a SQL dump of the Simply Schedule Appointments tables.':
+    'Letto come dump SQL delle tabelle di Simply Schedule Appointments.',
+  '{n} resource(s) became services, {a} booking(s) became appointments.':
+    '{n} risorse diventano servizi, {a} prenotazioni diventano appuntamenti.',
+  '{n} booking(s) left out: without dates.': '{n} prenotazioni non importate: senza date.',
 };

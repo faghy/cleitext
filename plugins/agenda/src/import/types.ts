@@ -1,5 +1,5 @@
 /** What the importers make of another plugin's data, before it is stored. */
-import type { Exception, Service, Status } from '../model/types';
+import type { EmailKind, EmailText, Exception, Service, Status } from '../model/types';
 
 export interface ImportedService {
   /** e.g. `ssa:type:3`, so importing twice updates instead of adding. */
@@ -20,6 +20,31 @@ export interface ImportedAppointment {
   timezone: string;
   locale: string;
   createdAt: number | null;
+  /** Private notes (e.g. why it was cancelled). */
+  notes?: string;
+}
+
+/**
+ * A line of the import report: what was read (`info`), what was left out
+ * (`skipped`) and what to check after importing (`review`). `text` is an
+ * English sentence with `{placeholders}` (translated in the admin, see
+ * `NOTE_TEXTS`), filled with `values`.
+ */
+export interface ImportNote {
+  kind: 'info' | 'skipped' | 'review';
+  text: string;
+  values?: Record<string, string | number>;
+}
+
+/** The other plugin's settings that Agenda has too. */
+export interface ImportedSettings {
+  /** Addresses to notify of bookings (the administrator's). */
+  notify: string[];
+  /** One calendar for every service (`false`: each its own). */
+  shared?: boolean;
+  /** The customers' email texts, in `locale` (null: the site's default language). */
+  emails: Partial<Record<EmailKind, EmailText>>;
+  locale: string | null;
 }
 
 export interface ImportPlan {
@@ -29,8 +54,15 @@ export interface ImportPlan {
   services: ImportedService[];
   exceptions: Omit<Exception, 'id'>[];
   appointments: ImportedAppointment[];
-  warnings: string[];
+  settings?: ImportedSettings;
+  notes: ImportNote[];
 }
+
+export const note = (
+  kind: ImportNote['kind'],
+  text: string,
+  values?: ImportNote['values'],
+): ImportNote => (values ? { kind, text, values } : { kind, text });
 
 export const obj = (v: unknown): Record<string, unknown> => {
   if (typeof v === 'string' && /^\s*[[{]/.test(v)) {

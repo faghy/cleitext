@@ -901,7 +901,7 @@ export function databaseStore(ctx: PluginContext) {
               email: a.email,
               phone: a.phone,
               fields: a.fields,
-              notes: '',
+              notes: a.notes ?? '',
               locale: a.locale,
               timezone: a.timezone,
               source: 'import',

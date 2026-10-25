@@ -186,6 +186,40 @@ describe('free slots', () => {
     ).toBe(false);
   });
 
+  it('follows the buffer rule of Simply Schedule Appointments', () => {
+    // SSA (is_appointment_period_available and the check across types): a
+    // new appointment's buffered period may not cover another appointment,
+    // and its own time may not fall in another's buffers; buffers may cover
+    // each other. That is "the gap is at least the larger facing buffer".
+    const service = consultation();
+    const day = (taken: string[]) =>
+      freeSlots({
+        service,
+        exceptions: [],
+        busy: taken.map((t) => busy(service, at('2026-07-02', t))),
+        from: '2026-07-02',
+        to: '2026-07-02',
+        now,
+        timeZone: ROME,
+        shared: true,
+      }).map((s) => localMinutes(s.start, ROME));
+    expect(day([])).toEqual([13 * 60, 14 * 60 + 15, 15 * 60 + 30]);
+    // 14:15 blocks both: 13:00 ends 25' before it (80' needed), 15:30 starts 25' after its end.
+    expect(day(['14:15'])).toEqual([]);
+    expect(day(['15:30'])).toEqual([13 * 60]);
+    // Buffers facing each other overlap: 30'/30' around 10:00–10:30 leaves 11:00 free.
+    const half = office({ bufferBefore: 30, bufferAfter: 30 });
+    const ten = busy(half, at('2026-07-02', '10:00'));
+    expect(clashes(at('2026-07-02', '11:00'), at('2026-07-02', '11:30'), half, ten)).toBe(false);
+    expect(clashes(at('2026-07-02', '10:55'), at('2026-07-02', '11:25'), half, ten)).toBe(true);
+    // Across services each side keeps its own: the larger facing buffer wins.
+    const plain = { bufferBefore: 0, bufferAfter: 0 };
+    expect(clashes(at('2026-07-02', '11:00'), at('2026-07-02', '11:30'), plain, ten)).toBe(false);
+    expect(clashes(at('2026-07-02', '10:45'), at('2026-07-02', '11:15'), plain, ten)).toBe(true);
+    expect(clashes(at('2026-07-02', '09:15'), at('2026-07-02', '09:30'), plain, ten)).toBe(false);
+    expect(clashes(at('2026-07-02', '09:15'), at('2026-07-02', '09:45'), plain, ten)).toBe(true);
+  });
+
   it('fills a group slot up to its capacity', () => {
     const service = office({ capacity: 3 });
     const start = at('2026-07-06', '09:00');
