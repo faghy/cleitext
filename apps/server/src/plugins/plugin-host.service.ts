@@ -87,6 +87,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { compileRoute, type CompiledRoute } from './route-matcher.js';
 import { extendTheme } from '../themes/theme-extensions.js';
 import { orderPluginSlugs } from './plugin-order.js';
+import { hookDeadline } from './hook-deadline.js';
 
 /** Default priority of hooks, as in WordPress. */
 const DEFAULT_PRIORITY = 10;
@@ -1064,14 +1065,10 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     const plugin = this.loaded.get(hook.plugin);
     const started = performance.now();
     const limit = this.hookTimeout(options);
-    let timer: NodeJS.Timeout | undefined;
+    // Counted in time the server was free to run it, not time it spent elsewhere.
+    const deadline = hookDeadline(limit);
     try {
-      const value = await Promise.race([
-        Promise.resolve().then(fn),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error(`timed out after ${limit} ms`)), limit);
-        }),
-      ]);
+      const value = await Promise.race([Promise.resolve().then(fn), deadline.expired]);
       return { ok: true, value };
     } catch (error) {
       const message = describeError(error);
@@ -1083,7 +1080,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       if (hook.siteId) this.recordFailure(hook.plugin, hook.siteId, `${hook.name}: ${message}`);
       return { ok: false };
     } finally {
-      clearTimeout(timer);
+      deadline.clear();
       if (plugin) {
         plugin.stats.calls++;
         plugin.stats.totalMs += performance.now() - started;

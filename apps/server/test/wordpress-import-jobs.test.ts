@@ -161,11 +161,25 @@ async function status(): Promise<any> {
 async function finished(seen: any[] = []): Promise<any> {
   for (let i = 0; i < 1200; i++) {
     const job = await status();
-    if (job.counts) seen.push(job.counts);
-    if (job.status !== 'running') return job;
+    if (job?.counts) seen.push(job.counts);
+    if (job?.status !== 'running') return job;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error('The import did not finish.');
+}
+
+/**
+ * No import running and none shown: the one before is waited for (or
+ * cancelled and waited for) and cleared, so each test starts on its own.
+ */
+async function ready(): Promise<void> {
+  let job = await status();
+  if (job?.status === 'running') {
+    await admin.post(`${EXT}/cancel`);
+    job = await finished();
+  }
+  if (job) expect((await admin.request('DELETE', `${EXT}/status`)).statusCode).toBe(204);
+  expect(await status()).toBeNull();
 }
 
 async function install(source: string, pluginsPath: string, name: string, build = true) {
@@ -217,6 +231,7 @@ describe('WordPress imports as background jobs', () => {
   });
 
   it('answers a slow upload of a large export at once with a job, and imports it in the background', async () => {
+    await ready();
     const started = Date.now();
     // About a second and a half to arrive: far beyond the plugin's own time limit.
     const res = await slowUpload(
@@ -272,7 +287,7 @@ describe('WordPress imports as background jobs', () => {
   });
 
   it('adds nothing when the same file is imported again', async () => {
-    expect((await admin.request('DELETE', `${EXT}/status`)).statusCode).toBe(204);
+    await ready();
     const res = await slowUpload(
       `${EXT}/imports?locale=it&comments=skip`,
       'lino.xml',
@@ -292,7 +307,7 @@ describe('WordPress imports as background jobs', () => {
   }, 120_000);
 
   it('cancels a running import, keeping what was imported', async () => {
-    expect((await admin.request('DELETE', `${EXT}/status`)).statusCode).toBe(204);
+    await ready();
     expect((await admin.post(`${EXT}/cancel`)).statusCode).toBe(409);
     const res = await slowUpload(`${EXT}/imports?locale=it`, 'lino.xml', Buffer.from(xml));
     expect(res.statusCode).toBe(202);
@@ -304,7 +319,7 @@ describe('WordPress imports as background jobs', () => {
   }, 120_000);
 
   it('shows a job left running by a restart as failed, never running forever', async () => {
-    expect((await admin.request('DELETE', `${EXT}/status`)).statusCode).toBe(204);
+    await ready();
     const old = new Date(Date.now() - 10 * 60_000).toISOString();
     await withSiteContext(owner.db, site.id, (tx) =>
       tx.insert(settings).values({
