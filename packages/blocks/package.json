@@ -20,6 +20,10 @@
       "types": "./dist/elementor.d.ts",
       "default": "./dist/elementor.js"
     },
+    "./divi": {
+      "types": "./dist/divi.d.ts",
+      "default": "./dist/divi.js"
+    },
     "./transfer": {
       "types": "./dist/transfer.d.ts",
       "default": "./dist/transfer.js"
