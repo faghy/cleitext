@@ -338,6 +338,7 @@ function DocumentEditor({
   const canvasRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorInstance | null>(null);
   const [ready, setReady] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -351,6 +352,8 @@ function DocumentEditor({
       if (cancelled || !canvasRef.current) return;
       editorRef.current = gutenbergAdapter.mount({
         document,
+        // Plugin blocks' forms (media, relation fields) read data with the admin's cache.
+        queryClient,
         targets: { canvas: canvasRef.current },
         services: mediaServices(locale),
         locale,

@@ -554,6 +554,9 @@ importers:
       '@cleitext/shared':
         specifier: workspace:*
         version: link:../shared
+      '@tanstack/react-query':
+        specifier: ^5.104.1
+        version: 5.104.1(react@19.3.0)
       '@wordpress/api-fetch':
         specifier: ^7.57.0
         version: 7.57.0

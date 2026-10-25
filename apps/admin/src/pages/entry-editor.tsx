@@ -187,6 +187,8 @@ function Editor({ initial }: { initial: EntryView }) {
       if (cancelled || !canvasRef.current) return;
       editorRef.current = gutenbergAdapter.mount({
         styles: styles.css,
+        // Plugin blocks' forms (media, relation fields) read data with the admin's cache.
+        queryClient,
         document: documentRef.current,
         targets: { canvas: canvasRef.current, inspector: inspectorRef.current },
         services: {
@@ -226,7 +228,7 @@ function Editor({ initial }: { initial: EntryView }) {
       editorRef.current?.destroy();
       editorRef.current = null;
     };
-  }, [initial.locale, markDirty, userLocale, editorId]);
+  }, [initial.locale, markDirty, userLocale, editorId, queryClient]);
 
   // Warn before leaving with unsaved changes.
   useEffect(() => {

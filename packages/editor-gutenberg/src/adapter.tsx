@@ -5,6 +5,7 @@ import type {
   EditorMountOptions,
   PatternRef,
 } from '@cleitext/editor-core';
+import type { QueryClient } from '@tanstack/react-query';
 import {
   BlockCanvas,
   BlockEditorKeyboardShortcuts,
@@ -32,8 +33,8 @@ import {
 } from '@wordpress/icons';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { createRoot } from 'react-dom/client';
 import { fromGutenberg, toGutenberg } from './convert';
+import { mountEditorRoot } from './editor-root';
 import { buildBlocks, defaultsOf, isRegistered } from './gutenberg-tree';
 import { registerMediaUpload, setMediaServices } from './media-upload';
 import { registerFieldBlocks } from './field-blocks';
@@ -100,13 +101,24 @@ interface Controller {
   replace: (document: CxdDocument) => void;
 }
 
+/** Options of the Gutenberg editor: the common ones, plus what the admin shares with it. */
+export interface GutenbergMountOptions extends EditorMountOptions {
+  /**
+   * The admin's TanStack Query client, used by the forms of plugin blocks
+   * (media and relation fields). Without it, the editor creates its own.
+   */
+  queryClient?: QueryClient;
+}
+
 /**
  * Gutenberg implementation of the editor contract (docs/ARCHITECTURE.md §10).
  * The canvas runs in an iframe, isolated from the admin's styles.
  */
-export const gutenbergAdapter: EditorAdapter = {
+export const gutenbergAdapter: EditorAdapter & {
+  mount(options: GutenbergMountOptions): EditorInstance;
+} = {
   id: 'gutenberg',
-  mount(options: EditorMountOptions): EditorInstance {
+  mount(options: GutenbergMountOptions): EditorInstance {
     setMediaServices(options.services);
     setBindingsLanguage(options.uiLanguage ?? options.locale);
     registerCoreBlocks();
@@ -114,8 +126,11 @@ export const gutenbergAdapter: EditorAdapter = {
     registerMediaUpload();
     registerFieldBlocks(options.fieldBlocks ?? [], registry, options.locale);
     const controller: Controller = { current: () => options.document, replace: () => {} };
-    const root = createRoot(options.targets.canvas);
-    root.render(<GutenbergEditor options={options} controller={controller} />);
+    const root = mountEditorRoot(
+      options.targets.canvas,
+      <GutenbergEditor options={options} controller={controller} />,
+      options.queryClient,
+    );
     return {
       getDocument: () => controller.current(),
       setDocument: (document) => controller.replace(document),
