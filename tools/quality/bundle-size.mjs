@@ -1,5 +1,5 @@
 // Initial load of the built admin, gzipped (RNF-04): what index.html loads
-// before any route runs. Gutenberg must stay out of it (lazy-loaded).
+// before any route runs. Gutenberg and CodeMirror must stay out of it (lazy-loaded).
 //
 //   pnpm --filter @cleitext/admin build && pnpm check:bundle
 import { readFile } from 'node:fs/promises';
@@ -27,6 +27,11 @@ console.log(
 );
 if (files.some((file) => /gutenberg|block-editor/i.test(file))) {
   console.error('The block editor is part of the initial load: it must be lazy-loaded.');
+  process.exit(1);
+}
+// The code editor (CodeMirror, core 0.80) loads only where a code field is shown.
+if (files.some((file) => /code-editor-view|codemirror|lang-css/i.test(file))) {
+  console.error('The code editor is part of the initial load: it must be lazy-loaded.');
   process.exit(1);
 }
 if (total > LIMIT) process.exit(1);

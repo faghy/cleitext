@@ -16,3 +16,9 @@ export {
   type Label,
 } from '@cleitext/shared';
 export * from './i18n.js';
+export {
+  CodeEditor,
+  useAdminDark,
+  type CodeEditorProps,
+  type CodeLanguage,
+} from './code-editor.js';

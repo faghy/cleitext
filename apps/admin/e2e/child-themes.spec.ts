@@ -18,6 +18,18 @@ interface Css {
   theme: string;
 }
 
+/** Replaces the text of a code editor, typed key by key. */
+async function write(page: Page, label: string, text: string): Promise<void> {
+  const box = page.getByRole('textbox', { name: label });
+  // CodeMirror is loaded when the section opens (a textarea until then).
+  await expect(box).toHaveAttribute('contenteditable', 'true');
+  await box.click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.press('Delete');
+  if (text) await page.keyboard.type(text);
+  await expect(box).toHaveText(text);
+}
+
 /** The public home page's body, as a visitor gets it. */
 async function homeBody(page: Page): Promise<string> {
   const res = await page.request.get(`${SITE}/?e2e=${Date.now()}`);
@@ -74,7 +86,8 @@ test('a child theme of the active theme looks the same, Additional CSS changes t
     const cssLink = panel.getByRole('button', { name: 'Additional CSS', exact: true }).last();
     await cssLink.click();
     const css = `body { outline: 7px solid rgb(255, 0, 0); } /* ${stamp} */`;
-    await page.getByLabel('CSS for every theme').fill(css);
+    // A code editor (CodeMirror, core 0.80): the text is typed in.
+    await write(page, 'CSS for every theme', css);
     const preview = page.frameLocator('iframe[title="Site preview"]');
     await expect
       .poll(async () =>
@@ -86,9 +99,9 @@ test('a child theme of the active theme looks the same, Additional CSS changes t
       )
       .toBe('7px');
     // CSS that could close its <style> is refused before publishing.
-    await page.getByLabel(`CSS for ${childName} only`).fill('</style>');
+    await write(page, `CSS for ${childName} only`, '</style>');
     await expect(page.getByRole('alert').filter({ hasText: '</style>' })).toBeVisible();
-    await page.getByLabel(`CSS for ${childName} only`).fill('');
+    await write(page, `CSS for ${childName} only`, '');
     await page.getByRole('button', { name: 'Publish' }).click();
     await expect(page.getByText('Published.')).toBeVisible();
 

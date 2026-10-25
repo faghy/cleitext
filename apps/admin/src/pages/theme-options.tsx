@@ -1,4 +1,4 @@
-import { DeviceContext, FieldsForm, ZonesBuilder } from '@cleitext/admin-sdk';
+import { CodeEditor, DeviceContext, FieldsForm, ZonesBuilder } from '@cleitext/admin-sdk';
 import {
   additionalCssProblem,
   fieldDefaults,
@@ -773,39 +773,47 @@ function AdditionalCssPanel({
   locale: string;
 }) {
   const { t } = useT();
-  const fields: FieldDefinition[] = [
+  const parts = [
     {
-      name: 'site',
-      type: 'code',
-      language: 'css',
+      name: 'site' as const,
       label: t('CSS for every theme'),
       help: t(
         'Added to every page after the theme’s CSS. It stays when the theme is updated or changed.',
       ),
     },
     {
-      name: 'theme',
-      type: 'code',
-      language: 'css',
+      name: 'theme' as const,
       label: t('CSS for {theme} only', { theme: themeName }),
       help: t('Printed after the CSS above, only while this theme is active.'),
     },
   ];
   return (
     <div data-testid="additional-css">
-      <FieldsForm
-        fields={fields}
-        values={css as unknown as Record<string, unknown>}
-        defaults={{ site: '', theme: '' }}
-        onChange={(next) =>
-          onChange({
-            site: typeof next.site === 'string' ? next.site : '',
-            theme: typeof next.theme === 'string' ? next.theme : '',
-          })
-        }
-        locale={locale}
-        appearance="customizer"
-      />
+      {parts.map((part) => (
+        <div key={part.name} className="px-6 py-3">
+          <p
+            id={`additional-css-${part.name}-label`}
+            className="text-[13px] font-semibold text-slate-800"
+          >
+            {part.label}
+          </p>
+          <p id={`additional-css-${part.name}-help`} className="mt-1 text-xs text-slate-600">
+            {part.help}
+          </p>
+          {/* Highlighted, with completions; loaded only when this section opens (core 0.80). */}
+          <CodeEditor
+            className="mt-2"
+            language="css"
+            id={`additional-css-${part.name}`}
+            label={part.label}
+            describedBy={`additional-css-${part.name}-help`}
+            invalid={additionalCssProblem(css[part.name]) !== null}
+            value={css[part.name]}
+            rows={8}
+            onChange={(next) => onChange({ ...css, [part.name]: next })}
+          />
+        </div>
+      ))}
       <p className="px-6 pb-2 text-xs text-slate-500">
         {t('{count} of {max} characters', {
           count: Math.max(css.site.length, css.theme.length).toLocaleString(locale),

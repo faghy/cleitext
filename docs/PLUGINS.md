@@ -1,6 +1,6 @@
 # Developing Cleitext plugins
 
-> Plugin API **1.50** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
+> Plugin API **1.51** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
 
 A plugin extends Cleitext the way a WordPress plugin extends WordPress. It can add content types with custom fields, blocks, pages to the admin, settings, endpoints, addresses on the public site and its own database tables, and it can react to what happens through hooks.
 
@@ -1266,7 +1266,7 @@ export default defineAdminPlugin({
 - `parent` (API 1.25) makes a page a submenu item, as in WordPress: under another page of the plugin (its `path`, `''` for the main one) or under an admin section (`'/appearance'`, `'/settings'`, `'/users'`, `'/posts'`, `'/pages'`, `'/media'`, `'/plugins'`, and `'/tools'` from API 1.26). A page under `'/tools'` also gets a card on the **Tools** screen, with its `description` (API 1.26), a sentence on what it is for. The current entry shows its submenu below it; the others show it beside the sidebar on hover or focus.
 - `link` (API 1.25) makes a menu entry that opens an admin address instead of a page, e.g. `{ path: 'options', title: 'Theme options', parent: '', link: '/appearance?tab=customize' }`; such an entry needs no `component`.
 - `after` (API 1.25) puts a top-level entry right after an admin section instead of at the end of the sidebar, e.g. `after: '/appearance'` for a theme's own menu.
-- From `@cleitext/admin-sdk` you get `Button`, `Card`, `TextField`, `Alert`, `FieldsForm` (a form generated from field definitions), `api` (the core API), `pluginApi`, `ApiError`, `errorMessage` and `labelText`. Use them and their Tailwind classes, or inline styles. Your own Tailwind classes are not compiled.
+- From `@cleitext/admin-sdk` you get `Button`, `Card`, `TextField`, `Alert`, `FieldsForm` (a form generated from field definitions), `CodeEditor` (a code field, plugin API 1.51), `api` (the core API), `pluginApi`, `ApiError`, `errorMessage` and `labelText`. Use them and their Tailwind classes, or inline styles. Your own Tailwind classes are not compiled.
 - `@tanstack/react-query` is available, with the admin's query client.
 - A page that crashes shows an error message; the rest of the admin keeps working.
 
@@ -1322,6 +1322,24 @@ export default defineAdminPlugin({
 ```
 
 `FieldsForm` also takes `labelPlacement` (`top`, `left`) and `rowIds` (new list rows get an `_id`).
+
+**Code editor** (plugin API 1.51, core 0.80). `CodeEditor` of `@cleitext/admin-sdk` is a code field with syntax highlighting (CodeMirror 6), line numbers, bracket matching and completions (CSS properties, HTML tags), light or dark with the admin; the admin's Additional CSS uses it. It is loaded only when shown, so a plugin's page does not get heavier; until then, and if it cannot load, it is a plain textarea.
+
+```tsx
+import { CodeEditor } from '@cleitext/admin-sdk';
+
+<CodeEditor
+  language="css" // 'css' | 'html' | 'js'
+  label="Custom CSS" // the accessible name (screen readers); show your own visible label next to it
+  value={css}
+  onChange={setCss}
+  describedBy="css-help" // ids of the help or error text
+  invalid={Boolean(error)}
+  rows={10} // height in lines; it grows up to twice that, then scrolls
+/>;
+```
+
+Tab moves the focus on, as in any field, so the keyboard never gets stuck; `tabIndents` makes Tab indent instead (Esc, then Tab, leaves the editor). `readOnly`, `placeholder`, `id` and `theme` (`auto`, the default, follows the admin; `light`, `dark`) are optional. The value is plain text: check it on the server as any other input. `useAdminDark()` tells whether the admin shows its dark theme.
 
 **Layout field types** (plugin API 1.49). A type with `layout: true` holds no value and arranges the fields after it, as tabs and accordions: `FieldsForm` draws no label, help or label column for it, and `groups(field, following)` says how many of the shown fields after it it takes (default 0). The form leaves those to the component, which gets `layout`: `{ siblings, index, values, fields, render }` (the shown fields of the form, its place among them, the form's values with the defaults, the fields it groups, and `render(fields)`, which draws fields as the form would, with their errors and changes):
 

@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.50**
+> API dei plugin **1.51**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -1195,7 +1195,7 @@ export default defineAdminPlugin({
 - `parent` (API 1.25) fa della pagina una voce di sottomenu, come in WordPress: sotto un'altra pagina del plugin (il suo `path`, `''` per quella principale) o sotto una sezione dell'admin (`'/appearance'`, `'/settings'`, `'/users'`, `'/posts'`, `'/pages'`, `'/media'`, `'/plugins'` e, dall'API 1.26, `'/tools'`). Una pagina sotto `'/tools'` ha anche una scheda nella schermata **Strumenti**, con la sua `description` (API 1.26), una frase su a cosa serve. La voce corrente mostra il sottomenu sotto di sé; le altre lo mostrano accanto alla barra laterale al passaggio del mouse o con il focus.
 - `link` (API 1.25) crea una voce di menu che apre un indirizzo dell'admin invece di una pagina, es. `{ path: 'options', title: 'Opzioni del tema', parent: '', link: '/appearance?tab=customize' }`; una voce così non ha bisogno di `component`.
 - `after` (API 1.25) mette una voce principale subito dopo una sezione dell'admin invece che in fondo alla barra laterale, es. `after: '/appearance'` per il menu di un tema.
-- Da `@cleitext/admin-sdk` ottieni `Button`, `Card`, `TextField`, `Alert`, `FieldsForm` (un modulo generato dalle definizioni dei campi), `api` (l'API del core), `pluginApi`, `ApiError`, `errorMessage` e `labelText`. Usali insieme alle loro classi Tailwind, oppure usa stili inline. Le tue classi Tailwind non vengono compilate.
+- Da `@cleitext/admin-sdk` ottieni `Button`, `Card`, `TextField`, `Alert`, `FieldsForm` (un modulo generato dalle definizioni dei campi), `CodeEditor` (un campo per il codice, API dei plugin 1.51), `api` (l'API del core), `pluginApi`, `ApiError`, `errorMessage` e `labelText`. Usali insieme alle loro classi Tailwind, oppure usa stili inline. Le tue classi Tailwind non vengono compilate.
 - `@tanstack/react-query` è disponibile, con il query client dell'admin.
 - Una pagina che va in crash mostra un messaggio di errore; il resto dell'admin continua a funzionare.
 
@@ -1251,6 +1251,24 @@ export default defineAdminPlugin({
 ```
 
 `FieldsForm` accetta anche `labelPlacement` (`top`, `left`) e `rowIds` (le nuove righe delle liste ricevono un `_id`).
+
+**Editor di codice** (API dei plugin 1.51, core 0.80). `CodeEditor` di `@cleitext/admin-sdk` è un campo per il codice con evidenziazione della sintassi (CodeMirror 6), numeri di riga, parentesi abbinate e completamenti (proprietà CSS, tag HTML), chiaro o scuro come l'admin; lo usa il CSS aggiuntivo dell'admin. Viene caricato solo quando è mostrato, quindi la pagina di un plugin non diventa più pesante; fino ad allora, e se non si carica, è una semplice textarea.
+
+```tsx
+import { CodeEditor } from '@cleitext/admin-sdk';
+
+<CodeEditor
+  language="css" // 'css' | 'html' | 'js'
+  label="CSS personalizzato" // il nome accessibile (lettori di schermo); mostra accanto la tua etichetta visibile
+  value={css}
+  onChange={setCss}
+  describedBy="css-help" // id del testo di aiuto o di errore
+  invalid={Boolean(error)}
+  rows={10} // altezza in righe; cresce fino al doppio, poi scorre
+/>;
+```
+
+Tab sposta il focus, come in ogni campo, così la tastiera non resta mai bloccata; `tabIndents` fa indentare Tab (Esc e poi Tab escono dall'editor). `readOnly`, `placeholder`, `id` e `theme` (`auto`, il predefinito, segue l'admin; `light`, `dark`) sono facoltativi. Il valore è testo semplice: controllalo sul server come ogni altro input. `useAdminDark()` dice se l'admin mostra il tema scuro.
 
 **Tipi di campo di impaginazione** (API dei plugin 1.49). Un tipo con `layout: true` non ha un valore e dispone i campi che lo seguono, come schede e fisarmoniche: `FieldsForm` non gli disegna etichetta, aiuto né colonna dell'etichetta, e `groups(field, following)` dice quanti dei campi mostrati dopo di lui prende (predefinito 0). Il modulo li lascia al componente, che riceve `layout`: `{ siblings, index, values, fields, render }` (i campi mostrati del modulo, il suo posto fra loro, i valori del modulo con i predefiniti, i campi che raggruppa e `render(fields)`, che disegna dei campi come farebbe il modulo, con i loro errori e le loro modifiche):
 
