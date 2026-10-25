@@ -546,3 +546,87 @@ describe('Additional CSS', () => {
     expect((await stored())[0]!.value).not.toContain('xxxx');
   });
 });
+
+describe('the colour scheme of an import (core 0.81)', () => {
+  const runImport = async (siteId: string, colorScheme?: 'light' | 'dark') => {
+    const [importer] = (await owner.db.execute(
+      sql`select id from users where email = 'root@children.test'`,
+    )) as unknown as { id: string }[];
+    return importDocument(
+      {
+        format: 'cleitext-transfer',
+        version: 1,
+        source: { kind: 'wordpress', name: 'Old', exportedAt: new Date().toISOString() },
+        site: colorScheme ? { colorScheme } : {},
+      },
+      {
+        db: owner.db,
+        siteId,
+        asUserId: importer!.id,
+        media: app.get(MediaService),
+        cache: app.get(PageCacheService),
+        readFile: async () => Buffer.alloc(0),
+      },
+    );
+  };
+  const stored = async (siteId: string, slug = 'aurora') => {
+    const rows = (await withContext(owner.db, { siteId }, (tx) =>
+      tx.execute(
+        sql`select value from settings where namespace = ${`theme:${slug}`} and key = 'values'`,
+      ),
+    )) as unknown as { value: Record<string, unknown> }[];
+    return rows[0]?.value;
+  };
+
+  it('sets the active theme to it when the site has not chosen one', async () => {
+    const site = await seedSite(owner, 'scheme-new');
+    const page = () => new TestClient(app, site.host, '10.36.0.20').get('/');
+    expect((await page()).body).toContain('data-color-scheme="auto"');
+
+    const report = await runImport(site.id, 'light');
+    expect(report.errors).toEqual([]);
+    expect(report.created.colorScheme).toBe(1);
+    expect(report.warnings).toContainEqual(
+      expect.stringContaining('Colour scheme: the theme “aurora” is set to light'),
+    );
+    expect(await stored(site.id)).toEqual({ colorScheme: 'light' });
+    const html = (await page()).body;
+    expect(html).toContain('data-color-scheme="light"');
+    expect(html).toContain('<meta name="color-scheme" content="light"/>');
+
+    // Imported again: the choice stays, nothing reported.
+    const again = await runImport(site.id, 'dark');
+    expect(again.created.colorScheme).toBeUndefined();
+    expect(await stored(site.id)).toEqual({ colorScheme: 'light' });
+    // Without a colour scheme in the document (older importers): nothing changes.
+    expect((await runImport(site.id)).created.colorScheme).toBeUndefined();
+  });
+
+  const save = (siteId: string, values: Record<string, unknown>) =>
+    withContext(owner.db, { siteId }, (tx) =>
+      tx.execute(
+        sql`insert into settings (site_id, namespace, key, value) values (${siteId}, 'theme:aurora', 'values', ${JSON.stringify(values)}::jsonb)`,
+      ),
+    );
+
+  it('keeps a choice already made and the other settings', async () => {
+    const site = await seedSite(owner, 'scheme-chosen');
+    await save(site.id, { colorScheme: 'auto', footerText: 'Mine' });
+    expect((await runImport(site.id, 'light')).created.colorScheme).toBeUndefined();
+    expect(await stored(site.id)).toEqual({ colorScheme: 'auto', footerText: 'Mine' });
+
+    const other = await seedSite(owner, 'scheme-other');
+    await save(other.id, { footerText: 'Kept' });
+    await runImport(other.id, 'light');
+    expect(await stored(other.id)).toEqual({ footerText: 'Kept', colorScheme: 'light' });
+  });
+
+  it('leaves alone a theme without the setting', async () => {
+    const site = await seedSite(owner, 'scheme-base');
+    await owner.db.execute(sql`update sites set theme_slug = 'base' where id = ${site.id}`);
+    const report = await runImport(site.id, 'light');
+    expect(report.errors).toEqual([]);
+    expect(report.created.colorScheme).toBeUndefined();
+    expect(await stored(site.id, 'base')).toBeUndefined();
+  });
+});

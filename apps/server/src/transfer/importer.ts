@@ -26,6 +26,7 @@ import {
   roles,
   settings,
   siteMembers,
+  sites,
   superAdmins,
   taxonomies,
   terms,
@@ -55,6 +56,8 @@ import type { MediaService } from '../media/media.service.js';
 import { RESERVED_IDS } from '../fields/field-groups.service.js';
 import type { PageCacheService } from '../public/page-cache.service.js';
 import { loadSiteData } from '../public/site-data.js';
+import { storedThemeSettings, themeNamespace } from '../public/theme-data.js';
+import { themeFor } from '../public/themes.js';
 import { addressKey, isSlashOnlyRedirect } from '../public/urls.js';
 import { defaultLocaleIn, PENDING } from '../content/languages.service.js';
 import type {
@@ -660,6 +663,17 @@ export async function importDocument(
       }
     }
 
+    // The source's colour scheme (core 0.81): the active theme's `colorScheme`, unless chosen.
+    if (doc.site.colorScheme) {
+      const applied = await importColorScheme(tx, siteId, doc.site.colorScheme);
+      if (applied) {
+        count(report, 'colorScheme');
+        report.warnings.push(
+          `Colour scheme: the theme “${applied}” is set to ${doc.site.colorScheme}, as the imported site; change it in Appearance → Customize.`,
+        );
+      }
+    }
+
     const takenMenus = new Set((await tx.select().from(menus)).map((m) => `${m.locale}|${m.slug}`));
     const menuNames = new Set(
       (await tx.select({ name: menus.name, locale: menus.locale }).from(menus)).map(
@@ -847,6 +861,42 @@ export async function importDocument(
 }
 
 // ---- Entries --------------------------------------------------------------------------
+
+/** The setting themes name for their colour scheme (`auto`, `light`, `dark`). */
+export const COLOR_SCHEME_SETTING = 'colorScheme';
+
+/**
+ * A colour scheme given by an import (`site.colorScheme`, core 0.81), e.g.
+ * `light` for a WordPress site, which had no dark mode: saved in the active
+ * theme's setting named `colorScheme` when the theme has one offering that
+ * value (a select, as Aurora's) and the site has not chosen yet. Themes
+ * without it, and choices already made, are left alone. Answers the theme's
+ * slug when the value was saved.
+ */
+export async function importColorScheme(
+  tx: SiteTransaction,
+  siteId: string,
+  scheme: string,
+): Promise<string | null> {
+  const [site] = await tx
+    .select({ theme: sites.themeSlug })
+    .from(sites)
+    .where(eq(sites.id, siteId));
+  const theme = themeFor(site?.theme);
+  const field = theme.settings?.find((f) => f.name === COLOR_SCHEME_SETTING);
+  if (field?.type !== 'select' || !field.options.some((o) => o.value === scheme)) return null;
+  const stored = await storedThemeSettings(tx, theme.slug, theme.parent);
+  if (stored[COLOR_SCHEME_SETTING] !== undefined) return null;
+  const value = { ...stored, [COLOR_SCHEME_SETTING]: scheme };
+  await tx
+    .insert(settings)
+    .values({ siteId, namespace: themeNamespace(theme.slug), key: 'values', value })
+    .onConflictDoUpdate({
+      target: [settings.siteId, settings.namespace, settings.key],
+      set: { value },
+    });
+  return theme.slug;
+}
 
 /** The comments of an imported entry, threads kept, and its comment count. */
 async function insertComments(

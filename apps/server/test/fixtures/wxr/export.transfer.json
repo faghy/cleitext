@@ -15,7 +15,8 @@
     },
     "site": {
       "title": "Seaside Notes",
-      "tagline": "Stories from the coast"
+      "tagline": "Stories from the coast",
+      "colorScheme": "light"
     },
     "users": [
       {

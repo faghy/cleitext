@@ -435,3 +435,18 @@ Anche l'area di modifica dell'editor a blocchi applica il CSS aggiuntivo (core 0
 WordPress conserva il suo CSS aggiuntivo in un post `custom_css` per ogni tema. Il WordPress Importer (1.24) lo porta in **CSS per ogni tema**: l'unico dell'esportazione, oppure quello del tema dell'esportazione (i temi a blocchi lo indicano), altrimenti quello modificato più di recente; gli altri sono nominati nel resoconto dell'importazione. Il CSS che non si potrebbe stampare (markup, più di 100.000 caratteri) viene segnalato e lasciato fuori.
 
 Le importazioni non sostituiscono mai il CSS del sito (comprese quelle di un'esportazione del sito): in un riquadro vuoto il CSS va così com'è, altrimenti viene aggiunto in fondo sotto un commento, `/* Imported from <nome del sito>, <indirizzo> */`, e il resoconto lo dice. Il CSS che il sito ha già non viene aggiunto di nuovo, quindi importare due volte la stessa esportazione non cambia nulla. Quando i due insieme supererebbero il limite, la parte importata resta fuori e viene segnalata.
+
+## 9. Schema di colori
+
+Aurora (0.4) ha un'impostazione **Schema di colori** in Personalizza: **Automatico** (il predefinito, anche per i siti che non hanno mai scelto: chiaro o scuro secondo il sistema di ogni visitatore), **Sempre chiaro** o **Sempre scuro**. La scelta va su `<html data-color-scheme="auto|light|dark">` con `<meta name="color-scheme">` e la proprietà CSS `color-scheme`, così i controlli dei moduli e le barre di scorrimento si adeguano; i colori di `prefers-color-scheme: dark` valgono solo in modalità automatica, e il colore principale scelto in Personalizza vale dove la pagina è chiara. L'anteprima mostra la scelta prima della pubblicazione.
+
+I temi con uno schema di colori proprio dovrebbero usare la stessa impostazione: di nome `colorScheme`, un `select` con i valori `auto`, `light` e `dark`. Le importazioni si basano su questa.
+
+### Le importazioni restano chiare
+
+I temi di WordPress raramente hanno una modalità scura automatica, e i layout fatti con Divi o Elementor hanno spesso fasce trasparenti che diventerebbero scure su un sito chiaro. Per questo il WordPress Importer (1.25) dice che il sito importato è chiaro (`site.colorScheme: "light"` del documento di trasferimento), e il core (0.81) salva `light` nell'impostazione `colorScheme` del tema attivo quando:
+
+- il tema ha quell'impostazione e offre quel valore (i temi senza vengono lasciati stare);
+- il sito non ha ancora scelto (un valore già salvato, `auto` compreso, resta, con le altre impostazioni).
+
+Il resoconto dell'importazione dice quando è successo; la scelta si cambia in Personalizza in ogni momento. Avviene al momento dell'importazione per il tema attivo allora, perché è con quel tema che le pagine importate si vedono la prima volta; un tema attivato dopo tiene il suo predefinito. I page builder non c'entrano: che le pagine siano fatte con Fresco o con l'editor a blocchi, è il sito di origine che non aveva la modalità scura.

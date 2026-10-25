@@ -160,6 +160,13 @@ export const transferDocumentSchema = z.object({
             .optional(),
         })
         .optional(),
+      /**
+       * The colour scheme the source site shows (core 0.81): `light` for a site
+       * without a dark mode, as WordPress sites. Given to the active theme's
+       * `colorScheme` setting when it offers that value and the site has not
+       * chosen one yet; ignored by older cores.
+       */
+      colorScheme: z.enum(['auto', 'light', 'dark']).optional(),
     })
     .default({}),
   locales: z

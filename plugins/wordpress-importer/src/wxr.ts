@@ -803,6 +803,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         ...(text(channel.title) ? { title: decode(text(channel.title)) } : {}),
         ...(text(channel.description) ? { tagline: decode(text(channel.description)) } : {}),
         ...(additionalCss.css ? { additionalCss: { site: additionalCss.css } } : {}),
+        // WordPress themes (Divi, Elementor's, most others) have no automatic dark
+        // mode: the imported site stays light, where the active theme can choose.
+        colorScheme: 'light',
       },
       users: authors.filter((a) => a.email),
       contentTypes,

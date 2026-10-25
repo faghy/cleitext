@@ -496,3 +496,18 @@ The block editor's canvas applies the Additional CSS too (core 0.80): the part f
 WordPress keeps its Additional CSS as a `custom_css` post per theme. The WordPress Importer (1.24) brings it into **CSS for every theme**: the only one in the export, or the one of the export's theme (block themes name it), or else the most recently changed; the others are named in the import report. CSS that could not be printed (markup, more than 100,000 characters) is reported and left out.
 
 Imports never replace the site's CSS (a site export included): into an empty box the CSS goes as it is, otherwise it is appended under a comment, `/* Imported from <site name>, <address> */`, and the report says so. CSS the site already has is not added again, so importing the same export twice changes nothing. When the two together would be over the limit, the imported part is left out and reported.
+
+## 9. Colour scheme
+
+Aurora (0.4) has a **Colour scheme** setting in Customize: **Automatic** (the default, also for sites that never chose: light or dark with each visitor's system), **Always light** or **Always dark**. The choice goes on `<html data-color-scheme="auto|light|dark">` with `<meta name="color-scheme">` and the CSS `color-scheme` property, so form controls and scrollbars match; the `prefers-color-scheme: dark` colors apply only in automatic mode, and the accent color chosen in Customize applies wherever the page is light. The preview shows the choice before it is published.
+
+Themes with a colour scheme of their own should use the same setting: named `colorScheme`, a `select` with the values `auto`, `light` and `dark`. Imports rely on it.
+
+### Imports stay light
+
+WordPress themes rarely have an automatic dark mode, and layouts made with Divi or Elementor often have transparent bands that would turn dark on a light site. So the WordPress Importer (1.25) says the imported site is light (`site.colorScheme: "light"` of the transfer document), and the core (0.81) saves `light` in the active theme's `colorScheme` setting when:
+
+- the theme has that setting and it offers the value (themes without it are left alone);
+- the site has not chosen yet (a value already saved, `auto` included, is kept, with the other settings).
+
+The import report says when it happened; the choice can be changed in Customize at any time. It is done at import time for the theme active then, because that is the theme the imported pages are first seen with; a theme activated later keeps its own default. The page builders are not involved: whether pages were made with Fresco or the block editor, it is the source site that had no dark mode.
