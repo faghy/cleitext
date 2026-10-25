@@ -1,4 +1,4 @@
-import type { RouteRequest, RouteResponse } from '@cleitext/plugin-sdk';
+import type { RouteRequest, RouteResponse, UploadedFile } from '@cleitext/plugin-sdk';
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { assertTokenAllowed, verifyCsrf, verifySameOrigin } from '../auth/auth.guard.js';
@@ -12,7 +12,13 @@ export function routeRequest(
   siteId: string,
   path: string,
   params: Record<string, string>,
-  options: { anonymous?: boolean; plugin?: string; locale?: string } = {},
+  options: {
+    anonymous?: boolean;
+    plugin?: string;
+    locale?: string;
+    /** The uploaded file, already received (`readUpload`). */
+    upload?: UploadedFile | null;
+  } = {},
 ): RouteRequest {
   const url = new URL(request.url, 'http://local');
   const headers: Record<string, string | undefined> = {};
@@ -43,16 +49,22 @@ export function routeRequest(
     origin: `${request.protocol}://${request.host}`,
     locale: options.locale ?? '',
     async file() {
-      if (!request.isMultipart()) return null;
-      const part = await request.file();
-      if (!part || part.fieldname !== 'file') return null;
-      try {
-        return { filename: part.filename, mime: part.mimetype, data: await part.toBuffer() };
-      } catch {
-        throw new HttpException('The file is too large.', HttpStatus.PAYLOAD_TOO_LARGE);
-      }
+      if (options.upload !== undefined) return options.upload;
+      return readUpload(request);
     },
   };
+}
+
+/** The `file` part of a multipart request, received whole; null when there is none. */
+export async function readUpload(request: FastifyRequest): Promise<UploadedFile | null> {
+  if (!request.isMultipart()) return null;
+  const part = await request.file();
+  if (!part || part.fieldname !== 'file') return null;
+  try {
+    return { filename: part.filename, mime: part.mimetype, data: await part.toBuffer() };
+  } catch {
+    throw new HttpException('The file is too large.', HttpStatus.PAYLOAD_TOO_LARGE);
+  }
 }
 
 /** A plugin's own cookies: named `<slug>_…` (never the session or another plugin's). */
@@ -150,6 +162,9 @@ export class PluginRoutes {
           return problem(reply, 403, 'Forbidden', 'You are not allowed to do this.');
         }
       }
+      // An upload is received before the handler's time starts (core 0.82): a
+      // large file on a slow connection takes longer than plugin code may.
+      const upload = request.isMultipart() ? await readUpload(request) : undefined;
       const outcome = await this.host.runHook(
         { plugin: slug, name: `${request.method} ${route.path}`, siteId: site.id },
         () =>
@@ -157,6 +172,7 @@ export class PluginRoutes {
             routeRequest(request, site.id, path, params, {
               anonymous: route.webhook === true,
               plugin: plugin.slug,
+              ...(upload !== undefined ? { upload } : {}),
             }),
           ),
       );

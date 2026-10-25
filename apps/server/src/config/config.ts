@@ -75,6 +75,17 @@ const envSchema = z.object({
   /** Installed plugins (written by `cleitext plugin:install`). */
   PLUGINS_PATH: z.string().min(1).default('cleitext-data/plugins'),
   THEMES_PATH: z.string().min(1).default('cleitext-data/themes'),
+  /**
+   * Plugin code run while someone waits (a page, an API call, a hook): a
+   * handler slower than this is abandoned (RF-PLG-06).
+   */
+  PLUGIN_HOOK_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(5_000),
+  /**
+   * Plugin code run by background jobs (an import, core 0.82): the hooks it
+   * calls may take this long each, still bounded so a hung one cannot block
+   * the job forever.
+   */
+  PLUGIN_JOB_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(300_000),
   /** Plugins and themes can be uploaded from the admin (RF-PLG-10/12). */
   PLUGINS_INSTALL_FROM_UI: booleanString.default(true),
   /** Packages not signed by a registry (all uploads, for now) are accepted. */
@@ -123,7 +134,8 @@ export interface AppConfig {
   mail: { url: string; from: string | null };
   schedulerIntervalSeconds: number;
   media: { path: string; maxBytes: number; allowSvg: boolean };
-  plugins: { path: string };
+  /** `hookTimeoutMs`: interactive plugin code; `jobTimeoutMs`: plugin code in background jobs. */
+  plugins: { path: string; hookTimeoutMs: number; jobTimeoutMs: number };
   themes: { path: string };
   packages: { installFromUi: boolean; allowUnsigned: boolean };
   /** Plugins → Add New and Themes → Add New (RF-PLG-07): an index signed with Ed25519. */
@@ -178,7 +190,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       maxBytes: e.MEDIA_MAX_BYTES,
       allowSvg: e.MEDIA_ALLOW_SVG,
     },
-    plugins: { path: resolve(e.PLUGINS_PATH) },
+    plugins: {
+      path: resolve(e.PLUGINS_PATH),
+      hookTimeoutMs: e.PLUGIN_HOOK_TIMEOUT_MS,
+      jobTimeoutMs: Math.max(e.PLUGIN_JOB_TIMEOUT_MS, e.PLUGIN_HOOK_TIMEOUT_MS),
+    },
     themes: { path: resolve(e.THEMES_PATH) },
     packages: { installFromUi: e.PLUGINS_INSTALL_FROM_UI, allowUnsigned: e.PLUGINS_ALLOW_UNSIGNED },
     catalog: {

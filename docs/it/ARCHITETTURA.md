@@ -1085,7 +1085,7 @@ Codice: `packages/plugin-sdk`, `packages/admin-sdk`, `packages/cli/src/plugins.t
 - **Hook.**
   - Le azioni partono dopo il commit.
   - I filtri sono `render.head`, `render.blocks`, `render.html` e `theme.templateCandidates`. `render.head` filtra l'oggetto `HeadData` invece di una lista `HeadTag[]` come previsto all'inizio.
-  - Gli errori sono isolati e gli handler vengono interrotti dopo 5 s. Chiamate, tempo ed errori per plugin sono visibili in Plugins (RF-PLG-06). Un plugin che fallisce dieci volte in cinque minuti su un sito viene disattivato lì e segnalato nella Bacheca (RF-PLG-05).
+  - Gli errori sono isolati e gli handler vengono interrotti dopo 5 s (`PLUGIN_HOOK_TIMEOUT_MS`); gli hook chiamati da lavori in background come un'importazione dopo 5 minuti (`PLUGIN_JOB_TIMEOUT_MS`, core 0.82), e il file caricato in una route viene ricevuto prima che cominci il tempo del suo handler. Chiamate, tempo ed errori per plugin sono visibili in Plugins (RF-PLG-06). Un plugin che fallisce dieci volte in cinque minuti su un sito viene disattivato lì e segnalato nella Bacheca (RF-PLG-05).
 - **Non ancora disponibili:**
   - registro e gestione dei pacchetti: registro, firme, aggiornamenti automatici (serve il registro come fonte) e un comando di rollback (la versione precedente resta in `<slug>.previous`). Esistono invece il caricamento di plugin e temi dall'admin (super admin, `.zip`/`.tgz` installato dalla CLI in un processo figlio; `PLUGINS_INSTALL_FROM_UI`, `PLUGINS_ALLOW_UNSIGNED`), l'attivazione su tutta la rete e i plugin obbligatori (`plugin:install --required`);
   - SDK dell'admin: widget della Dashboard, pannelli del documento e colonne degli elenchi;

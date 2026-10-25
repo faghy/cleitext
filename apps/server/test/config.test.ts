@@ -19,6 +19,32 @@ describe('loadConfig', () => {
     });
   });
 
+  it('bounds plugin code: 5 seconds while someone waits, 5 minutes in background jobs', () => {
+    const url = 'postgres://u:p@localhost:5432/db';
+    expect(loadConfig({ DATABASE_URL: url }).plugins).toMatchObject({
+      hookTimeoutMs: 5_000,
+      jobTimeoutMs: 300_000,
+    });
+    expect(
+      loadConfig({
+        DATABASE_URL: url,
+        PLUGIN_HOOK_TIMEOUT_MS: '2000',
+        PLUGIN_JOB_TIMEOUT_MS: '60000',
+      }).plugins,
+    ).toMatchObject({ hookTimeoutMs: 2_000, jobTimeoutMs: 60_000 });
+    // A job never has less time than interactive code.
+    expect(
+      loadConfig({
+        DATABASE_URL: url,
+        PLUGIN_HOOK_TIMEOUT_MS: '30000',
+        PLUGIN_JOB_TIMEOUT_MS: '1000',
+      }).plugins.jobTimeoutMs,
+    ).toBe(30_000);
+    expect(() => loadConfig({ DATABASE_URL: url, PLUGIN_JOB_TIMEOUT_MS: '10' })).toThrow(
+      ConfigError,
+    );
+  });
+
   it('sends with the server sendmail in production when MAIL_URL is not set, as WordPress', () => {
     expect(defaultMailUrl('development', () => true)).toBe('log://');
     expect(defaultMailUrl('test', () => true)).toBe('log://');

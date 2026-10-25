@@ -46,7 +46,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { canDelete, canEdit, canPublish, canRead } from './entry-permissions.js';
-import { nextFreeSlug, permalinkShape, slugify } from './slug.js';
+import { nextFreeSlug, permalinkShape, SLUG_MAX, slugify } from './slug.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { createPreviewToken } from '../public/preview.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
@@ -1233,7 +1233,10 @@ export class EntriesService {
     wanted: string,
     excludeId: string | null,
   ): Promise<string> {
-    const base = slugify(wanted) || 'untitled';
+    // Written slugs up to WordPress's 200 characters (core 0.82); titles give shorter ones.
+    const base = slugify(wanted, SLUG_MAX) || 'untitled';
+    // Near the limit a suffix shortens the base (`nextFreeSlug`): look for those too.
+    const stem = base.length > SLUG_MAX - 8 ? base.slice(0, SLUG_MAX - 8) : `${base}-`;
     // Types with the same kind of address (articles and pages both at /{slug}) share slugs.
     const types = await tx
       .select({ slug: contentTypes.slug, permalink: contentTypes.permalink })
@@ -1250,11 +1253,11 @@ export class EntriesService {
             sharing.map((t) => t.slug),
           ),
           eq(entries.locale, locale),
-          or(eq(entries.slug, base), ilike(entries.slug, `${escapeLike(base)}-%`)),
+          or(eq(entries.slug, base), ilike(entries.slug, `${escapeLike(stem)}%`)),
           excludeId ? ne(entries.id, excludeId) : undefined,
         ),
       );
-    return nextFreeSlug(base, new Set(rows.map((r) => r.slug)));
+    return nextFreeSlug(base, new Set(rows.map((r) => r.slug)), SLUG_MAX);
   }
 
   /** Excerpt and featured image of a new revision: given values, or the current ones. */

@@ -16,6 +16,7 @@ import {
   entries,
   entryTerms,
   fieldGroups,
+  importRefs,
   optionsPages,
   optionValues,
   menuItems,
@@ -50,9 +51,9 @@ import {
   type FieldGroupInput,
   type ImportRefMaps,
 } from '@cleitext/shared';
-import { and, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
-import { nextFreeSlug, permalinkShape, slugify } from '../content/slug.js';
+import { nextFreeSlug, permalinkShape, SLUG_MAX, slugify } from '../content/slug.js';
 import type { MediaService } from '../media/media.service.js';
 import { RESERVED_IDS } from '../fields/field-groups.service.js';
 import type { PageCacheService } from '../public/page-cache.service.js';
@@ -65,6 +66,7 @@ import type {
   ContentLocale,
   ImportIdMap,
   ImportPluginDataResult,
+  ImportProgress,
   PendingLanguages,
 } from '@cleitext/plugin-sdk';
 import {
@@ -74,6 +76,7 @@ import {
   transferDocumentSchema,
   type ImportReport,
   type TransferComment,
+  type TransferDocument,
   type TransferEntry,
   type TransferMenuItem,
 } from './model.js';
@@ -104,7 +107,15 @@ export interface ImportOptions {
    * plugin (`ctx.languages.pending`), so that an active one takes them now.
    */
   onLanguagesPending?(): Promise<void>;
+  /** A message now and then (`Media 26/250`). */
   onProgress?(message: string): void;
+  /** The counts so far, after every media file and entry (core 0.82). */
+  onCounts?(progress: ImportProgress): void;
+  /**
+   * Stops the import between two records (core 0.82): it rejects with the
+   * signal's reason; what was imported so far is kept.
+   */
+  signal?: AbortSignal;
   /**
    * Blocks of other WordPress plugins (`core/imported` placeholders): their
    * replacement by an active plugin (the `import.block` filter), or null to
@@ -166,7 +177,30 @@ export async function importDocument(
   const doc = parsed.data;
   const { db, siteId } = options;
   const progress = options.onProgress ?? (() => {});
+  const counts: ImportProgress = {
+    phase: 'structure',
+    done: 0,
+    total: 0,
+    media: { done: 0, total: doc.media.length },
+    entries: { done: 0, total: doc.entries.length },
+  };
+  const tick = (phase: ImportProgress['phase'], done: number, total: number) => {
+    counts.phase = phase;
+    counts.done = done;
+    counts.total = total;
+    if (phase === 'media') counts.media = { done, total };
+    if (phase === 'entries') counts.entries = { done, total };
+    options.onCounts?.({ ...counts, media: { ...counts.media }, entries: { ...counts.entries } });
+  };
+  const stopIfCancelled = () => options.signal?.throwIfAborted();
+  /**
+   * Records of earlier imports of the same source, recognised by their ref
+   * (core 0.82); null for a document that does not say where it comes from.
+   */
+  const source = importSource(doc);
+  tick('structure', 0, 0);
   await resolveImportedBlocks(doc.entries, options, report);
+  stopIfCancelled();
   if (options.sanitize) {
     for (const entry of doc.entries) entry.document = options.sanitize(entry.document);
   }
@@ -348,7 +382,9 @@ export async function importDocument(
         report.errors.push(`Term "${term.name}": unknown taxonomy "${term.taxonomy}".`);
         continue;
       }
-      const slug = slugify(term.slug) || slugify(term.name) || 'term';
+      const slug = slugify(term.slug, SLUG_MAX) || slugify(term.name) || 'term';
+      // Imports before core 0.82 cut slugs at 80 characters.
+      const short = slugify(term.slug) || slug;
       const [existing] = await tx
         .select()
         .from(terms)
@@ -356,7 +392,7 @@ export async function importDocument(
           and(
             eq(terms.taxonomyId, taxonomy.id),
             eq(terms.locale, term.locale),
-            eq(terms.slug, slug),
+            inArray(terms.slug, [...new Set([slug, short])]),
           ),
         );
       if (existing) {
@@ -387,8 +423,40 @@ export async function importDocument(
   const mediaTargets = new Map<string, MediaTarget>();
   const urlMap = new Map<string, MediaTarget>();
   const auth = importAuth(options.asUserId);
+  // Media of an earlier import of the same source: kept, not downloaded again.
+  const knownMedia = new Map(
+    source
+      ? (
+          await run((tx) =>
+            tx
+              .select({ ref: importRefs.ref, id: importRefs.mediaId })
+              .from(importRefs)
+              .where(and(eq(importRefs.source, source), isNotNull(importRefs.mediaId))),
+          )
+        ).map((r) => [r.ref, r.id!])
+      : [],
+  );
+  const mapUrls = (item: (typeof doc.media)[number], target: MediaTarget) => {
+    mediaTargets.set(item.ref, target);
+    for (const url of item.urls ?? []) {
+      urlMap.set(url, target);
+      // WordPress's resized copies and scaled originals point to it too.
+      urlMap.set(mediaUrlKey(url), target);
+    }
+  };
   for (const [index, item] of doc.media.entries()) {
+    stopIfCancelled();
     if (index % 25 === 0) progress(`Media ${index + 1}/${doc.media.length}`);
+    tick('media', index, doc.media.length);
+    const known = knownMedia.get(item.ref);
+    if (known) {
+      const view = await options.media.get(siteId, auth, known).catch(() => null);
+      if (view) {
+        mapUrls(item, { id: view.id, url: view.url });
+        count(report, 'media', 'skipped');
+        continue;
+      }
+    }
     try {
       const data = await options.readFile(item.file);
       const view = await options.media.upload(
@@ -403,17 +471,16 @@ export async function importDocument(
           ...(item.caption ? { caption: item.caption } : {}),
         });
       }
-      mediaTargets.set(item.ref, { id: view.id, url: view.url });
-      for (const url of item.urls ?? []) {
-        urlMap.set(url, { id: view.id, url: view.url });
-        // WordPress's resized copies and scaled originals point to it too.
-        urlMap.set(mediaUrlKey(url), { id: view.id, url: view.url });
+      mapUrls(item, { id: view.id, url: view.url });
+      if (source) {
+        await run((tx) => recordRef(tx, siteId, source, item.ref, { mediaId: view.id }));
       }
       count(report, 'media');
     } catch (error) {
       report.errors.push(`Media "${item.filename}" not imported: ${message(error)}`);
     }
   }
+  tick('media', doc.media.length, doc.media.length);
   await options.media.idle();
   // The old site's media addresses inside text (HTML, CSS) become the new ones.
   const mediaText = mediaTextRewriter(urlMap, doc.source.url);
@@ -458,13 +525,21 @@ export async function importDocument(
     );
   }
   for (const [index, entry] of ordered.entries()) {
+    stopIfCancelled();
     if (index % 50 === 0) progress(`Entries ${index + 1}/${ordered.length}`);
+    tick('entries', index, ordered.length);
     try {
       // Imported before (the same file again, or a later export of the same site):
       // kept as it is, only the comments it lacks are added.
-      const already = await run((tx) => findImported(tx, entry));
+      const already = await run(async (tx) => {
+        const found = await findImported(tx, entry, source);
+        if (found && !found.recorded && source) {
+          await recordRef(tx, siteId, source, entry.ref, { entryId: found.id });
+        }
+        return found;
+      });
       if (already) {
-        entryIds.set(entry.ref, already);
+        entryIds.set(entry.ref, { id: already.id });
         if (entry.comments?.length) {
           await run((tx) =>
             insertComments(tx, siteId, already.id, entry.comments!, userIds, report, true),
@@ -473,8 +548,8 @@ export async function importDocument(
         count(report, 'entries', 'skipped');
         continue;
       }
-      const result = await run((tx) =>
-        insertEntry(tx, siteId, entry, {
+      const result = await run(async (tx) => {
+        const inserted = await insertEntry(tx, siteId, entry, {
           author: (entry.authorRef && userIds.get(entry.authorRef)) || options.asUserId,
           parent: entry.parentRef ? entryIds.get(entry.parentRef)?.id : undefined,
           terms: termIds,
@@ -483,8 +558,10 @@ export async function importDocument(
           text: mediaText,
           report,
           refs: fieldRefs,
-        }),
-      );
+        });
+        if (source) await recordRef(tx, siteId, source, entry.ref, { entryId: inserted.id });
+        return inserted;
+      });
       entryIds.set(entry.ref, { id: result.id });
       if (JSON.stringify(result.document).includes('"$entry"')) {
         withRefs.push({ revisionId: result.revisionId, document: result.document });
@@ -504,6 +581,7 @@ export async function importDocument(
       );
     }
   }
+  tick('entries', ordered.length, ordered.length);
 
   // References between entries (`{ $entry: ref }`), now that every entry has its id.
   const idOf = (ref: string) => entryIds.get(ref)?.id;
@@ -599,6 +677,8 @@ export async function importDocument(
   });
 
   // ---- Settings, menus, redirects --------------------------------------------------
+  stopIfCancelled();
+  tick('menus', 0, doc.menus.length);
   await run(async (tx) => {
     const values: Record<string, unknown> = {};
     if (doc.site.title) values.title = doc.site.title;
@@ -842,6 +922,7 @@ export async function importDocument(
     await options.onLanguagesPending?.();
   }
   // ---- Plugin data -----------------------------------------------------------------
+  tick('finishing', 0, 0);
   const slugs = Object.keys(doc.plugins);
   if (slugs.length > 0) {
     const idMap: ImportIdMap = {
@@ -986,13 +1067,77 @@ async function insertComments(
     .where(eq(entries.id, entryId));
 }
 
-/** An entry imported before: same type, language, address and title, not in the trash. */
+/**
+ * The source of a document, for `import_refs` (core 0.82): its kind and the
+ * old site's address without scheme, `www.` and final slash
+ * (`wordpress:example.com`), or its name when it has no address; null when
+ * it has neither (its refs cannot be told apart from another's).
+ */
+export function importSource(doc: Pick<TransferDocument, 'source'>): string | null {
+  const url = (doc.source.url ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/+$/, '');
+  const name = url || (doc.source.name ?? '').trim();
+  return name ? `${doc.source.kind}:${name}`.slice(0, 500) : null;
+}
+
+/** Records what a record of the source became (the latest import wins). */
+async function recordRef(
+  tx: SiteTransaction,
+  siteId: string,
+  source: string,
+  ref: string,
+  target: { entryId: string } | { mediaId: string },
+): Promise<void> {
+  const values = {
+    entryId: 'entryId' in target ? target.entryId : null,
+    mediaId: 'mediaId' in target ? target.mediaId : null,
+  };
+  await tx
+    .insert(importRefs)
+    .values({ siteId, source, ref, ...values })
+    .onConflictDoUpdate({
+      target: [importRefs.siteId, importRefs.source, importRefs.ref],
+      set: values,
+    });
+}
+
+/**
+ * An entry imported before, not in the trash: the one made of the same
+ * record of the same source (its `ref`, e.g. the WordPress post id; core
+ * 0.82). Entries imported by older cores have no ref: one with the same
+ * type, language, address and title is taken, unless another record already
+ * claimed it, so two posts with the same title are never merged.
+ * `recorded`: found by its ref.
+ */
 async function findImported(
   tx: SiteTransaction,
   entry: TransferEntry,
-): Promise<{ id: string } | null> {
-  const slug = slugify(entry.slug) || slugify(entry.title);
-  if (!slug) return null;
+  source: string | null,
+): Promise<{ id: string; recorded: boolean } | null> {
+  const [byRef] = !source
+    ? []
+    : await tx
+        .select({ id: entries.id })
+        .from(importRefs)
+        .innerJoin(entries, eq(entries.id, importRefs.entryId))
+        .where(
+          and(
+            eq(importRefs.source, source),
+            eq(importRefs.ref, entry.ref),
+            ne(entries.status, 'trashed'),
+          ),
+        )
+        .limit(1);
+  if (byRef) return { id: byRef.id, recorded: true };
+  // Addresses as older cores made them too: written slugs were cut at 80 characters.
+  const written = slugify(entry.slug, SLUG_MAX);
+  const slugs = written ? [written, slugify(entry.slug)] : [slugify(entry.title)];
+  const wanted = [...new Set(slugs.filter(Boolean))];
+  if (wanted.length === 0) return null;
   const [found] = await tx
     .select({ id: entries.id })
     .from(entries)
@@ -1000,13 +1145,15 @@ async function findImported(
       and(
         eq(entries.typeSlug, entry.type),
         eq(entries.locale, entry.locale),
-        eq(entries.slug, slug),
+        inArray(entries.slug, wanted),
         eq(entries.title, entry.title),
         ne(entries.status, 'trashed'),
+        sql`not exists (select 1 from ${importRefs} where ${importRefs.entryId} = ${entries.id})`,
       ),
     )
+    .orderBy(entries.createdAt)
     .limit(1);
-  return found ?? null;
+  return found ? { id: found.id, recorded: false } : null;
 }
 
 async function insertEntry(
@@ -1045,8 +1192,10 @@ async function insertEntry(
         .where(and(inArray(entries.typeSlug, sharing), eq(entries.locale, entry.locale)))
     ).map((e) => e.slug),
   );
-  const wanted = slugify(entry.slug) || slugify(entry.title) || 'entry';
-  const slug = nextFreeSlug(wanted, taken);
+  // The source's address as it was, up to WordPress's 200 characters (core 0.82);
+  // when taken, a suffix within the limit, as WordPress does (`…-2`).
+  const wanted = slugify(entry.slug, SLUG_MAX) || slugify(entry.title) || 'entry';
+  const slug = nextFreeSlug(wanted, taken, SLUG_MAX);
   if (slug !== wanted) {
     context.report.warnings.push(
       `"${entry.title}": the address "${wanted}" was taken, "${slug}" used instead.`,

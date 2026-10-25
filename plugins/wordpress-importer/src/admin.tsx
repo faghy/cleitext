@@ -320,7 +320,38 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   );
 }
 
-function Progress({ job, tr }: { job: Job; tr: Tr }) {
+const PHASES: Record<string, [string, string]> = {
+  parsing: ['Reading the file', 'Lettura del file'],
+  structure: ['Authors, categories and tags', 'Autori, categorie e tag'],
+  media: ['Downloading media', 'Scaricamento dei file multimediali'],
+  entries: ['Posts and pages', 'Articoli e pagine'],
+  menus: ['Menus and redirects', 'Menu e redirect'],
+  finishing: ['Finishing', 'Ultimi ritocchi'],
+};
+
+/** How far the job is, 0–1: reading counts little, media and entries the rest. */
+function fraction(counts: NonNullable<Job['counts']>): number | null {
+  const share = (part: { done: number; total: number }) =>
+    part.total > 0 ? Math.min(1, part.done / part.total) : 1;
+  switch (counts.phase) {
+    case 'parsing':
+      return null;
+    case 'structure':
+      return 0.05;
+    case 'media':
+      return 0.05 + 0.45 * share(counts.media);
+    case 'entries':
+      return 0.5 + 0.45 * share(counts.entries);
+    default:
+      return 0.97;
+  }
+}
+
+function Progress({ job, tr, onCancel }: { job: Job; tr: Tr; onCancel: () => void }) {
+  const counts = job.counts;
+  const share = counts ? fraction(counts) : null;
+  const phase = counts ? PHASES[counts.phase] : undefined;
+  const [asked, setAsked] = useState(false);
   return (
     <Card title={tr('Importing…', 'Importazione in corso…')}>
       <div className="space-y-3" aria-live="polite">
@@ -330,9 +361,43 @@ function Progress({ job, tr }: { job: Job; tr: Tr }) {
             `${job.file}: puoi lasciare questa pagina, l’importazione continua.`,
           )}
         </p>
-        <div className="h-2 overflow-hidden rounded bg-slate-100">
-          <div className="h-full w-1/3 animate-pulse rounded bg-sky-600" />
+        {counts && (
+          <p className="text-sm font-medium text-slate-800" data-testid="import-phase">
+            {phase ? tr(phase[0], phase[1]) : counts.phase}
+          </p>
+        )}
+        <div
+          className="h-2 overflow-hidden rounded bg-slate-100"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          {...(share !== null ? { 'aria-valuenow': Math.round(share * 100) } : {})}
+        >
+          {share === null ? (
+            <div className="h-full w-1/3 animate-pulse rounded bg-sky-600" />
+          ) : (
+            <div
+              className="h-full rounded bg-sky-600 transition-all"
+              style={{ width: `${Math.max(2, Math.round(share * 100))}%` }}
+            />
+          )}
         </div>
+        {counts?.parsed && (
+          <ul className="grid gap-x-6 gap-y-1 text-sm text-slate-700 sm:grid-cols-2">
+            <li>
+              {tr('Media files', 'File multimediali')}:{' '}
+              <strong>
+                {counts.media.done}/{counts.media.total}
+              </strong>
+            </li>
+            <li>
+              {tr('Posts and pages', 'Articoli e pagine')}:{' '}
+              <strong>
+                {counts.entries.done}/{counts.entries.total}
+              </strong>
+            </li>
+          </ul>
+        )}
         {job.progress.length > 0 && (
           <ul className="space-y-0.5 font-mono text-xs text-slate-600">
             {job.progress.slice(-6).map((line, i) => (
@@ -340,6 +405,24 @@ function Progress({ job, tr }: { job: Job; tr: Tr }) {
             ))}
           </ul>
         )}
+        <div>
+          <Button
+            variant="secondary"
+            disabled={asked}
+            onClick={() => {
+              setAsked(true);
+              onCancel();
+            }}
+          >
+            {asked ? tr('Cancelling…', 'Annullamento…') : tr('Cancel', 'Annulla')}
+          </Button>
+          <p className="mt-1 text-xs text-slate-500">
+            {tr(
+              'It stops after the current item; what was imported is kept, and importing the same file again adds only the rest.',
+              'Si ferma dopo l’elemento in corso; quello che è stato importato resta, e importando di nuovo lo stesso file si aggiunge solo il resto.',
+            )}
+          </p>
+        </div>
       </div>
     </Card>
   );
@@ -351,6 +434,13 @@ function Result({ job, tr, onReset }: { job: Job; tr: Tr; onReset: () => void })
     <div className="space-y-4">
       {job.status === 'failed' ? (
         <Alert>{job.error ?? tr('The import failed.', 'L’importazione non è riuscita.')}</Alert>
+      ) : job.status === 'cancelled' ? (
+        <Alert>
+          {tr(
+            'The import was cancelled: what was imported so far is kept.',
+            'L’importazione è stata annullata: quello che è stato importato finora resta.',
+          )}
+        </Alert>
       ) : (
         <Alert kind="success">
           {tr(`${job.file} imported.`, `${job.file} importato.`)}{' '}
@@ -413,6 +503,10 @@ function ImporterPage(props: AdminPageProps) {
     mutationFn: () => props.api('DELETE', '/status'),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['wordpress-importer'] }),
   });
+  const cancel = useMutation({
+    mutationFn: () => props.api('POST', '/cancel'),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['wordpress-importer'] }),
+  });
   const job = status.data?.job ?? null;
 
   return (
@@ -431,7 +525,7 @@ function ImporterPage(props: AdminPageProps) {
       ) : status.isError ? (
         <Alert>{errorMessage(status.error)}</Alert>
       ) : job?.status === 'running' ? (
-        <Progress job={job} tr={tr} />
+        <Progress key={job.id} job={job} tr={tr} onCancel={() => cancel.mutate()} />
       ) : job ? (
         <Result job={job} tr={tr} onReset={() => reset.mutate()} />
       ) : (

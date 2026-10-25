@@ -1,0 +1,10 @@
+{
+  "slug": "slow-import",
+  "name": "Slow import (test fixture)",
+  "version": "1.0.0",
+  "apiVersion": "^1.52",
+  "description": "An import.wxrMeta filter slower than the interactive time limit of plugin code, but within the one of background jobs.",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": ["import"]
+}

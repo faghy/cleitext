@@ -90,8 +90,16 @@ import { orderPluginSlugs } from './plugin-order.js';
 
 /** Default priority of hooks, as in WordPress. */
 const DEFAULT_PRIORITY = 10;
-/** A handler slower than this is abandoned (its plugin keeps running). */
-const HOOK_TIMEOUT_MS = 5_000;
+/**
+ * Plugin code is bounded in time (RF-PLG-06): a handler slower than the
+ * limit is abandoned (its plugin keeps running). The limit is the server's
+ * `PLUGIN_HOOK_TIMEOUT_MS` (5 s) when someone waits for the answer, and
+ * `PLUGIN_JOB_TIMEOUT_MS` (5 minutes) for hooks called by background jobs
+ * such as an import (core 0.82): `{ timeout: 'job' }`.
+ */
+export interface HookTimeout {
+  timeout?: 'interactive' | 'job';
+}
 /** RF-PLG-05: this many failures on a site within the window deactivate the plugin there. */
 const FAILURE_LIMIT = 10;
 const FAILURE_WINDOW_MS = 5 * 60 * 1000;
@@ -929,11 +937,12 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     payload: Actions[K],
     siteId: string,
     userId?: string,
+    options: HookTimeout = {},
   ): Promise<void> {
     if (this.loaded.size === 0) return;
     const context = userId ? { siteId, userId } : { siteId };
     for (const hook of await this.hooksFor(siteId, 'action', name)) {
-      await this.runHook({ ...hook, siteId }, () => hook.handler(payload, context));
+      await this.runHook({ ...hook, siteId }, () => hook.handler(payload, context), options);
     }
   }
 
@@ -943,12 +952,17 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     value: Filters[K][0],
     context: Filters[K][1],
     siteId: string,
+    options: HookTimeout = {},
   ): Promise<Filters[K][0]> {
     if (this.loaded.size === 0) return value;
     let current = value;
     for (const hook of await this.hooksFor(siteId, 'filter', name)) {
       const input = current;
-      const output = await this.runHook({ ...hook, siteId }, () => hook.handler(input, context));
+      const output = await this.runHook(
+        { ...hook, siteId },
+        () => hook.handler(input, context),
+        options,
+      );
       // A failing filter is skipped: the value goes on unchanged.
       if (output.ok && output.value !== undefined) current = output.value as Filters[K][0];
     }
@@ -1035,22 +1049,27 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       .sort((a, b) => a.priority - b.priority || a.order - b.order);
   }
 
+  /** The time plugin code may take: interactive (default) or in a background job. */
+  hookTimeout(options: HookTimeout = {}): number {
+    const { hookTimeoutMs = 5_000, jobTimeoutMs = 300_000 } = this.config.plugins;
+    return options.timeout === 'job' ? jobTimeoutMs : hookTimeoutMs;
+  }
+
   /** Runs plugin code with timing, a timeout and error isolation (RF-PLG-05/06). */
   async runHook<T>(
     hook: { plugin: string; name: string; siteId?: string },
     fn: () => T | Promise<T>,
+    options: HookTimeout = {},
   ): Promise<{ ok: true; value: T } | { ok: false }> {
     const plugin = this.loaded.get(hook.plugin);
     const started = performance.now();
+    const limit = this.hookTimeout(options);
     let timer: NodeJS.Timeout | undefined;
     try {
       const value = await Promise.race([
         Promise.resolve().then(fn),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error(`timed out after ${HOOK_TIMEOUT_MS} ms`)),
-            HOOK_TIMEOUT_MS,
-          );
+          timer = setTimeout(() => reject(new Error(`timed out after ${limit} ms`)), limit);
         }),
       ]);
       return { ok: true, value };

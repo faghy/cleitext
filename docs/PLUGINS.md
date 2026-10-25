@@ -1,6 +1,6 @@
 # Developing Cleitext plugins
 
-> Plugin API **1.51** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
+> Plugin API **1.52** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
 
 A plugin extends Cleitext the way a WordPress plugin extends WordPress. It can add content types with custom fields, blocks, pages to the admin, settings, endpoints, addresses on the public site and its own database tables, and it can react to what happens through hooks.
 
@@ -147,7 +147,7 @@ The context `ctx` contains:
 
 ## 5. Hooks
 
-As in WordPress: **actions** tell you something happened, **filters** let you change a value. Lower `priority` runs first (default 10). Handlers only run on sites where your plugin is active. An error in a handler is logged and skipped. For a filter, this means the value goes on unchanged. A handler slower than 5 seconds is abandoned.
+As in WordPress: **actions** tell you something happened, **filters** let you change a value. Lower `priority` runs first (default 10). Handlers only run on sites where your plugin is active. An error in a handler is logged and skipped. For a filter, this means the value goes on unchanged. A handler slower than 5 seconds is abandoned (the server's `PLUGIN_HOOK_TIMEOUT_MS`). Hooks called by a background job, such as `import.block`, `import.shortcode`, `import.wxrMeta` and `import.pluginData` during an import, have a longer limit (`PLUGIN_JOB_TIMEOUT_MS`, 5 minutes; plugin API 1.52), still bounded so a hung handler cannot hold the job forever. A route's uploaded file (`request.file()`) is received before the handler's time starts (plugin API 1.52), so a large file on a slow connection does not count against it.
 
 ```ts
 ctx.hooks.on('entry.published', async ({ entry }, { siteId }) => {
@@ -1059,6 +1059,9 @@ const document: TransferDocumentInput = convert(file); // entries, media, terms,
 const report = await ctx.transfer.importDocument(siteId, document, {
   userId: request.user!.id, // recorded as author of the import
   onProgress: (message) => ctx.log.info(message),
+  // Plugin API 1.52: the counts after every media file and entry, and cancelling.
+  onCounts: ({ phase, media, entries }) => saveProgress(phase, media, entries),
+  signal: controller.signal, // stops between two records; what was imported is kept
 });
 // { created: { entries: 12, media: 30, … }, skipped: {…}, warnings: […], errors: […] }
 ```
@@ -1073,7 +1076,9 @@ ctx.hooks.filter(
 );
 ```
 
-Media files are given by their http(s) address and downloaded only from public addresses, never from the server's own network. What is already on the site is kept, and old addresses (`oldPaths`) become redirects. A big site takes minutes: start the import without awaiting it in the route, and keep its progress in `ctx.storage`.
+Media files are given by their http(s) address and downloaded only from public addresses, never from the server's own network. What is already on the site is kept, and old addresses (`oldPaths`) become redirects. A big site takes minutes: start the import without awaiting it in the route, answer at once (`202`, with an id of the job), and keep its progress in `ctx.storage`, saving it now and then even when nothing moves, so a job left running by a restart can be told apart (the WordPress Importer marks a job that has not saved itself for two minutes as stopped).
+
+**Records imported before** (core 0.82). The core remembers what each record of a document became, by the document's source (`source.kind` and `source.url`) and the record's `ref` (a WordPress post id: `post:42`): importing a document of the same source again keeps those entries and media as they are (media are not downloaded again). Records are never recognised by their title and address alone, so two posts with the same title whose addresses differ only at the end stay two posts; entries imported by older cores, which kept no ref, are still recognised by type, language, address and title, each once. Slugs keep up to 200 characters, as WordPress's; one cut at that limit that is taken gets a suffix within it (`…-2`), and its old address redirects to the new one.
 
 Entries may point to each other in any order: inside a document (or plugin data), `{ "$entry": "<entry ref>", "prefix": "entry:" }` becomes `prefix + <new id>` once every entry exists (`null` when that entry was not imported). Entries of a content type the site does not have (e.g. a plugin that is not active) are left out with one report line per type. Settings meant for a plugin go in `document.plugins` by plugin slug (API 1.28): after the entries, each active plugin gets its own through the `import.pluginData` filter, with media objects and entry references already remapped and `idMap` (`{ entries, terms, media }` by `ref`) for anything else; data that no active plugin takes is reported.
 

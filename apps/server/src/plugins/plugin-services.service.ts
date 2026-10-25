@@ -106,6 +106,9 @@ import { themeDirectories, themeFor } from '../public/themes.js';
 import { readThemeFile, themeFiles } from '../themes/theme-files.js';
 
 /** Core services exposed to plugins through their context facades. */
+/** Plugin hooks called by an import: a background job, with its longer time limit (core 0.82). */
+const JOB = { timeout: 'job' } as const;
+
 @Injectable()
 export class PluginServicesProvider implements PluginServices {
   constructor(
@@ -850,6 +853,7 @@ export class PluginServicesProvider implements PluginServices {
               metaValue: phpMetaValue,
             },
             siteId,
+            JOB,
           ),
         )
       : [];
@@ -861,10 +865,10 @@ export class PluginServicesProvider implements PluginServices {
       db: this.database.db,
       // WordPress blocks without an equivalent: active plugins may convert them.
       importBlock: (block) =>
-        this.host.applyFilter('import.block', null, { siteId, ...block }, siteId),
+        this.host.applyFilter('import.block', null, { siteId, ...block }, siteId, JOB),
       // Shortcodes standing alone: active plugins may turn them into their blocks.
       importShortcode: (shortcode) =>
-        this.host.applyFilter('import.shortcode', null, { siteId, ...shortcode }, siteId),
+        this.host.applyFilter('import.shortcode', null, { siteId, ...shortcode }, siteId, JOB),
       // Settings meant for plugins (e.g. a page builder's kit): the active ones take theirs.
       importPluginData: (input) =>
         this.host.applyFilter(
@@ -872,6 +876,7 @@ export class PluginServicesProvider implements PluginServices {
           null,
           { siteId, userId: options.userId, ...input },
           siteId,
+          JOB,
         ),
       siteId,
       asUserId: options.userId,
@@ -896,8 +901,10 @@ export class PluginServicesProvider implements PluginServices {
       },
       activePlugins: await this.host.activeSlugs(siteId),
       locales,
-      onLanguagesPending: () => this.host.emit('languages.pending', {}, siteId),
+      onLanguagesPending: () => this.host.emit('languages.pending', {}, siteId, undefined, JOB),
       ...(options.onProgress ? { onProgress: options.onProgress } : {}),
+      ...(options.onCounts ? { onCounts: options.onCounts } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
     });
     report.warnings.unshift(...wxrWarnings);
     return report;

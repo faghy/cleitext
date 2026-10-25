@@ -419,6 +419,9 @@ describe('WordPress import', () => {
     expect(again.errors).toEqual([]);
     expect(again.skipped).toMatchObject({ terms: 3, users: 1, entries: 5, comments: 3, menus: 1 });
     expect(again.created.entries ?? 0).toBe(0);
+    // Media of the same source are recognised by their ref (core 0.82): not downloaded again.
+    expect(again.skipped.media).toBe(report.created.media);
+    expect(again.created.media ?? 0).toBe(0);
     expect(again.created.comments ?? 0).toBe(0);
     expect(again.created.menus ?? 0).toBe(0);
     expect(again.warnings.join('\n')).not.toContain('used instead');

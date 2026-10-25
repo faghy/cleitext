@@ -996,6 +996,8 @@ export interface RouteRequest {
   /**
    * The `file` field of a multipart/form-data request (the admin's `uploadFile`),
    * within the server's upload limit; null when the request has none.
+   * Since plugin API 1.52 the file is received before the handler starts, so
+   * a slow upload does not count against the handler's time limit.
    */
   file(): Promise<UploadedFile | null>;
 }
@@ -1212,10 +1214,32 @@ export interface ImportReport {
   errors: string[];
 }
 
+/**
+ * Where an import is (plugin API 1.52): the step it is on and, for media and
+ * entries, how many are done out of how many.
+ */
+export interface ImportProgress {
+  phase: 'structure' | 'media' | 'entries' | 'menus' | 'finishing';
+  /** Records of the current phase done so far. */
+  done: number;
+  /** Records of the current phase in all. */
+  total: number;
+  media: { done: number; total: number };
+  entries: { done: number; total: number };
+}
+
 export interface DocumentImportOptions {
   /** Existing user recorded as author of the import (the person who started it). */
   userId: string;
+  /** A message now and then (`Media 26/250`). */
   onProgress?(message: string): void;
+  /** The counts so far, after every media file and entry (plugin API 1.52). */
+  onCounts?(progress: ImportProgress): void;
+  /**
+   * Stops the import between two records (plugin API 1.52): it then rejects
+   * with an `AbortError`; what was imported so far is kept.
+   */
+  signal?: AbortSignal;
   /**
    * The meta of a WordPress export (plugin API 1.48; ignored by older
    * cores): given to the active plugins through `import.wxrMeta`, whose
@@ -1232,7 +1256,11 @@ export interface TransferApi {
    * entries, media, terms, menus, users and redirects. Its languages must be
    * languages of the site. Media files are downloaded from public http(s)
    * addresses only. Existing records are kept. It can take minutes: run it
-   * outside the request.
+   * outside the request. The plugin hooks it calls (`import.block`,
+   * `import.wxrMeta`…) have the server's background-job time limit (plugin
+   * API 1.52), not the 5 seconds of interactive code. Records already
+   * imported from the same source (`document.source`) are recognised by
+   * their `ref` (core 0.82), so importing a file again adds only what is new.
    */
   importDocument(
     siteId: string,

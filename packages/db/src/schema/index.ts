@@ -6,3 +6,4 @@ export * from './taxonomy.js';
 export * from './media.js';
 export * from './navigation.js';
 export * from './system.js';
+export * from './transfer.js';

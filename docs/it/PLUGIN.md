@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.51**
+> API dei plugin **1.52**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -149,7 +149,7 @@ Il contesto `ctx` contiene:
 
 ## 5. Hook
 
-Come in WordPress: le **azioni** ti avvisano che qualcosa è successo, i **filtri** ti permettono di modificare un valore. Una `priority` più bassa viene eseguita prima (predefinita 10). Gli handler vengono eseguiti solo sui siti in cui il tuo plugin è attivo. Un errore in un handler viene registrato nel log e saltato. Per un filtro, questo significa che il valore prosegue invariato. Un handler che impiega più di 5 secondi viene abbandonato.
+Come in WordPress: le **azioni** ti avvisano che qualcosa è successo, i **filtri** ti permettono di modificare un valore. Una `priority` più bassa viene eseguita prima (predefinita 10). Gli handler vengono eseguiti solo sui siti in cui il tuo plugin è attivo. Un errore in un handler viene registrato nel log e saltato. Per un filtro, questo significa che il valore prosegue invariato. Un handler che impiega più di 5 secondi viene abbandonato (`PLUGIN_HOOK_TIMEOUT_MS` del server). Gli hook chiamati da un lavoro in background, come `import.block`, `import.shortcode`, `import.wxrMeta` e `import.pluginData` durante un'importazione, hanno un limite più lungo (`PLUGIN_JOB_TIMEOUT_MS`, 5 minuti; API dei plugin 1.52), comunque limitato perché un handler bloccato non trattenga il lavoro per sempre. Il file caricato in una route (`request.file()`) viene ricevuto prima che il tempo dell'handler cominci (API dei plugin 1.52), così un file grande su una connessione lenta non lo consuma.
 
 ```ts
 ctx.hooks.on('entry.published', async ({ entry }, { siteId }) => {
@@ -988,6 +988,9 @@ const document: TransferDocumentInput = convert(file); // voci, media, termini, 
 const report = await ctx.transfer.importDocument(siteId, document, {
   userId: request.user!.id, // registrato come autore dell'importazione
   onProgress: (message) => ctx.log.info(message),
+  // API dei plugin 1.52: i conteggi dopo ogni file media e ogni voce, e l'annullamento.
+  onCounts: ({ phase, media, entries }) => saveProgress(phase, media, entries),
+  signal: controller.signal, // si ferma tra due record; quello importato resta
 });
 // { created: { entries: 12, media: 30, … }, skipped: {…}, warnings: […], errors: […] }
 ```
@@ -1002,7 +1005,9 @@ ctx.hooks.filter(
 );
 ```
 
-I file media si indicano con il loro indirizzo http(s) e vengono scaricati solo da indirizzi pubblici, mai dalla rete del server. Quello che c'è già sul sito resta com'è, e i vecchi indirizzi (`oldPaths`) diventano redirect. Un sito grande richiede minuti: avvia l'importazione senza attenderla nella route e tieni l'avanzamento in `ctx.storage`.
+I file media si indicano con il loro indirizzo http(s) e vengono scaricati solo da indirizzi pubblici, mai dalla rete del server. Quello che c'è già sul sito resta com'è, e i vecchi indirizzi (`oldPaths`) diventano redirect. Un sito grande richiede minuti: avvia l'importazione senza attenderla nella route, rispondi subito (`202`, con un id del lavoro) e tieni l'avanzamento in `ctx.storage`, salvandolo ogni tanto anche quando nulla si muove, così un lavoro rimasto in corso dopo un riavvio si riconosce (il WordPress Importer considera fermo un lavoro che non si è salvato da due minuti).
+
+**Record importati prima** (core 0.82). Il core ricorda che cosa è diventato ogni record di un documento, per sorgente del documento (`source.kind` e `source.url`) e `ref` del record (un id di articolo WordPress: `post:42`): importando di nuovo un documento della stessa sorgente quelle voci e quei media restano come sono (i media non vengono riscaricati). I record non vengono mai riconosciuti solo da titolo e indirizzo, così due articoli con lo stesso titolo e indirizzi diversi solo alla fine restano due articoli; le voci importate da core precedenti, che non conservavano il ref, vengono ancora riconosciute da tipo, lingua, indirizzo e titolo, una volta sola. Gli slug arrivano a 200 caratteri, come quelli di WordPress; uno tagliato a quel limite e già preso riceve un suffisso entro il limite (`…-2`), e il vecchio indirizzo porta al nuovo.
 
 Le voci possono rimandare l'una all'altra in qualsiasi ordine: in un documento (o nei dati di un plugin), `{ "$entry": "<ref della voce>", "prefix": "entry:" }` diventa `prefix + <nuovo id>` quando tutte le voci esistono (`null` se quella voce non è stata importata). Le voci di un tipo di contenuto che il sito non ha (ad esempio di un plugin non attivo) restano fuori, con una riga del resoconto per tipo. Le impostazioni destinate a un plugin vanno in `document.plugins`, per slug del plugin (API 1.28): dopo le voci, ogni plugin attivo riceve le sue con il filtro `import.pluginData`, con oggetti media e riferimenti alle voci già rimappati e `idMap` (`{ entries, terms, media }` per `ref`) per tutto il resto; i dati che nessun plugin attivo prende finiscono nel resoconto.
 

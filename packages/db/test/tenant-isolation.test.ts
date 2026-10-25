@@ -188,6 +188,14 @@ describe('writes', () => {
         tx.insert(s.entryTerms).values({ siteId: a.siteId, entryId: a.entryId, termId: b.termId }),
       ),
     ).rejects.toSatisfy(hasPgCode('23503'));
+    // What an import made of a record (core 0.82): never another site's entry.
+    await expect(
+      withSiteContext(app.db, a.siteId, (tx) =>
+        tx
+          .insert(s.importRefs)
+          .values({ siteId: a.siteId, source: 'wordpress:x', ref: 'post:9', entryId: b.entryId }),
+      ),
+    ).rejects.toSatisfy(hasPgCode('23503'));
   });
 
   it('cannot modify sites, domains or installed plugins', async () => {
@@ -352,6 +360,10 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
         checksum: `sum-${name}`,
       })
       .returning();
+    await tx.insert(s.importRefs).values([
+      { siteId, source: 'wordpress:old.example.com', ref: 'post:1', entryId },
+      { siteId, source: 'wordpress:old.example.com', ref: 'att:2', mediaId: file!.id },
+    ]);
     await tx.insert(s.mediaVariants).values({
       siteId,
       mediaId: file!.id,

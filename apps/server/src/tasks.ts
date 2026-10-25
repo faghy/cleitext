@@ -137,7 +137,14 @@ async function runImport(
     siteId,
     asUserId,
     importPluginData: (input) =>
-      host.applyFilter('import.pluginData', null, { siteId, userId: asUserId, ...input }, siteId),
+      host.applyFilter(
+        'import.pluginData',
+        null,
+        { siteId, userId: asUserId, ...input },
+        siteId,
+        // The command is a background job: its hooks have the longer time limit.
+        { timeout: 'job' },
+      ),
     media: context.app.get(MediaService),
     cache: context.app.get(PageCacheService),
     readFile,
@@ -145,7 +152,8 @@ async function runImport(
     locales: await context.app
       .get(LanguagesService)
       .locales(siteId, await defaultLocale(context, siteId)),
-    onLanguagesPending: () => host.emit('languages.pending', {}, siteId),
+    onLanguagesPending: () =>
+      host.emit('languages.pending', {}, siteId, undefined, { timeout: 'job' }),
     onProgress: context.log,
   });
 }
