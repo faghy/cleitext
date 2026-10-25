@@ -1,0 +1,173 @@
+/*
+ * Multilingual's language switcher: a light look that takes the theme's
+ * colours and fonts. Its looks are in :where(), so any rule of a theme (the
+ * class a theme gives it, e.g. `.cv-langs a`) or of Additional CSS wins; only
+ * the dropdown's own box keeps a normal weight. Custom properties tune it.
+ */
+:where(.ml-switcher) {
+  --ml-switcher-gap: 0.75em;
+  --ml-switcher-popup-bg: #fff;
+  --ml-switcher-popup-color: #1f2328;
+  --ml-switcher-popup-border: rgba(0, 0, 0, 0.12);
+  position: relative;
+  display: inline-block;
+  font-size: inherit;
+  line-height: 1.4;
+}
+/* In content (the block, a shortcode): a block of its own. */
+:where(.ml-switcher--at-block) {
+  display: block;
+}
+:where(.ml-switcher) ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:where(.ml-switcher) a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  color: inherit;
+  text-decoration: none;
+}
+:where(.ml-switcher) a:hover .ml-switcher__name,
+:where(.ml-switcher) a:focus-visible .ml-switcher__name {
+  text-decoration: underline;
+}
+:where(.ml-switcher) a[aria-current='true'] {
+  font-weight: 600;
+}
+:where(.ml-switcher__flag) {
+  flex: none;
+  width: 1.25em;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.ml-switcher__sr {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+:where(.ml-switcher--inline .ml-switcher__list) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25em var(--ml-switcher-gap);
+}
+:where(.ml-switcher--list .ml-switcher__list) {
+  display: grid;
+  gap: 0.35em;
+}
+.ml-switcher--align-center {
+  display: flex;
+  justify-content: center;
+}
+.ml-switcher--align-right {
+  display: flex;
+  justify-content: flex-end;
+}
+/* Dropdown: a <details>, so it works without JavaScript too. */
+.ml-switcher__dropdown {
+  position: relative;
+  display: inline-block;
+}
+:where(.ml-switcher__toggle) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.ml-switcher__toggle::-webkit-details-marker {
+  display: none;
+}
+.ml-switcher__toggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.ml-switcher__caret {
+  width: 0.45em;
+  height: 0.45em;
+  margin-left: 0.1em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-25%) rotate(45deg);
+  transition: transform 0.15s;
+}
+.ml-switcher__dropdown[open] .ml-switcher__caret {
+  transform: translateY(15%) rotate(-135deg);
+}
+.ml-switcher__dropdown .ml-switcher__list {
+  display: block;
+  position: absolute;
+  z-index: 1000;
+  top: calc(100% + 0.35em);
+  inset-inline-start: 0;
+  min-width: max(100%, 9em);
+  padding: 0.35em 0;
+  background: var(--ml-switcher-popup-bg);
+  color: var(--ml-switcher-popup-color);
+  border: 1px solid var(--ml-switcher-popup-border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+.ml-switcher__dropdown .ml-switcher__list a {
+  display: flex;
+  padding: 0.35em 0.9em;
+  white-space: nowrap;
+}
+.ml-switcher__dropdown .ml-switcher__list a:hover,
+.ml-switcher__dropdown .ml-switcher__list a:focus-visible {
+  background: rgba(0, 0, 0, 0.05);
+}
+/* Bottom of the page, or floating (Languages → Language switcher). */
+.ml-switcher--at-footer-auto {
+  display: flex;
+  justify-content: center;
+  padding: 1em;
+}
+.ml-switcher--at-floating {
+  position: fixed;
+  z-index: 9990;
+  bottom: 1em;
+  padding: 0.45em 0.8em;
+  background: var(--ml-switcher-popup-bg);
+  color: var(--ml-switcher-popup-color);
+  border: 1px solid var(--ml-switcher-popup-border);
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+.ml-switcher--side-right {
+  right: 1em;
+}
+.ml-switcher--side-left {
+  left: 1em;
+}
+.ml-switcher--at-floating .ml-switcher__list,
+.ml-switcher--at-footer-auto.ml-switcher--dropdown .ml-switcher__list {
+  top: auto;
+  bottom: calc(100% + 0.5em);
+}
+.ml-switcher--side-right .ml-switcher__dropdown .ml-switcher__list {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+.ml-switcher-placeholder {
+  padding: 0.75em 1em;
+  border: 1px dashed currentColor;
+  opacity: 0.7;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ml-switcher__caret {
+    transition: none;
+  }
+}

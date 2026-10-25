@@ -27,6 +27,7 @@ import {
   type CxdDocument,
 } from '@cleitext/blocks';
 import type {
+  BlockLocale,
   BlockPage,
   RenderBlocksOptions,
   PluginPageContent,
@@ -110,6 +111,7 @@ import { routeRequest, sendRouteResponse, setPluginCookies } from '../plugins/pl
 import { pluginPageBlock } from './plugin-page.js';
 import { sanitizeDocument } from '../content/html-sanitize.js';
 import { pluginBlockInstances } from './block-instances.js';
+import { cleanMenus, SWITCHER_BLOCK_ID } from './plugin-menus.js';
 import { pluginAssetUrl } from '../plugins/plugin-assets.js';
 import { verifyPreviewToken } from './preview.js';
 import { childThemeCss, parentDefinition, themeFor } from './themes.js';
@@ -184,6 +186,8 @@ interface RequestScope {
   editorFrame?: boolean;
   /** CSS of the plugin blocks on the page (`css`), added to `<head>`. */
   blockCss?: string[];
+  /** The site's languages with this page's address in each (plugin API 1.54), for plugin blocks. */
+  pageLocales?: BlockLocale[];
   /** A plugin page that lists entries like an archive (`PluginPageContent.archive`). */
   pluginArchive?: NonNullable<PluginPageContent['archive']> & {
     title: string;
@@ -1913,6 +1917,18 @@ export class PublicService {
   ): Promise<PublicResponse> {
     const { data, theme, locale } = scope;
     const locations: Partial<Record<ThemeLocation, CxdDocument>> = {};
+    // The page in each language: its translation, else the language's home (core 0.83: which one).
+    const pageLocales: BlockLocale[] = data.locales.map((l) => {
+      const translation = alternates.find((a) => a.locale === l.code)?.url;
+      return {
+        code: l.code,
+        name: l.name,
+        url: translation ?? data.urls.home(l.code),
+        current: l.code === locale,
+        translated: translation !== undefined || l.code === locale,
+      };
+    });
+    if (data.locales.length > 1) scope.pageLocales = pageLocales;
     if (scope.activePlugins.size > 0) {
       const hookContext = this.hookContext(
         scope,
@@ -1960,6 +1976,26 @@ export class PublicService {
       await this.frontPageIds(scope),
     );
     scope.tags.add(`menus:${locale}`);
+    // Menus changed by plugins (plugin API 1.54), e.g. a language switcher among the items.
+    if (scope.activePlugins.size > 0) {
+      const given = await this.plugins.applyFilter(
+        'render.menus',
+        menus,
+        {
+          ...this.hookContext(
+            scope,
+            props.kind,
+            props.kind === 'entry' ? props.entry : undefined,
+            props,
+          ),
+          locales: data.locales.length > 1 ? pageLocales : [],
+        },
+        scope.siteId,
+      );
+      const cleaned = cleanMenus(given);
+      for (const key of Object.keys(menus)) delete menus[key];
+      Object.assign(menus, cleaned);
+    }
     // Theme settings and block areas, with the media they use.
     const themeValues = scope.themeSettings ?? (await themeSettings(scope.tx, theme));
     const areas = await themeAreas(scope.tx, theme, locale);
@@ -2020,6 +2056,12 @@ export class PublicService {
     if (extraMedia.length > 0) {
       for (const [id, item] of await loadMedia(scope.tx, extraMedia, locale)) media.set(id, item);
     }
+    // The language plugin's switcher, for themes placing `<LanguageSwitcher>` (plugin API 1.54).
+    const switcherType =
+      scope.activePlugins.size > 0 && data.locales.length > 1
+        ? await this.languages.switcherBlock(scope.siteId)
+        : null;
+    const switcher = switcherType ? { type: switcherType, id: SWITCHER_BLOCK_ID } : null;
     // Plugin blocks of the entry, the areas and the patterns.
     if (scope.activePlugins.size > 0) {
       scope.blockRenderers = await this.pluginBlockRenderers(
@@ -2029,18 +2071,14 @@ export class PublicService {
           ...Object.values(areas),
           ...locationDocs,
           ...patternDocs.values(),
+          ...(switcher ? [{ schema: 1 as const, blocks: [{ ...switcher, v: 1, attrs: {} }] }] : []),
         ],
         props,
         media,
         menus,
       );
     }
-    const locales: LocaleLink[] = data.locales.map((l) => ({
-      code: l.code,
-      name: l.name,
-      url: alternates.find((a) => a.locale === l.code)?.url ?? data.urls.home(l.code),
-      current: l.code === locale,
-    }));
+    const locales: LocaleLink[] = pageLocales;
     const context: PageContext = {
       site: {
         id: scope.siteId,
@@ -2083,6 +2121,7 @@ export class PublicService {
       ...(scope.editorFrame ? { editorFrame: true } : {}),
       ...(Object.keys(locations).length ? { locations } : {}),
       templateCandidates: candidates,
+      ...(switcher ? { languageSwitcher: switcher } : {}),
     };
     // Child themes (core 0.79): the parent's templates, to wrap them.
     const parent = theme.parent ? parentDefinition(theme.slug) : null;
@@ -2305,6 +2344,7 @@ export class PublicService {
         : {}),
       ...(props.kind === 'entry' ? { entry: props.entry } : {}),
       ...(scope.params ? { params: scope.params } : {}),
+      ...(scope.pageLocales ? { locales: scope.pageLocales } : {}),
       ...(props.kind === 'archive'
         ? {
             archive: {
@@ -2756,6 +2796,16 @@ export class PublicService {
         new Set(scope.data.types.map((t) => t.slug)),
         scope.theme.menuItemFields,
       );
+      // The languages, each at its home page (plugin API 1.54), for a language switcher's preview.
+      if (scope.data.locales.length > 1) {
+        scope.pageLocales = scope.data.locales.map((l) => ({
+          code: l.code,
+          name: l.name,
+          url: scope.data.urls.home(l.code),
+          current: l.code === scope.locale,
+          translated: true,
+        }));
+      }
       const renderers = await this.pluginBlockRenderers(scope, [document], props, media, menus, {
         preview: true,
       });

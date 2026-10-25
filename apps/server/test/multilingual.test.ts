@@ -94,7 +94,8 @@ beforeAll(async () => {
   await editor.login('editor@multi.test', PASSWORD);
   visitor = new TestClient(app, site.host, '10.50.0.3');
 
-  expect((await admin.post('/api/v1/plugins/multilingual/activate')).statusCode).toBe(200);
+  const activated = await admin.post('/api/v1/plugins/multilingual/activate');
+  expect(activated.statusCode, activated.body).toBe(200);
   const added = await admin.post(`${EXT}/languages`, { code: 'it', name: 'Italiano' });
   expect(added.statusCode, added.body).toBe(201);
 });
@@ -174,7 +175,10 @@ describe('translations of entries', () => {
     expect(english.body).toContain(
       '<link rel="alternate" hrefLang="it" href="http://multi.test/it/chi-siamo"/>',
     );
-    expect(english.body).toContain('<a href="/it/chi-siamo" hrefLang="it" lang="it">Italiano</a>');
+    // Aurora shows Multilingual's switcher (1.6.0) in its own look.
+    expect(english.body).toContain(
+      '<a href="/it/chi-siamo" hrefLang="it" lang="it"><span class="ml-switcher__name">Italiano</span></a>',
+    );
     expect((await visitor.get('/it/about-us')).statusCode).toBe(404);
   });
 
@@ -237,7 +241,9 @@ describe('translations of entries', () => {
     expect(italian.body).toContain(
       '<link rel="alternate" hrefLang="en" href="http://multi.test/about-us/"/>',
     );
-    expect(italian.body).toContain('<a href="/about-us/" hrefLang="en" lang="en">English</a>');
+    expect(italian.body).toContain(
+      '<a href="/about-us/" hrefLang="en" lang="en"><span class="ml-switcher__name">English</span></a>',
+    );
     expect((await visitor.get('/it/feed/')).statusCode).toBe(200);
     expect((await visitor.get('/sitemap-page-it.xml')).body).toContain(
       '<loc>http://multi.test/it/chi-siamo/</loc>',
@@ -600,6 +606,153 @@ describe('a domain per language', () => {
     expect(
       (await new TestClient(app, domains.host, '10.50.7.6').get('/de/ueber-uns')).statusCode,
     ).toBe(200);
+  });
+});
+
+describe('the language switcher (Multilingual 1.6.0)', () => {
+  let owner2: TestClient;
+  let guest: TestClient;
+  let about: { id: string; slug: string };
+  let alone: { id: string; slug: string };
+  const SWITCHER = `${EXT}/switcher`;
+
+  beforeAll(async () => {
+    ({ admin: owner2 } = await newSite('switcher', '10.50.8.1'));
+    guest = new TestClient(app, 'switcher.test', '10.50.8.2');
+    expect((await owner2.post('/api/v1/plugins/multilingual/activate')).statusCode).toBe(200);
+    await owner2.post(`${EXT}/languages`, { code: 'it', name: 'Italiano' });
+    about = await publish(owner2, 'page', 'About');
+    const id = await translate(owner2, about.id, 'it');
+    await owner2.request('PATCH', `/api/v1/entries/${id}`, {
+      title: 'Chi siamo',
+      slug: 'chi-siamo',
+    });
+    await owner2.post(`/api/v1/entries/${id}/publish`);
+    alone = await publish(owner2, 'page', 'Only in English');
+  });
+
+  const settings = async (body: Record<string, unknown>) => {
+    const saved = await owner2.request('PUT', SWITCHER, body);
+    expect(saved.statusCode, saved.body).toBe(200);
+    return saved.json();
+  };
+
+  it('is the one Aurora shows, with the styles and the script of the plugin', async () => {
+    const html = (await guest.get(`/${about.slug}`)).body;
+    expect(html).toContain(
+      '<nav class="ml-switcher ml-switcher--inline ml-switcher--at-header languages" aria-label="Languages">',
+    );
+    expect(html).toContain(
+      '<a href="/about" hrefLang="en" lang="en" aria-current="true"><span class="ml-switcher__name">English</span></a>',
+    );
+    expect(html).toMatch(/plugin-assets\/multilingual\/[^"]*switcher\.css/);
+    // Aurora asks for links side by side: no dropdown, no script.
+    expect(html).not.toMatch(/plugin-assets\/multilingual\/[^"]*switcher\.js/);
+  });
+
+  it('links a language without a translation to its home page, or hides it', async () => {
+    expect((await guest.get(`/${alone.slug}`)).body).toContain(
+      '<li class="ml-switcher__item is-untranslated"><a href="/it" hrefLang="it" lang="it">',
+    );
+    await settings({ untranslated: 'hide' });
+    expect((await guest.get(`/${alone.slug}`)).body).not.toContain('ml-switcher');
+    await settings({ untranslated: 'home' });
+  });
+
+  it('follows the settings everywhere when asked, a dropdown with SVG flags', async () => {
+    const saved = await settings({ themeLook: 'site', style: 'dropdown', flags: true });
+    expect(saved).toMatchObject({
+      themeLook: 'site',
+      style: 'dropdown',
+      flags: true,
+      footer: 'off',
+    });
+    const html = (await guest.get(`/${about.slug}`)).body;
+    expect(html).toContain('<details class="ml-switcher__dropdown">');
+    expect(html).toContain('<svg class="ml-switcher__flag" viewBox="0 0 20 15"');
+    expect(html).toMatch(/plugin-assets\/multilingual\/[^"]*switcher\.js/);
+    await settings({ themeLook: 'theme', style: 'dropdown', flags: true });
+  });
+
+  it('is a block, and [language_switcher] in a paragraph', async () => {
+    const page = await publish(owner2, 'page', 'Blocks', {
+      document: {
+        schema: 1,
+        blocks: [
+          {
+            id: 'sw',
+            type: 'multilingual/language-switcher',
+            v: 1,
+            attrs: { style: 'list', names: 'code', flags: 'no' },
+          },
+          {
+            id: 'sc',
+            type: 'core/paragraph',
+            v: 1,
+            attrs: {},
+            content: [{ text: '[language_switcher style="inline" names="translated"]' }],
+          },
+        ],
+      },
+    });
+    const html = (await guest.get(`/${page.slug}`)).body;
+    expect(html).toContain('ml-switcher--list ml-switcher--at-block');
+    expect(html).toContain(
+      '<span class="ml-switcher__name" aria-hidden="true">IT</span><span class="ml-switcher__sr">Italiano</span>',
+    );
+    // Flags are on in the settings (the default).
+    expect(html).toContain('ml-switcher--inline ml-switcher--flags ml-switcher--at-block');
+    expect(html).toContain('<span class="ml-switcher__name">Italian</span>');
+    expect(html).not.toContain('[language_switcher');
+  });
+
+  it('becomes menu items of any theme: in the chosen location and for switcher links', async () => {
+    const primary = (
+      await owner2.post('/api/v1/menus', { name: 'Main', location: 'primary' })
+    ).json();
+    const items = await owner2.request('PUT', `/api/v1/menus/${primary.id}/items`, {
+      items: [{ kind: 'url', url: '/contact', label: 'Contact' }],
+    });
+    expect(items.statusCode, items.body).toBe(200);
+    await settings({ menuLocation: 'primary', menuStyle: 'inline' });
+    let nav = (await guest.get(`/${about.slug}`)).body;
+    nav = nav.slice(
+      nav.indexOf('<nav class="site-nav"'),
+      nav.indexOf('</nav>', nav.indexOf('<nav class="site-nav"')),
+    );
+    expect(nav).toContain('<a href="/contact">Contact</a>');
+    expect(nav).toContain('<a href="/about" aria-current="page">English</a>');
+    expect(nav).toContain('<a href="/it/chi-siamo">Italiano</a>');
+
+    // A custom link puts the switcher exactly there, with its own choices.
+    await settings({ menuLocation: '' });
+    const footer = (
+      await owner2.post('/api/v1/menus', { name: 'Foot', location: 'footer' })
+    ).json();
+    await owner2.request('PUT', `/api/v1/menus/${footer.id}/items`, {
+      items: [
+        { kind: 'url', url: '#language-switcher?style=dropdown&names=code', label: 'Languages' },
+      ],
+    });
+    const html = (await guest.get(`/${about.slug}`)).body;
+    expect(html).not.toContain('#language-switcher');
+    expect(html).toMatch(/<a href="\/about">EN<\/a><ul><li><a href="\/it\/chi-siamo">IT<\/a>/);
+  });
+
+  it('shows at the bottom of the page or floating, only when chosen', async () => {
+    expect((await guest.get(`/${about.slug}`)).body).not.toContain('ml-switcher--at-floating');
+    await settings({ footer: 'floating', floatingSide: 'left' });
+    const html = (await guest.get(`/${about.slug}`)).body;
+    expect(html).toContain('ml-switcher--at-floating ml-switcher--side-left');
+    expect(html.indexOf('ml-switcher--at-floating')).toBeGreaterThan(html.indexOf('</footer>'));
+    await settings({ footer: 'off' });
+  });
+
+  it('settings are for those who manage the site, and checked', async () => {
+    expect((await guest.get(SWITCHER)).statusCode).toBe(401);
+    const odd = await settings({ style: 'carousel', menuLocation: '<b>' });
+    expect(odd.style).toBe('dropdown');
+    expect(odd.menuLocation).toBe('');
   });
 });
 

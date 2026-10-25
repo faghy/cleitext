@@ -1,13 +1,22 @@
 {
   "slug": "multilingual",
   "name": "Multilingual",
-  "version": "1.5.0",
-  "apiVersion": "^1.15",
-  "description": "Several languages on a site: translations of content, categories and tags, language addresses, hreflang and a language switcher.",
+  "version": "1.6.0",
+  "apiVersion": "^1.54",
+  "description": "Several languages on a site: translations of content, categories and tags, language addresses, hreflang and a language switcher for every theme (block, menus, page footer).",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
   "admin": "dist/admin.js",
-  "permissions": ["languages", "content:read", "content:write", "routes:admin", "settings:own"],
+  "public": "dist/public",
+  "permissions": [
+    "languages",
+    "content:read",
+    "content:write",
+    "routes:admin",
+    "settings:own",
+    "blocks",
+    "theme:hooks"
+  ],
   "capabilities": []
 }

@@ -34,6 +34,11 @@ export interface LocaleLink {
   /** URL of the current page in this language (or its home). */
   url: string;
   current: boolean;
+  /**
+   * `url` is this page in that language, not the language's home page
+   * standing in for a missing translation (core 0.83; missing on older cores).
+   */
+  translated?: boolean;
 }
 
 export interface MenuItemView {
@@ -500,4 +505,10 @@ export interface PageContext {
   parentTheme?: Pick<ThemeDefinition, 'slug' | 'templates' | 'Layout'>;
   /** The template names tried for this page, most specific first. */
   templateCandidates?: readonly string[];
+  /**
+   * The language switcher of the site's language plugin (core 0.83, plugin
+   * API 1.54): the block that `<LanguageSwitcher>` renders. Missing without
+   * such a plugin and on sites with one language.
+   */
+  languageSwitcher?: { type: string; id: string };
 }

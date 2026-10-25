@@ -141,6 +141,18 @@ export class LanguagesService {
     return outcome.value.filter((id): id is string => typeof id === 'string' && UUID_RE.test(id));
   }
 
+  /**
+   * The block the language plugin gives as the site's language switcher
+   * (plugin API 1.54), for themes placing `<LanguageSwitcher>`: one of its
+   * own registered blocks, else null.
+   */
+  async switcherBlock(siteId: string): Promise<string | null> {
+    const plugin = await this.host.languagePlugin(siteId);
+    const type = plugin?.languageProvider?.switcher?.block;
+    if (!plugin || typeof type !== 'string') return null;
+    return plugin.blocks.some((block) => block.type === type) ? type : null;
+  }
+
   /** Whether the site has a language plugin (the multilingual UI shows only then). */
   async multilingual(siteId: string): Promise<boolean> {
     return (await this.host.languagePlugin(siteId)) !== null;

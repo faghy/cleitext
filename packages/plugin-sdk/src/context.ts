@@ -312,6 +312,16 @@ export interface LanguageProvider {
    * translated into it (the ids given: entries with a version in `locale`).
    */
   fallback?(siteId: string, locale: string): string[] | null | Promise<string[] | null>;
+  /**
+   * The site's language switcher (plugin API 1.54; ignored by older cores):
+   * a block of the plugin that themes show where they place
+   * `<LanguageSwitcher>` of `@cleitext/theme-sdk`, instead of drawing their
+   * own. Register it with `wrapper: false`: it is rendered inside the page
+   * and gets the theme's wishes as attributes (`placement`, e.g. `header`,
+   * `hint` with the look the theme suggests, `className`). Its `load` runs
+   * once per page; `context.page.locales` has the languages.
+   */
+  switcher?: { block: string };
 }
 
 export interface LanguageUsage {
@@ -735,6 +745,12 @@ export interface BlockPage {
   user?: BlockPageUser;
   /** Query parameters of the address (plugin API 1.11), e.g. a loop's page number. */
   params?: Record<string, string>;
+  /**
+   * The site's languages with the address of this page in each (plugin API
+   * 1.54), as themes get them in `page.locales`: missing on older cores and
+   * on sites with one language.
+   */
+  locales?: BlockLocale[];
   /** Entry pages: the entry shown. */
   entry?: PublicEntry;
   /** Archives (and the latest posts on the home page). */
@@ -755,6 +771,20 @@ export interface BlockPage {
   };
   /** Search results. */
   search?: { query: string; entries: PublicEntrySummary[]; pagination: Pagination };
+}
+
+/** A language of the site as blocks see it (plugin API 1.54). */
+export interface BlockLocale {
+  /** e.g. `it`, `pt-BR`. */
+  code: string;
+  /** The name the site gives it, e.g. `Italiano`. */
+  name: string;
+  /** This page in that language, or the language's home page when it has no translation. */
+  url: string;
+  /** The language of the page. */
+  current: boolean;
+  /** `url` is this page's translation (or this page), not the language's home page. */
+  translated: boolean;
 }
 
 /** The site's logo as blocks see it (plugin API 1.41). */

@@ -16,6 +16,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import type { LanguageView, OverviewRow, StringsResponse, TranslationsResponse } from './schema';
+import { SwitcherPage } from './switcher/admin';
 
 addMessages('it', {
   Languages: 'Lingue',
@@ -966,6 +967,14 @@ export default defineAdminPlugin({
       component: LanguagesPage,
       // Two scripts: a character and a letter.
       icon: 'M3 5.5h9 M7.5 3.5v2 M5 5.5c.7 3 2.8 5.4 6 6.5 M10 5.5c-.7 3.2-2.9 5.8-6 7.2 M12.5 21l4-10 4 10 M13.8 18h5.4',
+    },
+    {
+      path: 'switcher',
+      title: { en: 'Language switcher', it: 'Selettore di lingua' },
+      capability: 'manage_settings',
+      component: SwitcherPage,
+      // A globe.
+      icon: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M3 12h18 M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9 M12 3c-2.5 2.6-3.8 5.6-3.8 9s1.3 6.4 3.8 9',
     },
     {
       path: 'overview',

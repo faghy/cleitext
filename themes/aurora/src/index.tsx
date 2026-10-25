@@ -7,6 +7,7 @@ import {
   FormattedDate,
   HeadTags,
   Image,
+  LanguageSwitcher,
   Location,
   Menu,
   usePage,
@@ -122,24 +123,30 @@ function Layout({ head, css, children }: LayoutProps) {
                   <button type="submit">{t.search}</button>
                 </form>
               )}
-              {page.locales.length > 1 && (
-                <nav className="languages" aria-label={t.languages}>
-                  <ul>
-                    {page.locales.map((locale) => (
-                      <li key={locale.code}>
-                        <a
-                          href={locale.url}
-                          hrefLang={locale.code}
-                          lang={locale.code}
-                          aria-current={locale.current ? 'true' : undefined}
-                        >
-                          {locale.name}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </nav>
-              )}
+              {/* The language plugin's switcher (core 0.83), in Aurora's look; else Aurora's own list. */}
+              <LanguageSwitcher
+                placement="header"
+                hint={{ style: 'inline', names: 'native', flags: false }}
+                className="languages"
+                fallback={
+                  <nav className="languages" aria-label={t.languages}>
+                    <ul>
+                      {page.locales.map((locale) => (
+                        <li key={locale.code}>
+                          <a
+                            href={locale.url}
+                            hrefLang={locale.code}
+                            lang={locale.code}
+                            aria-current={locale.current ? 'true' : undefined}
+                          >
+                            {locale.name}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </nav>
+                }
+              />
             </div>
           </header>
         </Location>
@@ -336,7 +343,7 @@ function PageLinks({ pagination }: { pagination: Pagination }) {
 export const theme = defineTheme({
   slug: 'aurora',
   name: 'Aurora',
-  version: '0.4.0',
+  version: '0.4.1',
   description: 'Clean and readable, light and dark, without JavaScript.',
   menuLocations: { primary: 'Main menu', footer: 'Footer menu' },
   settings: [

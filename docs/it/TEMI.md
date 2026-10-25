@@ -88,6 +88,19 @@ I punti di aggancio (API dei plugin 1.33) si chiamano `hook:<nome>`, con il pref
 <Location name="hook:miotema_header_before" />
 ```
 
+**Il selettore di lingua** (core 0.83). Metti `<LanguageSwitcher>` dove il tema mostra le lingue: con un plugin delle lingue che ne fornisce uno (Multilingual 1.6.0) lo disegna il plugin, così ogni tema ha lo stesso selettore accessibile con le impostazioni del proprietario del sito (menu a tendina o elenco, nomi o codici, bandiere, lingue senza traduzione); senza, compare il tuo `fallback` (o un semplice elenco). `hint` è l'aspetto che suggerisci per quel punto, che il plugin segue a meno che il proprietario non abbia scelto le sue impostazioni ovunque; `className` va sull'elemento esterno, così il tuo CSS continua a valere. Sui siti con una lingua non compare nulla. `useLanguageSwitcher()` restituisce `{ locales, shared }`. Leggi l'export come facoltativo (`import * as sdk from '@cleitext/theme-sdk'`; `sdk.LanguageSwitcher`) se il tema deve funzionare anche sui core precedenti alla 0.83. Ogni voce di `page.locales` dice se il suo indirizzo è la traduzione di questa pagina (`translated`, core 0.83) o la home della lingua.
+
+```tsx
+<LanguageSwitcher
+  placement="header"
+  hint={{ style: 'inline', names: 'code', flags: false }}
+  className="miotema-lingue"
+  fallback={<MioElencoLingue />}
+/>
+```
+
+Il plugin può anche aggiungere le lingue ai menu (`render.menus`): arrivano come voci normali di `page.menus`, disegnate dal tuo menu.
+
 Il contenuto di una voce si mostra con `<EntryContent document={…} />`. Dentro un editor visuale (il page builder di un plugin) mostra invece un elemento vuoto `[data-cx-editor-canvas]` che l'editor riempie: così la pagina si modifica nel layout del tema. Quando l'editor nasconde il titolo (`entry.document.editor?.data?.hideTitle === true`, come fa l'impostazione di pagina di Fresco), non mostrare l'intestazione con il titolo della voce, così la pagina ha un solo `h1`. Non mostrare l'immagine in evidenza sopra il contenuto quando lo chiede (`hideFeatured === true`) e con i suoi layout `full` e `canvas` (`layout`): la pagina è disegnata nell'editor.
 
 ### Commenti, mi piace, account e autori

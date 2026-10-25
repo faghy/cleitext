@@ -1,4 +1,6 @@
 import { registerAi } from './ai';
+import { BLOCK_TYPE } from './switcher/convert';
+import { registerSwitcher } from './switcher/server';
 import { DeepL, translateContent, type MachineTranslator } from './machine';
 import {
   definePlugin,
@@ -96,6 +98,8 @@ export default definePlugin({
           return rows.map((r) => r.id);
         });
       },
+      // Themes show this block where they place `<LanguageSwitcher>` (plugin API 1.54).
+      switcher: { block: BLOCK_TYPE },
     });
 
     // An item that is gone leaves its group.
@@ -120,6 +124,7 @@ export default definePlugin({
     });
 
     routes(ctx);
+    registerSwitcher(ctx);
     registerAi(ctx);
   },
 

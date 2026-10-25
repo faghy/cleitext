@@ -135,6 +135,19 @@ Hook points (plugin API 1.33) are named `hook:<name>`, with your theme's prefix 
 <Location name="hook:mytheme_header_before" />
 ```
 
+**The language switcher** (core 0.83). Place `<LanguageSwitcher>` where the theme shows the languages: with a language plugin that gives one (Multilingual 1.6.0), the plugin draws it, so every theme has the same accessible switcher with the site owner's settings (dropdown or list, names or codes, flags, languages without a translation); without one, your `fallback` shows (or a plain list). `hint` is the look you suggest for that place, which the plugin follows unless the site owner chose its settings everywhere; `className` goes on its outer element, so your CSS keeps applying. Nothing shows on sites with one language. `useLanguageSwitcher()` gives `{ locales, shared }`. Read the export as optional (`import * as sdk from '@cleitext/theme-sdk'`; `sdk.LanguageSwitcher`) when the theme must also run on cores before 0.83. Each item of `page.locales` says whether its address is this page's translation (`translated`, core 0.83) or the language's home page.
+
+```tsx
+<LanguageSwitcher
+  placement="header"
+  hint={{ style: 'inline', names: 'code', flags: false }}
+  className="mytheme-languages"
+  fallback={<MyLanguageList />}
+/>
+```
+
+The plugin can also add the languages to menus (`render.menus`): they arrive as ordinary items of `page.menus`, drawn by your menu.
+
 Render an entry's content with `<EntryContent document={…} />`. Inside a visual editor (a plugin's page builder) it renders an empty `[data-cx-editor-canvas]` element instead, which the editor fills, so the page is edited in the theme's own layout. When the editor hides the title (`entry.document.editor?.data?.hideTitle === true`, as Fresco's page setting does), leave out the entry's title header, so the page has a single `h1`. Leave out the featured image above the content when it asks (`hideFeatured === true`) and on its `full` and `canvas` layouts (`layout`): the page is designed in the editor.
 
 ### Comments, likes, accounts and authors

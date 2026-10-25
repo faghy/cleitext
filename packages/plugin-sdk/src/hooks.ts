@@ -7,7 +7,8 @@ import type {
   OptionsPageInput,
 } from '@cleitext/shared';
 import type { PhpValue } from './php.js';
-import type { HeadData, PublicEntry, ThemeLocation } from '@cleitext/theme-sdk';
+import type { HeadData, MenuItemView, PublicEntry, ThemeLocation } from '@cleitext/theme-sdk';
+import type { BlockLocale } from './context.js';
 
 /**
  * Hook catalog (docs/SPECIFICATIONS.md §8). Plugins add their own hooks with
@@ -366,6 +367,19 @@ export interface Filters {
   'render.locations': [
     locations: Partial<Record<ThemeLocation, CxdDocument>>,
     context: RenderHookContext,
+  ];
+  /**
+   * The menus of a public page, by theme location, before the theme and the
+   * blocks get them (plugin API 1.54, needs `theme:hooks`): add, replace or
+   * remove items, e.g. a language switcher as menu items, shown by every
+   * theme as its own menu. Items need a unique `id`, a `label` and a `url`
+   * (unsafe addresses are dropped); `current` marks the page shown.
+   * `locales` are the site's languages with this page's address in each
+   * (empty on sites with one language).
+   */
+  'render.menus': [
+    menus: Record<string, MenuItemView[]>,
+    context: RenderHookContext & { locales: BlockLocale[] },
   ];
   /** Final HTML of a public page; use sparingly (needs `theme:hooks`). */
   'render.html': [html: string, context: RenderHookContext];
