@@ -65,6 +65,8 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   const roleId = useId();
   const commentsId = useId();
   const [file, setFile] = useState<File | null>(null);
+  const optionsId = useId();
+  const [optionsFile, setOptionsFile] = useState<File | null>(null);
   const [locale, setLocale] = useState(site.defaultLocale);
   const [role, setRole] = useState('author');
   const [comments, setComments] = useState('approved');
@@ -72,8 +74,13 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   const [formCaptcha, setFormCaptcha] = useState('');
   const [sent, setSent] = useState(0);
   const start = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
+      // Divi's theme options go first: the import of the export reads them.
+      if (optionsFile) {
+        await uploadFile(optionsFile, { path: '/ext/wordpress-importer/divi-options' });
+      }
       const query = new URLSearchParams({
+        ...(optionsFile ? { diviOptions: '1' } : {}),
         locale,
         authorRole: role,
         comments,
@@ -122,6 +129,27 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
               className="block w-full text-sm"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor={optionsId} className="block text-sm font-medium text-slate-800">
+              {tr(
+                'Divi theme options (et_divi.json, optional)',
+                'Opzioni del tema Divi (et_divi.json, facoltativo)',
+              )}
+            </label>
+            <input
+              id={optionsId}
+              type="file"
+              accept=".json,application/json"
+              className="block w-full text-sm"
+              onChange={(e) => setOptionsFile(e.target.files?.[0] ?? null)}
+            />
+            <p className="text-xs text-slate-600">
+              {tr(
+                'Sites built with Divi: its theme options (Divi → Theme Options → export, or the et_divi option) bring the global colors, fonts, presets and layout of the pages.',
+                'Siti fatti con Divi: le sue opzioni del tema (Divi → Opzioni del tema → esporta, o l’opzione et_divi) portano i colori globali, i caratteri, i preset e il layout delle pagine.',
+              )}
+            </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {site.locales.length > 1 && (

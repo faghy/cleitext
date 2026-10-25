@@ -1,4 +1,5 @@
 import { definePlugin, type ImportReport, type PluginContext } from '@cleitext/plugin-sdk';
+import { diviOptions } from '@cleitext/blocks/divi';
 import { wxrToDocument } from './wxr';
 
 /**
@@ -10,6 +11,8 @@ import { wxrToDocument } from './wxr';
 
 export const CAPABILITY = 'import_wordpress';
 const JOB = 'job';
+/** Divi's theme options uploaded for the next import (`et_divi.json`). */
+const DIVI_OPTIONS = 'divi-options';
 /** A running import that has not moved for this long was stopped by a restart. */
 const STALE_MS = 15 * 60_000;
 const ROLES = ['author', 'editor', 'contributor', 'subscriber'];
@@ -75,6 +78,7 @@ async function run(
     locales: string[];
     comments: (typeof COMMENTS)[number];
     formCaptcha?: (typeof FORM_CAPTCHAS)[number];
+    diviOptions?: Record<string, unknown> | null;
   },
 ): Promise<void> {
   let saved = 0;
@@ -94,6 +98,7 @@ async function run(
       locales: options.locales,
       comments: options.comments,
       ...(options.formCaptcha ? { formCaptcha: options.formCaptcha } : {}),
+      ...(options.diviOptions ? { diviOptions: options.diviOptions } : {}),
       trailingSlash: site.trailingSlash === true,
     });
     const report = await ctx.transfer.importDocument(siteId, document, {
@@ -169,6 +174,12 @@ export default definePlugin({
         const authorRole = ROLES.includes(request.query.authorRole ?? '')
           ? request.query.authorRole!
           : 'author';
+        // Divi's theme options uploaded just before, for this import only.
+        const divi =
+          request.query.diviOptions === '1'
+            ? await ctx.storage.get<Record<string, unknown>>(request.siteId, DIVI_OPTIONS)
+            : null;
+        await ctx.storage.delete(request.siteId, DIVI_OPTIONS);
         const now = new Date().toISOString();
         const job: Job = {
           status: 'running',
@@ -188,8 +199,31 @@ export default definePlugin({
           locales,
           comments,
           ...(formCaptcha ? { formCaptcha } : {}),
+          ...(divi ? { diviOptions: divi } : {}),
         });
         return { status: 202, body: { job } };
+      },
+    });
+
+    // Divi's theme options (`et_divi.json`), uploaded before the export they go with.
+    ctx.routes.api({
+      method: 'POST',
+      path: '/divi-options',
+      capability: CAPABILITY,
+      async handler(request) {
+        const file = await request.file();
+        if (!file) return problem(400, 'Choose the theme options file (.json).');
+        let options: Record<string, unknown> | null;
+        try {
+          options = diviOptions(JSON.parse(file.data.toString('utf8')));
+        } catch {
+          options = null;
+        }
+        if (!options) {
+          return problem(400, 'This is not a file of Divi theme options (et_divi.json).');
+        }
+        await ctx.storage.set(request.siteId, DIVI_OPTIONS, options);
+        return { status: 201, body: { ok: true } };
       },
     });
 

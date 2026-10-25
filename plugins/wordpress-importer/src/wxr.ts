@@ -28,6 +28,8 @@ import {
   type KitResult,
 } from './elementor-site.js';
 import { metaValue } from './php.js';
+import { DIVI_TAXONOMIES, DIVI_TYPES, prepareDivi, type DiviItem } from './divi-site.js';
+import { diviPageCss, diviToFresco } from '@cleitext/blocks/divi';
 import { WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
 import type { CxdBlock } from '@cleitext/blocks';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
@@ -85,6 +87,11 @@ export interface WxrOptions {
    * (`site`, the Captcha plugin) or Fresco Pro's own Turnstile keys.
    */
   formCaptcha?: 'site' | 'turnstile';
+  /**
+   * Divi's theme options (`et_divi`, uploaded with the export): the global
+   * colors, fonts, presets and layout of pages built with Divi.
+   */
+  diviOptions?: Record<string, unknown> | null;
 }
 
 export interface WxrResult {
@@ -224,6 +231,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const media: NonNullable<TransferDocumentInput['media']> = [];
   const attachmentRefs = new Map<number, string>();
   const attachmentUrls = new Map<string, string>();
+  // The same by address without the size WordPress gave its copies, and addresses by ref.
+  const attachmentKeys = new Map<string, string>();
+  const mediaUrls = new Map<string, string>();
   for (const item of items) {
     if (text(item['wp:post_type']) !== 'attachment') continue;
     const id = Number(text(item['wp:post_id']));
@@ -244,7 +254,10 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     });
     attachmentRefs.set(id, ref);
     attachmentUrls.set(url, ref);
+    attachmentKeys.set(mediaKey(url), ref);
+    mediaUrls.set(ref, url);
   }
+  const itemsById = new Map(items.map((item) => [Number(text(item['wp:post_id'])), item]));
 
   // ---- Elementor: what pages and templates share ---------------------------------------
   const useElementor = options.elementor !== 'content';
@@ -260,6 +273,49 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       ? { formCaptcha: options.formCaptcha, protectedForm: () => protectedForms++ }
       : {},
   );
+
+  // ---- Divi: what pages and templates share ---------------------------------------------
+  const diviFamilies = new Set<string>();
+  const divi = prepareDivi({
+    items: items
+      .filter((item) => !['attachment', 'nav_menu_item'].includes(text(item['wp:post_type'])))
+      .map((item) => diviItem(item)),
+    locale,
+    origin: baseUrl,
+    options: options.diviOptions ?? null,
+    mediaByUrl: (url) => attachmentUrls.get(url) ?? attachmentKeys.get(mediaKey(url)),
+    attachment: (id) => {
+      const ref = attachmentRefs.get(id);
+      const url = ref ? mediaUrls.get(ref) : undefined;
+      return url ? { ref, url } : undefined;
+    },
+    postLink: (id) => {
+      const item = itemsById.get(id);
+      const link = item ? text(item.link) : '';
+      if (!link) return undefined;
+      const path = relativeTo(link, baseUrl);
+      return path.startsWith('/') ? path : link;
+    },
+    menus: ((channel['wp:term'] as Node[] | undefined) ?? [])
+      .filter((t) => text(t['wp:term_taxonomy']) === 'nav_menu')
+      .map((t) => ({
+        id: Number(text(t['wp:term_id'])),
+        slug: text(t['wp:term_slug']),
+        items: items.filter(
+          (i) =>
+            text(i['wp:post_type']) === 'nav_menu_item' &&
+            ((i.category as Node[] | undefined) ?? []).some(
+              (c) => c['@_domain'] === 'nav_menu' && c['@_nicename'] === text(t['wp:term_slug']),
+            ),
+        ).length,
+      })),
+    conditions: elementor.conditionLookups,
+    font: (family) => {
+      if (/^[A-Za-z0-9][\w ]{0,59}$/.test(family.trim())) diviFamilies.add(family.trim());
+    },
+    warnings,
+  });
+  let diviPages = 0;
 
   // ---- Posts and pages ------------------------------------------------------------------
   const entries: NonNullable<TransferDocumentInput['entries']> = [];
@@ -357,6 +413,30 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         };
         elementorPages++;
       }
+    } else if (useElementor && divi.isDiviPage(diviItem(item))) {
+      // Pages built with Divi: their layout as a Fresco page, the whole width, without
+      // the theme's title (Divi's pages show none).
+      const warn = (message: string) => warnings.push(`${title || `#${id}`}: ${message}`);
+      const gutter = Number(meta(item, '_et_pb_gutter_width')) || undefined;
+      const pageCss = meta(item, '_et_pb_custom_css') ?? '';
+      const blocks = diviToFresco(content, divi.context(warn, title, gutter));
+      if (blocks && blocks.length > 0) {
+        const rest = pageCss.trim() ? diviPageCss(blocks, pageCss) : '';
+        document = {
+          schema: 1,
+          blocks,
+          editor: {
+            id: 'fresco',
+            data: {
+              layout: 'full',
+              flush: true,
+              hideTitle: true,
+              ...(rest ? { customCss: rest } : {}),
+            },
+          },
+        };
+        diviPages++;
+      }
     }
     // The featured image stays the featured image; when it also opens the content,
     // only once (themes show it above the content).
@@ -426,7 +506,11 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     }
     // Galleries become galleries; shortcodes inside text stay as text.
     const rest = placed.reduce((text, shortcode) => text.replace(shortcode, ''), content);
-    if (/\[(?!gallery\b)[a-z_-]+[^\]]*\]/i.test(rest) && !/<!--\s+wp:shortcode/.test(rest)) {
+    if (
+      document.editor?.id !== 'fresco' &&
+      /\[(?!gallery\b)[a-z_-]+[^\]]*\]/i.test(rest) &&
+      !/<!--\s+wp:shortcode/.test(rest)
+    ) {
       warnings.push(`${title || `#${id}`}: contains shortcodes, left as text.`);
     }
     const categories = ((item.category as Node[] | undefined) ?? []).map((c) => ({
@@ -549,6 +633,11 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       'The WordPress addresses end with a slash (/my-page/): to keep them exactly, turn on “End addresses with a slash” in Settings → Content structure (otherwise they redirect once to the form without it).',
     );
   }
+  if (diviPages) {
+    warnings.push(
+      `${diviPages} page(s) built with Divi were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
+    );
+  }
   if (elementorPages) {
     warnings.push(
       `${elementorPages} page(s) built with Elementor were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
@@ -561,6 +650,17 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   if (useElementor) {
     entries.push(...elementor.templates());
     Object.assign(plugins, elementor.plugins());
+    // Divi's Theme Builder and Library, and its theme options as Fresco's kit.
+    entries.push(...divi.templates());
+    const fresco = divi.fresco([...diviFamilies]);
+    if (fresco) {
+      const current = (plugins.fresco ?? {}) as Record<string, unknown>;
+      plugins.fresco = {
+        ...current,
+        ...fresco,
+        kit: { ...((current.kit as Record<string, unknown>) ?? {}), ...(fresco.kit as object) },
+      };
+    }
   }
   if (protectedForms) {
     warnings.push(
@@ -617,7 +717,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
           : { kind: 'custom', label: label ?? 'Item', children };
       });
     // Menus shown by Elementor's nav menu widgets get a location of their own.
-    const location = elementor.menuLocations.get(slug);
+    const location = elementor.menuLocations.get(slug) ?? divi.menuLocations.get(slug);
     menus.push({ name, locale, ...(location ? { location } : {}), items: build('0') });
   }
 
@@ -834,6 +934,8 @@ const INTERNAL_TYPES = new Set([
   'wpcf7_contact_form',
   'rank_math_schema',
   'scheduled-action',
+  // Divi's Library and Theme Builder (imported as Fresco templates, not as content).
+  ...DIVI_TYPES,
 ]);
 const INTERNAL_TAXONOMIES = new Set([
   'category',
@@ -852,6 +954,7 @@ const INTERNAL_TAXONOMIES = new Set([
   'post_translations',
   'term_language',
   'term_translations',
+  ...DIVI_TAXONOMIES,
 ]);
 /** WooCommerce: products go to Cleishop through its CSV import. */
 const SHOP_TYPES = new Set([
@@ -932,6 +1035,41 @@ function seoFields(item: Node): Record<string, unknown> | null {
 }
 
 /** Links to the old site become relative, so they follow the new domain. */
+/** An address without the size WordPress gives the copies of an image, nor its host and query. */
+function mediaKey(url: string): string {
+  return url
+    .replace(/[?#].*$/, '')
+    .replace(/^https?:\/\/[^/]+/i, '')
+    .replace(/-(?:\d+x\d+|scaled)(\.[a-z0-9]+)$/i, '$1');
+}
+
+/** An item of the export as Divi's parts read it: its content, every meta value and its terms. */
+function diviItem(item: Node): DiviItem {
+  const metaMap = new Map<string, string[]>();
+  for (const row of (item['wp:postmeta'] as Node[] | undefined) ?? []) {
+    const key = text(row['wp:meta_key']);
+    if (key) metaMap.set(key, [...(metaMap.get(key) ?? []), text(row['wp:meta_value'])]);
+  }
+  const termMap = new Map<string, string[]>();
+  for (const c of (item.category as Node[] | undefined) ?? []) {
+    const domain = String(c['@_domain'] ?? '');
+    termMap.set(domain, [...(termMap.get(domain) ?? []), String(c['@_nicename'] ?? '')]);
+  }
+  const gmt = text(item['wp:post_date_gmt']);
+  return {
+    id: Number(text(item['wp:post_id'])),
+    type: text(item['wp:post_type']),
+    status: STATUS[text(item['wp:status'])],
+    title: texturizeText(decode(text(item.title))),
+    slug: decodeURIComponent(text(item['wp:post_name'])),
+    content: text(item['content:encoded']),
+    author: text(item['dc:creator']),
+    ...(gmt && !gmt.startsWith('0000') ? { date: `${gmt.replace(' ', 'T')}Z` } : {}),
+    meta: metaMap,
+    terms: termMap,
+  };
+}
+
 function relativeTo(url: string, base: string): string {
   if (base && url.startsWith(base)) return url.slice(base.replace(/\/+$/, '').length) || '/';
   return url;
@@ -1010,6 +1148,8 @@ interface ElementorSite {
   templates(): TransferEntryInput[];
   /** Data for Fresco (kit) and Fresco Pro (site CSS, custom code, fonts). */
   plugins(): Record<string, unknown>;
+  /** Entries, terms, taxonomies and types by their WordPress names (template conditions). */
+  conditionLookups: Omit<ConditionContext, 'note'>;
 }
 
 /**
@@ -1378,7 +1518,14 @@ function prepareElementor(
     return out;
   };
 
-  return { hello, context, menuLocations, templates, plugins };
+  return {
+    hello,
+    context,
+    menuLocations,
+    templates,
+    plugins,
+    conditionLookups: { entryRef, term, taxonomySlug, typeSlug: (type) => ownType(type) },
+  };
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
