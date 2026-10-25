@@ -29,6 +29,7 @@ import { parseBody } from '../common/problem.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { PageCacheService } from '../public/page-cache.service.js';
+import { isSlashOnlyRedirect } from '../public/urls.js';
 
 const uuid = new ParseUUIDPipe();
 type Row = typeof redirects.$inferSelect;
@@ -78,11 +79,8 @@ export class RedirectsController {
   ): Promise<RedirectView> {
     const input = parseBody(redirectRequestSchema, body);
     const view = await this.run(site, auth, async (tx) => {
-      const [taken] = await tx
-        .select({ id: redirects.id })
-        .from(redirects)
-        .where(eq(redirects.fromPath, input.from));
-      if (taken) throw new ConflictException(`${input.from} already redirects somewhere.`);
+      const [taken] = await tx.select().from(redirects).where(eq(redirects.fromPath, input.from));
+      if (taken) await this.replaceable(tx, taken);
       const [row] = await tx
         .insert(redirects)
         .values({ siteId: site.id, fromPath: input.from, toPath: input.to, status: input.status })
@@ -105,10 +103,10 @@ export class RedirectsController {
     const input = parseBody(redirectRequestSchema, body);
     const view = await this.run(site, auth, async (tx) => {
       const [clash] = await tx
-        .select({ id: redirects.id })
+        .select()
         .from(redirects)
         .where(and(eq(redirects.fromPath, input.from), ne(redirects.id, id)));
-      if (clash) throw new ConflictException(`${input.from} already redirects somewhere.`);
+      if (clash) await this.replaceable(tx, clash);
       const [row] = await tx
         .update(redirects)
         .set({ fromPath: input.from, toPath: input.to, status: input.status })
@@ -182,6 +180,18 @@ export class RedirectsController {
     });
     await this.cache.invalidate(site.id, ['site']);
     return result;
+  }
+
+  /**
+   * A redirect already leaving the same address is a conflict, unless it only
+   * adds or drops the trailing slash (`/menu` → `/menu/`, as older WordPress
+   * imports made them): that one does nothing, so the new redirect replaces it.
+   */
+  private async replaceable(tx: SiteTransaction, row: Row): Promise<void> {
+    if (!isSlashOnlyRedirect(row.fromPath, row.toPath)) {
+      throw new ConflictException(`${row.fromPath} already redirects somewhere.`);
+    }
+    await tx.delete(redirects).where(eq(redirects.id, row.id));
   }
 
   private record(

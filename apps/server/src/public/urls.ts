@@ -71,6 +71,31 @@ export function canonicalUrl(url: string, trailingSlash: boolean): string {
   return `${match[1] ?? ''}${canonicalPath(match[2], trailingSlash)}${match[3] ?? ''}`;
 }
 
+/**
+ * A local address as the public router tells addresses apart: decoded,
+ * without the trailing slash (`/about/` and `/about` are one page, the router
+ * sends either to the site's form), the query kept, the fragment dropped.
+ */
+export function addressKey(path: string): string {
+  const match = /^([^?#]*)(\?[^#]*)?/.exec(path)!;
+  let bare = match[1]!.replace(/\/+$/, '') || '/';
+  try {
+    bare = decodeURI(bare);
+  } catch {
+    // keep as is
+  }
+  return `${bare}${match[2] ?? ''}`;
+}
+
+/**
+ * Whether a redirect leads to its own address with or without the trailing
+ * slash only: it does nothing (the router serves both forms), so it is never
+ * created on import and a new redirect of the same address replaces it.
+ */
+export function isSlashOnlyRedirect(from: string, to: string): boolean {
+  return /^\/(?!\/)/.test(to) && addressKey(from) === addressKey(to);
+}
+
 /** Key of a term in `UrlBuilder`'s term paths. */
 export function termKey(taxonomy: string, locale: string, slug: string): string {
   return `${taxonomy}\u0000${locale}\u0000${slug}`;

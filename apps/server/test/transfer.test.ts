@@ -9,7 +9,9 @@ import { fileURLToPath } from 'node:url';
 import {
   entries,
   menus,
+  redirects,
   revisions,
+  settings,
   sites,
   superAdmins,
   users,
@@ -326,6 +328,91 @@ describe('WordPress import', () => {
     expect(again.warnings.join('\n')).not.toContain('used instead');
     const visitor = new TestClient(app, wordpress.host, '10.11.0.2');
     expect((await visitor.get('/2024/a-morning-at-the-harbour')).body).toContain('2 comments');
+  });
+
+  it('adds no redirect that only adds the trailing slash, and drops old ones', async () => {
+    // A WordPress site whose addresses end with a slash, kept as they were.
+    const slashed = await seedSite(owner, 'slashed-import');
+    await seedUser(owner, {
+      email: 'admin@slashed-import.test',
+      password: PASSWORD,
+      site: slashed,
+      role: 'administrator',
+    });
+    const add = (from: string, to: string) =>
+      withSiteContext(owner.db, slashed.id, (tx) =>
+        tx
+          .insert(redirects)
+          .values({ siteId: slashed.id, fromPath: from, toPath: to, status: 301 }),
+      );
+    const list = () =>
+      withSiteContext(owner.db, slashed.id, (tx) =>
+        tx.select({ from: redirects.fromPath, to: redirects.toPath }).from(redirects),
+      );
+    await withSiteContext(owner.db, slashed.id, (tx) =>
+      tx
+        .insert(settings)
+        .values({ siteId: slashed.id, namespace: 'core', key: 'trailingSlash', value: true }),
+    );
+    // As an earlier import left it.
+    await add('/carta-dei-vini', '/carta-dei-vini/');
+    const document = {
+      format: 'cleitext-transfer',
+      version: 1,
+      source: { kind: 'wordpress', exportedAt: '2026-10-20T00:00:00Z' },
+      entries: [
+        {
+          ref: 'page:7',
+          type: 'page',
+          locale: 'en',
+          slug: 'carta-dei-vini',
+          title: 'Carta dei vini',
+          status: 'published',
+          document: { schema: 1, blocks: [] },
+          oldPaths: ['/carta-dei-vini/', '/carta%2Ddei%2Dvini/', '/?page_id=7', '/vini/'],
+        },
+      ],
+    };
+    const imported = await runImport(slashed.id, document, () => Promise.reject(new Error()));
+    expect(imported.errors).toEqual([]);
+    expect((await list()).sort((a, b) => a.from.localeCompare(b.from))).toEqual([
+      { from: '/?page_id=7', to: '/carta-dei-vini/' },
+      { from: '/vini', to: '/carta-dei-vini/' },
+    ]);
+    // The old address still reaches the page, in one hop.
+    const visitor = new TestClient(app, slashed.host, '10.11.0.20');
+    const old = await visitor.get('/carta-dei-vini');
+    expect([old.statusCode, old.headers.location]).toEqual([301, '/carta-dei-vini/']);
+    expect((await visitor.get('/carta-dei-vini/')).statusCode).toBe(200);
+    expect((await visitor.get('/vini/')).headers.location).toBe('/carta-dei-vini/');
+
+    // Imported again: nothing comes back.
+    await runImport(slashed.id, document, () => Promise.reject(new Error()));
+    expect(await list()).toHaveLength(2);
+
+    // The site owner's own redirect of that address replaces a slash-only one;
+    // a real redirect is still a conflict.
+    await add('/carta-dei-vini', '/carta-dei-vini/');
+    const admin = new TestClient(app, slashed.host, '10.11.0.21');
+    await admin.login('admin@slashed-import.test', PASSWORD);
+    const own = await admin.post('/api/v1/redirects', {
+      from: '/carta-dei-vini',
+      to: 'https://example.com/vini.pdf',
+    });
+    expect(own.statusCode, own.body).toBe(201);
+    expect((await visitor.get('/carta-dei-vini/')).headers.location).toBe(
+      'https://example.com/vini.pdf',
+    );
+    const clash = await admin.post('/api/v1/redirects', { from: '/vini', to: '/elsewhere' });
+    expect(clash.statusCode).toBe(409);
+    await add('/listino/', '/listino');
+    const listino = await admin.post('/api/v1/redirects', { from: '/vini', to: '/listino' });
+    expect(listino.statusCode).toBe(409);
+    const updated = await admin.request('PATCH', `/api/v1/redirects/${own.json().id}`, {
+      from: '/listino/',
+      to: '/carta-dei-vini',
+    });
+    expect(updated.statusCode, updated.body).toBe(200);
   });
 });
 

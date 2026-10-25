@@ -7,7 +7,13 @@ import { menuItems, menus, withSiteContext, type DatabaseClient } from '@cleitex
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
-import { canonicalPath, canonicalUrl, UrlBuilder } from '../src/public/urls.js';
+import {
+  addressKey,
+  canonicalPath,
+  canonicalUrl,
+  isSlashOnlyRedirect,
+  UrlBuilder,
+} from '../src/public/urls.js';
 
 const PASSWORD = 'correct horse battery staple';
 const year = new Date().getUTCFullYear();
@@ -114,6 +120,19 @@ describe('canonical forms', () => {
     expect(canonicalUrl('https://other.example/it', true)).toBe('https://other.example/it/');
     expect(canonicalUrl('#top', true)).toBe('#top');
     expect(canonicalUrl('//cdn.example/x', true)).toBe('//cdn.example/x');
+  });
+
+  it('tell apart addresses as the router does', () => {
+    expect(addressKey('/menu/')).toBe('/menu');
+    expect(addressKey('/caff%C3%A8//?a=1#top')).toBe('/caffè?a=1');
+    expect(addressKey('/%E0%A4%A')).toBe('/%E0%A4%A');
+    expect(addressKey('/')).toBe('/');
+    expect(isSlashOnlyRedirect('/menu', '/menu/')).toBe(true);
+    expect(isSlashOnlyRedirect('/caff%C3%A8/', '/caffè')).toBe(true);
+    expect(isSlashOnlyRedirect('/menu', '/Menu/')).toBe(false);
+    expect(isSlashOnlyRedirect('/menu?p=1', '/menu/')).toBe(false);
+    expect(isSlashOnlyRedirect('/menu', 'https://example.com/menu')).toBe(false);
+    expect(isSlashOnlyRedirect('/menu', '//menu/')).toBe(false);
   });
 
   it('are what the URL builder writes', () => {

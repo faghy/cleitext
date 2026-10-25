@@ -48,6 +48,7 @@ import type { MediaService } from '../media/media.service.js';
 import { RESERVED_IDS } from '../fields/field-groups.service.js';
 import type { PageCacheService } from '../public/page-cache.service.js';
 import { loadSiteData } from '../public/site-data.js';
+import { addressKey, isSlashOnlyRedirect } from '../public/urls.js';
 import { defaultLocaleIn, PENDING } from '../content/languages.service.js';
 import type {
   ContentLocale,
@@ -683,19 +684,30 @@ export async function importDocument(
         { code: defaultLocale, name: defaultLocale, prefix: '', isDefault: true },
       ],
     );
+    // Addresses are compared as the router tells them apart: `/menu` and `/menu/`
+    // are one page. Redirects from an address to itself with or without the
+    // slash (earlier imports made them) do nothing and only hide the address
+    // from the site owner's own redirects: they go.
+    const saved = await tx
+      .select({ id: redirects.id, from: redirects.fromPath, to: redirects.toPath })
+      .from(redirects);
+    const idle = saved.filter((r) => isSlashOnlyRedirect(r.from, r.to)).map((r) => r.id);
+    if (idle.length) await tx.delete(redirects).where(inArray(redirects.id, idle));
     const existing = new Set(
-      (await tx.select({ from: redirects.fromPath }).from(redirects)).map((r) => r.from),
+      saved.filter((r) => !idle.includes(r.id)).map((r) => addressKey(r.from)),
     );
     // A redirect must never hide a page that exists (redirects win over routing).
     const live = new Set(
       (await tx.select().from(entries).where(ne(entries.status, 'trashed'))).map((row) =>
-        data.urls.entry(row),
+        addressKey(data.urls.entry(row)),
       ),
     );
     const add = async (from: string, to: string, status: number) => {
       const path = normalizePath(from);
-      if (!path || path === to || existing.has(path) || live.has(path)) return;
-      existing.add(path);
+      if (!path || isSlashOnlyRedirect(path, to)) return;
+      const key = addressKey(path);
+      if (existing.has(key) || live.has(key)) return;
+      existing.add(key);
       await tx.insert(redirects).values({ siteId, fromPath: path, toPath: to, status });
       count(report, 'redirects');
     };
