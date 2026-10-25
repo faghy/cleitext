@@ -342,7 +342,7 @@ export default definePlugin({
         settings: {
           phone: settings.phone,
           privacyUrl: settings.privacyUrl,
-          contact: settings.contact || emailList(settings.notify).join('\n'),
+          contact: settings.contact || (emailList(settings.notify)[0] ?? ''),
         },
         config: {
           api: API_BASE,
@@ -466,7 +466,7 @@ export default definePlugin({
             return {
               body: {
                 limit: true,
-                contact: settings.contact || emailList(settings.notify).join('\n'),
+                contact: settings.contact || (emailList(settings.notify)[0] ?? ''),
                 slots: [],
                 next: null,
                 timeZone: site.timeZone,
@@ -643,7 +643,7 @@ export default definePlugin({
               body: {
                 code: 'limit',
                 message: s.limit,
-                contact: settings.contact || emailList(settings.notify).join('\n'),
+                contact: settings.contact || (emailList(settings.notify)[0] ?? ''),
               },
             };
           }

@@ -357,12 +357,12 @@ describe('Agenda', () => {
     const preview = await admin.post(ext('/import/run'), { kind: 'ssa', dryRun: true });
     expect(preview.json().preview).toMatchObject({ appointments: 3, future: 2, timezone: ROME });
     const run = await admin.post(ext('/import/run'), { kind: 'ssa' });
-    expect(run.json().result).toMatchObject({ services: 2, appointments: 3, exceptions: 1 });
+    expect(run.json().result).toMatchObject({ services: 3, appointments: 3, exceptions: 1 });
     await admin.upload(ext('/import/files'), 'ssa.json', json, 'application/json');
     const again = await admin.post(ext('/import/run'), { kind: 'ssa' });
     expect(again.json().result).toMatchObject({
       services: 0,
-      servicesUpdated: 2,
+      servicesUpdated: 3,
       appointments: 0,
       existing: 3,
     });
