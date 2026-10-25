@@ -6,7 +6,7 @@ Its blocks are edited in the block editor with a live preview. The settings are 
 
 ## The blocks
 
-**Layout and basics.** Container (rows, columns or grids with backgrounds, overlays and shape dividers), Heading, Image (with masks), Image Gallery (grid, masonry, carousel, tiles, lightbox), Info Box, Buttons, Icon, Icon List, Separator.
+**Layout and basics.** Container (rows, columns or grids with backgrounds, overlays and shape dividers), Heading, Image (with masks), Image Gallery (grid, masonry, carousel, tiles, lightbox; thumbnails use the site's resized copies, the lightbox the full image), Info Box, Buttons, Icon, Icon List, Separator.
 
 **Content.** Call to Action, Marketing Button, Blockquote (with a share link), Counter (number, bar or circle), Countdown (to a date, or per visitor), Star Rating, Inline Notice (can be closed), Tabs, FAQ (accordion or grid, with FAQ structured data), Modal (opened by text, icon, image, button or automatically), Slider, Content Timeline, Table of Contents.
 
@@ -20,7 +20,7 @@ Every block can also have an **entrance animation**, be **hidden on desktop, tab
 
 **Settings → Prisma** holds the site's defaults:
 
-- the content width of boxed containers;
+- the content width of boxed containers (left empty, the theme's content width, as the original blocks take it: Zenit's container width, 1140 px with themes that do not give one);
 - the padding of containers;
 - the gap between elements;
 - CSS variables, such as a color palette the blocks can use with `var(--name)`;

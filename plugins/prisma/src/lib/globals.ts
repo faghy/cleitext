@@ -5,8 +5,12 @@ import { fontsMode, type GoogleFontsMode } from '@cleitext/design/fonts';
  * the default use them, so changing a setting changes all of them.
  */
 export interface Globals {
-  /** Width of a container's boxed content (px). */
-  contentWidth: number;
+  /**
+   * Width of a container's boxed content (px). Unset (`null`): the theme's
+   * content width (`--cx-container-width`, 1140px without it), as the
+   * original blocks take the theme's.
+   */
+  contentWidth: number | null;
   /** Padding of containers on every side (px). */
   containerPadding: number;
   /** Space between the elements of a container (px). */
@@ -23,7 +27,7 @@ export interface Globals {
 }
 
 export const DEFAULT_GLOBALS: Globals = {
-  contentWidth: 1140,
+  contentWidth: null,
   containerPadding: 10,
   elementsGap: 20,
   cssVariables: '',
@@ -31,7 +35,8 @@ export const DEFAULT_GLOBALS: Globals = {
 };
 
 export function normalizeGlobals(value: Record<string, unknown> | null | undefined): Globals {
-  const n = (v: unknown, fallback: number, min: number, max: number) => {
+  const n = <T extends number | null>(v: unknown, fallback: T, min: number, max: number) => {
+    if (v === null || v === undefined || v === '') return fallback;
     const x = Number(v);
     return Number.isFinite(x) && x >= min && x <= max ? x : fallback;
   };
@@ -43,6 +48,9 @@ export function normalizeGlobals(value: Record<string, unknown> | null | undefin
     googleFonts: fontsMode(value?.googleFonts),
   };
 }
+
+/** Boxed content width of containers that set none: the theme's, else 1140px. */
+export const THEME_CONTENT_WIDTH = 'var(--cx-container-width, 1140px)';
 
 /** `:root{…}` of the variables set (only well-formed `--name: value` lines). */
 export function variablesCss(globals: Globals): string {

@@ -134,7 +134,14 @@ function register(ctx: PluginContext, block: PrismaBlock) {
           }}
           media={(id) => {
             const found = typeof id === 'string' ? context.media.get(id) : undefined;
-            return found ? { url: found.url, width: found.width, height: found.height } : null;
+            return found
+              ? {
+                  url: found.url,
+                  width: found.width,
+                  height: found.height,
+                  variants: found.variants,
+                }
+              : null;
           }}
         />
       );
@@ -152,12 +159,11 @@ export default definePlugin({
           type: 'number',
           label: { en: 'Content width (px)', it: 'Larghezza del contenuto (px)' },
           help: {
-            en: 'Width of the boxed content of full-width containers.',
-            it: 'Larghezza del contenuto incorniciato dei container a tutta larghezza.',
+            en: 'Width of the boxed content of full-width containers. Empty: the theme’s content width (1140 px with themes that do not give one).',
+            it: 'Larghezza del contenuto incorniciato dei container a tutta larghezza. Vuoto: quella del contenuto del tema (1140 px con i temi che non la indicano).',
           },
           min: 320,
           max: 4000,
-          default: DEFAULT_GLOBALS.contentWidth,
         },
         {
           name: 'containerPadding',

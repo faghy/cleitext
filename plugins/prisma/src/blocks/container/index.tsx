@@ -2,7 +2,7 @@ import type { BaseDevice as Device, Sheet } from '@cleitext/design';
 import { background, mediaUrl, overlay, rgba } from '../../lib/background';
 import { blockClass } from '../../lib/css';
 import { border, borderDefaults, clean, DEVICES, emit, numeric, px, suffix } from '../../lib/emit';
-import type { Globals } from '../../lib/globals';
+import { THEME_CONTENT_WIDTH, type Globals } from '../../lib/globals';
 import { ShapeSvg } from '../../lib/shapes';
 import type { Attrs, PrismaBlock, ViewProps } from '../../lib/types';
 import { legacySpectra } from './legacy';
@@ -329,10 +329,16 @@ function css(input: Attrs, B: string, sheet: Sheet, g: Globals): void {
     // The boxed content of a full-width root.
     if (hasWrap) {
       const inner = fallback(a, 'innerContentCustomWidth', device);
-      const width = px(
-        inner,
-        device === 'desktop' ? a.innerContentCustomWidthType : a[`innerContentCustomWidthType${s}`],
-      );
+      // No width of its own nor a site-wide one: the theme's content width.
+      const width =
+        inner === null || inner === undefined || inner === ''
+          ? THEME_CONTENT_WIDTH
+          : px(
+              inner,
+              device === 'desktop'
+                ? a.innerContentCustomWidthType
+                : a[`innerContentCustomWidthType${s}`],
+            );
       emit(sheet, device, wrap, {
         '--inner-content-custom-width': width ? `min(100%, ${width})` : '',
         'max-width': 'var(--inner-content-custom-width)',

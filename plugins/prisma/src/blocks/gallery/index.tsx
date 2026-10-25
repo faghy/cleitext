@@ -431,7 +431,24 @@ const Chevron = ({ left }: { left?: boolean }) => (
   </svg>
 );
 
-function View({ attrs: a, id, root, editing }: ViewProps) {
+/**
+ * The resized copies of an image of the site, as `srcset` per format (AVIF,
+ * WebP), smallest first; none for images without copies.
+ */
+function variantSets(found: ReturnType<NonNullable<ViewProps['media']>>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const format of ['avif', 'webp']) {
+    const set = (found?.variants ?? [])
+      .filter((v) => v.format === format && safe(v.url) && v.width > 0)
+      .sort((x, y) => x.width - y.width)
+      .map((v) => `${v.url} ${v.width}w`)
+      .join(', ');
+    if (set) out[format] = set;
+  }
+  return out;
+}
+
+function View({ attrs: a, id, root, editing, media }: ViewProps) {
   const list = images(a);
   const layout = ['grid', 'masonry', 'carousel', 'tiled'].includes(String(a.feedLayout))
     ? String(a.feedLayout)
@@ -447,6 +464,11 @@ function View({ attrs: a, id, root, editing }: ViewProps) {
   const focus = (
     a.focusListObject && typeof a.focusListObject === 'object' ? a.focusListObject : {}
   ) as Record<string, unknown>;
+  // How wide an image is shown on each device: the page width over the columns.
+  const sizes = (span: number) =>
+    `(max-width: 767px) calc(100vw * ${span} / ${cols('mobile')}), ` +
+    `(max-width: 1023px) calc(100vw * ${span} / ${cols('tablet')}), ` +
+    `calc(100vw * ${span} / ${cols('desktop')})`;
   const paged = Boolean(a.feedPagination) && (layout === 'grid' || layout === 'masonry');
   const limit = Math.max(1, Math.round(numeric(a.paginateLimit) ?? 9));
   const pages = paged ? Math.max(1, Math.ceil(list.length / limit)) : 1;
@@ -458,8 +480,20 @@ function View({ attrs: a, id, root, editing }: ViewProps) {
     // Captions are the site's own text: tags dropped.
     return text.replace(/<[^>]*>/g, '');
   };
+  /** A lightbox thumbnail: the smallest copy of an image of the site, else the saved size. */
+  const thumbnail = (m: GalleryImage) => {
+    const found = media && m.id !== undefined ? media(String(m.id)) : null;
+    const [small] = (found?.variants ?? [])
+      .filter((v) => v.format === 'webp' && safe(v.url))
+      .sort((x, y) => x.width - y.width);
+    return small ? small.url : sized(m, 'thumbnail');
+  };
   const items = list.map((m, i) => {
     const capText = caption(m);
+    // An image of the site: its resized copies, the original stays for the lightbox.
+    const found = media && m.id !== undefined ? media(String(m.id)) : null;
+    const sets = variantSets(found);
+    const span = layout === 'tiled' && focus[String(m.id)] ? 2 : 1;
     const bar = (
       <div className="pr-gallery__outside">
         <div className="pr-gallery__caption pr-gallery__caption--bar-outside">{capText}</div>
@@ -482,17 +516,31 @@ function View({ attrs: a, id, root, editing }: ViewProps) {
       >
         {outside && above && bar}
         <div className={`pr-gallery__media pr-gallery__media--${layout}`}>
-          <picture>
-            <source media="(min-width: 1024px)" srcSet={sized(m, a.galleryImageSize)} />
-            <source media="(min-width: 768px)" srcSet={sized(m, a.galleryImageSizeTablet)} />
-            <img
-              className="pr-gallery__img"
-              src={sized(m, a.galleryImageSizeMobile)}
-              alt={typeof m.alt === 'string' ? m.alt : ''}
-              {...(a.disableLazyLoad || editing ? {} : { loading: 'lazy' as const })}
-              decoding="async"
-            />
-          </picture>
+          {Object.keys(sets).length ? (
+            <picture>
+              {sets.avif && <source type="image/avif" srcSet={sets.avif} sizes={sizes(span)} />}
+              {sets.webp && <source type="image/webp" srcSet={sets.webp} sizes={sizes(span)} />}
+              <img
+                className="pr-gallery__img"
+                src={safe(found?.url) || sized(m, a.galleryImageSizeMobile)}
+                alt={typeof m.alt === 'string' ? m.alt : ''}
+                {...(a.disableLazyLoad || editing ? {} : { loading: 'lazy' as const })}
+                decoding="async"
+              />
+            </picture>
+          ) : (
+            <picture>
+              <source media="(min-width: 1024px)" srcSet={sized(m, a.galleryImageSize)} />
+              <source media="(min-width: 768px)" srcSet={sized(m, a.galleryImageSizeTablet)} />
+              <img
+                className="pr-gallery__img"
+                src={sized(m, a.galleryImageSizeMobile)}
+                alt={typeof m.alt === 'string' ? m.alt : ''}
+                {...(a.disableLazyLoad || editing ? {} : { loading: 'lazy' as const })}
+                decoding="async"
+              />
+            </picture>
+          )}
           <div className="pr-gallery__blurrer" />
           {captions && type !== 'bar-outside' ? (
             <div className={`pr-gallery__overlay pr-gallery__overlay--${type}`}>
@@ -640,7 +688,7 @@ function View({ attrs: a, id, root, editing }: ViewProps) {
                   data-index={i}
                   aria-label={`Image ${i + 1}`}
                 >
-                  <img src={sized(m, 'thumbnail')} alt="" loading="lazy" />
+                  <img src={thumbnail(m)} alt="" loading="lazy" />
                 </button>
               ))}
             </div>

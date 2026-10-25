@@ -44,8 +44,16 @@ export interface ViewProps {
    * the block fetches the same through the API and passes it here.
    */
   data?: unknown;
-  /** Media of the page, by id (site only): addresses and sizes. */
-  media?: (id: unknown) => { url: string; width: number | null; height: number | null } | null;
+  /**
+   * Media of the page, by id (site only): addresses and sizes, and the
+   * resized copies the site made of images (for `srcset`, as core blocks).
+   */
+  media?: (id: unknown) => {
+    url: string;
+    width: number | null;
+    height: number | null;
+    variants?: { format: string; url: string; width: number }[];
+  } | null;
 }
 
 /** One Prisma block: the same definition on the site and in the editor. */

@@ -11,14 +11,14 @@ import { DEFAULT_GLOBALS, type Globals } from '../src/lib/globals';
 import { setIconData, type IconData } from '../src/lib/icons';
 import icons from '../src/public/icons.json';
 import { safeTag } from '../src/lib/tags';
-import type { Attrs, PrismaBlock } from '../src/lib/types';
+import type { Attrs, PrismaBlock, ViewProps } from '../src/lib/types';
 
 setIconData(icons as unknown as IconData);
 
 export function renderBlock(
   block: PrismaBlock,
   attrs: Attrs,
-  options: { id?: string; children?: string; globals?: Globals } = {},
+  options: { id?: string; children?: string; globals?: Globals; media?: ViewProps['media'] } = {},
 ): { html: string; css: string } {
   const id = options.id ?? 'test0001';
   const globals = options.globals ?? DEFAULT_GLOBALS;
@@ -32,6 +32,7 @@ export function renderBlock(
       id={id}
       editing={false}
       globals={globals}
+      {...(options.media ? { media: options.media } : {})}
       text={(name, props) =>
         createElement(safeTag(props.tagName, 'div'), {
           ...(props.className ? { className: props.className } : {}),

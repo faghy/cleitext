@@ -323,5 +323,6 @@ Each area is a document written with the block editor in **Appearance → Areas*
 
 - No database access, no network calls: everything comes through props and `usePage()`.
 - Web fonts: link Google Fonts or Bunny Fonts stylesheets as usual (`<link rel="stylesheet">` or `@import` in a `<style>`, also in `editorCss`). With **Settings → General → Privacy → Web fonts** on its default, the core turns them into copies kept on the site (`/_fonts/…`) and removes `preconnect` hints to those services, so visitors' browsers never reach them ([Privacy](./PRIVACY.md#web-fonts-kept-on-the-site)). An `@import` inside a separate `.css` file is not seen: put it in the page or in `editorCss`.
+- Content width: set `--cx-container-width` on `:root` to the width of your content container (e.g. `--cx-container-width: 1200px`). Blocks that follow the theme's width use it, such as Prisma's full-width containers without a width of their own (1140px when the theme does not set it).
 - Output is escaped by React; use `dangerouslySetInnerHTML` only for your own CSS or JSON.
 - Keep pages accessible (landmarks, skip link, labels, contrast) and light: Aurora scores at least 95 in every Lighthouse category.

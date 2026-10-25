@@ -262,5 +262,6 @@ Con `areas: { footer: 'Footer' }` e `<BlockArea name="footer" />` nel Layout, l'
 
 - Niente accessi al database né chiamate di rete: tutto arriva da props e `usePage()`.
 - Web font: collega i fogli di stile di Google Fonts o Bunny Fonts come di consueto (`<link rel="stylesheet">` o `@import` in uno `<style>`, anche in `editorCss`). Con **Impostazioni → Generali → Privacy → Web font** sul predefinito, il core li trasforma in copie tenute sul sito (`/_fonts/…`) e toglie i `preconnect` verso quei servizi, così i browser dei visitatori non li raggiungono mai ([Privacy](./PRIVACY.md#web-font-ospitati-sul-sito)). Un `@import` dentro un file `.css` separato non viene visto: mettilo nella pagina o in `editorCss`.
+- Larghezza del contenuto: imposta `--cx-container-width` su `:root` alla larghezza del contenitore dei contenuti (per esempio `--cx-container-width: 1200px`). La usano i blocchi che seguono la larghezza del tema, come i container a tutta larghezza di Prisma senza una larghezza propria (1140px se il tema non la indica).
 - React esegue l'escape dell'output; usa `dangerouslySetInnerHTML` solo per il tuo CSS o JSON.
 - Pagine accessibili (landmark, link per saltare al contenuto, etichette, contrasto) e leggere.
