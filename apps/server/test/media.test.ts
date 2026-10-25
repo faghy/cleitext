@@ -282,7 +282,7 @@ describe('isolation', () => {
     ]) {
       const res = await author.get(path);
       expect([400, 403, 404], path).toContain(res.statusCode);
-      expect(res.body).not.toContain('root:');
+      expect(res.body).not.toContain('root:x:0:0');
     }
   });
 });

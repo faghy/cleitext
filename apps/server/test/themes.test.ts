@@ -122,6 +122,59 @@ describe('theme settings and areas', () => {
     expect(script.body).toContain('cleitext:customize');
   });
 
+  it('chooses the colour scheme: automatic by default, light or dark, previewed', async () => {
+    const before = (await admin.get('/api/v1/themes/active')).json().values;
+    expect(before.colorScheme).toBe('auto');
+    const html = async (colorScheme: string) => {
+      const saved = await admin.request('PUT', '/api/v1/themes/active/settings', {
+        values: { ...before, colorScheme },
+      });
+      expect(saved.statusCode).toBe(200);
+      return (await visitor.get('/')).body;
+    };
+    try {
+      // Automatic: the dark colors follow the system, the accent only in light mode.
+      const auto = await html('auto');
+      expect(auto).toContain('<html lang="en" data-color-scheme="auto">');
+      expect(auto).toContain('<meta name="color-scheme" content="light dark"/>');
+      expect(auto).toContain(
+        '@media (prefers-color-scheme: light) { :root { --accent: #aa3300; } }',
+      );
+      expect(auto).toContain(
+        ":root:not([data-color-scheme='light']):not([data-color-scheme='dark'])",
+      );
+
+      const light = await html('light');
+      expect(light).toContain('data-color-scheme="light"');
+      expect(light).toContain('<meta name="color-scheme" content="light"/>');
+      expect(light).toContain('<style>:root { --accent: #aa3300; }</style>');
+
+      const dark = await html('dark');
+      expect(dark).toContain('data-color-scheme="dark"');
+      expect(dark).toContain('<meta name="color-scheme" content="dark"/>');
+      expect(dark).not.toContain('--accent: #aa3300');
+
+      expect(
+        (
+          await admin.request('PUT', '/api/v1/themes/active/settings', {
+            values: { colorScheme: 'sepia' },
+          })
+        ).statusCode,
+      ).toBe(400);
+
+      // The Customize preview shows a choice not saved yet.
+      const preview = await admin.post('/api/v1/themes/active/preview', {
+        path: '/',
+        values: { ...before, colorScheme: 'light' },
+      });
+      expect(preview.body).toContain('data-color-scheme="light"');
+      expect((await visitor.get('/')).body).toContain('data-color-scheme="dark"');
+    } finally {
+      await admin.request('PUT', '/api/v1/themes/active/settings', { values: before });
+    }
+    expect((await visitor.get('/')).body).toContain('data-color-scheme="auto"');
+  });
+
   it('keeps a preview at an address of its own, with the public policy', async () => {
     const res = await admin.post('/api/v1/themes/active/preview', {
       path: '/',

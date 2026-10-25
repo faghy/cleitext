@@ -17,8 +17,25 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: light dark;
 }
+/*
+ * Colour scheme (Customize): `auto` follows the visitor's system, `light`
+ * and `dark` are fixed. The dark colors are given twice, once for each way in.
+ */
+:root[data-color-scheme='light'] {
+  color-scheme: light;
+}
+:root[data-color-scheme='dark'] {
+  color-scheme: dark;
+  --bg: #12161c;
+  --fg: #e6eaf0;
+  --muted: #a3adbb;
+  --accent: #7cb9ff;
+  --accent-contrast: #0b1a2c;
+  --border: #2b333e;
+  --surface: #1b2129;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-color-scheme='light']):not([data-color-scheme='dark']) {
     --bg: #12161c;
     --fg: #e6eaf0;
     --muted: #a3adbb;

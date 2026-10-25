@@ -96,7 +96,7 @@ describe('entries', () => {
     expect(headers['content-type']).toBe('text/html; charset=utf-8');
     expect(headers['x-content-type-options']).toBe('nosniff');
     expect(headers['content-security-policy']).toContain("object-src 'none'");
-    expect(html.startsWith('<!doctype html><html lang="en">')).toBe(true);
+    expect(html.startsWith('<!doctype html><html lang="en" data-color-scheme="auto">')).toBe(true);
     expect(html).toContain('<title>Weekend in Rome – Site public</title>');
     expect(html).toContain('<meta name="description" content="We walked a lot in Trastevere."/>');
     expect(html).toContain(
@@ -163,7 +163,7 @@ describe('one language (no language plugin)', () => {
     await publish('page', 'Contact');
     const english = await page('/contact');
     expect(english.status).toBe(200);
-    expect(english.html).toContain('<html lang="en">');
+    expect(english.html).toContain('<html lang="en" data-color-scheme="auto">');
     expect(english.html).not.toContain('hrefLang');
     expect(english.html).not.toContain('class="languages"');
     expect((await page('/it/contact')).status).toBe(404);

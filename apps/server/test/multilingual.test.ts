@@ -163,7 +163,7 @@ describe('translations of entries', () => {
 
     const italian = await visitor.get('/it/chi-siamo');
     expect(italian.statusCode).toBe(200);
-    expect(italian.body).toContain('<html lang="it">');
+    expect(italian.body).toContain('<html lang="it" data-color-scheme="auto">');
     expect(italian.body).toContain(
       '<link rel="alternate" hrefLang="en" href="http://multi.test/about-us"/>',
     );
@@ -576,7 +576,7 @@ describe('a domain per language', () => {
     const german = new TestClient(app, 'domains.de', '10.50.7.2');
     const page = await german.get('/ueber-uns');
     expect(page.statusCode).toBe(200);
-    expect(page.body).toContain('<html lang="de">');
+    expect(page.body).toContain('<html lang="de" data-color-scheme="auto">');
     expect(page.body).toContain('hrefLang="en" href="http://domains.test/about"');
     expect((await german.get('/about')).statusCode).toBe(404);
     // The admin stays on the primary domain.
