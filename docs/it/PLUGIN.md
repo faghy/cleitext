@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.52**
+> API dei plugin **1.53**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -210,6 +210,7 @@ ctx.hooks.filter(
 | `account.links`            | link nella pagina account dei visitatori (`{ label, url }[]`, indirizzi locali; API 1.17)                                                                                                                                        | `{ siteId, locale, userId, base }`                     |
 | `import.block`             | un blocco WordPress senza equivalente all'import: al suo posto i blocchi del plugin (API 1.23)                                                                                                                                   | `{ siteId, name, attrs, html, children }`              |
 | `import.shortcode`         | uno shortcode WordPress isolato all'import (su una riga o in un paragrafo a sé, blocco Shortcode, widget shortcode/testo/HTML di Elementor): al suo posto i blocchi del plugin (API 1.36)                                        | `{ siteId, tag, attrs, content, text }`                |
+| `import.cssClasses`        | nomi di classi e id del markup WordPress che il plugin mostra con nomi suoi (`{ 'uagb-ifb-separator': 'pr-info-box__separator' }`): il CSS aggiuntivo importato viene riscritto con questi (API 1.53)                            | `{ siteId }`                                           |
 | `import.wxrMeta`           | quello che i plugin ricavano dai meta di articoli, termini e opzioni di un'esportazione WordPress: valori dei campi, gruppi di campi, pagine di opzioni e opzioni (serve `import`, API 1.48; [vedi Importazione](#importazione)) | `WxrMetaContext`                                       |
 | `export.pluginData`        | i dati propri dei plugin in un'esportazione del sito (`document.plugins`, per slug): aggiungi i tuoi sotto il tuo slug, lascia gli altri (API 1.46)                                                                              | `{ siteId }`                                           |
 | `import.pluginData`        | i dati del plugin in un documento importato (`document.plugins[slug]`): `{ warnings? }` se li prende, altrimenti `null` (API 1.28)                                                                                               | `{ siteId, slug, data, idMap, userId }`                |
@@ -1003,6 +1004,16 @@ ctx.hooks.filter(
   (blocks, { tag, attrs }) =>
     blocks ?? (tag === 'kross-booking' ? [blockFromShortcode(attrs)] : null),
 );
+```
+
+**CSS scritto per il markup di un altro plugin** (API dei plugin 1.53, core 0.83). Un plugin che mostra i blocchi di un altro plugin WordPress con nomi di classe suoi li indica con il filtro `import.cssClasses`, così il CSS scritto per quelli continua a funzionare: durante un'importazione da WordPress il CSS aggiuntivo (quello di Personalizza, le regole di un tema child) viene riscritto con questi dopo gli `importCssPrefixes` del tema ([TEMI.md](TEMI.md)). Cambiano solo nomi interi di classi e id nei selettori (`.uagb-ifb-separator`, non `.uagb-ifb-separator-x`; mai dichiarazioni, stringhe, `url()` o commenti), e il resoconto elenca ogni riscrittura. Aggiungi i tuoi e conserva quelli degli altri. **Prisma**, per esempio, indica quelli di Spectra:
+
+```ts
+ctx.hooks.filter('import.cssClasses', (classes) => ({
+  ...classes,
+  'uagb-ifb-separator': 'pr-info-box__separator',
+  'wp-block-uagb-info-box': 'pr-info-box',
+}));
 ```
 
 I file media si indicano con il loro indirizzo http(s) e vengono scaricati solo da indirizzi pubblici, mai dalla rete del server. Quello che c'è già sul sito resta com'è, e i vecchi indirizzi (`oldPaths`) diventano redirect. Un sito grande richiede minuti: avvia l'importazione senza attenderla nella route, rispondi subito (`202`, con un id del lavoro) e tieni l'avanzamento in `ctx.storage`, salvandolo ogni tanto anche quando nulla si muove, così un lavoro rimasto in corso dopo un riavvio si riconosce (il WordPress Importer considera fermo un lavoro che non si è salvato da due minuti).

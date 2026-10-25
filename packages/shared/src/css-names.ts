@@ -5,20 +5,30 @@
  * for that theme (WordPress's Additional CSS, a child theme's rules) with
  * its names. Only class (`.old-x`) and id (`#old-x`) selectors change:
  * declarations, strings, `url()` and comments stay as they are.
+ *
+ * Whole names (core 0.83) rename one class or id each, e.g. a plugin that
+ * renders another plugin's blocks under its own class names (plugin API
+ * 1.53, `import.cssClasses`): `{ 'uagb-ifb-separator': 'pr-info-box__separator' }`
+ * renames `.uagb-ifb-separator` but not `.uagb-ifb-separator-x`.
  */
 
 export interface RenamedCss {
   css: string;
   /** How many class and id names were renamed. */
   renamed: number;
+  /** What was renamed into what (`from` → `to`, without `.` or `#`). */
+  rewrites: Record<string, string>;
 }
 
 const NAME_START = /[A-Za-z0-9_-]/;
+const NAME = /^[A-Za-z0-9_-]+/;
 
-/** Renames `.prefix…` and `#prefix…` in one selector list (no strings or comments in it). */
+/** Renames `.prefix…` and `#prefix…`, and whole names, in one selector list (no strings or comments in it). */
 function renameSelectors(
   text: string,
   prefixes: [string, string][],
+  names: Map<string, string>,
+  rewrites: Record<string, string>,
 ): { text: string; renamed: number } {
   let renamed = 0;
   let out = '';
@@ -27,10 +37,20 @@ function renameSelectors(
     out += ch;
     if (ch !== '.' && ch !== '#') continue;
     const rest = text.slice(i + 1);
+    const name = NAME.exec(rest)?.[0];
+    const whole = name ? names.get(name) : undefined;
+    if (name && whole !== undefined) {
+      out += whole;
+      i += name.length;
+      rewrites[name] = whole;
+      renamed++;
+      continue;
+    }
     const match = prefixes.find(([from]) => rest.startsWith(from));
     if (!match) continue;
     out += match[1];
     i += match[0].length;
+    rewrites[match[0]] = match[1];
     renamed++;
   }
   return { text: out, renamed };
@@ -38,14 +58,26 @@ function renameSelectors(
 
 /**
  * CSS with the selectors' class and id names renamed by prefix (`{ from:
- * to }`, longest first). Text inside `{ … }` declarations, strings, comments
- * and `url(…)` is copied as it is.
+ * to }`, longest first) and by whole name (`names`, before the prefixes).
+ * Text inside `{ … }` declarations, strings, comments and `url(…)` is
+ * copied as it is.
  */
-export function renameCssSelectors(css: string, prefixes: Record<string, string>): RenamedCss {
+export function renameCssSelectors(
+  css: string,
+  prefixes: Record<string, string>,
+  names: Record<string, string> = {},
+): RenamedCss {
   const pairs = Object.entries(prefixes)
     .filter(([from, to]) => from && NAME_START.test(from[0]!) && typeof to === 'string')
     .sort((a, b) => b[0].length - a[0].length);
-  if (pairs.length === 0 || !css) return { css, renamed: 0 };
+  const wholeNames = new Map(
+    Object.entries(names).filter(
+      ([from, to]) =>
+        NAME.exec(from)?.[0] === from && typeof to === 'string' && NAME.exec(to)?.[0] === to,
+    ),
+  );
+  const rewrites: Record<string, string> = {};
+  if ((pairs.length === 0 && wholeNames.size === 0) || !css) return { css, renamed: 0, rewrites };
   let out = '';
   let renamed = 0;
   // Text since the last `{`, `}` or `;`: a prelude when a `{` ends it, a declaration otherwise.
@@ -54,7 +86,7 @@ export function renameCssSelectors(css: string, prefixes: Record<string, string>
   const flush = (prelude: boolean) => {
     for (const part of pending) {
       if (prelude && !part.kept) {
-        const r = renameSelectors(part.text, pairs);
+        const r = renameSelectors(part.text, pairs, wholeNames, rewrites);
         out += r.text;
         renamed += r.renamed;
       } else out += part.text;
@@ -102,5 +134,5 @@ export function renameCssSelectors(css: string, prefixes: Record<string, string>
     i++;
   }
   flush(false);
-  return { css: out, renamed };
+  return { css: out, renamed, rewrites };
 }

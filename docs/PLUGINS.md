@@ -1,6 +1,6 @@
 # Developing Cleitext plugins
 
-> Plugin API **1.52** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
+> Plugin API **1.53** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
 
 A plugin extends Cleitext the way a WordPress plugin extends WordPress. It can add content types with custom fields, blocks, pages to the admin, settings, endpoints, addresses on the public site and its own database tables, and it can react to what happens through hooks.
 
@@ -192,30 +192,31 @@ ctx.hooks.filter(
 
 **Filters** (public site, they need the `theme:hooks` permission):
 
-| Name                       | Value                                                                                                                                                                         | Context                                                |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                                                       | `RenderHookContext`                                    |
-| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                                                                                                             | `RenderHookContext` with `entry`                       |
-| `render.html`              | the final HTML string                                                                                                                                                         | `RenderHookContext`                                    |
-| `render.adminBarEdit`      | the edit link of the public toolbar on an entry, `{ label, href }` (an admin address), or `null` to hide it, e.g. "Edit with …" (API 1.29)                                    | `{ siteId, locale, entry: { id, type, editor? } }`     |
-| `render.maintenance`       | the page visitors get in maintenance mode: `{ html, retryAfter? }` (a whole document) instead of the theme's, or `null` (API 1.35)                                            | `MaintenanceContext`                                   |
-| `form.challenge`           | markup placed in a form before its submit button, e.g. a captcha widget; add to the value (needs `forms:protect`, API 1.38)                                                   | `FormChallengeContext`                                 |
-| `form.verify`              | `{ ok, message? }` for a submission of a protected form, or `null` to let it through (needs `forms:protect`, API 1.38)                                                        | `FormVerifyContext`                                    |
-| `form.sources`             | origins the admin's sign-in challenge needs, `{ script, frame }` (`https://` only), added to the admin's Content Security Policy (needs `forms:protect`, API 1.38)            | `{ siteId }`                                           |
-| `theme.templateCandidates` | template names tried in order                                                                                                                                                 | `RenderHookContext`                                    |
-| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                                                          | `{ siteId, ids }`                                      |
-| `entry.validate`           | problems with an entry about to be saved, `{ path, message }[]`: add yours to refuse the save (no permission, API 1.47; [checks before saving](#checks-before-saving))        | `EntryValidateContext`                                 |
-| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                                                             | `{ siteId, locale, userId, base }`                     |
-| `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)                                                                                     | `{ siteId, name, attrs, html, children }`              |
-| `import.shortcode`         | a WordPress shortcode standing alone on import (own line or paragraph, Shortcode block, Elementor shortcode/text/HTML widget): the plugin's blocks instead (API 1.36)         | `{ siteId, tag, attrs, content, text }`                |
-| `import.wxrMeta`           | what plugins make of a WordPress export's post, term and option meta: field values, field groups, options pages and options (needs `import`, API 1.48; [see Import](#import)) | `WxrMetaContext`                                       |
-| `export.pluginData`        | the plugins' own data in a site export (`document.plugins`, by slug): add yours under your slug, keep the others (API 1.46)                                                   | `{ siteId }`                                           |
-| `import.pluginData`        | the plugin's data of an imported document (`document.plugins[slug]`): `{ warnings? }` when taken, `null` otherwise (API 1.28)                                                 | `{ siteId, slug, data, idMap, userId }`                |
-| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                                                                                                             | `{ siteId, locale, siteTitle, term }`                  |
-| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                                                                                                         | `{ siteId }`                                           |
-| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`)                                                                                    | `{ siteId, kind, slug, locale }`                       |
-| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                                                                                                            | `{ siteId, host, path, status, tags }`                 |
-| `robots.txt`               | the text of `/robots.txt`, with its `Sitemap:` line; no permission. A site that asks search engines to stay away keeps `Disallow: /` (API 1.24)                               | `{ siteId, origin, sitemap, discourageSearchEngines }` |
+| Name                       | Value                                                                                                                                                                                               | Context                                                |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                                                                             | `RenderHookContext`                                    |
+| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                                                                                                                                   | `RenderHookContext` with `entry`                       |
+| `render.html`              | the final HTML string                                                                                                                                                                               | `RenderHookContext`                                    |
+| `render.adminBarEdit`      | the edit link of the public toolbar on an entry, `{ label, href }` (an admin address), or `null` to hide it, e.g. "Edit with …" (API 1.29)                                                          | `{ siteId, locale, entry: { id, type, editor? } }`     |
+| `render.maintenance`       | the page visitors get in maintenance mode: `{ html, retryAfter? }` (a whole document) instead of the theme's, or `null` (API 1.35)                                                                  | `MaintenanceContext`                                   |
+| `form.challenge`           | markup placed in a form before its submit button, e.g. a captcha widget; add to the value (needs `forms:protect`, API 1.38)                                                                         | `FormChallengeContext`                                 |
+| `form.verify`              | `{ ok, message? }` for a submission of a protected form, or `null` to let it through (needs `forms:protect`, API 1.38)                                                                              | `FormVerifyContext`                                    |
+| `form.sources`             | origins the admin's sign-in challenge needs, `{ script, frame }` (`https://` only), added to the admin's Content Security Policy (needs `forms:protect`, API 1.38)                                  | `{ siteId }`                                           |
+| `theme.templateCandidates` | template names tried in order                                                                                                                                                                       | `RenderHookContext`                                    |
+| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                                                                                | `{ siteId, ids }`                                      |
+| `entry.validate`           | problems with an entry about to be saved, `{ path, message }[]`: add yours to refuse the save (no permission, API 1.47; [checks before saving](#checks-before-saving))                              | `EntryValidateContext`                                 |
+| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                                                                                   | `{ siteId, locale, userId, base }`                     |
+| `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)                                                                                                           | `{ siteId, name, attrs, html, children }`              |
+| `import.shortcode`         | a WordPress shortcode standing alone on import (own line or paragraph, Shortcode block, Elementor shortcode/text/HTML widget): the plugin's blocks instead (API 1.36)                               | `{ siteId, tag, attrs, content, text }`                |
+| `import.cssClasses`        | class and id names of WordPress markup the plugin renders under its own names (`{ 'uagb-ifb-separator': 'pr-info-box__separator' }`): the imported Additional CSS is rewritten with them (API 1.53) | `{ siteId }`                                           |
+| `import.wxrMeta`           | what plugins make of a WordPress export's post, term and option meta: field values, field groups, options pages and options (needs `import`, API 1.48; [see Import](#import))                       | `WxrMetaContext`                                       |
+| `export.pluginData`        | the plugins' own data in a site export (`document.plugins`, by slug): add yours under your slug, keep the others (API 1.46)                                                                         | `{ siteId }`                                           |
+| `import.pluginData`        | the plugin's data of an imported document (`document.plugins[slug]`): `{ warnings? }` when taken, `null` otherwise (API 1.28)                                                                       | `{ siteId, slug, data, idMap, userId }`                |
+| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                                                                                                                                   | `{ siteId, locale, siteTitle, term }`                  |
+| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                                                                                                                               | `{ siteId }`                                           |
+| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`)                                                                                                          | `{ siteId, kind, slug, locale }`                       |
+| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                                                                                                                                  | `{ siteId, host, path, status, tags }`                 |
+| `robots.txt`               | the text of `/robots.txt`, with its `Sitemap:` line; no permission. A site that asks search engines to stay away keeps `Disallow: /` (API 1.24)                                                     | `{ siteId, origin, sitemap, discourageSearchEngines }` |
 
 `RenderHookContext` is `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (plugin API 1.33) is `true` when the visitor is signed in: their pages are never cached, so content may depend on it. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
 
@@ -1074,6 +1075,16 @@ ctx.hooks.filter(
   (blocks, { tag, attrs }) =>
     blocks ?? (tag === 'kross-booking' ? [blockFromShortcode(attrs)] : null),
 );
+```
+
+**CSS written for another plugin's markup** (plugin API 1.53, core 0.83). A plugin that renders another WordPress plugin's blocks under its own class names gives their names with the `import.cssClasses` filter, so CSS written for them keeps working: during a WordPress import, the Additional CSS (Customize's, a child theme's rules) is rewritten with them after the theme's `importCssPrefixes` ([THEMES.md](THEMES.md)). Only whole class and id names in selectors change (`.uagb-ifb-separator`, not `.uagb-ifb-separator-x`; never declarations, strings, `url()` or comments), and the report lists each rewrite. Add yours and keep the others'. **Prisma**, for example, gives Spectra's:
+
+```ts
+ctx.hooks.filter('import.cssClasses', (classes) => ({
+  ...classes,
+  'uagb-ifb-separator': 'pr-info-box__separator',
+  'wp-block-uagb-info-box': 'pr-info-box',
+}));
 ```
 
 Media files are given by their http(s) address and downloaded only from public addresses, never from the server's own network. What is already on the site is kept, and old addresses (`oldPaths`) become redirects. A big site takes minutes: start the import without awaiting it in the route, answer at once (`202`, with an id of the job), and keep its progress in `ctx.storage`, saving it now and then even when nothing moves, so a job left running by a restart can be told apart (the WordPress Importer marks a job that has not saved itself for two minutes as stopped).

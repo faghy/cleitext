@@ -98,7 +98,7 @@ import { DynamicSourcesService } from '../fields/dynamic-sources.service.js';
 import { FieldGroupsService } from '../fields/field-groups.service.js';
 import { UserFieldsService } from '../fields/user-fields.service.js';
 import { OptionsPagesService } from '../fields/options-pages.service.js';
-import { withThemeImport } from '../transfer/theme-import.js';
+import { withPluginCssClasses, withThemeImport } from '../transfer/theme-import.js';
 import { emptyWxrMetaResult, withWxrMeta } from '../transfer/wxr-meta.js';
 import { phpMetaValue, phpUnserialize } from '@cleitext/plugin-sdk';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
@@ -861,6 +861,17 @@ export class PluginServicesProvider implements PluginServices {
     wxrWarnings.push(
       ...withThemeImport(parsed.data, themeFor(await this.themeSlug(siteId)), options.wxrMeta),
     );
+    // Class names the active plugins render under their own names (plugin API 1.53).
+    if (parsed.data.source.kind === 'wordpress' && parsed.data.site.additionalCss?.site) {
+      const classes = await this.host.applyFilter(
+        'import.cssClasses',
+        {} as Record<string, string>,
+        { siteId },
+        siteId,
+        JOB,
+      );
+      wxrWarnings.push(...withPluginCssClasses(parsed.data, classes));
+    }
     const report = await importDocument(parsed.data, {
       db: this.database.db,
       // WordPress blocks without an equivalent: active plugins may convert them.

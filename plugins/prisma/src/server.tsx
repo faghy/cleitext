@@ -12,6 +12,7 @@ import { DEFAULT_GLOBALS, normalizeGlobals, variablesCss, type Globals } from '.
 import { FORM_SETTINGS, registerFormRelease, registerFormRoutes } from './blocks/form/route';
 import { buildTablesOfContents } from './blocks/table-of-contents/server';
 import { fromCover, fromSpectra } from './import';
+import { SPECTRA_CLASSES } from './css-classes';
 import {
   extensionProps,
   fontItem,
@@ -263,6 +264,8 @@ export default definePlugin({
             ? fromCover(attrs, html, children)
             : null),
     );
+    // CSS written for Spectra's class names, on WordPress import (plugin API 1.53).
+    ctx.hooks.filter('import.cssClasses', (classes) => ({ ...classes, ...SPECTRA_CLASSES }));
     ctx.assets.enqueue({
       file: 'prisma.css',
       when: ({ html }) => html.includes('pr-block-'),

@@ -74,3 +74,26 @@ export function withThemeImport(
   }
   return warnings;
 }
+
+/**
+ * The imported Additional CSS with the class and id names that active
+ * plugins render under their own (`import.cssClasses`, plugin API 1.53):
+ * whole names, in selectors only. Returns lines for the import report.
+ */
+export function withPluginCssClasses(document: TransferDocument, classes: unknown): string[] {
+  const css = document.site.additionalCss?.site;
+  if (!css || !isRecord(classes)) return [];
+  const names = Object.fromEntries(
+    Object.entries(classes).filter((pair): pair is [string, string] => typeof pair[1] === 'string'),
+  );
+  const renamed = renameCssSelectors(css, {}, names);
+  if (renamed.renamed === 0) return [];
+  document.site.additionalCss = { ...document.site.additionalCss, site: renamed.css };
+  return [
+    `The Additional CSS names classes that active plugins render under their own names: ${renamed.renamed} selector name${renamed.renamed === 1 ? ' was' : 's were'} renamed (${Object.entries(
+      renamed.rewrites,
+    )
+      .map(([from, to]) => `.${from} → .${to}`)
+      .join(', ')}), in selectors only.`,
+  ];
+}

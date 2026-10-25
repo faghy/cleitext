@@ -459,6 +459,18 @@ export interface Filters {
     },
   ];
   /**
+   * Class and id names of WordPress markup that the plugin renders under its
+   * own names (plugin API 1.53), e.g. a block library's
+   * `{ 'uagb-ifb-separator': 'pr-info-box__separator' }`: the Additional CSS
+   * of a WordPress import (Customize's, a child theme's rules) is rewritten
+   * with them, whole names only and in selectors only (not in declarations,
+   * strings, `url()` or comments), and the report lists the rewrites. Add
+   * yours and keep the others' (`{ ...classes, ...mine }`). Called once per
+   * WordPress import that has Additional CSS, after the theme's
+   * `importCssPrefixes`. No permission needed.
+   */
+  'import.cssClasses': [classes: Record<string, string>, context: { siteId: string }];
+  /**
    * The meta of a WordPress export during its import (plugin API 1.48): every
    * item's post meta (also of WordPress's own types, e.g. ACF's field groups
    * and fields, which are not imported as content), every term's term meta,
