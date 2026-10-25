@@ -698,7 +698,8 @@ function galleryShortcode(text: string, options: ConvertOptions): CxdBlock | nul
 
 /**
  * WordPress's dynamic blog blocks → the blocks of the Widgets plugin, with
- * WordPress's defaults (no title, the same things shown).
+ * WordPress's defaults (no title, the same things shown). No title is said
+ * twice: "Show the title" off (Widgets 1.2.1) and "-" (older Widgets).
  */
 function wpWidget(name: string, a: Record<string, unknown>): CxdBlock {
   const num = (v: unknown) => (typeof v === 'number' && v > 0 ? { value: v } : null);
@@ -708,6 +709,7 @@ function wpWidget(name: string, a: Record<string, unknown>): CxdBlock {
     case 'core/latest-posts':
       return make('widgets/recent-posts', {
         title: '-',
+        showTitle: false,
         layout: a.postLayout === 'grid' ? 'grid' : 'list',
         count: num(a.postsToShow)?.value ?? 5,
         ...(num(a.columns) ? { columns: a.columns } : {}),
@@ -721,6 +723,7 @@ function wpWidget(name: string, a: Record<string, unknown>): CxdBlock {
     case 'core/latest-comments':
       return make('widgets/recent-comments', {
         title: '-',
+        showTitle: false,
         count: num(a.commentsToShow)?.value ?? 5,
         excerpt: a.displayExcerpt !== false,
         date: a.displayDate !== false,
@@ -728,6 +731,7 @@ function wpWidget(name: string, a: Record<string, unknown>): CxdBlock {
     case 'core/tag-cloud':
       return make('widgets/tag-cloud', {
         title: '-',
+        showTitle: false,
         taxonomy: taxonomy(a.taxonomy, 'tag'),
         count: num(a.numberOfTags)?.value ?? 45,
         counts: a.showTagCounts === true,
@@ -735,6 +739,7 @@ function wpWidget(name: string, a: Record<string, unknown>): CxdBlock {
     case 'core/categories':
       return make('widgets/categories', {
         title: '-',
+        showTitle: false,
         taxonomy: taxonomy(a.taxonomy, 'category'),
         counts: a.showPostCounts === true,
         hierarchy: a.showHierarchy === true,

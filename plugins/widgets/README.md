@@ -12,10 +12,10 @@ Its blocks go anywhere blocks go: pages, posts, patterns and the theme's areas (
 - **Categories**: the categories (or tags) with links to their archives, the number of posts and the subcategories under their parent. Those without posts are hidden unless you want them.
 - **Search form**: a search box for the site, with its label, placeholder and button text.
 
-The **Title** of each block is the default one ("Recent posts", "Categories"…, in the page's language) when left empty; write `-` for none. The lists follow the page's language and refresh by themselves when posts, comments or terms change. They take the theme's fonts and colors; one small stylesheet is added only to the pages that use them, and no JavaScript.
+The **Title** of each block is the default one ("Recent posts", "Categories"…, in the page's language) when left empty. To have none, turn off **Show the title** (since 1.2.1; the title fields are then hidden); a title written as `-`, as older pages and imports have it, still means none. The lists follow the page's language and refresh by themselves when posts, comments or terms change. They take the theme's fonts and colors; one small stylesheet is added only to the pages that use them, and no JavaScript.
 
 ## WordPress
 
-The WordPress importer turns the blocks _Latest Posts_, _Latest Comments_, _Tag Cloud_, _Categories List_ and _Search_ into these blocks, with the same options. Install this plugin to show them.
+The WordPress importer turns the blocks _Latest Posts_, _Latest Comments_, _Tag Cloud_, _Categories List_ and _Search_ into these blocks, with the same options and no title (as in WordPress: **Show the title** off). Install this plugin to show them.
 
 Plugin API 1.22: blocks (`blocks`), published entries and term counts (`content:read`), comments (`comments`) and the stylesheet (`theme:hooks`).

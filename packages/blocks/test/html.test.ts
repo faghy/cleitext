@@ -369,6 +369,7 @@ describe('blog widgets', () => {
         'widgets/recent-posts',
         {
           title: '-',
+          showTitle: false,
           layout: 'grid',
           count: 3,
           columns: 2,
@@ -380,11 +381,24 @@ describe('blog widgets', () => {
           excludeCurrent: false,
         },
       ],
-      ['widgets/recent-comments', { title: '-', count: 4, excerpt: true, date: true }],
-      ['widgets/tag-cloud', { title: '-', taxonomy: 'tag', count: 20, counts: true }],
+      [
+        'widgets/recent-comments',
+        { title: '-', showTitle: false, count: 4, excerpt: true, date: true },
+      ],
+      [
+        'widgets/tag-cloud',
+        { title: '-', showTitle: false, taxonomy: 'tag', count: 20, counts: true },
+      ],
       [
         'widgets/categories',
-        { title: '-', taxonomy: 'category', counts: true, hierarchy: true, hideEmpty: true },
+        {
+          title: '-',
+          showTitle: false,
+          taxonomy: 'category',
+          counts: true,
+          hierarchy: true,
+          hideEmpty: true,
+        },
       ],
       [
         'widgets/search',

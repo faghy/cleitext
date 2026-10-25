@@ -90,9 +90,14 @@ function safeLink(value: unknown): string | null {
   return /^https?:\/\/[^\s]+$/i.test(text) ? text : null;
 }
 
-/** The title the author wrote, the default one when empty, none with "-". */
-function titleOf(value: unknown, fallback: string): string {
-  const text = String(value ?? '').trim();
+/**
+ * The title the author wrote, the default one when empty; none when "Show
+ * the title" is off (plugin 1.2.1) or, as before, with "-" (older pages and
+ * imports keep it).
+ */
+function titleOf(attrs: { title?: unknown; showTitle?: unknown }, fallback: string): string {
+  if (attrs.showTitle === false) return '';
+  const text = String(attrs.title ?? '').trim();
   return text === '-' ? '' : text || fallback;
 }
 
@@ -100,6 +105,7 @@ function titleOf(value: unknown, fallback: string): string {
 
 interface PostsAttrs {
   title: string;
+  showTitle?: boolean;
   layout: 'list' | 'grid' | 'magazine';
   count: number;
   columns: number;
@@ -290,6 +296,7 @@ function Post({
 
 interface CommentsAttrs {
   title: string;
+  showTitle?: boolean;
   count: number;
   excerpt: boolean;
   date: boolean;
@@ -342,6 +349,7 @@ async function loadComments(
 
 interface CloudAttrs {
   title: string;
+  showTitle?: boolean;
   taxonomy: 'tag' | 'category';
   count: number;
   counts: boolean;
@@ -351,6 +359,7 @@ interface CloudAttrs {
 
 interface CategoriesAttrs {
   title: string;
+  showTitle?: boolean;
   taxonomy: 'category' | 'tag';
   counts: boolean;
   hierarchy: boolean;
@@ -411,16 +420,29 @@ interface SearchAttrs {
 
 // ---- Shared attributes -------------------------------------------------------------
 
-const titleField = (en: string, it: string) => ({
-  name: 'title',
-  type: 'text' as const,
-  maxLength: 120,
-  label: { en: 'Title', it: 'Titolo' },
-  help: {
-    en: `Empty: "${en}". Write "-" for none.`,
-    it: `Vuoto: "${it}". Scrivi "-" per nessuno.`,
+/** Shown while "Show the title" is on (the title field and the title's link). */
+const withTitle = { field: 'showTitle', not: false };
+
+/** "Show the title" (plugin 1.2.1) and the title, the default one when empty. */
+const titleFields = (en: string, it: string) => [
+  {
+    name: 'showTitle',
+    type: 'boolean' as const,
+    label: { en: 'Show the title', it: 'Mostra il titolo' },
+    default: true,
   },
-});
+  {
+    name: 'title',
+    type: 'text' as const,
+    maxLength: 120,
+    label: { en: 'Title', it: 'Titolo' },
+    help: {
+      en: `Empty: "${en}". "-" also hides it (older pages and imports).`,
+      it: `Vuoto: "${it}". Anche "-" lo nasconde (pagine meno recenti e importazioni).`,
+    },
+    showIf: withTitle,
+  },
+];
 
 const taxonomyField = (fallback: 'tag' | 'category') => ({
   name: 'taxonomy',
@@ -453,7 +475,7 @@ export default definePlugin({
         icon: 'excerpt-view',
         category: 'widgets',
         attributes: [
-          titleField('Recent posts', 'Articoli recenti'),
+          ...titleFields('Recent posts', 'Articoli recenti'),
           {
             name: 'layout',
             type: 'select',
@@ -584,6 +606,7 @@ export default definePlugin({
             type: 'text',
             maxLength: 500,
             label: { en: 'Title link', it: 'Link del titolo' },
+            showIf: withTitle,
             help: {
               en: 'An address, e.g. /category/news. Empty: the archive of the only category or tag chosen.',
               it: 'Un indirizzo, es. /category/notizie. Vuoto: l’archivio dell’unica categoria o tag scelto.',
@@ -647,7 +670,7 @@ export default definePlugin({
               }`}
             >
               <Title
-                text={titleOf(attrs.title, t.recentPosts)}
+                text={titleOf(attrs, t.recentPosts)}
                 url={safeLink(attrs.titleUrl) ?? data.link}
               />
               {data.tabs ? (
@@ -696,7 +719,7 @@ export default definePlugin({
         icon: 'admin-comments',
         category: 'widgets',
         attributes: [
-          titleField('Recent comments', 'Commenti recenti'),
+          ...titleFields('Recent comments', 'Commenti recenti'),
           {
             name: 'count',
             type: 'number',
@@ -718,7 +741,7 @@ export default definePlugin({
           const t = texts(context.locale);
           return (
             <section className="cxw-widget cxw-comments">
-              <Title text={titleOf(attrs.title, t.recentComments)} />
+              <Title text={titleOf(attrs, t.recentComments)} />
               {data.length === 0 ? (
                 <p className="cxw-widget__empty">{t.noComments}</p>
               ) : (
@@ -754,7 +777,7 @@ export default definePlugin({
         icon: 'tag',
         category: 'widgets',
         attributes: [
-          titleField('Tags', 'Tag'),
+          ...titleFields('Tags', 'Tag'),
           taxonomyField('tag'),
           {
             name: 'count',
@@ -822,7 +845,7 @@ export default definePlugin({
           const fallback = attrs.taxonomy === 'category' ? t.categories : t.tags;
           return (
             <section className="cxw-widget cxw-cloud">
-              <Title text={titleOf(attrs.title, fallback)} />
+              <Title text={titleOf(attrs, fallback)} />
               <ul className="cxw-cloud__list">
                 {data.items.map((term) => (
                   <li key={term.id}>
@@ -856,7 +879,7 @@ export default definePlugin({
         icon: 'category',
         category: 'widgets',
         attributes: [
-          titleField('Categories', 'Categorie'),
+          ...titleFields('Categories', 'Categorie'),
           taxonomyField('category'),
           {
             name: 'counts',
@@ -927,7 +950,7 @@ export default definePlugin({
           const fallback = attrs.taxonomy === 'tag' ? t.tags : t.categories;
           return (
             <section className="cxw-widget cxw-terms">
-              <Title text={titleOf(attrs.title, fallback)} />
+              <Title text={titleOf(attrs, fallback)} />
               <TermTree items={data} counts={attrs.counts !== false} t={t} />
             </section>
           );
