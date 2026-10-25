@@ -66,6 +66,13 @@ import {
   type TransferEntry,
   type TransferMenuItem,
 } from './model.js';
+import {
+  mediaByUrl,
+  mediaTextRewriter,
+  mediaUrlKey,
+  type MediaTarget,
+  type MediaTextRewriter,
+} from './media-urls.js';
 
 export interface ImportOptions {
   /** Owner connection: imports create users and write every table of the site. */
@@ -124,11 +131,6 @@ export interface ImportOptions {
     data: unknown;
     idMap: ImportIdMap;
   }): Promise<ImportPluginDataResult | null>;
-}
-
-interface MediaTarget {
-  id: string;
-  url: string;
 }
 
 /**
@@ -402,6 +404,18 @@ export async function importDocument(
     }
   }
   await options.media.idle();
+  // The old site's media addresses inside text (HTML, CSS) become the new ones.
+  const mediaText = mediaTextRewriter(urlMap, doc.source.url);
+  const importedCss = doc.site.additionalCss;
+  if (importedCss) {
+    if (importedCss.site) importedCss.site = mediaText.rewrite(importedCss.site);
+    for (const [slug, text] of Object.entries(importedCss.themes ?? {})) {
+      importedCss.themes![slug] = mediaText.rewrite(text);
+    }
+    for (const url of mediaText.takeMissing()) {
+      report.warnings.push(`Additional CSS: image not imported, it still points to ${url}.`);
+    }
+  }
 
   // ---- Entries ---------------------------------------------------------------------
   const entryIds = new Map<string, { id: string }>();
@@ -455,6 +469,7 @@ export async function importDocument(
           terms: termIds,
           media: mediaTargets,
           urls: urlMap,
+          text: mediaText,
           report,
           refs: fieldRefs,
         }),
@@ -761,10 +776,16 @@ export async function importDocument(
       media: Object.fromEntries(mediaTargets),
     };
     for (const slug of slugs) {
+      mediaText.takeMissing();
       const data = resolveEntryRefs(
-        remapMediaValues(doc.plugins[slug], mediaTargets, urlMap),
+        remapMediaValues(doc.plugins[slug], mediaTargets, urlMap, mediaText),
         idOf,
       );
+      for (const url of mediaText.takeMissing()) {
+        report.warnings.push(
+          `Settings for the plugin "${slug}": image not imported, it still points to ${url}.`,
+        );
+      }
       try {
         const result = options.importPluginData
           ? await options.importPluginData({ slug, data, idMap })
@@ -888,6 +909,7 @@ async function insertEntry(
     terms: Map<string, string>;
     media: Map<string, MediaTarget>;
     urls: Map<string, MediaTarget>;
+    text: MediaTextRewriter;
     report: ImportReport;
     /** References in field values (plugin API 1.47); entries are resolved afterwards. */
     refs: Partial<ImportRefMaps>;
@@ -922,7 +944,14 @@ async function insertEntry(
   }
 
   const document = blockRefs(
-    remapMedia(entry.document, context.media, context.urls, context.report, entry.title),
+    remapMedia(
+      entry.document,
+      context.media,
+      context.urls,
+      context.text,
+      context.report,
+      entry.title,
+    ),
     context.refs,
   );
   const fields = importFieldRefs(entry.fields ?? {}, context.refs) as Record<string, unknown>;
@@ -1015,14 +1044,26 @@ function blockRefs(document: CxdDocument, refs: Partial<ImportRefMaps>): CxdDocu
   return { ...document, blocks: walk(document.blocks) };
 }
 
-/** Image blocks: media refs become the imported media ids and URLs. */
+/**
+ * Image blocks: media refs become the imported media ids and URLs; the old
+ * site's media addresses in other attributes (HTML, CSS) too, and those that
+ * were not imported are reported, each once.
+ */
 function remapMedia(
   document: CxdDocument,
   media: Map<string, MediaTarget>,
   urls: Map<string, MediaTarget>,
+  text: MediaTextRewriter,
   report: ImportReport,
   title: string,
 ): CxdDocument {
+  text.takeMissing();
+  const reported = new Set<string>();
+  const missing = (url: string) => {
+    if (reported.has(url)) return;
+    reported.add(url);
+    report.warnings.push(`"${title}": image not imported, it still points to ${url}.`);
+  };
   const walk = (blocks: CxdBlock[]): CxdBlock[] =>
     blocks.map((block) => {
       let attrs = block.attrs;
@@ -1038,33 +1079,36 @@ function remapMedia(
         } else {
           attrs = { ...attrs };
           delete attrs.id;
-          if (typeof attrs.url === 'string') {
-            report.warnings.push(
-              `"${title}": image not imported, it still points to ${attrs.url}.`,
-            );
-          }
+          if (typeof attrs.url === 'string') missing(attrs.url);
         }
-      } else attrs = remapMediaValues(attrs, media, urls) as typeof attrs;
+      } else attrs = remapMediaValues(attrs, media, urls, text) as typeof attrs;
       return { ...block, attrs, ...(block.children ? { children: walk(block.children) } : {}) };
     });
-  return { ...document, blocks: walk(document.blocks) };
+  const out = { ...document, blocks: walk(document.blocks) };
+  for (const url of text.takeMissing()) missing(url);
+  return out;
 }
 
 /**
  * Media inside other blocks' attributes (e.g. a page builder's images):
  * objects `{ id: <media ref>, url }` get the imported id and address, and
- * known old addresses in `url` are replaced.
+ * known old addresses in `url` are replaced, as in every other text (inline
+ * HTML, `srcset`, CSS `url()`).
  */
 function remapMediaValues(
   value: unknown,
   media: Map<string, MediaTarget>,
   urls: Map<string, MediaTarget>,
+  text: MediaTextRewriter,
 ): unknown {
-  if (Array.isArray(value)) return value.map((v) => remapMediaValues(v, media, urls));
+  if (typeof value === 'string') return text.rewrite(value);
+  if (Array.isArray(value)) return value.map((v) => remapMediaValues(v, media, urls, text));
   if (!value || typeof value !== 'object') return value;
   const object = value as Record<string, unknown>;
   const out: Record<string, unknown> = {};
-  for (const [key, v] of Object.entries(object)) out[key] = remapMediaValues(v, media, urls);
+  for (const [key, v] of Object.entries(object)) {
+    out[key] = remapMediaValues(v, media, urls, text);
+  }
   if ('url' in object) {
     const target =
       typeof object.id === 'string' || typeof object.id === 'number'
@@ -1078,22 +1122,6 @@ function remapMediaValues(
     }
   }
   return out;
-}
-
-/**
- * The address of a media file without what WordPress adds to its copies:
- * the size of a resized copy (`photo-1024x768.webp`), `-scaled`, the query.
- */
-function mediaUrlKey(url: string): string {
-  return url
-    .replace(/[?#].*$/, '')
-    .replace(/^https?:\/\/[^/]+/i, '')
-    .replace(/-(?:\d+x\d+|scaled)(\.[a-z0-9]+)$/i, '$1');
-}
-
-/** An imported media file by an old address, or by the address of one of its copies. */
-function mediaByUrl(urls: Map<string, MediaTarget>, url: string): MediaTarget | undefined {
-  return urls.get(url) ?? urls.get(mediaUrlKey(url));
 }
 
 // ---- Helpers --------------------------------------------------------------------------

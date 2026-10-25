@@ -257,6 +257,102 @@ describe('WordPress import', () => {
     expect(attrs.scaled!.url).toBe(image.url);
   });
 
+  it('points old media addresses in HTML, CSS, templates and plugin data to the imported media', async () => {
+    const site = await seedSite(owner, 'inline-media');
+    const old = 'https://old.example.com/wp-content/uploads/2024/05';
+    const { document } = (await wordpressDocument()) as {
+      document: { media: unknown[]; site: unknown; source: unknown };
+    };
+    const uploads = fileReader(join(fixtures, 'uploads'));
+    // A Divi text module's HTML and an element's CSS, as the converters keep them.
+    const blocks = [
+      {
+        id: 't1',
+        type: 'fresco/text',
+        v: 1,
+        attrs: {
+          content: `<p><a href="https://www.partner.test/"><img src="${old}/harbour-288x300.jpg" class="wp-image-10" /></a><img src="${old}/harbour.jpg" srcset="${old}/harbour-300x200.jpg 300w, ${old}/harbour.jpg 1024w"></p><img src="${old}/gone.png">`,
+          _custom_css: `selector{background-image:url("/wp-content/uploads/2024/05/harbour-1024x768.jpg")}`,
+        },
+      },
+    ];
+    const pluginData: unknown[] = [];
+    const result = await importDocument(
+      {
+        format: 'cleitext-transfer',
+        version: 1,
+        source: document.source,
+        site: {
+          ...(document.site as object),
+          additionalCss: { site: `body{background:url(${old}/harbour.jpg)}` },
+        },
+        media: document.media,
+        entries: [
+          {
+            ref: 'page:1',
+            type: 'page',
+            locale: 'en',
+            slug: 'inline',
+            title: 'Inline',
+            status: 'published',
+            document: { schema: 1, blocks },
+          },
+        ],
+        plugins: {
+          // The header and footer of a theme builder, kept by the page builder without its Pro.
+          builder: {
+            locations: { footer: { blocks, rules: [{ mode: 'include', rule: 'all' }] } },
+            kit: { logo: `${old}/harbour-150x150.jpg` },
+          },
+        },
+      },
+      {
+        db: owner.db,
+        siteId: site.id,
+        asUserId: importer,
+        media: app.get(MediaService),
+        cache: app.get(PageCacheService),
+        readFile: (file) =>
+          uploads(decodeURIComponent(/\/wp-content\/uploads\/(.+)$/.exec(file)![1]!)),
+        importPluginData: async ({ data }) => {
+          pluginData.push(data);
+          return { warnings: [] };
+        },
+      },
+    );
+    expect(result.errors).toEqual([]);
+    const [row] = await withSiteContext(owner.db, site.id, (tx) =>
+      tx
+        .select({ document: revisions.document })
+        .from(entries)
+        .innerJoin(revisions, eq(revisions.id, entries.currentRevisionId))
+        .where(eq(entries.slug, 'inline')),
+    );
+    const attrs = (row!.document as { blocks: { attrs: Record<string, string> }[] }).blocks[0]!
+      .attrs;
+    const newUrl = /src="([^"]+)" class/.exec(attrs.content!)![1]!;
+    expect(newUrl).toContain(`/media/${site.id}/`);
+    expect(attrs.content).toBe(
+      `<p><a href="https://www.partner.test/"><img src="${newUrl}" class="wp-image-10" /></a><img src="${newUrl}" srcset="${newUrl} 300w, ${newUrl} 1024w"></p><img src="${old}/gone.png">`,
+    );
+    expect(attrs._custom_css).toBe(`selector{background-image:url("${newUrl}")}`);
+    const data = JSON.stringify(pluginData[0]);
+    expect(data).not.toContain('/wp-content/uploads/2024/05/harbour');
+    expect(data).toContain(newUrl);
+    const css = await withSiteContext(owner.db, site.id, (tx) =>
+      tx
+        .select({ value: settings.value })
+        .from(settings)
+        .where(eq(settings.namespace, 'additional-css')),
+    );
+    expect(JSON.stringify(css)).toContain(`url(${newUrl})`);
+    // The image the export does not have is reported, once per document.
+    expect(result.warnings.filter((w) => w.includes('gone.png'))).toEqual([
+      `"Inline": image not imported, it still points to ${old}/gone.png.`,
+      `Settings for the plugin "builder": image not imported, it still points to ${old}/gone.png.`,
+    ]);
+  });
+
   it('keeps hierarchy, dates, drafts and the featured image', async () => {
     const visitor = new TestClient(app, wordpress.host, '10.11.0.2');
     expect((await visitor.get('/about/team')).body).toContain('Marta and friends.');
