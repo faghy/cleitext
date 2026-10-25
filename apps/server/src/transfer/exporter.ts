@@ -185,6 +185,9 @@ export async function exportSite(
         ...(typeof setting('postsPerPage') === 'number'
           ? { postsPerPage: setting('postsPerPage') as number }
           : {}),
+        ...(typeof setting('dateFormat') === 'string' && setting('dateFormat')
+          ? { dateFormat: setting('dateFormat') as string }
+          : {}),
         ...(pageRef(setting('frontPage')) ? { frontPageRef: pageRef(setting('frontPage'))! } : {}),
         ...(pageRef(setting('postsPage')) ? { postsPageRef: pageRef(setting('postsPage'))! } : {}),
         ...(additionalCss.site || additionalCss.themes ? { additionalCss } : {}),

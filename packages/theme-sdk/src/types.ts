@@ -20,6 +20,12 @@ export interface SiteInfo {
   /** IANA time zone and date style chosen in the settings. */
   timezone: string;
   dateStyle: 'long' | 'medium' | 'short';
+  /**
+   * The site's own date format, in PHP's letters as WordPress's (`F j, Y`):
+   * when set it wins over `dateStyle` (core 0.82; missing on older cores).
+   * `formatPhpDate()` of `@cleitext/shared` writes a date with it.
+   */
+  dateFormat?: string;
 }
 
 export interface LocaleLink {
@@ -315,9 +321,29 @@ export interface ThemeDefinition {
   /**
    * Turns settings exported from another system (a file the site owner
    * imports in Customize) into this theme's setting values, or null when the
-   * file is not one it knows.
+   * file is not one it knows. Since core 0.82 the values may hold
+   * `'@site': { postsPerPage?, dateFormat? }`, settings of the site the file
+   * also had (Settings → Reading and General): saved when the person may
+   * change the site's settings.
    */
   importSettings?(data: unknown): Record<string, unknown> | null;
+  /**
+   * Turns the post meta of a WordPress item imported while this theme is
+   * active (a WordPress export with the WordPress Importer) into values of
+   * this theme's `entryFields` for the entry made of it, or null (core
+   * 0.82). `meta` has each key's first value, serialized arrays as text.
+   */
+  importEntryMeta?(item: {
+    type: string;
+    meta: Record<string, string>;
+  }): Record<string, unknown> | null;
+  /**
+   * Class and id prefixes of another theme whose markup this theme uses
+   * under its own names, e.g. `{ 'old-': 'new-' }` (core 0.82): Additional
+   * CSS imported from WordPress while this theme is active is rewritten with
+   * them, in selectors only.
+   */
+  importCssPrefixes?: Record<string, string>;
   /** Give the categories and tags of the entries in lists (`entries[].terms`). */
   listTerms?: boolean;
   /** Give the previous and next entries of posts (`entry.adjacent`), for "Previous / Next" links. */

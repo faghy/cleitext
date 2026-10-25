@@ -604,6 +604,7 @@ export async function importDocument(
     if (doc.site.title) values.title = doc.site.title;
     if (doc.site.tagline) values.tagline = doc.site.tagline;
     if (doc.site.postsPerPage) values.postsPerPage = doc.site.postsPerPage;
+    if (doc.site.dateFormat) values.dateFormat = doc.site.dateFormat;
     const front = doc.site.frontPageRef && entryIds.get(doc.site.frontPageRef);
     if (front) values.frontPage = front.id;
     const posts = doc.site.postsPageRef && entryIds.get(doc.site.postsPageRef);

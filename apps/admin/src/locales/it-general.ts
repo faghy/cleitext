@@ -39,10 +39,13 @@ export const itGeneral: Messages = {
     'Contenuti, media e temi arriveranno nelle prossime versioni.',
   'Current password': 'Password attuale',
   Dashboard: 'Bacheca',
+  'Custom format': 'Formato personalizzato',
   'Date format': 'Formato data',
   'Dates on the site and scheduled publishing use this time zone.':
     'Le date del sito e le pubblicazioni programmate usano questo fuso orario.',
   Deactivate: 'Disattiva',
+  'Letters as in WordPress and PHP, e.g. F j, Y or d/m/Y.':
+    'Lettere come in WordPress e PHP, ad esempio F j, Y oppure d/m/Y.',
   default: 'predefinita',
   Details: 'Dettagli',
   'Discourage search engines': 'Scoraggia i motori di ricerca',

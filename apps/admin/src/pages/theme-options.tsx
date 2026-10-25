@@ -249,16 +249,24 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
       !data.theme
     ) {
       try {
-        const result = await api<{ values: Record<string, unknown>; skipped: number }>(
-          'POST',
-          '/themes/active/import',
-          { data },
-        );
+        const result = await api<{
+          values: Record<string, unknown>;
+          skipped: number;
+          site?: { postsPerPage?: number; dateFormat?: string };
+        }>('POST', '/themes/active/import', { data });
         setValues((v) => ({ ...(v ?? {}), ...result.values }));
+        const site = [
+          result.site?.postsPerPage &&
+            t('posts per page: {count}', { count: result.site.postsPerPage }),
+          result.site?.dateFormat && t('date format: {format}', { format: result.site.dateFormat }),
+        ].filter(Boolean);
         setNotice(
           t('{count} settings imported: check them, then publish.', {
             count: Object.keys(result.values).length,
-          }),
+          }) +
+            (site.length
+              ? ` ${t('Saved in the site settings: {list}.', { list: site.join(', ') })}`
+              : ''),
         );
       } catch (error) {
         setNotice(errorMessage(error));

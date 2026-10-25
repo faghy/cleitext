@@ -3,6 +3,7 @@ import type { CxdDocument } from '@cleitext/blocks';
 import type { ComponentType, ReactNode } from 'react';
 import { EntryCommunity } from './community.js';
 import { usePage } from './context.js';
+import { formatPhpDate } from '@cleitext/shared';
 import type {
   ChildThemeModule,
   HeadTag,
@@ -18,6 +19,7 @@ export * from './types.js';
 export { Inline, safeUrl, type RenderMedia } from '@cleitext/renderer';
 export {
   deviceValue,
+  formatPhpDate,
   googleFonts,
   zoneItems,
   type GoogleFont,
@@ -189,14 +191,15 @@ export function Menu({ items, className }: { items: MenuItemView[]; className?: 
   );
 }
 
-/** Formats an ISO date in the page's language. */
-/** A date in the site's time zone and date style. */
+/** A date in the site's time zone, with its date format (core 0.82) or else its date style. */
 export function FormattedDate({ iso }: { iso: string }) {
   const { locale, site } = usePage();
   const date = new Date(iso);
   return (
     <time dateTime={date.toISOString()}>
-      {date.toLocaleDateString(locale, { dateStyle: site.dateStyle, timeZone: site.timezone })}
+      {site.dateFormat
+        ? formatPhpDate(date, site.dateFormat, locale, site.timezone)
+        : date.toLocaleDateString(locale, { dateStyle: site.dateStyle, timeZone: site.timezone })}
     </time>
   );
 }

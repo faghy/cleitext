@@ -46,7 +46,7 @@ export default sdk.defineTheme({ slug: 'plain', name: 'Plain', version: '1.0.0',
   settings: [{ name: 'motto', type: 'text', label: 'Motto', maxLength: 20 }, { name: 'columns', type: 'number', label: 'Columns', min: 1, max: 4 }],
   areas: { note: 'Note' },
   areaDefaults: { note: { schema: 1, blocks: [{ id: 'd', type: 'core/paragraph', v: 1, attrs: {}, content: [{ text: 'Default note' }] }] } },
-  importSettings: (data) => (data && data.oldTheme ? { motto: data.oldTheme.motto, columns: data.oldTheme.columns } : null) });
+  importSettings: (data) => (data && data.oldTheme ? { motto: data.oldTheme.motto, columns: data.oldTheme.columns, ...(data.oldTheme.site ? { '@site': data.oldTheme.site } : {}) } : null) });
 `,
   );
   // A broken one is reported, not fatal.
@@ -304,6 +304,17 @@ describe('settings of another system', () => {
       expect(res.statusCode).toBe(200);
       // Values that fail validation (9 columns) are left out.
       expect(res.json()).toEqual({ values: { motto: 'From the old site' }, skipped: 1 });
+      // Site settings the file also had (core 0.82): saved, the valid ones.
+      const withSite = await admin.post('/api/v1/themes/active/import', {
+        data: { oldTheme: { motto: 'Again', site: { postsPerPage: 6, dateFormat: 'F j, Y' } } },
+      });
+      expect(withSite.json()).toEqual({
+        values: { motto: 'Again' },
+        skipped: 0,
+        site: { postsPerPage: 6, dateFormat: 'F j, Y' },
+      });
+      const core = (await admin.get('/api/v1/settings/core')).json();
+      expect(core).toMatchObject({ postsPerPage: 6, dateFormat: 'F j, Y' });
       const other = await admin.post('/api/v1/themes/active/import', { data: { other: true } });
       expect(other.statusCode).toBe(400);
       const denied = await editor.post('/api/v1/themes/active/import', { data: {} });

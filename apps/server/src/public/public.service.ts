@@ -2049,6 +2049,7 @@ export class PublicService {
         origin: scope.origin,
         timezone: scope.settings.timezone,
         dateStyle: scope.settings.dateStyle,
+        ...(scope.settings.dateFormat ? { dateFormat: scope.settings.dateFormat } : {}),
       },
       locale,
       locales,

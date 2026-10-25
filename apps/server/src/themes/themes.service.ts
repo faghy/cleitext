@@ -3,7 +3,9 @@ import { settings, sites, withContext, type DatabaseClient } from '@cleitext/db'
 import {
   additionalCssProblem,
   ADDITIONAL_CSS_MAX,
+  coreSettingsSchema,
   fieldsValidator,
+  type CoreSettings,
   type AdditionalCssView,
   type FieldDefinition,
   type LicenseView,
@@ -260,7 +262,11 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     siteId: string,
     auth: AuthContext,
     data: unknown,
-  ): Promise<{ values: Record<string, unknown>; skipped: number }> {
+  ): Promise<{
+    values: Record<string, unknown>;
+    skipped: number;
+    site?: Partial<Pick<CoreSettings, 'postsPerPage' | 'dateFormat'>>;
+  }> {
     const theme = await this.activeTheme(siteId, auth);
     const converted = theme.importSettings?.(data) ?? null;
     if (!converted) {
@@ -274,6 +280,12 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       const one = fieldsValidator([field]).safeParse({ [field.name]: converted[field.name] });
       if (one.success) values[field.name] = converted[field.name];
       else skipped++;
+    }
+    // Settings of the site the file also had (core 0.82): saved now, for those who may.
+    const site = importedSiteSettings(converted['@site']);
+    if (site && auth.capabilities.includes('manage_settings') && auth.userId) {
+      await this.coreSettings.updateCore(siteId, auth.userId, site);
+      return { values, skipped, site };
     }
     return { values, skipped };
   }
@@ -491,4 +503,18 @@ function paidView(slug: string, licenses: ReadonlyMap<string, LicenseView>): The
   return paid
     ? { purchaseUrl: paid.purchaseUrl ?? null, license: licenses.get(slug) ?? null }
     : null;
+}
+
+/** The site settings a theme's import may set (`'@site'`), those that are valid. */
+export function importedSiteSettings(
+  value: unknown,
+): Partial<Pick<CoreSettings, 'postsPerPage' | 'dateFormat'>> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const input = value as Record<string, unknown>;
+  const out: Partial<Pick<CoreSettings, 'postsPerPage' | 'dateFormat'>> = {};
+  const perPage = coreSettingsSchema.shape.postsPerPage.safeParse(input.postsPerPage);
+  if (perPage.success) out.postsPerPage = perPage.data;
+  const format = coreSettingsSchema.shape.dateFormat.safeParse(input.dateFormat);
+  if (format.success && format.data) out.dateFormat = format.data;
+  return Object.keys(out).length ? out : null;
 }

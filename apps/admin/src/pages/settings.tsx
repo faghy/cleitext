@@ -1,5 +1,6 @@
 import { FieldsForm } from '@cleitext/admin-sdk';
 import {
+  formatPhpDate,
   labelText,
   type CoreSettings,
   type EntryListResponse,
@@ -328,16 +329,38 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
               <span className="block font-medium text-slate-800">{t('Date format')}</span>
               <select
                 className={selectClass}
-                value={values.dateStyle}
-                onChange={(e) => set('dateStyle', e.target.value as CoreSettings['dateStyle'])}
+                value={values.dateFormat ? 'custom' : values.dateStyle}
+                onChange={(e) => {
+                  if (e.target.value === 'custom') {
+                    set('dateFormat', values.dateFormat || 'F j, Y');
+                    return;
+                  }
+                  set('dateFormat', '');
+                  set('dateStyle', e.target.value as CoreSettings['dateStyle']);
+                }}
               >
                 {(['long', 'medium', 'short'] as const).map((style) => (
                   <option key={style} value={style}>
                     {new Date().toLocaleDateString(me.site.defaultLocale, { dateStyle: style })}
                   </option>
                 ))}
+                <option value="custom">{t('Custom format')}</option>
               </select>
             </label>
+            {values.dateFormat && (
+              <TextField
+                label={t('Custom format')}
+                value={values.dateFormat}
+                maxLength={64}
+                onChange={(e) => set('dateFormat', e.target.value)}
+                hint={`${t('Letters as in WordPress and PHP, e.g. F j, Y or d/m/Y.')} ${formatPhpDate(
+                  new Date(),
+                  values.dateFormat,
+                  me.site.defaultLocale,
+                  values.timezone,
+                )}`}
+              />
+            )}
           </div>
         </Card>
 

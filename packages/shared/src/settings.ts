@@ -26,6 +26,12 @@ const coreSettingsFields = {
   /** How dates are written on the site. */
   dateStyle: z.enum(['long', 'medium', 'short']),
   /**
+   * A date format of its own, written with PHP's letters as WordPress's
+   * (`F j, Y`, `d/m/Y`): it wins over `dateStyle` when set (core 0.82).
+   * Empty: the date style.
+   */
+  dateFormat: z.string().trim().max(64),
+  /**
    * The editor new entries of a content type open with, by content type
    * slug: a plugin editor's id (e.g. `fresco`). Missing: the block editor.
    */
@@ -129,6 +135,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   trashDays: 30,
   timezone: 'UTC',
   dateStyle: 'long',
+  dateFormat: '',
   defaultEditors: {},
   mcp: false,
   installReport: true,

@@ -149,6 +149,8 @@ export const transferDocumentSchema = z.object({
       title: z.string().max(200).optional(),
       tagline: z.string().max(300).optional(),
       postsPerPage: z.number().int().min(1).max(100).optional(),
+      /** The date format in PHP's letters, as WordPress's `date_format` (core 0.82). */
+      dateFormat: z.string().trim().max(64).optional(),
       frontPageRef: ref.optional(),
       postsPageRef: ref.optional(),
       /** Additional CSS of Customize (core 0.79): for every theme, and per theme slug. */

@@ -396,6 +396,9 @@ export const itContent: Messages = {
   Back: 'Indietro',
   More: 'Altro',
   'Close customizer': 'Chiudi il personalizzatore',
+  'posts per page: {count}': 'articoli per pagina: {count}',
+  'date format: {format}': 'formato della data: {format}',
+  'Saved in the site settings: {list}.': 'Salvati nelle impostazioni del sito: {list}.',
   '{count} settings imported: check them, then publish.':
     '{count} impostazioni importate: controllale, poi pubblica.',
   'Maintenance mode': 'Modalità manutenzione',

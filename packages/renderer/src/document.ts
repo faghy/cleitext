@@ -48,13 +48,35 @@ export function firstImage(
   };
 }
 
-/** Plain-text excerpt from the first paragraphs (meta description). */
+/** A web address alone (an embed, as WordPress turns a URL on its own line into a player). */
+const BARE_URL = /^<?https?:\/\/\S+>?$/i;
+/** Shortcodes (`[embed]…[/embed]`, `[gallery ids="1"]`): WordPress leaves them out of excerpts. */
+const SHORTCODE = /\[(\/?)([a-z][\w-]*)(?:\s[^\]]*)?\]/gi;
+
+/** A paragraph's words as an excerpt shows them: none for an embed or shortcodes alone. */
+function excerptText(text: string): string {
+  const withoutEmbeds = text.replace(
+    /\[(embed|video|audio|caption)(?:\s[^\]]*)?\][\s\S]*?\[\/\1\]/gi,
+    ' ',
+  );
+  const words = withoutEmbeds.replace(SHORTCODE, ' ').replace(/\s+/g, ' ').trim();
+  return BARE_URL.test(words) ? '' : words;
+}
+
+/**
+ * Plain-text excerpt from the first paragraphs (meta description, lists of
+ * posts). As WordPress's automatic excerpts, without embeds: a paragraph
+ * holding only a web address (a video) or shortcodes adds nothing.
+ */
 export function documentExcerpt(doc: CxdDocument | null | undefined, maxLength = 160): string {
   const parts: string[] = [];
   const walk = (blocks: CxdBlock[]) => {
     for (const block of blocks) {
       if (parts.join(' ').length >= maxLength) return;
-      if (block.type === 'core/paragraph' && block.content) parts.push(inlineText(block.content));
+      if (block.type === 'core/paragraph' && block.content) {
+        const text = excerptText(inlineText(block.content));
+        if (text) parts.push(text);
+      }
       if (block.children) walk(block.children);
     }
   };
