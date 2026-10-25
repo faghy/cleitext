@@ -189,6 +189,7 @@ function spacing(
   property: 'margin' | 'padding',
   defaults: Record<DiviDevice, Sides>,
   always = false,
+  percentToVw = false,
 ): void {
   const values = responsive(attrs, from);
   const resolved: Partial<Record<DiviDevice, Sides>> = {};
@@ -198,7 +199,11 @@ function spacing(
     const raw = values[device];
     const mine = raw !== undefined ? sides(raw) : [];
     own = [0, 1, 2, 3].map((i) => mine[i] ?? own[i]) as typeof own;
-    const box = [0, 1, 2, 3].map((i) => own[i] ?? defaults[device][i]) as Sides;
+    const box = [0, 1, 2, 3].map((i) => {
+      const side = own[i] ?? defaults[device][i]!;
+      // A share of the page's width (full-width sections), whatever the box they are drawn in.
+      return percentToVw && side.endsWith('%') ? `${side.slice(0, -1)}vw` : side;
+    }) as Sides;
     if (!previous || box.some((side, i) => side !== previous![i])) resolved[device] = box;
     previous = box;
   }
@@ -232,6 +237,89 @@ function spacing(
 
 const ZERO: Sides = ['0', '0', '0', '0'];
 const same = (box: Sides): Record<DiviDevice, Sides> => ({ desktop: box, tablet: box, phone: box });
+
+/** The top side of a spacing setting on each device (a device without its own keeps the larger's). */
+function topSide(attrs: DiviAttrs, name: string): Record<DiviDevice, string | undefined> {
+  const values = responsive(attrs, name);
+  const out = {} as Record<DiviDevice, string | undefined>;
+  let previous: string | undefined;
+  for (const device of DIVI_DEVICES) {
+    const raw = values[device];
+    previous = (raw !== undefined ? sides(raw)[0] : undefined) ?? previous;
+    out[device] = previous;
+  }
+  return out;
+}
+
+/** A spacing setting (`top|right|bottom|left|…`) with another top side. */
+function withTop(value: unknown, top: string): string {
+  const parts = str(value).split('|');
+  while (parts.length < 4) parts.push('');
+  parts[0] = top;
+  return parts.join('|');
+}
+
+/**
+ * Two margins that collapse into one, as CSS does: the larger positive one
+ * plus the most negative one (`calc()`, `max()` or `min()` across units).
+ */
+function adjoin(a: string | undefined, b: string | undefined): string {
+  const x = length(a);
+  const y = length(b);
+  if (!x || x.size === 0) return b && y ? b : (a ?? '0');
+  if (!y || y.size === 0) return a!;
+  if (x.unit === y.unit) {
+    const size =
+      x.size > 0 && y.size > 0
+        ? Math.max(x.size, y.size)
+        : x.size < 0 && y.size < 0
+          ? Math.min(x.size, y.size)
+          : x.size + y.size;
+    return size === 0 ? '0' : `${round(size)}${x.unit}`;
+  }
+  if (x.size > 0 && y.size > 0) return `max(${a}, ${b})`;
+  if (x.size < 0 && y.size < 0) return `min(${a}, ${b})`;
+  return `calc(${a} + ${b})`;
+}
+
+/**
+ * Divi's sections are blocks: with no padding or border at their top, the
+ * top margin of their first row collapses through them and shows the page
+ * above the section's background. Fresco's containers keep it inside, so it
+ * moves to the section: the section's and the row's settings, or null when
+ * nothing collapses.
+ */
+function collapseTop(section: DiviAttrs, row: DiviAttrs): [DiviAttrs, DiviAttrs] | null {
+  const padding = topSide(section, 'custom_padding');
+  const sectionMargin = topSide(section, 'custom_margin');
+  const rowMargin = topSide(row, 'custom_margin');
+  const zero = (value: string | undefined) => value !== undefined && length(value)?.size === 0;
+  if (!DIVI_DEVICES.every((device) => zero(padding[device]))) return null;
+  if (DIVI_DEVICES.every((device) => !rowMargin[device] || zero(rowMargin[device]))) return null;
+  const edge = border(section);
+  if (edge && edge.widths[0] !== '0') return null;
+  const own = responsive(section, 'custom_margin');
+  const top = (device: DiviDevice) => adjoin(sectionMargin[device], rowMargin[device]);
+  const outSection: DiviAttrs = {
+    ...section,
+    custom_margin: withTop(section.custom_margin, top('desktop')),
+  };
+  const outRow: DiviAttrs = { ...row, custom_margin: withTop(row.custom_margin, '0') };
+  if (top('tablet') !== top('desktop') || top('phone') !== top('desktop')) {
+    outSection.custom_margin_last_edited = 'on|desktop';
+    for (const device of ['tablet', 'phone'] as const) {
+      outSection[`custom_margin_${device}`] = withTop(
+        own[device] ?? (device === 'phone' ? own.tablet : undefined) ?? own.desktop,
+        top(device),
+      );
+    }
+  }
+  for (const device of ['tablet', 'phone'] as const) {
+    if (row[`custom_margin_${device}`])
+      outRow[`custom_margin_${device}`] = withTop(row[`custom_margin_${device}`], '0');
+  }
+  return [outSection, outRow];
+}
 
 // ---- Borders ---------------------------------------------------------------------------------
 
@@ -802,7 +890,9 @@ const TEXT_RESET =
   'selector .fr-text__body :is(p,h1,h2,h3,h4,h5,h6){margin-top:0;margin-bottom:0}' +
   'selector .fr-text__body p{padding-bottom:1em}' +
   'selector .fr-text__body p:last-child{padding-bottom:0}' +
-  'selector .fr-text__body :is(h1,h2,h3,h4,h5,h6){padding-bottom:10px;line-height:1em}';
+  'selector .fr-text__body :is(h1,h2,h3,h4,h5,h6){padding-bottom:10px;line-height:1em;text-wrap:wrap}';
+/** Divi's headings break lines where they fill up (themes may balance them). */
+const HEADING_WRAP = 'selector .fr-heading__title{text-wrap:wrap}';
 const LIST_RESET =
   'selector .fr-text__body :is(ul,ol){margin:0;padding:0 0 23px 1em;line-height:26px}' +
   'selector .fr-text__body ul{list-style-type:disc}';
@@ -983,6 +1073,8 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
     perDevice(out, attrs, 'title_text_align', 'align', (v) => ALIGN[v]);
     const shadow = textShadowCss(attrs, 'title');
     if (shadow) addCss(out, `selector .fr-heading__title{text-shadow:${shadow}}`);
+    // Divi's headings keep 10px under them (its h1–h6 rule).
+    addCss(out, 'selector .fr-heading__title{padding-bottom:10px;text-wrap:wrap}');
     moduleCommon(out, attrs, gap);
     return c.node('heading', out);
   };
@@ -1221,6 +1313,7 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
       out.title_color ??= '#ffffff';
       out.description_color ??= '#ffffff';
     }
+    addCss(out, 'selector .fr-box__title{text-wrap:wrap}');
     const maxWidth = cssLength(attrs.content_max_width) ?? '550px';
     addCss(out, `selector .fr-box{max-width:${maxWidth};margin-left:auto;margin-right:auto}`);
     moduleCommon(out, attrs, gap, {
@@ -1344,7 +1437,7 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
     if (dark(attrs)) out.title_color ??= '#ffffff';
     const shadow = textShadowCss(attrs, 'title');
     if (shadow) addCss(out, `selector .fr-heading__title{text-shadow:${shadow}}`);
-    addCss(out, 'selector .fr-heading__title{padding-bottom:10px}');
+    addCss(out, 'selector .fr-heading__title{padding-bottom:10px;text-wrap:wrap}');
     if (str(attrs.meta) !== 'off')
       c.note('the post information under titles (author, date) was left out');
     moduleCommon(out, attrs, gap);
@@ -1439,6 +1532,7 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
       if (!out.title_typography_family) out.title_theme_font = true;
       perDevice(out, attrs, 'title_text_align', 'align', (v) => ALIGN[v]);
       out.align ??= align;
+      addCss(out, HEADING_WRAP);
       children.push(c.node('heading', out));
     }
     if (str(attrs.subhead).trim()) {
@@ -1703,16 +1797,17 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
     }
     if (!specialty) {
       perDevice(out, attrs, 'min_height', 'min_height', (v) => length(v));
-      const vertical = rowPadding;
+      // Rows: a share of the section (`row_padding`, 2%) on desktops; inner rows keep
+      // Divi's 30px there too (as on tablets and phones).
+      const vertical = inner ? '30px' : `${rowPadding}%`;
       spacing(
         out,
         attrs,
         'custom_padding',
         '_padding',
         'padding',
-        // Rows and inner rows alike (Divi's `.et_pb_row, .et_pb_column .et_pb_row_inner`).
         {
-          desktop: [`${vertical}%`, '0', `${vertical}%`, '0'],
+          desktop: [vertical, '0', vertical, '0'],
           tablet: ['30px', '0', '30px', '0'],
           phone: ['30px', '0', '30px', '0'],
         },
@@ -1738,9 +1833,19 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
 
   /** A section: full width, Divi's padding, its background; its rows (or columns) inside. */
   const section = (node: DiviNode): CxdBlock => {
-    const attrs = withPreset(node);
-    const fullwidth = on(attrs.fullwidth);
-    const specialty = on(attrs.specialty);
+    const fullwidth = on(withPreset(node).fullwidth);
+    const specialty = on(withPreset(node).specialty);
+    const rows = node.children.filter(
+      (child) => !(child.tag.startsWith('et_pb_row') && on(withPreset(child).disabled)),
+    );
+    const first = rows[0];
+    const collapsed =
+      !fullwidth && !specialty && first?.tag === 'et_pb_row'
+        ? collapseTop(withPreset(node), withPreset(first))
+        : null;
+    const attrs = collapsed ? collapsed[0] : withPreset(node);
+    const rowOf = (child: DiviNode) =>
+      collapsed && child === first ? { ...child, attrs: collapsed[1] } : child;
     const out: Settings = {
       content_width: 'full',
       flex_direction: 'column',
@@ -1754,8 +1859,18 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
           tablet: ['50px', '0', '50px', '0'] as Sides,
           phone: ['50px', '0', '50px', '0'] as Sides,
         };
-    spacing(out, attrs, 'custom_padding', '_padding', 'padding', padding, true);
-    spacing(out, attrs, 'custom_margin', '_margin', 'margin', same(ZERO));
+    // A section as wide as the page: its shares (4%…) are of the page, not of the content box.
+    const pageWide = DIVI_DEVICES.every((device) => {
+      const width = length(responsive(attrs, 'width')[device]);
+      const max = responsive(attrs, 'max_width')[device];
+      const maxLength = length(max);
+      return (
+        (!width || (width.size === 100 && width.unit === '%')) &&
+        (!max || max === 'none' || (maxLength?.size === 100 && maxLength.unit === '%'))
+      );
+    });
+    spacing(out, attrs, 'custom_padding', '_padding', 'padding', padding, true, pageWide);
+    spacing(out, attrs, 'custom_margin', '_margin', 'margin', same(ZERO), false, pageWide);
     perDevice(out, attrs, 'min_height', 'min_height', (v) => length(v));
     perDevice(out, attrs, 'width', 'width', (v) => length(v));
     perDevice(out, attrs, 'max_width', '_max_width', (v) => (v === 'none' ? undefined : length(v)));
@@ -1764,6 +1879,9 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
     const s = boxShadow(attrs);
     if (s) out.shadow = s;
     common(c, out, attrs);
+    // Pulled up over the section before it: drawn over it, as Divi's later sections are.
+    const top = topSide(attrs, 'custom_margin').desktop ?? '';
+    if (out._z_index === undefined && /^(-|calc\(-)|\+ -/.test(top)) out._z_index = 1;
     dividers(out, attrs);
     let children: CxdBlock[];
     if (fullwidth) {
@@ -1777,11 +1895,9 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
       };
       children = [row(implied, pageGutter, 100, undefined, attrs)];
     } else {
-      children = node.children.flatMap((child) =>
+      children = rows.flatMap((child) =>
         child.tag === 'et_pb_row' || child.tag === 'et_pb_row_inner'
-          ? on(withPreset(child).disabled)
-            ? []
-            : [row(child, pageGutter, 100)]
+          ? [row(rowOf(child), pageGutter, 100)]
           : module(child, null, 100),
       );
     }
@@ -1867,8 +1983,9 @@ const DIVIDER_SHAPES: Record<string, { name: string; flip: boolean; negative?: b
   asymmetric4: { name: 'mountains', flip: true },
   clouds: { name: 'clouds', flip: false },
   clouds2: { name: 'clouds', flip: true },
-  curve: { name: 'curve', flip: false },
-  curve2: { name: 'curve-asymmetrical', flip: false },
+  // Divi's curves are hollow: the color rises at the sides (Fresco's inverted curves).
+  curve: { name: 'curve', flip: false, negative: true },
+  curve2: { name: 'curve-asymmetrical', flip: false, negative: true },
   graph: { name: 'opacity-tilt', flip: false },
   graph2: { name: 'opacity-tilt', flip: true },
   graph3: { name: 'tilt', flip: false },

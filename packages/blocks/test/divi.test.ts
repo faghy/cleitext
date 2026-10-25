@@ -247,7 +247,7 @@ describe('Divi layouts', () => {
       min_height: { size: 468, unit: 'px' },
       shadow: { x: 0, y: 32, blur: 48, spread: -32, color: 'rgba(0,0,0,0.16)' },
     });
-    expect(css(inner)).toContain('selector{padding:2% 60px 6vw 60px}');
+    expect(css(inner)).toContain('selector{padding:30px 60px 6vw 60px}');
     expect(css(inner)).toContain('@media (max-width:980px){selector{padding:30px 40px 8vw 40px}}');
     expect(css(inner)).toContain('@media (max-width:767px){selector{padding:30px 20px 8vw 20px}}');
     expect(inner.children![0]!.attrs._padding).toMatchObject({ top: 30, unit: 'px' });
@@ -268,8 +268,10 @@ describe('Divi layouts', () => {
       gap: { size: 5.5, unit: '%' },
       'gap@tablet': { size: 30, unit: 'px' },
       align_items: 'stretch',
-      _margin: { top: 10, unit: 'vw' },
     });
+    // The row's top margin collapses through the section (no padding at its top), as in Divi.
+    expect(rows[0]!.attrs._margin).toBeUndefined();
+    expect(blocks[1]!.attrs._margin).toMatchObject({ top: 10, unit: 'vw' });
     const [left, right] = rows[0]!.children!;
     expect(left!.attrs.width).toEqual({ size: 36.7, unit: '%' });
     expect(right!.attrs.width).toEqual({ size: 57.8, unit: '%' });
@@ -646,6 +648,109 @@ describe('Divi layouts', () => {
     expect(first!.attrs).toMatchObject({ text: 'Click here', link: { url: 'https://x.example/' } });
     expect(second!.attrs.link).toEqual({ url: '#' });
     expect(w4).toContain('the dynamic content "post_date" was left out.');
+  });
+});
+
+describe('Divi layouts, as WordPress draws them', () => {
+  const convert = (layout: string) => diviToFresco(layout, context().ctx)!;
+  const row = (attrs = '', content = '[et_pb_text]<p>x</p>[/et_pb_text]') =>
+    `[et_pb_row${attrs}][et_pb_column type="4_4"]${content}[/et_pb_column][/et_pb_row]`;
+
+  it('gives full-width sections shares of the page, not of the content box', () => {
+    const [plain, narrow] = convert(
+      `[et_pb_section custom_padding="2%||||"]${row()}[/et_pb_section]` +
+        `[et_pb_section width="80%"]${row()}[/et_pb_section]`,
+    );
+    expect(css(plain!)).toContain('selector{padding:2vw 0 4vw 0}');
+    expect(css(plain!)).toContain('@media (max-width:980px){selector{padding:2vw 0 50px 0}}');
+    expect(narrow!.attrs._padding).toMatchObject({ top: 4, bottom: 4, unit: '%' });
+  });
+
+  it('moves the top margin of a first row through a section without top padding', () => {
+    const [section] = convert(
+      `[et_pb_section custom_padding="0px||0px|||"]${row(' custom_margin="10vw||||false|false"')}${row(' custom_margin="5px||||"')}[/et_pb_section]`,
+    );
+    expect(section!.attrs._margin).toMatchObject({ top: 10, unit: 'vw' });
+    const [first, second] = section!.children!;
+    expect(first!.attrs._margin).toBeUndefined();
+    expect(second!.attrs._margin).toMatchObject({ top: 5, unit: 'px' });
+    // With padding at its top, it stays in the section.
+    const [padded] = convert(`[et_pb_section]${row(' custom_margin="10vw||||"')}[/et_pb_section]`);
+    expect(padded!.attrs._margin).toBeUndefined();
+    expect(padded!.children![0]!.attrs._margin).toMatchObject({ top: 10, unit: 'vw' });
+    // Nor with a border at its top.
+    const [bordered] = convert(
+      `[et_pb_section custom_padding="0px||0px||" border_width_all="2px"]${row(' custom_margin="10px||||"')}[/et_pb_section]`,
+    );
+    expect(bordered!.children![0]!.attrs._margin).toMatchObject({ top: 10, unit: 'px' });
+  });
+
+  it('adds up the margins that collapse, per device and across units', () => {
+    const [pulled, sum, larger, smaller, devices] = convert(
+      `[et_pb_section custom_padding="0px||0px||" custom_margin="-148px||||"]${row(' custom_margin="10vw||||"')}[/et_pb_section]` +
+        `[et_pb_section custom_padding="0px||||" custom_margin="-40px||||"]${row(' custom_margin="10px||||"')}[/et_pb_section]` +
+        `[et_pb_section custom_padding="0px||||" custom_margin="20px||||"]${row(' custom_margin="2vw||||"')}[/et_pb_section]` +
+        `[et_pb_section custom_padding="0px||||" custom_margin="-20px||||"]${row(' custom_margin="-2vw||||"')}[/et_pb_section]` +
+        `[et_pb_section custom_padding="0px||||" custom_margin_tablet="||||" custom_margin_last_edited="on|tablet"]${row(' custom_margin="40px||||" custom_margin_tablet="20px||||" custom_margin_phone="0px||||" custom_margin_last_edited="on|phone"')}[/et_pb_section]`,
+    );
+    expect(css(pulled!)).toContain('selector{margin:calc(-148px + 10vw) 0 0 0}');
+    // Drawn over the section above it, as Divi's later sections are.
+    expect(pulled!.attrs._z_index).toBe(1);
+    expect(sum!.attrs._margin).toMatchObject({ top: -30, unit: 'px' });
+    expect(sum!.attrs._z_index).toBe(1);
+    expect(css(larger!)).toContain('selector{margin:max(20px, 2vw) 0 0 0}');
+    expect(larger!.attrs._z_index).toBeUndefined();
+    expect(css(smaller!)).toContain('selector{margin:min(-20px, -2vw) 0 0 0}');
+    expect(devices!.attrs).toMatchObject({
+      _margin: { top: 40, unit: 'px' },
+      '_margin@tablet': { top: 20, unit: 'px' },
+      '_margin@mobile': { top: 0, unit: 'px' },
+    });
+    expect(devices!.children![0]!.attrs._margin).toBeUndefined();
+  });
+
+  it('keeps 30px above and under inner rows on every device', () => {
+    const [section] = convert(
+      `[et_pb_section specialty="on"][et_pb_column type="1_2"][et_pb_text]a[/et_pb_text][/et_pb_column][et_pb_column type="1_2" specialty_columns="2"][et_pb_row_inner][et_pb_column_inner saved_specialty_column_type="1_2"][et_pb_text]b[/et_pb_text][/et_pb_column_inner][/et_pb_row_inner][/et_pb_column][/et_pb_section]`,
+    );
+    const inner = all([section!]).find(
+      (b) =>
+        b.children?.length === 1 && b.attrs['flex_direction@tablet'] === 'column' && !b.attrs.width,
+    );
+    expect(inner!.attrs._padding).toMatchObject({ top: 30, bottom: 30, unit: 'px' });
+  });
+
+  it('breaks headings where they fill up, with Divi’s space under them', () => {
+    const blocks = convert(
+      `[et_pb_section]${row('', '[et_pb_text]<h2>A long title</h2>[/et_pb_text][et_pb_heading title="Values" title_level="h3"][/et_pb_heading][et_pb_blurb title="Phone"]<p>1</p>[/et_pb_blurb][et_pb_post_title meta="off"][/et_pb_post_title]')}[/et_pb_section]` +
+        '[et_pb_section fullwidth="on"][et_pb_fullwidth_header title="Hi"][/et_pb_fullwidth_header][/et_pb_section]',
+    );
+    expect(css(ofType(blocks, 'text')[0]!)).toContain('line-height:1em;text-wrap:wrap}');
+    const [heading, postTitle, header] = ofType(blocks, 'heading');
+    expect(css(heading!)).toContain(
+      'selector .fr-heading__title{padding-bottom:10px;text-wrap:wrap}',
+    );
+    expect(css(postTitle!)).toContain('text-wrap:wrap');
+    expect(css(header!)).toContain('selector .fr-heading__title{text-wrap:wrap}');
+    expect(css(ofType(blocks, 'image-box')[0]!)).toContain(
+      'selector .fr-box__title{text-wrap:wrap}',
+    );
+  });
+
+  it('draws Divi’s hollow curves as Fresco’s inverted ones', () => {
+    const [section] = convert(
+      `[et_pb_section bottom_divider_style="curve" bottom_divider_color="#002D4C" bottom_divider_arrangement="above_content" bottom_divider_height_phone="41px" bottom_divider_height_last_edited="on|phone" top_divider_style="curve2"]${row()}[/et_pb_section]`,
+    );
+    expect(section!.attrs).toMatchObject({
+      shape_bottom: 'curve',
+      shape_bottom_negative: true,
+      shape_bottom_front: true,
+      shape_bottom_color: '#002D4C',
+      shape_bottom_height: { size: 100, unit: 'px' },
+      'shape_bottom_height@mobile': { size: 41, unit: 'px' },
+      shape_top: 'curve-asymmetrical',
+      shape_top_negative: true,
+    });
   });
 });
 

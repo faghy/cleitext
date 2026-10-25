@@ -404,6 +404,19 @@ describe('sanitizeRich', () => {
     );
   });
 
+  it('keeps the size, spacing and color of rules (<hr>) only', () => {
+    expect(
+      sanitizeRich(
+        '<hr style="width: 50px; margin: 20px auto; border-color: #ddd; position: absolute"><p style="width: 50px; margin: 0 auto">x</p>',
+      ),
+    ).toBe('<hr style="width: 50px; margin: 20px auto; border-color: #ddd"><p>x</p>');
+    expect(
+      sanitizeRich(
+        '<hr style="width: calc(1px); margin: 1px 2px 3px 4px 5px; border-width: 2px; border-style: dashed; height: url(x)">',
+      ),
+    ).toBe('<hr style="border-width: 2px; border-style: dashed">');
+  });
+
   it('closes what was left open and escapes text', () => {
     expect(sanitizeRich('<p><strong>bold <em>both</p>')).toBe(
       '<p><strong>bold <em>both</em></strong></p>',

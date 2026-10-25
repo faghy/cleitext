@@ -81,14 +81,36 @@ const STYLE_RULES: Record<string, RegExp> = {
   'font-size': /^\d{1,3}(\.\d{1,3})?(px|em|rem|%|pt|vw)$/,
 };
 
-export function safeStyle(value: string): string | null {
+const LENGTH = /^(0|auto|-?\d{1,4}(\.\d{1,3})?(px|em|rem|%|vw))$/;
+const COLOR_VALUE = STYLE_RULES.color!;
+
+/** Rules (Fresco 2.11.2) only some tags keep: the size, spacing and color of a rule (`<hr>`). */
+const TAG_STYLE_RULES: Record<string, Record<string, RegExp>> = {
+  hr: {
+    width: LENGTH,
+    'max-width': LENGTH,
+    height: LENGTH,
+    margin:
+      /^(0|auto|-?\d{1,4}(\.\d{1,3})?(px|em|rem|%|vw))(\s+(0|auto|-?\d{1,4}(\.\d{1,3})?(px|em|rem|%|vw))){0,3}$/,
+    'margin-top': LENGTH,
+    'margin-bottom': LENGTH,
+    'margin-left': LENGTH,
+    'margin-right': LENGTH,
+    'border-color': COLOR_VALUE,
+    'border-style': /^(none|solid|dashed|dotted|double)$/,
+    'border-width': /^(0|\d{1,2}(\.\d{1,2})?px)$/,
+  },
+};
+
+export function safeStyle(value: string, tag = ''): string | null {
+  const own = TAG_STYLE_RULES[tag];
   const kept: string[] = [];
   for (const declaration of value.split(';')) {
     const at = declaration.indexOf(':');
     if (at === -1) continue;
     const prop = declaration.slice(0, at).trim().toLowerCase();
     const val = declaration.slice(at + 1).trim();
-    if (STYLE_RULES[prop]?.test(val)) kept.push(`${prop}: ${val}`);
+    if (STYLE_RULES[prop]?.test(val) || own?.[prop]?.test(val)) kept.push(`${prop}: ${val}`);
   }
   return kept.length ? kept.join('; ') : null;
 }
@@ -96,7 +118,7 @@ export function safeStyle(value: string): string | null {
 function attribute(tag: string, name: string, value: string): string | null {
   const key = name.toLowerCase();
   if (key === 'style') {
-    const style = safeStyle(value);
+    const style = safeStyle(value, tag);
     return style ? `style="${escapeAttr(style)}"` : null;
   }
   if (!COMMON.has(key) && !BY_TAG[tag]?.has(key)) return null;
