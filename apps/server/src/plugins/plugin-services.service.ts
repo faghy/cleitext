@@ -248,10 +248,18 @@ export class PluginServicesProvider implements PluginServices {
   }
 
   async site(siteId: string): Promise<PluginSite> {
-    const { site, trailingSlash } = await withContext(this.database.db, { siteId }, async (tx) => {
-      const [row] = await tx.select().from(sites).where(eq(sites.id, siteId));
-      return { site: row, trailingSlash: await trailingSlashIn(tx) };
-    });
+    const { site, trailingSlash, timezone } = await withContext(
+      this.database.db,
+      { siteId },
+      async (tx) => {
+        const [row] = await tx.select().from(sites).where(eq(sites.id, siteId));
+        const [zone] = await tx
+          .select({ value: settings.value })
+          .from(settings)
+          .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'timezone')));
+        return { site: row, trailingSlash: await trailingSlashIn(tx), timezone: zone?.value };
+      },
+    );
     const defaultLocale = site?.defaultLocale ?? 'en';
     return {
       id: siteId,
@@ -259,6 +267,8 @@ export class PluginServicesProvider implements PluginServices {
       defaultLocale,
       locales: (await this.languages.locales(siteId, defaultLocale)).map((l) => l.code),
       trailingSlash,
+      // The zone of Settings → General, as the admin shows it (core 0.81).
+      timezone: typeof timezone === 'string' && timezone ? timezone : (site?.timezone ?? 'UTC'),
     };
   }
 

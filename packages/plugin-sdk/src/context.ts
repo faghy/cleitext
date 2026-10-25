@@ -48,6 +48,11 @@ export interface PluginSite {
    * setting; plugin API 1.37). Missing on older cores.
    */
   trailingSlash?: boolean;
+  /**
+   * The site's time zone (Settings → General), e.g. `Europe/Rome`; `UTC`
+   * when none is set (core 0.81). Missing on older cores.
+   */
+  timezone?: string;
 }
 
 export interface PluginLogger {

@@ -1,0 +1,107 @@
+{
+  "settings": {
+    "global": {
+      "timezone_string": "Europe/Rome",
+      "start_of_week": "1",
+      "admin_email": "studio@example.test"
+    },
+    "blackout_dates": { "enabled": true, "dates": ["2030-08-15", "not-a-date"] }
+  },
+  "appointment_types": [
+    {
+      "id": "1",
+      "title": "Consulenza online",
+      "slug": "consulenza-online",
+      "description": "Un colloquio via video.",
+      "duration": "50",
+      "buffer_before": "80",
+      "buffer_after": "10",
+      "min_booking_notice": "1440",
+      "max_booking_notice": "525600",
+      "availability_type": "start_times",
+      "availability_increment": "15",
+      "availability": {
+        "Monday": [{ "time_start": "", "time_end": "" }],
+        "Thursday": [
+          { "time_start": "13:00:00", "time_end": "13:50:00" },
+          { "time_start": "14:15:00", "time_end": "15:05:00" },
+          { "time_start": "15:30:00", "time_end": "16:20:00" }
+        ]
+      },
+      "capacity": "1",
+      "capacity_type": "individual",
+      "customer_information": [
+        { "field": "Name", "type": "single-text", "required": true },
+        { "field": "Email", "type": "single-text", "required": true },
+        { "field": "Phone", "type": "phone", "required": true }
+      ],
+      "custom_customer_information": [],
+      "display_order": "0",
+      "status": "publish"
+    },
+    {
+      "id": "2",
+      "title": "Workshop di gruppo",
+      "slug": "workshop",
+      "duration": "90",
+      "buffer_before": "0",
+      "buffer_after": "0",
+      "min_booking_notice": "0",
+      "max_booking_notice": "0",
+      "availability_type": "available_blocks",
+      "availability_increment": "30",
+      "availability": "{\"Saturday\":[{\"time_start\":\"09:00:00\",\"time_end\":\"12:00:00\"}]}",
+      "capacity": "8",
+      "capacity_type": "group",
+      "custom_customer_information": [{ "field": "Note", "type": "multi-text", "required": false }],
+      "display_order": "1",
+      "status": "draft"
+    },
+    { "id": "3", "title": "Old type", "duration": "30", "status": "delete" }
+  ],
+  "appointments": [
+    {
+      "id": "101",
+      "appointment_type_id": "1",
+      "start_date": "2030-07-04 11:00:00",
+      "end_date": "2030-07-04 11:50:00",
+      "customer_timezone": "Europe/Rome",
+      "customer_locale": "it_IT",
+      "customer_information": {
+        "Name": "Mario Rossi",
+        "Email": "Mario@Example.test",
+        "Phone": "+39 333 0000000"
+      },
+      "status": "booked",
+      "date_created": "2030-06-01 08:00:00"
+    },
+    {
+      "id": "102",
+      "appointment_type_id": "1",
+      "start_date": "2020-07-02 11:00:00",
+      "end_date": "2020-07-02 11:50:00",
+      "customer_information": "{\"name\":\"Anna Bianchi\",\"email\":\"anna@example.test\",\"Motivo\":\"Ansia\"}",
+      "status": "canceled"
+    },
+    {
+      "id": "103",
+      "appointment_type_id": "1",
+      "start_date": "2030-07-04 12:15:00",
+      "end_date": "2030-07-04 13:05:00",
+      "customer_information": { "Name": "Bot" },
+      "status": "abandoned"
+    },
+    {
+      "id": "104",
+      "appointment_type_id": "2",
+      "start_date": "2030-07-06 07:00:00",
+      "end_date": "2030-07-06 08:30:00",
+      "customer_information": {
+        "Name": "Luca Verdi",
+        "Email": "luca@example.test",
+        "Note": "Vegetariano"
+      },
+      "status": "booked"
+    }
+  ]
+}

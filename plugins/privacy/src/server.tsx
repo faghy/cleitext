@@ -20,7 +20,7 @@ import {
   type CookieRow,
   type PrivacyConfig,
 } from './config';
-import { cmpPolicy, policy, type PolicyKind } from './policies';
+import { cmpPolicy, policy, type PolicyKind, type PolicySection } from './policies';
 import { consents, requests } from './schema';
 
 const CACHE_TAG = 'privacy';
@@ -257,6 +257,36 @@ function cookieRows(e: Effective, locale: string): CookieRow[] {
     }
   }
   return rows;
+}
+
+/**
+ * Sections other plugins add to the privacy policy (Privacy 1.7): a map of
+ * providers by plugin slug on `globalThis` under
+ * `Symbol.for('cleitext.privacy.policySections')`, filled by those plugins in
+ * their `setup` (in any order), each answering for the sites where it is
+ * active. A failing provider is left out.
+ */
+async function policySections(
+  siteId: string,
+  locale: string,
+  ctx: { log: { warn(message: string): void } },
+): Promise<PolicySection[]> {
+  const registry = (globalThis as unknown as Record<symbol, unknown>)[
+    Symbol.for('cleitext.privacy.policySections')
+  ] as
+    | Map<string, (input: { siteId: string; locale: string }) => Promise<PolicySection[]>>
+    | undefined;
+  const out: PolicySection[] = [];
+  for (const [slug, provider] of registry ?? []) {
+    try {
+      for (const s of await provider({ siteId, locale }))
+        if (typeof s?.title === 'string' && typeof s.text === 'string')
+          out.push({ title: s.title.slice(0, 200), text: s.text.slice(0, 5000) });
+    } catch (error) {
+      ctx.log.warn(`The privacy policy section of ${slug} failed: ${String(error)}`);
+    }
+  }
+  return out;
 }
 
 /** Addresses of the policy pages in a language, or in the default one. */
@@ -607,6 +637,7 @@ export default definePlugin({
             { name: text(request.query.site, 200) || request.headers.host || '', url: origin },
             await policyLinks(ctx, request.siteId, cfg, locale),
             trackers,
+            kind === 'privacy' ? await policySections(request.siteId, locale, ctx) : [],
           ),
         };
       },

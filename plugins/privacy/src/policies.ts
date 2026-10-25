@@ -66,6 +66,7 @@ export function policy(
   site: { name: string; url: string },
   links: { privacy?: string; cookies?: string },
   trackers: TrackerDeclaration[] = [],
+  sections: PolicySection[] = [],
 ): { title: string; slug: string; document: CxdDocument } {
   const it = locale.toLowerCase().startsWith('it');
   const today = new Date().toLocaleDateString(it ? 'it-IT' : 'en-GB', {
@@ -75,7 +76,7 @@ export function policy(
   });
   const blocks =
     kind === 'privacy'
-      ? privacyPolicy(config, it, site, links, trackers)
+      ? privacyPolicy(config, it, site, links, trackers, sections)
       : cookiePolicy(config, it, site, links);
   blocks.push(paragraph(`<em>${it ? 'Ultimo aggiornamento' : 'Last updated'}: ${today}</em>`));
   return {
@@ -91,6 +92,7 @@ function privacyPolicy(
   site: { name: string; url: string },
   links: { cookies?: string },
   trackers: TrackerDeclaration[],
+  sections: PolicySection[] = [],
 ): CxdBlock[] {
   const p = config.processing;
   const c = config.controller;
@@ -156,7 +158,7 @@ function privacyPolicy(
           `Alcune pagine includono contenuti di altri siti, come video o mappe. Vengono caricati solo con il tuo consenso alla categoria “Marketing”, perché questi siti possono raccogliere dati su di te. I dettagli sono nella ${cookieLink}.`,
         ),
       );
-    blocks.push(...trackerBlocks(trackers, true));
+    blocks.push(...trackerBlocks(trackers, true), ...sectionBlocks(sections));
     blocks.push(
       heading('Cookie'),
       paragraph(
@@ -241,7 +243,7 @@ function privacyPolicy(
           `Some pages include content from other sites, such as videos or maps. It is loaded only with your consent to the “Marketing” category, since those sites may collect data about you. Details are in the ${cookieLink}.`,
         ),
       );
-    blocks.push(...trackerBlocks(trackers, false));
+    blocks.push(...trackerBlocks(trackers, false), ...sectionBlocks(sections));
     blocks.push(
       heading('Cookies'),
       paragraph(
@@ -363,6 +365,19 @@ function cookiePolicy(
       'Cookies of services of other companies are managed by them under their own policies, named in the table above by provider. They are only turned on after your consent to their category.',
     ),
   ];
+}
+
+/**
+ * What another plugin does with personal data, for the privacy policy (e.g.
+ * Agenda's appointments): plain text, given in the policy's language.
+ */
+export interface PolicySection {
+  title: string;
+  text: string;
+}
+
+function sectionBlocks(sections: PolicySection[]): CxdBlock[] {
+  return sections.flatMap((s) => [heading(escape(s.title), 3), paragraph(escape(s.text))]);
 }
 
 /** One section per tracking service added by a plugin (Analytics…), with its rules. */
