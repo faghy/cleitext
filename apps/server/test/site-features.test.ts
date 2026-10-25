@@ -5,7 +5,7 @@
 import { sites, type DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { arrowColor } from '../src/public/back-to-top.js';
 import { createPreviewToken, verifyPreviewToken } from '../src/public/preview.js';
 import {
@@ -201,7 +201,11 @@ describe('robots.txt and sitemaps', () => {
     expect(html.indexOf('cx-to-top')).toBeLessThan(html.lastIndexOf('</body>'));
     // Also on pages that are not found, and in the cache.
     expect((await visitor.get('/no-such-page')).body).toContain('class="cx-to-top"');
-    expect((await visitor.get('/')).headers['x-cache']).toBe('HIT');
+    // The cache is written after the response is sent: wait for it.
+    await vi.waitFor(async () => expect((await visitor.get('/')).headers['x-cache']).toBe('HIT'), {
+      timeout: 5000,
+      interval: 100,
+    });
 
     // Colour and corner.
     const styled = await admin.request('PATCH', '/api/v1/settings/core', {

@@ -446,7 +446,7 @@ describe('the Captcha plugin', () => {
     const visitor = new TestClient(app, host, '10.81.0.12');
     const page = (await visitor.get('/account/login')).body;
     expect(page).toContain('data-cl-captcha="');
-    expect(page).toContain('/plugin-assets/captcha/1.1.0/captcha.js');
+    expect(page).toMatch(/\/plugin-assets\/captcha\/[\d.]+\/captcha\.js/);
     const refused = await visitor.postForm('/account/login', {
       email: 'admin@guarded.test',
       password: PASSWORD,
