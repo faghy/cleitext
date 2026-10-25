@@ -207,7 +207,7 @@ test("the banner's buttons keep their look on a theme that restyles every button
       selector,
       (el, props) => {
         const style = getComputedStyle(el) as unknown as Record<string, string>;
-        return Object.fromEntries(props.map((p) => [p, style[p]]));
+        return Object.fromEntries(props.map((p) => [p, style[p] ?? '']));
       },
       [...LOOK],
     );
