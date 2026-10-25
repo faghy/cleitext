@@ -68,8 +68,8 @@ a.dio-btn:hover,a.dio-btn:focus{text-decoration:none}
 ${keyframes}
 .dio__arrow,.dio__bullet,.dio__pause{font:inherit;color:var(--dio-nav);-webkit-tap-highlight-color:transparent}
 .dio__arrow{position:absolute;top:50%;z-index:5;display:flex;align-items:center;justify-content:center;width:var(--dio-nav-size);height:var(--dio-nav-size);margin:0;padding:0;border:0;background:transparent;cursor:pointer;translate:0 -50%;transition:background-color .2s,opacity .2s}
-.dio__arrow--prev{left:clamp(8px,2cqw,24px)}
-.dio__arrow--next{right:clamp(8px,2cqw,24px)}
+.dio__arrow--prev{left:var(--dio-arrow-x,clamp(8px,2cqw,24px))}
+.dio__arrow--next{right:var(--dio-arrow-x,clamp(8px,2cqw,24px))}
 .dio__arrow svg,.dio__pause svg{pointer-events:none;width:50%;height:50%;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .dio__arrow[disabled]{opacity:.35;cursor:default}
 .dio__bullets{position:absolute;bottom:clamp(8px,2.2cqw,22px);left:50%;z-index:5;display:flex;gap:2px;margin:0;padding:0;list-style:none;translate:-50% 0}

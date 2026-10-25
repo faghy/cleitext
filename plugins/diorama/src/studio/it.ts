@@ -452,4 +452,16 @@ export const IT: Record<string, string> = {
   'As its text': 'Come il testo',
   Fixed: 'Fissa',
   'Fixed width': 'Larghezza fissa',
+  // Diorama 1.3: custom shadows and the arrows' place and background.
+  'Kind of shadow': 'Tipo di ombra',
+  Soft: 'Morbida',
+  Custom: 'Personalizzata',
+  'Horizontal offset': 'Spostamento orizzontale',
+  'Vertical offset': 'Spostamento verticale',
+  'Shadow colour': 'Colore dell’ombra',
+  'Set the arrows’ distance from the edge': 'Imposta la distanza delle frecce dal bordo',
+  'Distance from the edge': 'Distanza dal bordo',
+  'Own background for the arrows': 'Sfondo personalizzato per le frecce',
+  'Arrows’ background': 'Sfondo delle frecce',
+  'Another background under the mouse': 'Un altro sfondo al passaggio del mouse',
 };

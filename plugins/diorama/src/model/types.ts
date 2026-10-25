@@ -88,6 +88,8 @@ export type FontFamily = FontPreset | 'heading' | (string & {});
  * browser's own breaks, `nowrap` one line (with the line breaks typed).
  */
 export type TextWrap = 'auto' | 'balance' | 'pretty' | 'normal' | 'nowrap';
+/** Diorama's own shadow, or one set by hand (Diorama 1.3). */
+export type ShadowMode = 'preset' | 'custom';
 /** The width of a button (Diorama 1.2): its text's, fixed in pixels, or all the room. */
 export type WidthMode = 'auto' | 'fixed' | 'full';
 
@@ -119,6 +121,12 @@ export interface SliderData {
     /** Pixels: the size of the arrows (bullets follow). */
     size: number;
     hideArrowsOnMobile: boolean;
+    /** Pixels between the arrows and the slider's sides; null: automatic (Diorama 1.3). */
+    arrowOffset: number | null;
+    /** The arrows' background; empty: the style's (Diorama 1.3). */
+    arrowBackground: string;
+    /** Their background under the mouse; empty: the style's (Diorama 1.3). */
+    arrowHoverBackground: string;
   };
   source: SliderSource;
   slides: Slide[];
@@ -217,6 +225,17 @@ export interface LayerStyle {
   /** Box: space between its layers, pixels. */
   gap: number;
   shadow: boolean;
+  /**
+   * `preset`: Diorama's soft shadow (as before 1.3); `custom`: the offsets,
+   * blur and colour below (Diorama 1.3). A shadow of the letters for
+   * headings, texts and icons, of the box for the other layers.
+   */
+  shadowMode: ShadowMode;
+  /** Pixels. */
+  shadowX: number;
+  shadowY: number;
+  shadowBlur: number;
+  shadowColor: string;
   opacity: number;
   /** Outline of the letters (`-webkit-text-stroke`), pixels; 0: none (Diorama 1.2). */
   strokeWidth: number;

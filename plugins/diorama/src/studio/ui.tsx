@@ -12,6 +12,7 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from 'react';
+import { color } from '../model/normalize';
 
 export const STUDIO_CSS = `
 .dst{--dst-accent:#4f46e5;--dst-accent-soft:#eef2ff;--dst-line:#e2e8f0;--dst-muted:#64748b;--dst-ink:#0f172a;--dst-bg:#f8fafc;color:var(--dst-ink);font-size:14px;line-height:1.45}
@@ -381,9 +382,9 @@ export function ColorInput({
           aria-label={label}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => {
-            const v = draft.trim().toLowerCase();
-            if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/.test(v) || v === 'transparent')
-              onChange(v);
+            // Also `rgb()`/`rgba()`, written as `#rrggbb(aa)` (Diorama 1.3).
+            const v = color(draft, '');
+            if (v) onChange(v);
             else setDraft(value);
           }}
         />

@@ -765,6 +765,70 @@ function LayerStyleTab({
       )}
       <Section title={t('Effects')}>
         <Toggle label={t('Shadow')} checked={s.shadow} onChange={(v) => onStyle('shadow', v)} />
+        {s.shadow && (
+          <>
+            <div className="dst-field">
+              <span className="dst-label">
+                {t('Kind of shadow')}
+                {mark('shadowMode')}
+              </span>
+              <Segmented
+                label={t('Kind of shadow')}
+                value={s.shadowMode}
+                options={[
+                  { value: 'preset', label: t('Soft') },
+                  { value: 'custom', label: t('Custom') },
+                ]}
+                onChange={(v) => onStyle('shadowMode', v)}
+              />
+            </div>
+            {s.shadowMode === 'custom' && (
+              <>
+                <div className="dst-grid2">
+                  <Field label={t('Horizontal offset')} marker={mark('shadowX')}>
+                    <NumberInput
+                      label={t('Horizontal offset')}
+                      value={s.shadowX}
+                      min={-200}
+                      max={200}
+                      range={false}
+                      unit="px"
+                      onChange={(v) => onStyle('shadowX', v)}
+                    />
+                  </Field>
+                  <Field label={t('Vertical offset')} marker={mark('shadowY')}>
+                    <NumberInput
+                      label={t('Vertical offset')}
+                      value={s.shadowY}
+                      min={-200}
+                      max={200}
+                      range={false}
+                      unit="px"
+                      onChange={(v) => onStyle('shadowY', v)}
+                    />
+                  </Field>
+                </div>
+                <Field label={t('Blur')} marker={mark('shadowBlur')}>
+                  <NumberInput
+                    label={t('Blur')}
+                    value={s.shadowBlur}
+                    min={0}
+                    max={200}
+                    unit="px"
+                    onChange={(v) => onStyle('shadowBlur', v)}
+                  />
+                </Field>
+                <Field label={t('Shadow colour')} marker={mark('shadowColor')}>
+                  <ColorInput
+                    label={t('Shadow colour')}
+                    value={s.shadowColor}
+                    onChange={(v) => onStyle('shadowColor', v)}
+                  />
+                </Field>
+              </>
+            )}
+          </>
+        )}
         <Field label={t('Opacity')} marker={mark('opacity')}>
           <NumberInput
             label={t('Opacity')}
@@ -1580,6 +1644,65 @@ export function SliderPanel({
                 />
               </Field>
             </div>
+            {nav.arrows && (
+              <>
+                <Toggle
+                  label={t('Set the arrows’ distance from the edge')}
+                  checked={nav.arrowOffset !== null}
+                  onChange={(on) => setNav({ arrowOffset: on ? 24 : null })}
+                />
+                {nav.arrowOffset !== null && (
+                  <Field label={t('Distance from the edge')}>
+                    <NumberInput
+                      label={t('Distance from the edge')}
+                      value={nav.arrowOffset}
+                      min={0}
+                      max={400}
+                      unit="px"
+                      onChange={(v) => setNav({ arrowOffset: v }, 'nav-offset')}
+                    />
+                  </Field>
+                )}
+                <Toggle
+                  label={t('Own background for the arrows')}
+                  checked={nav.arrowBackground !== ''}
+                  onChange={(on) =>
+                    setNav(
+                      on
+                        ? { arrowBackground: '#00000080' }
+                        : { arrowBackground: '', arrowHoverBackground: '' },
+                    )
+                  }
+                />
+                {nav.arrowBackground !== '' && (
+                  <>
+                    <Field label={t('Arrows’ background')}>
+                      <ColorInput
+                        label={t('Arrows’ background')}
+                        value={nav.arrowBackground}
+                        onChange={(arrowBackground) => setNav({ arrowBackground }, 'nav-bg')}
+                      />
+                    </Field>
+                    <Toggle
+                      label={t('Another background under the mouse')}
+                      checked={nav.arrowHoverBackground !== ''}
+                      onChange={(on) => setNav({ arrowHoverBackground: on ? '#000000bf' : '' })}
+                    />
+                    {nav.arrowHoverBackground !== '' && (
+                      <Field label={t('Under the mouse')}>
+                        <ColorInput
+                          label={t('Under the mouse')}
+                          value={nav.arrowHoverBackground}
+                          onChange={(arrowHoverBackground) =>
+                            setNav({ arrowHoverBackground }, 'nav-hover-bg')
+                          }
+                        />
+                      </Field>
+                    )}
+                  </>
+                )}
+              </>
+            )}
           </Section>
         </>
       )}

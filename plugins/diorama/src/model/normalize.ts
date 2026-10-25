@@ -25,6 +25,7 @@ import type {
   MotionId,
   NavStyle,
   PerDevice,
+  ShadowMode,
   ShapeKind,
   SizeValues,
   Slide,
@@ -72,6 +73,12 @@ export function num(value: unknown, min: number, max: number, fallback: number):
   return Math.min(max, Math.max(min, Math.round(n * 100) / 100));
 }
 
+/** A bounded number, or null when there is none. */
+export function optionalNum(value: unknown, min: number, max: number): number | null {
+  const n = num(value, min, max, Number.NaN);
+  return Number.isNaN(n) ? null : n;
+}
+
 export function oneOf<T extends string>(value: unknown, list: readonly T[], fallback: T): T {
   return typeof value === 'string' && (list as readonly string[]).includes(value)
     ? (value as T)
@@ -88,12 +95,30 @@ export function text(value: unknown, max = LIMITS.text): string {
   return value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').slice(0, max);
 }
 
-/** `#rgb`, `#rrggbb`, `#rrggbbaa` or `transparent`; anything else: the fallback. */
+const hex2 = (n: number) => Math.round(n).toString(16).padStart(2, '0');
+
+/**
+ * `#rgb`, `#rrggbb`, `#rrggbbaa` or `transparent`; `rgb()`/`rgba()` (as
+ * themes and other sliders write them, Diorama 1.3) become `#rrggbb(aa)`;
+ * anything else: the fallback.
+ */
 export function color(value: unknown, fallback: string): string {
   if (typeof value !== 'string') return fallback;
   const v = value.trim().toLowerCase();
   if (v === 'transparent') return v;
   if (/^#[0-9a-f]{3}$/.test(v) || /^#[0-9a-f]{6}([0-9a-f]{2})?$/.test(v)) return v;
+  const rgb =
+    /^rgba?\(\s*([\d.]+)\s*[,\s]\s*([\d.]+)\s*[,\s]\s*([\d.]+)\s*(?:[,/]\s*([\d.]+)(%?)\s*)?\)$/.exec(
+      v,
+    );
+  if (rgb) {
+    const [r, g, b] = [rgb[1], rgb[2], rgb[3]].map(Number) as [number, number, number];
+    if (![r, g, b].every((c) => Number.isFinite(c) && c <= 255)) return fallback;
+    let alpha = rgb[4] === undefined ? 1 : Number(rgb[4]) / (rgb[5] ? 100 : 1);
+    if (!Number.isFinite(alpha)) return fallback;
+    alpha = Math.min(1, Math.max(0, alpha));
+    return `#${hex2(r)}${hex2(g)}${hex2(b)}${alpha < 1 ? hex2(alpha * 255) : ''}`;
+  }
   return fallback;
 }
 
@@ -198,6 +223,12 @@ const BASE_STYLE: LayerStyle = {
   paddingY: 0,
   gap: 16,
   shadow: false,
+  shadowMode: 'preset',
+  // A custom shadow starts as the soft one of the letters.
+  shadowX: 0,
+  shadowY: 2,
+  shadowBlur: 14,
+  shadowColor: '#00000073',
   opacity: 1,
   strokeWidth: 0,
   strokeColor: '#000000',
@@ -379,6 +410,9 @@ export function defaultSlider(overrides: Partial<SliderData> = {}): SliderData {
       color: '#ffffff',
       size: 44,
       hideArrowsOnMobile: true,
+      arrowOffset: null,
+      arrowBackground: '',
+      arrowHoverBackground: '',
     },
     source: { kind: 'manual' },
     slides: [],
@@ -434,6 +468,7 @@ const SHAPES: readonly ShapeKind[] = ['rect', 'circle', 'line', 'blob'];
 const TAGS: readonly TextTag[] = ['h1', 'h2', 'h3', 'h4', 'p', 'div'];
 const WRAPS: readonly TextWrap[] = ['auto', 'balance', 'pretty', 'normal', 'nowrap'];
 const WIDTHS: readonly WidthMode[] = ['auto', 'fixed', 'full'];
+const SHADOWS: readonly ShadowMode[] = ['preset', 'custom'];
 
 function size(input: unknown, fallback: SizeValues): SizeValues {
   const o = obj(input);
@@ -473,6 +508,11 @@ function style(input: unknown, fallback: LayerStyle): LayerStyle {
     paddingY: num(o.paddingY, 0, 200, fallback.paddingY),
     gap: num(o.gap, 0, 120, fallback.gap),
     shadow: bool(o.shadow, fallback.shadow),
+    shadowMode: oneOf(o.shadowMode, SHADOWS, fallback.shadowMode),
+    shadowX: num(o.shadowX, -200, 200, fallback.shadowX),
+    shadowY: num(o.shadowY, -200, 200, fallback.shadowY),
+    shadowBlur: num(o.shadowBlur, 0, 200, fallback.shadowBlur),
+    shadowColor: color(o.shadowColor, fallback.shadowColor),
     opacity: num(o.opacity, 0, 1, fallback.opacity),
     strokeWidth: num(o.strokeWidth, 0, 20, fallback.strokeWidth),
     strokeColor: color(o.strokeColor, fallback.strokeColor),
@@ -660,6 +700,9 @@ export function normalizeSlider(input: unknown): SliderData {
       color: color(n.color, fallback.navigation.color),
       size: num(n.size, 24, 80, fallback.navigation.size),
       hideArrowsOnMobile: bool(n.hideArrowsOnMobile, true),
+      arrowOffset: optionalNum(n.arrowOffset, 0, 400),
+      arrowBackground: color(n.arrowBackground, ''),
+      arrowHoverBackground: color(n.arrowHoverBackground, ''),
     },
     source: source(o.source),
     slides,

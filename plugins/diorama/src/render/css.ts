@@ -82,6 +82,26 @@ function textExtras(
   return out;
 }
 
+/** Letters cast the shadow of headings, texts and icons; the box, of the other layers. */
+const shadowProperty = (layer: Layer) =>
+  layer.type === 'heading' || layer.type === 'text' || layer.type === 'icon'
+    ? 'text-shadow'
+    : 'box-shadow';
+
+/**
+ * A layer's shadow: Diorama's soft one, or the offsets, blur and colour set
+ * by hand (Diorama 1.3, e.g. Slider Revolution's `0 10px 10px #000`).
+ */
+export function shadowDeclaration(layer: Layer, s: LayerStyle): string {
+  if (!s.shadow) return '';
+  const property = shadowProperty(layer);
+  if (s.shadowMode === 'custom')
+    return `${property}:${px(s.shadowX)} ${px(s.shadowY)} ${px(s.shadowBlur)} ${s.shadowColor}`;
+  return property === 'text-shadow'
+    ? 'text-shadow:0 2px 14px rgba(0,0,0,.45)'
+    : 'box-shadow:0 14px 40px rgba(0,0,0,.3)';
+}
+
 /** The declarations of a layer on a device (position only for layers placed on the slide). */
 export function layerDeclarations(
   layer: Layer,
@@ -142,12 +162,14 @@ export function layerDeclarations(
   if (s.radius && layer.type !== 'icon') out.push(`border-radius:${px(s.radius)}`);
   if (s.borderWidth && !(layer.type === 'shape' && layer.content.shape === 'line'))
     out.push(`border:${px(s.borderWidth)} solid ${s.borderColor}`);
-  if (s.shadow)
-    out.push(
-      layer.type === 'heading' || layer.type === 'text' || layer.type === 'icon'
-        ? 'text-shadow:0 2px 14px rgba(0,0,0,.45)'
-        : 'box-shadow:0 14px 40px rgba(0,0,0,.3)',
-    );
+  const shadow = shadowDeclaration(layer, s);
+  if (shadow) out.push(shadow);
+  else if (device !== 'desktop') {
+    // A smaller device without the larger one's shadow takes it off (media queries add up).
+    const larger = LARGER[device];
+    if (larger && shadowDeclaration(layer, layerStyle(layer, larger, autoMobile)))
+      out.push(`${shadowProperty(layer)}:none`);
+  }
   if (s.opacity < 1) out.push(`opacity:${s.opacity}`);
   if (layer.type === 'image') {
     const p = layerPos(layer, device, autoMobile);
@@ -212,6 +234,7 @@ export function sliderCss(slider: SliderData, key: string, options: CssOptions =
     const box: string[] = [`--dio-h:${px(size.height)}`, `--dio-off:${px(size.offset)}`];
     if (device === devices[0]) {
       box.push(`--dio-nav:${nav.color}`, `--dio-nav-size:${px(nav.size)}`);
+      if (nav.arrowOffset !== null) box.push(`--dio-arrow-x:${px(nav.arrowOffset)}`);
       if (slider.layout === 'auto' && slider.maxWidth > 0)
         box.push(`max-width:${px(slider.maxWidth)}`);
     }
@@ -221,6 +244,17 @@ export function sliderCss(slider: SliderData, key: string, options: CssOptions =
       box.push(`--dio-h:${px(Math.max(320, screen - size.offset))}`);
     }
     put(device, scope, box.join(';'));
+    if (device === devices[0]) {
+      // The arrows' own backgrounds (Diorama 1.3), after the style's.
+      if (nav.arrowBackground)
+        put(device, `${scope} .dio__arrow`, `background:${nav.arrowBackground}`);
+      if (nav.arrowHoverBackground)
+        put(
+          device,
+          `${scope} .dio__arrow:not([disabled]):hover`,
+          `background:${nav.arrowHoverBackground}`,
+        );
+    }
     for (const slide of slider.slides) {
       for (const layer of slide.layers) {
         const selector = `${scope} .dio-l${layer.id}`;
