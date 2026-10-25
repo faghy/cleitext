@@ -23,10 +23,16 @@ import { getElement } from './core/registry.js';
 import { frescoEntries } from './tools.js';
 
 const KEY = 'components';
+export const COMPONENTS_KEY = KEY;
 export const COMPONENTS_TAG = 'fresco:components';
 
 /** Components by site, kept for a minute (and dropped when saved). */
 const cache = new Map<string, { list: Component[]; at: number }>();
+
+/** Reads the components of a site again next time (e.g. after Replace URL changed them). */
+export function forgetComponents(siteId: string): void {
+  cache.delete(siteId);
+}
 
 export async function componentsFor(ctx: PluginContext, siteId: string): Promise<Component[]> {
   const hit = cache.get(siteId);

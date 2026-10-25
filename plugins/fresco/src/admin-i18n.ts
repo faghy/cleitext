@@ -23,8 +23,10 @@ addMessages('it', {
   'The CSS of the Fresco pages is generated again.':
     'Il CSS delle pagine di Fresco viene rigenerato.',
   'Replace URL': 'Sostituisci URL',
-  'After moving the site to a new address or to HTTPS: replace the old address in every page and template made with Fresco. Count first, then replace.':
-    'Dopo aver spostato il sito su un nuovo indirizzo o su HTTPS: sostituisci il vecchio indirizzo in ogni pagina e modello fatto con Fresco. Prima conta, poi sostituisci.',
+  'After moving the site to a new address or to HTTPS: replace the old address in every page and template made with Fresco, in the imported header and footer, the site settings and the components. Count first, then replace.':
+    'Dopo aver spostato il sito su un nuovo indirizzo o su HTTPS: sostituisci il vecchio indirizzo in ogni pagina e modello fatto con Fresco, nell’header e nel footer importati, nelle impostazioni del sito e nei componenti. Prima conta, poi sostituisci.',
+  'Site settings': 'Impostazioni del sito',
+  Components: 'Componenti',
   'Old address': 'Vecchio indirizzo',
   'New address': 'Nuovo indirizzo',
   Count: 'Conta',

@@ -1,7 +1,13 @@
 import type { PluginContext, PluginEntry, RouteRequest, RouteResponse } from '@cleitext/plugin-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { systemReport, systemSections } from '../src/system-report.js';
-import { registerTools, replaceInValue, systemInfo, validUrl } from '../src/tools.js';
+import {
+  registerTools,
+  replaceInValue,
+  systemInfo,
+  validUrl,
+  type ReplaceStore,
+} from '../src/tools.js';
 
 const SITE = '00000000-0000-4000-8000-000000000001';
 const USER = '00000000-0000-4000-8000-000000000002';
@@ -16,10 +22,20 @@ const entry = (id: string, type: string, document: unknown, title = id): PluginE
   ({ id, type, title, status: 'published', document }) as unknown as PluginEntry;
 
 /** A plugin context with the routes and content the tools use. */
-function fakeContext(entries: PluginEntry[]) {
+function fakeContext(
+  entries: PluginEntry[],
+  stored: Record<string, unknown> = {},
+  stores?: ReplaceStore[],
+) {
   const routes = new Map<string, (request: RouteRequest) => Promise<RouteResponse>>();
   const update = vi.fn(async () => {});
+  const set = vi.fn(async (_site: string, key: string, value: unknown) => {
+    stored[key] = value;
+  });
+  const invalidate = vi.fn(async () => {});
   const ctx = {
+    storage: { get: async (_site: string, key: string) => stored[key] ?? null, set },
+    cache: { invalidate },
     plugin: { slug: 'fresco', version: '2.1.0' },
     site: async () => ({ id: SITE, name: 'Demo', defaultLocale: 'it', locales: ['it', 'en'] }),
     content: {
@@ -37,10 +53,10 @@ function fakeContext(entries: PluginEntry[]) {
     },
   } as unknown as PluginContext;
   const regenerate = vi.fn(async () => {});
-  registerTools(ctx, { regenerate });
+  registerTools(ctx, { regenerate, ...(stores ? { stores } : {}) });
   const call = (key: string, body?: unknown, user: unknown = { id: USER }) =>
     routes.get(key)!({ siteId: SITE, body, user } as unknown as RouteRequest);
-  return { call, update, regenerate };
+  return { call, update, regenerate, set, invalidate, stored };
 }
 
 describe('replacing an address in Fresco documents', () => {
@@ -132,6 +148,65 @@ describe('replacing an address in Fresco documents', () => {
       },
       { userId: USER },
     );
+    expect(tools.regenerate).toHaveBeenCalledWith(SITE);
+  });
+
+  it('also replaces in the imported header and footer, the kit and the components', async () => {
+    const old = 'https://ilpescepazzo.it/wp-content/uploads';
+    const footer = {
+      footer: {
+        title: 'Footer',
+        rules: [{ mode: 'include', rule: 'all' }],
+        blocks: [{ id: 'f', attrs: { content: `<img src="${old}/2026/07/dueclic-288x300.png">` } }],
+      },
+    };
+    const stores: ReplaceStore[] = [
+      { key: 'imported-locations', title: 'Imported header and footer', tags: ['loc'] },
+      { key: 'kit', title: 'Site settings', tags: ['kit'] },
+      { key: 'components', title: 'Components', tags: ['comp'] },
+      { key: 'missing', title: 'Nothing', tags: ['none'] },
+    ];
+    const tools = fakeContext(
+      [entry('p1', 'page', doc([{ id: 'x', attrs: { image: { url: `${old}/a.jpg` } } }]))],
+      {
+        'imported-locations': footer,
+        kit: { logo: { url: `${old}/logo.png` }, css: `body{background:url(${old}/bg.png)}` },
+        components: { items: [{ id: 'c1', blocks: [] }] },
+      },
+      stores,
+    );
+    const counted = await tools.call('POST /tools/replace-url', {
+      from: old,
+      to: 'https://ilpescepazzo.it/media/site',
+    });
+    expect(counted.body).toEqual({
+      replaced: 4,
+      dryRun: true,
+      entries: [
+        { id: 'p1', title: 'p1', count: 1 },
+        {
+          id: 'storage:imported-locations',
+          title: 'Imported header and footer',
+          count: 1,
+          stored: true,
+        },
+        { id: 'storage:kit', title: 'Site settings', count: 2, stored: true },
+      ],
+    });
+    expect(tools.set).not.toHaveBeenCalled();
+    expect(tools.invalidate).not.toHaveBeenCalled();
+
+    await tools.call('POST /tools/replace-url', {
+      from: old,
+      to: 'https://ilpescepazzo.it/media/site',
+      dryRun: false,
+    });
+    expect(tools.set).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(tools.stored)).not.toContain('/wp-content/');
+    expect(
+      (tools.stored['imported-locations'] as typeof footer).footer.blocks[0]!.attrs.content,
+    ).toBe('<img src="https://ilpescepazzo.it/media/site/2026/07/dueclic-288x300.png">');
+    expect(tools.invalidate).toHaveBeenCalledWith(SITE, ['loc', 'kit']);
     expect(tools.regenerate).toHaveBeenCalledWith(SITE);
   });
 

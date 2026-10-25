@@ -1,8 +1,9 @@
 /**
  * Fresco's tools on the server, for the Tools and System info pages of its
  * menu: the pages made with Fresco, regenerating the CSS, replacing an
- * address in every Fresco document (counted first) and what support asks
- * about the system.
+ * address in every Fresco document and in what Fresco keeps beside them (the
+ * imported header and footer, site settings, components), counted first, and
+ * what support asks about the system.
  */
 import { SDK_VERSION, type PluginContext, type PluginEntry } from '@cleitext/plugin-sdk';
 
@@ -71,8 +72,20 @@ export function replaceInValue<T>(value: T, from: string, to: string): { value: 
 export interface ReplaceResult {
   /** Occurrences found (and replaced, unless counted only). */
   replaced: number;
-  entries: { id: string; title: string; count: number }[];
+  /** Documents, and Fresco's stored data (`stored`, its title to translate). */
+  entries: { id: string; title: string; count: number; stored?: boolean }[];
   dryRun: boolean;
+}
+
+/**
+ * What Fresco keeps in its storage besides the documents, searched by
+ * Replace URL too (Fresco 2.11.3): its key, a title for the list, and the
+ * cache tags of the pages that show it.
+ */
+export interface ReplaceStore {
+  key: string;
+  title: string;
+  tags: string[];
 }
 
 /** Node's `process`, as much as needed (without Node's types). */
@@ -134,7 +147,11 @@ const refuse = (status: number, detail: string) => ({
 /** The routes of the Tools and System info pages (site settings rights only). */
 export function registerTools(
   ctx: PluginContext,
-  options: { regenerate: (siteId: string) => Promise<void> },
+  options: {
+    regenerate: (siteId: string) => Promise<void>;
+    /** Stored data searched after the documents (the imported header and footer, the kit…). */
+    stores?: ReplaceStore[];
+  },
 ): void {
   ctx.routes.api({
     method: 'POST',
@@ -176,6 +193,25 @@ export function registerTools(
         result.replaced += count;
         result.entries.push({ id: entry.id, title: entry.title, count });
       }
+      const tags: string[] = [];
+      for (const store of options.stores ?? []) {
+        const stored: unknown = await ctx.storage.get(request.siteId, store.key);
+        if (stored === null || stored === undefined) continue;
+        const { value, count } = replaceInValue(stored, from, to);
+        if (count === 0) continue;
+        if (!dryRun) {
+          await ctx.storage.set(request.siteId, store.key, value);
+          tags.push(...store.tags);
+        }
+        result.replaced += count;
+        result.entries.push({
+          id: `storage:${store.key}`,
+          title: store.title,
+          count,
+          stored: true,
+        });
+      }
+      if (tags.length > 0) await ctx.cache.invalidate(request.siteId, tags);
       if (!dryRun && result.replaced > 0) await options.regenerate(request.siteId);
       return { body: result };
     },

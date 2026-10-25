@@ -28,14 +28,21 @@ import { isVisible, resetExtensions, resolveSettings } from './core/extensions.j
 import { resolveFieldTags } from './core/field-tags.js';
 import { listElements } from './core/registry.js';
 import { registerFreeElements } from './elements/index.js';
-import { importLocations, registerImportedLocations } from './imported-locations.js';
+import {
+  importLocations,
+  LOCATIONS_KEY,
+  LOCATIONS_TAG,
+  registerImportedLocations,
+} from './imported-locations.js';
 import { frescoEntries, registerTools } from './tools.js';
 import { registerElementManager } from './element-manager.js';
 import icons from './public/icons.json';
 import { COMPONENT_TYPE } from './core/components.js';
 import { componentInstance, type ComponentData } from './elements/component.js';
 import {
+  COMPONENTS_KEY,
   COMPONENTS_TAG,
+  forgetComponents,
   componentsFor,
   drawInstances,
   importComponents,
@@ -384,8 +391,14 @@ export default definePlugin({
     // Tools and System info of Fresco's menu. Regenerating the CSS reads the
     // kit again and empties the cached pages that use Fresco.
     registerTools(ctx, {
+      stores: [
+        { key: LOCATIONS_KEY, title: 'Imported header and footer', tags: [LOCATIONS_TAG] },
+        { key: KIT_KEY, title: 'Site settings', tags: [KIT_TAG] },
+        { key: COMPONENTS_KEY, title: 'Components', tags: [COMPONENTS_TAG] },
+      ],
       async regenerate(siteId) {
         kits.delete(siteId);
+        forgetComponents(siteId);
         // Google fonts whose copy failed are tried again now.
         localFonts?.retryNow(siteId);
         await ctx.cache.invalidate(siteId, [KIT_TAG]);

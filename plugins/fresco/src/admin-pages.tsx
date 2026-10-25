@@ -684,7 +684,7 @@ export function ToolsPage(_props: AdminPageProps) {
           <h2>{t('Replace URL')}</h2>
           <p>
             {t(
-              'After moving the site to a new address or to HTTPS: replace the old address in every page and template made with Fresco. Count first, then replace.',
+              'After moving the site to a new address or to HTTPS: replace the old address in every page and template made with Fresco, in the imported header and footer, the site settings and the components. Count first, then replace.',
             )}
           </p>
           <label>
@@ -719,7 +719,7 @@ export function ToolsPage(_props: AdminPageProps) {
                 <ul>
                   {counted.entries.slice(0, 20).map((entry) => (
                     <li key={entry.id}>
-                      {entry.title || t('(no title)')} ({entry.count})
+                      {`${entry.stored ? t(entry.title) : entry.title || t('(no title)')} (${entry.count})`}
                     </li>
                   ))}
                   {counted.entries.length > 20 && (
