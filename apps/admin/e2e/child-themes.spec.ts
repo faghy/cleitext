@@ -77,7 +77,13 @@ test('a child theme of the active theme looks the same, Additional CSS changes t
     await page.getByLabel('CSS for every theme').fill(css);
     const preview = page.frameLocator('iframe[title="Site preview"]');
     await expect
-      .poll(async () => preview.locator('body').evaluate((b) => getComputedStyle(b).outlineWidth))
+      .poll(async () =>
+        // The preview reloads as the CSS changes: a reload between two reads is retried.
+        preview
+          .locator('body')
+          .evaluate((b) => getComputedStyle(b).outlineWidth)
+          .catch(() => ''),
+      )
       .toBe('7px');
     // CSS that could close its <style> is refused before publishing.
     await page.getByLabel(`CSS for ${childName} only`).fill('</style>');
