@@ -1,10 +1,12 @@
 import { Blocks, ResponsiveImage, type RenderMedia } from '@cleitext/renderer';
 import type { CxdDocument } from '@cleitext/blocks';
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { EntryCommunity } from './community.js';
 import { usePage } from './context.js';
 import type {
+  ChildThemeModule,
   HeadTag,
+  LayoutProps,
   MenuItemView,
   TemplateProps,
   ThemeDefinition,
@@ -255,4 +257,36 @@ export function resolveTemplate(theme: ThemeDefinition, candidates: string[]): T
 /** Identity helper giving theme authors type checking. */
 export function defineTheme(theme: ThemeDefinition): ThemeDefinition {
   return theme;
+}
+
+/**
+ * Identity helper for a child theme's bundle (core 0.79): its definition,
+ * or a function that gets the parent's (`(parent) => ({ templates: … })`).
+ */
+export function defineChildTheme<T extends ChildThemeModule>(child: T): T {
+  return child;
+}
+
+/**
+ * In a child theme: the parent's template of that name, or, without a name,
+ * the one the parent would use for this page (null outside a child theme).
+ * To wrap it: `const Parent = useParentTemplate('index');`.
+ */
+export function useParentTemplate(name?: string): TemplateComponent | null {
+  const page = usePage();
+  const parent = page.parentTheme;
+  if (!parent) return null;
+  if (name) return parent.templates[name] ?? null;
+  return resolveTemplate(parent as ThemeDefinition, [...(page.templateCandidates ?? ['index'])]);
+}
+
+/** Renders the parent's template (by `name`, or the one for this page) with these props. */
+export function ParentTemplate({ name, ...props }: TemplateProps & { name?: string }) {
+  const Template = useParentTemplate(name);
+  return Template ? <Template {...(props as TemplateProps)} /> : null;
+}
+
+/** In a child theme with a Layout of its own: the parent's, to wrap it. */
+export function useParentLayout(): ComponentType<LayoutProps> | null {
+  return usePage().parentTheme?.Layout ?? null;
 }

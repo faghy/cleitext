@@ -258,6 +258,11 @@ export interface ThemeDefinition {
   name: string;
   version: string;
   description?: string;
+  /**
+   * Child themes (core 0.79, plugin API 1.50): the slug of the parent,
+   * set by Cleitext on the theme it builds from a child and its parent.
+   */
+  parent?: string;
   /** Menu locations offered by the theme: key → label. */
   menuLocations: Record<string, string>;
   /**
@@ -350,6 +355,56 @@ export interface ThemeDefinition {
 }
 
 /**
+ * A child theme (core 0.79, plugin API 1.50), like WordPress's: built on a
+ * parent named in its `theme.json` (`"parent": "<slug>"`), it inherits
+ * everything and gives only what changes. Templates and settings replace
+ * the parent's of the same name; sections, presets, areas, menu locations,
+ * page templates, options pages and menu item options are added; `css` and
+ * `editorCss` come after the parent's (as `style.css` and `editor.css` in the
+ * child's folder do).
+ */
+export interface ChildThemeDefinition {
+  /** When given, it must be the slug of `theme.json`. */
+  slug?: string;
+  /** Templates by name, over the parent's (`index`, `entry-page`, `template-landing`…). */
+  templates?: Partial<Record<string, TemplateComponent>>;
+  /** A Layout of its own instead of the parent's (wrap it with `useParentLayout()`). */
+  Layout?: ComponentType<LayoutProps>;
+  /** CSS printed after the parent's (with `style.css`, before Additional CSS). */
+  css?: string;
+  /** Editor CSS after the parent's; a function gets the settings' values. */
+  editorCss?: string | ((settings: Record<string, unknown>) => string);
+  /** Settings added, or replacing the parent's field of the same name. */
+  settings?: FieldDefinition[];
+  /** New defaults of settings, the parent's included (e.g. `{ accent: '#7c3aed' }`). */
+  settingsDefaults?: Record<string, unknown>;
+  settingsSections?: ThemeSettingsSection[];
+  presets?: ThemeDefinition['presets'];
+  menuLocations?: Record<string, string>;
+  menuItemFields?: MenuItemField[];
+  areas?: Record<string, string>;
+  areaDefaults?: Record<string, CxdDocument>;
+  pageTemplates?: PageTemplate[];
+  optionsPages?: OptionsPageInput[];
+  /** Fields added to the parent's per-page options. */
+  entryFields?: { types?: string[]; fields: FieldDefinition[] };
+  relatedEntries?: number;
+  listTerms?: boolean;
+  adjacentEntries?: boolean;
+  comments?: 'auto' | 'manual';
+  importSettings?(data: unknown): Record<string, unknown> | null;
+  /** Added after the parent's guide for AI assistants. */
+  aiGuide?: string;
+}
+
+/**
+ * What a child theme's bundle exports by default: its definition, or a
+ * function of the parent's (to wrap the parent's templates directly).
+ */
+export type ChildThemeModule =
+  ChildThemeDefinition | ((parent: ThemeDefinition) => ChildThemeDefinition);
+
+/**
  * Parts of a page a theme builder can replace: the header, the footer, the
  * content of single entries, and the content of archives and search results.
  * `overlay` (popups, off-canvas panels) is added by Cleitext at the end of
@@ -412,4 +467,11 @@ export interface PageContext {
    * empty `[data-cx-editor-canvas]` element that the editor fills.
    */
   editorFrame?: boolean;
+  /**
+   * Child themes (core 0.79): the parent's templates and Layout, read with
+   * `useParentTemplate()`, `<ParentTemplate>` and `useParentLayout()`.
+   */
+  parentTheme?: Pick<ThemeDefinition, 'slug' | 'templates' | 'Layout'>;
+  /** The template names tried for this page, most specific first. */
+  templateCandidates?: readonly string[];
 }

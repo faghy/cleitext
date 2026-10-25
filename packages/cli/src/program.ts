@@ -67,6 +67,7 @@ import {
 import {
   announceThemeChange,
   buildTheme,
+  createChildTheme,
   installTheme,
   listThemes,
   rollbackTheme,
@@ -902,10 +903,23 @@ export function buildProgram(json = false): Command {
     .description('Bundle a theme (TypeScript/JSX) into the entry named in its theme.json.')
     .argument('[dir]', 'theme folder', '.')
     .action(async (dir: string) => {
-      const { manifest, output } = await buildTheme(path.resolve(dir));
+      const { manifest, output, parent } = await buildTheme(path.resolve(dir), {
+        themesPath: themesPath(),
+      });
       report(
-        { slug: manifest.slug, version: manifest.version, output },
-        `Built ${manifest.slug} ${manifest.version}: ${path.relative(process.cwd(), output)}`,
+        { slug: manifest.slug, version: manifest.version, output, parent: manifest.parent ?? null },
+        [
+          output
+            ? `Built ${manifest.slug} ${manifest.version}: ${path.relative(process.cwd(), output)}`
+            : `${manifest.slug} ${manifest.version} is a child theme without code: nothing to bundle.`,
+          ...(manifest.parent
+            ? [
+                parent
+                  ? `  child of ${parent}`
+                  : `  child of ${manifest.parent} (not found next to it nor installed: not checked)`,
+              ]
+            : []),
+        ],
       );
     });
 
@@ -915,12 +929,14 @@ export function buildProgram(json = false): Command {
     .argument('<dir>', 'theme folder')
     .option('--link', 'link the folder instead of copying it (development)')
     .option('--build', 'build the theme first')
-    .action(async (dir: string, opts: { link?: boolean; build?: boolean }) => {
-      if (opts.build) await buildTheme(path.resolve(dir));
+    .option('--force', 'update even when an installed child theme asks for other versions')
+    .action(async (dir: string, opts: { link?: boolean; build?: boolean; force?: boolean }) => {
+      if (opts.build) await buildTheme(path.resolve(dir), { themesPath: themesPath() });
       const { manifest, previousVersion } = await installTheme({
         source: dir,
         themesPath: themesPath(),
         link: Boolean(opts.link),
+        force: Boolean(opts.force),
       });
       const lines = [
         previousVersion
@@ -965,6 +981,7 @@ export function buildProgram(json = false): Command {
           slug: manifest.slug,
           version: manifest.version,
           previousVersion: previousVersion ?? null,
+          parent: manifest.parent ?? null,
           plugins: withPlugins,
         },
         lines,
@@ -985,12 +1002,62 @@ export function buildProgram(json = false): Command {
               name: t.name,
               version: t.version,
               bundled: false,
+              parent: t.parent ?? null,
             })),
           ],
         },
-        ['aurora\t(bundled)', ...themes.map((t) => `${t.slug}\t${t.version}\t${t.name}`)],
+        [
+          'aurora\t(bundled)',
+          ...themes.map(
+            (t) =>
+              `${t.slug}\t${t.version}\t${t.name}${t.parent ? `\t(child of ${t.parent})` : ''}`,
+          ),
+        ],
       );
     });
+
+  program
+    .command('theme:child')
+    .description(
+      "Create a child theme of an installed theme: changes made in it survive the parent's updates.",
+    )
+    .argument('<parent>', 'slug of the parent theme')
+    .argument('<slug>', 'slug of the new child theme')
+    .option('--name <name>', 'its name (default: "<Parent> Child")')
+    .option('--dir <dir>', 'folder to write it in (default: ./<slug>)')
+    .option('--install', 'install it in THEMES_PATH at once, instead of writing a folder')
+    .action(
+      async (
+        parent: string,
+        slug: string,
+        opts: { name?: string; dir?: string; install?: boolean },
+      ) => {
+        const result = await createChildTheme({
+          themesPath: themesPath(),
+          parent,
+          slug,
+          ...(opts.name !== undefined ? { name: opts.name } : {}),
+          ...(opts.dir !== undefined ? { dir: opts.dir } : {}),
+          install: Boolean(opts.install),
+        });
+        if (result.installed) await withOwner((db) => announceThemeChange(db));
+        report(
+          {
+            slug: result.manifest.slug,
+            name: result.manifest.name,
+            parent,
+            dir: result.dir,
+            installed: result.installed,
+          },
+          result.installed
+            ? `Installed the child theme ${result.manifest.slug} of ${parent}. Activate it in Appearance → Themes.`
+            : [
+                `Created the child theme ${result.manifest.slug} of ${parent} in ${result.dir}.`,
+                `  Install it with: cleitext theme:install ${path.relative(process.cwd(), result.dir) || '.'} --build`,
+              ],
+        );
+      },
+    );
 
   program
     .command('theme:uninstall')

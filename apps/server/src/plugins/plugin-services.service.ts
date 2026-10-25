@@ -101,7 +101,7 @@ import { OptionsPagesService } from '../fields/options-pages.service.js';
 import { emptyWxrMetaResult, withWxrMeta } from '../transfer/wxr-meta.js';
 import { phpMetaValue, phpUnserialize } from '@cleitext/plugin-sdk';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
-import { themeDirectory, themeFor } from '../public/themes.js';
+import { themeDirectories, themeFor } from '../public/themes.js';
 import { readThemeFile, themeFiles } from '../themes/theme-files.js';
 
 /** Core services exposed to plugins through their context facades. */
@@ -181,17 +181,34 @@ export class PluginServicesProvider implements PluginServices {
     return themeFor(row?.theme).slug;
   }
 
-  async activeTheme(siteId: string): Promise<{ slug: string; name: string; version: string }> {
+  async activeTheme(
+    siteId: string,
+  ): Promise<{ slug: string; name: string; version: string; parent?: string }> {
     const theme = themeFor(await this.themeSlug(siteId));
-    return { slug: theme.slug, name: theme.name, version: theme.version };
+    return {
+      slug: theme.slug,
+      name: theme.name,
+      version: theme.version,
+      // A child theme (plugin API 1.50): the theme it is built on.
+      ...(theme.parent ? { parent: theme.parent } : {}),
+    };
   }
 
+  /** A child theme's files over its parent's, by path (plugin API 1.50). */
   async themeFiles(siteId: string, dir: string): Promise<string[]> {
-    return themeFiles(themeDirectory(await this.themeSlug(siteId)), dir);
+    const names = new Set<string>();
+    for (const root of themeDirectories(await this.themeSlug(siteId))) {
+      for (const name of await themeFiles(root, dir)) names.add(name);
+    }
+    return [...names].sort().slice(0, 200);
   }
 
   async themeFile(siteId: string, file: string): Promise<string | null> {
-    return readThemeFile(themeDirectory(await this.themeSlug(siteId)), file);
+    for (const root of themeDirectories(await this.themeSlug(siteId))) {
+      const text = await readThemeFile(root, file);
+      if (text !== null) return text;
+    }
+    return null;
   }
 
   matchingFieldGroups(siteId: string, screen: LocationScreen): Promise<FieldGroupView[]> {

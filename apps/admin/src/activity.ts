@@ -54,6 +54,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'theme.uploaded': 'uploaded the theme',
   'plugin.deleted': 'deleted the plugin',
   'theme.deleted': 'deleted the theme',
+  'theme.created': 'created the child theme',
   'core.updated': 'started the update of Cleitext to',
 };
 

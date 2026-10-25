@@ -49,6 +49,13 @@ export default sdk.defineTheme({ slug: 'base', name: 'Base', version: '1.0.0', m
   ] });
 `,
   );
+  // A child theme of it (core 0.79): it gets the parent's extensions too.
+  await mkdir(join(dir, 'base-child'));
+  await writeFile(
+    join(dir, 'base-child', 'theme.json'),
+    JSON.stringify({ slug: 'base-child', name: 'Base child', version: '1.0.0', parent: 'base' }),
+  );
+  await writeFile(join(dir, 'base-child', 'style.css'), '.child{}');
   return dir;
 }
 
@@ -194,5 +201,18 @@ describe('plugins extending a theme', () => {
     await admin.post(`/api/v1/plugins/${PLUGIN}/activate`);
     expect((await activeTheme()).values).toMatchObject({ motto: 'Again', badge: 'Gold' });
     expect((await visitor.get('/')).body).toContain('badge=Gold');
+  });
+
+  it('apply to child themes of the theme too (plugin API 1.50)', async () => {
+    expect((await admin.post('/api/v1/themes/base-child/activate')).statusCode).toBe(200);
+    try {
+      const { theme, values } = await activeTheme();
+      expect(theme.settings.map((f) => f.name)).toEqual(['motto', 'header', 'badge']);
+      // The parent's values, copied on activation.
+      expect(values).toMatchObject({ motto: 'Again', badge: 'Gold' });
+      expect((await visitor.get('/')).body).toContain('badge=Gold');
+    } finally {
+      await admin.post('/api/v1/themes/base/activate');
+    }
   });
 });

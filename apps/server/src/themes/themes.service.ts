@@ -1,7 +1,10 @@
 import type { CxdDocument } from '@cleitext/blocks';
 import { settings, sites, withContext, type DatabaseClient } from '@cleitext/db';
 import {
+  additionalCssProblem,
+  ADDITIONAL_CSS_MAX,
   fieldsValidator,
+  type AdditionalCssView,
   type FieldDefinition,
   type LicenseView,
   type ThemeView,
@@ -27,6 +30,7 @@ import { WebFontsService } from '../public/web-fonts.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
   AREAS_NAMESPACE,
+  copyParentSettings,
   storedThemeSettings,
   themeNamespace,
   themeSettings,
@@ -35,10 +39,19 @@ import {
   installedThemes,
   isThemeAvailable,
   loadThemes,
+  themeChildren,
   themeFailures,
   themeFor,
+  themeLicensedAs,
   themePaid,
+  themeParent,
 } from '../public/themes.js';
+import {
+  readAdditionalCss,
+  SITE_CSS_KEY,
+  themeCssKey,
+  writeAdditionalCss,
+} from './additional-css.js';
 import { LicensesService } from '../catalog/licenses.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import type { ThemeDefinition } from '@cleitext/theme-sdk';
@@ -108,23 +121,34 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
         bundled,
       })),
     );
-    const views: ThemeView[] = themes.map(({ theme, bundled }) => ({
-      slug: theme.slug,
-      name: theme.name,
-      version: theme.version,
-      description: theme.description ?? null,
-      bundled,
-      active: theme.slug === active,
-      menuLocations: theme.menuLocations,
-      areas: theme.areas ?? {},
-      settings: theme.settings ?? [],
-      settingsSections: theme.settingsSections ?? [],
-      presets: theme.presets ?? [],
-      entryFields: theme.entryFields ?? null,
-      menuItemFields: theme.menuItemFields ?? [],
-      paid: paidView(theme.slug, licenses),
-      error: null,
-    }));
+    const views: ThemeView[] = themes.map(({ theme, bundled }) => {
+      const parentSlug = themeParent(theme.slug);
+      const parent = parentSlug ? themeFor(parentSlug) : null;
+      const licensedAs = themeLicensedAs(theme.slug);
+      return {
+        slug: theme.slug,
+        name: theme.name,
+        version: theme.version,
+        description: theme.description ?? null,
+        bundled,
+        active: theme.slug === active,
+        menuLocations: theme.menuLocations,
+        areas: theme.areas ?? {},
+        settings: theme.settings ?? [],
+        settingsSections: theme.settingsSections ?? [],
+        presets: theme.presets ?? [],
+        entryFields: theme.entryFields ?? null,
+        menuItemFields: theme.menuItemFields ?? [],
+        paid: paidView(theme.slug, licenses),
+        error: null,
+        parent: parent ? { slug: parent.slug, name: parent.name, version: parent.version } : null,
+        children: themeChildren(theme.slug),
+        // A child of a paid theme: the parent's license for this site (RF-CAT-03).
+        needsParentLicense: Boolean(
+          parentSlug && licensedAs === parentSlug && !licenses.get(parentSlug),
+        ),
+      };
+    });
     for (const [slug, error] of themeFailures()) {
       views.push({
         slug,
@@ -142,6 +166,9 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
         menuItemFields: [],
         paid: null,
         error,
+        parent: null,
+        children: [],
+        needsParentLicense: false,
       });
     }
     return views;
@@ -157,17 +184,24 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       throw new NotFoundException(`The theme "${slug}" is not installed.`);
     // Paid themes: a license for this site, activated once with the license
     // server (RF-CAT-03). Without one the theme can only be tried (Live Preview).
-    if (themePaid(slug) && !(await this.licenses.has(siteId, auth, { type: 'theme', slug }))) {
+    // A child of a paid theme needs the parent's license (core 0.79).
+    const licensed = themeLicensedAs(slug);
+    if (licensed && !(await this.licenses.has(siteId, auth, { type: 'theme', slug: licensed }))) {
       throw new HttpException(
         {
           message:
-            'This theme is paid: enter a license key for this site to activate it. You can try it with Live Preview.',
+            licensed === slug
+              ? 'This theme is paid: enter a license key for this site to activate it. You can try it with Live Preview.'
+              : `This child theme is built on ${themeFor(licensed).name}, a paid theme: enter its license key for this site to activate it. You can try it with Live Preview.`,
         },
         402,
       );
     }
     const previous = await this.activeSlug(siteId, auth).catch(() => null);
+    const parent = themeParent(slug);
     await this.run(siteId, auth, async (tx) => {
+      // A child theme's first activation keeps the parent's Customize choices.
+      if (parent) await copyParentSettings(tx, siteId, slug, parent);
       await tx.execute(sql`select cleitext_app_set_theme(${slug})`);
       await this.audit.record(tx, {
         siteId,
@@ -257,7 +291,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
       // Values of settings added by plugins deactivated here are kept for their return.
       const hidden = hiddenSettings(theme);
       if (hidden.size > 0) {
-        const stored = await storedThemeSettings(tx, slug);
+        const stored = await storedThemeSettings(tx, slug, theme.parent);
         const kept = Object.entries(stored).filter(([name]) => hidden.has(name));
         clean = { ...Object.fromEntries(kept), ...clean };
       }
@@ -334,6 +368,47 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     return clean;
   }
 
+  /** The site's Additional CSS (core 0.79): for every theme, and for the active one. */
+  async additionalCss(siteId: string, auth: AuthContext): Promise<AdditionalCssView> {
+    const themeSlug = await this.activeSlug(siteId, auth);
+    const css = await this.run(siteId, auth, (tx) => readAdditionalCss(tx, themeSlug));
+    return { ...css, themeSlug, max: ADDITIONAL_CSS_MAX };
+  }
+
+  /** Checks a part of Additional CSS: 400 with the reason when it cannot be saved. */
+  checkAdditionalCss(css: string | undefined): void {
+    const problem = css === undefined ? null : additionalCssProblem(css);
+    if (problem) throw new BadRequestException(problem);
+  }
+
+  async saveAdditionalCss(
+    siteId: string,
+    auth: AuthContext,
+    values: { site?: string | undefined; theme?: string | undefined },
+    ip: string,
+  ): Promise<AdditionalCssView> {
+    this.checkAdditionalCss(values.site);
+    this.checkAdditionalCss(values.theme);
+    const themeSlug = await this.activeSlug(siteId, auth);
+    await this.run(siteId, auth, async (tx) => {
+      if (values.site !== undefined)
+        await writeAdditionalCss(tx, siteId, SITE_CSS_KEY, values.site);
+      if (values.theme !== undefined) {
+        await writeAdditionalCss(tx, siteId, themeCssKey(themeSlug), values.theme);
+      }
+      await this.audit.record(tx, {
+        siteId,
+        userId: auth.userId,
+        action: 'settings.updated',
+        targetType: 'settings',
+        targetId: 'additional-css',
+        ip,
+      });
+    });
+    await this.cache.invalidate(siteId, ['site']);
+    return this.additionalCss(siteId, auth);
+  }
+
   async recordUpload(siteId: string, auth: AuthContext, slug: string, ip: string): Promise<void> {
     await this.record(siteId, auth, 'theme.uploaded', slug, ip);
   }
@@ -341,7 +416,7 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
   async record(
     siteId: string,
     auth: AuthContext,
-    action: 'theme.uploaded' | 'theme.deleted',
+    action: 'theme.uploaded' | 'theme.deleted' | 'theme.created',
     slug: string,
     ip: string,
   ): Promise<void> {

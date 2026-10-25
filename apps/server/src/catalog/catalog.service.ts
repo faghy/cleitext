@@ -23,7 +23,13 @@ import type { AuthContext } from '../common/request-context.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { packageRoot, runCli, unpackPackage } from '../plugins/package-upload.js';
-import { installedThemes, loadThemes, themeFailures, themePaid } from '../public/themes.js';
+import {
+  installedThemes,
+  loadThemes,
+  themeChildren,
+  themeFailures,
+  themePaid,
+} from '../public/themes.js';
 import { UpdatesService } from '../updates/updates.service.js';
 import { LicensesService } from './licenses.service.js';
 
@@ -190,13 +196,17 @@ export class CatalogService {
       const manifest = JSON.parse(await readFile(path.join(root, manifestName), 'utf8')) as {
         slug?: string;
         requires?: { plugins?: Record<string, string> };
+        parent?: string;
+        parentVersion?: string;
       };
       if (manifest.slug !== slug)
         throw new BadRequestException('The package is not the one expected.');
       const before =
         type === 'plugin'
           ? await this.installRequired(slug, manifest.requires?.plugins ?? {}, site, chain)
-          : [];
+          : await this.installParent(slug, manifest, site, chain);
+      // Child themes installed before an update of their parent (core 0.79).
+      const children = type === 'theme' ? themeChildren(slug) : [];
       const message = [...before, await runCli([`${type}:install`, root], this.config)].join('\n');
       // Ready when the answer comes, not when the notice reaches this process.
       if (type === 'plugin') await this.plugins.reload();
@@ -208,7 +218,9 @@ export class CatalogService {
           ? this.plugins.get(slug)?.status === 'error'
             ? (this.plugins.get(slug)?.error ?? 'error')
             : null
-          : (themeFailures().get(slug) ?? null);
+          : (themeFailures().get(slug) ??
+            children.map((child) => themeFailures().get(child)).find(Boolean) ??
+            null);
       if (failure && entry.installed) {
         await runCli([`${type}:rollback`, slug], this.config);
         if (type === 'plugin') await this.plugins.reload();
@@ -221,6 +233,33 @@ export class CatalogService {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  }
+
+  /**
+   * A child theme's parent (core 0.79), missing or outside the versions it
+   * asks, installed or updated from the catalog first. One the catalog
+   * cannot give is left to the CLI, which says what is missing.
+   */
+  private async installParent(
+    slug: string,
+    manifest: { parent?: string; parentVersion?: string },
+    site: { id: string; auth: AuthContext; origin: string },
+    chain: readonly string[],
+  ): Promise<string[]> {
+    const parent = manifest.parent;
+    if (!parent || parent === slug || chain.includes(parent)) return [];
+    const range = manifest.parentVersion ?? '*';
+    const installed = installedThemes().find((t) => t.theme.slug === parent);
+    if (installed && (installed.bundled || semver.satisfies(installed.theme.version, range)))
+      return [];
+    const item = (await this.items()).find((i) => i.type === 'theme' && i.slug === parent);
+    if (!item || !semver.satisfies(item.version, range)) return [];
+    const result = await this.install('theme', parent, site, [...chain, slug]);
+    return [
+      installed
+        ? `${item.name} updated from ${installed.theme.version} to ${result.version} (parent of ${slug}).`
+        : `${item.name} ${result.version} installed (parent of ${slug}).`,
+    ];
   }
 
   /**

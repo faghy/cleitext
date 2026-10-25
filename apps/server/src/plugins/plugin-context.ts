@@ -52,7 +52,9 @@ export interface PluginServices {
     block: string,
   ): Promise<{ fields: FieldDefinition[]; groups: FieldGroupView[] }>;
   /** The site's theme and its files (plugin API 1.49). */
-  activeTheme(siteId: string): Promise<{ slug: string; name: string; version: string }>;
+  activeTheme(
+    siteId: string,
+  ): Promise<{ slug: string; name: string; version: string; parent?: string }>;
   themeFiles(siteId: string, dir: string): Promise<string[]>;
   themeFile(siteId: string, path: string): Promise<string | null>;
   matchingFieldGroups(siteId: string, screen: LocationScreen): Promise<FieldGroupView[]>;

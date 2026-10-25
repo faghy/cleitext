@@ -1,8 +1,10 @@
 import { DeviceContext, FieldsForm, ZonesBuilder } from '@cleitext/admin-sdk';
 import {
+  additionalCssProblem,
   fieldDefaults,
   fieldVisible,
   labelText,
+  type AdditionalCssView,
   type FieldDefinition,
   type ThemeView,
   type ZonesField,
@@ -22,8 +24,16 @@ interface ActiveTheme {
 type Section = ThemeView['settingsSections'][number];
 
 const ACTIVE_KEY = ['themes', 'active'];
+const CSS_KEY = ['themes', 'additional-css'];
 /** Fields without a section, when the theme has sections. */
 const OTHER = '__other';
+/** Additional CSS (core 0.79): a section of every theme's Customize. */
+const CSS_SECTION = '__additional_css';
+
+interface CssValues {
+  site: string;
+  theme: string;
+}
 
 /** Widths of the preview per device (as the classic customizer draws them). */
 const DEVICES = { desktop: 0, tablet: 720, mobile: 320 } as const;
@@ -58,6 +68,23 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
       saved.current = active.data.values;
     }
   }, [active.data, values]);
+  // Additional CSS: the site's, kept apart from the theme's settings.
+  const cssQuery = useQuery({
+    queryKey: CSS_KEY,
+    queryFn: () => api<AdditionalCssView>('GET', '/themes/additional-css'),
+  });
+  const [css, setCss] = useState<CssValues | null>(null);
+  const savedCss = useRef<CssValues>({ site: '', theme: '' });
+  useEffect(() => {
+    if (cssQuery.data && css === null) {
+      const loaded = { site: cssQuery.data.site, theme: cssQuery.data.theme };
+      setCss(loaded);
+      savedCss.current = loaded;
+    }
+  }, [cssQuery.data, css]);
+  const cssProblem = css
+    ? (additionalCssProblem(css.site) ?? additionalCssProblem(css.theme))
+    : null;
 
   const sections = useMemo<Section[]>(() => {
     const declared = theme?.settingsSections ?? [];
@@ -71,16 +98,18 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
           declared.some((child) => child.parent === s.id && used(child))
         );
       }),
-      ...(rest || declared.length === 0
+      ...((rest || declared.length === 0) && fields.length > 0
         ? [{ id: OTHER, label: declared.length ? t('Other') : t('Settings') }]
         : []),
+      { id: CSS_SECTION, label: t('Additional CSS') },
     ];
   }, [theme, fields, t]);
   const sectionOf = (field: FieldDefinition) =>
     field.section && sections.some((s) => s.id === field.section) ? field.section : OTHER;
   const top = sections.filter((s) => !s.parent);
-  // A theme with one section opens on it.
-  const home = top.length === 1 ? top[0]!.id : null;
+  // A theme with one section opens on it (Additional CSS is linked below its fields).
+  const themeTop = top.filter((s) => s.id !== CSS_SECTION);
+  const home = themeTop.length === 1 ? themeTop[0]!.id : top.length === 1 ? top[0]!.id : null;
   const [current, setCurrent] = useState<string | null>(null);
   const section = current ?? home;
   const info = sections.find((s) => s.id === section);
@@ -114,7 +143,10 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
   const [controls, setControls] = useState(true);
   const [builderOpen, setBuilderOpen] = useState(true);
 
-  const dirty = values !== null && fields.some((f) => !same(values[f.name], saved.current[f.name]));
+  const settingsDirty =
+    values !== null && fields.some((f) => !same(values[f.name], saved.current[f.name]));
+  const cssDirty = css !== null && !same(css, savedCss.current);
+  const dirty = settingsDirty || cssDirty;
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       if (dirty) e.preventDefault();
@@ -145,22 +177,43 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
     if (!values) return;
     const timer = setTimeout(() => {
       // Kept at an address of its own, so that the theme's scripts run in it.
-      void api<{ url: string }>('POST', '/themes/active/preview', { path, values, frame: true })
+      void api<{ url: string }>('POST', '/themes/active/preview', {
+        path,
+        values,
+        frame: true,
+        // The CSS being written, while it can be printed.
+        ...(css && !cssProblem ? { additionalCss: css } : {}),
+      })
         .then((page) => setFrameUrl(page.url))
         .catch(() => setFrameUrl(''));
     }, 400);
     return () => clearTimeout(timer);
-  }, [values, path]);
+  }, [values, path, css, cssProblem]);
 
   const save = useMutation({
-    mutationFn: () =>
-      api<Record<string, unknown>>('PUT', '/themes/active/settings', { values: values ?? {} }),
-    onSuccess: (result) => {
+    mutationFn: async () => {
+      if (cssProblem) throw new Error(cssProblem);
+      const result = settingsDirty
+        ? await api<Record<string, unknown>>('PUT', '/themes/active/settings', {
+            values: values ?? {},
+          })
+        : (values ?? {});
+      const cssResult =
+        cssDirty && css ? await api<AdditionalCssView>('PUT', '/themes/additional-css', css) : null;
+      return { result, cssResult };
+    },
+    onSuccess: ({ result, cssResult }) => {
       saved.current = result;
       setValues(result);
       queryClient.setQueryData<ActiveTheme>(ACTIVE_KEY, (data) =>
         data ? { ...data, values: result } : data,
       );
+      if (cssResult) {
+        const next = { site: cssResult.site, theme: cssResult.theme };
+        savedCss.current = next;
+        setCss(next);
+        queryClient.setQueryData(CSS_KEY, cssResult);
+      }
     },
   });
 
@@ -230,6 +283,10 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
     }
   };
   const resetSection = () => {
+    if (section === CSS_SECTION) {
+      setCss({ site: '', theme: '' });
+      return;
+    }
     if (!values || !section) return;
     const names = new Set(fields.filter((f) => sectionOf(f) === section).map((f) => f.name));
     setValues(Object.fromEntries(Object.entries(values).filter(([k]) => !names.has(k))));
@@ -247,18 +304,12 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
   );
   if (active.error)
     return shell(<p className="m-6 text-sm text-red-700">{errorMessage(active.error)}</p>);
-  if (!theme || values === null)
-    return shell(<p className="m-6 text-sm text-slate-600">{t('Loading…')}</p>);
-  if (fields.length === 0) {
+  if (!theme || values === null || css === null)
     return shell(
-      <div className="m-6 space-y-3 text-sm text-slate-600">
-        <p>{t('This theme has no settings.')}</p>
-        <button type="button" className="text-sky-700 hover:underline" onClick={onClose}>
-          {t('Close')}
-        </button>
-      </div>,
+      <p className="m-6 text-sm text-slate-600">
+        {cssQuery.error ? errorMessage(cssQuery.error) : t('Loading…')}
+      </p>,
     );
-  }
 
   // Sections with tabs (General, Design): the fields of the open one; untabbed ones in the first.
   const tabs = !query && info?.tabs ? info.tabs : [];
@@ -537,6 +588,16 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
                         {labelText(info.description, locale)}
                       </p>
                     )}
+                    {section === CSS_SECTION && !query && (
+                      <AdditionalCssPanel
+                        css={css}
+                        onChange={setCss}
+                        problem={cssProblem}
+                        themeName={theme.name}
+                        max={cssQuery.data?.max ?? 100_000}
+                        locale={locale}
+                      />
+                    )}
                     {visibleCount > 0 && (
                       <FieldsForm
                         fields={shown}
@@ -571,13 +632,23 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
                     {childList.length > 0 && (
                       <SectionList items={childList} locale={locale} onOpen={open} />
                     )}
-                    {visibleCount === 0 && !own && childList.length === 0 && (
-                      <p className="px-6 py-3 text-sm text-slate-600">
-                        {query
-                          ? t('No option matches.')
-                          : t('No option to show here with the current choices.')}
-                      </p>
+                    {search === null && section === home && home !== CSS_SECTION && (
+                      <SectionList
+                        items={sections.filter((s) => s.id === CSS_SECTION)}
+                        locale={locale}
+                        onOpen={open}
+                      />
                     )}
+                    {visibleCount === 0 &&
+                      !own &&
+                      childList.length === 0 &&
+                      section !== CSS_SECTION && (
+                        <p className="px-6 py-3 text-sm text-slate-600">
+                          {query
+                            ? t('No option matches.')
+                            : t('No option to show here with the current choices.')}
+                        </p>
+                      )}
                   </div>
                 )}
               </div>
@@ -678,6 +749,75 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
         </>,
       )}
     </DeviceContext.Provider>
+  );
+}
+
+/**
+ * Additional CSS (core 0.79), as WordPress's: kept by the site, not by the
+ * theme, so updates and theme switches never lose it. Printed after the
+ * theme's CSS (and a child theme's); the preview shows it while typing.
+ */
+function AdditionalCssPanel({
+  css,
+  onChange,
+  problem,
+  themeName,
+  max,
+  locale,
+}: {
+  css: CssValues;
+  onChange: (css: CssValues) => void;
+  problem: string | null;
+  themeName: string;
+  max: number;
+  locale: string;
+}) {
+  const { t } = useT();
+  const fields: FieldDefinition[] = [
+    {
+      name: 'site',
+      type: 'code',
+      language: 'css',
+      label: t('CSS for every theme'),
+      help: t(
+        'Added to every page after the theme’s CSS. It stays when the theme is updated or changed.',
+      ),
+    },
+    {
+      name: 'theme',
+      type: 'code',
+      language: 'css',
+      label: t('CSS for {theme} only', { theme: themeName }),
+      help: t('Printed after the CSS above, only while this theme is active.'),
+    },
+  ];
+  return (
+    <div data-testid="additional-css">
+      <FieldsForm
+        fields={fields}
+        values={css as unknown as Record<string, unknown>}
+        defaults={{ site: '', theme: '' }}
+        onChange={(next) =>
+          onChange({
+            site: typeof next.site === 'string' ? next.site : '',
+            theme: typeof next.theme === 'string' ? next.theme : '',
+          })
+        }
+        locale={locale}
+        appearance="customizer"
+      />
+      <p className="px-6 pb-2 text-xs text-slate-500">
+        {t('{count} of {max} characters', {
+          count: Math.max(css.site.length, css.theme.length).toLocaleString(locale),
+          max: max.toLocaleString(locale),
+        })}
+      </p>
+      {problem && (
+        <p role="alert" className="mx-6 mb-2 rounded bg-red-50 px-3 py-2 text-sm text-red-800">
+          {t(problem)}
+        </p>
+      )}
+    </div>
   );
 }
 

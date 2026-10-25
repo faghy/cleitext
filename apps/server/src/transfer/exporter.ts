@@ -1,4 +1,5 @@
 import type { CxdDocument } from '@cleitext/blocks';
+import { allAdditionalCss } from '../themes/additional-css.js';
 import {
   comments,
   contentTypes,
@@ -132,6 +133,8 @@ export async function exportSite(
     const entryTermRows = await tx.select().from(entryTerms).orderBy(asc(entryTerms.position));
     const termById = new Map(termRows.map((t) => [t.id, t]));
     const settingRows = await tx.select().from(settings).where(eq(settings.namespace, 'core'));
+    // Additional CSS of Customize (core 0.79): it belongs to the site, not to a theme.
+    const additionalCss = await allAdditionalCss(tx);
     const setting = (key: string) => settingRows.find((s) => s.key === key)?.value;
     const pageRef = (id: unknown) =>
       typeof id === 'string' && entryRows.some((e) => e.id === id) ? id : undefined;
@@ -184,6 +187,7 @@ export async function exportSite(
           : {}),
         ...(pageRef(setting('frontPage')) ? { frontPageRef: pageRef(setting('frontPage'))! } : {}),
         ...(pageRef(setting('postsPage')) ? { postsPageRef: pageRef(setting('postsPage'))! } : {}),
+        ...(additionalCss.site || additionalCss.themes ? { additionalCss } : {}),
       },
       locales: locales.map((l) => ({
         code: l.code,

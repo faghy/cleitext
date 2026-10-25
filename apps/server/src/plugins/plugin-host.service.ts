@@ -772,7 +772,8 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     const targeting = [...this.loaded.values()].flatMap((plugin) =>
       plugin.status === 'loaded'
         ? plugin.themeExtensions
-            .filter((e) => e.theme === base.slug)
+            // A child theme gets the extensions of its parent too (core 0.79).
+            .filter((e) => e.theme === base.slug || (!!base.parent && e.theme === base.parent))
             .map(({ extension }) => ({ plugin: plugin.slug, extension }))
         : [],
     );

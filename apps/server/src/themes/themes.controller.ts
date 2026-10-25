@@ -1,4 +1,4 @@
-import { type ThemeView } from '@cleitext/shared';
+import { additionalCssSchema, type AdditionalCssView, type ThemeView } from '@cleitext/shared';
 import {
   BadRequestException,
   Body,
@@ -24,19 +24,33 @@ import { PUBLIC_CSP } from '../common/security-headers.js';
 import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { siteOrigin } from '../mcp/origin.js';
 import { PublicService } from '../public/public.service.js';
-import { isThemeAvailable } from '../public/themes.js';
+import { isThemeAvailable, themeDirectory, themeFor, themeParent } from '../public/themes.js';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { uploadedFile } from '../plugins/plugins.controller.js';
 import { assertCanUpload, packageRoot, runCli, unpackPackage } from '../plugins/package-upload.js';
 import { PREVIEW_SCRIPT } from './preview-script.js';
+import { zipThemeFolder } from './theme-package.js';
 import { ThemesService } from './themes.service.js';
 
 const settingsBody = z.object({ values: z.record(z.string(), z.unknown()) });
+/** Additional CSS (core 0.79): a part left out is not changed. */
+const additionalCssBody = z.object({
+  site: z.string().optional(),
+  theme: z.string().optional(),
+});
+const childBody = z.object({
+  name: z.string().trim().min(1).max(100),
+  slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
+  /** Activate it on this site at once (the parent's settings are copied). */
+  activate: z.boolean().optional(),
+});
 const previewBody = z.object({
   path: z.string().startsWith('/').max(500).default('/'),
   values: z.record(z.string(), z.unknown()),
+  /** Unsaved Additional CSS (core 0.79). */
+  additionalCss: z.object({ site: additionalCssSchema, theme: additionalCssSchema }).optional(),
   /** Answer `{ url }`: the page is kept a few minutes at that address (see `previewFrame`). */
   frame: z.boolean().optional(),
 });
@@ -101,6 +115,90 @@ export class ThemesController {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  }
+
+  /**
+   * Create child theme (core 0.79): a new theme built on this one, with an
+   * empty style.css and a README (`theme:child --install`). No code is
+   * uploaded; it can be activated at once with the parent's settings.
+   */
+  @Post(':slug/child')
+  @RequireCapability('manage_plugins')
+  async createChild(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('slug') parent: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<{ slug: string; name: string; parent: string; warnings: string[] }> {
+    if (!this.config.packages.installFromUi) {
+      throw new BadRequestException('Installing from the admin is turned off on this server.');
+    }
+    const { name, slug, activate } = parseBody(childBody, body);
+    if (!isThemeAvailable(parent))
+      throw new NotFoundException(`The theme "${parent}" is not installed.`);
+    if (themeParent(parent)) {
+      throw new BadRequestException(
+        `${themeFor(parent).name} is a child theme: make the child of ${themeFor(themeParent(parent)).name} instead.`,
+      );
+    }
+    if (isThemeAvailable(slug))
+      throw new BadRequestException(`A theme "${slug}" is already installed.`);
+    await runCli(['theme:child', parent, slug, '--name', name, '--install'], this.config);
+    await this.themes.reload();
+    await this.themes.record(site.id, auth, 'theme.created', slug, request.ip);
+    const warnings = activate
+      ? (await this.themes.activate(site.id, auth, slug, request.ip)).warnings
+      : [];
+    return { slug, name, parent, warnings };
+  }
+
+  /** Download: a child theme as a zip, to edit it and upload it back (core 0.79). */
+  @Get(':slug/download')
+  @RequireCapability('manage_plugins')
+  async download(
+    @Param('slug') slug: string,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<Buffer> {
+    const dir = /^[a-z0-9][a-z0-9-]{0,62}$/.test(slug) ? themeDirectory(slug) : null;
+    if (!dir) throw new NotFoundException('Theme not found.');
+    // Only child themes: a theme of its own (a paid one too) comes from its catalog.
+    if (!themeParent(slug)) {
+      throw new BadRequestException('Only child themes can be downloaded.');
+    }
+    let zip: Uint8Array;
+    try {
+      zip = await zipThemeFolder(dir, slug);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : String(error));
+    }
+    void reply
+      .type('application/zip')
+      .header('content-disposition', `attachment; filename="${slug}.zip"`)
+      .header('cache-control', 'no-store');
+    return Buffer.from(zip);
+  }
+
+  /** Additional CSS of the site (core 0.79): for every theme and for the active one. */
+  @Get('additional-css')
+  @RequireCapability('edit_theme_settings')
+  additionalCss(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+  ): Promise<AdditionalCssView> {
+    return this.themes.additionalCss(site.id, auth);
+  }
+
+  @Put('additional-css')
+  @RequireCapability('edit_theme_settings')
+  saveAdditionalCss(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdditionalCssView> {
+    const values = parseBody(additionalCssBody, body);
+    return this.themes.saveAdditionalCss(site.id, auth, values, request.ip);
   }
 
   /** Delete: removes an installed theme that no site uses (`theme:uninstall`). */
@@ -211,7 +309,7 @@ export class ThemesController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<string | { url: string }> {
-    const { path, values, frame } = parseBody(previewBody, body);
+    const { path, values, frame, additionalCss } = parseBody(previewBody, body);
     const themeSettings = {
       ...(await this.themes.settings(site.id, auth)),
       ...(await this.themes.validSettings(site.id, auth, values)),
@@ -224,7 +322,7 @@ export class ThemesController {
       pathname!,
       new URLSearchParams(search),
       auth,
-      { themeSettings },
+      { themeSettings, ...(additionalCss ? { additionalCss } : {}) },
     );
     if (response.redirect) throw new BadRequestException('This address redirects elsewhere.');
     // The preview's script (pencils, links) as a file: a srcdoc frame blocks inline ones.

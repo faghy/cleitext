@@ -1,6 +1,6 @@
 # Developing Cleitext plugins
 
-> Plugin API **1.49** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
+> Plugin API **1.50** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
 
 A plugin extends Cleitext the way a WordPress plugin extends WordPress. It can add content types with custom fields, blocks, pages to the admin, settings, endpoints, addresses on the public site and its own database tables, and it can react to what happens through hooks.
 
@@ -837,6 +837,8 @@ Installing or updating a plugin from the catalog first installs or updates, from
 ### The site's theme (plugin API 1.49)
 
 `await ctx.themes.active?.(siteId)` gives `{ slug, name, version }` of the theme a site uses. A plugin can read files a theme ships for it (e.g. JSON definitions): `await ctx.themes.files?.(siteId, 'myplugin-json')` lists the names of a folder of the theme (regular files, at most 200, no sub-folders) and `await ctx.themes.readFile?.(siteId, 'myplugin-json/hero.json')` reads one as text (null when missing). Paths stay inside the theme's folder: no `..`, no hidden files, no links leading out; files over 1 MB are not read. The bundled Aurora has no folder (`[]` and null). No permission needed.
+
+**Child themes** (plugin API 1.50, core 0.79): on a site using a child theme ([THEMES.md, Child themes](THEMES.md#7-child-themes)), `active` also gives `parent`, the slug of the theme it is built on; `files` lists the child's files and its parent's together, and `readFile` reads the child's file, else the parent's of the same path (a child overrides its parent's files by path). `ctx.themes.extend('<parent>', …)` applies to the parent's child themes too, so a theme's "Pro" add-on keeps working when a site switches to a child of the theme. Compare with `parent ?? slug` when a plugin needs to know which theme family a site uses.
 
 ### Extending a theme's options (plugin API 1.32)
 

@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.49**
+> API dei plugin **1.50**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -762,6 +762,8 @@ I plugin seguono un ordine stabile (API dei plugin 1.42): un plugin dopo quelli 
 ### Il tema del sito (API dei plugin 1.49)
 
 `await ctx.themes.active?.(siteId)` dà `{ slug, name, version }` del tema usato da un sito. Un plugin può leggere i file che un tema gli fornisce (per esempio definizioni in JSON): `await ctx.themes.files?.(siteId, 'myplugin-json')` elenca i nomi di una cartella del tema (file normali, al massimo 200, senza sottocartelle) e `await ctx.themes.readFile?.(siteId, 'myplugin-json/hero.json')` ne legge uno come testo (null se manca). I percorsi restano dentro la cartella del tema: niente `..`, niente file nascosti, niente collegamenti che portano fuori; i file oltre 1 MB non vengono letti. Aurora, incluso in Cleitext, non ha una cartella (`[]` e null). Non serve nessun permesso.
+
+**Temi child** (API dei plugin 1.50, core 0.79): su un sito che usa un tema child ([TEMI.md, Temi child](TEMI.md#7-temi-child)), `active` dà anche `parent`, lo slug del tema su cui è costruito; `files` elenca insieme i file del child e del genitore, e `readFile` legge il file del child, altrimenti quello del genitore con lo stesso percorso (un child sostituisce i file del genitore per percorso). `ctx.themes.extend('<genitore>', …)` vale anche per i temi child del genitore, così l'estensione "Pro" di un tema continua a funzionare quando un sito passa a un child del tema. Confronta con `parent ?? slug` quando un plugin deve sapere quale famiglia di temi usa un sito.
 
 ### Estendere le opzioni di un tema (API dei plugin 1.32)
 

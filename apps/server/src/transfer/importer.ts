@@ -1,4 +1,5 @@
 import { newCommentStatus } from '../community/defaults.js';
+import { SITE_CSS_KEY, themeCssKey, writeAdditionalCss } from '../themes/additional-css.js';
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import { documentText, newBlockId } from '@cleitext/blocks';
 import { IMPORTED_BLOCK } from '@cleitext/blocks/html';
@@ -31,6 +32,7 @@ import {
 } from '@cleitext/db';
 import {
   CAPABILITIES,
+  additionalCssProblem,
   fieldGroupSchema,
   fieldListSchema,
   importFieldRefs,
@@ -587,6 +589,18 @@ export async function importDocument(
           target: [settings.siteId, settings.namespace, settings.key],
           set: { value },
         });
+    }
+    // Additional CSS (core 0.79): only what can be printed safely.
+    const css = doc.site.additionalCss;
+    const parts: [string, string][] = [
+      ...(css?.site ? [[SITE_CSS_KEY, css.site] as [string, string]] : []),
+      ...Object.entries(css?.themes ?? {}).map(
+        ([slug, text]) => [themeCssKey(slug), text] as [string, string],
+      ),
+    ];
+    for (const [key, text] of parts) {
+      if (additionalCssProblem(text)) continue;
+      await writeAdditionalCss(tx, siteId, key, text);
     }
 
     const takenMenus = new Set((await tx.select().from(menus)).map((m) => `${m.locale}|${m.slug}`));

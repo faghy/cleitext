@@ -106,6 +106,7 @@ export const itAdmin: Messages = {
   'action.theme.uploaded': 'ha caricato il tema',
   'action.plugin.deleted': 'ha eliminato il plugin',
   'action.theme.deleted': 'ha eliminato il tema',
+  'action.theme.created': 'ha creato il tema child',
   'action.core.updated': 'ha avviato l’aggiornamento di Cleitext alla versione',
   Updates: 'Aggiornamenti',
   'Installed version: {version}.': 'Versione installata: {version}.',
@@ -271,4 +272,31 @@ export const itAdmin: Messages = {
     'Il server, il database, le attività in background e ciò che serve a Cleitext per funzionare bene.',
   'The sites of this installation, their addresses and their administrators.':
     'I siti di questa installazione, i loro indirizzi e i loro amministratori.',
+  // Child themes and Additional CSS (core 0.79).
+  'Child theme of {name}': 'Tema child di {name}',
+  'Create child theme': 'Crea tema child',
+  'It needs a license of {name} for this site.': 'Serve una licenza di {name} per questo sito.',
+  '{name} was created and activated, with the settings of {parent}.':
+    '{name} è stato creato e attivato, con le impostazioni di {parent}.',
+  '{name} was created: activate it when you are ready.':
+    '{name} è stato creato: attivalo quando vuoi.',
+  'A child theme inherits everything from {name}: your changes go in the child and survive the updates of {name}.':
+    'Un tema child eredita tutto da {name}: le tue modifiche vanno nel child e restano dopo gli aggiornamenti di {name}.',
+  'A theme with this slug is already installed.': 'È già installato un tema con questo slug.',
+  'Use lowercase letters, digits and dashes.': 'Usa lettere minuscole, cifre e trattini.',
+  'Activate it now, keeping the current settings':
+    'Attivalo subito, mantenendo le impostazioni attuali',
+  'Additional CSS': 'CSS aggiuntivo',
+  'CSS for every theme': 'CSS per ogni tema',
+  'Added to every page after the theme’s CSS. It stays when the theme is updated or changed.':
+    'Aggiunto a ogni pagina dopo il CSS del tema. Resta quando il tema viene aggiornato o cambiato.',
+  'CSS for {theme} only': 'CSS solo per {theme}',
+  'Printed after the CSS above, only while this theme is active.':
+    'Stampato dopo il CSS qui sopra, solo finché questo tema è attivo.',
+  '{count} of {max} characters': '{count} di {max} caratteri',
+  'The CSS cannot contain <style> or </style>.': 'Il CSS non può contenere <style> o </style>.',
+  'The CSS cannot contain <script>.': 'Il CSS non può contenere <script>.',
+  'The CSS cannot contain NUL characters.': 'Il CSS non può contenere caratteri NUL.',
+  'Additional CSS is limited to 100,000 characters.':
+    'Il CSS aggiuntivo è limitato a 100.000 caratteri.',
 };

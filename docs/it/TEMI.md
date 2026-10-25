@@ -21,7 +21,8 @@ mio-tema/
 cleitext theme:build ./mio-tema         # compila src/index.tsx in dist/index.js
 cleitext theme:install ./mio-tema       # lo copia in THEMES_PATH (--link in sviluppo)
 cleitext theme:list
-cleitext theme:uninstall mio-tema       # solo se nessun sito lo usa
+cleitext theme:uninstall mio-tema       # solo se nessun sito lo usa (né un tema child)
+cleitext theme:child mio-tema mio-child # un suo tema child (§7)
 ```
 
 I server in esecuzione caricano subito un tema nuovo o aggiornato, senza riavvio. Ogni sito sceglie il proprio tema in **Aspetto → Temi**, dove i super admin possono anche **eliminare** un tema installato che nessun sito usa (Aurora resta). L'**Anteprima dal vivo** mostra le pagine del sito con un tema installato prima di attivarlo. React e `@cleitext/theme-sdk` vengono dal server e non sono mai inclusi nel tema.
@@ -265,3 +266,160 @@ Con `areas: { footer: 'Footer' }` e `<BlockArea name="footer" />` nel Layout, l'
 - Larghezza del contenuto: imposta `--cx-container-width` su `:root` alla larghezza del contenitore dei contenuti (per esempio `--cx-container-width: 1200px`). La usano i blocchi che seguono la larghezza del tema, come i container a tutta larghezza di Prisma senza una larghezza propria (1140px se il tema non la indica).
 - React esegue l'escape dell'output; usa `dangerouslySetInnerHTML` solo per il tuo CSS o JSON.
 - Pagine accessibili (landmark, link per saltare al contenuto, etichette, contrasto) e leggere.
+- **Ogni tema deve funzionare come genitore** (core 0.79, SPECIFICHE "Requisiti dei temi"): chi gestisce un sito può fare un tema child di qualsiasi tema (§7). Quindi un tema non scrive mai il proprio slug dove va quello del tema del sito (negli indirizzi, negli attributi `data-` letti dai suoi script, nelle chiavi di archiviazione), legge le sue impostazioni con `useThemeSettings()` (mai da un namespace suo) e porta ciò che gli serve dentro il suo bundle o lo legge con `useThemeSettings()`/`usePage()`: un child tiene il codice e le impostazioni del genitore sotto il proprio slug. Provalo una volta con `cleitext theme:child <tuo-tema> <tuo-tema>-child --install` e il child attivo: il sito deve restare uguale.
+
+## 7. Temi child
+
+Un **tema child** (core 0.79, API dei plugin 1.50) è costruito su un altro tema, il suo **genitore**, come in WordPress: eredita tutto dal genitore e contiene solo ciò che cambia chi gestisce il sito. Aggiornare il genitore non tocca mai il child, così quelle modifiche non si perdono. Ogni tema di Cleitext può fare da genitore.
+
+### Crearne uno
+
+- **Dall'amministrazione.** In **Aspetto → Temi**, **Crea tema child** sotto un tema (super admin, come per Carica tema) chiede un nome e uno slug e può attivarlo subito: le scelte di Personalizza del genitore vengono copiate, così il sito resta uguale. Il nuovo tema ha un `theme.json`, un `style.css` vuoto e un README su come sostituire i template.
+- **Dalla CLI.** `cleitext theme:child <genitore> <slug> [--name <nome>]` scrive la cartella `./<slug>` da modificare; con `--install` va direttamente in `THEMES_PATH`.
+- **A mano.** Una cartella con un `theme.json` che nomina il genitore:
+
+```json
+{
+  "slug": "zenit-child",
+  "name": "Zenit Child",
+  "version": "1.0.0",
+  "parent": "zenit",
+  "parentVersion": "^1.0.0"
+}
+```
+
+`parent` è lo slug del genitore; `parentVersion` (facoltativo) è un intervallo semver delle versioni del genitore con cui il child funziona. Un child senza codice non ha bisogno di `entry` né di build: basta il suo `style.css`.
+
+### Cosa eredita e cosa sostituisce
+
+Il sito vede un solo tema, con slug e nome del child, fatto dai due:
+
+| Parte                                                                                                                                               | Regola                                                                                                                                              |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Layout, template (anche `template-<nome>`), componenti, font, script, traduzioni                                                                    | Quelli del genitore, salvo un template (o un `Layout`) del child con lo stesso nome.                                                                |
+| CSS                                                                                                                                                 | La pagina del genitore com'è, poi `css` e `style.css` del child (vedi "Ordine del CSS").                                                            |
+| `editorCss`                                                                                                                                         | Quello del genitore, poi `editorCss` ed `editor.css` del child.                                                                                     |
+| Impostazioni (`settings`)                                                                                                                           | Quelle del genitore; un campo del child con lo stesso nome lo sostituisce, gli altri si aggiungono. `settingsDefaults` cambia i valori predefiniti. |
+| Sezioni, stili pronti, posizioni dei menu, opzioni delle voci di menu, aree, contenuti predefiniti delle aree, modelli di pagina, pagine di opzioni | Quelli del genitore più quelli del child (stesso id o nome: quello del child).                                                                      |
+| `entryFields`                                                                                                                                       | I campi del genitore più quelli del child.                                                                                                          |
+| `relatedEntries`, `listTerms`, `adjacentEntries`, `comments`, `importSettings`                                                                      | Quelli del child, se li dà.                                                                                                                         |
+| `aiGuide`                                                                                                                                           | Quella del genitore, poi quella del child.                                                                                                          |
+| Plugin che vengono con il genitore (`plugins`)                                                                                                      | Vengono anche con il child; un child può nominarne altri.                                                                                           |
+| File letti dai plugin (`ctx.themes.readFile`, per esempio `campus-json/*.json`)                                                                     | Il file del child, altrimenti quello del genitore con lo stesso percorso.                                                                           |
+| Plugin che estendono il genitore (`ctx.themes.extend('<genitore>')`)                                                                                | Estendono anche il child.                                                                                                                           |
+
+Aree di blocchi, menu, valori delle pagine di opzioni e opzioni per pagina appartengono al sito, non al tema: il child mostra gli stessi.
+
+### Sostituire e avvolgere i template
+
+Un child con codice ha `src/index.tsx`, compilato con `cleitext theme:build` come ogni tema (React, l'SDK e il codice del genitore vengono dal server: il bundle del child contiene solo il suo codice). L'esportazione predefinita è `defineChildTheme({ … })`:
+
+```tsx
+import {
+  defineChildTheme,
+  ParentTemplate,
+  useParentTemplate,
+  useParentLayout,
+  type LayoutProps,
+  type TemplateProps,
+} from '@cleitext/theme-sdk';
+
+/** Sostituisce `entry-page` del genitore. */
+function Page(props: TemplateProps) {
+  if (props.kind !== 'entry') return null;
+  return <main className="my-page">{props.entry.title}</main>;
+}
+
+/** Avvolge il template che il genitore userebbe per questa pagina. */
+function Index(props: TemplateProps) {
+  return (
+    <>
+      <div className="notice">Saldi estivi!</div>
+      <ParentTemplate {...props} />
+    </>
+  );
+}
+
+/** Avvolge un template del genitore per nome. */
+function Search(props: TemplateProps) {
+  const Parent = useParentTemplate('search');
+  return <section className="my-search">{Parent && <Parent {...props} />}</section>;
+}
+
+/** Un Layout intorno a quello del genitore. */
+function Layout(props: LayoutProps) {
+  const Parent = useParentLayout()!;
+  return <Parent {...props} />;
+}
+
+export default defineChildTheme({
+  templates: { 'entry-page': Page, index: Index, search: Search },
+  Layout,
+  css: '.notice { background: gold; }',
+  settings: [{ name: 'ribbon', type: 'text', label: 'Testo del nastro' }],
+  settingsDefaults: { accent: '#7c3aed' },
+});
+```
+
+- Un template del child sostituisce solo quello del genitore **con lo stesso nome**. La gerarchia non cambia: con il solo `index` nel child, una pagina usa ancora `entry` del genitore se il genitore lo ha, come in WordPress.
+- `<ParentTemplate {...props} />` mostra il template che il genitore userebbe per questa pagina (`name` ne sceglie uno); `useParentTemplate(nome)` lo dà come componente (null fuori da un tema child); `useParentLayout()` dà il Layout del genitore.
+- L'esportazione predefinita può anche essere una funzione della definizione del genitore: `defineChildTheme((parent) => ({ templates: { index: (p) => <Wrap><parent.templates.index {...p} /></Wrap> } }))`.
+
+### Ordine del CSS
+
+Nell'`<head>` di ogni pagina:
+
+1. il CSS del genitore, dove lo stampa il suo Layout (con il CSS delle sue impostazioni);
+2. i fogli di stile dei plugin;
+3. il CSS del child (`css`, poi `style.css`), in `<style id="cx-child-theme-css">`;
+4. il CSS dei blocchi;
+5. il **CSS aggiuntivo** del sito (§8), per ultimo.
+
+`style.css` ed `editor.css` si leggono solo dalla cartella del child, al massimo 512 KB ciascuno.
+
+### Impostazioni
+
+Il child tiene i valori di Personalizza sotto il proprio slug. Finché non salva i suoi, mostra i valori salvati del genitore, e la sua **prima attivazione** su un sito li copia, così passare dal genitore al child non cambia nulla nelle pagine. Dopo, i due hanno valori separati (tornando al genitore si vedono quelli del genitore).
+
+### Installare, aggiornare, eliminare
+
+- Un child ha bisogno del genitore installato, in una versione dentro `parentVersion`: altrimenti `theme:install` (e quindi Carica tema) lo rifiuta e dice cosa manca. Il catalogo installa prima il genitore, se ce l'ha.
+- Un solo livello: un genitore non può essere un child, un child non può avere child e un tema non può essere genitore di se stesso.
+- Aggiornare il genitore non cambia mai la cartella del child. Un aggiornamento fuori dal `parentVersion` di un child installato viene rifiutato (`theme:install --force` lo installa comunque); un aggiornamento dal catalogo che rompe un child torna alla versione di prima.
+- Il genitore non si può eliminare finché c'è un child installato: elimina prima il child.
+- `theme:rollback` funziona per entrambi, ognuno sulla sua cartella.
+- Un child che non si carica (genitore mancante, versione sbagliata) compare in **Aspetto → Temi** con il motivo.
+
+### Scaricare e ricaricare
+
+**Scarica** sotto un tema child (super admin) dà la sua cartella come zip, senza `node_modules` né collegamenti. Modificala in locale (`cleitext theme:build` se ha codice) e ricaricala con **Carica tema**: una `version` più alta è un aggiornamento, la precedente resta per il rollback. Un child caricato viene eseguito sul server come ogni tema caricato, quindi valgono le stesse regole: solo super admin, solo se il server permette di installare dall'amministrazione e pacchetti non firmati.
+
+### Genitori a pagamento
+
+Un child di un tema a pagamento (come Vitality) non è a pagamento e non sostituisce mai la licenza del genitore: un sito può attivarlo solo con una licenza del **genitore** per quel sito (si può provare con l'Anteprima dal vivo, come la demo del genitore). Il catalogo continua ad aggiornare il genitore con la sua licenza come sempre. Si possono scaricare solo i temi child, mai il genitore.
+
+### Un esempio completo
+
+```
+mio-zenit/
+├─ theme.json      { "slug": "mio-zenit", "name": "Mio Zenit", "version": "1.0.0", "parent": "zenit", "parentVersion": "^1.0.0" }
+├─ style.css       .site-title { letter-spacing: .05em; }
+├─ editor.css      .editor-styles-wrapper h2 { color: #7c3aed; }
+├─ README.md
+└─ src/index.tsx   export default defineChildTheme({ templates: { 404: NotFound }, settingsDefaults: { … } })
+```
+
+```bash
+cleitext theme:build ./mio-zenit && cleitext theme:install ./mio-zenit
+```
+
+## 8. CSS aggiuntivo
+
+**Aspetto → Personalizza → CSS aggiuntivo** (core 0.79) c'è nel Personalizza di ogni tema, come in WordPress. Ha due riquadri:
+
+- **CSS per ogni tema**: appartiene al sito, quindi resta dopo gli aggiornamenti e i cambi di tema;
+- **CSS solo per &lt;tema&gt;**: stampato solo finché quel tema è attivo.
+
+L'anteprima mostra il CSS mentre lo scrivi; **Pubblica** lo salva con le opzioni del tema. Viene stampato per ultimo nell'`<head>` (`<style id="cx-additional-css">`), dopo il CSS del tema, quello di un tema child e quello dei blocchi. Ogni riquadro contiene fino a 100.000 caratteri e non può contenere `<style`, `</style` o `<script` (potrebbe chiudere l'elemento); quanto è salvato viene comunque protetto di nuovo quando si stampa. È conservato nelle impostazioni del sito (namespace `additional-css`, chiavi `site` e `theme:<slug>`), quindi i backup lo comprendono e le esportazioni del sito (`cleitext export`) lo portano nel nuovo sito (`site.additionalCss` del documento di trasferimento).
+
+I temi non hanno più bisogno di un'opzione "CSS personalizzato" propria. Quella di Zenit si è spostata qui con il core 0.79: il suo valore è diventato il CSS aggiuntivo del sito (per ogni tema dove Zenit era il tema del sito, solo per Zenit altrove), e Zenit 1.0.5 non ha più l'opzione.

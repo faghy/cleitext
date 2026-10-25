@@ -19,7 +19,7 @@ export async function themeSettings(
   tx: SiteTransaction,
   theme: ThemeDefinition,
 ): Promise<Record<string, unknown>> {
-  const stored = await storedThemeSettings(tx, theme.slug);
+  const stored = await storedThemeSettings(tx, theme.slug, theme.parent);
   const hidden = hiddenSettings(theme);
   for (const name of hidden) delete stored[name];
   const defaults = Object.fromEntries(
@@ -30,18 +30,61 @@ export async function themeSettings(
   return { ...defaults, ...stored };
 }
 
-/** The values saved for a theme, as stored. */
+/**
+ * The values saved for a theme, as stored. A child theme (`parent`) never
+ * saved falls back to its parent's values, so it looks the same.
+ */
 export async function storedThemeSettings(
   tx: SiteTransaction,
   slug: string,
+  parent?: string | null,
 ): Promise<Record<string, unknown>> {
-  const [row] = await tx
-    .select({ value: settings.value })
+  const rows = await tx
+    .select({ namespace: settings.namespace, value: settings.value })
     .from(settings)
-    .where(and(eq(settings.namespace, themeNamespace(slug)), eq(settings.key, 'values')));
+    .where(
+      and(
+        inArray(settings.namespace, [
+          themeNamespace(slug),
+          ...(parent ? [themeNamespace(parent)] : []),
+        ]),
+        eq(settings.key, 'values'),
+      ),
+    );
+  const row =
+    rows.find((r) => r.namespace === themeNamespace(slug)) ??
+    (parent ? rows.find((r) => r.namespace === themeNamespace(parent)) : undefined);
   return row?.value && typeof row.value === 'object'
     ? { ...(row.value as Record<string, unknown>) }
     : {};
+}
+
+/**
+ * First activation of a child theme on a site: the parent's saved settings
+ * become the child's, so switching keeps the Customize choices. Nothing is
+ * done when the child has values of its own.
+ */
+export async function copyParentSettings(
+  tx: SiteTransaction,
+  siteId: string,
+  slug: string,
+  parent: string,
+): Promise<boolean> {
+  const [own] = await tx
+    .select({ key: settings.key })
+    .from(settings)
+    .where(and(eq(settings.namespace, themeNamespace(slug)), eq(settings.key, 'values')));
+  if (own) return false;
+  const [row] = await tx
+    .select({ value: settings.value })
+    .from(settings)
+    .where(and(eq(settings.namespace, themeNamespace(parent)), eq(settings.key, 'values')));
+  if (!row) return false;
+  await tx
+    .insert(settings)
+    .values({ siteId, namespace: themeNamespace(slug), key: 'values', value: row.value })
+    .onConflictDoNothing();
+  return true;
 }
 
 /** The theme's block areas in a language. */

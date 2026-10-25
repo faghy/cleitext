@@ -1378,16 +1378,19 @@ export interface ThemeExtension {
 export interface ThemesApi {
   /**
    * Extends the options of a theme, by slug (needs `theme:hooks`, plugin API
-   * 1.32). Call it in `setup`; it applies while the theme is a site's theme
-   * and the plugin is active there. Values of the added settings are kept
+   * 1.32). Call it in `setup`; it applies while the theme, or a child theme
+   * of it (plugin API 1.50), is a site's theme and the plugin is active there. Values of the added settings are kept
    * when the plugin is deactivated, but no longer reach the theme.
    */
   extend(theme: string, extension: ThemeExtension): void;
   /**
    * The theme a site uses (plugin API 1.49; missing on older cores). No
-   * permission needed.
+   * permission needed. For a child theme (plugin API 1.50), `parent` is the
+   * slug of the theme it is built on.
    */
-  active?(siteId: string): Promise<{ slug: string; name: string; version: string }>;
+  active?(
+    siteId: string,
+  ): Promise<{ slug: string; name: string; version: string; parent?: string }>;
   /**
    * Names of the files of a folder of the site's theme (plugin API 1.49),
    * e.g. `files(siteId, 'campus-json')`; `[]` when it has none (or the theme
@@ -1396,7 +1399,7 @@ export interface ThemesApi {
   files?(siteId: string, dir: string): Promise<string[]>;
   /**
    * A text file of the site's theme, by its path inside the theme's folder
-   * (plugin API 1.49), e.g. `campus-json/group_hero.json`; null when there is
+   * (plugin API 1.49; a child theme's file, else its parent's, since 1.50), e.g. `campus-json/group_hero.json`; null when there is
    * none. Paths may not leave the folder; files over 1 MB are not read.
    */
   readFile?(siteId: string, path: string): Promise<string | null>;

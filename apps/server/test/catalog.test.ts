@@ -328,3 +328,61 @@ describe('required plugins', () => {
     expect(res.json().detail).not.toContain('Error:');
   });
 });
+
+describe('child themes', () => {
+  const zip = (slug: string, version: string, manifest: Record<string, unknown> = {}) =>
+    Buffer.from(
+      zipSync({
+        [`${slug}/theme.json`]: strToU8(JSON.stringify({ slug, name: slug, version, ...manifest })),
+        ...(manifest.parent
+          ? { [`${slug}/style.css`]: strToU8('.kid{}') }
+          : {
+              [`${slug}/dist/index.js`]: strToU8(
+                `const { createElement: h } = globalThis.__cleitextShared.react;
+const sdk = globalThis.__cleitextShared['@cleitext/theme-sdk'];
+export default sdk.defineTheme({ slug: '${slug}', name: '${slug}', version: '${version}', menuLocations: {},
+  templates: { index: () => h('main', null, '${slug}') }, Layout: ({ children }) => h('html', null, h('body', null, children)), css: '' });`,
+              ),
+            }),
+      }),
+    );
+
+  it('install their parent from the catalog first; the parent is not updated past them', async () => {
+    publish([
+      item('theme', 'mama', '1.0.0', zip('mama', '1.0.0'), { name: 'Mama' }),
+      item(
+        'theme',
+        'mama-kid',
+        '1.0.0',
+        zip('mama-kid', '1.0.0', { parent: 'mama', parentVersion: '^1.0.0' }),
+        {
+          name: 'Mama Kid',
+        },
+      ),
+    ]);
+    await catalog();
+    const res = await root.post('/api/v1/catalog/theme/mama-kid/install');
+    expect(res.statusCode).toBe(200);
+    expect(res.json().message).toContain('Mama 1.0.0 installed (parent of mama-kid).');
+    const themes = (await root.get('/api/v1/themes')).json() as {
+      slug: string;
+      error: string | null;
+      parent?: { slug: string } | null;
+    }[];
+    expect(themes.find((t) => t.slug === 'mama-kid')).toMatchObject({
+      error: null,
+      parent: { slug: 'mama' },
+    });
+
+    // Mama 2 is outside what the child asks: it stays at 1.0.0.
+    publish([item('theme', 'mama', '2.0.0', zip('mama', '2.0.0'), { name: 'Mama' })]);
+    await catalog();
+    const update = await root.post('/api/v1/catalog/theme/mama/install');
+    expect(update.statusCode).toBe(400);
+    expect(update.json().detail).toContain('mama-kid needs mama ^1.0.0');
+    expect(
+      (await root.get('/api/v1/themes')).json().find((t: { slug: string }) => t.slug === 'mama')
+        .version,
+    ).toBe('1.0.0');
+  });
+});

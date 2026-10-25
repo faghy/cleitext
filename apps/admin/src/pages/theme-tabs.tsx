@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { editorExtensions } from '../editor-plugins';
 import { useMe } from '../auth';
-import { Alert, Button, Card, useT } from '../components/ui';
+import { Alert, Button, Card, TextField, useT } from '../components/ui';
 import { mediaServices } from './entry-editor';
 import { PackageUpload } from '../components/package-upload';
 import { CatalogBrowser, CatalogUpdateButton } from '../components/catalog';
@@ -51,6 +51,9 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
   // Themes → Add New: the catalog and the upload, as in WordPress.
   const [adding, setAdding] = useState(false);
   const [previewing, setPreviewing] = useState<ThemeView | null>(null);
+  /** The theme a child theme is being created of (Create child theme). */
+  const [childOf, setChildOf] = useState<string | null>(null);
+  const [created, setCreated] = useState<string | null>(null);
   if (previewing) {
     return (
       <LivePreview
@@ -90,6 +93,7 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
           {t('Add New Theme')}
         </Button>
       )}
+      {created && <Alert kind="success">{created}</Alert>}
       {(activate.data?.warnings ?? []).map((warning) => (
         <Alert key={warning}>{warning}</Alert>
       ))}
@@ -107,6 +111,11 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
               {theme.name}{' '}
               <span className="text-sm font-normal text-slate-500">{theme.version}</span>
             </h2>
+            {theme.parent && (
+              <p className="text-xs font-medium text-slate-600">
+                {t('Child theme of {name}', { name: theme.parent.name })}
+              </p>
+            )}
             {theme.description && <p className="text-sm text-slate-600">{theme.description}</p>}
             <CatalogUpdateButton type="theme" slug={theme.slug} />
             {theme.paid && !theme.error && (
@@ -127,7 +136,7 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
             ) : theme.active ? (
               <div className="flex flex-wrap items-center gap-3">
                 <p className="text-sm font-medium text-sky-700">{t('Active')}</p>
-                {onCustomize && theme.settings.length > 0 && (
+                {onCustomize && (
                   <Button variant="secondary" onClick={onCustomize}>
                     {t('Customize')}
                     <span className="sr-only"> {theme.name}</span>
@@ -138,7 +147,11 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   variant="secondary"
-                  disabled={activate.isPending || (theme.paid !== null && !theme.paid.license)}
+                  disabled={
+                    activate.isPending ||
+                    (theme.paid !== null && !theme.paid.license) ||
+                    Boolean(theme.needsParentLicense)
+                  }
                   onClick={() => activate.mutate(theme.slug)}
                 >
                   {t('Activate')}
@@ -170,6 +183,58 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
                 )}
               </div>
             )}
+            {theme.needsParentLicense && theme.parent && (
+              <p className="text-xs text-slate-600">
+                {t('It needs a license of {name} for this site.', { name: theme.parent.name })}
+              </p>
+            )}
+            {canDelete && !theme.error && (
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                {!theme.parent && (
+                  <button
+                    type="button"
+                    className="text-sky-700 hover:underline"
+                    aria-expanded={childOf === theme.slug}
+                    onClick={() => setChildOf(childOf === theme.slug ? null : theme.slug)}
+                  >
+                    {t('Create child theme')}
+                    <span className="sr-only"> {theme.name}</span>
+                  </button>
+                )}
+                {theme.parent && (
+                  <a
+                    className="text-sky-700 hover:underline"
+                    href={`/api/v1/themes/${theme.slug}/download`}
+                    download={`${theme.slug}.zip`}
+                  >
+                    {t('Download')}
+                    <span className="sr-only"> {theme.name}</span>
+                  </a>
+                )}
+              </div>
+            )}
+            {childOf === theme.slug && (
+              <ChildThemeForm
+                parent={theme}
+                taken={(themes.data ?? []).map((x) => x.slug)}
+                onCancel={() => setChildOf(null)}
+                onCreated={(result) => {
+                  setChildOf(null);
+                  setCreated(
+                    result.activated
+                      ? t('{name} was created and activated, with the settings of {parent}.', {
+                          name: result.name,
+                          parent: theme.name,
+                        })
+                      : t('{name} was created: activate it when you are ready.', {
+                          name: result.name,
+                        }),
+                  );
+                  void queryClient.invalidateQueries({ queryKey: ['themes'] });
+                  void queryClient.invalidateQueries({ queryKey: ['plugins'] });
+                }}
+              />
+            )}
           </li>
         ))}
       </ul>
@@ -179,6 +244,92 @@ export function ThemesTab({ onCustomize }: { onCustomize?: (() => void) | undefi
         {installAfter}
       </p>
     </div>
+  );
+}
+
+/** A slug from a name: lowercase letters, digits and dashes. */
+export function themeSlug(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+/**
+ * Create child theme (core 0.79): a theme built on this one, where changes
+ * survive its updates. It can be activated at once, keeping the settings.
+ */
+function ChildThemeForm({
+  parent,
+  taken,
+  onCancel,
+  onCreated,
+}: {
+  parent: ThemeView;
+  taken: string[];
+  onCancel: () => void;
+  onCreated: (result: { name: string; activated: boolean }) => void;
+}) {
+  const { t } = useT();
+  const [name, setName] = useState(`${parent.name} Child`);
+  const [slug, setSlug] = useState<string | null>(null);
+  const [activateNow, setActivateNow] = useState(parent.active);
+  const finalSlug = slug ?? themeSlug(name);
+  const valid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(finalSlug) && !taken.includes(finalSlug);
+  const create = useMutation({
+    mutationFn: () =>
+      api<{ slug: string; name: string; warnings: string[] }>(
+        'POST',
+        `/themes/${parent.slug}/child`,
+        { name: name.trim(), slug: finalSlug, activate: activateNow },
+      ),
+    onSuccess: (result) => onCreated({ name: result.name, activated: activateNow }),
+  });
+  return (
+    <form
+      className="space-y-3 rounded border border-slate-200 bg-slate-50 p-3"
+      aria-label={t('Create child theme')}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (valid && name.trim()) create.mutate();
+      }}
+    >
+      <p className="text-xs text-slate-600">
+        {t(
+          'A child theme inherits everything from {name}: your changes go in the child and survive the updates of {name}.',
+          { name: parent.name },
+        )}
+      </p>
+      <TextField label={t('Name')} value={name} onChange={(e) => setName(e.target.value)} />
+      <TextField label={t('Slug')} value={finalSlug} onChange={(e) => setSlug(e.target.value)} />
+      {!valid && (
+        <p className="text-xs text-red-700">
+          {taken.includes(finalSlug)
+            ? t('A theme with this slug is already installed.')
+            : t('Use lowercase letters, digits and dashes.')}
+        </p>
+      )}
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={activateNow}
+          onChange={(e) => setActivateNow(e.target.checked)}
+        />
+        {t('Activate it now, keeping the current settings')}
+      </label>
+      {create.error && <Alert>{errorMessage(create.error)}</Alert>}
+      <div className="flex gap-2">
+        <Button type="submit" disabled={create.isPending || !valid || !name.trim()}>
+          {t('Create')}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          {t('Cancel')}
+        </Button>
+      </div>
+    </form>
   );
 }
 

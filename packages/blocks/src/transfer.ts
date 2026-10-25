@@ -151,6 +151,15 @@ export const transferDocumentSchema = z.object({
       postsPerPage: z.number().int().min(1).max(100).optional(),
       frontPageRef: ref.optional(),
       postsPageRef: ref.optional(),
+      /** Additional CSS of Customize (core 0.79): for every theme, and per theme slug. */
+      additionalCss: z
+        .object({
+          site: z.string().max(100_000).optional(),
+          themes: z
+            .record(z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/), z.string().max(100_000))
+            .optional(),
+        })
+        .optional(),
     })
     .default({}),
   locales: z

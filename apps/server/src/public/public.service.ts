@@ -112,7 +112,13 @@ import { sanitizeDocument } from '../content/html-sanitize.js';
 import { pluginBlockInstances } from './block-instances.js';
 import { pluginAssetUrl } from '../plugins/plugin-assets.js';
 import { verifyPreviewToken } from './preview.js';
-import { themeFor } from './themes.js';
+import { childThemeCss, parentDefinition, themeFor } from './themes.js';
+import {
+  beforeHeadEnd,
+  readAdditionalCss,
+  withAdditionalCss,
+  type AdditionalCss,
+} from '../themes/additional-css.js';
 import { PUBLIC_CSP } from '../common/security-headers.js';
 import { themeAreas, themeMediaIds, themeSettings } from './theme-data.js';
 import { SITEMAP_RE, SITEMAP_XSL, sitemap, sitemapIndex, type SitemapContext } from './sitemaps.js';
@@ -172,6 +178,8 @@ interface RequestScope {
   blockRenderers?: ReadonlyMap<string, BlockRenderer>;
   /** Unsaved theme settings shown by the Customize preview (RF-THM-03). */
   themeSettings?: Record<string, unknown>;
+  /** Unsaved Additional CSS shown by the Customize preview (core 0.79). */
+  additionalCss?: AdditionalCss;
   /** Preview for a visual editor: the content is left to the editor (`PageContext.editorFrame`). */
   editorFrame?: boolean;
   /** CSS of the plugin blocks on the page (`css`), added to `<head>`. */
@@ -631,7 +639,11 @@ export class PublicService {
      * Previews (never cached): theme settings instead of the saved ones, or
      * another installed theme instead of the active one (Live Preview).
      */
-    customize?: { themeSettings?: Record<string, unknown>; theme?: string },
+    customize?: {
+      themeSettings?: Record<string, unknown>;
+      theme?: string;
+      additionalCss?: AdditionalCss;
+    },
   ): Promise<PublicResponse> {
     const includePrivate = viewer?.capabilities.includes('read_private_entries') ?? false;
     let path: string;
@@ -691,6 +703,7 @@ export class PublicService {
         scope.theme = await this.plugins.effectiveTheme(siteId, themeFor(customize.theme));
       }
       if (customize?.themeSettings) scope.themeSettings = customize.themeSettings;
+      if (customize?.additionalCss) scope.additionalCss = customize.additionalCss;
 
       if (redirect?.status === 410) return this.notFound(scope, 410);
       // Routes match addresses without the trailing slash.
@@ -2068,7 +2081,17 @@ export class PublicService {
       ...(Object.keys(options).length ? { options } : {}),
       ...(scope.editorFrame ? { editorFrame: true } : {}),
       ...(Object.keys(locations).length ? { locations } : {}),
+      templateCandidates: candidates,
     };
+    // Child themes (core 0.79): the parent's templates, to wrap them.
+    const parent = theme.parent ? parentDefinition(theme.slug) : null;
+    if (parent) {
+      context.parentTheme = {
+        slug: parent.slug,
+        templates: parent.templates,
+        Layout: parent.Layout,
+      };
+    }
     const Template = resolveTemplate(theme, candidates);
     let html = renderHtmlDocument(
       createElement(PageProvider, {
@@ -2116,10 +2139,17 @@ export class PublicService {
       html = await this.plugins.applyFilter('render.html', html, hookContext, scope.siteId);
       html = await this.withPluginAssets(scope, html, hookContext);
     }
+    // A child theme's CSS, after its parent's page and the plugins' stylesheets (core 0.79).
+    html = beforeHeadEnd(html, 'cx-child-theme-css', childThemeCss(theme.slug));
     // Last in <head>: each block's own CSS overrides the plugins' stylesheets.
     // Base styles of tables and galleries, before the plugins' (themes may restyle them).
     html = withCoreBlockCss(html);
     if (scope.blockCss && scope.blockCss.length > 0) html = withBlockCss(html, scope.blockCss);
+    // The site owner's Additional CSS, after everything else (core 0.79).
+    html = withAdditionalCss(
+      html,
+      scope.additionalCss ?? (await readAdditionalCss(scope.tx, theme.slug)),
+    );
     // Last: the Google and Bunny Fonts the theme and the plugins link, kept on the site.
     html = await this.webFonts.page(scope.siteId, html, scope.settings.webFonts, (tag) =>
       scope.tags.add(tag),
