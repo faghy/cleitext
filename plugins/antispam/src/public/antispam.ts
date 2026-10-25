@@ -99,14 +99,18 @@ const win = window as Win;
       event.preventDefault();
       event.stopImmediatePropagation();
       const submitter = (event as SubmitEvent).submitter;
-      void ready(form).then(() => {
-        waited.add(form);
-        if (typeof form.requestSubmit === 'function')
-          form.requestSubmit(
-            submitter instanceof HTMLElement ? (submitter as HTMLButtonElement) : undefined,
-          );
-        else form.submit();
-      });
+      // A submit started while this one is still being dispatched is ignored by
+      // the browser: when the token is already there, wait for the next task.
+      void ready(form)
+        .then(() => new Promise((resolve) => setTimeout(resolve, 0)))
+        .then(() => {
+          waited.add(form);
+          if (typeof form.requestSubmit === 'function')
+            form.requestSubmit(
+              submitter instanceof HTMLElement ? (submitter as HTMLButtonElement) : undefined,
+            );
+          else form.submit();
+        });
     },
     true,
   );

@@ -198,7 +198,7 @@ describe('the invisible checks', () => {
     expect(post).toContain('data-cl-antispam="core/comment"');
     expect(post).toContain('name="cl_as_hp"');
     expect(post).toContain('<input type="hidden" name="cl_as_t" value="">');
-    expect(post).toMatch(/plugin-assets\/antispam\/1\.0\.0\/antispam\.js/);
+    expect(post).toMatch(/plugin-assets\/antispam\/[\d.]+\/antispam\.js/);
     expect((await guest.get('/account/register')).body).toContain(
       'data-cl-antispam="core/register"',
     );

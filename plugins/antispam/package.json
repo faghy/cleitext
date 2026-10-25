@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-antispam",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Official Cleitext plugin: local spam protection for comments, sign-ups and forms, with no outside service.",
   "license": "GPL-2.0-or-later",
