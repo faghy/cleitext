@@ -24,7 +24,11 @@ function api<T>(page: Page, method: string, path: string, body?: unknown): Promi
       const { token } = (await (await fetch('/api/v1/auth/csrf')).json()) as { token: string };
       const res = await fetch(`/api/v1${path}`, {
         method,
-        headers: { 'x-csrf-token': token, 'content-type': 'application/json' },
+        // A JSON content type only with a body: the server refuses an empty one.
+        headers: {
+          'x-csrf-token': token,
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
@@ -118,10 +122,11 @@ test('a field group with a page template rule shows for that template and blocks
     await expect(settings.getByRole('region', { name: title })).toHaveCount(0);
     expect(appErrors(errors)).toEqual([]);
   } finally {
+    // Removed, so that the next browser's run does not find this group's required field.
     for (const created of [entry, other]) {
       await api(page, 'POST', `/entries/${created.id}/trash`).catch(() => undefined);
       await api(page, 'DELETE', `/entries/${created.id}`).catch(() => undefined);
     }
-    await api(page, 'DELETE', `/field-groups/${id}`).catch(() => undefined);
+    await api(page, 'DELETE', `/field-groups/${id}`);
   }
 });
