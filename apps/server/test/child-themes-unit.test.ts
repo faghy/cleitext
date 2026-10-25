@@ -190,6 +190,13 @@ describe('Additional CSS in the page', () => {
     expect(withAdditionalCss(html, { site: 'a{}</style><script>x</script>', theme: '' })).toContain(
       'a{}\\3C /style>\\3C script>x\\3C /script>',
     );
+    // Saved before the check of braces (core 0.82): each part matched, never swallowing the next.
+    expect(
+      withAdditionalCss(html, { site: '.a{}@media (max-width: 580px){', theme: '.b{}' }),
+    ).toContain('<style id="cx-additional-css">.a{}\n.b{}</style>');
+    expect(withAdditionalCss(html, { site: '@media print{.a{}', theme: '.b{}' })).toContain(
+      '@media print{.a{}\n}\n.b{}',
+    );
     expect(beforeHeadEnd('<p>no head</p>', 'x', '.c{}')).toBe(
       '<style id="x">.c{}</style><p>no head</p>',
     );

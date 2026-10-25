@@ -375,10 +375,17 @@ describe('Additional CSS', () => {
       '</STYLE >',
       'a{}<style>',
       'x'.repeat(100_001),
+      // Braces that do not match (core 0.82): the CSS printed after it would be swallowed.
+      '.a{color:red}@media screen and (max-width: 580px){',
+      '.a{color:red}}',
     ]) {
       const res = await admin.request('PUT', '/api/v1/themes/additional-css', { site: bad });
       expect(res.statusCode).toBe(400);
     }
+    const unclosed = await admin.request('PUT', '/api/v1/themes/additional-css', {
+      theme: '.b{content:"}"} /* { */ .c{',
+    });
+    expect(unclosed.json()).toMatchObject({ detail: 'The CSS has a { that is never closed.' });
     const saved = await admin.request('PUT', '/api/v1/themes/additional-css', {
       site: '.site-wide{color:teal}',
       theme: '.only-kid{color:gold}',
@@ -536,6 +543,18 @@ describe('Additional CSS', () => {
       { key: 'theme:aurora', value: '.for-aurora{}' },
     ]);
     expect((await run({ site: '.more{color:blue}' })).skipped.additionalCss).toBe(1);
+
+    // Braces that do not match (core 0.82): balanced first, and the report says so.
+    const broken = await run({
+      themes: { totally: '.slider{position:relative}@media screen and (max-width: 580px){' },
+    });
+    expect(broken.created.additionalCss).toBe(1);
+    expect(broken.warnings).toContainEqual(
+      expect.stringContaining('its braces did not match (removed 1 empty block(s)'),
+    );
+    expect((await stored()).find((part) => part.key === 'theme:totally')?.value).toBe(
+      '.slider{position:relative}',
+    );
 
     // Too long together with the site's own, or unsafe: reported, the site's CSS kept.
     const long = await run({ site: `.x{content:"${'x'.repeat(99_950)}"}` });

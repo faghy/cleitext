@@ -6,7 +6,7 @@
  * after the theme's and the child theme's CSS and the blocks' CSS.
  */
 import { settings, type SiteTransaction } from '@cleitext/db';
-import { styleText } from '@cleitext/shared';
+import { balanceCss, styleText } from '@cleitext/shared';
 import { and, eq, inArray } from 'drizzle-orm';
 
 export const ADDITIONAL_CSS_NAMESPACE = 'additional-css';
@@ -114,11 +114,19 @@ export function beforeHeadEnd(html: string, id: string, css: string): string {
   return at === -1 ? style + html : html.slice(0, at) + style + html.slice(at);
 }
 
-/** The page with its Additional CSS, last in `<head>`: for every theme, then for this one. */
+/**
+ * The page with its Additional CSS, last in `<head>`: for every theme, then
+ * for this one. Each part is printed with its braces matched (core 0.82):
+ * CSS saved before the check, with a block left open, cannot swallow the
+ * part after it.
+ */
 export function withAdditionalCss(html: string, css: AdditionalCss): string {
   return beforeHeadEnd(
     html,
     'cx-additional-css',
-    [css.site, css.theme].filter((part) => part.trim()).join('\n'),
+    [css.site, css.theme]
+      .filter((part) => part.trim())
+      .map((part) => balanceCss(part).css)
+      .join('\n'),
   );
 }

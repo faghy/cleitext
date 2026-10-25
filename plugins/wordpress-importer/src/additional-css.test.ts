@@ -90,6 +90,33 @@ describe('Additional CSS of a WordPress export', () => {
     }
   });
 
+  it('matches the braces before the CSS goes after the site’s own (bolognaolistica.com)', () => {
+    // Already broken in WordPress, where the browser closed the block at the end of its <style>.
+    const css =
+      '.smartslider3 slider="2"\n {\n    display:initial;\n    position: relative;\n}@media screen and (max-width: 580px){';
+    const { css: imported, warnings } = wxrAdditionalCss(parsedItems([{ theme: 'totally', css }]));
+    expect(imported).toBe(
+      '.smartslider3 slider="2"\n {\n    display:initial;\n    position: relative;\n}',
+    );
+    expect(warnings[0]).toContain(
+      'The braces of the Additional CSS of the WordPress theme “totally” did not match (already so in WordPress): removed the empty block left open at the end',
+    );
+    // A block with rules is closed; braces in comments and strings do not count.
+    const closed = wxrAdditionalCss(
+      parsedItems([
+        { theme: 't', css: '/* { */ .a::after{content:"}"} @media print{.b{color:red}' },
+      ]),
+    );
+    expect(closed.css).toBe('/* { */ .a::after{content:"}"} @media print{.b{color:red}\n}');
+    expect(closed.warnings[0]).toContain('closed the block left open at the end');
+    const stray = wxrAdditionalCss(parsedItems([{ theme: 't', css: '.a{}} .b{}' }]));
+    expect(stray.css).toBe('.a{} .b{}');
+    expect(stray.warnings[0]).toContain('removed 1 “}” with no “{”');
+    // Matching braces: no warning about them.
+    const fine = wxrAdditionalCss(parsedItems([{ theme: 't', css: '.a{content:"{"}' }]));
+    expect(fine.warnings.join('\n')).not.toContain('braces');
+  });
+
   it('gives the same CSS at every import of the same export (the core skips it then)', () => {
     const xml = wxr([{ theme: 'astra', css: '.x{}' }]);
     const first = wxrToDocument(xml, { locale: 'en' }).document.site?.additionalCss;

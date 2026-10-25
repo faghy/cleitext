@@ -295,6 +295,11 @@ export const itAdmin: Messages = {
     'Stampato dopo il CSS qui sopra, solo finché questo tema è attivo.',
   '{count} of {max} characters': '{count} di {max} caratteri',
   'The CSS cannot contain <style> or </style>.': 'Il CSS non può contenere <style> o </style>.',
+  'The CSS has a } with no { before it.': 'Il CSS ha una } senza una { prima.',
+  'The CSS has a comment that is never closed with */.':
+    'Il CSS ha un commento che non viene mai chiuso con */.',
+  'The CSS has a string that is never closed.': 'Il CSS ha una stringa che non viene mai chiusa.',
+  'The CSS has a { that is never closed.': 'Il CSS ha una { che non viene mai chiusa.',
   'The CSS cannot contain <script>.': 'Il CSS non può contenere <script>.',
   'The CSS cannot contain NUL characters.': 'Il CSS non può contenere caratteri NUL.',
   'Additional CSS is limited to 100,000 characters.':

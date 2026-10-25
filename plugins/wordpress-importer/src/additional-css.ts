@@ -8,6 +8,8 @@
  * the site already has.
  */
 
+import { balanceCss } from './css-braces.js';
+
 type Node = Record<string, unknown>;
 
 /** The core's limits for Additional CSS (`additionalCssProblem` of @cleitext/shared). */
@@ -79,7 +81,25 @@ export function wxrAdditionalCss(items: readonly Node[]): WxrAdditionalCss {
       }) was imported; the one of ${others.join(', ')} was not.`,
     );
   }
-  const refused = problem(chosen.css);
+  // Braces matched (1.26.0): WordPress printed the CSS alone, where the browser
+  // closes what is left open; here more CSS comes after it, which a block left
+  // open (`@media … {` at the end) would swallow.
+  const balanced = balanceCss(chosen.css);
+  const fixes = [
+    balanced.dropped &&
+      `removed the empty block${balanced.dropped > 1 ? 's' : ''} left open at the end`,
+    balanced.closed &&
+      `closed ${balanced.closed > 1 ? `${balanced.closed} blocks` : 'the block'} left open at the end`,
+    balanced.stray && `removed ${balanced.stray} “}” with no “{”`,
+    balanced.ended && 'ended the comment or string left open',
+  ].filter(Boolean);
+  if (fixes.length) {
+    warnings.push(
+      `The braces of the Additional CSS of the WordPress theme “${chosen.theme}” did not match (already so in WordPress): ${fixes.join(', ')}, so it cannot swallow the CSS printed after it. Check it in Appearance → Customize → Additional CSS.`,
+    );
+  }
+  const css = balanced.css.trim();
+  const refused = problem(css);
   if (refused) {
     warnings.push(
       `The Additional CSS of the WordPress theme “${chosen.theme}” was not imported: ${refused}.`,
@@ -89,5 +109,5 @@ export function wxrAdditionalCss(items: readonly Node[]): WxrAdditionalCss {
   warnings.push(
     `The Additional CSS of the WordPress theme “${chosen.theme}” goes to Appearance → Customize → Additional CSS, for every theme (after the CSS the site already has).`,
   );
-  return { css: chosen.css, warnings };
+  return { css, warnings };
 }

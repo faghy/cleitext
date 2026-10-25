@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cssBraceProblem } from './css-braces.js';
 import type { FieldDefinition, Label } from './fields.js';
 import type { LicenseView } from './licenses.js';
 import type { MenuItemField } from './menus.js';
@@ -83,7 +84,8 @@ export function additionalCssProblem(css: string): string | null {
   if (/<\/?\s*style/i.test(css)) return 'The CSS cannot contain <style> or </style>.';
   if (/<\/?\s*script/i.test(css)) return 'The CSS cannot contain <script>.';
   if (css.includes('\u0000')) return 'The CSS cannot contain NUL characters.';
-  return null;
+  // Printed before other CSS: an unclosed block would swallow it (core 0.82).
+  return cssBraceProblem(css);
 }
 
 /** CSS safe to print inside a `<style>` element, whatever it holds. */

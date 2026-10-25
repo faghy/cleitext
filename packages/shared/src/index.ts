@@ -8,6 +8,7 @@ export * from './fields.js';
 export * from './plugins.js';
 export * from './admin.js';
 export * from './themes.js';
+export * from './css-braces.js';
 export * from './catalog.js';
 export * from './licenses.js';
 export * from './google-fonts.js';

@@ -40,6 +40,7 @@ import {
 import {
   CAPABILITIES,
   additionalCssProblem,
+  balanceCss,
   ADDITIONAL_CSS_MAX,
   fieldGroupSchema,
   fieldListSchema,
@@ -634,7 +635,21 @@ export async function importDocument(
       const stored = (key: string) =>
         (key === SITE_CSS_KEY ? all.site : all.themes?.[key.slice('theme:'.length)]) ?? '';
       const from = [doc.source.name, doc.source.url].filter(Boolean).join(', ') || doc.source.kind;
-      for (const [key, text, what] of parts) {
+      for (const [key, original, what] of parts) {
+        // Braces matched first (core 0.82): a block left open would swallow the CSS after it.
+        const balanced = balanceCss(original);
+        const text = balanced.css;
+        const fixes = [
+          balanced.dropped && `removed ${balanced.dropped} empty block(s) left open at the end`,
+          balanced.closed && `closed ${balanced.closed} block(s) left open at the end`,
+          balanced.stray && `removed ${balanced.stray} } with no {`,
+          balanced.ended && 'ended a comment or string left open',
+        ].filter(Boolean);
+        if (fixes.length) {
+          report.warnings.push(
+            `Additional CSS ${what}: its braces did not match (${fixes.join(', ')}), so it could not break the CSS printed after it.`,
+          );
+        }
         const refused = additionalCssProblem(text);
         if (refused) {
           report.warnings.push(`Additional CSS ${what} not imported: ${refused}`);
@@ -646,9 +661,12 @@ export async function importDocument(
           count(report, 'additionalCss', 'skipped');
           continue;
         }
-        if (additionalCssProblem(merged.css)) {
+        const together = additionalCssProblem(merged.css);
+        if (together) {
           report.warnings.push(
-            `Additional CSS ${what} not imported: with the site's own it would be longer than ${ADDITIONAL_CSS_MAX.toLocaleString('en')} characters.`,
+            merged.css.length > ADDITIONAL_CSS_MAX
+              ? `Additional CSS ${what} not imported: with the site's own it would be longer than ${ADDITIONAL_CSS_MAX.toLocaleString('en')} characters.`
+              : `Additional CSS ${what} not imported: the site's own has a problem to fix first in Customize (${together})`,
           );
           count(report, 'additionalCss', 'skipped');
           continue;
