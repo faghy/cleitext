@@ -345,3 +345,21 @@ export function sharedAddresses(items: ItemFacts[]): number {
   }
   return [...seen.values()].filter((n) => n > 1).length;
 }
+
+/**
+ * Polylang's language switcher in a menu (a custom link to `#pll_switcher`
+ * with its options in `_pll_menu_item`) as Multilingual's switcher link
+ * (Multilingual 1.6.0): `#language-switcher`, with the same choices. Null
+ * for other addresses.
+ */
+export function switcherMenuLink(url: string, options: unknown): string | null {
+  if (url.trim() !== '#pll_switcher') return null;
+  const o = (options && typeof options === 'object' ? options : {}) as Record<string, unknown>;
+  const on = (key: string) => o[key] === 1 || o[key] === '1' || o[key] === true;
+  const params = new URLSearchParams();
+  params.set('style', on('dropdown') ? 'dropdown' : 'inline');
+  if (o.show_names !== undefined && !on('show_names')) params.set('names', 'code');
+  if (on('hide_current')) params.set('current', 'hide');
+  if (on('hide_if_no_translation')) params.set('untranslated', 'hide');
+  return `#language-switcher?${params.toString()}`;
+}

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A Polylang site (en, it) with language switchers: WPML's shortcode, Polylang's block and Polylang's menu item. -->
+<rss version="2.0" xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel>
+<title>Rooms</title>
+<link>https://rooms.example.com</link>
+<wp:wxr_version>1.2</wp:wxr_version>
+<wp:base_site_url>https://rooms.example.com</wp:base_site_url>
+<wp:base_blog_url>https://rooms.example.com</wp:base_blog_url>
+<wp:author><wp:author_id>1</wp:author_id><wp:author_login><![CDATA[admin]]></wp:author_login><wp:author_email><![CDATA[admin@rooms.example.com]]></wp:author_email><wp:author_display_name><![CDATA[Admin]]></wp:author_display_name></wp:author>
+<wp:term><wp:term_id>5</wp:term_id><wp:term_taxonomy>nav_menu</wp:term_taxonomy><wp:term_slug>main</wp:term_slug><wp:term_name><![CDATA[Main]]></wp:term_name></wp:term>
+<item>
+<title>Welcome</title>
+<link>https://rooms.example.com/welcome/</link>
+<dc:creator><![CDATA[admin]]></dc:creator>
+<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Choose your language:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:shortcode -->
+[wpml_language_selector_widget]
+<!-- /wp:shortcode -->
+
+<!-- wp:polylang/language-switcher {"dropdown":false,"show_flags":true,"show_names":false} /-->]]></content:encoded>
+<wp:post_id>9</wp:post_id>
+<wp:post_date>2025-04-15 10:00:00</wp:post_date>
+<wp:post_date_gmt>2025-04-15 10:00:00</wp:post_date_gmt>
+<wp:post_name>welcome</wp:post_name>
+<wp:status>publish</wp:status>
+<wp:post_type>page</wp:post_type>
+<category domain="language" nicename="en"><![CDATA[English]]></category>
+</item>
+<item>
+<title>Languages</title>
+<link>https://rooms.example.com/?p=20</link>
+<dc:creator><![CDATA[admin]]></dc:creator>
+<content:encoded><![CDATA[]]></content:encoded>
+<wp:post_id>20</wp:post_id>
+<wp:post_date>2025-04-15 10:00:00</wp:post_date>
+<wp:post_date_gmt>2025-04-15 10:00:00</wp:post_date_gmt>
+<wp:post_name>languages</wp:post_name>
+<wp:status>publish</wp:status>
+<wp:menu_order>2</wp:menu_order>
+<wp:post_type>nav_menu_item</wp:post_type>
+<category domain="nav_menu" nicename="main"><![CDATA[Main]]></category>
+<wp:postmeta><wp:meta_key>_menu_item_type</wp:meta_key><wp:meta_value><![CDATA[custom]]></wp:meta_value></wp:postmeta>
+<wp:postmeta><wp:meta_key>_menu_item_menu_item_parent</wp:meta_key><wp:meta_value><![CDATA[0]]></wp:meta_value></wp:postmeta>
+<wp:postmeta><wp:meta_key>_menu_item_url</wp:meta_key><wp:meta_value><![CDATA[#pll_switcher]]></wp:meta_value></wp:postmeta>
+<wp:postmeta><wp:meta_key>_pll_menu_item</wp:meta_key><wp:meta_value><![CDATA[a:6:{s:22:"hide_if_no_translation";i:0;s:12:"hide_current";i:0;s:10:"force_home";i:0;s:10:"show_flags";i:0;s:10:"show_names";i:1;s:8:"dropdown";i:1;}]]></wp:meta_value></wp:postmeta>
+</item>
+<item>
+<title></title>
+<link>https://rooms.example.com/?p=21</link>
+<dc:creator><![CDATA[admin]]></dc:creator>
+<content:encoded><![CDATA[]]></content:encoded>
+<wp:post_id>21</wp:post_id>
+<wp:post_date>2025-04-15 10:00:00</wp:post_date>
+<wp:post_date_gmt>2025-04-15 10:00:00</wp:post_date_gmt>
+<wp:post_name>21</wp:post_name>
+<wp:status>publish</wp:status>
+<wp:menu_order>1</wp:menu_order>
+<wp:post_type>nav_menu_item</wp:post_type>
+<category domain="nav_menu" nicename="main"><![CDATA[Main]]></category>
+<wp:postmeta><wp:meta_key>_menu_item_type</wp:meta_key><wp:meta_value><![CDATA[post_type]]></wp:meta_value></wp:postmeta>
+<wp:postmeta><wp:meta_key>_menu_item_object</wp:meta_key><wp:meta_value><![CDATA[page]]></wp:meta_value></wp:postmeta>
+<wp:postmeta><wp:meta_key>_menu_item_object_id</wp:meta_key><wp:meta_value><![CDATA[9]]></wp:meta_value></wp:postmeta>
+<wp:postmeta><wp:meta_key>_menu_item_menu_item_parent</wp:meta_key><wp:meta_value><![CDATA[0]]></wp:meta_value></wp:postmeta>
+</item>
+</channel>
+</rss>

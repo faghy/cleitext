@@ -5,7 +5,8 @@
  * the menus of the other languages rebuilt; Contact Form 7 forms as Forms
  * blocks, rendered by the Forms plugin; CookieYes leftovers stripped; the
  * Additional CSS written for Spectra's classes renamed by Prisma (plugin API
- * 1.53, `import.cssClasses`).
+ * 1.53, `import.cssClasses`); WPML's and Polylang's language switchers as
+ * Multilingual's (WordPress Importer 1.29.0, Multilingual 1.6.0).
  */
 import { cp, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -210,5 +211,44 @@ describe('a site with Contact Form 7 and CookieYes', () => {
     );
     expect(aboutHtml).not.toContain('cky-');
     expect(aboutHtml).toContain('#cookie-preferences');
+  });
+});
+
+describe('WPML’s and Polylang’s language switchers', () => {
+  it('become Multilingual’s block and menu item, shown on the page', async () => {
+    const { site, admin } = await newSite('switcher-import', '10.61.0.4');
+    expect((await admin.post('/api/v1/plugins/multilingual/activate')).statusCode).toBe(200);
+    await admin.post('/api/v1/ext/multilingual/languages', { code: 'it', name: 'Italiano' });
+    const report = await importFile(admin, 'language-switchers.xml', 'locale=en');
+    const warnings = report.warnings.join('\n');
+    expect(warnings).toContain('Shortcode [wpml_language_selector_widget] became a block');
+    expect(warnings).toContain("Polylang's language switcher in menus became Multilingual's (1×)");
+
+    const welcome = (await pages(site)).find((r) => r.slug === 'welcome')!;
+    const entry = (await admin.get(`/api/v1/entries/${welcome.id}`)).json();
+    const blocks = (entry.revision.document.blocks as any[]).filter(
+      (b) => b.type === 'multilingual/language-switcher',
+    );
+    expect(blocks.map((b) => b.attrs)).toEqual([
+      { style: 'dropdown' },
+      { style: 'inline', flags: 'yes', names: 'code' },
+    ]);
+    const [menu] = (await admin.get('/api/v1/menus')).json() as any[];
+    const items = (await admin.get(`/api/v1/menus/${menu.id}`)).json().items as any[];
+    expect(items[1]).toMatchObject({
+      kind: 'url',
+      url: '#language-switcher?style=dropdown',
+      label: 'Languages',
+    });
+
+    await admin.request('PATCH', `/api/v1/menus/${menu.id}`, { location: 'primary' });
+    await admin.post(`/api/v1/entries/${welcome.id}/publish`);
+    const html = (await new TestClient(app, site.host, '10.61.0.5').get('/welcome')).body;
+    expect(html).toContain('<details class="ml-switcher__dropdown">');
+    expect(html).toContain('<span class="ml-switcher__name" aria-hidden="true">IT</span>');
+    // The menu item: the page's language, the other under it.
+    expect(html).toMatch(
+      /<a href="\/welcome"[^>]*>English<\/a><ul><li><a href="\/it">Italiano<\/a>/,
+    );
   });
 });

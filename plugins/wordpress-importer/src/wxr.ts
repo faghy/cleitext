@@ -5,6 +5,7 @@ import {
   detectLanguages,
   matchLocale,
   META_KEYS,
+  switcherMenuLink,
   type ItemFacts,
   type LanguageDetection,
 } from './languages';
@@ -777,6 +778,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   }
   const entryByRef = new Map(entries.map((e) => [e.ref, e]));
   const menuLanguages: string[] = [];
+  let switchers = 0;
   for (const [slug, name] of menuNames) {
     const own = navItems
       .filter((i) => String(menuOf(i)?.['@_nicename'] ?? '') === slug)
@@ -802,6 +804,20 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
           if (term) return { kind: 'term', termRef: term, label, target, children };
         }
         const url = meta(item, '_menu_item_url');
+        // Polylang's language switcher: Multilingual's, with the same choices (1.29.0).
+        const switcher = url
+          ? switcherMenuLink(url, metaValue(meta(item, '_pll_menu_item')))
+          : null;
+        if (switcher) {
+          switchers++;
+          return {
+            kind: 'url',
+            url: switcher,
+            label: label ?? 'Languages',
+            target: null,
+            children,
+          };
+        }
         return url
           ? { kind: 'url', url: relativeTo(url, baseUrl), label: label ?? url, target, children }
           : { kind: 'custom', label: label ?? 'Item', children };
@@ -831,6 +847,11 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     const location = elementor.menuLocations.get(slug) ?? divi.menuLocations.get(slug);
     menus.push({ name, locale: menuLocale, ...(location ? { location } : {}), items: built });
     menuLanguages.push(menuLocale);
+  }
+  if (switchers > 0) {
+    warnings.push(
+      `Polylang's language switcher in menus became Multilingual's (${switchers}×), with the same choices: it shows with Multilingual 1.6.0 or later.`,
+    );
   }
   // Languages with translated pages but no menu: the main language's menus,
   // each item linking to the translation of its page.
