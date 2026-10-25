@@ -674,6 +674,12 @@ function FrameHead({
   useStore(store, (s) => s.components);
   const css = documentCss(blocks, getElement, kit.breakpoints);
   const kitStyle = editorKitCss(kitCss(kit));
+  // Kits that take the theme's colors or fonts say so on `<html>`, as on the site.
+  useEffect(() => {
+    const root = doc.documentElement;
+    root.toggleAttribute('data-fr-theme-colors', kit.themeColors === true);
+    root.toggleAttribute('data-fr-theme-fonts', kit.themeFonts === true);
+  }, [doc, kit.themeColors, kit.themeFonts]);
   // The fonts the page uses: those its CSS and its elements' settings name (as
   // the site loads them), and those the canvas shows (styles of templates,
   // other plugins' blocks, the site's custom CSS…). One stylesheet per family:

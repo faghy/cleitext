@@ -73,6 +73,8 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   const [comments, setComments] = useState('approved');
   const captchaId = useId();
   const [formCaptcha, setFormCaptcha] = useState('');
+  const defaultsId = useId();
+  const [elementorDefaults, setElementorDefaults] = useState('auto');
   const [sent, setSent] = useState(0);
   const start = useMutation({
     mutationFn: async () => {
@@ -86,6 +88,7 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
         authorRole: role,
         comments,
         ...(formCaptcha ? { formCaptcha } : {}),
+        ...(elementorDefaults !== 'auto' ? { elementorDefaults } : {}),
         // All the site's languages: pages translated with WPML go into theirs.
         ...(site.locales.length > 1
           ? { languages: site.locales.map((l) => l.code).join(',') }
@@ -253,6 +256,30 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
                       'Every imported form uses the site captcha (reCAPTCHA fields are dropped either way): activate the free Captcha plugin and set Turnstile or reCAPTCHA once in Settings → Captcha.',
                       'Ogni modulo importato usa il captcha del sito (i campi reCAPTCHA vengono comunque tolti): attiva il plugin gratuito Captcha e imposta Turnstile o reCAPTCHA una volta in Impostazioni → Captcha.',
                     )}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor={defaultsId} className="block text-sm font-medium text-slate-800">
+                {tr(
+                  'Colors and fonts of Elementor widgets',
+                  'Colori e font dei widget di Elementor',
+                )}
+              </label>
+              <select
+                id={defaultsId}
+                className={select}
+                value={elementorDefaults}
+                onChange={(e) => setElementorDefaults(e.target.value)}
+              >
+                <option value="auto">{tr('Automatic', 'Automatico')}</option>
+                <option value="kit">{tr('Elementor’s kit', 'Kit di Elementor')}</option>
+                <option value="theme">{tr('From the theme', 'Dal tema')}</option>
+              </select>
+              <p className="text-xs text-slate-500">
+                {tr(
+                  'Choose “From the theme” if Elementor → Settings had “Disable Default Colors” and “Disable Default Fonts” on (the export does not say). Automatic takes the theme’s when the kit still has Elementor’s own colors. The kit’s global colors and fonts are kept either way.',
+                  'Scegli «Dal tema» se in Elementor → Impostazioni erano attivi «Disattiva i colori predefiniti» e «Disattiva i font predefiniti» (l’esportazione non lo dice). Automatico usa quelli del tema quando il kit ha ancora i colori di Elementor. I colori e i font globali del kit vengono comunque conservati.',
+                )}
               </p>
             </div>
           </div>

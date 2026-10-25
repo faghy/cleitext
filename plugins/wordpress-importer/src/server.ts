@@ -24,6 +24,11 @@ const COMMENTS = ['approved', 'all', 'skip'] as const;
  * Fresco Pro's own Turnstile keys.
  */
 const FORM_CAPTCHAS = ['site', 'turnstile'] as const;
+/**
+ * Where Elementor widgets without their own colors and fonts take them from
+ * (`?elementorDefaults=`): guessed by default (`auto`), the kit's or the theme's.
+ */
+const ELEMENTOR_DEFAULTS = ['auto', 'kit', 'theme'] as const;
 
 const TITLES: Record<number, string> = { 400: 'Bad Request', 409: 'Conflict' };
 const problem = (status: 400 | 409, detail: string) => ({
@@ -78,6 +83,7 @@ async function run(
     locales: string[];
     comments: (typeof COMMENTS)[number];
     formCaptcha?: (typeof FORM_CAPTCHAS)[number];
+    elementorDefaults?: (typeof ELEMENTOR_DEFAULTS)[number];
     diviOptions?: Record<string, unknown> | null;
   },
 ): Promise<void> {
@@ -98,6 +104,7 @@ async function run(
       locales: options.locales,
       comments: options.comments,
       ...(options.formCaptcha ? { formCaptcha: options.formCaptcha } : {}),
+      ...(options.elementorDefaults ? { elementorDefaults: options.elementorDefaults } : {}),
       ...(options.diviOptions ? { diviOptions: options.diviOptions } : {}),
       trailingSlash: site.trailingSlash === true,
     });
@@ -138,7 +145,7 @@ export default definePlugin({
       },
     });
 
-    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author&comments=all&formCaptcha=turnstile).
+    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author&comments=all&formCaptcha=turnstile&elementorDefaults=theme).
     ctx.routes.api({
       method: 'POST',
       path: '/imports',
@@ -171,6 +178,9 @@ export default definePlugin({
           .slice(0, 8);
         const comments = COMMENTS.find((c) => c === request.query.comments) ?? 'approved';
         const formCaptcha = FORM_CAPTCHAS.find((c) => c === request.query.formCaptcha);
+        const elementorDefaults = ELEMENTOR_DEFAULTS.find(
+          (c) => c === request.query.elementorDefaults,
+        );
         const authorRole = ROLES.includes(request.query.authorRole ?? '')
           ? request.query.authorRole!
           : 'author';
@@ -199,6 +209,7 @@ export default definePlugin({
           locales,
           comments,
           ...(formCaptcha ? { formCaptcha } : {}),
+          ...(elementorDefaults ? { elementorDefaults } : {}),
           ...(divi ? { diviOptions: divi } : {}),
         });
         return { status: 202, body: { job } };

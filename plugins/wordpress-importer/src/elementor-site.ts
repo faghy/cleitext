@@ -312,6 +312,45 @@ export function kitToFresco(
   return { kit, info, css: str(settings.custom_css).trim() };
 }
 
+// ---- Default colors and fonts ----------------------------------------------------------------
+
+/** Where widgets without their own colors and fonts took them from (see `WxrOptions`). */
+export type ElementorDefaults = 'auto' | 'kit' | 'theme';
+
+/** Elementor's own system colors: those of a kit nobody changed. */
+const STOCK_COLORS: Record<string, string> = {
+  primary: '#6ec1e4',
+  secondary: '#54595f',
+  text: '#7a7a7a',
+  accent: '#61ce70',
+};
+
+/**
+ * Whether the widgets took the theme's colors and fonts instead of the kit's.
+ * Elementor's "Disable Default Colors" and "Disable Default Fonts"
+ * (`elementor_disable_color_schemes`, `elementor_disable_typography_schemes`)
+ * are WordPress options: the export does not have them. So `auto` guesses:
+ * a kit that still has Elementor's own system colors was never set up, which
+ * is what sites that leave colors and fonts to their theme look like (the
+ * two settings sit side by side and are turned off together). Not with
+ * Hello, a theme with no style of its own: there the kit is the style.
+ */
+export function themeDefaults(
+  settings: Settings,
+  choice: ElementorDefaults,
+  hello: boolean,
+): boolean {
+  if (choice !== 'auto') return choice === 'theme';
+  if (hello) return false;
+  const colors = list(settings.system_colors);
+  return (
+    colors.length > 0 &&
+    Object.entries(STOCK_COLORS).every(([id, value]) =>
+      colors.some((c) => str(c._id) === id && str(c.color).toLowerCase() === value),
+    )
+  );
+}
+
 // ---- The theme's headings -------------------------------------------------------------------
 
 export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';

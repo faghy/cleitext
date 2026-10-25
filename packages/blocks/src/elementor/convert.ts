@@ -71,6 +71,14 @@ export interface ElementorKitInfo {
    * global font is taken to set them all.
    */
   fonts?: Record<string, string[]>;
+  /**
+   * The site had Elementor's "Disable Default Colors" on: widgets without a
+   * color of their own took the theme's, not the kit's (Fresco's kit says
+   * the same with `themeColors`).
+   */
+  themeColors?: boolean;
+  /** The site had "Disable Default Fonts" on: widgets took the theme's fonts. */
+  themeFonts?: boolean;
 }
 
 /** An image of the media library as WordPress knew it: its size and the sizes it made. */
@@ -770,8 +778,9 @@ const SHAPES = new Set([
  * (part by part: what the heading sets itself wins). A kit without a
  * primary font (themes often replace the system fonts) leaves headings to
  * the theme's style, so Fresco's own default (its primary font) is turned
- * off (`title_theme_font`). The line height is 1 (Elementor's) unless a
- * font sets one.
+ * off (`title_theme_font`). With Elementor's default fonts off
+ * (`themeFonts`), headings without a font take the theme's. The line height
+ * is 1 (Elementor's) unless a font sets one.
  */
 function headingFont(out: Settings, src: Settings, kit?: ElementorKitInfo): void {
   const sets = (font: string, part: string) =>
@@ -779,7 +788,9 @@ function headingFont(out: Settings, src: Settings, kit?: ElementorKitInfo): void
       ? Boolean(kit.fonts[font]?.includes(part))
       : part === 'line' && Boolean(kit?.fontsWithLine?.includes(font));
   let global = str(out.title_typography_global);
-  if (!global && kit?.fonts) {
+  // Elementor's default fonts were off: no default (Fresco's kit has `themeFonts`).
+  const defaults = !kit?.themeFonts;
+  if (defaults && !global && kit?.fonts) {
     const primary = kit.fonts.primary ?? [];
     if (!primary.includes('family')) {
       if (!out.title_typography_family) out.title_theme_font = true;
@@ -792,7 +803,12 @@ function headingFont(out: Settings, src: Settings, kit?: ElementorKitInfo): void
       out.title_typography_global = global;
       out.title_typography_global_all = true;
     }
-  } else if (!global && src.typography_typography !== 'custom' && sets('primary', 'line')) {
+  } else if (
+    defaults &&
+    !global &&
+    src.typography_typography !== 'custom' &&
+    sets('primary', 'line')
+  ) {
     global = 'primary';
     out.title_typography_global = global;
   }

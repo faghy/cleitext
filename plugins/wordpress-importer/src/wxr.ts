@@ -22,9 +22,11 @@ import {
   popupSettings,
   snippet,
   templateKind,
+  themeDefaults,
   themeHeadingFonts,
   withHeadingFonts,
   type ConditionContext,
+  type ElementorDefaults,
   type KitResult,
 } from './elementor-site.js';
 import { metaValue } from './php.js';
@@ -93,6 +95,15 @@ export interface WxrOptions {
    * colors, fonts, presets and layout of pages built with Divi.
    */
   diviOptions?: Record<string, unknown> | null;
+  /**
+   * Where the widgets of Elementor pages took their colors and fonts from
+   * when they had none of their own: the kit's global ones (`kit`, Elementor's
+   * default), the theme's (`theme`: "Disable Default Colors" and "Disable
+   * Default Fonts" were on in Elementor → Settings; WordPress options, not in
+   * the export), or `auto` (default): the theme's when the kit still has
+   * Elementor's own colors and the theme is not Hello.
+   */
+  elementorDefaults?: ElementorDefaults;
   /**
    * The title separator of Yoast SEO (`wpseo_titles.separator`, e.g.
    * `sc-pipe`, or the character itself), for the `%%sep%%` of the imported
@@ -279,6 +290,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     options.formCaptcha
       ? { formCaptcha: options.formCaptcha, protectedForm: () => protectedForms++ }
       : {},
+    options.elementorDefaults ?? 'auto',
   );
 
   // ---- Divi: what pages and templates share ---------------------------------------------
@@ -1265,6 +1277,7 @@ function prepareElementor(
   customTaxonomies: Map<string, { slug: string; hierarchical: boolean }>,
   warnings: string[],
   forms: Pick<ElementorContext, 'formCaptcha' | 'protectedForm'> = {},
+  defaults: ElementorDefaults = 'auto',
 ): ElementorSite {
   const mediaRef = (attachment: number) => attachmentRefs.get(attachment);
   const idOf = (item: Node) => Number(text(item['wp:post_id']));
@@ -1451,6 +1464,23 @@ function prepareElementor(
         (c) => c['@_domain'] === 'wp_theme' && /^hello-/.test(String(c['@_nicename'] ?? '')),
       ),
   );
+
+  // Elementor's default colors and fonts, or the theme's (Elementor → Settings, not in the export).
+  if (kit) {
+    const settings = asSettings(metaValue(meta(kits[0]!, '_elementor_page_settings')));
+    const fromTheme = themeDefaults(settings, defaults, hello);
+    kit.kit.themeColors = fromTheme;
+    kit.kit.themeFonts = fromTheme;
+    if (fromTheme) {
+      kit.info.themeColors = true;
+      kit.info.themeFonts = true;
+      warnings.push(
+        defaults === 'theme'
+          ? "Elementor's default colors and fonts were off, as chosen: widgets without their own take the theme's. The kit's global colors and fonts are kept in Fresco's site settings, not applied by default (Theme's colors / fonts by default)."
+          : "Elementor's kit still has Elementor's own colors, so its default colors and fonts were taken to be off (Elementor → Settings → Disable Default Colors and Fonts): widgets without their own take the theme's, and the kit's global colors and fonts are kept in Fresco's site settings, not applied by default. If the widgets used the kit's, import again with “Colors and fonts of Elementor widgets: Elementor’s kit”, or turn off Theme's colors / fonts by default in Fresco's site settings.",
+      );
+    }
+  }
 
   const origin = text(channel['wp:base_blog_url']) || text(channel.link);
   const context = (warn: (message: string) => void): ElementorContext => ({

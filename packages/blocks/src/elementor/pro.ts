@@ -559,8 +559,11 @@ export function proWidget(
       );
       c.typography(out, src, 'field_typography', 'field_typo');
       color(out, src, 'button_text_color', 'button_color');
-      // Elementor's form button: the kit's accent color unless set.
-      out.button_bg = colorOf(src, 'button_background_color') ?? 'var(--fr-c-accent)';
+      // Elementor's form button: the kit's accent color unless set (or default colors were off).
+      const buttonBg =
+        colorOf(src, 'button_background_color') ??
+        (c.ctx.kit?.themeColors ? undefined : 'var(--fr-c-accent)');
+      if (buttonBg) out.button_bg = buttonBg;
       const bgHover = colorOf(src, 'button_background_hover_color');
       if (bgHover) out['button_bg:hover'] = bgHover;
       copy(out, src, 'button_text_padding', 'button_padding', (v) => box(v, c), false);
@@ -803,7 +806,11 @@ export function proWidget(
         ['features_list_typography', 'features_typo', 'text'],
       ] as const) {
         c.typography(out, src, from, to);
-        if (src[`${from}_typography`] !== 'custom' && !out[`${to}_global`])
+        if (
+          src[`${from}_typography`] !== 'custom' &&
+          !out[`${to}_global`] &&
+          !c.ctx.kit?.themeFonts
+        )
           out[`${to}_global`] = global;
       }
       return [c.node('fresco-pro/price-table', out)];

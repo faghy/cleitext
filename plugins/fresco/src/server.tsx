@@ -19,6 +19,7 @@ import {
   pageLayout,
   safeSelector,
   type Kit,
+  withKitRootAttributes,
 } from './core/kit.js';
 import { normalizePreferences } from './editor/prefs-model.js';
 import type { ElementDefinition, FrescoNode, RenderContext } from './core/model.js';
@@ -350,7 +351,11 @@ export default definePlugin({
       // Before the page's own settings (`#fr-page`), which win over the site's.
       const page = html.indexOf('<style id="fr-page">');
       const at = page !== -1 ? page : html.indexOf('</head>');
-      return at === -1 ? html : html.slice(0, at) + head + html.slice(at);
+      // Kits that take the theme's colors or fonts say so on `<html>` (fresco.css reads it).
+      return withKitRootAttributes(
+        at === -1 ? html : html.slice(0, at) + head + html.slice(at),
+        kit,
+      );
     });
 
     // The entries made with Fresco, for the overview page of the admin.

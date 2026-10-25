@@ -2277,6 +2277,14 @@ export function SiteView({
           >
             {tx('+ Add color')}
           </button>
+          <SwitchField
+            label={tx("Theme's colors by default")}
+            help={tx(
+              "Headings, texts and the other elements take the theme's colors unless they choose their own (Elementor's “Disable Default Colors”). The global colors stay available.",
+            )}
+            value={kit.themeColors}
+            onChange={(themeColors) => set({ themeColors })}
+          />
         </div>
       )}
       {section === 'fonts' && (
@@ -2305,6 +2313,14 @@ export function SiteView({
           >
             {tx('+ Add font')}
           </button>
+          <SwitchField
+            label={tx("Theme's fonts by default")}
+            help={tx(
+              "Headings, texts and buttons take the theme's fonts unless they choose their own (Elementor's “Disable Default Fonts”). The global fonts stay available.",
+            )}
+            value={kit.themeFonts}
+            onChange={(themeFonts) => set({ themeFonts })}
+          />
           <GoogleFontsSetting kit={kit} set={set} />
         </div>
       )}

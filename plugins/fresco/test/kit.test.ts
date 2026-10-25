@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   googleFontsUrl,
   kitCss,
+  kitRootAttributes,
   mergeKit,
   normalizeKit,
   normalizeTheme,
   themeCss,
+  withKitRootAttributes,
 } from '../src/core/kit.js';
 
 describe('theme style of the site settings', () => {
@@ -113,5 +115,58 @@ describe('kits imported from other builders', () => {
     )!;
     expect(globals).toContain('family=Inter');
     expect(globals).not.toContain('My+Brand');
+  });
+});
+
+describe("the theme's colors and fonts by default (Elementor's Disable Default Colors/Fonts)", () => {
+  it('keeps the flags, and imports set or clear them', () => {
+    expect(normalizeKit({ themeColors: true, themeFonts: 'yes' })).toMatchObject({
+      themeColors: true,
+    });
+    expect(normalizeKit({ themeFonts: 'yes' }).themeFonts).toBeUndefined();
+    const on = mergeKit(normalizeKit({}), { themeColors: true, themeFonts: true });
+    expect(on).toMatchObject({ themeColors: true, themeFonts: true });
+    expect(mergeKit(on, {})).toMatchObject({ themeColors: true, themeFonts: true });
+    const off = mergeKit(on, { themeColors: false, themeFonts: false });
+    expect(off.themeColors).toBeUndefined();
+    expect(off.themeFonts).toBeUndefined();
+  });
+
+  it('says so on <html>, once', () => {
+    expect(kitRootAttributes({})).toEqual([]);
+    expect(withKitRootAttributes('<html lang="it"><body></body></html>', {})).toBe(
+      '<html lang="it"><body></body></html>',
+    );
+    const html = withKitRootAttributes('<!doctype html><html lang="it"><head></head></html>', {
+      themeColors: true,
+      themeFonts: true,
+    });
+    expect(html).toBe(
+      '<!doctype html><html data-fr-theme-colors data-fr-theme-fonts lang="it"><head></head></html>',
+    );
+    expect(withKitRootAttributes(html, { themeColors: true, themeFonts: true })).toBe(html);
+    expect(withKitRootAttributes('<html>', { themeFonts: true })).toBe(
+      '<html data-fr-theme-fonts>',
+    );
+  });
+
+  it('turns off the default global colors and fonts of the elements in fresco.css', async () => {
+    // Node's fs, without Node's types in this package.
+    const fs = (await import(/* @vite-ignore */ `node:${'fs'}`)) as {
+      readFileSync(path: URL, encoding: 'utf8'): string;
+    };
+    const sheet = fs.readFileSync(new URL('../src/public/fresco.css', import.meta.url), 'utf8');
+    const colors = ':where(:root:not([data-fr-theme-colors]))';
+    const fonts = ':where(:root:not([data-fr-theme-fonts]))';
+    // Every default global color or font of headings, texts and the like sits behind the switch.
+    for (const rule of sheet.replace(/\/\*[\s\S]*?\*\//g, '').split('}')) {
+      const [selector = '', body = ''] = rule.split('{');
+      if (/var\(--fr-c-[a-z]+, inherit\)/.test(body) && /\bcolor:/.test(body))
+        expect(selector.trim().startsWith(colors) || /:hover|is-current/.test(selector)).toBe(true);
+      if (/font-family: var\(--fr-t-/.test(body)) expect(selector.trim()).toContain(fonts);
+    }
+    expect(sheet).toContain(`${colors} .fr-heading__title {`);
+    expect(sheet).toContain(`${fonts} .fr-heading__title:where(:not(.fr-heading__title--theme))`);
+    expect(sheet).toContain(`${fonts} .fr-text {`);
   });
 });

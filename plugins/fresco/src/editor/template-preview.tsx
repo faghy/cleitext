@@ -7,7 +7,7 @@ import { t } from '@cleitext/admin-sdk';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { documentCss, withDefaults } from '../core/css.js';
-import { kitCss, type Kit } from '../core/kit.js';
+import { kitCss, kitRootAttributes, type Kit } from '../core/kit.js';
 import type { FrescoNode, RenderContext } from '../core/model.js';
 import { getElement } from '../core/registry.js';
 
@@ -80,7 +80,10 @@ export function TemplatePreview({
     return () => window.removeEventListener('keydown', close);
   }, [onClose]);
   const css = documentCss(blocks, getElement, kit.breakpoints);
-  const html = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${frescoAssetsBase()}/fresco.css"><style>body{margin:0;font-family:system-ui,sans-serif}</style></head><body></body></html>`;
+  const root = kitRootAttributes(kit)
+    .map((a) => ` ${a}`)
+    .join('');
+  const html = `<!doctype html><html${root}><head><meta charset="utf-8"><link rel="stylesheet" href="${frescoAssetsBase()}/fresco.css"><style>body{margin:0;font-family:system-ui,sans-serif}</style></head><body></body></html>`;
   const context: RenderContext = {
     media: new Map(),
     locale,

@@ -228,6 +228,12 @@ addMessages('it', {
   'Border color when focused': 'Colore del bordo quando è attivo',
   'Load from': 'Carica da',
   'Host on this site (recommended)': 'Ospita su questo sito (consigliato)',
+  "Theme's colors by default": 'Colori del tema come predefiniti',
+  "Headings, texts and the other elements take the theme's colors unless they choose their own (Elementor's “Disable Default Colors”). The global colors stay available.":
+    'Titoli, testi e gli altri elementi prendono i colori del tema se non ne scelgono uno proprio («Disattiva i colori predefiniti» di Elementor). I colori globali restano disponibili.',
+  "Theme's fonts by default": 'Font del tema come predefiniti',
+  "Headings, texts and buttons take the theme's fonts unless they choose their own (Elementor's “Disable Default Fonts”). The global fonts stay available.":
+    'Titoli, testi e pulsanti prendono i font del tema se non ne scelgono uno proprio («Disattiva i font predefiniti» di Elementor). I font globali restano disponibili.',
   'Load from Google': 'Carica da Google',
   "Don't load": 'Non caricare',
   "Visitors' browsers download the fonts from Google's servers: in the EU this needs their consent (GDPR).":

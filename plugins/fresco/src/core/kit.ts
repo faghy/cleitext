@@ -244,6 +244,15 @@ export interface Kit {
   variables: Variable[];
   /** Layout beyond the content width and the gap: container padding, page layout, devices. */
   layout?: KitLayout;
+  /**
+   * Elements take the theme's colors (Fresco 2.11.4, Elementor's "Disable
+   * Default Colors"): headings, texts and the other elements with a global
+   * color as their default leave it to the theme. The global colors stay, for
+   * the elements that choose one.
+   */
+  themeColors?: boolean;
+  /** Elements take the theme's fonts (Elementor's "Disable Default Fonts"), as `themeColors`. */
+  themeFonts?: boolean;
 }
 
 export interface KitLayout {
@@ -371,6 +380,8 @@ export function normalizeKit(value: unknown): Kit {
             ...(v.deleted === true ? { deleted: true } : {}),
           }))
       : [],
+    ...(input.themeColors === true ? { themeColors: true } : {}),
+    ...(input.themeFonts === true ? { themeFonts: true } : {}),
     ...(input.googleFontsMode === 'google' || input.googleFontsMode === 'none'
       ? { googleFontsMode: input.googleFontsMode }
       : {}),
@@ -446,6 +457,8 @@ export function mergeKit(current: Kit, incoming: unknown): Kit {
     ...(next.theme ? { theme: mergeTheme(current.theme, next.theme) } : {}),
     ...(next.titleSelector ? { titleSelector: next.titleSelector } : {}),
     ...(next.layout ? { layout: { ...current.layout, ...next.layout } } : {}),
+    ...(typeof next.themeColors === 'boolean' ? { themeColors: next.themeColors } : {}),
+    ...(typeof next.themeFonts === 'boolean' ? { themeFonts: next.themeFonts } : {}),
   });
 }
 
@@ -1060,6 +1073,30 @@ export function themeCss(theme: ThemeStyle, context: ThemeCssContext = {}): stri
  * The layout of a page: its own, else the site's default ("theme" is the
  * theme's layout, chosen on a page when the site has another default).
  */
+/**
+ * The attributes of `<html>` that turn off the elements' default global
+ * colors and fonts (fresco.css reads them), for kits that take the theme's.
+ */
+export function kitRootAttributes(kit: Pick<Kit, 'themeColors' | 'themeFonts'>): string[] {
+  return [
+    ...(kit.themeColors === true ? ['data-fr-theme-colors'] : []),
+    ...(kit.themeFonts === true ? ['data-fr-theme-fonts'] : []),
+  ];
+}
+
+/** A page's HTML with the kit's attributes on `<html>` (once, not twice). */
+export function withKitRootAttributes(
+  html: string,
+  kit: Pick<Kit, 'themeColors' | 'themeFonts'>,
+): string {
+  const attributes = kitRootAttributes(kit);
+  if (!attributes.length) return html;
+  return html.replace(/<html\b([^>]*)>/i, (tag: string, rest: string) => {
+    const missing = attributes.filter((a) => !new RegExp(`\\s${a}(?=[\\s=>])`).test(` ${rest} `));
+    return missing.length ? `<html ${missing.join(' ')}${rest}>` : tag;
+  });
+}
+
 export function pageLayout(page: { layout?: unknown }, kit: Pick<Kit, 'layout'>): string {
   const own = typeof page.layout === 'string' ? page.layout : '';
   if (own === 'theme') return '';

@@ -53,6 +53,10 @@ The **Site settings** (the kit) apply to every Fresco page:
 - **Page title selector**, so pages can hide the theme's title. Aurora, Canvas, Pulsar and Vitality leave the title out of the page by themselves, so it never shows twice.
 - **Lightbox** settings.
 
+### The theme's colors and fonts by default
+
+Elements without a color or font of their own use the global ones: headings the primary color and font, texts the text color and font, buttons the accent font, and so on, as in Elementor. **Site settings → Global colors → Theme's colors by default** and **Global fonts → Theme's fonts by default** (since Fresco 2.11.4) turn that off, as Elementor's **Disable Default Colors** and **Disable Default Fonts** do: headings, texts, image box titles and descriptions, accordion and tab titles, counters and menu links take the theme's colors (its heading colors, its text color), and headings, texts, image box titles and buttons its fonts. The global colors and fonts stay in the site settings and apply to every element that chooses one; the page's HTML says so with `data-fr-theme-colors` and `data-fr-theme-fonts` on `<html>`, which `fresco.css` reads (each rule keeps its weight, so element settings and the theme style win as before).
+
 ### Google Fonts and privacy
 
 **Site settings → Global fonts → Google Fonts** says where pages get the Google fonts of the kit and of the elements (since Fresco 2.8):
@@ -95,6 +99,7 @@ The WordPress importer (**Import from WordPress** in the admin menu) turns a sit
 
 - **Pages** (and landing pages) become Fresco pages: sections, columns and containers, every common widget with its texts, links, images, global colors and fonts, typography, spacing, per-device values, hover colors, backgrounds (with overlays and videos), borders, shadows and entrance animations. Atomic elements keep their style variants and classes. The page settings come along: full width or canvas layout, hidden title, page background and custom CSS.
 - **The kit** joins Fresco's **Site settings**: global colors and fonts (Google fonts are loaded, kept on the site by default), breakpoints, content width, space between widgets and the theme style (texts, headings, buttons, images, form fields, lightbox).
+- **Disable Default Colors and Fonts** (Elementor → Settings) were WordPress options, which the export leaves out: the importer's **Colors and fonts of Elementor widgets** (WordPress Importer 1.26) says where widgets without their own took them from. **From the theme** turns on **Theme's colors by default** and **Theme's fonts by default** and gives headings no default font of the kit; **Elementor's kit** applies the kit as before; **Automatic** (the default) takes the theme's when the kit still has Elementor's own system colors (#6EC1E4, #54595F, #7A7A7A, #61CE70: a kit never set up, as on sites that leave colors and fonts to the theme), except with the Hello theme, and the report says so. Either way the kit's global colors and fonts are imported, for the widgets that chose them.
 - **Pro widgets** become their Fresco Pro elements (form, slides, call to action, flip box, price table and list, countdown, animated headline, posts and loops, carousels, theme elements and more), and motion effects, sticky, custom CSS, custom attributes and dynamic tags their Fresco Pro settings.
 - **Theme Builder templates** (header, footer, single, archive, popups, loop items, saved sections and global widgets) become Fresco Pro templates with their conditions; popups keep their trigger, frequency and layout. Custom code, custom fonts and the kit's custom CSS go to Fresco Pro's site settings.
 

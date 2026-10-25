@@ -1019,6 +1019,20 @@ describe('Elementor pages to Fresco', () => {
       button_bg: 'var(--fr-c-accent)',
     });
     expect((form.block.attrs.fields as unknown[]).length).toBe(3);
+    // Elementor's default colors off: the button keeps Fresco's own.
+    const themed = one(
+      { widgetType: 'form', settings: { form_fields: [], button_text: 'Send' } },
+      { kit: { themeColors: true } },
+    );
+    expect(themed.block.attrs.button_bg).toBeUndefined();
+    const priced = one(
+      { widgetType: 'price-table', settings: { heading: 'Basic' } },
+      { kit: { themeFonts: true } },
+    );
+    expect(priced.block.attrs.heading_typography_global).toBeUndefined();
+    expect(one({ widgetType: 'price-table', settings: {} }).block.attrs).toMatchObject({
+      heading_typography_global: 'primary',
+    });
     expect(form.warnings.join('\n')).toContain('upload, recaptcha');
 
     const menu = one(

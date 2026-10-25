@@ -701,6 +701,29 @@ describe('Elementor sites as WordPress showed them', () => {
     expect(none.block.attrs.title_theme_font).toBeUndefined();
   });
 
+  it("gives headings no default font when Elementor's default fonts were off", () => {
+    const fonts = { primary: ['family', 'weight', 'size', 'line'] };
+    const off = convert('heading', { title: 'Title' }, { kit: { fonts, themeFonts: true } });
+    // The kit's flag leaves them to the theme: no global font, no own family.
+    expect(off.block.attrs.title_typography_global).toBeUndefined();
+    expect(off.block.attrs.title_theme_font).toBeUndefined();
+    expect(off.block.attrs.title_typography_line).toEqual({ size: 1, unit: '' });
+    // A global font chosen on the heading stays.
+    const chosen = convert(
+      'heading',
+      { title: 'Title', __globals__: { typography_typography: 'globals/typography?id=primary' } },
+      { kit: { fonts, themeFonts: true } },
+    );
+    expect(chosen.block.attrs.title_typography_global).toBe('primary');
+    // Old kits (line heights only): no default either.
+    const old = convert(
+      'heading',
+      { title: 'Title' },
+      { kit: { fontsWithLine: ['primary'], themeFonts: true } },
+    );
+    expect(old.block.attrs.title_typography_global).toBeUndefined();
+  });
+
   it('keeps the width and crop of WordPress, theme and custom image sizes', () => {
     const image = { id: 12, url: 'https://old.test/wp-content/uploads/a.jpg' };
     const imageInfo = (id: number) =>

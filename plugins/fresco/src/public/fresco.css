@@ -294,13 +294,21 @@ a.fr-container {
 
 /* ---- Heading ---- */
 
+/*
+ * Global colors and fonts as the elements' defaults, unless the site settings
+ * leave them to the theme (`data-fr-theme-colors`, `data-fr-theme-fonts` on
+ * <html>, as Elementor's "Disable Default Colors/Fonts"). `:where` keeps the
+ * weight of each rule as it was.
+ */
 .fr-heading__title {
   margin: 0;
   line-height: 1.2;
+}
+:where(:root:not([data-fr-theme-colors])) .fr-heading__title {
   color: var(--fr-c-primary, inherit);
 }
 /* The primary font, unless the heading takes the theme's (same weight as the rule above). */
-.fr-heading__title:where(:not(.fr-heading__title--theme)) {
+:where(:root:not([data-fr-theme-fonts])) .fr-heading__title:where(:not(.fr-heading__title--theme)) {
   font-family: var(--fr-t-primary-family, inherit);
   font-weight: var(--fr-t-primary-weight, 600);
 }
@@ -326,8 +334,10 @@ a.fr-container {
 
 /* ---- Text ---- */
 
-.fr-text {
+:where(:root:not([data-fr-theme-colors])) .fr-text {
   color: var(--fr-c-text, inherit);
+}
+:where(:root:not([data-fr-theme-fonts])) .fr-text {
   font-family: var(--fr-t-text-family, inherit);
   font-weight: var(--fr-t-text-weight, inherit);
 }
@@ -383,8 +393,6 @@ a.fr-container {
   border-radius: 4px;
   background-color: var(--fr-c-accent, #1d4ed8);
   color: #fff;
-  font-family: var(--fr-t-accent-family, inherit);
-  font-weight: var(--fr-t-accent-weight, 500);
   line-height: 1;
   text-decoration: none;
   cursor: pointer;
@@ -394,6 +402,10 @@ a.fr-container {
     border-color 0.2s,
     transform 0.2s,
     box-shadow 0.2s;
+}
+:where(:root:not([data-fr-theme-fonts])) .fr-button__link {
+  font-family: var(--fr-t-accent-family, inherit);
+  font-weight: var(--fr-t-accent-weight, 500);
 }
 .fr-button__link:hover {
   filter: brightness(0.95);
@@ -581,7 +593,11 @@ a.fr-container {
 .fr-box__title {
   margin: 0 0 10px;
   white-space: pre-line;
+}
+:where(:root:not([data-fr-theme-colors])) .fr-box__title {
   color: var(--fr-c-primary, inherit);
+}
+:where(:root:not([data-fr-theme-fonts])) .fr-box__title {
   font-family: var(--fr-t-primary-family, inherit);
   font-weight: var(--fr-t-primary-weight, 600);
 }
@@ -594,6 +610,8 @@ a.fr-container {
   margin: 0;
   /* Line breaks typed in the text (or imported from <br>) show. */
   white-space: pre-line;
+}
+:where(:root:not([data-fr-theme-colors])) .fr-e .fr-box__description {
   color: var(--fr-c-text, inherit);
 }
 
@@ -1770,7 +1788,6 @@ a.fr-container {
   padding: 12px 20px;
   border: 0;
   background: none;
-  color: var(--fr-c-text, inherit);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -1778,6 +1795,10 @@ a.fr-container {
   transition:
     color 0.2s,
     background-color 0.2s;
+}
+:where(:root:not([data-fr-theme-colors])) .fr-tabs__title,
+:where(:root:not([data-fr-theme-colors])) .fr-tabs__mobile-title {
+  color: var(--fr-c-text, inherit);
 }
 .fr-tabs__title[aria-selected='true'] {
   color: var(--fr-c-primary, #1d4ed8);
@@ -1819,6 +1840,8 @@ a.fr-container {
   cursor: pointer;
   list-style: none;
   font-weight: 600;
+}
+:where(:root:not([data-fr-theme-colors])) .fr-acc__title {
   color: var(--fr-c-primary, inherit);
 }
 .fr-acc__title::-webkit-details-marker {
@@ -1915,12 +1938,16 @@ a.fr-container {
   font-size: 69px;
   font-weight: 600;
   line-height: 1;
-  color: var(--fr-c-primary, inherit);
   font-variant-numeric: tabular-nums;
+}
+:where(:root:not([data-fr-theme-colors])) .fr-counter__number {
+  color: var(--fr-c-primary, inherit);
 }
 .fr-counter__title {
   font-size: 19px;
   margin-top: 6px;
+}
+:where(:root:not([data-fr-theme-colors])) .fr-counter__title {
   color: var(--fr-c-secondary, inherit);
 }
 /* The title beside the number (Title position: start or end). */
@@ -2357,10 +2384,12 @@ a.fr-container {
 .fr-menu__link {
   display: block;
   padding: 10px 14px;
-  color: var(--fr-c-secondary, inherit);
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s;
+}
+:where(:root:not([data-fr-theme-colors])) .fr-menu__link {
+  color: var(--fr-c-secondary, inherit);
 }
 .fr-menu__link:hover,
 .fr-menu__item.is-current > .fr-menu__link {

@@ -4,6 +4,7 @@ import {
   convertConditions,
   kitToFresco,
   popupSettings,
+  themeDefaults,
   themeHeadingFonts,
   withHeadingFonts,
   type ConditionContext,
@@ -496,6 +497,8 @@ describe('An Elementor site in a WordPress export', () => {
         colors: [{ id: 'primary', title: 'Primary', value: '#123456' }],
         fonts: [{ id: 'primary', title: 'Primary', family: 'Abel', weight: '700' }],
         breakpoints: { tablet: 1000, mobile: 700 },
+        themeColors: false,
+        themeFonts: false,
         googleFonts: ['Abel', 'Karla'],
       },
     });
@@ -880,5 +883,100 @@ ${item({ id: 31, title: 'News', type: 'post', content: '<p>Hot <img class="emoji
     const post = document.entries!.find((e) => e.ref === 'post:31')!;
     expect(JSON.stringify(post.document.blocks)).toContain('Hot 🔥 news');
     expect(JSON.stringify(post.document.blocks)).not.toContain('s.w.org');
+  });
+});
+
+describe("Elementor's default colors and fonts turned off (bolognaolistica.com)", () => {
+  // A kit never set up: Elementor's own colors, the primary font of an old scheme.
+  const stockKit = {
+    system_colors: [
+      { _id: 'primary', title: 'Principale', color: '#6EC1E4' },
+      { _id: 'secondary', title: 'Secondario', color: '#54595F' },
+      { _id: 'text', title: 'Testo', color: '#7A7A7A' },
+      { _id: 'accent', title: 'In risalto', color: '#61CE70' },
+    ],
+    custom_colors: [{ _id: '3503e0b', title: 'Colore salvato #5', color: '#4054B2' }],
+    system_typography: [
+      {
+        _id: 'primary',
+        title: 'Intestazione Principale',
+        typography_typography: 'custom',
+        typography_font_family: 'Architects Daughter',
+        typography_font_weight: '600',
+        typography_font_size: { unit: 'px', size: 40 },
+      },
+    ],
+  };
+  const export_ = (kit: Record<string, unknown>, extra = '') => `<?xml version="1.0"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel><title>Olistica</title><link>https://olistica.example</link><wp:wxr_version>1.2</wp:wxr_version><wp:base_blog_url>https://olistica.example</wp:base_blog_url>
+<wp:author><wp:author_id>1</wp:author_id><wp:author_login>ann</wp:author_login><wp:author_email>ann@olistica.example</wp:author_email></wp:author>
+${item({ id: 2, title: 'Default Kit', type: 'elementor_library', metas: meta('_elementor_template_type', 'kit') + meta('_elementor_page_settings', php(kit)) })}
+${item({ id: 30, title: 'Corsi', type: 'page', name: 'corsi', metas: builder([heading('Corsi')]) })}
+${extra}
+</channel></rss>`;
+  const importOf = (xml: string, elementorDefaults?: 'auto' | 'kit' | 'theme') => {
+    const { document, warnings } = wxrToDocument(xml, {
+      locale: 'it',
+      ...(elementorDefaults ? { elementorDefaults } : {}),
+    });
+    const kit = (document.plugins?.fresco as { kit: Record<string, unknown> }).kit;
+    const title = (
+      document.entries!.find((e) => e.ref === 'post:30')!.document.blocks[0] as CxdBlock
+    ).children![0]!;
+    return { kit, title, warnings };
+  };
+
+  it('leaves colors and fonts to the theme when the kit still has Elementor’s colors', () => {
+    const { kit, title, warnings } = importOf(export_(stockKit));
+    expect(kit).toMatchObject({ themeColors: true, themeFonts: true });
+    // The kit's global colors and fonts stay, for the widgets that choose them.
+    expect(kit.colors).toContainEqual({ id: 'primary', title: 'Principale', value: '#6EC1E4' });
+    expect(kit.colors).toContainEqual({
+      id: '3503e0b',
+      title: 'Colore salvato #5',
+      value: '#4054B2',
+    });
+    expect(kit.fonts).toContainEqual(
+      expect.objectContaining({ id: 'primary', family: 'Architects Daughter' }),
+    );
+    // The heading gets no default font of the kit.
+    expect(title.attrs.title_typography_global).toBeUndefined();
+    expect(warnings.join('\n')).toContain('taken to be off');
+  });
+
+  it('follows the choice made in the import', () => {
+    const kit = importOf(export_(stockKit), 'kit');
+    expect(kit.kit).toMatchObject({ themeColors: false, themeFonts: false });
+    expect(kit.title.attrs.title_typography_global).toBe('primary');
+    expect(kit.warnings.join('\n')).not.toContain('default colors and fonts');
+    const own = { ...stockKit, system_colors: [{ _id: 'primary', title: 'P', color: '#c2410c' }] };
+    expect(importOf(export_(own)).kit).toMatchObject({ themeColors: false, themeFonts: false });
+    const theme = importOf(export_(own), 'theme');
+    expect(theme.kit).toMatchObject({ themeColors: true, themeFonts: true });
+    expect(theme.warnings.join('\n')).toContain('were off, as chosen');
+  });
+
+  it('guesses only for kits never set up, and never with Hello', () => {
+    const settings = stockKit as Record<string, unknown>;
+    expect(themeDefaults(settings, 'auto', false)).toBe(true);
+    expect(themeDefaults(settings, 'auto', true)).toBe(false);
+    expect(themeDefaults(settings, 'theme', true)).toBe(true);
+    expect(themeDefaults(settings, 'kit', false)).toBe(false);
+    expect(themeDefaults({}, 'auto', false)).toBe(false);
+    const changed = {
+      system_colors: stockKit.system_colors.map((c) =>
+        c._id === 'accent' ? { ...c, color: '#f77f2e' } : c,
+      ),
+    };
+    expect(themeDefaults(changed, 'auto', false)).toBe(false);
+    // An export of a site with Hello: the kit is its style.
+    const hello = importOf(
+      export_(
+        stockKit,
+        item({ id: 60, title: 'hello-elementor', type: 'custom_css', content: 'a{}' }),
+      ),
+    );
+    expect(hello.kit).toMatchObject({ themeColors: false });
   });
 });
