@@ -40,7 +40,8 @@ describe('mountEditorRoot', () => {
 
   it("uses the admin's query client when given, sharing its cache", async () => {
     const element = target();
-    const client = new QueryClient();
+    // Fresh for good, so the probe reads the cache instead of fetching again.
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
     client.setQueryData(['probe'], 'cached');
     let seen: QueryClient | undefined;
     let root!: ReturnType<typeof mountEditorRoot>;

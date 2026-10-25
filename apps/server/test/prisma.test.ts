@@ -119,7 +119,7 @@ describe('Prisma blocks', () => {
     );
     // The site's defaults: content width, padding and gaps.
     expect(html).toContain(
-      '.pr-container.pr-is-root.alignfull.pr-block-abc12345 > .pr-container__inner{--inner-content-custom-width:min(100%, 1140px);max-width:var(--inner-content-custom-width);width:100%;flex-direction:row;align-items:center;justify-content:center;flex-wrap:nowrap;row-gap:20px;column-gap:20px}',
+      '.pr-container.pr-is-root.alignfull.pr-block-abc12345 > .pr-container__inner{--inner-content-custom-width:min(100%, var(--cx-container-width, 1140px));max-width:var(--inner-content-custom-width);width:100%;flex-direction:row;align-items:center;justify-content:center;flex-wrap:nowrap;row-gap:20px;column-gap:20px}',
     );
     expect(html).toContain('padding-top:10px');
     expect(html).toContain('background-color:#123456');
