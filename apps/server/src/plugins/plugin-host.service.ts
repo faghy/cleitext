@@ -32,6 +32,9 @@ import {
   type FieldGroupView,
   type FieldTypeDefinition,
   type Label,
+  optionsPageSchema,
+  type OptionsPageInput,
+  type OptionsPageView,
 } from '@cleitext/shared';
 import {
   pluginManifestSchema,
@@ -129,6 +132,8 @@ export interface LoadedPlugin {
   groupProviders: ((siteId: string) => FieldGroupInput[] | Promise<FieldGroupInput[]>)[];
   /** `ctx.fields.registerType` (plugin API 1.47). */
   fieldTypes: FieldTypeDefinition[];
+  /** `ctx.fields.addOptionsPage` (plugin API 1.48). */
+  optionsPages: OptionsPageInput[];
   /** `ctx.dynamic` (plugin API 1.47). */
   dynamicSources: DynamicSource[];
   dynamicProviders: ((siteId: string) => DynamicSource[] | Promise<DynamicSource[]>)[];
@@ -334,6 +339,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       fieldGroups: [],
       groupProviders: [],
       fieldTypes: [],
+      optionsPages: [],
       dynamicSources: [],
       dynamicProviders: [],
       blocks: [],
@@ -386,6 +392,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         fieldGroups: [],
         groupProviders: [],
         fieldTypes: [],
+        optionsPages: [],
         dynamicSources: [],
         dynamicProviders: [],
         blocks: [],
@@ -604,6 +611,33 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     plugin.fieldTypes = [...plugin.fieldTypes.filter((t) => t.type !== type), definition];
     // Plugins loaded after the first load (a reload swaps them all at once).
     if (this.loaded.get(plugin.slug) === plugin) registerFieldType(definition);
+  }
+
+  /** An options page of a plugin (plugin API 1.48): its slug starts with the plugin's. */
+  addOptionsPage(plugin: LoadedPlugin, page: OptionsPageInput): void {
+    const parsed = optionsPageSchema.safeParse(page);
+    if (!parsed.success) {
+      throw new PluginError(
+        `The options page "${String(page?.slug)}" is not valid: ${parsed.error.issues[0]?.path.join('.') ?? ''} ${parsed.error.issues[0]?.message ?? ''}`.trim(),
+      );
+    }
+    assertPluginGroupId(plugin.slug, parsed.data.slug, 'Options page slugs');
+    const definition = parsed.data as OptionsPageInput;
+    plugin.optionsPages = [
+      ...plugin.optionsPages.filter((p) => p.slug !== definition.slug),
+      definition,
+    ];
+  }
+
+  removeOptionsPage(plugin: LoadedPlugin, slug: string): void {
+    plugin.optionsPages = plugin.optionsPages.filter((p) => p.slug !== slug);
+  }
+
+  /** The options pages of the plugins active on a site (plugin API 1.48). */
+  async pluginOptionsPages(siteId: string): Promise<OptionsPageView[]> {
+    return (await this.activePlugins(siteId)).flatMap((plugin) =>
+      plugin.optionsPages.map((page) => ({ ...page, source: `plugin:${plugin.slug}` as const })),
+    );
   }
 
   addDynamicSource(plugin: LoadedPlugin, source: DynamicSource): void {
@@ -1338,9 +1372,9 @@ function isPluginGroupId(slug: string, id: string): boolean {
   );
 }
 
-function assertPluginGroupId(slug: string, id: string): void {
+function assertPluginGroupId(slug: string, id: string, what = 'Field group ids'): void {
   if (!isPluginGroupId(slug, id)) {
-    throw new PluginError(`Field group ids must start with the plugin slug ("${slug}")`);
+    throw new PluginError(`${what} must start with the plugin slug ("${slug}")`);
   }
 }
 

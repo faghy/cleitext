@@ -272,3 +272,47 @@ describe('tables and galleries', () => {
     expect(roundTrip(doc)).toEqual(doc);
   });
 });
+
+describe('block bindings (plugin API 1.48)', () => {
+  it('keep the bindings of core blocks and the Field and Field rows blocks', () => {
+    const binding = (key: string) => ({ source: 'cleitext/field', args: { key } });
+    const doc: CxdDocument = {
+      schema: 1,
+      blocks: [
+        {
+          id: 'p',
+          type: 'core/paragraph',
+          v: 1,
+          attrs: { metadata: { bindings: { content: binding('entry.field:subtitle') } } },
+          content: [{ text: 'Fallback' }],
+        },
+        {
+          id: 'rows',
+          type: 'cleitext/field-rows',
+          v: 1,
+          attrs: { source: 'entry.field:team', limit: 4 },
+          children: [
+            {
+              id: 'f',
+              type: 'cleitext/field',
+              v: 1,
+              attrs: { source: 'row.field:name', label: 'Name:', tagName: 'h3' },
+            },
+            {
+              id: 'i',
+              type: 'core/image',
+              v: 1,
+              attrs: {
+                url: '/x.png',
+                metadata: {
+                  bindings: { id: binding('row.field:photo'), url: binding('row.field:photo') },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+    expect(roundTrip(doc)).toEqual(doc);
+  });
+});

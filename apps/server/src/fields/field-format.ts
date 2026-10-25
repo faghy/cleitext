@@ -1,4 +1,12 @@
-import { entries, type SiteTransaction } from '@cleitext/db';
+import {
+  entries,
+  media as mediaTable,
+  siteMembers,
+  taxonomies,
+  terms,
+  users,
+  type SiteTransaction,
+} from '@cleitext/db';
 import {
   formatFieldValues,
   type FieldDefinition,
@@ -7,8 +15,11 @@ import {
   type FieldValues,
   type FormattedEntry,
   type FormattedMedia,
+  type FormattedTerm,
+  type FormattedUser,
 } from '@cleitext/shared';
-import { and, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
+import { avatarUrl } from '../profile/avatar.js';
 import { isPublished } from '../public/site-data.js';
 import { loadMedia } from '../public/site-data.js';
 import type { UrlBuilder } from '../public/urls.js';
@@ -104,7 +115,68 @@ export function formatContext(
     }
     return out;
   });
-  return { siteId, locale, media, entry };
+  // Terms, members and files (plugin API 1.48).
+  const term = batched<FormattedTerm>(async (ids) => {
+    const valid = ids.filter((id) => UUID_RE.test(id));
+    const out = new Map<string, FormattedTerm>();
+    if (valid.length === 0) return out;
+    const rows = await tx
+      .select({ term: terms, taxonomy: taxonomies.slug })
+      .from(terms)
+      .innerJoin(taxonomies, eq(taxonomies.id, terms.taxonomyId))
+      .where(inArray(terms.id, valid));
+    for (const row of rows) {
+      out.set(row.term.id, {
+        id: row.term.id,
+        taxonomy: row.taxonomy,
+        name: row.term.name,
+        slug: row.term.slug,
+        url: urls ? urls.term(row.taxonomy, row.term.slug, row.term.locale) : '',
+      });
+    }
+    return out;
+  });
+  const user = batched<FormattedUser>(async (ids) => {
+    const valid = ids.filter((id) => UUID_RE.test(id));
+    const out = new Map<string, FormattedUser>();
+    if (valid.length === 0) return out;
+    // Members of the site only: accounts are shared by sites.
+    const rows = await tx
+      .select({
+        id: users.id,
+        name: users.displayName,
+        avatarKey: users.avatarKey,
+        slug: users.slug,
+      })
+      .from(siteMembers)
+      .innerJoin(users, eq(users.id, siteMembers.userId))
+      .where(inArray(users.id, valid));
+    for (const row of rows) {
+      out.set(row.id, {
+        id: row.id,
+        name: row.name,
+        avatarUrl: avatarUrl(row.avatarKey),
+        url: urls && row.slug ? urls.author(locale, row.slug) : null,
+      });
+    }
+    return out;
+  });
+  const names = batched<string>(async (ids) => {
+    const valid = ids.filter((id) => UUID_RE.test(id));
+    const out = new Map<string, string>();
+    if (valid.length === 0) return out;
+    const rows = await tx
+      .select({ id: mediaTable.id, filename: mediaTable.filename })
+      .from(mediaTable)
+      .where(inArray(mediaTable.id, valid));
+    for (const row of rows) out.set(row.id, row.filename);
+    return out;
+  });
+  const file = async (id: string): Promise<FormattedMedia | null> => {
+    const [found, filename] = await Promise.all([media(id), names(id)]);
+    return found ? { ...found, ...(filename ? { filename } : {}) } : null;
+  };
+  return { siteId, locale, media, entry, term, user, file };
 }
 
 /**

@@ -53,6 +53,8 @@ import {
   type FieldGroupView,
   type FieldObject,
   type LocationScreen,
+  type OptionsPageInput,
+  type OptionsPageView,
   fieldDefaults,
   fieldsValidator,
   type FieldDefinition,
@@ -95,6 +97,9 @@ import type { DynamicContext, DynamicSourceInfo } from '@cleitext/plugin-sdk';
 import { DynamicSourcesService } from '../fields/dynamic-sources.service.js';
 import { FieldGroupsService } from '../fields/field-groups.service.js';
 import { UserFieldsService } from '../fields/user-fields.service.js';
+import { OptionsPagesService } from '../fields/options-pages.service.js';
+import { emptyWxrMetaResult, withWxrMeta } from '../transfer/wxr-meta.js';
+import { phpMetaValue, phpUnserialize } from '@cleitext/plugin-sdk';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
 
 /** Core services exposed to plugins through their context facades. */
@@ -116,8 +121,40 @@ export class PluginServicesProvider implements PluginServices {
     private readonly fieldGroupsService: FieldGroupsService,
     private readonly userFieldsService: UserFieldsService,
     private readonly dynamicService: DynamicSourcesService,
+    private readonly optionsService: OptionsPagesService,
   ) {
     host.bind(this);
+  }
+
+  // ---- Options pages (plugin API 1.48) --------------------------------------------------
+
+  optionsPages(siteId: string): Promise<OptionsPageView[]> {
+    return this.optionsService.pages(siteId);
+  }
+
+  siteOptionsPages(siteId: string): Promise<OptionsPageInput[]> {
+    return this.optionsService.listSite(siteId);
+  }
+
+  saveSiteOptionsPage(siteId: string, page: unknown): Promise<OptionsPageInput> {
+    return this.optionsService.saveSite(siteId, page);
+  }
+
+  removeSiteOptionsPage(siteId: string, slug: string): Promise<void> {
+    return this.optionsService.removeSite(siteId, slug);
+  }
+
+  options(siteId: string, page: string, locale?: string): Promise<FieldValues> {
+    return this.optionsService.values(siteId, page, locale);
+  }
+
+  updateOptions(
+    siteId: string,
+    page: string,
+    values: FieldValues,
+    locale?: string,
+  ): Promise<FieldValues> {
+    return this.optionsService.save(siteId, page, values, locale ? { locale } : {});
   }
 
   // ---- Custom fields (plugin API 1.47) --------------------------------------------------
@@ -732,7 +769,28 @@ export class PluginServicesProvider implements PluginServices {
     if (unknown.length > 0) {
       throw new BadRequestException(`The site has no language "${unknown.join('", "')}".`);
     }
-    return importDocument(parsed.data, {
+    // A WordPress export's meta (plugin API 1.48): active plugins make field
+    // values, groups, options pages and options of it, added to the document.
+    const wxrWarnings = options.wxrMeta
+      ? withWxrMeta(
+          parsed.data,
+          await this.host.applyFilter(
+            'import.wxrMeta',
+            emptyWxrMetaResult(),
+            {
+              siteId,
+              locale: parsed.data.entries[0]?.locale ?? defaultLocale,
+              items: Array.isArray(options.wxrMeta.items) ? options.wxrMeta.items : [],
+              terms: Array.isArray(options.wxrMeta.terms) ? options.wxrMeta.terms : [],
+              options: options.wxrMeta.options ?? null,
+              unserialize: phpUnserialize,
+              metaValue: phpMetaValue,
+            },
+            siteId,
+          ),
+        )
+      : [];
+    const report = await importDocument(parsed.data, {
       db: this.database.db,
       // WordPress blocks without an equivalent: active plugins may convert them.
       importBlock: (block) =>
@@ -774,6 +832,8 @@ export class PluginServicesProvider implements PluginServices {
       onLanguagesPending: () => this.host.emit('languages.pending', {}, siteId),
       ...(options.onProgress ? { onProgress: options.onProgress } : {}),
     });
+    report.warnings.unshift(...wxrWarnings);
+    return report;
   }
 
   async findComments(

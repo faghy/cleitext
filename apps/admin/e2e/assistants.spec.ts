@@ -201,7 +201,11 @@ test('the chat opened from an entry knows the entry and its editor', async ({ pa
         const { token } = await (await fetch('/api/v1/auth/csrf')).json();
         const response = await fetch(`/api/v1${path}`, {
           method,
-          headers: { 'x-csrf-token': token, 'content-type': 'application/json' },
+          // A JSON content type only with a body: the server refuses an empty one.
+          headers: {
+            'x-csrf-token': token,
+            ...(!body ? {} : { 'content-type': 'application/json' }),
+          },
           ...(body ? { body: JSON.stringify(body) } : {}),
         });
         return response.status === 204 ? null : response.json();

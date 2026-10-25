@@ -4,6 +4,8 @@ import type { PluginBlockDefinition, PluginDefinition } from './context.js';
 export * from './manifest.js';
 export * from './hooks.js';
 export * from './context.js';
+/** PHP's serialized values, read (plugin API 1.48): WordPress meta in imports. */
+export { phpMetaValue, phpUnserialize, type PhpValue } from './php.js';
 /** Rich text of block documents (CXD), e.g. to translate or index it. */
 export {
   htmlToInline,
@@ -39,9 +41,22 @@ export {
   type FieldValueKind,
   type FormattedEntry,
   type FormattedMedia,
+  type FormattedTerm,
+  type FormattedUser,
+  type LinkValue,
   type LocationRule,
   type LocationRules,
   type LocationScreen,
+} from '@cleitext/shared';
+/** Options pages (plugin API 1.48) and rich text of `richtext` fields. */
+export {
+  fieldValueKind,
+  mayMatchOptionsPage,
+  richTextToPlain,
+  sanitizeRichText,
+  translatableField,
+  type OptionsPageInput,
+  type OptionsPageView,
 } from '@cleitext/shared';
 
 /**

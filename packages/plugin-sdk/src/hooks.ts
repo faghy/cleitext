@@ -1,5 +1,12 @@
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
-import type { FieldDefinition, Label } from '@cleitext/shared';
+import type {
+  FieldDefinition,
+  FieldGroupInput,
+  FieldValues,
+  Label,
+  OptionsPageInput,
+} from '@cleitext/shared';
+import type { PhpValue } from './php.js';
 import type { HeadData, PublicEntry, ThemeLocation } from '@cleitext/theme-sdk';
 
 /**
@@ -438,6 +445,18 @@ export interface Filters {
     },
   ];
   /**
+   * The meta of a WordPress export during its import (plugin API 1.48): every
+   * item's post meta (also of WordPress's own types, e.g. ACF's field groups
+   * and fields, which are not imported as content), every term's term meta,
+   * and the site options when the export has them. Called once per import,
+   * before anything is written. Add to the result (keep the others'): field
+   * values for the imported entries and terms, by their ref; field groups,
+   * options pages and option values, created before the values. Refs in
+   * values: `{ $media: 'att:<attachment id>' }`, `{ $entry: 'post:<post id>' }`,
+   * `{ $term: '<term ref>' }` (see `WxrMetaTerm.ref`). Needs `import`.
+   */
+  'import.wxrMeta': [result: WxrMetaResult, context: WxrMetaContext];
+  /**
    * The plugins' own data in a site export (`cleitext export`, plugin API
    * 1.46): `document.plugins`, by plugin slug. Add your data under your slug
    * and keep the others' (`{ ...data, [slug]: mine }`); it comes back through
@@ -497,6 +516,87 @@ export interface Filters {
     text: string,
     context: { siteId: string; origin: string; sitemap: string; discourageSearchEngines: boolean },
   ];
+}
+
+/** A WordPress item with its post meta (`import.wxrMeta`, plugin API 1.48). */
+export interface WxrMetaItem {
+  /**
+   * `post:<id>`, `att:<id>` for attachments: the ref of the entry or media
+   * made from it (see `imported`).
+   */
+  ref: string;
+  /** WordPress's post id. */
+  id: number;
+  /** WordPress's post type, e.g. `post`, `page`, `acf-field-group`, `acf-field`. */
+  type: string;
+  /** WordPress's status, e.g. `publish`, `draft`, `acf-disabled`. */
+  status: string;
+  /** `post_name` (ACF: the field or group key, e.g. `field_5f1…`). */
+  name: string;
+  title: string;
+  /** `content:encoded` as exported (ACF: the serialized settings). */
+  content: string;
+  /** `excerpt:encoded` (ACF fields: their name). */
+  excerpt: string;
+  /** `post_parent` (0 for none). */
+  parent: number;
+  menuOrder: number;
+  /** Whether it is imported as an entry (or a media file), with `ref`. */
+  imported: boolean;
+  /** Post meta by key (its first value): serialized arrays as text (see `unserialize`). */
+  meta: Record<string, string>;
+}
+
+/** A WordPress term with its term meta (`import.wxrMeta`, plugin API 1.48). */
+export interface WxrMetaTerm {
+  /** The ref of the imported term (e.g. `category:news`), when `imported`. */
+  ref: string;
+  /** WordPress's term id. */
+  id: number;
+  /** WordPress's taxonomy, e.g. `category`, `post_tag`, `genre`. */
+  taxonomy: string;
+  slug: string;
+  name: string;
+  imported: boolean;
+  meta: Record<string, string>;
+}
+
+/** What `import.wxrMeta` gets besides the result. */
+export interface WxrMetaContext {
+  siteId: string;
+  /** The language the content is imported in. */
+  locale: string;
+  items: WxrMetaItem[];
+  terms: WxrMetaTerm[];
+  /** Site options by name, when the export has them; null otherwise (a WordPress export has none). */
+  options: Record<string, string> | null;
+  /** PHP's `unserialize()` (undefined for text that is not serialized). */
+  unserialize(text: string): PhpValue | undefined;
+  /** A meta value: serialized PHP or JSON decoded, the text otherwise. */
+  metaValue(text: string | undefined): unknown;
+}
+
+/** What plugins make of a WordPress export's meta (`import.wxrMeta`). */
+export interface WxrMetaResult {
+  /** Field values of imported entries, by item ref: added to theirs (each group as a whole). */
+  entries: Record<string, FieldValues>;
+  /** Field values of imported terms, by term ref. */
+  terms: Record<string, FieldValues>;
+  /** Field groups of the site's owners, created before the values (existing ids are kept). */
+  fieldGroups: FieldGroupInput[];
+  /** Options pages of the site's owners, created before the values. */
+  optionsPages: OptionsPageInput[];
+  /** Values of options pages (all of them in the default language unless `locale`). */
+  options: { page: string; locale?: string; fields: FieldValues }[];
+  /** Lines added to the import report. */
+  warnings: string[];
+}
+
+/** The input of `import.wxrMeta`, as an import plugin gives it with its document. */
+export interface WxrMetaInput {
+  items: WxrMetaItem[];
+  terms: WxrMetaTerm[];
+  options?: Record<string, string> | null;
 }
 
 /** New ids of the records of an imported transfer document, by their `ref`. */

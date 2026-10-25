@@ -38,6 +38,7 @@ import { buildBlocks, defaultsOf, isRegistered } from './gutenberg-tree';
 import { registerMediaUpload, setMediaServices } from './media-upload';
 import { registerFieldBlocks } from './field-blocks';
 import { registerCoreBlocks } from './register-blocks';
+import { BINDINGS_SUPPORTED_ATTRIBUTES, refreshBindings, setBindingsLanguage } from './bindings';
 import { DEVICE_WIDTHS, editorStore, registerEditorStore, type DeviceType } from './device';
 import { EDITOR_SHORTCUTS, ShortcutsHelp } from './shortcuts';
 import { inserterPatterns, PATTERN_CATEGORIES, setPatterns } from './patterns';
@@ -106,10 +107,11 @@ interface Controller {
 export const gutenbergAdapter: EditorAdapter = {
   id: 'gutenberg',
   mount(options: EditorMountOptions): EditorInstance {
+    setMediaServices(options.services);
+    setBindingsLanguage(options.uiLanguage ?? options.locale);
     registerCoreBlocks();
     registerEditorStore();
     registerMediaUpload();
-    setMediaServices(options.services);
     registerFieldBlocks(options.fieldBlocks ?? [], registry, options.locale);
     const controller: Controller = { current: () => options.document, replace: () => {} };
     const root = createRoot(options.targets.canvas);
@@ -117,6 +119,7 @@ export const gutenbergAdapter: EditorAdapter = {
     return {
       getDocument: () => controller.current(),
       setDocument: (document) => controller.replace(document),
+      refreshDynamic: () => refreshBindings(),
       // Deferred: the host may destroy the editor while React is rendering.
       destroy: () => setTimeout(() => root.unmount(), 0),
     };
@@ -290,6 +293,8 @@ function GutenbergEditor({
       bodyPlaceholder: 'Type / to choose a block',
       __experimentalBlockPatterns: inserterPatterns(patterns),
       __experimentalBlockPatternCategories: PATTERN_CATEGORIES,
+      // Bound attributes show their field's value (plugin API 1.48).
+      __experimentalBlockBindingsSupportedAttributes: BINDINGS_SUPPORTED_ATTRIBUTES,
       __unstableResolvedAssets: {
         ...RESOLVED_ASSETS,
         styles: [

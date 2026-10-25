@@ -95,3 +95,9 @@
   border-radius: 3px;
   background: #f0f0f0;
 }
+
+/* Bindings are chosen in the "Bind to field" panel (plugin API 1.48), not in
+   WordPress's own list of attributes. */
+.block-editor-bindings__panel {
+  display: none;
+}

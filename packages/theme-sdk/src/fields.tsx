@@ -1,3 +1,4 @@
+import { sanitizeRichText } from '@cleitext/shared';
 import { Fragment, type ReactNode } from 'react';
 import { usePage } from './context.js';
 import type { PageContext } from './types.js';
@@ -12,9 +13,12 @@ import type { PageContext } from './types.js';
 export interface FieldReadOptions {
   /**
    * Whose fields: the entry shown (default), the term of a category or tag
-   * archive, or the person of an author archive.
+   * archive, the person of an author archive, or an options page (`option`,
+   * plugin API 1.48, with `page`).
    */
-  of?: 'entry' | 'term' | 'author';
+  of?: 'entry' | 'term' | 'author' | 'option';
+  /** The options page (its slug), with `of: 'option'`. */
+  page?: string;
   /** The field group, when fields of two groups share the name (`group.name` works too). */
   group?: string;
   /** The value as stored: media as ids, nothing formatted. */
@@ -25,8 +29,12 @@ export interface FieldReadOptions {
 function source(
   page: PageContext,
   of: FieldReadOptions['of'],
+  options: FieldReadOptions = {},
 ): { raw?: Record<string, unknown>; formatted?: Record<string, unknown> } {
   const view = page.view;
+  if (of === 'option') {
+    return { formatted: options.page ? page.options?.[options.page] : undefined };
+  }
   if (of === 'term') {
     const term = view?.kind === 'archive' ? view.term : undefined;
     return { formatted: term?.fieldValues };
@@ -60,35 +68,99 @@ function rawValue(
  */
 export function useField<T = unknown>(name: string, options: FieldReadOptions = {}): T | undefined {
   const page = usePage();
-  const { raw, formatted } = source(page, options.of);
+  const { raw, formatted } = source(page, options.of, options);
   const key = options.group ? `${options.group}.${name}` : name;
   if (!options.raw && formatted && key in formatted) return formatted[key] as T;
   // Older cores (or a value of a field no longer defined): as stored.
   return rawValue(raw, name, options.group) as T | undefined;
 }
 
-/** A media value as formatted for templates. */
+/**
+ * The value of a field of an options page (plugin API 1.48), like ACF's
+ * `get_field('name', 'option')`: by name or `group.name`, formatted as
+ * `useField` gives them, in the page's language. Undefined when it has none.
+ *
+ * ```tsx
+ * const phone = useOption<string>('phone', { page: 'contacts' });
+ * ```
+ */
+export function useOption<T = unknown>(
+  name: string,
+  options: { page: string; group?: string },
+): T | undefined {
+  return useField<T>(name, { ...options, of: 'option' });
+}
+
+/**
+ * An image as formatted for templates: a media file whose type is an image
+ * (links, related records and other files have an address too).
+ */
 function isMedia(
   value: unknown,
 ): value is { url: string; alt?: string; width?: number | null; height?: number | null } {
-  return (
-    !!value && typeof value === 'object' && typeof (value as { url?: unknown }).url === 'string'
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (typeof v.url !== 'string') return false;
+  if (typeof v.mime === 'string') return v.mime.startsWith('image/');
+  // Older formats without a type: no name, title or label.
+  return 'width' in v && !('name' in v || 'title' in v || 'label' in v);
+}
+
+/** A related record or a link as formatted for templates: its address and text. */
+function linkOf(value: unknown): { href: string | null; text: string; blank: boolean } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  const text = ['label', 'title', 'name', 'filename', 'url']
+    .map((key) => v[key])
+    .find((t): t is string => typeof t === 'string' && t !== '');
+  if (!text) return null;
+  return {
+    href: typeof v.url === 'string' && v.url ? v.url : null,
+    text,
+    blank: v.target === '_blank',
+  };
+}
+
+function LinkView({ link }: { link: NonNullable<ReturnType<typeof linkOf>> }) {
+  return link.href ? (
+    <a href={link.href} {...(link.blank ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+      {link.text}
+    </a>
+  ) : (
+    <>{link.text}</>
   );
 }
 
 /**
  * Shows a field's value: text and numbers as text (escaped), yes/no as ✓,
- * a media field as an image, lists of texts joined with commas. `fallback`
+ * a media field as an image, links and related entries, terms or people as
+ * links (plugin API 1.48), lists joined with commas. A `richtext` field
+ * shows as formatted text with `html` (cleaned again here). `fallback`
  * shows when it has no value.
  */
 export function Field({
   name,
   fallback = null,
   className,
+  html = false,
   ...options
-}: FieldReadOptions & { name: string; fallback?: ReactNode; className?: string }) {
+}: FieldReadOptions & {
+  name: string;
+  fallback?: ReactNode;
+  className?: string;
+  /** The value is rich text (a `richtext` field): shown as HTML (plugin API 1.48). */
+  html?: boolean;
+}) {
   const value = useField(name, options);
   if (value === undefined || value === null || value === '') return <>{fallback}</>;
+  if (html && typeof value === 'string') {
+    return (
+      <div
+        {...(className ? { className } : {})}
+        dangerouslySetInnerHTML={{ __html: sanitizeRichText(value) }}
+      />
+    );
+  }
   if (isMedia(value)) {
     return (
       <img
@@ -100,6 +172,26 @@ export function Field({
         {...(className ? { className } : {})}
       />
     );
+  }
+  const link = linkOf(value);
+  if (link) {
+    return className ? (
+      <span className={className}>
+        <LinkView link={link} />
+      </span>
+    ) : (
+      <LinkView link={link} />
+    );
+  }
+  if (Array.isArray(value) && value.some((v) => linkOf(v))) {
+    const links = value.map(linkOf).filter((l) => l !== null);
+    const list = links.map((l, i) => (
+      <Fragment key={i}>
+        {i > 0 && ', '}
+        <LinkView link={l} />
+      </Fragment>
+    ));
+    return className ? <span className={className}>{list}</span> : <>{list}</>;
   }
   let text: string;
   if (typeof value === 'boolean') text = value ? '✓' : '';

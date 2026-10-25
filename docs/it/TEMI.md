@@ -61,6 +61,7 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 | `presets`          | Stili pronti: `[{ id, label, values }]`, applicati in Personalizza prima di pubblicare (§4).                                                                                                                                                                          |
 | `entryFields`      | Opzioni per pagina, `{ types?, fields }`, mostrate nella scheda Documento dell'editor (§4).                                                                                                                                                                           |
 | `pageTemplates`    | Modelli di pagina scelti nella barra laterale dell'editor, `[{ name, label, types? }]` (tipi predefiniti: `['page']`); la scelta della voce è `entry.template` e il componente `template-<name>` è provato per primo (§4, API dei plugin 1.47).                       |
+| `optionsPages`     | Pagine di opzioni del tema, `[{ slug, title, parent?, icon?, position?, capability?, fields }]`: pagine di impostazioni per tutto il sito nel menu dell'admin, lette con `useOption` (§4, API dei plugin 1.48).                                                       |
 | `menuItemFields`   | Opzioni di ogni voce di menu, `[{ field, levels? }]`, mostrate in Aspetto → Menu e lette da `MenuItemView.data` (§4, API dei plugin 1.34).                                                                                                                            |
 | `relatedEntries`   | Quanti contenuti correlati mostrare sotto un contenuto (al massimo 12): `entry.related` li contiene, prima stesse categorie, poi stessi tag (core 0.37).                                                                                                              |
 | `listTerms`        | `true`: gli elenchi (blog, archivi, ricerca) danno categorie e tag di ogni contenuto in `entries[].terms` (core 0.46).                                                                                                                                                |
@@ -206,6 +207,35 @@ function Landing() {
 - Valori formattati: un campo media è `{ id, url, alt, width, height, mime, sizes }` (le dimensioni per nome, per esempio `sizes.md.url`); le righe delle liste arrivano formattate, ognuna con il suo `_id` stabile; i tipi di campo dei plugin danno quello che dice il loro `format` (una voce `{ id, type, title, url }`…); gli altri valori come sono salvati.
 - `<Field name>` mostra un valore: testi e numeri come testo (con escape), sì/no come ✓, un campo media come `<img>`, liste di testi separate da virgole; `fallback` quando è vuoto, `className` sull'elemento. `<Rows name>` passa ogni riga di una lista alla sua funzione, `empty` quando non ce ne sono.
 - Leggono `entry.fieldValues`, `term.fieldValues` e `author.fieldValues` delle props, che un modello può anche usare direttamente; sui core più vecchi i lettori ripiegano sui valori salvati.
+- Dall'API dei plugin 1.48 `<Field>` mostra anche i link, e le voci, i termini e le persone collegati, come link (più d'uno separati da virgole), e un campo `richtext` come testo formattato con `html` (`<Field name="story" html />`, ripulito di nuovo). Le relazioni danno `{ id, type, title, url }` (voci), `{ id, taxonomy, name, slug, url }` (termini), `{ id, name, avatarUrl, url }` (persone); un campo `link` `{ url, label, target }`; un campo `file` il media con il suo `filename`.
+
+<a id="pagine-di-opzioni"></a>**Pagine di opzioni** (API dei plugin 1.48): impostazioni per tutto il sito, come le pagine di opzioni di ACF (il telefono nel piè di pagina, i profili social). Un tema dichiara le sue con `optionsPages` (compaiono nel menu dell'admin, sotto `parent` se indicato, per esempio `/appearance`); proprietari del sito e plugin ne aggiungono altre, e i gruppi di campi si collegano a ognuna con la regola `optionsPage`. I modelli leggono i valori di ogni pagina nella lingua della pagina, formattati come quelli di `useField`:
+
+```tsx
+import { Field, useOption } from '@cleitext/theme-sdk';
+
+optionsPages: ([
+  {
+    slug: 'footer',
+    title: { en: 'Footer', it: 'Piè di pagina' },
+    parent: '/appearance',
+    capability: 'edit_theme_settings',
+    fields: [{ name: 'phone', type: 'text', label: 'Telefono' }],
+  },
+],
+  function Footer() {
+    const phone = useOption<string>('phone', { page: 'footer' });
+    return (
+      <footer>
+        {phone} <Field of="option" page="contacts" name="team.lead" />
+      </footer>
+    );
+  });
+```
+
+`useOption(name, { page, group })` equivale a `useField(name, { of: 'option', page })`; `usePage().options` ha i valori di ogni pagina per slug. I valori dei campi traducibili seguono la lingua della pagina (quelli della lingua predefinita finché non vengono tradotti).
+
+**Blocchi collegati** (API dei plugin 1.48). Nell'editor a blocchi paragrafi, titoli, voci di elenco, pulsanti e immagini si possono collegare a un campo (**Collega a un campo** nelle impostazioni del blocco), e i blocchi **Campo** e **Righe di un campo** mostrano i campi e ripetono blocchi per ogni riga di una lista o per ogni voce collegata ([PLUGIN.md, Collegamenti dei blocchi](PLUGIN.md#block-bindings)). Il server li risolve prima di disegnare la pagina, quindi `EntryContent`, le aree e le posizioni del costruttore di temi mostrano i valori; i temi possono dare stile a `.wp-block-cleitext-field` (con `__label`, `is-<tipo>`, `is-empty`), `.wp-block-cleitext-field-rows` (`is-layout-grid`) e `.wp-block-cleitext-field-row`.
 
 `menuItemFields` (API dei plugin 1.34) aggiunge opzioni a ogni voce di menu, per esempio le colonne di un mega menu o un'icona. Ogni elemento è `{ field, levels? }`: `field` è la definizione di un campo, `levels` è `'top'` (solo voci di primo livello), `'nested'` (solo sottovoci) o `'all'` (predefinito). In **Aspetto → Menu** il pulsante ⚙ di una voce apre le sue "Opzioni del tema"; i valori sono controllati come le impostazioni (le chiavi sconosciute sono scartate, i valori non validi rifiutati) e salvati con la voce. Il tema li legge in `usePage().menus[posizione][i].data`, con i predefiniti applicati, solo per le opzioni valide al livello della voce:
 

@@ -11,6 +11,8 @@ import type {
   Label,
   LocationScreen,
   MenuItemField,
+  OptionsPageInput,
+  OptionsPageView,
   ZoneItem,
 } from '@cleitext/shared';
 import type { PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
@@ -31,6 +33,7 @@ import type {
   FormReleasedEvent,
   HookApi,
   RenderHookContext,
+  WxrMetaInput,
 } from './hooks.js';
 
 /** A site, as plugins see it. */
@@ -588,6 +591,45 @@ export interface FieldsApi {
     save(siteId: string, group: FieldGroupInput): Promise<FieldGroupInput>;
     remove(siteId: string, id: string): Promise<void>;
   };
+  /**
+   * An options page of the plugin (plugin API 1.48; missing on older cores,
+   * call it as `ctx.fields.addOptionsPage?.(…)`), on the sites where the
+   * plugin is active: a page of the admin menu (or under `parent`) with a
+   * save button, showing its own `fields` and the field groups whose
+   * `optionsPage` rule names it. Its slug starts with the plugin slug;
+   * adding it again replaces it. Needs `content:write`.
+   */
+  addOptionsPage?(page: OptionsPageInput): void;
+  removeOptionsPage?(slug: string): void;
+  /** Every options page of a site: the owners', the plugins', the theme's (needs `content:read`). */
+  optionsPages?(siteId: string): Promise<OptionsPageView[]>;
+  /**
+   * The options pages of the site's owners (stored by the core, also edited
+   * with the REST API `/options-pages`), for a visual builder (needs `content:write`).
+   */
+  siteOptionsPages?: {
+    list(siteId: string): Promise<OptionsPageInput[]>;
+    save(siteId: string, page: OptionsPageInput): Promise<OptionsPageInput>;
+    remove(siteId: string, slug: string): Promise<void>;
+  };
+  /**
+   * The values of an options page, as stored (own fields at the top, each
+   * group's under its id), in a language (default: the site's default one;
+   * other languages give their translations of translatable fields). Needs
+   * `content:read`.
+   */
+  options?(siteId: string, page: string, options?: { locale?: string }): Promise<FieldValues>;
+  /**
+   * Saves new values of an options page (needs `content:write`), checked like
+   * the admin's; other values are kept. In a language other than the
+   * default one, only translatable fields are saved, for that language.
+   */
+  updateOptions?(
+    siteId: string,
+    page: string,
+    values: FieldValues,
+    options?: { locale?: string },
+  ): Promise<FieldValues>;
 }
 
 // ---- Dynamic data (plugin API 1.47) ---------------------------------------------------
@@ -603,6 +645,8 @@ export interface DynamicContext {
   term?: { id: string };
   /** A person (default: the author of the archive, or of the entry shown). */
   user?: { id: string };
+  /** The row of a list shown (Field rows, plugin API 1.48): `row.field:<name>` reads it. */
+  row?: Record<string, unknown>;
 }
 
 /**
@@ -612,7 +656,9 @@ export interface DynamicContext {
  * `entry.featuredImage`), the term's (`term.name`, `term.description`,
  * `term.url`), the site's (`site.title`, `site.tagline`, `site.url`) and
  * every custom field: `entry.field:<name>` (or `<group>.<name>`),
- * `term.field:…`, `user.field:…`.
+ * `term.field:…`, `user.field:…`; since plugin API 1.48 options pages'
+ * (`option.field:<page>.<name>`, `<page>.<group>.<name>`) and list rows'
+ * (`row.field:<name>`).
  */
 export interface DynamicSource {
   /** Unique; a plugin's start with its slug and `:` (e.g. `shop:price`). */
@@ -622,6 +668,13 @@ export interface DynamicSource {
   group?: Label;
   /** What the value is (pickers offer media sources to image controls…). */
   type: FieldValueKind;
+  /**
+   * Lists (plugin API 1.48): what each row is, for the Field rows block —
+   * rows of fields (their `row.field:<name>` sources in `rows`), or related
+   * entries, terms or members.
+   */
+  rowKind?: 'fields' | 'entry' | 'term' | 'user';
+  rows?: Omit<DynamicSource, 'resolve'>[];
   /** The value, formatted as `useField` gives it; undefined when there is none. */
   resolve(context: DynamicContext & { siteId: string }): unknown;
 }
@@ -1118,6 +1171,13 @@ export interface DocumentImportOptions {
   /** Existing user recorded as author of the import (the person who started it). */
   userId: string;
   onProgress?(message: string): void;
+  /**
+   * The meta of a WordPress export (plugin API 1.48; ignored by older
+   * cores): given to the active plugins through `import.wxrMeta`, whose
+   * field values, field groups, options pages and options are added to the
+   * document before it is imported.
+   */
+  wxrMeta?: WxrMetaInput;
 }
 
 export interface TransferApi {

@@ -1,3 +1,5 @@
+// The Field and Field rows blocks register their renderers (plugin API 1.48).
+import './field-blocks.js';
 export {
   Block,
   Blocks,

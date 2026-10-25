@@ -108,6 +108,7 @@ export default defineTheme({
 | `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                                                                                                                                       |
 | `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                                                                                                                                                 |
 | `pageTemplates`    | Page templates chosen in the editor's sidebar, `[{ name, label, types? }]` (default types: `['page']`); the entry's choice is `entry.template` and the template component `template-<name>` is tried first (§4, plugin API 1.47).                                |
+| `optionsPages`     | Options pages of the theme, `[{ slug, title, parent?, icon?, position?, capability?, fields }]`: site-wide settings pages in the admin menu, read with `useOption` (§4, plugin API 1.48).                                                                        |
 | `menuItemFields`   | Options of each menu item, `[{ field, levels? }]`, shown in Appearance → Menus and read from `MenuItemView.data` (§4, plugin API 1.34).                                                                                                                          |
 | `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).                                                                                                                       |
 | `listTerms`        | `true`: lists (blog, archives, search) give each entry's categories and tags in `entries[].terms` (core 0.46).                                                                                                                                                   |
@@ -261,6 +262,35 @@ function Landing() {
 - Formatted values: a media field is `{ id, url, alt, width, height, mime, sizes }` (sizes by name, e.g. `sizes.md.url`); list rows come formatted too, each with its stable `_id`; plugin field types give what their `format` says (an entry `{ id, type, title, url }`…); other values as stored.
 - `<Field name>` shows a value: text and numbers as text (escaped), yes/no as ✓, a media field as an `<img>`, lists of texts joined with commas; `fallback` when empty, `className` on the element. `<Rows name>` gives each row of a list to its function, `empty` when there are none.
 - They read `entry.fieldValues`, `term.fieldValues` and `author.fieldValues` of the props, which a template can also use directly; on older cores the readers fall back to the stored values.
+- Since plugin API 1.48 `<Field>` also shows links, and related entries, terms and people, as links (several joined with commas), and a `richtext` field as formatted text with `html` (`<Field name="story" html />`, cleaned again). Relations give `{ id, type, title, url }` (entries), `{ id, taxonomy, name, slug, url }` (terms), `{ id, name, avatarUrl, url }` (people); a `link` field `{ url, label, target }`; a `file` field the media with its `filename`.
+
+<a id="options-pages"></a>**Options pages** (plugin API 1.48): site-wide settings, like ACF's options pages (the phone number in the footer, the social profiles). A theme declares its own with `optionsPages` (they show in the admin menu, under `parent` when given, e.g. `/appearance`); site owners and plugins add others, and field groups attach to any of them with the rule `optionsPage`. Templates read the values of every page in the page's language, formatted like `useField`'s:
+
+```tsx
+import { Field, useOption } from '@cleitext/theme-sdk';
+
+optionsPages: ([
+  {
+    slug: 'footer',
+    title: { en: 'Footer', it: 'Piè di pagina' },
+    parent: '/appearance',
+    capability: 'edit_theme_settings',
+    fields: [{ name: 'phone', type: 'text', label: 'Phone' }],
+  },
+],
+  function Footer() {
+    const phone = useOption<string>('phone', { page: 'footer' });
+    return (
+      <footer>
+        {phone} <Field of="option" page="contacts" name="team.lead" />
+      </footer>
+    );
+  });
+```
+
+`useOption(name, { page, group })` is `useField(name, { of: 'option', page })`; `usePage().options` has every page's values by slug. Values of translatable fields follow the page's language (the default language's until translated).
+
+**Bound blocks** (plugin API 1.48). In the block editor, paragraphs, headings, list items, buttons and images can be bound to a field (**Bind to field** in the block's settings), and the **Field** and **Field rows** blocks show fields and repeat blocks for each row of a list or each related entry ([PLUGINS.md, Block bindings](PLUGINS.md#block-bindings)). The server resolves them before rendering, so `EntryContent`, areas and the theme builder's locations show the values; themes may style `.wp-block-cleitext-field` (with `__label`, `is-<kind>`, `is-empty`), `.wp-block-cleitext-field-rows` (`is-layout-grid`) and `.wp-block-cleitext-field-row`.
 
 `menuItemFields` (plugin API 1.34) adds options to each menu item, for example a mega menu's columns or an icon. Each entry is `{ field, levels? }`: `field` is a field definition, `levels` is `'top'` (first-level items only), `'nested'` (sub-items only) or `'all'` (default). In **Appearance → Menus** the ⚙ button of an item opens its "Theme options"; the values are checked like settings (unknown keys are dropped, invalid values refused) and stored with the item. The theme reads them in `usePage().menus[location][i].data`, with the defaults applied, only for the options that apply at the item's level:
 

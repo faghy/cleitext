@@ -8,6 +8,9 @@ import {
   contentTypes,
   entries,
   entryTerms,
+  fieldGroups,
+  optionsPages,
+  optionValues,
   menuItems,
   menus,
   newId,
@@ -26,11 +29,21 @@ import {
   type Database,
   type SiteTransaction,
 } from '@cleitext/db';
-import { CAPABILITIES, importFieldRefs, type ImportRefMaps } from '@cleitext/shared';
+import {
+  CAPABILITIES,
+  fieldGroupSchema,
+  fieldListSchema,
+  importFieldRefs,
+  optionsPageSchema,
+  type FieldDefinition,
+  type FieldGroupInput,
+  type ImportRefMaps,
+} from '@cleitext/shared';
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { nextFreeSlug, permalinkShape, slugify } from '../content/slug.js';
 import type { MediaService } from '../media/media.service.js';
+import { RESERVED_IDS } from '../fields/field-groups.service.js';
 import type { PageCacheService } from '../public/page-cache.service.js';
 import { loadSiteData } from '../public/site-data.js';
 import { defaultLocaleIn, PENDING } from '../content/languages.service.js';
@@ -158,12 +171,15 @@ export async function importDocument(
   };
 
   // ---- Structure -------------------------------------------------------------------
+  /** Field groups created by this import, whose rules may name imported records. */
+  const importedGroups: string[] = [];
   await run(async (tx) => {
     // Languages are a language plugin's: they wait for one (see the end).
     for (let i = 0; i < doc.locales.length; i++) count(report, 'locales');
     const types = new Set((await tx.select().from(contentTypes)).map((t) => t.slug));
     for (const type of doc.contentTypes) {
       if (types.has(type.slug)) continue;
+      const fields = definitionsOf(type.fields, `Content type "${type.slug}"`, report);
       await tx.insert(contentTypes).values({
         siteId,
         slug: type.slug,
@@ -171,14 +187,61 @@ export async function importDocument(
         source: 'user',
         hierarchical: type.hierarchical,
         permalink: type.permalink,
+        ...(fields ? { fieldsSchema: { fields } } : {}),
       });
       count(report, 'contentTypes');
     }
     const taxonomySlugs = new Set((await tx.select().from(taxonomies)).map((t) => t.slug));
-    for (const taxonomy of doc.taxonomies) {
+    for (const { fields: own, ...taxonomy } of doc.taxonomies) {
       if (taxonomySlugs.has(taxonomy.slug)) continue;
-      await tx.insert(taxonomies).values({ siteId, ...taxonomy });
+      const fields = definitionsOf(own, `Taxonomy "${taxonomy.slug}"`, report);
+      await tx
+        .insert(taxonomies)
+        .values({ siteId, ...taxonomy, ...(fields ? { fieldsSchema: { fields } } : {}) });
       count(report, 'taxonomies');
+    }
+    // Field groups and options pages of the site's owners (plugin API 1.48),
+    // before the values that use them; those already on the site are kept.
+    const groupKeys = new Set((await tx.select().from(fieldGroups)).map((g) => g.key));
+    for (const input of doc.fieldGroups) {
+      const parsed = fieldGroupSchema.safeParse(input);
+      if (!parsed.success) {
+        report.warnings.push(
+          `Field group "${String(input.id)}" not imported: ${parsed.error.issues[0]?.path.join('.') ?? ''} ${parsed.error.issues[0]?.message ?? ''}`.trim(),
+        );
+        continue;
+      }
+      if (RESERVED_IDS.has(parsed.data.id)) {
+        report.warnings.push(`Field group "${parsed.data.id}" not imported: its id is reserved.`);
+        continue;
+      }
+      if (groupKeys.has(parsed.data.id)) {
+        count(report, 'fieldGroups', 'skipped');
+        continue;
+      }
+      groupKeys.add(parsed.data.id);
+      await tx.insert(fieldGroups).values({ siteId, key: parsed.data.id, definition: parsed.data });
+      importedGroups.push(parsed.data.id);
+      count(report, 'fieldGroups');
+    }
+    const pageSlugs = new Set((await tx.select().from(optionsPages)).map((p) => p.slug));
+    for (const input of doc.optionsPages) {
+      const parsed = optionsPageSchema.safeParse(input);
+      if (!parsed.success) {
+        report.warnings.push(
+          `Options page "${String(input.slug)}" not imported: ${parsed.error.issues[0]?.path.join('.') ?? ''} ${parsed.error.issues[0]?.message ?? ''}`.trim(),
+        );
+        continue;
+      }
+      if (pageSlugs.has(parsed.data.slug)) {
+        count(report, 'optionsPages', 'skipped');
+        continue;
+      }
+      pageSlugs.add(parsed.data.slug);
+      await tx
+        .insert(optionsPages)
+        .values({ siteId, slug: parsed.data.slug, definition: parsed.data });
+      count(report, 'optionsPages');
     }
   });
 
@@ -434,6 +497,53 @@ export async function importDocument(
         userId,
         fields: importFieldRefs(user.fields, allRefs) as Record<string, unknown>,
       });
+    }
+    // Rules of the imported field groups naming entries and terms (plugin API 1.48).
+    for (const key of importedGroups) {
+      const [row] = await tx.select().from(fieldGroups).where(eq(fieldGroups.key, key));
+      const group = row?.definition as FieldGroupInput | undefined;
+      if (!group) continue;
+      let changed = false;
+      const location = group.location.map((and) =>
+        and.map((rule) => {
+          const id =
+            rule.param === 'entry' || rule.param === 'parent'
+              ? idOf(rule.value)
+              : rule.param === 'term'
+                ? termIds.get(rule.value)
+                : undefined;
+          if (!id || id === rule.value) return rule;
+          changed = true;
+          return { ...rule, value: id };
+        }),
+      );
+      if (changed) {
+        await tx
+          .update(fieldGroups)
+          .set({ definition: { ...group, location } })
+          .where(eq(fieldGroups.key, key));
+      }
+    }
+    // Values of options pages (plugin API 1.48): those already on the site are kept.
+    const defaultLocale = await defaultLocaleIn(tx, siteId);
+    const stored = new Set(
+      (await tx.select().from(optionValues)).map((row) => `${row.page}|${row.locale}`),
+    );
+    for (const option of doc.options) {
+      const locale = !option.locale || option.locale === defaultLocale ? '' : option.locale;
+      if (!/^[a-z][a-z0-9_-]{0,63}$/.test(option.page)) continue;
+      if (stored.has(`${option.page}|${locale}`)) {
+        count(report, 'options', 'skipped');
+        continue;
+      }
+      stored.add(`${option.page}|${locale}`);
+      await tx.insert(optionValues).values({
+        siteId,
+        page: option.page,
+        locale,
+        fields: importFieldRefs(option.fields, allRefs) as Record<string, unknown>,
+      });
+      count(report, 'options');
     }
   });
 
@@ -925,6 +1035,21 @@ function mediaByUrl(urls: Map<string, MediaTarget>, url: string): MediaTarget | 
 }
 
 // ---- Helpers --------------------------------------------------------------------------
+
+/** Field definitions of a type or taxonomy (plugin API 1.48): checked, or reported and left out. */
+function definitionsOf(
+  value: unknown[] | undefined,
+  what: string,
+  report: ImportReport,
+): FieldDefinition[] | null {
+  if (!value || value.length === 0) return null;
+  const parsed = fieldListSchema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  report.warnings.push(
+    `${what}: its fields were not imported (${parsed.error.issues[0]?.path.join('.') ?? ''} ${parsed.error.issues[0]?.message ?? ''}).`.trim(),
+  );
+  return null;
+}
 
 /** Parents before children (unknown parents are ignored). */
 function orderByParent<T extends { ref: string; parentRef?: string | undefined }>(items: T[]): T[] {

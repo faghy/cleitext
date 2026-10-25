@@ -1,5 +1,5 @@
 import type { CxdDocument } from '@cleitext/blocks';
-import type { FieldDefinition } from '@cleitext/shared';
+import type { DynamicSourceView, FieldDefinition } from '@cleitext/shared';
 
 /**
  * Editor-independent contract between the admin and a block editor
@@ -21,6 +21,8 @@ export interface EditorMountOptions {
   services: EditorServices;
   /** Content language (BCP 47). */
   locale: string;
+  /** Language of the admin's own words (e.g. `it`), when not the content's. */
+  uiLanguage?: string;
   readOnly?: boolean;
   /**
    * Extra blocks (from plugins) described by their attributes: the editor
@@ -67,6 +69,17 @@ export interface EditorServices {
   }): Promise<PatternRef>;
   /** Embed preview (oEmbed response), or null when the address cannot be embedded. */
   oembed?(url: string): Promise<EmbedPreview | null>;
+  /**
+   * Dynamic data sources of the site (plugin API 1.48): what blocks can be
+   * bound to (entry fields, options, the site's title…). Without it, the
+   * editor offers no bindings.
+   */
+  dynamicSources?(): Promise<DynamicSourceView[]>;
+  /**
+   * Values of sources for the preview of bindings (plugin API 1.48), of the
+   * content being edited (with its values not saved yet), by source id.
+   */
+  resolveDynamic?(ids: string[]): Promise<Record<string, unknown>>;
 }
 
 export interface EmbedPreview {
@@ -106,6 +119,8 @@ export interface EditorInstance {
   getDocument(): CxdDocument;
   /** Replaces the content (e.g. after restoring a revision). Does not call `onChange`. */
   setDocument(document: CxdDocument): void;
+  /** Asks the values of bound blocks again, e.g. after the entry's fields changed (plugin API 1.48). */
+  refreshDynamic?(): void;
   destroy(): void;
 }
 

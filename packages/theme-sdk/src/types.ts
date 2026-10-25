@@ -1,4 +1,4 @@
-import type { FieldDefinition, Label, MenuItemField } from '@cleitext/shared';
+import type { FieldDefinition, Label, MenuItemField, OptionsPageInput } from '@cleitext/shared';
 import type { CxdDocument } from '@cleitext/blocks';
 import type { BlockRenderer, RenderMedia } from '@cleitext/renderer';
 import type { ComponentType, ReactNode } from 'react';
@@ -296,6 +296,13 @@ export interface ThemeDefinition {
    */
   pageTemplates?: PageTemplate[];
   /**
+   * Options pages of the theme (plugin API 1.48): site-wide settings pages
+   * in the admin menu, with their own `fields` (field groups can attach to
+   * them too, with an `optionsPage` rule). Templates read the values with
+   * `useOption(name, { page })`.
+   */
+  optionsPages?: OptionsPageInput[];
+  /**
    * How many related entries the theme may show under an entry (at most 12):
    * Cleitext gives them in `entry.related`. Without it, none are looked up.
    */
@@ -393,6 +400,11 @@ export interface PageContext {
   areas?: Readonly<Record<string, CxdDocument>>;
   /** Synced patterns used by the page (RF-EDT-07), by id. */
   patterns?: ReadonlyMap<string, CxdDocument>;
+  /**
+   * Values of the options pages in the page's language, formatted for
+   * templates (plugin API 1.48), by page slug: read with `useOption`.
+   */
+  options?: Readonly<Record<string, Record<string, unknown>>>;
   /** Content of the theme's locations given by plugins (theme builders). */
   locations?: Partial<Record<ThemeLocation, CxdDocument>>;
   /**

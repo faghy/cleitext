@@ -8,6 +8,7 @@ import {
   type FieldTransferRefs,
   type FieldTypeDefinition,
 } from './field-types.js';
+import { richTextToPlain, sanitizeRichText } from './rich-text.js';
 
 /**
  * Field DSL (docs/SPECIFICATIONS.md §10): custom fields of content types,
@@ -309,6 +310,77 @@ export interface ZonesField extends BaseField {
 }
 
 /**
+ * Another entry, or several with `multiple` (plugin API 1.48): its id (or
+ * ids, in order). Templates get `{ id, type, title, url }` for each one
+ * that is published.
+ */
+export interface EntryRelationField extends BaseField {
+  type: 'entry';
+  /** Content types that can be chosen (default: any). */
+  types?: string[];
+  multiple?: boolean;
+  /** With `multiple`: at most this many (default 50). */
+  max?: number;
+}
+
+/** A term, or several with `multiple` (plugin API 1.48): `{ id, taxonomy, name, slug, url }` in templates. */
+export interface TermRelationField extends BaseField {
+  type: 'term';
+  /** The taxonomy its terms come from (default: any). */
+  taxonomy?: string;
+  multiple?: boolean;
+  max?: number;
+}
+
+/** A member of the site, or several with `multiple` (plugin API 1.48): `{ id, name, avatarUrl, url }` in templates. */
+export interface UserRelationField extends BaseField {
+  type: 'user';
+  /** Roles that can be chosen (default: any). */
+  roles?: string[];
+  multiple?: boolean;
+  max?: number;
+}
+
+/**
+ * Formatted text (plugin API 1.48): paragraphs, bold, italic, links, lists,
+ * small headings. Stored as HTML, cleaned on save (`sanitizeRichText`).
+ */
+export interface RichTextField extends BaseField {
+  type: 'richtext';
+  /** Default 100,000 characters (of HTML). */
+  maxLength?: number;
+  default?: string;
+}
+
+/**
+ * A file of the media library, of any kind (plugin API 1.48): its id.
+ * Templates get the media as `{ url, mime, filename… }`.
+ */
+export interface FileField extends BaseField {
+  type: 'file';
+  /** Kinds offered: full types (`application/pdf`) or their start (`image/`). Default: any. */
+  accept?: string[];
+}
+
+/** A link: an address, its text and whether it opens in a new tab (plugin API 1.48). */
+export interface LinkValue {
+  url: string;
+  label?: string;
+  target?: '_blank';
+}
+
+export interface LinkField extends BaseField {
+  type: 'link';
+  default?: LinkValue;
+}
+
+/** A time of day, `HH:MM` (plugin API 1.48). Dates are `date` and `datetime`. */
+export interface TimeField extends BaseField {
+  type: 'time';
+  default?: string;
+}
+
+/**
  * A field of a type added by a plugin (plugin API 1.47), named
  * `<plugin>/<name>`, with that type's own `settings`. While its plugin is
  * not active, values are kept as they are and shown read-only.
@@ -339,6 +411,13 @@ export type FieldDefinition =
   | SpacingField
   | BackgroundField
   | TypographyField
+  | EntryRelationField
+  | TermRelationField
+  | UserRelationField
+  | RichTextField
+  | FileField
+  | LinkField
+  | TimeField
   | CustomField;
 
 export type FieldType = FieldDefinition['type'];
@@ -529,6 +608,43 @@ const builtinFieldSchema = z.discriminatedUnion('type', [
       .max(200),
     default: z.record(z.string(), z.unknown()).optional(),
   }),
+  z.object({
+    ...base,
+    type: z.literal('entry'),
+    types: z.array(z.string().min(1).max(64)).max(50).optional(),
+    multiple: z.boolean().optional(),
+    max: z.number().int().min(1).max(500).optional(),
+  }),
+  z.object({
+    ...base,
+    type: z.literal('term'),
+    taxonomy: z.string().min(1).max(64).optional(),
+    multiple: z.boolean().optional(),
+    max: z.number().int().min(1).max(500).optional(),
+  }),
+  z.object({
+    ...base,
+    type: z.literal('user'),
+    roles: z.array(z.string().min(1).max(64)).max(50).optional(),
+    multiple: z.boolean().optional(),
+    max: z.number().int().min(1).max(500).optional(),
+  }),
+  z.object({
+    ...base,
+    type: z.literal('richtext'),
+    maxLength: z.number().int().min(1).max(1_000_000).optional(),
+    default: z.string().optional(),
+  }),
+  z.object({
+    ...base,
+    type: z.literal('file'),
+    accept: z
+      .array(z.string().regex(/^[a-z]+\/[a-z0-9.+-]*$/i, 'A media type, e.g. application/pdf'))
+      .max(20)
+      .optional(),
+  }),
+  z.object({ ...base, type: z.literal('link'), default: z.unknown().optional() }),
+  z.object({ ...base, type: z.literal('time'), default: z.string().optional() }),
 ]);
 
 /** A field of a plugin's type: the common settings, then the type's own (when registered). */
@@ -595,7 +711,11 @@ const ALPHA_COLOR_RE = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
 /** Validator of a field's value: per device when the field is responsive. */
 function valueSchema(field: FieldDefinition): z.ZodType<unknown> {
-  const one = fieldType(field.type)?.value?.(field) ?? z.unknown();
+  const type = fieldType(field.type);
+  const checked = type?.value?.(field) ?? z.unknown();
+  // The value as saved (plugin API 1.48: applied after the check).
+  const normalize = type?.normalize;
+  const one = normalize ? checked.transform((value) => normalize(value, field)) : checked;
   if (!field.responsive || !RESPONSIVE_TYPES.has(field.type)) return one;
   const unit = z.string().regex(UNIT_RE).optional();
   return z
@@ -754,6 +874,30 @@ function singleValueSchema(field: FieldDefinition): z.ZodType<unknown> {
         })
         .strict();
     }
+    case 'entry':
+    case 'term':
+    case 'user':
+      return field.multiple ? z.array(z.uuid()).max(field.max ?? 50) : z.uuid();
+    case 'richtext':
+      return z.string().max(field.maxLength ?? 100_000);
+    case 'file':
+      return z.uuid();
+    case 'link':
+      return z
+        .object({
+          url: z
+            .string()
+            .max(2_000)
+            .refine(
+              (v) => v === '' || /^(https?:\/\/|\/|#|\?|mailto:|tel:)/i.test(v.trim()),
+              'Enter a valid link',
+            ),
+          label: z.string().max(500).optional(),
+          target: z.literal('_blank').optional(),
+        })
+        .strict();
+    case 'time':
+      return z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'Use the HH:MM format');
     default:
       return z.unknown();
   }
@@ -842,7 +986,8 @@ export function fieldsValidator(fields: readonly FieldDefinition[]): z.ZodType<F
     for (const field of required) {
       if (!fieldVisible(field, values, defaults)) continue;
       const value = values[field.name];
-      const custom = field.type.includes('/');
+      // Plugin types, and core types with their own idea of empty (a link without an address).
+      const custom = field.type.includes('/') || fieldType(field.type)?.isEmpty !== undefined;
       if (value === undefined || value === null || (custom && isEmptyValue(value, field))) {
         ctx.addIssue({ code: 'custom', message: 'This field is required.', path: [field.name] });
       }
@@ -1054,7 +1199,47 @@ const KINDS: Partial<Record<string, FieldTypeDefinition['kind']>> = {
   code: 'text',
   media: 'media',
   list: 'list',
+  entry: 'entry',
+  term: 'term',
+  user: 'user',
+  richtext: 'richtext',
+  file: 'file',
+  link: 'link',
+  time: 'text',
 };
+
+/**
+ * Relations to entries, terms and members (plugin API 1.48): the ids, in
+ * order and once each; formatted as the records still there (published
+ * entries), written as refs in exports.
+ */
+function relation(kind: 'entry' | 'term' | 'user'): Partial<FieldTypeDefinition> {
+  const lookup = (context: FieldFormatContext, id: string) =>
+    kind === 'entry'
+      ? context.entry(id)
+      : ((kind === 'term' ? context.term : context.user)?.(id) ?? Promise.resolve(null));
+  return {
+    normalize: (value) =>
+      Array.isArray(value) ? [...new Set(value.filter((v) => typeof v === 'string'))] : value,
+    format: async (value, _field, context) => {
+      if (Array.isArray(value)) {
+        const found = await Promise.all(
+          value.filter((v): v is string => typeof v === 'string').map((id) => lookup(context, id)),
+        );
+        return found.filter((v) => v !== null);
+      }
+      return typeof value === 'string' ? lookup(context, value) : null;
+    },
+    index: () => null,
+    export: (value, _field, refs) =>
+      Array.isArray(value)
+        ? value.map((id) => (typeof id === 'string' ? refs[kind](id) : id))
+        : typeof value === 'string'
+          ? refs[kind](value)
+          : value,
+    kindOf: (field) => ('multiple' in field && field.multiple ? 'list' : kind),
+  };
+}
 
 const BUILTIN_EXTRAS: Partial<Record<string, Partial<FieldTypeDefinition>>> = {
   media: {
@@ -1097,6 +1282,43 @@ const BUILTIN_EXTRAS: Partial<Record<string, Partial<FieldTypeDefinition>>> = {
           )
         : value,
   },
+  entry: relation('entry'),
+  term: relation('term'),
+  user: relation('user'),
+  richtext: {
+    normalize: (value) => (typeof value === 'string' ? sanitizeRichText(value) : value),
+    format: (value) => (typeof value === 'string' ? sanitizeRichText(value) : value),
+    index: (value) => (typeof value === 'string' ? richTextToPlain(value) : null),
+  },
+  file: {
+    format: (value, _field, context) =>
+      typeof value === 'string' ? (context.file ?? context.media)(value) : (value ?? null),
+    index: () => null,
+    export: (value, _field, refs) => (typeof value === 'string' ? refs.media(value) : value),
+  },
+  link: {
+    normalize: (value) => {
+      if (!value || typeof value !== 'object') return value;
+      const link = value as LinkValue;
+      const label = typeof link.label === 'string' ? link.label.trim() : '';
+      return {
+        url: typeof link.url === 'string' ? link.url.trim() : '',
+        ...(label ? { label } : {}),
+        ...(link.target === '_blank' ? { target: '_blank' } : {}),
+      };
+    },
+    isEmpty: (value) => !value || typeof value !== 'object' || !(value as { url?: unknown }).url,
+    format: (value) => {
+      const link = value as LinkValue | null;
+      if (!link || typeof link !== 'object' || typeof link.url !== 'string' || !link.url)
+        return null;
+      return { url: link.url, label: link.label || link.url, target: link.target ?? null };
+    },
+    index: (value) => {
+      const link = value as LinkValue | null;
+      return link && typeof link === 'object' ? link.label || link.url || null : null;
+    },
+  },
   background: {
     export: (value, _field, refs) => {
       const image = (value as BackgroundValue | null)?.image;
@@ -1122,6 +1344,13 @@ for (const type of [
   'spacing',
   'background',
   'typography',
+  'entry',
+  'term',
+  'user',
+  'richtext',
+  'file',
+  'link',
+  'time',
 ]) {
   registerFieldType({
     type,

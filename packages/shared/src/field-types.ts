@@ -19,6 +19,8 @@ export interface FormattedMedia {
   mime: string;
   /** Resized copies by name (e.g. `md`), as the media library made them. */
   sizes: Record<string, { url: string; width: number; height: number }>;
+  /** The file's name (`file` fields, plugin API 1.48). */
+  filename?: string;
 }
 
 /** Another entry as templates get it (relation fields of plugins). */
@@ -29,12 +31,36 @@ export interface FormattedEntry {
   url: string;
 }
 
+/** A term as templates get it (`term` fields, plugin API 1.48). */
+export interface FormattedTerm {
+  id: string;
+  taxonomy: string;
+  name: string;
+  slug: string;
+  url: string;
+}
+
+/** A member of the site as templates get it (`user` fields, plugin API 1.48). */
+export interface FormattedUser {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  /** Their author archive, when they have one. */
+  url: string | null;
+}
+
 /** What a formatter can look up: loads are batched per page. */
 export interface FieldFormatContext {
   siteId: string;
   locale: string;
   media(id: string): Promise<FormattedMedia | null>;
   entry(id: string): Promise<FormattedEntry | null>;
+  /** A term (plugin API 1.48; missing on older cores). */
+  term?(id: string): Promise<FormattedTerm | null>;
+  /** A member of the site (plugin API 1.48; missing on older cores). */
+  user?(id: string): Promise<FormattedUser | null>;
+  /** A media file of any kind, with its file name (plugin API 1.48; `media` on older cores). */
+  file?(id: string): Promise<FormattedMedia | null>;
   /** Formats the values of nested fields (e.g. the rows of a list). */
   format(fields: readonly FieldDefinition[], values: FieldValues): Promise<FieldValues>;
 }
@@ -53,9 +79,27 @@ export interface FieldTransferRefs {
   values(fields: readonly FieldDefinition[], values: FieldValues): FieldValues;
 }
 
-/** What dynamic data (Fresco tags, block bindings) can do with a value. */
+/**
+ * What dynamic data (Fresco tags, block bindings) can do with a value. Since
+ * plugin API 1.48 also `richtext` (HTML), `link` (`{ url, label, target }`),
+ * `entry`, `term`, `user` (one related record) and `file` (a media file of
+ * any kind); several related records are a `list`.
+ */
 export type FieldValueKind =
-  'text' | 'url' | 'number' | 'boolean' | 'date' | 'media' | 'list' | 'object';
+  | 'text'
+  | 'url'
+  | 'number'
+  | 'boolean'
+  | 'date'
+  | 'media'
+  | 'list'
+  | 'object'
+  | 'richtext'
+  | 'link'
+  | 'entry'
+  | 'term'
+  | 'user'
+  | 'file';
 
 export interface FieldTypeDefinition {
   /** `<plugin>/<name>` (lowercase, digits and `-`), or a core type. */
@@ -95,6 +139,8 @@ export interface FieldTypeDefinition {
   export?: (value: unknown, field: FieldDefinition, refs: FieldTransferRefs) => unknown;
   /** What dynamic data offers it as. Default `text`. */
   kind?: FieldValueKind;
+  /** The kind for a given definition, when it depends on its settings (plugin API 1.48). */
+  kindOf?: (field: FieldDefinition) => FieldValueKind;
 }
 
 const types = new Map<string, FieldTypeDefinition>();
@@ -135,6 +181,12 @@ export function fieldTypesVersion(): number {
 export function onFieldTypesChange(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** What dynamic data offers a field's values as (`kindOf`, then `kind`, default `text`). */
+export function fieldValueKind(field: FieldDefinition): FieldValueKind {
+  const type = types.get(field.type);
+  return type?.kindOf?.(field) ?? type?.kind ?? 'text';
 }
 
 /** Whether a value counts as empty for a field (see `isEmpty`). */

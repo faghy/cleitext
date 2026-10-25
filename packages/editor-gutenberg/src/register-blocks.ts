@@ -24,6 +24,7 @@ import '@wordpress/format-library';
 import { currentServices } from './media-upload';
 import { registerUnavailableBlock } from './unavailable-block';
 import { registerPatternBlock } from './patterns';
+import { registerBindings } from './bindings';
 
 /** Core blocks available in the MVP editor (docs/ARCHITECTURE.md §10.5). */
 const CORE_BLOCKS = [
@@ -69,5 +70,7 @@ export function registerCoreBlocks(): void {
   for (const block of CORE_BLOCKS) (block as { init: () => unknown }).init();
   registerUnavailableBlock();
   registerPatternBlock();
+  // Block bindings, Field and Field rows (plugin API 1.48).
+  registerBindings();
   setDefaultBlockName('core/paragraph');
 }

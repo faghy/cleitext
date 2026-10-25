@@ -28,6 +28,7 @@ import { fileReader, openArchive, writeArchive } from './transfer/archive.js';
 import { exportSite } from './transfer/exporter.js';
 import { exportFieldDefinitions } from './transfer/field-definitions.js';
 import { FieldGroupsService } from './fields/field-groups.service.js';
+import { OptionsPagesService } from './fields/options-pages.service.js';
 import { importDocument, importUser } from './transfer/importer.js';
 import type { ImportReport, TransferDocument } from './transfer/model.js';
 
@@ -98,6 +99,8 @@ export async function exportTask(
       context.app.get(FieldGroupsService),
       site.id,
     ),
+    // Options pages' values with their references as refs (plugin API 1.48).
+    await context.app.get(OptionsPagesService).exportValues(site.id),
   );
   const storage = new DiskStorage(context.config.media.path);
   await writeArchive(options.out, document, files, (key) => storage.pathOf(key));

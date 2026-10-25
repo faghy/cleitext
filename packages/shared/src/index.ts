@@ -13,3 +13,5 @@ export * from './licenses.js';
 export * from './google-fonts.js';
 export * from './field-types.js';
 export * from './field-groups.js';
+export * from './options-pages.js';
+export * from './rich-text.js';

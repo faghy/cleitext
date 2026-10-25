@@ -5,6 +5,8 @@ import {
   type ContentTypeView,
   type FieldDefinition,
   type FieldGroupInput,
+  type OptionsPageInput,
+  type OptionsPageView,
   type TaxonomyView,
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,6 +34,12 @@ const FIELD_TYPES: { value: FieldDefinition['type']; label: string }[] = [
   { value: 'url', label: 'Web address' },
   { value: 'select', label: 'Choice' },
   { value: 'media', label: 'Media file' },
+  // Plugin API 1.48.
+  { value: 'richtext', label: 'Formatted text' },
+  { value: 'link', label: 'Link' },
+  { value: 'time', label: 'Time' },
+  { value: 'file', label: 'File' },
+  { value: 'entry', label: 'Related entry' },
 ];
 
 const SOURCE_LABELS: Record<string, string> = { core: 'built-in', user: 'custom' };
@@ -49,6 +57,7 @@ export function StructurePage() {
       {me.capabilities.includes('manage_content_types') && <ContentTypesCard />}
       {me.capabilities.includes('manage_taxonomies') && <TaxonomiesCard />}
       {me.capabilities.includes('manage_content_types') && <FieldGroupsCard />}
+      {me.capabilities.includes('manage_content_types') && <OptionsPagesCard />}
     </div>
   );
 }
@@ -183,6 +192,152 @@ function FieldGroupsCard() {
             onClick={() => setEditing({ id: null, json: JSON.stringify(NEW_GROUP, null, 2) })}
           >
             {t('Add field group')}
+          </Button>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** A new options page, as a starting point for the JSON editor. */
+const NEW_OPTIONS_PAGE: OptionsPageInput = {
+  slug: 'contacts',
+  title: { en: 'Contacts', it: 'Contatti' },
+  icon: 'settings',
+  fields: [
+    { name: 'phone', type: 'text', label: { en: 'Phone', it: 'Telefono' } },
+    { name: 'address', type: 'text', multiline: true, label: { en: 'Address', it: 'Indirizzo' } },
+  ],
+};
+
+/**
+ * Options pages of the site (plugin API 1.48): site-wide settings pages in
+ * the menu, with their own fields and the field groups attached to them
+ * (rule `optionsPage`). A list and a JSON editor, as for field groups.
+ */
+function OptionsPagesCard() {
+  const { t } = useT();
+  const me = useMe();
+  const queryClient = useQueryClient();
+  const pages = useQuery({
+    queryKey: ['options-pages'],
+    queryFn: () => api<OptionsPageView[]>('GET', '/options-pages'),
+  });
+  const [editing, setEditing] = useState<{ slug: string | null; json: string } | null>(null);
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['options-pages'] });
+    void queryClient.invalidateQueries({ queryKey: ['options'] });
+  };
+  const save = useMutation({
+    mutationFn: (input: { slug: string | null; json: string }) => {
+      const page = JSON.parse(input.json) as OptionsPageInput;
+      return input.slug
+        ? api<OptionsPageInput>('PUT', `/options-pages/${encodeURIComponent(input.slug)}`, page)
+        : api<OptionsPageInput>('POST', '/options-pages', page);
+    },
+    onSuccess: () => {
+      setEditing(null);
+      refresh();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (slug: string) => api<void>('DELETE', `/options-pages/${encodeURIComponent(slug)}`),
+    onSuccess: refresh,
+  });
+  const where = (page: OptionsPageView) =>
+    page.source === 'site'
+      ? t('Site')
+      : page.source === 'theme'
+        ? t('Theme')
+        : t('Plugin {name}', { name: page.source.slice('plugin:'.length) });
+  return (
+    <Card id="options-pages" title={t('Options pages')}>
+      <div className="space-y-3 text-sm">
+        <p className="text-xs text-slate-500">
+          {t(
+            'Pages of settings for the whole site, in the menu, with their own fields and the field groups attached to them (rule “Options page”). Written in JSON, as described in the plugin guide.',
+          )}
+        </p>
+        {(pages.error ?? remove.error) && (
+          <Alert>{errorMessage(pages.error ?? remove.error)}</Alert>
+        )}
+        {pages.data && pages.data.length > 0 && (
+          <ul className="divide-y divide-slate-100">
+            {pages.data.map((page) => (
+              <li
+                key={page.slug}
+                aria-label={labelText(page.title, me.user.locale)}
+                className="flex flex-wrap items-center gap-2 py-2"
+              >
+                <span className="font-medium">{labelText(page.title, me.user.locale)}</span>
+                <code className="text-xs text-slate-500">{page.slug}</code>
+                <span className="text-xs text-slate-500">{where(page)}</span>
+                {page.source === 'site' && (
+                  <span className="ml-auto flex gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        const own: OptionsPageInput & { source?: string } = { ...page };
+                        delete own.source;
+                        setEditing({ slug: page.slug, json: JSON.stringify(own, null, 2) });
+                      }}
+                    >
+                      {t('Edit')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        if (
+                          window.confirm(t('Delete this options page? Values already saved stay.'))
+                        )
+                          remove.mutate(page.slug);
+                      }}
+                    >
+                      {t('Delete')}
+                    </Button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {editing ? (
+          <form
+            className="space-y-2"
+            aria-label={t('Options page')}
+            onSubmit={(e) => {
+              e.preventDefault();
+              save.mutate(editing);
+            }}
+          >
+            <label className="block space-y-1">
+              <span className="block font-medium text-slate-800">{t('Definition (JSON)')}</span>
+              <textarea
+                className="w-full rounded border border-slate-300 px-3 py-2 font-mono text-xs"
+                rows={16}
+                spellCheck={false}
+                value={editing.json}
+                onChange={(e) => setEditing({ ...editing, json: e.target.value })}
+              />
+            </label>
+            {save.error && <Alert>{errorMessage(save.error)}</Alert>}
+            <div className="flex gap-2">
+              <Button type="submit" disabled={save.isPending}>
+                {t('Save')}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
+                {t('Cancel')}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <Button
+            variant="secondary"
+            onClick={() =>
+              setEditing({ slug: null, json: JSON.stringify(NEW_OPTIONS_PAGE, null, 2) })
+            }
+          >
+            {t('Add options page')}
           </Button>
         )}
       </div>

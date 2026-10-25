@@ -11,6 +11,7 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
   Req,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
@@ -21,6 +22,7 @@ import type { AuthContext, SiteContext } from '../common/request-context.js';
 import { DynamicSourcesService } from './dynamic-sources.service.js';
 import { FieldGroupsService } from './field-groups.service.js';
 import { UserFieldsService } from './user-fields.service.js';
+import { FieldPickersService, type PickerItem } from './field-pickers.service.js';
 import type { UserFieldsView } from '@cleitext/shared';
 
 const OBJECTS = new Set<FieldObject>(['entry', 'term', 'user']);
@@ -38,6 +40,7 @@ export class FieldGroupsController {
     private readonly groups: FieldGroupsService,
     private readonly userFields: UserFieldsService,
     private readonly dynamic: DynamicSourcesService,
+    private readonly pickers: FieldPickersService,
   ) {}
 
   @Get('field-groups')
@@ -162,4 +165,67 @@ export class FieldGroupsController {
   sources(@CurrentSite() site: SiteContext): Promise<DynamicSourceInfo[]> {
     return this.dynamic.sources(site.id);
   }
+
+  /**
+   * Values of sources for the block editor's preview of bindings (plugin
+   * API 1.48): of the entry being edited, with its fields not saved yet.
+   */
+  @Post('dynamic-sources/resolve')
+  @HttpCode(200)
+  @RequireCapability('edit_entries')
+  async resolve(
+    @CurrentSite() site: SiteContext,
+    @Body() body: unknown,
+  ): Promise<{ values: Record<string, unknown> }> {
+    const input = parseBody(resolveSchema, body);
+    return {
+      values: await this.dynamic.preview(site.id, input.ids, {
+        ...(input.entryId ? { entryId: input.entryId } : {}),
+        ...(input.locale ? { locale: input.locale } : {}),
+        ...(input.fields ? { fields: input.fields } : {}),
+        ...(input.title !== undefined ? { title: input.title } : {}),
+      }),
+    };
+  }
+
+  /** Entries, terms or members for a relation field's picker (plugin API 1.48). */
+  @Get('field-pickers/:kind')
+  @RequireCapability('edit_entries')
+  pick(
+    @CurrentSite() site: SiteContext,
+    @Param('kind') kind: string,
+    @Query() query: Record<string, string | undefined>,
+  ): Promise<PickerItem[]> {
+    if (kind !== 'entry' && kind !== 'term' && kind !== 'user')
+      throw new BadRequestException('Unknown kind of record.');
+    const list = (value: string | undefined) =>
+      value
+        ? value
+            .split(',')
+            .map((v) => v.trim())
+            .filter(Boolean)
+            .slice(0, 100)
+        : undefined;
+    const types = list(query.types);
+    const roles = list(query.roles);
+    const ids = list(query.ids);
+    return this.pickers.find(site.id, kind, {
+      ...(query.q ? { q: query.q } : {}),
+      ...(types ? { types } : {}),
+      ...(query.taxonomy ? { taxonomy: query.taxonomy } : {}),
+      ...(roles ? { roles } : {}),
+      ...(ids ? { ids } : {}),
+    });
+  }
 }
+
+const resolveSchema = z.object({
+  ids: z.array(z.string().min(1).max(300)).max(100),
+  entryId: z.uuid().optional(),
+  locale: z
+    .string()
+    .regex(/^[a-z]{2,3}(-[A-Z]{2})?$/)
+    .optional(),
+  fields: z.record(z.string(), z.unknown()).optional(),
+  title: z.string().max(500).optional(),
+});

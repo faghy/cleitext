@@ -237,6 +237,52 @@ export const CORE_BLOCKS: BlockDefinition[] = [
     attrs: z.object({ ref: z.uuid() }).loose(),
   },
   {
+    /**
+     * A field shown with its formatter (plugin API 1.48): an entry's,
+     * term's, person's or option's, or the site's; inside Field rows, the
+     * row's. `source` is a dynamic source id (e.g. `entry.field:price`).
+     */
+    type: 'cleitext/field',
+    version: 1,
+    title: 'Field',
+    category: 'text',
+    attrs: z
+      .object({
+        ...common,
+        source: z.string().max(300).optional(),
+        /** Shown before the value, e.g. "Price:". */
+        label: z.string().max(200).optional(),
+        tagName: z.enum(['p', 'div', 'span', 'h2', 'h3', 'h4', 'h5', 'h6']).optional(),
+        /** Shown when the field has no value. */
+        fallback: z.string().max(500).optional(),
+        textAlign: z.string().optional(),
+      })
+      .loose(),
+  },
+  {
+    /**
+     * Its blocks repeated for each row of a list field, or each related
+     * entry, term or member (plugin API 1.48): bindings inside read the row.
+     */
+    type: 'cleitext/field-rows',
+    version: 1,
+    title: 'Field rows',
+    category: 'design',
+    container: true,
+    attrs: z
+      .object({
+        ...common,
+        source: z.string().max(300).optional(),
+        /** At most this many rows. */
+        limit: z.number().int().min(1).max(200).optional(),
+        /** Shown when there are no rows. */
+        emptyText: z.string().max(500).optional(),
+        layout: z.enum(['stack', 'grid']).optional(),
+        columns: z.number().int().min(1).max(6).optional(),
+      })
+      .loose(),
+  },
+  {
     type: 'core/separator',
     version: 1,
     title: 'Separator',

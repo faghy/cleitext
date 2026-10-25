@@ -82,6 +82,10 @@ import { FieldGroupsController } from './fields/field-groups.controller.js';
 import { FieldGroupsService } from './fields/field-groups.service.js';
 import { FieldValuesService } from './fields/field-values.service.js';
 import { UserFieldsService } from './fields/user-fields.service.js';
+import { BindingsService } from './fields/bindings.service.js';
+import { FieldPickersService } from './fields/field-pickers.service.js';
+import { OptionsPagesController } from './fields/options-pages.controller.js';
+import { OptionsPagesService } from './fields/options-pages.service.js';
 
 @Global()
 @Module({})
@@ -156,6 +160,7 @@ export class AppModule {
         ChatController,
         CommentsController,
         FieldGroupsController,
+        OptionsPagesController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -206,6 +211,9 @@ export class AppModule {
         FieldValuesService,
         UserFieldsService,
         DynamicSourcesService,
+        OptionsPagesService,
+        BindingsService,
+        FieldPickersService,
       ],
     };
   }

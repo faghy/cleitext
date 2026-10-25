@@ -20,6 +20,8 @@ const ref = z.string().min(1).max(200);
 const locale = z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/);
 const labels = z.record(z.string(), z.string().max(200));
 const slug = z.string().min(1).max(200);
+/** Definitions checked by the importer (field definitions, field groups, options pages). */
+const definitions = (max: number) => z.array(z.record(z.string(), z.unknown())).max(max);
 
 export const transferUserSchema = z.object({
   ref,
@@ -169,6 +171,8 @@ export const transferDocumentSchema = z.object({
         name: labels,
         hierarchical: z.boolean().default(false),
         permalink: z.string().max(200),
+        /** Its own fields (plugin API 1.48): content types made in Content structure. */
+        fields: definitions(100).optional(),
       }),
     )
     .default([]),
@@ -179,8 +183,34 @@ export const transferDocumentSchema = z.object({
         name: labels,
         hierarchical: z.boolean().default(false),
         contentTypes: z.array(slug).default([]),
+        /** Its terms' own fields (plugin API 1.48). */
+        fields: definitions(100).optional(),
       }),
     )
+    .default([]),
+  /**
+   * Field groups of the site's owners (plugin API 1.48), as the API takes
+   * them (`/field-groups`): created before the values. Groups whose id is
+   * taken are kept as they are on the site.
+   */
+  fieldGroups: definitions(500).default([]),
+  /** Options pages of the site's owners (plugin API 1.48), as the API takes them. */
+  optionsPages: definitions(200).default([]),
+  /**
+   * Values of options pages (plugin API 1.48): the default language's
+   * (without `locale`) and each other language's translations. References
+   * are refs, as in entries' fields. Pages that already have values on the
+   * site keep them.
+   */
+  options: z
+    .array(
+      z.object({
+        page: z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/),
+        locale: locale.optional(),
+        fields: z.record(z.string(), z.unknown()),
+      }),
+    )
+    .max(2_000)
     .default([]),
   terms: z.array(transferTermSchema).default([]),
   media: z.array(transferMediaSchema).default([]),

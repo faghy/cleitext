@@ -428,4 +428,40 @@ export const itContent: Messages = {
   'Add field group': 'Aggiungi un gruppo di campi',
   'This field needs a plugin that is not active: its value is kept.':
     'Questo campo richiede un plugin non attivo: il suo valore viene conservato.',
+  // Options pages and basic field types (plugin API 1.48).
+  'Plugin {name}': 'Plugin {name}',
+  'Options pages': 'Pagine di opzioni',
+  'Options page': 'Pagina di opzioni',
+  'Add options page': 'Aggiungi una pagina di opzioni',
+  'Pages of settings for the whole site, in the menu, with their own fields and the field groups attached to them (rule “Options page”). Written in JSON, as described in the plugin guide.':
+    'Pagine di impostazioni per tutto il sito, nel menu, con i loro campi e i gruppi di campi collegati (regola “Pagina di opzioni”). Scritte in JSON, come descritto nella guida dei plugin.',
+  'Delete this options page? Values already saved stay.':
+    'Eliminare questa pagina di opzioni? I valori già salvati restano.',
+  'Here you write this language’s version of the fields that change with the language. The others are the same in every language: change them in the main language.':
+    'Qui scrivi la versione in questa lingua dei campi che cambiano con la lingua. Gli altri sono uguali in tutte le lingue: cambiali nella lingua principale.',
+  'This page has no fields yet: attach a field group to it with the rule “Options page is …”.':
+    'Questa pagina non ha ancora campi: collegale un gruppo di campi con la regola “Pagina di opzioni è …”.',
+  'Formatted text': 'Testo formattato',
+  Time: 'Ora',
+  'Related entry': 'Voce collegata',
+  'Add an entry': 'Aggiungi una voce',
+  'Choose an entry': 'Scegli una voce',
+  'Add a term': 'Aggiungi un termine',
+  'Choose a term': 'Scegli un termine',
+  'Add a person': 'Aggiungi una persona',
+  'Choose a person': 'Scegli una persona',
+  '(not found)': '(non trovato)',
+  Change: 'Cambia',
+  'The list cannot be loaded.': 'Non è possibile caricare l’elenco.',
+  Bold: 'Grassetto',
+  Italic: 'Corsivo',
+  'Bulleted list': 'Elenco puntato',
+  'Numbered list': 'Elenco numerato',
+  Heading: 'Titolo',
+  Paragraph: 'Paragrafo',
+  Formatting: 'Formattazione',
+  'Address of the link': 'Indirizzo del link',
+  'Change file': 'Cambia file',
+  'Choose file': 'Scegli file',
+  'Text of the link': 'Testo del link',
 };

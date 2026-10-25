@@ -16,7 +16,13 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import { cxdDocumentSchema, documentText, type CxdBlock, type CxdDocument } from '@cleitext/blocks';
+import {
+  boundMediaIds,
+  cxdDocumentSchema,
+  documentText,
+  type CxdBlock,
+  type CxdDocument,
+} from '@cleitext/blocks';
 import type {
   BlockPage,
   PluginPageContent,
@@ -38,6 +44,8 @@ import {
 } from '@cleitext/renderer';
 import { ADMIN_PATH, type CoreSettings, fieldDefaults } from '@cleitext/shared';
 import { FieldValuesService } from '../fields/field-values.service.js';
+import { BindingsService } from '../fields/bindings.service.js';
+import { OptionsPagesService } from '../fields/options-pages.service.js';
 import {
   type AccountAttrs,
   COMMUNITY_CSS,
@@ -209,6 +217,8 @@ export class PublicService {
     private readonly accounts: AccountsService,
     private readonly webFonts: WebFontsService,
     private readonly fieldValues: FieldValuesService,
+    private readonly bindings: BindingsService,
+    private readonly optionsPages: OptionsPagesService,
   ) {}
 
   /** Where field values are formatted for a page (plugin API 1.47). */
@@ -1955,7 +1965,36 @@ export class PublicService {
       for (const row of rows) patternDocs.set(row.id, row.document as CxdDocument);
       scope.tags.add('patterns');
     }
+    // Options pages (plugin API 1.48), read by templates (`useOption`) and bindings.
+    const options = await this.optionsPages.formatted(this.formatScope(scope));
+    // Block bindings, Field and Field rows blocks (plugin API 1.48): resolved
+    // now, as rendering is synchronous; images bound to fields are loaded below.
+    const boundMedia: string[] = [];
+    {
+      const documents = new Map<string, CxdDocument>();
+      if (props.kind === 'entry') documents.set('entry', props.entry.document);
+      for (const [name, doc] of Object.entries(areas)) documents.set(`area:${name}`, doc);
+      for (const [name, doc] of Object.entries(locations)) {
+        if (doc) documents.set(`location:${name}`, doc);
+      }
+      for (const [id, doc] of patternDocs) documents.set(`pattern:${id}`, doc);
+      const resolved = await this.bindings.apply(scope.siteId, documents, {
+        locale,
+        page: this.bindingPage(scope, props),
+        options,
+      });
+      for (const [key, doc] of resolved) {
+        if (doc === documents.get(key)) continue;
+        boundMedia.push(...boundMediaIds(doc), ...collectMediaIds(doc));
+        if (key === 'entry' && props.kind === 'entry') {
+          props = { ...props, entry: { ...props.entry, document: doc } };
+        } else if (key.startsWith('area:')) areas[key.slice(5)] = doc;
+        else if (key.startsWith('location:')) locations[key.slice(9) as ThemeLocation] = doc;
+        else if (key.startsWith('pattern:')) patternDocs.set(key.slice(8), doc);
+      }
+    }
     const extraMedia = [
+      ...boundMedia,
       ...themeMediaIds(theme, themeValues, areas),
       ...locationDocs.flatMap((doc) => collectMediaIds(doc)),
       ...[...patternDocs.values()].flatMap((doc) => collectMediaIds(doc)),
@@ -2021,6 +2060,7 @@ export class PublicService {
       themeSettings: themeValues,
       areas,
       patterns: patternDocs,
+      ...(Object.keys(options).length ? { options } : {}),
       ...(scope.editorFrame ? { editorFrame: true } : {}),
       ...(Object.keys(locations).length ? { locations } : {}),
     };
@@ -2367,6 +2407,34 @@ export class PublicService {
       }
     };
     return new Map([...definitions.keys()].map((type) => [type, renderer]));
+  }
+
+  /** The page as bindings see it (plugin API 1.48): its entry or archive, and the site. */
+  private bindingPage(scope: RequestScope, props: TemplateProps): BlockPage {
+    return {
+      route: props.kind,
+      site: {
+        title: scope.siteTitle,
+        tagline: scope.settings.tagline,
+        home: scope.data.urls.home(scope.locale),
+      },
+      ...(props.kind === 'entry' ? { entry: props.entry } : {}),
+      ...(props.kind === 'archive'
+        ? {
+            archive: {
+              title: props.title,
+              ...(props.term ? { term: props.term } : {}),
+              ...(props.contentType ? { contentType: props.contentType } : {}),
+              ...(props.author ? { author: props.author } : {}),
+              entries: props.entries,
+              pagination: props.pagination,
+            },
+          }
+        : {}),
+      ...(props.kind === 'search'
+        ? { search: { query: props.query, entries: props.entries, pagination: props.pagination } }
+        : {}),
+    };
   }
 
   /** Scripts and styles that active plugins add to the page (`ctx.assets.enqueue`). */

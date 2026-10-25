@@ -21,7 +21,7 @@ export type FieldObject = 'entry' | 'term' | 'user' | 'options';
  *   (`edit`: an administrator edits the person, `profile`: their own
  *   profile, `all`);
  * - any object: `currentUserRole` (the role of the person editing);
- * - `optionsPage`: reserved for options pages.
+ * - options pages: `optionsPage` (the page's slug, plugin API 1.48).
  */
 export const LOCATION_PARAMS = [
   'contentType',
@@ -79,7 +79,7 @@ export interface LocationScreen {
   // Users
   userRole?: string | null;
   userForm?: 'edit' | 'profile';
-  // Options pages
+  // Options pages (plugin API 1.48)
   optionsPage?: string;
 }
 
@@ -173,6 +173,22 @@ export function mayMatchType(rules: LocationRules, type: string): boolean {
       and.every((r) => PARAM_OBJECT[r.param] === null || PARAM_OBJECT[r.param] === 'entry') &&
       and.every(
         (r) => r.param !== 'contentType' || ruleMatches(r, { object: 'entry', contentType: type }),
+      ),
+  );
+}
+
+/**
+ * Whether rules could show a group on an options page, whatever the role of
+ * the person editing (plugin API 1.48): for reading its values.
+ */
+export function mayMatchOptionsPage(rules: LocationRules, slug: string): boolean {
+  return rules.some(
+    (and) =>
+      and.some((r) => r.param === 'optionsPage') &&
+      and.every((r) => PARAM_OBJECT[r.param] === null || PARAM_OBJECT[r.param] === 'options') &&
+      and.every(
+        (r) =>
+          r.param !== 'optionsPage' || ruleMatches(r, { object: 'options', optionsPage: slug }),
       ),
   );
 }

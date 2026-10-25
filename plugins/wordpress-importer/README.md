@@ -25,6 +25,8 @@ Posts, pages, images and other media, categories, tags, menus and authors, with 
 - Comments come along with their threads: the approved ones by default, or all of them (also those waiting for approval and spam), or none, for sites whose comments were closed and only old spam is left (the **Comments** choice; `?comments=approved|all|skip` on the upload). Pingbacks, trackbacks and trashed comments are never imported; what was left out is counted in the report.
 - WordPress addresses end with a slash (`/my-page/`): when the export's do, the report suggests turning on **End addresses with a slash** in **Settings → Content structure**, so the addresses stay exactly the same (nothing changes by itself). Custom post types of other plugins are counted and not imported; shortcodes stay as text.
 
+- Custom fields (for example **ACF**'s): the meta of every post, page and term, and ACF's own field groups and fields, go to the active plugins that read them (plugin API 1.48, `import.wxrMeta`), which turn them into field groups and values; without such a plugin they are left out, as before.
+
 Only administrators can use it (capability `import_wordpress`).
 
 Plugin API 1.8: it reads the WordPress export itself and imports the result with `ctx.transfer.importDocument` (permission `import`); the upload comes through `request.file()`.

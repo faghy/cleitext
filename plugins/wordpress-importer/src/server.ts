@@ -88,7 +88,7 @@ async function run(
     // Parsing a large export takes seconds: only after the upload has been answered.
     await new Promise((resolve) => setImmediate(resolve));
     const site = await ctx.site(siteId);
-    const { document, warnings } = wxrToDocument(options.xml, {
+    const { document, warnings, meta } = wxrToDocument(options.xml, {
       locale: job.locale,
       authorRole: options.authorRole,
       locales: options.locales,
@@ -98,6 +98,8 @@ async function run(
     });
     const report = await ctx.transfer.importDocument(siteId, document, {
       userId: options.userId,
+      // Post and term meta for plugins (`import.wxrMeta`, plugin API 1.48).
+      wxrMeta: meta,
       onProgress(message) {
         job.progress = [...job.progress, message].slice(-20);
         void save().catch(() => {});

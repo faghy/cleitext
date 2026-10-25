@@ -33,6 +33,8 @@ import type {
   FieldObject,
   FieldValues,
   LocationScreen,
+  OptionsPageInput,
+  OptionsPageView,
 } from '@cleitext/shared';
 import { Logger } from '@nestjs/common';
 import type { LoadedPlugin, PluginHost } from './plugin-host.service.js';
@@ -54,6 +56,18 @@ export interface PluginServices {
   dynamicSources(siteId: string): Promise<DynamicSourceInfo[]>;
   eraseUserFields(siteId: string, email: string): Promise<{ removed: number; retained: number }>;
   resolveDynamic(siteId: string, id: string, context: DynamicContext): Promise<unknown>;
+  /** Options pages (plugin API 1.48). */
+  optionsPages(siteId: string): Promise<OptionsPageView[]>;
+  siteOptionsPages(siteId: string): Promise<OptionsPageInput[]>;
+  saveSiteOptionsPage(siteId: string, page: unknown): Promise<OptionsPageInput>;
+  removeSiteOptionsPage(siteId: string, slug: string): Promise<void>;
+  options(siteId: string, page: string, locale?: string): Promise<FieldValues>;
+  updateOptions(
+    siteId: string,
+    page: string,
+    values: FieldValues,
+    locale?: string,
+  ): Promise<FieldValues>;
   site(siteId: string): Promise<PluginSite>;
   findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]>;
   copyEntry(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry>;
@@ -260,6 +274,8 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           require('theme:hooks');
         if (name.startsWith('site.')) require('languages');
         if (name.startsWith('form.')) require('forms:protect');
+        // The meta of WordPress exports (plugin API 1.48).
+        if (name === 'import.wxrMeta') require('import');
         host.addHook(plugin, 'filter', name, handler as never, options?.priority);
       },
       async emit(name, payload, context) {
@@ -610,6 +626,45 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         require('content:read');
         assertSiteId(siteId);
         return services().matchingFieldGroups(siteId, screen);
+      },
+      addOptionsPage(page) {
+        require('content:write');
+        host.addOptionsPage(plugin, page);
+      },
+      removeOptionsPage(slug) {
+        host.removeOptionsPage(plugin, slug);
+      },
+      async optionsPages(siteId) {
+        require('content:read');
+        assertSiteId(siteId);
+        return services().optionsPages(siteId);
+      },
+      siteOptionsPages: {
+        async list(siteId) {
+          require('content:write');
+          assertSiteId(siteId);
+          return services().siteOptionsPages(siteId);
+        },
+        async save(siteId, page) {
+          require('content:write');
+          assertSiteId(siteId);
+          return services().saveSiteOptionsPage(siteId, page);
+        },
+        async remove(siteId, slug) {
+          require('content:write');
+          assertSiteId(siteId);
+          return services().removeSiteOptionsPage(siteId, String(slug));
+        },
+      },
+      async options(siteId, page, options) {
+        require('content:read');
+        assertSiteId(siteId);
+        return services().options(siteId, String(page), options?.locale);
+      },
+      async updateOptions(siteId, page, values, options) {
+        require('content:write');
+        assertSiteId(siteId);
+        return services().updateOptions(siteId, String(page), values, options?.locale);
       },
       siteGroups: {
         async list(siteId) {

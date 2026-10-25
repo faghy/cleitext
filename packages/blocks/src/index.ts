@@ -6,3 +6,4 @@ export * from './registry.js';
 export * from './core-blocks.js';
 export * from './embed.js';
 export * from './stats.js';
+export * from './bindings.js';

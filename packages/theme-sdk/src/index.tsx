@@ -24,7 +24,7 @@ export {
 } from '@cleitext/shared';
 
 export { PageProvider, usePage } from './context.js';
-export { Field, Rows, useField, type FieldReadOptions } from './fields.js';
+export { Field, Rows, useField, useOption, type FieldReadOptions } from './fields.js';
 export { AccountForms, accountStrings, type AccountAttrs, type AccountView } from './account.js';
 export {
   AuthorBox,

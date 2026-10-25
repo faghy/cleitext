@@ -39,7 +39,7 @@ export type FieldCheck =
   { ok: true; values: FieldValues; groups: FieldGroupView[] } | { ok: false; errors: FieldIssue[] };
 
 /** Ids no group of the site's owners can take. */
-const RESERVED_IDS = new Set(['theme', 'core', 'fields', 'seo']);
+export const RESERVED_IDS = new Set(['theme', 'core', 'fields', 'seo']);
 /** The theme's page options (`entryFields`), stored in the document. */
 export const THEME_GROUP_ID = 'theme';
 

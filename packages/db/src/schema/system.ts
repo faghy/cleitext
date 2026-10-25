@@ -116,3 +116,38 @@ export const fieldGroups = pgTable(
   },
   (t) => [primaryKey({ columns: [t.siteId, t.key] })],
 );
+
+/**
+ * Options pages of the site's owners (plugin API 1.48, 0031): site-wide
+ * settings pages in the admin menu. `definition` is the whole page (title,
+ * parent, icon, fields…), checked by `optionsPageSchema`.
+ */
+export const optionsPages = pgTable(
+  'options_pages',
+  {
+    siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(),
+    definition: jsonb('definition').notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.siteId, t.slug] })],
+);
+
+/**
+ * Values of the options pages (plugin API 1.48, 0031), of every page
+ * (owners', plugins', theme's): `locale` is empty for the values of the
+ * default language (all fields), or a language's code for its translations
+ * of translatable fields.
+ */
+export const optionValues = pgTable(
+  'option_values',
+  {
+    siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+    page: text('page').notNull(),
+    locale: text('locale').notNull().default(''),
+    fields: jsonb('fields').notNull().default({}),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.siteId, t.page, t.locale] })],
+);

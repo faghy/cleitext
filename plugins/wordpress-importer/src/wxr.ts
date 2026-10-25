@@ -31,6 +31,7 @@ import { metaValue } from './php.js';
 import { WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
 import type { CxdBlock } from '@cleitext/blocks';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
+import type { WxrMetaInput, WxrMetaItem, WxrMetaTerm } from '@cleitext/plugin-sdk';
 
 type Node = Record<string, unknown>;
 
@@ -42,6 +43,7 @@ const ARRAYS = new Set([
   'wp:tag',
   'wp:term',
   'wp:postmeta',
+  'wp:termmeta',
   'wp:comment',
 ]);
 
@@ -89,6 +91,11 @@ export interface WxrResult {
   document: TransferDocumentInput;
   /** What could not be converted exactly (part of the report). */
   warnings: string[];
+  /**
+   * Every item's post meta and every term's term meta, for the plugins that
+   * read them (`import.wxrMeta`, plugin API 1.48), e.g. ACF's field values.
+   */
+  meta: WxrMetaInput;
 }
 
 /** WordPress export (WXR 1.x) → transfer document (RF-IMP-01). */
@@ -604,8 +611,57 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     menus.push({ name, locale, ...(location ? { location } : {}), items: build('0') });
   }
 
+  // ---- Meta for plugins (`import.wxrMeta`) ------------------------------------------------
+  const importedTerms = new Set(terms.map((t) => t.ref));
+  const metaTerms: WxrMetaTerm[] = [];
+  const addTerm = (node: Node, taxonomy: string, slug: string, name: string, ref: string) => {
+    metaTerms.push({
+      ref,
+      id: Number(text(node['wp:term_id'])) || 0,
+      taxonomy,
+      slug,
+      name: decode(name) || slug,
+      imported: importedTerms.has(ref),
+      meta: metaOf((node['wp:termmeta'] as Node[] | undefined) ?? []),
+    });
+  };
+  for (const c of (channel['wp:category'] as Node[] | undefined) ?? []) {
+    const slug = text(c['wp:category_nicename']);
+    addTerm(c, 'category', slug, text(c['wp:cat_name']), `category:${slug}`);
+  }
+  for (const t of (channel['wp:tag'] as Node[] | undefined) ?? []) {
+    const slug = text(t['wp:tag_slug']);
+    addTerm(t, 'post_tag', slug, text(t['wp:tag_name']), `tag:${slug}`);
+  }
+  for (const t of (channel['wp:term'] as Node[] | undefined) ?? []) {
+    const taxonomy = text(t['wp:term_taxonomy']);
+    const slug = text(t['wp:term_slug']);
+    addTerm(t, taxonomy, slug, text(t['wp:term_name']), `${taxonomy}:${slug}`);
+  }
+  const importedEntries = new Set(entries.map((e) => e.ref));
+  const metaItems: WxrMetaItem[] = items.map((item) => {
+    const id = Number(text(item['wp:post_id'])) || 0;
+    const attachment = text(item['wp:post_type']) === 'attachment';
+    const ref = attachment ? `att:${id}` : `post:${id}`;
+    return {
+      ref,
+      id,
+      type: text(item['wp:post_type']),
+      status: text(item['wp:status']),
+      name: safeDecodeUri(text(item['wp:post_name'])),
+      title: decode(text(item.title)),
+      content: text(item['content:encoded']),
+      excerpt: text(item['excerpt:encoded']),
+      parent: Number(text(item['wp:post_parent'])) || 0,
+      menuOrder: Number(text(item['wp:menu_order'])) || 0,
+      imported: attachment ? attachmentRefs.has(id) : importedEntries.has(ref),
+      meta: metaOf((item['wp:postmeta'] as Node[] | undefined) ?? []),
+    };
+  });
+
   return {
     warnings,
+    meta: { items: metaItems, terms: metaTerms, options: null },
     document: {
       format: 'cleitext-transfer',
       version: 1,
@@ -640,6 +696,25 @@ function text(value: unknown): string {
     return '#text' in node ? String(node['#text']) : '';
   }
   return String(value).trim();
+}
+
+/** A percent-encoded name, decoded when it can be. */
+function safeDecodeUri(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/** Meta rows (`wp:postmeta`, `wp:termmeta`) by key: the first value of each. */
+function metaOf(rows: Node[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const row of rows) {
+    const key = text(row['wp:meta_key']);
+    if (key && !(key in out)) out[key] = text(row['wp:meta_value']);
+  }
+  return out;
 }
 
 function meta(item: Node, key: string): string | undefined {
@@ -733,8 +808,12 @@ const INTERNAL_TYPES = new Set([
   // Elementor 4: components and global classes (imported into Fresco, not as content).
   'elementor_component',
   'e_global_class',
+  // ACF's own records: given to plugins with their meta (`import.wxrMeta`), not content.
   'acf-field-group',
   'acf-field',
+  'acf-post-type',
+  'acf-taxonomy',
+  'acf-ui-options-page',
   'wpcf7_contact_form',
   'rank_math_schema',
   'scheduled-action',

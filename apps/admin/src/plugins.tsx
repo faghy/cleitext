@@ -12,7 +12,12 @@ import type {
   SiteEditor,
 } from '@cleitext/admin-sdk';
 import type { CxdDocument } from '@cleitext/blocks';
-import { labelText, type ContentTypeView, type PluginAdminInfo } from '@cleitext/shared';
+import {
+  labelText,
+  type ContentTypeView,
+  type OptionsPageView,
+  type PluginAdminInfo,
+} from '@cleitext/shared';
 import * as reactQuery from '@tanstack/react-query';
 import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
@@ -95,11 +100,42 @@ export interface PluginMenuItem {
 }
 
 /** Sidebar entries added by plugins: their content types and their pages. */
+/** Options pages the signed-in person may open (plugin API 1.48), for the menu. */
+export const optionsPagesQuery = queryOptions({
+  queryKey: ['options-pages'],
+  queryFn: () => api<OptionsPageView[]>('GET', '/options-pages'),
+  staleTime: 60_000,
+});
+
+/** An options page's menu icon: one of the admin's by name, path data, or a cog. */
+function optionsIcon(icon: string | undefined): string {
+  if (icon && icon in MENU_ICONS) return MENU_ICONS[icon as keyof typeof MENU_ICONS];
+  return icon && !/^[a-z0-9-]+$/.test(icon) ? pluginIcon(icon) : MENU_ICONS.settings;
+}
+
 export function usePluginMenu(): { types: PluginMenuItem[]; pages: PluginMenuItem[] } {
   const me = useMe();
   const canEdit = me.capabilities.includes('edit_entries');
   const types = useQuery({ ...contentTypesQuery, enabled: canEdit });
   const plugins = usePluginAdmin();
+  const options = useQuery(optionsPagesQuery);
+  const optionSlugs = new Set((options.data ?? []).map((page) => page.slug));
+  // Options pages (plugin API 1.48): under another options page or an admin
+  // section, or at the top level (after the plugins' pages, by position).
+  const optionItems: PluginMenuItem[] = (options.data ?? []).map((page) => ({
+    to: `/options/${page.slug}`,
+    label: labelText(page.menuTitle ?? page.title, me.user.locale),
+    icon: optionsIcon(page.icon),
+    ...(page.parent
+      ? {
+          parent: page.parent.startsWith('/')
+            ? page.parent
+            : optionSlugs.has(page.parent)
+              ? `/options/${page.parent}`
+              : page.parent,
+        }
+      : {}),
+  }));
   return {
     types: (types.data ?? [])
       // Types of plugins and types made in Content structure.
@@ -113,23 +149,26 @@ export function usePluginMenu(): { types: PluginMenuItem[]; pages: PluginMenuIte
         label: labelText(t.name, me.user.locale),
         icon: MENU_ICONS.content,
       })),
-    pages: plugins.flatMap((plugin) =>
-      (plugin.definition?.pages ?? [])
-        .filter((page) => page.menu !== false && allowed(page, me.capabilities))
-        .map((page) => ({
-          ...(page.link ? linkTarget(page.link) : { to: pagePath(plugin.slug, page.path) }),
-          label: labelText(page.title, me.user.locale),
-          icon: pluginIcon(page.icon),
-          ...(page.after ? { after: page.after } : {}),
-          ...(page.parent !== undefined
-            ? {
-                parent: page.parent.startsWith('/')
-                  ? page.parent
-                  : pagePath(plugin.slug, page.parent),
-              }
-            : {}),
-        })),
-    ),
+    pages: [
+      ...plugins.flatMap((plugin) =>
+        (plugin.definition?.pages ?? [])
+          .filter((page) => page.menu !== false && allowed(page, me.capabilities))
+          .map((page) => ({
+            ...(page.link ? linkTarget(page.link) : { to: pagePath(plugin.slug, page.path) }),
+            label: labelText(page.title, me.user.locale),
+            icon: pluginIcon(page.icon),
+            ...(page.after ? { after: page.after } : {}),
+            ...(page.parent !== undefined
+              ? {
+                  parent: page.parent.startsWith('/')
+                    ? page.parent
+                    : pagePath(plugin.slug, page.parent),
+                }
+              : {}),
+          })),
+      ),
+      ...optionItems,
+    ],
   };
 }
 

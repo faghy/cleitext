@@ -4,9 +4,12 @@ import {
   contentTypes,
   entries,
   entryTerms,
+  fieldGroups,
   media,
   menuItems,
   menus,
+  optionsPages,
+  optionValues,
   redirects,
   revisions,
   roles,
@@ -62,6 +65,12 @@ export function exportFields(set: FieldSet | undefined, values: FieldValues): Fi
   return out;
 }
 
+/** The own fields of a type or taxonomy (`fields_schema`). */
+function ownFields(schema: unknown): Record<string, unknown>[] {
+  const fields = (schema as { fields?: unknown } | null)?.fields;
+  return Array.isArray(fields) ? (fields as Record<string, unknown>[]) : [];
+}
+
 export interface ExportResult {
   document: TransferDocumentInput;
   /** Media files to add to the archive: archive path → storage key. */
@@ -82,6 +91,11 @@ export async function exportSite(
   plugins: Record<string, unknown> = {},
   /** Field definitions (plugin API 1.47), for references in field values. */
   fieldDefinitions?: ExportFieldDefinitions,
+  /**
+   * The options pages' values with their references as refs (plugin API
+   * 1.48, `OptionsPagesService.exportValues`); as stored when omitted.
+   */
+  optionValuesWithRefs?: { page: string; locale?: string; fields: FieldValues }[],
 ): Promise<ExportResult> {
   return withContext(db, { siteId }, async (tx) => {
     const files = new Map<string, string>();
@@ -197,13 +211,35 @@ export async function exportSite(
           name: t.name as Record<string, string>,
           hierarchical: t.hierarchical,
           permalink: t.permalink,
+          // Fields made in Content structure (plugin API 1.48); plugins' types bring theirs.
+          ...(t.source === 'user' && ownFields(t.fieldsSchema).length > 0
+            ? { fields: ownFields(t.fieldsSchema) }
+            : {}),
         })),
       taxonomies: taxonomyRows.map((t) => ({
         slug: t.slug,
         name: t.name as Record<string, string>,
         hierarchical: t.hierarchical,
         contentTypes: t.contentTypes,
+        ...(t.source === 'user' && ownFields(t.fieldsSchema).length > 0
+          ? { fields: ownFields(t.fieldsSchema) }
+          : {}),
       })),
+      // Field groups and options pages of the site's owners, and every
+      // options page's values (plugin API 1.48).
+      fieldGroups: (await tx.select().from(fieldGroups).orderBy(asc(fieldGroups.key))).map(
+        (g) => g.definition as Record<string, unknown>,
+      ),
+      optionsPages: (await tx.select().from(optionsPages).orderBy(asc(optionsPages.slug))).map(
+        (p) => p.definition as Record<string, unknown>,
+      ),
+      options:
+        optionValuesWithRefs ??
+        (await tx.select().from(optionValues)).map((row) => ({
+          page: row.page,
+          ...(row.locale ? { locale: row.locale } : {}),
+          fields: row.fields as FieldValues,
+        })),
       terms: termRows.map((t) => ({
         ref: t.id,
         taxonomy: taxonomySlug.get(t.taxonomyId)!,

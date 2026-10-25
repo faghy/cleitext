@@ -20,6 +20,7 @@ import { FormOptionsContext, useAdminFieldType } from './field-types.js';
 import { useT } from './i18n.js';
 import { useMediaPicker } from './media-picker.js';
 import { ZonesBuilder } from './zones-builder.js';
+import { FilePicker, LinkControl, RelationPicker, RichTextControl } from './relation-fields.js';
 import { CustomizerForm } from './customizer-fields.js';
 import {
   BackgroundControl,
@@ -560,6 +561,64 @@ function SingleField({
           locale={locale}
           disabled={disabled}
           onChange={onChange}
+        />
+      );
+      break;
+    // Basic types of plugin API 1.48.
+    case 'entry':
+    case 'term':
+    case 'user':
+      control = (
+        <RelationPicker
+          id={id}
+          field={field}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      );
+      break;
+    case 'richtext':
+      control = (
+        <RichTextControl
+          id={id}
+          value={value}
+          disabled={disabled}
+          describedBy={describedBy}
+          onChange={onChange}
+        />
+      );
+      break;
+    case 'file':
+      control = (
+        <FilePicker
+          id={id}
+          field={field}
+          value={text || null}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      );
+      break;
+    case 'link':
+      control = (
+        <LinkControl
+          id={id}
+          value={value}
+          disabled={disabled}
+          describedBy={describedBy}
+          onChange={onChange}
+        />
+      );
+      break;
+    case 'time':
+      control = (
+        <input
+          {...common}
+          type="time"
+          className={inputClass}
+          value={text}
+          onChange={(e) => onChange(empty(e.target.value))}
         />
       );
       break;

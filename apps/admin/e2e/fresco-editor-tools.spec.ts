@@ -31,7 +31,11 @@ function api<T>(page: Page, method: string, path: string, body?: unknown): Promi
       const { token } = (await (await fetch('/api/v1/auth/csrf')).json()) as { token: string };
       const res = await fetch(`/api/v1${path}`, {
         method,
-        headers: { 'x-csrf-token': token, 'content-type': 'application/json' },
+        // A JSON content type only with a body: the server refuses an empty one.
+        headers: {
+          'x-csrf-token': token,
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);

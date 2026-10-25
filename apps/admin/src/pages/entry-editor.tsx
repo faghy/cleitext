@@ -21,6 +21,7 @@ import {
   type RevisionSummary,
   type RevisionView,
   type EntryLockView,
+  type DynamicSourceView,
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -77,6 +78,9 @@ function Editor({ initial }: { initial: EntryView }) {
   const queryClient = useQueryClient();
   const [entry, setEntry] = useState(initial);
   const [title, setTitle] = useState(initial.title);
+  // The title as typed, for the preview of blocks bound to it (plugin API 1.48).
+  const titleRef = useRef(title);
+  titleRef.current = title;
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [autosavedAt, setAutosavedAt] = useState<string | null>(null);
   const [tab, setTab] = useState<'document' | 'block'>('document');
@@ -103,6 +107,7 @@ function Editor({ initial }: { initial: EntryView }) {
   const documentRef = useRef<CxdDocument>(initial.revision?.document as CxdDocument);
   const [statsDocument, setStatsDocument] = useState<CxdDocument>(documentRef.current);
   const statsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const bindingsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dirtyRef = useRef(false);
   // Editor of the document: null for the block editor, else a plugin editor's id.
   const [editorId, setEditorId] = useState<string | null>(editorIdOf(documentRef.current));
@@ -148,6 +153,9 @@ function Editor({ initial }: { initial: EntryView }) {
     fieldsRef.current = values;
     setFields(values);
     markDirty();
+    // Blocks bound to fields show the new values (plugin API 1.48).
+    clearTimeout(bindingsTimer.current);
+    bindingsTimer.current = setTimeout(() => editorRef.current?.refreshDynamic?.(), 600);
   };
 
   /** Validation messages of custom fields (`fields.<name>` or `fields.<group>.<name>`). */
@@ -179,8 +187,24 @@ function Editor({ initial }: { initial: EntryView }) {
         styles: styles.css,
         document: documentRef.current,
         targets: { canvas: canvasRef.current, inspector: inspectorRef.current },
-        services: mediaServices(initial.locale),
+        services: {
+          ...mediaServices(initial.locale),
+          // Block bindings (plugin API 1.48): the site's sources, and values of
+          // this entry with the fields as they are in the sidebar now.
+          dynamicSources: () => api<DynamicSourceView[]>('GET', '/dynamic-sources'),
+          resolveDynamic: async (ids) =>
+            (
+              await api<{ values: Record<string, unknown> }>('POST', '/dynamic-sources/resolve', {
+                ids,
+                entryId: initial.id,
+                locale: initial.locale,
+                fields: fieldsRef.current,
+                title: titleRef.current,
+              })
+            ).values,
+        },
         locale: initial.locale,
+        uiLanguage: userLocale,
         fieldBlocks: extensions.fieldBlocks,
         styleUrls: extensions.styleUrls,
         hostShortcuts: [{ description: 'Save your changes.', modifier: 'primary', character: 's' }],

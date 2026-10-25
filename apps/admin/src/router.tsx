@@ -40,6 +40,7 @@ import { TermsPage } from './pages/terms';
 import { StructurePage } from './pages/structure';
 import { CommentsPage } from './pages/comments';
 import { RedirectsPage } from './pages/redirects';
+import { OptionsPagePage } from './pages/options-page';
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -158,6 +159,16 @@ const userRoute = createRoute({
   },
 });
 
+/** Options pages (plugin API 1.48): /options/<slug>; the server checks their capability. */
+const optionsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/options/$slug',
+  component: function Options() {
+    const { slug } = optionsRoute.useParams();
+    return <OptionsPagePage key={slug} slug={slug} />;
+  },
+});
+
 /** Admin pages of plugins: /ext/<slug>/<path>. */
 const pluginPageRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -223,6 +234,7 @@ const routeTree = rootRoute.addChildren([
     contentRoute,
     taxonomyRoute,
     userRoute,
+    optionsRoute,
     pluginPageRoute,
     ...SECTIONS.filter((s) => !s.ready).map((s) =>
       sectionRoute(s.to, () => <PlaceholderPage path={s.to} />),

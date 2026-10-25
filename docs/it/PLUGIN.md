@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.47**
+> API dei plugin **1.48**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -192,29 +192,30 @@ ctx.hooks.filter(
 
 **Filtri** (sito pubblico, richiedono il permesso `theme:hooks`):
 
-| Nome                       | Valore                                                                                                                                                                                                                | Contesto                                               |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                                                                                               | `RenderHookContext`                                    |
-| `render.blocks`            | i blocchi della voce (`CxdBlock[]`)                                                                                                                                                                                   | `RenderHookContext` con `entry`                        |
-| `render.html`              | la stringa HTML finale                                                                                                                                                                                                | `RenderHookContext`                                    |
-| `render.adminBarEdit`      | il link di modifica della barra pubblica su una voce, `{ label, href }` (un indirizzo dell'admin), o `null` per nasconderlo, es. «Modifica con …» (API 1.29)                                                          | `{ siteId, locale, entry: { id, type, editor? } }`     |
-| `render.maintenance`       | la pagina che i visitatori ricevono in modalità manutenzione: `{ html, retryAfter? }` (un documento intero) al posto di quella del tema, o `null` (API 1.35)                                                          | `MaintenanceContext`                                   |
-| `form.challenge`           | markup inserito in un modulo prima del pulsante di invio, ad esempio il widget di un captcha; aggiungilo al valore (richiede `forms:protect`, API 1.38)                                                               | `FormChallengeContext`                                 |
-| `form.verify`              | `{ ok, message? }` per un invio di un modulo protetto, oppure `null` per lasciarlo passare (richiede `forms:protect`, API 1.38)                                                                                       | `FormVerifyContext`                                    |
-| `form.sources`             | origini che servono alla verifica dell'accesso all'admin, `{ script, frame }` (solo `https://`), aggiunte alla Content Security Policy dell'admin (richiede `forms:protect`, API 1.38)                                | `{ siteId }`                                           |
-| `theme.templateCandidates` | nomi dei template provati in ordine                                                                                                                                                                                   | `RenderHookContext`                                    |
-| `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso                                                                                                                          | `{ siteId, ids }`                                      |
-| `entry.validate`           | problemi di una voce che sta per essere salvata, `{ path, message }[]`: aggiungi i tuoi per rifiutare il salvataggio (nessun permesso, API 1.47; [controlli prima del salvataggio](#controlli-prima-del-salvataggio)) | `EntryValidateContext`                                 |
-| `account.links`            | link nella pagina account dei visitatori (`{ label, url }[]`, indirizzi locali; API 1.17)                                                                                                                             | `{ siteId, locale, userId, base }`                     |
-| `import.block`             | un blocco WordPress senza equivalente all'import: al suo posto i blocchi del plugin (API 1.23)                                                                                                                        | `{ siteId, name, attrs, html, children }`              |
-| `import.shortcode`         | uno shortcode WordPress isolato all'import (su una riga o in un paragrafo a sé, blocco Shortcode, widget shortcode/testo/HTML di Elementor): al suo posto i blocchi del plugin (API 1.36)                             | `{ siteId, tag, attrs, content, text }`                |
-| `export.pluginData`        | i dati propri dei plugin in un'esportazione del sito (`document.plugins`, per slug): aggiungi i tuoi sotto il tuo slug, lascia gli altri (API 1.46)                                                                   | `{ siteId }`                                           |
-| `import.pluginData`        | i dati del plugin in un documento importato (`document.plugins[slug]`): `{ warnings? }` se li prende, altrimenti `null` (API 1.28)                                                                                    | `{ siteId, slug, data, idMap, userId }`                |
-| `feed.title`               | titolo di un feed RSS (quello del sito, o `<termine> – <sito>`; API 1.22)                                                                                                                                             | `{ siteId, locale, siteTitle, term }`                  |
-| `sitemap.sources`          | tipi di contenuto e tassonomie con una sitemap XML (`{ kind, slug }[]`)                                                                                                                                               | `{ siteId }`                                           |
-| `sitemap.urls`             | gli indirizzi di una sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` o `term`)                                                                                                                             | `{ siteId, kind, slug, locale }`                       |
-| `cache.headers`            | header in più delle risposte pubbliche tenute dalla cache delle pagine, API 1.9                                                                                                                                       | `{ siteId, host, path, status, tags }`                 |
-| `robots.txt`               | il testo di `/robots.txt`, con la sua riga `Sitemap:`; nessun permesso. Un sito che chiede ai motori di restare fuori tiene `Disallow: /` (API 1.24)                                                                  | `{ siteId, origin, sitemap, discourageSearchEngines }` |
+| Nome                       | Valore                                                                                                                                                                                                                           | Contesto                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                                                                                                          | `RenderHookContext`                                    |
+| `render.blocks`            | i blocchi della voce (`CxdBlock[]`)                                                                                                                                                                                              | `RenderHookContext` con `entry`                        |
+| `render.html`              | la stringa HTML finale                                                                                                                                                                                                           | `RenderHookContext`                                    |
+| `render.adminBarEdit`      | il link di modifica della barra pubblica su una voce, `{ label, href }` (un indirizzo dell'admin), o `null` per nasconderlo, es. «Modifica con …» (API 1.29)                                                                     | `{ siteId, locale, entry: { id, type, editor? } }`     |
+| `render.maintenance`       | la pagina che i visitatori ricevono in modalità manutenzione: `{ html, retryAfter? }` (un documento intero) al posto di quella del tema, o `null` (API 1.35)                                                                     | `MaintenanceContext`                                   |
+| `form.challenge`           | markup inserito in un modulo prima del pulsante di invio, ad esempio il widget di un captcha; aggiungilo al valore (richiede `forms:protect`, API 1.38)                                                                          | `FormChallengeContext`                                 |
+| `form.verify`              | `{ ok, message? }` per un invio di un modulo protetto, oppure `null` per lasciarlo passare (richiede `forms:protect`, API 1.38)                                                                                                  | `FormVerifyContext`                                    |
+| `form.sources`             | origini che servono alla verifica dell'accesso all'admin, `{ script, frame }` (solo `https://`), aggiunte alla Content Security Policy dell'admin (richiede `forms:protect`, API 1.38)                                           | `{ siteId }`                                           |
+| `theme.templateCandidates` | nomi dei template provati in ordine                                                                                                                                                                                              | `RenderHookContext`                                    |
+| `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso                                                                                                                                     | `{ siteId, ids }`                                      |
+| `entry.validate`           | problemi di una voce che sta per essere salvata, `{ path, message }[]`: aggiungi i tuoi per rifiutare il salvataggio (nessun permesso, API 1.47; [controlli prima del salvataggio](#controlli-prima-del-salvataggio))            | `EntryValidateContext`                                 |
+| `account.links`            | link nella pagina account dei visitatori (`{ label, url }[]`, indirizzi locali; API 1.17)                                                                                                                                        | `{ siteId, locale, userId, base }`                     |
+| `import.block`             | un blocco WordPress senza equivalente all'import: al suo posto i blocchi del plugin (API 1.23)                                                                                                                                   | `{ siteId, name, attrs, html, children }`              |
+| `import.shortcode`         | uno shortcode WordPress isolato all'import (su una riga o in un paragrafo a sé, blocco Shortcode, widget shortcode/testo/HTML di Elementor): al suo posto i blocchi del plugin (API 1.36)                                        | `{ siteId, tag, attrs, content, text }`                |
+| `import.wxrMeta`           | quello che i plugin ricavano dai meta di articoli, termini e opzioni di un'esportazione WordPress: valori dei campi, gruppi di campi, pagine di opzioni e opzioni (serve `import`, API 1.48; [vedi Importazione](#importazione)) | `WxrMetaContext`                                       |
+| `export.pluginData`        | i dati propri dei plugin in un'esportazione del sito (`document.plugins`, per slug): aggiungi i tuoi sotto il tuo slug, lascia gli altri (API 1.46)                                                                              | `{ siteId }`                                           |
+| `import.pluginData`        | i dati del plugin in un documento importato (`document.plugins[slug]`): `{ warnings? }` se li prende, altrimenti `null` (API 1.28)                                                                                               | `{ siteId, slug, data, idMap, userId }`                |
+| `feed.title`               | titolo di un feed RSS (quello del sito, o `<termine> – <sito>`; API 1.22)                                                                                                                                                        | `{ siteId, locale, siteTitle, term }`                  |
+| `sitemap.sources`          | tipi di contenuto e tassonomie con una sitemap XML (`{ kind, slug }[]`)                                                                                                                                                          | `{ siteId }`                                           |
+| `sitemap.urls`             | gli indirizzi di una sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` o `term`)                                                                                                                                        | `{ siteId, kind, slug, locale }`                       |
+| `cache.headers`            | header in più delle risposte pubbliche tenute dalla cache delle pagine, API 1.9                                                                                                                                                  | `{ siteId, host, path, status, tags }`                 |
+| `robots.txt`               | il testo di `/robots.txt`, con la sua riga `Sitemap:`; nessun permesso. Un sito che chiede ai motori di restare fuori tiene `Disallow: /` (API 1.24)                                                                             | `{ siteId, origin, sitemap, discourageSearchEngines }` |
 
 `RenderHookContext` è `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` è `entry`, `archive`, `search`, `404` o `maintenance`. `entry` è la voce pubblica: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (API dei plugin 1.33) è `true` quando il visitatore ha effettuato l'accesso: le sue pagine non vanno mai in cache, quindi il contenuto può dipenderne. Chiama `tag('type:event')` quando ciò che aggiungi dipende da altri dati (vedi [cache](#cache)).
 
@@ -357,9 +358,9 @@ ctx.fields.addGroup({
 | `userRole`        | il ruolo di una persona sul sito (campi degli utenti)                                     | lo slug di un ruolo, `*` per tutti     |
 | `userForm`        | dove si modifica una persona: `edit` (Utenti → Modifica) o `profile` (il proprio profilo) | `edit`, `profile`, `all`               |
 | `currentUserRole` | il ruolo di chi sta modificando (insieme a una delle altre)                               | lo slug di un ruolo                    |
-| `optionsPage`     | riservato alle pagine di opzioni                                                          | —                                      |
+| `optionsPage`     | una pagina di opzioni (API dei plugin 1.48, vedi sotto)                                   | il suo slug                            |
 
-`operator` è `==` o `!=`. Una lista interna deve controllare un solo oggetto (voci, termini o utenti): una lista con il solo `currentUserRole`, o con regole di due oggetti, non corrisponde a niente. `ctx.fields.addGroup` si può chiamare in qualsiasi momento (lo stesso id lo sostituisce) e `ctx.fields.removeGroup(id)` lo toglie. I gruppi che dipendono dal sito, per esempio costruiti dalle tue tabelle, arrivano da un fornitore, chiamato ogni volta che servono i gruppi (tieni in cache quello che legge):
+`operator` è `==` o `!=`. Una lista interna deve controllare un solo oggetto (voci, termini, utenti o pagine di opzioni): una lista con il solo `currentUserRole`, o con regole di due oggetti, non corrisponde a niente. `ctx.fields.addGroup` si può chiamare in qualsiasi momento (lo stesso id lo sostituisce) e `ctx.fields.removeGroup(id)` lo toglie. I gruppi che dipendono dal sito, per esempio costruiti dalle tue tabelle, arrivano da un fornitore, chiamato ogni volta che servono i gruppi (tieni in cache quello che legge):
 
 ```ts
 ctx.fields.provideGroups(async (siteId) => mieiGruppiDalDatabase(siteId));
@@ -390,7 +391,31 @@ ctx.hooks.filter('entry.validate', (errors, { entry, fields, publishing }) => {
 
 **Campi dei termini e degli utenti** (API dei plugin 1.47). I gruppi con regole `taxonomy` compaiono quando si modifica un termine (la schermata della tassonomia); i valori stanno con i campi propri del termine, in `fields[<id del gruppo>]`. I gruppi con regole `userRole` / `userForm` compaiono in Utenti → Modifica e nel profilo della persona; i valori sono conservati per sito (gli account sono condivisi tra i siti). I campi obbligatori sono controllati quando si salva il modulo (non per i tag scritti nell'editor). Con l'API: i `fields` di un termine (`POST /api/v1/taxonomies/<slug>/terms`, `PATCH /api/v1/terms/:id`); `GET`/`PUT /api/v1/users/:id/fields` (`manage_users`, e `promote_users` per cambiarli) e `/api/v1/profile/fields`, con `{ fields }`. I plugin usano `ctx.terms.updateFields(siteId, id, values)` (`content:write`), `ctx.users.fields(siteId, id)` e `ctx.users.updateFields(siteId, id, values)` (`users:read`, e `content:write` per cambiarli). L'esportazione del sito li porta con sé, e le richieste privacy li includono (**Campi del profilo**: esportati, e cancellati su richiesta).
 
-**Esportazioni.** I riferimenti nei valori dei campi sono esportati come ref, `{ "$media": "<id>" }` (anche `$entry`, `$term`, `$user`), così un'importazione in un altro sito punta ai media, alle voci, ai termini e alle persone importati (`cleitext export` e `import`).
+**Esportazioni.** I riferimenti nei valori dei campi sono esportati come ref, `{ "$media": "<id>" }` (anche `$entry`, `$term`, `$user`), così un'importazione in un altro sito punta ai media, alle voci, ai termini e alle persone importati (`cleitext export` e `import`). Dall'API dei plugin 1.48 l'esportazione porta anche i gruppi di campi dei proprietari (`fieldGroups`), le pagine di opzioni (`optionsPages`) e i loro valori (`options`), e i campi dei tipi di contenuto e delle tassonomie creati in Struttura dei contenuti; l'importazione li crea prima dei valori (quelli già presenti nel sito restano), e le regole che nominano voci o termini puntano a quelli importati.
+
+### Pagine di opzioni (API dei plugin 1.48)
+
+Pagine di impostazioni per tutto il sito, come quelle di ACF: ognuna è una pagina del menu dell'admin (al primo livello, o sotto `parent`) con i suoi campi, i gruppi di campi la cui regola `optionsPage` la nomina e un pulsante **Salva le modifiche**. Arrivano dai proprietari del sito (salvate per sito), dai plugin e dal tema (`optionsPages`, TEMI.md):
+
+```ts
+ctx.fields.addOptionsPage?.({
+  slug: 'myplugin-contacts', // inizia con il tuo slug
+  title: { en: 'Contacts', it: 'Contatti' },
+  menuTitle: 'Contatti', // facoltativo, più corto del titolo
+  parent: '/settings', // un'altra pagina di opzioni (il suo slug) o una sezione dell'admin; senza, al primo livello
+  icon: 'settings', // il nome di un'icona dell'admin, o un percorso SVG (24×24) come le pagine dei plugin
+  position: 10, // ordine delle voci di primo livello, prima le più basse (predefinito 100)
+  capability: 'manage_settings', // chi la vede e la salva (predefinito)
+  fields: [{ name: 'phone', type: 'text', label: 'Telefono' }],
+});
+```
+
+`ctx.fields.removeOptionsPage(slug)` la toglie (`content:write`, come `addOptionsPage`). Un gruppo si collega a una pagina con `[[{ param: 'optionsPage', operator: '==', value: 'myplugin-contacts' }]]` (anche con `currentUserRole`). I **valori** sono conservati per sito, di ogni pagina (anche di pagine non più definite, che tornano con loro): i campi propri della pagina in cima, quelli di ogni gruppo sotto il suo id, controllati come i campi delle voci (anche quelli obbligatori) e salvati campo per campo. Con più lingue (plugin Multilingual), ogni lingua conserva i suoi valori dei campi **traducibili** (`translation` diverso da `copy`): i campi `translate` usano il valore della lingua predefinita finché non vengono scritti nella lingua, quelli `ignore` partono vuoti, quelli `copy` sono uguali ovunque e si modificano solo nella lingua predefinita.
+
+- API REST: `GET /api/v1/options-pages` (le pagine che la persona collegata può aprire, di ogni provenienza, per `position` e poi titolo); le pagine dei proprietari con `manage_content_types`: `POST /api/v1/options-pages`, `GET`, `PUT` (sostituisce) e `DELETE /api/v1/options-pages/<slug>` (i valori restano). **Impostazioni → Struttura dei contenuti → Pagine di opzioni** le elenca, con un editor JSON. Valori: `GET /api/v1/options/<slug>?locale=it` (`{ page, groups, values, locale, locales, translationsOnly }`) e `PUT` con `{ fields, locale? }`, con la capability della pagina.
+- Plugin (`content:read`, `content:write` per modificare): `await ctx.fields.optionsPages?.(siteId)`, `ctx.fields.options?.(siteId, slug, { locale })`, `ctx.fields.updateOptions?.(siteId, slug, values, { locale })`; un costruttore visuale gestisce le pagine dei proprietari con `ctx.fields.siteOptionsPages?.list / save / remove` (le pagine restano se il plugin viene disattivato).
+- I template le leggono con `useOption(name, { page })` e `<Field of="option" page="…">` (TEMI.md), i dati dinamici con `option.field:<pagina>.<nome>` (o `<pagina>.<gruppo>.<nome>`). Il salvataggio aggiorna le pagine del sito in cache.
+- Un'esportazione del sito porta le pagine dei proprietari e i valori di ogni pagina (riferimenti come ref), importati prima dei valori delle voci che possono usarli; pagine e valori già presenti nel sito restano.
 
 ### Tipi di campo dei plugin (API dei plugin 1.47)
 
@@ -412,12 +437,13 @@ ctx.fields.registerType({
   format: (value) => ({ stars: Number(value) }), // quello che dà useField
   index: (value) => Number(value), // ricerca, indici, testo
   export: (value, field, refs) => value, // refs.media(id), refs.entry(id)… per i riferimenti
-  kind: 'number', // text, url, number, boolean, date, media, list, object
+  kind: 'number', // text, url, number, boolean, date, media, list, object; dalla 1.48 anche richtext, link, entry, term, user, file
+  // kindOf: (field) => …, // il tipo per una certa definizione (API dei plugin 1.48)
 });
 // Un campo di questo tipo: { name: 'score', type: 'myplugin/rating', label: 'Voto', settings: { max: 3 } }
 ```
 
-`format` riceve `context.media(id)` e `context.entry(id)` (caricati insieme per tutta la pagina) e `context.format(fields, values)` per i campi annidati. L'admin disegna il tipo con il componente di [`fieldTypes`](#tipi-di-campo-nell-admin) nell'entry admin del plugin, in tutti i moduli (voci, termini, utenti, impostazioni, blocchi, righe delle liste). Finché il plugin non è attivo i valori sono conservati e mostrati in sola lettura; le definizioni sono comunque accettate.
+`format` riceve `context.media(id)` e `context.entry(id)` (caricati insieme per tutta la pagina), dall'API 1.48 anche `context.term?.(id)`, `context.user?.(id)` e `context.file?.(id)` (un file media di qualsiasi tipo, con il suo `filename`), e `context.format(fields, values)` per i campi annidati. Dalla 1.48 `normalize` si applica ai valori dopo il controllo, quindi quello che restituisce è quello che viene salvato. L'admin disegna il tipo con il componente di [`fieldTypes`](#tipi-di-campo-nell-admin) nell'entry admin del plugin, in tutti i moduli (voci, termini, utenti, impostazioni, blocchi, righe delle liste). Finché il plugin non è attivo i valori sono conservati e mostrati in sola lettura; le definizioni sono comunque accettate.
 
 ### Dati dinamici (API dei plugin 1.47)
 
@@ -438,7 +464,11 @@ const photo = await ctx.dynamic.resolve(siteId, 'entry.field:hero.photo', {
 });
 ```
 
-`DynamicContext` è `{ locale, page?, entry?: { id }, term?: { id }, user?: { id } }`: senza `entry` si usa la voce della pagina (i suoi valori sono già formattati, nessuna query). L'admin elenca le fonti con `GET /api/v1/dynamic-sources`. Fresco legge il suo tag **Campo personalizzato** attraverso queste fonti (Fresco 2.10), quindi i campi immagine compaiono come immagini.
+`DynamicContext` è `{ locale, page?, entry?: { id }, term?: { id }, user?: { id }, row? }`: senza `entry` si usa la voce della pagina (i suoi valori sono già formattati, nessuna query). L'admin elenca le fonti con `GET /api/v1/dynamic-sources`. Fresco legge il suo tag **Campo personalizzato** attraverso queste fonti (Fresco 2.10), quindi i campi immagine compaiono come immagini.
+
+Dall'API dei plugin 1.48 ci sono anche i campi delle pagine di opzioni (`option.field:<pagina>.<nome>`, `<pagina>.<gruppo>.<nome>`), la persona data in `user` (`user.name`, `user.url`, `user.avatar`) e la riga di una lista (`row.field:<nome>`, letta da `row`). La fonte di un campo `list` dice cosa sono le sue righe: `rowKind: 'fields'` con le fonti delle righe in `rows` (`row.field:<nome>`), oppure `entry`, `term`, `user` per le relazioni con più record. `POST /api/v1/dynamic-sources/resolve` (`edit_entries`) con `{ ids, entryId?, locale?, fields?, title? }` dà i valori di una voce in modifica, con i campi non ancora salvati: l'editor a blocchi mostra così l'anteprima dei collegamenti.
+
+<a id="block-bindings"></a>**Collegamenti dei blocchi** (block bindings, API dei plugin 1.48). I blocchi del core mostrano una fonte al posto di quello che è stato scritto, come i Block Bindings di WordPress: il testo di un paragrafo, di un titolo o di una voce di elenco, il testo e il link di un pulsante, un'immagine (`id` e `url` insieme), il suo testo alternativo, la didascalia e il link, l'indirizzo di un incorporamento. Un blocco li tiene in `attrs.metadata.bindings`, `{ <attributo>: { source: 'cleitext/field', args: { key: '<id della fonte>' } } }`; quello che è stato scritto resta e si vede quando la fonte non ha un valore. Il server li risolve prima di disegnare la pagina (`applyBindings` di `@cleitext/blocks`), anche nelle aree, nelle posizioni del tema e nei pattern sincronizzati. Il testo formattato tiene grassetto, corsivo e link (i paragrafi diventano a capo), le date compaiono nella lingua della pagina, un campo link dà a un pulsante il suo indirizzo e la nuova scheda. Con loro vanno due blocchi del core: **Campo** (`cleitext/field`, `{ source, label?, tagName?, fallback? }`) mostra un valore con il formato del suo tipo (un'immagine, un link, un elenco di voci collegate, testo formattato…), e **Righe di un campo** (`cleitext/field-rows`, `{ source, limit?, emptyText?, layout?: 'grid', columns? }`) ripete i blocchi che contiene per ogni riga di una lista, o per ogni voce, termine o persona collegati, e i loro collegamenti leggono la riga (`row.field:<nome>`, oppure `entry.*`, `term.*`, `user.*` del record collegato). Nell'editor a blocchi il pannello **Collega a un campo** delle impostazioni del blocco sceglie la fonte e il canvas mostra il valore vero; dentro Righe di un campo, quello della prima riga.
 
 **Lettura delle voci** (`content:read`). Le più recenti vengono per prime, e vengono restituite solo le voci pubblicate a meno di `status: 'any'`:
 
@@ -903,6 +933,22 @@ I file media si indicano con il loro indirizzo http(s) e vengono scaricati solo 
 
 Le voci possono rimandare l'una all'altra in qualsiasi ordine: in un documento (o nei dati di un plugin), `{ "$entry": "<ref della voce>", "prefix": "entry:" }` diventa `prefix + <nuovo id>` quando tutte le voci esistono (`null` se quella voce non è stata importata). Le voci di un tipo di contenuto che il sito non ha (ad esempio di un plugin non attivo) restano fuori, con una riga del resoconto per tipo. Le impostazioni destinate a un plugin vanno in `document.plugins`, per slug del plugin (API 1.28): dopo le voci, ogni plugin attivo riceve le sue con il filtro `import.pluginData`, con oggetti media e riferimenti alle voci già rimappati e `idMap` (`{ entries, terms, media }` per `ref`) per tutto il resto; i dati che nessun plugin attivo prende finiscono nel resoconto.
 
+**Meta di WordPress** (API dei plugin 1.48). Il WordPress Importer passa ai plugin attivi i post meta di ogni elemento, anche dei record propri di WordPress che non diventano contenuti (i gruppi di campi e i campi di ACF: `acf-field-group`, `acf-field`, `acf-ui-options-page`…), e i term meta di ogni termine, con il filtro `import.wxrMeta` (permesso `import`), una volta per importazione, prima di scrivere qualsiasi cosa. Quello che i plugin restituiscono viene aggiunto al documento: valori dei campi di voci e termini per ref (`post:<id>`, i termini come `category:<slug>`, `tag:<slug>`, `<tassonomia>:<slug>`), gruppi di campi, pagine di opzioni e opzioni, importati prima dei valori. Senza un plugin del genere l'importazione è come prima.
+
+```ts
+ctx.hooks.filter('import.wxrMeta', (result, { items, terms, unserialize, metaValue }) => {
+  for (const item of items) {
+    if (!item.imported || !item.meta.price) continue;
+    result.entries[item.ref] = {
+      myplugin: { price: Number(item.meta.price), cover: { $media: `att:${item.meta.cover}` } },
+    };
+  }
+  return result;
+});
+```
+
+Ogni elemento è `{ ref, id, type, status, name, title, content, excerpt, parent, menuOrder, imported, meta }` (`meta`: il primo valore di ogni chiave, come `get_post_meta(…, true)`), ogni termine `{ ref, id, taxonomy, slug, name, imported, meta }`; `options` è null (un'esportazione di WordPress non le contiene). `unserialize` legge il formato di `serialize()` di PHP e `metaValue` decodifica PHP serializzato o JSON (esportati anche come `phpUnserialize` e `phpMetaValue`). Media, voci e termini nei valori sono ref (`{ $media: 'att:<id dell'allegato>' }`, `{ $entry: 'post:<id dell'articolo>' }`, `{ $term: '<ref del termine>' }`). Un plugin di importazione passa i meta con il suo documento: `ctx.transfer.importDocument(siteId, document, { userId, wxrMeta: { items, terms } })`.
+
 **Esportare i dati dei plugin** (API plugin 1.46). `cleitext export` chiede ai plugin attivi i loro dati con il filtro `export.pluginData`, così i dati conservati nelle tabelle di un plugin si spostano con il sito: aggiungili sotto il tuo slug, scrivi i media come `{ id: <id del media>, url }` e le voci come `{ $entry: <id della voce> }`, e riprendili con `import.pluginData`. Il plugin ufficiale **Diorama** sposta così i suoi slider:
 
 ```ts
@@ -1206,24 +1252,31 @@ Gli amministratori vedono i permessi richiesti in **Plugins → Details**. Le tu
 
 Usati dai campi dei tipi di contenuto, dai gruppi di campi, dagli attributi dei blocchi e dalle impostazioni.
 
-| `type`       | Valore              | Opzioni                                                                                                                                                                        |
-| ------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `text`       | stringa             | `maxLength`, `multiline`, `default`                                                                                                                                            |
-| `url`        | stringa             | `default`. Accetta `http(s)://`, `/`, `mailto:`, `tel:`                                                                                                                        |
-| `number`     | numero              | `min`, `max`, `step`, `default`, `display: 'range'` (un cursore), `unit` (mostrata accanto, es. `px`)                                                                          |
-| `boolean`    | booleano            | `default`, `display: 'devices'` (con `responsive`: tre pulsanti dei dispositivi, es. visibilità)                                                                               |
-| `date`       | `YYYY-MM-DD`        | `default`                                                                                                                                                                      |
-| `datetime`   | ISO 8601            | `default`                                                                                                                                                                      |
-| `select`     | stringa             | `options: [{ value, label }]`, `default`                                                                                                                                       |
-| `media`      | id del media (uuid) | un'immagine della libreria media                                                                                                                                               |
-| `color`      | `#rrggbb`           | `alpha` (anche `#rrggbbaa`), `default`                                                                                                                                         |
-| `choice`     | stringa             | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                                                                                             |
-| `code`       | stringa             | `language: 'css'`, `default`. Fino a 100.000 caratteri, mai `</style`                                                                                                          |
-| `list`       | array di oggetti    | `fields` (ogni tipo tranne `list`), `itemLabel` (il campo che dà il nome a un elemento), `max` (predefinito 200), `default`                                                    |
-| `spacing`    | oggetto             | `{ top, right, bottom, left, unit }`; opzioni `units` (predefinite `px`, `em`, `%`), `sides`, `corners` (raggi), `default`                                                     |
-| `background` | oggetto             | `{ type: 'color' \| 'gradient' \| 'image', color, gradient, image, position, size, repeat, attachment, overlay }`; `palette`, `default`                                        |
-| `typography` | oggetto             | `{ family, weight, size: { desktop, tablet, mobile, desktopUnit… }, lineHeight, lineHeightUnit, letterSpacing, letterSpacingUnit, transform, decoration }`; `units`, `default` |
-| `zones`      | oggetto             | `devices`, `rows`, `items`, `default`: un costruttore di intestazione o piè di pagina (TEMI.md §4); non dentro una `list`                                                      |
+| `type`       | Valore              | Opzioni                                                                                                                                                                               |
+| ------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`       | stringa             | `maxLength`, `multiline`, `default`                                                                                                                                                   |
+| `url`        | stringa             | `default`. Accetta `http(s)://`, `/`, `mailto:`, `tel:`                                                                                                                               |
+| `number`     | numero              | `min`, `max`, `step`, `default`, `display: 'range'` (un cursore), `unit` (mostrata accanto, es. `px`)                                                                                 |
+| `boolean`    | booleano            | `default`, `display: 'devices'` (con `responsive`: tre pulsanti dei dispositivi, es. visibilità)                                                                                      |
+| `date`       | `YYYY-MM-DD`        | `default`                                                                                                                                                                             |
+| `datetime`   | ISO 8601            | `default`                                                                                                                                                                             |
+| `select`     | stringa             | `options: [{ value, label }]`, `default`                                                                                                                                              |
+| `media`      | id del media (uuid) | un'immagine della libreria media                                                                                                                                                      |
+| `color`      | `#rrggbb`           | `alpha` (anche `#rrggbbaa`), `default`                                                                                                                                                |
+| `choice`     | stringa             | `options: [{ value, label, image? }]`, `display: 'buttons' \| 'images'`, `default`                                                                                                    |
+| `code`       | stringa             | `language: 'css'`, `default`. Fino a 100.000 caratteri, mai `</style`                                                                                                                 |
+| `list`       | array di oggetti    | `fields` (ogni tipo tranne `list`), `itemLabel` (il campo che dà il nome a un elemento), `max` (predefinito 200), `default`                                                           |
+| `spacing`    | oggetto             | `{ top, right, bottom, left, unit }`; opzioni `units` (predefinite `px`, `em`, `%`), `sides`, `corners` (raggi), `default`                                                            |
+| `background` | oggetto             | `{ type: 'color' \| 'gradient' \| 'image', color, gradient, image, position, size, repeat, attachment, overlay }`; `palette`, `default`                                               |
+| `typography` | oggetto             | `{ family, weight, size: { desktop, tablet, mobile, desktopUnit… }, lineHeight, lineHeightUnit, letterSpacing, letterSpacingUnit, transform, decoration }`; `units`, `default`        |
+| `zones`      | oggetto             | `devices`, `rows`, `items`, `default`: un costruttore di intestazione o piè di pagina (TEMI.md §4); non dentro una `list`                                                             |
+| `entry`      | id della voce       | `types` (tipi di contenuto proposti), `multiple` (un array di id, in ordine), `max` (predefinito 50). I template ricevono `{ id, type, title, url }` delle voci pubblicate (API 1.48) |
+| `term`       | id del termine      | `taxonomy`, `multiple`, `max`. I template ricevono `{ id, taxonomy, name, slug, url }` (API 1.48)                                                                                     |
+| `user`       | id del membro       | `roles`, `multiple`, `max`. I template ricevono `{ id, name, avatarUrl, url }` dei membri del sito (API 1.48)                                                                         |
+| `richtext`   | HTML                | `maxLength` (predefinito 100.000), `default`. Paragrafi, grassetto, corsivo, link, elenchi, titoli 2–4, citazioni; ripulito al salvataggio (`sanitizeRichText`, API 1.48)             |
+| `file`       | id del media        | `accept` (`application/pdf`, `image/`…). I template ricevono il media con il suo `filename` (API 1.48)                                                                                |
+| `link`       | oggetto             | `{ url, label?, target?: '_blank' }`, `default`. I template ricevono `{ url, label, target }` (API 1.48)                                                                              |
+| `time`       | `HH:MM`             | `default` (API 1.48)                                                                                                                                                                  |
 
 I plugin aggiungono tipi chiamati `<plugin>/<nome>`, con le loro opzioni in `settings` ([tipi di campo dei plugin](#tipi-di-campo-dei-plugin-api-dei-plugin-147)). Le righe di una `list` salvate con voci, termini e utenti hanno un `_id` stabile (API dei plugin 1.47).
 
