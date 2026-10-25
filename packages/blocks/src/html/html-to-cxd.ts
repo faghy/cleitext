@@ -2,6 +2,7 @@ import {
   CXD_SCHEMA_VERSION,
   cleanBlockStyle,
   cleanLayout,
+  hasSpacing,
   htmlToInline,
   inlineText,
   newBlockId,
@@ -94,7 +95,8 @@ function fromWpBlock(
           ),
         );
       }
-      return hasText(content) ? [paragraph] : [];
+      // An empty one with a margin or padding is room left on purpose.
+      return hasText(content) || hasSpacing(attrs.style) ? [paragraph] : [];
     }
     case 'core/heading': {
       const element = parse(html).querySelector('h1,h2,h3,h4,h5,h6');

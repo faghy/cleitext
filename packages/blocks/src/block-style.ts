@@ -129,6 +129,15 @@ export function blockStyleCss(
 }
 
 /**
+ * Whether a block's style sets a margin or a padding: an empty paragraph with
+ * one is room WordPress pages leave on purpose, and is kept.
+ */
+export function hasSpacing(value: unknown): boolean {
+  const spacing = cleanBlockStyle(value)?.spacing;
+  return Boolean(spacing?.margin || spacing?.padding);
+}
+
+/**
  * Whether a block that stacks its children has a block gap: it then gets the
  * `cx-flow-gap` class, whose rule puts the gap between its children.
  */

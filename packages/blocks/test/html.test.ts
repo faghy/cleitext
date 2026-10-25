@@ -189,6 +189,23 @@ describe('text alignment of WordPress 6.9 and later', () => {
   });
 });
 
+describe('empty paragraphs', () => {
+  it('are kept when they leave room with a margin or padding', () => {
+    const { blocks } = convert(
+      '<!-- wp:paragraph {"style":{"spacing":{"margin":{"top":"10%"}}}} -->\n<p style="margin-top:10%"></p>\n<!-- /wp:paragraph -->' +
+        '<!-- wp:paragraph --><p>Text</p><!-- /wp:paragraph -->' +
+        '<!-- wp:paragraph {"style":{"spacing":{"padding":{"bottom":"var:preset|spacing|80"}}}} --><p></p><!-- /wp:paragraph -->' +
+        '<!-- wp:paragraph --><p></p><!-- /wp:paragraph -->' +
+        '<!-- wp:paragraph {"style":{"color":{"text":"#000"}}} --><p></p><!-- /wp:paragraph -->',
+    );
+    expect(blocks.map((b) => [b.type, b.attrs.style ?? null])).toEqual([
+      ['core/paragraph', { spacing: { margin: { top: '10%' } } }],
+      ['core/paragraph', null],
+      ['core/paragraph', { spacing: { padding: { bottom: 'var:preset|spacing|80' } } }],
+    ]);
+  });
+});
+
 describe('covers', () => {
   const cover =
     '<!-- wp:cover {"url":"https://example.com/a.webp","dimRatio":20} -->\n<div class="wp-block-cover"><img class="wp-block-cover__image-background" src="https://example.com/a.webp" alt=""/><span class="wp-block-cover__background has-background-dim-20 has-background-dim"></span><div class="wp-block-cover__inner-container"><!-- wp:paragraph -->\n<p>On top</p>\n<!-- /wp:paragraph --></div></div>\n<!-- /wp:cover -->';

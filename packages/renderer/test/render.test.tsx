@@ -11,6 +11,7 @@ import {
   Inline,
   renderHtmlDocument,
   safeUrl,
+  SPACING_PRESETS_CSS,
   withCoreBlockCss,
   type RenderMedia,
 } from '../src/index.js';
@@ -26,6 +27,21 @@ const html = (doc: CxdDocument, media: RenderMedia[] = []) =>
 const doc = (...blocks: CxdDocument['blocks']): CxdDocument => ({ schema: 1, blocks });
 
 describe('core blocks', () => {
+  it('keep an empty paragraph only for the room its margin or padding leaves', () => {
+    const p = (attrs: Record<string, unknown>) => ({
+      id: 'e',
+      type: 'core/paragraph',
+      v: 1 as const,
+      attrs,
+      content: [],
+    });
+    expect(html(doc(p({ style: { spacing: { margin: { top: '10%' } } } })))).toBe(
+      '<p style="margin-top:10%"></p>',
+    );
+    expect(html(doc(p({})))).toBe('');
+    expect(html(doc(p({ style: { color: { text: '#000' } } })))).toBe('');
+  });
+
   it('render Gutenberg-compatible markup', () => {
     const out = html(
       doc(
@@ -563,6 +579,20 @@ describe('patterns, templates and pages', () => {
         /<style>theme<\/style>[\s\S]*<style data-cx-block-supports>\.cx-flow-gap>\*\{[^<]*<\/style><\/body>/,
       );
       expect(out).not.toContain('data-cx-core-blocks');
+    });
+
+    it('defines WordPress’s spacing sizes on pages that name them, before the theme’s', () => {
+      const out = withCoreBlockCss(
+        '<html><head><style>theme</style></head><body><p style="margin-bottom:var(--wp--preset--spacing--80)">x</p></body></html>',
+      );
+      expect(out).toContain(
+        `<style data-cx-spacing>${SPACING_PRESETS_CSS}</style><style>theme</style>`,
+      );
+      expect(SPACING_PRESETS_CSS).toContain('--wp--preset--spacing--80:5.06rem;');
+      expect(SPACING_PRESETS_CSS).toContain('--wp--preset--spacing--20:0.44rem;');
+      expect(withCoreBlockCss('<html><head></head><body><p>x</p></body></html>')).not.toContain(
+        'data-cx-spacing',
+      );
     });
 
     it('adds their base styles to pages that have one, before the theme’s', () => {

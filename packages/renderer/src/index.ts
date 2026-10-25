@@ -5,6 +5,7 @@ export {
   Blocks,
   BLOCK_SUPPORTS_CSS,
   CORE_BLOCK_CSS,
+  SPACING_PRESETS_CSS,
   withCoreBlockCss,
   registerBlockRenderer,
   ResponsiveImage,

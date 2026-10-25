@@ -1,6 +1,7 @@
 import {
   blockStyleCss,
   hasFlowGap,
+  hasSpacing,
   layoutCss,
   resolveEmbed,
   type CxdBlock,
@@ -101,7 +102,8 @@ function cssLength(value: unknown): string | undefined {
 // ---- Core block renderers ------------------------------------------------------------
 
 registerBlockRenderer('core/paragraph', ({ block }) => {
-  if (!hasText(block.content)) return null;
+  // Empty: kept only as the room its margin or padding leaves (WordPress pages).
+  if (!hasText(block.content) && !hasSpacing(block.attrs.style)) return null;
   return (
     <p
       id={anchor(block)}
@@ -413,8 +415,39 @@ export const BLOCK_SUPPORTS_CSS =
   '.cx-flow-gap>*+*{margin-block-start:var(--cx-block-gap);margin-block-end:0}';
 
 /**
- * Adds the base styles of tables and galleries to a page that has one, before
- * the theme's, and the block gap of stacked blocks at the end of the page.
+ * WordPress's default spacing sizes (`var(--wp--preset--spacing--20)` …
+ * `--80`), which blocks of WordPress pages name in their margins, paddings
+ * and gaps. A theme may define its own after them.
+ */
+export const SPACING_PRESETS_CSS =
+  ':root{' +
+  (
+    [
+      [20, '0.44rem'],
+      [30, '0.67rem'],
+      [40, '1rem'],
+      [50, '1.5rem'],
+      [60, '2.25rem'],
+      [70, '3.38rem'],
+      [80, '5.06rem'],
+    ] as const
+  )
+    .map(([n, size]) => `--wp--preset--spacing--${n}:${size};`)
+    .join('') +
+  '}';
+
+/** Puts a style before the theme's styles (which may restyle what it sets). */
+function beforeThemeStyles(html: string, style: string): string {
+  const head = html.indexOf('</head>');
+  const first = html.search(/<style|<link[^>]+rel="stylesheet"/);
+  const at = first !== -1 && (head === -1 || first < head) ? first : head;
+  return at === -1 ? style + html : html.slice(0, at) + style + html.slice(at);
+}
+
+/**
+ * Adds the base styles of tables and galleries to a page that has one, and
+ * WordPress's spacing sizes to a page that names them, before the theme's;
+ * the block gap of stacked blocks at the end of the page.
  */
 export function withCoreBlockCss(html: string): string {
   if (/\bcx-flow-gap\b/.test(html)) {
@@ -422,16 +455,13 @@ export function withCoreBlockCss(html: string): string {
     const end = html.lastIndexOf('</body>');
     html = end === -1 ? html + style : html.slice(0, end) + style + html.slice(end);
   }
+  if (/var\(--wp--preset--spacing--/.test(html))
+    html = beforeThemeStyles(html, `<style data-cx-spacing>${SPACING_PRESETS_CSS}</style>`);
   if (
     !/class="wp-block-(table|gallery)\b|-vertically-aligned-|\bis-layout-(flex|grid)\b/.test(html)
   )
     return html;
-  // Before the theme's styles, which may restyle them.
-  const head = html.indexOf('</head>');
-  const first = html.search(/<style|<link[^>]+rel="stylesheet"/);
-  const at = first !== -1 && (head === -1 || first < head) ? first : head;
-  const style = `<style data-cx-core-blocks>${CORE_BLOCK_CSS}</style>`;
-  return at === -1 ? style + html : html.slice(0, at) + style + html.slice(at);
+  return beforeThemeStyles(html, `<style data-cx-core-blocks>${CORE_BLOCK_CSS}</style>`);
 }
 
 function ImageBlock({ block }: { block: CxdBlock }): ReactNode {
