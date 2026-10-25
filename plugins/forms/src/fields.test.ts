@@ -230,3 +230,39 @@ describe('the signed fields', () => {
     expect(await readSpec(key, 'x'.repeat(40_000))).toBeNull();
   });
 });
+
+describe('web addresses and default values (1.5.0)', () => {
+  const fields = normalizeFields([
+    { name: 'site', type: 'url', value: 'https://example.com' },
+    { name: 'room', type: 'select', options: 'single\ndouble', value: 'double' },
+    { name: 'when', type: 'radio', options: 'morning\nevening', value: 'night' },
+    {
+      name: 'extras',
+      type: 'checkbox',
+      options: 'breakfast\nparking\nspa',
+      value: 'spa\nnope\nbreakfast',
+    },
+    { name: 'news', type: 'checkbox', value: 'yes' },
+    { name: 'note', type: 'textarea', value: ' Hello\r\nthere ' },
+    { name: 'ok', type: 'acceptance', value: '1' },
+  ]);
+
+  it('keeps the values that fit the field', () => {
+    expect(fields.map((f) => [f.name, f.type, f.value])).toEqual([
+      ['site', 'url', 'https://example.com'],
+      ['room', 'select', 'double'],
+      ['when', 'radio', ''],
+      ['extras', 'checkbox', 'spa\nbreakfast'],
+      ['news', 'checkbox', '1'],
+      ['note', 'textarea', 'Hello\nthere'],
+      ['ok', 'acceptance', ''],
+    ]);
+  });
+
+  it('checks web addresses', () => {
+    const url = normalizeFields([{ name: 'site', type: 'url' }]);
+    expect(checkValues(url, { site: 'https://example.com/a?b=1' }).invalid).toEqual([]);
+    expect(checkValues(url, { site: 'javascript:alert(1)' }).invalid).toEqual(['site']);
+    expect(checkValues(url, { site: '' }).invalid).toEqual([]);
+  });
+});

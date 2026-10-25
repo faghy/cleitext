@@ -134,7 +134,8 @@ async function run(
     xml: string;
     userId: string;
     authorRole: string;
-    locales: string[];
+    /** The languages to import; null for all the site's. */
+    locales: string[] | null;
     comments: (typeof COMMENTS)[number];
     formCaptcha?: (typeof FORM_CAPTCHAS)[number];
     elementorDefaults?: (typeof ELEMENTOR_DEFAULTS)[number];
@@ -168,7 +169,10 @@ async function run(
     const { document, warnings, meta } = wxrToDocument(xml, {
       locale: job.locale,
       authorRole: options.authorRole,
-      locales: options.locales,
+      // Only languages the site has: the others' pages are left out and reported.
+      locales: (options.locales ?? site.locales ?? []).filter(
+        (l) => !site.locales?.length || site.locales.includes(l),
+      ),
       comments: options.comments,
       ...(options.formCaptcha ? { formCaptcha: options.formCaptcha } : {}),
       ...(options.elementorDefaults ? { elementorDefaults: options.elementorDefaults } : {}),
@@ -323,12 +327,17 @@ export default definePlugin({
       if (!/^[a-z]{2,3}(-[A-Z]{2})?$/.test(locale)) {
         return problem(400, 'Choose the language of the content.');
       }
-      // The site's other languages, to recognise pages translated with WPML.
-      const locales = (request.query.languages ?? '')
-        .split(',')
-        .map((l) => l.trim())
-        .filter((l) => /^[a-z]{2,3}(-[A-Z]{2})?$/.test(l))
-        .slice(0, 8);
+      // The languages to import (`?languages=it,en`), as confirmed in the preview;
+      // without it, all the site's languages (1.28.0): pages translated with
+      // WPML or Polylang go into theirs.
+      const locales =
+        request.query.languages === undefined
+          ? null
+          : request.query.languages
+              .split(',')
+              .map((l) => l.trim())
+              .filter((l) => /^[a-z]{2,3}(-[A-Z]{2})?$/.test(l))
+              .slice(0, 8);
       const comments = COMMENTS.find((c) => c === request.query.comments) ?? 'approved';
       const formCaptcha = FORM_CAPTCHAS.find((c) => c === request.query.formCaptcha);
       const elementorDefaults = ELEMENTOR_DEFAULTS.find(

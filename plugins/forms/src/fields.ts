@@ -9,6 +9,7 @@ export const FIELD_TYPES = [
   'text',
   'email',
   'tel',
+  'url',
   'number',
   'date',
   'textarea',
@@ -34,6 +35,8 @@ export interface SavedField {
   min?: unknown;
   max?: unknown;
   className?: unknown;
+  /** The value it starts with (1.5.0): text, or options chosen, one per line. */
+  value?: unknown;
 }
 
 export interface FieldOption {
@@ -55,6 +58,12 @@ export interface FormField {
   min?: string;
   max?: string;
   className: string;
+  /**
+   * The value it starts with (1.5.0): the text of a text-like field, the
+   * option of a select or radio buttons, the options of checkboxes (one per
+   * line), `1` for a single checkbox. Empty when none.
+   */
+  value: string;
 }
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,6 +71,7 @@ const NAME_RE = /^[a-z][a-z0-9_-]{0,39}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const NUMBER_RE = /^-?\d{1,15}(\.\d{1,6})?$/;
 const TEL_RE = /^[0-9+()\-./\s]{3,40}$/;
+const URL_RE = /^https?:\/\/[^\s<>"]{1,490}$/i;
 /** Names the form itself uses: the honeypot and the hidden fields. */
 const RESERVED = new Set(['website']);
 const MAX_FIELDS = 30;
@@ -71,6 +81,7 @@ export const MAX_LENGTH: Record<FieldType, number> = {
   text: 200,
   email: 200,
   tel: 40,
+  url: 500,
   number: 30,
   date: 10,
   textarea: 5000,
@@ -136,6 +147,32 @@ function nameOf(value: unknown, index: number): string {
   return NAME_RE.test(name) ? name : `field-${index + 1}`;
 }
 
+/** A field's starting value, kept only when it fits the field. */
+function startValue(type: FieldType, value: unknown, options: FieldOption[]): string {
+  const raw = typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
+  if (!raw.trim()) return '';
+  switch (type) {
+    case 'select':
+    case 'radio': {
+      const wanted = raw.split(/\r?\n/)[0]!.trim();
+      return options.some((o) => o.value === wanted) ? wanted : '';
+    }
+    case 'checkbox':
+      if (options.length === 0) return /^(1|yes|true|on)$/i.test(raw.trim()) ? '1' : '';
+      return raw
+        .split(/\r?\n/)
+        .map((v) => v.trim())
+        .filter((v) => options.some((o) => o.value === v))
+        .join('\n');
+    case 'acceptance':
+      return '';
+    case 'textarea':
+      return raw.replace(/\r\n/g, '\n').trim().slice(0, MAX_LENGTH.textarea);
+    default:
+      return raw.replace(/\s+/g, ' ').trim().slice(0, MAX_LENGTH[type]);
+  }
+}
+
 /**
  * The block's fields made safe: known types and widths, valid unique names,
  * options parsed, bounds checked. Fields that cannot work (a select without
@@ -174,6 +211,7 @@ export function normalizeFields(saved: unknown): FormField[] {
       ...(min !== undefined ? { min } : {}),
       ...(max !== undefined ? { max } : {}),
       className: classNames(field.className),
+      value: startValue(type, field.value, options),
     });
   }
   return out;
@@ -360,6 +398,9 @@ export function checkValues(
         break;
       case 'tel':
         if (first && !TEL_RE.test(first)) ok = false;
+        break;
+      case 'url':
+        if (first && !URL_RE.test(first)) ok = false;
         break;
       case 'number': {
         if (!first) break;

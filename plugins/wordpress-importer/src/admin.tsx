@@ -9,7 +9,8 @@ import {
   uploadFile,
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { detectLanguages, matchLocale, scanWxr, sharedAddresses } from './languages';
 import type { Job } from './server';
 
 type Tr = (en: string, it: string) => string;
@@ -60,6 +61,103 @@ function Messages({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+/** What the preview found in the file (read in the browser, before the upload). */
+interface Preview {
+  source: 'wpml' | 'polylang' | 'addresses' | null;
+  found: { code: string; count: number; locale: string | null }[];
+  main: string | null;
+  shared: number;
+}
+
+/** Files larger than this are not read for the preview (the import still recognises languages). */
+const PREVIEW_MAX = 400 * 1024 * 1024;
+
+async function preview(file: File, locales: string[]): Promise<Preview> {
+  const facts = scanWxr(await file.text());
+  const detection = detectLanguages(facts, locales);
+  return {
+    source: detection.source,
+    found: detection.found.map((f) => ({ ...f, locale: matchLocale(f.code, locales) })),
+    main: detection.main,
+    shared: sharedAddresses(facts),
+  };
+}
+
+const SOURCES: Record<string, [string, string]> = {
+  wpml: ['WPML', 'WPML'],
+  polylang: ['Polylang', 'Polylang'],
+  addresses: ['the addresses (/en/…)', 'gli indirizzi (/en/…)'],
+};
+
+/** The languages found in the file, and which of the site's to import. */
+function Languages({
+  site,
+  tr,
+  data,
+  chosen,
+  setChosen,
+}: Pick<AdminPageProps, 'site'> & {
+  tr: Tr;
+  data: Preview | null;
+  chosen: string[];
+  setChosen: (codes: string[]) => void;
+}) {
+  return (
+    <fieldset
+      className="space-y-2 rounded border border-slate-200 p-3"
+      data-testid="import-languages"
+    >
+      <legend className="px-1 text-sm font-medium text-slate-800">
+        {tr('Languages to import', 'Lingue da importare')}
+      </legend>
+      {data?.source ? (
+        <p className="text-sm text-slate-700">
+          {tr('Found by', 'Trovate da')} {tr(...SOURCES[data.source]!)}:{' '}
+          {data.found
+            .map(
+              (f) =>
+                `${f.code} (${f.count})${f.locale ? '' : tr(' – not on this site', ' – non presente nel sito')}`,
+            )
+            .join(', ')}
+        </p>
+      ) : data && data.shared > 0 ? (
+        <p className="text-sm text-slate-700">
+          {tr(
+            `${data.shared} page(s) share their address with others: translations exported by WP-CLI, whose language is guessed from their text.`,
+            `${data.shared} pagine condividono l’indirizzo con altre: traduzioni esportate da WP-CLI, la cui lingua viene riconosciuta dal testo.`,
+          )}
+        </p>
+      ) : data ? (
+        <p className="text-sm text-slate-700">
+          {tr('No translations found in the file.', 'Nel file non ci sono traduzioni.')}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {site.locales.map((l) => (
+          <label key={l.code} className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={chosen.includes(l.code)}
+              onChange={(e) =>
+                setChosen(
+                  e.target.checked ? [...chosen, l.code] : chosen.filter((c) => c !== l.code),
+                )
+              }
+            />
+            {l.name}
+          </label>
+        ))}
+      </div>
+      <p className="text-xs text-slate-500">
+        {tr(
+          'Pages in a language left unchecked, or that the site does not have, are not imported (the report counts them): add the language with Multilingual and import the file again.',
+          'Le pagine in una lingua non selezionata, o che il sito non ha, non vengono importate (il resoconto le conta): aggiungi la lingua con Multilingual e importa di nuovo il file.',
+        )}
+      </p>
+    </fieldset>
+  );
+}
+
 function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: () => void }) {
   const fileId = useId();
   const localeId = useId();
@@ -76,6 +174,28 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   const defaultsId = useId();
   const [elementorDefaults, setElementorDefaults] = useState('auto');
   const [sent, setSent] = useState(0);
+  const codes = site.locales.map((l) => l.code);
+  const [found, setFound] = useState<Preview | null>(null);
+  const [chosen, setChosen] = useState<string[]>(codes);
+  // The file's languages, read here before the upload, to confirm or change them.
+  useEffect(() => {
+    setFound(null);
+    if (!file || site.locales.length < 2 || file.size > PREVIEW_MAX) return;
+    let live = true;
+    preview(file, codes)
+      .then((data) => {
+        if (!live) return;
+        setFound(data);
+        const present = data.found.map((f) => f.locale).filter((l): l is string => Boolean(l));
+        if (present.length > 0) setChosen([...new Set([...present])]);
+        const main = data.main ? matchLocale(data.main, codes) : null;
+        if (main) setLocale(main);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [file]);
   const start = useMutation({
     mutationFn: async () => {
       // Divi's theme options go first: the import of the export reads them.
@@ -89,9 +209,9 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
         comments,
         ...(formCaptcha ? { formCaptcha } : {}),
         ...(elementorDefaults !== 'auto' ? { elementorDefaults } : {}),
-        // All the site's languages: pages translated with WPML go into theirs.
+        // The languages confirmed in the preview (the content language always).
         ...(site.locales.length > 1
-          ? { languages: site.locales.map((l) => l.code).join(',') }
+          ? { languages: [...new Set([locale, ...chosen])].join(',') }
           : {}),
       });
       return uploadFile(file!, {
@@ -155,6 +275,9 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
               )}
             </p>
           </div>
+          {site.locales.length > 1 && (
+            <Languages site={site} tr={tr} data={found} chosen={chosen} setChosen={setChosen} />
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             {site.locales.length > 1 && (
               <div className="space-y-1">
@@ -175,8 +298,8 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
                 </select>
                 <p className="text-xs text-slate-500">
                   {tr(
-                    'Pages translated with WPML are recognised and go into their own language.',
-                    'Le pagine tradotte con WPML vengono riconosciute e vanno nella loro lingua.',
+                    'The main language of the WordPress site. Pages translated with WPML or Polylang go into their own language.',
+                    'La lingua principale del sito WordPress. Le pagine tradotte con WPML o Polylang vanno nella loro lingua.',
                   )}
                 </p>
               </div>

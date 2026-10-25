@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-forms",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Official Cleitext plugin: contact form block with stored and emailed messages.",
   "license": "GPL-2.0-or-later",

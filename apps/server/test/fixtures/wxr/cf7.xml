@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0"
+	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:wp="http://wordpress.org/export/1.2/"
+>
+<channel>
+	<title>Rooms by the sea</title>
+	<link>https://rooms.example.com</link>
+	<description>Synthetic test site</description>
+	<wp:wxr_version>1.2</wp:wxr_version>
+	<wp:base_site_url>https://rooms.example.com</wp:base_site_url>
+	<wp:base_blog_url>https://rooms.example.com</wp:base_blog_url>
+	<wp:author><wp:author_id>1</wp:author_id><wp:author_login><![CDATA[admin]]></wp:author_login><wp:author_email><![CDATA[admin@rooms.example.com]]></wp:author_email><wp:author_display_name><![CDATA[Admin]]></wp:author_display_name></wp:author>
+	
+
+	<item>
+		<title><![CDATA[Booking]]></title>
+		<link>https://rooms.example.com/?post_type=wpcf7_contact_form&p=60</link>
+		<dc:creator><![CDATA[admin]]></dc:creator>
+		<content:encoded><![CDATA[]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>60</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-01 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[booking]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:menu_order>0</wp:menu_order>
+		<wp:post_type><![CDATA[wpcf7_contact_form]]></wp:post_type>
+		<wp:postmeta><wp:meta_key><![CDATA[_form]]></wp:meta_key><wp:meta_value><![CDATA[<p>Your name (required)<br />
+    [text* your-name placeholder "Mario Rossi"] </p>
+
+<label> Your email
+    [email* your-email] </label>
+
+<label> Phone [tel your-phone] </label>
+
+<label> Website [url your-site] </label>
+
+<label> Guests [number guests min:1 max:8 "2"] </label>
+
+<label> Arrival [date* arrival min:2025-01-01] </label>
+
+<label> Room
+    [select room first_as_label "Choose a room" "Single|single" "Double|double" default:2] </label>
+
+<p>Extras</p>
+[checkbox extras use_label_element default:1 "Breakfast" "Parking"]
+
+<p>Contact me by</p>
+[radio contact-by "Email" "Phone"]
+
+<label> Your message
+    [textarea your-message placeholder "Tell us more"] </label>
+
+[acceptance privacy] I accept the <a href="/privacy-policy">privacy policy</a> [/acceptance]
+
+[quiz capital "Capital of Italy?|Rome"]
+
+[file cv limit:1mb]
+
+[dynamictext source "CF7_URL"]
+
+[response]
+
+[submit "Send request"]]]></wp:meta_value></wp:postmeta><wp:postmeta><wp:meta_key><![CDATA[_mail]]></wp:meta_key><wp:meta_value><![CDATA[a:8:{s:7:"subject";s:38:"[_site_title] booking from [your-name]";s:6:"sender";s:43:"[_site_title] <wordpress@rooms.example.com>";s:9:"recipient";s:26:"bookings@rooms.example.com";s:4:"body";s:48:"From: [your-name] <[your-email]>
+
+[your-message]";s:18:"additional_headers";s:22:"Reply-To: [your-email]";s:11:"attachments";s:0:"";s:8:"use_html";b:0;s:13:"exclude_blank";b:0;}]]></wp:meta_value></wp:postmeta><wp:postmeta><wp:meta_key><![CDATA[_mail_2]]></wp:meta_key><wp:meta_value><![CDATA[a:9:{s:6:"active";b:1;s:7:"subject";s:9:"Thank you";s:6:"sender";s:1:"x";s:9:"recipient";s:12:"[your-email]";s:4:"body";s:9:"We got it";s:18:"additional_headers";s:0:"";s:11:"attachments";s:0:"";s:8:"use_html";b:0;s:13:"exclude_blank";b:0;}]]></wp:meta_value></wp:postmeta><wp:postmeta><wp:meta_key><![CDATA[_messages]]></wp:meta_key><wp:meta_value><![CDATA[a:2:{s:12:"mail_sent_ok";s:38:"Thank you, we will reply within a day.";s:12:"mail_sent_ng";s:21:"Something went wrong.";}]]></wp:meta_value></wp:postmeta><wp:postmeta><wp:meta_key><![CDATA[_hash]]></wp:meta_key><wp:meta_value><![CDATA[a1b2c3d4e5f60718293a4b5c6d7e8f9012345678]]></wp:meta_value></wp:postmeta>
+	</item>
+	<item>
+		<title><![CDATA[Newsletter]]></title>
+		<link>https://rooms.example.com/?post_type=wpcf7_contact_form&p=61</link>
+		<dc:creator><![CDATA[admin]]></dc:creator>
+		<content:encoded><![CDATA[]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>61</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-01 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[newsletter]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:menu_order>0</wp:menu_order>
+		<wp:post_type><![CDATA[wpcf7_contact_form]]></wp:post_type>
+		<wp:postmeta><wp:meta_key><![CDATA[_form]]></wp:meta_key><wp:meta_value><![CDATA[[email* news-email placeholder "Your email"]
+
+[acceptance consent optional] Send me news [/acceptance]
+
+[submit "Subscribe"]]]></wp:meta_value></wp:postmeta><wp:postmeta><wp:meta_key><![CDATA[_mail]]></wp:meta_key><wp:meta_value><![CDATA[a:3:{s:7:"subject";s:10:"Newsletter";s:9:"recipient";s:19:"[_site_admin_email]";s:18:"additional_headers";s:0:"";}]]></wp:meta_value></wp:postmeta><wp:postmeta><wp:meta_key><![CDATA[_hash]]></wp:meta_key><wp:meta_value><![CDATA[b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0]]></wp:meta_value></wp:postmeta>
+	</item>
+	<item>
+		<title><![CDATA[Book a room]]></title>
+		<link>https://rooms.example.com/book/</link>
+		<dc:creator><![CDATA[admin]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Tell us when you arrive.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:shortcode -->
+[contact-form-7 id="60" title="Booking"]
+<!-- /wp:shortcode -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>70</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-01 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[book]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:menu_order>0</wp:menu_order>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+		
+	</item>
+	<item>
+		<title><![CDATA[Newsletter]]></title>
+		<link>https://rooms.example.com/newsletter/</link>
+		<dc:creator><![CDATA[admin]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Stay in touch.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:shortcode -->
+[contact-form-7 title="Newsletter"]
+<!-- /wp:shortcode -->
+
+<!-- wp:paragraph -->
+<p>[contact-form-7 id="a1b2c3d" title="Booking"]</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>71</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-01 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[newsletter]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:menu_order>0</wp:menu_order>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+		
+	</item>
+	<item>
+		<title><![CDATA[Old form]]></title>
+		<link>https://rooms.example.com/old-form/</link>
+		<dc:creator><![CDATA[admin]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:shortcode -->
+[contact-form-7 id="99" title="Gone"]
+<!-- /wp:shortcode -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>72</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-01 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[old-form]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:menu_order>0</wp:menu_order>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+		
+	</item>
+	<item>
+		<title><![CDATA[About]]></title>
+		<link>https://rooms.example.com/about/</link>
+		<dc:creator><![CDATA[admin]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>About the house.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:html -->
+<style>a.cky-banner-element{padding:0;background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer}.footer-note{color:#555}</style>
+<p class="footer-note">© Rooms by the sea · <a class="cky-banner-element">Cookie settings</a></p>
+<!-- /wp:html -->
+
+<!-- wp:html -->
+<style id="cky-style-inline">.cky-consent-container{display:none}</style>
+<!-- /wp:html -->
+
+<!-- wp:html -->
+<script id="CookieDeclaration" src="https://consent.cookiebot.com/0000/cd.js" type="text/javascript" async></script>
+<!-- /wp:html -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>73</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-01 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[about]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:menu_order>0</wp:menu_order>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+		
+	</item>
+	<item>
+		<title><![CDATA[astra-child]]></title>
+		<link>https://rooms.example.com/astra-child/</link>
+		<dc:creator><![CDATA[admin]]></dc:creator>
+		<content:encoded><![CDATA[.custom-infobox .uagb-ifb-separator{background-image:url(https://rooms.example.com/brush.png)}
+.cky-btn-revisit-wrapper{display:none}
+.site-title{letter-spacing:1px}]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>80</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-01 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[astra-child]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:menu_order>0</wp:menu_order>
+		<wp:post_type><![CDATA[custom_css]]></wp:post_type>
+		
+	</item>
+</channel>
+</rss>

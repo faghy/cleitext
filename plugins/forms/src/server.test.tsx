@@ -300,3 +300,25 @@ describe('the hotel booking form', () => {
     );
   });
 });
+
+describe('default values and web addresses (1.5.0)', () => {
+  it('render as the fields’ starting values', async () => {
+    const { render } = setUp({});
+    const { html } = await render({
+      fields: [
+        { name: 'site', type: 'url', label: 'Site', value: 'https://example.com' },
+        { name: 'subject', type: 'text', label: 'Subject', value: 'Booking' },
+        { name: 'room', type: 'select', label: 'Room', options: 'single\ndouble', value: 'double' },
+        { name: 'extras', type: 'checkbox', label: 'Extras', options: 'a\nb', value: 'b' },
+        { name: 'note', type: 'textarea', label: 'Note', value: 'Hi' },
+      ],
+    });
+    expect(html).toContain(
+      '<input type="url" maxLength="500" autoComplete="url" name="site" value="https://example.com"/>',
+    );
+    expect(html).toContain('value="Booking"');
+    expect(html).toMatch(/<option value="double" selected="">double<\/option>/);
+    expect(html).toContain('<input type="checkbox" name="extras" checked="" value="b"/>');
+    expect(html).toContain('>Hi</textarea>');
+  });
+});

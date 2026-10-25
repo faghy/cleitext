@@ -60,6 +60,7 @@ const TYPE_LABELS: Record<(typeof FIELD_TYPES)[number], { en: string; it: string
   text: { en: 'Text', it: 'Testo' },
   email: { en: 'Email', it: 'Email' },
   tel: { en: 'Phone', it: 'Telefono' },
+  url: { en: 'Web address', it: 'Indirizzo web' },
   number: { en: 'Number', it: 'Numero' },
   date: { en: 'Date', it: 'Data' },
   textarea: { en: 'Long text', it: 'Testo lungo' },
@@ -146,6 +147,7 @@ function Field({ field }: { field: FormField }) {
             maxLength={5000}
             rows={6}
             placeholder={placeholder}
+            defaultValue={field.value || undefined}
             aria-label={aria}
           />
         </label>
@@ -154,7 +156,12 @@ function Field({ field }: { field: FormField }) {
       return (
         <label className={classes()}>
           {title}
-          <select name={field.name} required={field.required} aria-label={aria} defaultValue="">
+          <select
+            name={field.name}
+            required={field.required}
+            aria-label={aria}
+            defaultValue={field.value}
+          >
             <option value="">{field.placeholder || '—'}</option>
             {field.options.map((o) => (
               <option key={o.value} value={o.value}>
@@ -167,6 +174,7 @@ function Field({ field }: { field: FormField }) {
     case 'radio':
     case 'checkbox':
       if (field.type === 'radio' || field.options.length > 0) {
+        const chosen = new Set(field.value ? field.value.split('\n') : []);
         return (
           <fieldset className={classes()}>
             {field.label && (
@@ -180,6 +188,7 @@ function Field({ field }: { field: FormField }) {
                   type={field.type}
                   name={field.name}
                   value={o.value}
+                  defaultChecked={chosen.has(o.value) || undefined}
                   // One radio button required is enough for the browser.
                   required={field.type === 'radio' && field.required && i === 0}
                 />
@@ -191,7 +200,13 @@ function Field({ field }: { field: FormField }) {
       }
       return (
         <label className={classes('cf-choice')}>
-          <input type="checkbox" name={field.name} value="1" required={field.required} />
+          <input
+            type="checkbox"
+            name={field.name}
+            value="1"
+            required={field.required}
+            defaultChecked={field.value === '1' || undefined}
+          />
           <span>
             <Label label={field.label || field.placeholder || field.name} />
           </span>
@@ -219,14 +234,23 @@ function Field({ field }: { field: FormField }) {
                 ? undefined
                 : field.type === 'tel'
                   ? 40
-                  : 200
+                  : field.type === 'url'
+                    ? 500
+                    : 200
             }
             min={field.min}
             max={field.max}
             placeholder={placeholder}
+            defaultValue={field.value || undefined}
             aria-label={aria}
             autoComplete={
-              field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : undefined
+              field.type === 'email'
+                ? 'email'
+                : field.type === 'tel'
+                  ? 'tel'
+                  : field.type === 'url'
+                    ? 'url'
+                    : undefined
             }
           />
         </label>
@@ -420,6 +444,17 @@ export default definePlugin({
                 type: 'text',
                 label: { en: 'Placeholder', it: 'Testo segnaposto' },
                 maxLength: 200,
+              },
+              {
+                name: 'value',
+                type: 'text',
+                multiline: true,
+                label: { en: 'Default value', it: 'Valore iniziale' },
+                help: {
+                  en: 'The text it starts with; for menus, checkboxes and radio buttons the chosen option(s), one per line.',
+                  it: 'Il testo con cui parte; per menu, caselle e scelta singola le opzioni scelte, una per riga.',
+                },
+                maxLength: 5000,
               },
               {
                 name: 'required',

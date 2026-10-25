@@ -2,6 +2,13 @@ import { XMLParser } from 'fast-xml-parser';
 import { htmlToCxd, IMPORTED_BLOCK, texturizeHtml, texturizeText } from '@cleitext/blocks/html';
 import { assignLanguages } from './wpml';
 import {
+  detectLanguages,
+  matchLocale,
+  META_KEYS,
+  type ItemFacts,
+  type LanguageDetection,
+} from './languages';
+import {
   elementorToFresco,
   restoreEmoji,
   takeStretched,
@@ -30,6 +37,14 @@ import {
   type KitResult,
 } from './elementor-site.js';
 import { metaValue } from './php.js';
+import { cmpWarning, emptyCmpReport, stripCmpBlocks, stripCmpCss } from './cmp.js';
+import {
+  convertCf7,
+  replaceCf7Shortcodes,
+  type Cf7Form,
+  type Cf7Lookup,
+  type ConvertedForm,
+} from './cf7.js';
 import { wxrAdditionalCss } from './additional-css.js';
 import { DIVI_TAXONOMIES, DIVI_TYPES, prepareDivi, type DiviItem } from './divi-site.js';
 import { diviPageCss, diviToFresco } from '@cleitext/blocks/divi';
@@ -600,7 +615,24 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     });
     if (isProduct) shopProducts.push(wooProduct(item, ref, variationsOf.get(id) ?? [], wooContext));
   }
-  const translated = recogniseTranslations(entries, sources, locale, options.locales ?? []);
+  // ---- Languages: WPML's and Polylang's data, language addresses ------------------------
+  const candidates = [...new Set([locale, ...(options.locales ?? [])])];
+  const detection = detectLanguages(
+    items.filter((i) => text(i['wp:post_type']) !== 'attachment').map(itemFacts),
+    candidates,
+  );
+  const languages = siteLanguages(detection, locale, candidates);
+  const decided = applyLanguages(entries, detection, languages, warnings);
+  for (const [id, ref] of entryRefs) {
+    if (decided.dropped.has(ref)) entryRefs.delete(id);
+  }
+  if (decided.dropped.size > 0) {
+    for (let i = shopProducts.length - 1; i >= 0; i--) {
+      const ref = (shopProducts[i]!.entry as { $entry?: string } | undefined)?.$entry;
+      if (ref && decided.dropped.has(ref)) shopProducts.splice(i, 1);
+    }
+  }
+  const translated = recogniseTranslations(entries, sources, locale, candidates, decided.kept);
   if (translated > 0) {
     warnings.push(
       `${translated} page(s) or post(s) were recognised as WPML translations, with their language guessed from their text: check them in each language.`,
@@ -699,16 +731,55 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     );
   }
 
+  // ---- Contact Form 7 → Forms ----------------------------------------------------------
+  const cf7 = cf7Lookup(items, detection, languages, locale, decode(text(channel.title)));
+  if (cf7.forms > 0) {
+    let blocks = 0;
+    const missing = new Set<string>();
+    for (const entry of entries) {
+      const done = replaceCf7Shortcodes(entry.document.blocks as CxdBlock[], entry.locale, cf7);
+      if (done.converted === 0 && done.missing.length === 0) continue;
+      entry.document = { ...entry.document, blocks: done.blocks };
+      blocks += done.converted;
+      for (const text of done.missing) missing.add(text);
+    }
+    for (const [title, notes] of cf7.notes()) {
+      warnings.push(`Contact Form 7 form "${title}": ${notes.join('; ')}.`);
+    }
+    if (blocks > 0) {
+      warnings.push(
+        `${blocks} Contact Form 7 shortcode(s) became Forms blocks (${cf7.used()} form(s)), with their fields, subject, Reply-To and thank-you message: activate the Forms plugin and set the address that receives the messages in Settings → Forms.`,
+      );
+    }
+    for (const text of missing) {
+      warnings.push(`${text}: the form is not in the export, the shortcode was kept as text.`);
+    }
+  }
+
+  // ---- Cookie banners' leftovers (the Privacy plugin replaces them) ----------------------
+  const cmp = emptyCmpReport();
+  for (const entry of entries) {
+    const blocks = stripCmpBlocks(entry.document.blocks as CxdBlock[], cmp);
+    if (blocks !== entry.document.blocks) entry.document = { ...entry.document, blocks };
+  }
+
   // ---- Menus ------------------------------------------------------------------------------
   const menus: NonNullable<TransferDocumentInput['menus']> = [];
   const navItems = items.filter((i) => text(i['wp:post_type']) === 'nav_menu_item');
+  // Menus of other languages: WP-CLI's export of a WPML site has only the main
+  // language's nav_menu terms, but every item names its menu (`<category domain="nav_menu">`).
+  const menuOf = (item: Node) =>
+    ((item.category as Node[] | undefined) ?? []).find((c) => c['@_domain'] === 'nav_menu');
+  for (const item of navItems) {
+    const category = menuOf(item);
+    const slug = category ? String(category['@_nicename'] ?? '') : '';
+    if (slug && !menuNames.has(slug)) menuNames.set(slug, decode(text(category)) || slug);
+  }
+  const entryByRef = new Map(entries.map((e) => [e.ref, e]));
+  const menuLanguages: string[] = [];
   for (const [slug, name] of menuNames) {
     const own = navItems
-      .filter((i) =>
-        ((i.category as Node[] | undefined) ?? []).some(
-          (c) => c['@_domain'] === 'nav_menu' && c['@_nicename'] === slug,
-        ),
-      )
+      .filter((i) => String(menuOf(i)?.['@_nicename'] ?? '') === slug)
       .sort((a, b) => Number(text(a['wp:menu_order'])) - Number(text(b['wp:menu_order'])));
     const byParent = new Map<string, Node[]>();
     for (const item of own) {
@@ -735,9 +806,60 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
           ? { kind: 'url', url: relativeTo(url, baseUrl), label: label ?? url, target, children }
           : { kind: 'custom', label: label ?? 'Item', children };
       });
+    const built = build('0');
+    // The menu's language: its items' (WPML's data), else most of the pages it links to.
+    const votes = new Map<string, number>();
+    const vote = (code: string | null | undefined) => {
+      if (code) votes.set(code, (votes.get(code) ?? 0) + 1);
+    };
+    for (const item of own) {
+      const code = detection.languages.get(Number(text(item['wp:post_id'])));
+      vote(code ? languages.get(code) : null);
+    }
+    if (votes.size === 0) {
+      walkMenu(built, (item) => vote(item.entryRef ? entryByRef.get(item.entryRef)?.locale : null));
+    }
+    const menuLocale = [...votes].sort((a, b) => b[1] - a[1])[0]?.[0] ?? locale;
+    // Items linking to a page of another language link to its translation.
+    walkMenu(built, (item) => {
+      const target = item.entryRef ? entryByRef.get(item.entryRef) : undefined;
+      if (!target || target.locale === menuLocale) return;
+      const translation = translationIn(entries, target, menuLocale);
+      if (translation) item.entryRef = translation.ref;
+    });
     // Menus shown by Elementor's nav menu widgets get a location of their own.
     const location = elementor.menuLocations.get(slug) ?? divi.menuLocations.get(slug);
-    menus.push({ name, locale, ...(location ? { location } : {}), items: build('0') });
+    menus.push({ name, locale: menuLocale, ...(location ? { location } : {}), items: built });
+    menuLanguages.push(menuLocale);
+  }
+  // Languages with translated pages but no menu: the main language's menus,
+  // each item linking to the translation of its page.
+  const translatedLocales = new Set(
+    entries.filter((e) => e.translationRef && e.locale !== locale).map((e) => e.locale),
+  );
+  for (const target of translatedLocales) {
+    if (menuLanguages.includes(target)) continue;
+    for (const menu of menus.filter((m) => m.locale === locale)) {
+      let missing = 0;
+      const copy = (list: TransferMenuItem[]): TransferMenuItem[] =>
+        list.flatMap((item): TransferMenuItem[] => {
+          const children = copy(item.children ?? []);
+          if (item.kind !== 'entry') return [{ ...item, children }];
+          const from = item.entryRef ? entryByRef.get(item.entryRef) : undefined;
+          const translation = from ? translationIn(entries, from, target) : undefined;
+          if (!translation) {
+            missing++;
+            return children;
+          }
+          // The translated page's own title, not the main language's label.
+          return [{ ...item, entryRef: translation.ref, label: null, children }];
+        });
+      const translatedItems = copy(menu.items as TransferMenuItem[]);
+      menus.push({ ...menu, locale: target, items: translatedItems });
+      warnings.push(
+        `Menu "${menu.name}" was rebuilt in ${target} from the ${locale} one, each page replaced by its translation${missing ? ` (${missing} item(s) without a translation left out)` : ''}: check its labels and links.`,
+      );
+    }
   }
 
   // ---- Meta for plugins (`import.wxrMeta`) ------------------------------------------------
@@ -791,6 +913,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   // ---- Additional CSS (the Customizer's, a `custom_css` post per theme) ---------------
   const additionalCss = wxrAdditionalCss(items);
   warnings.push(...additionalCss.warnings);
+  if (additionalCss.css) additionalCss.css = stripCmpCss(additionalCss.css, cmp);
+  const cmpLine = cmpWarning(cmp);
+  if (cmpLine) warnings.push(cmpLine);
 
   return {
     warnings,
@@ -1204,6 +1329,225 @@ function decode(value: string): string {
 }
 
 /**
+ * The export's Contact Form 7 forms, found by a shortcode's id, hash or
+ * title, in the language of the page when the form was translated.
+ */
+function cf7Lookup(
+  items: Node[],
+  detection: LanguageDetection,
+  languages: Map<string, string | null>,
+  locale: string,
+  siteTitle: string,
+): Cf7Lookup & {
+  forms: number;
+  used(): number;
+  notes(): Map<string, string[]>;
+} {
+  const forms: Cf7Form[] = [];
+  for (const item of items) {
+    if (text(item['wp:post_type']) !== 'wpcf7_contact_form') continue;
+    if (text(item['wp:status']) === 'trash') continue;
+    const record = (key: string) => {
+      const value = metaValue(meta(item, key));
+      return value && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+    };
+    forms.push({
+      id: Number(text(item['wp:post_id'])) || 0,
+      title: decode(text(item.title)),
+      hash: meta(item, '_hash') ?? '',
+      template: meta(item, '_form') ?? '',
+      mail: record('_mail'),
+      mail2: record('_mail_2'),
+      messages: record('_messages'),
+    });
+  }
+  const localeOf = (form: Cf7Form) => {
+    const code = detection.languages.get(form.id);
+    return (code ? languages.get(code) : null) ?? locale;
+  };
+  const groupOf = new Map<number, number[]>();
+  for (const ids of detection.groups.values()) for (const id of ids) groupOf.set(id, ids);
+  const converted = new Map<number, ConvertedForm>();
+  return {
+    forms: forms.length,
+    find(attrs, wanted) {
+      const id = (attrs.id ?? '').trim();
+      const title = decode(attrs.title ?? '').trim();
+      const form =
+        (/^\d+$/.test(id) ? forms.find((f) => f.id === Number(id)) : undefined) ??
+        (/^[0-9a-f]{7,40}$/i.test(id)
+          ? forms.find((f) => f.hash.toLowerCase().startsWith(id.toLowerCase()))
+          : undefined) ??
+        (title ? forms.find((f) => f.title === title) : undefined);
+      if (!form || localeOf(form) === wanted) return form;
+      // WPML shows the translation of the form in the page's language.
+      const group = groupOf.get(form.id) ?? [];
+      return (
+        forms.find((f) => f.id !== form.id && group.includes(f.id) && localeOf(f) === wanted) ??
+        form
+      );
+    },
+    convert(form) {
+      let done = converted.get(form.id);
+      if (!done) {
+        done = convertCf7(form, siteTitle);
+        converted.set(form.id, done);
+      }
+      return done;
+    },
+    used: () => converted.size,
+    notes: () =>
+      new Map(
+        forms
+          .filter((f) => converted.get(f.id)?.warnings.length)
+          .map((f) => [f.title, converted.get(f.id)!.warnings]),
+      ),
+  };
+}
+
+/** Every item of a menu, children included. */
+function walkMenu(items: TransferMenuItem[], visit: (item: TransferMenuItem) => void): void {
+  for (const item of items) {
+    visit(item);
+    walkMenu(item.children ?? [], visit);
+  }
+}
+
+/** The translation of an entry in a language, when it has one. */
+function translationIn(
+  entries: NonNullable<TransferDocumentInput['entries']>,
+  entry: TransferEntryInput,
+  locale: string,
+): TransferEntryInput | undefined {
+  if (!entry.translationRef) return undefined;
+  return entries.find((e) => e.translationRef === entry.translationRef && e.locale === locale);
+}
+
+/** What the language detection reads of an item. */
+function itemFacts(item: Node): ItemFacts {
+  const meta: Record<string, string> = {};
+  for (const row of (item['wp:postmeta'] as Node[] | undefined) ?? []) {
+    const key = text(row['wp:meta_key']);
+    if (META_KEYS.has(key) && !(key in meta)) meta[key] = text(row['wp:meta_value']);
+  }
+  return {
+    id: Number(text(item['wp:post_id'])) || 0,
+    type: text(item['wp:post_type']),
+    link: text(item.link),
+    meta,
+    categories: ((item.category as Node[] | undefined) ?? []).map((c) => ({
+      domain: String(c['@_domain'] ?? ''),
+      nicename: String(c['@_nicename'] ?? ''),
+    })),
+  };
+}
+
+/**
+ * The site's language for each WordPress language of the export: the same
+ * code or base language, and the export's main language for the content
+ * language chosen when the site has no better match. One site language per
+ * WordPress language; null for languages the site does not have.
+ */
+function siteLanguages(
+  detection: LanguageDetection,
+  locale: string,
+  candidates: string[],
+): Map<string, string | null> {
+  const out = new Map<string, string | null>();
+  const taken = new Set<string>();
+  for (const { code } of detection.found) {
+    const match = matchLocale(code, candidates);
+    if (match && !taken.has(match)) {
+      out.set(code, match);
+      taken.add(match);
+    } else {
+      out.set(code, null);
+    }
+  }
+  const main = detection.main;
+  if (main && out.get(main) === null && !taken.has(locale)) out.set(main, locale);
+  return out;
+}
+
+/**
+ * Entries whose language the export says go into it (the site's), as
+ * translations of each other when grouped; those in a language the site
+ * does not have are left out. Returns the refs decided and left out.
+ */
+function applyLanguages(
+  entries: NonNullable<TransferDocumentInput['entries']>,
+  detection: LanguageDetection,
+  languages: Map<string, string | null>,
+  warnings: string[],
+): { kept: Set<string>; dropped: Map<string, string> } {
+  const kept = new Set<string>();
+  const dropped = new Map<string, string>();
+  if (!detection.source) return { kept, dropped };
+  const idOf = (ref: string) => (ref.startsWith('post:') ? Number(ref.slice(5)) : NaN);
+  let w = 0;
+  for (const entry of entries) {
+    const code = detection.languages.get(idOf(entry.ref));
+    if (code) {
+      const target = languages.get(code);
+      if (!target) {
+        dropped.set(entry.ref, code);
+        continue;
+      }
+      entry.locale = target;
+      kept.add(entry.ref);
+    }
+    entries[w++] = entry;
+  }
+  entries.length = w;
+  const byRef = new Map(entries.map((e) => [e.ref, e]));
+  const prefix = detection.source === 'polylang' ? 'pll' : 'wpml';
+  let groups = 0;
+  for (const [key, ids] of detection.groups) {
+    const members = ids
+      .map((id) => byRef.get(`post:${id}`))
+      .filter((e): e is TransferEntryInput => Boolean(e && kept.has(e.ref)));
+    const perLocale = new Map<string, TransferEntryInput>();
+    for (const member of members)
+      if (!perLocale.has(member.locale)) perLocale.set(member.locale, member);
+    if (perLocale.size < 2) continue;
+    groups++;
+    const main = detection.main ? perLocale.get(languages.get(detection.main) ?? '') : undefined;
+    const mainLink = main?.oldPaths?.[0];
+    for (const member of perLocale.values()) {
+      member.translationRef = `${prefix}:${key}`;
+      // Translations exported with the main page's address keep none of their own.
+      if (member !== main && mainLink && member.oldPaths?.[0] === mainLink) delete member.oldPaths;
+    }
+  }
+  const counts = new Map<string, number>();
+  for (const ref of kept) {
+    const lang = byRef.get(ref)!.locale;
+    counts.set(lang, (counts.get(lang) ?? 0) + 1);
+  }
+  const from =
+    detection.source === 'polylang'
+      ? 'Polylang'
+      : detection.source === 'wpml'
+        ? 'WPML'
+        : 'their addresses (/en/…)';
+  if (kept.size > 0) {
+    warnings.push(
+      `Languages from ${from}: ${[...counts].map(([l, n]) => `${n} in ${l}`).join(', ')}; ${groups} group(s) of translations linked.`,
+    );
+  }
+  const left = new Map<string, number>();
+  for (const code of dropped.values()) left.set(code, (left.get(code) ?? 0) + 1);
+  for (const [code, n] of left) {
+    warnings.push(
+      `${n} page(s) or post(s) in "${code}" were not imported: the site has no such language. Add it with the Multilingual plugin and import the same file again (what was imported is kept).`,
+    );
+  }
+  return { kept, dropped };
+}
+
+/**
  * WPML translations (see wpml.ts): each group gets its languages, a shared
  * translation reference, and only the main-language entry keeps the old
  * address. Returns how many entries got another language.
@@ -1213,11 +1557,14 @@ function recogniseTranslations(
   sources: Map<string, { link: string; text: string }>,
   main: string,
   locales: string[],
+  decided: Set<string> = new Set(),
 ): number {
   const candidates = [...new Set([main, ...locales])];
   if (candidates.length < 2) return 0;
   const groups = new Map<string, typeof entries>();
   for (const entry of entries) {
+    // Entries whose language the export says (WPML, Polylang, addresses).
+    if (decided.has(entry.ref)) continue;
     const link = sources.get(entry.ref)?.link;
     if (!link) continue;
     const key = `${entry.type}|${link}`;
