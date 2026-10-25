@@ -11,7 +11,7 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { api, removeEntries, signIn, SITE } from './fixtures/api';
+import { api, removeEntries, signIn, SITE } from './fixtures/api.js';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
 
