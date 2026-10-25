@@ -10,6 +10,8 @@ import {
 import { MediaUpload, MediaUploadCheck, useBlockProps } from '@wordpress/block-editor';
 import { getBlockType, registerBlockType } from '@wordpress/blocks';
 import { useState } from 'react';
+import { chevronDown, chevronUp, trash } from '@wordpress/icons';
+import { dashiconSvg } from './dashicons';
 import {
   Button,
   Placeholder,
@@ -94,7 +96,7 @@ function FieldBlockEdit({
   return (
     <div {...blockProps}>
       <Placeholder
-        icon={(definition.icon ?? 'admin-plugins') as never}
+        icon={dashiconSvg(definition.icon ?? 'admin-plugins')}
         label={definition.title}
         instructions={definition.description ?? 'Shown on the site with the theme styles.'}
         className="cleitext-field-block"
@@ -284,21 +286,21 @@ function ListControl({
                 </span>
               </Button>
               <Button
-                icon="arrow-up-alt2"
+                icon={chevronUp}
                 label={it ? 'Sposta su' : 'Move up'}
                 size="small"
                 disabled={index === 0}
                 onClick={() => move(index, index - 1)}
               />
               <Button
-                icon="arrow-down-alt2"
+                icon={chevronDown}
                 label={it ? 'Sposta giù' : 'Move down'}
                 size="small"
                 disabled={index === value.length - 1}
                 onClick={() => move(index, index + 1)}
               />
               <Button
-                icon="trash"
+                icon={trash}
                 label={it ? 'Rimuovi' : 'Remove'}
                 size="small"
                 isDestructive

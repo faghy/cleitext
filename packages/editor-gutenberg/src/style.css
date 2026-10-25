@@ -101,3 +101,12 @@
 .block-editor-bindings__panel {
   display: none;
 }
+
+/* Transform to variation, when the block already is the only variation it
+   could become (one Campus block, say): a lone pressed button is just an
+   empty-looking box under the block's description. */
+.block-editor-block-variation-transforms:has(
+  [role='radiogroup'] > :only-child [role='radio'][aria-checked='true']
+) {
+  display: none;
+}

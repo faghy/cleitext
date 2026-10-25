@@ -25,6 +25,7 @@ import { currentServices } from './media-upload';
 import { registerUnavailableBlock } from './unavailable-block';
 import { registerPatternBlock } from './patterns';
 import { registerBindings } from './bindings';
+import { installDashiconIcons } from './dashicons';
 
 /** Core blocks available in the MVP editor (docs/ARCHITECTURE.md §10.5). */
 const CORE_BLOCKS = [
@@ -53,6 +54,7 @@ let registered = false;
 export function registerCoreBlocks(): void {
   if (registered) return;
   registered = true;
+  installDashiconIcons();
   // Some Gutenberg internals (core-data) query the WordPress REST API. Cleitext
   // has none: embed previews go to the editor services, everything else gets
   // empty data locally instead of hitting the network.

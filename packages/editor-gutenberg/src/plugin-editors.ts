@@ -10,6 +10,7 @@ import * as icons from '@wordpress/icons';
 import * as keycodes from '@wordpress/keycodes';
 import * as primitives from '@wordpress/primitives';
 import * as richText from '@wordpress/rich-text';
+import { installDashiconIcons, withSvgIcons } from './dashicons';
 
 /** Global through which plugin entries reach the host's modules (`cleitext plugin:build`). */
 const SHARED = '__cleitextShared';
@@ -21,11 +22,13 @@ const SHARED = '__cleitextShared';
  * are reported and skipped: their blocks show as unavailable.
  */
 export async function loadPluginEditors(urls: readonly string[]): Promise<string[]> {
+  // Blocks and variations declared with a Dashicon name get its SVG (no Dashicons font here).
+  installDashiconIcons();
   const global = globalThis as Record<string, unknown>;
   global[SHARED] = {
     ...((global[SHARED] as Record<string, unknown> | undefined) ?? {}),
     '@wordpress/block-editor': blockEditor,
-    '@wordpress/blocks': blocks,
+    '@wordpress/blocks': sharedBlocks,
     '@wordpress/components': components,
     '@wordpress/compose': compose,
     '@wordpress/data': data,
@@ -50,6 +53,15 @@ export async function loadPluginEditors(urls: readonly string[]): Promise<string
   }
   return errors;
 }
+
+/** `@wordpress/blocks` for plugins: variations registered later get SVG icons too. */
+const sharedBlocks = {
+  ...blocks,
+  registerBlockVariation: (
+    name: string,
+    variation: Parameters<typeof blocks.registerBlockVariation>[1],
+  ) => blocks.registerBlockVariation(name, withSvgIcons(variation as never)),
+};
 
 /** Entries already run: registering blocks twice would fail. */
 const loaded = new Set<string>();
