@@ -410,4 +410,22 @@ export const itContent: Messages = {
   'New author': 'Nuovo autore',
   '— New author —': '— Nuovo autore —',
   '(no author)': '(nessun autore)',
+  // Custom fields (plugin API 1.47)
+  Fields: 'Campi',
+  Template: 'Modello',
+  'Default template': 'Modello predefinito',
+  'This group has no fields yet.': 'Questo gruppo non ha ancora campi.',
+  'More about this person': 'Altro su questa persona',
+  'Field groups': 'Gruppi di campi',
+  'Extra fields shown in the editor where their rules match (a content type, a page template, a category…). Written in JSON, as described in the plugin guide.':
+    'Campi in più mostrati nell’editor dove le loro regole corrispondono (un tipo di contenuto, un modello di pagina, una categoria…). Scritti in JSON, come descritto nella guida dei plugin.',
+  or: 'oppure',
+  '{count} fields': '{count} campi',
+  'Delete this field group? Values already saved stay.':
+    'Eliminare questo gruppo di campi? I valori già salvati restano.',
+  'Field group': 'Gruppo di campi',
+  'Definition (JSON)': 'Definizione (JSON)',
+  'Add field group': 'Aggiungi un gruppo di campi',
+  'This field needs a plugin that is not active: its value is kept.':
+    'Questo campo richiede un plugin non attivo: il suo valore viene conservato.',
 };

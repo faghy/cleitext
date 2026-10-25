@@ -16,11 +16,21 @@ import {
   type SiteTransaction,
 } from '@cleitext/db';
 import {
+  CUSTOM_FIELD_TYPE_RE,
   fieldDefinitionSchema,
+  fieldGroupSchema,
   fieldListSchema,
   fieldsValidator,
   labelText,
+  locationRulesSchema,
+  mayMatchType,
+  registerFieldType,
+  typesLocation,
+  unregisterFieldType,
   type FieldDefinition,
+  type FieldGroupInput,
+  type FieldGroupView,
+  type FieldTypeDefinition,
   type Label,
 } from '@cleitext/shared';
 import {
@@ -32,6 +42,7 @@ import {
   type AiToolDefinition,
   type ApiRoute,
   type ContentTypeDefinition,
+  type DynamicSource,
   type ErasureResult,
   type FieldGroupDefinition,
   type FormChallengeContext,
@@ -112,7 +123,15 @@ export interface LoadedPlugin {
   error: string | null;
   types: ContentTypeDefinition[];
   taxonomies: TaxonomyDefinition[];
+  /** `ctx.content.registerFieldGroup` and `ctx.fields.addGroup` (with rules since API 1.47). */
   fieldGroups: FieldGroupDefinition[];
+  /** `ctx.fields.provideGroups` (plugin API 1.47): groups computed per site. */
+  groupProviders: ((siteId: string) => FieldGroupInput[] | Promise<FieldGroupInput[]>)[];
+  /** `ctx.fields.registerType` (plugin API 1.47). */
+  fieldTypes: FieldTypeDefinition[];
+  /** `ctx.dynamic` (plugin API 1.47). */
+  dynamicSources: DynamicSource[];
+  dynamicProviders: ((siteId: string) => DynamicSource[] | Promise<DynamicSource[]>)[];
   blocks: PluginBlockDefinition<Record<string, unknown>, unknown>[];
   apiRoutes: (ApiRoute & { compiled: CompiledRoute })[];
   publicRoutes: (PublicRoute & { compiled: CompiledRoute })[];
@@ -262,11 +281,13 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     }
     for (const plugin of this.loaded.values()) {
       for (const block of plugin.blocks) blockRegistry.unregister(block.type);
+      for (const type of plugin.fieldTypes) unregisterFieldType(type.type);
     }
     this.loaded = next;
     this.loads++;
     for (const plugin of next.values()) {
       for (const block of plugin.blocks) registerBlockDefinition(block);
+      for (const type of plugin.fieldTypes) registerFieldType(type);
     }
     this.active.clear();
     this.synced.clear();
@@ -311,6 +332,10 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       types: [],
       taxonomies: [],
       fieldGroups: [],
+      groupProviders: [],
+      fieldTypes: [],
+      dynamicSources: [],
+      dynamicProviders: [],
       blocks: [],
       apiRoutes: [],
       publicRoutes: [],
@@ -359,6 +384,10 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         types: [],
         taxonomies: [],
         fieldGroups: [],
+        groupProviders: [],
+        fieldTypes: [],
+        dynamicSources: [],
+        dynamicProviders: [],
         blocks: [],
         apiRoutes: [],
         publicRoutes: [],
@@ -488,6 +517,11 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         label: { en: 'Comments and likes', it: 'Commenti e mi piace' },
         ...(await this.pluginServices.eraseCommunityData(siteId, address)),
       },
+      {
+        source: 'core.fields',
+        label: { en: 'Profile fields', it: 'Campi del profilo' },
+        ...(await this.pluginServices.eraseUserFields(siteId, address)),
+      },
     ];
     for (const plugin of await this.activePlugins(siteId)) {
       for (const eraser of plugin.erasers) {
@@ -548,11 +582,64 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   }
 
   addFieldGroup(plugin: LoadedPlugin, definition: FieldGroupDefinition): void {
-    if (definition.id !== plugin.slug && !definition.id.startsWith(`${plugin.slug}-`)) {
-      throw new PluginError(`Field group ids must start with the plugin slug ("${plugin.slug}")`);
+    assertPluginGroupId(plugin.slug, definition.id);
+    if (definition.location !== undefined) locationRulesSchema.parse(definition.location);
+    else if (!Array.isArray(definition.types)) {
+      throw new PluginError(`The field group "${definition.id}" needs types or location rules`);
     }
     fieldListSchema.parse(definition.fields);
-    plugin.fieldGroups.push(definition);
+    // Added again (`ctx.fields.addGroup` at any time): the new one replaces it.
+    plugin.fieldGroups = [...plugin.fieldGroups.filter((g) => g.id !== definition.id), definition];
+  }
+
+  removeFieldGroup(plugin: LoadedPlugin, id: string): void {
+    plugin.fieldGroups = plugin.fieldGroups.filter((g) => g.id !== id);
+  }
+
+  addFieldType(plugin: LoadedPlugin, definition: FieldTypeDefinition): void {
+    const type = String(definition?.type);
+    if (!CUSTOM_FIELD_TYPE_RE.test(type) || !type.startsWith(`${plugin.slug}/`)) {
+      throw new PluginError(`Field types must be named "${plugin.slug}/<name>"`);
+    }
+    plugin.fieldTypes = [...plugin.fieldTypes.filter((t) => t.type !== type), definition];
+    // Plugins loaded after the first load (a reload swaps them all at once).
+    if (this.loaded.get(plugin.slug) === plugin) registerFieldType(definition);
+  }
+
+  addDynamicSource(plugin: LoadedPlugin, source: DynamicSource): void {
+    if (!String(source?.id).startsWith(`${plugin.slug}:`) || source.id.length > 200) {
+      throw new PluginError(`Dynamic source ids must start with "${plugin.slug}:"`);
+    }
+    if (typeof source.resolve !== 'function') {
+      throw new PluginError(`The dynamic source "${source.id}" needs resolve()`);
+    }
+    plugin.dynamicSources = [...plugin.dynamicSources.filter((s) => s.id !== source.id), source];
+  }
+
+  /**
+   * Field groups of the plugins active on a site, with their rules: those
+   * registered in code, then those computed for the site.
+   */
+  async pluginFieldGroups(siteId: string): Promise<FieldGroupView[]> {
+    const result: FieldGroupView[] = [];
+    for (const plugin of await this.activePlugins(siteId)) {
+      for (const group of plugin.fieldGroups) result.push(pluginGroupView(plugin.slug, group));
+      for (const provider of plugin.groupProviders) {
+        try {
+          for (const group of await provider(siteId)) {
+            const parsed = fieldGroupSchema.safeParse(group);
+            if (!parsed.success || !isPluginGroupId(plugin.slug, group.id)) {
+              this.logger.warn(`Field group "${String(group?.id)}" of ${plugin.slug} is not valid`);
+              continue;
+            }
+            result.push(pluginGroupView(plugin.slug, parsed.data as FieldGroupDefinition));
+          }
+        } catch (error) {
+          this.logger.error(`Field groups of ${plugin.slug} failed: ${String(error)}`);
+        }
+      }
+    }
+    return result;
   }
 
   addBlock(
@@ -735,11 +822,14 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     return [...slugs].map((slug) => this.loaded.get(slug)!);
   }
 
-  /** Field definitions of a content type on a site: its own fields plus field groups. */
+  /**
+   * Field definitions of a content type on a site: its own fields plus the
+   * plugins' field groups that may show on its entries.
+   */
   async fieldsFor(
     siteId: string,
     type: { slug: string; source: string; fieldsSchema: unknown },
-  ): Promise<{ fields: FieldDefinition[]; groups: FieldGroupDefinition[] }> {
+  ): Promise<{ fields: FieldDefinition[]; groups: FieldGroupView[] }> {
     const active = await this.activePlugins(siteId);
     const stored = (type.fieldsSchema as { fields?: unknown } | null)?.fields;
     const parsed = fieldListSchema.safeParse(stored ?? []);
@@ -748,45 +838,10 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       : undefined;
     const fields =
       owner?.types.find((t) => t.slug === type.slug)?.fields ?? (parsed.success ? parsed.data : []);
-    const groups = active.flatMap((p) =>
-      p.fieldGroups.filter((g) => g.types.includes('*') || g.types.includes(type.slug)),
+    const groups = (await this.pluginFieldGroups(siteId)).filter((g) =>
+      mayMatchType(g.location ?? [], type.slug),
     );
     return { fields, groups };
-  }
-
-  /** Validates custom field values against the type fields and field groups. */
-  async validateFields(
-    siteId: string,
-    type: { slug: string; source: string; fieldsSchema: unknown },
-    values: Record<string, unknown>,
-    options: { partial?: boolean } = {},
-  ): Promise<
-    | { ok: true; values: Record<string, unknown> }
-    | { ok: false; errors: { path: string; message: string }[] }
-  > {
-    const found = await this.fieldsFor(siteId, type);
-    // Drafts may be incomplete: required fields are checked when publishing.
-    const relax = (list: FieldDefinition[]) =>
-      options.partial ? list.map((f) => ({ ...f, required: false })) : list;
-    const fields = relax(found.fields);
-    const groups = found.groups.map((g) => ({ ...g, fields: relax(g.fields) }));
-    const errors: { path: string; message: string }[] = [];
-    const result: Record<string, unknown> = { ...values };
-    const own = fieldsValidator(fields).safeParse(values);
-    if (own.success) Object.assign(result, own.data);
-    else
-      for (const i of own.error.issues)
-        errors.push({ path: `fields.${i.path.join('.')}`, message: i.message });
-    for (const group of groups) {
-      const value = values[group.id];
-      if (value === undefined || value === null) continue;
-      const parsed = fieldsValidator(group.fields).safeParse(value);
-      if (parsed.success) result[group.id] = parsed.data;
-      else
-        for (const i of parsed.error.issues)
-          errors.push({ path: `fields.${group.id}.${i.path.join('.')}`, message: i.message });
-    }
-    return errors.length ? { ok: false, errors } : { ok: true, values: result };
   }
 
   /**
@@ -1272,4 +1327,42 @@ function describeError(error: unknown): string {
     current = current instanceof Error ? current.cause : undefined;
   }
   return parts.join(': ');
+}
+
+/** Plugin field group ids: the slug, or the slug and `-` or `_` and more. */
+function isPluginGroupId(slug: string, id: string): boolean {
+  return (
+    typeof id === 'string' &&
+    /^[a-z][a-z0-9_-]{0,63}$/.test(id) &&
+    (id === slug || id.startsWith(`${slug}-`) || id.startsWith(`${slug}_`))
+  );
+}
+
+function assertPluginGroupId(slug: string, id: string): void {
+  if (!isPluginGroupId(slug, id)) {
+    throw new PluginError(`Field group ids must start with the plugin slug ("${slug}")`);
+  }
+}
+
+/**
+ * Marks the groups registered as before plugin API 1.47 (`types`, no rules):
+ * their values are checked only when the entry has some, as then.
+ */
+export const LEGACY_GROUP = Symbol('cleitext.legacyFieldGroup');
+
+/** A plugin's group as the admin and the core see it: rules from `types` when it has none. */
+export function pluginGroupView(slug: string, group: FieldGroupDefinition): FieldGroupView {
+  const view: FieldGroupView & { [LEGACY_GROUP]?: true } = {
+    id: group.id,
+    title: group.title,
+    fields: group.fields,
+    location: group.location ?? typesLocation(group.types ?? []),
+    ...(group.position ? { position: group.position } : {}),
+    ...(group.order !== undefined ? { order: group.order } : {}),
+    ...(group.labelPlacement ? { labelPlacement: group.labelPlacement } : {}),
+    ...(group.description ? { description: group.description } : {}),
+    source: `plugin:${slug}`,
+  };
+  if (!group.location) view[LEGACY_GROUP] = true;
+  return view;
 }

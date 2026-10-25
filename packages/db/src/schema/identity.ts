@@ -258,3 +258,20 @@ export const webauthnChallenges = pgTable('webauthn_challenges', {
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 });
+
+/**
+ * Values of the user fields of a site (field groups for users, plugin API
+ * 1.47, 0030): per site, as accounts are shared by sites and groups are not.
+ */
+export const userFields = pgTable(
+  'user_fields',
+  {
+    siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    fields: jsonb('fields').notNull().default({}),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.siteId, t.userId] })],
+);

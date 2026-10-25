@@ -463,3 +463,8 @@ body:has(.shop-summary) .entry-featured {
 .footer-area {
   padding-block: 1.5rem 0;
 }
+
+/* The "Wide" page template: the text as wide as wide images. */
+.template-wide {
+  --content: var(--wide);
+}

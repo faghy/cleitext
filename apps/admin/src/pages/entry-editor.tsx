@@ -5,12 +5,15 @@ import { FieldsForm, useT, type EditorDraft, type EditorHost } from '@cleitext/a
 import {
   fieldDefaults,
   labelText,
+  matchesLocation,
   type AssistantsStatus,
+  type FieldGroupView,
   type ContentTypeView,
   type EntryAuthorOption,
   type EntryListResponse,
   type EntryView,
   type FieldDefinition,
+  type Label,
   type FieldValues,
   type MediaListResponse,
   type MediaView,
@@ -39,6 +42,7 @@ import {
 import { descendantsOf, entryTree } from '../entry-tree';
 import { diffWords, documentLines, type DiffPart } from '../diff';
 import { zonedTimeToIso } from '../time';
+import { FieldGroupSections, useFieldScreen } from '../components/field-groups';
 
 const AUTOSAVE_INTERVAL_MS = 30_000;
 
@@ -111,15 +115,9 @@ function Editor({ initial }: { initial: EntryView }) {
   const [pageOptions, setPageOptions] = useState<FieldValues>(
     () => (blockEditorMeta.current?.data as FieldValues | undefined) ?? {},
   );
-  const themeEntryFields = useQuery({
-    queryKey: ['themes', 'entry-fields'],
-    queryFn: () =>
-      api<{ types?: string[]; fields: FieldDefinition[] } | null>(
-        'GET',
-        '/themes/active/entry-fields',
-      ),
-    staleTime: 60_000,
-  });
+  // Field groups with their rules (plugin API 1.47): the owners', the plugins'
+  // and the theme's page options, shown live as the entry changes.
+  const fieldScreen = useFieldScreen('entry');
   const changePageOptions = (values: FieldValues) => {
     setPageOptions(values);
     blockEditorMeta.current = { id: 'blocks', data: values };
@@ -287,12 +285,18 @@ function Editor({ initial }: { initial: EntryView }) {
   const save = async (): Promise<EntryView> => {
     if (!dirtyRef.current && title === entry.title) return entry;
     setSaveState('saving');
+    const sentFields = fieldsRef.current;
     const view = await api<EntryView>('PATCH', `/entries/${entry.id}`, {
       title,
       document: editorRef.current ? withMeta(editorRef.current.getDocument()) : documentRef.current,
-      fields: fieldsRef.current,
+      fields: sentFields,
       ...summaryRef.current,
     });
+    // The values as saved (list rows got their `_id`), unless changed meanwhile.
+    if (fieldsRef.current === sentFields && view.revision) {
+      fieldsRef.current = view.revision.fields;
+      setFields(view.revision.fields);
+    }
     setFieldErrors({});
     dirtyRef.current = false;
     setSaveState('saved');
@@ -453,6 +457,27 @@ function Editor({ initial }: { initial: EntryView }) {
         }
       : {}),
   };
+
+  // What the groups' rules look at: template, parent and terms are saved as soon as they change.
+  const shownGroups = (fieldScreen.data?.groups ?? []).filter((group) =>
+    matchesLocation(group.location ?? [], {
+      object: 'entry',
+      contentType: entry.type,
+      entryId: entry.id,
+      template: entry.template,
+      parentId: entry.parentId,
+      terms: Object.values(entry.terms).flatMap((list) => list.map((term) => term.id)),
+      status: entry.status,
+      currentUserRole: me.role?.slug ?? null,
+    }),
+  );
+  const themeGroup = shownGroups.find((g) => g.storage === 'document');
+  // Under the content in the block editor; plugin editors keep every group in the sidebar.
+  const mainGroups =
+    editorId === null
+      ? shownGroups.filter((g) => g.storage !== 'document' && g.position === 'main')
+      : [];
+  const sideGroups = shownGroups.filter((g) => g.storage !== 'document' && !mainGroups.includes(g));
 
   const editorEntry = {
     id: entry.id,
@@ -626,7 +651,26 @@ function Editor({ initial }: { initial: EntryView }) {
       <div className="relative flex min-h-0 flex-1">
         {/* Distinct keys: the block editor's container is never reused (its teardown empties it). */}
         {editorId === null ? (
-          <div key="blocks" ref={canvasRef} className="min-w-0 flex-1" />
+          <div key="blocks" className="flex min-w-0 flex-1 flex-col">
+            <div ref={canvasRef} className="min-h-0 min-w-0 flex-1" />
+            {mainGroups.length > 0 && (
+              <div
+                className="max-h-[45%] shrink-0 space-y-3 overflow-y-auto border-t border-slate-200 bg-slate-50 p-4 text-sm"
+                aria-label={t('Fields')}
+                role="region"
+              >
+                <FieldGroupSections
+                  groups={mainGroups}
+                  values={fields}
+                  errors={fieldErrors}
+                  locale={userLocale}
+                  readOnly={readOnly}
+                  onChange={changeFields}
+                  framed
+                />
+              </div>
+            )}
+          </div>
         ) : (
           <div key="plugin" className="flex min-w-0 flex-1 flex-col">
             {pluginEditors.loading ? (
@@ -741,31 +785,28 @@ function Editor({ initial }: { initial: EntryView }) {
                 onChange={changeSummary}
               />
             )}
-            {tab === 'document' &&
-              editorId === null &&
-              themeEntryFields.data &&
-              (!themeEntryFields.data.types ||
-                themeEntryFields.data.types.includes(entry.type)) && (
-                <section className="space-y-3 border-b border-slate-200 p-4">
-                  <h2 className="text-sm font-semibold text-slate-900">
-                    {entry.type === 'page' ? t('Page options') : t('Layout options')}
-                  </h2>
-                  <FieldsForm
-                    fields={themeEntryFields.data.fields}
-                    values={pageOptions}
-                    defaults={fieldDefaults(themeEntryFields.data.fields)}
-                    onChange={changePageOptions}
-                    locale={userLocale}
-                    disabled={readOnly}
-                  />
-                </section>
-              )}
+            {tab === 'document' && editorId === null && themeGroup && (
+              <section className="space-y-3 border-b border-slate-200 p-4">
+                <h2 className="text-sm font-semibold text-slate-900">
+                  {entry.type === 'page' ? t('Page options') : t('Layout options')}
+                </h2>
+                <FieldsForm
+                  fields={themeGroup.fields}
+                  values={pageOptions}
+                  defaults={fieldDefaults(themeGroup.fields)}
+                  onChange={changePageOptions}
+                  locale={userLocale}
+                  disabled={readOnly}
+                />
+              </section>
+            )}
             {tab === 'document' && contentType?.supports.includes('comments') && entry && (
               <DiscussionPanel entryId={entry.id} comments={entry.comments} readOnly={readOnly} />
             )}
             {tab === 'document' && contentType && (
               <FieldsPanel
                 type={contentType}
+                groups={sideGroups}
                 values={fields}
                 errors={fieldErrors}
                 locale={userLocale}
@@ -793,6 +834,9 @@ function Editor({ initial }: { initial: EntryView }) {
                   markDirty();
                 }}
                 entry={entry}
+                templates={(fieldScreen.data?.templates ?? []).filter((template) =>
+                  (template.types ?? ['page']).includes(entry.type),
+                )}
                 readOnly={readOnly}
                 busy={action.isPending}
                 onAction={(kind) => action.mutate(kind)}
@@ -923,9 +967,10 @@ function SummaryPanel({
   );
 }
 
-/** Custom fields of the content type and plugin field groups. */
+/** Custom fields of the content type and the field groups shown in the sidebar. */
 function FieldsPanel({
   type,
+  groups,
   values,
   errors,
   locale,
@@ -933,6 +978,7 @@ function FieldsPanel({
   onChange,
 }: {
   type: ContentTypeView;
+  groups: FieldGroupView[];
   values: FieldValues;
   errors: Record<string, string>;
   locale: string;
@@ -940,13 +986,7 @@ function FieldsPanel({
   onChange: (values: FieldValues) => void;
 }) {
   const { t } = useT();
-  if (type.fields.length === 0 && type.fieldGroups.length === 0) return null;
-  const nested = (prefix: string) =>
-    Object.fromEntries(
-      Object.entries(errors)
-        .filter(([path]) => path.startsWith(`${prefix}.`))
-        .map(([path, message]) => [path.slice(prefix.length + 1), message]),
-    );
+  if (type.fields.length === 0 && groups.length === 0) return null;
   return (
     <div className="space-y-5 border-b border-slate-200 p-4 text-sm">
       {type.fields.length > 0 && (
@@ -958,23 +998,19 @@ function FieldsPanel({
             errors={errors}
             locale={locale}
             disabled={readOnly}
+            rowIds
             onChange={onChange}
           />
         </section>
       )}
-      {type.fieldGroups.map((group) => (
-        <section key={group.id} className="space-y-2" aria-label={labelText(group.title, locale)}>
-          <h3 className="font-medium">{labelText(group.title, locale)}</h3>
-          <FieldsForm
-            fields={group.fields}
-            values={(values[group.id] as FieldValues | undefined) ?? {}}
-            errors={nested(group.id)}
-            locale={locale}
-            disabled={readOnly}
-            onChange={(groupValues) => onChange({ ...values, [group.id]: groupValues })}
-          />
-        </section>
-      ))}
+      <FieldGroupSections
+        groups={groups}
+        values={values}
+        errors={errors}
+        locale={locale}
+        readOnly={readOnly}
+        onChange={onChange}
+      />
     </div>
   );
 }
@@ -1108,12 +1144,15 @@ function DocumentPanel({
   onAction,
   onSaved,
   onRestored,
+  templates,
 }: {
   draft: EditorDraft;
   setFields: (group: string, values: Record<string, unknown>) => void;
   visibility: 'public' | 'private';
   onVisibility: (value: 'public' | 'private') => void;
   entry: EntryView;
+  /** The theme's page templates for this type (plugin API 1.47). */
+  templates: { name: string; label: Label }[];
   readOnly: boolean;
   busy: boolean;
   onAction: (kind: 'unpublish' | 'trash' | { schedule: string }) => void;
@@ -1133,6 +1172,7 @@ function DocumentPanel({
     mutationFn: (changes: {
       slug?: string;
       parentId?: string | null;
+      template?: string | null;
       position?: number;
       authorId?: string;
     }) => api<EntryView>('PATCH', `/entries/${entry.id}`, changes),
@@ -1257,6 +1297,31 @@ function DocumentPanel({
           />
         </label>
       </section>
+
+      {(templates.length > 0 || entry.template) && (
+        <section className="space-y-2">
+          <h3 className="font-medium">{t('Template')}</h3>
+          <label className="block">
+            <span className="sr-only">{t('Template')}</span>
+            <select
+              value={entry.template ?? ''}
+              disabled={readOnly || saveSettings.isPending}
+              onChange={(e) => saveSettings.mutate({ template: e.target.value || null })}
+              className="w-full rounded border border-slate-300 bg-white px-2 py-1"
+            >
+              <option value="">{t('Default template')}</option>
+              {entry.template && !templates.some((tpl) => tpl.name === entry.template) && (
+                <option value={entry.template}>{entry.template}</option>
+              )}
+              {templates.map((tpl) => (
+                <option key={tpl.name} value={tpl.name}>
+                  {labelText(tpl.label, me.user.locale)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
+      )}
 
       {canReassign && (
         <section className="space-y-2">

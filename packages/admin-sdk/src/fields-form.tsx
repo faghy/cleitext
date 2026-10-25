@@ -3,6 +3,8 @@ import {
   deviceValue,
   fieldVisible,
   labelText,
+  randomRowId,
+  type CustomField,
   type FieldDefinition,
   type FieldValues,
   type ListField,
@@ -13,7 +15,8 @@ import {
   type TypographyValue,
   type ZonesValue,
 } from '@cleitext/shared';
-import { useId, useState } from 'react';
+import { useContext, useId, useState } from 'react';
+import { FormOptionsContext, useAdminFieldType } from './field-types.js';
 import { useT } from './i18n.js';
 import { useMediaPicker } from './media-picker.js';
 import { ZonesBuilder } from './zones-builder.js';
@@ -45,6 +48,8 @@ export function FieldsForm({
   errors = {},
   defaults = {},
   appearance = 'form',
+  labelPlacement,
+  rowIds,
 }: {
   fields: FieldDefinition[];
   values: FieldValues;
@@ -60,7 +65,16 @@ export function FieldsForm({
    * controls of the WordPress customizer, for a 300 px panel (Customize).
    */
   appearance?: 'form' | 'customizer';
+  /** `left`: labels beside the controls, as field groups may ask (plugin API 1.47). */
+  labelPlacement?: 'top' | 'left';
+  /** New list rows get a stable `_id`, kept through saves (plugin API 1.47). */
+  rowIds?: boolean;
 }) {
+  const inherited = useContext(FormOptionsContext);
+  const options = {
+    rowIds: rowIds ?? inherited.rowIds,
+    labelPlacement: labelPlacement ?? inherited.labelPlacement,
+  };
   if (appearance === 'customizer') {
     return (
       <CustomizerForm
@@ -75,7 +89,7 @@ export function FieldsForm({
     );
   }
   const shown = fields.filter((field) => fieldVisible(field, values, defaults));
-  return (
+  const form = (
     <div className="space-y-3">
       {shown.map((field, i) => {
         const heading =
@@ -102,6 +116,12 @@ export function FieldsForm({
         );
       })}
     </div>
+  );
+  return options.rowIds === inherited.rowIds &&
+    options.labelPlacement === inherited.labelPlacement ? (
+    form
+  ) : (
+    <FormOptionsContext.Provider value={options}>{form}</FormOptionsContext.Provider>
   );
 }
 
@@ -237,6 +257,7 @@ function SingleField({
   extra,
 }: FieldProps) {
   const id = useId();
+  const { labelPlacement } = useContext(FormOptionsContext);
   const label = labelText(field.label, locale);
   const help = labelText(field.help, locale);
   const describedBy = error ? `${id}-error` : help ? `${id}-help` : undefined;
@@ -542,19 +563,80 @@ function SingleField({
         />
       );
       break;
+    default:
+      control = (
+        <CustomControl
+          field={field as CustomField}
+          id={id}
+          value={value}
+          locale={locale}
+          disabled={disabled}
+          error={error}
+          form={form ?? {}}
+          onChange={onChange}
+        />
+      );
   }
 
+  const labelLine = (
+    <div className="flex items-center justify-between gap-2">
+      <label id={`${id}-label`} htmlFor={id} className="block text-sm font-medium text-slate-800">
+        {label}
+        {field.required && <span aria-hidden="true"> *</span>}
+      </label>
+      {extra}
+    </div>
+  );
+  if (labelPlacement === 'left') {
+    return (
+      <div className="grid grid-cols-[minmax(6rem,35%)_1fr] items-start gap-x-3 gap-y-1">
+        <div className="pt-1.5">{labelLine}</div>
+        <div className="min-w-0 space-y-1">
+          {control}
+          <Help id={id} help={help} error={error} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2">
-        <label id={`${id}-label`} htmlFor={id} className="block text-sm font-medium text-slate-800">
-          {label}
-          {field.required && <span aria-hidden="true"> *</span>}
-        </label>
-        {extra}
-      </div>
+      {labelLine}
       {control}
       <Help id={id} help={help} error={error} />
+    </div>
+  );
+}
+
+/**
+ * A field of a plugin's type: drawn by the plugin's component, or shown
+ * read-only while its plugin is not active (its value is kept).
+ */
+function CustomControl(props: {
+  field: CustomField;
+  id: string;
+  value: unknown;
+  locale: string;
+  disabled: boolean;
+  error: string | undefined;
+  form: FieldValues;
+  onChange: (value: unknown) => void;
+}) {
+  const { t } = useT();
+  const type = useAdminFieldType(props.field.type);
+  if (type) {
+    const Control = type.component;
+    return <Control {...props} {...(props.error ? { error: props.error } : {})} />;
+  }
+  return (
+    <div className="space-y-1">
+      <p id={props.id} className="text-xs text-amber-800">
+        {t('This field needs a plugin that is not active: its value is kept.')}
+      </p>
+      {props.value !== undefined && props.value !== null && (
+        <pre className="max-h-32 overflow-auto rounded bg-slate-50 p-2 text-xs text-slate-700">
+          {JSON.stringify(props.value, null, 2)}
+        </pre>
+      )}
     </div>
   );
 }
@@ -574,6 +656,7 @@ function ListControl({
   onChange: (value: FieldValues[]) => void;
 }) {
   const { t } = useT();
+  const { rowIds } = useContext(FormOptionsContext);
   const [open, setOpen] = useState<number | null>(null);
   const [dragged, setDragged] = useState<number | null>(null);
   const move = (from: number, to: number) => {
@@ -601,7 +684,7 @@ function ListControl({
       <ul className="space-y-1">
         {value.map((item, i) => (
           <li
-            key={i}
+            key={typeof item._id === 'string' ? item._id : i}
             draggable={!disabled}
             onDragStart={() => setDragged(i)}
             onDragOver={(e) => e.preventDefault()}
@@ -674,7 +757,7 @@ function ListControl({
           disabled={disabled}
           className="rounded border border-dashed border-slate-300 px-2 py-1 text-sm text-slate-700 hover:bg-slate-50"
           onClick={() => {
-            onChange([...value, {}]);
+            onChange([...value, rowIds ? { _id: randomRowId() } : {}]);
             setOpen(value.length);
           }}
         >

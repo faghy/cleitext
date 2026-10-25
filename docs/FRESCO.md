@@ -138,6 +138,8 @@ With the Multilingual plugin, translate a template like a page: on a page in a l
 
 The ⚡ button next to text, link and image controls fills them from the page: post title, excerpt, date, terms, URL, featured image, custom fields, archive title and description, site title and tagline, the current year, the author, contact links (email, phone, WhatsApp) and popup links. Use them in templates so one design shows every entry.
 
+The **Custom field** tag takes the field's name, or `group.name` for a field group. Since Fresco 2.10 (with Cleitext's plugin API 1.47) it reads the values as templates get them: an image field fills an image control with the image, a list of texts becomes the texts separated by commas.
+
 ### Loops
 
 - **Loop grid** and **Loop carousel** draw each entry with a **Loop item** template, so the card is designed like any other part.

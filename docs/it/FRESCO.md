@@ -138,6 +138,8 @@ Con il plugin Multilingual un modello si traduce come una pagina: su una pagina 
 
 Il pulsante ⚡ accanto ai controlli di testo, link e immagine li riempie con i dati della pagina: titolo, estratto, data, termini, indirizzo e immagine in evidenza della voce, campi personalizzati, titolo e descrizione dell'archivio, titolo e motto del sito, l'anno corrente, l'autore, link di contatto (email, telefono, WhatsApp) e link ai popup. Usali nei modelli perché un solo design mostri tutte le voci.
 
+Il tag **Campo personalizzato** prende il nome del campo, o `gruppo.nome` per un gruppo di campi. Da Fresco 2.10 (con l'API dei plugin 1.47 di Cleitext) legge i valori come li ricevono i modelli: un campo immagine riempie un controllo immagine con l'immagine, una lista di testi diventa i testi separati da virgole.
+
 ### Loop
 
 - **Griglia di loop** e **Carosello di loop** disegnano ogni voce con un modello **Elemento del loop**, così la scheda si progetta come qualunque altra parte.

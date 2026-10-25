@@ -60,6 +60,7 @@ Un tema così si può installare e provare con l'Anteprima dal vivo senza licenz
 | `settingsSections` | Schede di Aspetto → Personalizza: `[{ id, label, description?, parent?, tabs? }]`; un campo ci va con `section` (§4).                                                                                                                                                 |
 | `presets`          | Stili pronti: `[{ id, label, values }]`, applicati in Personalizza prima di pubblicare (§4).                                                                                                                                                                          |
 | `entryFields`      | Opzioni per pagina, `{ types?, fields }`, mostrate nella scheda Documento dell'editor (§4).                                                                                                                                                                           |
+| `pageTemplates`    | Modelli di pagina scelti nella barra laterale dell'editor, `[{ name, label, types? }]` (tipi predefiniti: `['page']`); la scelta della voce è `entry.template` e il componente `template-<name>` è provato per primo (§4, API dei plugin 1.47).                       |
 | `menuItemFields`   | Opzioni di ogni voce di menu, `[{ field, levels? }]`, mostrate in Aspetto → Menu e lette da `MenuItemView.data` (§4, API dei plugin 1.34).                                                                                                                            |
 | `relatedEntries`   | Quanti contenuti correlati mostrare sotto un contenuto (al massimo 12): `entry.related` li contiene, prima stesse categorie, poi stessi tag (core 0.37).                                                                                                              |
 | `listTerms`        | `true`: gli elenchi (blog, archivi, ricerca) danno categorie e tag di ogni contenuto in `entries[].terms` (core 0.46).                                                                                                                                                |
@@ -174,7 +175,37 @@ settings: [
 
 I plugin possono aggiungere a un tema impostazioni, sezioni, elementi del costruttore, stili pronti e aree ([PLUGIN.md, Estendere le opzioni di un tema](PLUGIN.md#estendere-le-opzioni-di-un-tema-api-dei-plugin-132)): mentre un plugin del genere è attivo nel sito, `useThemeSettings()` contiene anche i valori dei suoi campi, controllati e con i predefiniti come quelli del tema. Si leggono per nome, e mancano quando il plugin non è attivo.
 
-`entryFields` aggiunge opzioni alle singole pagine (per esempio una barra laterale o un'intestazione trasparente per pagina). Chi scrive le imposta nella scheda Documento dell'editor a blocchi; sono salvate con il contenuto in `document.editor.data` e il tema le legge da `entry.document.editor?.data`. `types` le limita ad alcuni tipi di contenuto (`['page']`).
+`entryFields` aggiunge opzioni alle singole pagine (per esempio una barra laterale o un'intestazione trasparente per pagina). Chi scrive le imposta nella scheda Documento dell'editor a blocchi; sono salvate con il contenuto in `document.editor.data` e il tema le legge da `entry.document.editor?.data`. `types` le limita ad alcuni tipi di contenuto (`['page']`). Dall'API dei plugin 1.47 sono un gruppo di campi del tema (id `theme`) come gli altri, elencato con i gruppi del sito e dei plugin; per il tema non cambia niente.
+
+**Modelli di pagina** (API dei plugin 1.47), come quelli di WordPress: `pageTemplates: [{ name: 'landing', label: { en: 'Landing page', it: 'Pagina di atterraggio' } }]` li offre nella barra laterale dell'editor (**Modello**) per i `types` (predefinito `['page']`). La scelta della voce è `entry.template` (null per quello predefinito), e `template-<name>` è il primo componente provato per lei (`templates: { index, 'template-landing': Landing }`); senza, si provano i soliti, quindi un tema può anche solo leggere `entry.template` (per esempio una classe sul contenuto). I gruppi di campi possono comparire solo sulle voci con un modello (regola `template`), così il proprietario del sito aggiunge i campi che servono a una pagina di atterraggio.
+
+<a id="campi-personalizzati"></a>**Campi personalizzati** (API dei plugin 1.47). Le voci tengono i loro campi in `entry.fields`, come sono salvati (i media come id). I lettori li danno formattati, calcolati sul server una volta per pagina, come `get_field`, `the_field` e `have_rows` di ACF:
+
+```tsx
+import { Field, Rows, useField } from '@cleitext/theme-sdk';
+
+function Landing() {
+  const photo = useField<{ url: string; alt: string; sizes: Record<string, { url: string }> }>(
+    'photo',
+  );
+  return (
+    <>
+      <h2>
+        <Field name="subtitle" fallback="Benvenuti" />
+      </h2>
+      {photo && <img src={photo.sizes.md?.url ?? photo.url} alt={photo.alt} />}
+      <Rows name="team" empty={<p>Ancora nessuno.</p>}>
+        {(row) => <h3>{String(row.name)}</h3>}
+      </Rows>
+    </>
+  );
+}
+```
+
+- `useField(name, { of, group, raw })`: per nome (i campi del tipo, poi quelli di ogni gruppo, il primo trovato) o `gruppo.nome`. `of: 'term'` legge il termine di un archivio di categoria o tag, `of: 'author'` la persona di un archivio d'autore (campi degli utenti), altrimenti la voce mostrata. `raw: true` dà il valore salvato.
+- Valori formattati: un campo media è `{ id, url, alt, width, height, mime, sizes }` (le dimensioni per nome, per esempio `sizes.md.url`); le righe delle liste arrivano formattate, ognuna con il suo `_id` stabile; i tipi di campo dei plugin danno quello che dice il loro `format` (una voce `{ id, type, title, url }`…); gli altri valori come sono salvati.
+- `<Field name>` mostra un valore: testi e numeri come testo (con escape), sì/no come ✓, un campo media come `<img>`, liste di testi separate da virgole; `fallback` quando è vuoto, `className` sull'elemento. `<Rows name>` passa ogni riga di una lista alla sua funzione, `empty` quando non ce ne sono.
+- Leggono `entry.fieldValues`, `term.fieldValues` e `author.fieldValues` delle props, che un modello può anche usare direttamente; sui core più vecchi i lettori ripiegano sui valori salvati.
 
 `menuItemFields` (API dei plugin 1.34) aggiunge opzioni a ogni voce di menu, per esempio le colonne di un mega menu o un'icona. Ogni elemento è `{ field, levels? }`: `field` è la definizione di un campo, `levels` è `'top'` (solo voci di primo livello), `'nested'` (solo sottovoci) o `'all'` (predefinito). In **Aspetto → Menu** il pulsante ⚙ di una voce apre le sue "Opzioni del tema"; i valori sono controllati come le impostazioni (le chiavi sconosciute sono scartate, i valori non validi rifiutati) e salvati con la voce. Il tema li legge in `usePage().menus[posizione][i].data`, con i predefiniti applicati, solo per le opzioni valide al livello della voce:
 

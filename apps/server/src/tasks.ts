@@ -26,6 +26,8 @@ import { PluginHost } from './plugins/plugin-host.service.js';
 import { PageCacheService } from './public/page-cache.service.js';
 import { fileReader, openArchive, writeArchive } from './transfer/archive.js';
 import { exportSite } from './transfer/exporter.js';
+import { exportFieldDefinitions } from './transfer/field-definitions.js';
+import { FieldGroupsService } from './fields/field-groups.service.js';
 import { importDocument, importUser } from './transfer/importer.js';
 import type { ImportReport, TransferDocument } from './transfer/model.js';
 
@@ -90,6 +92,12 @@ export async function exportTask(
     await context.app
       .get(PluginHost)
       .applyFilter('export.pluginData', {}, { siteId: site.id }, site.id),
+    await exportFieldDefinitions(
+      context.owner.db,
+      context.app.get(PluginHost),
+      context.app.get(FieldGroupsService),
+      site.id,
+    ),
   );
   const storage = new DiskStorage(context.config.media.path);
   await writeArchive(options.out, document, files, (key) => storage.pathOf(key));

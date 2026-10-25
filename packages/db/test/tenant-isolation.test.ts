@@ -391,6 +391,10 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
       key: 'b'.repeat(32),
       css: `${'a'.repeat(32)}.css`,
     });
+    await tx
+      .insert(s.fieldGroups)
+      .values({ siteId, key: 'details', definition: { id: 'details' } });
+    await tx.insert(s.userFields).values({ siteId, userId, fields: { details: { phone: '1' } } });
     return { siteId, host, userId, entryId, termId };
   });
 }

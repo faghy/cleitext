@@ -4,6 +4,7 @@ import {
   type CoreSettings,
   type ContentTypeView,
   type FieldDefinition,
+  type FieldGroupInput,
   type TaxonomyView,
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -47,7 +48,145 @@ export function StructurePage() {
       {me.capabilities.includes('manage_settings') && <AddressesCard />}
       {me.capabilities.includes('manage_content_types') && <ContentTypesCard />}
       {me.capabilities.includes('manage_taxonomies') && <TaxonomiesCard />}
+      {me.capabilities.includes('manage_content_types') && <FieldGroupsCard />}
     </div>
+  );
+}
+
+/** A new field group, as a starting point for the JSON editor. */
+const NEW_GROUP: FieldGroupInput = {
+  id: 'details',
+  title: 'Details',
+  fields: [{ name: 'subtitle', type: 'text', label: 'Subtitle' }],
+  location: [[{ param: 'contentType', operator: '==', value: 'page' }]],
+  position: 'side',
+};
+
+/**
+ * Field groups of the site (plugin API 1.47), shown in the editor where
+ * their rules match: a list and a JSON editor, for administrators who know
+ * the format (docs/PLUGINS.md). A visual builder comes with a plugin.
+ */
+function FieldGroupsCard() {
+  const { t } = useT();
+  const me = useMe();
+  const queryClient = useQueryClient();
+  const groups = useQuery({
+    queryKey: ['field-groups'],
+    queryFn: () => api<FieldGroupInput[]>('GET', '/field-groups'),
+  });
+  const [editing, setEditing] = useState<{ id: string | null; json: string } | null>(null);
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['field-groups'] });
+    void queryClient.invalidateQueries({ queryKey: ['field-screens'] });
+    void queryClient.invalidateQueries({ queryKey: ['content-types'] });
+  };
+  const save = useMutation({
+    mutationFn: (input: { id: string | null; json: string }) => {
+      const group = JSON.parse(input.json) as FieldGroupInput;
+      return input.id
+        ? api<FieldGroupInput>('PUT', `/field-groups/${encodeURIComponent(input.id)}`, group)
+        : api<FieldGroupInput>('POST', '/field-groups', group);
+    },
+    onSuccess: () => {
+      setEditing(null);
+      refresh();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api<void>('DELETE', `/field-groups/${encodeURIComponent(id)}`),
+    onSuccess: refresh,
+  });
+  const where = (group: FieldGroupInput) =>
+    group.location
+      .map((and) => and.map((r) => `${r.param} ${r.operator} ${r.value}`).join(' & '))
+      .join(` ${t('or')} `);
+  return (
+    <Card id="field-groups" title={t('Field groups')}>
+      <div className="space-y-3 text-sm">
+        <p className="text-xs text-slate-500">
+          {t(
+            'Extra fields shown in the editor where their rules match (a content type, a page template, a category…). Written in JSON, as described in the plugin guide.',
+          )}
+        </p>
+        {(groups.error ?? remove.error) && (
+          <Alert>{errorMessage(groups.error ?? remove.error)}</Alert>
+        )}
+        {groups.data && groups.data.length > 0 && (
+          <ul className="divide-y divide-slate-100">
+            {groups.data.map((group) => (
+              <li
+                key={group.id}
+                aria-label={labelText(group.title, me.user.locale)}
+                className="flex flex-wrap items-center gap-2 py-2"
+              >
+                <span className="font-medium">{labelText(group.title, me.user.locale)}</span>
+                <code className="text-xs text-slate-500">{group.id}</code>
+                <span className="text-xs text-slate-500">
+                  {t('{count} fields', { count: group.fields.length })} · {where(group)}
+                </span>
+                <span className="ml-auto flex gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      setEditing({ id: group.id, json: JSON.stringify(group, null, 2) })
+                    }
+                  >
+                    {t('Edit')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      if (window.confirm(t('Delete this field group? Values already saved stay.')))
+                        remove.mutate(group.id);
+                    }}
+                  >
+                    {t('Delete')}
+                  </Button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {editing ? (
+          <form
+            className="space-y-2"
+            aria-label={t('Field group')}
+            onSubmit={(e) => {
+              e.preventDefault();
+              save.mutate(editing);
+            }}
+          >
+            <label className="block space-y-1">
+              <span className="block font-medium text-slate-800">{t('Definition (JSON)')}</span>
+              <textarea
+                className="w-full rounded border border-slate-300 px-3 py-2 font-mono text-xs"
+                rows={16}
+                spellCheck={false}
+                value={editing.json}
+                onChange={(e) => setEditing({ ...editing, json: e.target.value })}
+              />
+            </label>
+            {save.error && <Alert>{errorMessage(save.error)}</Alert>}
+            <div className="flex gap-2">
+              <Button type="submit" disabled={save.isPending}>
+                {t('Save')}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
+                {t('Cancel')}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <Button
+            variant="secondary"
+            onClick={() => setEditing({ id: null, json: JSON.stringify(NEW_GROUP, null, 2) })}
+          >
+            {t('Add field group')}
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }
 

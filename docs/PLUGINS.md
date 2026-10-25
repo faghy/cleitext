@@ -1,6 +1,6 @@
 # Developing Cleitext plugins
 
-> Plugin API **1.0** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
+> Plugin API **1.47** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
 
 A plugin extends Cleitext the way a WordPress plugin extends WordPress. It can add content types with custom fields, blocks, pages to the admin, settings, endpoints, addresses on the public site and its own database tables, and it can react to what happens through hooks.
 
@@ -190,28 +190,29 @@ ctx.hooks.filter(
 
 **Filters** (public site, they need the `theme:hooks` permission):
 
-| Name                       | Value                                                                                                                                                                 | Context                                                |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                                               | `RenderHookContext`                                    |
-| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                                                                                                     | `RenderHookContext` with `entry`                       |
-| `render.html`              | the final HTML string                                                                                                                                                 | `RenderHookContext`                                    |
-| `render.adminBarEdit`      | the edit link of the public toolbar on an entry, `{ label, href }` (an admin address), or `null` to hide it, e.g. "Edit with …" (API 1.29)                            | `{ siteId, locale, entry: { id, type, editor? } }`     |
-| `render.maintenance`       | the page visitors get in maintenance mode: `{ html, retryAfter? }` (a whole document) instead of the theme's, or `null` (API 1.35)                                    | `MaintenanceContext`                                   |
-| `form.challenge`           | markup placed in a form before its submit button, e.g. a captcha widget; add to the value (needs `forms:protect`, API 1.38)                                           | `FormChallengeContext`                                 |
-| `form.verify`              | `{ ok, message? }` for a submission of a protected form, or `null` to let it through (needs `forms:protect`, API 1.38)                                                | `FormVerifyContext`                                    |
-| `form.sources`             | origins the admin's sign-in challenge needs, `{ script, frame }` (`https://` only), added to the admin's Content Security Policy (needs `forms:protect`, API 1.38)    | `{ siteId }`                                           |
-| `theme.templateCandidates` | template names tried in order                                                                                                                                         | `RenderHookContext`                                    |
-| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                                                  | `{ siteId, ids }`                                      |
-| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                                                     | `{ siteId, locale, userId, base }`                     |
-| `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)                                                                             | `{ siteId, name, attrs, html, children }`              |
-| `import.shortcode`         | a WordPress shortcode standing alone on import (own line or paragraph, Shortcode block, Elementor shortcode/text/HTML widget): the plugin's blocks instead (API 1.36) | `{ siteId, tag, attrs, content, text }`                |
-| `export.pluginData`        | the plugins' own data in a site export (`document.plugins`, by slug): add yours under your slug, keep the others (API 1.46)                                           | `{ siteId }`                                           |
-| `import.pluginData`        | the plugin's data of an imported document (`document.plugins[slug]`): `{ warnings? }` when taken, `null` otherwise (API 1.28)                                         | `{ siteId, slug, data, idMap, userId }`                |
-| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                                                                                                     | `{ siteId, locale, siteTitle, term }`                  |
-| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                                                                                                 | `{ siteId }`                                           |
-| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`)                                                                            | `{ siteId, kind, slug, locale }`                       |
-| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                                                                                                    | `{ siteId, host, path, status, tags }`                 |
-| `robots.txt`               | the text of `/robots.txt`, with its `Sitemap:` line; no permission. A site that asks search engines to stay away keeps `Disallow: /` (API 1.24)                       | `{ siteId, origin, sitemap, discourageSearchEngines }` |
+| Name                       | Value                                                                                                                                                                  | Context                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `render.head`              | `HeadData`: `title`, `description`, `canonical`, `og`, `robots`, `tags`                                                                                                | `RenderHookContext`                                    |
+| `render.blocks`            | the entry's blocks (`CxdBlock[]`)                                                                                                                                      | `RenderHookContext` with `entry`                       |
+| `render.html`              | the final HTML string                                                                                                                                                  | `RenderHookContext`                                    |
+| `render.adminBarEdit`      | the edit link of the public toolbar on an entry, `{ label, href }` (an admin address), or `null` to hide it, e.g. "Edit with …" (API 1.29)                             | `{ siteId, locale, entry: { id, type, editor? } }`     |
+| `render.maintenance`       | the page visitors get in maintenance mode: `{ html, retryAfter? }` (a whole document) instead of the theme's, or `null` (API 1.35)                                     | `MaintenanceContext`                                   |
+| `form.challenge`           | markup placed in a form before its submit button, e.g. a captcha widget; add to the value (needs `forms:protect`, API 1.38)                                            | `FormChallengeContext`                                 |
+| `form.verify`              | `{ ok, message? }` for a submission of a protected form, or `null` to let it through (needs `forms:protect`, API 1.38)                                                 | `FormVerifyContext`                                    |
+| `form.sources`             | origins the admin's sign-in challenge needs, `{ script, frame }` (`https://` only), added to the admin's Content Security Policy (needs `forms:protect`, API 1.38)     | `{ siteId }`                                           |
+| `theme.templateCandidates` | template names tried in order                                                                                                                                          | `RenderHookContext`                                    |
+| `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                                                   | `{ siteId, ids }`                                      |
+| `entry.validate`           | problems with an entry about to be saved, `{ path, message }[]`: add yours to refuse the save (no permission, API 1.47; [checks before saving](#checks-before-saving)) | `EntryValidateContext`                                 |
+| `account.links`            | links on a visitor's account page (`{ label, url }[]`, local addresses; API 1.17)                                                                                      | `{ siteId, locale, userId, base }`                     |
+| `import.block`             | a WordPress block without an equivalent on import: the plugin's blocks instead (API 1.23)                                                                              | `{ siteId, name, attrs, html, children }`              |
+| `import.shortcode`         | a WordPress shortcode standing alone on import (own line or paragraph, Shortcode block, Elementor shortcode/text/HTML widget): the plugin's blocks instead (API 1.36)  | `{ siteId, tag, attrs, content, text }`                |
+| `export.pluginData`        | the plugins' own data in a site export (`document.plugins`, by slug): add yours under your slug, keep the others (API 1.46)                                            | `{ siteId }`                                           |
+| `import.pluginData`        | the plugin's data of an imported document (`document.plugins[slug]`): `{ warnings? }` when taken, `null` otherwise (API 1.28)                                          | `{ siteId, slug, data, idMap, userId }`                |
+| `feed.title`               | title of an RSS feed (the site's, or `<term> – <site>`; API 1.22)                                                                                                      | `{ siteId, locale, siteTitle, term }`                  |
+| `sitemap.sources`          | content types and taxonomies with an XML sitemap (`{ kind, slug }[]`)                                                                                                  | `{ siteId }`                                           |
+| `sitemap.urls`             | the addresses of one sitemap (`loc`, `lastmod`, `images`, `alternates`, `entry` or `term`)                                                                             | `{ siteId, kind, slug, locale }`                       |
+| `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                                                                                                     | `{ siteId, host, path, status, tags }`                 |
+| `robots.txt`               | the text of `/robots.txt`, with its `Sitemap:` line; no permission. A site that asks search engines to stay away keeps `Disallow: /` (API 1.24)                        | `{ siteId, origin, sitemap, discourageSearchEngines }` |
 
 `RenderHookContext` is `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (plugin API 1.33) is `true` when the visitor is signed in: their pages are never cached, so content may depend on it. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
 
@@ -319,6 +320,123 @@ ctx.content.registerFieldGroup({
 ```
 
 `types: ['*']` shows the group on every content type, including those of other plugins (API 1.24).
+
+### Field groups with location rules (plugin API 1.47)
+
+A field group shows where its **location rules** match, as in ACF: a list of lists of rules, where every rule of one inner list must match (AND), and any inner list may (OR). The core evaluates them on the server (when values are checked) and in the admin, live: the editor shows or hides a group as soon as the page template, the parent or the categories change.
+
+```ts
+ctx.fields.addGroup({
+  id: 'myplugin-hero', // starts with your slug; values under fields['myplugin-hero']
+  title: { en: 'Hero', it: 'Testata' },
+  position: 'main', // 'side' (default): the editor's sidebar; 'main': under the content
+  order: 10, // lower first, then by title
+  labelPlacement: 'left', // 'top' (default) or beside the fields
+  location: [
+    [
+      { param: 'contentType', operator: '==', value: 'page' },
+      { param: 'template', operator: '==', value: 'landing' },
+    ],
+    [{ param: 'term', operator: '==', value: '<id of the category "Offers">' }],
+  ],
+  fields: [{ name: 'tagline', type: 'text', label: 'Tagline', required: true }],
+});
+```
+
+| `param`           | Tests                                                                    | `value`                         |
+| ----------------- | ------------------------------------------------------------------------ | ------------------------------- |
+| `contentType`     | the entry's type                                                         | a slug, `*` for any             |
+| `entry`           | one entry                                                                | its id                          |
+| `template`        | the entry's page template (offered by the theme's `pageTemplates`)       | a name, `default` for none      |
+| `parent`          | the entry's parent                                                       | the parent's id, `none` for top |
+| `term`            | a term attached to the entry (category, tag, any taxonomy)               | the term's id                   |
+| `status`          | the entry's status                                                       | `draft`, `published`…           |
+| `taxonomy`        | a term's taxonomy (term fields, see below)                               | a slug, `*` for any             |
+| `userRole`        | a person's role on the site (user fields)                                | a role slug, `*` for any        |
+| `userForm`        | where a person is edited: `edit` (Users → Edit) or `profile` (their own) | `edit`, `profile`, `all`        |
+| `currentUserRole` | the role of the person editing (with any of the others)                  | a role slug                     |
+| `optionsPage`     | reserved for options pages                                               | —                               |
+
+`operator` is `==` or `!=`. An inner list must test one object (entries, terms or users): a list with only `currentUserRole`, or with rules of two objects, matches nothing. `ctx.fields.addGroup` can be called at any time (adding the same id again replaces the group), and `ctx.fields.removeGroup(id)` takes it away. Groups that depend on the site, e.g. built from your own tables, come from a provider, called whenever groups are needed (cache what it reads):
+
+```ts
+ctx.fields.provideGroups(async (siteId) => myGroupsFromTheDatabase(siteId));
+```
+
+`registerFieldGroup` keeps working: `types` become `contentType` rules, and since 1.47 it takes `location` and the other settings too. Groups registered with `types` only are checked as before: their values only when the entry has some.
+
+**Groups of the site's owners.** Owners keep their own groups in the core (no plugin needed), through the REST API with `manage_content_types`: `GET /api/v1/field-groups`, `POST` (new), `GET`, `PUT` (replace) and `DELETE /api/v1/field-groups/<id>`; the body is the group above (ids of letters, digits, `_` and `-`; `active: false` keeps a group without showing it). **Settings → Content structure → Field groups** lists them, with a JSON editor. A plugin with a visual builder reads and writes them with `ctx.fields.siteGroups.list(siteId)`, `.save(siteId, group)` and `.remove(siteId, id)` (`content:write`): groups stay and keep working if the plugin is deactivated.
+
+**The theme's page options** (`entryFields`) are a group of the theme too, with id `theme`, `storage: 'document'` (values stay in the document's `editor.data`) and rules from its `types`. The theme also offers the **page templates** chosen in the editor's sidebar (`pageTemplates`, see THEMES.md), stored as the entry's `template` (`PATCH /api/v1/entries/:id` with `template`, kept by copies and site exports).
+
+**Reading groups** (`content:read`): `await ctx.fields.groups(siteId, 'entry')` gives every group of an object with its rules and `source` (`site`, `theme` or `plugin:<slug>`); `await ctx.fields.matching(siteId, { object: 'entry', contentType: 'page', template: 'landing' })` those that match. The admin reads them at `GET /api/v1/field-screens/<entry|term|user>` (with the theme's page templates). `ctx.content.fields(siteId, type)` and the content types' `fieldGroups` list every group that may show on a type.
+
+**Values.** As before, values of a group are saved under `fields[<id>]` of the revision, so they have revisions, drafts, autosaves and translations (`translation` of each field). Values of a group not shown (e.g. after the template changed) are kept as they are. Every row of a `list` field gets a stable `_id`, kept through saves, copies, translations and exports. Templates read values with `useField` (THEMES.md).
+
+<a id="checks-before-saving"></a>**Checks before saving** (plugin API 1.47). Values of the groups shown are checked when an entry is saved; `required` fields are checked when it is published (drafts may be incomplete), except fields hidden by their `showIf`. Then the `entry.validate` filter lets plugins refuse a save, with messages shown under the fields in the editor:
+
+```ts
+ctx.hooks.filter('entry.validate', (errors, { entry, fields, publishing }) => {
+  const code = (fields['myplugin-hero'] as { code?: string } | undefined)?.code;
+  return code && !/^[A-Z]{3}$/.test(code)
+    ? [...errors, { path: 'fields.myplugin-hero.code', message: 'Three capital letters.' }]
+    : errors;
+});
+```
+
+`EntryValidateContext` is `{ siteId, userId, publishing, entry: { id, type, locale, status, title, template, parentId, terms }, fields, groups }`: `id` is null while an entry is created, `terms` are term ids, `groups` the groups shown. Paths are `fields.<name>`, `fields.<group>.<name>` (`.<row>.<name>` inside lists) or `title`.
+
+**Term fields and user fields** (plugin API 1.47). Groups with `taxonomy` rules show when a term is edited (the taxonomy's screen); their values are kept with the term's own fields, under `fields[<group id>]`. Groups with `userRole` / `userForm` rules show in Users → Edit and in the person's profile; values are kept per site (accounts are shared by sites). Required fields are checked when the form is saved (not for tags typed in the editor). Through the API: a term's `fields` (`POST /api/v1/taxonomies/<slug>/terms`, `PATCH /api/v1/terms/:id`); `GET`/`PUT /api/v1/users/:id/fields` (`manage_users`, and `promote_users` to change them) and `/api/v1/profile/fields`, with `{ fields }`. Plugins use `ctx.terms.updateFields(siteId, id, values)` (`content:write`), `ctx.users.fields(siteId, id)` and `ctx.users.updateFields(siteId, id, values)` (`users:read`, and `content:write` to change). A site export carries them, and privacy requests include them (**Profile fields**: exported, and erased on request).
+
+**Exports.** References in field values are exported as refs, `{ "$media": "<id>" }` (also `$entry`, `$term`, `$user`), so an import into another site points to the imported media, entries, terms and people (`cleitext export` and `import`).
+
+### Field types of plugins (plugin API 1.47)
+
+The field types (§14) form a registry, and a plugin can add its own, named `<slug>/<name>`. The type checks its own settings (in the field's `settings`), its values, formats them for templates, says how they are indexed and exported, and what dynamic data may use them as:
+
+```ts
+import { z } from 'zod';
+
+ctx.fields.registerType({
+  type: 'myplugin/rating',
+  settings: z.object({ max: z.number().int().max(10).optional() }),
+  value: (field) =>
+    z
+      .number()
+      .int()
+      .min(1)
+      .max(Number((field as CustomField).settings?.max ?? 5)),
+  isEmpty: (value) => value === 0, // required fields, `showIf: { empty }`
+  format: (value) => ({ stars: Number(value) }), // what useField gives
+  index: (value) => Number(value), // search, indexes, text output
+  export: (value, field, refs) => value, // refs.media(id), refs.entry(id)… for references
+  kind: 'number', // text, url, number, boolean, date, media, list, object
+});
+// A field of it: { name: 'score', type: 'myplugin/rating', label: 'Score', settings: { max: 3 } }
+```
+
+`format` gets `context.media(id)` and `context.entry(id)` (loaded together for the whole page) and `context.format(fields, values)` for nested fields. The admin draws the type with the component of [`fieldTypes`](#field-types-in-the-admin) in the plugin's admin entry, in every form (entries, terms, users, settings, blocks, list rows). While the plugin is not active, values are kept as they are and shown read-only; definitions are still accepted.
+
+### Dynamic data (plugin API 1.47)
+
+Sources of dynamic data are shared by page builders (Fresco's dynamic tags), block bindings and themes: `{ id, label, group, type, resolve(context) }`. The core has those of the entry shown (`entry.title`, `entry.url`, `entry.excerpt`, `entry.date`, `entry.featuredImage`), of the term (`term.name`, `term.description`, `term.url`), of the site (`site.title`, `site.tagline`, `site.url`) and one per custom field: `entry.field:<name>` or `entry.field:<group>.<name>`, `term.field:…`, `user.field:…`. Values come formatted like `useField`'s, so a media field gives `{ id, url, alt, width, height, sizes }`. Plugins add theirs (no permission):
+
+```ts
+ctx.dynamic.registerSource({
+  id: 'myplugin:open-today', // starts with your slug and `:`
+  label: { en: 'Open today', it: 'Aperto oggi' },
+  type: 'text',
+  resolve: async ({ siteId, locale, page }) => openingHours(siteId, locale),
+});
+ctx.dynamic.registerProvider(async (siteId) => sourcesOf(siteId)); // computed per site
+const sources = await ctx.dynamic.sources(siteId); // for pickers, without resolve
+const photo = await ctx.dynamic.resolve(siteId, 'entry.field:hero.photo', {
+  locale,
+  page, // a block's context.page: the entry, term or archive shown
+});
+```
+
+`DynamicContext` is `{ locale, page?, entry?: { id }, term?: { id }, user?: { id } }`: without `entry` the page's entry is used (its values are already formatted, no query). The admin lists the sources at `GET /api/v1/dynamic-sources`. Fresco reads its **Custom field** tag through them (Fresco 2.10), so image fields show as images.
 
 **Reading entries** (`content:read`). The newest come first, and only published entries are returned unless `status: 'any'`:
 
@@ -1054,6 +1172,31 @@ export default defineAdminPlugin({
 
 `entry` is `{ id, type, locale, title, slug, status }`; rows are `{ id, locale, title, status? }`. From API 1.24 an editor section also gets `draft`, the entry as it is being edited, before it is saved (`title`, `slug`, `excerpt`, `featuredMediaId`, `document`, `fields`; it renders again a moment after each change, e.g. for a live SEO analysis), and `setFields(group, values)`, which changes a field group's values like the sidebar's fields (saved with the entry). On older sites both are missing: check before using them. `navigate('/entries/<id>')` opens an admin address. `visible` hides a section or column, e.g. when the site has a single language.
 
+<a id="field-types-in-the-admin"></a>**Field types** (plugin API 1.47). The component that edits a field of your type (`ctx.fields.registerType` on the server), drawn by every form of the admin; the label, help and error message are drawn around it:
+
+```tsx
+export default defineAdminPlugin({
+  fieldTypes: [
+    {
+      type: 'myplugin/rating',
+      component: ({ field, value, onChange, id, disabled }: FieldControlProps) => (
+        <input
+          id={id}
+          type="number"
+          min={1}
+          max={Number(field.settings?.max ?? 5)}
+          disabled={disabled}
+          value={typeof value === 'number' ? value : ''}
+          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+        />
+      ),
+    },
+  ],
+});
+```
+
+`FieldsForm` also takes `labelPlacement` (`top`, `left`) and `rowIds` (new list rows get an `_id`).
+
 <a id="editors"></a>**Editors** (plugin API 1.11). A plugin can offer an editor for entries instead of the block editor, such as a page builder. It takes the whole screen under the editor's top bar, which keeps the title, saving, preview and publishing:
 
 ```tsx
@@ -1160,7 +1303,9 @@ Used by content type fields, field groups, block attributes and settings.
 | `typography` | object           | `{ family, weight, size: { desktop, tablet, mobile, desktopUnit… }, lineHeight, lineHeightUnit, letterSpacing, letterSpacingUnit, transform, decoration }`; `units`, `default` |
 | `zones`      | object           | `devices`, `rows`, `items`, `default`: a header or footer builder (THEMES.md §4); not inside a `list`                                                                          |
 
-Common options: `name` (letters, digits, `_`), `label`, `help`, `required`, `translation` and `hidden` (never shown in forms: data kept with the others, e.g. settings imported from another site). In settings forms, `section` puts a field in a tab (theme options, §4 of THEMES.md), `group` puts a heading above it, and `showIf` shows it only when other fields have some values: `{ field: 'header', equals: 'transparent' }`, `{ field: 'layout', in: ['left', 'right'] }`, `{ field: 'sidebar', not: 'none' }`, or several with `{ all: [...] }` / `{ any: [...] }`. A field without a value counts as its default. `inline: true` draws a field on the same line as the one before it, as just its control, with its label as tooltip (in Customize: a hover color's swatch beside the normal color's). Labels are strings or per-language objects (`{ en: 'Date', it: 'Data' }`). An optional field may be empty (`null`).
+Plugins add types named `<plugin>/<name>`, with their own options in `settings` ([field types of plugins](#field-types-of-plugins-plugin-api-147)). Rows of a `list` saved with entries, terms and users get a stable `_id` (plugin API 1.47).
+
+Common options: `name` (letters, digits, `_`), `label`, `help`, `required`, `translation` and `hidden` (never shown in forms: data kept with the others, e.g. settings imported from another site). In settings forms, `section` puts a field in a tab (theme options, §4 of THEMES.md), `group` puts a heading above it, and `showIf` shows it only when other fields have some values: `{ field: 'header', equals: 'transparent' }`, `{ field: 'layout', in: ['left', 'right'] }`, `{ field: 'sidebar', not: 'none' }`, or several with `{ all: [...] }` / `{ any: [...] }`. Since plugin API 1.47 also `{ field, empty: true }` (empty) and `empty: false` (not empty), `contains` (a piece of text, or an item of a list), `gt` and `lt` (greater or less than a number; dates compare as dates); each condition may combine several tests, which must all pass. The server checks a required field only while its `showIf` shows it. A field without a value counts as its default. `inline: true` draws a field on the same line as the one before it, as just its control, with its label as tooltip (in Customize: a hover color's swatch beside the normal color's). Labels are strings or per-language objects (`{ en: 'Date', it: 'Data' }`). An optional field may be empty (`null`).
 
 `responsive: true` (on `number`, `select`, `choice`, `boolean`, `spacing`, `background`, `color` and `text`) keeps a value per device, `{ desktop, tablet, mobile }`: a device without one uses the larger one's (`deviceValue(value, device)` in `@cleitext/shared`). A responsive `number` may have `units` (`['px', 'em']`), stored as `desktopUnit`, `tabletUnit`, `mobileUnit`. In Customize the device switch beside the label follows the preview. A `color` or `background` with `palette: { field, prefix }` also offers the theme's global colors: `field` is a list of `{ color }` items of the same form, and the value is `var(<prefix><index>)`, e.g. `var(--zn-global-color-0)`. Fonts of `typography` fields are checked against nothing but their spelling; `googleFonts()` in `@cleitext/shared` lists the Google families and weights.
 

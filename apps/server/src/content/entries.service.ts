@@ -22,6 +22,7 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
+import { mayMatchType } from '@cleitext/shared';
 import type {
   ContentTypeView,
   EntryAuthorOption,
@@ -56,12 +57,23 @@ import { TermsService } from './terms.service.js';
 import { sanitizeDocument } from './html-sanitize.js';
 import { entryPath, localePrefixes } from './paths.js';
 import { LanguagesService } from './languages.service.js';
+import { FieldGroupsService } from '../fields/field-groups.service.js';
 
 type EntryRow = typeof entries.$inferSelect;
 type ContentTypeRow = typeof contentTypes.$inferSelect;
 type Summary = { excerpt: string | null; featuredMediaId: string | null };
 type RevisionRow = typeof revisions.$inferSelect;
 type Tx = SiteTransaction;
+/** What field group rules look at, besides the type and the user. */
+interface EntryScreen {
+  id: string | null;
+  locale: string;
+  status: string;
+  title: string;
+  template: string | null;
+  parentId: string | null;
+  terms: string[];
+}
 
 const registry = blockRegistry;
 
@@ -76,6 +88,7 @@ export class EntriesService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly plugins: PluginHost,
     private readonly languages: LanguagesService,
+    private readonly fieldGroups: FieldGroupsService,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
@@ -89,11 +102,16 @@ export class EntriesService {
     const rows = await this.run(siteId, auth, (tx) =>
       tx.select().from(contentTypes).orderBy(asc(contentTypes.slug)),
     );
+    const entryGroups = (await this.fieldGroups.groups(siteId, 'entry')).filter(
+      (g) => g.storage !== 'document',
+    );
     return Promise.all(
       rows
         .filter((t) => isTypeAvailable(t.source, active))
         .map(async (t) => {
-          const { fields, groups } = await this.plugins.fieldsFor(siteId, t);
+          const { fields } = await this.plugins.fieldsFor(siteId, t);
+          // Groups that may show on its entries: the owners', the plugins' (API 1.47).
+          const groups = entryGroups.filter((g) => mayMatchType(g.location ?? [], t.slug));
           return {
             slug: t.slug,
             name: t.name as Record<string, string>,
@@ -102,7 +120,7 @@ export class EntriesService {
             permalink: t.permalink,
             source: t.source,
             fields,
-            fieldGroups: groups.map((g) => ({ id: g.id, title: g.title, fields: g.fields })),
+            fieldGroups: groups,
           };
         }),
     );
@@ -117,23 +135,77 @@ export class EntriesService {
     }
   }
 
-  /** Custom fields checked against the type and plugin field groups. */
+  /**
+   * Custom fields checked against the type's fields and the field groups
+   * shown for the entry (plugin API 1.47: their location rules), then by the
+   * plugins (`entry.validate`). Drafts (`partial`) may leave required fields
+   * empty. Returns the values to save (list rows with their `_id`).
+   */
   private async validFields(
     siteId: string,
+    auth: AuthContext,
     type: ContentTypeRow,
     values: Record<string, unknown>,
+    entry: EntryScreen,
     options: { partial?: boolean } = { partial: true },
   ): Promise<Record<string, unknown>> {
-    const result = await this.plugins.validateFields(siteId, type, values, options);
-    if (!result.ok) {
+    const { fields: own } = await this.plugins.fieldsFor(siteId, type);
+    const result = await this.fieldGroups.check(
+      siteId,
+      own,
+      values,
+      {
+        object: 'entry',
+        contentType: type.slug,
+        entryId: entry.id,
+        template: entry.template,
+        parentId: entry.parentId,
+        terms: entry.terms,
+        status: entry.status,
+        currentUserRole: auth.role?.slug ?? null,
+      },
+      options,
+    );
+    const message = options.partial
+      ? 'Some fields are not valid.'
+      : 'Fill in the required fields before publishing.';
+    if (!result.ok) throw new BadRequestException({ message, errors: result.errors });
+    const problems = await this.plugins.applyFilter(
+      'entry.validate',
+      [],
+      {
+        siteId,
+        userId: auth.userId,
+        publishing: !options.partial,
+        entry: { ...entry, type: type.slug },
+        fields: result.values,
+        groups: result.groups.map((g) => ({ id: g.id, fields: g.fields })),
+      },
+      siteId,
+    );
+    const errors = (Array.isArray(problems) ? problems : []).filter(
+      (e): e is { path: string; message: string } =>
+        !!e && typeof e.path === 'string' && typeof e.message === 'string',
+    );
+    if (errors.length > 0) {
       throw new BadRequestException({
-        message: options.partial
-          ? 'Some fields are not valid.'
-          : 'Fill in the required fields before publishing.',
-        errors: result.errors,
+        message: 'Some fields are not valid.',
+        errors: errors.map((e) => ({
+          path: e.path.slice(0, 300),
+          message: e.message.slice(0, 500),
+        })),
       });
     }
     return result.values;
+  }
+
+  /** Ids of an entry's terms, every taxonomy. */
+  private async termIds(tx: Tx, entryId: string): Promise<string[]> {
+    const rows = await tx
+      .select({ id: entryTerms.termId })
+      .from(entryTerms)
+      .where(eq(entryTerms.entryId, entryId));
+    return rows.map((r) => r.id);
   }
 
   /** Runs plugin actions after the change is committed. */
@@ -409,6 +481,7 @@ export class EntriesService {
         locale: source.locale,
         title: source.title ? `${source.title} (copy)` : '',
         parentId: source.parentId,
+        template: source.template,
         document: revision?.document,
         fields: revision?.fields ?? {},
         excerpt: revision?.excerpt ?? null,
@@ -439,6 +512,7 @@ export class EntriesService {
       title: string;
       slug?: string | undefined;
       parentId?: string | null | undefined;
+      template?: string | null | undefined;
       document?: unknown;
       fields?: Record<string, unknown> | undefined;
       excerpt?: string | null | undefined;
@@ -454,10 +528,19 @@ export class EntriesService {
     const view = await this.run(siteId, auth, async (tx) => {
       const type = await this.contentType(tx, input.type);
       await this.assertTypeAvailable(siteId, type);
-      const fields = await this.validFields(siteId, type, input.fields ?? {});
       const locale = input.locale ?? (await this.defaultLocale(tx, siteId));
       await this.assertLocale(tx, siteId, locale);
       const parentId = await this.validParent(tx, type, locale, input.parentId ?? null, null);
+      const template = input.template ?? null;
+      const fields = await this.validFields(siteId, auth, type, input.fields ?? {}, {
+        id: null,
+        locale,
+        status: 'draft',
+        title: input.title,
+        template,
+        parentId,
+        terms: [],
+      });
       const slug = await this.uniqueSlug(
         tx,
         type.slug,
@@ -475,6 +558,7 @@ export class EntriesService {
         parentId,
         slug,
         title: input.title,
+        template,
         status: 'draft',
         authorId: auth.userId,
         commentStatus: await newCommentStatus(tx, type.supports),
@@ -498,6 +582,7 @@ export class EntriesService {
       title?: string | undefined;
       slug?: string | undefined;
       parentId?: string | null | undefined;
+      template?: string | null | undefined;
       position?: number | undefined;
       document?: unknown;
       fields?: Record<string, unknown> | undefined;
@@ -528,6 +613,7 @@ export class EntriesService {
       }
       if (input.title !== undefined) changes.title = input.title;
       if (input.position !== undefined) changes.position = input.position;
+      if (input.template !== undefined) changes.template = input.template;
       if (input.parentId !== undefined) {
         changes.parentId = await this.validParent(tx, type, entry.locale, input.parentId, entry.id);
       }
@@ -566,8 +652,22 @@ export class EntriesService {
         ? await this.subtreePaths(tx, siteId, entry.id, type.permalink)
         : null;
 
+      // Terms first: field groups may show only on entries with some term.
+      if (input.terms) await this.termsService.assign(tx, siteId, auth, entry, input.terms);
       const fields =
-        input.fields === undefined ? undefined : await this.validFields(siteId, type, input.fields);
+        input.fields === undefined
+          ? undefined
+          : await this.validFields(siteId, auth, type, input.fields, {
+              id: entry.id,
+              locale: entry.locale,
+              status: entry.status,
+              title: input.title ?? entry.title,
+              template:
+                changes.template !== undefined ? (changes.template ?? null) : entry.template,
+              parentId:
+                changes.parentId !== undefined ? (changes.parentId ?? null) : entry.parentId,
+              terms: await this.termIds(tx, entry.id),
+            });
       const needsRevision =
         input.title !== undefined ||
         input.document !== undefined ||
@@ -589,7 +689,6 @@ export class EntriesService {
         );
       }
       await tx.update(entries).set(changes).where(eq(entries.id, entry.id));
-      if (input.terms) await this.termsService.assign(tx, siteId, auth, entry, input.terms);
 
       const updated = await this.load(tx, entry.id);
       if (oldPaths) {
@@ -682,8 +781,18 @@ export class EntriesService {
       const revision = await this.revisionRow(tx, entry.currentRevisionId);
       await this.validFields(
         siteId,
+        auth,
         await this.contentType(tx, entry.typeSlug),
         (revision?.fields as Record<string, unknown>) ?? {},
+        {
+          id: entry.id,
+          locale: entry.locale,
+          status: entry.status,
+          title: entry.title,
+          template: entry.template,
+          parentId: entry.parentId,
+          terms: await this.termIds(tx, entry.id),
+        },
         { partial: false },
       );
       const text = revision ? documentText(revision.document as CxdDocument) : '';
@@ -901,7 +1010,8 @@ export class EntriesService {
     const type = await withContext(this.database.db, { siteId }, (tx) =>
       this.contentType(tx, typeSlug),
     );
-    const { fields: own, groups } = await this.plugins.fieldsFor(siteId, type);
+    const { fields: own } = await this.plugins.fieldsFor(siteId, type);
+    const groups = await this.fieldGroups.groups(siteId, 'entry');
     const result = { ...fields };
     for (const field of own) if (field.translation === 'ignore') delete result[field.name];
     for (const group of groups) {
@@ -948,6 +1058,7 @@ export class EntriesService {
         title: sameLocale && source.title ? `${source.title} (copy)` : source.title,
         ...(sameLocale ? {} : { slug: source.slug }),
         parentId,
+        template: source.template,
         document: revision?.document,
         // Fields marked `translation: 'ignore'` start empty in another language.
         fields: sameLocale ? fields : await this.withoutIgnored(siteId, source.type, fields),
@@ -1255,6 +1366,7 @@ export class EntriesService {
 
     return {
       ...toSummary(entry, authorRow?.name ?? null),
+      template: entry.template,
       createdAt: entry.createdAt.toISOString(),
       trashedAt: entry.trashedAt?.toISOString() ?? null,
       comments: { status: entry.commentStatus, count: entry.commentCount },

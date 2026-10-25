@@ -627,11 +627,15 @@ stateDiagram-v2
 
 ### 9.3 Campi personalizzati
 
-Sono definiti in `fields_schema` con un DSL serializzabile in JSON e convertibile in Zod: `text`, `richtext`, `number`, `boolean`, `date`, `select`, `media`, `relation`, `repeater`, `group`, `json`. Valgono queste regole:
+Sono definiti con un DSL serializzabile in JSON e controllato con Zod (SPECIFICHE §10): `text`, `url`, `number`, `boolean`, `date`, `datetime`, `select`, `choice`, `media`, `color`, `code`, `list`, i tipi di design dei temi e i tipi dei plugin (`<plugin>/<nome>`, API dei plugin 1.47). Valgono queste regole:
 
-- validazione lato server **sempre**, anche se l'admin ha già validato;
-- i campi marcati `indexed: true` generano un indice di espressione su `revisions.fields` / `entries` (tramite job di migrazione);
-- l'admin genera automaticamente i form dei campi a partire dallo schema.
+- validazione lato server **sempre**, anche se l'admin ha già validato; i campi `required` alla pubblicazione;
+- un **registro dei tipi di campo** (`packages/shared/src/field-types.ts`): ogni tipo controlla impostazioni e valori, li formatta per i modelli (`useField`), dà il valore per gli indici ed esporta i riferimenti come ref; l'admin disegna i tipi dei plugin con i loro componenti;
+- **gruppi di campi** con regole di posizione (`packages/shared/src/field-groups.ts`), valutate dal core sul server e dal vivo nell'admin: quelli dei proprietari del sito (tabella `field_groups`, `/api/v1/field-groups`), dei plugin (`ctx.fields`) e del tema (`entryFields`);
+- i valori restano JSON: `revisions.fields` (revisioni, bozze e traduzioni comprese), `terms.fields`, `user_fields` (per sito); ogni riga delle liste ha un `_id` stabile;
+- le **fonti dinamiche** (`ctx.dynamic`) danno i valori formattati ai page builder, ai collegamenti dei blocchi e ai temi;
+- l'admin genera i moduli dei campi dalle definizioni;
+- previsti: indici sui campi (`indexed`), ricerche e colonne degli elenchi per campo.
 
 ### 9.4 Lingue
 

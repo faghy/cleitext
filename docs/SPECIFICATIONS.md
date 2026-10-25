@@ -570,52 +570,51 @@ type Mark = 'bold' | 'italic' | 'underline' | 'strike' | 'code' | 'sup' | 'sub';
 
 ## 10. Custom field DSL
 
+Custom fields of content types, taxonomies, field groups, block attributes and settings share one vocabulary, defined in `packages/shared/src/fields.ts` and checked with Zod on the server (the admin builds its forms from the same definitions). The complete reference, with every option, is [PLUGINS.md §14](PLUGINS.md#14-reference-field-types).
+
 ```json
 {
+  "id": "event",
+  "title": { "en": "Event", "it": "Evento" },
+  "location": [[{ "param": "contentType", "operator": "==", "value": "event" }]],
+  "position": "side",
   "fields": [
-    {
-      "name": "subtitle",
-      "type": "text",
-      "label": { "it": "Sottotitolo" },
-      "maxLength": 160,
-      "translatable": true
-    },
-    { "name": "price", "type": "number", "min": 0, "step": 0.01, "indexed": true },
-    { "name": "eventDate", "type": "date", "required": true, "indexed": true },
-    { "name": "venue", "type": "relation", "to": "venue", "multiple": false },
-    { "name": "gallery", "type": "media", "multiple": true, "accept": ["image/*"] },
+    { "name": "subtitle", "type": "text", "label": { "it": "Sottotitolo" }, "maxLength": 160 },
+    { "name": "price", "type": "number", "min": 0, "step": 0.01 },
+    { "name": "eventDate", "type": "date", "required": true },
+    { "name": "poster", "type": "media" },
     {
       "name": "speakers",
-      "type": "repeater",
+      "type": "list",
       "fields": [
-        { "name": "name", "type": "text", "required": true },
-        { "name": "bio", "type": "richtext" }
+        { "name": "name", "type": "text", "label": "Name" },
+        { "name": "photo", "type": "media", "label": "Photo" }
       ]
     }
   ]
 }
 ```
 
-| Type                | Stored value       | Options                             |
-| ------------------- | ------------------ | ----------------------------------- |
-| `text`              | string             | `maxLength`, `pattern`, `multiline` |
-| `richtext`          | CxdInline[]        | allowed `marks`                     |
-| `number`            | number             | `min`, `max`, `step`                |
-| `boolean`           | boolean            |                                     |
-| `date` / `datetime` | ISO 8601           | `min`, `max`                        |
-| `select`            | string \| string[] | `options`, `multiple`               |
-| `media`             | uuid \| uuid[]     | `accept`, `multiple`                |
-| `relation`          | uuid \| uuid[]     | `to` (type), `multiple`             |
-| `repeater`          | object[]           | `fields`, `min`, `max`              |
-| `group`             | object             | `fields`                            |
-| `json`              | unknown            | `schema` (JSON Schema)              |
+| Type                                           | Stored value               | Options                                                    |
+| ---------------------------------------------- | -------------------------- | ---------------------------------------------------------- |
+| `text`                                         | string                     | `maxLength`, `multiline`                                   |
+| `url`                                          | string                     |                                                            |
+| `number`                                       | number                     | `min`, `max`, `step`, `display`, `unit`, `units`           |
+| `boolean`                                      | boolean                    | `display`                                                  |
+| `date` / `datetime`                            | `YYYY-MM-DD` / ISO 8601    |                                                            |
+| `select` / `choice`                            | string                     | `options`, `display`                                       |
+| `media`                                        | uuid                       |                                                            |
+| `color`                                        | `#rrggbb(aa)`              | `alpha`, `palette`                                         |
+| `code`                                         | string                     | `language: 'css'`                                          |
+| `list`                                         | object[] (rows with `_id`) | `fields` (no list inside), `itemLabel`, `max`              |
+| `spacing`, `background`, `typography`, `zones` | object                     | design controls of themes and blocks                       |
+| `<plugin>/<name>`                              | as the type says           | `settings`, checked by the plugin's type (plugin API 1.47) |
 
-**Common options:**
+**Common options:** `name`, `label`, `help`, `required` (checked when publishing; not while `showIf` hides the field), `default`, `translation` (`translate`, `copy`, `ignore`), `hidden`, `responsive`, and `showIf` (conditions on other fields of the form: `equals`, `in`, `not`, `empty`, `contains`, `gt`, `lt`, `all`, `any`).
 
-- `required`, `default`, `label`, `help`, `translatable` (default `true`);
-- `indexed`, which creates an expression index;
-- `searchable`, which includes the field in full-text search;
-- `showInList`, which shows the field as a column in the admin table.
+**Where fields are** (plugin API 1.47): a content type's own fields (`fields_schema`), and **field groups** with location rules (an OR of AND lists of `{ param, operator, value }`: content type, entry, page template, parent, term, status, taxonomy, user role, user form, editing user's role; options pages later). Groups come from the site's owners (`/api/v1/field-groups`), from plugins (`ctx.fields`) and from the theme (`entryFields`). Values are JSON: in `revisions.fields` (under the group's id) for entries, `terms.fields` for terms, `user_fields` per site for users.
+
+**Not yet in the core** (planned with the Campus plugin and later): rich text, relation, gallery, file, nested repeaters and flexible content as core types; `indexed`, `searchable` and `showInList` options (queries by field, list columns).
 
 ---
 

@@ -28,6 +28,8 @@ export const transferUserSchema = z.object({
   /** Role slug on the site, e.g. `editor`. */
   role: z.string().max(64).optional(),
   locale: z.string().max(10).optional(),
+  /** Values of the site's user fields, by field group (plugin API 1.47). */
+  fields: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const transferTermSchema = z.object({
@@ -86,7 +88,14 @@ export const transferEntrySchema = z.object({
   scheduledAt: z.iso.datetime({ offset: true }).nullable().optional(),
   createdAt: z.iso.datetime({ offset: true }).optional(),
   position: z.number().int().optional(),
+  /**
+   * Custom field values. Media, entries, terms and users they refer to are
+   * written `{ "$media" | "$entry" | "$term" | "$user": "<ref>" }`: the
+   * importer replaces them with the new ids (plugin API 1.47).
+   */
   fields: z.record(z.string(), z.unknown()).optional(),
+  /** The page template chosen in the editor (plugin API 1.47). */
+  template: z.string().max(64).nullable().optional(),
   /** Image blocks refer to media with `attrs.id` = media `ref`. */
   document: cxdDocumentSchema,
   /** Short summary (plain text), e.g. a product's short description. */

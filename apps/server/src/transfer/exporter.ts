@@ -14,12 +14,14 @@ import {
   siteMembers,
   taxonomies,
   terms,
+  userFields,
   users,
   withContext,
   type Database,
 } from '@cleitext/db';
 import { and, asc, eq, ne } from 'drizzle-orm';
 import type { ContentLocale, TranslatableKind, TranslationLink } from '@cleitext/plugin-sdk';
+import { exportFieldValues, type FieldDefinition, type FieldValues } from '@cleitext/shared';
 import type { TransferDocumentInput, TransferMenuItem } from './model.js';
 
 const CORE_TYPES = new Set(['page', 'article']);
@@ -28,6 +30,36 @@ const CORE_TYPES = new Set(['page', 'article']);
 export interface ExportLanguages {
   locales: ContentLocale[];
   translations(kind: TranslatableKind, ids: string[]): Promise<Map<string, TranslationLink[]>>;
+}
+
+/** The definitions of an object's fields: its own (top level) and its groups'. */
+export interface FieldSet {
+  own: readonly FieldDefinition[];
+  groups: readonly { id: string; fields: readonly FieldDefinition[] }[];
+}
+
+/**
+ * Field definitions, so that values referring to media, entries, terms and
+ * users are exported as refs (plugin API 1.47). Without them values are
+ * exported as they are.
+ */
+export interface ExportFieldDefinitions {
+  entry(type: string): FieldSet;
+  term(taxonomy: string): FieldSet;
+  user: FieldSet;
+}
+
+/** Field values with their references written as refs (`{ $media: id }`…). */
+export function exportFields(set: FieldSet | undefined, values: FieldValues): FieldValues {
+  if (!set) return values;
+  const out = exportFieldValues(set.own, values);
+  for (const group of set.groups) {
+    const nested = values[group.id];
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      out[group.id] = exportFieldValues(group.fields, nested as FieldValues);
+    }
+  }
+  return out;
 }
 
 export interface ExportResult {
@@ -48,6 +80,8 @@ export async function exportSite(
   languages?: ExportLanguages,
   /** The plugins' own data (`export.pluginData`, plugin API 1.46), by plugin slug. */
   plugins: Record<string, unknown> = {},
+  /** Field definitions (plugin API 1.47), for references in field values. */
+  fieldDefinitions?: ExportFieldDefinitions,
 ): Promise<ExportResult> {
   return withContext(db, { siteId }, async (tx) => {
     const files = new Map<string, string>();
@@ -59,6 +93,9 @@ export async function exportSite(
       .innerJoin(roles, eq(roles.id, siteMembers.roleId))
       .where(eq(siteMembers.siteId, siteId));
     const typeRows = await tx.select().from(contentTypes);
+    const userValues = new Map(
+      (await tx.select().from(userFields)).map((r) => [r.userId, r.fields as FieldValues]),
+    );
     const taxonomyRows = await tx.select().from(taxonomies);
     const taxonomySlug = new Map(taxonomyRows.map((t) => [t.id, t.slug]));
     const termRows = await tx.select().from(terms);
@@ -140,13 +177,19 @@ export async function exportSite(
         isDefault: l.isDefault,
         urlPrefix: l.isDefault ? null : l.prefix,
       })),
-      users: members.map((m) => ({
-        ref: m.user.id,
-        email: m.user.email,
-        displayName: m.user.displayName,
-        role: m.role,
-        locale: m.user.locale,
-      })),
+      users: members.map((m) => {
+        const values = userValues.get(m.user.id);
+        return {
+          ref: m.user.id,
+          email: m.user.email,
+          displayName: m.user.displayName,
+          role: m.role,
+          locale: m.user.locale,
+          ...(values && Object.keys(values).length > 0
+            ? { fields: exportFields(fieldDefinitions?.user, values) }
+            : {}),
+        };
+      }),
       contentTypes: typeRows
         .filter((t) => !CORE_TYPES.has(t.slug))
         .map((t) => ({
@@ -171,7 +214,12 @@ export async function exportSite(
         name: t.name,
         description: t.description,
         ...(Object.keys(t.fields as object).length > 0
-          ? { fields: t.fields as Record<string, unknown> }
+          ? {
+              fields: exportFields(
+                fieldDefinitions?.term(taxonomySlug.get(t.taxonomyId)!),
+                t.fields as Record<string, unknown>,
+              ),
+            }
           : {}),
         ...(t.position ? { position: t.position } : {}),
       })),
@@ -207,7 +255,11 @@ export async function exportSite(
             scheduledAt: e.scheduledAt?.toISOString() ?? null,
             createdAt: e.createdAt.toISOString(),
             position: e.position,
-            fields: revision.fields as Record<string, unknown>,
+            fields: exportFields(
+              fieldDefinitions?.entry(e.typeSlug),
+              revision.fields as Record<string, unknown>,
+            ),
+            ...(e.template ? { template: e.template } : {}),
             document: revision.document as CxdDocument,
             ...(revision.featuredMediaId ? { featuredMediaRef: revision.featuredMediaId } : {}),
             terms: termsOf,

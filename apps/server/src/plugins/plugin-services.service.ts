@@ -48,6 +48,11 @@ import {
   type DocumentImportOptions,
 } from '@cleitext/plugin-sdk';
 import {
+  mayMatchType,
+  type FieldGroupInput,
+  type FieldGroupView,
+  type FieldObject,
+  type LocationScreen,
   fieldDefaults,
   fieldsValidator,
   type FieldDefinition,
@@ -86,6 +91,10 @@ import { blockRegistry } from '../content/block-registry.js';
 import { sanitizeDocument } from '../content/html-sanitize.js';
 import { transferDocumentSchema } from '../transfer/model.js';
 import type { PluginServices } from './plugin-context.js';
+import type { DynamicContext, DynamicSourceInfo } from '@cleitext/plugin-sdk';
+import { DynamicSourcesService } from '../fields/dynamic-sources.service.js';
+import { FieldGroupsService } from '../fields/field-groups.service.js';
+import { UserFieldsService } from '../fields/user-fields.service.js';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
 
 /** Core services exposed to plugins through their context facades. */
@@ -104,8 +113,53 @@ export class PluginServicesProvider implements PluginServices {
     private readonly media: MediaService,
     private readonly commentsService: CommentsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly fieldGroupsService: FieldGroupsService,
+    private readonly userFieldsService: UserFieldsService,
+    private readonly dynamicService: DynamicSourcesService,
   ) {
     host.bind(this);
+  }
+
+  // ---- Custom fields (plugin API 1.47) --------------------------------------------------
+
+  fieldGroups(siteId: string, object?: FieldObject): Promise<FieldGroupView[]> {
+    return this.fieldGroupsService.groups(siteId, object);
+  }
+
+  matchingFieldGroups(siteId: string, screen: LocationScreen): Promise<FieldGroupView[]> {
+    return this.fieldGroupsService.matching(siteId, screen);
+  }
+
+  siteFieldGroups(siteId: string): Promise<FieldGroupInput[]> {
+    return this.fieldGroupsService.listSite(siteId);
+  }
+
+  saveSiteFieldGroup(siteId: string, group: unknown): Promise<FieldGroupInput> {
+    return this.fieldGroupsService.saveSite(siteId, group);
+  }
+
+  removeSiteFieldGroup(siteId: string, id: string): Promise<void> {
+    return this.fieldGroupsService.removeSite(siteId, id);
+  }
+
+  updateTermFields(siteId: string, id: string, values: FieldValues): Promise<void> {
+    return this.termsService.updateTermFields(siteId, id, values);
+  }
+
+  userFields(siteId: string, id: string): Promise<FieldValues> {
+    return this.userFieldsService.values(siteId, id);
+  }
+
+  async updateUserFields(siteId: string, id: string, values: FieldValues): Promise<void> {
+    await this.userFieldsService.save(siteId, null, id, values, 'edit');
+  }
+
+  dynamicSources(siteId: string): Promise<DynamicSourceInfo[]> {
+    return this.dynamicService.sources(siteId);
+  }
+
+  resolveDynamic(siteId: string, id: string, context: DynamicContext): Promise<unknown> {
+    return this.dynamicService.resolve(siteId, id, context);
   }
 
   async site(siteId: string): Promise<PluginSite> {
@@ -236,7 +290,11 @@ export class PluginServicesProvider implements PluginServices {
     return withContext(this.database.db, { siteId }, async (tx) => {
       const [row] = await tx.select().from(contentTypes).where(eq(contentTypes.slug, type));
       if (!row) return { fields: [], groups: [] };
-      const { fields, groups } = await this.host.fieldsFor(siteId, row);
+      const { fields } = await this.host.fieldsFor(siteId, row);
+      // Every group that may show on the type: the owners', the plugins'.
+      const groups = (await this.fieldGroupsService.groups(siteId, 'entry')).filter(
+        (g) => g.storage !== 'document' && mayMatchType(g.location ?? [], row.slug),
+      );
       return { fields, groups: groups.map((g) => ({ id: g.id, fields: g.fields })) };
     });
   }
@@ -495,7 +553,43 @@ export class PluginServicesProvider implements PluginServices {
         })),
       },
       ...community,
+      ...(await this.userFieldsPersonalData(siteId, email)),
     ];
+  }
+
+  /** The values of the site's user fields of an address's account (plugin API 1.47). */
+  private async userFieldsPersonalData(
+    siteId: string,
+    email: string,
+  ): Promise<PersonalDataGroup[]> {
+    const values = await this.userFieldsService.forEmail(siteId, email);
+    return values
+      ? [
+          {
+            id: 'core.fields',
+            label: { en: 'Profile fields', it: 'Campi del profilo' },
+            // One line per group (or field), its values as JSON.
+            items: [
+              Object.fromEntries(
+                Object.entries(values).map(([key, value]) => [
+                  key,
+                  value === null || ['string', 'number', 'boolean'].includes(typeof value)
+                    ? (value as string | number | boolean | null)
+                    : JSON.stringify(value),
+                ]),
+              ),
+            ],
+          },
+        ]
+      : [];
+  }
+
+  /** Erases the site's user field values of an address (plugin API 1.47). */
+  async eraseUserFields(
+    siteId: string,
+    email: string,
+  ): Promise<{ removed: number; retained: number }> {
+    return { removed: await this.userFieldsService.eraseEmail(siteId, email), retained: 0 };
   }
 
   /** Comments written with an email address or by its account, and its likes (RF-COM). */

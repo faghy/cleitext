@@ -570,52 +570,51 @@ type Mark = 'bold' | 'italic' | 'underline' | 'strike' | 'code' | 'sup' | 'sub';
 
 ## 10. DSL dei campi personalizzati
 
+I campi personalizzati dei tipi di contenuto, delle tassonomie, dei gruppi di campi, degli attributi dei blocchi e delle impostazioni usano un solo vocabolario, definito in `packages/shared/src/fields.ts` e controllato con Zod sul server (l'admin costruisce i moduli dalle stesse definizioni). Il riferimento completo, con tutte le opzioni, è [PLUGIN.md §14](PLUGIN.md#14-riferimento-tipi-di-campo).
+
 ```json
 {
+  "id": "event",
+  "title": { "en": "Event", "it": "Evento" },
+  "location": [[{ "param": "contentType", "operator": "==", "value": "event" }]],
+  "position": "side",
   "fields": [
-    {
-      "name": "subtitle",
-      "type": "text",
-      "label": { "it": "Sottotitolo" },
-      "maxLength": 160,
-      "translatable": true
-    },
-    { "name": "price", "type": "number", "min": 0, "step": 0.01, "indexed": true },
-    { "name": "eventDate", "type": "date", "required": true, "indexed": true },
-    { "name": "venue", "type": "relation", "to": "venue", "multiple": false },
-    { "name": "gallery", "type": "media", "multiple": true, "accept": ["image/*"] },
+    { "name": "subtitle", "type": "text", "label": { "it": "Sottotitolo" }, "maxLength": 160 },
+    { "name": "price", "type": "number", "min": 0, "step": 0.01 },
+    { "name": "eventDate", "type": "date", "required": true },
+    { "name": "poster", "type": "media" },
     {
       "name": "speakers",
-      "type": "repeater",
+      "type": "list",
       "fields": [
-        { "name": "name", "type": "text", "required": true },
-        { "name": "bio", "type": "richtext" }
+        { "name": "name", "type": "text", "label": "Nome" },
+        { "name": "photo", "type": "media", "label": "Foto" }
       ]
     }
   ]
 }
 ```
 
-| Tipo                | Valore salvato     | Opzioni                             |
-| ------------------- | ------------------ | ----------------------------------- |
-| `text`              | string             | `maxLength`, `pattern`, `multiline` |
-| `richtext`          | CxdInline[]        | `marks` consentiti                  |
-| `number`            | number             | `min`, `max`, `step`                |
-| `boolean`           | boolean            |                                     |
-| `date` / `datetime` | ISO 8601           | `min`, `max`                        |
-| `select`            | string \| string[] | `options`, `multiple`               |
-| `media`             | uuid \| uuid[]     | `accept`, `multiple`                |
-| `relation`          | uuid \| uuid[]     | `to` (tipo), `multiple`             |
-| `repeater`          | object[]           | `fields`, `min`, `max`              |
-| `group`             | object             | `fields`                            |
-| `json`              | unknown            | `schema` (JSON Schema)              |
+| Tipo                                           | Valore salvato             | Opzioni                                                           |
+| ---------------------------------------------- | -------------------------- | ----------------------------------------------------------------- |
+| `text`                                         | stringa                    | `maxLength`, `multiline`                                          |
+| `url`                                          | stringa                    |                                                                   |
+| `number`                                       | numero                     | `min`, `max`, `step`, `display`, `unit`, `units`                  |
+| `boolean`                                      | booleano                   | `display`                                                         |
+| `date` / `datetime`                            | `YYYY-MM-DD` / ISO 8601    |                                                                   |
+| `select` / `choice`                            | stringa                    | `options`, `display`                                              |
+| `media`                                        | uuid                       |                                                                   |
+| `color`                                        | `#rrggbb(aa)`              | `alpha`, `palette`                                                |
+| `code`                                         | stringa                    | `language: 'css'`                                                 |
+| `list`                                         | object[] (righe con `_id`) | `fields` (niente liste dentro), `itemLabel`, `max`                |
+| `spacing`, `background`, `typography`, `zones` | oggetto                    | controlli di design di temi e blocchi                             |
+| `<plugin>/<nome>`                              | come dice il tipo          | `settings`, controllati dal tipo del plugin (API dei plugin 1.47) |
 
-**Opzioni comuni:**
+**Opzioni comuni:** `name`, `label`, `help`, `required` (controllato alla pubblicazione; non mentre `showIf` nasconde il campo), `default`, `translation` (`translate`, `copy`, `ignore`), `hidden`, `responsive` e `showIf` (condizioni su altri campi del modulo: `equals`, `in`, `not`, `empty`, `contains`, `gt`, `lt`, `all`, `any`).
 
-- `required`, `default`, `label`, `help`, `translatable` (default `true`);
-- `indexed`, che crea un indice di espressione;
-- `searchable`, che include il campo nel full-text;
-- `showInList`, che mostra il campo come colonna nella tabella dell'admin.
+**Dove stanno i campi** (API dei plugin 1.47): i campi propri di un tipo di contenuto (`fields_schema`) e i **gruppi di campi** con regole di posizione (un O di liste E di `{ param, operator, value }`: tipo di contenuto, voce, modello di pagina, pagina madre, termine, stato, tassonomia, ruolo dell'utente, modulo dell'utente, ruolo di chi modifica; più avanti le pagine di opzioni). I gruppi arrivano dai proprietari del sito (`/api/v1/field-groups`), dai plugin (`ctx.fields`) e dal tema (`entryFields`). I valori sono JSON: in `revisions.fields` (sotto l'id del gruppo) per le voci, `terms.fields` per i termini, `user_fields` per sito per gli utenti.
+
+**Non ancora nel core** (previsti con il plugin Campus e dopo): testo ricco, relazione, galleria, file, ripetitori annidati e contenuto flessibile come tipi del core; le opzioni `indexed`, `searchable` e `showInList` (ricerche per campo, colonne negli elenchi).
 
 ---
 

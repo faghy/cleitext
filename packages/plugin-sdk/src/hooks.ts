@@ -1,5 +1,5 @@
 import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
-import type { Label } from '@cleitext/shared';
+import type { FieldDefinition, Label } from '@cleitext/shared';
 import type { HeadData, PublicEntry, ThemeLocation } from '@cleitext/theme-sdk';
 
 /**
@@ -265,8 +265,47 @@ export interface FormVerifyResult {
   challenge?: boolean;
 }
 
+/** A problem with a value, shown under its field in the editor. */
+export interface FieldError {
+  /** `fields.<name>`, `fields.<group>.<name>` (also `fields.<group>.<list>.<row>.<name>`), or `title`. */
+  path: string;
+  message: string;
+}
+
+/** Context of the `entry.validate` filter (plugin API 1.47). */
+export interface EntryValidateContext {
+  siteId: string;
+  /** The person saving. */
+  userId: string;
+  /** Publishing (or updating a published entry): required fields were checked. */
+  publishing: boolean;
+  entry: {
+    /** Null while the entry is being created. */
+    id: string | null;
+    type: string;
+    locale: string;
+    status: string;
+    title: string;
+    template: string | null;
+    parentId: string | null;
+    /** Ids of its terms, all taxonomies. */
+    terms: string[];
+  };
+  /** The values being saved, checked by the core. */
+  fields: Record<string, unknown>;
+  /** The field groups shown for the entry (their values are under `fields[<id>]`). */
+  groups: { id: string; fields: FieldDefinition[] }[];
+}
+
 /** Filters (transformations): `[value, context]` by name. */
 export interface Filters {
+  /**
+   * Checks an entry before it is saved (plugin API 1.47), after the core
+   * checked its fields: add problems to the list (`[...errors, { path,
+   * message }]`) to refuse the save; they show under the fields in the
+   * editor. Keep the others' errors. No permission needed.
+   */
+  'entry.validate': [errors: FieldError[], context: EntryValidateContext];
   /**
    * Markup placed inside a form, before its submit button (plugin API 1.38,
    * needs `forms:protect`), e.g. a captcha widget with its `<script>` tags.

@@ -54,6 +54,8 @@ export const entries = pgTable(
     parentId: uuid('parent_id'),
     slug: text('slug').notNull(),
     title: text('title').notNull().default(''),
+    /** Page template offered by the theme (`pageTemplates`); null for the default (0030). */
+    template: text('template'),
     status: text('status')
       .$type<'draft' | 'pending' | 'scheduled' | 'published' | 'private' | 'trashed'>()
       .notNull()

@@ -19,13 +19,14 @@ import {
   superAdmins,
   taxonomies,
   terms,
+  userFields,
   users,
   findLogin,
   withContext,
   type Database,
   type SiteTransaction,
 } from '@cleitext/db';
-import { CAPABILITIES } from '@cleitext/shared';
+import { CAPABILITIES, importFieldRefs, type ImportRefMaps } from '@cleitext/shared';
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
 import { nextFreeSlug, permalinkShape, slugify } from '../content/slug.js';
@@ -318,6 +319,14 @@ export async function importDocument(
   const entryIds = new Map<string, { id: string }>();
   /** Entries written by this import whose document points to other entries. */
   const withRefs: { revisionId: string; document: CxdDocument }[] = [];
+  /** And those whose custom fields do (plugin API 1.47). */
+  const fieldsWithRefs: { revisionId: string; fields: Record<string, unknown> }[] = [];
+  // References in field values: media, terms and users are known by now.
+  const fieldRefs: Partial<ImportRefMaps> = {
+    media: (ref) => mediaTargets.get(ref)?.id ?? null,
+    term: (ref) => termIds.get(ref) ?? null,
+    user: (ref) => userIds.get(ref) ?? null,
+  };
   // Entries of types the site does not have (e.g. of a plugin that is not active).
   const knownTypes = new Set(
     (await run((tx) => tx.select({ slug: contentTypes.slug }).from(contentTypes))).map(
@@ -359,11 +368,15 @@ export async function importDocument(
           media: mediaTargets,
           urls: urlMap,
           report,
+          refs: fieldRefs,
         }),
       );
       entryIds.set(entry.ref, { id: result.id });
       if (JSON.stringify(result.document).includes('"$entry"')) {
         withRefs.push({ revisionId: result.revisionId, document: result.document });
+      }
+      if (JSON.stringify(result.fields).includes('"$entry"')) {
+        fieldsWithRefs.push({ revisionId: result.revisionId, fields: result.fields });
       }
       if (entry.comments?.length) {
         await run((tx) => insertComments(tx, siteId, result.id, entry.comments!, userIds, report));
@@ -388,6 +401,41 @@ export async function importDocument(
         .where(eq(revisions.id, revisionId)),
     );
   }
+  const allRefs: Partial<ImportRefMaps> = { ...fieldRefs, entry: (ref) => idOf(ref) ?? null };
+  for (const { revisionId, fields } of fieldsWithRefs) {
+    await run((tx) =>
+      tx
+        .update(revisions)
+        .set({ fields: importFieldRefs(fields, allRefs) as Record<string, unknown> })
+        .where(eq(revisions.id, revisionId)),
+    );
+  }
+  // Term fields (written before the media and entries existed) and user fields.
+  await run(async (tx) => {
+    for (const term of doc.terms) {
+      const id = termIds.get(term.ref);
+      if (!id || !term.fields || !JSON.stringify(term.fields).includes('"$')) continue;
+      await tx
+        .update(terms)
+        .set({ fields: importFieldRefs(term.fields, allRefs) as Record<string, unknown> })
+        .where(eq(terms.id, id));
+    }
+    for (const user of doc.users) {
+      const userId = userIds.get(user.ref);
+      if (!userId || !user.fields || Object.keys(user.fields).length === 0) continue;
+      const [existing] = await tx
+        .select({ userId: userFields.userId })
+        .from(userFields)
+        .where(eq(userFields.userId, userId));
+      // Values already on the site are kept, as for entries imported again.
+      if (existing) continue;
+      await tx.insert(userFields).values({
+        siteId,
+        userId,
+        fields: importFieldRefs(user.fields, allRefs) as Record<string, unknown>,
+      });
+    }
+  });
 
   // ---- Settings, menus, redirects --------------------------------------------------
   await run(async (tx) => {
@@ -683,8 +731,15 @@ async function insertEntry(
     media: Map<string, MediaTarget>;
     urls: Map<string, MediaTarget>;
     report: ImportReport;
+    /** References in field values (plugin API 1.47); entries are resolved afterwards. */
+    refs: Partial<ImportRefMaps>;
   },
-): Promise<{ id: string; revisionId: string; document: CxdDocument }> {
+): Promise<{
+  id: string;
+  revisionId: string;
+  document: CxdDocument;
+  fields: Record<string, unknown>;
+}> {
   const types = await tx.select().from(contentTypes);
   const type = types.find((t) => t.slug === entry.type);
   if (!type) throw new Error(`unknown content type "${entry.type}"`);
@@ -715,6 +770,7 @@ async function insertEntry(
     context.report,
     entry.title,
   );
+  const fields = importFieldRefs(entry.fields ?? {}, context.refs) as Record<string, unknown>;
   const id = newId();
   const revisionId = newId();
   const publishedAt = entry.publishedAt ? new Date(entry.publishedAt) : null;
@@ -727,6 +783,7 @@ async function insertEntry(
     parentId: type.hierarchical ? (context.parent ?? null) : null,
     slug,
     title: entry.title,
+    template: entry.template ?? null,
     status: entry.status,
     authorId: context.author,
     publishedAt: isPublic ? (publishedAt ?? new Date()) : publishedAt,
@@ -746,7 +803,7 @@ async function insertEntry(
     entryId: id,
     kind: 'import',
     title: entry.title,
-    fields: entry.fields ?? {},
+    fields,
     ...(entry.excerpt ? { excerpt: entry.excerpt } : {}),
     featuredMediaId: entry.featuredMediaRef
       ? (context.media.get(entry.featuredMediaRef)?.id ?? null)
@@ -783,7 +840,7 @@ async function insertEntry(
         .onConflictDoNothing();
     }
   }
-  return { id, revisionId, document };
+  return { id, revisionId, document, fields };
 }
 
 /** Image blocks: media refs become the imported media ids and URLs. */

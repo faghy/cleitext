@@ -23,8 +23,17 @@ import {
   type TermQuery,
   type TranslationLink,
   type DocumentImportOptions,
+  type DynamicContext,
+  type DynamicSourceInfo,
 } from '@cleitext/plugin-sdk';
-import type { FieldDefinition, FieldValues } from '@cleitext/shared';
+import type {
+  FieldDefinition,
+  FieldGroupInput,
+  FieldGroupView,
+  FieldObject,
+  FieldValues,
+  LocationScreen,
+} from '@cleitext/shared';
 import { Logger } from '@nestjs/common';
 import type { LoadedPlugin, PluginHost } from './plugin-host.service.js';
 import { pluginAssetUrl } from './plugin-assets.js';
@@ -33,6 +42,18 @@ import { pluginMail } from '../mail/plugin-mail.js';
 
 /** What plugin contexts need from the core, implemented by `PluginServices`. */
 export interface PluginServices {
+  /** Custom fields (plugin API 1.47). */
+  fieldGroups(siteId: string, object?: FieldObject): Promise<FieldGroupView[]>;
+  matchingFieldGroups(siteId: string, screen: LocationScreen): Promise<FieldGroupView[]>;
+  siteFieldGroups(siteId: string): Promise<FieldGroupInput[]>;
+  saveSiteFieldGroup(siteId: string, group: unknown): Promise<FieldGroupInput>;
+  removeSiteFieldGroup(siteId: string, id: string): Promise<void>;
+  updateTermFields(siteId: string, id: string, values: FieldValues): Promise<void>;
+  userFields(siteId: string, id: string): Promise<FieldValues>;
+  updateUserFields(siteId: string, id: string, values: FieldValues): Promise<void>;
+  dynamicSources(siteId: string): Promise<DynamicSourceInfo[]>;
+  eraseUserFields(siteId: string, email: string): Promise<{ removed: number; retained: number }>;
+  resolveDynamic(siteId: string, id: string, context: DynamicContext): Promise<unknown>;
   site(siteId: string): Promise<PluginSite>;
   findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]>;
   copyEntry(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry>;
@@ -327,6 +348,12 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         if (!UUID_RE.test(id) || !UUID_RE.test(options.userId)) throw new TypeError('Invalid id');
         return services().copyTerm(siteId, id, options);
       },
+      async updateFields(siteId, id, values) {
+        require('content:write');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id)) throw new TypeError('Invalid id');
+        return services().updateTermFields(siteId, id, values);
+      },
     },
 
     languages: {
@@ -542,6 +569,83 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         if (typeof id !== 'string' || !UUID_RE.test(id)) return null;
         const [user] = await services().findUsers(siteId, { ids: [id], limit: 1, offset: 0 });
         return user ?? null;
+      },
+      async fields(siteId, id) {
+        require('users:read');
+        assertSiteId(siteId);
+        if (typeof id !== 'string' || !UUID_RE.test(id)) throw new TypeError('Invalid id');
+        return services().userFields(siteId, id);
+      },
+      async updateFields(siteId, id, values) {
+        require('users:read');
+        require('content:write');
+        assertSiteId(siteId);
+        if (typeof id !== 'string' || !UUID_RE.test(id)) throw new TypeError('Invalid id');
+        return services().updateUserFields(siteId, id, values);
+      },
+    },
+
+    fields: {
+      registerType(definition) {
+        host.addFieldType(plugin, definition);
+      },
+      addGroup(group) {
+        require('content:write');
+        host.addFieldGroup(plugin, group);
+      },
+      removeGroup(id) {
+        host.removeFieldGroup(plugin, id);
+      },
+      provideGroups(provider) {
+        require('content:write');
+        if (typeof provider !== 'function') throw new TypeError('provideGroups needs a function');
+        plugin.groupProviders.push(provider);
+      },
+      async groups(siteId, object) {
+        require('content:read');
+        assertSiteId(siteId);
+        return services().fieldGroups(siteId, object);
+      },
+      async matching(siteId, screen) {
+        require('content:read');
+        assertSiteId(siteId);
+        return services().matchingFieldGroups(siteId, screen);
+      },
+      siteGroups: {
+        async list(siteId) {
+          require('content:write');
+          assertSiteId(siteId);
+          return services().siteFieldGroups(siteId);
+        },
+        async save(siteId, group) {
+          require('content:write');
+          assertSiteId(siteId);
+          return services().saveSiteFieldGroup(siteId, group);
+        },
+        async remove(siteId, id) {
+          require('content:write');
+          assertSiteId(siteId);
+          return services().removeSiteFieldGroup(siteId, id);
+        },
+      },
+    },
+
+    dynamic: {
+      registerSource(source) {
+        host.addDynamicSource(plugin, source);
+      },
+      registerProvider(provider) {
+        if (typeof provider !== 'function')
+          throw new TypeError('registerProvider needs a function');
+        plugin.dynamicProviders.push(provider);
+      },
+      async sources(siteId) {
+        assertSiteId(siteId);
+        return services().dynamicSources(siteId);
+      },
+      async resolve(siteId, id, context) {
+        assertSiteId(siteId);
+        return services().resolveDynamic(siteId, String(id), context ?? { locale: '' });
       },
     },
 

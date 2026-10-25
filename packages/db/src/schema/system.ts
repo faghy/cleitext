@@ -99,3 +99,20 @@ export const auditLog = pgTable(
   },
   (t) => [index('audit_site_time_idx').on(t.siteId, t.createdAt.desc())],
 );
+
+/**
+ * Field groups of the site's owners (plugin API 1.47, 0030): fields shown
+ * where the group's location rules match. `definition` is the whole group
+ * (title, fields, rules, position…), checked by `fieldGroupSchema`.
+ */
+export const fieldGroups = pgTable(
+  'field_groups',
+  {
+    siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    definition: jsonb('definition').notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.siteId, t.key] })],
+);

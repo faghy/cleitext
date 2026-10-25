@@ -107,6 +107,7 @@ export default defineTheme({
 | `settingsSections` | Tabs of Appearance → Customize: `[{ id, label, description?, parent?, tabs? }]`; a field goes in one with `section` (§4).                                                                                                                                        |
 | `presets`          | Ready-made styles: `[{ id, label, values }]`, applied in Customize before publishing (§4).                                                                                                                                                                       |
 | `entryFields`      | Per-page options, `{ types?, fields }`, shown in the editor's Document tab (§4).                                                                                                                                                                                 |
+| `pageTemplates`    | Page templates chosen in the editor's sidebar, `[{ name, label, types? }]` (default types: `['page']`); the entry's choice is `entry.template` and the template component `template-<name>` is tried first (§4, plugin API 1.47).                                |
 | `menuItemFields`   | Options of each menu item, `[{ field, levels? }]`, shown in Appearance → Menus and read from `MenuItemView.data` (§4, plugin API 1.34).                                                                                                                          |
 | `relatedEntries`   | How many related entries to show under an entry (at most 12): `entry.related` has them, same categories first, then same tags (core 0.37).                                                                                                                       |
 | `listTerms`        | `true`: lists (blog, archives, search) give each entry's categories and tags in `entries[].terms` (core 0.46).                                                                                                                                                   |
@@ -229,7 +230,37 @@ settings: [
 
 Plugins may add settings, sections, builder elements, ready-made styles and areas to a theme ([PLUGINS.md, Extending a theme's options](PLUGINS.md#extending-a-themes-options-plugin-api-132)): while such a plugin is active on the site, `useThemeSettings()` also holds the values of its fields, checked and with defaults like the theme's own. Read them by name, and expect them to be missing when the plugin is not active.
 
-`entryFields` adds options to single pages (for example a sidebar or a transparent header per page). Editors set them in the Document tab of the block editor; they are saved with the entry in `document.editor.data` and the theme reads them from `entry.document.editor?.data`. `types` limits them to some entry types (`['page']`).
+`entryFields` adds options to single pages (for example a sidebar or a transparent header per page). Editors set them in the Document tab of the block editor; they are saved with the entry in `document.editor.data` and the theme reads them from `entry.document.editor?.data`. `types` limits them to some entry types (`['page']`). Since plugin API 1.47 they are a field group of the theme (id `theme`) like the others, listed with the site's and the plugins' groups; nothing changes for the theme.
+
+**Page templates** (plugin API 1.47), like WordPress's: `pageTemplates: [{ name: 'landing', label: { en: 'Landing page', it: 'Pagina di atterraggio' } }]` offers them in the editor's sidebar (**Template**) for `types` (default `['page']`). The entry's choice is `entry.template` (null for the default), and `template-<name>` is the first template component tried for it (`templates: { index, 'template-landing': Landing }`); without one, the usual ones are tried, so a theme may also just read `entry.template` (e.g. a class on the content). Field groups can show only on entries with a template (rule `template`), so a site owner adds the fields a landing page needs.
+
+<a id="custom-fields"></a>**Custom fields** (plugin API 1.47). Entries keep their fields in `entry.fields`, as stored (media as ids). The readers give them formatted, computed on the server once per page, like ACF's `get_field`, `the_field` and `have_rows`:
+
+```tsx
+import { Field, Rows, useField } from '@cleitext/theme-sdk';
+
+function Landing() {
+  const photo = useField<{ url: string; alt: string; sizes: Record<string, { url: string }> }>(
+    'photo',
+  );
+  return (
+    <>
+      <h2>
+        <Field name="subtitle" fallback="Welcome" />
+      </h2>
+      {photo && <img src={photo.sizes.md?.url ?? photo.url} alt={photo.alt} />}
+      <Rows name="team" empty={<p>No one yet.</p>}>
+        {(row) => <h3>{String(row.name)}</h3>}
+      </Rows>
+    </>
+  );
+}
+```
+
+- `useField(name, { of, group, raw })`: by name (the type's fields, then each group's, first found) or `group.name`. `of: 'term'` reads the term of a category or tag archive, `of: 'author'` the person of an author archive (user fields), default the entry shown. `raw: true` gives the stored value.
+- Formatted values: a media field is `{ id, url, alt, width, height, mime, sizes }` (sizes by name, e.g. `sizes.md.url`); list rows come formatted too, each with its stable `_id`; plugin field types give what their `format` says (an entry `{ id, type, title, url }`…); other values as stored.
+- `<Field name>` shows a value: text and numbers as text (escaped), yes/no as ✓, a media field as an `<img>`, lists of texts joined with commas; `fallback` when empty, `className` on the element. `<Rows name>` gives each row of a list to its function, `empty` when there are none.
+- They read `entry.fieldValues`, `term.fieldValues` and `author.fieldValues` of the props, which a template can also use directly; on older cores the readers fall back to the stored values.
 
 `menuItemFields` (plugin API 1.34) adds options to each menu item, for example a mega menu's columns or an icon. Each entry is `{ field, levels? }`: `field` is a field definition, `levels` is `'top'` (first-level items only), `'nested'` (sub-items only) or `'all'` (default). In **Appearance → Menus** the ⚙ button of an item opens its "Theme options"; the values are checked like settings (unknown keys are dropped, invalid values refused) and stored with the item. The theme reads them in `usePage().menus[location][i].data`, with the defaults applied, only for the options that apply at the item's level:
 

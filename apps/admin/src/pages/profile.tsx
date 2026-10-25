@@ -9,6 +9,7 @@ import { ApiTokensCard } from './api-tokens-card';
 import { applyTheme, themePreference, type ThemePreference } from '../theme';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
+import { UserFieldsCard } from '../components/field-groups';
 
 export function ProfilePage() {
   const { t } = useT();
@@ -25,6 +26,7 @@ export function ProfilePage() {
           <PasswordCard />
         </div>
       </div>
+      <UserFieldsCard path="/profile/fields" />
       <div className="grid gap-6 lg:grid-cols-2">
         <TwoFactorCard />
         <PasskeysCard />

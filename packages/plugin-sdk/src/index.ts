@@ -21,6 +21,28 @@ export {
   type Label,
   type MenuItemField,
 } from '@cleitext/shared';
+/** Custom fields (plugin API 1.47): types, conditions, groups and their rules. */
+export {
+  ensureRowIds,
+  fieldVisible,
+  isEmptyValue,
+  matchesLocation,
+  typesLocation,
+  type CustomField,
+  type FieldCondition,
+  type FieldFormatContext,
+  type FieldGroupInput,
+  type FieldGroupView,
+  type FieldObject,
+  type FieldTransferRefs,
+  type FieldTypeDefinition,
+  type FieldValueKind,
+  type FormattedEntry,
+  type FormattedMedia,
+  type LocationRule,
+  type LocationRules,
+  type LocationScreen,
+} from '@cleitext/shared';
 
 /**
  * Declares a plugin (the default export of the server entry point).

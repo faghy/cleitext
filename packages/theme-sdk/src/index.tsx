@@ -24,6 +24,7 @@ export {
 } from '@cleitext/shared';
 
 export { PageProvider, usePage } from './context.js';
+export { Field, Rows, useField, type FieldReadOptions } from './fields.js';
 export { AccountForms, accountStrings, type AccountAttrs, type AccountView } from './account.js';
 export {
   AuthorBox,
@@ -211,6 +212,7 @@ export function templateCandidates(
     case 'entry':
       return [
         ...(props.isFrontPage ? ['front-page'] : []),
+        ...(props.entry.template ? [`template-${props.entry.template}`] : []),
         `entry-${props.entry.type}-${props.entry.slug}`,
         `entry-${props.entry.type}`,
         'entry',

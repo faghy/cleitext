@@ -1,6 +1,7 @@
 import type { LicenseView } from './licenses.js';
 
 import type { FieldDefinition, Label } from './fields.js';
+import type { FieldGroupPosition, FieldGroupSource, LocationRules } from './field-groups.js';
 
 /** A plugin as listed in Plugins (RF-PLG-02). */
 export interface PluginView {
@@ -72,4 +73,30 @@ export interface FieldGroupView {
   id: string;
   title: Label;
   fields: FieldDefinition[];
+  /** Where it shows (plugin API 1.47); groups of plugins get rules from their `types`. */
+  location?: LocationRules;
+  position?: FieldGroupPosition;
+  order?: number;
+  labelPlacement?: 'top' | 'left';
+  description?: Label;
+  /** `site` (the owners'), `theme` or `plugin:<slug>`. */
+  source?: FieldGroupSource;
+  /**
+   * Where values are kept: `fields` (default), under `fields[<id>]`; `document`
+   * for the theme's page options, in the document's `editor.data`.
+   */
+  storage?: 'fields' | 'document';
+}
+
+/** The field groups an admin screen may show, with their rules (plugin API 1.47). */
+export interface FieldScreenView {
+  groups: FieldGroupView[];
+  /** Entries: the page templates the theme offers (`pageTemplates`). */
+  templates: { name: string; label: Label; types?: string[] }[];
+}
+
+/** A person's user fields and the groups shown for them (plugin API 1.47). */
+export interface UserFieldsView {
+  values: Record<string, unknown>;
+  groups: FieldGroupView[];
 }

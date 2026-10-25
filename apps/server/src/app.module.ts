@@ -77,6 +77,11 @@ import { UsersController } from './users/users.controller.js';
 import { RolesController } from './users/roles.controller.js';
 import { RolesService } from './users/roles.service.js';
 import { UsersService } from './users/users.service.js';
+import { DynamicSourcesService } from './fields/dynamic-sources.service.js';
+import { FieldGroupsController } from './fields/field-groups.controller.js';
+import { FieldGroupsService } from './fields/field-groups.service.js';
+import { FieldValuesService } from './fields/field-values.service.js';
+import { UserFieldsService } from './fields/user-fields.service.js';
 
 @Global()
 @Module({})
@@ -150,6 +155,7 @@ export class AppModule {
         AssistantsController,
         ChatController,
         CommentsController,
+        FieldGroupsController,
       ],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -196,6 +202,10 @@ export class AppModule {
         CommunityPublic,
         CommentsService,
         LikesService,
+        FieldGroupsService,
+        FieldValuesService,
+        UserFieldsService,
+        DynamicSourcesService,
       ],
     };
   }

@@ -620,11 +620,15 @@ stateDiagram-v2
 
 ### 9.3 Custom fields
 
-They are defined in `fields_schema` with a JSON-serializable DSL that can be converted to Zod: `text`, `richtext`, `number`, `boolean`, `date`, `select`, `media`, `relation`, `repeater`, `group`, `json`. The following rules apply:
+They are defined with a JSON-serializable DSL checked with Zod (SPECIFICATIONS §10): `text`, `url`, `number`, `boolean`, `date`, `datetime`, `select`, `choice`, `media`, `color`, `code`, `list`, the design types of themes, and types of plugins (`<plugin>/<name>`, plugin API 1.47). The following rules apply:
 
-- server-side validation **always**, even if the admin has already validated;
-- fields marked `indexed: true` generate an expression index on `revisions.fields` / `entries` (via a migration job);
-- the admin automatically generates field forms from the schema.
+- server-side validation **always**, even if the admin has already validated; `required` fields when publishing;
+- a **field type registry** (`packages/shared/src/field-types.ts`): each type checks its settings and values, formats them for templates (`useField`), gives their index value and exports references as refs; the admin draws plugin types with their components;
+- **field groups** with location rules (`packages/shared/src/field-groups.ts`), evaluated by the core on the server and live in the admin: the site owners' (`field_groups` table, `/api/v1/field-groups`), the plugins' (`ctx.fields`) and the theme's (`entryFields`);
+- values stay JSON: `revisions.fields` (revisions, drafts and translations for free), `terms.fields`, `user_fields` (per site); every list row has a stable `_id`;
+- **dynamic sources** (`ctx.dynamic`) give formatted values to page builders, block bindings and themes;
+- the admin generates field forms from the definitions;
+- planned: indexes on fields (`indexed`), queries and list columns by field.
 
 ### 9.4 Languages
 

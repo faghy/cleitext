@@ -168,7 +168,7 @@ function Index(props: TemplateProps) {
         editorData?.layout === 'canvas';
       return (
         <Location name="single" entry={entry}>
-          <article className="container">
+          <article className={`container${entry.template ? ` template-${entry.template}` : ''}`}>
             {!hideTitle && (
               <header className="page-header">
                 <h1>{entry.title}</h1>
@@ -321,7 +321,7 @@ function PageLinks({ pagination }: { pagination: Pagination }) {
 export const theme = defineTheme({
   slug: 'aurora',
   name: 'Aurora',
-  version: '0.2.0',
+  version: '0.3.0',
   description: 'Clean and readable, light and dark, without JavaScript.',
   menuLocations: { primary: 'Main menu', footer: 'Footer menu' },
   settings: [
@@ -363,6 +363,8 @@ export const theme = defineTheme({
   ],
   areas: { footer: 'Footer' },
   templates: { index: Index },
+  // Chosen in the editor's sidebar; field groups can show only on pages with one.
+  pageTemplates: [{ name: 'wide', label: { en: 'Wide', it: 'Largo' } }],
   Layout,
   css: readFileSync(new URL('../style.css', import.meta.url), 'utf8'),
   editorCss: readFileSync(new URL('../editor.css', import.meta.url), 'utf8'),

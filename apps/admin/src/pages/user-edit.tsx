@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 import { api, ApiError, errorMessage } from '../api';
 import { Avatar } from '../components/avatar';
+import { UserFieldsCard } from '../components/field-groups';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 
 // Section routes are made at run time: their paths are plain strings.
@@ -74,6 +75,8 @@ function AccountForms({ account }: { account: MemberAccountView }) {
         <DetailsForm account={account} disabled={Boolean(locked)} />
         <PasswordForm account={account} disabled={Boolean(locked)} />
       </div>
+      {/* The site's user fields are the site's data: editable even when the account is shared. */}
+      {locked !== 'self' && <UserFieldsCard path={`/users/${account.id}/fields`} />}
     </>
   );
 }

@@ -2,8 +2,14 @@ import type { CxdBlock, CxdDocument } from '@cleitext/blocks';
 import type { TransferDocumentInput } from '@cleitext/blocks/transfer';
 import type {
   FieldDefinition,
+  FieldGroupInput,
+  FieldGroupView,
+  FieldObject,
+  FieldTypeDefinition,
+  FieldValueKind,
   FieldValues,
   Label,
+  LocationScreen,
   MenuItemField,
   ZoneItem,
 } from '@cleitext/shared';
@@ -86,13 +92,19 @@ export interface TaxonomyDefinition {
   fields?: FieldDefinition[];
 }
 
-/** Extra fields on existing content types, stored under `fields[<id>]`. */
-export interface FieldGroupDefinition {
+/**
+ * Extra fields on existing content types, stored under `fields[<id>]`.
+ * Since plugin API 1.47 it may also have `location` rules and the other
+ * settings of `ctx.fields.addGroup` (then `types` may be left out).
+ */
+export interface FieldGroupDefinition extends Partial<
+  Omit<FieldGroupInput, 'id' | 'title' | 'fields'>
+> {
   /** Key of the stored values; must start with the plugin slug, e.g. `seo`. */
   id: string;
   title: Label;
   /** Content types that show the group; `'*'` for all of them (API 1.24). */
-  types: string[];
+  types?: string[];
   fields: FieldDefinition[];
 }
 
@@ -229,6 +241,12 @@ export interface ContentApi {
 export interface TermsApi {
   /** Reads terms of a site (needs `content:read`). */
   find(siteId: string, query?: TermQuery): Promise<PluginTerm[]>;
+  /**
+   * Saves new values of some fields of a term (plugin API 1.47, needs
+   * `content:write`): the taxonomy's own fields and field groups
+   * (`{ <group id>: { ... } }`), checked like the admin's. Others keep theirs.
+   */
+  updateFields?(siteId: string, id: string, values: FieldValues): Promise<void>;
   /**
    * Copies a term, e.g. into another language (needs `content:write`).
    * `parentId` is the parent of the copy, in the copy's language.
@@ -510,6 +528,117 @@ export interface UsersApi {
   find(siteId: string, query?: UserQuery): Promise<PluginUser[]>;
   /** One member of the site; null for anyone else. */
   get(siteId: string, id: string): Promise<PluginUser | null>;
+  /**
+   * The person's values of the site's user fields (plugin API 1.47), by
+   * group: `{ <group id>: { ... } }`.
+   */
+  fields?(siteId: string, id: string): Promise<FieldValues>;
+  /**
+   * Saves new values of some user fields (plugin API 1.47, also needs
+   * `content:write`), checked against the groups shown for the person.
+   * Other values are kept.
+   */
+  updateFields?(siteId: string, id: string, values: FieldValues): Promise<void>;
+}
+
+// ---- Fields (plugin API 1.47) -------------------------------------------------------------
+
+/**
+ * Custom fields (plugin API 1.47): field types, field groups with location
+ * rules, and the groups of the site's owners. Missing on older cores: call
+ * it as `ctx.fields?.addGroup(...)` there.
+ */
+export interface FieldsApi {
+  /**
+   * A field type of the plugin, named `<slug>/<name>` (e.g. `campus/gallery`):
+   * its settings, how values are checked, formatted for templates, indexed
+   * and exported. The admin draws it with the component given in
+   * `defineAdminPlugin({ fieldTypes })`. While the plugin is not active,
+   * values are kept and shown read-only. No permission needed.
+   */
+  registerType(definition: FieldTypeDefinition): void;
+  /**
+   * A field group shown where its `location` rules match, on the sites where
+   * the plugin is active (needs `content:write`). Its id starts with the
+   * plugin slug; adding it again replaces it. It can be called at any time.
+   */
+  addGroup(group: FieldGroupInput): void;
+  /** Removes a group added with `addGroup`. */
+  removeGroup(id: string): void;
+  /**
+   * Groups computed for each site, e.g. from the plugin's own data (needs
+   * `content:write`): called whenever groups are needed, so keep it fast
+   * (cache what it reads). Ids start with the plugin slug.
+   */
+  provideGroups(provider: (siteId: string) => FieldGroupInput[] | Promise<FieldGroupInput[]>): void;
+  /**
+   * Every group of a site for an object (all objects when omitted): the
+   * owners', the plugins' and the theme's, with their rules (needs `content:read`).
+   */
+  groups(siteId: string, object?: FieldObject): Promise<FieldGroupView[]>;
+  /** The groups whose rules match what is edited, in order (needs `content:read`). */
+  matching(siteId: string, screen: LocationScreen): Promise<FieldGroupView[]>;
+  /**
+   * The groups of the site's owners (stored by the core, also edited with
+   * the REST API `/field-groups`): read, saved and deleted by a visual
+   * builder (needs `content:write`). Saving checks the group like the API.
+   */
+  siteGroups: {
+    list(siteId: string): Promise<FieldGroupInput[]>;
+    save(siteId: string, group: FieldGroupInput): Promise<FieldGroupInput>;
+    remove(siteId: string, id: string): Promise<void>;
+  };
+}
+
+// ---- Dynamic data (plugin API 1.47) ---------------------------------------------------
+
+/** What is shown, for a dynamic source: the page, or a given entry, term or person. */
+export interface DynamicContext {
+  locale: string;
+  /** The page being rendered, as blocks see it. */
+  page?: BlockPage;
+  /** An entry (default: the page's). */
+  entry?: { id: string };
+  /** A term (default: the archive's). */
+  term?: { id: string };
+  /** A person (default: the author of the archive, or of the entry shown). */
+  user?: { id: string };
+}
+
+/**
+ * A value pages can show in place of a fixed one: Fresco's dynamic tags,
+ * block bindings and themes read the same sources. The core's are the
+ * entry's (`entry.title`, `entry.url`, `entry.excerpt`, `entry.date`,
+ * `entry.featuredImage`), the term's (`term.name`, `term.description`,
+ * `term.url`), the site's (`site.title`, `site.tagline`, `site.url`) and
+ * every custom field: `entry.field:<name>` (or `<group>.<name>`),
+ * `term.field:…`, `user.field:…`.
+ */
+export interface DynamicSource {
+  /** Unique; a plugin's start with its slug and `:` (e.g. `shop:price`). */
+  id: string;
+  label: Label;
+  /** Heading of pickers, e.g. `Entry`, `Fields`. */
+  group?: Label;
+  /** What the value is (pickers offer media sources to image controls…). */
+  type: FieldValueKind;
+  /** The value, formatted as `useField` gives it; undefined when there is none. */
+  resolve(context: DynamicContext & { siteId: string }): unknown;
+}
+
+/** A source as pickers list it. */
+export type DynamicSourceInfo = Omit<DynamicSource, 'resolve'>;
+
+/** Dynamic data sources (plugin API 1.47). No permission needed. */
+export interface DynamicApi {
+  /** A source on the sites where the plugin is active. */
+  registerSource(source: DynamicSource): void;
+  /** Sources computed for each site, e.g. from the plugin's data. */
+  registerProvider(provider: (siteId: string) => DynamicSource[] | Promise<DynamicSource[]>): void;
+  /** The sources of a site: the core's, its fields', then the plugins'. */
+  sources(siteId: string): Promise<DynamicSourceInfo[]>;
+  /** The value of a source; undefined when it has none (or the source is unknown). */
+  resolve(siteId: string, id: string, context: DynamicContext): Promise<unknown>;
 }
 
 // ---- Blocks -------------------------------------------------------------------------
@@ -1322,6 +1451,10 @@ export interface PluginContext {
   readonly media: MediaApi;
   /** The site's members, read-only (plugin API 1.42, needs `users:read`). */
   readonly users: UsersApi;
+  /** Field types, field groups with location rules (plugin API 1.47). */
+  readonly fields: FieldsApi;
+  /** Dynamic data sources shared by page builders, blocks and themes (plugin API 1.47). */
+  readonly dynamic: DynamicApi;
   readonly privacy: PrivacyApi;
   readonly transfer: TransferApi;
   /** Bot protection of the plugin's own forms (plugin API 1.38). */

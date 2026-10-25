@@ -11,3 +11,5 @@ export * from './themes.js';
 export * from './catalog.js';
 export * from './licenses.js';
 export * from './google-fonts.js';
+export * from './field-types.js';
+export * from './field-groups.js';

@@ -135,8 +135,17 @@ export interface PublicEntry extends PublicEntrySummary {
   terms: Record<string, TermLink[]>;
   /** The same content in other languages. */
   translations: { locale: string; url: string; title: string }[];
-  /** Custom field values (content type fields and plugin field groups). */
+  /** Custom field values (content type fields and plugin field groups), as stored. */
   fields: Record<string, unknown>;
+  /**
+   * The same values formatted for templates (plugin API 1.47), read with
+   * `useField`: media as `{ url, alt, width, height, sizes }`, list rows
+   * formatted too. By field name (the type's fields, then each group's) and
+   * by `group.name`. Missing on older cores.
+   */
+  fieldValues?: Record<string, unknown>;
+  /** The page template chosen in the editor (`pageTemplates`, plugin API 1.47), or null. */
+  template?: string | null;
   /** Featured image chosen by the author, if any (RF-CNT-12). */
   featuredImage: RenderMedia | null;
   /**
@@ -166,11 +175,23 @@ export type TemplateProps =
       title: string;
       description?: string;
       /** Set for category/tag archives. */
-      term?: { taxonomy: string; slug: string; name: string; description: string | null };
+      term?: {
+        taxonomy: string;
+        slug: string;
+        name: string;
+        description: string | null;
+        /** The term's field values formatted for templates (plugin API 1.47), as `entry.fieldValues`. */
+        fieldValues?: Record<string, unknown>;
+      };
       /** Set for the archive of a content type (e.g. the posts). */
       contentType?: string;
       /** Set for an author's archive (`/author/<slug>`). */
-      author?: EntryAuthor & { slug: string; website?: string | null };
+      author?: EntryAuthor & {
+        slug: string;
+        website?: string | null;
+        /** The person's user fields formatted for templates (plugin API 1.47). */
+        fieldValues?: Record<string, unknown>;
+      };
       entries: PublicEntrySummary[];
       pagination: Pagination;
       isHome: boolean;
@@ -223,6 +244,15 @@ export interface ThemeSettingsSection {
   tabs?: { id: string; label: Label }[];
 }
 
+/** A page template offered by a theme (plugin API 1.47). */
+export interface PageTemplate {
+  /** e.g. `landing`: lowercase letters, digits, `-` and `_`. */
+  name: string;
+  label: Label;
+  /** Content types that offer it (default: `page`). */
+  types?: string[];
+}
+
 export interface ThemeDefinition {
   slug: string;
   name: string;
@@ -258,6 +288,13 @@ export interface ThemeDefinition {
    * `editor.data`, where templates read them.
    */
   entryFields?: { types?: string[]; fields: FieldDefinition[] };
+  /**
+   * Page templates the editor offers (plugin API 1.47), like WordPress's:
+   * the entry's choice is `entry.template`, and the template components
+   * `template-<name>` are tried first for it (e.g. `template-landing`).
+   * Field groups can show only on entries with a template.
+   */
+  pageTemplates?: PageTemplate[];
   /**
    * How many related entries the theme may show under an entry (at most 12):
    * Cleitext gives them in `entry.related`. Without it, none are looked up.

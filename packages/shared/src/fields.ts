@@ -1,4 +1,13 @@
 import { z } from 'zod';
+import {
+  CUSTOM_FIELD_TYPE_RE,
+  fieldType,
+  isEmptyValue,
+  registerFieldType,
+  type FieldFormatContext,
+  type FieldTransferRefs,
+  type FieldTypeDefinition,
+} from './field-types.js';
 
 /**
  * Field DSL (docs/SPECIFICATIONS.md §10): custom fields of content types,
@@ -58,12 +67,23 @@ export type ResponsiveValue<T> = Partial<Record<Device, T | null>> &
   Partial<Record<`${Device}Unit`, string>>;
 
 /**
- * When a field is shown: another field `equals` a value, is one of `in`, or
- * is not `not`; `all` / `any` combine conditions. A field without a value
- * counts as its default.
+ * When a field is shown: another field `equals` a value (==), is one of
+ * `in`, is not `not` (!=), is `empty` (true) or not (false), `contains` a
+ * value (text or list), or is greater (`gt`) or less (`lt`) than a number
+ * (plugin API 1.47 for the last four); `all` / `any` combine conditions.
+ * A field without a value counts as its default. Every test given must pass.
  */
 export type FieldCondition =
-  | { field: string; equals?: unknown; in?: unknown[]; not?: unknown }
+  | {
+      field: string;
+      equals?: unknown;
+      in?: unknown[];
+      not?: unknown;
+      empty?: boolean;
+      contains?: unknown;
+      gt?: number;
+      lt?: number;
+    }
   | { all: FieldCondition[] }
   | { any: FieldCondition[] };
 
@@ -288,6 +308,18 @@ export interface ZonesField extends BaseField {
   default?: ZonesValue;
 }
 
+/**
+ * A field of a type added by a plugin (plugin API 1.47), named
+ * `<plugin>/<name>`, with that type's own `settings`. While its plugin is
+ * not active, values are kept as they are and shown read-only.
+ */
+export interface CustomField extends BaseField {
+  type: `${string}/${string}`;
+  /** The type's own settings, e.g. `{ max: 10 }` for a gallery. */
+  settings?: Record<string, unknown>;
+  default?: unknown;
+}
+
 /** Fields an item of a list may have (no list inside a list). */
 export type ListItemField = Exclude<FieldDefinition, ListField | ZonesField>;
 
@@ -306,7 +338,8 @@ export type FieldDefinition =
   | ZonesField
   | SpacingField
   | BackgroundField
-  | TypographyField;
+  | TypographyField
+  | CustomField;
 
 export type FieldType = FieldDefinition['type'];
 export type FieldValues = Record<string, unknown>;
@@ -320,6 +353,10 @@ const condition: z.ZodType<FieldCondition> = z.lazy(() =>
       equals: z.unknown().optional(),
       in: z.array(z.unknown()).max(50).optional(),
       not: z.unknown().optional(),
+      empty: z.boolean().optional(),
+      contains: z.unknown().optional(),
+      gt: z.number().optional(),
+      lt: z.number().optional(),
     }),
     z.object({ all: z.array(condition).max(10) }),
     z.object({ any: z.array(condition).max(10) }),
@@ -363,8 +400,8 @@ const choiceOptions = z
   .min(1)
   .max(200);
 
-/** Validates field definitions (from plugin code or stored content types). */
-export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z.discriminatedUnion('type', [
+/** The core's field types (a closed union, checked first). */
+const builtinFieldSchema = z.discriminatedUnion('type', [
   z.object({
     ...base,
     type: z.literal('text'),
@@ -492,7 +529,44 @@ export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z.discriminated
       .max(200),
     default: z.record(z.string(), z.unknown()).optional(),
   }),
-]) as z.ZodType<FieldDefinition>;
+]);
+
+/** A field of a plugin's type: the common settings, then the type's own (when registered). */
+const customFieldSchema = z
+  .object({
+    ...base,
+    type: z.string().regex(CUSTOM_FIELD_TYPE_RE),
+    settings: z.record(z.string(), z.unknown()).optional(),
+    default: loose,
+  })
+  .superRefine((field, ctx) => {
+    const settings = fieldType(field.type)?.settings;
+    if (!settings) return;
+    const result = settings.safeParse(field.settings ?? {});
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({ code: 'custom', message: issue.message, path: ['settings', ...issue.path] });
+      }
+    }
+  });
+
+/**
+ * Validates field definitions (from plugin code or stored content types):
+ * the core's types, and `<plugin>/<name>` types of plugins (plugin API 1.47).
+ */
+export const fieldDefinitionSchema: z.ZodType<FieldDefinition> = z
+  .unknown()
+  .transform((value, ctx) => {
+    const type = (value as { type?: unknown } | null)?.type;
+    const schema =
+      typeof type === 'string' && type.includes('/') ? customFieldSchema : builtinFieldSchema;
+    const result = schema.safeParse(value);
+    if (result.success) return result.data as FieldDefinition;
+    for (const issue of result.error.issues) {
+      ctx.addIssue({ code: 'custom', message: issue.message, path: issue.path });
+    }
+    return z.NEVER;
+  }) as unknown as z.ZodType<FieldDefinition>;
 
 /** The fields of a list's items: any field but a list or zones. */
 const listItemFieldSchema: z.ZodType<ListItemField> = fieldDefinitionSchema.refine(
@@ -521,7 +595,7 @@ const ALPHA_COLOR_RE = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
 /** Validator of a field's value: per device when the field is responsive. */
 function valueSchema(field: FieldDefinition): z.ZodType<unknown> {
-  const one = singleValueSchema(field);
+  const one = fieldType(field.type)?.value?.(field) ?? z.unknown();
   if (!field.responsive || !RESPONSIVE_TYPES.has(field.type)) return one;
   const unit = z.string().regex(UNIT_RE).optional();
   return z
@@ -680,6 +754,8 @@ function singleValueSchema(field: FieldDefinition): z.ZodType<unknown> {
         })
         .strict();
     }
+    default:
+      return z.unknown();
   }
 }
 
@@ -751,15 +827,27 @@ export function zoneItems(value: unknown, device: ZoneDevice, row: string, zone:
 /**
  * Validator for the values of a set of fields. Unknown keys are kept, so
  * that values of a field removed from the definition are not lost. Empty
- * optional values may be `null`.
+ * optional values may be `null`. A required field hidden by its `showIf`
+ * may stay empty; plugin types (`<plugin>/<name>`) are checked by their
+ * registered type, and kept as they are while it is not registered.
  */
 export function fieldsValidator(fields: readonly FieldDefinition[]): z.ZodType<FieldValues> {
   const shape: Record<string, z.ZodType<unknown>> = {};
-  for (const field of fields) {
-    const schema = valueSchema(field);
-    shape[field.name] = field.required ? schema : schema.nullable().optional();
-  }
-  return z.object(shape).loose() as z.ZodType<FieldValues>;
+  for (const field of fields) shape[field.name] = valueSchema(field).nullable().optional();
+  const required = fields.filter((f) => f.required);
+  const object = z.object(shape).loose();
+  if (required.length === 0) return object as z.ZodType<FieldValues>;
+  const defaults = fieldDefaults(fields);
+  return object.superRefine((values, ctx) => {
+    for (const field of required) {
+      if (!fieldVisible(field, values, defaults)) continue;
+      const value = values[field.name];
+      const custom = field.type.includes('/');
+      if (value === undefined || value === null || (custom && isEmptyValue(value, field))) {
+        ctx.addIssue({ code: 'custom', message: 'This field is required.', path: [field.name] });
+      }
+    }
+  }) as unknown as z.ZodType<FieldValues>;
 }
 
 /** Default values of a set of fields. */
@@ -784,7 +872,261 @@ export function fieldVisible(
     if ('equals' in c && c.equals !== undefined && value !== c.equals) return false;
     if (c.in && !c.in.includes(value)) return false;
     if ('not' in c && c.not !== undefined && value === c.not) return false;
+    if (typeof c.empty === 'boolean' && isEmptyValue(value) !== c.empty) return false;
+    if (c.contains !== undefined && !containsValue(value, c.contains)) return false;
+    if (typeof c.gt === 'number' && !(toNumber(value) > c.gt)) return false;
+    if (typeof c.lt === 'number' && !(toNumber(value) < c.lt)) return false;
     return true;
   };
   return field.showIf ? test(field.showIf) : true;
+}
+
+/** Text that includes a piece, or a list with an item (`contains`). */
+function containsValue(value: unknown, wanted: unknown): boolean {
+  if (typeof value === 'string') return typeof wanted === 'string' && value.includes(wanted);
+  if (Array.isArray(value)) return value.includes(wanted);
+  return false;
+}
+
+/** A number for `gt` / `lt`: numbers, numeric text and dates (as time); NaN otherwise. */
+function toNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value);
+    if (!Number.isNaN(n)) return n;
+    const time = Date.parse(value);
+    if (!Number.isNaN(time)) return time;
+  }
+  return Number.NaN;
+}
+
+// ---- Rows, formatting and transfer (plugin API 1.47) -----------------------------------
+
+/**
+ * Gives every row of the list fields (also inside rows) a stable `_id`, kept
+ * through saves, revisions, copies and translations. Returns the same object
+ * when nothing changed.
+ */
+export function ensureRowIds(
+  fields: readonly FieldDefinition[],
+  values: FieldValues,
+  makeId: () => string = randomRowId,
+): FieldValues {
+  let out: FieldValues | null = null;
+  for (const field of fields) {
+    if (field.type !== 'list') continue;
+    const rows = values[field.name];
+    if (!Array.isArray(rows)) continue;
+    let changed = false;
+    const next = rows.map((row: unknown) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+      let item = ensureRowIds(field.fields, row as FieldValues, makeId);
+      if (typeof item._id !== 'string' || !item._id) item = { _id: makeId(), ...item };
+      if (item !== row) changed = true;
+      return item;
+    });
+    if (changed) (out ??= { ...values })[field.name] = next;
+  }
+  return out ?? values;
+}
+
+/** A short random id for a row (12 letters and digits). */
+export function randomRowId(): string {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = new Uint8Array(12);
+  const crypto = (globalThis as { crypto?: { getRandomValues(a: Uint8Array): Uint8Array } }).crypto;
+  if (crypto) crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+}
+
+/** The values as templates get them: each field through its type's `format`. */
+export async function formatFieldValues(
+  fields: readonly FieldDefinition[],
+  values: FieldValues,
+  context: Omit<FieldFormatContext, 'format'>,
+): Promise<FieldValues> {
+  const full: FieldFormatContext = {
+    ...context,
+    format: (nested, nestedValues) => formatFieldValues(nested, nestedValues, context),
+  };
+  const out: FieldValues = {};
+  await Promise.all(
+    fields.map(async (field) => {
+      const value = values[field.name];
+      if (value === undefined || value === null) {
+        out[field.name] = value ?? null;
+        return;
+      }
+      const format = fieldType(field.type)?.format;
+      try {
+        out[field.name] = format ? await format(value, field, full) : value;
+      } catch {
+        out[field.name] = value;
+      }
+    }),
+  );
+  return out;
+}
+
+/** A value as plain text or a number (see `FieldTypeDefinition.index`). */
+export function fieldIndexValue(
+  field: FieldDefinition,
+  value: unknown,
+): string | number | boolean | null {
+  if (value === undefined || value === null) return null;
+  const index = fieldType(field.type)?.index;
+  if (index) return index(value, field);
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+    ? value
+    : null;
+}
+
+/**
+ * Values for a site export: references to media, entries, terms and users
+ * written as `{ $media }`, `{ $entry }`, `{ $term }`, `{ $user }`.
+ */
+export function exportFieldValues(
+  fields: readonly FieldDefinition[],
+  values: FieldValues,
+): FieldValues {
+  const refs: FieldTransferRefs = {
+    media: (id) => ({ $media: id }),
+    entry: (id) => ({ $entry: id }),
+    term: (id) => ({ $term: id }),
+    user: (id) => ({ $user: id }),
+    values: (nested, nestedValues) => exportFieldValues(nested, nestedValues),
+  };
+  const out: FieldValues = { ...values };
+  for (const field of fields) {
+    const value = values[field.name];
+    if (value === undefined || value === null) continue;
+    const write = fieldType(field.type)?.export;
+    if (write) out[field.name] = write(value, field, refs);
+  }
+  return out;
+}
+
+/** Maps from the refs of an export to the new ids of an import. */
+export interface ImportRefMaps {
+  media(ref: string): string | null | undefined;
+  entry(ref: string): string | null | undefined;
+  term(ref: string): string | null | undefined;
+  user(ref: string): string | null | undefined;
+}
+
+const REF_KEYS = { $media: 'media', $entry: 'entry', $term: 'term', $user: 'user' } as const;
+
+/**
+ * Field values of an import: each `{ $media | $entry | $term | $user: ref }`
+ * becomes the new id (null when that record was not imported). A ref the
+ * maps do not know yet (`undefined`) is kept, for a later pass.
+ */
+export function importFieldRefs(value: unknown, maps: Partial<ImportRefMaps>): unknown {
+  if (Array.isArray(value)) return value.map((v) => importFieldRefs(v, maps));
+  if (!value || typeof value !== 'object') return value;
+  const object = value as Record<string, unknown>;
+  const keys = Object.keys(object);
+  if (keys.length === 1 && keys[0]! in REF_KEYS && typeof object[keys[0]!] === 'string') {
+    const kind = REF_KEYS[keys[0] as keyof typeof REF_KEYS];
+    const map = maps[kind];
+    if (!map) return value;
+    const found = map(object[keys[0]!] as string);
+    return found === undefined ? value : found;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(object)) out[key] = importFieldRefs(v, maps);
+  return out;
+}
+
+// ---- The core's field types --------------------------------------------------------------
+
+const KINDS: Partial<Record<string, FieldTypeDefinition['kind']>> = {
+  text: 'text',
+  url: 'url',
+  number: 'number',
+  boolean: 'boolean',
+  date: 'date',
+  datetime: 'date',
+  select: 'text',
+  choice: 'text',
+  color: 'text',
+  code: 'text',
+  media: 'media',
+  list: 'list',
+};
+
+const BUILTIN_EXTRAS: Partial<Record<string, Partial<FieldTypeDefinition>>> = {
+  media: {
+    format: (value, _field, context) =>
+      typeof value === 'string' ? context.media(value) : (value ?? null),
+    index: () => null,
+    export: (value, _field, refs) => (typeof value === 'string' ? refs.media(value) : value),
+  },
+  list: {
+    format: async (value, field, context) =>
+      Array.isArray(value) && field.type === 'list'
+        ? Promise.all(
+            value.map(async (row: unknown) =>
+              row && typeof row === 'object'
+                ? {
+                    ...(typeof (row as FieldValues)._id === 'string'
+                      ? { _id: (row as FieldValues)._id }
+                      : {}),
+                    ...(await context.format(field.fields, row as FieldValues)),
+                  }
+                : row,
+            ),
+          )
+        : value,
+    index: (value, field) =>
+      Array.isArray(value) && field.type === 'list'
+        ? value
+            .flatMap((row: unknown) =>
+              row && typeof row === 'object'
+                ? field.fields.map((f) => fieldIndexValue(f, (row as FieldValues)[f.name]))
+                : [],
+            )
+            .filter((v) => typeof v === 'string' && v !== '')
+            .join(' ')
+        : null,
+    export: (value, field, refs) =>
+      Array.isArray(value) && field.type === 'list'
+        ? value.map((row: unknown) =>
+            row && typeof row === 'object' ? refs.values(field.fields, row as FieldValues) : row,
+          )
+        : value,
+  },
+  background: {
+    export: (value, _field, refs) => {
+      const image = (value as BackgroundValue | null)?.image;
+      return typeof image === 'string' ? { ...(value as object), image: refs.media(image) } : value;
+    },
+  },
+};
+
+for (const type of [
+  'text',
+  'url',
+  'number',
+  'boolean',
+  'date',
+  'datetime',
+  'select',
+  'media',
+  'color',
+  'choice',
+  'code',
+  'list',
+  'zones',
+  'spacing',
+  'background',
+  'typography',
+]) {
+  registerFieldType({
+    type,
+    value: singleValueSchema,
+    kind: KINDS[type] ?? 'object',
+    ...BUILTIN_EXTRAS[type],
+  });
 }

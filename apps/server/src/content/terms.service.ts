@@ -9,12 +9,7 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import {
-  fieldsValidator,
-  type FieldDefinition,
-  type TaxonomyView,
-  type TermView,
-} from '@cleitext/shared';
+import { type FieldDefinition, type TaxonomyView, type TermView } from '@cleitext/shared';
 import {
   BadRequestException,
   ConflictException,
@@ -30,6 +25,7 @@ import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { isTypeAvailable } from '../public/site-data.js';
 import { LanguagesService } from './languages.service.js';
+import { FieldGroupsService } from '../fields/field-groups.service.js';
 import { nextFreeSlug, slugify } from './slug.js';
 
 type TaxonomyRow = typeof taxonomies.$inferSelect;
@@ -47,7 +43,62 @@ export class TermsService {
     private readonly cache: PageCacheService,
     private readonly languages: LanguagesService,
     private readonly plugins: PluginHost,
+    private readonly fieldGroups: FieldGroupsService,
   ) {}
+
+  /**
+   * Term fields checked against the taxonomy's own fields and the field
+   * groups shown for its terms (plugin API 1.47). `partial`: required
+   * fields may stay empty (a term added from the editor, a copy).
+   */
+  private async validTermFields(
+    siteId: string,
+    auth: AuthContext | null,
+    taxonomy: TaxonomyRow,
+    values: Record<string, unknown>,
+    options: { partial?: boolean } = {},
+  ): Promise<Record<string, unknown>> {
+    const result = await this.fieldGroups.check(
+      siteId,
+      taxonomyFields(taxonomy),
+      values,
+      { object: 'term', taxonomy: taxonomy.slug, currentUserRole: auth?.role?.slug ?? null },
+      options,
+    );
+    if (!result.ok) {
+      throw new BadRequestException({
+        message: 'Some fields are not valid.',
+        errors: result.errors.map((e) => ({
+          field: e.path.slice('fields.'.length),
+          path: e.path,
+          message: e.message,
+        })),
+      });
+    }
+    return result.values;
+  }
+
+  /**
+   * New values of some fields of a term (`ctx.terms.updateFields`, plugin
+   * API 1.47): the others keep theirs; groups are merged one level down.
+   */
+  async updateTermFields(siteId: string, id: string, values: Record<string, unknown>) {
+    await withContext(this.database.db, { siteId }, async (tx) => {
+      const term = await this.term(tx, id);
+      const [taxonomy] = await tx
+        .select()
+        .from(taxonomies)
+        .where(eq(taxonomies.id, term.taxonomyId));
+      const fields = await this.validTermFields(
+        siteId,
+        null,
+        taxonomy!,
+        mergeFieldValues(term.fields as Record<string, unknown>, values),
+      );
+      await tx.update(terms).set({ fields }).where(eq(terms.id, id));
+    });
+    await this.cache.invalidate(siteId, ['site']);
+  }
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: SiteTransaction) => Promise<T>) {
     return withContext(this.database.db, { siteId, userId: auth.userId }, fn);
@@ -103,7 +154,7 @@ export class TermsService {
       const locale = input.locale ?? (await this.defaultLocale(tx, siteId));
       await this.assertLocale(tx, siteId, locale);
       return toView(
-        await this.insertTerm(tx, siteId, taxonomy, { ...input, locale }),
+        await this.insertTerm(tx, siteId, taxonomy, { ...input, locale }, auth),
         taxonomy.slug,
         0,
       );
@@ -139,6 +190,7 @@ export class TermsService {
         description: source.description ?? undefined,
         fields: source.fields as Record<string, unknown>,
         position: source.position,
+        copy: true,
       });
       return toView(term, taxonomy!.slug, 0);
     });
@@ -173,7 +225,7 @@ export class TermsService {
       if (input.position !== undefined) changes.position = input.position;
       if (input.fields !== undefined) {
         // Only the given fields change; the others keep their values.
-        changes.fields = validTermFields(taxonomy!, {
+        changes.fields = await this.validTermFields(siteId, auth, taxonomy!, {
           ...(term.fields as Record<string, unknown>),
           ...input.fields,
         });
@@ -356,7 +408,10 @@ export class TermsService {
       description?: string | undefined;
       fields?: Record<string, unknown> | undefined;
       position?: number | undefined;
+      /** A copy (translation): its values are kept as they are. */
+      copy?: boolean;
     },
+    auth: AuthContext | null = null,
   ): Promise<TermRow> {
     const name = input.name.trim();
     if (!name) throw new BadRequestException('The name is required.');
@@ -378,7 +433,9 @@ export class TermsService {
         slug: await this.uniqueSlug(tx, taxonomy.id, input.locale, input.slug ?? name, null),
         name,
         description: input.description ?? null,
-        fields: validTermFields(taxonomy, input.fields ?? {}),
+        fields: await this.validTermFields(siteId, auth, taxonomy, input.fields ?? {}, {
+          partial: input.fields === undefined || input.copy === true,
+        }),
         position: input.position ?? 0,
       })
       .returning();
@@ -487,19 +544,25 @@ export function taxonomyFields(t: TaxonomyRow): FieldDefinition[] {
   return ((t.fieldsSchema as { fields?: FieldDefinition[] }).fields ?? []) as FieldDefinition[];
 }
 
-/** Term fields checked against the taxonomy's definitions. */
-function validTermFields(
-  taxonomy: TaxonomyRow,
-  values: Record<string, unknown>,
+/** Values merged with new ones: groups (objects) one level down, the rest replaced. */
+export function mergeFieldValues(
+  current: Record<string, unknown>,
+  changes: Record<string, unknown>,
 ): Record<string, unknown> {
-  const result = fieldsValidator(taxonomyFields(taxonomy)).safeParse(values);
-  if (!result.success) {
-    throw new BadRequestException({
-      message: 'Some fields are not valid.',
-      errors: result.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })),
-    });
+  const out = { ...current };
+  for (const [key, value] of Object.entries(changes)) {
+    const before = out[key];
+    out[key] =
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      before &&
+      typeof before === 'object' &&
+      !Array.isArray(before)
+        ? { ...(before as Record<string, unknown>), ...(value as Record<string, unknown>) }
+        : value;
   }
-  return result.data;
+  return out;
 }
 
 function toView(term: TermRow, taxonomy: string, count: number): TermView {

@@ -1,8 +1,14 @@
 import { FieldsForm } from '@cleitext/admin-sdk';
-import type { FieldValues, TaxonomyView, TermView } from '@cleitext/shared';
+import {
+  matchesLocation,
+  type FieldValues,
+  type TaxonomyView,
+  type TermView,
+} from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { api, errorMessage } from '../api';
+import { api, ApiError, errorMessage } from '../api';
+import { FieldGroupSections, useFieldScreen } from '../components/field-groups';
 import { useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 import { entryTree } from '../entry-tree';
@@ -240,8 +246,20 @@ function TermForm({
   const [slug, setSlug] = useState(term?.slug ?? '');
   const [parentId, setParentId] = useState(term?.parentId ?? '');
   const [description, setDescription] = useState(term?.description ?? '');
-  // Custom fields of the taxonomy, e.g. an image (plugin taxonomies).
+  // Custom fields of the taxonomy, e.g. an image (plugin taxonomies), and the
+  // field groups shown for its terms (plugin API 1.47).
   const [fields, setFields] = useState<FieldValues>((term?.fields ?? {}) as FieldValues);
+  const me = useMe();
+  const screen = useFieldScreen('term');
+  const groups = (screen.data?.groups ?? []).filter((group) =>
+    matchesLocation(group.location ?? [], {
+      object: 'term',
+      taxonomy: taxonomy.slug,
+      currentUserRole: me.role?.slug ?? null,
+    }),
+  );
+  const hasFields = taxonomy.fields.length > 0 || groups.length > 0;
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const save = useMutation({
     mutationFn: () => {
@@ -250,13 +268,14 @@ function TermForm({
         ...(slug.trim() ? { slug: slug.trim() } : {}),
         ...(taxonomy.hierarchical ? { parentId: parentId || null } : {}),
         description,
-        ...(taxonomy.fields.length > 0 ? { fields } : {}),
+        ...(hasFields ? { fields } : {}),
       };
       return term
         ? api<TermView>('PATCH', `/terms/${term.id}`, body)
         : api<TermView>('POST', `/taxonomies/${taxonomy.slug}/terms`, { ...body, locale });
     },
     onSuccess: async (saved) => {
+      setFieldErrors({});
       if (!term) {
         setName('');
         setSlug('');
@@ -264,6 +283,15 @@ function TermForm({
         setFields({});
       }
       await onSaved(saved);
+    },
+    onError: (error) => {
+      const errors: Record<string, string> = {};
+      if (error instanceof ApiError) {
+        for (const e of error.problem.errors ?? []) {
+          if (e.path.startsWith('fields.')) errors[e.path.slice('fields.'.length)] = e.message;
+        }
+      }
+      setFieldErrors(errors);
     },
   });
 
@@ -332,8 +360,24 @@ function TermForm({
         />
       </label>
       {taxonomy.fields.length > 0 && (
-        <FieldsForm fields={taxonomy.fields} values={fields} locale={locale} onChange={setFields} />
+        <FieldsForm
+          fields={taxonomy.fields}
+          values={fields}
+          errors={fieldErrors}
+          locale={locale}
+          rowIds
+          onChange={setFields}
+        />
       )}
+      <FieldGroupSections
+        groups={groups}
+        values={fields}
+        errors={fieldErrors}
+        locale={me.user.locale}
+        readOnly={false}
+        onChange={setFields}
+        framed
+      />
       {save.error && <Alert>{errorMessage(save.error)}</Alert>}
       <div className="flex gap-2">
         <Button type="submit" disabled={save.isPending || !name.trim()}>

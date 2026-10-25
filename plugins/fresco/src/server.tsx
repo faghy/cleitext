@@ -25,6 +25,7 @@ import type { ElementDefinition, FrescoNode, RenderContext } from './core/model.
 import { aiEditor } from './ai.js';
 import { installApi } from './api.js';
 import { isVisible, resetExtensions, resolveSettings } from './core/extensions.js';
+import { resolveFieldTags } from './core/field-tags.js';
 import { listElements } from './core/registry.js';
 import { registerFreeElements } from './elements/index.js';
 import { frescoEntries, registerTools } from './tools.js';
@@ -101,13 +102,25 @@ function blockFor(
       context.tag(KIT_TAG);
       const [kit, resolved] = await Promise.all([
         kitFor(ctx, context.siteId),
-        resolveSettings(attrs, {
-          siteId: context.siteId,
-          locale: context.locale,
-          page: context.page,
-          ...(context.entry ? { entry: context.entry } : {}),
-          tag: context.tag,
-        }),
+        // Older cores have no dynamic sources: Fresco Pro reads the fields itself.
+        (ctx.dynamic
+          ? resolveFieldTags(attrs, (source) =>
+              ctx.dynamic.resolve(context.siteId, source, {
+                locale: context.locale,
+                page: context.page,
+                ...(context.entry ? { entry: { id: context.entry.id } } : {}),
+              }),
+            )
+          : Promise.resolve(attrs)
+        ).then((withFields) =>
+          resolveSettings(withFields, {
+            siteId: context.siteId,
+            locale: context.locale,
+            page: context.page,
+            ...(context.entry ? { entry: context.entry } : {}),
+            tag: context.tag,
+          }),
+        ),
       ]);
       const data = definition.load
         ? await definition.load(withDefaults(definition, resolved), {

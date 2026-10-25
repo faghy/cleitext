@@ -55,6 +55,10 @@ export const pluginAdminQuery = queryOptions({
           const module = (await import(/* @vite-ignore */ info.adminUrl)) as {
             default?: AdminPluginDefinition;
           };
+          // Editors of the plugin's field types, for every form (plugin API 1.47).
+          for (const type of module.default?.fieldTypes ?? []) {
+            if (type.type.startsWith(`${info.slug}/`)) adminSdk.registerAdminFieldType(type);
+          }
           return { ...info, definition: module.default ?? null, error: null };
         } catch (error) {
           console.error(`Admin entry of ${info.slug} failed to load`, error);

@@ -1,0 +1,10 @@
+{
+  "slug": "fields-kit",
+  "name": "Fields kit (test fixture)",
+  "version": "1.0.0",
+  "apiVersion": "^1.47",
+  "description": "A field type, field groups with location rules, an entry.validate filter and a dynamic source, used by the server tests of custom fields.",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": ["content:read", "content:write", "routes:admin", "users:read"]
+}

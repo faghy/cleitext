@@ -2,6 +2,7 @@ import type { CxdDocument } from '@cleitext/blocks';
 import type { Label } from '@cleitext/shared';
 import type { ComponentType } from 'react';
 import type { Method } from './api.js';
+import type { AdminFieldTypeDefinition } from './field-types.js';
 
 /** What a plugin admin page receives. */
 export interface AdminPageProps {
@@ -311,6 +312,12 @@ export interface AdminPluginDefinition {
   /** Columns of the category, tag and other taxonomy screens. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each column has its own data type
   termColumns?: ListColumnDefinition<any>[];
+  /**
+   * Editors of the plugin's field types (plugin API 1.47), drawn by every
+   * form of the admin; the types themselves are registered on the server
+   * with `ctx.fields.registerType`.
+   */
+  fieldTypes?: AdminFieldTypeDefinition[];
 }
 
 export function defineAdminPlugin(definition: AdminPluginDefinition): AdminPluginDefinition {

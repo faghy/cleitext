@@ -37,6 +37,7 @@ import {
   type RenderMedia,
 } from '@cleitext/renderer';
 import { ADMIN_PATH, type CoreSettings, fieldDefaults } from '@cleitext/shared';
+import { FieldValuesService } from '../fields/field-values.service.js';
 import {
   type AccountAttrs,
   COMMUNITY_CSS,
@@ -207,7 +208,13 @@ export class PublicService {
     private readonly community: CommunityPublic,
     private readonly accounts: AccountsService,
     private readonly webFonts: WebFontsService,
+    private readonly fieldValues: FieldValuesService,
   ) {}
+
+  /** Where field values are formatted for a page (plugin API 1.47). */
+  private formatScope(scope: RequestScope) {
+    return { tx: scope.tx, siteId: scope.siteId, locale: scope.locale, urls: scope.data.urls };
+  }
 
   /** The site's default language and every language code (for public forms). */
   private async localesOf(siteId: string): Promise<{ defaultLocale: string; codes: string[] }> {
@@ -1447,10 +1454,17 @@ export class PublicService {
       author: await this.fullAuthor(scope, entry),
       image: image?.id ? (media.get(image.id) ?? null) : null,
       fields: entry.fields,
+      template: entry.row.template ?? null,
       document: entry.document,
       terms: entryTermsMap,
       translations,
     };
+    const fieldValues = await this.fieldValues.entry(
+      this.formatScope(scope),
+      entry.row.typeSlug,
+      entry.fields,
+    );
+    if (fieldValues) publicEntry.fieldValues = fieldValues;
     // Comments and likes of types that have them (not in previews).
     if (
       !options.preview &&
@@ -1532,8 +1546,12 @@ export class PublicService {
         name: string;
         description: string | null;
         id: string;
+        /** Its stored field values (plugin API 1.47). */
+        fields?: Record<string, unknown>;
       };
       author?: NonNullable<Extract<TemplateProps, { kind: 'archive' }>['author']>;
+      /** The person of an author archive, for their user fields. */
+      authorId?: string;
     },
   ): Promise<PublicResponse | null> {
     const { tx, data, settings } = scope;
@@ -1552,12 +1570,25 @@ export class PublicService {
     for (const entry of list) scope.tags.add(`entry:${entry.row.id}`);
 
     const pagePath = data.urls.page(options.base, options.page);
+    const termFieldValues = options.term
+      ? await this.fieldValues.term(
+          this.formatScope(scope),
+          options.term.taxonomy,
+          options.term.fields,
+        )
+      : undefined;
+    const authorFieldValues = options.authorId
+      ? await this.fieldValues.user(this.formatScope(scope), options.authorId)
+      : undefined;
     const props: TemplateProps = {
       kind: 'archive',
       title: options.title,
       ...(options.author
         ? {
-            author: options.author,
+            author: {
+              ...options.author,
+              ...(authorFieldValues ? { fieldValues: authorFieldValues } : {}),
+            },
             ...(options.author.bio ? { description: options.author.bio } : {}),
           }
         : options.term
@@ -1567,6 +1598,7 @@ export class PublicService {
                 slug: options.term.slug,
                 name: options.term.name,
                 description: options.term.description,
+                ...(termFieldValues ? { fieldValues: termFieldValues } : {}),
               },
             }
           : options.tag.startsWith('type:')
@@ -1637,6 +1669,7 @@ export class PublicService {
       page,
       isHome: false,
       tag: `author:${person.id}`,
+      authorId: person.id,
       alternates: scope.data.locales.map((l) => ({
         locale: l.code,
         url: scope.data.urls.author(l.code, person.slug!),
@@ -1752,6 +1785,7 @@ export class PublicService {
         name: row.term.name,
         description: row.term.description,
         id: row.term.id,
+        fields: row.term.fields as Record<string, unknown>,
       },
     });
   }

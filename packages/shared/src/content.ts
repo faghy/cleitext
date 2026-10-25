@@ -31,6 +31,14 @@ const fieldsSchema = z.record(z.string(), z.unknown());
 const excerptSchema = z.string().trim().max(1_000).nullable();
 /** Featured image: a media item of the site. */
 const featuredMediaSchema = z.uuid().nullable();
+/**
+ * The entry's page template (plugin API 1.47): one the theme offers
+ * (`pageTemplates`), or null for the default one.
+ */
+const templateSchema = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/, 'Lowercase letters, digits, - and _')
+  .nullable();
 
 export const createEntryRequestSchema = z.object({
   type: z.string().min(1).max(64),
@@ -38,6 +46,7 @@ export const createEntryRequestSchema = z.object({
   title: titleSchema.default(''),
   slug: slugSchema.optional(),
   parentId: z.uuid().nullable().optional(),
+  template: templateSchema.optional(),
   document: documentSchema.optional(),
   fields: fieldsSchema.optional(),
   excerpt: excerptSchema.optional(),
@@ -51,6 +60,7 @@ export const updateEntryRequestSchema = z.object({
   terms: z.lazy(() => termAssignmentsSchema).optional(),
   slug: slugSchema.optional(),
   parentId: z.uuid().nullable().optional(),
+  template: templateSchema.optional(),
   position: z.number().int().min(0).max(1_000_000).optional(),
   document: documentSchema.optional(),
   fields: fieldsSchema.optional(),
@@ -239,6 +249,8 @@ export interface RevisionView {
 }
 
 export interface EntryView extends EntrySummary {
+  /** The page template (plugin API 1.47); null for the default one. */
+  template: string | null;
   createdAt: string;
   trashedAt: string | null;
   /** Comments: open or closed, and how many are approved (RF-COM). */
