@@ -33,6 +33,12 @@ interface DioramaGlobal {
   listeners: ((slider: Slider, event: 'ready' | 'change') => void)[];
   /** Starts sliders added to the page later (Diorama 1.1). */
   scan: () => void;
+  /**
+   * The slider of an element (its root, an element inside it, or a CSS
+   * selector of either), e.g. for scripts that pause it with
+   * `get(el).setPaused(true)` (Diorama 1.3.1).
+   */
+  get: (target: Element | string | null | undefined) => Slider | undefined;
 }
 
 const w = window as unknown as {
@@ -44,6 +50,7 @@ const registry: DioramaGlobal = {
   sliders: [],
   listeners: [],
   scan: () => start(),
+  get: (target) => sliderOf(target),
   ...w.cleitextDiorama,
 } as DioramaGlobal;
 w.cleitextDiorama = registry;
@@ -487,6 +494,21 @@ class Slider {
 function scrollbarWidth() {
   const width = window.innerWidth - document.documentElement.clientWidth;
   document.documentElement.style.setProperty('--dio-sbw', `${Math.max(0, width)}px`);
+}
+
+/** The started slider whose root is the target or holds it (the first one inside it otherwise). */
+function sliderOf(target: Element | string | null | undefined): Slider | undefined {
+  let el: Element | null;
+  if (typeof target === 'string') {
+    try {
+      el = document.querySelector(target);
+    } catch {
+      return undefined;
+    }
+  } else el = target ?? null;
+  if (!el) return undefined;
+  const root = el.closest('[data-dio]') ?? el.querySelector('[data-dio]');
+  return registry.sliders.find((slider) => slider.root === root);
 }
 
 function start() {

@@ -101,6 +101,38 @@ describe('the runtime', () => {
     expect(active()).toBe(1);
   });
 
+  it('lets scripts find a slider and pause it', async () => {
+    vi.useFakeTimers();
+    page(sample());
+    await run();
+    const registry = (window as { cleitextDiorama?: Record<string, unknown> }).cleitextDiorama as {
+      get: (
+        target: Element | string | null,
+      ) => { paused: boolean; setPaused(paused: boolean): void } | undefined;
+    };
+    const root = document.querySelector('[data-dio]')!;
+    const slider = registry.get(root)!;
+    expect(slider).toBeDefined();
+    // An element inside the slider, a selector and the page around it find the same slider.
+    expect(registry.get(document.querySelector('.dio__stage'))).toBe(slider);
+    expect(registry.get('[data-dio]')).toBe(slider);
+    expect(registry.get(document.body)).toBe(slider);
+    expect(registry.get('#nothing-here')).toBeUndefined();
+    expect(registry.get('[[not a selector')).toBeUndefined();
+    expect(registry.get(null)).toBeUndefined();
+    expect(slider.paused).toBe(false);
+    slider.setPaused(true);
+    expect(slider.paused).toBe(true);
+    const pause = document.querySelector<HTMLButtonElement>('[data-dio-pause]')!;
+    expect(pause.getAttribute('aria-label')).toBe('Play the slideshow');
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(active()).toBe(0);
+    slider.setPaused(false);
+    expect(slider.paused).toBe(false);
+    await vi.advanceTimersByTimeAsync(6100);
+    expect(active()).toBe(1);
+  });
+
   it('never moves by itself with reduced motion, and slides still change', async () => {
     vi.useFakeTimers();
     reduce = true;
