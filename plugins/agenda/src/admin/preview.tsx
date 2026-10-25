@@ -149,7 +149,7 @@ export function Preview({
           </div>
         ) : null}
       </div>
-      <div className="agx-preview" data-agx-form-preview="">
+      <div className="agx-form-preview" data-agx-form-preview="">
         <div className="ag" style={{ maxWidth: '100%' }} lang={formLocale}>
           <div className="ag-form">
             <div className="ag-fields">

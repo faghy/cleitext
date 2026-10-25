@@ -72,7 +72,7 @@ const CSS = `
 .agx-chips{display:flex;flex-wrap:wrap;gap:.4rem}
 .agx-chip{font:inherit;border:1px solid var(--agx-border);background:var(--agx-bg);color:inherit;border-radius:999px;padding:.35rem .8rem;cursor:pointer;min-height:2.2rem}
 .agx-chip[aria-pressed=true]{background:var(--agx-accent);border-color:var(--agx-accent);color:#fff}
-.agx-preview{border:1px solid var(--agx-border);border-radius:12px;padding:1rem;background:#fff;color:#1f2937}
+.agx-preview,.agx-form-preview{border:1px solid var(--agx-border);border-radius:12px;padding:1rem;background:#fff;color:#1f2937}
 .agx-preview-label{font-size:.8em;color:var(--agx-muted);margin:0 0 .5rem;text-transform:uppercase;letter-spacing:.04em}
 .agx-days td,.agx-days th{padding:.3rem .4rem;vertical-align:middle}
 .agx-muted{color:var(--agx-muted)}

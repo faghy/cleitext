@@ -198,8 +198,10 @@ test('the owner shapes a service’s booking form, and visitors get it', async (
     .click();
   await page.getByRole('button', { name: '+ Add a question' }).click();
   const question = editor.locator('li').last();
-  await question.getByLabel('Question').fill('Allergies');
-  await question.getByLabel('Help text (optional)').fill('So we can prepare');
+  await question.getByRole('textbox', { name: 'Question', exact: true }).fill('Allergies');
+  await question
+    .getByRole('textbox', { name: 'Help text (optional)', exact: true })
+    .fill('So we can prepare');
   await question.getByRole('button', { name: /^Move up/ }).focus();
   await page.keyboard.press('Enter');
   await expect(editor.locator('li').nth(3)).toHaveAttribute('data-field', 'question-5');
