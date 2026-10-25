@@ -203,7 +203,14 @@ function css(a: Attrs, B: string, sheet: Parameters<PrismaBlock['css']>[2]): voi
       height: customHeight ? px(height) : 'auto',
       // WordPress gives lazy images `sizes="auto"`, so browsers size them by their width and
       // height attributes, not by the file: an automatic height keeps the block's proportions.
-      ...(device === 'desktop' ? { 'aspect-ratio': attributeRatio(a) } : {}),
+      // Those are the computer's box when it has its own height: tablets and phones without
+      // one show the whole picture in its own proportions, as Spectra's `height: auto` does.
+      'aspect-ratio':
+        device === 'desktop'
+          ? attributeRatio(a)
+          : !customHeight && a.customHeightSetDesktop
+            ? fileRatio(a)
+            : '',
     });
     emit(sheet, device, `${B} .pr-image__figure figcaption`, {
       ...(device === 'desktop' ? { color: a.captionColor } : {}),
@@ -315,6 +322,16 @@ function attributeRatio(a: Attrs): string {
   const w = numeric(a.width || a.naturalWidth);
   const h = numeric(a.height || a.naturalHeight);
   return w && h ? `${w} / ${h}` : '';
+}
+
+/**
+ * The picture's own proportions (`auto`, with its natural size until it loads), for devices
+ * that do not keep the computer's box.
+ */
+function fileRatio(a: Attrs): string {
+  const w = numeric(a.naturalWidth);
+  const h = numeric(a.naturalHeight);
+  return w && h ? `auto ${w} / ${h}` : 'auto';
 }
 
 function View({ attrs: a, id, text, editing, root }: ViewProps) {
