@@ -387,6 +387,8 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
   });
   const blocks: CxdBlock[] = [];
   let pending = '';
+  /** The font size of the element whose text is pending (a `<p style="font-size:…">`). */
+  let pendingSize: string | undefined;
   const flush = () => {
     // Like WordPress's wpautop: blank lines separate paragraphs, single newlines are breaks.
     for (const chunk of pending.split(/\n\s*\n/)) {
@@ -408,9 +410,20 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
         continue;
       }
       const content = inline(chunk.trim().replace(/\n/g, '<br>'));
-      if (hasText(content)) blocks.push(make('core/paragraph', {}, content));
+      // Text all in one size (`<span style="font-size:10pt">`, as classic editors and
+      // widgets write it): the paragraph's size, which rich text cannot hold.
+      const size = uniformFontSize(chunk, pendingSize);
+      if (hasText(content))
+        blocks.push(
+          make(
+            'core/paragraph',
+            size ? { style: { typography: { fontSize: size } } } : {},
+            content,
+          ),
+        );
     }
     pending = '';
+    pendingSize = undefined;
   };
   const visit = (nodes: Node[]) => {
     for (const node of nodes) {
@@ -446,6 +459,7 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
             blocks.push(imageBlock(single, {}, undefined, options));
           } else {
             pending = node.innerHTML;
+            pendingSize = fontSizeOf(node.getAttribute('style'));
             flush();
           }
           break;
@@ -738,6 +752,44 @@ function wpWidget(name: string, a: Record<string, unknown>): CxdBlock {
 
 function make(type: string, attrs: Record<string, unknown>, content?: CxdInline[]): CxdBlock {
   return { id: newBlockId(), type, v: 1, attrs, ...(content ? { content } : {}) };
+}
+
+/**
+ * The `font-size` of an inline style as a length blocks keep (`10pt` becomes
+ * `13.33px`), or undefined.
+ */
+function fontSizeOf(style: string | undefined): string | undefined {
+  const m =
+    /(?:^|;)\s*font-size\s*:\s*(\d{1,4}(?:\.\d{1,4})?)\s*(px|pt|em|rem|%)\s*(?:!important\s*)?(?:;|$)/i.exec(
+      style ?? '',
+    );
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  if (!(n > 0)) return undefined;
+  const unit = m[2]!.toLowerCase();
+  return unit === 'pt' ? `${Math.round(((n * 4) / 3) * 100) / 100}px` : `${n}${unit}`;
+}
+
+/**
+ * The font size all the text of some inline HTML is written in (by the
+ * styles of the elements around each run of text, else `base`), or
+ * undefined when there is none or more than one.
+ */
+function uniformFontSize(html: string, base?: string): string | undefined {
+  const sizes = new Set<string | undefined>();
+  const walk = (nodes: Node[], size: string | undefined) => {
+    for (const node of nodes) {
+      if (node instanceof TextNode) {
+        if (node.rawText.replace(/&nbsp;/g, ' ').trim()) sizes.add(size);
+      } else if (node instanceof HTMLElement) {
+        walk(node.childNodes, fontSizeOf(node.getAttribute('style')) ?? size);
+      }
+    }
+  };
+  if (!/font-size/i.test(html) && !base) return undefined;
+  walk(parse(html).childNodes, base);
+  const [only] = sizes;
+  return sizes.size === 1 ? only : undefined;
 }
 
 function inline(html: string): CxdInline[] {

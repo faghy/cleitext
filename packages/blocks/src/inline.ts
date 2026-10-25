@@ -14,7 +14,9 @@ import {
  * Only a small, safe subset is kept: bold, italic, underline, strike, code,
  * superscript, subscript, highlight (`<mark>`), text colors (WordPress's
  * `<mark class="has-inline-color" style="color:…">`, or any tag's inline `color`),
- * links and line breaks. Every other tag is dropped but its text is kept;
+ * links and line breaks; the same formats set by a tag's inline `style`
+ * (`font-weight: bold`, `font-style: italic`, `text-decoration`…) are marks
+ * too. Every other tag is dropped but its text is kept;
  * scripts, styles and comments are dropped entirely.
  */
 
@@ -89,6 +91,29 @@ interface OpenLink {
   color?: string;
 }
 
+/**
+ * Formats of an inline `style` that rich text has as marks (a
+ * `<span style="font-weight:bold">` is bold, as `<strong>` is).
+ */
+function styleMarks(style: string | undefined): Mark[] {
+  if (!style) return [];
+  const value = (name: string) =>
+    new RegExp(`(?:^|;)\\s*${name}\\s*:\\s*([^;]+?)\\s*(?:!important\\s*)?(?:;|$)`, 'i')
+      .exec(style)?.[1]
+      ?.trim()
+      .toLowerCase() ?? '';
+  const marks: Mark[] = [];
+  const weight = value('font-weight');
+  if (weight === 'bold' || weight === 'bolder' || /^[6-9]00$/.test(weight)) marks.push('bold');
+  if (value('font-style') === 'italic' || value('font-style') === 'oblique') marks.push('italic');
+  const decoration = `${value('text-decoration')} ${value('text-decoration-line')}`;
+  if (/\bunderline\b/.test(decoration)) marks.push('underline');
+  if (/\bline-through\b/.test(decoration)) marks.push('strike');
+  if (value('vertical-align') === 'super') marks.push('sup');
+  if (value('vertical-align') === 'sub') marks.push('sub');
+  return marks;
+}
+
 /** The `color` of an inline `style`, when it is a color rich text allows. */
 function styleColor(style: string | undefined): string | undefined {
   const match = /(?:^|;)\s*color\s*:\s*([^;]+?)\s*(?:!important\s*)?(?:;|$)/i.exec(style ?? '');
@@ -111,13 +136,13 @@ function parseAttributes(source: string): Record<string, string> {
 /** Rich-text HTML → CXD inline nodes (normalized). */
 export function htmlToInline(html: string): CxdInline[] {
   const result: CxdInline[] = [];
-  const markStack: { tag: string; mark: Mark | null; color?: string }[] = [];
+  const markStack: { tag: string; marks: Mark[]; color?: string }[] = [];
   let link: (OpenLink & { children: CxdText[] }) | null = null;
   let dropDepth = 0;
 
   const activeMarks = (): Mark[] => {
     const set = new Set<Mark>();
-    for (const entry of markStack) if (entry.mark) set.add(entry.mark);
+    for (const entry of markStack) for (const mark of entry.marks) set.add(mark);
     return MARKS.filter((m) => set.has(m));
   };
 
@@ -191,9 +216,12 @@ export function htmlToInline(html: string): CxdInline[] {
       const textColor = tag === 'mark' && /\bhas-inline-color\b/.test(attributes.class ?? '');
       // A highlight keeps no attributes; other tags may carry a text color.
       const color = tag === 'mark' && !textColor ? undefined : styleColor(attributes.style);
+      const own = textColor ? undefined : TAG_MARKS[tag];
+      // A highlight keeps no attributes; other tags may carry formats in their style.
+      const styled = tag === 'mark' && !textColor ? [] : styleMarks(attributes.style);
       markStack.push({
         tag,
-        mark: textColor ? null : (TAG_MARKS[tag] ?? null),
+        marks: [...(own ? [own] : []), ...styled],
         ...(color ? { color } : {}),
       });
     }

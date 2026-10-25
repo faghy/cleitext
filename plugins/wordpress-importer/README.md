@@ -10,7 +10,7 @@ The official Cleitext plugin to move a WordPress site in from the admin, without
 
 ## What it imports
 
-Posts, pages, images and other media, categories, tags, menus and authors, with dates, drafts, parent pages and featured images. Block content stays made of blocks; classic content is split into paragraphs and headings like WordPress does. The old addresses (`/2024/05/my-post/`, `/?p=12`) redirect to the new pages.
+Posts, pages, images and other media, categories, tags, menus and authors, with dates, drafts, parent pages and featured images. Block content stays made of blocks; classic content (and plain HTML or text widgets) is split into paragraphs and headings like WordPress does, keeping bold, italics, underlines and colors written as inline styles, and the size of a paragraph written all in one size. The old addresses (`/2024/05/my-post/`, `/?p=12`) redirect to the new pages.
 
 - Block settings of recent WordPress versions stay: text alignment, preset text sizes, rows and grids of groups (flex and grid layouts), columns aligned vertically or kept side by side on phones.
 - **Covers** become a group with the picture followed by the content; with **Prisma** active they become a container with the picture as background, the overlay, the height and the position of the content, as in WordPress.
