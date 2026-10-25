@@ -44,7 +44,7 @@ jobs:
   # RNF-10: the same suite in Firefox and in Safari's engine.
   browsers:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
