@@ -364,6 +364,13 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
       { siteId, source: 'wordpress:old.example.com', ref: 'post:1', entryId },
       { siteId, source: 'wordpress:old.example.com', ref: 'att:2', mediaId: file!.id },
     ]);
+    await tx.insert(s.mediaRenames).values({
+      siteId,
+      oldKey: `${name}/old.jpg`,
+      newKey: `${name}/a.jpg`,
+      mediaId: file!.id,
+      deleteAfter: new Date(),
+    });
     await tx.insert(s.mediaVariants).values({
       siteId,
       mediaId: file!.id,

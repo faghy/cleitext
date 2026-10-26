@@ -1239,7 +1239,7 @@ See §10. In short: Gutenberg is used as a library behind `EditorAdapter`. Conte
 
 ### Level 3 — Migration (`wp-import` plugin)
 
-- Import of **WXR** files (WordPress export): posts, pages, custom types, taxonomies, menus, authors, media (downloaded and re-hosted with WordPress's file name and year/month folder, `/media/<site>/2015/07/photo.jpg`; their old `/wp-content/uploads/…` addresses, resized copies included, redirect there with a 301 through `import_refs`, core 0.85).
+- Import of **WXR** files (WordPress export): posts, pages, custom types, taxonomies, menus, authors, media (downloaded and re-hosted with WordPress's file name and year/month folder, `/media/<site>/2015/07/photo.jpg`; their old `/wp-content/uploads/…` addresses, resized copies included, redirect there with a 301 through `import_refs`, core 0.85). Sites imported before keep generated names until `cleitext media:rename-imported` gives them WordPress's (core 0.86, docs/DEPLOYMENT.md); the old `/media/…` addresses of the files it renamed redirect through `media_renames` once their old files are purged.
 - Conversion of Gutenberg blocks (`<!-- wp:… -->` comments) to CXD. Classic HTML becomes `paragraph`/`heading`/`image` blocks, while anything unrecognized becomes an `html` block.
 - Automatic generation of **redirects** from WordPress permalinks to the new URLs.
 - Final import report with warnings.

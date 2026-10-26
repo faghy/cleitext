@@ -279,21 +279,22 @@ I pannelli di hosting (l'estensione Plesk **Cleitext Toolkit**) e gli script usa
 
 **Codici di errore.**
 
-| Codice                                                                                     | Significato                                                                             |
-| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| `usage`                                                                                    | comando o opzione sconosciuti, oppure manca un'opzione obbligatoria                     |
-| `not_configured`                                                                           | `DATABASE_ADMIN_URL` (o il ruolo dell'applicazione) non è impostato                     |
-| `db_unreachable`                                                                           | il database rifiuta la connessione, la password è sbagliata o il database non esiste    |
-| `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | i dati sono incompleti o sbagliati                                                      |
-| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign` e i comandi dei domini                                   |
-| `cannot_write`                                                                             | `entry:reassign`: il ruolo del nuovo autore non può scrivere voci                       |
-| `primary_domain`                                                                           | `site:domain:remove` sul dominio principale                                             |
-| `installed`                                                                                | `install` quando esiste già un sito                                                     |
-| `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                                    |
-| `db_connect`, `db_version`, `db_createrole`, `db_owner`, `db_role_taken`, `db_app_connect` | `configure`: gli stessi problemi della procedura guidata, con il comando per risolverli |
-| `timeout`                                                                                  | nessuna risposta in tempo                                                               |
-| `failed`                                                                                   | ogni altro problema, spiegato dal messaggio                                             |
-| `internal`                                                                                 | un errore inatteso (un bug: segnalalo)                                                  |
+| Codice                                                                                     | Significato                                                                                                                         |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `usage`                                                                                    | comando o opzione sconosciuti, oppure manca un'opzione obbligatoria                                                                 |
+| `not_configured`                                                                           | `DATABASE_ADMIN_URL` (o il ruolo dell'applicazione) non è impostato                                                                 |
+| `db_unreachable`                                                                           | il database rifiuta la connessione, la password è sbagliata o il database non esiste                                                |
+| `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | i dati sono incompleti o sbagliati                                                                                                  |
+| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign` e i comandi dei domini                                                                               |
+| `cannot_write`                                                                             | `entry:reassign`: il ruolo del nuovo autore non può scrivere voci                                                                   |
+| `run_as_root`, `invalid_wxr`, `conflict`                                                   | `media:rename-imported`, `media:purge-renamed`: eseguito come root, non è un export di WordPress, un media è cambiato nel frattempo |
+| `primary_domain`                                                                           | `site:domain:remove` sul dominio principale                                                                                         |
+| `installed`                                                                                | `install` quando esiste già un sito                                                                                                 |
+| `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                                                                                |
+| `db_connect`, `db_version`, `db_createrole`, `db_owner`, `db_role_taken`, `db_app_connect` | `configure`: gli stessi problemi della procedura guidata, con il comando per risolverli                                             |
+| `timeout`                                                                                  | nessuna risposta in tempo                                                                                                           |
+| `failed`                                                                                   | ogni altro problema, spiegato dal messaggio                                                                                         |
+| `internal`                                                                                 | un errore inatteso (un bug: segnalalo)                                                                                              |
 
 ### Stato e controlli
 
@@ -413,6 +414,8 @@ Il link fa entrare nell'amministrazione di quel sito, di solito il primo sito at
 | `user:create … --password-stdin`                                | `{"id","email","superAdmin","site","role"}`                                                                 |
 | `user:reset-password --email <e> --password-stdin`              | `{"email"}`                                                                                                 |
 | `entry:reassign --site <s> --from <u> --to <u> [--type <t>]`    | `{"site","from","to","type","entries","published","media"}`: `from`/`to` sono `{"id","email"}`              |
+| `media:rename-imported --site <s> --wxr <file> [--dry-run]`     | `{"site","dryRun","alreadyFixed","renamed","counts","skipped","unmatched","references","report",…}`         |
+| `media:purge-renamed [--site <s>] [--dry-run]`                  | `{"dryRun","deleted":[{"site","key"}],"waiting","kept"}`                                                    |
 | `plugin:list`                                                   | `{"plugins":[{"slug","name","version","apiVersion","network","mustUse","paid","activeOn":["main"]}]}`       |
 | `plugin:activate <slug> --site <s>` \| `--network`              | `{"slug","site","version","alreadyActive","network"}`                                                       |
 | `plugin:deactivate <slug> --site <s>` \| `--network`            | `{"slug","site","network","message"}`                                                                       |
@@ -426,6 +429,24 @@ Il link fa entrare nell'amministrazione di quel sito, di solito il primo sito at
 `entry:reassign` assegna tutte le voci di un utente su un sito a un altro autore, come "Attribuisci tutti i contenuti a" di WordPress quando si elimina un utente: ogni stato (bozze, in revisione, programmate, cestino) e ogni lingua. `--from` e `--to` accettano un indirizzo email o l'id di un utente. Il nuovo autore deve essere un membro attivo del sito con un ruolo che può scrivere voci (`edit_entries`). Seguono anche i media caricati dall'utente, a meno che `--type` limiti il cambio a un tipo di contenuto. Le revisioni conservano chi le ha salvate e la data di modifica non cambia. Il registro attività annota `entries.reassigned` con i conteggi e la cache delle pagine del sito viene svuotata. Prima di togliere qualcuno da un sito, eseguilo perché i suoi contenuti abbiano ancora un autore. Nell'amministrazione l'autore di una voce si cambia dal riquadro Autore dell'editor, quello di più voci dall'azione di massa **Cambia autore** (entrambi richiedono `edit_others_entries`; annotato come `entry.author_changed`).
 
 `plugin:activate --site` attiva il plugin come il pulsante **Attiva** dell'amministrazione. Controlla dipendenze e conflitti, crea i tipi di contenuto ed esegue `onActivate`, e il registro attività lo annota. Un plugin a pagamento richiede la licenza del sito, inserita prima nell'amministrazione. `--network` lo attiva su tutti i siti.
+
+### Media dei siti importati da WordPress prima della 0.85
+
+Dal core 0.85 i media importati conservano il nome e la cartella anno/mese di WordPress (`/media/<sito>/2015/07/foto.jpg`). I siti importati prima li hanno con un nome generato, nel mese dell'import (`/media/<sito>/2026/09/0192…e4.jpg`). `media:rename-imported` dà loro i nomi di WordPress, partendo dall'export originale del vecchio sito:
+
+```bash
+# Come utente del dominio, mai come root (i file di root rompono i backup di Plesk):
+bin/cleitext media:rename-imported --site main --wxr ~/vecchio-sito.WordPress.2026-09-01.xml --dry-run
+bin/cleitext media:rename-imported --site main --wxr ~/vecchio-sito.WordPress.2026-09-01.xml
+```
+
+- **Prima la prova.** `--dry-run` mostra ogni indirizzo che cambierebbe (vecchio → nuovo, con le varianti), i media saltati e perché, gli allegati dell'export che non si trovano sul sito, e quanti indirizzi verrebbero riscritti in ogni tabella; non scrive niente.
+- **Quali media.** Ogni allegato dell'export è riconosciuto da quanto ha registrato l'import (`att:<id WordPress>`), altrimenti, per gli import più vecchi, dal nome del file (e dalla dimensione, se due hanno lo stesso nome). Si rinominano solo i media il cui file ha ancora un nome generato: un file già rinominato, o con un nome dato a mano, viene saltato ed elencato. Se nessun media del sito ha un nome generato il comando si ferma: il sito è già a posto, e rieseguirlo non cambia niente.
+- **Nomi.** Come in un nuovo import: il nome del file di WordPress reso sicuro, nell'anno e mese di WordPress, con `-1`, `-2`… se il nome è già preso (`foto-1.jpg`); le varianti seguono (`foto-thumb.webp`).
+- **I file sono copiati, mai spostati**, e mai sopra un file esistente. I vecchi file restano per il periodo di grazia (`--grace-days`, 30 giorni di default).
+- **Una transazione per il sito**: media e varianti passano ai nuovi file, i vecchi indirizzi di WordPress (`/wp-content/uploads/…`) vengono registrati perché facciano un redirect (301), e gli indirizzi nei contenuti vengono riscritti: le revisioni attuali, pubblicate e i salvataggi automatici di ogni voce, tutte le impostazioni del sito (CSS aggiuntivo, impostazioni del tema, aree di blocchi e widget, impostazioni dei plugin), menu, termini, pattern e pagine di opzioni. Le revisioni più vecchie sono storia e conservano i loro indirizzi, che continuano a funzionare grazie al redirect. Se qualcosa va storto le copie vengono rimosse e non cambia niente. Poi la cache delle pagine del sito viene svuotata e il registro attività annota `media.renamed`.
+- **Rapporto.** Scritto anche in JSON accanto all'export (`<export>.media-rename-<data>.json`), o in `--report <file>`.
+- **Vecchi indirizzi.** Durante il periodo di grazia i vecchi file `/media/…` sono ancora serviti. Dopo, `media:purge-renamed` (`--dry-run` elenca prima i file; senza `--site`, tutti i siti) li rimuove, e una richiesta di un vecchio indirizzo risponde 301 verso il nuovo. Se il web server serve `/media/` da solo, deve passare a Cleitext le richieste dei file mancanti, altrimenti i vecchi indirizzi danno 404 dopo la rimozione. I media nelle tabelle dei plugin (oltre alle loro impostazioni) non vengono riscritti: fanno redirect.
 
 ### Copiare un sito (clone)
 

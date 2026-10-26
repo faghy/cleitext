@@ -1,4 +1,4 @@
-import { importRefs, media, mediaVariants, type SiteTransaction } from '@cleitext/db';
+import { importRefs, media, mediaRenames, mediaVariants, type SiteTransaction } from '@cleitext/db';
 import { and, asc, eq, gte, inArray } from 'drizzle-orm';
 import { mediaUrlKey } from '../transfer/media-urls.js';
 
@@ -46,6 +46,30 @@ export async function importedMediaAddress(
     if (variant) return mediaAddress(variant.storageKey);
   }
   return mediaAddress(found.storageKey);
+}
+
+/**
+ * The new address of a media file renamed by `cleitext media:rename-imported`
+ * (core 0.86), for a request of its old `/media/<key>` whose file is no
+ * longer there (`media_renames`); null when the key was never renamed.
+ */
+export async function renamedMediaAddress(
+  tx: SiteTransaction,
+  siteId: string,
+  url: string,
+): Promise<string | null> {
+  let key: string;
+  try {
+    key = decodeURIComponent(url.replace(/[?#].*$/, '')).slice('/media/'.length);
+  } catch {
+    return null;
+  }
+  if (!key.startsWith(`${siteId}/`) || key.length > 1_000) return null;
+  const [row] = await tx
+    .select({ newKey: mediaRenames.newKey })
+    .from(mediaRenames)
+    .where(and(eq(mediaRenames.siteId, siteId), eq(mediaRenames.oldKey, key)));
+  return row ? mediaAddress(row.newKey) : null;
 }
 
 /** The public address of a stored file (keys made by hand may need encoding). */

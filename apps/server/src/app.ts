@@ -7,7 +7,8 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { ADMIN_PATH } from '@cleitext/shared';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { withContext, type DatabaseClient } from '@cleitext/db';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
@@ -18,6 +19,8 @@ import type { AppConfig } from './config/config.js';
 import { fastifyTrustProxy } from './config/trust-proxy.js';
 import { WebFontsService } from './public/web-fonts.service.js';
 import { PublicService } from './public/public.service.js';
+import { renamedMediaAddress } from './public/imported-media.js';
+import { DATABASE } from './database/database.module.js';
 import { createRequestHook } from './tenancy/request-hook.js';
 import { SiteResolverService } from './tenancy/site-resolver.service.js';
 import { LanguagesService } from './content/languages.service.js';
@@ -60,24 +63,48 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
   // Uploaded files. In production nginx serves /media directly (§18.1);
   // the request hook still restricts each site to its own folder.
   await mkdir(config.media.path, { recursive: true });
-  await app.register(fastifyStatic, {
-    root: config.media.path,
-    prefix: '/media/',
-    decorateReply: false,
-    index: false,
-    dotfiles: 'deny',
-    maxAge: '365d',
-    immutable: true,
-    // Opened directly, an SVG cannot run anything or load other resources.
-    setHeaders: (res, file) => {
-      if (file.endsWith('.svg')) {
-        void res.header(
-          'content-security-policy',
-          "default-src 'none'; style-src 'unsafe-inline'; sandbox",
-        );
-      }
+  const database = app.get<DatabaseClient>(DATABASE);
+  await app.register(
+    async (scope: FastifyInstance) => {
+      // A file that is not there: if `media:rename-imported` gave it another
+      // name (core 0.86), 301 to the new address; else 404 as before.
+      scope.setNotFoundHandler(async (request, reply) => {
+        const site = request.site;
+        const moved =
+          site && (request.method === 'GET' || request.method === 'HEAD')
+            ? await withContext(database.db, { siteId: site.id }, (tx) =>
+                renamedMediaAddress(tx, site.id, request.url),
+              )
+            : null;
+        if (moved) {
+          return reply.header('cache-control', 'public, max-age=3600').redirect(moved, 301);
+        }
+        return reply
+          .code(404)
+          .type('application/problem+json')
+          .send({ title: 'Not Found', status: 404 });
+      });
+      await scope.register(fastifyStatic, {
+        root: config.media.path,
+        prefix: '/',
+        decorateReply: false,
+        index: false,
+        dotfiles: 'deny',
+        maxAge: '365d',
+        immutable: true,
+        // Opened directly, an SVG cannot run anything or load other resources.
+        setHeaders: (res, file) => {
+          if (file.endsWith('.svg')) {
+            void res.header(
+              'content-security-policy',
+              "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+            );
+          }
+        },
+      });
     },
-  });
+    { prefix: '/media' },
+  );
   // The built admin (production): hashed assets cached for a year, and the
   // single-page app answering every other address under ADMIN_PATH (/cl-admin).
   if (config.admin.path) {

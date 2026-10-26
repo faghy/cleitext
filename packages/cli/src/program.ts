@@ -47,12 +47,20 @@ import {
   connectionSettings,
   dataPaths,
   installedVersion,
+  mediaPath,
   pluginsPath,
   requireAppRole,
   themesPath,
   withOwner,
 } from './context.js';
 import { formatDoctor, runDoctor } from './doctor.js';
+import {
+  DEFAULT_GRACE_DAYS,
+  purgeRenamedMedia,
+  refuseRoot,
+  renameImportedMedia,
+  renameText,
+} from './media-rename.js';
 import { jsonMode, report, runCommand, say, type RunIo } from './json.js';
 import { collectStatus, formatStatus } from './status.js';
 import {
@@ -706,6 +714,71 @@ export function buildProgram(json = false): Command {
         );
       }),
     );
+
+  // ---- Media of old WordPress imports (core 0.86) -------------------------------------------
+
+  program
+    .command('media:rename-imported')
+    .description(
+      "Give the media of a site imported from WordPress before core 0.85 WordPress's names and year/month folders.",
+    )
+    .requiredOption('--site <site>', 'slug or id of the site')
+    .requiredOption('--wxr <file>', 'the WordPress export (.xml) the site was imported from')
+    .option('--dry-run', 'show what would change, and change nothing')
+    .option(
+      '--grace-days <days>',
+      'keep the old files this many days before media:purge-renamed removes them',
+      String(DEFAULT_GRACE_DAYS),
+    )
+    .option('--report <file>', 'where the JSON report goes (default: next to the export)')
+    .action(
+      (opts: {
+        site: string;
+        wxr: string;
+        dryRun?: boolean;
+        graceDays: string;
+        report?: string;
+      }) => {
+        refuseRoot();
+        if (!/^\d{1,4}$/.test(opts.graceDays)) {
+          throw new OperationError('--grace-days: a whole number of days.', 'invalid_option');
+        }
+        return withOwner(async (db) => {
+          const result = await renameImportedMedia(db, {
+            site: opts.site,
+            wxr: opts.wxr,
+            mediaPath: mediaPath(),
+            dryRun: opts.dryRun,
+            graceDays: Number(opts.graceDays),
+            report: opts.report,
+          });
+          report({ ...result }, renameText(result));
+        });
+      },
+    );
+
+  program
+    .command('media:purge-renamed')
+    .description(
+      'Remove the old files of media:rename-imported whose grace period is over (their addresses keep redirecting).',
+    )
+    .option('--site <site>', 'slug or id of the site (default: every site)')
+    .option('--dry-run', 'list the files that would be removed, and remove nothing')
+    .action((opts: { site?: string; dryRun?: boolean }) => {
+      refuseRoot();
+      return withOwner(async (db) => {
+        const result = await purgeRenamedMedia(db, {
+          site: opts.site,
+          mediaPath: mediaPath(),
+          dryRun: opts.dryRun,
+        });
+        report({ ...result }, [
+          ...result.deleted.map((d) => `${result.dryRun ? 'Would remove' : 'Removed'} ${d.key}`),
+          ...result.kept.map((k) => `Kept ${k.key}: ${k.reason}`),
+          `${result.deleted.length} old file(s) ${result.dryRun ? 'would be removed' : 'removed'}; ${result.waiting} still in their grace period.`,
+        ]);
+      });
+    });
 
   // ---- Plugins (docs/ARCHITECTURE.md §11) -------------------------------------------------
 

@@ -246,6 +246,13 @@
       "when": 1793082044234,
       "tag": "0034_import_refs_paths",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793168444234,
+      "tag": "0035_media_renames",
+      "breakpoints": true
     }
   ]
 }

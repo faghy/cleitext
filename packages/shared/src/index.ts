@@ -18,3 +18,4 @@ export * from './options-pages.js';
 export * from './rich-text.js';
 export * from './date-format.js';
 export * from './css-names.js';
+export * from './storage-names.js';

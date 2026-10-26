@@ -7,3 +7,12 @@ export { configure, type ConfigureOptions, type ConfigureResult } from './config
 export { collectStatus, type StatusReport } from './status.js';
 export { runDoctor, type Check, type DoctorReport } from './doctor.js';
 export { reassignEntries, type ReassignInput, type ReassignResult } from './content.js';
+export {
+  purgeRenamedMedia,
+  refuseRoot,
+  renameImportedMedia,
+  wxrMedia,
+  type PurgeRenamedResult,
+  type RenameImportedInput,
+  type RenameImportedResult,
+} from './media-rename.js';

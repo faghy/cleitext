@@ -5,6 +5,7 @@
  * (or one of WordPress's resized copies) becomes the new address; those of
  * the old site that were not imported are collected for the report.
  */
+import { mediaUrlKey } from '@cleitext/shared';
 
 export interface MediaTarget {
   id: string;
@@ -19,15 +20,10 @@ const MEDIA_FILE =
   /\.(?:jpe?g|png|gif|webp|avif|svg|bmp|ico|tiff?|heic|mp4|m4v|mov|webm|ogv|mp3|m4a|ogg|wav|pdf)$/i;
 
 /**
- * The address of a media file without what WordPress adds to its copies:
- * the size of a resized copy (`photo-1024x768.webp`), `-scaled`, the query.
+ * The address of a media file without what WordPress adds to its copies
+ * (shared with the CLI's `media:rename-imported`).
  */
-export function mediaUrlKey(url: string): string {
-  return url
-    .replace(/[?#].*$/, '')
-    .replace(/^(?:https?:)?\/\/[^/]+/i, '')
-    .replace(/-(?:\d+x\d+|scaled)(\.[a-z0-9]+)$/i, '$1');
-}
+export { mediaUrlKey };
 
 /** An imported media file by an old address, or by the address of one of its copies. */
 export function mediaByUrl(urls: Map<string, MediaTarget>, url: string): MediaTarget | undefined {

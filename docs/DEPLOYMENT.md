@@ -279,21 +279,22 @@ Hosting panels (the Plesk extension **Cleitext Toolkit**) and scripts drive Clei
 
 **Error codes.**
 
-| Code                                                                                       | Meaning                                                                          |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `usage`                                                                                    | unknown command or option, or a required option is missing                       |
-| `not_configured`                                                                           | `DATABASE_ADMIN_URL` (or the application role) is not set                        |
-| `db_unreachable`                                                                           | the database refuses the connection, the password is wrong, or it does not exist |
-| `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | the input is incomplete or wrong                                                 |
-| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign` and the domain commands                           |
-| `cannot_write`                                                                             | `entry:reassign`: the new author's role cannot write entries                     |
-| `primary_domain`                                                                           | `site:domain:remove` on the primary domain                                       |
-| `installed`                                                                                | `install` when a site already exists                                             |
-| `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                             |
-| `db_connect`, `db_version`, `db_createrole`, `db_owner`, `db_role_taken`, `db_app_connect` | `configure`: the same problems as the setup wizard, with the command to fix them |
-| `timeout`                                                                                  | no answer in time                                                                |
-| `failed`                                                                                   | any other problem the message explains                                           |
-| `internal`                                                                                 | an unexpected error (a bug: please report it)                                    |
+| Code                                                                                       | Meaning                                                                                                             |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `usage`                                                                                    | unknown command or option, or a required option is missing                                                          |
+| `not_configured`                                                                           | `DATABASE_ADMIN_URL` (or the application role) is not set                                                           |
+| `db_unreachable`                                                                           | the database refuses the connection, the password is wrong, or it does not exist                                    |
+| `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | the input is incomplete or wrong                                                                                    |
+| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign` and the domain commands                                                              |
+| `cannot_write`                                                                             | `entry:reassign`: the new author's role cannot write entries                                                        |
+| `run_as_root`, `invalid_wxr`, `conflict`                                                   | `media:rename-imported`, `media:purge-renamed`: run as root, not a WordPress export, a media item changed meanwhile |
+| `primary_domain`                                                                           | `site:domain:remove` on the primary domain                                                                          |
+| `installed`                                                                                | `install` when a site already exists                                                                                |
+| `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                                                                |
+| `db_connect`, `db_version`, `db_createrole`, `db_owner`, `db_role_taken`, `db_app_connect` | `configure`: the same problems as the setup wizard, with the command to fix them                                    |
+| `timeout`                                                                                  | no answer in time                                                                                                   |
+| `failed`                                                                                   | any other problem the message explains                                                                              |
+| `internal`                                                                                 | an unexpected error (a bug: please report it)                                                                       |
 
 ### Status and checks
 
@@ -413,6 +414,8 @@ The link signs in to the admin of that site, the first active one by default. On
 | `user:create … --password-stdin`                                | `{"id","email","superAdmin","site","role"}`                                                             |
 | `user:reset-password --email <e> --password-stdin`              | `{"email"}`                                                                                             |
 | `entry:reassign --site <s> --from <u> --to <u> [--type <t>]`    | `{"site","from","to","type","entries","published","media"}`: `from`/`to` are `{"id","email"}`           |
+| `media:rename-imported --site <s> --wxr <file> [--dry-run]`     | `{"site","dryRun","alreadyFixed","renamed","counts","skipped","unmatched","references","report",…}`     |
+| `media:purge-renamed [--site <s>] [--dry-run]`                  | `{"dryRun","deleted":[{"site","key"}],"waiting","kept"}`                                                |
 | `plugin:list`                                                   | `{"plugins":[{"slug","name","version","apiVersion","network","mustUse","paid","activeOn":["main"]}]}`   |
 | `plugin:activate <slug> --site <s>` \| `--network`              | `{"slug","site","version","alreadyActive","network"}`                                                   |
 | `plugin:deactivate <slug> --site <s>` \| `--network`            | `{"slug","site","network","message"}`                                                                   |
@@ -426,6 +429,24 @@ The link signs in to the admin of that site, the first active one by default. On
 `entry:reassign` gives all of a user's entries on a site to another writer, like WordPress's "Attribute all content to" when a user is deleted: every status (drafts, pending, scheduled, trash) and every language. `--from` and `--to` take an email address or a user id. The new author must be an active member of the site whose role can write entries (`edit_entries`). The media the user uploaded follow too, unless `--type` limits the change to one content type. Revisions keep who saved them, and the modification date does not change. The activity log records `entries.reassigned` with the counts, and the site's page cache is cleared. Before removing someone from a site, run it so their content keeps an author. In the admin, one entry's author changes from the editor's Author box, and several from the **Change author** bulk action (both need `edit_others_entries`; logged as `entry.author_changed`).
 
 `plugin:activate --site` activates the plugin like the **Activate** button in the admin. It checks dependencies and conflicts, creates the content types and runs `onActivate`, and the activity log records it. A paid plugin needs the site's license, entered in the admin first. `--network` activates it on every site.
+
+### Media of sites imported from WordPress before 0.85
+
+Since core 0.85 imported media keep WordPress's name and year/month folder (`/media/<site>/2015/07/photo.jpg`). Sites imported before have them under a generated name in the month of the import (`/media/<site>/2026/09/0192…e4.jpg`). `media:rename-imported` gives them WordPress's names, with the original export of the old site:
+
+```bash
+# As the domain user, never as root (root-owned files break Plesk backups):
+bin/cleitext media:rename-imported --site main --wxr ~/old-site.WordPress.2026-09-01.xml --dry-run
+bin/cleitext media:rename-imported --site main --wxr ~/old-site.WordPress.2026-09-01.xml
+```
+
+- **Dry run first.** `--dry-run` prints every address that would change (old → new, with the variants), the media skipped and why, the attachments of the export not found on the site, and how many addresses would be rewritten in each table; it writes nothing.
+- **Which media.** Each attachment of the export is found by what the import recorded (`att:<WordPress id>`), else, for older imports, by its file name (and size, when two have the same name). Only media whose file still has a generated name are renamed: a file already renamed, or named by hand, is skipped and listed. When no media item of the site has a generated name the command stops: the site is already fixed, and running it again changes nothing.
+- **Names.** As a new import would: WordPress's file name made safe, in WordPress's year and month, with `-1`, `-2`… when the name is taken (`photo-1.jpg`); the variants follow (`photo-thumb.webp`).
+- **Files are copied, never moved**, and never over an existing file. The old files stay for the grace period (`--grace-days`, 30 by default).
+- **One transaction for the site**: the media and variants get their new files, the old WordPress addresses (`/wp-content/uploads/…`) are recorded so that they redirect (301), and the addresses in the content are rewritten: the current, published and autosaved revisions of every entry, every setting of the site (Additional CSS, theme settings, block areas and widgets, plugin settings), menus, terms, patterns and options pages. Older revisions are history and keep their addresses: those keep working through the redirect. If anything fails, the copies are removed and nothing changes. Then the site's page cache is cleared and the activity log records `media.renamed`.
+- **Report.** Also written as JSON next to the export (`<export>.media-rename-<date>.json`), or to `--report <file>`.
+- **Old addresses.** During the grace period the old `/media/…` files are still served. Afterwards `media:purge-renamed` (`--dry-run` lists the files first; without `--site`, every site) removes them, and a request for an old address answers 301 to the new one. If the web server serves `/media/` by itself, it must pass the requests for missing files to Cleitext, or the old addresses give 404 once purged. Media in the tables of plugins (other than their settings) are not rewritten: they redirect.
 
 ### Copying a site (clone)
 

@@ -47,6 +47,7 @@ import {
   fieldListSchema,
   importFieldRefs,
   optionsPageSchema,
+  sourceUrlPaths,
   type FieldDefinition,
   type FieldGroupInput,
   type ImportRefMaps,
@@ -1132,19 +1133,7 @@ export function mediaDate(item: TransferDocument['media'][number]): Date | undef
  * `/wp-content/uploads/2015/07/photo.jpg`.
  */
 export function sourcePaths(item: TransferDocument['media'][number]): string[] {
-  const paths = new Set<string>();
-  for (const url of item.urls ?? []) {
-    const raw =
-      /^(?:https?:)?\/\/[^/?#]+(\/[^?#]*)/i.exec(url)?.[1] ?? (url.startsWith('/') ? url : '');
-    let path: string;
-    try {
-      path = decodeURIComponent(raw.replace(/[?#].*$/, ''));
-    } catch {
-      continue;
-    }
-    if (/^\/[^\0]{1,1000}$/.test(path) && !path.endsWith('/')) paths.add(path);
-  }
-  return [...paths];
+  return sourceUrlPaths(item.urls ?? []);
 }
 
 /** Ref of an old address of a media file in `import_refs` (core 0.85). */

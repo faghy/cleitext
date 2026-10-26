@@ -1,12 +1,15 @@
+import { sql } from 'drizzle-orm';
 import {
   bigint,
   customType,
   foreignKey,
+  index,
   integer,
   jsonb,
   pgTable,
   primaryKey,
   text,
+  timestamp,
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -63,6 +66,35 @@ export const mediaVariants = pgTable(
       columns: [t.siteId, t.mediaId],
       foreignColumns: [media.siteId, media.id],
     }).onDelete('cascade'),
+  ],
+);
+
+/**
+ * Media files given another name by `cleitext media:rename-imported`
+ * (core 0.86, 0035): files of old WordPress imports stored under a uuid
+ * (`<site>/2026/10/<uuid>.jpg`) moved to WordPress's name and month. A
+ * request for `/media/<oldKey>` whose file is gone answers 301 to
+ * `/media/<newKey>`. The old file stays until `deleteAfter`, then
+ * `media:purge-renamed` removes it (`purgedAt`); the row stays for the
+ * redirect. `mediaId` is informative: no foreign key, so that the old file
+ * of a media item deleted meanwhile is still purged.
+ */
+export const mediaRenames = pgTable(
+  'media_renames',
+  {
+    siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+    oldKey: text('old_key').notNull(),
+    newKey: text('new_key').notNull(),
+    mediaId: uuid('media_id'),
+    deleteAfter: timestamp('delete_after', { withTimezone: true }).notNull(),
+    purgedAt: timestamp('purged_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.siteId, t.oldKey] }),
+    index('media_renames_purge_idx')
+      .on(t.siteId, t.deleteAfter)
+      .where(sql`${t.purgedAt} IS NULL`),
   ],
 );
 

@@ -5,6 +5,7 @@ import {
   mediaVariants,
   newId,
   revisions,
+  takenMediaNames,
   users,
   withContext,
   type DatabaseClient,
@@ -28,7 +29,7 @@ import { DATABASE } from '../database/database.module.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { ALLOWED_TYPES, detectType, looksLikeSvg, RESIZABLE, sanitizeSvg } from './media-types.js';
-import { mediaFolder, storageBaseName } from './storage-names.js';
+import { claimStorageKey, claimVariantKey, mediaFolder, storageBaseName } from './storage-names.js';
 import { DiskStorage, type MediaStorage } from './storage.js';
 
 type MediaRow = typeof media.$inferSelect;
@@ -373,27 +374,13 @@ export class MediaService {
     ext: string,
     data: Buffer,
   ): Promise<string> {
-    const prefix = `${folder}/${name}`;
-    const pattern = `${prefix.replace(/[\\%_]/g, '\\$&')}%`;
-    const taken = await withContext(this.database.db, { siteId }, async (tx) => {
-      const rows = [
-        ...(await tx
-          .select({ key: media.storageKey })
-          .from(media)
-          .where(like(media.storageKey, pattern))),
-        ...(await tx
-          .select({ key: mediaVariants.storageKey })
-          .from(mediaVariants)
-          .where(like(mediaVariants.storageKey, pattern))),
-      ];
-      return new Set(rows.map((r) => r.key.slice(folder.length + 1).replace(/\.[^.]*$/, '')));
-    });
-    for (let n = 0; n < 1_000; n++) {
-      const candidate = n === 0 ? name : `${name}-${n}`;
-      if (taken.has(candidate)) continue;
-      const key = `${folder}/${candidate}.${ext}`;
-      if (await this.tryPut(key, data)) return key;
-    }
+    const taken = await withContext(this.database.db, { siteId }, (tx) =>
+      takenMediaNames(tx, folder, name),
+    );
+    const claimed = await claimStorageKey(folder, name, ext, taken, (key) =>
+      this.tryPut(key, data),
+    );
+    if (claimed) return claimed;
     // A thousand files of the same name in a month: a generated one.
     const key = `${folder}/${newId()}.${ext}`;
     await this.storage.put(key, data);
@@ -402,10 +389,8 @@ export class MediaService {
 
   /** A variant's file: `<base>-thumb.webp`, or `<base>-thumb-1.webp` when that is taken. */
   private async putVariant(base: string, format: string, data: Buffer): Promise<string> {
-    for (let n = 0; n < 100; n++) {
-      const key = n === 0 ? `${base}.${format}` : `${base}-${n}.${format}`;
-      if (await this.tryPut(key, data)) return key;
-    }
+    const claimed = await claimVariantKey(base, format, (key) => this.tryPut(key, data));
+    if (claimed) return claimed;
     const key = `${base}-${newId()}.${format}`;
     await this.storage.put(key, data);
     return key;
