@@ -46,6 +46,39 @@ const metas = (head: ReturnType<typeof buildHead>) =>
   );
 
 describe('the head', () => {
+  it('uses the own title, description and robots of the page of the posts on its archive', () => {
+    const blog = (over: Partial<HeadInput>) =>
+      input({
+        route: 'archive',
+        path: '/blog',
+        archive: { type: 'article' },
+        entry: undefined,
+        postsPage: { id: 'p1', title: 'Blog', url: '/blog', excerpt: '' },
+        head: { ...baseHead, title: 'Blog – Bar' },
+        ...over,
+      });
+    const own = buildHead(
+      blog({
+        seo: { title: '%title% - %sitename%', description: 'News of %title%', noindex: true },
+      }),
+    );
+    expect(own.title).toBe('Blog - Bar');
+    expect(own.description).toBe('News of Blog');
+    expect(own.robots).toMatch(/^noindex/);
+    // A legacy title of the SEO plugin is the page's part, in the pages' template.
+    expect(
+      buildHead(
+        blog({
+          config: { pt_page_title: '%title% %sep% %sitename%', separator: '|' },
+          seo: { title: 'News', legacyTitle: true },
+        }),
+      ).title,
+    ).toBe('News | Bar');
+    // Without one, the archive's title; later pages say which.
+    expect(buildHead(blog({ seo: {} })).title).toBe('Blog – Bar');
+    expect(buildHead(blog({ seo: {}, path: '/blog/page/2' })).title).toBe('Blog – Page 2 – Bar');
+  });
+
   it('uses the templates of the content type, and the entry’s own values first', () => {
     const head = buildHead(input());
     expect(head.title).toBe('Espresso – Bar');

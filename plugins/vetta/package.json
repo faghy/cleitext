@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-vetta",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Official Cleitext plugin: Vetta SEO, search titles and meta with variables, content analysis with a score, schema, local SEO, sitemaps, 404 log, IndexNow, llms.txt and robots.txt.",
   "license": "GPL-3.0-or-later",

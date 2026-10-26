@@ -165,6 +165,27 @@ describe('SEO', () => {
     await admin.request('PATCH', '/api/v1/settings/core', { tagline: '' });
   });
 
+  it('uses the search title of the page of the posts on its archive', async () => {
+    const blog = await publish('page', 'Blog', {
+      excerpt: 'All our news.',
+      fields: { seo: { title: 'Blog - Our news', fullTitle: true } },
+    });
+    await admin.request('PATCH', '/api/v1/settings/core', { postsPage: blog.id });
+    const html = (await visitor.get(`/${blog.slug}`)).body;
+    expect(html).toContain('<title>Blog - Our news</title>');
+    // Its own excerpt is the description (the tagline otherwise).
+    expect(html).toContain('<meta name="description" content="All our news."/>');
+    // A title of the plugin itself is the page's part: the template adds the site.
+    await admin.request('PATCH', `/api/v1/entries/${blog.id}`, {
+      fields: { seo: { title: 'News', description: 'What happens here.' } },
+    });
+    await admin.post(`/api/v1/entries/${blog.id}/publish`);
+    const own = (await visitor.get(`/${blog.slug}`)).body;
+    expect(own).toContain('<title>News | Site official</title>');
+    expect(own).toContain('<meta name="description" content="What happens here."/>');
+    await admin.request('PATCH', '/api/v1/settings/core', { postsPage: null });
+  });
+
   it('keeps out of the sitemaps what is kept out of search', async () => {
     const shown = await publish('page', 'Shown page', {
       document: {

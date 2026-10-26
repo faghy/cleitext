@@ -55,6 +55,12 @@ export interface HeadInput {
   isFrontPage: boolean;
   archive?: { taxonomy?: string; term?: string; type?: string; home?: boolean };
   entry?: HeadEntry;
+  /**
+   * The page of the posts, on its archive (core plugin API 1.55): its own
+   * search title, description and robots apply there (`seo` holds them), as
+   * Rank Math does on the posts page.
+   */
+  postsPage?: { id: string; title: string; url: string; excerpt: string };
   seo: EntrySeo;
   /** The site's tagline, for `%sitedesc%` in an entry's own title. */
   sitedesc?: string;
@@ -100,11 +106,21 @@ function globalRobots(c: Config): Robots {
 }
 
 export function robotsFor(
-  input: Pick<HeadInput, 'config' | 'route' | 'path' | 'archive' | 'entry' | 'seo'>,
+  input: Pick<HeadInput, 'config' | 'route' | 'path' | 'archive' | 'entry' | 'seo' | 'postsPage'>,
 ): Robots {
   const c = input.config;
   let r = globalRobots(c);
-  if (input.route === 'entry' && input.entry) {
+  if (input.route === 'archive' && input.postsPage && !input.archive?.taxonomy) {
+    // The posts page's own choices (noindex…) apply to its archive.
+    const s = input.seo;
+    r = {
+      noindex: s.noindex ?? r.noindex,
+      nofollow: s.nofollow ?? r.nofollow,
+      noarchive: s.noarchive ?? r.noarchive,
+      noimageindex: s.noimageindex ?? r.noimageindex,
+      nosnippet: s.nosnippet ?? r.nosnippet,
+    };
+  } else if (input.route === 'entry' && input.entry) {
     if (typeValue(c, input.entry.type, 'custom_robots') === true) {
       r = {
         ...r,
@@ -255,6 +271,32 @@ export function buildHead(input: HeadInput): Head {
         String(taxonomyValue(c, input.archive.taxonomy, 'description') ?? ''),
         vars,
       ) || head.description;
+  } else if (input.route === 'archive' && input.postsPage) {
+    const vars: VariableContext = {
+      ...base,
+      title: input.postsPage.title,
+      excerpt: plainDescription(input.postsPage.excerpt),
+      url: input.postsPage.url,
+      id: input.postsPage.id,
+      keywords: keywordsOf(seo),
+    };
+    // Its own search title, as on the page itself; the archive's title otherwise.
+    const own = seo.title
+      ? seo.legacyTitle
+        ? replaceVariables(String(typeValue(c, 'page', 'title') ?? ''), {
+            ...vars,
+            title: replaceVariables(seo.title, vars),
+          })
+        : replaceVariables(seo.title, { ...vars, sitedesc: input.sitedesc ?? '' })
+      : '';
+    title =
+      own ||
+      replaceVariables('%title% %page% %sep% %sitename%', {
+        ...base,
+        title: input.postsPage.title,
+      }) ||
+      head.title;
+    if (seo.description) description = replaceVariables(seo.description, vars);
   } else if (input.route === 'archive' && /\/author\//.test(input.path)) {
     title =
       replaceVariables(text(c, 'author_title'), {

@@ -194,6 +194,21 @@ export const transferDocumentSchema = z.object({
       }),
     )
     .default([]),
+  /**
+   * The addresses the source used (plugin API 1.55; ignored by older cores):
+   * permalinks of existing content types (`article: '/{slug}'`) and the
+   * first part of taxonomies' archives (null their slug, '' none). They are
+   * applied to types and taxonomies that have no content yet; with
+   * `replace`, also to those that do, whose old addresses then redirect.
+   * Otherwise the report says what was kept.
+   */
+  permalinks: z
+    .object({
+      types: z.record(slug, z.string().max(200)).default({}),
+      taxonomyBases: z.record(slug, z.string().max(60).nullable()).default({}),
+      replace: z.boolean().default(false),
+    })
+    .optional(),
   taxonomies: z
     .array(
       z.object({

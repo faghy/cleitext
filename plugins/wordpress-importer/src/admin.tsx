@@ -11,6 +11,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { detectLanguages, matchLocale, scanWxr, sharedAddresses } from './languages';
+import { scanPostsPermalink, type PostsPermalink } from './permalinks';
 import type { Job } from './server';
 
 type Tr = (en: string, it: string) => string;
@@ -67,20 +68,82 @@ interface Preview {
   found: { code: string; count: number; locale: string | null }[];
   main: string | null;
   shared: number;
+  /** The structure of the posts' addresses in WordPress (1.31.0). */
+  posts: PostsPermalink | null;
 }
 
 /** Files larger than this are not read for the preview (the import still recognises languages). */
 const PREVIEW_MAX = 400 * 1024 * 1024;
 
 async function preview(file: File, locales: string[]): Promise<Preview> {
-  const facts = scanWxr(await file.text());
+  const xml = await file.text();
+  const facts = scanWxr(xml);
   const detection = detectLanguages(facts, locales);
   return {
     source: detection.source,
     found: detection.found.map((f) => ({ ...f, locale: matchLocale(f.code, locales) })),
     main: detection.main,
     shared: sharedAddresses(facts),
+    posts: scanPostsPermalink(xml),
   };
+}
+
+/** The addresses of the posts in WordPress, and whether they replace the site's. */
+function Addresses({
+  tr,
+  posts,
+  replace,
+  setReplace,
+}: {
+  tr: Tr;
+  posts: PostsPermalink | null;
+  replace: boolean;
+  setReplace: (value: boolean) => void;
+}) {
+  return (
+    <fieldset
+      className="space-y-2 rounded border border-slate-200 p-3"
+      data-testid="import-addresses"
+    >
+      <legend className="px-1 text-sm font-medium text-slate-800">
+        {tr('Addresses', 'Indirizzi')}
+      </legend>
+      {posts ? (
+        <p className="text-sm text-slate-700">
+          {tr('Posts in WordPress:', 'Articoli in WordPress:')} <code>{posts.wordpress}</code>
+          {posts.cleitext
+            ? tr(
+                ` – here ${posts.cleitext}, so they keep their addresses.`,
+                ` – qui ${posts.cleitext}, così mantengono i loro indirizzi.`,
+              )
+            : tr(
+                ' – Cleitext cannot keep these: the old addresses redirect to the new ones.',
+                ' – Cleitext non può mantenerli: i vecchi indirizzi portano a quelli nuovi.',
+              )}
+        </p>
+      ) : null}
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={replace}
+          onChange={(e) => setReplace(e.target.checked)}
+        />
+        <span>
+          {tr(
+            'Use the addresses of WordPress also if this site already has posts, categories or tags (their current addresses redirect)',
+            'Usa gli indirizzi di WordPress anche se questo sito ha già articoli, categorie o tag (i loro indirizzi attuali vengono reindirizzati)',
+          )}
+        </span>
+      </label>
+      <p className="text-xs text-slate-500">
+        {tr(
+          'On a site without posts the addresses of posts, categories and tags follow WordPress’s anyway. Otherwise the site keeps its own and the report says what differs.',
+          'Su un sito senza articoli gli indirizzi di articoli, categorie e tag seguono comunque quelli di WordPress. Altrimenti il sito mantiene i suoi e il resoconto dice cosa cambia.',
+        )}
+      </p>
+    </fieldset>
+  );
 }
 
 const SOURCES: Record<string, [string, string]> = {
@@ -173,6 +236,7 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   const [formCaptcha, setFormCaptcha] = useState('');
   const defaultsId = useId();
   const [elementorDefaults, setElementorDefaults] = useState('auto');
+  const [replacePermalinks, setReplacePermalinks] = useState(false);
   const [sent, setSent] = useState(0);
   const codes = site.locales.map((l) => l.code);
   const [found, setFound] = useState<Preview | null>(null);
@@ -180,7 +244,7 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   // The file's languages, read here before the upload, to confirm or change them.
   useEffect(() => {
     setFound(null);
-    if (!file || site.locales.length < 2 || file.size > PREVIEW_MAX) return;
+    if (!file || file.size > PREVIEW_MAX) return;
     let live = true;
     preview(file, codes)
       .then((data) => {
@@ -209,6 +273,7 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
         comments,
         ...(formCaptcha ? { formCaptcha } : {}),
         ...(elementorDefaults !== 'auto' ? { elementorDefaults } : {}),
+        ...(replacePermalinks ? { permalinks: 'replace' } : {}),
         // The languages confirmed in the preview (the content language always).
         ...(site.locales.length > 1
           ? { languages: [...new Set([locale, ...chosen])].join(',') }
@@ -278,6 +343,12 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
           {site.locales.length > 1 && (
             <Languages site={site} tr={tr} data={found} chosen={chosen} setChosen={setChosen} />
           )}
+          <Addresses
+            tr={tr}
+            posts={found?.posts ?? null}
+            replace={replacePermalinks}
+            setReplace={setReplacePermalinks}
+          />
           <div className="grid gap-4 sm:grid-cols-2">
             {site.locales.length > 1 && (
               <div className="space-y-1">

@@ -33,6 +33,7 @@ import type {
   PluginPageContent,
   PublicQuery,
   RenderHookContext,
+  RenderPostsPage,
   RouteResponse,
 } from '@cleitext/plugin-sdk';
 import {
@@ -188,6 +189,8 @@ interface RequestScope {
   blockCss?: string[];
   /** The site's languages with this page's address in each (plugin API 1.54), for plugin blocks. */
   pageLocales?: BlockLocale[];
+  /** The page of the posts, on its archive (plugin API 1.55): for SEO plugins. */
+  postsPage?: RenderPostsPage;
   /** A plugin page that lists entries like an archive (`PluginPageContent.archive`). */
   pluginArchive?: NonNullable<PluginPageContent['archive']> & {
     title: string;
@@ -1255,6 +1258,7 @@ export class PublicService {
       const base = posts ? data.urls.entry(posts.row) : null;
       const page = Number(paged[2]);
       if (posts && base && page >= 2 && data.urls.page(base, page) === scope.path) {
+        scope.postsPage = postsPageInfo(posts, base);
         return this.renderArchive(scope, {
           where: eq(entries.typeSlug, 'article'),
           title: posts.row.title,
@@ -1262,6 +1266,7 @@ export class PublicService {
           page,
           isHome: false,
           tag: 'type:article',
+          ...(posts.excerpt ? { description: posts.excerpt } : {}),
         });
       }
     }
@@ -1299,6 +1304,9 @@ export class PublicService {
       settings.postsPage &&
       entry.row.id === (await this.settingPage(scope, settings.postsPage))?.row.id
     ) {
+      // Its own search title and description go to SEO plugins (plugin API 1.55).
+      scope.postsPage = postsPageInfo(entry, data.urls.entry(entry.row));
+      scope.tags.add(`entry:${entry.row.id}`);
       return this.renderArchive(scope, {
         where: eq(entries.typeSlug, 'article'),
         title: entry.row.title,
@@ -1306,6 +1314,7 @@ export class PublicService {
         page: 1,
         isHome: false,
         tag: 'type:article',
+        ...(entry.excerpt ? { description: entry.excerpt } : {}),
       });
     }
     return this.renderEntry(scope, entry, { isFrontPage: false });
@@ -1584,6 +1593,8 @@ export class PublicService {
       author?: NonNullable<Extract<TemplateProps, { kind: 'archive' }>['author']>;
       /** The person of an author archive, for their user fields. */
       authorId?: string;
+      /** The page's description (the posts page's own excerpt); the tagline otherwise. */
+      description?: string;
     },
   ): Promise<PublicResponse | null> {
     const { tx, data, settings } = scope;
@@ -1647,7 +1658,11 @@ export class PublicService {
     };
     const head = this.head(scope, {
       title: options.isHome ? this.homeTitle(scope) : `${options.title} – ${scope.siteTitle}`,
-      description: options.term?.description ?? options.author?.bio ?? scope.settings.tagline,
+      description:
+        options.term?.description ??
+        options.author?.bio ??
+        options.description ??
+        scope.settings.tagline,
       path: pagePath,
       alternates: options.isHome
         ? data.locales.map((l) => ({ locale: l.code, url: data.urls.home(l.code) }))
@@ -2249,6 +2264,7 @@ export class PublicService {
               ...(props.contentType ? { type: props.contentType } : {}),
               ...(props.isHome ? { home: true } : {}),
             },
+            ...(scope.postsPage && !props.term ? { postsPage: scope.postsPage } : {}),
           }
         : {}),
       tag: (tag: string) => {
@@ -3462,4 +3478,17 @@ export function withBlockCss(html: string, css: string[]): string {
   const style = `<style data-cx-blocks>${css.join('\n').replace(/<\/style/gi, '<\\/style')}</style>`;
   const at = html.indexOf('</head>');
   return at === -1 ? style + html : html.slice(0, at) + style + html.slice(at);
+}
+
+/** The page of the posts as SEO plugins see it on its archive (plugin API 1.55). */
+function postsPageInfo(page: PublishedEntry, url: string): RenderPostsPage {
+  return {
+    id: page.row.id,
+    type: page.row.typeSlug,
+    locale: page.row.locale,
+    title: page.row.title,
+    url,
+    excerpt: page.excerpt || null,
+    fields: page.fields,
+  };
 }

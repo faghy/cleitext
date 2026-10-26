@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.54**
+> API dei plugin **1.55**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -221,7 +221,7 @@ ctx.hooks.filter(
 | `cache.headers`            | header in più delle risposte pubbliche tenute dalla cache delle pagine, API 1.9                                                                                                                                                                        | `{ siteId, host, path, status, tags }`                                                 |
 | `robots.txt`               | il testo di `/robots.txt`, con la sua riga `Sitemap:`; nessun permesso. Un sito che chiede ai motori di restare fuori tiene `Disallow: /` (API 1.24)                                                                                                   | `{ siteId, origin, sitemap, discourageSearchEngines }`                                 |
 
-`RenderHookContext` è `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` è `entry`, `archive`, `search`, `404` o `maintenance`. `entry` è la voce pubblica: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (API dei plugin 1.33) è `true` quando il visitatore ha effettuato l'accesso: le sue pagine non vanno mai in cache, quindi il contenuto può dipenderne. Chiama `tag('type:event')` quando ciò che aggiungi dipende da altri dati (vedi [cache](#cache)).
+`RenderHookContext` è `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` è `entry`, `archive`, `search`, `404` o `maintenance`. `entry` è la voce pubblica: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (API dei plugin 1.33) è `true` quando il visitatore ha effettuato l'accesso: le sue pagine non vanno mai in cache, quindi il contenuto può dipenderne. Sull'archivio degli ultimi articoli mostrato nella pagina scelta come pagina degli articoli (Impostazioni → Lettura), `postsPage` (API dei plugin 1.55) è quella pagina, `{ id, type, locale, title, url, excerpt, fields }`: i plugin SEO usano lì il suo titolo e la sua descrizione per i motori di ricerca, come fanno Yoast SEO e Rank Math (Vetta SEO e SEO lo fanno); il core usa il suo riassunto come descrizione. Chiama `tag('type:event')` quando ciò che aggiungi dipende da altri dati (vedi [cache](#cache)).
 
 **Cache davanti a Cleitext** (API dei plugin 1.9). `cache.headers` aggiunge header alle risposte pubbliche che la cache delle pagine tiene (mai a chi ha fatto il login): calcolati una volta, salvati con la pagina e inviati a ogni hit, per esempio un `Cache-Control` con `s-maxage` e i tag della pagina per Varnish o una CDN. `cache.invalidated` viene emesso una volta per modifica, fuori dalla transazione che l’ha fatta, con i tag delle pagine cambiate: svuotale lì. Il plugin ufficiale **Cache esterna** fa entrambe le cose per Varnish e Cloudflare.
 
@@ -997,6 +997,8 @@ const report = await ctx.transfer.importDocument(siteId, document, {
 });
 // { created: { entries: 12, media: 30, … }, skipped: {…}, warnings: […], errors: […] }
 ```
+
+**Gli indirizzi dell'origine** (API dei plugin 1.55; i core precedenti li ignorano). Un documento può dire quali indirizzi usava l'altro sito: `permalinks: { types: { article: '/{slug}' }, taxonomyBases: { category: 'argomenti', tag: 'tag' }, replace? }` (una base `''` significa nessuna, come `/notizie`). Il core li dà ai tipi di contenuto e alle tassonomie esistenti che non hanno ancora contenuti, così le voci mantengono il vecchio indirizzo e non serve alcun redirect; con `replace: true` anche a quelli che ne hanno, i cui indirizzi attuali vengono reindirizzati. Altrimenti, o quando un indirizzo non è valido o è occupato, restano quelli del sito e il resoconto lo dice. Il WordPress Importer li ricava dai link dell'esportazione (`/%postname%/` → `/{slug}`).
 
 Il contenuto delle voci è fatto di blocchi: `@cleitext/blocks/html` li ricava da HTML e block markup (`htmlToCxd`). Durante un'importazione (`keepUnknown`) i blocchi WordPress senza equivalente e gli shortcode isolati diventano segnaposto `core/imported`: i plugin attivi li sostituiscono con `import.block` e `import.shortcode` (API 1.36), il resto conserva il suo testo, con una riga di report per tipo. In una pagina Elementor importata in Fresco, i blocchi di uno shortcode finiscono dentro un elemento blocco di plugin di Fresco (il `wrap` del segnaposto). Il plugin ufficiale **Kross Booking**, per esempio, trasforma `[kross-booking id="3" lang="it"]` nel suo blocco:
 

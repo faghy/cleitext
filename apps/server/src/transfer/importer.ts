@@ -51,9 +51,16 @@ import {
   type FieldGroupInput,
   type ImportRefMaps,
 } from '@cleitext/shared';
-import { and, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, count as countRows, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
+import { localePrefixes } from '../content/paths.js';
 import { nextFreeSlug, permalinkShape, SLUG_MAX, slugify } from '../content/slug.js';
+import {
+  assertPermalink,
+  assertTaxonomyBase,
+  redirectEntries,
+  redirectTerms,
+} from '../content/structure.service.js';
 import type { MediaService } from '../media/media.service.js';
 import { RESERVED_IDS } from '../fields/field-groups.service.js';
 import type { PageCacheService } from '../public/page-cache.service.js';
@@ -294,6 +301,14 @@ export async function importDocument(
       count(report, 'optionsPages');
     }
   });
+
+  // ---- Permalinks of the source (plugin API 1.55) -----------------------------------
+  if (doc.permalinks) {
+    const permalinks = doc.permalinks;
+    await run((tx) =>
+      applyPermalinks(tx, siteId, permalinks, localePrefixes(options.locales ?? []), report),
+    );
+  }
 
   // ---- Users -----------------------------------------------------------------------
   const userIds = new Map<string, string>();
@@ -1593,4 +1608,88 @@ function collectUserRefs(value: unknown, into: Set<string>, depth = 0): void {
     return;
   }
   for (const item of Object.values(object)) collectUserRefs(item, into, depth + 1);
+}
+
+/** A content type's or taxonomy's name for the report: "Posts", "Categories"… */
+const STRUCTURE_NAMES: Record<string, string> = {
+  article: 'Posts',
+  page: 'Pages',
+  category: 'Categories',
+  tag: 'Tags',
+};
+
+/**
+ * The addresses the source used (plugin API 1.55): permalinks of content
+ * types and the first part of taxonomies' archives. Applied where there is no
+ * content yet, or everywhere with `replace` (the old addresses redirect);
+ * otherwise the site's are kept and the report says so. Invalid or taken
+ * addresses are reported and left alone.
+ */
+async function applyPermalinks(
+  tx: SiteTransaction,
+  siteId: string,
+  permalinks: NonNullable<TransferDocument['permalinks']>,
+  localePaths: Map<string, string>,
+  report: ImportReport,
+): Promise<void> {
+  const setting = (path: string) => `in Settings → Content structure (now ${path})`;
+  for (const [slug, permalink] of Object.entries(permalinks.types)) {
+    const [type] = await tx.select().from(contentTypes).where(eq(contentTypes.slug, slug));
+    if (!type || type.permalink === permalink) continue;
+    const name = STRUCTURE_NAMES[slug] ?? `"${slug}"`;
+    const [used] = await tx
+      .select({ n: countRows() })
+      .from(entries)
+      .where(and(eq(entries.typeSlug, slug), ne(entries.status, 'trashed')));
+    if ((used?.n ?? 0) > 0 && !permalinks.replace) {
+      report.warnings.push(
+        `${name} had addresses like ${permalink}: the site already has some, so their addresses stay ${type.permalink} and the old ones redirect. To keep them, set the permalink to ${permalink} ${setting(type.permalink)}, or import again choosing to use the addresses of the export.`,
+      );
+      continue;
+    }
+    try {
+      await assertPermalink(tx, siteId, localePaths, permalink, type.hierarchical, type.id);
+    } catch (error) {
+      report.warnings.push(
+        `${name}: the addresses of the export (${permalink}) cannot be used: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      continue;
+    }
+    const redirected = await redirectEntries(tx, siteId, localePaths, type, permalink);
+    await tx.update(contentTypes).set({ permalink }).where(eq(contentTypes.id, type.id));
+    report.warnings.push(
+      `${name} keep the addresses of the export: their permalink is now ${permalink} (it was ${type.permalink})${redirected ? `; ${redirected} existing address(es) redirect` : ''}.`,
+    );
+  }
+  for (const [slug, wanted] of Object.entries(permalinks.taxonomyBases)) {
+    const [taxonomy] = await tx.select().from(taxonomies).where(eq(taxonomies.slug, slug));
+    if (!taxonomy || taxonomy.source.startsWith('plugin:')) continue;
+    const base = wanted === slug ? null : wanted;
+    if ((taxonomy.base ?? null) === base) continue;
+    const name = STRUCTURE_NAMES[slug] ?? `"${slug}"`;
+    const shown = (b: string | null) => (b === null ? `/${slug}/…` : b ? `/${b}/…` : '/…');
+    const [used] = await tx
+      .select({ n: countRows() })
+      .from(terms)
+      .where(eq(terms.taxonomyId, taxonomy.id));
+    if ((used?.n ?? 0) > 0 && !permalinks.replace) {
+      report.warnings.push(
+        `${name} had archives at ${shown(base)}: the site already has some, so theirs stay at ${shown(taxonomy.base)}. Change the base ${setting(shown(taxonomy.base))}, or import again choosing to use the addresses of the export.`,
+      );
+      continue;
+    }
+    try {
+      if (base) await assertTaxonomyBase(tx, siteId, localePaths, base, taxonomy.id);
+    } catch (error) {
+      report.warnings.push(
+        `${name}: the archives' addresses of the export (${shown(base)}) cannot be used: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      continue;
+    }
+    await redirectTerms(tx, siteId, localePaths, taxonomy, base);
+    await tx.update(taxonomies).set({ base }).where(eq(taxonomies.id, taxonomy.id));
+    report.warnings.push(
+      `${name} keep the archives' addresses of the export: ${shown(base)} (they were at ${shown(taxonomy.base)}).`,
+    );
+  }
 }

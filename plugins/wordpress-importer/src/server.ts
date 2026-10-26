@@ -98,6 +98,12 @@ function busy(job: Job): string {
   return `An import is already running on this site (${job.file}, started by ${job.user}${where}). Wait for it to end or cancel it.`;
 }
 
+/** Whether the core implements at least this plugin API (`1.55.0` ≥ 1.55). */
+export function apiAtLeast(version: string | undefined, major: number, minor: number): boolean {
+  const [a = 0, b = 0] = (version ?? '').split('.').map(Number);
+  return a > major || (a === major && b >= minor);
+}
+
 /** Whether a file looks like a WordPress export (WXR) and not anything else. */
 export function isWxr(xml: string): boolean {
   const head = xml.slice(0, 20_000);
@@ -140,6 +146,8 @@ async function run(
     formCaptcha?: (typeof FORM_CAPTCHAS)[number];
     elementorDefaults?: (typeof ELEMENTOR_DEFAULTS)[number];
     diviOptions?: Record<string, unknown> | null;
+    /** The addresses of the export replace those of a site that has content (1.31.0). */
+    replacePermalinks?: boolean;
   },
 ): Promise<void> {
   let saved = 0;
@@ -178,6 +186,9 @@ async function run(
       ...(options.elementorDefaults ? { elementorDefaults: options.elementorDefaults } : {}),
       ...(options.diviOptions ? { diviOptions: options.diviOptions } : {}),
       trailingSlash: site.trailingSlash === true,
+      // The core keeps the export's addresses (plugin API 1.55); older ones get a hint.
+      corePermalinks: apiAtLeast(ctx.apiVersion, 1, 55),
+      ...(options.replacePermalinks ? { replacePermalinks: true } : {}),
     });
     const parsed = {
       entries: document.entries?.length ?? 0,
@@ -289,7 +300,7 @@ export default definePlugin({
       },
     });
 
-    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author&comments=all&formCaptcha=turnstile&elementorDefaults=theme).
+    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author&comments=all&formCaptcha=turnstile&elementorDefaults=theme&permalinks=replace).
     ctx.routes.api({
       method: 'POST',
       path: '/imports',
@@ -376,6 +387,7 @@ export default definePlugin({
         ...(formCaptcha ? { formCaptcha } : {}),
         ...(elementorDefaults ? { elementorDefaults } : {}),
         ...(divi ? { diviOptions: divi } : {}),
+        ...(request.query.permalinks === 'replace' ? { replacePermalinks: true } : {}),
       };
       // Not awaited: the import goes on after the answer, as a background job.
       void run(ctx, request.siteId, job, controller.signal, input);

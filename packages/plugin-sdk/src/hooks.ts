@@ -151,6 +151,19 @@ export interface CacheHeadersContext {
   tags: string[];
 }
 
+/** The page of the posts on its archive (`RenderHookContext.postsPage`, plugin API 1.55). */
+export interface RenderPostsPage {
+  id: string;
+  type: string;
+  locale: string;
+  title: string;
+  url: string;
+  /** Its own excerpt, if it has one. */
+  excerpt: string | null;
+  /** Its field values, e.g. the search title of an SEO plugin. */
+  fields: Record<string, unknown>;
+}
+
 /** Context of the public-rendering filters. */
 export interface RenderHookContext {
   siteId: string;
@@ -167,6 +180,13 @@ export interface RenderHookContext {
   isFrontPage?: boolean;
   /** Archives: the term (taxonomy and slug) or the content type listed; `home` for the latest posts on the home page. */
   archive?: { taxonomy?: string; term?: string; type?: string; home?: boolean };
+  /**
+   * Archives: the page set as the page of the posts (Settings → Reading),
+   * on its archive of the latest posts (plugin API 1.55; missing on older
+   * cores), so SEO plugins use its own search title and description, as
+   * WordPress's do on the posts page.
+   */
+  postsPage?: RenderPostsPage;
   /**
    * The visitor is signed in (plugin API 1.33). Their pages are never
    * cached, so content may depend on it.

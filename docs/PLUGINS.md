@@ -1,6 +1,6 @@
 # Developing Cleitext plugins
 
-> Plugin API **1.54** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
+> Plugin API **1.55** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
 
 A plugin extends Cleitext the way a WordPress plugin extends WordPress. It can add content types with custom fields, blocks, pages to the admin, settings, endpoints, addresses on the public site and its own database tables, and it can react to what happens through hooks.
 
@@ -219,7 +219,7 @@ ctx.hooks.filter(
 | `cache.headers`            | extra headers of a public response kept by the page cache, API 1.9                                                                                                                                                        | `{ siteId, host, path, status, tags }`                                                   |
 | `robots.txt`               | the text of `/robots.txt`, with its `Sitemap:` line; no permission. A site that asks search engines to stay away keeps `Disallow: /` (API 1.24)                                                                           | `{ siteId, origin, sitemap, discourageSearchEngines }`                                   |
 
-`RenderHookContext` is `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (plugin API 1.33) is `true` when the visitor is signed in: their pages are never cached, so content may depend on it. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
+`RenderHookContext` is `{ siteId, locale, route, path, entry?, signedIn?, tag(tag) }`. `route` is `entry`, `archive`, `search`, `404` or `maintenance`. `entry` is the public entry: `{ id, type, title, url, fields, document, terms, … }`. `signedIn` (plugin API 1.33) is `true` when the visitor is signed in: their pages are never cached, so content may depend on it. On the archive of the latest posts shown at the page set as the page of the posts (Settings → Reading), `postsPage` (plugin API 1.55) is that page, `{ id, type, locale, title, url, excerpt, fields }`: SEO plugins use its own search title and description there, as Yoast SEO and Rank Math do (Vetta SEO and SEO do); the core uses its excerpt as the description. Call `tag('type:event')` when what you add depends on other data (see [caching](#cache)).
 
 **Caches in front of Cleitext** (plugin API 1.9). `cache.headers` adds headers to the public responses the page cache keeps (never to signed-in visitors): computed once, stored with the page and sent on every hit, e.g. a `Cache-Control` with `s-maxage` and the page's tags for Varnish or a CDN. `cache.invalidated` is emitted once per change, outside the transaction that made it, with the tags whose pages changed: purge them there. The official **Edge cache** plugin does both for Varnish and Cloudflare.
 
@@ -1068,6 +1068,8 @@ const report = await ctx.transfer.importDocument(siteId, document, {
 });
 // { created: { entries: 12, media: 30, … }, skipped: {…}, warnings: […], errors: […] }
 ```
+
+**The addresses of the source** (plugin API 1.55; older cores ignore them). A document may say which addresses the other site used: `permalinks: { types: { article: '/{slug}' }, taxonomyBases: { category: 'topics', tag: 'tag' }, replace? }` (a base of `''` is none, as `/news`). The core gives them to existing content types and taxonomies that have no content yet, so entries keep their old address and need no redirect; with `replace: true` also to those that have some, whose current addresses then redirect. Otherwise, or when an address is invalid or taken, the site's stay and the report says so. The WordPress Importer reads them from the export's links (`/%postname%/` → `/{slug}`).
 
 Entry content is made of blocks: `@cleitext/blocks/html` turns HTML and block markup into them (`htmlToCxd`). During an import (`keepUnknown`), WordPress blocks without an equivalent and shortcodes standing alone become `core/imported` placeholders: active plugins replace them through `import.block` and `import.shortcode` (API 1.36), and the rest keeps its text, with one report line per kind. In an Elementor page imported into Fresco, a shortcode's blocks go inside a Fresco plugin block element (the placeholder's `wrap`). For example, the official **Kross Booking** plugin turns `[kross-booking id="3" lang="it"]` into its block:
 

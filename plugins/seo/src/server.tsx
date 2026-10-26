@@ -1,6 +1,6 @@
 import { Resolver, resolveTxt } from 'node:dns/promises';
 import { defineBlock, definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
-import { applyTemplate, withDefaults, type SeoConfig } from './config';
+import { applyTemplate, DEFAULT_TITLE, withDefaults, type SeoConfig } from './config';
 
 interface SeoFields {
   title?: string | null;
@@ -254,7 +254,12 @@ export default definePlugin({
         const next = { ...head, og: { ...head.og }, tags: [...(head.tags ?? [])] };
         const separator = String(settings.separator ?? '–');
         const entry = context.entry;
-        const seo = (entry?.fields.seo ?? {}) as SeoFields;
+        // The posts page's own fields, on its archive (core plugin API 1.55).
+        const postsPage =
+          !entry && context.route === 'archive' && !context.archive?.taxonomy
+            ? context.postsPage
+            : undefined;
+        const seo = ((entry ?? postsPage)?.fields.seo ?? {}) as SeoFields;
         context.tag('seo');
         const ownTitle = seo.title?.trim() ?? '';
         // Imported titles and those with variables are the whole title, as in Yoast SEO.
@@ -273,7 +278,7 @@ export default definePlugin({
           }
         };
         const values = async (template: string) => ({
-          title: entry?.title ?? '',
+          title: entry?.title ?? postsPage?.title ?? '',
           sep: separator,
           sitename: siteName,
           sitedesc: template.includes('%%sitedesc%%') ? await tagline(context.locale) : '',
@@ -301,6 +306,21 @@ export default definePlugin({
               })
             : `${pageTitle} ${separator} ${siteName}`;
           next.og['og:title'] = pageTitle;
+        } else if (postsPage && fullTitle) {
+          next.title = applyTemplate(ownTitle, await values(ownTitle)) || head.title;
+          next.og['og:title'] = next.title;
+        } else if (postsPage && ownTitle) {
+          // Its own search title, in the pages' template, as on the page itself.
+          const template = cfg.titles[postsPage.type]?.trim() || DEFAULT_TITLE;
+          next.title = applyTemplate(template, {
+            title: ownTitle,
+            sep: separator,
+            sitename: siteName,
+            excerpt: postsPage.excerpt ?? '',
+            category: '',
+            currentyear: String(new Date().getFullYear()),
+          });
+          next.og['og:title'] = ownTitle;
         } else if (entry && seo.title?.trim()) {
           // The home page's own search title, as written (variables allowed).
           next.title = applyTemplate(seo.title.trim(), {
@@ -344,7 +364,8 @@ export default definePlugin({
         } else if (!head.robots) {
           next.robots = INDEX_ROBOTS;
         }
-        const canonical = canonicalOf(seo);
+        // A page's own canonical address is its own, not its archive's later pages.
+        const canonical = postsPage ? null : canonicalOf(seo);
         if (canonical && !hidden) next.canonical = canonical;
 
         // Social image of the page, instead of the featured image.

@@ -91,7 +91,14 @@ export class StructureService {
         .from(contentTypes)
         .where(eq(contentTypes.slug, input.slug));
       if (taken) throw new ConflictException(`A content type "${input.slug}" already exists.`);
-      await this.assertPermalink(tx, siteId, permalink, input.hierarchical, null);
+      await assertPermalink(
+        tx,
+        siteId,
+        await this.localePaths(tx, siteId),
+        permalink,
+        input.hierarchical,
+        null,
+      );
       await tx.insert(contentTypes).values({
         id: newId(),
         siteId,
@@ -141,9 +148,22 @@ export class StructureService {
       if (input.fields) changes.fieldsSchema = { fields: input.fields };
       let made = 0;
       if (input.permalink !== undefined && input.permalink !== type.permalink) {
-        await this.assertPermalink(tx, siteId, input.permalink, type.hierarchical, type.id);
+        await assertPermalink(
+          tx,
+          siteId,
+          await this.localePaths(tx, siteId),
+          input.permalink,
+          type.hierarchical,
+          type.id,
+        );
         changes.permalink = input.permalink;
-        made = await this.redirectEntries(tx, siteId, type, input.permalink);
+        made = await redirectEntries(
+          tx,
+          siteId,
+          await this.localePaths(tx, siteId),
+          type,
+          input.permalink,
+        );
       }
       if (Object.keys(changes).length > 0)
         await tx.update(contentTypes).set(changes).where(eq(contentTypes.id, type.id));
@@ -259,9 +279,16 @@ export class StructureService {
         if (taxonomy.source.startsWith('plugin:')) {
           throw new BadRequestException('The addresses of this taxonomy belong to its plugin.');
         }
-        if (base) await this.assertTaxonomyBase(tx, siteId, base, taxonomy.id);
+        if (base)
+          await assertTaxonomyBase(
+            tx,
+            siteId,
+            await this.localePaths(tx, siteId),
+            base,
+            taxonomy.id,
+          );
         changes.base = base;
-        await this.redirectTerms(tx, siteId, taxonomy, base);
+        await redirectTerms(tx, siteId, await this.localePaths(tx, siteId), taxonomy, base);
       }
       if (Object.keys(changes).length === 0) return taxonomyView(taxonomy);
       const [updated] = await tx
@@ -300,177 +327,8 @@ export class StructureService {
 
   // ---- Internals ----------------------------------------------------------------
 
-  /**
-   * A permalink (RF-SET-03): segments of letters, digits and dashes, or the
-   * placeholders {year} and {month}, ending with {slug} — {path} for
-   * hierarchical types, which includes the parents. It must not take a
-   * reserved address or a taxonomy's; types sharing one must not share slugs.
-   */
-  private async assertPermalink(
-    tx: SiteTransaction,
-    siteId: string,
-    permalink: string,
-    hierarchical: boolean,
-    selfId: string | null,
-  ): Promise<void> {
-    const segments = permalink.split('/');
-    const last = hierarchical ? '{path}' : '{slug}';
-    const valid =
-      segments[0] === '' &&
-      segments.length >= 2 &&
-      segments.at(-1) === last &&
-      segments
-        .slice(1, -1)
-        .every((s) => s === '{year}' || s === '{month}' || /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s));
-    if (!valid) {
-      throw new BadRequestException(
-        `The permalink must start with / and end with ${last}; the other parts may be words, {year} or {month}.`,
-      );
-    }
-    const first = firstLiteral(permalink);
-    if (first) {
-      // Language prefixes (e.g. /en) belong to the language plugin.
-      const prefixes = [...localePrefixes(await this.languages.localesIn(tx, siteId)).values()];
-      const taxonomy = await tx
-        .select({ slug: taxonomies.slug })
-        .from(taxonomies)
-        .where(eq(taxonomies.slug, first));
-      if (RESERVED.has(first) || taxonomy.length > 0 || prefixes.includes(`/${first}`)) {
-        throw new BadRequestException(`Addresses starting with /${first}/ are already used.`);
-      }
-    }
-    // Types may share a kind of address (articles and pages at /{slug}): the
-    // entry that exists answers, so no two entries may then have one address.
-    const types = await tx.select().from(contentTypes);
-    const self = types.find((t) => t.id === selfId);
-    const sharing = types.filter(
-      (t) => t.id !== selfId && permalinkShape(t.permalink) === permalinkShape(permalink),
-    );
-    if (self && sharing.length > 0) {
-      const live = (slugs: string[]) =>
-        tx
-          .select({ slug: entries.slug, locale: entries.locale })
-          .from(entries)
-          .where(and(inArray(entries.typeSlug, slugs), ne(entries.status, 'trashed')));
-      const theirs = new Set(
-        (await live(sharing.map((t) => t.slug))).map((e) => `${e.locale}:${e.slug}`),
-      );
-      const clashes = [
-        ...new Set(
-          (await live([self.slug]))
-            .filter((e) => theirs.has(`${e.locale}:${e.slug}`))
-            .map((e) => e.slug),
-        ),
-      ];
-      if (clashes.length > 0) {
-        throw new ConflictException(
-          `Entries of "${self.slug}" and of "${sharing.map((t) => t.slug).join('", "')}" would share these addresses: ${clashes
-            .slice(0, 5)
-            .join(', ')}${clashes.length > 5 ? '…' : ''}. Change their slugs first.`,
-        );
-      }
-    }
-  }
-
-  /** 301 redirects from the old to the new address of published entries. */
-  private async redirectEntries(
-    tx: SiteTransaction,
-    siteId: string,
-    type: TypeRow,
-    permalink: string,
-  ): Promise<number> {
-    const rows = await tx
-      .select()
-      .from(entries)
-      .where(
-        and(eq(entries.typeSlug, type.slug), inArray(entries.status, ['published', 'private'])),
-      )
-      .limit(MAX_REDIRECTS);
-    const prefixes = localePrefixes(await this.languages.localesIn(tx, siteId));
-    let made = 0;
-    for (const entry of rows) {
-      const prefix = prefixes.get(entry.locale) ?? '';
-      const from = prefix + (await entryPath(tx, entry, type.permalink));
-      const to = prefix + (await entryPath(tx, entry, permalink));
-      if (from === to) continue;
-      await tx.delete(redirects).where(eq(redirects.fromPath, to));
-      await tx
-        .insert(redirects)
-        .values({ siteId, fromPath: from, toPath: to, status: 301 })
-        .onConflictDoUpdate({
-          target: [redirects.siteId, redirects.fromPath],
-          set: { toPath: to },
-        });
-      await tx.update(redirects).set({ toPath: to }).where(eq(redirects.toPath, from));
-      made++;
-    }
-    return made;
-  }
-
-  /** A taxonomy's own first part of addresses: free, not reserved, not a type's. */
-  private async assertTaxonomyBase(
-    tx: SiteTransaction,
-    siteId: string,
-    base: string,
-    selfId: string,
-  ): Promise<void> {
-    const prefixes = [...localePrefixes(await this.languages.localesIn(tx, siteId)).values()];
-    const others = await tx.select().from(taxonomies);
-    const types = await tx.select({ permalink: contentTypes.permalink }).from(contentTypes);
-    if (
-      RESERVED.has(base) ||
-      prefixes.includes(`/${base}`) ||
-      others.some((t) => t.id !== selfId && (t.base ?? t.slug) === base) ||
-      types.some((t) => firstLiteral(t.permalink) === base)
-    ) {
-      throw new ConflictException(`Addresses starting with /${base}/ are already used.`);
-    }
-  }
-
-  /** 301 redirects from the old to the new addresses of a taxonomy's archives. */
-  private async redirectTerms(
-    tx: SiteTransaction,
-    siteId: string,
-    taxonomy: typeof taxonomies.$inferSelect,
-    base: string | null,
-  ): Promise<void> {
-    const rows = await tx
-      .select({ id: terms.id, slug: terms.slug, locale: terms.locale, parentId: terms.parentId })
-      .from(terms)
-      .where(eq(terms.taxonomyId, taxonomy.id))
-      .limit(MAX_REDIRECTS);
-    const prefixes = localePrefixes(await this.languages.localesIn(tx, siteId));
-    const byId = new Map(rows.map((r) => [r.id, r]));
-    // Terms with parents live under them (/category/parent/child).
-    const segments = (term: (typeof rows)[number]) => {
-      const list = [term.slug];
-      let parent = term.parentId ? byId.get(term.parentId) : undefined;
-      for (let depth = 0; parent && depth < 10; depth++) {
-        list.unshift(parent.slug);
-        parent = parent.parentId ? byId.get(parent.parentId) : undefined;
-      }
-      return list.join('/');
-    };
-    const path = (b: string, rest: string) => (b ? `/${b}/${rest}` : `/${rest}`);
-    for (const term of rows) {
-      const prefix = prefixes.get(term.locale) ?? '';
-      const to = prefix + path(base ?? taxonomy.slug, segments(term));
-      // The old address, and the one without parents that older versions used.
-      const old = taxonomy.base ?? taxonomy.slug;
-      const sources = new Set([prefix + path(old, segments(term)), prefix + path(old, term.slug)]);
-      for (const from of sources) {
-        if (from === to) continue;
-        await tx.delete(redirects).where(eq(redirects.fromPath, to));
-        await tx
-          .insert(redirects)
-          .values({ siteId, fromPath: from, toPath: to, status: 301 })
-          .onConflictDoUpdate({
-            target: [redirects.siteId, redirects.fromPath],
-            set: { toPath: to },
-          });
-        await tx.update(redirects).set({ toPath: to }).where(eq(redirects.toPath, from));
-      }
-    }
+  private async localePaths(tx: SiteTransaction, siteId: string): Promise<Map<string, string>> {
+    return localePrefixes(await this.languages.localesIn(tx, siteId));
   }
 
   private async knownTypes(tx: SiteTransaction, slugs: string[]): Promise<string[]> {
@@ -515,6 +373,185 @@ export class StructureService {
       targetId: target,
       ip,
     });
+  }
+}
+
+/**
+ * A permalink (RF-SET-03): segments of letters, digits and dashes, or the
+ * placeholders {year} and {month}, ending with {slug} — {path} for
+ * hierarchical types, which includes the parents. It must not take a
+ * reserved address or a taxonomy's; types sharing one must not share slugs.
+ */
+export async function assertPermalink(
+  tx: SiteTransaction,
+  siteId: string,
+  /** Path prefixes of the site's languages (`localePrefixes`). */
+  localePaths: Map<string, string>,
+  permalink: string,
+  hierarchical: boolean,
+  selfId: string | null,
+): Promise<void> {
+  const segments = permalink.split('/');
+  const last = hierarchical ? '{path}' : '{slug}';
+  const valid =
+    segments[0] === '' &&
+    segments.length >= 2 &&
+    segments.at(-1) === last &&
+    segments
+      .slice(1, -1)
+      .every((s) => s === '{year}' || s === '{month}' || /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s));
+  if (!valid) {
+    throw new BadRequestException(
+      `The permalink must start with / and end with ${last}; the other parts may be words, {year} or {month}.`,
+    );
+  }
+  const first = firstLiteral(permalink);
+  if (first) {
+    // Language prefixes (e.g. /en) belong to the language plugin.
+    const prefixes = [...localePaths.values()];
+    const taxonomy = await tx
+      .select({ slug: taxonomies.slug })
+      .from(taxonomies)
+      .where(eq(taxonomies.slug, first));
+    if (RESERVED.has(first) || taxonomy.length > 0 || prefixes.includes(`/${first}`)) {
+      throw new BadRequestException(`Addresses starting with /${first}/ are already used.`);
+    }
+  }
+  // Types may share a kind of address (articles and pages at /{slug}): the
+  // entry that exists answers, so no two entries may then have one address.
+  const types = await tx.select().from(contentTypes);
+  const self = types.find((t) => t.id === selfId);
+  const sharing = types.filter(
+    (t) => t.id !== selfId && permalinkShape(t.permalink) === permalinkShape(permalink),
+  );
+  if (self && sharing.length > 0) {
+    const live = (slugs: string[]) =>
+      tx
+        .select({ slug: entries.slug, locale: entries.locale })
+        .from(entries)
+        .where(and(inArray(entries.typeSlug, slugs), ne(entries.status, 'trashed')));
+    const theirs = new Set(
+      (await live(sharing.map((t) => t.slug))).map((e) => `${e.locale}:${e.slug}`),
+    );
+    const clashes = [
+      ...new Set(
+        (await live([self.slug]))
+          .filter((e) => theirs.has(`${e.locale}:${e.slug}`))
+          .map((e) => e.slug),
+      ),
+    ];
+    if (clashes.length > 0) {
+      throw new ConflictException(
+        `Entries of "${self.slug}" and of "${sharing.map((t) => t.slug).join('", "')}" would share these addresses: ${clashes
+          .slice(0, 5)
+          .join(', ')}${clashes.length > 5 ? '…' : ''}. Change their slugs first.`,
+      );
+    }
+  }
+}
+
+/** 301 redirects from the old to the new address of published entries. */
+export async function redirectEntries(
+  tx: SiteTransaction,
+  siteId: string,
+  /** Path prefixes of the site's languages (`localePrefixes`). */
+  localePaths: Map<string, string>,
+  type: TypeRow,
+  permalink: string,
+): Promise<number> {
+  const rows = await tx
+    .select()
+    .from(entries)
+    .where(and(eq(entries.typeSlug, type.slug), inArray(entries.status, ['published', 'private'])))
+    .limit(MAX_REDIRECTS);
+  const prefixes = localePaths;
+  let made = 0;
+  for (const entry of rows) {
+    const prefix = prefixes.get(entry.locale) ?? '';
+    const from = prefix + (await entryPath(tx, entry, type.permalink));
+    const to = prefix + (await entryPath(tx, entry, permalink));
+    if (from === to) continue;
+    await tx.delete(redirects).where(eq(redirects.fromPath, to));
+    await tx
+      .insert(redirects)
+      .values({ siteId, fromPath: from, toPath: to, status: 301 })
+      .onConflictDoUpdate({
+        target: [redirects.siteId, redirects.fromPath],
+        set: { toPath: to },
+      });
+    await tx.update(redirects).set({ toPath: to }).where(eq(redirects.toPath, from));
+    made++;
+  }
+  return made;
+}
+
+/** A taxonomy's own first part of addresses: free, not reserved, not a type's. */
+export async function assertTaxonomyBase(
+  tx: SiteTransaction,
+  siteId: string,
+  /** Path prefixes of the site's languages (`localePrefixes`). */
+  localePaths: Map<string, string>,
+  base: string,
+  selfId: string,
+): Promise<void> {
+  const prefixes = [...localePaths.values()];
+  const others = await tx.select().from(taxonomies);
+  const types = await tx.select({ permalink: contentTypes.permalink }).from(contentTypes);
+  if (
+    RESERVED.has(base) ||
+    prefixes.includes(`/${base}`) ||
+    others.some((t) => t.id !== selfId && (t.base ?? t.slug) === base) ||
+    types.some((t) => firstLiteral(t.permalink) === base)
+  ) {
+    throw new ConflictException(`Addresses starting with /${base}/ are already used.`);
+  }
+}
+
+/** 301 redirects from the old to the new addresses of a taxonomy's archives. */
+export async function redirectTerms(
+  tx: SiteTransaction,
+  siteId: string,
+  /** Path prefixes of the site's languages (`localePrefixes`). */
+  localePaths: Map<string, string>,
+  taxonomy: typeof taxonomies.$inferSelect,
+  base: string | null,
+): Promise<void> {
+  const rows = await tx
+    .select({ id: terms.id, slug: terms.slug, locale: terms.locale, parentId: terms.parentId })
+    .from(terms)
+    .where(eq(terms.taxonomyId, taxonomy.id))
+    .limit(MAX_REDIRECTS);
+  const prefixes = localePaths;
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  // Terms with parents live under them (/category/parent/child).
+  const segments = (term: (typeof rows)[number]) => {
+    const list = [term.slug];
+    let parent = term.parentId ? byId.get(term.parentId) : undefined;
+    for (let depth = 0; parent && depth < 10; depth++) {
+      list.unshift(parent.slug);
+      parent = parent.parentId ? byId.get(parent.parentId) : undefined;
+    }
+    return list.join('/');
+  };
+  const path = (b: string, rest: string) => (b ? `/${b}/${rest}` : `/${rest}`);
+  for (const term of rows) {
+    const prefix = prefixes.get(term.locale) ?? '';
+    const to = prefix + path(base ?? taxonomy.slug, segments(term));
+    // The old address, and the one without parents that older versions used.
+    const old = taxonomy.base ?? taxonomy.slug;
+    const sources = new Set([prefix + path(old, segments(term)), prefix + path(old, term.slug)]);
+    for (const from of sources) {
+      if (from === to) continue;
+      await tx.delete(redirects).where(eq(redirects.fromPath, to));
+      await tx
+        .insert(redirects)
+        .values({ siteId, fromPath: from, toPath: to, status: 301 })
+        .onConflictDoUpdate({
+          target: [redirects.siteId, redirects.fromPath],
+          set: { toPath: to },
+        });
+      await tx.update(redirects).set({ toPath: to }).where(eq(redirects.toPath, from));
+    }
   }
 }
 

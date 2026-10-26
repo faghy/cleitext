@@ -38,6 +38,13 @@ import {
   type KitResult,
 } from './elementor-site.js';
 import { metaValue } from './php.js';
+import {
+  hrefs,
+  postsPermalink,
+  sitePath,
+  taxonomyBase,
+  type PostsPermalink,
+} from './permalinks.js';
 import { cmpWarning, emptyCmpReport, stripCmpBlocks, stripCmpCss } from './cmp.js';
 import {
   markNewsletterEmbeds,
@@ -131,6 +138,18 @@ export interface WxrOptions {
    * titles. A hyphen without it, Yoast's default.
    */
   seoSeparator?: string;
+  /**
+   * The core takes the addresses of the export (`permalinks` of the transfer
+   * document, plugin API 1.55): the posts' permalink and the categories' and
+   * tags' bases go with the document. Older cores only get a hint.
+   */
+  corePermalinks?: boolean;
+  /**
+   * Uses the addresses of the export also on a site that already has posts,
+   * categories or tags: their current addresses redirect. Without it, they
+   * apply only where there is no content yet (the report says otherwise).
+   */
+  replacePermalinks?: boolean;
 }
 
 export interface WxrResult {
@@ -674,15 +693,29 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     hierarchical: t.hierarchical,
     contentTypes: [...(taxonomyTypes.get(t.slug) ?? [])],
   }));
-  // Posts at the root (/%postname%/): Cleitext puts them at /{year}/{slug} unless told.
-  const postPaths = items
-    .filter((i) => text(i['wp:post_type']) === 'post' && text(i['wp:status']) === 'publish')
-    .map((i) => relativeTo(text(i.link), baseUrl));
-  if (postPaths.length > 0 && postPaths.every((p) => /^\/[^/?]+\/?$/.test(p))) {
+  // The addresses of the posts and of category and tag archives, read from the links (1.31.0).
+  const permalinks = sourcePermalinks(items, channel, baseUrl);
+  if (permalinks.posts && !permalinks.posts.cleitext) {
     warnings.push(
-      'Posts had addresses like /my-post: to keep them, set the permalink of Posts to /{slug} in Content structure before importing (otherwise the old addresses redirect).',
+      `Posts had addresses like ${permalinks.posts.wordpress} in WordPress, which Cleitext cannot keep: the old addresses redirect to the new ones.`,
+    );
+  } else if (permalinks.posts?.cleitext && !options.corePermalinks) {
+    warnings.push(
+      `Posts had addresses like ${permalinks.posts.wordpress}: to keep them, set the permalink of Posts to ${permalinks.posts.cleitext} in Content structure before importing (otherwise the old addresses redirect).`,
     );
   }
+  const permalinkTypes: Record<string, string> = permalinks.posts?.cleitext
+    ? { article: permalinks.posts.cleitext }
+    : {};
+  const permalinksDocument =
+    options.corePermalinks &&
+    (Object.keys(permalinkTypes).length > 0 || Object.keys(permalinks.bases).length > 0)
+      ? {
+          types: permalinkTypes,
+          taxonomyBases: permalinks.bases,
+          ...(options.replacePermalinks ? { replace: true } : {}),
+        }
+      : null;
   // WordPress's addresses end with a slash (/my-page/): Cleitext can keep them so.
   const ownPaths = items
     .filter(
@@ -980,6 +1013,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       },
       users: authors.filter((a) => a.email),
       contentTypes,
+      ...(permalinksDocument ? { permalinks: permalinksDocument } : {}),
       taxonomies,
       terms,
       media,
@@ -991,6 +1025,54 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
 }
 
 // ---- Helpers ---------------------------------------------------------------------------
+
+/**
+ * The structure of the posts' addresses and the first part of category and
+ * tag archives (Cleitext's `category` and `tag`), read from the export's links.
+ */
+function sourcePermalinks(
+  items: Node[],
+  channel: Node,
+  baseUrl: string,
+): { posts: PostsPermalink | null; bases: Record<string, string> } {
+  const posts = postsPermalink(
+    items
+      .filter((i) => text(i['wp:post_type']) === 'post' && text(i['wp:status']) === 'publish')
+      .map((i) => ({
+        id: Number(text(i['wp:post_id'])) || 0,
+        link: text(i.link),
+        slug: text(i['wp:post_name']),
+        date: text(i['wp:post_date']),
+        categories: ((i.category as Node[] | undefined) ?? [])
+          .filter((c) => c['@_domain'] === 'category')
+          .map((c) => String(c['@_nicename'] ?? '')),
+      })),
+    baseUrl,
+  );
+  // Links to archives: in the content, and custom links of menus.
+  const links: string[] = [];
+  const itemPaths = new Set<string>();
+  for (const item of items) {
+    const path = sitePath(text(item.link), baseUrl);
+    if (path && text(item['wp:post_type']) !== 'nav_menu_item') itemPaths.add(path);
+    links.push(...hrefs(text(item['content:encoded'])));
+    const url = meta(item, '_menu_item_url');
+    if (url) links.push(url);
+  }
+  const slugsOf = (nodes: unknown, key: string) =>
+    new Set(((nodes as Node[] | undefined) ?? []).map((n) => text(n[key])).filter(Boolean));
+  const bases: Record<string, string> = {};
+  const category = taxonomyBase(
+    links,
+    baseUrl,
+    slugsOf(channel['wp:category'], 'wp:category_nicename'),
+    itemPaths,
+  );
+  if (category !== null) bases.category = category;
+  const tag = taxonomyBase(links, baseUrl, slugsOf(channel['wp:tag'], 'wp:tag_slug'), itemPaths);
+  if (tag !== null) bases.tag = tag;
+  return { posts, bases };
+}
 
 function text(value: unknown): string {
   if (value === undefined || value === null) return '';

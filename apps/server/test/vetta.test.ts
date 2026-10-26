@@ -183,6 +183,27 @@ describe('Vetta SEO', () => {
     await admin.request('PATCH', '/api/v1/settings/core', { tagline: '' });
   });
 
+  it('uses the search title and description of the page of the posts on its archive', async () => {
+    const blog = await publish('page', 'Blog', {
+      fields: { vetta: { title: 'Blog - Our news', description: 'News from the bar.' } },
+    });
+    await admin.request('PATCH', '/api/v1/settings/core', { postsPage: blog.id });
+    const html = (await visitor.get(`/${blog.slug}`)).body;
+    expect(html).toContain('<title>Blog - Our news</title>');
+    expect(meta(html, 'description')).toBe('News from the bar.');
+    // Without its own search title, the archive's: the page's title and the site's name.
+    await admin.request('PATCH', `/api/v1/entries/${blog.id}`, { fields: { vetta: {} } });
+    await admin.post(`/api/v1/entries/${blog.id}/publish`);
+    expect((await visitor.get(`/${blog.slug}`)).body).toContain('<title>Blog | Site vetta</title>');
+    // Imported from Yoast SEO: the whole title, as it was.
+    await admin.request('PATCH', `/api/v1/entries/${blog.id}`, {
+      fields: { seo: { title: '%%title%% %%sep%% %%sitename%%', fullTitle: true } },
+    });
+    await admin.post(`/api/v1/entries/${blog.id}/publish`);
+    expect((await visitor.get(`/${blog.slug}`)).body).toContain('<title>Blog | Site vetta</title>');
+    await admin.request('PATCH', '/api/v1/settings/core', { postsPage: null });
+  });
+
   it('serves robots.txt and llms.txt, and logs pages not found', async () => {
     await admin.request('PUT', '/api/v1/ext/vetta/config', {
       config: {

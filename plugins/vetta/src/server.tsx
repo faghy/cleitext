@@ -364,7 +364,12 @@ export default definePlugin({
         context.tag(CACHE_TAG);
         const config = await configFor(ctx, context.siteId);
         const entry = context.entry;
-        const seo = entrySeo(entry?.fields);
+        // The posts page's own SEO fields, on its archive (core plugin API 1.55).
+        const postsPage =
+          !entry && context.route === 'archive' && !context.archive?.taxonomy
+            ? context.postsPage
+            : undefined;
+        const seo = entrySeo((entry ?? postsPage)?.fields);
         const pageUrl = head.canonical ?? head.og['og:url'] ?? null;
         if (pageUrl) await rememberOrigin(ctx, context.siteId, new URL(pageUrl).origin);
 
@@ -421,6 +426,16 @@ export default definePlugin({
           path: context.path,
           isFrontPage: context.isFrontPage === true,
           ...(context.archive ? { archive: context.archive } : {}),
+          ...(postsPage
+            ? {
+                postsPage: {
+                  id: postsPage.id,
+                  title: postsPage.title,
+                  url: postsPage.url,
+                  excerpt: postsPage.excerpt ?? '',
+                },
+              }
+            : {}),
           ...(entry
             ? {
                 entry: {
