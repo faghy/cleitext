@@ -272,6 +272,52 @@ describe('embeds and HTML', () => {
     expect(out).not.toContain('javascript:');
   });
 
+  it('renders YouTube Shorts 9:16, and keeps the ratio WordPress saved', () => {
+    const embed = (id: string, url: string, className?: string, align?: string) => ({
+      id,
+      type: 'core/embed',
+      v: 1,
+      attrs: { url, ...(className ? { className } : {}), ...(align ? { align } : {}) },
+    });
+    const out = withCoreBlockCss(
+      html(
+        doc(
+          embed('s', 'https://youtube.com/shorts/AbCdEfGhIjK'),
+          embed(
+            'w',
+            'https://www.youtube.com/shorts/ZyXwVuTsRqP',
+            'wp-embed-aspect-9-16 wp-has-aspect-ratio own',
+            'center',
+          ),
+          embed('v', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
+          // The ratio saved by WordPress wins over the player's.
+          embed('o', 'https://www.youtube.com/watch?v=aaaaaaaaaaa', 'wp-embed-aspect-4-3'),
+        ),
+      ),
+    );
+    expect(out).toContain(
+      '<figure class="wp-block-embed is-type-video is-provider-youtube wp-block-embed-youtube wp-embed-aspect-9-16 wp-has-aspect-ratio"><div class="wp-block-embed__wrapper"><iframe src="https://www.youtube-nocookie.com/embed/AbCdEfGhIjK" title="YouTube" width="360" height="640"',
+    );
+    expect(out).toContain(
+      '<figure class="wp-block-embed aligncenter is-type-video is-provider-youtube wp-block-embed-youtube wp-embed-aspect-9-16 wp-has-aspect-ratio own">',
+    );
+    expect(out).toContain(
+      'wp-block-embed-youtube wp-embed-aspect-16-9 wp-has-aspect-ratio"><div class="wp-block-embed__wrapper"><iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ" title="YouTube" width="640" height="360"',
+    );
+    expect(out).toContain(
+      'wp-block-embed-youtube wp-embed-aspect-4-3 wp-has-aspect-ratio"><div class="wp-block-embed__wrapper"><iframe src="https://www.youtube-nocookie.com/embed/aaaaaaaaaaa" title="YouTube" width="640" height="480"',
+    );
+    expect(out.match(/wp-embed-aspect-/g)?.length).toBeGreaterThan(4);
+    // The ratio styles: vertical players at most 360px wide, centred when aligned so.
+    expect(out).toContain(
+      '.wp-block-embed.wp-embed-aspect-9-16 .wp-block-embed__wrapper::before{padding-top:177.77%}',
+    );
+    expect(out).toContain(
+      ':is(.wp-embed-aspect-9-16,.wp-embed-aspect-1-2).wp-block-embed:not(.alignwide,.alignfull){max-width:min(100%,360px)}',
+    );
+    expect(out).toContain('.aligncenter{margin-left:auto;margin-right:auto}');
+  });
+
   it('renders social posts and profiles in frames of a fixed height, with titles', () => {
     const embed = (id: string, url: string, className?: string) => ({
       id,

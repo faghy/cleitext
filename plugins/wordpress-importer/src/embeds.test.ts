@@ -69,6 +69,29 @@ describe('embeds of a WordPress export', () => {
     ]);
   });
 
+  it('keeps YouTube Shorts (the block with its 9:16 class, an address alone in a paragraph)', () => {
+    const short = 'https://youtube.com/shorts/AbCdEfGhIjK';
+    const { blocks } = blocksOf(
+      exportOf(
+        [
+          `<!-- wp:embed {"url":"${short}","type":"video","providerNameSlug":"youtube","responsive":true,"className":"wp-embed-aspect-9-16 wp-has-aspect-ratio"} -->
+<figure class="wp-block-embed is-type-video is-provider-youtube wp-block-embed-youtube wp-embed-aspect-9-16 wp-has-aspect-ratio"><div class="wp-block-embed__wrapper">
+${short}
+</div></figure>
+<!-- /wp:embed -->`,
+          '<!-- wp:paragraph -->\n<p>https://www.youtube.com/shorts/ZyXwVuTsRqP</p>\n<!-- /wp:paragraph -->',
+          '<!-- wp:paragraph -->\n<p>Guarda https://www.youtube.com/shorts/ZyXwVuTsRqP</p>\n<!-- /wp:paragraph -->',
+        ].join('\n\n'),
+      ),
+    );
+    expect(blocks.map((b) => [b.type, b.attrs.url ?? null, b.attrs.className ?? null])).toEqual([
+      ['core/embed', short, 'wp-embed-aspect-9-16 wp-has-aspect-ratio'],
+      ['core/embed', 'https://www.youtube.com/shorts/ZyXwVuTsRqP', null],
+      ['core/paragraph', null, null],
+    ]);
+    expect(blocks[0]!.attrs).toMatchObject({ providerNameSlug: 'youtube', type: 'video' });
+  });
+
   it('matches cached HTML to the address it shows, and ignores failed lookups', () => {
     const text = (v: unknown) => String(v ?? '');
     const row = (key: string, value: string) => ({ 'wp:meta_key': key, 'wp:meta_value': value });

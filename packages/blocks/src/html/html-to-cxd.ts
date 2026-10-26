@@ -606,9 +606,8 @@ function wpEmbed(
           .filter(
             (c) =>
               c &&
-              !/^(wp-block-embed|is-type-|is-provider-|wp-embed-aspect-|wp-has-aspect-ratio$|align)/.test(
-                c,
-              ),
+              // The ratio classes stay: WordPress's ratio of the player wins (a 9:16 Short).
+              !/^(wp-block-embed|is-type-|is-provider-|align)/.test(c),
           )
           .join(' ');
   const rest = {

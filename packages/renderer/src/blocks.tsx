@@ -4,6 +4,8 @@ import {
   hasSpacing,
   layoutCss,
   embedProviderName,
+  embedAspectClass,
+  embedAspectOf,
   resolveEmbed,
   type CxdBlock,
   type EmbedInfo,
@@ -211,14 +213,26 @@ registerBlockRenderer('core/embed', ({ block }) => {
   const embed = resolveEmbed(url);
   const caption = rich(block, 'caption');
   const frame = embed && embed.layout !== 'card' ? embed : null;
-  // Gutenberg's ratio classes would give a fixed-height frame or a card a ratio box.
-  const extra =
+  // Gutenberg's ratio classes: those saved with the block win (WordPress's
+  // 9:16 of a Short), else the player's own ratio; a fixed-height frame or a
+  // card gets none (they would give it a ratio box).
+  const saved = extraClass(block);
+  const extra = saved
+    ?.split(/\s+/)
+    .filter((name) => !/^wp-(embed-aspect-|has-aspect-ratio$)/.test(name))
+    .join(' ');
+  const aspect =
     frame?.layout === 'aspect'
-      ? extraClass(block)
-      : extraClass(block)
-          ?.split(/\s+/)
-          .filter((name) => !/^wp-(embed-aspect-|has-aspect-ratio$)/.test(name))
-          .join(' ');
+      ? (embedAspectOf(saved) ?? embedAspectClass(frame.width, frame.height))
+      : null;
+  // The frame's own size in the saved ratio, for pages without the ratio styles.
+  const ratio = /(\d+)-(\d+)$/.exec(aspect ?? '');
+  const size =
+    frame && ratio
+      ? Number(ratio[1]) < Number(ratio[2])
+        ? { width: 360, height: Math.round((360 * Number(ratio[2])) / Number(ratio[1])) }
+        : { width: 640, height: Math.round((640 * Number(ratio[2])) / Number(ratio[1])) }
+      : frame;
   return (
     <figure
       id={anchor(block)}
@@ -228,7 +242,7 @@ registerBlockRenderer('core/embed', ({ block }) => {
         embed && `is-type-${embed.type}`,
         embed && `is-provider-${embed.provider}`,
         embed && `wp-block-embed-${embed.provider}`,
-        frame?.layout === 'aspect' && 'wp-embed-aspect-16-9 wp-has-aspect-ratio',
+        aspect && `${aspect} wp-has-aspect-ratio`,
         extra,
       )}
       style={blockStyle(block)}
@@ -238,8 +252,8 @@ registerBlockRenderer('core/embed', ({ block }) => {
           <iframe
             src={frame.src}
             title={frame.title}
-            width={frame.width}
-            height={frame.height}
+            width={size?.width}
+            height={size?.height}
             loading="lazy"
             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture; web-share"
             allowFullScreen
@@ -429,7 +443,8 @@ registerBlockRenderer('core/gallery', ({ block, children }) => {
 
 /**
  * Base styles of tables and galleries, added to pages that have one (themes
- * may restyle them): borders and room in tables, a grid in galleries.
+ * may restyle them): borders and room in tables, a grid in galleries; the
+ * ratio of embedded players.
  */
 export const CORE_BLOCK_CSS = [
   // Rows and grids of groups: the theme's gap, else WordPress's default.
@@ -456,6 +471,27 @@ export const CORE_BLOCK_CSS = [
   '.wp-block-gallery>.wp-block-image img{width:100%;height:auto;display:block}',
   '.wp-block-gallery.is-cropped>.wp-block-image img{aspect-ratio:1;height:100%;object-fit:cover}',
   '.wp-block-gallery>figcaption{grid-column:1/-1}',
+  // Players with a ratio (WordPress's "responsive embeds"): as wide as the
+  // column, the height from the ratio; vertical ones (Shorts) at most 360px wide.
+  '.wp-block-embed.wp-has-aspect-ratio .wp-block-embed__wrapper{position:relative}',
+  '.wp-block-embed.wp-has-aspect-ratio .wp-block-embed__wrapper::before{content:"";display:block;padding-top:50%}',
+  '.wp-block-embed.wp-has-aspect-ratio iframe{position:absolute;inset:0;width:100%;height:100%;max-width:none}',
+  ...(
+    [
+      ['21-9', '42.85%'],
+      ['18-9', '50%'],
+      ['16-9', '56.25%'],
+      ['4-3', '75%'],
+      ['1-1', '100%'],
+      ['9-16', '177.77%'],
+      ['1-2', '200%'],
+    ] as const
+  ).map(
+    ([name, pad]) =>
+      `.wp-block-embed.wp-embed-aspect-${name} .wp-block-embed__wrapper::before{padding-top:${pad}}`,
+  ),
+  ':is(.wp-embed-aspect-9-16,.wp-embed-aspect-1-2).wp-block-embed:not(.alignwide,.alignfull){max-width:min(100%,360px)}',
+  ':is(.wp-embed-aspect-9-16,.wp-embed-aspect-1-2).wp-block-embed.aligncenter{margin-left:auto;margin-right:auto}',
   // Link cards of embeds without a frame (Instagram and X profiles, other sites).
   '.cx-embed-card{display:flex;flex-direction:column;gap:.15em;max-width:32rem;padding:1em 1.25em;border:1px solid rgb(127 127 127/.35);border-left:4px solid var(--cx-embed-accent,currentColor);border-radius:.5em;text-decoration:none;color:inherit;overflow-wrap:anywhere}',
   '.cx-embed-card:hover,.cx-embed-card:focus-visible{border-color:var(--cx-embed-accent,currentColor)}',
@@ -518,7 +554,7 @@ export function withCoreBlockCss(html: string): string {
   if (/var\(--wp--preset--spacing--/.test(html))
     html = beforeThemeStyles(html, `<style data-cx-spacing>${SPACING_PRESETS_CSS}</style>`);
   if (
-    !/class="wp-block-(table|gallery)\b|-vertically-aligned-|\bis-layout-(flex|grid)\b|class="cx-embed-card\b/.test(
+    !/class="wp-block-(table|gallery)\b|-vertically-aligned-|\bis-layout-(flex|grid)\b|class="cx-embed-card\b|\bwp-has-aspect-ratio\b/.test(
       html,
     )
   )

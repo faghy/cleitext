@@ -138,11 +138,15 @@ export function resolveEmbed(address: string): EmbedInfo | null {
       url.searchParams.get('t') ?? url.searchParams.get('start') ?? '',
       10,
     );
-    return video(
+    const info = video(
       'youtube',
       'YouTube',
       `https://www.youtube-nocookie.com/embed/${id}${start > 0 ? `?start=${start}` : ''}`,
     );
+    // Shorts are vertical: a 9:16 player, as WordPress shows them.
+    return parts[0] === 'shorts' && host !== 'youtu.be'
+      ? { ...info, width: 360, height: 640 }
+      : info;
   }
   if (host === 'vimeo.com' || host === 'player.vimeo.com') {
     const id = parts.find((part) => /^\d{1,20}$/.test(part));
@@ -181,6 +185,35 @@ export function resolveEmbed(address: string): EmbedInfo | null {
     return twitter(host, parts, url);
   }
   return null;
+}
+
+/** Gutenberg's ratios (embed/constants.js), widest first. */
+const ASPECT_RATIOS: [number, string][] = [
+  [2.33, '21-9'],
+  [2.0, '18-9'],
+  [1.78, '16-9'],
+  [1.33, '4-3'],
+  [1.0, '1-1'],
+  [0.56, '9-16'],
+  [0.5, '1-2'],
+];
+
+/**
+ * Gutenberg's class for the ratio of a frame (`wp-embed-aspect-16-9`…), the
+ * one its Embed block picks from the preview's width and height.
+ */
+export function embedAspectClass(width: number, height: number): string | null {
+  if (!(width > 0 && height > 0)) return null;
+  const ratio = Number((width / height).toFixed(2));
+  for (const [min, name] of ASPECT_RATIOS) {
+    if (ratio >= min) return ratio - min > 0.1 ? null : `wp-embed-aspect-${name}`;
+  }
+  return null;
+}
+
+/** The ratio class WordPress saved in an Embed block's class (`wp-embed-aspect-9-16`), if any. */
+export function embedAspectOf(className: string | undefined): string | null {
+  return /(?:^|\s)(wp-embed-aspect-\d+-\d+)(?=\s|$)/.exec(className ?? '')?.[1] ?? null;
 }
 
 function video(provider: EmbedProvider, providerName: string, src: string): EmbedInfo {

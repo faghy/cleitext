@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { embedProviderName, resolveEmbed } from '../src/embed.js';
+import { embedAspectClass, embedAspectOf, embedProviderName, resolveEmbed } from '../src/embed.js';
 
 describe('resolveEmbed', () => {
   it('recognizes the players of known providers', () => {
@@ -25,6 +25,29 @@ describe('resolveEmbed', () => {
     expect(src('https://www.dailymotion.com/video/x8abc12')).toBe(
       'https://www.dailymotion.com/embed/video/x8abc12',
     );
+  });
+
+  it('gives YouTube Shorts a vertical player, as WordPress shows them', () => {
+    const size = (url: string) => {
+      const e = resolveEmbed(url);
+      return e && [e.width, e.height, e.layout];
+    };
+    expect(size('https://youtube.com/shorts/dQw4w9WgXcQ')).toEqual([360, 640, 'aspect']);
+    expect(size('https://www.youtube.com/shorts/dQw4w9WgXcQ?feature=share')).toEqual([
+      360,
+      640,
+      'aspect',
+    ]);
+    expect(size('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual([640, 360, 'aspect']);
+    expect(embedAspectClass(360, 640)).toBe('wp-embed-aspect-9-16');
+    expect(embedAspectClass(640, 360)).toBe('wp-embed-aspect-16-9');
+    expect(embedAspectClass(640, 480)).toBe('wp-embed-aspect-4-3');
+    expect(embedAspectClass(500, 100)).toBeNull();
+    expect(embedAspectOf('own wp-embed-aspect-9-16 wp-has-aspect-ratio')).toBe(
+      'wp-embed-aspect-9-16',
+    );
+    expect(embedAspectOf('wp-embed-aspect-x')).toBeNull();
+    expect(embedAspectOf(undefined)).toBeNull();
   });
 
   it('refuses anything else', () => {
