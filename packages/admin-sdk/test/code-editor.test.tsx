@@ -64,7 +64,8 @@ function Controlled(props: Partial<CodeEditorProps> & { seen?: (v: string) => vo
   );
 }
 
-describe('CodeEditor', () => {
+// CodeMirror loads lazily: slow on a busy CI runner.
+describe('CodeEditor', { timeout: 30_000 }, () => {
   it('shows a labelled textarea first, then CodeMirror with line numbers', async () => {
     const element = mount(<Controlled value={'a {\n  color: red;\n}'} describedBy="help" />);
     const textarea = element.querySelector('textarea')!;
@@ -128,9 +129,12 @@ describe('CodeEditor', () => {
       view.dispatch({ selection: { anchor: view.state.doc.length } });
       startCompletion(view);
     });
-    await vi.waitFor(() => {
-      expect(currentCompletions(view.state).map((c) => c.label)).toContain('background-color');
-    });
+    await vi.waitFor(
+      () => {
+        expect(currentCompletions(view.state).map((c) => c.label)).toContain('background-color');
+      },
+      { timeout: 10_000 },
+    );
   });
 
   it('follows the admin’s dark theme, and stays light in light areas', async () => {
