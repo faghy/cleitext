@@ -126,6 +126,7 @@ import { PUBLIC_CSP } from '../common/security-headers.js';
 import { themeAreas, themeMediaIds, themeSettings } from './theme-data.js';
 import { SITEMAP_RE, SITEMAP_XSL, sitemap, sitemapIndex, type SitemapContext } from './sitemaps.js';
 import { canonicalPath, canonicalUrl, matchPermalinks } from './urls.js';
+import { importedMediaAddress } from './imported-media.js';
 
 const HTML = 'text/html; charset=utf-8';
 /** Hook points a theme marks with `<Location name="hook:…">` (plugin API 1.33). */
@@ -692,6 +693,11 @@ export class PublicService {
             return { status: redirect.status, redirect: target, tags: [] };
           }
         }
+      }
+      // A media file imported from WordPress, asked by its old address (core 0.85).
+      if (!redirect) {
+        const moved = await importedMediaAddress(tx, path);
+        if (moved) return { status: 301, redirect: moved, tags: [] };
       }
       if (path !== canonical) {
         return {

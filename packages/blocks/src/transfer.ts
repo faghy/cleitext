@@ -59,6 +59,13 @@ export const transferMediaSchema = z.object({
   caption: z.record(z.string(), z.string().max(1_000)).optional(),
   /** Public addresses the file had on the old site (rewritten in content). */
   urls: z.array(z.string().max(2_000)).max(50).optional(),
+  /**
+   * When the file was uploaded on the old site (core 0.85): its year and
+   * month name the folder it is stored in (`/media/<site>/2015/07/…`).
+   * Without it, the `/uploads/<yyyy>/<mm>/` of its addresses, or the month
+   * of the import.
+   */
+  date: z.iso.datetime({ offset: true }).optional(),
 });
 
 /** A comment on an entry (RF-COM); replies point to their parent. */

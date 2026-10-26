@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { seoTemplate, wxrToDocument } from './wxr';
+import { attachmentDate, seoTemplate, wxrToDocument } from './wxr';
 
 // The export of a small WordPress site, shared with the core's import tests,
 // which import the transfer document saved next to it.
@@ -312,5 +312,17 @@ describe('Yoast SEO titles', () => {
   it('never end with half a variable when cut to 70 characters', () => {
     const fields = page({ _yoast_wpseo_title: `${'a'.repeat(58)} %%sep%% %%sitename%%` });
     expect(fields).toEqual({ seo: { title: 'a'.repeat(58), fullTitle: true } });
+  });
+});
+
+describe('media folders', () => {
+  it("takes the year and month of WordPress's uploads folder, else the upload date", () => {
+    const uploads = 'https://x.example/wp-content/uploads';
+    expect(attachmentDate(`${uploads}/2015/07/a.gif`, '2016-01-02 10:00:00')).toBe(
+      '2015-07-01T00:00:00Z',
+    );
+    expect(attachmentDate(`${uploads}/a.gif`, '2016-01-02 10:00:00')).toBe('2016-01-02T10:00:00Z');
+    expect(attachmentDate(`${uploads}/a.gif`, '0000-00-00 00:00:00')).toBeUndefined();
+    expect(attachmentDate(`${uploads}/a.gif`, '')).toBeUndefined();
   });
 });

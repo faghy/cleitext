@@ -11,6 +11,8 @@ import { media } from './media.js';
  * two posts with the same title and a similar address are never taken for
  * one, and media already imported are not downloaded again. `source` names
  * the site the document comes from (`wordpress:https://example.com`).
+ * Media also have a row for each old address (`path:/wp-content/uploads/…`,
+ * core 0.85), from which visitors are redirected to the new one.
  */
 export const importRefs = pgTable(
   'import_refs',
@@ -37,5 +39,7 @@ export const importRefs = pgTable(
     check('import_refs_target_check', sql`num_nonnulls(${t.entryId}, ${t.mediaId}) = 1`),
     index('import_refs_entry_idx').on(t.siteId, t.entryId),
     index('import_refs_media_idx').on(t.siteId, t.mediaId),
+    // An old address of an imported media file (`path:/wp-content/…`, core 0.85).
+    index('import_refs_ref_idx').on(t.siteId, t.ref),
   ],
 );

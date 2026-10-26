@@ -423,7 +423,7 @@ create table entry_terms (
 create table media (
   id           uuid primary key,
   site_id      uuid not null references sites(id) on delete cascade,
-  storage_key  text not null,                  -- path in storage (never the original name)
+  storage_key  text not null,                  -- <site>/<yyyy>/<mm>/<safe original name>.<ext> (core 0.85; a uuid before)
   filename     text not null,                  -- original name, metadata only
   mime         text not null,                  -- verified via magic bytes
   size_bytes   bigint not null,
@@ -1239,7 +1239,7 @@ See §10. In short: Gutenberg is used as a library behind `EditorAdapter`. Conte
 
 ### Level 3 — Migration (`wp-import` plugin)
 
-- Import of **WXR** files (WordPress export): posts, pages, custom types, taxonomies, menus, authors, media (downloaded and re-hosted).
+- Import of **WXR** files (WordPress export): posts, pages, custom types, taxonomies, menus, authors, media (downloaded and re-hosted with WordPress's file name and year/month folder, `/media/<site>/2015/07/photo.jpg`; their old `/wp-content/uploads/…` addresses, resized copies included, redirect there with a 301 through `import_refs`, core 0.85).
 - Conversion of Gutenberg blocks (`<!-- wp:… -->` comments) to CXD. Classic HTML becomes `paragraph`/`heading`/`image` blocks, while anything unrecognized becomes an `html` block.
 - Automatic generation of **redirects** from WordPress permalinks to the new URLs.
 - Final import report with warnings.

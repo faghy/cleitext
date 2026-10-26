@@ -65,7 +65,8 @@
         "caption": {
           "en": "The old harbour"
         },
-        "urls": ["https://old.example.com/wp-content/uploads/2024/05/harbour.jpg"]
+        "urls": ["https://old.example.com/wp-content/uploads/2024/05/harbour.jpg"],
+        "date": "2024-05-01T00:00:00Z"
       }
     ],
     "entries": [

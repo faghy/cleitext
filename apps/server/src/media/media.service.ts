@@ -28,6 +28,7 @@ import { DATABASE } from '../database/database.module.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { ALLOWED_TYPES, detectType, looksLikeSvg, RESIZABLE, sanitizeSvg } from './media-types.js';
+import { mediaFolder, storageBaseName } from './storage-names.js';
 import { DiskStorage, type MediaStorage } from './storage.js';
 
 type MediaRow = typeof media.$inferSelect;
@@ -60,6 +61,11 @@ export class MediaService {
     auth: AuthContext,
     file: { filename: string; data: Buffer },
     ip: string,
+    /**
+     * `date`: the month whose folder the file goes into (an imported file's
+     * upload date on the old site); now by default.
+     */
+    options: { date?: Date | undefined } = {},
   ): Promise<MediaView> {
     let mime = await detectType(file.data);
     // SVG only when the server allows it, and always sanitized (RF-MED-09).
@@ -90,10 +96,14 @@ export class MediaService {
     }
 
     const id = newId();
-    const now = new Date();
-    const folder = `${siteId}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-    const storageKey = `${folder}/${id}.${info.ext}`;
-    await this.storage.put(storageKey, file.data);
+    // The original name made safe, in the folder of the month (core 0.85).
+    const storageKey = await this.putNew(
+      siteId,
+      mediaFolder(siteId, options.date ?? new Date()),
+      storageBaseName(file.filename),
+      info.ext,
+      file.data,
+    );
 
     try {
       await withContext(this.database.db, { siteId, userId: auth.userId }, async (tx) => {
@@ -324,8 +334,7 @@ export class MediaService {
             ? pipeline.webp({ quality: 80 })
             : pipeline.avif({ quality: 55, effort: 4 })
         ).toBuffer({ resolveWithObject: true });
-        const key = `${base}-${variant}.${format}`;
-        await this.storage.put(key, output);
+        const key = await this.putVariant(`${base}-${variant}`, format, output);
         rows.push({
           siteId,
           mediaId,
@@ -347,6 +356,70 @@ export class MediaService {
       }
       if (rows.length > 0) await tx.insert(mediaVariants).values(rows);
     });
+  }
+
+  /**
+   * Writes a new file as `<folder>/<name>.<ext>`, or `<name>-1`, `<name>-2`…
+   * when that name is taken in the folder (as WordPress does): by a media
+   * item with any extension (`photo.jpg` takes `photo.png`, so that their
+   * variants do not meet) or a variant, or by any file on disk. The disk
+   * write never replaces a file (exclusive create), so two uploads at the
+   * same time cannot get the same name. Existing files are never touched.
+   */
+  private async putNew(
+    siteId: string,
+    folder: string,
+    name: string,
+    ext: string,
+    data: Buffer,
+  ): Promise<string> {
+    const prefix = `${folder}/${name}`;
+    const pattern = `${prefix.replace(/[\\%_]/g, '\\$&')}%`;
+    const taken = await withContext(this.database.db, { siteId }, async (tx) => {
+      const rows = [
+        ...(await tx
+          .select({ key: media.storageKey })
+          .from(media)
+          .where(like(media.storageKey, pattern))),
+        ...(await tx
+          .select({ key: mediaVariants.storageKey })
+          .from(mediaVariants)
+          .where(like(mediaVariants.storageKey, pattern))),
+      ];
+      return new Set(rows.map((r) => r.key.slice(folder.length + 1).replace(/\.[^.]*$/, '')));
+    });
+    for (let n = 0; n < 1_000; n++) {
+      const candidate = n === 0 ? name : `${name}-${n}`;
+      if (taken.has(candidate)) continue;
+      const key = `${folder}/${candidate}.${ext}`;
+      if (await this.tryPut(key, data)) return key;
+    }
+    // A thousand files of the same name in a month: a generated one.
+    const key = `${folder}/${newId()}.${ext}`;
+    await this.storage.put(key, data);
+    return key;
+  }
+
+  /** A variant's file: `<base>-thumb.webp`, or `<base>-thumb-1.webp` when that is taken. */
+  private async putVariant(base: string, format: string, data: Buffer): Promise<string> {
+    for (let n = 0; n < 100; n++) {
+      const key = n === 0 ? `${base}.${format}` : `${base}-${n}.${format}`;
+      if (await this.tryPut(key, data)) return key;
+    }
+    const key = `${base}-${newId()}.${format}`;
+    await this.storage.put(key, data);
+    return key;
+  }
+
+  /** Writes a file that does not exist yet; false when one does. */
+  private async tryPut(key: string, data: Buffer): Promise<boolean> {
+    try {
+      await this.storage.put(key, data);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+      throw error;
+    }
   }
 
   private async variantsOf(

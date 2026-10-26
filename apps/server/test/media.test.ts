@@ -60,7 +60,7 @@ afterAll(async () => {
 });
 
 describe('upload', () => {
-  it('stores an image under a generated name and creates resized variants', async () => {
+  it('stores an image under its safe name and creates resized variants', async () => {
     const res = await author.upload(
       '/api/v1/media',
       '../../evil name.png',
@@ -76,7 +76,7 @@ describe('upload', () => {
       width: 1600,
       height: 900,
     });
-    expect(uploaded.url).toMatch(new RegExp(`^/media/${site.id}/\\d{4}/\\d{2}/[0-9a-f-]+\\.png$`));
+    expect(uploaded.url).toMatch(new RegExp(`^/media/${site.id}/\\d{4}/\\d{2}/evil-name\\.png$`));
 
     await app.get(MediaService).idle();
     const media = (await author.get(`/api/v1/media/${uploaded.id}`)).json();

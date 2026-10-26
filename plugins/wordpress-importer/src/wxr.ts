@@ -164,6 +164,23 @@ export interface WxrResult {
   meta: WxrMetaInput;
 }
 
+/**
+ * The month of an attachment's folder: the `/uploads/<yyyy>/<mm>/` of its
+ * address, else its upload date (when WordPress did not organise uploads by
+ * month), as an ISO date; undefined when neither is known.
+ */
+export function attachmentDate(url: string, gmt: string): string | undefined {
+  const folder = /\/uploads\/(\d{4})\/(\d{2})\/[^/]+$/.exec(url.replace(/[?#].*$/, ''));
+  if (folder && Number(folder[2]) >= 1 && Number(folder[2]) <= 12) {
+    return `${folder[1]}-${folder[2]}-01T00:00:00Z`;
+  }
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(gmt) && !gmt.startsWith('0000')
+    ? `${gmt.replace(' ', 'T')}Z`
+    : undefined;
+}
+
+const withDate = (date: string | undefined) => (date ? { date } : {});
+
 /** WordPress export (WXR 1.x) → transfer document (RF-IMP-01). */
 export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const warnings: string[] = [];
@@ -314,6 +331,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         ? { caption: { [locale]: stripTags(text(item['excerpt:encoded'])) } }
         : {}),
       urls: [url],
+      // Stored in the same year and month folder as on WordPress (core 0.85).
+      ...withDate(attachmentDate(url, text(item['wp:post_date_gmt']))),
     });
     attachmentRefs.set(id, ref);
     attachmentUrls.set(url, ref);

@@ -60,6 +60,15 @@ describe('the import report in Italian', () => {
         'Categories had archives at /topic: the site already has some, so theirs stay at /category. Change the base in Settings → Content structure (now /category), or import again choosing to use the addresses of the export.',
         'Le categorie avevano gli archivi in /topic: il sito ne ha già, quindi i loro restano in /category. Cambia la base in Impostazioni → Struttura dei contenuti (ora /category), oppure importa di nuovo scegliendo di usare gli indirizzi dell’esportazione.',
       ],
+      // Media addresses (core 0.85).
+      [
+        'Media addresses changed: 4 file(s), in the same year and month, e.g. /wp-content/uploads/2015/07/a.gif → /media/s/2015/07/a.gif; the old addresses redirect (301) to the new ones.',
+        'Indirizzi dei media cambiati: 4 file, nello stesso anno e mese, ad esempio /wp-content/uploads/2015/07/a.gif → /media/s/2015/07/a.gif; i vecchi indirizzi fanno un redirect (301) ai nuovi.',
+      ],
+      [
+        'Media address changed: /wp-content/uploads/2015/07/A b.gif → /media/s/2015/07/a-b-1.gif',
+        'Indirizzo del media cambiato: /wp-content/uploads/2015/07/A b.gif → /media/s/2015/07/a-b-1.gif',
+      ],
       // Notes of the page builders, repeated.
       [
         'Home: display conditions of elements were not imported (2×).',

@@ -19,7 +19,10 @@ export const media = pgTable(
   {
     id: id(),
     siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
-    /** Path inside the storage driver; never derived from the original file name. */
+    /**
+     * Path inside the storage driver, `<siteId>/<yyyy>/<mm>/<name>.<ext>`:
+     * `<name>` is the original file name made safe (core 0.85; a uuid before).
+     */
     storageKey: text('storage_key').notNull(),
     /** Original file name, kept only as metadata. */
     filename: text('filename').notNull(),

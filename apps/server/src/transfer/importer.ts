@@ -62,6 +62,7 @@ import {
   redirectTerms,
 } from '../content/structure.service.js';
 import type { MediaService } from '../media/media.service.js';
+import { uploadsFolderDate } from '../media/storage-names.js';
 import { RESERVED_IDS } from '../fields/field-groups.service.js';
 import type { PageCacheService } from '../public/page-cache.service.js';
 import { loadSiteData } from '../public/site-data.js';
@@ -459,6 +460,8 @@ export async function importDocument(
       urlMap.set(mediaUrlKey(url), target);
     }
   };
+  /** Imported media and the old address they had. */
+  const movedMedia: { from: string; to: string }[] = [];
   for (const [index, item] of doc.media.entries()) {
     stopIfCancelled();
     if (index % 25 === 0) progress(`Media ${index + 1}/${doc.media.length}`);
@@ -468,6 +471,8 @@ export async function importDocument(
       const view = await options.media.get(siteId, auth, known).catch(() => null);
       if (view) {
         mapUrls(item, { id: view.id, url: view.url });
+        // Imported by an older core: its old addresses redirect from now on.
+        await run((tx) => recordPaths(tx, siteId, source!, sourcePaths(item), view.id));
         count(report, 'media', 'skipped');
         continue;
       }
@@ -479,6 +484,8 @@ export async function importDocument(
         auth,
         { filename: item.filename, data },
         '127.0.0.1',
+        // In the folder of the month it had on the old site (core 0.85).
+        { date: mediaDate(item) },
       );
       if (item.alt || item.caption) {
         await options.media.update(siteId, auth, view.id, {
@@ -487,15 +494,22 @@ export async function importDocument(
         });
       }
       mapUrls(item, { id: view.id, url: view.url });
+      const paths = sourcePaths(item);
       if (source) {
-        await run((tx) => recordRef(tx, siteId, source, item.ref, { mediaId: view.id }));
+        await run(async (tx) => {
+          await recordRef(tx, siteId, source, item.ref, { mediaId: view.id });
+          // Its old addresses, which redirect to it (core 0.85).
+          await recordPaths(tx, siteId, source, paths, view.id);
+        });
       }
+      if (paths[0]) movedMedia.push({ from: paths[0], to: view.url });
       count(report, 'media');
     } catch (error) {
       report.errors.push(`Media "${item.filename}" not imported: ${message(error)}`);
     }
   }
   tick('media', doc.media.length, doc.media.length);
+  reportMovedMedia(report, movedMedia, Boolean(source));
   await options.media.idle();
   // The old site's media addresses inside text (HTML, CSS) become the new ones.
   const mediaText = mediaTextRewriter(urlMap, doc.source.url);
@@ -1097,6 +1111,103 @@ export function importSource(doc: Pick<TransferDocument, 'source'>): string | nu
     .replace(/\/+$/, '');
   const name = url || (doc.source.name ?? '').trim();
   return name ? `${doc.source.kind}:${name}`.slice(0, 500) : null;
+}
+
+/**
+ * The month a media file is stored under: its date on the old site, else the
+ * `/uploads/<yyyy>/<mm>/` of its address (WordPress), else none (now).
+ */
+export function mediaDate(item: TransferDocument['media'][number]): Date | undefined {
+  if (item.date) return new Date(item.date);
+  for (const url of [...(item.urls ?? []), item.file]) {
+    const date = uploadsFolderDate(url);
+    if (date) return date;
+  }
+  return undefined;
+}
+
+/**
+ * The paths of a media file's addresses on the old site (decoded, without
+ * host and query), as a visitor's request for them arrives:
+ * `/wp-content/uploads/2015/07/photo.jpg`.
+ */
+export function sourcePaths(item: TransferDocument['media'][number]): string[] {
+  const paths = new Set<string>();
+  for (const url of item.urls ?? []) {
+    const raw =
+      /^(?:https?:)?\/\/[^/?#]+(\/[^?#]*)/i.exec(url)?.[1] ?? (url.startsWith('/') ? url : '');
+    let path: string;
+    try {
+      path = decodeURIComponent(raw.replace(/[?#].*$/, ''));
+    } catch {
+      continue;
+    }
+    if (/^\/[^\0]{1,1000}$/.test(path) && !path.endsWith('/')) paths.add(path);
+  }
+  return [...paths];
+}
+
+/** Ref of an old address of a media file in `import_refs` (core 0.85). */
+export const PATH_REF = 'path:';
+
+/**
+ * Records the old addresses of an imported media file (`path:<path>`), and
+ * the same without the size of WordPress's copies, so that a request for
+ * `photo-300x200.jpg` finds `photo.jpg`; an address of its own wins over that.
+ */
+async function recordPaths(
+  tx: SiteTransaction,
+  siteId: string,
+  source: string,
+  paths: string[],
+  mediaId: string,
+): Promise<void> {
+  for (const path of paths) {
+    await recordRef(tx, siteId, source, `${PATH_REF}${path}`, { mediaId });
+    const key = mediaUrlKey(path);
+    if (key !== path) {
+      await tx
+        .insert(importRefs)
+        .values({ siteId, source, ref: `${PATH_REF}${key}`, mediaId })
+        .onConflictDoNothing();
+    }
+  }
+}
+
+/** At most this many media are listed one by one in the report. */
+const MOVED_LISTED = 100;
+
+/**
+ * Tells which media addresses changed (core 0.85): the rule from the old
+ * folder to the new one and how many, and one by one those whose name
+ * changed (made safe, or a number added because the name was taken).
+ */
+function reportMovedMedia(
+  report: ImportReport,
+  moved: { from: string; to: string }[],
+  redirected: boolean,
+): void {
+  if (moved.length === 0) return;
+  const name = (path: string) => path.slice(path.lastIndexOf('/') + 1);
+  const renamed = moved.filter((m) => name(m.from) !== name(m.to));
+  const { from, to } = moved[0]!;
+  report.warnings.push(
+    redirected
+      ? `Media addresses changed: ${moved.length} file(s), in the same year and month, e.g. ${from} → ${to}; the old addresses redirect (301) to the new ones.`
+      : `Media addresses changed: ${moved.length} file(s), in the same year and month, e.g. ${from} → ${to}; the old addresses do not redirect (the export does not say which site it comes from).`,
+  );
+  if (renamed.length === 0) return;
+  report.warnings.push(
+    `${renamed.length} media file(s) got another name (lowercase, without accents or spaces, or with a number because the name was taken):`,
+  );
+  for (const m of renamed.slice(0, MOVED_LISTED)) {
+    report.warnings.push(`Media address changed: ${m.from} → ${m.to}`);
+  }
+  if (renamed.length > MOVED_LISTED) {
+    report.warnings.push(
+      `…and ${renamed.length - MOVED_LISTED} more media file(s) with another name.`,
+    );
+  }
 }
 
 /** Records what a record of the source became (the latest import wins). */
