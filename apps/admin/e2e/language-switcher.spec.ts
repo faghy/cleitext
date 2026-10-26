@@ -6,11 +6,10 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { signIn } from './fixtures/api.js';
 import { appErrors } from './fixtures/errors.js';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
-// Development credentials seeded by tools/dev-db.
-const ADMIN = { email: 'admin@example.com', password: 'cleitext-admin' };
 /** The public site is served by the application server, not by Vite. */
 const SITE =
   process.env.CLEITEXT_SERVER_URL?.replace('127.0.0.1', 'localhost') ?? 'http://localhost:3000';
@@ -50,14 +49,6 @@ test.afterAll(async ({ browser }) => {
   if (made.activated) await call(page, 'POST', '/plugins/multilingual/deactivate');
   await page.close();
 });
-
-async function signIn(page: Page) {
-  await page.goto('/cl-admin/login');
-  await page.getByLabel('Email').fill(ADMIN.email);
-  await page.getByLabel('Password').fill(ADMIN.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('**/cl-admin/');
-}
 
 /** Calls the API from the signed-in admin page (with the CSRF token; JSON only with a body). */
 async function call<T>(page: Page, method: string, path: string, body?: unknown): Promise<T> {

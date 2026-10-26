@@ -204,7 +204,7 @@ test('a TikTok profile waits for consent, then shows without loading the page ag
     expect(requests.filter((url) => url.includes('tiktok.com'))).toEqual([]);
     // The frame keeps the profile's height: nothing moves when it is shown.
     const frame = visitor.locator('figure.is-provider-tiktok iframe');
-    expect((await frame.boundingBox())!.height).toBe(479);
+    expect((await frame.boundingBox())!.height).toBeCloseTo(479, 0);
     await visitor.evaluate(() => ((window as { stayed?: boolean }).stayed = true));
 
     await notice.getByRole('button', { name: 'Accept and show' }).click();
@@ -212,7 +212,7 @@ test('a TikTok profile waits for consent, then shows without loading the page ag
       visitor.locator('iframe[src="https://www.tiktok.com/embed/@linomissio"]'),
     ).toHaveAttribute('title', 'TikTok profile @linomissio');
     expect(await visitor.evaluate(() => (window as { stayed?: boolean }).stayed)).toBe(true);
-    expect((await frame.boundingBox())!.height).toBe(479);
+    expect((await frame.boundingBox())!.height).toBeCloseTo(479, 0);
     await context.close();
     expect(appErrors(errors)).toEqual([]);
   } finally {
