@@ -175,6 +175,18 @@ describe('member accounts', () => {
     expect((await account(ids.author!, { password: '123qweasdzxc' })).statusCode).toBe(400);
   });
 
+  it('sets the admin language of an account, without telling the person by email', async () => {
+    const sent = mail.outbox.length;
+    const res = await account(ids.colleague!, { locale: 'it' });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().locale).toBe('it');
+    expect((await admin.get(`/api/v1/users/${ids.colleague}`)).json().locale).toBe('it');
+    expect(mail.outbox.length).toBe(sent);
+    expect((await account(ids.colleague!, { locale: 'Italian' })).statusCode).toBe(400);
+    const log = (await admin.get('/api/v1/audit?limit=5')).json();
+    expect(JSON.stringify(log)).toContain('member.account.changed');
+  });
+
   it('keeps out accounts that are not the site’s alone, and their own', async () => {
     expect((await account(ids.shared!, { displayName: 'Hijacked' })).statusCode).toBe(403);
     expect((await account(ids.root!, { password: NEW_PASSWORD })).statusCode).toBe(403);

@@ -14,6 +14,8 @@ import {
   entries,
   hashUserToken,
   media,
+  roles,
+  siteMembers,
   sites,
   withSiteContext,
   migrate,
@@ -23,7 +25,7 @@ import {
   type DatabaseClient,
 } from '@cleitext/db';
 import { provisionDatabase, type ProvisionedDatabase } from '@cleitext/testing';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from 'vitest';
 import { revokeForeignGrants } from '../src/backup.js';
 import { main } from '../src/program.js';
@@ -380,6 +382,167 @@ describe('entry:reassign', () => {
         expect.objectContaining({ from: gone, to: heir, entries: 2, media: 1 }),
       );
     });
+  });
+});
+
+describe('user:set-role and user:set-locale', () => {
+  const make = (email: string, role?: string) =>
+    cli(
+      [
+        'user:create',
+        '--json',
+        '--email',
+        email,
+        ...(role ? ['--site', 'main', '--role', role] : []),
+        '--password-stdin',
+      ],
+      PASSWORD,
+    );
+
+  it('sets the role of a member, built-in or of the site, and logs it', async () => {
+    const wpAdmin = (await make('wp-admin@example.com', 'author')).json.id as string;
+    await make('outsider@example.com');
+    const [site] = await owner.db.select().from(sites).where(eq(sites.slug, 'main'));
+    const roleOf = async (userId: string) =>
+      withSiteContext(owner.db, site!.id, async (tx) => {
+        const [row] = await tx
+          .select({ slug: roles.slug })
+          .from(siteMembers)
+          .innerJoin(roles, eq(roles.id, siteMembers.roleId))
+          .where(and(eq(siteMembers.siteId, site!.id), eq(siteMembers.userId, userId)));
+        return row?.slug ?? null;
+      });
+
+    const set = (...extra: string[]) =>
+      cli(['user:set-role', '--json', '--site', 'main', ...extra]);
+    const promoted = await set('--email', 'wp-admin@example.com', '--role', 'administrator');
+    expect(promoted.code).toBe(0);
+    expect(promoted.json).toEqual({
+      site: 'main',
+      email: 'wp-admin@example.com',
+      userId: wpAdmin,
+      from: 'author',
+      to: 'administrator',
+      changed: true,
+      added: false,
+      noAdministrator: false,
+    });
+    expect(await roleOf(wpAdmin)).toBe('administrator');
+    // Again: nothing to do.
+    const again = await set('--email', 'wp-admin@example.com', '--role', 'administrator');
+    expect(again.json).toMatchObject({ changed: false, from: 'administrator' });
+
+    // The site's own roles, by the site's id too.
+    await withSiteContext(owner.db, site!.id, (tx) =>
+      tx.insert(roles).values({
+        siteId: site!.id,
+        slug: 'shop-manager',
+        name: 'Shop manager',
+        capabilities: ['read'],
+      }),
+    );
+    const custom = await cli([
+      'user:set-role',
+      '--json',
+      '--site',
+      site!.id,
+      '--email',
+      'WP-Admin@example.com',
+      '--role',
+      'shop-manager',
+    ]);
+    expect(custom.json).toMatchObject({ from: 'administrator', to: 'shop-manager' });
+
+    const unknown = await set('--email', 'wp-admin@example.com', '--role', 'boss');
+    expect(unknown.json.error.code).toBe('unknown_role');
+    expect(unknown.json.error.message).toMatch(/administrator.*shop-manager/);
+    const outsider = await set('--email', 'outsider@example.com', '--role', 'editor');
+    expect(outsider.json.error.code).toBe('not_member');
+    const added = await set('--email', 'outsider@example.com', '--role', 'editor', '--add');
+    expect(added.json).toMatchObject({ from: null, to: 'editor', added: true, changed: true });
+    const nobody = await set('--email', 'nobody@example.com', '--role', 'editor');
+    expect(nobody.json.error.code).toBe('not_found');
+    const noSite = await cli([
+      'user:set-role',
+      '--json',
+      '--site',
+      'nowhere',
+      '--email',
+      'outsider@example.com',
+      '--role',
+      'editor',
+    ]);
+    expect(noSite.json.error.code).toBe('not_found');
+
+    await withSiteContext(owner.db, site!.id, async (tx) => {
+      const logged = await tx
+        .select()
+        .from(auditLog)
+        .where(and(eq(auditLog.action, 'member.role.changed'), eq(auditLog.targetId, wpAdmin)));
+      expect(logged.map((l) => l.meta)).toEqual(
+        expect.arrayContaining([
+          { from: 'author', to: 'administrator', via: 'cli' },
+          { from: 'administrator', to: 'shop-manager', via: 'cli' },
+        ]),
+      );
+    });
+  });
+
+  it('sets the language of an account, or of every member of a site', async () => {
+    const one = await cli([
+      'user:set-locale',
+      '--json',
+      '--email',
+      'outsider@example.com',
+      '--locale',
+      'it',
+    ]);
+    expect(one.json).toEqual({
+      locale: 'it',
+      site: null,
+      changed: [{ email: 'outsider@example.com', from: 'en' }],
+      unchanged: 0,
+    });
+    await make('elsewhere@example.com');
+    const all = await cli([
+      'user:set-locale',
+      '--json',
+      '--site',
+      'main',
+      '--all',
+      '--locale',
+      'it',
+    ]);
+    expect(all.code).toBe(0);
+    expect(all.json.changed.map((c: { email: string }) => c.email)).toContain(
+      'wp-admin@example.com',
+    );
+    expect(all.json.unchanged).toBeGreaterThanOrEqual(1);
+    const [user] = await owner.db
+      .select({ locale: users.locale })
+      .from(users)
+      .where(eq(users.email, 'wp-admin@example.com'));
+    expect(user!.locale).toBe('it');
+    // Only members of the site.
+    const [other] = await owner.db
+      .select({ locale: users.locale })
+      .from(users)
+      .where(eq(users.email, 'elsewhere@example.com'));
+    expect(other!.locale).toBe('en');
+
+    const invalid = await cli([
+      'user:set-locale',
+      '--json',
+      '--email',
+      'outsider@example.com',
+      '--locale',
+      'Italian',
+    ]);
+    expect(invalid.json.error.code).toBe('invalid_option');
+    const neither = await cli(['user:set-locale', '--json', '--locale', 'it']);
+    expect(neither.json.error.code).toBe('invalid_option');
+    const siteOnly = await cli(['user:set-locale', '--json', '--site', 'main', '--locale', 'it']);
+    expect(siteOnly.json.error.code).toBe('invalid_option');
   });
 });
 

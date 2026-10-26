@@ -41,6 +41,7 @@ import {
 import { backup, listBackups, pruneBackups, restore } from './backup.js';
 import { configure } from './configure.js';
 import { reassignEntries } from './content.js';
+import { setLocale, setLocaleText, setRole, setRoleText } from './users.js';
 import {
   appRoot,
   backupsDir,
@@ -695,6 +696,43 @@ export function buildProgram(json = false): Command {
         report({ email: opts.email }, `Password updated for ${opts.email}.`);
       }),
     );
+
+  program
+    .command('user:set-role')
+    .description(
+      "Set a member's role on a site (built-in or the site's own roles), e.g. WordPress administrators after a migration.",
+    )
+    .requiredOption('--site <site>', 'slug or id of the site')
+    .requiredOption('--email <email>')
+    .requiredOption(
+      '--role <slug>',
+      'administrator | editor | author | contributor | subscriber | a role of the site',
+    )
+    .option('--add', 'make the person a member of the site when they are not yet')
+    .action((opts: { site: string; email: string; role: string; add?: boolean }) => {
+      refuseRoot();
+      return withOwner(async (db) => {
+        const result = await setRole(db, opts);
+        report({ ...result }, setRoleText(result));
+      });
+    });
+
+  program
+    .command('user:set-locale')
+    .description(
+      'Set the admin language of an account, or of every member of a site (--site --all).',
+    )
+    .requiredOption('--locale <code>', 'it | en | … (a language code)')
+    .option('--email <email>', 'the account')
+    .option('--site <site>', 'slug or id of the site, with --all')
+    .option('--all', 'every member of --site')
+    .action((opts: { locale: string; email?: string; site?: string; all?: boolean }) => {
+      refuseRoot();
+      return withOwner(async (db) => {
+        const result = await setLocale(db, opts);
+        report({ ...result }, setLocaleText(result));
+      });
+    });
 
   program
     .command('entry:reassign')
