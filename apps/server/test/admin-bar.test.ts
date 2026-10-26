@@ -61,7 +61,7 @@ describe('public toolbar', () => {
 
     const signedIn = await editor.get(path);
     expect(signedIn.body).toContain('id="cleitext-admin-bar"');
-    // Themes with a sticky header place it under the toolbar (core 0.84.3).
+    // Themes with a sticky header place it under the toolbar (core 0.85).
     expect(signedIn.body).toContain(':root{--cx-admin-bar-height:32px}');
     expect(first.body).not.toContain('--cx-admin-bar-height');
     expect(signedIn.headers['x-cache']).toBe('BYPASS');
