@@ -113,6 +113,72 @@ describe('htmlToCxd during an import', () => {
     ]);
   });
 
+  it('enclosing shortcodes over several lines, with others inside', () => {
+    const form =
+      '[newsletter_form button_label="Go!"] [newsletter_field name="first_name" label="Your\nname"]\n' +
+      '[newsletter_field name="email"\nlabel="Your email"]\n\n[/newsletter_form]';
+    const tagsOf = (html: string) =>
+      htmlToCxd(html, { keepUnknown: true }).blocks.map((b) =>
+        b.type === 'core/imported' ? shortcodeOf(b).tag : b.type,
+      );
+    // A Shortcode block, a paragraph (lines as <br>) and classic content (a blank line inside).
+    expect(tagsOf(`<!-- wp:shortcode -->\n${form}\n<!-- /wp:shortcode -->`)).toEqual([
+      'newsletter_form',
+    ]);
+    expect(
+      tagsOf(
+        `<!-- wp:paragraph --><p>${form.replaceAll('\n', '<br>')}<br>[mc4wp_form id="3"]</p><!-- /wp:paragraph -->`,
+      ),
+    ).toEqual(['newsletter_form', 'mc4wp_form']);
+    expect(tagsOf(`Sign up:\n\n${form}\n\nThanks.`)).toEqual([
+      'core/paragraph',
+      'newsletter_form',
+      'core/paragraph',
+    ]);
+    const [block] = htmlToCxd(form, { keepUnknown: true }).blocks;
+    const shortcode = block!.attrs.shortcode as { attrs: object; content: string };
+    expect(shortcode.attrs).toEqual({ button_label: 'Go!' });
+    expect(shortcode.content).toContain('[newsletter_field name="email"\nlabel="Your email"]');
+    // Two on one line, text after the last one, an escaped one: not alone.
+    expect(tagsOf('<!-- wp:shortcode -->[a] [b]<!-- /wp:shortcode -->')).toEqual([
+      'core/paragraph',
+    ]);
+    expect(tagsOf('<!-- wp:shortcode -->[a]\n[b] and<!-- /wp:shortcode -->')).toEqual([
+      'core/paragraph',
+    ]);
+    expect(tagsOf('<!-- wp:shortcode -->[a]\n[[b]]<!-- /wp:shortcode -->')).toEqual([
+      'core/paragraph',
+    ]);
+    // A caption stays with its image, over several lines too.
+    expect(
+      tagsOf(
+        '<!-- wp:shortcode -->[caption id="1"]\n<img src="a.jpg">\nA[/caption]<!-- /wp:shortcode -->',
+      ),
+    ).toEqual(['core/paragraph']);
+  });
+
+  it('an enclosing shortcode around text keeps its paragraphs', () => {
+    const doc = htmlToCxd('[box]First paragraph.\n\nSecond paragraph.[/box]', {
+      keepUnknown: true,
+    });
+    expect(doc.blocks.map((b) => b.type)).toEqual(['core/paragraph', 'core/paragraph']);
+  });
+
+  it('[embed] over several lines', () => {
+    const types = (html: string) =>
+      htmlToCxd(html, { keepUnknown: true }).blocks.map((b) => b.type);
+    const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+    expect(
+      types(`<!-- wp:shortcode -->\n[embed]\n${url}\n[/embed]\n<!-- /wp:shortcode -->`),
+    ).toEqual(['core/embed']);
+    expect(
+      types(
+        `<!-- wp:paragraph --><p>[embed width="640"]<br>${url}<br>[/embed]</p><!-- /wp:paragraph -->`,
+      ),
+    ).toEqual(['core/embed']);
+    expect(types(`Watch:\n\n[embed]\n${url}\n[/embed]`)).toEqual(['core/paragraph', 'core/embed']);
+  });
+
   it('outside an import, shortcodes stay text', () => {
     const warnings: string[] = [];
     const doc = htmlToCxd('<!-- wp:shortcode -->[kross-booking]<!-- /wp:shortcode -->', {

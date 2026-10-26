@@ -17,6 +17,7 @@ import {
   IMPORTED_BLOCK,
   shortcodeLines,
   shortcodePlaceholder,
+  splitParagraphs,
   type Shortcode,
 } from './shortcodes.js';
 
@@ -411,8 +412,9 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
   /** The font size of the element whose text is pending (a `<p style="font-size:…">`). */
   let pendingSize: string | undefined;
   const flush = () => {
-    // Like WordPress's wpautop: blank lines separate paragraphs, single newlines are breaks.
-    for (const chunk of pending.split(/\n\s*\n/)) {
+    // Like WordPress's wpautop: blank lines separate paragraphs (not inside a
+    // shortcode), single newlines are breaks.
+    for (const chunk of splitParagraphs(pending)) {
       // [gallery ids="1,2,3" columns="3"] alone on its line: a gallery.
       const gallery = galleryShortcode(chunk.trim(), options);
       if (gallery) {
@@ -695,7 +697,10 @@ function embedOnItsOwn(
   options: ConvertOptions,
   warn: (m: string) => void,
 ): CxdBlock[] | null {
-  const plain = text.replace(/&nbsp;/g, ' ').trim();
+  const plain = text
+    .replace(/&nbsp;|<br\s*\/?>/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const shortcode = /^\[embed(?:\s[^\]]*)?\]\s*(https?:\/\/[^\s<>"[\]]+)\s*\[\/embed\]$/i.exec(
     plain.replace(/<a\b[^>]*>([^<]*)<\/a>/gi, '$1'),
   );

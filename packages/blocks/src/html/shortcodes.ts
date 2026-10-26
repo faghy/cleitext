@@ -126,23 +126,59 @@ export function wholeShortcode(text: string): Shortcode | null {
   return withoutIndex(first);
 }
 
+/** Spaces, `&nbsp;` and line breaks between shortcodes standing alone. */
+const BETWEEN = /^(?:\s|&nbsp;|<br\s*\/?>)*$/i;
+
 /**
  * The shortcodes of a text made only of shortcodes, one per line (empty
- * lines and `<br>` allowed), or null when it holds anything else.
+ * lines and `<br>` allowed), or null when it holds anything else. An
+ * enclosing shortcode may span several lines and hold others, e.g. The
+ * Newsletter Plugin's `[newsletter_form]` with its `[newsletter_field]`s.
  */
 export function shortcodeLines(text: string): Shortcode[] | null {
-  const lines = text
-    .split(/\n|<br\s*\/?>/i)
-    .map((line) => line.replace(/^(?:\s|&nbsp;)+|(?:\s|&nbsp;)+$/g, ''))
-    .filter(Boolean);
-  if (lines.length === 0) return null;
+  const trimmed = text.replace(/^(?:\s|&nbsp;|<br\s*\/?>)+|(?:\s|&nbsp;|<br\s*\/?>)+$/gi, '');
+  if (!trimmed) return null;
   const shortcodes: Shortcode[] = [];
-  for (const line of lines) {
-    const shortcode = wholeShortcode(line);
-    if (!shortcode) return null;
-    shortcodes.push(shortcode);
+  let at = 0;
+  for (const found of findShortcodes(trimmed)) {
+    const gap = trimmed.slice(at, found.index);
+    // The first at the start, each other on a line of its own.
+    if (shortcodes.length === 0 ? gap !== '' : !BETWEEN.test(gap) || !/\n|<br/i.test(gap)) {
+      return null;
+    }
+    if (KEPT.has(found.tag)) return null;
+    shortcodes.push(withoutIndex(found));
+    at = found.index + found.text.length;
   }
-  return shortcodes;
+  return shortcodes.length > 0 && at === trimmed.length ? shortcodes : null;
+}
+
+/** Text made only of shortcodes and the spaces and line breaks between them. */
+function onlyShortcodes(text: string): boolean {
+  let rest = text;
+  for (const found of findShortcodes(text)) rest = rest.replace(found.text, '');
+  return BETWEEN.test(rest);
+}
+
+/**
+ * Text split into paragraphs at its blank lines, as WordPress's wpautop
+ * does, except inside an enclosing shortcode made of other shortcodes (a
+ * form and its fields), which stays whole. One that encloses text keeps
+ * its paragraphs.
+ */
+export function splitParagraphs(text: string): string[] {
+  const inside = findShortcodes(text)
+    .filter((found) => found.content !== null && onlyShortcodes(found.content))
+    .map((found) => [found.index, found.index + found.text.length] as const);
+  const chunks: string[] = [];
+  let start = 0;
+  for (const m of text.matchAll(/\n\s*\n/g)) {
+    if (inside.some(([from, to]) => m.index > from && m.index < to)) continue;
+    chunks.push(text.slice(start, m.index));
+    start = m.index + m[0].length;
+  }
+  chunks.push(text.slice(start));
+  return chunks;
 }
 
 /** What may come right before a shortcode standing alone in HTML. */
