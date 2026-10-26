@@ -40,6 +40,11 @@ import {
 import { metaValue } from './php.js';
 import { cmpWarning, emptyCmpReport, stripCmpBlocks, stripCmpCss } from './cmp.js';
 import {
+  markNewsletterEmbeds,
+  newsletterEmbedsWarning,
+  wrapClassicEmbeds,
+} from './newsletter-embeds.js';
+import {
   convertCf7,
   replaceCf7Shortcodes,
   type Cf7Form,
@@ -142,6 +147,8 @@ export interface WxrResult {
 /** WordPress export (WXR 1.x) → transfer document (RF-IMP-01). */
 export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const warnings: string[] = [];
+  /** Newsletter forms of email services offered to plugins, by service (since 1.30.0). */
+  const newsletterEmbeds = new Map<string, number>();
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
@@ -418,12 +425,16 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     const title = texturizeText(decode(text(item.title)));
     // Emoji pasted as WordPress's images are characters again.
     const content = texturizeHtml(restoreEmoji(text(item['content:encoded'])));
-    let document = htmlToCxd(content, {
+    // Newsletter forms pasted in the classic editor are kept as HTML blocks.
+    let document = htmlToCxd(wrapClassicEmbeds(content), {
       // Blocks of other plugins (e.g. block libraries) are left to active plugins.
       keepUnknown: true,
       mediaRef: (attachment) => attachmentRefs.get(attachment),
       warn: (message) => warnings.push(`${title || `#${id}`}: ${message}`),
     });
+    // HTML blocks with a newsletter service's form are offered to plugins (`import.block`).
+    const marked = markNewsletterEmbeds(document.blocks as CxdBlock[], newsletterEmbeds);
+    if (marked !== document.blocks) document = { ...document, blocks: marked };
     termIdsToSlugs(document.blocks, channel);
     // Shortcodes standing alone are left to active plugins (`import.shortcode`).
     const placed = shortcodeTexts(document.blocks);
@@ -937,6 +948,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   if (additionalCss.css) additionalCss.css = stripCmpCss(additionalCss.css, cmp);
   const cmpLine = cmpWarning(cmp);
   if (cmpLine) warnings.push(cmpLine);
+  const newsletterLine = newsletterEmbedsWarning(newsletterEmbeds);
+  if (newsletterLine) warnings.push(newsletterLine);
 
   return {
     warnings,
