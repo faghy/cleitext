@@ -132,7 +132,7 @@ describe('block markup', () => {
       'core/gallery',
       'core/buttons',
       'core/columns',
-      'core/group',
+      'core/media-text',
       'core/separator',
       'core/spacer',
       'core/code',
@@ -153,7 +153,13 @@ describe('block markup', () => {
     expect(blocks[8]!.children).toHaveLength(2);
     expect(blocks[9]!.children![0]!.attrs).toEqual({ url: '/go' });
     expect(blocks[10]!.children![0]!.attrs).toEqual({ width: '40%' });
-    expect(blocks[11]!.children![0]!.attrs).toMatchObject({ id: 'att:9' });
+    expect(blocks[11]!.attrs).toEqual({
+      mediaId: 'att:9',
+      mediaUrl: 'https://x.test/m.jpg',
+      mediaAlt: '',
+      mediaType: 'image',
+    });
+    expect(types(blocks[11]!.children!)).toEqual(['core/paragraph']);
     expect(blocks[13]!.attrs).toEqual({ height: '20px' });
     expect(blocks[14]!.content).toEqual([{ text: 'let a = 1 > 0;' }]);
     expect(blocks[15]!.attrs).toEqual({ url: 'https://v.test/2' });
@@ -164,7 +170,6 @@ describe('block markup', () => {
     const all = warnings.join('\n');
     for (const expected of [
       'Pull quotes became quotes',
-      'media-text block became a group',
       'Embed of v.test shown as a link card (no player for it): https://v.test/2',
       'acme/box has no equivalent: its content',
       'acme/note has no equivalent: its text',
@@ -203,6 +208,60 @@ describe('empty paragraphs', () => {
       ['core/paragraph', null],
       ['core/paragraph', { spacing: { padding: { bottom: 'var:preset|spacing|80' } } }],
     ]);
+  });
+});
+
+describe('media and text', () => {
+  it('keeps the layout of WordPress: media on the right in 32%, stacked, centred, linked', () => {
+    const { blocks, warnings } = convert(
+      `<!-- wp:media-text {"align":"","mediaPosition":"right","mediaId":120,"mediaLink":"https://old.test/?attachment_id=120","mediaType":"image","mediaWidth":32,"verticalAlignment":"center","imageFill":false,"focalPoint":{"x":0.4,"y":0.2}} -->
+<div class="wp-block-media-text has-media-on-the-right is-stacked-on-mobile is-vertically-aligned-center" style="grid-template-columns:auto 32%"><div class="wp-block-media-text__content"><!-- wp:heading -->
+<h2 class="wp-block-heading">Il docente</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Testo</p>
+<!-- /wp:paragraph --></div><figure class="wp-block-media-text__media"><a href="https://old.test/docente/" target="_blank" rel="noopener" class="ln"><img src="https://old.test/wp-content/uploads/docente.jpg" alt="Il &amp; docente" class="wp-image-120 size-full"/></a></figure></div>
+<!-- /wp:media-text -->`,
+      (id) => `att:${id}`,
+    );
+    expect(warnings).toEqual([]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      type: 'core/media-text',
+      attrs: {
+        mediaId: 'att:120',
+        mediaUrl: 'https://old.test/wp-content/uploads/docente.jpg',
+        mediaAlt: 'Il & docente',
+        mediaType: 'image',
+        mediaPosition: 'right',
+        mediaWidth: 32,
+        verticalAlignment: 'center',
+        focalPoint: { x: 0.4, y: 0.2 },
+        mediaLink: 'https://old.test/?attachment_id=120',
+        href: 'https://old.test/docente/',
+        linkTarget: '_blank',
+        rel: 'noopener',
+        linkClass: 'ln',
+      },
+    });
+    expect(blocks[0]!.attrs).not.toHaveProperty('isStackedOnMobile');
+    expect(blocks[0]!.attrs).not.toHaveProperty('imageFill');
+    expect(types(blocks[0]!.children!)).toEqual(['core/heading', 'core/paragraph']);
+  });
+
+  it('reads older versions from their classes: wide, not stacked, a video, image fill', () => {
+    const { blocks } = convert(
+      `<!-- wp:media-text {"mediaType":"video"} --><div class="wp-block-media-text alignwide is-image-fill" style="grid-template-columns:40% auto"><figure class="wp-block-media-text__media"><video controls src="https://old.test/v.mp4"></video></figure><div class="wp-block-media-text__content"><!-- wp:paragraph --><p>V</p><!-- /wp:paragraph --></div></div><!-- /wp:media-text -->`,
+    );
+    expect(blocks[0]!.attrs).toEqual({
+      align: 'wide',
+      mediaUrl: 'https://old.test/v.mp4',
+      mediaType: 'video',
+      mediaWidth: 40,
+      isStackedOnMobile: false,
+      imageFill: true,
+    });
   });
 });
 

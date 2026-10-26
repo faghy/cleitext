@@ -225,13 +225,19 @@ function fromWpBlock(
           children: children(),
         },
       ];
+    case 'core/media-text':
+      return [
+        {
+          ...make('core/media-text', mediaTextAttrs(html, attrs, common, options)),
+          children: children(),
+        },
+      ];
     case 'core/group':
-    case 'core/cover':
-    case 'core/media-text': {
+    case 'core/cover': {
       // During an import a plugin may have a block for covers (the import.block
       // filter): the group is the placeholder's content, used when none does.
       const inner = children();
-      if (name === 'core/media-text' || name === 'core/cover') {
+      if (name === 'core/cover') {
         const image = parse(html).querySelector('img');
         if (image) inner.unshift(imageBlock(image, {}, attrs.mediaId ?? attrs.id, options));
       }
@@ -796,6 +802,78 @@ function listItem(
     })),
   ];
   return { ...make('core/list-item', {}, inline(own)), ...(children.length ? { children } : {}) };
+}
+
+/**
+ * WordPress's Media & Text: the attributes it saves in the comment, and those
+ * it keeps in the markup (the media's address, alternative text and link; the
+ * classes of older versions, whose defaults differed).
+ */
+function mediaTextAttrs(
+  html: string,
+  attrs: Record<string, unknown>,
+  common: Record<string, unknown>,
+  options: ConvertOptions,
+): Record<string, unknown> {
+  const root = parse(html);
+  const wrapper = root.querySelector('.wp-block-media-text');
+  const classes = wrapper?.classList;
+  const figure = root.querySelector('.wp-block-media-text__media') ?? root.querySelector('figure');
+  const img = figure?.querySelector('img');
+  const video = figure?.querySelector('video');
+  const link = figure?.querySelector('a');
+  const src = img?.getAttribute('src') ?? video?.getAttribute('src');
+  const fromClass = /wp-image-(\d+)/.exec(img?.getAttribute('class') ?? '')?.[1];
+  const attachment =
+    typeof attrs.mediaId === 'number' ? attrs.mediaId : fromClass ? Number(fromClass) : undefined;
+  const ref = attachment !== undefined ? options.mediaRef?.(attachment) : undefined;
+  // The media's share of the width: the comment, else the saved grid (older versions).
+  const columns = /grid-template-columns:\s*(?:auto\s+)?([\d.]+)%/.exec(
+    wrapper?.getAttribute('style') ?? '',
+  )?.[1];
+  const width = typeof attrs.mediaWidth === 'number' ? attrs.mediaWidth : Number(columns ?? NaN);
+  const align =
+    common.align ??
+    (classes ? ['wide', 'full'].find((a) => classes.contains(`align${a}`)) : undefined);
+  const right = attrs.mediaPosition === 'right' || classes?.contains('has-media-on-the-right');
+  const stacked =
+    typeof attrs.isStackedOnMobile === 'boolean'
+      ? attrs.isStackedOnMobile
+      : classes
+        ? classes.contains('is-stacked-on-mobile')
+        : true;
+  const vertical = ['top', 'center', 'bottom'].find(
+    (v) => attrs.verticalAlignment === v || classes?.contains(`is-vertically-aligned-${v}`),
+  );
+  const fill =
+    attrs.imageFill === true ||
+    classes?.contains('is-image-fill') ||
+    classes?.contains('is-image-fill-element');
+  const href = link?.getAttribute('href');
+  const focal = attrs.focalPoint as { x?: unknown; y?: unknown } | undefined;
+  return {
+    ...common,
+    ...(align && align !== 'none' ? { align } : {}),
+    ...(ref ? { mediaId: ref } : {}),
+    ...(src ? { mediaUrl: src } : {}),
+    ...(img ? { mediaAlt: decode(img.getAttribute('alt') ?? '') } : {}),
+    mediaType: video || attrs.mediaType === 'video' ? 'video' : 'image',
+    ...(right ? { mediaPosition: 'right' } : {}),
+    ...(Number.isFinite(width) && width > 0 && width <= 100 && width !== 50
+      ? { mediaWidth: width }
+      : {}),
+    ...(stacked ? {} : { isStackedOnMobile: false }),
+    ...(vertical ? { verticalAlignment: vertical } : {}),
+    ...(fill ? { imageFill: true } : {}),
+    ...(focal && typeof focal.x === 'number' && typeof focal.y === 'number'
+      ? { focalPoint: { x: focal.x, y: focal.y } }
+      : {}),
+    ...pick(attrs, ['mediaSizeSlug', 'mediaLink', 'linkDestination']),
+    ...(href ? { href } : {}),
+    ...(link?.getAttribute('target') ? { linkTarget: link.getAttribute('target') } : {}),
+    ...(link?.getAttribute('rel') ? { rel: link.getAttribute('rel') } : {}),
+    ...(link?.getAttribute('class') ? { linkClass: link.getAttribute('class') } : {}),
+  };
 }
 
 /** An image block from an <img> (possibly in a link or a figure with a caption). */

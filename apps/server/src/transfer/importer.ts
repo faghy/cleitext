@@ -1473,7 +1473,7 @@ function blockRefs(document: CxdDocument, refs: Partial<ImportRefMaps>): CxdDocu
 }
 
 /**
- * Image blocks: media refs become the imported media ids and URLs; the old
+ * Image and Media & Text blocks: media refs become the imported media ids and URLs; the old
  * site's media addresses in other attributes (HTML, CSS) too, and those that
  * were not imported are reported, each once.
  */
@@ -1508,6 +1508,22 @@ function remapMedia(
           attrs = { ...attrs };
           delete attrs.id;
           if (typeof attrs.url === 'string') missing(attrs.url);
+        }
+      } else if (block.type === 'core/media-text') {
+        // Its media in `mediaId` and `mediaUrl` (WordPress's names); the rest as in other blocks.
+        const { mediaId, mediaUrl } = attrs;
+        const target =
+          (typeof mediaId === 'string' || typeof mediaId === 'number'
+            ? media.get(String(mediaId))
+            : undefined) ?? (typeof mediaUrl === 'string' ? mediaByUrl(urls, mediaUrl) : undefined);
+        attrs = remapMediaValues(attrs, media, urls, text) as typeof attrs;
+        if (target) {
+          attrs.mediaUrl = target.url;
+          if (target.id) attrs.mediaId = target.id;
+          else delete attrs.mediaId;
+        } else {
+          delete attrs.mediaId;
+          if (typeof mediaUrl === 'string') missing(mediaUrl);
         }
       } else attrs = remapMediaValues(attrs, media, urls, text) as typeof attrs;
       return { ...block, attrs, ...(block.children ? { children: walk(block.children) } : {}) };

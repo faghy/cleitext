@@ -26,10 +26,15 @@ export function registerMediaUpload(): void {
   addFilter('editor.MediaUpload', 'cleitext/media-upload', () => CleitextMediaUpload);
 }
 
+interface SelectedMedia {
+  id: string;
+  url: string;
+  alt: string;
+  type: 'image' | 'video';
+}
+
 interface MediaUploadProps {
-  onSelect: (
-    media: { id: string; url: string; alt: string } | { id: string; url: string; alt: string }[],
-  ) => void;
+  onSelect: (media: SelectedMedia | SelectedMedia[]) => void;
   multiple?: boolean;
   render: (args: { open: () => void }) => ReactNode;
 }
@@ -44,7 +49,13 @@ function CleitextMediaUpload({ onSelect, multiple = false, render }: MediaUpload
           multiple={multiple}
           onClose={() => setOpen(false)}
           onSelect={(items) => {
-            const selected = items.map((m) => ({ id: m.id, url: m.url, alt: m.alt ?? '' }));
+            // `type` as WordPress's media objects: Media & Text tells images from videos by it.
+            const selected = items.map((m) => ({
+              id: m.id,
+              url: m.url,
+              alt: m.alt ?? '',
+              type: m.mime.startsWith('video/') ? ('video' as const) : ('image' as const),
+            }));
             onSelect(multiple ? selected : selected[0]!);
             setOpen(false);
           }}

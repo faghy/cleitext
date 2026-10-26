@@ -444,7 +444,7 @@ registerBlockRenderer('core/gallery', ({ block, children }) => {
 /**
  * Base styles of tables and galleries, added to pages that have one (themes
  * may restyle them): borders and room in tables, a grid in galleries; the
- * ratio of embedded players.
+ * ratio of embedded players; WordPress's Media & Text.
  */
 export const CORE_BLOCK_CSS = [
   // Rows and grids of groups: the theme's gap, else WordPress's default.
@@ -471,6 +471,24 @@ export const CORE_BLOCK_CSS = [
   '.wp-block-gallery>.wp-block-image img{width:100%;height:auto;display:block}',
   '.wp-block-gallery.is-cropped>.wp-block-image img{aspect-ratio:1;height:100%;object-fit:cover}',
   '.wp-block-gallery>figcaption{grid-column:1/-1}',
+  // Media & Text (WordPress's styles of the block).
+  '.wp-block-media-text{direction:ltr;display:grid;grid-template-columns:50% 1fr;grid-template-rows:auto;box-sizing:border-box}',
+  '.wp-block-media-text.has-media-on-the-right{grid-template-columns:1fr 50%}',
+  '.wp-block-media-text>.wp-block-media-text__content,.wp-block-media-text>.wp-block-media-text__media{align-self:center}',
+  '.wp-block-media-text.is-vertically-aligned-top>.wp-block-media-text__content,.wp-block-media-text.is-vertically-aligned-top>.wp-block-media-text__media{align-self:start}',
+  '.wp-block-media-text.is-vertically-aligned-bottom>.wp-block-media-text__content,.wp-block-media-text.is-vertically-aligned-bottom>.wp-block-media-text__media{align-self:end}',
+  '.wp-block-media-text>.wp-block-media-text__media{grid-column:1;grid-row:1;margin:0}',
+  '.wp-block-media-text>.wp-block-media-text__content{direction:ltr;grid-column:2;grid-row:1;word-break:break-word}',
+  ':where(.wp-block-media-text>.wp-block-media-text__content){padding:0 8%}',
+  '.wp-block-media-text.has-media-on-the-right>.wp-block-media-text__media{grid-column:2;grid-row:1}',
+  '.wp-block-media-text.has-media-on-the-right>.wp-block-media-text__content{grid-column:1;grid-row:1}',
+  '.wp-block-media-text__media a{display:block}',
+  '.wp-block-media-text__media img,.wp-block-media-text__media video{height:auto;max-width:unset;width:100%;vertical-align:middle}',
+  '.wp-block-media-text__media picture{display:block}',
+  '.wp-block-media-text.is-image-fill-element>.wp-block-media-text__media{position:relative;height:100%;min-height:250px}',
+  '.wp-block-media-text.is-image-fill-element>.wp-block-media-text__media>a,.wp-block-media-text.is-image-fill-element>.wp-block-media-text__media picture{display:block;height:100%}',
+  '.wp-block-media-text.is-image-fill-element>.wp-block-media-text__media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}',
+  '@media (max-width:600px){.wp-block-media-text.is-stacked-on-mobile{grid-template-columns:100%!important}.wp-block-media-text.is-stacked-on-mobile>.wp-block-media-text__media{grid-column:1;grid-row:1}.wp-block-media-text.is-stacked-on-mobile>.wp-block-media-text__content{grid-column:1;grid-row:2}}',
   // Players with a ratio (WordPress's "responsive embeds"): as wide as the
   // column, the height from the ratio; vertical ones (Shorts) at most 360px wide.
   '.wp-block-embed.wp-has-aspect-ratio .wp-block-embed__wrapper{position:relative}',
@@ -554,7 +572,7 @@ export function withCoreBlockCss(html: string): string {
   if (/var\(--wp--preset--spacing--/.test(html))
     html = beforeThemeStyles(html, `<style data-cx-spacing>${SPACING_PRESETS_CSS}</style>`);
   if (
-    !/class="wp-block-(table|gallery)\b|-vertically-aligned-|\bis-layout-(flex|grid)\b|class="cx-embed-card\b|\bwp-has-aspect-ratio\b/.test(
+    !/class="wp-block-(table|gallery)\b|-vertically-aligned-|\bis-layout-(flex|grid)\b|class="cx-embed-card\b|\bwp-has-aspect-ratio\b|class="wp-block-media-text\b/.test(
       html,
     )
   )
@@ -616,6 +634,7 @@ export function ResponsiveImage({
   width,
   height,
   sizes = '(max-width: 800px) 100vw, 800px',
+  objectPosition,
 }: {
   media: RenderMedia | undefined;
   src: string;
@@ -624,6 +643,8 @@ export function ResponsiveImage({
   width?: unknown;
   height?: unknown;
   sizes?: string;
+  /** The point kept in view when the image is cropped (overrides the media's own). */
+  objectPosition?: string | undefined;
 }): ReactNode {
   const style: CSSProperties = {};
   const w = cssLength(width);
@@ -631,7 +652,8 @@ export function ResponsiveImage({
   if (w) style.width = w;
   if (h) style.height = h;
   // Crops made by the theme keep the chosen point in view (RF-MED-05).
-  if (media?.focalPoint) {
+  if (objectPosition) style.objectPosition = objectPosition;
+  else if (media?.focalPoint) {
     style.objectPosition = `${Math.round(media.focalPoint.x * 100)}% ${Math.round(media.focalPoint.y * 100)}%`;
   }
   const loading = eager ? undefined : 'lazy';
@@ -741,6 +763,109 @@ registerBlockRenderer('core/column', ({ block, children }) => {
     </div>
   );
 });
+
+/**
+ * Media & Text, with WordPress's markup and classes: the media and the text
+ * side by side in a grid (the media's share from `mediaWidth`), the media
+ * first or second as saved, stacked on phones unless turned off.
+ */
+registerBlockRenderer('core/media-text', ({ block, children }) => (
+  <MediaTextBlock block={block}>{children}</MediaTextBlock>
+));
+
+function MediaTextBlock({ block, children }: { block: CxdBlock; children: ReactNode }): ReactNode {
+  const context = useRenderContext();
+  const a = block.attrs;
+  const media = typeof a.mediaId === 'string' ? context.media.get(a.mediaId) : undefined;
+  const src = media?.url ?? safeUrl(a.mediaUrl);
+  const right = a.mediaPosition === 'right';
+  const width =
+    typeof a.mediaWidth === 'number' && a.mediaWidth > 0 && a.mediaWidth <= 100 ? a.mediaWidth : 50;
+  const vertical = str(a.verticalAlignment);
+  const fill = a.imageFill === true;
+  const focal = a.focalPoint as { x?: unknown; y?: unknown } | undefined;
+  const position =
+    fill && typeof focal?.x === 'number' && typeof focal.y === 'number'
+      ? `${Math.round(focal.x * 100)}% ${Math.round(focal.y * 100)}%`
+      : undefined;
+  const align = str(a.align);
+  let mediaNode: ReactNode = null;
+  if (src && a.mediaType === 'video') {
+    mediaNode = <video controls src={src} />;
+  } else if (src) {
+    const counter = context.imageCounter ?? { n: 0 };
+    const eager = counter.n === 0 && context.eagerFirstImage !== false;
+    counter.n++;
+    const image = (
+      <ResponsiveImage
+        media={media}
+        src={src}
+        alt={str(a.mediaAlt) ?? media?.alt ?? ''}
+        eager={eager}
+        sizes={`(max-width: 600px) 100vw, ${Math.round(width * 8)}px`}
+        objectPosition={position}
+      />
+    );
+    const href = safeUrl(a.href);
+    const newTab = a.linkTarget === '_blank';
+    const rel = [str(a.rel), newTab ? 'noopener noreferrer' : undefined].filter(Boolean).join(' ');
+    mediaNode = href ? (
+      <a
+        className={str(a.linkClass)}
+        href={href}
+        target={newTab ? '_blank' : undefined}
+        rel={rel ? [...new Set(rel.split(/\s+/))].join(' ') : undefined}
+      >
+        {image}
+      </a>
+    ) : (
+      image
+    );
+  }
+  const figure = <figure className="wp-block-media-text__media">{mediaNode}</figure>;
+  const content = (
+    <div
+      className={classes(
+        'wp-block-media-text__content',
+        hasFlowGap(block.attrs.style) && 'cx-flow-gap',
+      )}
+    >
+      {children}
+    </div>
+  );
+  const style = blockStyle(block);
+  return (
+    <div
+      id={anchor(block)}
+      className={classes(
+        'wp-block-media-text',
+        align && align !== 'none' && `align${align}`,
+        right && 'has-media-on-the-right',
+        a.isStackedOnMobile !== false && 'is-stacked-on-mobile',
+        vertical && `is-vertically-aligned-${vertical}`,
+        fill && 'is-image-fill-element',
+        extraClass(block),
+      )}
+      style={
+        width !== 50
+          ? { ...style, gridTemplateColumns: right ? `auto ${width}%` : `${width}% auto` }
+          : style
+      }
+    >
+      {right ? (
+        <>
+          {content}
+          {figure}
+        </>
+      ) : (
+        <>
+          {figure}
+          {content}
+        </>
+      )}
+    </div>
+  );
+}
 
 const GROUP_TAGS = new Set(['div', 'section', 'article', 'aside', 'header', 'footer', 'main']);
 

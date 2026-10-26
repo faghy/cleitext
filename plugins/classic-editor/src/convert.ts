@@ -50,6 +50,7 @@ const BLOCK_TITLES: Record<string, string> = {
   'core/html': 'Custom HTML',
   'core/embed': 'Embed',
   'core/image': 'Image',
+  'core/media-text': 'Media & Text',
   'core/table': 'Table',
   'cleitext/pattern': 'Synced pattern',
 };

@@ -12,6 +12,7 @@ import * as headingBlock from '@wordpress/block-library/build-module/heading/ind
 import * as imageBlock from '@wordpress/block-library/build-module/image/index.mjs';
 import * as listBlock from '@wordpress/block-library/build-module/list/index.mjs';
 import * as listItemBlock from '@wordpress/block-library/build-module/list-item/index.mjs';
+import * as mediaTextBlock from '@wordpress/block-library/build-module/media-text/index.mjs';
 import * as paragraphBlock from '@wordpress/block-library/build-module/paragraph/index.mjs';
 import * as quoteBlock from '@wordpress/block-library/build-module/quote/index.mjs';
 import * as separatorBlock from '@wordpress/block-library/build-module/separator/index.mjs';
@@ -42,6 +43,7 @@ const CORE_BLOCKS = [
   quoteBlock,
   imageBlock,
   galleryBlock,
+  mediaTextBlock,
   tableBlock,
   buttonsBlock,
   buttonBlock,

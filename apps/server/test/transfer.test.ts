@@ -224,6 +224,21 @@ describe('WordPress import', () => {
                     },
                   },
                 },
+                // WordPress's Media & Text: its media in mediaId and mediaUrl.
+                {
+                  id: 'mt1',
+                  type: 'core/media-text',
+                  v: 1,
+                  attrs: { mediaId: 'att:10', mediaUrl: oldUrl, mediaPosition: 'right' },
+                  children: [],
+                },
+                {
+                  id: 'mt2',
+                  type: 'core/media-text',
+                  v: 1,
+                  attrs: { mediaId: 'att:99', mediaUrl: 'https://elsewhere.test/y.jpg' },
+                  children: [],
+                },
               ],
             },
           },
@@ -255,6 +270,16 @@ describe('WordPress import', () => {
     expect(attrs.resized!.url).toBe(image.url);
     expect(attrs.resized!.id).toBe(image.id);
     expect(attrs.scaled!.url).toBe(image.url);
+    const blocks = (row!.document as { blocks: { attrs: Record<string, unknown> }[] }).blocks;
+    expect(blocks[1]!.attrs).toEqual({
+      mediaId: image.id,
+      mediaUrl: image.url,
+      mediaPosition: 'right',
+    });
+    expect(blocks[2]!.attrs).toEqual({ mediaUrl: 'https://elsewhere.test/y.jpg' });
+    expect(result.warnings).toContain(
+      '"Built": image not imported, it still points to https://elsewhere.test/y.jpg.',
+    );
   });
 
   it('points old media addresses in HTML, CSS, templates and plugin data to the imported media', async () => {

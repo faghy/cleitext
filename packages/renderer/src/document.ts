@@ -1,12 +1,14 @@
 import { inlineText, type CxdBlock, type CxdDocument } from '@cleitext/blocks';
 
-/** Media ids referenced by image blocks, to preload before rendering. */
+/** Media ids referenced by image and media-and-text blocks, to preload before rendering. */
 export function collectMediaIds(doc: CxdDocument | null | undefined): string[] {
   const ids = new Set<string>();
   const walk = (blocks: CxdBlock[]) => {
     for (const block of blocks) {
       if (block.type === 'core/image' && typeof block.attrs.id === 'string')
         ids.add(block.attrs.id);
+      if (block.type === 'core/media-text' && typeof block.attrs.mediaId === 'string')
+        ids.add(block.attrs.mediaId);
       if (block.children) walk(block.children);
     }
   };
@@ -35,6 +37,12 @@ export function firstImage(
   const walk = (blocks: CxdBlock[]): CxdBlock | null => {
     for (const block of blocks) {
       if (block.type === 'core/image') return block;
+      // The image of a Media & Text, as an image block's attributes.
+      if (block.type === 'core/media-text' && block.attrs.mediaType !== 'video') {
+        const { mediaId: id, mediaUrl: url } = block.attrs;
+        if (typeof id === 'string' || typeof url === 'string')
+          return { ...block, attrs: { id, url } };
+      }
       const nested = block.children ? walk(block.children) : null;
       if (nested) return nested;
     }

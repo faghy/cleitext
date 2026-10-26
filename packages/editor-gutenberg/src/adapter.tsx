@@ -475,13 +475,21 @@ function makeMediaUpload(options: EditorMountOptions) {
     onError,
   }: {
     filesList: FileList | File[];
-    onFileChange: (files: { id: string; url: string; alt?: string }[]) => void;
+    onFileChange: (files: { id: string; url: string; alt?: string; type?: string }[]) => void;
     onError?: (message: string) => void;
   }) => {
     const files = Array.from(filesList);
     void Promise.all(files.map((file) => options.services.uploadMedia!(file)))
       .then((uploaded) =>
-        onFileChange(uploaded.map((m) => ({ id: m.id, url: m.url, alt: m.alt ?? '' }))),
+        onFileChange(
+          // `type`: Media & Text tells images from videos by it.
+          uploaded.map((m) => ({
+            id: m.id,
+            url: m.url,
+            alt: m.alt ?? '',
+            type: m.mime.startsWith('video/') ? 'video' : 'image',
+          })),
+        ),
       )
       .catch((error: unknown) =>
         onError?.(error instanceof Error ? error.message : 'Upload failed'),

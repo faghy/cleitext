@@ -154,6 +154,42 @@ export const CORE_BLOCKS: BlockDefinition[] = [
       .loose(),
   },
   {
+    /**
+     * Media & Text (Gutenberg's core/media-text): an image or a video beside
+     * its children, the text; WordPress's attribute names. `mediaId` is a
+     * Cleitext media id, `mediaWidth` the media's share of the width (%).
+     */
+    type: 'core/media-text',
+    version: 1,
+    title: 'Media & Text',
+    category: 'media',
+    container: true,
+    attrs: z
+      .object({
+        ...common,
+        // `none` too: Gutenberg's default for this block.
+        align: z.enum(['left', 'center', 'right', 'wide', 'full', 'none']).optional(),
+        mediaId: z.union([z.string(), z.number()]).optional(),
+        mediaUrl: z.string().max(2_000).optional(),
+        mediaAlt: z.string().max(1_000).optional(),
+        mediaType: z.enum(['image', 'video']).optional(),
+        mediaPosition: z.enum(['left', 'right']).optional(),
+        mediaWidth: z.number().min(0).max(100).optional(),
+        mediaSizeSlug: z.string().max(100).optional(),
+        mediaLink: z.string().max(2_000).optional(),
+        linkDestination: z.string().max(50).optional(),
+        href: z.string().max(2_000).optional(),
+        linkTarget: z.string().max(50).optional(),
+        rel: z.string().max(200).optional(),
+        linkClass: z.string().max(500).optional(),
+        isStackedOnMobile: z.boolean().optional(),
+        verticalAlignment: z.enum(['top', 'center', 'bottom']).optional(),
+        imageFill: z.boolean().optional(),
+        focalPoint: z.object({ x: z.number(), y: z.number() }).loose().optional(),
+      })
+      .loose(),
+  },
+  {
     type: 'core/buttons',
     version: 1,
     title: 'Buttons',

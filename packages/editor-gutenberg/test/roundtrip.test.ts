@@ -271,6 +271,46 @@ describe('tables and galleries', () => {
     };
     expect(roundTrip(doc)).toEqual(doc);
   });
+
+  it('keep a Media & Text with its layout, media and text', () => {
+    const doc: CxdDocument = {
+      schema: 1,
+      blocks: [
+        {
+          id: 'mt',
+          type: 'core/media-text',
+          v: 1,
+          attrs: {
+            mediaId: 'm-1',
+            mediaUrl: '/media/1.jpg',
+            mediaAlt: 'Teacher',
+            mediaType: 'image',
+            mediaPosition: 'right',
+            mediaWidth: 32,
+            verticalAlignment: 'center',
+            isStackedOnMobile: false,
+            imageFill: true,
+            focalPoint: { x: 0.4, y: 0.2 },
+            mediaLink: 'https://old.test/?attachment_id=1',
+            linkDestination: 'custom',
+            href: 'https://example.com/',
+            align: 'wide',
+            className: 'own',
+          },
+          children: [
+            {
+              id: 'mtp',
+              type: 'core/paragraph',
+              v: 1,
+              attrs: {},
+              content: [{ text: 'Text' }],
+            },
+          ],
+        },
+      ],
+    };
+    expect(roundTrip(doc)).toEqual(doc);
+  });
 });
 
 describe('block bindings (plugin API 1.48)', () => {

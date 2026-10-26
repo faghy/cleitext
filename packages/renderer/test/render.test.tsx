@@ -318,6 +318,80 @@ describe('embeds and HTML', () => {
     expect(out).toContain('.aligncenter{margin-left:auto;margin-right:auto}');
   });
 
+  it('renders Media & Text with WordPress markup: media on the right in 32%, stacked', () => {
+    const block = (id: string, attrs: Record<string, unknown>) => ({
+      id,
+      type: 'core/media-text',
+      v: 1 as const,
+      attrs,
+      children: [
+        {
+          id: `${id}p`,
+          type: 'core/paragraph',
+          v: 1 as const,
+          attrs: {},
+          content: [{ text: 'Text' }],
+        },
+      ],
+    });
+    const media: RenderMedia = {
+      id: 'm1',
+      url: '/media/docente.jpg',
+      mime: 'image/jpeg',
+      width: 600,
+      height: 800,
+      alt: 'Library alt',
+      variants: [],
+    };
+    const out = withCoreBlockCss(
+      html(
+        doc(
+          block('a', {
+            mediaId: 'm1',
+            mediaUrl: 'https://old.test/docente.jpg',
+            mediaAlt: 'Il docente',
+            mediaType: 'image',
+            mediaPosition: 'right',
+            mediaWidth: 32,
+            verticalAlignment: 'center',
+            href: 'https://example.com/',
+            linkTarget: '_blank',
+          }),
+          block('b', {
+            mediaUrl: 'https://example.com/v.mp4',
+            mediaType: 'video',
+            isStackedOnMobile: false,
+            align: 'wide',
+          }),
+          block('c', {
+            mediaUrl: 'https://example.com/f.jpg',
+            imageFill: true,
+            focalPoint: { x: 0.25, y: 0.75 },
+            className: 'own',
+          }),
+        ),
+        [media],
+      ),
+    );
+    expect(out).toContain(
+      '<div class="wp-block-media-text has-media-on-the-right is-stacked-on-mobile is-vertically-aligned-center" style="grid-template-columns:auto 32%"><div class="wp-block-media-text__content"><p>Text</p></div><figure class="wp-block-media-text__media"><a href="https://example.com/" target="_blank" rel="noopener noreferrer"><img src="/media/docente.jpg" alt="Il docente" width="600" height="800"',
+    );
+    expect(out).toContain(
+      '<div class="wp-block-media-text alignwide"><figure class="wp-block-media-text__media"><video controls="" src="https://example.com/v.mp4"></video></figure><div class="wp-block-media-text__content"><p>Text</p></div></div>',
+    );
+    expect(out).toContain(
+      '<div class="wp-block-media-text is-stacked-on-mobile is-image-fill-element own"><figure class="wp-block-media-text__media"><img src="https://example.com/f.jpg" alt="" loading="lazy" decoding="async" style="object-position:25% 75%"/></figure>',
+    );
+    expect(out).toContain(
+      '.wp-block-media-text.has-media-on-the-right{grid-template-columns:1fr 50%}',
+    );
+    expect(collectMediaIds(doc(block('a', { mediaId: 'm1' })))).toEqual(['m1']);
+    expect(firstImage(doc(block('a', { mediaId: 'm1', mediaUrl: '/x.jpg' })))).toEqual({
+      id: 'm1',
+      url: '/x.jpg',
+    });
+  });
+
   it('renders social posts and profiles in frames of a fixed height, with titles', () => {
     const embed = (id: string, url: string, className?: string) => ({
       id,

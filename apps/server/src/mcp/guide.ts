@@ -95,6 +95,7 @@ You can also send \`blocks\` (CXD, as get_entry returns them) to keep ids and at
 | core/quote | A quotation, with its citation | className |
 | core/image | An image: use the id and url of uploaded media (tool upload_image) | id, url, alt, className |
 | core/gallery | Several images in a grid | columns |
+| core/media-text | An image beside text (the text as its inner blocks; stacked on phones) | mediaId, mediaUrl, mediaAlt, mediaPosition ("right"), mediaWidth (%) |
 | core/buttons, core/button | Calls to action; className "is-style-outline" for secondary | url |
 | core/columns, core/column | Side by side content (stacked on phones) | width (column) |
 | core/group | A container, e.g. a page section | className, align ("full"), tagName ("section") |
