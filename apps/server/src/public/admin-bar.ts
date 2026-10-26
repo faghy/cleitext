@@ -30,9 +30,12 @@ const LABELS = {
   },
 } as const;
 
+// --cx-admin-bar-height: themes with a sticky header put it under the toolbar
+// (`top: var(--cx-admin-bar-height, 0px)`), as WordPress themes do with .admin-bar.
 const STYLE = `<style>
+:root{--cx-admin-bar-height:32px}
 #cleitext-admin-bar{position:sticky;top:0;z-index:99999;display:flex;align-items:center;gap:4px;
-min-height:32px;padding:0 8px;margin:0;background:#1d2327;color:#f0f0f1;
+height:32px;padding:0 8px;margin:0;background:#1d2327;color:#f0f0f1;
 font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-sizing:border-box}
 #cleitext-admin-bar a{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;color:#f0f0f1;
 text-decoration:none;border-radius:2px}
