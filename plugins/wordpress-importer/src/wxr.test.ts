@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { attachmentDate, seoTemplate, wxrToDocument } from './wxr';
+import { attachmentDate, attachmentFiles, seoTemplate, uploadsPath, wxrToDocument } from './wxr';
 
 // The export of a small WordPress site, shared with the core's import tests,
 // which import the transfer document saved next to it.
@@ -324,5 +324,109 @@ describe('media folders', () => {
     expect(attachmentDate(`${uploads}/a.gif`, '2016-01-02 10:00:00')).toBe('2016-01-02T10:00:00Z');
     expect(attachmentDate(`${uploads}/a.gif`, '0000-00-00 00:00:00')).toBeUndefined();
     expect(attachmentDate(`${uploads}/a.gif`, '')).toBeUndefined();
+  });
+});
+
+describe('attachment files (1.33.1)', () => {
+  const uploads = 'https://x.example/wp-content/uploads';
+  const metadata = (original: string) =>
+    `a:2:{s:4:"file";s:28:"2020/05/Big-Photo-scaled.jpg";s:14:"original_image";s:${original.length}:"${original}";}`;
+
+  it('keeps the name exactly, case included', () => {
+    const files = attachmentFiles({
+      url: `${uploads}/2011/07/Fotolia_63675623_M.jpg`,
+      guid: `${uploads}/2011/07/Fotolia_63675623_M.jpg`,
+      attached: '2011/07/Fotolia_63675623_M.jpg',
+      metadata: undefined,
+      gmt: '2011-07-04 10:00:00',
+    });
+    expect(files.filename).toBe('Fotolia_63675623_M.jpg');
+    expect(files.urls).toEqual([`${uploads}/2011/07/Fotolia_63675623_M.jpg`]);
+    expect(files.date).toBe('2011-07-01T00:00:00Z');
+  });
+
+  it('takes the name and folder of _wp_attached_file before the address', () => {
+    const files = attachmentFiles({
+      url: `${uploads}/2015/09/yoga.png`,
+      guid: 'https://old-domain.example/wp-content/uploads/2015/08/yoga.png',
+      attached: '2015/09/yoga-1.png',
+      metadata: undefined,
+      gmt: '2016-01-01 10:00:00',
+    });
+    expect(files.filename).toBe('yoga-1.png');
+    expect(files.date).toBe('2015-09-01T00:00:00Z');
+    // Every address redirects: the attached file's, the address, the guid.
+    expect(files.urls).toEqual([
+      `${uploads}/2015/09/yoga-1.png`,
+      `${uploads}/2015/09/yoga.png`,
+      'https://old-domain.example/wp-content/uploads/2015/08/yoga.png',
+    ]);
+  });
+
+  it('keeps the name of a -scaled image and adds its original', () => {
+    const files = attachmentFiles({
+      url: `${uploads}/2020/05/Big-Photo-scaled.jpg`,
+      guid: `${uploads}/2020/05/Big-Photo.jpg`,
+      attached: '2020/05/Big-Photo-scaled.jpg',
+      metadata: metadata('Big-Photo.jpg'),
+      gmt: '',
+    });
+    expect(files.filename).toBe('Big-Photo-scaled.jpg');
+    expect(files.urls).toEqual([
+      `${uploads}/2020/05/Big-Photo-scaled.jpg`,
+      `${uploads}/2020/05/Big-Photo.jpg`,
+    ]);
+    // An original that names another folder is ignored.
+    expect(
+      attachmentFiles({
+        url: `${uploads}/2020/05/Big-Photo-scaled.jpg`,
+        guid: '',
+        attached: '2020/05/Big-Photo-scaled.jpg',
+        metadata: metadata('../../x.jpg'),
+        gmt: '',
+      }).urls,
+    ).toEqual([`${uploads}/2020/05/Big-Photo-scaled.jpg`]);
+  });
+
+  it('never takes a path that leaves the uploads folder', () => {
+    const files = attachmentFiles({
+      url: `${uploads}/2016/03/escape.png`,
+      guid: '',
+      attached: '2016/03/../../../../secret/escape.png',
+      metadata: undefined,
+      gmt: '',
+    });
+    expect(files.filename).toBe('escape.png');
+    expect(files.urls).toEqual([`${uploads}/2016/03/escape.png`]);
+    for (const path of ['../x.jpg', '/etc/passwd', 'a//b.jpg', 'C:\\x.jpg']) {
+      expect(uploadsPath(path)).toBeUndefined();
+    }
+    expect(uploadsPath('/var/www/wp-content/uploads/2010/01/old.jpg')).toBe('2010/01/old.jpg');
+  });
+
+  it('gives the transfer document WordPress’s names and every address', () => {
+    const xml = `<?xml version="1.0"?>
+<rss version="2.0" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel><title>Site</title><wp:wxr_version>1.2</wp:wxr_version><wp:base_blog_url>https://x.example</wp:base_blog_url>
+<item><title>Piatto</title><guid>${uploads}/2013/02/PIATTO.JPG</guid><wp:post_id>7</wp:post_id><wp:post_type>attachment</wp:post_type><wp:status>inherit</wp:status><wp:post_date_gmt>2013-02-03 10:00:00</wp:post_date_gmt><wp:attachment_url>${uploads}/2013/02/PIATTO.JPG</wp:attachment_url><wp:postmeta><wp:meta_key>_wp_attached_file</wp:meta_key><wp:meta_value>2013/02/PIATTO.JPG</wp:meta_value></wp:postmeta></item>
+<item><title>Yoga</title><wp:post_id>8</wp:post_id><wp:post_type>attachment</wp:post_type><wp:status>inherit</wp:status><wp:attachment_url>${uploads}/2015/09/yoga.png</wp:attachment_url><wp:postmeta><wp:meta_key>_wp_attached_file</wp:meta_key><wp:meta_value>2015/09/yoga-1.png</wp:meta_value></wp:postmeta></item>
+</channel></rss>`;
+    const { document } = wxrToDocument(xml, { locale: 'en' });
+    expect(document.media).toEqual([
+      expect.objectContaining({
+        ref: 'att:7',
+        file: `${uploads}/2013/02/PIATTO.JPG`,
+        filename: 'PIATTO.JPG',
+        urls: [`${uploads}/2013/02/PIATTO.JPG`],
+        date: '2013-02-01T00:00:00Z',
+      }),
+      expect.objectContaining({
+        ref: 'att:8',
+        file: `${uploads}/2015/09/yoga.png`,
+        filename: 'yoga-1.png',
+        urls: [`${uploads}/2015/09/yoga-1.png`, `${uploads}/2015/09/yoga.png`],
+        date: '2015-09-01T00:00:00Z',
+      }),
+    ]);
   });
 });

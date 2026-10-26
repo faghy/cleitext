@@ -424,7 +424,7 @@ create table entry_terms (
 create table media (
   id           uuid primary key,
   site_id      uuid not null references sites(id) on delete cascade,
-  storage_key  text not null,                  -- <sito>/<aaaa>/<mm>/<nome originale reso sicuro>.<est> (core 0.85; prima un uuid)
+  storage_key  text not null,                  -- <sito>/<aaaa>/<mm>/<nome originale reso sicuro>.<est> (core 0.85; prima un uuid; import da WordPress: il suo nome identico, maiuscole comprese, core 0.87)
   filename     text not null,                  -- nome originale, solo come metadato
   mime         text not null,                  -- verificato con i magic bytes
   size_bytes   bigint not null,
@@ -1246,7 +1246,7 @@ Vedi §10. In sintesi: Gutenberg è usato come libreria dietro `EditorAdapter`. 
 
 ### Livello 3 — Migrazione (plugin `wp-import`)
 
-- Import di file **WXR** (export di WordPress): articoli, pagine, tipi personalizzati, tassonomie, menu, autori, media (scaricati e ri-ospitati con il nome del file e la cartella anno/mese di WordPress, `/media/<sito>/2015/07/foto.jpg`; i vecchi indirizzi `/wp-content/uploads/…`, copie ridimensionate comprese, vi fanno un redirect 301 tramite `import_refs`, core 0.85). I siti importati prima conservano i nomi generati finché `cleitext media:rename-imported` non dà loro quelli di WordPress (core 0.86, docs/it/DEPLOY.md); i vecchi indirizzi `/media/…` dei file rinominati fanno redirect tramite `media_renames` dopo la rimozione dei vecchi file.
+- Import di file **WXR** (export di WordPress): articoli, pagine, tipi personalizzati, tassonomie, menu, autori, media (scaricati e ri-ospitati con il nome del file di WordPress, identico e con le maiuscole quando è sicuro (core 0.87; si sostituiscono solo i caratteri diversi da `A-Z a-z 0-9 . _ - @`), e la sua cartella anno/mese, entrambi da `_wp_attached_file`, `/media/<sito>/2015/07/Foto.jpg`; i vecchi indirizzi `/wp-content/uploads/…`, copie ridimensionate comprese, vi fanno un redirect 301 tramite `import_refs`, core 0.85). I siti importati prima conservano i nomi generati finché `cleitext media:rename-imported` non dà loro quelli di WordPress (core 0.86, docs/it/DEPLOY.md); i vecchi indirizzi `/media/…` dei file rinominati fanno redirect tramite `media_renames` dopo la rimozione dei vecchi file.
 - Conversione dei blocchi Gutenberg (commenti `<!-- wp:… -->`) in CXD. L'HTML classico diventa blocchi `paragraph`/`heading`/`image`, mentre tutto ciò che non è riconosciuto diventa un blocco `html`.
 - Generazione automatica delle **redirect** dai permalink WordPress ai nuovi URL.
 - Report finale dell'import con gli avvisi.

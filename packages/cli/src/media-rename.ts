@@ -6,7 +6,11 @@
  * year/month folder, as core 0.85 does for new imports
  * (`<site>/2015/07/photo.jpg`), with the same names, made safe the same way
  * and with the same `-1`, `-2`… when taken (`@cleitext/shared`
- * storage-names.ts, `takenMediaNames`).
+ * storage-names.ts, `takenMediaNames`). Since core 0.87 the names are
+ * WordPress's exactly, case included (`wordpressStorageName`), taken from
+ * `_wp_attached_file` (the file on WordPress's disk) before the address,
+ * and with `--uploads` attachments that their name does not identify are
+ * found by the checksum of their file in WordPress's uploads folder.
  *
  * - Files are copied, never moved, with exclusive create; the old file
  *   stays for the grace period (`media_renames.delete_after`) and
@@ -25,8 +29,19 @@
  *   options pages. Older revisions keep their history: restoring one brings
  *   back old addresses, which keep working through the 301.
  */
+import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  mkdir,
+  open,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+  type FileHandle,
+} from 'node:fs/promises';
 import path from 'node:path';
 import {
   auditLog,
@@ -49,6 +64,7 @@ import {
   sourceUrlPaths,
   storageBaseName,
   uploadsFolderDate,
+  wordpressStorageName,
 } from '@cleitext/shared';
 import { and, eq, inArray, isNull, like, lte, sql } from 'drizzle-orm';
 import { XMLParser } from 'fast-xml-parser';
@@ -80,10 +96,24 @@ export function refuseRoot(): void {
 export interface WxrAttachment {
   /** `wp:post_id`. */
   id: number;
-  /** Its addresses on the old site: `wp:attachment_url`, and `guid` when it is the file's. */
+  /**
+   * Its addresses on the old site: its attached file's (`_wp_attached_file`
+   * under the uploads address), `wp:attachment_url`, `guid` when it is a
+   * file of the uploads, and the original of a `-scaled` image.
+   */
   urls: string[];
-  /** The file's name on the old site, decoded (`Città.jpg`). */
+  /**
+   * The file's name on the old site, decoded (`Città.jpg`): the one of
+   * `_wp_attached_file` (the file on WordPress's disk), else of its address.
+   */
   filename: string;
+  /** Names an older import may have stored it under (`media.filename`). */
+  names: string[];
+  /**
+   * Its files inside WordPress's uploads folder (`2015/09/yoga-1.png`): the
+   * attached file, then the paths of its address and guid.
+   */
+  files: string[];
   /** Year and month of its uploads folder (or upload date), when known. */
   date: Date | undefined;
   /** Size in bytes from WordPress's metadata, when it has one. */
@@ -116,6 +146,24 @@ function decode(value: string): string {
   } catch {
     return value;
   }
+}
+
+/**
+ * A path inside WordPress's uploads folder (`2015/09/yoga-1.png`): from
+ * `_wp_attached_file` (relative, or absolute as very old WordPress stored
+ * it) or from an address (`…/wp-content/uploads/2015/09/yoga-1.png`,
+ * decoded). Undefined for anything else, or a path that could leave the
+ * folder.
+ */
+export function uploadsPath(value: string, address = false): string | undefined {
+  let rel = value.trim().replace(/[?#].*$/, '');
+  const at = rel.lastIndexOf('/uploads/');
+  if (at >= 0) rel = rel.slice(at + '/uploads/'.length);
+  else if (address || rel.startsWith('/') || /^[a-z]:/i.test(rel)) return undefined;
+  if (address) rel = decode(rel);
+  if (!rel || rel.length > 1_000 || rel.endsWith('/') || /[\\\0]/.test(rel)) return undefined;
+  if (rel.split('/').some((part) => part === '' || part === '.' || part === '..')) return undefined;
+  return rel;
 }
 
 /** An http(s) address of at most 2000 characters, else ''. */
@@ -159,35 +207,55 @@ export function wxrMedia(xml: string): WxrMedia {
     const meta = new Map(
       list(item['wp:postmeta']).map((m) => [text(m['wp:meta_key']), text(m['wp:meta_value'])]),
     );
-    const guid = httpUrl(text(item.guid));
-    const urls = [url];
-    if (guid && guid !== url && /\/wp-content\/uploads\/[^?#]+\.[a-z0-9]{1,5}$/i.test(guid)) {
-      urls.push(guid);
+    const guidText = httpUrl(text(item.guid));
+    // The file on WordPress's disk, and the paths of its addresses (core 0.87).
+    const attached = uploadsPath(meta.get('_wp_attached_file') ?? '');
+    const fromUrl = uploadsPath(url, true);
+    const guid = guidText ? uploadsPath(guidText, true) : undefined;
+    const base = [url, guidText]
+      .map((u) => /^(.*\/uploads\/)/.exec(u.replace(/[?#].*$/, ''))?.[1])
+      .find(Boolean);
+    const urls = new Set<string>();
+    if (attached && base) urls.add(`${base}${attached}`);
+    urls.add(url);
+    if (guid && /\.[a-z0-9]{1,5}$/i.test(guid)) urls.add(guidText);
+    const metadata = meta.get('_wp_attachment_metadata') ?? '';
+    // A `-scaled` image (WordPress 5.3+): its original beside it.
+    const original = /s:14:"original_image";s:\d{1,4}:"([^"/\\]{1,255})";/.exec(metadata)?.[1];
+    if (attached && base && original) {
+      const dir = attached.includes('/') ? attached.slice(0, attached.lastIndexOf('/') + 1) : '';
+      const path = uploadsPath(`${dir}${original}`);
+      if (path) urls.add(`${base}${path}`);
     }
-    const attached = meta.get('_wp_attached_file') ?? '';
-    // The name of its address, as the importer takes it (and older imports stored it).
-    const filename = (
-      decode(
-        url
-          .replace(/[?#].*$/, '')
-          .split('/')
-          .pop() ?? '',
-      ) || decode(attached.split('/').pop() ?? '')
-    ).slice(0, 500);
+    const name = (p: string | undefined) => p?.slice(p.lastIndexOf('/') + 1) || undefined;
+    const urlName = decode(
+      url
+        .replace(/[?#].*$/, '')
+        .split('/')
+        .pop() ?? '',
+    );
+    const filename = (name(attached) ?? name(fromUrl) ?? urlName).slice(0, 500);
+    // What older imports stored as the media's name: the name of its address.
+    const names = [
+      ...new Set([urlName, name(attached), name(fromUrl), name(guid)].filter(Boolean)),
+    ] as string[];
+    const month = (p: string | undefined) =>
+      p && /^\d{4}\/\d{2}\/[^/]+$/.test(p) ? uploadsFolderDate(`/uploads/${p}`) : undefined;
     const gmt = text(item['wp:post_date_gmt']);
     const date =
-      uploadsFolderDate(url) ??
-      (/^\d{4}\/\d{2}\/[^/]+$/.test(attached)
-        ? uploadsFolderDate(`/uploads/${attached}`)
-        : undefined) ??
+      month(attached) ??
+      month(fromUrl) ??
+      month(guid) ??
       (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(gmt) && !gmt.startsWith('0000')
         ? new Date(`${gmt.replace(' ', 'T')}Z`)
         : undefined);
-    const size = /s:8:"filesize";i:(\d{1,15});/.exec(meta.get('_wp_attachment_metadata') ?? '');
+    const size = /s:8:"filesize";i:(\d{1,15});/.exec(metadata);
     attachments.push({
       id: Number(idText),
-      urls,
+      urls: [...urls].filter((u) => u.length <= 2_000),
       filename: filename || `file-${idText}`,
+      names,
+      files: [...new Set([attached, fromUrl, guid].filter(Boolean))] as string[],
       date: date && !Number.isNaN(date.getTime()) ? date : undefined,
       size: size ? Number(size[1]) : undefined,
     });
@@ -204,6 +272,12 @@ export interface RenameImportedInput {
   wxr: string;
   /** The media folder (MEDIA_PATH). */
   mediaPath: string;
+  /**
+   * WordPress's `wp-content/uploads` folder (a copy of it): attachments not
+   * found, or not told apart, by their name are found by the checksum of
+   * their file there. Only read, never written.
+   */
+  uploads?: string | undefined;
   dryRun?: boolean | undefined;
   /** Days the old files stay before `media:purge-renamed` removes them. */
   graceDays?: number | undefined;
@@ -216,7 +290,7 @@ export interface RenameImportedInput {
 export interface RenamedMedia {
   mediaId: string;
   wpId: number;
-  matchedBy: 'ref' | 'filename' | 'filename+size';
+  matchedBy: 'ref' | 'filename' | 'filename+size' | 'checksum';
   from: string;
   to: string;
   variants: { from: string; to: string }[];
@@ -232,7 +306,8 @@ export interface RenameImportedResult {
   /** When `media:purge-renamed` may remove the old files. */
   deleteAfter: string;
   renamed: RenamedMedia[];
-  counts: { media: number; variants: number; oldAddresses: number };
+  /** `byChecksum`: attachments found by the checksum of their file (`--uploads`). */
+  counts: { media: number; variants: number; oldAddresses: number; byChecksum: number };
   skipped: { mediaId: string; wpId: number; key: string; reason: string }[];
   unmatched: { wpId: number; url: string; reason: string }[];
   /** Rows whose text changed, and addresses replaced, by table. */
@@ -248,6 +323,7 @@ interface SiteMedia {
   key: string;
   filename: string;
   size: number;
+  checksum: string;
   variants: { variant: string; format: string; key: string }[];
 }
 
@@ -271,6 +347,50 @@ function fileOf(root: string, key: string): string {
   const file = path.resolve(base, key);
   if (!file.startsWith(base + path.sep)) throw new Error(`Invalid storage key: ${key}`);
   return file;
+}
+
+/**
+ * Reads WordPress's uploads folder (`--uploads`): the sha256 of a file in
+ * it by its path inside (`2015/10/marketing.jpg`), as `media.checksum`
+ * holds it; null when there is no such file or the path, or a link on the
+ * way, leads outside the folder. Never writes there.
+ */
+export async function uploadsHasher(
+  folder: string,
+): Promise<(file: string) => Promise<string | null>> {
+  let root: string;
+  try {
+    root = await realpath(path.resolve(folder));
+    if (!(await stat(root)).isDirectory()) throw new Error('not a folder');
+  } catch {
+    throw new OperationError(
+      `--uploads: cannot read the folder ${folder} (WordPress's wp-content/uploads).`,
+      'not_found',
+    );
+  }
+  const inside = (file: string) => file.startsWith(root + path.sep);
+  return async (file) => {
+    if (!file || file.includes('\0') || path.isAbsolute(file)) return null;
+    const target = path.resolve(root, file);
+    if (!inside(target)) return null;
+    let handle: FileHandle | undefined;
+    try {
+      // Links are followed only when they stay inside the folder.
+      const real = await realpath(target);
+      if (!inside(real)) return null;
+      handle = await open(real, constants.O_RDONLY | constants.O_NOFOLLOW);
+      if (!(await handle.stat()).isFile()) return null;
+      const hash = createHash('sha256');
+      for await (const chunk of handle.createReadStream({ autoClose: false })) {
+        hash.update(chunk as Buffer);
+      }
+      return hash.digest('hex');
+    } catch {
+      return null;
+    } finally {
+      await handle?.close();
+    }
+  };
 }
 
 async function exists(file: string): Promise<boolean> {
@@ -316,7 +436,7 @@ export async function renameImportedMedia(
     graceDays,
     deleteAfter: deleteAfter.toISOString(),
     renamed: [],
-    counts: { media: 0, variants: 0, oldAddresses: 0 },
+    counts: { media: 0, variants: 0, oldAddresses: 0, byChecksum: 0 },
     skipped: [],
     unmatched: [],
     references: {},
@@ -331,6 +451,7 @@ export async function renameImportedMedia(
         key: media.storageKey,
         filename: media.filename,
         size: media.sizeBytes,
+        checksum: media.checksum,
       })
       .from(media)
       .where(eq(media.siteId, site.id));
@@ -400,26 +521,45 @@ export async function renameImportedMedia(
     taken.add(id);
     matched.set(att.id, { item: library.get(id)!, by: 'ref', source: pick[0]!.source });
   }
-  // Older imports without refs: by file name, then by size.
+  // Older imports without refs: by file name, then by size; with --uploads,
+  // by the checksum of WordPress's file when that is not enough.
+  const checksumOf = input.uploads ? await uploadsHasher(input.uploads) : null;
   for (const att of unmatched) {
-    let found = [...library.values()].filter(
-      (m) => !taken.has(m.id) && isGeneratedStorageKey(m.key) && m.filename === att.filename,
+    const free = (m: SiteMedia) => !taken.has(m.id) && isGeneratedStorageKey(m.key);
+    // Media of this name, also those found already for another attachment.
+    let named = [...library.values()].filter(
+      (m) => isGeneratedStorageKey(m.key) && att.names.includes(m.filename),
     );
     let by: RenamedMedia['matchedBy'] = 'filename';
-    if (found.length > 1 && att.size !== undefined) {
-      found = found.filter((m) => m.size === att.size);
+    if (named.length > 1 && att.size !== undefined) {
+      named = named.filter((m) => m.size === att.size);
       by = 'filename+size';
+    }
+    let found = named.filter(free);
+    // A name shared by several files: their content tells them apart.
+    if (named.length !== 1 && checksumOf) {
+      const sums = new Set<string>();
+      for (const file of att.files) {
+        const sum = await checksumOf(file);
+        if (sum) sums.add(sum);
+      }
+      const same = [...library.values()].filter((m) => free(m) && sums.has(m.checksum));
+      if (same.length === 1) {
+        found = same;
+        by = 'checksum';
+      }
     }
     if (found.length !== 1) {
       result.unmatched.push({
         wpId: att.id,
         url: att.urls[0]!,
         reason: found.length
-          ? `${found.length} media files have the name ${att.filename}: cannot tell which`
+          ? `${found.length} media files have the name ${att.filename}: cannot tell which${checksumOf ? '' : ' (--uploads can tell them apart by their content)'}`
           : 'no media item of the site was imported from it',
       });
       continue;
     }
+    if (by === 'checksum') result.counts.byChecksum++;
     taken.add(found[0]!.id);
     matched.set(att.id, { item: found[0]!, by, source: null });
   }
@@ -448,8 +588,12 @@ export async function renameImportedMedia(
       site.id,
       att.date ?? new Date(Date.UTC(Number(year), Number(month) - 1, 1)),
     );
-    const name = storageBaseName(att.filename);
-    const ext = /\.([a-z0-9]+)$/i.exec(item.key)![1]!.toLowerCase();
+    // WordPress's name exactly, case and extension included, when safe (core 0.87).
+    const realExt = /\.([a-z0-9]+)$/i.exec(item.key)![1]!.toLowerCase();
+    const stored = wordpressStorageName(att.filename, realExt);
+    const name = stored.name;
+    // An SVG always ends in `.svg`, lowercase, as its protective headers expect.
+    const ext = realExt === 'svg' ? 'svg' : stored.ext;
     const made: string[] = [];
     /** Copies a file (or, in a dry run, checks the name is free) without replacing any. */
     const place =
@@ -899,6 +1043,11 @@ export function renameText(r: RenameImportedResult): string[] {
   lines.push(
     `${r.counts.media} media file(s) and ${r.counts.variants} variant(s) ${verb} to WordPress's names; ${r.skipped.length} skipped, ${r.unmatched.length} not found; ${r.counts.oldAddresses} old WordPress address(es) added for redirects.`,
   );
+  if (r.counts.byChecksum) {
+    lines.push(
+      `${r.counts.byChecksum} attachment(s) found by the checksum of their file in the uploads folder.`,
+    );
+  }
   if (r.dryRun) {
     lines.push('Dry run: nothing was changed. Run again without --dry-run to apply.');
   } else if (r.counts.media) {

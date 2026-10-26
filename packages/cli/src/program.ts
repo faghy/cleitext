@@ -731,6 +731,10 @@ export function buildProgram(json = false): Command {
       String(DEFAULT_GRACE_DAYS),
     )
     .option('--report <file>', 'where the JSON report goes (default: next to the export)')
+    .option(
+      '--uploads <folder>',
+      "a copy of WordPress's wp-content/uploads folder: attachments not told apart by their name are found by the checksum of their file (only read)",
+    )
     .action(
       (opts: {
         site: string;
@@ -738,6 +742,7 @@ export function buildProgram(json = false): Command {
         dryRun?: boolean;
         graceDays: string;
         report?: string;
+        uploads?: string;
       }) => {
         refuseRoot();
         if (!/^\d{1,4}$/.test(opts.graceDays)) {
@@ -751,6 +756,7 @@ export function buildProgram(json = false): Command {
             dryRun: opts.dryRun,
             graceDays: Number(opts.graceDays),
             report: opts.report,
+            uploads: opts.uploads,
           });
           report({ ...result }, renameText(result));
         });

@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import {
   importRefs,
   media,
+  mediaVariants,
   newId,
   superAdmins,
   users,
@@ -22,7 +23,13 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { APP_CONFIG, type AppConfig } from '../src/config/config.js';
 import { MediaService } from '../src/media/media.service.js';
-import { mediaFolder, storageBaseName, uploadsFolderDate } from '../src/media/storage-names.js';
+import {
+  mediaFolder,
+  storageBaseName,
+  uploadsFolderDate,
+  WORDPRESS_NAME_MAX,
+  wordpressStorageName,
+} from '../src/media/storage-names.js';
 import { PageCacheService } from '../src/public/page-cache.service.js';
 import { importDocument, mediaDate, sourcePaths } from '../src/transfer/importer.js';
 import {
@@ -106,6 +113,55 @@ describe('safe names', () => {
   it('caps long names', () => {
     const name = storageBaseName(`${'a'.repeat(300)}.png`);
     expect(name).toHaveLength(100);
+    expect(wordpressStorageName(`${'A'.repeat(300)}.png`, 'png').name).toHaveLength(
+      WORDPRESS_NAME_MAX,
+    );
+  });
+
+  it("keeps WordPress's names exactly, case and extension included, when safe", () => {
+    expect(wordpressStorageName('Fotolia_63675623_M.jpg', 'jpg')).toEqual({
+      name: 'Fotolia_63675623_M',
+      ext: 'jpg',
+    });
+    // The real type is JPEG: `.JPG` and `.jpeg` name it, so they stay.
+    expect(wordpressStorageName('PIATTO.JPG', 'jpg')).toEqual({ name: 'PIATTO', ext: 'JPG' });
+    expect(wordpressStorageName('Foto-mia.jpeg', 'jpg')).toEqual({
+      name: 'Foto-mia',
+      ext: 'jpeg',
+    });
+    expect(wordpressStorageName('logo@2x.PNG', 'png')).toEqual({ name: 'logo@2x', ext: 'PNG' });
+    expect(wordpressStorageName('photo.final.v2.png', 'png').name).toBe('photo.final.v2');
+    // A name whose extension is not its real type's gets the real one.
+    expect(wordpressStorageName('CUPCAKEBELLO.png', 'jpg')).toEqual({
+      name: 'CUPCAKEBELLO',
+      ext: 'jpg',
+    });
+  });
+
+  it('replaces only the unsafe characters of a WordPress name, keeping the case', () => {
+    expect(wordpressStorageName("Città d'Arte.JPG", 'jpg')).toEqual({
+      name: 'Citta-d-Arte',
+      ext: 'JPG',
+    });
+    expect(wordpressStorageName('Foto mia (1).png', 'png').name).toBe('Foto-mia-1');
+    expect(wordpressStorageName('Straße Øresund.png', 'png').name).toBe('Strasse-Oresund');
+    expect(wordpressStorageName('日本語.png', 'png').name).toBe('file');
+    for (const name of [
+      '../x.png',
+      '..',
+      '/',
+      'a/../../B.png',
+      '..\\..\\Evil.png',
+      '.htaccess',
+      '%2e%2e%2f.png',
+      'a..b.png',
+      'x\u0000y.png',
+      ' .Hidden.png',
+    ]) {
+      const kept = wordpressStorageName(name, 'png').name;
+      expect(kept).toMatch(/^[A-Za-z0-9@][A-Za-z0-9_.@-]*$/);
+      expect(kept).not.toContain('..');
+    }
   });
 
   it('reads the year and month of WordPress uploads', () => {
@@ -248,6 +304,14 @@ describe('WordPress imports', () => {
       [`${OLD}/2015/07/Web_Marketing_Significato.jpg`, await jpeg(500, nextColor())],
       [`${OLD}/2018/11/Città.png`, await png(300, nextColor())],
       [`${OLD}/notes.pdf`, Buffer.from('%PDF-1.4\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF')],
+      [`${OLD}/2011/07/Fotolia_63675623_M.jpg`, await jpeg(300, nextColor())],
+      [`${OLD}/2013/02/PIATTO.JPG`, await jpeg(300, nextColor())],
+      // Another file whose name differs only by case: its own name on Linux.
+      [`${OLD}/2013/02/piatto.jpeg`, await jpeg(300, nextColor())],
+      // The same name with another extension is taken (as for uploads).
+      [`${OLD}/2013/02/PIATTO.png`, await png(300, nextColor())],
+      // A JPEG named .png: the real type's extension.
+      [`${OLD}/2015/01/CUPCAKEBELLO.png`, await jpeg(300, nextColor())],
     ]);
     const doc = {
       format: 'cleitext-transfer',
@@ -281,15 +345,41 @@ describe('WordPress imports', () => {
       tx.select({ id: media.id, key: media.storageKey, filename: media.filename }).from(media),
     );
 
-  it("keeps WordPress's names and year/month folders", async () => {
+  it("keeps WordPress's names exactly, case included, and year/month folders", async () => {
     expect(report.errors).toEqual([]);
     const keys = (await library()).map((m) => m.key.slice(imported.id.length + 1)).sort();
-    expect(keys).toEqual([
-      '2012/02/notes.pdf',
-      '2015/07/web_marketing_significato-1.jpg',
-      '2015/07/web_marketing_significato.png',
-      '2018/11/citta.png',
-    ]);
+    expect(keys).toEqual(
+      [
+        '2011/07/Fotolia_63675623_M.jpg',
+        '2012/02/notes.pdf',
+        '2013/02/PIATTO-1.png',
+        '2013/02/PIATTO.JPG',
+        '2013/02/piatto.jpeg',
+        '2015/01/CUPCAKEBELLO.jpg',
+        '2015/07/Web_Marketing_Significato.jpg',
+        '2015/07/web_marketing_significato.png',
+        '2018/11/Citta.png',
+      ].sort(),
+    );
+  });
+
+  it('serves the files under their exact names, the variants beside them', async () => {
+    const folder = `/media/${imported.id}`;
+    expect((await visitor.get(`${folder}/2013/02/PIATTO.JPG`)).statusCode).toBe(200);
+    expect((await visitor.get(`${folder}/2013/02/piatto.JPG`)).statusCode).toBe(404);
+    const variants = await withSiteContext(owner.db, imported.id, (tx) =>
+      tx
+        .select({ key: mediaVariants.storageKey })
+        .from(mediaVariants)
+        .innerJoin(media, eq(media.id, mediaVariants.mediaId))
+        .where(eq(media.storageKey, `${imported.id}/2011/07/Fotolia_63675623_M.jpg`)),
+    );
+    expect(variants.map((v) => v.key)).toContain(
+      `${imported.id}/2011/07/Fotolia_63675623_M-thumb.webp`,
+    );
+    expect((await visitor.get(`${folder}/2011/07/Fotolia_63675623_M-thumb.webp`)).statusCode).toBe(
+      200,
+    );
   });
 
   it('records each media by its ref and by its old addresses', async () => {
@@ -305,16 +395,23 @@ describe('WordPress imports', () => {
 
   it('reports the addresses that changed, one by one those renamed', () => {
     const text = report.warnings.join('\n');
-    expect(text).toContain('Media addresses changed: 4 file(s)');
-    expect(text).toContain('2 media file(s) got another name');
+    expect(text).toContain(`Media addresses changed: ${files.size} file(s)`);
+    expect(text).toContain(
+      '3 media file(s) got another name (without accents, spaces or other unsafe characters',
+    );
     expect(text).toContain('redirect (301)');
     expect(text).toContain(
-      `Media address changed: /wp-content/uploads/2015/07/Web_Marketing_Significato.jpg → /media/${imported.id}/2015/07/web_marketing_significato-1.jpg`,
+      `Media address changed: /wp-content/uploads/2018/11/Città.png → /media/${imported.id}/2018/11/Citta.png`,
     );
-    expect(text).toContain('/wp-content/uploads/2018/11/Città.png →');
-    expect(text).not.toContain(
-      'Media address changed: /wp-content/uploads/2015/07/web_marketing_significato.png',
+    expect(text).toContain(
+      `Media address changed: /wp-content/uploads/2013/02/PIATTO.png → /media/${imported.id}/2013/02/PIATTO-1.png`,
     );
+    expect(text).toContain('/wp-content/uploads/2015/01/CUPCAKEBELLO.png →');
+    for (const kept of ['Web_Marketing_Significato.jpg', 'PIATTO.JPG', 'Fotolia_63675623_M.jpg']) {
+      expect(text).not.toMatch(
+        new RegExp(`Media address changed: \\S+/${kept.replace('.', '\\.')} `),
+      );
+    }
   });
 
   it('redirects old addresses to the new ones (301), resized copies to a variant', async () => {
@@ -323,9 +420,9 @@ describe('WordPress imports', () => {
     expect(exact.statusCode).toBe(301);
     expect(exact.headers.location).toBe(`${folder}/2015/07/web_marketing_significato.png`);
     const renamed = await visitor.get('/wp-content/uploads/2015/07/Web_Marketing_Significato.jpg');
-    expect(renamed.headers.location).toBe(`${folder}/2015/07/web_marketing_significato-1.jpg`);
+    expect(renamed.headers.location).toBe(`${folder}/2015/07/Web_Marketing_Significato.jpg`);
     const accented = await visitor.get('/wp-content/uploads/2018/11/Citt%C3%A0.png');
-    expect(accented.headers.location).toBe(`${folder}/2018/11/citta.png`);
+    expect(accented.headers.location).toBe(`${folder}/2018/11/Citta.png`);
     // WordPress's 300x150 copy: the smallest variant at least that wide.
     const copy = await visitor.get(
       '/wp-content/uploads/2015/07/web_marketing_significato-300x150.png',
@@ -379,7 +476,40 @@ describe('WordPress imports', () => {
         readFile: (file) => Promise.resolve(files.get(file)!),
       },
     );
-    expect(again.skipped.media).toBe(4);
+    expect(again.skipped.media).toBe(files.size);
     expect((await library()).map((m) => m.key).sort()).toEqual(before);
+  });
+});
+
+describe('imports from other platforms', () => {
+  it('lowercase the names as uploads do', async () => {
+    const other = await seedSite(owner, 'media-names-other');
+    const data = await png(300, nextColor());
+    const result = await importDocument(
+      {
+        format: 'cleitext-transfer',
+        version: 1,
+        source: {
+          kind: 'cleito',
+          url: 'https://other.example.com',
+          exportedAt: '2026-10-26T10:00:00Z',
+        },
+        media: [{ ref: 'm:1', file: 'Mixed-Case.PNG', filename: 'Mixed-Case.PNG' }],
+      },
+      {
+        db: owner.db,
+        siteId: other.id,
+        asUserId: importer,
+        media: app.get(MediaService),
+        cache: app.get(PageCacheService),
+        readFile: () => Promise.resolve(data),
+      },
+    );
+    expect(result.errors).toEqual([]);
+    const rows = await withSiteContext(owner.db, other.id, (tx) =>
+      tx.select({ key: media.storageKey }).from(media),
+    );
+    expect(rows.map((r) => r.key)).toEqual([`${other.id}/${thisMonth()}/mixed-case.png`]);
+    await app.get(MediaService).idle();
   });
 });

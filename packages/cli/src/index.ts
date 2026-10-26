@@ -11,6 +11,8 @@ export {
   purgeRenamedMedia,
   refuseRoot,
   renameImportedMedia,
+  uploadsHasher,
+  uploadsPath,
   wxrMedia,
   type PurgeRenamedResult,
   type RenameImportedInput,

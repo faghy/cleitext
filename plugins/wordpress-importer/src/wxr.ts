@@ -181,6 +181,77 @@ export function attachmentDate(url: string, gmt: string): string | undefined {
 
 const withDate = (date: string | undefined) => (date ? { date } : {});
 
+/** `decodeURIComponent`, or the text itself when it is not encoded properly. */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * A path inside WordPress's uploads folder (`2015/09/yoga-1.png`): from
+ * `_wp_attached_file` (relative, or absolute as very old WordPress stored
+ * it) or from an address (`…/wp-content/uploads/2015/09/yoga-1.png`).
+ * Undefined for anything else, or a path that could leave the folder.
+ */
+export function uploadsPath(value: string, address = false): string | undefined {
+  let rel = value.trim().replace(/[?#].*$/, '');
+  const at = rel.lastIndexOf('/uploads/');
+  if (at >= 0) rel = rel.slice(at + '/uploads/'.length);
+  else if (address || rel.startsWith('/') || /^[a-z]:/i.test(rel)) return undefined;
+  if (address) rel = safeDecode(rel);
+  if (!rel || rel.length > 1_000 || rel.endsWith('/') || /[\\\0]/.test(rel)) return undefined;
+  if (rel.split('/').some((part) => part === '' || part === '.' || part === '..')) return undefined;
+  return rel;
+}
+
+/**
+ * The files of an attachment on WordPress (1.33.1): its name and the month
+ * of its folder from `_wp_attached_file` (the file on WordPress's disk,
+ * which its address served), else from its address, else from `guid`; and
+ * every address it had, for redirects and content: the attached file's,
+ * `wp:attachment_url`, `guid` when it is a file of the uploads, and the
+ * original of a `-scaled` image (`original_image` of its metadata).
+ */
+export function attachmentFiles(input: {
+  url: string;
+  guid: string;
+  attached: string | undefined;
+  metadata: string | undefined;
+  gmt: string;
+}): { filename: string | undefined; urls: string[]; date: string | undefined } {
+  const attached = input.attached ? uploadsPath(input.attached) : undefined;
+  const guid = /^https?:\/\//i.test(input.guid) ? uploadsPath(input.guid, true) : undefined;
+  const fromUrl = uploadsPath(input.url, true);
+  // The uploads folder's address: the one of its address, else of its guid.
+  const base = [input.url, input.guid]
+    .map((u) => /^(.*\/uploads\/)/.exec(u.replace(/[?#].*$/, ''))?.[1])
+    .find(Boolean);
+  const urls = new Set<string>();
+  if (attached && base) urls.add(`${base}${attached}`);
+  urls.add(input.url);
+  if (guid) urls.add(input.guid);
+  const data = metaValue(input.metadata);
+  const original =
+    data && typeof data === 'object' ? (data as Record<string, unknown>).original_image : undefined;
+  if (attached && base && typeof original === 'string') {
+    const dir = attached.includes('/') ? attached.slice(0, attached.lastIndexOf('/') + 1) : '';
+    const path = uploadsPath(`${dir}${original}`);
+    if (path && !original.includes('/')) urls.add(`${base}${path}`);
+  }
+  const name = (path: string | undefined) => path?.slice(path.lastIndexOf('/') + 1) || undefined;
+  const month = (path: string | undefined) =>
+    path && /^\d{4}\/\d{2}\/[^/]+$/.test(path) ? `/uploads/${path}` : undefined;
+  const folder = month(attached) ?? month(fromUrl) ?? month(guid);
+  return {
+    filename: name(attached) ?? name(fromUrl) ?? name(safeDecode(input.url.replace(/[?#].*$/, ''))),
+    urls: [...urls],
+    date: attachmentDate(folder ?? '', input.gmt),
+  };
+}
+
 /** WordPress export (WXR 1.x) → transfer document (RF-IMP-01). */
 export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const warnings: string[] = [];
@@ -321,22 +392,34 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     if (!url) continue;
     const ref = `att:${id}`;
     const alt = meta(item, '_wp_attachment_image_alt');
-    const filename = decodeURIComponent(url.split('/').pop() ?? `file-${id}`).split('?')[0]!;
+    // The name and folder of the file on WordPress's disk, every address it had (1.33.1).
+    const files = attachmentFiles({
+      url,
+      guid: text(item.guid),
+      attached: meta(item, '_wp_attached_file'),
+      metadata: meta(item, '_wp_attachment_metadata'),
+      gmt: text(item['wp:post_date_gmt']),
+    });
     media.push({
       ref,
       file: url,
-      filename,
+      filename: (files.filename ?? `file-${id}`).slice(0, 255),
       ...(alt ? { alt: { [locale]: alt } } : {}),
       ...(text(item['excerpt:encoded'])
         ? { caption: { [locale]: stripTags(text(item['excerpt:encoded'])) } }
         : {}),
-      urls: [url],
+      urls: files.urls.filter((u) => u.length <= 2_000),
       // Stored in the same year and month folder as on WordPress (core 0.85).
-      ...withDate(attachmentDate(url, text(item['wp:post_date_gmt']))),
+      ...withDate(files.date),
     });
     attachmentRefs.set(id, ref);
     attachmentUrls.set(url, ref);
     attachmentKeys.set(mediaKey(url), ref);
+    // Its other addresses, unless they are another attachment's.
+    for (const address of files.urls) {
+      if (!attachmentUrls.has(address)) attachmentUrls.set(address, ref);
+      if (!attachmentKeys.has(mediaKey(address))) attachmentKeys.set(mediaKey(address), ref);
+    }
     mediaUrls.set(ref, url);
   }
   const itemsById = new Map(items.map((item) => [Number(text(item['wp:post_id'])), item]));

@@ -12,4 +12,6 @@ export {
   storageKeyPattern,
   takenStorageNames,
   uploadsFolderDate,
+  WORDPRESS_NAME_MAX,
+  wordpressStorageName,
 } from '@cleitext/shared';

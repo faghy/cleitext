@@ -94,7 +94,7 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
         immutable: true,
         // Opened directly, an SVG cannot run anything or load other resources.
         setHeaders: (res, file) => {
-          if (file.endsWith('.svg')) {
+          if (/\.svg$/i.test(file)) {
             void res.header(
               'content-security-policy',
               "default-src 'none'; style-src 'unsafe-inline'; sandbox",

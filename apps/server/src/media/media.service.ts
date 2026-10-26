@@ -29,7 +29,13 @@ import { DATABASE } from '../database/database.module.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { ALLOWED_TYPES, detectType, looksLikeSvg, RESIZABLE, sanitizeSvg } from './media-types.js';
-import { claimStorageKey, claimVariantKey, mediaFolder, storageBaseName } from './storage-names.js';
+import {
+  claimStorageKey,
+  claimVariantKey,
+  mediaFolder,
+  storageBaseName,
+  wordpressStorageName,
+} from './storage-names.js';
 import { DiskStorage, type MediaStorage } from './storage.js';
 
 type MediaRow = typeof media.$inferSelect;
@@ -64,9 +70,11 @@ export class MediaService {
     ip: string,
     /**
      * `date`: the month whose folder the file goes into (an imported file's
-     * upload date on the old site); now by default.
+     * upload date on the old site); now by default. `keepName`: the file
+     * comes from WordPress, whose name it keeps exactly, case included,
+     * when safe (`wordpressStorageName`); else it is lowercased.
      */
-    options: { date?: Date | undefined } = {},
+    options: { date?: Date | undefined; keepName?: boolean | undefined } = {},
   ): Promise<MediaView> {
     let mime = await detectType(file.data);
     // SVG only when the server allows it, and always sanitized (RF-MED-09).
@@ -97,12 +105,18 @@ export class MediaService {
     }
 
     const id = newId();
-    // The original name made safe, in the folder of the month (core 0.85).
+    // The original name made safe, in the folder of the month (core 0.85);
+    // WordPress's exactly, case included, for its files (core 0.87).
+    const stored = options.keepName
+      ? wordpressStorageName(file.filename, info.ext)
+      : { name: storageBaseName(file.filename), ext: info.ext };
+    // An SVG always ends in `.svg`, lowercase, as its protective headers expect.
+    if (info.ext === 'svg') stored.ext = 'svg';
     const storageKey = await this.putNew(
       siteId,
       mediaFolder(siteId, options.date ?? new Date()),
-      storageBaseName(file.filename),
-      info.ext,
+      stored.name,
+      stored.ext,
       file.data,
     );
 

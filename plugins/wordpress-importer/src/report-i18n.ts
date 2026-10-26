@@ -44,6 +44,8 @@ export const REPORT_IT: Record<string, string> = {
     'Indirizzi dei media cambiati: {n} file, nello stesso anno e mese, ad esempio {from} → {to}; i vecchi indirizzi non fanno redirect (l’export non dice da quale sito viene).',
   '{n} media file(s) got another name (lowercase, without accents or spaces, or with a number because the name was taken):':
     '{n} file multimediali hanno un altro nome (minuscolo, senza accenti né spazi, o con un numero perché il nome era già preso):',
+  '{n} media file(s) got another name (without accents, spaces or other unsafe characters, or with a number because the name was taken):':
+    '{n} file multimediali hanno un altro nome (senza accenti, spazi o altri caratteri non sicuri, o con un numero perché il nome era già preso):',
   'Media address changed: {from} → {to}': 'Indirizzo del media cambiato: {from} → {to}',
   '…and {n} more media file(s) with another name.':
     '…e altri {n} file multimediali con un altro nome.',

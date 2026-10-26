@@ -485,8 +485,9 @@ export async function importDocument(
         auth,
         { filename: item.filename, data },
         '127.0.0.1',
-        // In the folder of the month it had on the old site (core 0.85).
-        { date: mediaDate(item) },
+        // In the folder of the month it had on the old site (core 0.85),
+        // under WordPress's name exactly, case included (core 0.87).
+        { date: mediaDate(item), keepName: doc.source.kind === 'wordpress' },
       );
       if (item.alt || item.caption) {
         await options.media.update(siteId, auth, view.id, {
@@ -510,7 +511,7 @@ export async function importDocument(
     }
   }
   tick('media', doc.media.length, doc.media.length);
-  reportMovedMedia(report, movedMedia, Boolean(source));
+  reportMovedMedia(report, movedMedia, Boolean(source), doc.source.kind === 'wordpress');
   await options.media.idle();
   // The old site's media addresses inside text (HTML, CSS) become the new ones.
   const mediaText = mediaTextRewriter(urlMap, doc.source.url);
@@ -1175,6 +1176,8 @@ function reportMovedMedia(
   report: ImportReport,
   moved: { from: string; to: string }[],
   redirected: boolean,
+  /** WordPress's names kept, case included (core 0.87). */
+  keptCase: boolean,
 ): void {
   if (moved.length === 0) return;
   const name = (path: string) => path.slice(path.lastIndexOf('/') + 1);
@@ -1187,7 +1190,9 @@ function reportMovedMedia(
   );
   if (renamed.length === 0) return;
   report.warnings.push(
-    `${renamed.length} media file(s) got another name (lowercase, without accents or spaces, or with a number because the name was taken):`,
+    keptCase
+      ? `${renamed.length} media file(s) got another name (without accents, spaces or other unsafe characters, or with a number because the name was taken):`
+      : `${renamed.length} media file(s) got another name (lowercase, without accents or spaces, or with a number because the name was taken):`,
   );
   for (const m of renamed.slice(0, MOVED_LISTED)) {
     report.warnings.push(`Media address changed: ${m.from} → ${m.to}`);

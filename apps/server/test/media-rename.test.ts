@@ -4,13 +4,16 @@
  * gets WordPress's names and folders; its content follows, the old
  * WordPress addresses and, once purged, the old /media addresses redirect.
  */
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
   purgeRenamedMedia,
   renameImportedMedia,
+  uploadsHasher,
+  uploadsPath,
   wxrMedia,
   type RenameImportedResult,
 } from '@cleitext/cli';
@@ -43,7 +46,18 @@ let wxrFile: string;
 
 const SOURCE = 'wordpress:old.example.com';
 const OLD = 'https://old.example.com/wp-content/uploads';
-const ids = { a: newId(), b: newId(), c: newId(), d: newId() };
+const ids = {
+  a: newId(),
+  b: newId(),
+  c: newId(),
+  d: newId(),
+  e: newId(),
+  f: newId(),
+  g: newId(),
+  h: newId(),
+};
+let uploadsDir: string;
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 let keys: Record<string, string>;
 let entryId: string;
 let currentRevision: string;
@@ -67,10 +81,20 @@ const WXR = `<?xml version="1.0" encoding="UTF-8"?>
   <link>https://old.example.com</link>
   <wp:wxr_version>1.2</wp:wxr_version>
   <wp:base_blog_url>https://www.old.example.com/</wp:base_blog_url>
-  ${attachment(11, `${OLD}/2015/07/Citt%C3%A0-d-arte.png`, "2015/07/Città d'arte.png")}
-  ${attachment(12, `${OLD}/2019/03/logo.jpg`, '2019/03/logo.jpg')}
+  ${attachment(11, `${OLD}/2015/07/Citt%C3%A0-d-arte.png`, '2015/07/Città-d-arte.png')}
+  ${attachment(12, `${OLD}/2019/03/Logo_Big.JPG`, '2019/03/Logo_Big.JPG')}
   ${attachment(13, `${OLD}/2016/01/hand.png`, '2016/01/hand.png')}
   ${attachment(14, `${OLD}/2016/02/missing.png`, '2016/02/missing.png')}
+  ${attachment(15, `${OLD}/2015/09/yoga.png`, '2015/09/yoga-1.png')}
+  ${attachment(
+    16,
+    `${OLD}/2020/05/Big-Photo-scaled.jpg`,
+    '2020/05/Big-Photo-scaled.jpg',
+    '<wp:postmeta><wp:meta_key>_wp_attachment_metadata</wp:meta_key><wp:meta_value><![CDATA[a:2:{s:4:"file";s:28:"2020/05/Big-Photo-scaled.jpg";s:14:"original_image";s:13:"Big-Photo.jpg";}]]></wp:meta_value></wp:postmeta>',
+  )}
+  ${attachment(17, `${OLD}/2015/10/marketing.jpg`, '2015/10/marketing.jpg')}
+  ${attachment(18, `${OLD}/2015/11/marketing.jpg`, '2015/11/marketing.jpg')}
+  ${attachment(19, `${OLD}/2016/03/escape.png`, '2016/03/../../../../secret/escape.png')}
   <item>
     <title>A page</title>
     <wp:post_id>20</wp:post_id>
@@ -128,36 +152,50 @@ beforeAll(async () => {
 
   // Imported by an older core in September 2026: uuid names in that month.
   const folder = `${site.id}/2026/09`;
-  const uuidA = newId();
-  const uuidB = newId();
+  const uuid = { a: newId(), b: newId(), e: newId(), f: newId(), g: newId(), h: newId() };
   keys = {
-    a: `${folder}/${uuidA}.png`,
-    aThumb: `${folder}/${uuidA}-thumb.webp`,
-    aMd: `${folder}/${uuidA}-md.avif`,
-    b: `${folder}/${uuidB}.jpg`,
+    a: `${folder}/${uuid.a}.png`,
+    aThumb: `${folder}/${uuid.a}-thumb.webp`,
+    aMd: `${folder}/${uuid.a}-md.avif`,
+    b: `${folder}/${uuid.b}.jpg`,
     c: `${folder}/hand.png`,
     // Uploaded later on the site, with the name A will want.
-    d: `${site.id}/2015/07/citta-d-arte.png`,
+    d: `${site.id}/2015/07/Citta-d-arte.png`,
+    e: `${folder}/${uuid.e}.png`,
+    f: `${folder}/${uuid.f}.jpg`,
+    g: `${folder}/${uuid.g}.jpg`,
+    h: `${folder}/${uuid.h}.jpg`,
   };
   for (const [name, key] of Object.entries(keys)) await put(key, `file ${name}`);
-  const row = (id: string, key: string, filename: string) => ({
+  // A copy of WordPress's uploads folder, and a file outside it.
+  uploadsDir = join(workDir, 'uploads');
+  await mkdir(join(uploadsDir, '2015/10'), { recursive: true });
+  await mkdir(join(uploadsDir, '2015/11'), { recursive: true });
+  await writeFile(join(uploadsDir, '2015/10/marketing.jpg'), 'file g');
+  await writeFile(join(uploadsDir, '2015/11/marketing.jpg'), 'file h');
+  await writeFile(join(workDir, 'outside.jpg'), 'file h');
+  await symlink(join(workDir, 'outside.jpg'), join(uploadsDir, '2015/11/link.jpg'));
+  const row = (id: string, key: string, filename: string, checksum = id) => ({
     id,
     siteId: site.id,
     storageKey: key,
     filename,
     mime: key.endsWith('.jpg') ? 'image/jpeg' : 'image/png',
     sizeBytes: 6,
-    checksum: id,
+    checksum,
   });
   await withSiteContext(owner.db, site.id, async (tx) => {
-    await tx
-      .insert(media)
-      .values([
-        row(ids.a, keys.a!, 'Città-d-arte.png'),
-        row(ids.b, keys.b!, 'logo.jpg'),
-        row(ids.c, keys.c!, 'hand.png'),
-        row(ids.d, keys.d!, 'citta-d-arte.png'),
-      ]);
+    await tx.insert(media).values([
+      row(ids.a, keys.a!, 'Città-d-arte.png'),
+      row(ids.b, keys.b!, 'Logo_Big.JPG'),
+      row(ids.c, keys.c!, 'hand.png'),
+      row(ids.d, keys.d!, 'Citta-d-arte.png'),
+      row(ids.e, keys.e!, 'yoga.png'),
+      row(ids.f, keys.f!, 'Big-Photo-scaled.jpg'),
+      // Two files of the same name and size: only their content tells them apart.
+      row(ids.g, keys.g!, 'marketing.jpg', sha256('file g')),
+      row(ids.h, keys.h!, 'marketing.jpg', sha256('file h')),
+    ]);
     const variant = (v: string, format: string, key: string) => ({
       siteId: site.id,
       mediaId: ids.a,
@@ -175,6 +213,8 @@ beforeAll(async () => {
     await tx.insert(importRefs).values([
       { siteId: site.id, source: SOURCE, ref: 'att:11', mediaId: ids.a },
       { siteId: site.id, source: SOURCE, ref: 'att:13', mediaId: ids.c },
+      { siteId: site.id, source: SOURCE, ref: 'att:15', mediaId: ids.e },
+      { siteId: site.id, source: SOURCE, ref: 'att:16', mediaId: ids.f },
     ]);
     const [entry] = await tx
       .insert(entries)
@@ -264,13 +304,59 @@ describe('reading the export', () => {
   it('finds the attachments, their source, names and folders', () => {
     const wxr = wxrMedia(WXR);
     expect(wxr.source).toBe(SOURCE);
-    expect(wxr.attachments.map((a) => a.id)).toEqual([11, 12, 13, 14]);
+    expect(wxr.attachments.map((a) => a.id)).toEqual([11, 12, 13, 14, 15, 16, 17, 18, 19]);
     expect(wxr.attachments[0]).toMatchObject({
       filename: 'Città-d-arte.png',
-      urls: [`${OLD}/2015/07/Citt%C3%A0-d-arte.png`],
+      urls: [`${OLD}/2015/07/Città-d-arte.png`, `${OLD}/2015/07/Citt%C3%A0-d-arte.png`],
+      files: ['2015/07/Città-d-arte.png'],
     });
     expect(wxr.attachments[0]!.date?.toISOString()).toBe('2015-07-01T00:00:00.000Z');
     expect(() => wxrMedia('<html></html>')).toThrow(/not a WordPress export/);
+  });
+
+  it('takes the name and folder from _wp_attached_file before the address', () => {
+    const yoga = wxrMedia(WXR).attachments.find((a) => a.id === 15)!;
+    expect(yoga.filename).toBe('yoga-1.png');
+    expect(yoga.names).toContain('yoga.png');
+    expect(yoga.urls).toEqual([`${OLD}/2015/09/yoga-1.png`, `${OLD}/2015/09/yoga.png`]);
+    expect(yoga.files).toEqual(['2015/09/yoga-1.png', '2015/09/yoga.png']);
+  });
+
+  it('keeps the name of a -scaled image and adds its original', () => {
+    const scaled = wxrMedia(WXR).attachments.find((a) => a.id === 16)!;
+    expect(scaled.filename).toBe('Big-Photo-scaled.jpg');
+    expect(scaled.urls).toEqual([
+      `${OLD}/2020/05/Big-Photo-scaled.jpg`,
+      `${OLD}/2020/05/Big-Photo.jpg`,
+    ]);
+  });
+
+  it('never takes a path that leaves the uploads folder', () => {
+    const escape = wxrMedia(WXR).attachments.find((a) => a.id === 19)!;
+    expect(escape.filename).toBe('escape.png');
+    expect(escape.files).toEqual(['2016/03/escape.png']);
+    for (const path of ['../x.jpg', '2015/10/../../x.jpg', '/etc/passwd', 'a//b.jpg', 'a\\b.jpg']) {
+      expect(uploadsPath(path)).toBeUndefined();
+    }
+    expect(uploadsPath('https://x.it/wp-content/uploads/2015/10/..%2F..%2Fx.jpg', true)).toBe(
+      undefined,
+    );
+    expect(uploadsPath('/var/www/wp-content/uploads/2010/01/old.jpg')).toBe('2010/01/old.jpg');
+  });
+
+  it('reads only files inside the uploads folder (--uploads)', async () => {
+    const checksum = await uploadsHasher(uploadsDir);
+    expect(await checksum('2015/10/marketing.jpg')).toBe(sha256('file g'));
+    expect(await checksum('../outside.jpg')).toBeNull();
+    expect(await checksum(join(workDir, 'outside.jpg'))).toBeNull();
+    expect(await checksum('2015/11/../../../outside.jpg')).toBeNull();
+    // A link that leads out of the folder is not followed.
+    expect(await checksum('2015/11/link.jpg')).toBeNull();
+    expect(await checksum('2015/10')).toBeNull();
+    expect(await checksum('2015/10/none.jpg')).toBeNull();
+    await expect(uploadsHasher(join(workDir, 'no-such-folder'))).rejects.toMatchObject({
+      code: 'not_found',
+    });
   });
 });
 
@@ -290,20 +376,36 @@ describe('media:rename-imported', () => {
     }
   });
 
+  it('cannot tell files of the same name apart without --uploads', async () => {
+    const plain = await run({ dryRun: true });
+    expect(plain.counts.byChecksum).toBe(0);
+    expect(plain.unmatched.filter((u) => u.wpId === 17 || u.wpId === 18)).toEqual([
+      expect.objectContaining({ reason: expect.stringContaining('2 media files have the name') }),
+      expect.objectContaining({ reason: expect.stringContaining('2 media files have the name') }),
+    ]);
+  });
+
   it('changes nothing in a dry run, and says what it would do', async () => {
     const before = await library(site.id);
     const filesBefore = await readdir(workDir);
-    dry = await run({ dryRun: true });
+    dry = await run({ dryRun: true, uploads: uploadsDir });
     expect(dry.dryRun).toBe(true);
     expect(dry.report).toBeNull();
-    expect(dry.renamed.map((r) => r.to).sort()).toEqual([
-      `/media/${site.id}/2015/07/citta-d-arte-1.png`,
-      `/media/${site.id}/2019/03/logo.jpg`,
-    ]);
+    expect(dry.renamed.map((r) => r.to).sort()).toEqual(
+      [
+        `/media/${site.id}/2015/07/Citta-d-arte-1.png`,
+        `/media/${site.id}/2019/03/Logo_Big.JPG`,
+        `/media/${site.id}/2015/09/yoga-1.png`,
+        `/media/${site.id}/2020/05/Big-Photo-scaled.jpg`,
+        `/media/${site.id}/2015/10/marketing.jpg`,
+        `/media/${site.id}/2015/11/marketing.jpg`,
+      ].sort(),
+    );
+    expect(dry.counts.byChecksum).toBe(2);
     expect(dry.references.revisions).toEqual({ rows: 1, addresses: 3 });
     expect(await library(site.id)).toEqual(before);
     expect(await readdir(workDir)).toEqual(filesBefore);
-    expect(existsSync(join(mediaRoot, site.id, '2019/03/logo.jpg'))).toBe(false);
+    expect(existsSync(join(mediaRoot, site.id, '2019/03/Logo_Big.JPG'))).toBe(false);
     expect(await revisionText(currentRevision)).toContain(keys.a);
     expect(
       await withSiteContext(owner.db, site.id, (tx) => tx.select().from(mediaRenames)),
@@ -311,52 +413,65 @@ describe('media:rename-imported', () => {
   });
 
   it("gives the media WordPress's names and folders, and copies their files", async () => {
-    done = await run();
+    done = await run({ uploads: uploadsDir });
     expect(done.renamed).toEqual(dry.renamed);
     const after = await library(site.id);
-    const a = `${site.id}/2015/07/citta-d-arte-1.png`;
+    // Taken (case-sensitively) by the site's own upload: -1.
+    const a = `${site.id}/2015/07/Citta-d-arte-1.png`;
     expect(after.media[ids.a]).toBe(a);
-    expect(after.media[ids.b]).toBe(`${site.id}/2019/03/logo.jpg`);
+    // WordPress's name, case and extension included.
+    expect(after.media[ids.b]).toBe(`${site.id}/2019/03/Logo_Big.JPG`);
     // The file named so by hand and the site's own upload stay as they are.
     expect(after.media[ids.c]).toBe(keys.c);
     expect(after.media[ids.d]).toBe(keys.d);
+    // The name of _wp_attached_file, not of the address.
+    expect(after.media[ids.e]).toBe(`${site.id}/2015/09/yoga-1.png`);
+    expect(after.media[ids.f]).toBe(`${site.id}/2020/05/Big-Photo-scaled.jpg`);
+    // Same name, told apart by the checksum of WordPress's files.
+    expect(after.media[ids.g]).toBe(`${site.id}/2015/10/marketing.jpg`);
+    expect(after.media[ids.h]).toBe(`${site.id}/2015/11/marketing.jpg`);
+    expect(await readFile(join(mediaRoot, after.media[ids.g]!), 'utf8')).toBe('file g');
+    expect(await readFile(join(mediaRoot, after.media[ids.h]!), 'utf8')).toBe('file h');
     expect(after.variants).toEqual([
-      `${site.id}/2015/07/citta-d-arte-1-md.avif`,
-      `${site.id}/2015/07/citta-d-arte-1-thumb.webp`,
+      `${site.id}/2015/07/Citta-d-arte-1-md.avif`,
+      `${site.id}/2015/07/Citta-d-arte-1-thumb.webp`,
     ]);
     expect(await readFile(join(mediaRoot, a), 'utf8')).toBe('file a');
     expect(
-      await readFile(join(mediaRoot, `${site.id}/2015/07/citta-d-arte-1-thumb.webp`), 'utf8'),
+      await readFile(join(mediaRoot, `${site.id}/2015/07/Citta-d-arte-1-thumb.webp`), 'utf8'),
     ).toBe('file aThumb');
     // Copied, not moved: the old files stay for the grace period.
     expect(existsSync(join(mediaRoot, keys.a!))).toBe(true);
-    expect(done.counts).toMatchObject({ media: 2, variants: 2 });
+    expect(done.counts).toMatchObject({ media: 6, variants: 2, byChecksum: 2 });
     expect(done.renamed.find((r) => r.mediaId === ids.b)?.matchedBy).toBe('filename');
+    expect(done.renamed.find((r) => r.mediaId === ids.g)?.matchedBy).toBe('checksum');
     expect(done.skipped).toEqual([
       expect.objectContaining({
         mediaId: ids.c,
         reason: expect.stringContaining('not a generated name'),
       }),
     ]);
-    expect(done.unmatched).toEqual([expect.objectContaining({ wpId: 14 })]);
+    expect(done.unmatched.map((u) => u.wpId).sort()).toEqual([14, 19]);
+    // The uploads folder is only read.
+    expect((await readdir(join(uploadsDir, '2015/10'))).sort()).toEqual(['marketing.jpg']);
   });
 
   it('rewrites the addresses in content, CSS and plugin settings', async () => {
     const text = await revisionText(currentRevision);
     expect(text).not.toContain(keys.a);
     expect(text).not.toContain(keys.b);
-    expect(text).toContain(`src=\\"/media/${site.id}/2015/07/citta-d-arte-1.png\\"`);
+    expect(text).toContain(`src=\\"/media/${site.id}/2015/07/Citta-d-arte-1.png\\"`);
     expect(text).toContain(
-      `https://${site.host}/media/${site.id}/2015/07/citta-d-arte-1-thumb.webp 300w`,
+      `https://${site.host}/media/${site.id}/2015/07/Citta-d-arte-1-thumb.webp 300w`,
     );
     expect(text).toContain(`/media/${keys.d}`);
     // Older revisions are history: their addresses redirect.
     expect(await revisionText(oldRevision)).toContain(keys.a);
     expect(await setting('additional-css', 'site')).toBe(
-      `body { background: url(/media/${site.id}/2015/07/citta-d-arte-1.png); }`,
+      `body { background: url(/media/${site.id}/2015/07/Citta-d-arte-1.png); }`,
     );
     expect(await setting('plugin:gallery-extras', 'options')).toEqual({
-      logo: `https://${site.host}/media/${site.id}/2019/03/logo.jpg`,
+      logo: `https://${site.host}/media/${site.id}/2019/03/Logo_Big.JPG`,
       other: '/media/elsewhere.png',
     });
     expect(done.references).toMatchObject({
@@ -369,17 +484,40 @@ describe('media:rename-imported', () => {
     expect(done.report).toMatch(/old-site\.media-rename-.*\.json$/);
     expect(dirname(done.report!)).toBe(workDir);
     const saved = JSON.parse(await readFile(done.report!, 'utf8')) as RenameImportedResult;
-    expect(saved.renamed).toHaveLength(2);
-    expect(saved.unmatched).toHaveLength(1);
+    expect(saved.renamed).toHaveLength(6);
+    expect(saved.unmatched).toHaveLength(2);
+    expect(saved.counts.byChecksum).toBe(2);
   });
 
   it('redirects the old WordPress addresses to the new files', async () => {
-    const exact = await visitor.get('/wp-content/uploads/2015/07/Citt%C3%A0-d-arte.png');
-    expect(exact.statusCode).toBe(301);
-    expect(exact.headers.location).toBe(`/media/${site.id}/2015/07/citta-d-arte-1.png`);
-    const copy = await visitor.get('/wp-content/uploads/2019/03/logo-300x200.jpg');
-    expect(copy.statusCode).toBe(301);
-    expect(copy.headers.location).toBe(`/media/${site.id}/2019/03/logo.jpg`);
+    const at = async (path: string) => {
+      const res = await visitor.get(path);
+      expect(res.statusCode, path).toBe(301);
+      return res.headers.location;
+    };
+    expect(await at('/wp-content/uploads/2015/07/Citt%C3%A0-d-arte.png')).toBe(
+      `/media/${site.id}/2015/07/Citta-d-arte-1.png`,
+    );
+    expect(await at('/wp-content/uploads/2019/03/Logo_Big-300x200.JPG')).toBe(
+      `/media/${site.id}/2019/03/Logo_Big.JPG`,
+    );
+    // The attached file's path and the address's, when they differ.
+    expect(await at('/wp-content/uploads/2015/09/yoga-1.png')).toBe(
+      `/media/${site.id}/2015/09/yoga-1.png`,
+    );
+    expect(await at('/wp-content/uploads/2015/09/yoga.png')).toBe(
+      `/media/${site.id}/2015/09/yoga-1.png`,
+    );
+    // A -scaled image keeps its name; its original redirects to it.
+    expect(await at('/wp-content/uploads/2020/05/Big-Photo-scaled.jpg')).toBe(
+      `/media/${site.id}/2020/05/Big-Photo-scaled.jpg`,
+    );
+    expect(await at('/wp-content/uploads/2020/05/Big-Photo.jpg')).toBe(
+      `/media/${site.id}/2020/05/Big-Photo-scaled.jpg`,
+    );
+    expect(await at('/wp-content/uploads/2015/11/marketing.jpg')).toBe(
+      `/media/${site.id}/2015/11/marketing.jpg`,
+    );
   });
 
   it('keeps serving the old files during the grace period, then redirects them', async () => {
@@ -391,7 +529,7 @@ describe('media:rename-imported', () => {
       now: new Date(Date.now() + 29 * day),
     });
     expect(early.deleted).toEqual([]);
-    expect(early.waiting).toBe(4);
+    expect(early.waiting).toBe(8);
     const later = new Date(Date.now() + 31 * day);
     const preview = await purgeRenamedMedia(owner.db, {
       site: 'rename-wp',
@@ -400,7 +538,7 @@ describe('media:rename-imported', () => {
       now: later,
     });
     expect(preview.deleted.map((d) => d.key).sort()).toEqual(
-      [keys.a, keys.aMd, keys.aThumb, keys.b].sort(),
+      [keys.a, keys.aMd, keys.aThumb, keys.b, keys.e, keys.f, keys.g, keys.h].sort(),
     );
     expect(existsSync(join(mediaRoot, keys.a!))).toBe(true);
     const purged = await purgeRenamedMedia(owner.db, {
@@ -408,15 +546,15 @@ describe('media:rename-imported', () => {
       mediaPath: mediaRoot,
       now: later,
     });
-    expect(purged.deleted).toHaveLength(4);
+    expect(purged.deleted).toHaveLength(8);
     expect(existsSync(join(mediaRoot, keys.a!))).toBe(false);
-    expect(existsSync(join(mediaRoot, `${site.id}/2015/07/citta-d-arte-1.png`))).toBe(true);
+    expect(existsSync(join(mediaRoot, `${site.id}/2015/07/Citta-d-arte-1.png`))).toBe(true);
 
     const old = await visitor.get(`/media/${keys.a}`);
     expect(old.statusCode).toBe(301);
-    expect(old.headers.location).toBe(`/media/${site.id}/2015/07/citta-d-arte-1.png`);
+    expect(old.headers.location).toBe(`/media/${site.id}/2015/07/Citta-d-arte-1.png`);
     const thumb = await visitor.get(`/media/${keys.aThumb}`);
-    expect(thumb.headers.location).toBe(`/media/${site.id}/2015/07/citta-d-arte-1-thumb.webp`);
+    expect(thumb.headers.location).toBe(`/media/${site.id}/2015/07/Citta-d-arte-1-thumb.webp`);
     expect((await visitor.get(old.headers.location as string)).statusCode).toBe(200);
     // Other missing files are still a 404, and another site never sees the redirect.
     expect((await visitor.get(`/media/${site.id}/2026/09/${newId()}.png`)).statusCode).toBe(404);

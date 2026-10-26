@@ -3,6 +3,8 @@
  * (`Città d'arte.JPG` → `citta-d-arte.jpg`), in the folder of the upload's
  * year and month, as WordPress does. Only the name comes from the upload:
  * the site's folder and the extension (from the file's real type) never do.
+ * Files from WordPress keep WordPress's name exactly, case included, when it
+ * is safe (`Foto-mia.JPG`, {@link wordpressStorageName}).
  */
 
 /** Longest name kept, without the extension. */
@@ -43,6 +45,62 @@ export function storageBaseName(filename: string): string {
     .slice(0, STORAGE_NAME_MAX)
     .replace(/[-_.]+$/, '');
   return name || 'file';
+}
+
+/** Longest name kept for a file from WordPress, without the extension. */
+export const WORDPRESS_NAME_MAX = 200;
+
+/**
+ * Other extensions of a type, by the extension the server gives it (from
+ * the file's real type): `photo.JPEG` is a JPEG file all the same.
+ */
+const EXTENSION_ALIASES: Record<string, readonly string[]> = {
+  jpg: ['jpg', 'jpeg', 'jpe'],
+  mp4: ['mp4', 'm4v'],
+};
+
+/** Letters without a decomposition, upper case (see {@link LETTERS}). */
+const UPPER_LETTERS: Record<string, string> = {
+  Æ: 'AE',
+  Œ: 'OE',
+  Ø: 'O',
+  Đ: 'D',
+  Ð: 'D',
+  Ł: 'L',
+  Þ: 'TH',
+  ẞ: 'SS',
+};
+
+/**
+ * The name a file from WordPress (an import, `media:rename-imported`) is
+ * stored under, with its extension: WordPress's own name, case included
+ * (`Fotolia_63675623_M.jpg`, `PIATTO.JPG`), since addresses are
+ * case-sensitive. A name made of `A-Z a-z 0-9 . _ - @` is kept as it is
+ * (never with a leading `.`, `-` or `_`, `..` or more than
+ * {@link WORDPRESS_NAME_MAX} characters); only other characters are
+ * replaced (accents transliterated, the rest `-`: `Città d'arte` →
+ * `Citta-d-arte`). It can never contain a slash or `..`. The extension is
+ * the file's own when it names the real type (`ext`: `.JPG` or `.jpeg` for
+ * `jpg`), else the real type's.
+ */
+export function wordpressStorageName(filename: string, ext: string): { name: string; ext: string } {
+  const last = filename.split(/[\\/]/).pop() ?? '';
+  const match = /^(.*)\.([a-z0-9]{1,5})$/i.exec(last);
+  const own = match?.[2] ?? '';
+  const keep = own !== '' && (EXTENSION_ALIASES[ext] ?? [ext]).includes(own.toLowerCase());
+  const name = (match ? match[1]! : last)
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[ßæœøđðłþıÆŒØĐÐŁÞẞ]/g, (c) => LETTERS[c] ?? UPPER_LETTERS[c] ?? '')
+    // `Foto (1)` → `Foto-1`, not `Foto-1-`.
+    .replace(/^[^A-Za-z0-9_.@-]+|[^A-Za-z0-9_.@-]+$/g, '')
+    .replace(/-*(?:[^A-Za-z0-9_.@-]+-*)+/g, '-')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^[-_.]+/, '')
+    .replace(/\.+$/, '')
+    .slice(0, WORDPRESS_NAME_MAX)
+    .replace(/\.+$/, '');
+  return { name: name || 'file', ext: keep ? own : ext };
 }
 
 /** `<siteId>/<yyyy>/<mm>`: the folder of the files uploaded in that month. */
