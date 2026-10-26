@@ -181,6 +181,15 @@ describe('Vetta SEO', () => {
       '<title>Rooms - By the sea - Site vetta</title>',
     );
     await admin.request('PATCH', '/api/v1/settings/core', { tagline: '' });
+    // Titles as written in WordPress (the page keeps its curly quotes and dashes).
+    const written = await publish('page', 'L’ipnosi – cos’è', {
+      fields: { seo: { rawTitle: "L'ipnosi - cos'è" } },
+    });
+    const html = (await visitor.get(`/${written.slug}`)).body;
+    // (The separator is the one an earlier test chose.)
+    expect(html).toMatch(/<title>L&#x27;ipnosi - cos&#x27;è \S Site vetta<\/title>/);
+    expect(html).toContain('<meta property="og:title" content="L&#x27;ipnosi - cos&#x27;è ');
+    expect(html).toContain('L’ipnosi – cos’è</h1>');
   });
 
   it('uses the search title and description of the page of the posts on its archive', async () => {

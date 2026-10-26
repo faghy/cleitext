@@ -1,6 +1,13 @@
 import { Resolver, resolveTxt } from 'node:dns/promises';
 import { defineBlock, definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
-import { applyTemplate, DEFAULT_TITLE, pageVariable, withDefaults, type SeoConfig } from './config';
+import {
+  applyTemplate,
+  DEFAULT_TITLE,
+  pageVariable,
+  searchTitle,
+  withDefaults,
+  type SeoConfig,
+} from './config';
 
 interface SeoFields {
   title?: string | null;
@@ -11,6 +18,8 @@ interface SeoFields {
   socialImage?: string | null;
   /** Imported from Yoast SEO or Rank Math: the whole title, as there. */
   fullTitle?: boolean | null;
+  /** Imported from WordPress: the title as written, without WordPress's curly quotes. */
+  rawTitle?: string | null;
 }
 
 interface Crumb {
@@ -262,6 +271,9 @@ export default definePlugin({
         const seo = ((entry ?? postsPage)?.fields.seo ?? {}) as SeoFields;
         context.tag('seo');
         const ownTitle = seo.title?.trim() ?? '';
+        // Titles as written in WordPress, as Yoast SEO shows them (not the curly quotes of the page).
+        const entryTitle = entry ? searchTitle(entry.title, seo.rawTitle) : '';
+        const postsPageTitle = postsPage ? searchTitle(postsPage.title, seo.rawTitle) : '';
         // Imported titles and those with variables are the whole title, as in Yoast SEO.
         const fullTitle = Boolean(ownTitle) && (seo.fullTitle === true || hasVariables(ownTitle));
         const tagline = async (locale: string) => {
@@ -283,7 +295,7 @@ export default definePlugin({
         const page = pageVariable(context.locale, separator, pageNumber, context.pagination?.pages);
         const values = async (template: string) => ({
           page,
-          title: entry?.title ?? postsPage?.title ?? '',
+          title: entry ? entryTitle : postsPageTitle,
           sep: separator,
           sitename: siteName,
           sitedesc: template.includes('%%sitedesc%%') ? await tagline(context.locale) : '',
@@ -298,7 +310,7 @@ export default definePlugin({
           next.title = applyTemplate(ownTitle, await values(ownTitle)) || head.title;
           next.og['og:title'] = next.title;
         } else if (entry && !isHome(entry.url)) {
-          const pageTitle = ownTitle || entry.title;
+          const pageTitle = ownTitle || entryTitle;
           const template = cfg.titles[entry.type]?.trim();
           next.title = template
             ? applyTemplate(template, {
@@ -334,7 +346,7 @@ export default definePlugin({
         } else if (entry && seo.title?.trim()) {
           // The home page's own search title, as written (variables allowed).
           next.title = applyTemplate(seo.title.trim(), {
-            title: entry.title,
+            title: entryTitle,
             sep: separator,
             sitename: siteName,
             excerpt: entry.excerpt ?? '',

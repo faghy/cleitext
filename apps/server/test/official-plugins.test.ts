@@ -165,6 +165,23 @@ describe('SEO', () => {
     await admin.request('PATCH', '/api/v1/settings/core', { tagline: '' });
   });
 
+  it('puts imported titles as written in WordPress in the title and social tags', async () => {
+    // The import keeps WordPress's typography on the page, the title as written beside it.
+    const entry = await publish('page', 'L’ipnosi – cos’è', {
+      fields: { seo: { rawTitle: "L'ipnosi - cos'è" } },
+    });
+    const html = (await visitor.get(`/${entry.slug}`)).body;
+    expect(html).toContain('<title>L&#x27;ipnosi - cos&#x27;è | Site official</title>');
+    expect(html).toContain('<meta property="og:title" content="L&#x27;ipnosi - cos&#x27;è"/>');
+    expect(html).toContain('L’ipnosi – cos’è</h1>');
+    // Renamed since: the new title everywhere.
+    await admin.request('PATCH', `/api/v1/entries/${entry.id}`, { title: 'L’ipnosi oggi' });
+    await admin.post(`/api/v1/entries/${entry.id}/publish`);
+    expect((await visitor.get(`/${entry.slug}`)).body).toContain(
+      '<title>L’ipnosi oggi | Site official</title>',
+    );
+  });
+
   it('uses the search title of the page of the posts on its archive', async () => {
     const blog = await publish('page', 'Blog', {
       excerpt: 'All our news.',

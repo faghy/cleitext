@@ -269,7 +269,11 @@ describe('Yoast SEO titles', () => {
     expect(seoTemplate('Check-in %%unknown%% - Hotel')).toBe('Check-in - Hotel');
   });
 
-  const page = (yoast: Record<string, string>, options: { seoSeparator?: string } = {}) => {
+  const page = (
+    yoast: Record<string, string>,
+    options: { seoSeparator?: string } = {},
+    title = 'Home',
+  ) => {
     const metas = Object.entries(yoast)
       .map(
         ([k, v]) =>
@@ -278,7 +282,7 @@ describe('Yoast SEO titles', () => {
       .join('');
     const xml = `<?xml version="1.0"?>
 <rss xmlns:wp="http://wordpress.org/export/1.2/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Hotel</title><wp:wxr_version>1.2</wp:wxr_version><wp:base_blog_url>https://h.example</wp:base_blog_url>
-<item><title>Home</title><link>https://h.example/home/</link><dc:creator>ann</dc:creator><wp:post_id>2</wp:post_id><wp:post_name>home</wp:post_name><wp:status>publish</wp:status><wp:post_type>page</wp:post_type><content:encoded>Hi</content:encoded>${metas}</item>
+<item><title>${title}</title><link>https://h.example/home/</link><dc:creator>ann</dc:creator><wp:post_id>2</wp:post_id><wp:post_name>home</wp:post_name><wp:status>publish</wp:status><wp:post_type>page</wp:post_type><content:encoded>Hi</content:encoded>${metas}</item>
 </channel></rss>`;
     return wxrToDocument(xml, { locale: 'en', ...options }).document.entries![0]!.fields;
   };
@@ -309,6 +313,17 @@ describe('Yoast SEO titles', () => {
     ).toEqual({
       seo: { description: '%%excerpt%% - Book now' },
     });
+  });
+
+  it('keep the title as written when WordPress’s typography changes it on the page', () => {
+    // The page shows curly quotes and dashes; Yoast SEO's <title> the title as written.
+    expect(page({}, {}, "L'ipnosi -- cos'è &amp; come funziona")).toEqual({
+      seo: { rawTitle: "L'ipnosi -- cos'è & come funziona" },
+    });
+    expect(page({ _yoast_wpseo_metadesc: 'Hi' }, {}, "Dell'ansia")).toEqual({
+      seo: { description: 'Hi', rawTitle: "Dell'ansia" },
+    });
+    expect(page({}, {}, 'Plain title')).toBeUndefined();
   });
 
   it('never end with half a variable when cut to 70 characters', () => {

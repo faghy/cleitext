@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyTemplate, pageVariable } from './config';
+import { applyTemplate, pageVariable, searchTitle } from './config';
 
 describe('title templates', () => {
   it('say which page of an archive, as Yoast SEO’s %%page%%', () => {
@@ -14,5 +14,13 @@ describe('title templates', () => {
       'Blog - Pagina 2 di 22 - Lino Missio',
     );
     expect(applyTemplate(template, { ...values, page: '' })).toBe('Blog - Lino Missio');
+  });
+
+  it('use the title as written in WordPress while the page keeps the imported one', () => {
+    expect(searchTitle('L’ipnosi – cos’è', "L'ipnosi - cos'è")).toBe("L'ipnosi - cos'è");
+    expect(searchTitle('Quattro – passi', 'Quattro -- passi')).toBe('Quattro -- passi');
+    // Renamed since: the new title.
+    expect(searchTitle('L’ipnosi oggi', "L'ipnosi - cos'è")).toBe('L’ipnosi oggi');
+    expect(searchTitle('Title', undefined)).toBe('Title');
   });
 });

@@ -15,6 +15,7 @@ import {
   lines,
   moduleOn,
   sanitizeConfig,
+  searchTitle,
   taxonomyValue,
   text,
   typeValue,
@@ -432,7 +433,8 @@ export default definePlugin({
             ? {
                 postsPage: {
                   id: postsPage.id,
-                  title: postsPage.title,
+                  // As written in WordPress, as Rank Math shows it (not the page's curly quotes).
+                  title: searchTitle(postsPage.title, seo.rawTitle),
                   url: postsPage.url,
                   excerpt: postsPage.excerpt ?? '',
                 },
@@ -443,7 +445,7 @@ export default definePlugin({
                 entry: {
                   id: entry.id,
                   type: entry.type,
-                  title: entry.title,
+                  title: searchTitle(entry.title, seo.rawTitle),
                   url: entry.url,
                   excerpt: entry.excerpt ?? '',
                   publishedAt: entry.publishedAt,

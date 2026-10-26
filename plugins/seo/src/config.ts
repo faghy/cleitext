@@ -77,3 +77,28 @@ export function applyTemplate(template: string, values: Record<string, string>):
       .trim()
   );
 }
+
+/** Typographic characters as typed: ’ and ‘ as ', “ and ” as ", dashes as -, … as ... */
+const typed = (value: string): string =>
+  value
+    .replace(/[‘’‚‛′]/g, "'")
+    .replace(/[“”„″]/g, '"')
+    .replace(/[–—]/g, '-')
+    .replace(/…/g, '...')
+    .replace(/×/g, 'x')
+    .replace(/-+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * The title for search results and social networks: as written in WordPress
+ * (`rawTitle`, kept by the WordPress Importer since 1.35.0) while the entry's
+ * title is still the imported one, which has WordPress's curly quotes and
+ * dashes; Yoast SEO and Rank Math show the title as written too. The entry's
+ * title once an editor changed it.
+ */
+export function searchTitle(title: string, rawTitle: unknown): string {
+  return typeof rawTitle === 'string' && rawTitle.trim() && typed(rawTitle) === typed(title)
+    ? rawTitle
+    : title;
+}

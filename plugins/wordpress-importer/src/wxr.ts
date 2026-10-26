@@ -757,7 +757,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         (taxonomyTypes.get(taxonomy.slug) ?? new Set()).add(entryType),
       );
     }
-    const seo = seoFields(item, options.seoSeparator);
+    // The title as written, for search results and social networks (curly quotes on the page only).
+    const rawTitle = decode(text(item.title)).trim();
+    const seo = withRawTitle(seoFields(item, options.seoSeparator), rawTitle, title);
     sources.set(ref, { link, text: `${title} ${content}` });
     entries.push({
       ref,
@@ -1499,6 +1501,21 @@ function defaultTitle(template: string): boolean {
     .replace(/\s+/g, ' ')
     .trim();
   return new RegExp(`^%%title%% ${SEP_CHARS} %%sitename%%$`).test(plain);
+}
+
+/**
+ * The title as written in WordPress, kept beside the SEO fields (`seo.rawTitle`)
+ * when WordPress's typography changed it: the page shows curly quotes and
+ * dashes, while Yoast SEO and Rank Math put the title as written in the
+ * page's <title> and social tags, and Cleitext's SEO plugins do the same.
+ */
+function withRawTitle(
+  seo: Record<string, unknown> | null,
+  raw: string,
+  title: string,
+): Record<string, unknown> | null {
+  if (!raw || raw === title) return seo;
+  return { ...(seo ?? {}), rawTitle: raw.slice(0, 500) };
 }
 
 /** Search title, description, keyphrase, indexing and canonical from Yoast SEO or Rank Math. */

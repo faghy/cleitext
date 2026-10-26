@@ -226,6 +226,8 @@ export interface EntrySeo {
   schema?: string | null;
   /** The title came from the SEO plugin, where it is the page's part of the title only. */
   legacyTitle?: boolean;
+  /** Imported from WordPress: the entry's title as written, without WordPress's curly quotes. */
+  rawTitle?: string | null;
 }
 
 /** An entry's Vetta fields, falling back to the `seo` plugin's ones (sites moving over). */
@@ -240,6 +242,7 @@ export function entrySeo(fields: Record<string, unknown> | undefined): EntrySeo 
     socialImage?: string | null;
     /** Imported from Yoast SEO or Rank Math: the whole title, as there. */
     fullTitle?: boolean | null;
+    rawTitle?: string | null;
   };
   // The SEO plugin's own titles are the page's part; imported ones and those
   // with variables (`%%title%% - %%sitename%%`) are already the whole title.
@@ -257,6 +260,7 @@ export function entrySeo(fields: Record<string, unknown> | undefined): EntrySeo 
     noindex: own.noindex ?? old.noindex ?? null,
     canonical: own.canonical?.trim() || old.canonical?.trim() || null,
     ogImage: own.ogImage || old.socialImage || null,
+    ...(old.rawTitle ? { rawTitle: old.rawTitle } : {}),
   };
 }
 
@@ -267,4 +271,29 @@ export function keywordsOf(seo: EntrySeo): string[] {
     .map((k) => k.trim())
     .filter(Boolean)
     .slice(0, 5);
+}
+
+/** Typographic characters as typed: ’ and ‘ as ', “ and ” as ", dashes as -, … as ... */
+const typed = (value: string): string =>
+  value
+    .replace(/[‘’‚‛′]/g, "'")
+    .replace(/[“”„″]/g, '"')
+    .replace(/[–—]/g, '-')
+    .replace(/…/g, '...')
+    .replace(/×/g, 'x')
+    .replace(/-+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * The title for search results and social networks: as written in WordPress
+ * (`rawTitle`, kept by the WordPress Importer since 1.35.0) while the entry's
+ * title is still the imported one, which has WordPress's curly quotes and
+ * dashes; Yoast SEO and Rank Math show the title as written too. The entry's
+ * title once an editor changed it.
+ */
+export function searchTitle(title: string, rawTitle: unknown): string {
+  return typeof rawTitle === 'string' && rawTitle.trim() && typed(rawTitle) === typed(title)
+    ? rawTitle
+    : title;
 }
