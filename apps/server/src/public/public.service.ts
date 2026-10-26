@@ -392,6 +392,8 @@ export class PublicService {
               routeRequest(request, site.id, url.pathname, pluginRoute.params, {
                 plugin: pluginRoute.plugin.slug,
                 locale: pluginRoute.locale,
+                // Without the referral parameters: the answer may be cached.
+                url: pageUrl,
               }),
             ),
         );

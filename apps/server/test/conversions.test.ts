@@ -203,7 +203,14 @@ describe('referral links', () => {
       url: '/seller/whoami',
       headers: { host, cookie: 'cx_ref_referrer=anna; cx_ref_bad=%20x; other=1' },
     });
-    expect(res.json()).toEqual({ referrals: { referrer: 'anna' } });
+    expect(res.json()).toEqual({ referrals: { referrer: 'anna' }, query: {} });
+    // Plugin routes never see the captured parameter either: their answers may be cached.
+    const routed = await app.inject({
+      method: 'GET',
+      url: '/seller/whoami?ref=bob&a=1',
+      headers: { host },
+    });
+    expect(routed.json().query).toEqual({ a: '1' });
     await app.inject({
       method: 'GET',
       url: '/seller/buy?id=o-3',

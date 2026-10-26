@@ -74,7 +74,7 @@ export default definePlugin({
       method: 'GET',
       path: '/seller/whoami',
       handler(request) {
-        return { body: { referrals: request.referrals ?? null } };
+        return { body: { referrals: request.referrals ?? null, query: request.query } };
       },
     });
   },

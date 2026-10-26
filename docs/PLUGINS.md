@@ -1092,7 +1092,7 @@ ctx.referrals.capture(async (siteId) => {
 });
 ```
 
-- The parameter never reaches the page cache: `/?ref=anna` is cached and served as `/`, the page is rendered without it, and canonical addresses never carry it. Cached pages stay the same for everyone.
+- The parameter never reaches the page cache: `/?ref=anna` is cached and served as `/`, the page is rendered without it (public routes get `request.query` without it too), and canonical addresses never carry it. Cached pages stay the same for everyone.
 - The pages carry a small inline script (the same for every visitor) that reads the parameter in the browser, removes it from the address bar (`history.replaceState`, no redirect), and tells the server (`POST /_cx/referral`, at most 20 a minute per address): plugins get the `referral.visit` action, `{ plugin, code, path, referrer, stored }`, without the visitor's address, to count visits.
 - The code is kept in a first-party cookie, `cx_ref_<slug>` (`-` becomes `_`), for `days`, **only with the visitor's consent to `category`** (Privacy & GDPR: `window.cleitextConsent` and the `cleitext:consent` event, so consent given later on the same page still counts). Without consent, or on a site without a consent banner, nothing is stored. `model: 'first'` keeps a code already there.
 - Routes read the codes as `request.referrals`, `{ <slug>: <code> }` (the cookies of every capturing plugin, checked). A plugin that sells keeps them with the order or booking it creates and passes them to `ctx.conversions.paid` when it is paid (often later, from a payment provider's webhook, where the customer's cookies are not available).

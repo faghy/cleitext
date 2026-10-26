@@ -19,9 +19,11 @@ export function routeRequest(
     locale?: string;
     /** The uploaded file, already received (`readUpload`). */
     upload?: UploadedFile | null;
+    /** The address to read the query from, when not the request's (plugin API 1.58). */
+    url?: string;
   } = {},
 ): RouteRequest {
-  const url = new URL(request.url, 'http://local');
+  const url = new URL(options.url ?? request.url, 'http://local');
   const headers: Record<string, string | undefined> = {};
   for (const [name, value] of Object.entries(request.headers)) {
     if (name === 'cookie' || name === 'authorization') continue;
