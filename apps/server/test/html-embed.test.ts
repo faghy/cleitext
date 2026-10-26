@@ -1,7 +1,9 @@
 /** HTML and embed blocks (RF-EDT-02): sanitizing by capability, oEmbed previews. */
+import { resolveEmbed } from '@cleitext/blocks';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { adminCsp } from '../src/common/security-headers.js';
 import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -103,6 +105,25 @@ describe('oEmbed previews', () => {
     expect(card).toMatchObject({ type: 'rich', provider_name: 'Instagram' });
     expect(card.html).toContain('href="https://www.instagram.com/someone/"');
     expect(card.html).not.toContain('<iframe');
+  });
+
+  it('lets every embedded player into the admin, so the editor can preview it', () => {
+    const frameSrc = adminCsp([])
+      .split('; ')
+      .find((d) => d.startsWith('frame-src '))!;
+    for (const url of [
+      'https://youtu.be/dQw4w9WgXcQ',
+      'https://vimeo.com/76979871',
+      'https://www.tiktok.com/@linomissio',
+      'https://www.tiktok.com/@linomissio/video/7300000000000000000',
+      'https://www.instagram.com/p/C1a2b3c4d5e/',
+      'https://www.facebook.com/someone/posts/pfbid0abc',
+      'https://x.com/someone/status/1800000000000000000',
+    ]) {
+      const embed = resolveEmbed(url);
+      expect(embed?.layout, url).not.toBe('card');
+      expect(frameSrc.split(' '), url).toContain(new URL(embed!.src).origin);
+    }
   });
 
   it('refuses unknown addresses and missing parameters', async () => {

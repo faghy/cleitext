@@ -102,3 +102,45 @@ test('embed and HTML blocks are edited, saved and published', async ({ page, con
 
   expect(appErrors(errors)).toEqual([]);
 });
+
+test('a TikTok profile is previewed in the editor at the size the page gives it', async ({
+  page,
+}) => {
+  const blocked: string[] = [];
+  page.on('console', (m) => {
+    if (/Framing .* violates/.test(m.text())) blocked.push(m.text());
+  });
+  await signIn(page);
+  await page.goto('/cl-admin/pages');
+  await page.getByRole('button', { name: 'Add New' }).click();
+  await page.waitForURL('**/cl-admin/entries/**');
+  const canvas = page.frameLocator('iframe[name="editor-canvas"]');
+  await canvas
+    .locator(
+      '.block-editor-default-block-appender__content, [data-empty="true"], .wp-block-paragraph',
+    )
+    .first()
+    .click();
+  await page.keyboard.type('/tiktok');
+  await expect(page.getByRole('option', { name: /TikTok/ }).first()).toBeVisible();
+  await page.keyboard.press('Enter');
+  await canvas
+    .getByRole('textbox', { name: /Embed URL/i })
+    .fill('https://www.tiktok.com/@linomissio');
+  await canvas.getByRole('button', { name: 'Embed' }).click();
+  const preview = canvas.locator('.wp-block-embed iframe.components-sandbox');
+  await expect
+    .poll(() =>
+      preview.evaluate((frame: HTMLIFrameElement) => frame.contentDocument?.body.innerHTML),
+    )
+    .toContain('https://www.tiktok.com/embed/@linomissio');
+  // Not 0×0: TikTok's creator frame is 479 px tall and as wide as the column.
+  const size = await preview.evaluate((frame: HTMLIFrameElement) => ({
+    width: frame.offsetWidth,
+    height: frame.offsetHeight,
+  }));
+  expect(size.height).toBe(479);
+  expect(size.width).toBeGreaterThan(300);
+  // The admin lets TikTok's player in.
+  expect(blocked).toEqual([]);
+});

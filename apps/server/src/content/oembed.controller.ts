@@ -56,6 +56,8 @@ export class OEmbedController {
       html:
         `<iframe src="${attr(embed.src)}" title="${attr(embed.title)}" width="${embed.width}" ` +
         `height="${embed.height}" frameborder="0" loading="lazy" ` +
+        // A fixed frame is as wide as the preview, up to its own width.
+        (embed.layout === 'fixed' ? 'style="display:block;width:100%;max-width:100%" ' : '') +
         `allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture; web-share" ` +
         `allowfullscreen></iframe>`,
     };

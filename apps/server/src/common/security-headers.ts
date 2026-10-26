@@ -8,6 +8,11 @@ export const EMBED_FRAME_HOSTS = [
   'https://player.vimeo.com',
   'https://open.spotify.com',
   'https://www.dailymotion.com',
+  // Since 0.84.0: TikTok, Instagram, Facebook and X (Tweet.html).
+  'https://www.tiktok.com',
+  'https://www.instagram.com',
+  'https://www.facebook.com',
+  'https://platform.twitter.com',
 ];
 
 /** sha256 sources for the inline `<script>` elements of an HTML page. */

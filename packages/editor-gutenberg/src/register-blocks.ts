@@ -26,6 +26,7 @@ import {
   unregisterBlockVariation,
 } from '@wordpress/blocks';
 import '@wordpress/format-library';
+import { registerEmbedSize } from './embed-size';
 import { currentServices } from './media-upload';
 import { registerUnavailableBlock } from './unavailable-block';
 import { registerPatternBlock } from './patterns';
@@ -76,6 +77,7 @@ export function registerCoreBlocks(): void {
   });
   for (const block of CORE_BLOCKS) (block as { init: () => unknown }).init();
   registerSocialEmbeds();
+  registerEmbedSize();
   registerUnavailableBlock();
   registerPatternBlock();
   // Block bindings, Field and Field rows (plugin API 1.48).

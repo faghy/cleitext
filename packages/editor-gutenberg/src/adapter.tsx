@@ -71,6 +71,9 @@ const CANVAS_CSS = `
   .wp-embed-aspect-4-3 .wp-block-embed__wrapper::before { padding-top: 75%; }
   .wp-embed-aspect-1-1 .wp-block-embed__wrapper::before { padding-top: 100%; }
   .wp-embed-aspect-9-16 .wp-block-embed__wrapper::before { padding-top: 177.77%; }
+  /* Frames with a fixed height and link cards: the size the page gives them
+     (embed-size.tsx), Gutenberg's own sizing script being blocked by the CSP. */
+  .cx-embed-fixed .wp-block-embed__wrapper > iframe, .cx-embed-card .wp-block-embed__wrapper > iframe { display: block; width: min(100%, var(--cx-embed-width)); height: var(--cx-embed-height); }
 `;
 
 const RESOLVED_ASSETS = {
