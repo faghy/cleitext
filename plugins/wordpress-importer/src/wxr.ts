@@ -46,6 +46,7 @@ import {
   type PostsPermalink,
 } from './permalinks.js';
 import { cmpWarning, emptyCmpReport, stripCmpBlocks, stripCmpCss } from './cmp.js';
+import { oembedLookup, sharedOembeds } from './embeds.js';
 import {
   markNewsletterEmbeds,
   newsletterEmbedsWarning,
@@ -184,6 +185,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const locale = options.locale;
   const baseUrl = text(channel['wp:base_blog_url']) || text(channel.link);
   const items = (channel.item as Node[] | undefined) ?? [];
+  /** WordPress's oEmbed cache outside posts, for embeds without a Cleitext player. */
+  const oembedShared = sharedOembeds(items, text);
 
   // ---- Authors ------------------------------------------------------------------------
   const loginById = new Map(
@@ -450,6 +453,12 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       keepUnknown: true,
       mediaRef: (attachment) => attachmentRefs.get(attachment),
       warn: (message) => warnings.push(`${title || `#${id}`}: ${message}`),
+      // Embeds of providers without a Cleitext player keep WordPress's cached HTML.
+      oembedHtml: oembedLookup(
+        (item['wp:postmeta'] as Node[] | undefined) ?? [],
+        text,
+        oembedShared,
+      ),
     });
     // HTML blocks with a newsletter service's form are offered to plugins (`import.block`).
     const marked = markNewsletterEmbeds(document.blocks as CxdBlock[], newsletterEmbeds);

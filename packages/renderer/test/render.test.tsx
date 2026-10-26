@@ -265,8 +265,65 @@ describe('embeds and HTML', () => {
     expect(out).toContain('loading="lazy"');
     expect(out).toContain('is-provider-youtube');
     expect(out).toContain('<figcaption class="wp-element-caption">Song</figcaption>');
-    expect(out).toContain('<a href="https://example.com/post">https://example.com/post</a>');
+    // Other sites: a link card, without any request to them.
+    expect(out).toContain(
+      '<a class="cx-embed-card" href="https://example.com/post" target="_blank" rel="noopener noreferrer"><span class="cx-embed-card__provider">example.com</span><span class="cx-embed-card__url">example.com/post</span></a>',
+    );
     expect(out).not.toContain('javascript:');
+  });
+
+  it('renders social posts and profiles in frames of a fixed height, with titles', () => {
+    const embed = (id: string, url: string, className?: string) => ({
+      id,
+      type: 'core/embed',
+      v: 1,
+      attrs: { url, ...(className ? { className } : {}) },
+    });
+    const out = html(
+      doc(
+        embed(
+          't',
+          'https://www.tiktok.com/@linomissio',
+          'wp-embed-aspect-16-9 wp-has-aspect-ratio own',
+        ),
+        embed('v', 'https://www.tiktok.com/@linomissio/video/7212345678901234567'),
+        embed('i', 'https://www.instagram.com/p/C1a2B3c4D5e/'),
+        embed('f', 'https://www.facebook.com/cleitext/posts/pfbid02abc'),
+        embed('x', 'https://x.com/cleitext/status/1790000000000000000'),
+      ),
+    );
+    expect(out).toContain(
+      '<figure class="wp-block-embed is-type-rich is-provider-tiktok wp-block-embed-tiktok own"><div class="wp-block-embed__wrapper"><iframe src="https://www.tiktok.com/embed/@linomissio" title="TikTok profile @linomissio" width="780" height="479" loading="lazy"',
+    );
+    expect(out).toContain('style="border:0;display:block;width:100%;max-width:780px;height:479px"');
+    expect(out).toContain('title="TikTok video" width="325" height="740"');
+    expect(out).toContain(
+      'src="https://www.instagram.com/p/C1a2B3c4D5e/embed/" title="Instagram post"',
+    );
+    expect(out).toContain('title="Facebook post"');
+    expect(out).toContain(
+      'src="https://platform.twitter.com/embed/Tweet.html?id=1790000000000000000&amp;dnt=true" title="X post"',
+    );
+    // Fixed heights never get a ratio box.
+    expect(out).not.toContain('wp-has-aspect-ratio');
+  });
+
+  it('renders profiles without a frame as link cards, with their styles', () => {
+    const out = withCoreBlockCss(
+      html(
+        doc({
+          id: 'p',
+          type: 'core/embed',
+          v: 1,
+          attrs: { url: 'https://www.instagram.com/someone/' },
+        }),
+      ),
+    );
+    expect(out).toContain(
+      '<a class="cx-embed-card cx-embed-card--instagram" href="https://www.instagram.com/someone/" target="_blank" rel="noopener noreferrer" aria-label="Instagram profile @someone (Instagram)"><span class="cx-embed-card__provider">Instagram</span><span class="cx-embed-card__title">@someone</span><span class="cx-embed-card__url">instagram.com/someone</span></a>',
+    );
+    expect(out).not.toContain('<iframe');
+    expect(out).toContain('.cx-embed-card{');
   });
 
   it('outputs the HTML block as saved', () => {

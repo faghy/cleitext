@@ -178,6 +178,46 @@ describe('cookie banner', () => {
     expect(html).toContain("n.removeAttribute('srcdoc')");
   });
 
+  it('holds social embeds too, in the category chosen for embeds', async () => {
+    const page = await publish('page', 'Canale Tik Tok', {
+      document: {
+        schema: 1,
+        blocks: [
+          {
+            id: 'tt1',
+            type: 'core/embed',
+            v: 1,
+            attrs: { url: 'https://www.tiktok.com/@linomissio', providerNameSlug: 'tiktok' },
+          },
+        ],
+      },
+    });
+    const held = (await visitor.get(`/${page.slug}`)).body;
+    expect(held).toMatch(
+      /<iframe data-cx-category="marketing" data-cx-src="https:\/\/www\.tiktok\.com\/embed\/@linomissio" srcdoc="[^"]*Content of TikTok[^"]*“Marketing”/,
+    );
+    expect(held).toContain('title="TikTok profile @linomissio"');
+    expect(held).not.toMatch(/<iframe[^>]*\ssrc="https:\/\/www\.tiktok/);
+
+    const current = await config();
+    const saved = await saveConfig({
+      ...current,
+      banner: { ...current.banner, embedCategory: 'statistics' },
+    });
+    expect(saved.json().banner.embedCategory).toBe('statistics');
+    // Not a change of what visitors agreed to: they are not asked again.
+    expect(saved.json().version).toBe(current.version);
+    const statistics = (await visitor.get(`/${page.slug}`)).body;
+    expect(statistics).toMatch(
+      /<iframe data-cx-category="statistics" data-cx-src="https:\/\/www\.tiktok\.com\/embed\/@linomissio" srcdoc="[^"]*“Statistics”[^"]*data-cx-allow=&#34;statistics&#34;/,
+    );
+    // An unknown category is not saved.
+    const stored = saved.json() as { banner: Record<string, unknown> };
+    const bogus = await saveConfig({ ...stored, banner: { ...stored.banner, embedCategory: 'x' } });
+    expect(bogus.json().banner.embedCategory).toBe('statistics');
+    await saveConfig({ ...current, banner: { ...current.banner, embedCategory: 'marketing' } });
+  });
+
   it('asks again when categories or cookies change', async () => {
     const current = await config();
     const saved = (

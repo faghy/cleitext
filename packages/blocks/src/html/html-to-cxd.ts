@@ -11,6 +11,7 @@ import {
   type CxdInline,
 } from '../index.js';
 import { HTMLElement, parse, TextNode, type Node } from 'node-html-parser';
+import { embedProviderName, resolveEmbed } from '../embed.js';
 import { parseBlocks, type WpBlock } from './wp-blocks.js';
 import {
   IMPORTED_BLOCK,
@@ -33,6 +34,12 @@ export interface ConvertOptions {
    * `import.shortcode` filter, plugin API 1.36).
    */
   keepUnknown?: boolean;
+  /**
+   * The oEmbed HTML WordPress cached for an embedded address (the post's
+   * `_oembed_…` meta), for providers Cleitext has no player for: kept in an
+   * HTML block, its scripts held by the Privacy plugin until consent.
+   */
+  oembedHtml?(url: string): string | undefined;
 }
 
 /**
@@ -74,6 +81,8 @@ function fromWpBlock(
   const blockStyle = cleanBlockStyle(attrs.style);
   if (blockStyle) common.style = blockStyle;
   if (!name) return html.trim() ? fromClassic(html, options, warn) : [];
+  // WordPress before 5.6: `core-embed/youtube`, `core-embed/tiktok`…
+  if (name.startsWith('core-embed/')) return wpEmbed(html, attrs, common, options, warn);
 
   switch (name) {
     case 'core/paragraph': {
@@ -85,6 +94,9 @@ function fromWpBlock(
         { ...common, ...(align ? { align } : {}), ...pick(attrs, ['dropCap']) },
         content,
       );
+      // An address alone in its paragraph, which WordPress embeds; `[embed]…[/embed]`.
+      const embedded = embedOnItsOwn(inner, options, warn);
+      if (embedded) return embedded;
       // A paragraph holding only shortcodes (e.g. a booking widget's).
       const shortcodes = options.keepUnknown ? shortcodeLines(inner) : null;
       if (shortcodes) {
@@ -252,13 +264,18 @@ function fromWpBlock(
       const code = root.querySelector('pre') ?? root.querySelector('code') ?? root;
       return [make('core/code', common, [{ text: preText(code.innerHTML) }])];
     }
-    case 'core/html':
+    case 'core/html': {
+      // A social post pasted with its provider's code: the Embed block.
+      const social = socialEmbedUrl(parse(html));
+      if (social) return embedBlocks(social, {}, null, options, warn, 'HTML');
       // Kept as it is (maps, forms, widgets of other services): sanitized when shown.
       return html.trim() ? [make('core/html', { content: html.trim() })] : [];
+    }
     case 'core/more':
     case 'core/nextpage':
       return [];
     case 'core/embed':
+      return wpEmbed(html, attrs, common, options, warn);
     case 'core/video':
     case 'core/audio':
     case 'core/file': {
@@ -273,6 +290,8 @@ function fromWpBlock(
     case 'core/shortcode': {
       const gallery = galleryShortcode(html.trim(), options);
       if (gallery) return [gallery];
+      const embedded = embedOnItsOwn(html.trim(), options, warn);
+      if (embedded) return embedded;
       const shortcodes = options.keepUnknown ? shortcodeLines(html.trim()) : null;
       if (shortcodes) {
         return shortcodes.map((shortcode) =>
@@ -400,6 +419,12 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
         blocks.push(gallery);
         continue;
       }
+      // An address alone on its line (WordPress's auto-embed), `[embed]…[/embed]`.
+      const embedded = embedOnItsOwn(chunk.trim(), options, warn);
+      if (embedded) {
+        blocks.push(...embedded);
+        continue;
+      }
       // Shortcodes alone on their lines: plugins may have blocks for them.
       const shortcodes = options.keepUnknown ? shortcodeLines(chunk.trim()) : null;
       if (shortcodes) {
@@ -484,6 +509,12 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
           });
           break;
         case 'BLOCKQUOTE': {
+          // A social post's blockquote (TikTok, Instagram, X), its script left out.
+          const social = socialEmbedUrl(node);
+          if (social) {
+            blocks.push(...embedBlocks(social, {}, null, options, warn, 'HTML'));
+            break;
+          }
           const inner = fromClassic(node.innerHTML, options, warn);
           blocks.push({
             ...make('core/quote', {}),
@@ -493,6 +524,11 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
         }
         case 'FIGURE':
         case 'IMG':
+          // An embed block saved as HTML (`<figure class="wp-block-embed is-provider-tiktok">`).
+          if (tag === 'FIGURE' && node.classList.contains('wp-block-embed')) {
+            blocks.push(...wpEmbed(node.outerHTML, {}, {}, options, warn));
+            break;
+          }
           if (node.querySelector('img') || tag === 'IMG')
             blocks.push(imageBlock(node, {}, undefined, options));
           break;
@@ -507,6 +543,11 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
           break;
         case 'IFRAME': {
           const src = node.getAttribute('src');
+          // The player of a known provider: the Embed block.
+          if (src && resolveEmbed(src)) {
+            blocks.push(...embedBlocks(src, {}, null, options, warn, 'frame'));
+            break;
+          }
           warn('An embedded frame became a link.');
           if (src) blocks.push(make('core/paragraph', {}, [linkTo(src)]));
           break;
@@ -525,6 +566,191 @@ function fromClassic(html: string, options: ConvertOptions, warn: (m: string) =>
   visit(root.childNodes);
   flush();
   return blocks;
+}
+
+// ---- Embeds ---------------------------------------------------------------------------
+
+/**
+ * WordPress's Embed block (`core/embed`, `core-embed/<provider>`, or its
+ * saved `<figure class="wp-block-embed">`): its address, alignment, class
+ * and caption.
+ */
+function wpEmbed(
+  html: string,
+  attrs: Record<string, unknown>,
+  common: Record<string, unknown>,
+  options: ConvertOptions,
+  warn: (m: string) => void,
+): CxdBlock[] {
+  const root = parse(html);
+  const figure = root.querySelector('figure');
+  const url =
+    (typeof attrs.url === 'string' ? attrs.url : null) ??
+    root.querySelector('.wp-block-embed__wrapper')?.textContent.trim() ??
+    root.querySelector('a')?.getAttribute('href') ??
+    root.querySelector('iframe')?.getAttribute('src') ??
+    null;
+  const classes = figure?.classList;
+  const align =
+    common.align ??
+    (classes
+      ? ['wide', 'full', 'left', 'right', 'center'].find((a) => classes.contains(`align${a}`))
+      : undefined);
+  const className =
+    typeof common.className === 'string'
+      ? common.className
+      : (figure?.getAttribute('class') ?? '')
+          .split(/\s+/)
+          .filter(
+            (c) =>
+              c &&
+              !/^(wp-block-embed|is-type-|is-provider-|wp-embed-aspect-|wp-has-aspect-ratio$|align)/.test(
+                c,
+              ),
+          )
+          .join(' ');
+  const rest = {
+    ...common,
+    ...(align ? { align } : {}),
+    ...(className ? { className } : {}),
+  };
+  if (!url) {
+    warn('An embed without an address was left out.');
+    return [];
+  }
+  return embedBlocks(
+    url,
+    rest,
+    figure?.querySelector('figcaption') ?? null,
+    options,
+    warn,
+    'block',
+  );
+}
+
+/**
+ * An address embedded: the Embed block, which shows the provider's frame,
+ * or a link card when there is none; the oEmbed HTML WordPress cached when
+ * Cleitext has no player for the provider. Every embed is reported.
+ */
+function embedBlocks(
+  url: string,
+  attrs: Record<string, unknown>,
+  figcaption: HTMLElement | null,
+  options: ConvertOptions,
+  warn: (m: string) => void,
+  from: 'block' | 'shortcode' | 'address' | 'HTML' | 'frame',
+): CxdBlock[] {
+  const address = decode(url.trim());
+  if (!/^https?:\/\//i.test(address)) {
+    warn(`An embed became a link: ${address}`);
+    return address ? [make('core/paragraph', {}, [linkTo(address)])] : [];
+  }
+  const caption =
+    figcaption && figcaption.textContent.trim() ? { caption: inline(figcaption.innerHTML) } : {};
+  const via =
+    from === 'block'
+      ? ''
+      : ` (from ${from === 'address' ? 'an address alone on its line' : from === 'shortcode' ? 'an [embed] shortcode' : from === 'frame' ? 'a frame' : 'pasted HTML'})`;
+  const known = resolveEmbed(address);
+  if (known) {
+    warn(
+      known.layout === 'card'
+        ? `Embed of ${known.providerName} shown as a link card${via}: ${known.title}, ${address}`
+        : `Embed of ${known.providerName} kept${via}: ${known.title}, ${address}`,
+    );
+    return [
+      make('core/embed', {
+        ...attrs,
+        url: address,
+        providerNameSlug: known.provider,
+        type: known.type === 'link' ? 'rich' : known.type,
+        responsive: true,
+        ...caption,
+      }),
+    ];
+  }
+  const provider = embedProviderName(address);
+  const cached = provider ? options.oembedHtml?.(address)?.trim() : undefined;
+  if (provider && cached) {
+    warn(
+      `Embed of ${provider} kept with WordPress's HTML, held until consent with the Privacy plugin${via}: ${address}`,
+    );
+    const content = cached.replace(
+      /<script\b(?![^>]*\bdata-cx-embed=)/gi,
+      `<script data-cx-embed="${provider.replace(/[^\w .-]/g, '')}"`,
+    );
+    return [make('core/html', { content })];
+  }
+  const host = (/^https?:\/\/([^/?#:]+)/i.exec(address)?.[1] ?? address)
+    .toLowerCase()
+    .replace(/^www\./, '');
+  warn(`Embed of ${provider ?? host} shown as a link card (no player for it)${via}: ${address}`);
+  return [make('core/embed', { ...attrs, url: address, ...caption })];
+}
+
+/** `[embed …]address[/embed]`, or an address WordPress embeds alone on its line. */
+function embedOnItsOwn(
+  text: string,
+  options: ConvertOptions,
+  warn: (m: string) => void,
+): CxdBlock[] | null {
+  const plain = text.replace(/&nbsp;/g, ' ').trim();
+  const shortcode = /^\[embed(?:\s[^\]]*)?\]\s*(https?:\/\/[^\s<>"[\]]+)\s*\[\/embed\]$/i.exec(
+    plain.replace(/<a\b[^>]*>([^<]*)<\/a>/gi, '$1'),
+  );
+  if (shortcode) return embedBlocks(shortcode[1]!, {}, null, options, warn, 'shortcode');
+  if (/^https?:\/\/[^\s<>"]+$/i.test(plain) && embedProviderName(decode(plain))) {
+    return embedBlocks(plain, {}, null, options, warn, 'address');
+  }
+  return null;
+}
+
+/**
+ * The address of a social post pasted with its provider's code (TikTok's,
+ * Instagram's or X's blockquote, Facebook's `fb-post`, a known player's
+ * frame), when there is nothing else around it but scripts.
+ */
+function socialEmbedUrl(root: HTMLElement): string | null {
+  const found: [string, (e: HTMLElement) => string | undefined][] = [
+    ['blockquote.tiktok-embed', (e) => e.getAttribute('cite')],
+    ['blockquote.instagram-media', (e) => e.getAttribute('data-instgrm-permalink')],
+    [
+      'blockquote.twitter-tweet',
+      (e) =>
+        e
+          .querySelectorAll('a')
+          .map((a) => a.getAttribute('href') ?? '')
+          .filter((href) => /\/status(es)?\/\d+/.test(href))
+          .at(-1),
+    ],
+    ['.fb-post, .fb-video, .fb-page', (e) => e.getAttribute('data-href')],
+    ['iframe', (e) => e.getAttribute('src')],
+  ];
+  const self = root.tagName ? root : null;
+  for (const [selector, urlOf] of found) {
+    const element = self && matchesSelector(self, selector) ? self : root.querySelector(selector);
+    if (!element) continue;
+    const url = urlOf(element)?.trim();
+    if (!url || !resolveEmbed(decode(url))) return null;
+    if (element !== self) {
+      // Nothing else to show around it (scripts and Facebook's root aside).
+      const copy = parse(root.toString());
+      copy.querySelectorAll(`${selector}, script, #fb-root`).forEach((e) => e.remove());
+      if (copy.textContent.trim() || copy.querySelector('img,video,iframe,form')) return null;
+    }
+    return decode(url);
+  }
+  return null;
+}
+
+function matchesSelector(element: HTMLElement, selector: string): boolean {
+  return selector.split(',').some((one) => {
+    const [tag, cls] = one.trim().split('.');
+    return (
+      (!tag || element.tagName === tag.toUpperCase()) && (!cls || element.classList.contains(cls))
+    );
+  });
 }
 
 // ---- Helpers --------------------------------------------------------------------------

@@ -92,6 +92,19 @@ describe('oEmbed previews', () => {
     expect(res.json().html).toContain('src="https://player.vimeo.com/video/76979871?dnt=1"');
   });
 
+  it('previews social posts in their frame and profiles without one as a card', async () => {
+    const get = async (url: string) =>
+      (await author.get(`/api/v1/oembed?url=${encodeURIComponent(url)}`)).json();
+    const profile = await get('https://www.tiktok.com/@linomissio');
+    expect(profile).toMatchObject({ type: 'rich', provider_name: 'TikTok', height: 479 });
+    expect(profile.html).toContain('src="https://www.tiktok.com/embed/@linomissio"');
+    expect(profile.html).toContain('title="TikTok profile @linomissio"');
+    const card = await get('https://www.instagram.com/someone/');
+    expect(card).toMatchObject({ type: 'rich', provider_name: 'Instagram' });
+    expect(card.html).toContain('href="https://www.instagram.com/someone/"');
+    expect(card.html).not.toContain('<iframe');
+  });
+
   it('refuses unknown addresses and missing parameters', async () => {
     expect(
       (await author.get(`/api/v1/oembed?url=${encodeURIComponent('http://127.0.0.1/')}`))

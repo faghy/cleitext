@@ -3,8 +3,10 @@ import {
   hasFlowGap,
   hasSpacing,
   layoutCss,
+  embedProviderName,
   resolveEmbed,
   type CxdBlock,
+  type EmbedInfo,
   type CxdDocument,
   type CxdInline,
 } from '@cleitext/blocks';
@@ -197,12 +199,26 @@ registerBlockRenderer('core/html', ({ block }) => {
   return html ? <div className="wp-block-html" dangerouslySetInnerHTML={{ __html: html }} /> : null;
 });
 
-/** Known providers become a lazy iframe; any other address stays a link. */
+/**
+ * Known providers become a lazy iframe, sized without layout shift: videos
+ * keep their ratio, social posts and profiles get a fixed height (as wide as
+ * the column, up to their width). What has no frame (profiles of Instagram
+ * and X, other sites) becomes a link card: no request to the other site.
+ */
 registerBlockRenderer('core/embed', ({ block }) => {
   const url = safeUrl(str(block.attrs.url));
   if (!url) return null;
   const embed = resolveEmbed(url);
   const caption = rich(block, 'caption');
+  const frame = embed && embed.layout !== 'card' ? embed : null;
+  // Gutenberg's ratio classes would give a fixed-height frame or a card a ratio box.
+  const extra =
+    frame?.layout === 'aspect'
+      ? extraClass(block)
+      : extraClass(block)
+          ?.split(/\s+/)
+          .filter((name) => !/^wp-(embed-aspect-|has-aspect-ratio$)/.test(name))
+          .join(' ');
   return (
     <figure
       id={anchor(block)}
@@ -212,26 +228,36 @@ registerBlockRenderer('core/embed', ({ block }) => {
         embed && `is-type-${embed.type}`,
         embed && `is-provider-${embed.provider}`,
         embed && `wp-block-embed-${embed.provider}`,
-        embed?.type === 'video' && 'wp-embed-aspect-16-9 wp-has-aspect-ratio',
-        extraClass(block),
+        frame?.layout === 'aspect' && 'wp-embed-aspect-16-9 wp-has-aspect-ratio',
+        extra,
       )}
       style={blockStyle(block)}
     >
       <div className="wp-block-embed__wrapper">
-        {embed ? (
+        {frame ? (
           <iframe
-            src={embed.src}
-            title={embed.providerName}
-            width={embed.width}
-            height={embed.height}
+            src={frame.src}
+            title={frame.title}
+            width={frame.width}
+            height={frame.height}
             loading="lazy"
-            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture; web-share"
             allowFullScreen
             referrerPolicy="strict-origin-when-cross-origin"
-            style={{ border: 0 }}
+            style={
+              frame.layout === 'fixed'
+                ? {
+                    border: 0,
+                    display: 'block',
+                    width: '100%',
+                    maxWidth: `${frame.width}px`,
+                    height: `${frame.height}px`,
+                  }
+                : { border: 0 }
+            }
           />
         ) : (
-          <a href={url}>{url}</a>
+          <EmbedCard url={embed?.src ?? url} embed={embed} />
         )}
       </div>
       {hasText(caption) && (
@@ -242,6 +268,33 @@ registerBlockRenderer('core/embed', ({ block }) => {
     </figure>
   );
 });
+
+/** A link card: the provider (or site), the account when known, the address. */
+function EmbedCard({ url, embed }: { url: string; embed: EmbedInfo | null }): ReactNode {
+  const name = embed?.providerName ?? embedProviderName(url) ?? hostOf(url);
+  const shown = url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+  return (
+    <a
+      className={classes('cx-embed-card', embed && `cx-embed-card--${embed.provider}`)}
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={embed ? `${embed.title} (${name})` : undefined}
+    >
+      <span className="cx-embed-card__provider">{name}</span>
+      {embed?.handle && <span className="cx-embed-card__title">{embed.handle}</span>}
+      <span className="cx-embed-card__url">{shown}</span>
+    </a>
+  );
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
 
 /** A synced pattern: its blocks, from the pattern itself (one level deep). */
 registerBlockRenderer('cleitext/pattern', ({ block }) => <PatternBlock block={block} />);
@@ -403,6 +456,13 @@ export const CORE_BLOCK_CSS = [
   '.wp-block-gallery>.wp-block-image img{width:100%;height:auto;display:block}',
   '.wp-block-gallery.is-cropped>.wp-block-image img{aspect-ratio:1;height:100%;object-fit:cover}',
   '.wp-block-gallery>figcaption{grid-column:1/-1}',
+  // Link cards of embeds without a frame (Instagram and X profiles, other sites).
+  '.cx-embed-card{display:flex;flex-direction:column;gap:.15em;max-width:32rem;padding:1em 1.25em;border:1px solid rgb(127 127 127/.35);border-left:4px solid var(--cx-embed-accent,currentColor);border-radius:.5em;text-decoration:none;color:inherit;overflow-wrap:anywhere}',
+  '.cx-embed-card:hover,.cx-embed-card:focus-visible{border-color:var(--cx-embed-accent,currentColor)}',
+  '.cx-embed-card__provider{font-size:.8em;font-weight:600;text-transform:uppercase;letter-spacing:.05em;opacity:.75}',
+  '.cx-embed-card__title{font-size:1.15em;font-weight:600}',
+  '.cx-embed-card__url{font-size:.875em;opacity:.8;text-decoration:underline}',
+  '.cx-embed-card--instagram{--cx-embed-accent:#d62976}.cx-embed-card--twitter{--cx-embed-accent:#536471}.cx-embed-card--tiktok{--cx-embed-accent:#fe2c55}.cx-embed-card--facebook{--cx-embed-accent:#1877f2}',
 ].join('');
 
 /**
@@ -458,7 +518,9 @@ export function withCoreBlockCss(html: string): string {
   if (/var\(--wp--preset--spacing--/.test(html))
     html = beforeThemeStyles(html, `<style data-cx-spacing>${SPACING_PRESETS_CSS}</style>`);
   if (
-    !/class="wp-block-(table|gallery)\b|-vertically-aligned-|\bis-layout-(flex|grid)\b/.test(html)
+    !/class="wp-block-(table|gallery)\b|-vertically-aligned-|\bis-layout-(flex|grid)\b|class="cx-embed-card\b/.test(
+      html,
+    )
   )
     return html;
   return beforeThemeStyles(html, `<style data-cx-core-blocks>${CORE_BLOCK_CSS}</style>`);

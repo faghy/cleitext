@@ -59,8 +59,9 @@ describe('newsletter forms embedded from email services', () => {
     const blocks = htmlToCxd(wrapClassicEmbeds(content), { keepUnknown: true }).blocks;
     const htmls = blocks.filter((b) => b.type === 'core/html').map((b) => String(b.attrs.content));
     expect(htmls).toEqual([MAILCHIMP_FORM, BREVO_IFRAME]);
-    // The texts, and the video converted as before (a link).
-    expect(blocks.filter((b) => b.type === 'core/paragraph')).toHaveLength(3);
+    // The texts, and the video converted as before (an Embed block since 0.84).
+    expect(blocks.filter((b) => b.type === 'core/paragraph')).toHaveLength(2);
+    expect(blocks.filter((b) => b.type === 'core/embed')).toHaveLength(1);
     // Block content and content without such forms are left alone.
     const withBlocks = `<!-- wp:paragraph --><p>x</p><!-- /wp:paragraph -->${MAILCHIMP_FORM}`;
     expect(wrapClassicEmbeds(withBlocks)).toBe(withBlocks);

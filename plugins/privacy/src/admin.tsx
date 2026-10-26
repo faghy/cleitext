@@ -789,6 +789,25 @@ function BannerTab({
               />
             ))}
           </fieldset>
+          <Labeled
+            label={tr('Category of embedded content', 'Categoria dei contenuti incorporati')}
+            hint={tr(
+              'Videos, maps and social posts (YouTube, TikTok, Instagram, Facebook, X…) wait for consent to this category, with a notice in their place.',
+              'Video, mappe e post social (YouTube, TikTok, Instagram, Facebook, X…) aspettano il consenso a questa categoria, con un avviso al loro posto.',
+            )}
+          >
+            <select
+              className={field}
+              value={banner.embedCategory}
+              onChange={(e) => set('embedCategory', e.target.value as Category)}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {help[c][0]}
+                </option>
+              ))}
+            </select>
+          </Labeled>
           {!external && (
             <div className="grid gap-3 sm:grid-cols-3">
               <Labeled label={tr('Layout', 'Aspetto')}>

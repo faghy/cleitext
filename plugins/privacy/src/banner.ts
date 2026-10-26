@@ -45,6 +45,9 @@ export function embedName(host: string): { name: string; map: boolean } {
   if (/(^|\.)(facebook|instagram)\.com$/.test(h)) {
     return { name: h.includes('instagram') ? 'Instagram' : 'Facebook', map: false };
   }
+  if (/(^|\.)tiktok\.com$/.test(h)) return { name: 'TikTok', map: false };
+  if (/(^|\.)(twitter|x)\.com$/.test(h)) return { name: 'X', map: false };
+  if (/(^|\.)dailymotion\.com$/.test(h)) return { name: 'Dailymotion', map: false };
   if (/(^|\.)spotify\.com$/.test(h)) return { name: 'Spotify', map: false };
   return { name: h, map: false };
 }
@@ -56,27 +59,85 @@ const MAP_BACKGROUND = `url("data:image/svg+xml,${encodeURIComponent(
 
 type EmbedTexts = ReturnType<typeof textsFor>['embed'] & { preferences: string };
 
+/** Which category holds embeds, and its name in the notices. */
+export interface EmbedGate {
+  /** The category of embeds that name none (marketing by default). */
+  category?: Category;
+  /** The categories offered: an embed naming one of them (`data-cx-category`) waits for it. */
+  offered?: readonly Category[];
+  /** The category's name shown to visitors. */
+  label?(category: Category): string;
+}
+
+const CATEGORY_NAMES: Record<Category, string> = {
+  preferences: 'Preferences',
+  statistics: 'Statistics',
+  marketing: 'Marketing',
+};
+
 /** The notice inside a held iframe: a card over a faded map or a dark frame. */
-function embedDoc(src: string, host: string, texts: EmbedTexts, color: string): string {
+function embedDoc(
+  src: string,
+  host: string,
+  texts: EmbedTexts,
+  color: string,
+  category: Category,
+  label: string,
+): string {
   const { name, map } = embedName(host);
   const pin =
     '<svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path fill="COLOR" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>';
   const play =
     '<svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="COLOR"/><path fill="#fff" d="M10 7.5v9l7-4.5z"/></svg>';
   const style = `html,body{margin:0;height:100%}body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f2937;display:flex;align-items:center;justify-content:center;overflow:auto;background:${map ? MAP_BACKGROUND : 'linear-gradient(135deg,#1f2937,#4b5563)'}}body::before{content:"";position:fixed;inset:0;background:${map ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.25)'}}.cx-card{position:relative;box-sizing:border-box;max-width:25rem;margin:1rem;padding:1.25rem 1.4rem;background:#fff;border-radius:.75rem;box-shadow:0 10px 30px rgba(0,0,0,.18);text-align:center}h2{margin:.35rem 0 .3rem;font-size:1.05rem}p{margin:0 0 1rem;font-size:.9rem;color:#4b5563}.cx-row{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}button{font:inherit;font-size:.9rem;font-weight:600;padding:.55rem 1rem;border-radius:.5rem;cursor:pointer;border:2px solid COLOR}.cx-primary{background:COLOR;color:#fff}.cx-plain{background:#fff;color:COLOR}a{display:inline-block;margin-top:.8rem;font-size:.85rem;color:#374151}button:focus-visible,a:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}`;
-  const body = `<div class="cx-card" role="group" aria-label="${escape(texts.title(name))}">${map ? pin : play}<h2>${escape(texts.title(name))}</h2><p>${escape(map ? texts.map(name) : texts.other(name))}</p><div class="cx-row"><button type="button" class="cx-primary" data-cx-allow="marketing">${escape(texts.accept)}</button><button type="button" class="cx-plain" data-cx-open>${escape(texts.preferences)}</button></div><a href="${escape(src)}" target="_blank" rel="noopener noreferrer">${escape(texts.open(name))} ↗</a></div>`;
+  const body = `<div class="cx-card" role="group" aria-label="${escape(texts.title(name))}">${map ? pin : play}<h2>${escape(texts.title(name))}</h2><p>${escape(map ? texts.map(name, label) : texts.other(name, label))}</p><div class="cx-row"><button type="button" class="cx-primary" data-cx-allow="${category}">${escape(texts.accept)}</button><button type="button" class="cx-plain" data-cx-open>${escape(texts.preferences)}</button></div><a href="${escape(src)}" target="_blank" rel="noopener noreferrer">${escape(texts.open(name))} ↗</a></div>`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>${style.replaceAll('COLOR', color)}</style></head><body>${body.replaceAll('COLOR', color)}</body></html>`;
 }
 
 /**
- * Iframes of other sites in the page (videos, maps, posts), held until
- * consent to marketing, with a notice inside them until then: what it is,
- * "Accept and show", the cookie preferences, and a link to see it on its
- * own site. Those already held (plugins' own, `data-cx-src`) stay as they are.
+ * The notice in place of an embed made of a provider's script (a social
+ * post's `<blockquote>` with its script): in the page, before the held script.
  */
-export function gateEmbeds(html: string, texts: EmbedTexts, color = '#0f4c81'): string {
+function scriptNotice(
+  name: string,
+  texts: EmbedTexts,
+  color: string,
+  category: Category,
+  label: string,
+): string {
+  const button = `font:inherit;font-size:.9em;font-weight:600;margin:.2em;padding:.5em 1em;border-radius:.5em;cursor:pointer;border:2px solid ${color}`;
+  return `<div class="cx-embed-notice" data-cx-notice="${category}" role="group" aria-label="${escape(texts.title(name))}" style="box-sizing:border-box;max-width:32rem;margin:1em 0;padding:1.1em 1.25em;border-radius:.75em;background:linear-gradient(135deg,#1f2937,#4b5563);color:#fff;font:15px/1.5 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;text-align:center"><strong style="display:block;margin-bottom:.3em;font-size:1.05em">${escape(texts.title(name))}</strong><span style="display:block;margin-bottom:.8em;font-size:.9em">${escape(texts.other(name, label))}</span><button type="button" data-cx-allow="${category}" style="${button};background:${color};color:#fff">${escape(texts.accept)}</button><button type="button" data-cx-open style="${button};background:#fff;color:${color}">${escape(texts.preferences)}</button></div>`;
+}
+
+const isCategory = (value: string | undefined): value is Category =>
+  (CATEGORIES as readonly string[]).includes(value ?? '');
+
+/**
+ * Iframes of other sites in the page (videos, maps, posts), held until
+ * consent to the embeds' category (marketing by default), with a notice
+ * inside them until then: what it is, the category, "Accept and show", the
+ * cookie preferences, and a link to see it on its own site. An iframe naming
+ * an offered category (`data-cx-category`) waits for that one. Those already
+ * held (plugins' own, `data-cx-src`) stay as they are. Scripts of embeds
+ * (`<script data-cx-embed="Provider">`, a social post's script kept by an
+ * import) are held too, with the notice before them.
+ */
+export function gateEmbeds(
+  html: string,
+  texts: EmbedTexts,
+  color = '#0f4c81',
+  gate: EmbedGate = {},
+): string {
   const start = html.search(/<body\b/i);
   if (start < 0) return html;
+  const fallback = gate.category ?? 'marketing';
+  const offered = gate.offered ?? CATEGORIES;
+  const label = (c: Category) => gate.label?.(c) ?? CATEGORY_NAMES[c];
+  const tint = safeColor(color);
+  const categoryOf = (attrs: string): Category => {
+    const own = /\sdata-cx-category\s*=\s*["']([a-z]+)["']/i.exec(attrs)?.[1];
+    return isCategory(own) && offered.includes(own) ? own : fallback;
+  };
   const body = html
     .slice(start)
     .replace(
@@ -89,8 +150,22 @@ export function gateEmbeds(html: string, texts: EmbedTexts, color = '#0f4c81'): 
         } catch {
           return match;
         }
-        const doc = embedDoc(src, host, texts, safeColor(color));
-        return `<iframe${before} data-cx-category="marketing" data-cx-src="${src}" srcdoc="${escape(doc)}"${after}>`;
+        const category = categoryOf(before + after);
+        const strip = (attrs: string) =>
+          attrs.replace(/\sdata-cx-category\s*=\s*["'][^"']*["']/gi, '');
+        const doc = embedDoc(src, host, texts, tint, category, label(category));
+        return `<iframe${strip(before)} data-cx-category="${category}" data-cx-src="${src}" srcdoc="${escape(doc)}"${strip(after)}>`;
+      },
+    )
+    .replace(
+      /<script\b([^>]*\sdata-cx-embed\s*=\s*["']([^"']{1,60})["'][^>]*)>/gi,
+      (match, attrs: string, name: string) => {
+        if (/\stype\s*=\s*["']text\/plain["']/i.test(attrs)) return match;
+        const category = categoryOf(attrs);
+        const rest = attrs
+          .replace(/\stype\s*=\s*["'][^"']*["']/i, '')
+          .replace(/\sdata-cx-category\s*=\s*["'][^"']*["']/gi, '');
+        return `${scriptNotice(name, texts, tint, category, label(category))}<script type="text/plain" data-cx-category="${category}"${rest}>`;
       },
     );
   return html.slice(0, start) + body;
@@ -218,16 +293,18 @@ ${ROOT} .cx-consent__button:focus-visible,${ROOT} .cx-consent__close:focus-visib
 /**
  * Shared by the built-in banner and the bridge of the external consent
  * managers: `release` runs the held scripts and loads the held iframes of the
- * accepted categories (`mark` hears each category released), `consentUpdate`
+ * accepted categories and removes their notices (`mark` hears each category released), `consentUpdate`
  * sends the choice to Google Consent Mode, `wire` makes the buttons of an
- * embed's notice answer (`allow(category)`, `open()`).
+ * embed's notice answer (`allow(category)`, `open()`), also the notices in the page.
  */
 export const SHARED_SCRIPT = `function release(ok,mark){
 Array.prototype.forEach.call(document.querySelectorAll('script[type="text/plain"][data-cx-category]'),function(s){var k=s.getAttribute('data-cx-category');if(ok.indexOf(k)<0)return;if(mark)mark(k);var n=document.createElement('script');for(var i=0;i<s.attributes.length;i++){var a=s.attributes[i];if(a.name!=='type'&&a.name!=='data-cx-category'&&a.name!=='data-cx-type')n.setAttribute(a.name,a.value);}var t=s.getAttribute('data-cx-type');if(t)n.type=t;n.text=s.text;s.parentNode.replaceChild(n,s);});
-Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][data-cx-category]'),function(f){var k=f.getAttribute('data-cx-category');if(ok.indexOf(k)>=0&&!f.getAttribute('src')){if(mark)mark(k);var n=f.cloneNode(false);n.removeAttribute('srcdoc');n.removeAttribute('loading');n.setAttribute('src',f.getAttribute('data-cx-src'));f.parentNode.replaceChild(n,f);}});}
+Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][data-cx-category]'),function(f){var k=f.getAttribute('data-cx-category');if(ok.indexOf(k)>=0&&!f.getAttribute('src')){if(mark)mark(k);var n=f.cloneNode(false);n.removeAttribute('srcdoc');n.removeAttribute('loading');n.setAttribute('src',f.getAttribute('data-cx-src'));f.parentNode.replaceChild(n,f);}});
+Array.prototype.forEach.call(document.querySelectorAll('[data-cx-notice]'),function(n){if(ok.indexOf(n.getAttribute('data-cx-notice'))>=0&&n.parentNode)n.parentNode.removeChild(n);});}
 function consentUpdate(ok){if(typeof window.gtag==='function'){var has=function(k){return ok.indexOf(k)>=0?'granted':'denied';};window.gtag('consent','update',{analytics_storage:has('statistics'),ad_storage:has('marketing'),ad_user_data:has('marketing'),ad_personalization:has('marketing'),functionality_storage:has('preferences'),personalization_storage:has('preferences')});}}
 function wire(f,allow,open){try{var d=f.contentDocument;if(!d||!d.body||d.body.getAttribute('data-cx-wired'))return;d.body.setAttribute('data-cx-wired','1');d.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-cx-allow],[data-cx-open]');if(!b)return;e.preventDefault();if(b.hasAttribute('data-cx-allow'))allow(b.getAttribute('data-cx-allow'));else open();});}catch(x){}}
-function wireAll(allow,open){Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][srcdoc]'),function(f){f.addEventListener('load',function(){wire(f,allow,open);});wire(f,allow,open);});}`;
+function wireAll(allow,open){Array.prototype.forEach.call(document.querySelectorAll('iframe[data-cx-src][srcdoc]'),function(f){f.addEventListener('load',function(){wire(f,allow,open);});wire(f,allow,open);});
+document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-cx-notice] [data-cx-allow]');if(!b)return;e.preventDefault();allow(b.getAttribute('data-cx-allow'));});}`;
 
 /** Plain ES2017, no dependencies: runs on every page, before or without any framework. */
 const SCRIPT = `(function(){

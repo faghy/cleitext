@@ -816,7 +816,7 @@ export default defineGutenbergEdit<'acme/hero'>(({ attributes, setAttributes }) 
 
 ### 10.5 Core blocks (MVP)
 
-`paragraph`, `heading`, `list`, `quote`, `image`, `gallery`, `buttons`/`button`, `columns`/`column`, `group`, `separator`, `spacer`, `embed` (YouTube/Vimeo/oEmbed), `html` (only for users with the `unfiltered_html` capability), `table`, `code`.
+`paragraph`, `heading`, `list`, `quote`, `image`, `gallery`, `buttons`/`button`, `columns`/`column`, `group`, `separator`, `spacer`, `embed` (YouTube, Vimeo, Dailymotion, Spotify, TikTok, Instagram, Facebook, X; other addresses as a link card), `html` (only for users with the `unfiltered_html` capability), `table`, `code`.
 
 Each one needs an editor-agnostic definition (schema and render), a Gutenberg edit component (reused from `block-library` where possible) and CXD ⇄ Gutenberg round-trip tests.
 

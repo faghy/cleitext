@@ -150,6 +150,76 @@ test('the cookie banner asks, remembers and holds scripts until consent', async 
   expect(appErrors(errors)).toEqual([]);
 });
 
+test('a TikTok profile waits for consent, then shows without loading the page again', async ({
+  page,
+  browser,
+}) => {
+  await signIn(page);
+  await call(page, 'POST', '/plugins/privacy/activate');
+  const config = await call<Record<string, Record<string, unknown>>>(
+    page,
+    'GET',
+    '/ext/privacy/config',
+  );
+  await call(page, 'PUT', '/ext/privacy/config', {
+    ...config,
+    banner: { ...config.banner, enabled: true, categories: ['statistics', 'marketing'] },
+    cmp: { ...config.cmp, provider: 'none' },
+  });
+  const entry = await call<{ id: string }>(page, 'POST', '/entries', {
+    type: 'page',
+    title: `Canale Tik Tok ${Date.now()}`,
+    document: {
+      schema: 1,
+      blocks: [
+        {
+          id: 'tt',
+          type: 'core/embed',
+          v: 1,
+          attrs: { url: 'https://www.tiktok.com/@linomissio', providerNameSlug: 'tiktok' },
+        },
+      ],
+    },
+  });
+  try {
+    const published = await call<{ slug: string }>(page, 'POST', `/entries/${entry.id}/publish`);
+    const context = await browser.newContext({ baseURL: SITE });
+    // No request leaves the test: TikTok's frame is answered here.
+    await context.route(/tiktok\.com/, (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<p>TikTok profile</p>' }),
+    );
+    const visitor = await context.newPage();
+    const errors: string[] = [];
+    visitor.on('pageerror', (e) => errors.push(e.message));
+    const requests: string[] = [];
+    visitor.on('request', (r) => requests.push(r.url()));
+    await visitor.goto(`/${published.slug}`);
+    await visitor
+      .getByRole('dialog', { name: 'Your privacy' })
+      .getByRole('button', { name: 'Close and continue without accepting' })
+      .click();
+    const notice = visitor.frameLocator('iframe[data-cx-src]');
+    await expect(notice.getByRole('heading', { name: 'Content of TikTok' })).toBeVisible();
+    await expect(notice.getByText('accept the “Marketing” cookies')).toBeVisible();
+    expect(requests.filter((url) => url.includes('tiktok.com'))).toEqual([]);
+    // The frame keeps the profile's height: nothing moves when it is shown.
+    const frame = visitor.locator('figure.is-provider-tiktok iframe');
+    expect((await frame.boundingBox())!.height).toBe(479);
+    await visitor.evaluate(() => ((window as { stayed?: boolean }).stayed = true));
+
+    await notice.getByRole('button', { name: 'Accept and show' }).click();
+    await expect(
+      visitor.locator('iframe[src="https://www.tiktok.com/embed/@linomissio"]'),
+    ).toHaveAttribute('title', 'TikTok profile @linomissio');
+    expect(await visitor.evaluate(() => (window as { stayed?: boolean }).stayed)).toBe(true);
+    expect((await frame.boundingBox())!.height).toBe(479);
+    await context.close();
+    expect(appErrors(errors)).toEqual([]);
+  } finally {
+    await call(page, 'DELETE', `/entries/${entry.id}`).catch(() => undefined);
+  }
+});
+
 /** A theme that restyles every button, like Zenit (from Astra) or Aurora. */
 const HOSTILE_THEME = `button,.button,input[type=button]{padding:15px 30px;line-height:2;margin:4px;background:#2e7d32;color:#fff;border:1px solid #2e7d32;border-radius:0;text-transform:uppercase;letter-spacing:2px;min-height:60px;min-width:120px;font:700 18px/2 serif}
 body button:hover,body button:focus,.ast-button:hover{background:green;color:yellow;border-color:green;box-shadow:0 0 0 4px red;outline:none}

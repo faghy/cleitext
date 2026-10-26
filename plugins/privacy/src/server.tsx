@@ -16,6 +16,7 @@ import {
   cookieyesKey,
   textsFor,
   withDefaults,
+  type Category,
   type CmpConfig,
   type CookieRow,
   type PrivacyConfig,
@@ -111,6 +112,9 @@ function cleanConfig(input: unknown, current: PrivacyConfig): PrivacyConfig {
       consentMode: bool(banner.consentMode, current.banner.consentMode),
       scripts,
       months: Math.min(Math.max(Number(banner.months) || 6, 1), 12),
+      embedCategory: (CATEGORIES as readonly string[]).includes(String(banner.embedCategory))
+        ? (banner.embedCategory as Category)
+        : current.banner.embedCategory,
     },
     version: current.version,
     cookies,
@@ -159,9 +163,12 @@ function cleanConfig(input: unknown, current: PrivacyConfig): PrivacyConfig {
     },
   };
   // New categories or cookies: what visitors agreed to changed, so they answer again.
+  // Rows compared field by field: the stored copy may list its keys in another order.
+  const rows = (list: CookieRow[]) =>
+    JSON.stringify(list.map((r) => [r.name, r.provider, r.category, r.purpose, r.duration]));
   const changed =
     JSON.stringify(next.banner.categories) !== JSON.stringify(current.banner.categories) ||
-    JSON.stringify(next.cookies) !== JSON.stringify(current.cookies) ||
+    rows(next.cookies) !== rows(current.cookies) ||
     (body as { askAgain?: unknown }).askAgain === true;
   if (changed) next.version = current.version + 1;
   return next;
@@ -177,6 +184,27 @@ interface Effective {
   trackers: TrackerDeclaration[];
   /** Changes when categories, cookies or trackers change: visitors answer again. */
   version: string;
+}
+
+/**
+ * Embeds of other sites held until consent to the chosen category
+ * (marketing by default; marketing again when the chosen one is not
+ * offered), with a notice naming the provider and the category.
+ */
+function gatePage(html: string, cfg: PrivacyConfig, locale: string): string {
+  const offered = cfg.banner.categories;
+  const category: Category | null = offered.includes(cfg.banner.embedCategory)
+    ? cfg.banner.embedCategory
+    : offered.includes('marketing')
+      ? 'marketing'
+      : null;
+  if (!category) return html;
+  const t = textsFor(locale);
+  return gateEmbeds(html, { ...t.embed, preferences: t.preferences }, cfg.banner.color, {
+    category,
+    offered,
+    label: (c) => categoryLabel(t, c),
+  });
 }
 
 function hash(text: string): string {
@@ -351,10 +379,7 @@ export default definePlugin({
           cfg.banner.consentMode,
         )}`;
         let page = html.replace(/<head\b[^>]*>/i, (tag) => `${tag}${head}`);
-        if (cfg.banner.categories.includes('marketing')) {
-          const t = textsFor(context.locale);
-          page = gateEmbeds(page, { ...t.embed, preferences: t.preferences }, cfg.banner.color);
-        }
+        page = gatePage(page, cfg, context.locale);
         const tail = cmpBodyHtml(cfg, cmp, e.version, cfg.banner.consentMode);
         const close = page.lastIndexOf('</body>');
         return close >= 0 ? `${page.slice(0, close)}${tail}${page.slice(close)}` : `${page}${tail}`;
@@ -366,10 +391,7 @@ export default definePlugin({
       // With only technical cookies there is nothing to ask (Garante 2021).
       if (!bannerShown(e)) return out;
       // Videos, maps and posts of other sites wait for consent, as the policies say.
-      if (cfg.banner.categories.includes('marketing')) {
-        const t = textsFor(context.locale);
-        out = gateEmbeds(out, { ...t.embed, preferences: t.preferences }, cfg.banner.color);
-      }
+      out = gatePage(out, cfg, context.locale);
       const links = await policyLinks(ctx, context.siteId, cfg, context.locale);
       const banner = bannerHtml(cfg, context.locale, links, e.version);
       const end = out.lastIndexOf('</body>');

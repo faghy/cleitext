@@ -100,7 +100,7 @@ You can also send \`blocks\` (CXD, as get_entry returns them) to keep ids and at
 | core/group | A container, e.g. a page section | className, align ("full"), tagName ("section") |
 | core/table | Tabular data only, never for layout | |
 | core/code | Code or commands | |
-| core/embed | A video or post from YouTube, Vimeo… by URL | url |
+| core/embed | A video, post or profile by URL: YouTube, Vimeo, Dailymotion, Spotify, TikTok, Instagram, Facebook, X (other addresses show as a link card) | url |
 | core/separator, core/spacer | Visual breaks | height (spacer) |
 | core/html | Only for a small embed with no block (a form snippet, a map); never for text | |
 

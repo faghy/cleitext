@@ -31,6 +31,11 @@ export interface PrivacyConfig {
     scripts: Partial<Record<Category, string>>;
     /** Months before asking again (the Garante allows up to 6 for a refusal). */
     months: number;
+    /**
+     * The category whose consent shows embedded content of other sites
+     * (videos, maps, social posts): marketing by default (since 1.8.0).
+     */
+    embedCategory: Category;
   };
   /** Bumped when categories or cookies change: visitors answer again. */
   version: number;
@@ -117,6 +122,7 @@ export const DEFAULT_CONFIG: PrivacyConfig = {
     consentMode: false,
     scripts: {},
     months: 6,
+    embedCategory: 'marketing',
   },
   version: 1,
   cookies: [
@@ -262,10 +268,10 @@ export const TEXTS = {
       'Show personalized ads, or content of other sites such as videos, maps and social posts.',
     embed: {
       title: (name: string) => `Content of ${name}`,
-      map: (name: string) =>
-        `To see the map, accept the “Marketing” cookies: ${name} may use cookies and collect data.`,
-      other: (name: string) =>
-        `To see it, accept the “Marketing” cookies: ${name} may use cookies and collect data.`,
+      map: (name: string, category = 'Marketing') =>
+        `To see the map, accept the “${category}” cookies: ${name} may use cookies and collect data.`,
+      other: (name: string, category = 'Marketing') =>
+        `To see it, accept the “${category}” cookies: ${name} may use cookies and collect data.`,
       accept: 'Accept and show',
       open: (name: string) => `Open on ${name}`,
     },
@@ -305,10 +311,10 @@ export const TEXTS = {
       'Mostrano pubblicità personalizzata, o contenuti di altri siti come video, mappe e post social.',
     embed: {
       title: (name: string) => `Contenuto di ${name}`,
-      map: (name: string) =>
-        `Per vedere la mappa accetta i cookie “Marketing”: ${name} potrebbe usare cookie e raccogliere dati.`,
-      other: (name: string) =>
-        `Per vederlo accetta i cookie “Marketing”: ${name} potrebbe usare cookie e raccogliere dati.`,
+      map: (name: string, category = 'Marketing') =>
+        `Per vedere la mappa accetta i cookie “${category}”: ${name} potrebbe usare cookie e raccogliere dati.`,
+      other: (name: string, category = 'Marketing') =>
+        `Per vederlo accetta i cookie “${category}”: ${name} potrebbe usare cookie e raccogliere dati.`,
       accept: 'Accetta e mostra',
       open: (name: string) => `Apri su ${name}`,
     },
@@ -348,10 +354,10 @@ export const TEXTS = {
       'Zeigen personalisierte Werbung oder Inhalte anderer Websites wie Videos, Karten und Social-Media-Beiträge.',
     embed: {
       title: (name: string) => `Inhalt von ${name}`,
-      map: (name: string) =>
-        `Um die Karte zu sehen, akzeptieren Sie die „Marketing“-Cookies: ${name} kann Cookies verwenden und Daten erheben.`,
-      other: (name: string) =>
-        `Um ihn zu sehen, akzeptieren Sie die „Marketing“-Cookies: ${name} kann Cookies verwenden und Daten erheben.`,
+      map: (name: string, category = 'Marketing') =>
+        `Um die Karte zu sehen, akzeptieren Sie die „${category}“-Cookies: ${name} kann Cookies verwenden und Daten erheben.`,
+      other: (name: string, category = 'Marketing') =>
+        `Um ihn zu sehen, akzeptieren Sie die „${category}“-Cookies: ${name} kann Cookies verwenden und Daten erheben.`,
       accept: 'Akzeptieren und anzeigen',
       open: (name: string) => `Auf ${name} öffnen`,
     },

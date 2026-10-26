@@ -136,7 +136,7 @@ describe('block markup', () => {
       'core/separator',
       'core/spacer',
       'core/code',
-      'core/paragraph',
+      'core/embed',
       'core/paragraph',
       'core/gallery',
       'core/paragraph',
@@ -156,7 +156,7 @@ describe('block markup', () => {
     expect(blocks[11]!.children![0]!.attrs).toMatchObject({ id: 'att:9' });
     expect(blocks[13]!.attrs).toEqual({ height: '20px' });
     expect(blocks[14]!.content).toEqual([{ text: 'let a = 1 > 0;' }]);
-    expect(blocks[15]!.content![0]).toMatchObject({ type: 'link', href: 'https://v.test/2' });
+    expect(blocks[15]!.attrs).toEqual({ url: 'https://v.test/2' });
     expect(blocks[16]!.content![0]).toMatchObject({ href: 'https://v.test/3.mp4' });
     expect(blocks[17]!.children!.map((c) => c.attrs)).toEqual([{ id: 'att:1', alt: '' }]);
     expect(blocks[18]!.content).toEqual([{ text: 'Kept' }]);
@@ -165,7 +165,7 @@ describe('block markup', () => {
     for (const expected of [
       'Pull quotes became quotes',
       'media-text block became a group',
-      'embed block became a link',
+      'Embed of v.test shown as a link card (no player for it): https://v.test/2',
       'acme/box has no equivalent: its content',
       'acme/note has no equivalent: its text',
     ]) {
