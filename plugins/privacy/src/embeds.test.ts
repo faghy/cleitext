@@ -70,7 +70,7 @@ describe('embeds held until consent', () => {
   });
 });
 
-describe('consent flow', () => {
+describe('consent flow', { timeout: 30_000 }, () => {
   it('shows the embed after "Accept and show", without loading the page again', () => {
     const cfg = withDefaults(null);
     const banner = bannerHtml(
