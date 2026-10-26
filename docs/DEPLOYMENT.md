@@ -279,22 +279,23 @@ Hosting panels (the Plesk extension **Cleitext Toolkit**) and scripts drive Clei
 
 **Error codes.**
 
-| Code                                                                                       | Meaning                                                                                                             |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `usage`                                                                                    | unknown command or option, or a required option is missing                                                          |
-| `not_configured`                                                                           | `DATABASE_ADMIN_URL` (or the application role) is not set                                                           |
-| `db_unreachable`                                                                           | the database refuses the connection, the password is wrong, or it does not exist                                    |
-| `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | the input is incomplete or wrong                                                                                    |
-| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign` and the domain commands                                                              |
-| `cannot_write`                                                                             | `entry:reassign`: the new author's role cannot write entries                                                        |
-| `run_as_root`, `invalid_wxr`, `conflict`                                                   | `media:rename-imported`, `media:purge-renamed`: run as root, not a WordPress export, a media item changed meanwhile |
-| `primary_domain`                                                                           | `site:domain:remove` on the primary domain                                                                          |
-| `installed`                                                                                | `install` when a site already exists                                                                                |
-| `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                                                                |
-| `db_connect`, `db_version`, `db_createrole`, `db_owner`, `db_role_taken`, `db_app_connect` | `configure`: the same problems as the setup wizard, with the command to fix them                                    |
-| `timeout`                                                                                  | no answer in time                                                                                                   |
-| `failed`                                                                                   | any other problem the message explains                                                                              |
-| `internal`                                                                                 | an unexpected error (a bug: please report it)                                                                       |
+| Code                                                                                       | Meaning                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `usage`                                                                                    | unknown command or option, or a required option is missing                                                                                              |
+| `not_configured`                                                                           | `DATABASE_ADMIN_URL` (or the application role) is not set                                                                                               |
+| `db_unreachable`                                                                           | the database refuses the connection, the password is wrong, or it does not exist                                                                        |
+| `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | the input is incomplete or wrong                                                                                                                        |
+| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign`, `user:set-role`, `user:set-locale` and the domain commands                                                              |
+| `unknown_role`                                                                             | `user:set-role`: no such role on the site (the message lists them)                                                                                      |
+| `cannot_write`                                                                             | `entry:reassign`: the new author's role cannot write entries                                                                                            |
+| `run_as_root`, `invalid_wxr`, `conflict`                                                   | `media:rename-imported`, `media:purge-renamed`, `user:set-role`, `user:set-locale`: run as root, not a WordPress export, a media item changed meanwhile |
+| `primary_domain`                                                                           | `site:domain:remove` on the primary domain                                                                                                              |
+| `installed`                                                                                | `install` when a site already exists                                                                                                                    |
+| `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                                                                                                    |
+| `db_connect`, `db_version`, `db_createrole`, `db_owner`, `db_role_taken`, `db_app_connect` | `configure`: the same problems as the setup wizard, with the command to fix them                                                                        |
+| `timeout`                                                                                  | no answer in time                                                                                                                                       |
+| `failed`                                                                                   | any other problem the message explains                                                                                                                  |
+| `internal`                                                                                 | an unexpected error (a bug: please report it)                                                                                                           |
 
 ### Status and checks
 
@@ -413,6 +414,8 @@ The link signs in to the admin of that site, the first active one by default. On
 | `site:maintenance`, `site:archive`, `site:update`                                | `{"site",…}`                                                                                                                              |
 | `user:create … --password-stdin`                                                 | `{"id","email","superAdmin","site","role"}`                                                                                               |
 | `user:reset-password --email <e> --password-stdin`                               | `{"email"}`                                                                                                                               |
+| `user:set-role --site <s> --email <e> --role <r> [--add]`                        | `{"site","email","userId","from","to","changed","added","noAdministrator"}`: `from` is null when added                                    |
+| `user:set-locale --locale <l> --email <e>` \| `--site <s> --all`                 | `{"locale","site","changed":[{"email","from"}],"unchanged"}`                                                                              |
 | `entry:reassign --site <s> --from <u> --to <u> [--type <t>]`                     | `{"site","from","to","type","entries","published","media"}`: `from`/`to` are `{"id","email"}`                                             |
 | `media:rename-imported --site <s> --wxr <file> [--uploads <folder>] [--dry-run]` | `{"site","dryRun","alreadyFixed","renamed","counts","skipped","unmatched","references","report",…}`: `counts.byChecksum` with `--uploads` |
 | `media:purge-renamed [--site <s>] [--dry-run]`                                   | `{"dryRun","deleted":[{"site","key"}],"waiting","kept"}`                                                                                  |
@@ -429,6 +432,48 @@ The link signs in to the admin of that site, the first active one by default. On
 `entry:reassign` gives all of a user's entries on a site to another writer, like WordPress's "Attribute all content to" when a user is deleted: every status (drafts, pending, scheduled, trash) and every language. `--from` and `--to` take an email address or a user id. The new author must be an active member of the site whose role can write entries (`edit_entries`). The media the user uploaded follow too, unless `--type` limits the change to one content type. Revisions keep who saved them, and the modification date does not change. The activity log records `entries.reassigned` with the counts, and the site's page cache is cleared. Before removing someone from a site, run it so their content keeps an author. In the admin, one entry's author changes from the editor's Author box, and several from the **Change author** bulk action (both need `edit_others_entries`; logged as `entry.author_changed`).
 
 `plugin:activate --site` activates the plugin like the **Activate** button in the admin. It checks dependencies and conflicts, creates the content types and runs `onActivate`, and the activity log records it. A paid plugin needs the site's license, entered in the admin first. `--network` activates it on every site.
+
+### Roles and language of migrated accounts
+
+When a WordPress site moves to Cleitext, its administrators must be administrators here and the accounts should speak the site's language. Since core 0.88 (WordPress Importer 1.34.0) the import does it: new accounts get the language of the content, and the roles come from the list of `wp user list --fields=user_login,user_email,roles --format=csv` (pasted in **Roles of the WordPress users** on the upload page, or sent by scripts as the multipart text field `users`) or from `?admins=login1,login2`. Users are matched by login, then by email; of several roles the most powerful known wins. A member who already has a higher role keeps it: imports raise roles, never lower them.
+
+| WordPress role                             | Cleitext role                                         |
+| ------------------------------------------ | ----------------------------------------------------- |
+| administrator                              | administrator                                         |
+| editor, shop_manager (WooCommerce)         | editor                                                |
+| author                                     | author                                                |
+| contributor                                | contributor                                           |
+| subscriber, customer (WooCommerce)         | subscriber                                            |
+| any other, or a user missing from the list | the role chosen for imported authors (default author) |
+
+Sites imported before, or accounts to fix by hand:
+
+```sh
+bin/cleitext user:set-role --site main --email anna@example.com --role administrator
+bin/cleitext user:set-role --site main --email new@example.com --role editor --add
+bin/cleitext user:set-locale --email anna@example.com --locale it
+bin/cleitext user:set-locale --site main --all --locale it
+```
+
+`user:set-role` takes the built-in roles and the site's own ones, and adds someone who is not a member only with `--add`. As the API, it does not stop at the last administrator (it warns when the site has none left: only super admins can manage it then) and the activity log records `member.role.changed` (`via: "cli"`). `user:set-locale` sets the admin language of one account, or of every member of a site with `--site --all` (accounts are shared by the sites they belong to). Both refuse to run as root. In the admin, an administrator changes a member's language in their account (**Users → the person → Admin language**).
+
+On cores before 0.88, the same with SQL, run with the owner connection (`DATABASE_ADMIN_URL`):
+
+```sql
+BEGIN;
+-- WordPress administrators (their emails) become administrators of the site.
+UPDATE site_members sm
+   SET role_id = (SELECT id FROM roles WHERE site_id IS NULL AND slug = 'administrator')
+  FROM users u
+ WHERE sm.user_id = u.id
+   AND sm.site_id = (SELECT id FROM sites WHERE slug = '<slug>')
+   AND u.email IN ('anna@example.com', 'bruno@example.com');
+-- Every member of the site gets Italian.
+UPDATE users SET locale = 'it'
+ WHERE id IN (SELECT user_id FROM site_members
+               WHERE site_id = (SELECT id FROM sites WHERE slug = '<slug>'));
+COMMIT;
+```
 
 ### Media of sites imported from WordPress before 0.85
 

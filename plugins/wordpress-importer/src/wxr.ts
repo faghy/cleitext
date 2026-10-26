@@ -66,6 +66,7 @@ import { WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
 import type { CxdBlock } from '@cleitext/blocks';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
 import type { WxrMetaAuthor, WxrMetaInput, WxrMetaItem, WxrMetaTerm } from '@cleitext/plugin-sdk';
+import { assignRoles, type ImportedUser, type WpUserRoles } from './user-roles';
 
 type Node = Record<string, unknown>;
 
@@ -92,8 +93,20 @@ const STATUS: Record<string, 'published' | 'draft' | 'pending' | 'private' | 'sc
 export interface WxrOptions {
   /** Content language (the WXR file has one). */
   locale: string;
-  /** Role given to imported authors. Default `author`. */
+  /** Role given to imported authors whose WordPress role is not known. Default `author`. */
   authorRole?: string;
+  /**
+   * The WordPress roles of the users (`wp user list`, 1.34.0): administrators
+   * stay administrators, editors editors… (see user-roles.ts).
+   */
+  roles?: WpUserRoles[];
+  /** Logins (or emails) of users made administrators (`?admins=`, 1.34.0). */
+  admins?: string[];
+  /**
+   * The language of the accounts the import creates (1.34.0): the site's,
+   * e.g. `it`. Without it the core's default (English).
+   */
+  userLocale?: string;
   /**
    * Pages built with Elementor: `fresco` turns their layout into a Fresco
    * page (default), `content` keeps only the HTML WordPress exported.
@@ -162,6 +175,8 @@ export interface WxrResult {
    * read them (`import.wxrMeta`, plugin API 1.48), e.g. ACF's field values.
    */
   meta: WxrMetaInput;
+  /** The authors and the role each gets on the site, with where it came from (1.34.0). */
+  users: ImportedUser[];
 }
 
 /**
@@ -283,12 +298,33 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       text(a['wp:author_login']),
     ]),
   );
-  const authors = ((channel['wp:author'] as Node[] | undefined) ?? []).map((a) => ({
-    ref: `user:${text(a['wp:author_login'])}`,
-    email: text(a['wp:author_email']),
-    displayName: text(a['wp:author_display_name']) || text(a['wp:author_login']),
-    role: options.authorRole ?? 'author',
+  const assigned = assignRoles(
+    ((channel['wp:author'] as Node[] | undefined) ?? []).map((a) => ({
+      login: text(a['wp:author_login']),
+      email: text(a['wp:author_email']),
+      displayName: text(a['wp:author_display_name']) || text(a['wp:author_login']),
+    })),
+    {
+      authorRole: options.authorRole ?? 'author',
+      ...(options.roles ? { roles: options.roles } : {}),
+      ...(options.admins ? { admins: options.admins } : {}),
+    },
+  );
+  const authors = assigned.map((a) => ({
+    ref: `user:${a.login}`,
+    email: a.email,
+    displayName: a.displayName,
+    role: a.role,
+    ...(options.userLocale ? { locale: options.userLocale } : {}),
   }));
+  if (options.admins?.length) {
+    const known = new Set(assigned.flatMap((a) => [a.login.toLowerCase(), a.email.toLowerCase()]));
+    for (const admin of options.admins) {
+      if (!known.has(admin.toLowerCase())) {
+        warnings.push(`Administrator "${admin}" is not an author of the export: left out.`);
+      }
+    }
+  }
   // For plugins reading user ids in meta (`import.wxrMeta`, plugin API 1.49).
   const metaAuthors: WxrMetaAuthor[] = ((channel['wp:author'] as Node[] | undefined) ?? []).map(
     (a) => ({
@@ -1097,6 +1133,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
 
   return {
     warnings,
+    users: assigned
+      .filter((a) => a.email)
+      .map((a) => ({ ...a, displayName: decode(a.displayName) })),
     meta: {
       items: metaItems,
       terms: metaTerms,

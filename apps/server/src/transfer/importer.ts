@@ -11,6 +11,7 @@ import { documentText, newBlockId } from '@cleitext/blocks';
 import { IMPORTED_BLOCK } from '@cleitext/blocks/html';
 import { isIP } from 'node:net';
 import {
+  auditLog,
   comments,
   contentTypes,
   entries,
@@ -40,6 +41,7 @@ import {
 } from '@cleitext/db';
 import {
   CAPABILITIES,
+  effectiveCapabilities,
   additionalCssProblem,
   balanceCss,
   ADDITIONAL_CSS_MAX,
@@ -162,6 +164,25 @@ export interface ImportOptions {
     data: unknown;
     idMap: ImportIdMap;
   }): Promise<ImportPluginDataResult | null>;
+}
+
+/** The built-in roles, from the least to the most powerful. */
+const ROLE_RANK = ['subscriber', 'contributor', 'author', 'editor', 'administrator'];
+
+/**
+ * Whether a role is above another: by rank for the built-in ones, else when
+ * it grants every capability of the other and more.
+ */
+export function outranks(
+  next: { slug: string; capabilities: string[] },
+  current: { slug: string; capabilities: string[] },
+): boolean {
+  const a = ROLE_RANK.indexOf(next.slug);
+  const b = ROLE_RANK.indexOf(current.slug);
+  if (a >= 0 && b >= 0) return a > b;
+  const give = effectiveCapabilities(next.capabilities, false);
+  const have = effectiveCapabilities(current.capabilities, false);
+  return give.length > have.length && have.every((c) => give.includes(c));
 }
 
 /**
@@ -352,10 +373,38 @@ export async function importDocument(
         roleRows.find((r) => r.slug === user.role && r.siteId === siteId) ??
         roleRows.find((r) => r.slug === (user.role ?? 'subscriber') && r.siteId === null);
       if (role) {
-        await tx
+        const added = await tx
           .insert(siteMembers)
           .values({ siteId, userId, roleId: role.id })
-          .onConflictDoNothing();
+          .onConflictDoNothing()
+          .returning({ userId: siteMembers.userId });
+        if (added.length === 0) {
+          // Already a member: a higher role from the import raises theirs, never lowers it.
+          const [member] = await tx
+            .select({ role: roles })
+            .from(siteMembers)
+            .innerJoin(roles, eq(roles.id, siteMembers.roleId))
+            .where(and(eq(siteMembers.siteId, siteId), eq(siteMembers.userId, userId)));
+          if (member && member.role.id !== role.id && outranks(role, member.role)) {
+            await tx
+              .update(siteMembers)
+              .set({ roleId: role.id })
+              .where(and(eq(siteMembers.siteId, siteId), eq(siteMembers.userId, userId)));
+            await tx.insert(auditLog).values({
+              siteId,
+              userId: options.asUserId,
+              action: 'member.role.changed',
+              targetType: 'user',
+              targetId: userId,
+              meta: { from: member.role.slug, to: role.slug, via: 'import' },
+              ip: null,
+            });
+            count(report, 'roleUpgrades');
+            report.warnings.push(
+              `${email}: role on this site raised from ${member.role.slug} to ${role.slug}.`,
+            );
+          }
+        }
       } else {
         report.warnings.push(`Unknown role "${user.role}" for ${email}: not added to the site.`);
       }

@@ -123,10 +123,16 @@ export async function apiStream<T>(
  * Uploads a file to the media library (multipart, with the CSRF header), or
  * to another upload endpoint given as `path` (under `/api/v1`).
  * `onProgress` receives the fraction sent, from 0 to 1 (RF-MED-01).
+ * `fields` are text fields sent with the file (plugin routes read them as
+ * `file.fields`, plugin API 1.56).
  */
 export async function uploadFile<T>(
   file: File,
-  options: { onProgress?: (fraction: number) => void; path?: string } = {},
+  options: {
+    onProgress?: (fraction: number) => void;
+    path?: string;
+    fields?: Record<string, string>;
+  } = {},
 ): Promise<T> {
   const send = (token: string) =>
     new Promise<{ status: number; data: unknown }>((resolve, reject) => {
@@ -149,6 +155,7 @@ export async function uploadFile<T>(
       };
       request.onerror = () => reject(new TypeError('Network error'));
       const form = new FormData();
+      for (const [name, value] of Object.entries(options.fields ?? {})) form.append(name, value);
       form.append('file', file);
       request.send(form);
     });

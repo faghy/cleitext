@@ -55,16 +55,37 @@ export function routeRequest(
   };
 }
 
-/** The `file` part of a multipart request, received whole; null when there is none. */
+/**
+ * The `file` part of a multipart request, received whole, with the text
+ * fields of the form (plugin API 1.56); null when there is no such file.
+ */
 export async function readUpload(request: FastifyRequest): Promise<UploadedFile | null> {
   if (!request.isMultipart()) return null;
-  const part = await request.file();
-  if (!part || part.fieldname !== 'file') return null;
+  let upload: UploadedFile | null = null;
+  const fields: Record<string, string> = {};
   try {
-    return { filename: part.filename, mime: part.mimetype, data: await part.toBuffer() };
-  } catch {
-    throw new HttpException('The file is too large.', HttpStatus.PAYLOAD_TOO_LARGE);
+    for await (const part of request.parts()) {
+      if (part.type === 'file') {
+        const data = await part.toBuffer();
+        if (part.fieldname === 'file' && !upload) {
+          upload = { filename: part.filename, mime: part.mimetype, data };
+        }
+      } else if (typeof part.value === 'string') {
+        fields[part.fieldname] = part.value;
+      }
+    }
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'FST_FILES_LIMIT' || code === 'FST_FIELDS_LIMIT' || code === 'FST_PARTS_LIMIT') {
+      throw new HttpException('Too many parts in the form.', HttpStatus.BAD_REQUEST);
+    }
+    if (code === 'FST_REQ_FILE_TOO_LARGE') {
+      throw new HttpException('The file is too large.', HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+    throw error;
   }
+  if (!upload) return null;
+  return Object.keys(fields).length ? { ...upload, fields } : upload;
 }
 
 /** A plugin's own cookies: named `<slug>_…` (never the session or another plugin's). */

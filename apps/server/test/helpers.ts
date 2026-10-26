@@ -179,9 +179,16 @@ export class TestClient {
     filename: string,
     data: Buffer,
     contentType = 'application/octet-stream',
+    /** Text fields sent before the file. */
+    fields: Record<string, string> = {},
   ) {
     const boundary = `----cleitext${Math.random().toString(16).slice(2)}`;
     const body = Buffer.concat([
+      ...Object.entries(fields).map(([name, value]) =>
+        Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
+        ),
+      ),
       Buffer.from(
         `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
           `Content-Type: ${contentType}\r\n\r\n`,

@@ -279,22 +279,23 @@ I pannelli di hosting (l'estensione Plesk **Cleitext Toolkit**) e gli script usa
 
 **Codici di errore.**
 
-| Codice                                                                                     | Significato                                                                                                                         |
-| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `usage`                                                                                    | comando o opzione sconosciuti, oppure manca un'opzione obbligatoria                                                                 |
-| `not_configured`                                                                           | `DATABASE_ADMIN_URL` (o il ruolo dell'applicazione) non è impostato                                                                 |
-| `db_unreachable`                                                                           | il database rifiuta la connessione, la password è sbagliata o il database non esiste                                                |
-| `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | i dati sono incompleti o sbagliati                                                                                                  |
-| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign` e i comandi dei domini                                                                               |
-| `cannot_write`                                                                             | `entry:reassign`: il ruolo del nuovo autore non può scrivere voci                                                                   |
-| `run_as_root`, `invalid_wxr`, `conflict`                                                   | `media:rename-imported`, `media:purge-renamed`: eseguito come root, non è un export di WordPress, un media è cambiato nel frattempo |
-| `primary_domain`                                                                           | `site:domain:remove` sul dominio principale                                                                                         |
-| `installed`                                                                                | `install` quando esiste già un sito                                                                                                 |
-| `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                                                                                |
-| `db_connect`, `db_version`, `db_createrole`, `db_owner`, `db_role_taken`, `db_app_connect` | `configure`: gli stessi problemi della procedura guidata, con il comando per risolverli                                             |
-| `timeout`                                                                                  | nessuna risposta in tempo                                                                                                           |
-| `failed`                                                                                   | ogni altro problema, spiegato dal messaggio                                                                                         |
-| `internal`                                                                                 | un errore inatteso (un bug: segnalalo)                                                                                              |
+| Codice                                                                                     | Significato                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `usage`                                                                                    | comando o opzione sconosciuti, oppure manca un'opzione obbligatoria                                                                                                     |
+| `not_configured`                                                                           | `DATABASE_ADMIN_URL` (o il ruolo dell'applicazione) non è impostato                                                                                                     |
+| `db_unreachable`                                                                           | il database rifiuta la connessione, la password è sbagliata o il database non esiste                                                                                    |
+| `missing_option`, `invalid_option`, `password_required`, `confirmation_required`           | i dati sono incompleti o sbagliati                                                                                                                                      |
+| `not_found`, `not_member`, `user_inactive`, `site_archived`, `no_domain`                   | `login-link`, `entry:reassign`, `user:set-role`, `user:set-locale` e i comandi dei domini                                                                               |
+| `unknown_role`                                                                             | `user:set-role`: il sito non ha questo ruolo (il messaggio elenca quelli che ha)                                                                                        |
+| `cannot_write`                                                                             | `entry:reassign`: il ruolo del nuovo autore non può scrivere voci                                                                                                       |
+| `run_as_root`, `invalid_wxr`, `conflict`                                                   | `media:rename-imported`, `media:purge-renamed`, `user:set-role`, `user:set-locale`: eseguito come root, non è un export di WordPress, un media è cambiato nel frattempo |
+| `primary_domain`                                                                           | `site:domain:remove` sul dominio principale                                                                                                                             |
+| `installed`                                                                                | `install` quando esiste già un sito                                                                                                                                     |
+| `no_previous_version`, `update_failed`                                                     | `rollback`, `update`                                                                                                                                                    |
+| `db_connect`, `db_version`, `db_createrole`, `db_owner`, `db_role_taken`, `db_app_connect` | `configure`: gli stessi problemi della procedura guidata, con il comando per risolverli                                                                                 |
+| `timeout`                                                                                  | nessuna risposta in tempo                                                                                                                                               |
+| `failed`                                                                                   | ogni altro problema, spiegato dal messaggio                                                                                                                             |
+| `internal`                                                                                 | un errore inatteso (un bug: segnalalo)                                                                                                                                  |
 
 ### Stato e controlli
 
@@ -413,6 +414,8 @@ Il link fa entrare nell'amministrazione di quel sito, di solito il primo sito at
 | `site:maintenance`, `site:archive`, `site:update`                                  | `{"site",…}`                                                                                                                             |
 | `user:create … --password-stdin`                                                   | `{"id","email","superAdmin","site","role"}`                                                                                              |
 | `user:reset-password --email <e> --password-stdin`                                 | `{"email"}`                                                                                                                              |
+| `user:set-role --site <s> --email <e> --role <r> [--add]`                          | `{"site","email","userId","from","to","changed","added","noAdministrator"}`: `from` è null se aggiunto                                   |
+| `user:set-locale --locale <l> --email <e>` \| `--site <s> --all`                   | `{"locale","site","changed":[{"email","from"}],"unchanged"}`                                                                             |
 | `entry:reassign --site <s> --from <u> --to <u> [--type <t>]`                       | `{"site","from","to","type","entries","published","media"}`: `from`/`to` sono `{"id","email"}`                                           |
 | `media:rename-imported --site <s> --wxr <file> [--uploads <cartella>] [--dry-run]` | `{"site","dryRun","alreadyFixed","renamed","counts","skipped","unmatched","references","report",…}`: `counts.byChecksum` con `--uploads` |
 | `media:purge-renamed [--site <s>] [--dry-run]`                                     | `{"dryRun","deleted":[{"site","key"}],"waiting","kept"}`                                                                                 |
@@ -429,6 +432,48 @@ Il link fa entrare nell'amministrazione di quel sito, di solito il primo sito at
 `entry:reassign` assegna tutte le voci di un utente su un sito a un altro autore, come "Attribuisci tutti i contenuti a" di WordPress quando si elimina un utente: ogni stato (bozze, in revisione, programmate, cestino) e ogni lingua. `--from` e `--to` accettano un indirizzo email o l'id di un utente. Il nuovo autore deve essere un membro attivo del sito con un ruolo che può scrivere voci (`edit_entries`). Seguono anche i media caricati dall'utente, a meno che `--type` limiti il cambio a un tipo di contenuto. Le revisioni conservano chi le ha salvate e la data di modifica non cambia. Il registro attività annota `entries.reassigned` con i conteggi e la cache delle pagine del sito viene svuotata. Prima di togliere qualcuno da un sito, eseguilo perché i suoi contenuti abbiano ancora un autore. Nell'amministrazione l'autore di una voce si cambia dal riquadro Autore dell'editor, quello di più voci dall'azione di massa **Cambia autore** (entrambi richiedono `edit_others_entries`; annotato come `entry.author_changed`).
 
 `plugin:activate --site` attiva il plugin come il pulsante **Attiva** dell'amministrazione. Controlla dipendenze e conflitti, crea i tipi di contenuto ed esegue `onActivate`, e il registro attività lo annota. Un plugin a pagamento richiede la licenza del sito, inserita prima nell'amministrazione. `--network` lo attiva su tutti i siti.
+
+### Ruoli e lingua degli account migrati
+
+Quando un sito WordPress passa a Cleitext, i suoi amministratori devono essere amministratori anche qui e gli account devono parlare la lingua del sito. Dal core 0.88 (WordPress Importer 1.34.0) lo fa l'importazione: i nuovi account ricevono la lingua dei contenuti, e i ruoli vengono dall'elenco di `wp user list --fields=user_login,user_email,roles --format=csv` (incollato in **Ruoli degli utenti di WordPress** nella pagina di caricamento, o inviato dagli script come campo di testo multipart `users`) oppure da `?admins=login1,login2`. Gli utenti si abbinano per login, poi per email; fra più ruoli vince il più potente conosciuto. Un membro che ha già un ruolo più alto lo mantiene: le importazioni alzano i ruoli, non li abbassano mai.
+
+| Ruolo WordPress                                  | Ruolo Cleitext                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------- |
+| administrator                                    | amministratore                                                 |
+| editor, shop_manager (WooCommerce)               | editore                                                        |
+| author                                           | autore                                                         |
+| contributor                                      | collaboratore                                                  |
+| subscriber, customer (WooCommerce)               | sottoscrittore                                                 |
+| qualsiasi altro, o un utente assente dall'elenco | il ruolo scelto per gli autori importati (predefinito: autore) |
+
+Siti importati prima, o account da sistemare a mano:
+
+```sh
+bin/cleitext user:set-role --site main --email anna@example.com --role administrator
+bin/cleitext user:set-role --site main --email nuovo@example.com --role editor --add
+bin/cleitext user:set-locale --email anna@example.com --locale it
+bin/cleitext user:set-locale --site main --all --locale it
+```
+
+`user:set-role` accetta i ruoli predefiniti e quelli propri del sito, e aggiunge chi non è membro solo con `--add`. Come l'API, non si ferma all'ultimo amministratore (avvisa quando il sito non ne ha più: allora solo i super admin possono gestirlo) e il registro attività annota `member.role.changed` (`via: "cli"`). `user:set-locale` imposta la lingua dell'amministrazione di un account, o di tutti i membri di un sito con `--site --all` (gli account sono condivisi dai siti a cui appartengono). Entrambi si rifiutano di girare come root. Nell'amministrazione, un amministratore cambia la lingua di un membro nel suo account (**Utenti → la persona → Lingua della bacheca**).
+
+Sui core precedenti alla 0.88, lo stesso in SQL, eseguito con la connessione del proprietario (`DATABASE_ADMIN_URL`):
+
+```sql
+BEGIN;
+-- Gli amministratori di WordPress (le loro email) diventano amministratori del sito.
+UPDATE site_members sm
+   SET role_id = (SELECT id FROM roles WHERE site_id IS NULL AND slug = 'administrator')
+  FROM users u
+ WHERE sm.user_id = u.id
+   AND sm.site_id = (SELECT id FROM sites WHERE slug = '<slug>')
+   AND u.email IN ('anna@example.com', 'bruno@example.com');
+-- Tutti i membri del sito passano all'italiano.
+UPDATE users SET locale = 'it'
+ WHERE id IN (SELECT user_id FROM site_members
+               WHERE site_id = (SELECT id FROM sites WHERE slug = '<slug>'));
+COMMIT;
+```
 
 ### Media dei siti importati da WordPress prima della 0.85
 

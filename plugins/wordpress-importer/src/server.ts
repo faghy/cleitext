@@ -9,6 +9,7 @@ import {
 } from '@cleitext/plugin-sdk';
 import { diviOptions } from '@cleitext/blocks/divi';
 import { wxrToDocument } from './wxr';
+import { parseAdmins, parseWpUserList, type ImportedUser, type WpUserRoles } from './user-roles';
 
 /**
  * WordPress Importer: the export of a WordPress site (Tools → Export, a WXR
@@ -80,6 +81,8 @@ export interface Job {
   /** The counts so far (cores before 0.82 give only the messages). */
   counts?: JobCounts;
   report?: ImportReport;
+  /** The imported authors and the role each got, with where it came from (1.34.0). */
+  users?: ImportedUser[];
   error?: string;
 }
 
@@ -148,6 +151,9 @@ async function run(
     diviOptions?: Record<string, unknown> | null;
     /** The addresses of the export replace those of a site that has content (1.31.0). */
     replacePermalinks?: boolean;
+    /** The users' WordPress roles (`wp user list`) and the `admins` option (1.34.0). */
+    roles?: WpUserRoles[];
+    admins?: string[];
   },
 ): Promise<void> {
   let saved = 0;
@@ -174,9 +180,13 @@ async function run(
     signal.throwIfAborted();
     const xml = options.xml;
     options.xml = '';
-    const { document, warnings, meta } = wxrToDocument(xml, {
+    const { document, warnings, meta, users } = wxrToDocument(xml, {
       locale: job.locale,
       authorRole: options.authorRole,
+      ...(options.roles ? { roles: options.roles } : {}),
+      ...(options.admins?.length ? { admins: options.admins } : {}),
+      // New accounts speak the language of the site, not English (1.34.0).
+      userLocale: job.locale,
       // Only languages the site has: the others' pages are left out and reported.
       locales: (options.locales ?? site.locales ?? []).filter(
         (l) => !site.locales?.length || site.locales.includes(l),
@@ -195,6 +205,7 @@ async function run(
       media: document.media?.length ?? 0,
       terms: document.terms?.length ?? 0,
     };
+    job.users = users;
     counts.parsed = parsed;
     counts.phase = 'structure';
     counts.media = { done: 0, total: parsed.media };
@@ -259,7 +270,13 @@ export default definePlugin({
       path: '/status',
       capability: CAPABILITY,
       async handler(request) {
-        return { body: { job: await current(ctx, request.siteId) } };
+        return {
+          body: {
+            job: await current(ctx, request.siteId),
+            // The upload carries the users list (multipart field `users`) since plugin API 1.56.
+            usersList: apiAtLeast(ctx.apiVersion, 1, 56),
+          },
+        };
       },
     });
 
@@ -300,7 +317,8 @@ export default definePlugin({
       },
     });
 
-    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author&comments=all&formCaptcha=turnstile&elementorDefaults=theme&permalinks=replace).
+    // Upload: multipart `file`; options in the query (?locale=it&authorRole=author&admins=login1,login2&comments=all&formCaptcha=turnstile&elementorDefaults=theme&permalinks=replace).
+    // A text field `users` may carry the output of `wp user list --fields=user_login,user_email,roles --format=csv` (plugin API 1.56).
     ctx.routes.api({
       method: 'POST',
       path: '/imports',
@@ -357,6 +375,17 @@ export default definePlugin({
       const authorRole = ROLES.includes(request.query.authorRole ?? '')
         ? request.query.authorRole!
         : 'author';
+      // The users' roles in WordPress (1.34.0): administrators stay administrators.
+      let roles: WpUserRoles[] | undefined;
+      const usersList = file.fields?.users?.trim();
+      if (usersList) {
+        try {
+          roles = parseWpUserList(usersList);
+        } catch (error) {
+          return problem(400, error instanceof Error ? error.message : String(error));
+        }
+      }
+      const admins = parseAdmins(request.query.admins);
       // Divi's theme options uploaded just before, for this import only.
       const divi =
         request.query.diviOptions === '1'
@@ -388,6 +417,8 @@ export default definePlugin({
         ...(elementorDefaults ? { elementorDefaults } : {}),
         ...(divi ? { diviOptions: divi } : {}),
         ...(request.query.permalinks === 'replace' ? { replacePermalinks: true } : {}),
+        ...(roles ? { roles } : {}),
+        ...(admins.length ? { admins } : {}),
       };
       // Not awaited: the import goes on after the answer, as a background job.
       void run(ctx, request.siteId, job, controller.signal, input);

@@ -1036,6 +1036,11 @@ export interface UploadedFile {
   filename: string;
   mime: string;
   data: Buffer;
+  /**
+   * The text fields sent with the file in the same form (plugin API 1.56),
+   * by name, e.g. the WordPress Importer's `users`. Absent when there were none.
+   */
+  fields?: Record<string, string>;
 }
 
 export interface RouteResponse {

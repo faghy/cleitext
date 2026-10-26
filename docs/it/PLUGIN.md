@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.55**
+> API dei plugin **1.56**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -736,7 +736,7 @@ ctx.routes.api({
 
 Il plugin ufficiale **Store** le usa per il server delle licenze dei temi a pagamento.
 
-**Caricamenti** (API dei plugin 1.7): `await request.file()` restituisce il campo `file` di una richiesta `multipart/form-data` come `{ filename, mime, data }` (un `Buffer`), oppure `null`; i file oltre il limite del server (`MEDIA_MAX_BYTES`) ricevono un 413. Nell'admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` dell'admin SDK lo invia con il token CSRF e riporta l'avanzamento.
+**Caricamenti** (API dei plugin 1.7): `await request.file()` restituisce il campo `file` di una richiesta `multipart/form-data` come `{ filename, mime, data }` (un `Buffer`), oppure `null`; i file oltre il limite del server (`MEDIA_MAX_BYTES`) ricevono un 413. Nell'admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` dell'admin SDK lo invia con il token CSRF e riporta l'avanzamento. Dall'API dei plugin 1.56 i campi di testo inviati nello stesso modulo arrivano in `file.fields` (`{ nome: valore }`, assente se non ce ne sono), e `uploadFile(file, { fields: { nome: valore } })` li invia, come l'elenco di utenti e ruoli del WordPress Importer (`users`); il server accetta al massimo 5 campi e un file per richiesta.
 
 ## 9. Impostazioni, capability, cache, mail
 

@@ -90,7 +90,7 @@ describe('WordPress Importer', () => {
     expect((await editor.get('/api/v1/ext/wordpress-importer/status')).statusCode).toBe(403);
     const status = await admin.get('/api/v1/ext/wordpress-importer/status');
     expect(status.statusCode).toBe(200);
-    expect(status.json()).toEqual({ job: null });
+    expect(status.json()).toEqual({ job: null, usersList: true });
   });
 
   it('refuses files that are not a WordPress export', async () => {
@@ -136,6 +136,7 @@ describe('WordPress Importer', () => {
     ).toBe(204);
     expect((await admin.get('/api/v1/ext/wordpress-importer/status')).json()).toEqual({
       job: null,
+      usersList: true,
     });
   });
 });

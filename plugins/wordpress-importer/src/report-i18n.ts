@@ -31,6 +31,10 @@ export const REPORT_IT: Record<string, string> = {
     'Utente "{name}" saltato: l’email "{email}" non è valida.',
   'Unknown role "{role}" for {email}: not added to the site.':
     'Ruolo "{role}" sconosciuto per {email}: non aggiunto al sito.',
+  '{email}: role on this site raised from {from} to {to}.':
+    '{email}: ruolo su questo sito alzato da {from} a {to}.',
+  'Administrator "{name}" is not an author of the export: left out.':
+    'Amministratore "{name}" non è tra gli autori dell’esportazione: tralasciato.',
   '{n} user(s) were created without a password: they sign in after "Forgot password".':
     '{n} utenti creati senza password: accedono dopo «Hai dimenticato la password?».',
   'Term "{name}": unknown taxonomy "{taxonomy}".':

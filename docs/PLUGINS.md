@@ -1,6 +1,6 @@
 # Developing Cleitext plugins
 
-> Plugin API **1.55** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
+> Plugin API **1.56** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
 
 A plugin extends Cleitext the way a WordPress plugin extends WordPress. It can add content types with custom fields, blocks, pages to the admin, settings, endpoints, addresses on the public site and its own database tables, and it can react to what happens through hooks.
 
@@ -809,7 +809,7 @@ ctx.routes.api({
 
 The official **Store** plugin uses them for the license server of paid themes.
 
-**Uploads** (plugin API 1.7): `await request.file()` returns the `file` field of a `multipart/form-data` request as `{ filename, mime, data }` (a `Buffer`), or `null`; files over the server's upload limit (`MEDIA_MAX_BYTES`) get a 413. In the admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` from the admin SDK sends it with the CSRF token and reports the progress.
+**Uploads** (plugin API 1.7): `await request.file()` returns the `file` field of a `multipart/form-data` request as `{ filename, mime, data }` (a `Buffer`), or `null`; files over the server's upload limit (`MEDIA_MAX_BYTES`) get a 413. In the admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` from the admin SDK sends it with the CSRF token and reports the progress. Since plugin API 1.56 the text fields sent in the same form come as `file.fields` (`{ name: value }`, absent when there are none), and `uploadFile(file, { fields: { name: value } })` sends them, as the WordPress Importer's list of users and roles (`users`); the server takes at most 5 fields and one file per request.
 
 ## 9. Settings, capabilities, cache, mail
 

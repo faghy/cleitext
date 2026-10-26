@@ -18,11 +18,13 @@ const stable = (value: unknown): unknown =>
 describe('WordPress export to transfer document', () => {
   it('gives the document the core import tests use', () => {
     // Every comment, spam too: the core's tests import that one as spam.
-    const { meta, ...result } = wxrToDocument(read('export.xml'), {
+    const { meta, users, ...result } = wxrToDocument(read('export.xml'), {
       locale: 'en',
       comments: 'all',
     });
     expect(stable(result)).toEqual(stable(JSON.parse(read('export.transfer.json'))));
+    // Every author, with the role given and where it came from (1.34.0).
+    expect(users.every((u) => u.role === 'author' && u.source === 'default')).toBe(true);
     // Every item goes to the plugins with its meta (plugin API 1.48).
     expect(meta.items.find((i) => i.ref === 'att:10')).toMatchObject({
       type: 'attachment',

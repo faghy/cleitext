@@ -29,6 +29,7 @@ const KINDS: Record<string, [string, string]> = {
   menus: ['menus', 'menu'],
   menuItems: ['menu items', 'voci di menu'],
   users: ['authors', 'autori'],
+  roleUpgrades: ['roles raised', 'ruoli alzati'],
   redirects: ['redirects', 'redirect'],
   comments: ['comments', 'commenti'],
   contentTypes: ['content types', 'tipi di contenuto'],
@@ -228,7 +229,114 @@ function Languages({
   );
 }
 
-function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: () => void }) {
+const ROLE_NAMES: Record<string, [string, string]> = {
+  administrator: ['Administrator', 'Amministratore'],
+  editor: ['Editor', 'Editore'],
+  author: ['Author', 'Autore'],
+  contributor: ['Contributor', 'Collaboratore'],
+  subscriber: ['Subscriber', 'Sottoscrittore'],
+};
+
+const ROLE_SOURCES: Record<string, [string, string]> = {
+  roles: ['users list', 'elenco utenti'],
+  admins: ['administrators option', 'opzione amministratori'],
+  default: ['role of imported authors', 'ruolo degli autori importati'],
+};
+
+/** The imported authors and the role each got (1.34.0). */
+function Users({ users, tr }: { users: NonNullable<Job['users']>; tr: Tr }) {
+  if (users.length === 0) return null;
+  return (
+    <details className="rounded border border-slate-200" data-testid="import-users">
+      <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+        {tr('Accounts and roles', 'Account e ruoli')} ({users.length})
+      </summary>
+      <table className="w-full border-t border-slate-100 text-left text-sm">
+        <thead className="text-slate-600">
+          <tr>
+            <th className="px-3 py-1 font-medium">{tr('User', 'Utente')}</th>
+            <th className="px-3 py-1 font-medium">{tr('Role', 'Ruolo')}</th>
+            <th className="px-3 py-1 font-medium">{tr('From', 'Da')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((u) => (
+            <tr key={u.login} className="border-t border-slate-100">
+              <td className="px-3 py-1">
+                {u.displayName} <span className="text-slate-500">({u.email})</span>
+              </td>
+              <td className="px-3 py-1">
+                {ROLE_NAMES[u.role] ? tr(...ROLE_NAMES[u.role]!) : u.role}
+              </td>
+              <td className="px-3 py-1 text-slate-600">
+                {tr(...(ROLE_SOURCES[u.source] ?? ['', '']))}
+                {u.wordpressRoles?.length ? ` (${u.wordpressRoles.join(', ')})` : ''}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  );
+}
+
+/** The users list of WordPress (`wp user list`), for their roles (1.34.0). */
+function UsersList({
+  tr,
+  value,
+  setValue,
+  supported,
+}: {
+  tr: Tr;
+  value: string;
+  setValue: (value: string) => void;
+  supported: boolean;
+}) {
+  const id = useId();
+  return (
+    <div className="space-y-1">
+      <label htmlFor={id} className="block text-sm font-medium text-slate-800">
+        {tr(
+          'Roles of the WordPress users (optional)',
+          'Ruoli degli utenti di WordPress (facoltativo)',
+        )}
+      </label>
+      {supported ? (
+        <>
+          <textarea
+            id={id}
+            rows={4}
+            className="w-full rounded border border-slate-300 p-2 font-mono text-xs"
+            placeholder={'user_login,user_email,roles\nmario,mario@example.com,administrator'}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            data-testid="import-users-list"
+          />
+          <p className="text-xs text-slate-600">
+            {tr(
+              'The export does not say who is an administrator. Paste here what this command prints on the WordPress server: wp user list --fields=user_login,user_email,roles --format=csv. Administrators stay administrators, editors editors, authors authors, contributors contributors, subscribers subscribers; shop managers become editors and customers subscribers. The others get the role of imported authors.',
+              'L’esportazione non dice chi è amministratore. Incolla qui quello che stampa questo comando sul server di WordPress: wp user list --fields=user_login,user_email,roles --format=csv. Gli amministratori restano amministratori, gli editori editori, gli autori autori, i collaboratori collaboratori, i sottoscrittori sottoscrittori; i gestori del negozio diventano editori e i clienti sottoscrittori. Gli altri ricevono il ruolo degli autori importati.',
+            )}
+          </p>
+        </>
+      ) : (
+        <p className="text-xs text-slate-600">
+          {tr(
+            'Update Cleitext to 0.88 or later to bring the WordPress roles of the users (administrators stay administrators).',
+            'Aggiorna Cleitext alla 0.88 o successiva per portare i ruoli di WordPress degli utenti (gli amministratori restano amministratori).',
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Upload({
+  site,
+  tr,
+  onStarted,
+  usersList,
+}: AdminPageProps & { tr: Tr; onStarted: () => void; usersList: boolean }) {
   const fileId = useId();
   const localeId = useId();
   const roleId = useId();
@@ -244,6 +352,7 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
   const defaultsId = useId();
   const [elementorDefaults, setElementorDefaults] = useState('auto');
   const [replacePermalinks, setReplacePermalinks] = useState(false);
+  const [wpUsers, setWpUsers] = useState('');
   const [sent, setSent] = useState(0);
   const codes = site.locales.map((l) => l.code);
   const [found, setFound] = useState<Preview | null>(null);
@@ -289,6 +398,7 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
       return uploadFile(file!, {
         path: `/ext/wordpress-importer/imports?${query.toString()}`,
         onProgress: setSent,
+        ...(usersList && wpUsers.trim() ? { fields: { users: wpUsers } } : {}),
       });
     },
     onSuccess: onStarted,
@@ -397,6 +507,12 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
                 <option value="editor">{tr('Editor', 'Editore')}</option>
                 <option value="subscriber">{tr('Subscriber', 'Sottoscrittore')}</option>
               </select>
+              <p className="text-xs text-slate-500">
+                {tr(
+                  'For authors whose WordPress role is not known (see below).',
+                  'Per gli autori di cui non si conosce il ruolo in WordPress (vedi sotto).',
+                )}
+              </p>
             </div>
             <div className="space-y-1">
               <label htmlFor={commentsId} className="block text-sm font-medium text-slate-800">
@@ -484,6 +600,7 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
               </p>
             </div>
           </div>
+          <UsersList tr={tr} value={wpUsers} setValue={setWpUsers} supported={usersList} />
           <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
             <li>
               {tr(
@@ -499,8 +616,8 @@ function Upload({ site, tr, onStarted }: AdminPageProps & { tr: Tr; onStarted: (
             </li>
             <li>
               {tr(
-                'Authors get an account without a password: they set one with “Forgot password”.',
-                'Gli autori ricevono un account senza password: la impostano con «Password dimenticata».',
+                'Authors get an account without a password, in the language of the content: they set one with “Forgot password”. Those who already have an account keep it; a higher role from WordPress raises theirs on this site, never lowers it.',
+                'Gli autori ricevono un account senza password, nella lingua dei contenuti: la impostano con «Password dimenticata». Chi ha già un account lo mantiene; un ruolo più alto da WordPress alza il suo su questo sito, mai lo abbassa.',
               )}
             </li>
           </ul>
@@ -668,6 +785,7 @@ function Result({ job, tr, onReset }: { job: Job; tr: Tr; onReset: () => void })
                 <Counts counts={report.skipped} tr={tr} />
               </div>
             )}
+            {job.users && <Users users={job.users} tr={tr} />}
             <Messages title={tr('Not imported', 'Non importati')} items={report.errors} />
             <Messages
               title={tr('Adapted or left out', 'Adattati o tralasciati')}
@@ -697,7 +815,7 @@ function ImporterPage(props: AdminPageProps) {
   const queryClient = useQueryClient();
   const status = useQuery({
     queryKey: ['wordpress-importer', 'status'],
-    queryFn: () => props.api<{ job: Job | null }>('GET', '/status'),
+    queryFn: () => props.api<{ job: Job | null; usersList?: boolean }>('GET', '/status'),
     refetchInterval: (query) => (query.state.data?.job?.status === 'running' ? 2_000 : false),
   });
   const reset = useMutation({
@@ -733,6 +851,7 @@ function ImporterPage(props: AdminPageProps) {
         <Upload
           {...props}
           tr={tr}
+          usersList={status.data?.usersList === true}
           onStarted={() => queryClient.invalidateQueries({ queryKey: ['wordpress-importer'] })}
         />
       )}
