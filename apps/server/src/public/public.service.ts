@@ -142,6 +142,12 @@ interface Compressed {
   gzip?: Buffer;
 }
 
+/** The not-found page when the theme cannot draw its own (core 0.86.1). */
+const NOT_FOUND_FALLBACK = (locale: string) => {
+  const it = locale.startsWith('it');
+  return `<!doctype html><html lang="${it ? 'it' : 'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${it ? 'Pagina non trovata' : 'Page not found'}</title></head><body style="font:16px/1.5 system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem"><h1>${it ? 'Pagina non trovata' : 'Page not found'}</h1><p><a href="/">${it ? 'Torna alla home' : 'Go to the home page'}</a></p></body></html>`;
+};
+
 export interface PublicResponse {
   status: number;
   html?: string;
@@ -1922,7 +1928,14 @@ export class PublicService {
       image: null,
       noindex: true,
     });
-    return this.render(scope, props, templateCandidates(props), head, new Map(), [], status);
+    try {
+      return await this.render(scope, props, templateCandidates(props), head, new Map(), [], status);
+    } catch (error) {
+      // A theme whose not-found page fails still answers "not found", never 500: search
+      // engines and monitors read the status, and the error is in the log.
+      this.logger.warn(`The theme's not-found page failed: ${String(error)}`);
+      return { status, html: NOT_FOUND_FALLBACK(scope.locale), tags: ['site'] };
+    }
   }
 
   // ---- Rendering ----------------------------------------------------------------------
