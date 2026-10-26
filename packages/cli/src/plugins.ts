@@ -14,6 +14,7 @@ import {
   readFile,
   rename,
   rm,
+  stat,
   symlink,
   writeFile,
 } from 'node:fs/promises';
@@ -128,7 +129,47 @@ export interface BuildResult {
 }
 
 /** Bundles the server and admin entries (TypeScript and JSX supported). */
+/**
+ * One build of a plugin folder at a time: builds write `dist/` in place, and
+ * two at once (parallel test files, two terminals) remove each other's files.
+ * The lock is a folder (created atomically); one older than ten minutes is
+ * left over from a build that was killed, and is taken over.
+ */
+async function withBuildLock<T>(dir: string, run: () => Promise<T>): Promise<T> {
+  const lock = path.join(dir, '.build-lock');
+  const started = Date.now();
+  for (;;) {
+    try {
+      await mkdir(lock);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      const age = await stat(lock).then(
+        (s) => Date.now() - s.mtimeMs,
+        () => 0,
+      );
+      if (age > 10 * 60_000) {
+        await rm(lock, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() - started > 10 * 60_000) {
+        throw new OperationError(`Another build of ${dir} has been running for ten minutes.`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  try {
+    return await run();
+  } finally {
+    await rm(lock, { recursive: true, force: true });
+  }
+}
+
 export async function buildPlugin(dir: string): Promise<BuildResult> {
+  return withBuildLock(dir, () => buildPluginNow(dir));
+}
+
+async function buildPluginNow(dir: string): Promise<BuildResult> {
   const manifest = await readManifest(dir);
   const outputs: string[] = [];
   const targets = [

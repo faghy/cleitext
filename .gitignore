@@ -36,3 +36,6 @@ Thumbs.db
 test-results/
 playwright-report/
 /release/
+
+# Plugin builds in progress (packages/cli buildPlugin)
+.build-lock/
