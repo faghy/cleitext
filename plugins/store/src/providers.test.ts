@@ -38,6 +38,10 @@ describe('Lemon Squeezy', () => {
       email: 'buyer@example.com',
       name: 'Ada Buyer',
       licenseId: null,
+      partner: null,
+      subtotalCents: null,
+      discountCents: null,
+      currency: null,
     });
     expect(parseLemonSqueezy(order('order_refunded')).kind).toBe('refunded');
     expect(parseLemonSqueezy(order('subscription_created')).kind).toBe('ignored');
@@ -45,6 +49,18 @@ describe('Lemon Squeezy', () => {
     expect(parseLemonSqueezy(order('order_created', { license: id })).licenseId).toBe(id);
     expect(parseLemonSqueezy(order('order_created', { license: 'x' })).licenseId).toBeNull();
     expect(parseLemonSqueezy(null).kind).toBe('ignored');
+  });
+
+  it('reads the partner code and the amounts, for the record', () => {
+    const paid = order('order_created', { partner: 'DBATrade' });
+    Object.assign(paid.data.attributes, { subtotal: 5900, discount_total: 1770, currency: 'eur' });
+    expect(parseLemonSqueezy(paid)).toMatchObject({
+      partner: 'dbatrade',
+      subtotalCents: 5900,
+      discountCents: 1770,
+      currency: 'EUR',
+    });
+    expect(parseLemonSqueezy(order('order_created', { partner: 'a b<' })).partner).toBeNull();
   });
 
   it('adds the license to the renewal checkout', () => {

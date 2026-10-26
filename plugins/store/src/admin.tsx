@@ -10,6 +10,7 @@ import {
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
+import { PartnersPage } from './partners-page';
 
 interface Product {
   slug: string;
@@ -17,6 +18,11 @@ interface Product {
   updatesMonths: number;
   demo: boolean;
   renewUrl: string | null;
+  bundle: boolean;
+  covers: string[] | null;
+  free: boolean;
+  priceCents: number | null;
+  currency: string;
 }
 interface Variant {
   provider: string;
@@ -52,11 +58,17 @@ interface LicenseRow {
   source: string;
   orderRef: string | null;
   note: string | null;
+  ownerEmail: string | null;
+  listPriceCents: number | null;
+  discountPercent: number | null;
+  priceCents: number | null;
+  currency: string | null;
   createdAt: string;
 }
 interface ActivationRow {
   id: string;
   siteOrigin: string;
+  productSlug: string;
   createdAt: string;
   lastSeenAt: string;
   deactivatedAt: string | null;
@@ -120,6 +132,24 @@ const T = {
     downloads: 'Latest downloads',
     demoDownload: 'demo',
     confirmRevoke: 'Revoke this license? Sites keep the theme but get no more downloads.',
+    bundle: 'Bundle (agency license): valid for other products',
+    coversAll: 'Every paid product (not free, not a bundle), now and later',
+    free: 'Free: public downloads only, never in bundles',
+    coversSome: 'Only these products:',
+    covers: 'covers {list}',
+    coversEvery: 'covers every product',
+    price: 'List price (optional, for the record)',
+    currency: 'Currency',
+    ownerEmail: 'Agency managing it (optional)',
+    listPrice: 'List price (empty: the product’s)',
+    priceRecord: 'Price for the record: {price}',
+    partnerPrice: 'Partner {name}: −{discount}%, {price} instead of {list}',
+    managedBy: 'managed by {email}',
+    editPeople: 'Customer and agency',
+    customerEmail: 'Customer email',
+    portal: 'Customer portal',
+    portalHint:
+      'Customers and agencies sign in with the email of their licenses (a link by email) and see their keys, sites and downloads; they can free a seat.',
   },
   it: {
     title: 'Store',
@@ -179,12 +209,46 @@ const T = {
     demoDownload: 'demo',
     confirmRevoke:
       'Revocare la licenza? I siti tengono il tema ma non possono più scaricare nulla.',
+    bundle: 'Pacchetto (licenza agenzia): vale per altri prodotti',
+    coversAll: 'Tutti i prodotti a pagamento (non gratuiti, non pacchetti), ora e in futuro',
+    free: 'Gratuito: solo download pubblici, mai nei pacchetti',
+    coversSome: 'Solo questi prodotti:',
+    covers: 'vale per {list}',
+    coversEvery: 'vale per tutti i prodotti',
+    price: 'Prezzo di listino (facoltativo, per memoria)',
+    currency: 'Valuta',
+    ownerEmail: 'Agenzia che la gestisce (facoltativa)',
+    listPrice: 'Prezzo di listino (vuoto: quello del prodotto)',
+    priceRecord: 'Prezzo registrato: {price}',
+    partnerPrice: 'Partner {name}: −{discount}%, {price} invece di {list}',
+    managedBy: 'gestita da {email}',
+    editPeople: 'Cliente e agenzia',
+    customerEmail: 'Email del cliente',
+    portal: 'Portale clienti',
+    portalHint:
+      'Clienti e agenzie accedono con l’email delle loro licenze (un link per email) e vedono chiavi, siti e download; possono liberare un posto.',
   },
 };
 type Strings = (typeof T)['en'];
 
 const fill = (s: string, values: Record<string, string | number>) =>
   s.replace(/\{(\w+)\}/g, (_, k: string) => String(values[k] ?? ''));
+/** Cents as an amount for people, e.g. 5900 EUR → €59.00. */
+const money = (cents: number | null, currency: string | null, locale: string) => {
+  if (cents === null) return '';
+  try {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: currency || 'EUR' }).format(
+      cents / 100,
+    );
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${currency ?? ''}`;
+  }
+};
+/** An amount typed by people (59, 59.00, 59,90) in cents; null when empty. */
+const toCents = (value: string): number | null => {
+  const v = value.trim().replace(',', '.');
+  return v === '' ? null : Math.round(Number(v) * 100);
+};
 const input =
   'rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-sky-600 focus:outline-none';
 
@@ -274,6 +338,7 @@ function Activations({
           <span className={a.deactivatedAt ? 'text-slate-400 line-through' : ''}>
             {a.siteOrigin}
           </span>
+          <code className="text-xs">{a.productSlug}</code>
           <span className="text-xs text-slate-500">
             {new Date(a.createdAt).toLocaleDateString(locale)} –{' '}
             {new Date(a.deactivatedAt ?? a.lastSeenAt).toLocaleDateString(locale)}
@@ -478,9 +543,26 @@ function StorePage({ api, user }: AdminPageProps) {
     updatesMonths: 12,
     demo: true,
     renewUrl: '',
+    bundle: false,
+    free: false,
+    coversAll: true,
+    covers: [] as string[],
+    price: '',
+    currency: 'EUR',
   });
   const saveProduct = useMutation({
-    mutationFn: () => api('PUT', `/admin/products/${product.slug}`, product),
+    mutationFn: () =>
+      api('PUT', `/admin/products/${product.slug}`, {
+        name: product.name,
+        updatesMonths: product.updatesMonths,
+        demo: product.demo,
+        renewUrl: product.renewUrl,
+        bundle: product.bundle,
+        free: product.free,
+        covers: product.coversAll ? 'all' : product.covers,
+        priceCents: toCents(product.price),
+        currency: product.currency,
+      }),
     onSuccess: refresh,
   });
   const [variant, setVariant] = useState({ variantId: '', productSlug: '', seats: 1, kind: 'new' });
@@ -495,14 +577,46 @@ function StorePage({ api, user }: AdminPageProps) {
   const [draft, setDraft] = useState({
     productSlug: '',
     email: '',
+    ownerEmail: '',
     seats: 1,
+    listPrice: '',
     note: '',
     send: true,
   });
   const create = useMutation({
     mutationFn: () =>
-      api<{ id: string; key: string; mailed: boolean }>('POST', '/admin/licenses', draft),
+      api<{
+        id: string;
+        key: string;
+        mailed: boolean;
+        partner: { name: string; discountPercent: number } | null;
+        listPriceCents: number | null;
+        priceCents: number | null;
+        currency: string | null;
+      }>('POST', '/admin/licenses', {
+        productSlug: draft.productSlug,
+        email: draft.email,
+        ownerEmail: draft.ownerEmail,
+        seats: draft.seats,
+        listPriceCents: toCents(draft.listPrice),
+        note: draft.note,
+        send: draft.send,
+      }),
     onSuccess: refresh,
+  });
+  const [people, setPeople] = useState<{ id: string; email: string; ownerEmail: string } | null>(
+    null,
+  );
+  const savePeople = useMutation({
+    mutationFn: () =>
+      api('PUT', `/admin/licenses/${people!.id}/people`, {
+        email: people!.email,
+        ownerEmail: people!.ownerEmail,
+      }),
+    onSuccess: () => {
+      setPeople(null);
+      return refresh();
+    },
   });
   const setStatus = useMutation({
     mutationFn: (v: { id: string; status: string }) =>
@@ -525,7 +639,9 @@ function StorePage({ api, user }: AdminPageProps) {
     saveVariant.error ??
     removeVariant.error ??
     setStatus.error ??
-    extend.error;
+    extend.error ??
+    savePeople.error;
+  const nameOf = (slug: string) => data?.products.find((p) => p.slug === slug)?.name ?? slug;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -548,6 +664,13 @@ function StorePage({ api, user }: AdminPageProps) {
             <dt className="font-medium">{t.webhook}</dt>
             <dd>
               <code className="break-all">{base}/webhooks/lemonsqueezy</code>
+            </dd>
+          </div>
+          <div>
+            <dt className="font-medium">{t.portal}</dt>
+            <dd>
+              <code className="break-all">{window.location.origin}/my-licenses</code>
+              <p className="text-xs text-slate-600">{t.portalHint}</p>
             </dd>
           </div>
           <div>
@@ -586,11 +709,34 @@ function StorePage({ api, user }: AdminPageProps) {
               <button
                 type="button"
                 className="text-sky-700 underline"
-                onClick={() => setProduct({ ...p, renewUrl: p.renewUrl ?? '' })}
+                onClick={() =>
+                  setProduct({
+                    slug: p.slug,
+                    name: p.name,
+                    updatesMonths: p.updatesMonths,
+                    demo: p.demo,
+                    renewUrl: p.renewUrl ?? '',
+                    bundle: p.bundle,
+                    free: p.free,
+                    coversAll: p.covers === null,
+                    covers: p.covers ?? [],
+                    price: p.priceCents === null ? '' : (p.priceCents / 100).toFixed(2),
+                    currency: p.currency,
+                  })
+                }
               >
                 {p.name}
               </button>{' '}
-              <code>{p.slug}</code> · {p.updatesMonths || '∞'} · {p.demo ? t.demo : ''}
+              <code>{p.slug}</code> · {p.updatesMonths || '∞'}
+              {p.priceCents !== null && ` · ${money(p.priceCents, p.currency, locale)}`}
+              {p.demo ? ` · ${t.demo}` : ''}
+              {p.free ? ` · ${t.free}` : ''}
+              {p.bundle &&
+                ` · ${
+                  p.covers === null
+                    ? t.coversEvery
+                    : fill(t.covers, { list: p.covers.map(nameOf).join(', ') })
+                }`}
             </li>
           ))}
         </ul>
@@ -618,14 +764,89 @@ function StorePage({ api, user }: AdminPageProps) {
             value={product.renewUrl}
             onChange={(e) => setProduct({ ...product, renewUrl: e.target.value })}
           />
+          <TextField
+            label={t.price}
+            inputMode="decimal"
+            value={product.price}
+            onChange={(e) => setProduct({ ...product, price: e.target.value })}
+          />
+          <TextField
+            label={t.currency}
+            maxLength={3}
+            value={product.currency}
+            onChange={(e) => setProduct({ ...product, currency: e.target.value.toUpperCase() })}
+          />
+          {!product.bundle && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={product.demo}
+                onChange={(e) => setProduct({ ...product, demo: e.target.checked })}
+              />
+              {t.demo}
+            </label>
+          )}
+          {!product.bundle && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={product.free}
+                onChange={(e) => setProduct({ ...product, free: e.target.checked })}
+              />
+              {t.free}
+            </label>
+          )}
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
-              checked={product.demo}
-              onChange={(e) => setProduct({ ...product, demo: e.target.checked })}
+              checked={product.bundle}
+              onChange={(e) => setProduct({ ...product, bundle: e.target.checked })}
             />
-            {t.demo}
+            {t.bundle}
           </label>
+          {product.bundle && (
+            <fieldset className="space-y-1 text-sm md:col-span-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  checked={product.coversAll}
+                  onChange={() => setProduct({ ...product, coversAll: true })}
+                />
+                {t.coversAll}
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  checked={!product.coversAll}
+                  onChange={() => setProduct({ ...product, coversAll: false })}
+                />
+                {t.coversSome}
+              </label>
+              {!product.coversAll && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 pl-6">
+                  {data?.products
+                    .filter((p) => !p.bundle && !p.free && p.slug !== product.slug)
+                    .map((p) => (
+                      <label key={p.slug} className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={product.covers.includes(p.slug)}
+                          onChange={(e) =>
+                            setProduct({
+                              ...product,
+                              covers: e.target.checked
+                                ? [...product.covers, p.slug]
+                                : product.covers.filter((c) => c !== p.slug),
+                            })
+                          }
+                        />
+                        {p.name}
+                      </label>
+                    ))}
+                </div>
+              )}
+            </fieldset>
+          )}
           <div>
             <Button type="submit" disabled={saveProduct.isPending}>
               {t.saveProduct}
@@ -727,6 +948,18 @@ function StorePage({ api, user }: AdminPageProps) {
               onChange={(e) => setDraft({ ...draft, email: e.target.value })}
             />
             <TextField
+              label={t.ownerEmail}
+              type="email"
+              value={draft.ownerEmail}
+              onChange={(e) => setDraft({ ...draft, ownerEmail: e.target.value })}
+            />
+            <TextField
+              label={t.listPrice}
+              inputMode="decimal"
+              value={draft.listPrice}
+              onChange={(e) => setDraft({ ...draft, listPrice: e.target.value })}
+            />
+            <TextField
               label={t.seats}
               type="number"
               min={0}
@@ -752,6 +985,17 @@ function StorePage({ api, user }: AdminPageProps) {
             <Alert kind="success">
               {t.created} <code className="select-all font-semibold">{create.data.key}</code>
               {create.data.mailed && ` ${t.mailed}`}
+              {create.data.partner && create.data.listPriceCents !== null
+                ? ` ${fill(t.partnerPrice, {
+                    name: create.data.partner.name,
+                    discount: create.data.partner.discountPercent,
+                    price: money(create.data.priceCents, create.data.currency, locale),
+                    list: money(create.data.listPriceCents, create.data.currency, locale),
+                  })}`
+                : create.data.priceCents !== null &&
+                  ` ${fill(t.priceRecord, {
+                    price: money(create.data.priceCents, create.data.currency, locale),
+                  })}`}
             </Alert>
           )}
           <Button type="submit" disabled={create.isPending}>
@@ -777,6 +1021,9 @@ function StorePage({ api, user }: AdminPageProps) {
                 <a className="text-sky-700" href={`mailto:${l.email}`}>
                   {l.email}
                 </a>
+                {l.ownerEmail && (
+                  <span className="text-xs">{fill(t.managedBy, { email: l.ownerEmail })}</span>
+                )}
                 <span>
                   {l.seats === 0
                     ? fill(t.sitesUsedAny, { used: l.used })
@@ -792,6 +1039,10 @@ function StorePage({ api, user }: AdminPageProps) {
                   {l.orderRef && ` #${l.orderRef}`} ·{' '}
                   {new Date(l.createdAt).toLocaleDateString(locale)}
                   {l.note && ` · ${l.note}`}
+                  {l.priceCents !== null &&
+                    ` · ${money(l.priceCents, l.currency, locale)}${
+                      l.discountPercent ? ` (−${l.discountPercent}%)` : ''
+                    }`}
                 </span>
                 {l.status === 'revoked' && (
                   <span className="font-medium text-red-700">{t.revoked}</span>
@@ -804,6 +1055,18 @@ function StorePage({ api, user }: AdminPageProps) {
                   aria-expanded={open === l.id}
                 >
                   {t.showSites}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    setPeople(
+                      people?.id === l.id
+                        ? null
+                        : { id: l.id, email: l.email, ownerEmail: l.ownerEmail ?? '' },
+                    )
+                  }
+                >
+                  {t.editPeople}
                 </Button>
                 {l.updatesUntil && (
                   <Button variant="secondary" onClick={() => extend.mutate(l.id)}>
@@ -829,6 +1092,30 @@ function StorePage({ api, user }: AdminPageProps) {
                   </Button>
                 )}
               </div>
+              {people?.id === l.id && (
+                <form
+                  className="grid gap-2 md:grid-cols-3"
+                  onSubmit={submit(() => savePeople.mutate())}
+                >
+                  <TextField
+                    label={t.customerEmail}
+                    type="email"
+                    value={people.email}
+                    onChange={(e) => setPeople({ ...people, email: e.target.value })}
+                  />
+                  <TextField
+                    label={t.ownerEmail}
+                    type="email"
+                    value={people.ownerEmail}
+                    onChange={(e) => setPeople({ ...people, ownerEmail: e.target.value })}
+                  />
+                  <div className="self-end">
+                    <Button type="submit" disabled={savePeople.isPending}>
+                      {t.save}
+                    </Button>
+                  </div>
+                </form>
+              )}
               {open === l.id && <Activations id={l.id} api={api} t={t} locale={locale} />}
             </li>
           ))}
@@ -1458,6 +1745,13 @@ export default defineAdminPlugin({
       parent: '',
       capability: 'manage_store',
       component: InstallationsPage,
+    },
+    {
+      path: 'partners',
+      title: { en: 'Partners', it: 'Partner' },
+      parent: '',
+      capability: 'manage_store',
+      component: PartnersPage,
     },
   ],
 });

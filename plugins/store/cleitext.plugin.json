@@ -1,9 +1,9 @@
 {
   "slug": "store",
   "name": "Store",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "apiVersion": "^1.25",
-  "description": "The license server of paid catalog themes: license keys sold through Lemon Squeezy or made by hand, activations per site, demo and update downloads from private releases; the registry of the plugins and themes Cleitext sites run; public downloads of free files (the Toolkit for Plesk) and anonymous server reports.",
+  "description": "The license server of paid catalog themes: license keys sold through Lemon Squeezy or made by hand, activations per site, agency licenses valid for several products, demo and update downloads from private releases; a customer portal where buyers and agencies see their licenses, sites and downloads; partners with their discounts; the registry of the plugins and themes Cleitext sites run; public downloads of free files (the Toolkit for Plesk) and anonymous server reports.",
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",

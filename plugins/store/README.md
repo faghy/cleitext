@@ -18,7 +18,7 @@ The official Cleitext plugin that runs the **license server of paid themes and p
   - `status`: refreshes what the license includes;
   - `download-token`: returns a download address valid for 5 minutes.
 - These routes accept calls from other servers (plugin API 1.10, `webhook: true`) and limit how many requests come from one address.
-- **Keys** are stored only as SHA-256, with their last 5 characters to find them. Activation tokens are stored as SHA-256 too. The full key is shown once, when the license is created, and emailed to the buyer.
+- **Keys** are found by their SHA-256, with their last 5 characters to find them in the admin. Activation tokens are stored as SHA-256 too. The full key is shown once in the admin, when the license is created, and emailed to the buyer. Since 1.4.0 it is also kept encrypted (AES-256-GCM, with a secret of the store kept encrypted by Cleitext), so the customer portal can show it again; licenses made before 1.4.0 show only their last characters there.
 - **Packages** stay in the releases of a private GitHub repository: tag `theme-<slug>-<version>`, asset `cleitext-theme-<slug>-<version>.zip`. The catalog build puts them there. A download address is signed (HMAC) for one theme, one version and one license. It is checked by the store, which then redirects to GitHub's own short-lived address.
 - A version **published after** the end of the license's updates is refused with _renew to update_. The release date on GitHub decides.
 - **Lemon Squeezy** (merchant of record: they handle EU VAT and invoices) calls `…/v1/webhooks/lemonsqueezy`. Its signature (`X-Signature`, HMAC-SHA256 of the body) is checked.
@@ -40,7 +40,37 @@ The official Cleitext plugin that runs the **license server of paid themes and p
 5. In Lemon Squeezy, add a webhook to the address shown in **Setup**, with the events `order_created` and `order_refunded` and the same signing secret.
 6. Point the renewal product's checkout at **Products → Renewal checkout**. The store adds `checkout[custom][license]=<id>` to it, so the renewal finds its license.
 
+**Products** can also be **bundles** and have a list price; see [Agency licenses](#agency-licenses-bundles).
+
 **Store** also makes licenses by hand (gifts, tests, sales elsewhere). It lists and searches licenses by email, last characters of the key or order, and can extend, revoke or restore them. It shows each license's sites and frees a seat, and lists the latest downloads, demos included.
+
+## Agency licenses (bundles)
+
+A **bundle** is a product whose licenses are valid for other products: one key for several themes and plugins, with one number of sites and one renewal.
+
+- In **Products**, tick _Bundle_ and choose what it covers: **every paid product** (now and later; products ticked _Free_, such as the Toolkit for Plesk, and other bundles are never covered) or a list of products. Bundles never cover bundles.
+- Sell it like any product: a Lemon Squeezy variant pointing at the bundle, or a license by hand. The months of updates and the renewal checkout are the bundle's.
+- On each site the key is entered for each product, as usual (**Appearance → Themes** or **Plugins**). The site sends the key, the product's slug and its address; the store accepts the key for every product the bundle covers.
+- **Seats are sites**: a site using three products of the bundle takes one seat. Each product still gets its own activation, and the seat is free when the site has deactivated all of them (or when it is freed in the admin or the portal).
+- Downloads and updates of every covered product follow the bundle's updates.
+- Existing licenses do not change. Nothing changes on the sites either: the protocol is the same, so every version of Cleitext that takes license keys accepts bundle keys.
+
+## Customer portal
+
+Customers and agencies find their licenses at **`https://<shop>/my-licenses`** (also behind a language prefix, such as `/it/my-licenses`, in English and Italian). There is no password or account:
+
+1. They give the email address of their licenses. If licenses are linked to it, as the buyer's or as the managing agency's, the store emails a sign-in link. The page answers the same for any address, so nobody learns who has licenses. Requests are limited per IP address and per email address.
+2. The link works once, for 20 minutes. Opening it shows a **Continue** button, so mail scanners that follow links do not use it up. Continuing signs in this browser for 7 days (cookie `store_portal`, HTTP-only; the session is stored as SHA-256 and deleted by **Sign out**).
+3. They see each license: the product or bundle and what it covers, the key masked with **Show key**, the sites in use and allowed, the end of the updates with **Renew**, the sites using it (products, last contact) with **Free this seat**, and links to **download the latest version** of each product they may install (the highest version released before their updates end). Invoices stay with Lemon Squeezy, which emails them; the page links to the buyer's orders.
+
+The portal pages are not cached (`cache-control: private, no-store`); a proxy cache in front of the shop must pass `/my-licenses` and requests with the `store_portal` cookie.
+
+## Agencies and partners
+
+- A license has a **customer** (`email`, the end client) and, optionally, an **agency** that manages it (`owner_email`). The agency manages it in the portal (key, freeing seats, downloads); the customer sees it, with its sites and downloads, but cannot show the key or free seats. Without an agency the customer manages it. **Customer and agency** in the license list changes them.
+- **Store → Partners** keeps agencies and resellers: name, email (their portal account), **discount** on list prices, a **checkout code** and the **Lemon Squeezy discount code**. It shows, for each partner, its licenses (managed or bought), the sites in use and the amounts recorded. This is record keeping: no payment is processed here.
+- **Licenses by hand** for a partner (as agency, or as customer) record the list price (the product's, unless given), the partner's discount and the discounted price.
+- **Lemon Squeezy**: create a discount code for each partner in Lemon Squeezy (it applies the discount and handles VAT and invoices) and note it in the partner. Partner checkout links carry `checkout[custom][partner]=<code>` (the partner's checkout code): the license of such an order is managed by the partner, and the store records the order's subtotal, discount and price.
 
 ## Installations
 
@@ -75,4 +105,4 @@ Nothing else is kept: no domain, address or IP. Turning the statistics off sends
 
 ## Permissions
 
-`routes:admin` (the license server, the webhook and the admin API), `routes:public` (public downloads), `settings:own` (settings and encrypted secrets) and `mail:send` (the keys). The capability `manage_store` goes to administrators.
+`routes:admin` (the license server, the webhook and the admin API), `routes:public` (public downloads and the customer portal), `settings:own` (settings and encrypted secrets) and `mail:send` (the keys and the portal's sign-in links). The capability `manage_store` goes to administrators.

@@ -11,6 +11,12 @@ export interface OrderEvent {
   name: string;
   /** Renewals: the license id passed to the checkout as custom data. */
   licenseId: string | null;
+  /** The partner's code passed to the checkout as custom data (`partner`). */
+  partner: string | null;
+  /** Amounts in cents, for the record: before and after discounts, without tax. */
+  subtotalCents: number | null;
+  discountCents: number | null;
+  currency: string | null;
 }
 
 /**
@@ -39,6 +45,10 @@ export function parseLemonSqueezy(payload: unknown): OrderEvent {
   const attributes = body.data?.attributes ?? {};
   const item = (attributes.first_order_item ?? {}) as Record<string, unknown>;
   const license = str(body.meta?.custom_data?.license);
+  const partner = str(body.meta?.custom_data?.partner).trim().toLowerCase();
+  const cents = (value: unknown) =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+  const currency = str(attributes.currency).toUpperCase();
   const kind =
     event === 'order_created' && attributes.status === 'paid'
       ? 'paid'
@@ -54,6 +64,10 @@ export function parseLemonSqueezy(payload: unknown): OrderEvent {
     email: str(attributes.user_email).trim().toLowerCase(),
     name: str(attributes.user_name).trim().slice(0, 200),
     licenseId: /^[0-9a-f-]{36}$/i.test(license) ? license.toLowerCase() : null,
+    partner: /^[a-z0-9_-]{2,40}$/.test(partner) ? partner : null,
+    subtotalCents: cents(attributes.subtotal),
+    discountCents: cents(attributes.discount_total),
+    currency: /^[A-Z]{3}$/.test(currency) ? currency : null,
   };
 }
 

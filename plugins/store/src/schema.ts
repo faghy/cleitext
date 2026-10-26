@@ -20,6 +20,14 @@ export const products = pgTable('products', {
   updatesMonths: integer('updates_months').notNull().default(12),
   demo: boolean('demo').notNull().default(true),
   renewUrl: text('renew_url'),
+  /** Its licenses are valid for other products (Store 1.4.0). */
+  bundle: boolean('bundle').notNull().default(false),
+  /** Bundles: the products covered; null for every product that is not a bundle. */
+  covers: text('covers').array(),
+  /** Public downloads only: never covered by "every product". */
+  free: boolean('free').notNull().default(false),
+  priceCents: integer('price_cents'),
+  currency: text('currency').notNull().default('EUR'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -45,6 +53,14 @@ export const licenses = pgTable('licenses', {
   source: text('source').notNull().default('manual'),
   orderRef: text('order_ref'),
   note: text('note'),
+  /** The agency that manages the license, when it is not the customer. */
+  ownerEmail: text('owner_email'),
+  listPriceCents: integer('list_price_cents'),
+  discountPercent: integer('discount_percent'),
+  priceCents: integer('price_cents'),
+  currency: text('currency'),
+  /** The key, encrypted, for the portal; null for licenses made before 1.4.0. */
+  keySealed: text('key_sealed'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -55,6 +71,8 @@ export const activations = pgTable('activations', {
   tokenHash: text('token_hash').notNull(),
   siteOrigin: text('site_origin').notNull(),
   clientSiteId: text('client_site_id'),
+  /** The product activated; null before 1.4.0 (the license's own product). */
+  productSlug: text('product_slug'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
@@ -116,6 +134,30 @@ export const serverReports = pgTable('server_reports', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Agencies and resellers (record keeping: no payment is processed here). */
+export const partners = pgTable('partners', {
+  siteId: uuid('site_id').notNull(),
+  email: text('email').notNull(),
+  name: text('name').notNull(),
+  discountPercent: integer('discount_percent').notNull().default(0),
+  code: text('code'),
+  lsDiscountCode: text('ls_discount_code'),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Sign-in links and sessions of the customer portal, as SHA-256. */
+export const portalTokens = pgTable('portal_tokens', {
+  siteId: uuid('site_id').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  email: text('email').notNull(),
+  kind: text('kind').$type<'link' | 'session'>().notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type Partner = typeof partners.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Variant = typeof variants.$inferSelect;
 export type License = typeof licenses.$inferSelect;
