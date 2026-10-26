@@ -12,6 +12,7 @@ import { fieldText, formOf, visibleFields } from './model/form';
 import { isStandardField, serviceText } from './model/normalize';
 import type { Strings } from './model/strings';
 import type { CustomField, Service, Settings } from './model/types';
+import type { OptInCheckbox } from './newsletter-optin';
 
 export interface WidgetConfig {
   api: string;
@@ -41,6 +42,8 @@ export interface BlockView {
   settings: Pick<Settings, 'phone' | 'privacyUrl' | 'contact'>;
   /** The bot protection's widget. */
   challenge: string;
+  /** The NewLetter plugin's opt-in box, when it offers one (Agenda 1.1.0). */
+  newsletter?: OptInCheckbox | null;
   limitReached: boolean;
   heading: string;
   preview: boolean;
@@ -288,6 +291,18 @@ export function BookingWidget({ view }: { view: BlockView }) {
                 <input name="website" tabIndex={-1} autoComplete="off" />
               </label>
               <Consent s={s} privacyUrl={settings.privacyUrl} uid={uid} />
+              {view.newsletter ? (
+                // Opt-in only: never ticked beforehand.
+                <label className="ag-check ag-newsletter" htmlFor={`${uid}-newsletter`}>
+                  <input
+                    id={`${uid}-newsletter`}
+                    type="checkbox"
+                    name={view.newsletter.name}
+                    value="1"
+                  />
+                  <span>{view.newsletter.label}</span>
+                </label>
+              ) : null}
               {view.challenge ? (
                 <div
                   className="ag-challenge"

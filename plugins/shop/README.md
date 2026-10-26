@@ -128,6 +128,8 @@ instructions for the order page and the emails:
 **Reviews**: customers rate products from 1 to 5 stars and write a review
 on the product page (no JavaScript). Reviews are comments of type `review`
 for the core: the comment moderation, spam checks and notifications apply. With the free **Captcha** plugin, the review form and (when you turn it on there) the checkout also get the site's captcha.
+
+With the **NewLetter** plugin active and connected to an email-marketing service, the checkout can offer an unchecked **Subscribe me to the newsletter** box (opt-in only, Cleishop 1.9.0): the customer is subscribed with their email and billing name once the order is placed, only when they tick it.
 "Verified owner" marks customers who bought the product; reviews can be kept
 to them, and the rating can be optional (Settings → Cleishop). Cleishop → Reviews
 lists them for moderation. The average shows on the product page, in the

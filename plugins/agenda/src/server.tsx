@@ -58,6 +58,7 @@ import {
   type Settings,
   type Status,
 } from './model/types';
+import { newsletterCheckbox, newsletterSubscribe, newsletterTicked } from './newsletter-optin';
 import { appointmentPage, invalidLinkPage } from './page';
 import { bookingLimit, installServerApi, notify, type AgendaServerApi } from './pro';
 import { BookingWidget, type BlockView, type WidgetConfig } from './render';
@@ -333,9 +334,15 @@ export default definePlugin({
               ?.challenge({ siteId, form: FORM_ID, locale, signedIn })
               .catch(() => '')) ?? '')
           : '';
+      // "Subscribe me to the newsletter", when the NewLetter plugin offers it.
+      const newsletter =
+        services.length > 0 && !limit.reached
+          ? await newsletterCheckbox({ siteId, locale, source: 'agenda' })
+          : null;
       return {
         uid,
         preview,
+        newsletter,
         heading: str(attrs.heading, 200),
         limitReached: limit.reached,
         challenge,
@@ -611,6 +618,16 @@ export default definePlugin({
           );
           if (used >= context.limit) await limitReached(siteId, site, settings, context.limit);
           announceBooked(siteId, appointment, service, site, settings);
+          // The visitor ticked "Subscribe me to the newsletter" (opt-in, never by default).
+          if (newsletterTicked(input.cx_newsletter))
+            await newsletterSubscribe({
+              siteId,
+              source: 'agenda',
+              email,
+              ...(name ? { name } : {}),
+              locale,
+              ip: request.ip,
+            });
           const links = linksOf(await linkKey(siteId), appointment, service, site);
           return {
             status: 201,

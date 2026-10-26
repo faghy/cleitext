@@ -315,6 +315,8 @@ export interface CheckoutValues {
   /** The shipping rate chosen. */
   rate: string;
   terms: boolean;
+  /** "Subscribe me to the newsletter" ticked (the NewLetter plugin's opt-in). */
+  newsletter?: boolean;
 }
 
 export const emptyAddress = (country = 'IT'): Address => ({
@@ -442,6 +444,8 @@ export function checkoutPage(options: {
   loginUrl?: string;
   /** The site's bot protection (`ctx.forms.challenge`, plugin API 1.38). */
   challenge?: string;
+  /** The NewLetter plugin's opt-in box, when it offers one: unchecked unless ticked before. */
+  newsletter?: { name: string; label: string } | null;
 }): string {
   const { values, errors, t, money, locale } = options;
   const { field, addressFields } = formParts({
@@ -549,6 +553,19 @@ export function checkoutPage(options: {
               ></label
             >
             ${errors.terms ? html`<span class="shop-error">${t(errors.terms)}</span>` : ''}`
+        : ''
+    }
+    ${
+      options.newsletter
+        ? html`<label class="shop-check"
+            ><input
+              type="checkbox"
+              name="${options.newsletter.name}"
+              value="1"
+              ${values.newsletter ? raw(' checked') : ''}
+            />
+            <span>${options.newsletter.label}</span></label
+          >`
         : ''
     }
     ${options.challenge ? raw(`<div class="shop-challenge">${options.challenge}</div>`) : ''}

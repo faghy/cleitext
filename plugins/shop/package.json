@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-shop",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "private": true,
   "description": "Official Cleitext plugin: Cleishop, e-commerce.",
   "license": "GPL-2.0-or-later",

@@ -1,7 +1,7 @@
 import type { PluginBlockDefinition, PluginContext } from '@cleitext/plugin-sdk';
 import { createElement, Fragment } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import fixture from './hotel.fixture.json';
 import plugin from './server';
 
@@ -23,6 +23,9 @@ type Route = {
     body?: unknown;
   }>;
 };
+
+/** Every request from another address: the rate limit is per address. */
+let ip = 0;
 
 /** The plugin set up against a fake context: what it registered and did. */
 function setUp(
@@ -77,7 +80,6 @@ function setUp(
   void plugin.setup(ctx);
   const block = blocks[0]!;
   const submit = routes.find((r) => r.method === 'POST' && r.path === '/_forms/submit')!;
-  let ip = 0;
 
   async function render(attrs: Record<string, unknown>, locale = 'it-IT') {
     const all = {
@@ -108,7 +110,7 @@ function setUp(
       siteId: 's',
       locale: 'it',
       body: { _block: 'b1', ...body },
-      ip: `10.0.0.${++ip}`,
+      ip: `10.0.${Math.floor(++ip / 250)}.${ip % 250}`,
       user: null,
       headers: { host: 'hotel.test', referer: 'http://hotel.test/prenota' },
     });
@@ -320,5 +322,100 @@ describe('default values and web addresses (1.5.0)', () => {
     expect(html).toMatch(/<option value="double" selected="">double<\/option>/);
     expect(html).toContain('<input type="checkbox" name="extras" checked="" value="b"/>');
     expect(html).toContain('>Hi</textarea>');
+  });
+});
+
+describe('the newsletter opt-in', () => {
+  const KEY = Symbol.for('cleitext.newsletter.optIn');
+  const holder = globalThis as unknown as Record<symbol, unknown>;
+  afterEach(() => {
+    delete holder[KEY];
+  });
+
+  function registry(box: { name: string; label: string } | null) {
+    const subscribed: Record<string, unknown>[] = [];
+    const asked: Record<string, unknown>[] = [];
+    holder[KEY] = {
+      version: 1,
+      checkbox: async (input: Record<string, unknown>) => {
+        asked.push(input);
+        return box;
+      },
+      subscribe: async (input: Record<string, unknown>) => void subscribed.push(input),
+    };
+    return { subscribed, asked };
+  }
+
+  const message = { name: 'Ada', email: 'Ada@Example.com', message: 'Hello!' };
+
+  it('shows no box without the Newsletter plugin, or when it offers none', async () => {
+    const { render } = setUp();
+    expect((await render({})).html).not.toContain('cx_newsletter');
+    const { asked } = registry(null);
+    expect((await render({})).html).not.toContain('cx_newsletter');
+    expect(asked[0]).toEqual({ siteId: 's', locale: 'it-IT', source: 'forms' });
+  });
+
+  it('shows an unchecked box in classic and custom forms', async () => {
+    registry({ name: 'cx_newsletter', label: 'Iscrivimi alla newsletter' });
+    const { render } = setUp();
+    const classic = (await render({ privacyUrl: '/privacy' })).html;
+    expect(classic).toContain(
+      '<input type="checkbox" name="cx_newsletter" value="1"/><span>Iscrivimi alla newsletter</span></label><p class="form-privacy">',
+    );
+    expect(classic).not.toMatch(/name="cx_newsletter"[^>]*checked/);
+    const custom = (await render(HOTEL_ATTRS)).html;
+    expect(custom).toContain('class="cf-field cf-w-full form-newsletter"');
+    expect(custom).toContain('name="cx_newsletter" value="1"');
+  });
+
+  it('subscribes only when ticked and the message is delivered', async () => {
+    const { subscribed } = registry({ name: 'cx_newsletter', label: 'Subscribe' });
+    const { send } = setUp();
+    await send(message);
+    expect(subscribed).toEqual([]);
+    await send({ ...message, cx_newsletter: '1' });
+    expect(subscribed).toEqual([
+      {
+        siteId: 's',
+        source: 'forms',
+        email: 'ada@example.com',
+        name: 'Ada',
+        locale: 'it',
+        ip: expect.stringMatching(/^10\.0\.\d+\.\d+$/),
+      },
+    ]);
+  });
+
+  it('does not subscribe refused or held messages, but does when one is released', async () => {
+    const { subscribed } = registry({ name: 'cx_newsletter', label: 'Subscribe' });
+    await setUp({ refuse: true }).send({ ...message, cx_newsletter: '1' });
+    await setUp({ verdict: { ok: false, silent: true } }).send({ ...message, cx_newsletter: '1' });
+    const held = setUp({ verdict: { ok: true, spam: true } });
+    await held.send({ ...message, cx_newsletter: '1' });
+    expect(subscribed).toEqual([]);
+    const fields = (held.verified[0] as { fields: Record<string, unknown> }).fields;
+    await held.emit('form.released', { form: 'forms/contact', locale: 'en', fields });
+    expect(subscribed).toEqual([
+      { siteId: 's', source: 'forms', email: 'ada@example.com', name: 'Ada', locale: 'en' },
+    ]);
+  });
+
+  it('never fails the form when the Newsletter plugin fails', async () => {
+    holder[KEY] = {
+      version: 1,
+      checkbox: async () => {
+        throw new Error('down');
+      },
+      subscribe: async () => {
+        throw new Error('down');
+      },
+    };
+    const { render, send } = setUp();
+    expect((await render({})).html).not.toContain('cx_newsletter');
+    expect(await send({ ...message, cx_newsletter: '1' })).toEqual({
+      status: 303,
+      headers: { location: '/prenota#form-b1-sent' },
+    });
   });
 });

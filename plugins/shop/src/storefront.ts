@@ -58,6 +58,7 @@ import { couponOf, quote, type Quote, type QuoteInput } from './quote';
 import { coupons, products, type CartItem, type OrderRow } from './schema';
 import type { Destination } from './shipping';
 import { escape } from './html';
+import { NEWSLETTER_FIELD, newsletterCheckbox, newsletterSubscribe } from './newsletter-optin';
 import { translator, type Translate } from './strings';
 
 /** The checkout's id for the site's bot protection (`ctx.forms`, plugin API 1.38). */
@@ -701,6 +702,7 @@ export function registerStorefront(
       payment: text(body, 'payment', 40),
       rate: text(body, 'rate', 40),
       terms: text(body, 'terms', 1) === '1',
+      newsletter: text(body, NEWSLETTER_FIELD, 1) === '1',
     };
   };
 
@@ -742,6 +744,12 @@ export function registerStorefront(
           signedIn: request.user !== null,
         })
         .catch(() => '')) ?? '';
+    // "Subscribe me to the newsletter", when the NewLetter plugin offers it.
+    const newsletter = await newsletterCheckbox({
+      siteId: request.siteId,
+      locale: request.locale,
+      source: 'shop',
+    });
     return {
       empty: false as const,
       prefix,
@@ -782,6 +790,7 @@ export function registerStorefront(
         phoneRequired: store.phoneRequired,
         ...(notice ? { notice } : {}),
         ...(challenge ? { challenge } : {}),
+        ...(newsletter ? { newsletter } : {}),
       }),
     };
   };
@@ -1023,6 +1032,17 @@ export function registerStorefront(
           { orderId: placed.order.id, number: placed.order.number },
           { siteId: request.siteId },
         );
+        // The customer ticked "Subscribe me to the newsletter" (opt-in, never by default).
+        if (values.newsletter)
+          await newsletterSubscribe({
+            siteId: request.siteId,
+            source: 'shop',
+            email: values.email.toLowerCase(),
+            ...(values.billing.firstName ? { firstName: values.billing.firstName } : {}),
+            ...(values.billing.lastName ? { lastName: values.billing.lastName } : {}),
+            locale: request.locale,
+            ip: request.ip,
+          });
         // Online payments: on to the provider's page.
         if (placed.order.status === 'pending' && online) {
           const pay = `${prefix}/checkout/pay/${placed.order.number}?key=${encodeURIComponent(placed.order.key)}`;

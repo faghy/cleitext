@@ -19,6 +19,8 @@ Di serie il modulo chiede nome, email e messaggio (e il telefono, se vuoi). Dall
 
 Il server ricontrolla ogni messaggio, qualunque cosa abbia fatto il browser: campi obbligatori, indirizzi email, numeri e date entro i limiti, opzioni esistenti, lunghezze. I campi che il modulo non ha vengono ignorati. Lo spam resta fuori grazie a un campo nascosto, a un limite di cinque messaggi ogni dieci minuti per visitatore e, con il plugin **Captcha**, a Turnstile o reCAPTCHA. Con il plugin **Antispam**, i messaggi che giudica spam restano nella sua coda dello spam invece di essere inviati; lì **Non è spam** li salva e li invia per email come se fossero appena arrivati.
 
+Con il plugin **NewLetter** attivo e collegato a un servizio di email marketing, il modulo può offrire la casella **Iscrivimi alla newsletter**, non spuntata (solo su scelta del visitatore, Forms 1.6.0): l'iscrizione parte solo se il visitatore la spunta e il messaggio viene consegnato (non quando è trattenuto come spam, finché non viene liberato).
+
 I messaggi fanno parte degli strumenti privacy del sito: **Privacy → Richieste** li esporta e li cancella per indirizzo email.
 
 ## Come si usa

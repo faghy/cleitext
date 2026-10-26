@@ -20,6 +20,13 @@ import {
   type FormField,
   type SavedField,
 } from './fields';
+import {
+  NEWSLETTER_FIELD,
+  newsletterCheckbox,
+  newsletterSubscribe,
+  newsletterTicked,
+  type OptInCheckbox,
+} from './newsletter-optin';
 import { submissions, type Submission } from './schema';
 
 const SUBMIT_PATH = '/_forms/submit';
@@ -265,12 +272,14 @@ function CustomFields({
   button,
   privacy,
   challenge,
+  newsletter,
 }: {
   fields: FormField[];
   submitInline: boolean;
   button: ReactNode;
   privacy: ReactNode;
   challenge: ReactNode;
+  newsletter?: ReactNode;
 }) {
   const inRow = (f: FormField) => submitInline && f.type === 'acceptance';
   return (
@@ -280,6 +289,7 @@ function CustomFields({
         .map((f) => (
           <Field key={f.name} field={f} />
         ))}
+      {newsletter}
       {privacy}
       {challenge}
       {submitInline ? (
@@ -359,7 +369,10 @@ export default definePlugin({
     );
 
     ctx.blocks.register(
-      defineBlock<FormAttrs, { challenge: string; spec?: string }>({
+      defineBlock<
+        FormAttrs,
+        { challenge: string; spec?: string; newsletter?: OptInCheckbox | null }
+      >({
         type: 'forms/contact',
         title: { en: 'Contact form', it: 'Modulo di contatto' },
         description: { en: 'Name, email and message.', it: 'Nome, email e messaggio.' },
@@ -556,7 +569,13 @@ export default definePlugin({
               return '';
             });
           }
-          return { challenge: challenge ?? '', spec };
+          // "Subscribe me to the newsletter", when the NewLetter plugin offers it.
+          const newsletter = await newsletterCheckbox({
+            siteId: context.siteId,
+            locale: context.locale,
+            source: 'forms',
+          });
+          return { challenge: challenge ?? '', spec, ...(newsletter ? { newsletter } : {}) };
         },
         render({ attrs, block, context, data }) {
           const it = context.locale.startsWith('it');
@@ -575,6 +594,16 @@ export default definePlugin({
             <div className="form-challenge" dangerouslySetInnerHTML={{ __html: data.challenge }} />
           ) : null;
           const button = <button type="submit">{attrs.buttonLabel}</button>;
+          // Opt-in only: never ticked beforehand.
+          const newsletter = data?.newsletter ? (
+            <label
+              className={custom ? 'cf-field cf-w-full form-newsletter' : 'form-newsletter'}
+              style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start' }}
+            >
+              <input type="checkbox" name={NEWSLETTER_FIELD} value="1" />
+              <span>{data.newsletter.label}</span>
+            </label>
+          ) : null;
           return (
             <section className="contact-form" id={id}>
               <style>
@@ -614,6 +643,7 @@ export default definePlugin({
                     button={button}
                     privacy={privacy}
                     challenge={challenge}
+                    newsletter={newsletter}
                   />
                 </form>
               ) : (
@@ -649,6 +679,7 @@ export default definePlugin({
                     Website
                     <input name="website" tabIndex={-1} autoComplete="off" />
                   </label>
+                  {newsletter}
                   {privacy}
                   {challenge}
                   {button}
@@ -703,6 +734,25 @@ export default definePlugin({
         subject: `[${formName}] ${name}`,
         text: `${name} <${email}>${phone ? `\nPhone: ${phone}` : ''}\nPage: ${back}\n\n${body}`,
       };
+    }
+
+    /** The visitor ticked "Subscribe me to the newsletter": hand them to the NewLetter plugin. */
+    async function subscribeIfAsked(
+      siteId: string,
+      form: Record<string, unknown>,
+      message: Message,
+      locale: string,
+      ip?: string,
+    ): Promise<void> {
+      if (!newsletterTicked(form[NEWSLETTER_FIELD]) || !EMAIL_RE.test(message.email)) return;
+      await newsletterSubscribe({
+        siteId,
+        source: 'forms',
+        email: message.email.toLowerCase(),
+        ...(message.name ? { name: message.name } : {}),
+        locale,
+        ...(ip ? { ip } : {}),
+      });
     }
 
     /** Stores the message and sends it to the site's recipient. */
@@ -774,6 +824,7 @@ export default definePlugin({
         if (verdict?.spam) return redirect('sent');
 
         await deliver(request.siteId, message, back);
+        await subscribeIfAsked(request.siteId, form, message, request.locale, request.ip);
         return redirect('sent');
       },
     });
@@ -789,6 +840,7 @@ export default definePlugin({
         return;
       }
       await deliver(siteId, message, back);
+      await subscribeIfAsked(siteId, fields, message, locale);
     });
 
     // GDPR requests (Privacy plugin): the messages sent with an email address.
