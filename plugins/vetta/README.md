@@ -15,6 +15,7 @@ The **SEO analysis** section follows the page as it is written: a Google preview
 - **Modules**: content analysis, structured data, social cards, sitemap, breadcrumbs, local business, image texts, links to other sites, llms.txt, robots.txt editor, pages not found, IndexNow.
 - **General**: title separator, capitals, default robots, the longest previews, what stays out of search (search results, page 2 and next, authors).
 - **Home and other pages**, **Content types**, **Categories and tags**: title and description templates with variables (`%title% %sep% %sitename% %excerpt% %category% %categories% %tags% %date% %name% %page% %currentyear% %focuskw% %customfield(group.name)%`; the `%%title%%` form works too), robots per type and taxonomy, structured data type, and whether the type goes in the sitemap, llms.txt and IndexNow.
+- `%page%` says "Page 2 of 22" ("Pagina 2 di 22") since 1.1.0 with core 0.88 (plugin API 1.57; "Page 2" on older cores); titles imported from WordPress keep their straight quotes and hyphens in the search and social titles.
 - **Social networks**: default image, X card and account, Facebook page and app.
 - **Organization and local business**: name, logo, profiles, and for a business its kind, address, opening hours, price range, coordinates, legal name and VAT number, all in the schema.org graph.
 - **Webmaster tools**: Google, Bing, Yandex, Baidu, Pinterest and Norton verification (paste the code or the whole tag).

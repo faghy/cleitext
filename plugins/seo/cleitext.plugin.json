@@ -1,7 +1,7 @@
 {
   "slug": "seo",
   "name": "SEO",
-  "version": "2.3.3",
+  "version": "2.4.0",
   "apiVersion": "^1.6",
   "description": "Search titles, descriptions, indexing and canonical per page; content types kept out of search; XML sitemaps that follow them; social cards and a schema.org graph.",
   "author": "Cleitext",

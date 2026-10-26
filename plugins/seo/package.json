@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-seo",
-  "version": "2.3.3",
+  "version": "2.4.0",
   "private": true,
   "description": "Official Cleitext plugin: SEO titles, descriptions, social cards and structured data.",
   "license": "GPL-2.0-or-later",

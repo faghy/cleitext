@@ -26,6 +26,8 @@ The editor gets these fields:
 - **Hide from search engines**: adds a noindex and takes the page out of the sitemap.
 - **Canonical address**: for content copied from elsewhere.
 
+Since 2.4.0 the later pages of archives say which they are, as Yoast SEO's `%%page%%`: "Blog – Page 2 of 22 – Site" ("Pagina 2 di 22" in Italian; `%%page%%` in the templates and in imported titles, the page count from core 0.88, plugin API 1.57). Titles imported from WordPress keep their straight quotes and hyphens in the search and social titles, while the page shows WordPress's typography.
+
 Indexed pages get `index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1`, so Google can show large image previews.
 
 ## SEO analysis in the editor
