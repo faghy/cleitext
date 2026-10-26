@@ -111,7 +111,8 @@ const book = (handler: Handler, extra: Record<string, unknown> = {}) =>
     },
   });
 
-describe('the newsletter opt-in', () => {
+// The first test loads the whole plugin server, slow on a busy CI runner.
+describe('the newsletter opt-in', { timeout: 30_000 }, () => {
   const view = (newsletter?: { name: string; label: string } | null): BlockView => ({
     uid: 'ag-test',
     preview: false,
