@@ -3,6 +3,7 @@ import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { assertTokenAllowed, verifyCsrf, verifySameOrigin } from '../auth/auth.guard.js';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
+import { referralCookies } from './conversions.js';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -46,6 +47,8 @@ export function routeRequest(
       : null,
     headers,
     cookies: pluginCookies(request, options.plugin),
+    // Referral codes kept with the visitor's consent (plugin API 1.58).
+    referrals: referralCookies(request.cookies ?? {}),
     origin: `${request.protocol}://${request.host}`,
     locale: options.locale ?? '',
     async file() {

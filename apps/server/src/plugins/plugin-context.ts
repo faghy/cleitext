@@ -849,6 +849,36 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       },
     },
 
+    conversions: {
+      paid(siteId, conversion) {
+        try {
+          assertSiteId(siteId);
+        } catch (error) {
+          pluginLogger(plugin.slug).error(String(error));
+          return;
+        }
+        host.announceConversion(plugin.slug, siteId, 'paid', conversion);
+      },
+      reversed(siteId, reversal) {
+        try {
+          assertSiteId(siteId);
+        } catch (error) {
+          pluginLogger(plugin.slug).error(String(error));
+          return;
+        }
+        host.announceConversion(plugin.slug, siteId, 'reversed', reversal);
+      },
+    },
+
+    referrals: {
+      capture(provider) {
+        if (typeof provider !== 'function') throw new TypeError('capture needs a function');
+        if (plugin.referralProviders.length > 0)
+          throw new Error('A plugin captures one referral parameter: call capture once.');
+        plugin.referralProviders.push(provider);
+      },
+    },
+
     transfer: {
       async importDocument(siteId, document, options) {
         require('import');

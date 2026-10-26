@@ -114,6 +114,101 @@ export interface Actions {
    * are ever released.
    */
   'form.released': FormReleasedEvent;
+  /**
+   * A paid conversion (plugin API 1.58): an order paid, a booking confirmed,
+   * a license sold, a lead sent. Announced by the plugin that made it with
+   * `ctx.conversions.paid`, delivered once its transaction committed;
+   * e.g. for an affiliate program or a report. The same `source` and `id`
+   * may be announced again (an order paid, put on hold, paid again): keep
+   * the first.
+   */
+  'conversion.paid': ConversionEvent;
+  /**
+   * A conversion refunded or cancelled, all of it or part of it (plugin API
+   * 1.58, `ctx.conversions.reversed`): `amount` is what this reversal takes
+   * back; without it, everything that was left.
+   */
+  'conversion.reversed': ConversionReversal;
+  /**
+   * A visitor arrived through a referral link (plugin API 1.58): a public
+   * page asked with the parameter of a plugin's `ctx.referrals.capture`,
+   * e.g. `?ref=anna`. Only the plugin named by `plugin` should count it.
+   * Sent by the page's script (pages stay cached), without the visitor's
+   * address: count visits, do not identify people.
+   */
+  'referral.visit': ReferralVisitEvent;
+}
+
+/** What kind of conversion it is (plugin API 1.58). */
+export type ConversionKind = 'order' | 'booking' | 'license' | 'lead';
+
+/** A conversion as its plugin announces it (`ctx.conversions.paid`, plugin API 1.58). */
+export interface ConversionInput {
+  kind: ConversionKind;
+  /** The plugin's own id of what was converted, e.g. the order's id: unique in the plugin. */
+  id: string;
+  /**
+   * What the customer paid, as a decimal string in the currency's units
+   * (`'49.90'`), as Cleishop stores money; `'0'` for leads and free bookings.
+   */
+  amount: string;
+  /** ISO 4217 code, e.g. `EUR`; empty when the amount is 0 and there is no currency. */
+  currency: string;
+  customer: { email: string; userId?: string | null };
+  /** What was bought (optional), each with its amount as above. */
+  items?: { id: string; name: string; amount: string }[];
+  /** A short name for people, e.g. `Order #1024` (optional). */
+  label?: string;
+  /** When it happened (ISO 8601); now when omitted. */
+  at?: string;
+  /**
+   * The referral codes the customer came with, by the slug of the plugin
+   * that captured them (`RouteRequest.referrals` at checkout, kept with the
+   * order until it is paid). Omit when unknown.
+   */
+  referrals?: Record<string, string>;
+}
+
+/** A conversion as listeners get it (`conversion.paid`, plugin API 1.58). */
+export interface ConversionEvent extends Required<Omit<ConversionInput, 'customer' | 'label'>> {
+  /** The slug of the plugin that announced it: `shop`, `agenda`, `store`, `forms`… */
+  source: string;
+  customer: { email: string; userId: string | null };
+  label?: string;
+}
+
+/** A refund or a cancellation, as its plugin announces it (`ctx.conversions.reversed`). */
+export interface ConversionReversalInput {
+  /** The id given to `ctx.conversions.paid`. */
+  id: string;
+  /** What this reversal takes back (decimal string); omitted: everything that was left. */
+  amount?: string;
+  reason?: 'refund' | 'cancel';
+  /** When it happened (ISO 8601); now when omitted. */
+  at?: string;
+}
+
+/** A refund or a cancellation as listeners get it (`conversion.reversed`, plugin API 1.58). */
+export interface ConversionReversal {
+  source: string;
+  id: string;
+  amount?: string;
+  reason: 'refund' | 'cancel';
+  at: string;
+}
+
+/** A visit through a referral link (`referral.visit`, plugin API 1.58). */
+export interface ReferralVisitEvent {
+  /** The plugin whose parameter the address had. */
+  plugin: string;
+  /** The code, as given (letters, digits, `-` and `_`, at most 64). */
+  code: string;
+  /** The page visited, without the query. */
+  path: string;
+  /** The host of the page the visitor came from, if any (no path, no query). */
+  referrer: string | null;
+  /** The visitor's consent allowed the referral cookie: the link can be credited later. */
+  stored: boolean;
 }
 
 /** A held submission released as not spam (`form.released`, plugin API 1.45). */

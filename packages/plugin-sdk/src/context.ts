@@ -27,6 +27,8 @@ import type {
   ThemeSettingsSection,
 } from '@cleitext/theme-sdk';
 import type {
+  ConversionInput,
+  ConversionReversalInput,
   FormChallengeContext,
   FormVerifyContext,
   FormVerifyResult,
@@ -1016,6 +1018,14 @@ export interface RouteRequest {
    * `<slug>_…`, e.g. `shop_cart`. Others (the session among them) are never given.
    */
   cookies: Record<string, string>;
+  /**
+   * The referral codes the visitor came with (plugin API 1.58; missing on
+   * older cores), by the slug of the plugin that captured them
+   * (`ctx.referrals.capture`), e.g. `{ passaparola: 'anna' }`: read from the
+   * first-party cookies set with the visitor's consent. Keep them with an
+   * order or a booking and give them to `ctx.conversions.paid`.
+   */
+  referrals?: Record<string, string>;
   /** The site's address as the visitor reached it, e.g. `https://example.com` (plugin API 1.16). */
   origin: string;
   /**
@@ -1366,6 +1376,56 @@ export interface TrackerDeclaration {
   googleConsentMode?: boolean;
 }
 
+/**
+ * How a plugin captures referral links on a site (`ctx.referrals.capture`,
+ * plugin API 1.58).
+ */
+export interface ReferralCapture {
+  /** The query parameter, e.g. `ref` for `https://site/?ref=anna`. */
+  param: string;
+  /**
+   * The consent category the referral cookie needs (Privacy & GDPR): it is
+   * set only after the visitor accepts it. Without a consent banner on the
+   * site nothing is stored.
+   */
+  category: 'preferences' | 'statistics' | 'marketing';
+  /** How long the cookie lasts, in days (1–365). */
+  days: number;
+  /** `last`: a new link replaces the code (default); `first`: the first one stays. */
+  model?: 'first' | 'last';
+}
+
+/** Referral links (plugin API 1.58). */
+export interface ReferralsApi {
+  /**
+   * Captures `?<param>=<code>` on every public page of the sites where the
+   * plugin is active and returns a capture. The parameter never reaches the
+   * page cache (pages are cached and shown without it); a small script of
+   * the page removes it from the address bar, sends a `referral.visit` and,
+   * with the visitor's consent to `category`, keeps the code in a
+   * first-party cookie (`cx_ref_<slug>`) that routes read as
+   * `request.referrals[<slug>]`. Return null to capture nothing on a site.
+   * When the answer changes, invalidate the `referrals` cache tag.
+   */
+  capture(
+    provider: (siteId: string) => ReferralCapture | null | Promise<ReferralCapture | null>,
+  ): void;
+}
+
+/** Paid conversions announced by the plugin (plugin API 1.58). */
+export interface ConversionsApi {
+  /**
+   * Announces a paid conversion of the plugin (`conversion.paid`, its slug
+   * as `source`). Call it when it happens, inside or after the transaction
+   * that records it: listeners run once that transaction committed (never
+   * if it rolled back), outside it, each on its own. It never throws: an
+   * invalid conversion is logged and dropped.
+   */
+  paid(siteId: string, conversion: ConversionInput): void;
+  /** Announces a refund or a cancellation (`conversion.reversed`), likewise. */
+  reversed(siteId: string, reversal: ConversionReversalInput): void;
+}
+
 export interface PrivacyApi {
   /**
    * Declares the trackers the plugin adds to a site, given its settings
@@ -1652,6 +1712,13 @@ export interface PluginContext {
    * Missing on older cores: call it as `ctx.ai?.registerEditor(...)`.
    */
   readonly ai: AiApi;
+  /**
+   * Paid conversions: orders, bookings, licenses, leads (plugin API 1.58).
+   * Missing on older cores: call it as `ctx.conversions?.paid(...)`.
+   */
+  readonly conversions: ConversionsApi;
+  /** Referral links on the public site (plugin API 1.58; missing on older cores). */
+  readonly referrals: ReferralsApi;
 }
 
 export interface PluginDefinition {

@@ -47,6 +47,8 @@ interface Scope {
   pending: Set<Promise<unknown>>;
   /** Savepoints on one connection must not interleave: one at a time. */
   queue: Promise<unknown>;
+  /** `afterCommit` callbacks: they wait for this scope and those around it. */
+  committed: (() => void)[];
 }
 
 const scopes = new AsyncLocalStorage<Scope[]>();
@@ -72,11 +74,57 @@ function guardNesting(db: Database): void {
   process.emitWarning(error.message, { code: 'CLEITEXT_DB_NESTING', detail: site });
 }
 
+/**
+ * Runs `fn` once the changes made so far are committed (core 0.89): at once
+ * (on the next turn) outside a transaction; inside one, after it and every
+ * transaction around it commit. Rolled back (a savepoint that failed, a
+ * transaction that threw), it never runs. `fn` runs outside any
+ * transaction; its errors are its own (caught and dropped here).
+ */
+export function afterCommit(fn: () => void): void {
+  const stack = scopes.getStore() ?? [];
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (stack[i]!.open) {
+      stack[i]!.committed.push(fn);
+      return;
+    }
+  }
+  runCommitted([fn]);
+}
+
+function runCommitted(callbacks: (() => void)[]): void {
+  if (callbacks.length === 0) return;
+  setImmediate(() =>
+    detached(() => {
+      for (const callback of callbacks) {
+        try {
+          callback();
+        } catch {
+          // A callback's failure is its own.
+        }
+      }
+    }),
+  );
+}
+
+/**
+ * Where a scope's `afterCommit` callbacks go once it succeeded: to the open
+ * transaction around it (whose commit they then wait for), or `done`.
+ */
+function handOver(parent: Scope | undefined, scope: Scope, done: (() => void)[] | null): void {
+  if (scope.committed.length === 0) return;
+  if (parent?.open) parent.committed.push(...scope.committed);
+  else if (done) done.push(...scope.committed);
+  else runCommitted(scope.committed);
+}
+
 async function runScope<T>(
   db: Database,
   tx: SiteTransaction,
   context: TransactionContext | null,
   fn: (tx: SiteTransaction) => Promise<T>,
+  /** A new transaction: callbacks left for its commit (savepoints hand them to their parent). */
+  done: (() => void)[] | null = null,
 ): Promise<T> {
   const scope: Scope = {
     db,
@@ -85,9 +133,14 @@ async function runScope<T>(
     open: true,
     pending: new Set(),
     queue: Promise.resolve(),
+    committed: [],
   };
+  const stack = scopes.getStore() ?? [];
+  const parent = [...stack].reverse().find((s) => s.open);
   try {
-    return await scopes.run([...(scopes.getStore() ?? []), scope], () => fn(tx));
+    const result = await scopes.run([...stack, scope], () => fn(tx));
+    handOver(parent, scope, done);
+    return result;
   } finally {
     // Nothing new starts on this connection (it may soon serve another
     // request); what already started, such as a timed-out hook, ends first.
@@ -152,7 +205,7 @@ export function transactionFor<T>(
   }
   // A savepoint keeps a failure here from aborting the outer transaction.
   const run = outer.queue.then(() =>
-    outer.tx.transaction((savepoint) => runScope(db, savepoint, outer.context, fn)),
+    outer.tx.transaction((savepoint) => runScope(db, savepoint, outer.context, fn, null)),
   );
   outer.queue = run.catch(() => {});
   outer.pending.add(run);
@@ -174,9 +227,13 @@ export function createDatabase(url: string, options: CreateDatabaseOptions = {})
     return unsafe(...args);
   }) as typeof unsafe;
   const transaction = db.transaction.bind(db);
-  db.transaction = (fn, config) => {
+  db.transaction = async (fn, config) => {
     guardNesting(db);
-    return transaction((tx) => runScope(db, tx, null, fn), config);
+    // `afterCommit` callbacks of a transaction not inside another run once it commits.
+    const done: (() => void)[] = [];
+    const result = await transaction((tx) => runScope(db, tx, null, fn, done), config);
+    runCommitted(done);
+    return result;
   };
   return {
     db,

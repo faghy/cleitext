@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.57**
+> API dei plugin **1.58**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -171,24 +171,27 @@ ctx.hooks.filter(
 
 **Azioni** (vengono eseguite dopo che la modifica è stata salvata):
 
-| Nome                                      | Payload                                                                                                                                                      |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `entry.created` · `entry.saved`           | `{ entry }`                                                                                                                                                  |
-| `entry.published` · `entry.unpublished`   | `{ entry }`                                                                                                                                                  |
-| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                                                                                                                  |
-| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; vedi sotto)                                                                                                     |
-| `term.created` · `term.deleted`           | `{ term }`                                                                                                                                                   |
-| `term.saved`                              | `{ term, previous }`: un termine è stato creato o modificato, `term.fields` sono i suoi valori salvati, `previous` quelli di prima (null se nuovo), API 1.49 |
-| `user.saved`                              | `{ user: { id, siteId, fields }, previous }`: i campi utente di una persona sono stati salvati in un sito, con i valori di prima, API 1.49                   |
-| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                                                                                                     |
-| `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue))                                                                                      |
-| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                                                                                                          |
-| `cache.invalidated`                       | `{ tags }`: sono cambiate le pagine con questi tag (`site`: tutte), API 1.9                                                                                  |
-| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                                                                                                             |
-| `comment.created`                         | `{ comment }`, qualunque sia il suo stato, API 1.12                                                                                                          |
-| `comment.status`                          | `{ comment, from }`: approvato, trattenuto, spam o cestinato, API 1.12                                                                                       |
-| `request.notFound`                        | `{ path, query, referrer, userAgent }`: un visitatore ha avuto una pagina “non trovata”, anche dalla cache delle pagine (dopo la risposta), API 1.24         |
-| `form.released`                           | `{ form, locale, fields }`: un invio trattenuto come spam è stato rilasciato come non spam; il plugin che possiede `form` lo consegna, API 1.45              |
+| Nome                                      | Payload                                                                                                                                                                                                   |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entry.created` · `entry.saved`           | `{ entry }`                                                                                                                                                                                               |
+| `entry.published` · `entry.unpublished`   | `{ entry }`                                                                                                                                                                                               |
+| `entry.trashed` · `entry.deleted`         | `{ entry }`                                                                                                                                                                                               |
+| `entry.copied`                            | `{ entry, from: { id, locale } }` (API 1.21; vedi sotto)                                                                                                                                                  |
+| `term.created` · `term.deleted`           | `{ term }`                                                                                                                                                                                                |
+| `term.saved`                              | `{ term, previous }`: un termine è stato creato o modificato, `term.fields` sono i suoi valori salvati, `previous` quelli di prima (null se nuovo), API 1.49                                              |
+| `user.saved`                              | `{ user: { id, siteId, fields }, previous }`: i campi utente di una persona sono stati salvati in un sito, con i valori di prima, API 1.49                                                                |
+| `media.uploaded`                          | `{ media: { id, mime, filename, url } }`                                                                                                                                                                  |
+| `languages.pending`                       | `{}` (sono arrivati [dati linguistici](#15-lingue-plugin-delle-lingue))                                                                                                                                   |
+| `plugin.activated` · `plugin.deactivated` | `{ plugin }` (slug)                                                                                                                                                                                       |
+| `cache.invalidated`                       | `{ tags }`: sono cambiate le pagine con questi tag (`site`: tutte), API 1.9                                                                                                                               |
+| `user.registered`                         | `{ user: { id, email, displayName } }`, API 1.12                                                                                                                                                          |
+| `comment.created`                         | `{ comment }`, qualunque sia il suo stato, API 1.12                                                                                                                                                       |
+| `comment.status`                          | `{ comment, from }`: approvato, trattenuto, spam o cestinato, API 1.12                                                                                                                                    |
+| `request.notFound`                        | `{ path, query, referrer, userAgent }`: un visitatore ha avuto una pagina “non trovata”, anche dalla cache delle pagine (dopo la risposta), API 1.24                                                      |
+| `form.released`                           | `{ form, locale, fields }`: un invio trattenuto come spam è stato rilasciato come non spam; il plugin che possiede `form` lo consegna, API 1.45                                                           |
+| `conversion.paid`                         | una conversione pagata (ordine, prenotazione, licenza, contatto) annunciata con `ctx.conversions.paid`, dopo il commit, API 1.58 (vedi [Conversioni](#conversioni-e-link-di-referral-api-dei-plugin-158)) |
+| `conversion.reversed`                     | `{ source, id, amount?, reason, at }`: una conversione rimborsata o annullata, tutta o per `amount`, API 1.58                                                                                             |
+| `referral.visit`                          | `{ plugin, code, path, referrer, stored }`: un visitatore è arrivato dal link di referral di un plugin, API 1.58                                                                                          |
 
 `entry` è `{ id, siteId, type, locale, slug, title, status, fields }`, più (API 1.13), quando la modifica li conosce, `terms` (id dei termini per slug di tassonomia) e `featuredMediaId`, così un plugin può tenere aggiornata la sua copia delle voci; `term` è `{ id, siteId, taxonomy, locale, slug, name }`, `comment` è `{ id, entryId, parentId, type, status, userId, authorName, authorEmail, content }`. Le voci programmate pubblicate automaticamente non emettono ancora `entry.published`. `term.created` viene emesso per i termini creati dalla schermata dei termini, dall'API e dai plugin (non per i tag digitati nell'editor).
 
@@ -699,7 +702,7 @@ ctx.routes.public({
 
 Le route pubbliche `POST` ricevono gli invii di moduli HTML (`application/x-www-form-urlencoded`, convertiti in un oggetto) e vengono rifiutate quando l'`Origin` è un altro sito. I percorsi che iniziano con `/api`, `/admin`, `/cl-admin`, `/media` e `/__preview` sono riservati.
 
-`request` è `{ siteId, method, path, params, query, body, rawBody, ip, user, headers, cookies, locale }`. `user` è `{ id, displayName, capabilities }` oppure `null`; `rawBody` è il corpo così come è arrivato (un `Buffer`, per JSON e moduli) oppure `null`. L'handler restituisce `{ status?, body?, contentType?, headers?, cacheTags?, cookies?, page? }`: un `body` stringa o `Buffer` (API dei plugin 1.10) viene inviato così com'è, qualsiasi altra cosa come JSON. Per un reindirizzamento, restituisci `{ status: 303, headers: { location: '/thanks' } }`.
+`request` è `{ siteId, method, path, params, query, body, rawBody, ip, user, headers, cookies, referrals, locale }` (`referrals`, API dei plugin 1.58: vedi [Conversioni](#conversioni-e-link-di-referral-api-dei-plugin-158)). `user` è `{ id, displayName, capabilities }` oppure `null`; `rawBody` è il corpo così come è arrivato (un `Buffer`, per JSON e moduli) oppure `null`. L'handler restituisce `{ status?, body?, contentType?, headers?, cacheTags?, cookies?, page? }`: un `body` stringa o `Buffer` (API dei plugin 1.10) viene inviato così com'è, qualsiasi altra cosa come JSON. Per un reindirizzamento, restituisci `{ status: 303, headers: { location: '/thanks' } }`.
 
 **Pagine nel tema e cookie** (API dei plugin 1.14). Una rotta pubblica può rispondere con `page: { title, html, description? }`: Cleitext mostra `html` (il markup del plugin) come contenuto di una pagina del tema attivo, con intestazione, menu e piè di pagina, non in cache e con `noindex`. Con `cacheTags` nella risposta (API 1.17) la pagina va in cache per i visitatori non connessi, come le pagine del tema; `index: true` la mostra ai motori di ricerca e `head` aggiunge tag come i dati strutturati (`{ tag: 'json-ld', data }`): il catalogo di un negozio, per esempio. Una rotta risponde anche dietro il prefisso di una lingua (`/cart` a `/it/cart`), e `request.locale` è la lingua dell'indirizzo. `request.queryAll` (API 1.17) contiene tutti i valori dei parametri ripetuti (`?brand=a&brand=b`), mentre `request.query` tiene l'ultimo. `request.origin` (API 1.16) è l'indirizzo del sito come lo ha raggiunto il visitatore, per i link nelle email; `ctx.site(siteId)` dà nome e lingue del sito, (API 1.37) `trailingSlash` quando i suoi indirizzi finiscono con la barra e (core 0.81) `timezone`, il fuso di **Impostazioni → Generali** (`UTC` se non è impostato; manca sui core precedenti), per esempio per un calendario di prenotazioni. `request.cookies` contiene solo i cookie del plugin, con nome `<slug>_…` (`-` nello slug diventa `_`); `cookies: [{ name, value, maxAge? }]` nella risposta li imposta, HTTP-only e `SameSite=Lax` (`maxAge: 0` ne elimina uno). Un carrello, per esempio:
 
@@ -979,6 +982,52 @@ ctx.privacy.declareTrackers(async (siteId) => [
 Carica inattivi gli script che richiedono il consenso — `<script type="text/plain" data-cx-category="statistics">` — e il banner li esegue dopo il consenso. `ctx.privacy.trackers(siteId)` (permesso `privacy`) restituisce le dichiarazioni dei plugin attivi.
 
 L'email arriva in minuscolo. Vengono interpellati solo i plugin attivi sul sito. Un plugin con il permesso `privacy` (come Privacy e GDPR) esegue le richieste: `ctx.privacy.exportPersonalData(siteId, email)` raccoglie i dati del core (l'account di un membro del sito, le sue sessioni, i token e l'attività) e quelli di ogni exporter; `ctx.privacy.erasePersonalData(siteId, email)` esegue gli eraser (gli account restano: si eliminano da Utenti).
+
+### Conversioni e link di referral (API dei plugin 1.58)
+
+**Conversioni.** Un plugin che incassa denaro o raccoglie contatti annuncia ogni conversione pagata, così altri plugin (un programma di affiliazione come **Passaparola**, un report) possono accreditarla senza conoscere quel plugin. Non serve alcun permesso; lo slug del plugin è la `source`.
+
+```ts
+// Quando l'ordine è pagato: dentro o dopo la transazione che lo registra.
+ctx.conversions.paid(siteId, {
+  kind: 'order', // 'order' | 'booking' | 'license' | 'lead'
+  id: order.id, // il tuo id, unico nel tuo plugin
+  amount: order.total, // stringa decimale nelle unità della valuta, '49.90'; '0' per i contatti
+  currency: 'EUR', // ISO 4217; '' solo con importo '0'
+  customer: { email: order.email, userId: order.customerId },
+  items: [{ id: line.productId, name: line.name, amount: line.total }], // facoltativo
+  label: `Ordine #${order.number}`, // facoltativo
+  referrals: order.referrals, // i codici con cui è arrivato il cliente (sotto)
+});
+// Un rimborso o un annullamento: `amount` è quanto toglie; senza, tutto ciò che restava.
+ctx.conversions.reversed(siteId, { id: order.id, amount: '10.00', reason: 'refund' });
+```
+
+Chi ascolta le riceve come azioni `conversion.paid` (`{ source, kind, id, amount, currency, customer: { email, userId }, items, label?, at, referrals }`) e `conversion.reversed` (`{ source, id, amount?, reason, at }`). Sono sicure per il plugin che le annuncia:
+
+- vengono consegnate solo dopo il commit della transazione in cui sono state annunciate (e di quelle che la contengono); dopo un rollback, mai;
+- ogni listener gira da solo, fuori dalla transazione, con il tempo di un lavoro in background: un errore o un listener lento non arriva mai al plugin che annuncia;
+- `paid` e `reversed` non lanciano mai eccezioni: una conversione non valida (un importo che non è un decimale, un'email mancante…) viene scritta nel log e scartata;
+- la stessa `source` con lo stesso `id` può essere annunciata di nuovo (un ordine pagato, messo in attesa, pagato di nuovo): chi ascolta tiene la prima. Gli importi sono stringhe decimali, come li salva Cleishop: sommali in interi della più piccola unità, non in virgola mobile.
+
+I plugin ufficiali annunciano: **Cleishop** un ordine pagato (in lavorazione o completato) e i suoi rimborsi e annullamenti; **Agenda** una prenotazione confermata come `lead` di importo 0 (non incassa pagamenti) e il suo annullamento; **Store** una licenza venduta con Lemon Squeezy, o registrata a mano con il suo prezzo, e i suoi rimborsi; **Forms** ogni messaggio come `lead` di importo 0. Sui core precedenti `ctx.conversions` manca: chiamalo come `ctx.conversions?.paid(...)`.
+
+**Link di referral.** Un plugin cattura `?<param>=<codice>` su ogni pagina pubblica dei siti in cui è attivo:
+
+```ts
+ctx.referrals.capture(async (siteId) => {
+  const cfg = await settings(siteId);
+  return { param: 'ref', category: 'marketing', days: 30, model: 'last' }; // null: nessuno su questo sito
+});
+```
+
+- Il parametro non arriva mai alla cache delle pagine: `/?ref=anna` viene messo in cache e servito come `/`, la pagina è generata senza di esso e gli indirizzi canonici non lo contengono mai. Le pagine in cache restano uguali per tutti.
+- Le pagine contengono un piccolo script inline (uguale per ogni visitatore) che legge il parametro nel browser, lo toglie dalla barra degli indirizzi (`history.replaceState`, nessun redirect) e lo comunica al server (`POST /_cx/referral`, al massimo 20 volte al minuto per indirizzo): i plugin ricevono l'azione `referral.visit`, `{ plugin, code, path, referrer, stored }`, senza l'indirizzo del visitatore, per contare le visite.
+- Il codice viene tenuto in un cookie di prima parte, `cx_ref_<slug>` (`-` diventa `_`), per `days` giorni, **solo con il consenso del visitatore a `category`** (Privacy & GDPR: `window.cleitextConsent` e l'evento `cleitext:consent`, quindi vale anche il consenso dato dopo sulla stessa pagina). Senza consenso, o su un sito senza banner del consenso, non viene salvato nulla. `model: 'first'` tiene un codice già presente.
+- Le rotte leggono i codici in `request.referrals`, `{ <slug>: <codice> }` (i cookie di ogni plugin che cattura, controllati). Un plugin che vende li conserva con l'ordine o la prenotazione che crea e li passa a `ctx.conversions.paid` quando viene pagato (spesso più tardi, dal webhook di un sistema di pagamento, dove i cookie del cliente non ci sono).
+- Un parametro per plugin; su un sito il primo plugin tiene un parametro, e quelli del core (`page`, `s`, `preview`, `token`, `redirect`…) non si possono catturare. Quando la risposta del tuo provider cambia (le tue impostazioni), invalida il tag di cache `referrals`: le pagine con lo script si aggiornano.
+
+**Pagine dell'account.** Le pagine dell'account di un visitatore sono rotte pubbliche sotto `/account/<nome>` (rispondono anche dietro i prefissi delle lingue), collegate dalla pagina dell'account con il filtro `account.links`. Rispondi con `page` e `cache-control: private, no-store`, e manda chi non ha fatto l'accesso a `<prefisso>/account/login?redirect=<percorso>`. Gli ordini di Cleishop e l'area affiliato di Passaparola funzionano così.
 
 ### Importazione
 

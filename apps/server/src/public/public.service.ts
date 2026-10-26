@@ -126,6 +126,12 @@ import { PUBLIC_CSP } from '../common/security-headers.js';
 import { themeAreas, themeMediaIds, themeSettings } from './theme-data.js';
 import { SITEMAP_RE, SITEMAP_XSL, sitemap, sitemapIndex, type SitemapContext } from './sitemaps.js';
 import { canonicalPath, canonicalUrl, matchPermalinks } from './urls.js';
+import {
+  cleanVisit,
+  REFERRAL_VISIT_PATH,
+  referralScript,
+  withoutReferralParams,
+} from '../plugins/conversions.js';
 import { importedMediaAddress } from './imported-media.js';
 
 const HTML = 'text/html; charset=utf-8';
@@ -338,7 +344,17 @@ export class PublicService {
         !request.auth &&
         !url.pathname.startsWith('/search') &&
         !url.pathname.startsWith('/__preview/');
-      const key = this.cache.key(site.id, request.host, request.url);
+      // Referral links (plugin API 1.58): `?ref=…` never reaches the cache
+      // or the page; the page's script reads it in the browser.
+      const captured = url.search
+        ? (await this.plugins.referralCaptures(site.id)).map((c) => c.param)
+        : [];
+      const pageUrl = withoutReferralParams(request.url, captured);
+      if (pageUrl !== request.url) {
+        const clean = new URL(pageUrl, 'http://local');
+        url.search = clean.search;
+      }
+      const key = this.cache.key(site.id, request.host, pageUrl);
 
       if (cacheable) {
         const hit = this.cache.get(key);
@@ -2237,6 +2253,7 @@ export class PublicService {
       );
       html = await this.plugins.applyFilter('render.html', html, hookContext, scope.siteId);
       html = await this.withPluginAssets(scope, html, hookContext);
+      html = await this.withReferralScript(scope, html);
     }
     // A child theme's CSS, after its parent's page and the plugins' stylesheets (core 0.79).
     html = beforeHeadEnd(html, 'cx-child-theme-css', childThemeCss(theme.slug));
@@ -2670,6 +2687,21 @@ export class PublicService {
   }
 
   /** Scripts and styles that active plugins add to the page (`ctx.assets.enqueue`). */
+  /**
+   * The script that captures referral links (plugin API 1.58), the same for
+   * every visitor: pages stay cacheable. Tagged `referrals`, so a plugin
+   * whose capture changed refreshes them.
+   */
+  private async withReferralScript(scope: RequestScope, html: string): Promise<string> {
+    scope.tags.add('referrals');
+    if (scope.editorFrame) return html;
+    const captures = await this.plugins.referralCaptures(scope.siteId);
+    if (captures.length === 0) return html;
+    const at = html.lastIndexOf('</body>');
+    const script = referralScript(captures);
+    return at === -1 ? html + script : html.slice(0, at) + script + html.slice(at);
+  }
+
   private async withPluginAssets(
     scope: RequestScope,
     html: string,
@@ -2921,6 +2953,11 @@ export class PublicService {
   async handlePost(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const site = request.site;
     const path = new URL(request.url, 'http://local').pathname;
+    // A visit through a referral link, told by the page's script (plugin API 1.58).
+    if (site && path === REFERRAL_VISIT_PATH) {
+      await this.referralVisit(request, reply, site.id);
+      return;
+    }
     // Sign-in, sign-up, profile, comments and likes (RF-USR-11, RF-COM).
     if (
       site &&
@@ -2960,6 +2997,58 @@ export class PublicService {
       return;
     }
     await this.sendPluginResult(request, reply, site.id, match.plugin.slug, path, outcome.value);
+  }
+
+  /**
+   * `POST /_cx/referral`: a page's script tells that a visitor came through
+   * a referral link; the `referral.visit` action goes to the plugins. No
+   * address of the visitor is passed on; a few per minute per address.
+   */
+  private async referralVisit(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    siteId: string,
+  ): Promise<void> {
+    void reply.header('cache-control', 'private, no-store').header('x-cache', 'BYPASS');
+    try {
+      verifySameOrigin(request);
+    } catch {
+      await reply.code(403).type('text/plain; charset=utf-8').send('Forbidden');
+      return;
+    }
+    let body: unknown = request.body;
+    if (typeof body === 'string' || Buffer.isBuffer(body)) {
+      try {
+        body = JSON.parse(String(body));
+      } catch {
+        body = null;
+      }
+    }
+    const visit = cleanVisit(body, await this.plugins.referralCaptures(siteId));
+    if (!visit) {
+      await reply.code(400).type('text/plain; charset=utf-8').send('Bad Request');
+      return;
+    }
+    if (!this.referralVisitAllowed(`${siteId}|${request.ip}`)) {
+      await reply.code(429).type('text/plain; charset=utf-8').send('Too Many Requests');
+      return;
+    }
+    await reply.code(204).send();
+    setImmediate(() => {
+      void this.plugins.emit('referral.visit', visit, siteId).catch(() => {});
+    });
+  }
+
+  /** At most 20 referral visits a minute from one address: enough for people, not for scripts. */
+  private readonly referralHits = new Map<string, number[]>();
+  private referralVisitAllowed(key: string): boolean {
+    const now = Date.now();
+    const recent = (this.referralHits.get(key) ?? []).filter((t) => now - t < 60_000);
+    if (recent.length >= 20) return false;
+    recent.push(now);
+    if (this.referralHits.size > 20_000) this.referralHits.clear();
+    this.referralHits.set(key, recent);
+    return true;
   }
 
   private head(

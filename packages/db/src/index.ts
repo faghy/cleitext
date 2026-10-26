@@ -15,6 +15,7 @@ export {
   seedSiteDefaults,
   resolveHost,
   resolveSiteByHost,
+  afterCommit,
   detached,
   inTransaction,
   transactionFor,

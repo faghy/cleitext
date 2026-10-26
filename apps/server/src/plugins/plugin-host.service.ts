@@ -3,6 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import {
+  afterCommit,
   contentTypes,
   detached,
   newId,
@@ -45,7 +46,10 @@ import {
   type AiToolDefinition,
   type ApiRoute,
   type ContentTypeDefinition,
+  type ConversionInput,
+  type ConversionReversalInput,
   type DynamicSource,
+  type ReferralCapture,
   type ErasureResult,
   type FieldGroupDefinition,
   type FormChallengeContext,
@@ -88,6 +92,7 @@ import { compileRoute, type CompiledRoute } from './route-matcher.js';
 import { extendTheme } from '../themes/theme-extensions.js';
 import { orderPluginSlugs } from './plugin-order.js';
 import { hookDeadline } from './hook-deadline.js';
+import { cleanCapture, cleanConversion, cleanReversal, type SiteCapture } from './conversions.js';
 
 /** Default priority of hooks, as in WordPress. */
 const DEFAULT_PRIORITY = 10;
@@ -161,6 +166,10 @@ export interface LoadedPlugin {
   trackerProviders: ((siteId: string) => TrackerDeclaration[] | Promise<TrackerDeclaration[]>)[];
   /** Files of the `public` folder added to public pages (`ctx.assets.enqueue`). */
   assets: PublicAsset[];
+  /** `ctx.referrals.capture` (plugin API 1.58). */
+  referralProviders: ((
+    siteId: string,
+  ) => ReferralCapture | null | Promise<ReferralCapture | null>)[];
   /** Registered with `ctx.schedule.every` (plugin API 1.18). */
   schedules: { name: string; minutes: number; handler: (siteId: string) => Promise<void> | void }[];
   /** Registered with `ctx.themes.extend` (plugin API 1.32). */
@@ -226,6 +235,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     });
     // After the change is saved, outside the transaction that made it.
     this.cache.onInvalidate((siteId, tags) => {
+      if (tags.includes('referrals') || tags.includes('site')) this.forgetReferralCaptures(siteId);
       if (this.loaded.size === 0) return;
       detached(() => setImmediate(() => void this.emit('cache.invalidated', { tags }, siteId)));
     });
@@ -362,6 +372,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       erasers: [],
       trackerProviders: [],
       assets: [],
+      referralProviders: [],
       schedules: [],
       themeExtensions: [],
       ai: { editors: [], sections: [], tools: [] },
@@ -414,6 +425,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         erasers: [],
         trackerProviders: [],
         assets: [],
+        referralProviders: [],
         schedules: [],
         themeExtensions: [],
       });
@@ -454,6 +466,70 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     }
     if (kind === 'exporter') plugin.exporters.push(handler as PersonalDataExporter);
     else plugin.erasers.push(handler as PersonalDataEraser);
+  }
+
+  /** Referral captures by site (plugin API 1.58), for a short while: asked on every public request. */
+  private readonly captures = new Map<string, { list: SiteCapture[]; expiresAt: number }>();
+
+  /**
+   * What the plugins active on a site capture of referral links (plugin
+   * API 1.58): one parameter per plugin, never the same twice (the first
+   * plugin keeps it). Kept 30 seconds; a change of the `referrals` or `site`
+   * cache tag forgets it at once in this process.
+   */
+  async referralCaptures(siteId: string): Promise<SiteCapture[]> {
+    const cached = this.captures.get(siteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.list;
+    const list: SiteCapture[] = [];
+    for (const plugin of await this.activePlugins(siteId)) {
+      for (const provider of plugin.referralProviders.slice(0, 1)) {
+        const outcome = await this.runHook(
+          { plugin: plugin.slug, name: 'referrals.capture', siteId },
+          () => provider(siteId),
+        );
+        const capture = outcome.ok ? cleanCapture(plugin.slug, outcome.value) : null;
+        if (capture && !list.some((c) => c.param === capture.param)) list.push(capture);
+      }
+    }
+    if (this.captures.size > 5000) this.captures.clear();
+    this.captures.set(siteId, { list, expiresAt: Date.now() + ACTIVE_CACHE_MS });
+    return list;
+  }
+
+  /** Forgets the referral captures of a site (its settings changed). */
+  forgetReferralCaptures(siteId: string): void {
+    this.captures.delete(siteId);
+  }
+
+  /**
+   * A conversion announced by a plugin (`ctx.conversions`, plugin API
+   * 1.58): checked now, delivered to the listeners once the transaction
+   * it was announced in committed (at once outside one), each listener on
+   * its own with the time of a background job. Never throws: an invalid
+   * one is logged and dropped.
+   */
+  announceConversion(
+    plugin: string,
+    siteId: string,
+    kind: 'paid' | 'reversed',
+    input: ConversionInput | ConversionReversalInput,
+  ): void {
+    let event;
+    try {
+      event =
+        kind === 'paid'
+          ? cleanConversion(plugin, input as ConversionInput)
+          : cleanReversal(plugin, input as ConversionReversalInput);
+    } catch (error) {
+      this.logger.error(`Plugin ${plugin}: conversion not announced: ${describeError(error)}`);
+      return;
+    }
+    const name = kind === 'paid' ? 'conversion.paid' : 'conversion.reversed';
+    afterCommit(() => {
+      void this.emit(name, event as never, siteId, undefined, { timeout: 'job' }).catch(
+        (error: unknown) => this.logger.error(`Delivering ${name} failed: ${describeError(error)}`),
+      );
+    });
   }
 
   /** The trackers that the plugins active on a site add to it, with their rules. */
