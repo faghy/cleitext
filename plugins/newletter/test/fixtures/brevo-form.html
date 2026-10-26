@@ -1,0 +1,59 @@
+<div class="sib-form" style="text-align: center">
+  <div id="sib-form-container" class="sib-form-container">
+    <div id="sib-container" class="sib-container--large sib-container--vertical">
+      <form
+        id="sib-form"
+        method="POST"
+        action="https://a1b2c3.sibforms.com/serve/MUIFAKEm8x4ZpQ"
+        data-type="subscription"
+      >
+        <div>
+          <div class="sib-form-block"><p>Iscriviti alla newsletter</p></div>
+        </div>
+        <div class="sib-input sib-form-block">
+          <label class="entry__label" for="NOME">Nome</label>
+          <input
+            class="input"
+            maxlength="200"
+            type="text"
+            id="NOME"
+            name="NOME"
+            autocomplete="off"
+            placeholder="Nome"
+          />
+        </div>
+        <div class="sib-input sib-form-block">
+          <label class="entry__label" for="EMAIL">Email</label>
+          <input
+            class="input"
+            type="text"
+            id="EMAIL"
+            name="EMAIL"
+            autocomplete="off"
+            placeholder="EMAIL"
+            data-required="true"
+            required
+          />
+        </div>
+        <div class="sib-form-block" style="text-align: left">
+          <button
+            class="sib-form-block__button sib-form-block__button-with-loader"
+            form="sib-form"
+            type="submit"
+          >
+            <svg
+              class="icon clickable__icon progress-indicator__icon sib-hide-loader-icon"
+              viewBox="0 0 512 512"
+            >
+              <path d="M460.116 373.846l-20.823-12.022" />
+            </svg>
+            Iscriviti
+          </button>
+        </div>
+        <input type="text" name="email_address_check" value="" class="input--hidden" />
+        <input type="hidden" name="locale" value="it" />
+      </form>
+    </div>
+  </div>
+</div>
+<script defer src="https://sibforms.com/forms/end-form/build/main.js"></script>

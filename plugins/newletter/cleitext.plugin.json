@@ -1,0 +1,23 @@
+{
+  "slug": "newletter",
+  "name": "NewLetter",
+  "version": "1.0.0",
+  "apiVersion": "^1.51",
+  "description": "Every subscriber, a new letter. Signup forms for your newsletter, connected to the service you use: Brevo, Mailchimp, MailerLite, Kit or ActiveCampaign. Paste the API key, choose the list, and put the form on any page (block, Fresco widget or shortcode). Double opt-in, recorded consent, bot protection, and an unticked \"subscribe me\" box in contact forms, the shop's checkout and Agenda's bookings. Imports the forms of Mailchimp for WP, Brevo, MailPoet and The Newsletter Plugin.",
+  "author": "Cleitext",
+  "homepage": "https://cleitext.com/plugins/newletter",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "public": "dist/public",
+  "permissions": [
+    "blocks",
+    "routes:admin",
+    "routes:public",
+    "theme:hooks",
+    "settings:own",
+    "network",
+    "import"
+  ],
+  "capabilities": ["manage_newletter"]
+}
