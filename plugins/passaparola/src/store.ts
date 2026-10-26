@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm';
 import { toCents } from './model/money';
 import {
+  codeFrom,
   freeCode,
   reversalPlan,
   type AffiliateLite,
@@ -152,12 +153,16 @@ export function databaseStore(ctx: PluginContext) {
     /** A new affiliate, with a free code (the wanted one, or one made from the name). */
     async apply(siteId: string, input: ApplyInput): Promise<AffiliateRow> {
       return run(siteId, async (tx) => {
-        const base = input.code || input.name || input.email.split('@')[0] || 'partner';
-        const prefix = base.slice(0, 20).toLowerCase();
+        const base =
+          codeFrom(input.code) ||
+          codeFrom(input.name) ||
+          codeFrom(input.email.split('@')[0] ?? '') ||
+          'partner';
+        // Codes starting like this one: the free one is found among them.
         const near = await tx
           .select({ code: affiliates.code })
           .from(affiliates)
-          .where(ilike(affiliates.code, `${prefix.replace(/[%_\\]/g, '')}%`));
+          .where(ilike(affiliates.code, `${base.slice(0, 20)}%`));
         const taken = new Set(near.map((r) => r.code));
         const code = freeCode(base, (c) => taken.has(c));
         const now = new Date();
