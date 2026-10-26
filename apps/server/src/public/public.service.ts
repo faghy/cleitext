@@ -1929,7 +1929,15 @@ export class PublicService {
       noindex: true,
     });
     try {
-      return await this.render(scope, props, templateCandidates(props), head, new Map(), [], status);
+      return await this.render(
+        scope,
+        props,
+        templateCandidates(props),
+        head,
+        new Map(),
+        [],
+        status,
+      );
     } catch (error) {
       // A theme whose not-found page fails still answers "not found", never 500: search
       // engines and monitors read the status, and the error is in the log.
