@@ -1,4 +1,5 @@
 import {
+  addMessages,
   type AdminPageProps,
   adminUrl,
   Alert,
@@ -7,12 +8,17 @@ import {
   defineAdminPlugin,
   errorMessage,
   uploadFile,
+  useT,
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { detectLanguages, matchLocale, scanWxr, sharedAddresses } from './languages';
 import { scanPostsPermalink, type PostsPermalink } from './permalinks';
+import { REPORT_IT, translateReportLine } from './report-i18n';
 import type { Job } from './server';
+
+// The report's lines, written in English where they are made (1.32.1).
+addMessages('it', REPORT_IT);
 
 type Tr = (en: string, it: string) => string;
 
@@ -47,6 +53,7 @@ function Counts({ counts, tr }: { counts: Record<string, number>; tr: Tr }) {
 }
 
 function Messages({ title, items }: { title: string; items: string[] }) {
+  const { t } = useT();
   if (items.length === 0) return null;
   return (
     <details className="rounded border border-slate-200">
@@ -55,7 +62,7 @@ function Messages({ title, items }: { title: string; items: string[] }) {
       </summary>
       <ul className="max-h-80 list-disc space-y-1 overflow-auto border-t border-slate-100 py-2 pl-8 pr-3 text-sm text-slate-700">
         {items.slice(0, 500).map((m, i) => (
-          <li key={i}>{m}</li>
+          <li key={i}>{translateReportLine(m, t)}</li>
         ))}
       </ul>
     </details>
