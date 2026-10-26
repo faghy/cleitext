@@ -38,6 +38,8 @@ I **temi a pagamento** (RF-CAT-03) aggiungono a `theme.json` il loro server dell
 
 Un tema così si può installare e provare con l'Anteprima dal vivo senza licenza (la demo), ma un sito può attivarlo solo dopo aver inserito una chiave di licenza per quel sito in **Aspetto → Temi**. La chiave viene verificata una volta con il server delle licenze e conservata cifrata; le pagine non interrogano mai il server, e il tema continua a funzionare se la licenza viene tolta o i suoi aggiornamenti finiscono. Gli aggiornamenti dal catalogo richiedono una licenza i cui aggiornamenti includano la nuova versione (altrimenti _Rinnova per aggiornare_). Il codice resta GPL: la licenza compra download, aggiornamenti e assistenza.
 
+Una chiave può anche valere per più prodotti: una **licenza agenzia** (un pacchetto venduto dal server delle licenze) si inserisce su ogni sito per ciascun tema o plugin che copre, come ogni chiave. Il sito manda la chiave, lo slug del prodotto e il suo indirizzo, come sempre, e decide il server delle licenze; un sito che usa più prodotti del pacchetto occupa uno solo dei suoi posti. Dal lato del sito non cambia nulla, quindi anche le versioni precedenti di Cleitext accettano queste chiavi.
+
 **Plugin che vengono con il tema** (API 1.25): un tema può portare i suoi plugin, per esempio un page builder, già compilati, nel suo pacchetto in `plugins/<slug>/`, e nominarli in `theme.json`:
 
 ```json

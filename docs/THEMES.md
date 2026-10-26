@@ -49,6 +49,8 @@ Running servers load a new or updated theme at once, without a restart. Each sit
 
 Such a theme can be installed and tried with Live Preview without a license (the demo), but a site can activate it only after entering a license key for that site in **Appearance → Themes**. The key is checked once with the license server and kept encrypted; pages never ask the server, and the theme keeps working if the license is removed or its updates end. Updates from the catalog need a license whose updates include the new version (_Renew to update_ otherwise). The code stays GPL: the license buys downloads, updates and support.
 
+One key can also be valid for several products: an **agency license** (a bundle sold by the license server) is entered on each site for each theme or plugin it covers, like any key. The site sends the key, the product's slug and its address, as always, and the license server decides; a site using several products of the bundle takes one of its seats. Nothing changes on the site's side, so earlier versions of Cleitext accept these keys too.
+
 **Plugins that come with the theme** (API 1.25): a theme may ship its own plugins, such as a page builder, built, inside its package under `plugins/<slug>/`, and name them in `theme.json`:
 
 ```json
