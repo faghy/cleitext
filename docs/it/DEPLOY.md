@@ -461,6 +461,8 @@ Sui core precedenti alla 0.88, lo stesso in SQL, eseguito con la connessione del
 
 ```sql
 BEGIN;
+-- site_members ha FORCE ROW LEVEL SECURITY anche per il proprietario: prima si indica il sito.
+SELECT set_config('app.site_id', (SELECT id::text FROM sites WHERE slug = '<slug>'), true);
 -- Gli amministratori di WordPress (le loro email) diventano amministratori del sito.
 UPDATE site_members sm
    SET role_id = (SELECT id FROM roles WHERE site_id IS NULL AND slug = 'administrator')

@@ -461,6 +461,8 @@ On cores before 0.88, the same with SQL, run with the owner connection (`DATABAS
 
 ```sql
 BEGIN;
+-- site_members has FORCE ROW LEVEL SECURITY, also for the owner: say which site first.
+SELECT set_config('app.site_id', (SELECT id::text FROM sites WHERE slug = '<slug>'), true);
 -- WordPress administrators (their emails) become administrators of the site.
 UPDATE site_members sm
    SET role_id = (SELECT id FROM roles WHERE site_id IS NULL AND slug = 'administrator')
