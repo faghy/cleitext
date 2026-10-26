@@ -121,3 +121,25 @@ test('write, classify, revise, translate and schedule a post', async ({ page }) 
 
   expect(appErrors(errors)).toEqual([]);
 });
+
+test('the editor fills the window: a long side panel scrolls by itself, not the page', async ({
+  page,
+}) => {
+  // A short window, where the Page panel (status, author, revisions…) is longer than the screen.
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await signIn(page);
+  await page.goto('/cl-admin/pages');
+  await page.getByRole('button', { name: 'Add New' }).click();
+  await page.waitForURL('**/cl-admin/entries/**');
+  await expect(page.frameLocator('iframe[name="editor-canvas"]').locator('body')).toBeVisible();
+  const panel = page.locator('aside .overflow-y-auto').first();
+  await expect(panel).toBeVisible();
+  // The panel has more than fits, and scrolls inside itself.
+  expect(await panel.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  // Nothing below the editor: no hidden label or field stretches the page behind it.
+  const sizes = await page.evaluate(() => ({
+    scroll: document.scrollingElement!.scrollHeight,
+    window: window.innerHeight,
+  }));
+  expect(sizes.scroll).toBeLessThanOrEqual(sizes.window);
+});

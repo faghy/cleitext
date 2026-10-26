@@ -689,7 +689,7 @@ function Editor({ initial }: { initial: EntryView }) {
             <div ref={canvasRef} className="min-h-0 min-w-0 flex-1" />
             {mainGroups.length > 0 && (
               <div
-                className="max-h-[45%] shrink-0 space-y-3 overflow-y-auto border-t border-slate-200 bg-slate-50 p-4 text-sm"
+                className="relative max-h-[45%] shrink-0 space-y-3 overflow-y-auto border-t border-slate-200 bg-slate-50 p-4 text-sm"
                 aria-label={t('Fields')}
                 role="region"
               >
@@ -808,7 +808,7 @@ function Editor({ initial }: { initial: EntryView }) {
               ),
             )}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="relative min-h-0 flex-1 overflow-y-auto">
             {tab === 'document' && contentType && (
               <SummaryPanel
                 supports={contentType.supports.filter(
@@ -1524,9 +1524,10 @@ function DocumentPanel({
 }
 
 function EditorShell({ children }: { children: React.ReactNode }) {
-  // The editor keeps the light palette: its canvas is a white page.
+  // The editor keeps the light palette: its canvas is a white page. It fills
+  // the window and only its panels scroll, never the page behind them.
   return (
-    <div className="light-palette flex h-screen flex-col bg-slate-100 text-slate-900">
+    <div className="light-palette flex h-screen flex-col overflow-hidden bg-slate-100 text-slate-900">
       {children}
     </div>
   );

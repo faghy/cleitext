@@ -540,7 +540,7 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto bg-white">
+              <div className="relative min-h-0 flex-1 overflow-y-auto bg-white">
                 {search !== null && (
                   <div className="border-b border-slate-200 p-3">
                     <input
