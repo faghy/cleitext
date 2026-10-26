@@ -183,7 +183,25 @@ describe('SEO', () => {
     const own = (await visitor.get(`/${blog.slug}`)).body;
     expect(own).toContain('<title>News | Site official</title>');
     expect(own).toContain('<meta name="description" content="What happens here."/>');
-    await admin.request('PATCH', '/api/v1/settings/core', { postsPage: null });
+    // Later pages: "Page 2 of N" (Yoast SEO's %%page%%), never the first page's title.
+    await admin.request('PATCH', '/api/v1/settings/core', { postsPerPage: 1 });
+    await publish('article', 'Paged one');
+    await publish('article', 'Paged two');
+    const later = async () => (await visitor.get(`/${blog.slug}/page/2`)).body;
+    expect(await later()).toMatch(/<title>News \| Page 2 of \d+ \| Site official<\/title>/);
+    const setTitle = async (seo: Record<string, unknown>) => {
+      await admin.request('PATCH', `/api/v1/entries/${blog.id}`, { fields: { seo } });
+      await admin.post(`/api/v1/entries/${blog.id}/publish`);
+    };
+    await setTitle({ title: '%%title%% %%page%% %%sep%% %%sitename%%', fullTitle: true });
+    expect(await later()).toMatch(/<title>Blog \| Page 2 of \d+ \| Site official<\/title>/);
+    expect((await visitor.get(`/${blog.slug}`)).body).toContain(
+      '<title>Blog | Site official</title>',
+    );
+    // Without a title of its own: the core's, with the site's separator.
+    await setTitle({});
+    expect(await later()).toMatch(/<title>Blog \| Page 2 of \d+ \| Site official<\/title>/);
+    await admin.request('PATCH', '/api/v1/settings/core', { postsPage: null, postsPerPage: 10 });
   });
 
   it('keeps out of the sitemaps what is kept out of search', async () => {

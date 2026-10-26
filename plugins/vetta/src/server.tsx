@@ -426,6 +426,8 @@ export default definePlugin({
           path: context.path,
           isFrontPage: context.isFrontPage === true,
           ...(context.archive ? { archive: context.archive } : {}),
+          // Plugin API 1.57: "Page 2 of 22" (older cores: "Page 2").
+          ...(context.pagination ? { pagination: context.pagination } : {}),
           ...(postsPage
             ? {
                 postsPage: {

@@ -77,6 +77,30 @@ describe('the head', () => {
     // Without one, the archive's title; later pages say which.
     expect(buildHead(blog({ seo: {} })).title).toBe('Blog – Bar');
     expect(buildHead(blog({ seo: {}, path: '/blog/page/2' })).title).toBe('Blog – Page 2 – Bar');
+    // The core tells how many pages there are (plugin API 1.57), and says it in its own title.
+    expect(
+      buildHead(
+        blog({
+          seo: {},
+          path: '/blog/page/2',
+          pagination: { page: 2, pages: 22 },
+          head: { ...baseHead, title: 'Blog – Page 2 of 22 – Bar' },
+        }),
+      ).title,
+    ).toBe('Blog – Page 2 of 22 – Bar');
+    expect(
+      buildHead(
+        input({
+          route: 'archive',
+          path: '/news/page/2',
+          archive: { type: 'article' },
+          entry: undefined,
+          locale: 'it',
+          pagination: { page: 2, pages: 22 },
+          head: { ...baseHead, title: 'Notizie – Pagina 2 di 22 – Bar' },
+        }),
+      ).title,
+    ).toBe('Notizie – Pagina 2 di 22 – Bar');
   });
 
   it('uses the templates of the content type, and the entry’s own values first', () => {

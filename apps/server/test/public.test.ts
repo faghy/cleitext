@@ -191,7 +191,10 @@ describe('home and archives', () => {
     expect(home.html).toContain('<title>Site public – Notes and trips</title>');
     expect(home.html).toContain(`<a href="/${year}/listed-post-3">Listed post 3</a>`);
     expect(home.html).toContain('href="/page/2"');
-    expect((await page('/page/2')).status).toBe(200);
+    const later = await page('/page/2');
+    expect(later.status).toBe(200);
+    // Later pages say which one they are: no two pages with the same title.
+    expect(later.html).toMatch(/<title>Site public – Page 2 of \d+<\/title>/);
     expect((await page('/page/999')).status).toBe(404);
     expect((await page('/page/1')).status).toBe(404);
     await admin.request('PATCH', '/api/v1/settings/core', { postsPerPage: 10 });
@@ -217,6 +220,8 @@ describe('home and archives', () => {
     const second = await page('/blog/page/2');
     expect(second.status).toBe(200);
     expect(second.html).toContain('Listed post 1');
+    expect(blogPage.html).toContain('<title>Blog – Site public</title>');
+    expect(second.html).toMatch(/<title>Blog – Page 2 of \d+ – Site public<\/title>/);
     expect((await page('/blog/page/1')).status).toBe(404);
     // The front page does not answer at its own slug: one address, the home.
     const own = await page('/welcome');

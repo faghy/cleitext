@@ -47,7 +47,24 @@ export const TITLE_VARIABLES = [
   'excerpt',
   'category',
   'currentyear',
+  'page',
 ] as const;
+
+/**
+ * Yoast SEO's `%%page%%` on an archive's later pages: the separator, then
+ * "Page 2 of 22" ("Pagina 2 di 22"); nothing on the first page.
+ */
+export function pageVariable(
+  locale: string,
+  separator: string,
+  page: number | undefined,
+  pages: number | undefined,
+): string {
+  if (!page || page < 2) return '';
+  const it = locale.toLowerCase().startsWith('it');
+  const of = pages && pages >= page ? ` ${it ? 'di' : 'of'} ${pages}` : '';
+  return `${separator} ${it ? 'Pagina' : 'Page'} ${page}${of}`;
+}
 
 export function applyTemplate(template: string, values: Record<string, string>): string {
   return (

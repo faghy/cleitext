@@ -1,6 +1,6 @@
 import { Resolver, resolveTxt } from 'node:dns/promises';
 import { defineBlock, definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
-import { applyTemplate, DEFAULT_TITLE, withDefaults, type SeoConfig } from './config';
+import { applyTemplate, DEFAULT_TITLE, pageVariable, withDefaults, type SeoConfig } from './config';
 
 interface SeoFields {
   title?: string | null;
@@ -277,7 +277,12 @@ export default definePlugin({
             return '';
           }
         };
+        // Which page of an archive (plugin API 1.57; older cores: from the address, without the total).
+        const pageNumber =
+          context.pagination?.page ?? Number(/\/page\/(\d+)\/?$/.exec(context.path)?.[1] ?? 1);
+        const page = pageVariable(context.locale, separator, pageNumber, context.pagination?.pages);
         const values = async (template: string) => ({
+          page,
           title: entry?.title ?? postsPage?.title ?? '',
           sep: separator,
           sitename: siteName,
@@ -310,9 +315,14 @@ export default definePlugin({
           next.title = applyTemplate(ownTitle, await values(ownTitle)) || head.title;
           next.og['og:title'] = next.title;
         } else if (postsPage && ownTitle) {
-          // Its own search title, in the pages' template, as on the page itself.
-          const template = cfg.titles[postsPage.type]?.trim() || DEFAULT_TITLE;
+          // Its own search title, in the pages' template, as on the page itself;
+          // the page number after the title on later pages (never two equal titles).
+          const own = cfg.titles[postsPage.type]?.trim() || DEFAULT_TITLE;
+          const template = own.includes('%%page%%')
+            ? own
+            : own.replace('%%title%%', '%%title%% %%page%%');
           next.title = applyTemplate(template, {
+            page,
             title: ownTitle,
             sep: separator,
             sitename: siteName,
@@ -333,7 +343,12 @@ export default definePlugin({
           });
           next.og['og:title'] = next.title;
         } else if (separator !== '–') {
-          next.title = head.title.replace(' – ', ` ${separator} `);
+          // The core's title ("Blog – Page 2 of 22 – Site"): its separators, not the site's name.
+          const site = siteName && head.title.endsWith(siteName) ? siteName : '';
+          next.title =
+            head.title
+              .slice(0, head.title.length - site.length)
+              .replaceAll(' – ', ` ${separator} `) + site;
         }
 
         const ownDescription = seo.description?.trim() ?? '';

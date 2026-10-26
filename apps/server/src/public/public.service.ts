@@ -142,6 +142,13 @@ interface Compressed {
   gzip?: Buffer;
 }
 
+/**
+ * "Page 2 of 22" in the titles of an archive's later pages, as Yoast SEO
+ * writes them: no two pages share a title.
+ */
+const pageOfTitle = (locale: string, page: number, pages: number): string =>
+  locale.startsWith('it') ? `Pagina ${page} di ${pages}` : `Page ${page} of ${pages}`;
+
 /** The not-found page when the theme cannot draw its own (core 0.86.1). */
 const NOT_FOUND_FALLBACK = (locale: string) => {
   const it = locale.startsWith('it');
@@ -1669,7 +1676,14 @@ export class PublicService {
       isHome: options.isHome,
     };
     const head = this.head(scope, {
-      title: options.isHome ? this.homeTitle(scope) : `${options.title} – ${scope.siteTitle}`,
+      title:
+        options.page > 1
+          ? options.isHome
+            ? `${scope.siteTitle} – ${pageOfTitle(scope.locale, options.page, totalPages)}`
+            : `${options.title} – ${pageOfTitle(scope.locale, options.page, totalPages)} – ${scope.siteTitle}`
+          : options.isHome
+            ? this.homeTitle(scope)
+            : `${options.title} – ${scope.siteTitle}`,
       description:
         options.term?.description ??
         options.author?.bio ??
@@ -1901,7 +1915,10 @@ export class PublicService {
       },
     };
     const head = this.head(scope, {
-      title: `${q || 'Search'} – ${scope.siteTitle}`,
+      title:
+        current > 1
+          ? `${q || 'Search'} – ${pageOfTitle(scope.locale, current, totalPages)} – ${scope.siteTitle}`
+          : `${q || 'Search'} – ${scope.siteTitle}`,
       description: '',
       path: data.urls.search(scope.locale),
       alternates: [],
@@ -2292,6 +2309,15 @@ export class PublicService {
               ...(props.isHome ? { home: true } : {}),
             },
             ...(scope.postsPage && !props.term ? { postsPage: scope.postsPage } : {}),
+          }
+        : {}),
+      // Archives and searches: which page of how many (plugin API 1.57), for "Page 2 of 22".
+      ...(props && (props.kind === 'archive' || props.kind === 'search')
+        ? {
+            pagination: {
+              page: props.pagination.page,
+              pages: Math.max(props.pagination.totalPages, props.pagination.page),
+            },
           }
         : {}),
       tag: (tag: string) => {

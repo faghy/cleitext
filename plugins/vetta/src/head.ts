@@ -61,6 +61,8 @@ export interface HeadInput {
    * Rank Math does on the posts page.
    */
   postsPage?: { id: string; title: string; url: string; excerpt: string };
+  /** Archives and searches: the page shown and how many there are (core plugin API 1.57). */
+  pagination?: { page: number; pages: number };
   seo: EntrySeo;
   /** The site's tagline, for `%sitedesc%` in an entry's own title. */
   sitedesc?: string;
@@ -77,14 +79,22 @@ export function pageNumber(path: string): number {
   return m ? Number(m[1]) : 1;
 }
 
-/** "Name – Site" from the core's title: the name part. */
+/**
+ * "Name – Site" from the core's title: the name part, without the "Page 2
+ * of 22" the core adds on later pages (the templates' `%page%` says it).
+ */
 function namePart(title: string, siteName: string): string {
-  if (!siteName) return title;
-  for (const sep of [' – ', ' | ', ' - ', ' — ']) {
-    const suffix = `${sep}${siteName}`;
-    if (title.endsWith(suffix)) return title.slice(0, -suffix.length);
+  let name = title;
+  if (siteName) {
+    for (const sep of [' – ', ' | ', ' - ', ' — ']) {
+      const suffix = `${sep}${siteName}`;
+      if (name.endsWith(suffix)) {
+        name = name.slice(0, -suffix.length);
+        break;
+      }
+    }
   }
-  return title;
+  return name.replace(/ – (?:Page \d+ of|Pagina \d+ di) \d+$/, '');
 }
 
 interface Robots {
@@ -205,12 +215,13 @@ export function buildHead(input: HeadInput): Head {
   const { head, entry, seo, locale } = input;
   const siteName = head.og['og:site_name'] ?? '';
   const sep = text(c, 'separator') || '–';
-  const page = pageNumber(input.path);
+  const page = input.pagination?.page ?? pageNumber(input.path);
   const base: VariableContext = {
     sep,
     sitename: siteName,
     locale,
     page,
+    ...(input.pagination ? { pages: input.pagination.pages } : {}),
     pageWord: T(locale, 'Page', 'Pagina'),
     ofWord: T(locale, 'of', 'di'),
     ...(input.now ? { now: input.now } : {}),

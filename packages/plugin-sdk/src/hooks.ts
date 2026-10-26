@@ -188,6 +188,12 @@ export interface RenderHookContext {
    */
   postsPage?: RenderPostsPage;
   /**
+   * Archives and searches: the page shown and how many there are (plugin API
+   * 1.57; missing on older cores), for titles such as Yoast SEO's
+   * "Page 2 of 22".
+   */
+  pagination?: { page: number; pages: number };
+  /**
    * The visitor is signed in (plugin API 1.33). Their pages are never
    * cached, so content may depend on it.
    */
