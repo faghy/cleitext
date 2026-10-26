@@ -17,6 +17,13 @@ export interface OrderEvent {
   subtotalCents: number | null;
   discountCents: number | null;
   currency: string | null;
+  /** What the customer paid, in cents (tax included), when the provider says. */
+  totalCents: number | null;
+  /**
+   * Referral codes passed to the checkout as custom data, `ref_<plugin>`
+   * (e.g. `checkout[custom][ref_passaparola]=anna`), by plugin slug (plugin API 1.58).
+   */
+  referrals: Record<string, string>;
 }
 
 /**
@@ -55,6 +62,12 @@ export function parseLemonSqueezy(payload: unknown): OrderEvent {
       : event === 'order_refunded'
         ? 'refunded'
         : 'ignored';
+  const referrals: Record<string, string> = {};
+  for (const [key, value] of Object.entries(body.meta?.custom_data ?? {})) {
+    const slug = /^ref_([a-z][a-z0-9_]{1,39})$/.exec(key)?.[1]?.replace(/_/g, '-');
+    if (slug && typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value))
+      referrals[slug] = value;
+  }
   return {
     kind,
     provider: 'lemonsqueezy',
@@ -68,6 +81,8 @@ export function parseLemonSqueezy(payload: unknown): OrderEvent {
     subtotalCents: cents(attributes.subtotal),
     discountCents: cents(attributes.discount_total),
     currency: /^[A-Z]{3}$/.test(currency) ? currency : null,
+    totalCents: cents(attributes.total),
+    referrals,
   };
 }
 

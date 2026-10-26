@@ -38,7 +38,9 @@ function setUp(
   const inserted: Record<string, unknown>[] = [];
   const mails: Record<string, unknown>[] = [];
   const verified: unknown[] = [];
+  const conversions: Record<string, unknown>[] = [];
   const ctx = {
+    conversions: { paid: (_siteId: string, c: Record<string, unknown>) => conversions.push(c) },
     access: { defineCapability: () => undefined },
     settings: {
       define: () => undefined,
@@ -70,7 +72,12 @@ function setUp(
       transaction: async (_siteId: string, fn: (tx: unknown) => Promise<unknown>) =>
         fn({
           insert: () => ({
-            values: async (row: Record<string, unknown>) => void inserted.push(row),
+            values: (row: Record<string, unknown>) => ({
+              returning: async () => {
+                inserted.push(row);
+                return [{ id: `m${inserted.length}` }];
+              },
+            }),
           }),
         }),
     },
@@ -105,10 +112,11 @@ function setUp(
     return { html: renderToStaticMarkup(createElement(Fragment, null, node)), data };
   }
 
-  const send = (body: Record<string, unknown>) =>
+  const send = (body: Record<string, unknown>, referrals?: Record<string, string>) =>
     submit.handler({
       siteId: 's',
       locale: 'it',
+      ...(referrals ? { referrals } : {}),
       body: { _block: 'b1', ...body },
       ip: `10.0.${Math.floor(++ip / 250)}.${ip % 250}`,
       user: null,
@@ -118,7 +126,7 @@ function setUp(
   const emit = (name: string, payload: unknown) =>
     actions.get(name)!(payload as never, { siteId: 's' });
 
-  return { block, render, send, inserted, mails, verified, emit };
+  return { block, render, send, inserted, mails, verified, emit, conversions };
 }
 
 /** The classic form's markup before 1.3.0, which must not change. */
@@ -417,5 +425,38 @@ describe('the newsletter opt-in', () => {
       status: 303,
       headers: { location: '/prenota#form-b1-sent' },
     });
+  });
+});
+
+describe('leads (plugin API 1.58)', () => {
+  it('announces each delivered message as a lead with the visitor’s referral codes', async () => {
+    const { send, conversions } = setUp();
+    await send(
+      { name: 'Ada', email: 'ada@example.com', message: 'Hello' },
+      { passaparola: 'anna' },
+    );
+    expect(conversions).toEqual([
+      {
+        kind: 'lead',
+        id: 'm1',
+        amount: '0',
+        currency: '',
+        customer: { email: 'ada@example.com' },
+        label: 'Contact',
+        referrals: { passaparola: 'anna' },
+      },
+    ]);
+  });
+
+  it('keeps the codes of a message held as spam until it is released', async () => {
+    const { send, emit, verified, conversions } = setUp({
+      verdict: { ok: true, spam: true },
+    });
+    await send({ name: 'Ada', email: 'ada@example.com', message: 'Hello' }, { passaparola: 'x' });
+    expect(conversions).toHaveLength(0);
+    const held = verified[0] as { form: string; fields: Record<string, unknown>; locale: string };
+    await emit('form.released', { form: held.form, fields: held.fields, locale: 'it' });
+    expect(conversions).toHaveLength(1);
+    expect(conversions[0]!.referrals).toEqual({ passaparola: 'x' });
   });
 });

@@ -220,6 +220,8 @@ export const orders = pgTable('orders', {
   customerNote: text('customer_note').notNull().default(''),
   ip: text('ip'),
   userAgent: text('user_agent'),
+  /** Referral codes by capturing plugin (plugin API 1.58), for the order's conversion. */
+  referrals: jsonb('referrals').$type<Record<string, string>>().notNull().default({}),
   stockReduced: boolean('stock_reduced').notNull().default(false),
   paidAt: time('paid_at'),
   completedAt: time('completed_at'),

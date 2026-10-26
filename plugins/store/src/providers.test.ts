@@ -12,6 +12,8 @@ const order = (event: string, extra: Record<string, unknown> = {}) => ({
       user_email: 'Buyer@Example.com ',
       user_name: 'Ada Buyer',
       first_order_item: { variant_id: 777, product_id: 1, quantity: 2 },
+      total: 11800,
+      currency: 'eur',
     },
   },
 });
@@ -41,8 +43,15 @@ describe('Lemon Squeezy', () => {
       partner: null,
       subtotalCents: null,
       discountCents: null,
-      currency: null,
+      currency: 'EUR',
+      totalCents: 11800,
+      referrals: {},
     });
+    expect(
+      parseLemonSqueezy(
+        order('order_created', { ref_passaparola: 'anna', ref_x: 'no way', other: 1 }),
+      ).referrals,
+    ).toEqual({ passaparola: 'anna' });
     expect(parseLemonSqueezy(order('order_refunded')).kind).toBe('refunded');
     expect(parseLemonSqueezy(order('subscription_created')).kind).toBe('ignored');
     const id = '0f8fad5b-d9cb-469f-a165-70867728950e';

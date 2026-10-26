@@ -86,6 +86,8 @@ export const appointments = pgTable('appointments', {
   reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   anonymizedAt: timestamp('anonymized_at', { withTimezone: true }),
+  /** Referral codes by capturing plugin (plugin API 1.58), for the booking's conversion. */
+  referrals: jsonb('referrals').$type<Record<string, string>>().notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -186,6 +188,8 @@ export interface BookInput {
   timezone: string;
   source: Exclude<Source, 'import'>;
   consent: boolean;
+  /** Referral codes the visitor came with (`request.referrals`, plugin API 1.58). */
+  referrals?: Record<string, string>;
 }
 
 export interface AvailabilityContext {
@@ -529,6 +533,7 @@ export function databaseStore(ctx: PluginContext) {
             source: input.source,
             sequence: 0,
             consentAt: input.consent ? new Date() : null,
+            referrals: input.referrals ?? {},
           })
           .returning();
         return { appointment: appointmentOf(inserted!), service, used: used + 1 };
@@ -641,6 +646,18 @@ export function databaseStore(ctx: PluginContext) {
           .returning();
         return { appointment: appointmentOf(updated!), previous: appointmentOf(current) };
       });
+    },
+
+    /** The referral codes kept with an appointment (plugin API 1.58). */
+    async referralsOf(siteId: string, id: string): Promise<Record<string, string>> {
+      if (!UUID.test(id)) return {};
+      const [row] = await run(siteId, (tx) =>
+        tx
+          .select({ referrals: appointments.referrals })
+          .from(appointments)
+          .where(and(eq(appointments.siteId, siteId), eq(appointments.id, id))),
+      );
+      return row?.referrals ?? {};
     },
 
     async updateDetails(

@@ -220,6 +220,11 @@ async function handleOrder(ctx: PluginContext, siteId: string, order: OrderEvent
         .returning({ id: licenses.id }),
     );
     ctx.log.info('Order refunded', { order: order.orderRef, licenses: revoked.length });
+    // Affiliate programs and reports (plugin API 1.58).
+    ctx.conversions?.reversed(siteId, {
+      id: `${order.provider}:${order.orderRef}`,
+      reason: 'refund',
+    });
     return { body: { ok: true, revoked: revoked.length } };
   }
   const [variant] = await ctx.db.transaction(siteId, (tx) =>
@@ -249,6 +254,7 @@ async function handleOrder(ctx: PluginContext, siteId: string, order: OrderEvent
         .returning();
       return updated ?? null;
     });
+    if (renewed) announceSale(ctx, siteId, order, product, renewed.email, 'renewal');
     return { body: { ok: true, renewed: renewed !== null } };
   }
 
@@ -287,7 +293,36 @@ async function handleOrder(ctx: PluginContext, siteId: string, order: OrderEvent
   await emailKey(ctx, siteId, product, license, key).catch((error: unknown) =>
     ctx.log.error('License email not sent', { license: license.id, error: String(error) }),
   );
+  announceSale(ctx, siteId, order, product, order.email, 'new');
   return { body: { ok: true, license: license.id } };
+}
+
+/** A license sold or renewed, as a paid conversion (plugin API 1.58). */
+function announceSale(
+  ctx: PluginContext,
+  siteId: string,
+  order: OrderEvent,
+  product: Product,
+  email: string,
+  kind: 'new' | 'renewal',
+) {
+  if (order.totalCents === null || !order.currency) return;
+  const decimal = (cents: number) => (cents / 100).toFixed(2);
+  // The product's price after discounts, without tax, when the provider says.
+  const net =
+    order.subtotalCents === null
+      ? order.totalCents
+      : Math.max(0, order.subtotalCents - (order.discountCents ?? 0));
+  ctx.conversions?.paid(siteId, {
+    kind: 'license',
+    id: `${order.provider}:${order.orderRef}`,
+    amount: decimal(order.totalCents),
+    currency: order.currency,
+    customer: { email },
+    items: [{ id: product.slug, name: product.name, amount: decimal(net) }],
+    label: kind === 'renewal' ? `${product.name} (renewal)` : product.name,
+    referrals: order.referrals,
+  });
 }
 
 export default definePlugin({
@@ -1069,6 +1104,19 @@ export default definePlugin({
         priceCents: listPrice === null ? null : discounted(listPrice, discount),
         currency: listPrice === null ? null : product.currency,
       });
+      // Sold by hand with a price: a paid conversion too (plugin API 1.58).
+      if (license.priceCents && license.priceCents > 0 && license.currency) {
+        const price = (license.priceCents / 100).toFixed(2);
+        ctx.conversions?.paid(request.siteId, {
+          kind: 'license',
+          id: `manual:${license.id}`,
+          amount: price,
+          currency: license.currency,
+          customer: { email },
+          items: [{ id: product.slug, name: product.name, amount: price }],
+          label: product.name,
+        });
+      }
       let mailed = false;
       if (body.send === true) {
         mailed = await emailKey(ctx, request.siteId, product, license, key)

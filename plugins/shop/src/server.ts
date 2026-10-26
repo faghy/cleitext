@@ -1,4 +1,5 @@
 import { definePlugin, type PluginContext, type RouteRequest } from '@cleitext/plugin-sdk';
+import { conversions } from './conversions';
 import { z } from 'zod';
 import { registerAi } from './ai';
 import { EXAMPLE_RULES, pricingRulesSchema, quickEditSchema, type PricingRules } from './catalog';
@@ -14,7 +15,7 @@ import {
   saveProduct,
   saveProductSchema,
 } from './products';
-import { attributes } from './schema';
+import { attributes, type OrderStatus } from './schema';
 import { backfill, BRAND, CATEGORY, PRODUCT, syncProduct, watchEntries } from './sync';
 import { eq } from 'drizzle-orm';
 import { orderDetail } from './order-admin';
@@ -264,6 +265,7 @@ export default definePlugin({
           { orderId, number: detail.order.number, from, to: detail.order.status },
           { siteId },
         );
+        await conversions(ctx).changed(siteId, orderId, from as OrderStatus, detail.order.status);
       },
     });
     online.register();

@@ -755,20 +755,42 @@ export default definePlugin({
       });
     }
 
-    /** Stores the message and sends it to the site's recipient. */
-    async function deliver(siteId: string, message: Message, back: string): Promise<void> {
-      await ctx.db.transaction(siteId, (tx) =>
-        tx.insert(submissions).values({
-          siteId,
-          formName: message.formName,
-          pagePath: back,
-          name: message.name,
-          email: message.email,
-          phone: message.phone,
-          message: message.message,
-          data: message.data,
-        }),
+    /**
+     * Stores the message and sends it to the site's recipient. A message
+     * with an email address is a lead for affiliate programs and reports
+     * (plugin API 1.58), with the referral codes the visitor came with.
+     */
+    async function deliver(
+      siteId: string,
+      message: Message,
+      back: string,
+      referrals: Record<string, string> = {},
+    ): Promise<void> {
+      const [stored] = await ctx.db.transaction(siteId, (tx) =>
+        tx
+          .insert(submissions)
+          .values({
+            siteId,
+            formName: message.formName,
+            pagePath: back,
+            name: message.name,
+            email: message.email,
+            phone: message.phone,
+            message: message.message,
+            data: message.data,
+          })
+          .returning({ id: submissions.id }),
       );
+      if (stored && EMAIL_RE.test(message.email))
+        ctx.conversions?.paid(siteId, {
+          kind: 'lead',
+          id: stored.id,
+          amount: '0',
+          currency: '',
+          customer: { email: message.email },
+          label: message.formName,
+          referrals,
+        });
       const { recipient } = await ctx.settings.get(siteId);
       if (typeof recipient === 'string' && EMAIL_RE.test(recipient)) {
         await ctx.mail
@@ -811,7 +833,7 @@ export default definePlugin({
           form: FORM_ID,
           locale: request.locale,
           // The page, for a message delivered later (`form.released`).
-          fields: { ...form, _back: back },
+          fields: { ...form, _back: back, _referrals: request.referrals ?? {} },
           ip: request.ip,
           host: (request.headers.host ?? '').replace(/:\d+$/, ''),
           signedIn: request.user !== null,
@@ -823,7 +845,7 @@ export default definePlugin({
         // Held as spam: the visitor reads the usual thanks.
         if (verdict?.spam) return redirect('sent');
 
-        await deliver(request.siteId, message, back);
+        await deliver(request.siteId, message, back, request.referrals);
         await subscribeIfAsked(request.siteId, form, message, request.locale, request.ip);
         return redirect('sent');
       },
@@ -839,7 +861,11 @@ export default definePlugin({
         ctx.log.warn('Released message not valid', { form });
         return;
       }
-      await deliver(siteId, message, back);
+      const referrals =
+        fields._referrals && typeof fields._referrals === 'object'
+          ? (fields._referrals as Record<string, string>)
+          : {};
+      await deliver(siteId, message, back, referrals);
       await subscribeIfAsked(siteId, fields, message, locale);
     });
 

@@ -1,4 +1,5 @@
 import { adminUrl, type PluginContext, type RouteRequest } from '@cleitext/plugin-sdk';
+import { conversions } from './conversions';
 import { desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { productTags } from './buy-box';
@@ -156,6 +157,7 @@ export function registerOrderRoutes(
         { orderId: id, number: detail.order.number, from: changed.from, to: status },
         { siteId: request.siteId },
       );
+      await conversions(ctx).changed(request.siteId, id, changed.from, status);
     }
     return { body: detail };
   });
@@ -201,6 +203,7 @@ export function registerOrderRoutes(
     }
     if (result.productIds.length)
       await ctx.cache.invalidate(request.siteId, productTags(result.productIds));
+    conversions(ctx).refunded(request.siteId, id, result.amount);
     const detail = (await load(request.siteId, id))!;
     await mail.send(request.siteId, request.origin, 'customer_refunded', detail, {
       amount: result.amount,

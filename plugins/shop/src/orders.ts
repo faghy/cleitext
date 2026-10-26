@@ -54,6 +54,8 @@ export interface NewOrder {
   status: OrderStatus;
   ip: string;
   userAgent: string;
+  /** Referral codes the customer came with (`request.referrals`, plugin API 1.58). */
+  referrals?: Record<string, string>;
 }
 
 /** The next number of a counter of the site (orders: 1, 2, 3…), safe under concurrent checkouts. */
@@ -178,6 +180,7 @@ export async function placeOrder(
       customerNote: order.customerNote,
       ip: order.ip,
       userAgent: order.userAgent.slice(0, 500),
+      referrals: order.referrals ?? {},
       stockReduced: reduced.size > 0,
     })
     .returning();

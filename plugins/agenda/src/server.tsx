@@ -45,6 +45,7 @@ import {
   serviceText,
   str,
 } from './model/normalize';
+import { bookingConversion } from './model/conversion';
 import { formOf, readAnswers } from './model/form';
 import { stringsFor } from './model/strings';
 import { addDays, daysBetween, isDate, isTimeZone, localDate, formatWhen } from './model/time';
@@ -253,7 +254,26 @@ export default definePlugin({
         );
         await notify(api.booked, { siteId, appointment, service }, warn);
         await ctx.hooks.emit('agenda.booked', { appointment }, { siteId });
+        await announceConversion(siteId, appointment, null, service);
       });
+    }
+
+    /** A confirmed booking is a lead for affiliate programs (plugin API 1.58). */
+    async function announceConversion(
+      siteId: string,
+      appointment: Appointment,
+      previous: Appointment | null,
+      service: Service,
+    ) {
+      if (!ctx.conversions) return;
+      const outcome = bookingConversion(
+        appointment,
+        previous,
+        serviceText(service, appointment.locale).name,
+        appointment.status === 'confirmed' ? await store.referralsOf(siteId, appointment.id) : {},
+      );
+      if (outcome?.kind === 'paid') ctx.conversions.paid(siteId, outcome.conversion);
+      else if (outcome?.kind === 'reversed') ctx.conversions.reversed(siteId, outcome.reversal);
     }
 
     function announceChanged(
@@ -290,6 +310,7 @@ export default definePlugin({
           );
         await notify(api.changed, { siteId, appointment, service, previous }, warn);
         await ctx.hooks.emit('agenda.changed', { appointment, previous }, { siteId });
+        await announceConversion(siteId, appointment, previous, service);
       });
     }
 
@@ -613,6 +634,7 @@ export default definePlugin({
               timezone: isTimeZone(input.timezone) ? input.timezone : '',
               source: 'site',
               consent: true,
+              ...(request.referrals ? { referrals: request.referrals } : {}),
             },
             context,
           );

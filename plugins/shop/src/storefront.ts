@@ -33,6 +33,7 @@ import {
   type CartLink,
 } from './cart-link';
 import type { CouponProblem } from './coupons';
+import { conversions } from './conversions';
 import { CouponError, orderByNumber, placeOrder, StockError } from './orders';
 import {
   cartPage,
@@ -986,6 +987,7 @@ export function registerStorefront(
                   : 'on-hold',
             ip: request.ip,
             userAgent: request.headers['user-agent'] ?? '',
+            ...(request.referrals ? { referrals: request.referrals } : {}),
           });
           await saveCart(tx, request.siteId, token!, [], request.user?.id ?? null);
           await saveCoupons(tx, request.siteId, token!, [], request.user?.id ?? null);
@@ -1032,6 +1034,8 @@ export function registerStorefront(
           { orderId: placed.order.id, number: placed.order.number },
           { siteId: request.siteId },
         );
+        // Cash on delivery is paid at once: a conversion (plugin API 1.58).
+        await conversions(ctx).changed(request.siteId, placed.order.id, null, placed.order.status);
         // The customer ticked "Subscribe me to the newsletter" (opt-in, never by default).
         if (values.newsletter)
           await newsletterSubscribe({
