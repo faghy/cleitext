@@ -5,13 +5,13 @@
  * the cookie (`cx_ref_<slug>`), the account page and the cache tag all
  * follow from `SLUG`. Texts shown to people use `NAME`.
  */
-export const SLUG = 'passaparola';
-export const NAME = { en: 'Passaparola', it: 'Passaparola' } as const;
-export const PRO_NAME = 'Passaparola Pro';
+export const SLUG = 'tandem';
+export const NAME = { en: 'Tandem', it: 'Tandem' } as const;
+export const PRO_NAME = 'Tandem Pro';
 /** One line under the name in the admin. */
 export const TAGLINE = {
-  en: 'Your own affiliate program: the people who love your site bring you customers.',
-  it: 'Il tuo programma di affiliazione: chi ama il tuo sito ti porta clienti.',
+  en: 'Partners who pedal with you: your own affiliate program, where the people who love your site bring you customers.',
+  it: 'Chi ti porta clienti pedala con te: il tuo programma di affiliazione, dove chi ama il tuo sito ti porta clienti.',
 } as const;
 
 /** Who manages affiliates, referrals and payouts. */
@@ -26,9 +26,9 @@ export const BLOCKS = {
 export const ACCOUNT_PAGE = 'affiliate';
 /** Cache tag of pages showing the blocks. */
 export const CACHE_TAG = SLUG;
-/** The page about the plugin, where Passaparola Pro will be sold. */
+/** The page about the plugin, where Tandem Pro will be sold. */
 export const UPGRADE_URL = `https://cleitext.com/plugins/${SLUG}`;
-/** `Symbol.for` key of the server API other plugins (Passaparola Pro) extend. */
+/** `Symbol.for` key of the server API other plugins (Tandem Pro) extend. */
 export const API_KEY = `cleitext.${SLUG}`;
 /** CSS class prefix of the public markup. */
 export const CSS = 'ppl';

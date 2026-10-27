@@ -1,8 +1,8 @@
 {
-  "name": "@cleitext/plugin-passaparola",
+  "name": "@cleitext/plugin-tandem",
   "version": "1.0.0",
   "private": true,
-  "description": "Official Cleitext plugin: Passaparola, your own affiliate program.",
+  "description": "Official Cleitext plugin: Tandem, your own affiliate program.",
   "license": "GPL-2.0-or-later",
   "type": "module",
   "scripts": {

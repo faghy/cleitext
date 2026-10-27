@@ -431,10 +431,7 @@ describe('the newsletter opt-in', () => {
 describe('leads (plugin API 1.58)', () => {
   it('announces each delivered message as a lead with the visitor’s referral codes', async () => {
     const { send, conversions } = setUp();
-    await send(
-      { name: 'Ada', email: 'ada@example.com', message: 'Hello' },
-      { passaparola: 'anna' },
-    );
+    await send({ name: 'Ada', email: 'ada@example.com', message: 'Hello' }, { tandem: 'anna' });
     expect(conversions).toEqual([
       {
         kind: 'lead',
@@ -443,7 +440,7 @@ describe('leads (plugin API 1.58)', () => {
         currency: '',
         customer: { email: 'ada@example.com' },
         label: 'Contact',
-        referrals: { passaparola: 'anna' },
+        referrals: { tandem: 'anna' },
       },
     ]);
   });
@@ -452,11 +449,11 @@ describe('leads (plugin API 1.58)', () => {
     const { send, emit, verified, conversions } = setUp({
       verdict: { ok: true, spam: true },
     });
-    await send({ name: 'Ada', email: 'ada@example.com', message: 'Hello' }, { passaparola: 'x' });
+    await send({ name: 'Ada', email: 'ada@example.com', message: 'Hello' }, { tandem: 'x' });
     expect(conversions).toHaveLength(0);
     const held = verified[0] as { form: string; fields: Record<string, unknown>; locale: string };
     await emit('form.released', { form: held.form, fields: held.fields, locale: 'it' });
     expect(conversions).toHaveLength(1);
-    expect(conversions[0]!.referrals).toEqual({ passaparola: 'x' });
+    expect(conversions[0]!.referrals).toEqual({ tandem: 'x' });
   });
 });

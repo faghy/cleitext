@@ -1,8 +1,8 @@
 /**
- * Passaparola in the admin: affiliates (approve, reject, suspend, their
+ * Tandem in the admin: affiliates (approve, reject, suspend, their
  * rate and code), referrals with filters and CSV, payouts (what is to be
  * paid by affiliate, marked as paid, CSV) and the program's settings, with
- * the invitation to Passaparola Pro for more sources.
+ * the invitation to Tandem Pro for more sources.
  */
 import {
   addMessages,
@@ -130,7 +130,7 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-/** The invitation to Passaparola Pro, where the free version stops. */
+/** The invitation to Tandem Pro, where the free version stops. */
 function ProInvite({ url, children }: { url: string; children: ReactNode }) {
   const { t } = useT();
   return (
@@ -882,7 +882,7 @@ function SettingsForm({ api, overview }: { api: Api; overview: Overview }) {
 
 type Tab = 'affiliates' | 'referrals' | 'payouts' | 'settings';
 
-function PassaparolaPage({ api, user }: AdminPageProps) {
+function TandemPage({ api, user }: AdminPageProps) {
   const { t, language } = useT();
   const [tab, setTab] = useState<Tab>(() => {
     const wanted = new URLSearchParams(window.location.search).get('tab') as Tab | null;
@@ -980,7 +980,7 @@ export default defineAdminPlugin({
       path: '',
       title: { en: NAME.en, it: NAME.it },
       capability: CAPABILITY,
-      component: PassaparolaPage,
+      component: TandemPage,
       icon: ICON,
     },
   ],

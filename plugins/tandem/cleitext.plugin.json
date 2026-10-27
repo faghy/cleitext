@@ -1,11 +1,11 @@
 {
-  "slug": "passaparola",
-  "name": "Passaparola",
+  "slug": "tandem",
+  "name": "Tandem",
   "version": "1.0.0",
   "apiVersion": "^1.58",
   "description": "Your own affiliate program: people who like your site sign up, get their link and earn a commission on the sales, bookings or contacts they bring. Approval by hand or at once, an affiliate area in the account, commissions in percent or fixed with a refund window, payouts by hand with CSV export, emails in Italian and English. Links tracked only with consent. Free: unlimited affiliates, one source (Cleishop, Agenda, Store or Forms).",
   "author": "Cleitext",
-  "homepage": "https://cleitext.com/plugins/passaparola",
+  "homepage": "https://cleitext.com/plugins/tandem",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
   "admin": "dist/admin.js",
@@ -17,5 +17,5 @@
     "mail:send",
     "users:read"
   ],
-  "capabilities": ["manage_passaparola"]
+  "capabilities": ["manage_tandem"]
 }

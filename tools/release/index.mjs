@@ -69,7 +69,7 @@ const SEPARATE = [
   'diorama',
   'agenda',
   'newletter',
-  'passaparola',
+  'tandem',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {

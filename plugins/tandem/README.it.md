@@ -1,10 +1,12 @@
-# Passaparola
+# Tandem
+
+_Chi ti porta clienti pedala con te._ Tandem si dice così in italiano, inglese, tedesco, francese e spagnolo: tu e i tuoi affiliati andate avanti insieme.
 
 🇬🇧 [Read in English](./README.md)
 
 > **Chi ama il tuo sito ti porta clienti.**
 
-Il plugin ufficiale di Cleitext per **il tuo programma di affiliazione**: chi apprezza il tuo sito si iscrive come affiliato, riceve un link personale e guadagna una commissione sulle vendite, le prenotazioni o i contatti che porta. È gratuito e non è nel pacchetto base: installalo da **Plugin → Aggiungi nuovo** (catalogo), oppure carica `cleitext-plugin-passaparola-<versione>.zip` in **Plugin → Carica plugin**. Richiede Cleitext 0.89 o successivo (API dei plugin 1.58).
+Il plugin ufficiale di Cleitext per **il tuo programma di affiliazione**: chi apprezza il tuo sito si iscrive come affiliato, riceve un link personale e guadagna una commissione sulle vendite, le prenotazioni o i contatti che porta. È gratuito e non è nel pacchetto base: installalo da **Plugin → Aggiungi nuovo** (catalogo), oppure carica `cleitext-plugin-tandem-<versione>.zip` in **Plugin → Carica plugin**. Richiede Cleitext 0.89 o successivo (API dei plugin 1.58).
 
 ## Come funziona
 
@@ -13,7 +15,7 @@ Il plugin ufficiale di Cleitext per **il tuo programma di affiliazione**: chi ap
 3. Nella sua **area affiliato** (`/account/affiliate`) l'affiliato trova il suo link, `https://il-tuo-sito/?ref=<codice>`, con il pulsante per copiarlo, le visite e le conversioni che ha portato, i guadagni (in attesa, da pagare, pagati), i pagamenti ricevuti e i suoi dati per i pagamenti.
 4. Un visitatore arriva dal link. Se accetta i cookie della categoria scelta (Marketing per default), il codice viene ricordato per 30 giorni (un'impostazione). Se in quel periodo acquista, prenota o scrive, la conversione viene attribuita all'affiliato.
 5. La commissione attende il periodo per i rimborsi (30 giorni per default), poi viene approvata. Rimborsi e annullamenti la tolgono.
-6. In **Passaparola → Pagamenti** vedi quanto spetta a ogni affiliato, lo paghi con PayPal o con un bonifico, lo esporti in CSV e lo segni come pagato: l'affiliato riceve un'email.
+6. In **Tandem → Pagamenti** vedi quanto spetta a ogni affiliato, lo paghi con PayPal o con un bonifico, lo esporti in CSV e lo segni come pagato: l'affiliato riceve un'email.
 
 ## Fonti
 
@@ -26,9 +28,9 @@ La versione gratuita conta le conversioni di **una fonte**, scelta nelle imposta
 | **Store** (licenze)       | una licenza venduta con Lemon Squeezy, o a mano con il suo prezzo (1.4.0) | il prezzo                    |
 | **Forms** (contatti)      | un messaggio inviato, dalla 1.7.0                                         | 0: usa una commissione fissa |
 
-Le conversioni che gli affiliati portano da altre fonti non vengono contate: l'amministrazione mostra quante sono state, con l'invito a **Passaparola Pro** (tutte le fonti insieme, regole per prodotto, commissioni ricorrenti, coupon, materiali, pagamenti PayPal).
+Le conversioni che gli affiliati portano da altre fonti non vengono contate: l'amministrazione mostra quante sono state, con l'invito a **Tandem Pro** (tutte le fonti insieme, regole per prodotto, commissioni ricorrenti, coupon, materiali, pagamenti PayPal).
 
-Per le vendite dello Store con Lemon Squeezy il cookie del visitatore non arriva al checkout: passa il codice al checkout come dato personalizzato, `checkout[custom][ref_passaparola]=<codice>`.
+Per le vendite dello Store con Lemon Squeezy il cookie del visitatore non arriva al checkout: passa il codice al checkout come dato personalizzato, `checkout[custom][ref_tandem]=<codice>`.
 
 ## Commissioni
 
@@ -41,7 +43,7 @@ Per le vendite dello Store con Lemon Squeezy il cookie del visitatore non arriva
 
 ## Impostazioni
 
-Passaparola → Impostazioni: la fonte, l'approvazione (a mano o subito), la commissione (percentuale o fissa, valuta), il periodo per i rimborsi, la soglia di pagamento, la pagina delle condizioni del programma, il parametro del link (`ref`), la durata del cookie, primo o ultimo clic, la categoria di consenso, le email (ognuna si può spegnere) e chi riceve le richieste (vuoto: gli amministratori del sito).
+Tandem → Impostazioni: la fonte, l'approvazione (a mano o subito), la commissione (percentuale o fissa, valuta), il periodo per i rimborsi, la soglia di pagamento, la pagina delle condizioni del programma, il parametro del link (`ref`), la durata del cookie, primo o ultimo clic, la categoria di consenso, le email (ognuna si può spegnere) e chi riceve le richieste (vuoto: gli amministratori del sito).
 
 ## Blocchi
 
@@ -51,7 +53,7 @@ Passaparola → Impostazioni: la fonte, l'approvazione (a mano o subito), la com
 
 ## Privacy
 
-- Il tracciamento dei link segue il consenso del visitatore: il core imposta il cookie `cx_ref_passaparola` solo dopo che ha accettato la categoria scelta nel banner di **Privacy & GDPR** (il banner deve proporre quella categoria). Senza consenso, o senza banner, non viene salvato nulla e la conversione non viene attribuita. Le pagine restano in cache: il parametro viene tolto dallo script della pagina, mai dal server.
+- Il tracciamento dei link segue il consenso del visitatore: il core imposta il cookie `cx_ref_tandem` solo dopo che ha accettato la categoria scelta nel banner di **Privacy & GDPR** (il banner deve proporre quella categoria). Senza consenso, o senza banner, non viene salvato nulla e la conversione non viene attribuita. Le pagine restano in cache: il parametro viene tolto dallo script della pagina, mai dal server.
 - Le **visite** sono contate per giorno e per affiliato: nessun indirizzo, nessun identificativo del visitatore.
 - **Dati conservati**: degli affiliati, nome, email (del loro account), codice, sito e modo in cui ci promuovono, dati per i pagamenti (email PayPal, IBAN), quando hanno accettato le condizioni, le commissioni e i pagamenti; dei clienti, l'email e la descrizione della conversione attribuita a un affiliato. Privacy & GDPR li esporta e li cancella su richiesta (i pagamenti restano come registrazioni contabili, senza i dati di pagamento). Il plugin dichiara il suo cookie, che quindi compare nella cookie policy.
 - L'attivazione del plugin chiede il consenso dell'amministratore: legge le email confermate dei membri (`users:read`), per le email e il controllo degli auto-referral.
@@ -63,6 +65,6 @@ I nomi sono in `src/config.ts` e in `cleitext.plugin.json` (un test controlla ch
 ## Sviluppo e test
 
 ```sh
-npx pnpm --filter @cleitext/plugin-passaparola test   # regole, importi, CSV, impostazioni, testi
-npx pnpm --filter @cleitext/server exec vitest run test/passaparola.test.ts   # con Cleishop e Forms
+npx pnpm --filter @cleitext/plugin-tandem test   # regole, importi, CSV, impostazioni, testi
+npx pnpm --filter @cleitext/server exec vitest run test/tandem.test.ts   # con Cleishop e Forms
 ```

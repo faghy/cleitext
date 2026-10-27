@@ -29,7 +29,7 @@ describe('orders as conversions', () => {
         email: 'ada@example.test',
         customerId: null,
         paidAt,
-        referrals: { passaparola: 'anna' },
+        referrals: { tandem: 'anna' },
       },
       items: [
         {
@@ -61,7 +61,7 @@ describe('orders as conversions', () => {
       items: [{ id: 'p1', name: 'Mug × 2', amount: '40.00' }],
       label: '#12',
       at: paidAt.toISOString(),
-      referrals: { passaparola: 'anna' },
+      referrals: { tandem: 'anna' },
     });
   });
 });

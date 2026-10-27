@@ -1021,7 +1021,7 @@ export interface RouteRequest {
   /**
    * The referral codes the visitor came with (plugin API 1.58; missing on
    * older cores), by the slug of the plugin that captured them
-   * (`ctx.referrals.capture`), e.g. `{ passaparola: 'anna' }`: read from the
+   * (`ctx.referrals.capture`), e.g. `{ tandem: 'anna' }`: read from the
    * first-party cookies set with the visitor's consent. Keep them with an
    * order or a booking and give them to `ctx.conversions.paid`.
    */

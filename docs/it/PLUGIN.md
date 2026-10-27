@@ -985,7 +985,7 @@ L'email arriva in minuscolo. Vengono interpellati solo i plugin attivi sul sito.
 
 ### Conversioni e link di referral (API dei plugin 1.58)
 
-**Conversioni.** Un plugin che incassa denaro o raccoglie contatti annuncia ogni conversione pagata, così altri plugin (un programma di affiliazione come **Passaparola**, un report) possono accreditarla senza conoscere quel plugin. Non serve alcun permesso; lo slug del plugin è la `source`.
+**Conversioni.** Un plugin che incassa denaro o raccoglie contatti annuncia ogni conversione pagata, così altri plugin (un programma di affiliazione come **Tandem**, un report) possono accreditarla senza conoscere quel plugin. Non serve alcun permesso; lo slug del plugin è la `source`.
 
 ```ts
 // Quando l'ordine è pagato: dentro o dopo la transazione che lo registra.
@@ -1027,7 +1027,7 @@ ctx.referrals.capture(async (siteId) => {
 - Le rotte leggono i codici in `request.referrals`, `{ <slug>: <codice> }` (i cookie di ogni plugin che cattura, controllati). Un plugin che vende li conserva con l'ordine o la prenotazione che crea e li passa a `ctx.conversions.paid` quando viene pagato (spesso più tardi, dal webhook di un sistema di pagamento, dove i cookie del cliente non ci sono).
 - Un parametro per plugin; su un sito il primo plugin tiene un parametro, e quelli del core (`page`, `s`, `preview`, `token`, `redirect`…) non si possono catturare. Quando la risposta del tuo provider cambia (le tue impostazioni), invalida il tag di cache `referrals`: le pagine con lo script si aggiornano.
 
-**Pagine dell'account.** Le pagine dell'account di un visitatore sono rotte pubbliche sotto `/account/<nome>` (rispondono anche dietro i prefissi delle lingue), collegate dalla pagina dell'account con il filtro `account.links`. Rispondi con `page` e `cache-control: private, no-store`, e manda chi non ha fatto l'accesso a `<prefisso>/account/login?redirect=<percorso>`. Gli ordini di Cleishop e l'area affiliato di Passaparola funzionano così.
+**Pagine dell'account.** Le pagine dell'account di un visitatore sono rotte pubbliche sotto `/account/<nome>` (rispondono anche dietro i prefissi delle lingue), collegate dalla pagina dell'account con il filtro `account.links`. Rispondi con `page` e `cache-control: private, no-store`, e manda chi non ha fatto l'accesso a `<prefisso>/account/login?redirect=<percorso>`. Gli ordini di Cleishop e l'area affiliato di Tandem funzionano così.
 
 ### Importazione
 

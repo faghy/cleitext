@@ -1056,7 +1056,7 @@ The email comes in lowercase. Only the plugins active on the site are asked. A p
 
 ### Conversions and referral links (plugin API 1.58)
 
-**Conversions.** A plugin that takes money or contacts announces each paid conversion, so that other plugins (an affiliate program such as **Passaparola**, a report) can credit it without knowing that plugin. No permission is needed; the plugin's slug is the `source`.
+**Conversions.** A plugin that takes money or contacts announces each paid conversion, so that other plugins (an affiliate program such as **Tandem**, a report) can credit it without knowing that plugin. No permission is needed; the plugin's slug is the `source`.
 
 ```ts
 // When the order is paid: inside or after the transaction that records it.
@@ -1098,7 +1098,7 @@ ctx.referrals.capture(async (siteId) => {
 - Routes read the codes as `request.referrals`, `{ <slug>: <code> }` (the cookies of every capturing plugin, checked). A plugin that sells keeps them with the order or booking it creates and passes them to `ctx.conversions.paid` when it is paid (often later, from a payment provider's webhook, where the customer's cookies are not available).
 - One parameter per plugin; on a site the first plugin keeps a parameter, and the core's own (`page`, `s`, `preview`, `token`, `redirect`…) cannot be captured. When the answer of your provider changes (your settings), invalidate the `referrals` cache tag: pages with the script are refreshed.
 
-**Account pages.** Pages of a visitor's account are public routes under `/account/<name>` (they answer behind language prefixes too), linked from the account page through the `account.links` filter. Answer with `page` and `cache-control: private, no-store`, and send visitors who are not signed in to `<prefix>/account/login?redirect=<path>`. Cleishop's orders and Passaparola's affiliate area work this way.
+**Account pages.** Pages of a visitor's account are public routes under `/account/<name>` (they answer behind language prefixes too), linked from the account page through the `account.links` filter. Answer with `page` and `cache-control: private, no-store`, and send visitors who are not signed in to `<prefix>/account/login?redirect=<path>`. Cleishop's orders and Tandem's affiliate area work this way.
 
 ### Import
 

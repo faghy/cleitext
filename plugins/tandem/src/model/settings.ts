@@ -1,4 +1,4 @@
-/** The program's settings (Passaparola → Settings), normalized. */
+/** The program's settings (Tandem → Settings), normalized. */
 
 /** Where conversions come from: the plugins that announce them. */
 export const SOURCES = ['shop', 'agenda', 'store', 'forms'] as const;

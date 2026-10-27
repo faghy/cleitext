@@ -17,7 +17,7 @@ import {
 } from '../src/plugins/conversions.js';
 
 const capture: SiteCapture = {
-  plugin: 'passaparola',
+  plugin: 'tandem',
   param: 'ref',
   category: 'marketing',
   days: 30,
@@ -112,7 +112,7 @@ describe('the page script', () => {
     const page = runScript('https://site.test/?ref=anna', { consent: ['marketing'] });
     expect(page.cookies).toHaveLength(1);
     expect(page.cookies[0]).toMatch(
-      /^cx_ref_passaparola=anna; Max-Age=2592000; Path=\/; SameSite=Lax; Secure$/,
+      /^cx_ref_tandem=anna; Max-Age=2592000; Path=\/; SameSite=Lax; Secure$/,
     );
   });
 
@@ -132,15 +132,15 @@ describe('the page script', () => {
     const first = { ...capture, model: 'first' as const };
     const kept = runScript('https://site.test/?ref=bob', {
       consent: ['marketing'],
-      cookie: 'a=1; cx_ref_passaparola=anna',
+      cookie: 'a=1; cx_ref_tandem=anna',
       captures: [first],
     });
     expect(kept.cookies).toEqual([]);
     const replaced = runScript('https://site.test/?ref=bob', {
       consent: ['marketing'],
-      cookie: 'cx_ref_passaparola=anna',
+      cookie: 'cx_ref_tandem=anna',
     });
-    expect(replaced.cookies[0]).toContain('cx_ref_passaparola=bob');
+    expect(replaced.cookies[0]).toContain('cx_ref_tandem=bob');
   });
 
   it('ignores invalid codes and pages without the parameter', () => {
@@ -166,7 +166,7 @@ describe('checks', () => {
       amount: '10.5',
       currency: 'eur',
       customer: { email: 'A@B.it', userId: 'not-a-uuid' },
-      referrals: { passaparola: 'anna', 'Bad Slug': 'x', other: 'no spaces' },
+      referrals: { tandem: 'anna', 'Bad Slug': 'x', other: 'no spaces' },
       at: '2026-10-01T10:00:00Z',
     });
     expect(event).toEqual({
@@ -178,7 +178,7 @@ describe('checks', () => {
       customer: { email: 'a@b.it', userId: null },
       items: [],
       at: '2026-10-01T10:00:00.000Z',
-      referrals: { passaparola: 'anna' },
+      referrals: { tandem: 'anna' },
     });
     const lead = cleanConversion('forms', {
       kind: 'lead',
@@ -242,11 +242,11 @@ describe('checks', () => {
   it('reads referral cookies', () => {
     expect(
       referralCookies({
-        cx_ref_passaparola: 'anna',
+        cx_ref_tandem: 'anna',
         cx_ref_my_plugin: 'b%2Dc',
         cx_ref_x: 'bad value',
         session: 'secret',
       }),
-    ).toEqual({ passaparola: 'anna', 'my-plugin': 'b-c' });
+    ).toEqual({ tandem: 'anna', 'my-plugin': 'b-c' });
   });
 });

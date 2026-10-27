@@ -1,12 +1,12 @@
 /**
- * Passaparola (official plugin): the site's own affiliate program. Members
+ * Tandem (official plugin): the site's own affiliate program. Members
  * of the site apply (block or account page) and, once approved, get a code
  * and a link `https://site/?ref=<code>`; the core captures the link with
  * the visitor's consent (plugin API 1.58) and gives the code back with the
  * conversions announced by Cleishop, Agenda, Store and Forms. Each
  * conversion of the chosen source earns a commission (percent or fixed),
  * approved after the refund window and paid by hand; refunds take it back.
- * The free version counts one source; Passaparola Pro (`pro.ts`) all.
+ * The free version counts one source; Tandem Pro (`pro.ts`) all.
  */
 import {
   defineBlock,
@@ -201,7 +201,7 @@ export default definePlugin({
       const settings = await store.settings(siteId);
       const all = await allSources(api, siteId, (m) => ctx.log.warn(m));
       if (!sourceCounts(event.source, settings, all)) {
-        // Shown in the admin with the invitation to Passaparola Pro.
+        // Shown in the admin with the invitation to Tandem Pro.
         await store.recordMissed(siteId, event.source, monthStart());
         return;
       }

@@ -21,7 +21,7 @@ export interface OrderEvent {
   totalCents: number | null;
   /**
    * Referral codes passed to the checkout as custom data, `ref_<plugin>`
-   * (e.g. `checkout[custom][ref_passaparola]=anna`), by plugin slug (plugin API 1.58).
+   * (e.g. `checkout[custom][ref_tandem]=anna`), by plugin slug (plugin API 1.58).
    */
   referrals: Record<string, string>;
 }

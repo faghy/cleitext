@@ -1344,42 +1344,6 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.2)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
-  plugins/passaparola:
-    devDependencies:
-      '@cleitext/admin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/admin-sdk
-      '@cleitext/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-      '@cleitext/plugin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/plugin-sdk
-      '@tanstack/react-query':
-        specifier: ^5.104.1
-        version: 5.104.1(react@19.3.0)
-      '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
-      '@types/react':
-        specifier: ^19.3.0
-        version: 19.3.0
-      '@types/react-dom':
-        specifier: ^19.3.0
-        version: 19.3.0(@types/react@19.3.0)
-      drizzle-orm:
-        specifier: ^0.45.4
-        version: 0.45.4(@opentelemetry/api@1.9.1)(pg@8.23.1)(postgres@3.4.9)
-      react:
-        specifier: ^19.3.0
-        version: 19.3.0
-      react-dom:
-        specifier: ^19.3.0
-        version: 19.3.0(react@19.3.0)
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.2)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
-
   plugins/prisma:
     devDependencies:
       '@cleitext/blocks':
@@ -1628,6 +1592,42 @@ importers:
       react:
         specifier: ^19.3.0
         version: 19.3.0
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.2)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  plugins/tandem:
+    devDependencies:
+      '@cleitext/admin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/admin-sdk
+      '@cleitext/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@cleitext/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@tanstack/react-query':
+        specifier: ^5.104.1
+        version: 5.104.1(react@19.3.0)
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@opentelemetry/api@1.9.1)(pg@8.23.1)(postgres@3.4.9)
+      react:
+        specifier: ^19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.3.0
+        version: 19.3.0(react@19.3.0)
       vitest:
         specifier: ^5.0.3
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.2)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))

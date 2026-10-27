@@ -48,10 +48,9 @@ describe('Lemon Squeezy', () => {
       referrals: {},
     });
     expect(
-      parseLemonSqueezy(
-        order('order_created', { ref_passaparola: 'anna', ref_x: 'no way', other: 1 }),
-      ).referrals,
-    ).toEqual({ passaparola: 'anna' });
+      parseLemonSqueezy(order('order_created', { ref_tandem: 'anna', ref_x: 'no way', other: 1 }))
+        .referrals,
+    ).toEqual({ tandem: 'anna' });
     expect(parseLemonSqueezy(order('order_refunded')).kind).toBe('refunded');
     expect(parseLemonSqueezy(order('subscription_created')).kind).toBe('ignored');
     const id = '0f8fad5b-d9cb-469f-a165-70867728950e';

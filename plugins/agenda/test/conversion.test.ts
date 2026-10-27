@@ -16,7 +16,7 @@ const appointment = (changes: Partial<Appointment> = {}) =>
 
 describe('bookings as conversions', () => {
   it('a confirmed booking is a lead of amount 0, with its referral codes', () => {
-    expect(bookingConversion(appointment(), null, 'Massage', { passaparola: 'anna' })).toEqual({
+    expect(bookingConversion(appointment(), null, 'Massage', { tandem: 'anna' })).toEqual({
       kind: 'paid',
       conversion: {
         kind: 'lead',
@@ -26,7 +26,7 @@ describe('bookings as conversions', () => {
         customer: { email: 'ada@example.test' },
         items: [{ id: 's1', name: 'Massage', amount: '0' }],
         label: 'Massage · 2026-11-03 09:30',
-        referrals: { passaparola: 'anna' },
+        referrals: { tandem: 'anna' },
       },
     });
   });

@@ -34,7 +34,7 @@ import {
   type ReferralRow,
 } from './schema';
 
-/** Passaparola's data: every query of the plugin, each in its own transaction. */
+/** Tandem's data: every query of the plugin, each in its own transaction. */
 
 const SETTINGS_KEY = 'settings';
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

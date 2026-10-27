@@ -1,5 +1,5 @@
 /**
- * The official Passaparola plugin (affiliate program) with Cleishop and
+ * The official Tandem plugin (affiliate program) with Cleishop and
  * Forms on a real database: a member applies from the account, is approved
  * (email), shares the link (visits counted, the page stays cached), a
  * customer who came through it orders in Cleishop: the order paid becomes
@@ -31,7 +31,7 @@ import {
 
 const PASSWORD = 'correct horse battery staple';
 const pluginsRoot = fileURLToPath(new URL('../../../plugins', import.meta.url));
-const pp = (path: string) => `/api/v1/ext/passaparola${path}`;
+const pp = (path: string) => `/api/v1/ext/tandem${path}`;
 const shop = (path: string) => `/api/v1/ext/shop${path}`;
 
 let app: NestFastifyApplication;
@@ -47,7 +47,7 @@ let orderId = '';
 
 /** A browser that accepted the marketing cookies after arriving through the link. */
 function withReferral(client: TestClient, value: string): TestClient {
-  (client as unknown as { cookies: Map<string, string> }).cookies.set('cx_ref_passaparola', value);
+  (client as unknown as { cookies: Map<string, string> }).cookies.set('cx_ref_tandem', value);
   return client;
 }
 
@@ -92,18 +92,18 @@ async function order(client: TestClient): Promise<string> {
 beforeAll(async () => {
   owner = ownerDatabase();
   const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
-  for (const slug of ['shop', 'forms', 'passaparola']) await install(slug, pluginsPath);
+  for (const slug of ['shop', 'forms', 'tandem']) await install(slug, pluginsPath);
   app = await startTestApp({ pluginsPath });
   mail = app.get(MailService);
-  site = await seedSite(owner, 'passaparola');
+  site = await seedSite(owner, 'tandem');
   await seedUser(owner, {
-    email: 'admin@passaparola.test',
+    email: 'admin@tandem.test',
     password: PASSWORD,
     site,
     role: 'administrator',
   });
   await seedUser(owner, {
-    email: 'anna@passaparola.test',
+    email: 'anna@tandem.test',
     password: PASSWORD,
     site,
     role: 'subscriber',
@@ -112,10 +112,10 @@ beforeAll(async () => {
   await owner.db
     .update(users)
     .set({ emailVerifiedAt: new Date() })
-    .where(inArray(users.email, ['admin@passaparola.test', 'anna@passaparola.test']));
+    .where(inArray(users.email, ['admin@tandem.test', 'anna@tandem.test']));
   admin = new TestClient(app, site.host, '10.95.0.1');
-  await admin.login('admin@passaparola.test', PASSWORD);
-  for (const slug of ['shop', 'forms', 'passaparola'])
+  await admin.login('admin@tandem.test', PASSWORD);
+  for (const slug of ['shop', 'forms', 'tandem'])
     expect((await admin.post(`/api/v1/plugins/${slug}/activate`)).statusCode).toBe(200);
   expect(
     (
@@ -138,7 +138,7 @@ beforeAll(async () => {
   ).toBe(200);
   await admin.post(`/api/v1/entries/${mug}/publish`);
   anna = new TestClient(app, site.host, '10.95.0.2');
-  await anna.login('anna@passaparola.test', PASSWORD);
+  await anna.login('anna@tandem.test', PASSWORD);
 });
 
 afterAll(async () => {
@@ -150,7 +150,7 @@ describe('applying', () => {
   it('shows the form in the account, with the terms', async () => {
     await admin.request('PUT', pp('/settings'), {
       termsUrl: '/affiliate-terms',
-      notifyEmail: 'boss@passaparola.test',
+      notifyEmail: 'boss@tandem.test',
       refundDays: 30,
     });
     const account = await anna.get('/account');
@@ -188,7 +188,7 @@ describe('applying', () => {
     expect(applied.statusCode).toBe(303);
     expect((await anna.get('/account/affiliate')).body).toContain('being reviewed');
     await expect.poll(() => mail.outbox.length).toBe(1);
-    expect(mail.outbox[0]!.to).toContain('boss@passaparola.test');
+    expect(mail.outbox[0]!.to).toContain('boss@tandem.test');
     expect(mail.outbox[0]!.subject).toContain('new affiliate application from anna');
   });
 
@@ -198,7 +198,7 @@ describe('applying', () => {
     const row = list.affiliates[0];
     expect(row).toMatchObject({
       code: 'anna',
-      email: 'anna@passaparola.test',
+      email: 'anna@tandem.test',
       website: 'https://instagram.com/anna',
       paypalEmail: 'anna.pay@example.test',
       link: `http://${site.host}/?ref=anna`,
@@ -210,7 +210,7 @@ describe('applying', () => {
       (await admin.post(pp(`/affiliates/${affiliateId}/status`), { status: 'active' })).statusCode,
     ).toBe(200);
     await expect.poll(() => mail.outbox.length).toBe(1);
-    expect(mail.outbox[0]!.to).toContain('anna@passaparola.test');
+    expect(mail.outbox[0]!.to).toContain('anna@tandem.test');
     expect(mail.outbox[0]!.text).toContain('Your code is anna');
     const area = await anna.get('/account/affiliate');
     expect(area.body).toContain(`value="http://${site.host}/?ref=anna"`);
@@ -222,14 +222,14 @@ describe('the link', () => {
   it('counts visits, while the page stays the same for everyone', async () => {
     const visitor = new TestClient(app, site.host, '10.95.0.4');
     const page = await visitor.get(`/?ref=${code}`);
-    expect(page.body).toContain('"s":"passaparola"');
+    expect(page.body).toContain('"s":"tandem"');
     expect(page.body).not.toContain(`ref=${code}`);
     expect((await visitor.get('/?ref=someone-else')).headers['x-cache']).toBe('HIT');
     for (let i = 0; i < 3; i++)
       expect(
         (
           await visitor.request('POST', '/_cx/referral', {
-            plugin: 'passaparola',
+            plugin: 'tandem',
             code,
             path: '/',
             stored: true,
@@ -238,7 +238,7 @@ describe('the link', () => {
       ).toBe(204);
     // An unknown code is not counted anywhere.
     await visitor.request('POST', '/_cx/referral', {
-      plugin: 'passaparola',
+      plugin: 'tandem',
       code: 'ghost',
       path: '/',
     });
@@ -281,7 +281,7 @@ describe('conversions', () => {
   it('never counts a self-referral', async () => {
     const self = withReferral(new TestClient(app, site.host, '10.95.0.6'), code);
     await self.postForm('/cart/add', { product: mug, quantity: '1' });
-    await self.postForm('/checkout', { ...billing, email: 'anna@passaparola.test' });
+    await self.postForm('/checkout', { ...billing, email: 'anna@tandem.test' });
     const list = (await admin.get(shop('/orders'))).json() as { items: { id: string }[] };
     await admin.request('PATCH', shop(`/orders/${list.items[0]!.id}/status`), {
       status: 'processing',
@@ -304,7 +304,7 @@ describe('conversions', () => {
       .toBe(1);
     expect((await admin.get(pp('/referrals'))).json().total).toBe(1);
     expect((await admin.get(pp('/overview'))).json().upgradeUrl).toBe(
-      'https://cleitext.com/plugins/passaparola',
+      'https://cleitext.com/plugins/tandem',
     );
   });
 
@@ -371,11 +371,11 @@ describe('payouts', () => {
 describe('personal data', () => {
   it('exports and erases what the program keeps about an email', async () => {
     const host = app.get(PluginHost);
-    const exported = await host.exportPersonalData(site.id, 'anna@passaparola.test');
-    const mine = exported.find((e) => e.source === 'passaparola');
-    expect(mine?.groups.map((g) => g.id)).toEqual(['passaparola.affiliate', 'passaparola.payouts']);
-    const erased = await host.erasePersonalData(site.id, 'anna@passaparola.test');
-    expect(erased.find((e) => e.source === 'passaparola')).toMatchObject({
+    const exported = await host.exportPersonalData(site.id, 'anna@tandem.test');
+    const mine = exported.find((e) => e.source === 'tandem');
+    expect(mine?.groups.map((g) => g.id)).toEqual(['tandem.affiliate', 'tandem.payouts']);
+    const erased = await host.erasePersonalData(site.id, 'anna@tandem.test');
+    expect(erased.find((e) => e.source === 'tandem')).toMatchObject({
       removed: 1,
       retained: 1,
     });
@@ -385,7 +385,7 @@ describe('personal data', () => {
       await owner.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.email, 'anna@passaparola.test')),
+        .where(eq(users.email, 'anna@tandem.test')),
     ).toHaveLength(1);
   });
 });

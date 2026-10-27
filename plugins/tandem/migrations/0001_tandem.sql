@@ -1,4 +1,4 @@
--- Passaparola: affiliates, their visits, referrals (commissions) and payouts
+-- Tandem: affiliates, their visits, referrals (commissions) and payouts
 -- of a site (Row Level Security). The schema is the plugin's (`plg_<slug>`),
 -- so table names need no prefix. Money is in cents.
 
@@ -93,7 +93,7 @@ CREATE INDEX referrals_status_idx ON referrals (site_id, status, created_at);
 SELECT cleitext_enable_tenant_rls('referrals');
 
 -- Conversions of sources that do not count in the free version, by month:
--- shown in the admin with the invitation to Passaparola Pro.
+-- shown in the admin with the invitation to Tandem Pro.
 CREATE TABLE missed (
   site_id uuid NOT NULL,
   source text NOT NULL,

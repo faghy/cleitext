@@ -85,7 +85,7 @@ export function attribute(
   return { ok: true, affiliate };
 }
 
-/** Whether a source counts: the one chosen, or every one with Passaparola Pro. */
+/** Whether a source counts: the one chosen, or every one with Tandem Pro. */
 export function sourceCounts(source: string, settings: Settings, allSources: boolean): boolean {
   return allSources || source === settings.source;
 }

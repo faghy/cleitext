@@ -42,7 +42,7 @@ const order = (changes: Record<string, unknown> = {}) => ({
     { id: 'p2', name: 'Cap', amount: '10.50' },
   ],
   at: '2026-10-01T10:00:00.000Z',
-  referrals: { passaparola: 'anna' },
+  referrals: { tandem: 'anna' },
   ...changes,
 });
 

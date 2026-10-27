@@ -10,7 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { AffiliateStatus, ReferralStatus } from './model/rules';
 
-/** The tables of `migrations/0001_passaparola.sql`. */
+/** The tables of `migrations/0001_tandem.sql`. */
 
 const time = (name: string) => timestamp(name, { withTimezone: true });
 const cents = (name: string) => bigint(name, { mode: 'number' });
