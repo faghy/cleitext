@@ -1676,6 +1676,12 @@ export interface PluginContext {
   readonly apiVersion: string;
   /** A site's name and languages (plugin API 1.16), e.g. for emails sent outside a request. */
   site(siteId: string): Promise<PluginSite>;
+  /**
+   * The ids of the sites where the plugin is active, the oldest site first
+   * (plugin API 1.59; missing on older cores), e.g. for a free version
+   * limited to one site of the installation.
+   */
+  activeSites?(): Promise<string[]>;
   readonly assets: AssetsApi;
   /** Adds settings, sections and areas to a theme (plugin API 1.32). */
   readonly themes: ThemesApi;

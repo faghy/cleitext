@@ -11,11 +11,21 @@ The official Cleitext plugin for sites in more than one language. Without it a s
 - On the public site, through the core: language addresses, `hreflang` links (pages, archives, sitemaps), the front, posts and error pages of each language, search and feeds per language.
 - **Language switcher** (since 1.6.0, needs Cleitext 0.83), one for every theme, as WPML and Polylang give it; see below.
 
-**Automatic translation** (optional): save a DeepL API key in **Languages** (stored encrypted). New translations can then be translated automatically — title, excerpt, the text of the blocks (bold, italics and links are kept), readable attributes such as alt texts, and text fields set to _Translated_ — and a translation that needs an update can be translated again from its original. The texts are sent to DeepL only when you ask for a translation.
+**Automatic translation** (optional, Multilingual Pro): save a DeepL API key in **Languages** (stored encrypted). New translations can then be translated automatically — title, excerpt, the text of the blocks (bold, italics and links are kept), readable attributes such as alt texts, and text fields set to _Translated_ — and a translation that needs an update can be translated again from its original. The texts are sent to DeepL only when you ask for a translation.
 
-**Content not translated yet** (option in **Languages**): the home page, the posts page, search and feeds of a language can also list the posts not translated into it yet, in the default language and at their own address, as WPML's "display as translated" does.
+**Content not translated yet** (option in **Languages**, Multilingual Pro): the home page, the posts page, search and feeds of a language can also list the posts not translated into it yet, in the default language and at their own address, as WPML's "display as translated" does.
 
 Custom fields follow their `translation` setting (Content structure): _Translated_ (copied, then edited in each language), _Same as the original_ (kept in step when the original is saved) or _Left empty_.
+
+## Multilingual and Multilingual Pro
+
+Multilingual is free: everything above, for a site with its default language and one more. **Multilingual Pro** (paid, on [cleitext.com](https://cleitext.com/plugins/multilingual-pro)) lifts the limits:
+
+- every language, not only one besides the default;
+- every site of the installation: without it, only the first site where Multilingual is active adds languages, the others keep their default one;
+- automatic translation (DeepL), a domain per language and content not translated yet.
+
+Since 1.7.0 Multilingual asks for Pro only to **add** more. Whatever a site already has keeps working without it: its languages, a DeepL key, domains, content not translated yet. Languages brought by an import are taken over too.
 
 ## Language switcher
 
@@ -42,7 +52,7 @@ Then activate it on the site (Plugins). Languages and translations from before C
 
 Deactivating it brings the site back to its default language; nothing is deleted, and activating it again restores the other languages.
 
-## A domain per language
+## A domain per language (Multilingual Pro)
 
 A language can live on its own domain (e.g. `example.de`) instead of an address prefix:
 

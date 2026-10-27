@@ -320,10 +320,13 @@ export async function purgeTrash(db: Database): Promise<number> {
   return Number(rows[0]?.n ?? 0);
 }
 
-/** Sites and the plugins active on them (network and must-use ones included). */
+/**
+ * Sites and the plugins active on them (network and must-use ones included),
+ * the oldest site first.
+ */
 export async function pluginSites(db: Database): Promise<{ siteId: string; slug: string }[]> {
   const rows = await db.execute<{ site_id: string; plugin_slug: string }>(
-    sql`select * from cleitext_plugin_sites()`,
+    sql`select site_id, plugin_slug from cleitext_plugin_sites() with ordinality order by ordinality`,
   );
   return rows.map((r) => ({ siteId: r.site_id, slug: r.plugin_slug }));
 }

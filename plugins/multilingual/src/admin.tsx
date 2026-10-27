@@ -15,6 +15,7 @@ import {
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
+import type { Limits } from './pro';
 import type { LanguageView, OverviewRow, StringsResponse, TranslationsResponse } from './schema';
 import { SwitcherPage } from './switcher/admin';
 
@@ -91,7 +92,36 @@ addMessages('it', {
   scheduled: 'programmato',
   published: 'pubblicato',
   private: 'privato',
+  'Multilingual Pro': 'Multilingual Pro',
+  'Get Multilingual Pro': 'Passa a Multilingual Pro',
+  'Multilingual has two languages, the default one included. Multilingual Pro adds every language, every site of the installation, automatic translation, a domain per language and content not translated yet.':
+    'Multilingual ha due lingue, compresa quella predefinita. Multilingual Pro aggiunge tutte le lingue, tutti i siti dell’installazione, la traduzione automatica, un dominio per lingua e i contenuti non ancora tradotti.',
+  'Multilingual adds languages on one site of this installation, the first one. On the other sites, languages come with Multilingual Pro.':
+    'Multilingual aggiunge lingue su un solo sito di questa installazione, il primo. Sugli altri siti le lingue arrivano con Multilingual Pro.',
+  'With Multilingual Pro.': 'Con Multilingual Pro.',
 });
+
+/** The limits of the site without Multilingual Pro (none with it). */
+function useLimits(api: AdminPageProps['api']) {
+  return useQuery({
+    queryKey: ['multilingual', 'limits'],
+    queryFn: () => api<Limits>('GET', '/limits'),
+  }).data;
+}
+
+function ProLink({ limits }: { limits: Limits }) {
+  const { t } = useT();
+  return (
+    <a
+      href={limits.upgradeUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium text-sky-700 hover:underline"
+    >
+      {t('Get Multilingual Pro')}
+    </a>
+  );
+}
 
 const several = (props: AdminPageProps) => props.site.locales.length > 1;
 const statusLabel = (status: string | undefined, t: (s: string) => string) =>
@@ -178,6 +208,8 @@ function LanguagesPage({ api }: AdminPageProps) {
     onSuccess: done,
   });
   const views = list.data ?? [];
+  const limits = useLimits(api);
+  const full = !!limits && limits.languages !== null && views.length >= limits.languages;
 
   return (
     <div className="space-y-4">
@@ -274,7 +306,7 @@ function LanguagesPage({ api }: AdminPageProps) {
                         <span className="sr-only"> {view.name}</span>
                       </button>
                     )}
-                    {!view.isDefault && (
+                    {!view.isDefault && (limits?.pro !== false || view.host) && (
                       <button
                         type="button"
                         className="text-sky-700 hover:underline"
@@ -314,10 +346,25 @@ function LanguagesPage({ api }: AdminPageProps) {
           </tbody>
         </table>
       </Card>
-      <AddLanguage api={api} taken={views.map((v) => v.code)} onAdded={done} />
+      {full && limits ? (
+        <Card title={t('Add a language')}>
+          <p className="max-w-xl text-sm text-slate-700">
+            {limits.freeSite
+              ? t(
+                  'Multilingual has two languages, the default one included. Multilingual Pro adds every language, every site of the installation, automatic translation, a domain per language and content not translated yet.',
+                )
+              : t(
+                  'Multilingual adds languages on one site of this installation, the first one. On the other sites, languages come with Multilingual Pro.',
+                )}{' '}
+            <ProLink limits={limits} />
+          </p>
+        </Card>
+      ) : (
+        <AddLanguage api={api} taken={views.map((v) => v.code)} onAdded={done} />
+      )}
       <SiteTexts api={api} languages={views.filter((v) => !v.isDefault)} />
-      <Options api={api} />
-      <MachineSettings api={api} />
+      <Options api={api} limits={limits} />
+      <MachineSettings api={api} limits={limits} />
     </div>
   );
 }
@@ -484,7 +531,7 @@ function SiteTextsForm({
   );
 }
 
-function Options({ api }: { api: AdminPageProps['api'] }) {
+function Options({ api, limits }: { api: AdminPageProps['api']; limits: Limits | undefined }) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const options = useQuery({
@@ -496,15 +543,23 @@ function Options({ api }: { api: AdminPageProps['api'] }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['multilingual', 'options'] }),
   });
   if (!options.data) return null;
+  // Already on, it can be turned off; turning it on needs Pro.
+  const locked = limits?.pro === false && !options.data.showUntranslated;
   return (
-    <Card title={t('Content not translated yet')}>
+    <Card
+      title={
+        limits?.pro === false
+          ? `${t('Content not translated yet')} · Pro`
+          : t('Content not translated yet')
+      }
+    >
       {save.error && <Alert>{errorMessage(save.error)}</Alert>}
       <label className="flex items-start gap-2 text-sm">
         <input
           type="checkbox"
           className="mt-1"
           checked={options.data.showUntranslated}
-          disabled={save.isPending}
+          disabled={save.isPending || locked}
           onChange={(e) => save.mutate(e.target.checked)}
         />
         <span>
@@ -514,13 +569,24 @@ function Options({ api }: { api: AdminPageProps['api'] }) {
               'The home page, the posts page, search and feeds of a language also list the posts not translated into it yet, in the default language.',
             )}
           </span>
+          {locked && limits && (
+            <span className="mt-1 block">
+              {t('With Multilingual Pro.')} <ProLink limits={limits} />
+            </span>
+          )}
         </span>
       </label>
     </Card>
   );
 }
 
-function MachineSettings({ api }: { api: AdminPageProps['api'] }) {
+function MachineSettings({
+  api,
+  limits,
+}: {
+  api: AdminPageProps['api'];
+  limits: Limits | undefined;
+}) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const state = useQuery({
@@ -541,7 +607,11 @@ function MachineSettings({ api }: { api: AdminPageProps['api'] }) {
     onSuccess: done,
   });
   return (
-    <Card title={t('Automatic translation')}>
+    <Card
+      title={
+        limits?.pro === false ? `${t('Automatic translation')} · Pro` : t('Automatic translation')
+      }
+    >
       <div className="grid max-w-xl gap-3 text-sm">
         <p className="text-slate-600">
           {t(
@@ -556,6 +626,10 @@ function MachineSettings({ api }: { api: AdminPageProps['api'] }) {
               {t('Remove the key')}
             </Button>
           </div>
+        ) : limits?.pro === false ? (
+          <p>
+            {t('With Multilingual Pro.')} <ProLink limits={limits} />
+          </p>
         ) : (
           <form
             className="grid gap-3"

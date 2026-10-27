@@ -1,7 +1,7 @@
 {
   "slug": "multilingual",
   "name": "Multilingual",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "apiVersion": "^1.54",
   "description": "Several languages on a site: translations of content, categories and tags, language addresses, hreflang and a language switcher for every theme (block, menus, page footer).",
   "author": "Cleitext",

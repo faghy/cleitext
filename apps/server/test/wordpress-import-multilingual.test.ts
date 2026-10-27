@@ -23,6 +23,7 @@ import {
   startTestApp,
   TestClient,
   type SeededSite,
+  unlockMultilingual,
 } from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -99,6 +100,7 @@ beforeAll(async () => {
   for (const slug of ['wordpress-importer', 'multilingual', 'forms', 'prisma'])
     await install(slug, pluginsPath);
   app = await startTestApp({ pluginsPath });
+  unlockMultilingual();
 });
 
 afterAll(async () => {

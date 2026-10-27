@@ -45,6 +45,8 @@ let site: SeededSite;
 let admin: TestClient;
 let editor: TestClient;
 let visitor: TestClient;
+/** Multilingual Pro's answer: the other tests use every feature, as with Pro. */
+let unlocked = true;
 
 async function publish(client: TestClient, type: string, title: string, extra = {}) {
   const created = (await client.post('/api/v1/entries', { type, title, ...extra })).json();
@@ -87,6 +89,10 @@ beforeAll(async () => {
     appRole: new URL(inject('appUrl')).username,
   });
   app = await startTestApp({ pluginsPath });
+  const pro = (globalThis as unknown as Record<symbol, { unlocked: (() => boolean)[] }>)[
+    Symbol.for('cleitext.multilingual')
+  ];
+  pro!.unlocked.push(() => unlocked);
 
   ({ site, admin } = await newSite('multi', '10.50.0.1'));
   await seedUser(owner, { email: 'editor@multi.test', password: PASSWORD, site, role: 'editor' });
@@ -870,5 +876,67 @@ describe('language data waiting for the plugin', () => {
     const italian = await guest.get('/it/chi-siamo');
     expect(italian.statusCode).toBe(200);
     expect(italian.body).toContain('hrefLang="en" href="http://copy.test/about-us"');
+  });
+});
+
+describe('without Multilingual Pro', () => {
+  it('keeps what is there and asks for Pro to add more', async () => {
+    // A third language, added while Pro was there.
+    expect((await admin.post(`${EXT}/languages`, { code: 'fr' })).statusCode).toBe(201);
+    unlocked = false;
+    try {
+      const limits = (await admin.get(`${EXT}/limits`)).json();
+      expect(limits).toMatchObject({
+        pro: false,
+        upgradeUrl: 'https://cleitext.com/plugins/multilingual-pro',
+      });
+      expect(limits.languages).toBe(limits.freeSite ? 2 : 1);
+
+      // The three languages stay.
+      const before = (await admin.get(`${EXT}/languages`)).json();
+      expect(before.length).toBeGreaterThan(2);
+      const more = await admin.post(`${EXT}/languages`, { code: 'pl' });
+      expect(more.statusCode).toBe(402);
+      expect(more.json()).toMatchObject({ pro: true });
+      expect((await admin.get(`${EXT}/languages`)).json()).toHaveLength(before.length);
+      expect((await visitor.get('/it')).statusCode).toBe(200);
+
+      // The extras: a first DeepL key, turning on content not translated yet, a new domain.
+      expect(
+        (await admin.request('PUT', `${EXT}/machine`, { apiKey: 'a'.repeat(36) + ':fx' }))
+          .statusCode,
+      ).toBe(402);
+      await admin.request('PUT', `${EXT}/options`, { showUntranslated: false });
+      expect(
+        (await admin.request('PUT', `${EXT}/options`, { showUntranslated: true })).statusCode,
+      ).toBe(402);
+      expect(
+        (await admin.request('PATCH', `${EXT}/languages/it`, { host: 'multi.it' })).statusCode,
+      ).toBe(402);
+      // What does not need Pro still works.
+      expect(
+        (await admin.request('PATCH', `${EXT}/languages/it`, { name: 'Italiano' })).statusCode,
+      ).toBe(200);
+
+      // Another site of the installation keeps its default language only.
+      const { admin: second } = await newSite('second-free', '10.50.9.1');
+      expect((await second.post('/api/v1/plugins/multilingual/activate')).statusCode).toBe(200);
+      expect((await second.get(`${EXT}/limits`)).json()).toMatchObject({
+        pro: false,
+        languages: 1,
+        freeSite: false,
+      });
+      expect((await second.post(`${EXT}/languages`, { code: 'it' })).statusCode).toBe(402);
+
+      // With Pro, no limits.
+      unlocked = true;
+      expect((await second.get(`${EXT}/limits`)).json()).toMatchObject({
+        pro: true,
+        languages: null,
+      });
+      expect((await second.post(`${EXT}/languages`, { code: 'it' })).statusCode).toBe(201);
+    } finally {
+      unlocked = true;
+    }
   });
 });

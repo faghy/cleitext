@@ -22,6 +22,7 @@ import {
   startTestApp,
   TestClient,
   type SeededSite,
+  unlockMultilingual,
 } from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -111,6 +112,7 @@ beforeAll(async () => {
   }
   await install(fixture, 'ai-helper', pluginsPath, false);
   app = await startTestApp({ pluginsPath });
+  unlockMultilingual();
   site = await seedSite(owner, 'ai-editors');
   await seedUser(owner, {
     email: 'admin@ai.test',

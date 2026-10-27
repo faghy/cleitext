@@ -3,6 +3,14 @@ import { BLOCK_TYPE } from './switcher/convert';
 import { registerSwitcher } from './switcher/server';
 import { DeepL, translateContent, type MachineTranslator } from './machine';
 import {
+  installServerApi,
+  isFreeSite,
+  isUnlocked,
+  limitsFor,
+  type Limits,
+  type MultilingualServerApi,
+} from './pro';
+import {
   definePlugin,
   type FieldDefinition,
   type PluginContext,
@@ -61,9 +69,27 @@ class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly extra: Record<string, unknown> = {},
   ) {
     super(message);
   }
+}
+
+/** A refusal that Multilingual Pro would lift; the Languages page offers it. */
+function proRequired(message: string, limits: Limits): HttpError {
+  return new HttpError(402, message, { pro: true, upgradeUrl: limits.upgradeUrl });
+}
+
+/** The limits of a site: Multilingual Pro's answer, and whether it is the installation's free site. */
+async function limitsOf(
+  ctx: PluginContext,
+  api: MultilingualServerApi,
+  siteId: string,
+): Promise<Limits> {
+  const pro = await isUnlocked(api, siteId, (m) => ctx.log.warn(m));
+  if (pro) return limitsFor(true, true, api.upgradeUrl);
+  const sites = ctx.activeSites ? await ctx.activeSites() : null;
+  return limitsFor(false, isFreeSite(siteId, sites), api.upgradeUrl);
 }
 
 export default definePlugin({
@@ -123,7 +149,7 @@ export default definePlugin({
       return { title: text('title') || value.title, tagline: text('tagline') ?? value.tagline };
     });
 
-    routes(ctx);
+    routes(ctx, installServerApi());
     registerSwitcher(ctx);
     registerAi(ctx);
   },
@@ -454,7 +480,7 @@ async function localesOf(
 
 // ---- Routes (/api/v1/ext/multilingual) ------------------------------------------------
 
-function routes(ctx: PluginContext): void {
+function routes(ctx: PluginContext, pro: MultilingualServerApi): void {
   const handle =
     (fn: (request: RouteRequest) => Promise<RouteResponse>) =>
     async (request: RouteRequest): Promise<RouteResponse> => {
@@ -469,9 +495,18 @@ function routes(ctx: PluginContext): void {
               ? (error as { getStatus: () => number }).getStatus()
               : null;
         if (status === null || status >= 500) throw error;
-        return { status, body: { title: (error as Error).message, status } };
+        const extra = error instanceof HttpError ? error.extra : {};
+        return { status, body: { title: (error as Error).message, status, ...extra } };
       }
     };
+
+  // What the site may add without Multilingual Pro.
+  ctx.routes.api({
+    method: 'GET',
+    path: '/limits',
+    capability: 'manage_settings',
+    handler: handle(async (request) => ({ body: await limitsOf(ctx, pro, request.siteId) })),
+  });
 
   // Languages (Settings → Languages).
   ctx.routes.api({
@@ -495,10 +530,23 @@ function routes(ctx: PluginContext): void {
           : nativeName(code);
       const urlPrefix = prefixOf(body.urlPrefix);
       const host = hostOf(body.host);
+      const limits = await limitsOf(ctx, pro, request.siteId);
+      if (host && !limits.pro) {
+        throw proRequired('A domain per language comes with Multilingual Pro.', limits);
+      }
       await ctx.db.transaction(request.siteId, async (tx) => {
         const rows = await tx.select().from(languages);
         if (rows.some((r) => r.code === code)) {
           throw new HttpError(409, `The language "${code}" is already there.`);
+        }
+        // Languages already there stay; only adding past the limit waits for Pro.
+        if (limits.languages !== null && rows.length >= limits.languages) {
+          throw proRequired(
+            limits.freeSite
+              ? `Multilingual has ${limits.languages} languages, the default one included: more languages come with Multilingual Pro.`
+              : 'Multilingual adds languages on one site of this installation: the other sites need Multilingual Pro.',
+            limits,
+          );
         }
         assertPrefixFree(
           rows.map((r) => r.urlPrefix ?? `/${r.code}`),
@@ -528,6 +576,7 @@ function routes(ctx: PluginContext): void {
     handler: handle(async (request) => {
       const code = request.params.code ?? '';
       const body = (request.body ?? {}) as Record<string, unknown>;
+      const limits = await limitsOf(ctx, pro, request.siteId);
       await ctx.db.transaction(request.siteId, async (tx) => {
         const rows = await tx.select().from(languages);
         const row = rows.find((r) => r.code === code);
@@ -544,6 +593,10 @@ function routes(ctx: PluginContext): void {
         }
         if (body.host !== undefined) {
           changes.host = hostOf(body.host);
+          // A domain already set stays; setting another waits for Pro.
+          if (changes.host && changes.host !== row.host && !limits.pro) {
+            throw proRequired('A domain per language comes with Multilingual Pro.', limits);
+          }
           if (changes.host && code === (await ctx.languages.defaultLocale(request.siteId))) {
             throw new HttpError(400, 'The default language uses the primary domain.');
           }
@@ -748,7 +801,18 @@ function routes(ctx: PluginContext): void {
     capability: 'manage_settings',
     handler: handle(async (request) => {
       const body = (request.body ?? {}) as { showUntranslated?: unknown };
-      await ctx.storage.set(request.siteId, 'showUntranslated', body.showUntranslated === true);
+      const on = body.showUntranslated === true;
+      // Already on, it stays; turning it on waits for Pro.
+      if (on && (await ctx.storage.get<boolean>(request.siteId, 'showUntranslated')) !== true) {
+        const limits = await limitsOf(ctx, pro, request.siteId);
+        if (!limits.pro) {
+          throw proRequired(
+            'Showing content not translated yet comes with Multilingual Pro.',
+            limits,
+          );
+        }
+      }
+      await ctx.storage.set(request.siteId, 'showUntranslated', on);
       await ctx.cache.invalidate(request.siteId, ['site']);
       return { status: 204 };
     }),
@@ -775,6 +839,13 @@ function routes(ctx: PluginContext): void {
       const key = (request.body as { apiKey?: unknown } | null)?.apiKey;
       if (typeof key !== 'string' || !/^[\w:-]{20,100}$/.test(key.trim())) {
         throw new HttpError(400, 'Paste the API key of your DeepL account.');
+      }
+      // A key already saved can be replaced; a first one waits for Pro.
+      if ((await ctx.secrets.get(request.siteId, 'deepl')) === null) {
+        const limits = await limitsOf(ctx, pro, request.siteId);
+        if (!limits.pro) {
+          throw proRequired('Automatic translation comes with Multilingual Pro.', limits);
+        }
       }
       await ctx.secrets.set(request.siteId, 'deepl', key.trim());
       return { status: 204 };

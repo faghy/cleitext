@@ -11,6 +11,7 @@ import {
   inTransaction,
   media,
   menus,
+  pluginSites,
   revisions,
   roles,
   settings,
@@ -249,6 +250,11 @@ export class PluginServicesProvider implements PluginServices {
 
   resolveDynamic(siteId: string, id: string, context: DynamicContext): Promise<unknown> {
     return this.dynamicService.resolve(siteId, id, context);
+  }
+
+  async pluginSites(slug: string): Promise<string[]> {
+    const pairs = await pluginSites(this.database.db);
+    return [...new Set(pairs.filter((p) => p.slug === slug).map((p) => p.siteId))];
   }
 
   async site(siteId: string): Promise<PluginSite> {

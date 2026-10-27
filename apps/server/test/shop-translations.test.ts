@@ -21,6 +21,7 @@ import {
   startTestApp,
   TestClient,
   type SeededSite,
+  unlockMultilingual,
 } from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -69,6 +70,7 @@ beforeAll(async () => {
   await install('shop', pluginsPath);
   await install('multilingual', pluginsPath);
   app = await startTestApp({ pluginsPath });
+  unlockMultilingual();
   site = await seedSite(owner, 'shop-langs');
   await seedUser(owner, {
     email: 'langs-admin@shop-langs.test',

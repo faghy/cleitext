@@ -20,6 +20,7 @@ import {
   startTestApp,
   TestClient,
   type SeededSite,
+  unlockMultilingual,
 } from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -54,6 +55,7 @@ beforeAll(async () => {
   await install('multilingual', pluginsPath);
   await install('seo', pluginsPath);
   app = await startTestApp({ pluginsPath, env: { DATABASE_POOL_MAX: '1' } });
+  unlockMultilingual();
   site = await seedSite(owner, 'pool');
   await seedUser(owner, {
     email: 'admin@pool.test',

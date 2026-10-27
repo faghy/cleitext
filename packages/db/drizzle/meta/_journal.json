@@ -253,6 +253,13 @@
       "when": 1793168444234,
       "tag": "0035_media_renames",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793254844234,
+      "tag": "0036_plugin_sites_order",
+      "breakpoints": true
     }
   ]
 }

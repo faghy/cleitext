@@ -80,6 +80,8 @@ export interface PluginServices {
     locale?: string,
   ): Promise<FieldValues>;
   site(siteId: string): Promise<PluginSite>;
+  /** The sites where a plugin is active, the oldest first (plugin API 1.59). */
+  pluginSites(slug: string): Promise<string[]>;
   findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]>;
   copyEntry(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry>;
   entryTranslations(siteId: string, id: string): Promise<TranslationLink[]>;
@@ -273,6 +275,9 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
     site(siteId) {
       assertSiteId(siteId);
       return services().site(siteId);
+    },
+    activeSites() {
+      return services().pluginSites(plugin.slug);
     },
     log: pluginLogger(plugin.slug),
 

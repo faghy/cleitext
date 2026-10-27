@@ -253,3 +253,16 @@ export function tokenFromMail(outbox: { to: string; text: string }[], to: string
   if (!match) throw new Error(`No token mailed to ${to}`);
   return match[1]!;
 }
+
+/**
+ * Lifts Multilingual's limits for the tests that use several languages or
+ * sites, as Multilingual Pro does (see multilingual.test.ts for the limits).
+ * Call it after the app started, once the plugin is loaded.
+ */
+export function unlockMultilingual(): void {
+  const api = (
+    globalThis as unknown as Record<symbol, { unlocked: (() => boolean)[] } | undefined>
+  )[Symbol.for('cleitext.multilingual')];
+  if (!api) throw new Error('Multilingual is not loaded.');
+  api.unlocked.push(() => true);
+}

@@ -38,6 +38,7 @@ import {
   startTestApp,
   TestClient,
   type SeededSite,
+  unlockMultilingual,
 } from './helpers.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -104,6 +105,7 @@ beforeAll(async () => {
   const themesPath = await mkdtemp(join(tmpdir(), 'cleitext-themes-'));
   await writeTheme(themesPath);
   app = await startTestApp({ pluginsPath, env: { THEMES_PATH: themesPath } });
+  unlockMultilingual();
   site = await seedSite(owner, 'options');
   other = await seedSite(owner, 'options-other');
   clone = await seedSite(owner, 'options-clone');
