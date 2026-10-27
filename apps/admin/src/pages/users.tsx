@@ -108,6 +108,7 @@ function InviteForm({
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
   const [role, setRole] = useState('author');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -118,6 +119,7 @@ function InviteForm({
       api<MemberView>('POST', '/users/invite', {
         email,
         displayName,
+        ...(username.trim() ? { username } : {}),
         role,
         ...(password ? { password } : {}),
         sendEmail,
@@ -125,6 +127,7 @@ function InviteForm({
     onSuccess: async (done) => {
       setEmail('');
       setDisplayName('');
+      setUsername('');
       setPassword('');
       await queryClient.invalidateQueries({ queryKey: MEMBERS_KEY });
       // As in WordPress: back to the list of users, with the news.
@@ -159,12 +162,21 @@ function InviteForm({
   return (
     <Card title={t('Add New User')}>
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <TextField
             label={t('Name')}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             {...(fieldError('displayName') ? { error: fieldError('displayName') } : {})}
+          />
+          <TextField
+            label={t('Username (optional)')}
+            value={username}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            onChange={(e) => setUsername(e.target.value)}
+            {...(fieldError('username') ? { error: fieldError('username') } : {})}
           />
           <TextField
             label={t('Email')}
@@ -272,6 +284,9 @@ function MemberRow({
               </Link>
             )}
             {isSelf && <span className="ml-1 text-slate-500">{t('(you)')}</span>}
+            {member.username && (
+              <span className="block text-xs text-slate-500">{member.username}</span>
+            )}
           </span>
         </span>
       </td>

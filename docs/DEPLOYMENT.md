@@ -416,6 +416,7 @@ The link signs in to the admin of that site, the first active one by default. On
 | `user:reset-password --email <e> --password-stdin`                               | `{"email"}`                                                                                                                               |
 | `user:set-role --site <s> --email <e> --role <r> [--add]`                        | `{"site","email","userId","from","to","changed","added","noAdministrator"}`: `from` is null when added                                    |
 | `user:set-locale --locale <l> --email <e>` \| `--site <s> --all`                 | `{"locale","site","changed":[{"email","from"}],"unchanged"}`                                                                              |
+| `user:set-username --email <e> --username <name>` (`""` removes it)              | `{"email","from","to"}`; `conflict` when another account has it                                                                           |
 | `entry:reassign --site <s> --from <u> --to <u> [--type <t>]`                     | `{"site","from","to","type","entries","published","media"}`: `from`/`to` are `{"id","email"}`                                             |
 | `entry:raw-titles --site <s> --wxr <file> [--dry-run] [--report <file>]`         | `{"site","dryRun","entries":[{"wpId","slug","title","rawTitle","action","matchedBy","revisions"}],"counts","report"}`                     |
 | `media:rename-imported --site <s> --wxr <file> [--uploads <folder>] [--dry-run]` | `{"site","dryRun","alreadyFixed","renamed","counts","skipped","unmatched","references","report",…}`: `counts.byChecksum` with `--uploads` |
@@ -454,9 +455,12 @@ bin/cleitext user:set-role --site main --email anna@example.com --role administr
 bin/cleitext user:set-role --site main --email new@example.com --role editor --add
 bin/cleitext user:set-locale --email anna@example.com --locale it
 bin/cleitext user:set-locale --site main --all --locale it
+bin/cleitext user:set-username --email anna@example.com --username anna
 ```
 
 `user:set-role` takes the built-in roles and the site's own ones, and adds someone who is not a member only with `--add`. As the API, it does not stop at the last administrator (it warns when the site has none left: only super admins can manage it then) and the activity log records `member.role.changed` (`via: "cli"`). `user:set-locale` sets the admin language of one account, or of every member of a site with `--site --all` (accounts are shared by the sites they belong to). Both refuse to run as root. In the admin, an administrator changes a member's language in their account (**Users → the person → Admin language**).
+
+**Usernames.** As in WordPress, a person signs in with the email or the username. The username is optional, unique and case-insensitive (letters, digits, spaces, `_ . -`, up to 60 characters, never `@`). It is set in **Profile**, by administrators in **Users** (adding or editing someone), with `user:create --username` or `user:set-username`. The WordPress importer gives every account its WordPress `user_login`, also accounts that had none, unless another account has it (the import report says so) or it is an email.
 
 On cores before 0.88, the same with SQL, run with the owner connection (`DATABASE_ADMIN_URL`):
 

@@ -98,9 +98,11 @@ export function LoginPage({ redirect }: { redirect?: string | undefined }) {
           </Alert>
         )}
         <TextField
-          label={t('Email')}
-          type="email"
+          label={t('Email or username')}
+          type="text"
           autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -244,15 +246,19 @@ export function ForgotPasswordPage() {
           }}
         >
           <p className="text-sm text-slate-600">
-            {t('Enter your email address: we will send you a link to choose a new password.')}
+            {t(
+              'Enter your email address or username: we will send you a link to choose a new password.',
+            )}
           </p>
           {request.error && (
             <Alert>{challengeMessage(request.error, t) ?? errorMessage(request.error)}</Alert>
           )}
           <TextField
-            label={t('Email')}
-            type="email"
+            label={t('Email or username')}
+            type="text"
             autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}

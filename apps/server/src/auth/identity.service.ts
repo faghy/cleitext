@@ -94,6 +94,7 @@ export class IdentityService {
       userId,
       sessionId,
       email: user.email,
+      username: user.username ?? null,
       displayName: user.displayName,
       locale: user.locale,
       avatarUrl: avatarUrl(user.avatarKey),
@@ -148,6 +149,7 @@ export class IdentityService {
       user: {
         id: auth.userId,
         email: auth.email,
+        username: auth.username ?? null,
         displayName: auth.displayName,
         locale: auth.locale,
         isSuperAdmin: auth.isSuperAdmin,

@@ -41,7 +41,14 @@ import {
 import { backup, listBackups, pruneBackups, restore } from './backup.js';
 import { configure } from './configure.js';
 import { reassignEntries } from './content.js';
-import { setLocale, setLocaleText, setRole, setRoleText } from './users.js';
+import {
+  setLocale,
+  setLocaleText,
+  setRole,
+  setRoleText,
+  setUsername,
+  setUsernameText,
+} from './users.js';
 import {
   appRoot,
   backupsDir,
@@ -657,6 +664,7 @@ export function buildProgram(json = false): Command {
     .description('Create a user, optionally super admin or member of a site.')
     .requiredOption('--email <email>')
     .option('--name <displayName>')
+    .option('--username <name>', 'to sign in with, besides the email')
     .option('--super-admin', 'grant every capability on every site')
     .option('--site <slug>')
     .option('--role <slug>', 'administrator | editor | author | contributor | subscriber')
@@ -668,6 +676,7 @@ export function buildProgram(json = false): Command {
           email: opts.email,
           password,
           displayName: opts.name,
+          username: opts.username,
           superAdmin: Boolean(opts.superAdmin),
           site: opts.site,
           role: opts.role,
@@ -732,6 +741,19 @@ export function buildProgram(json = false): Command {
       return withOwner(async (db) => {
         const result = await setLocale(db, opts);
         report({ ...result }, setLocaleText(result));
+      });
+    });
+
+  program
+    .command('user:set-username')
+    .description('Set the username an account signs in with besides its email ("" removes it).')
+    .requiredOption('--email <email>', 'the account')
+    .requiredOption('--username <name>', 'letters, digits, spaces, _ . - (no @)')
+    .action((opts: { email: string; username: string }) => {
+      refuseRoot();
+      return withOwner(async (db) => {
+        const result = await setUsername(db, opts);
+        report({ ...result }, setUsernameText(result));
       });
     });
 

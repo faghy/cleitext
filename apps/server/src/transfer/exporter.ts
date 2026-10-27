@@ -203,6 +203,7 @@ export async function exportSite(
         return {
           ref: m.user.id,
           email: m.user.email,
+          ...(m.user.username ? { username: m.user.username } : {}),
           displayName: m.user.displayName,
           role: m.role,
           locale: m.user.locale,

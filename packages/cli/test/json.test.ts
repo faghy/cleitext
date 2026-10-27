@@ -544,6 +544,58 @@ describe('user:set-role and user:set-locale', () => {
     const siteOnly = await cli(['user:set-locale', '--json', '--site', 'main', '--locale', 'it']);
     expect(siteOnly.json.error.code).toBe('invalid_option');
   });
+
+  it('sets the username an account signs in with, or removes it', async () => {
+    const created = await cli(
+      [
+        'user:create',
+        '--json',
+        '--email',
+        'named@example.com',
+        '--username',
+        'Named',
+        '--password-stdin',
+      ],
+      PASSWORD,
+    );
+    expect(created.code).toBe(0);
+    const set = await cli([
+      'user:set-username',
+      '--json',
+      '--email',
+      'outsider@example.com',
+      '--username',
+      'out.sider',
+    ]);
+    expect(set.json).toEqual({ email: 'outsider@example.com', from: null, to: 'out.sider' });
+    const taken = await cli([
+      'user:set-username',
+      '--json',
+      '--email',
+      'outsider@example.com',
+      '--username',
+      'named',
+    ]);
+    expect(taken.json.error.code).toBe('conflict');
+    const invalid = await cli([
+      'user:set-username',
+      '--json',
+      '--email',
+      'outsider@example.com',
+      '--username',
+      'a@b',
+    ]);
+    expect(invalid.json.error.code).toBe('invalid_option');
+    const removed = await cli([
+      'user:set-username',
+      '--json',
+      '--email',
+      'outsider@example.com',
+      '--username',
+      '',
+    ]);
+    expect(removed.json).toEqual({ email: 'outsider@example.com', from: 'out.sider', to: null });
+  });
 });
 
 describe('plugins, themes, migrations, doctor', () => {

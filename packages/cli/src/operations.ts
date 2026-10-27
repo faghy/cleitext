@@ -19,7 +19,7 @@ import {
   PANEL_LOGIN_MAX_TTL_SECONDS,
   type Database,
 } from '@cleitext/db';
-import { emailSchema, localeSchema, passwordSchema } from '@cleitext/shared';
+import { emailSchema, localeSchema, passwordSchema, usernameSchema } from '@cleitext/shared';
 import { hash } from '@node-rs/argon2';
 import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 
@@ -328,6 +328,8 @@ export interface CreateUserInput {
   email: string;
   password: string;
   displayName?: string;
+  /** The sign-in name besides the email. */
+  username?: string;
   superAdmin?: boolean;
   /** Site slug and role slug, to add the user as a member. */
   site?: string;
@@ -341,11 +343,17 @@ export async function createUser(db: Database, input: CreateUserInput): Promise<
   const [existing] = await db.select().from(users).where(eq(users.email, email));
   if (existing) throw new OperationError(`A user with email ${email} already exists.`);
   if (input.site && !input.role) throw new OperationError('Specify --role together with --site.');
+  const username = input.username ? parse(usernameSchema, input.username, 'username') : null;
+  if (username) {
+    const [taken] = await db.select().from(users).where(eq(users.username, username));
+    if (taken) throw new OperationError(`The username "${username}" is taken.`);
+  }
 
   const [user] = await db
     .insert(users)
     .values({
       email,
+      ...(username ? { username } : {}),
       displayName: input.displayName ?? email.split('@')[0]!,
       passwordHash: await hash(password),
     })

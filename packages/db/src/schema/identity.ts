@@ -22,6 +22,8 @@ export const users = pgTable(
   {
     id: id(),
     email: citext('email').notNull().unique(),
+    /** Optional sign-in name, as in WordPress (unique, case-insensitive, never with "@"). */
+    username: citext('username').unique(),
     displayName: text('display_name').notNull(),
     /** argon2id hash; null when the user signs in only with passkeys or SSO. */
     passwordHash: text('password_hash'),

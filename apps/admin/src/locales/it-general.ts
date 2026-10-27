@@ -59,8 +59,9 @@ export const itGeneral: Messages = {
   'Bottom left': 'In basso a sinistra',
   Email: 'Email',
   'Empty the trash after (days)': 'Svuota il cestino dopo (giorni)',
-  'Enter your email address: we will send you a link to choose a new password.':
-    'Inserisci il tuo indirizzo email: ti invieremo un link per scegliere una nuova password.',
+  'Email or username': 'Email o nome utente',
+  'Enter your email address or username: we will send you a link to choose a new password.':
+    'Inserisci il tuo indirizzo email o il nome utente: ti invieremo un link per scegliere una nuova password.',
   Entries: 'Contenuti',
   General: 'Generali',
   'Generate password': 'Genera password',
@@ -182,6 +183,11 @@ export const itGeneral: Messages = {
   'You are signed in to {site}.': "Hai effettuato l'accesso a {site}.",
   'You do not have permission to open this page.': 'Non hai i permessi per aprire questa pagina.',
   'Your details': 'I tuoi dati',
+  Username: 'Nome utente',
+  'Username (optional)': 'Nome utente (facoltativo)',
+  'You can sign in with it instead of the email. Leave it empty to use only the email.':
+    'Puoi accedere con questo al posto dell’email. Lascialo vuoto per usare solo l’email.',
+  'Signs in with it or with the email.': 'Accede con questo o con l’email.',
   'Your name': 'Il tuo nome',
   'Your password has been changed. You can now sign in.':
     'La tua password è stata cambiata. Ora puoi accedere.',

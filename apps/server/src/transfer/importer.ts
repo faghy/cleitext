@@ -53,6 +53,7 @@ import {
   type FieldDefinition,
   type FieldGroupInput,
   type ImportRefMaps,
+  USERNAME_PATTERN,
 } from '@cleitext/shared';
 import { and, count as countRows, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { AuthContext } from '../common/request-context.js';
@@ -338,9 +339,16 @@ export async function importDocument(
   // Accounts of other sites are not visible under RLS: looked up by email,
   // before the transaction (the lookup takes a connection of its own).
   const existing = new Map<string, string | undefined>();
+  // Usernames (WordPress's user_login) another account has are left out.
+  const usernames = new Map<string, string | null>();
   for (const user of doc.users) {
     const email = user.email.trim().toLowerCase();
     if (!existing.has(email)) existing.set(email, (await findLogin(db, email))?.userId);
+    const name = user.username?.trim().toLowerCase();
+    if (name && USERNAME_PATTERN.test(name) && !usernames.has(name)) {
+      const owner = (await findLogin(db, name))?.userId ?? null;
+      usernames.set(name, owner);
+    }
   }
   await run(async (tx) => {
     const roleRows = await tx.select().from(roles);
@@ -353,11 +361,20 @@ export async function importDocument(
       }
       // Inserted without RETURNING: a new user is not a member yet.
       let userId = existing.get(email);
+      const name = user.username?.trim().toLowerCase();
+      // Free, or already this account's: claimed for the first account that has it.
+      const username =
+        name && usernames.has(name) && (usernames.get(name) ?? userId) === userId ? name : null;
+      if (name && !username && USERNAME_PATTERN.test(name)) {
+        report.warnings.push(`User "${user.displayName}": the username "${name}" is taken.`);
+      }
       if (!userId) {
         userId = newId();
+        if (username) usernames.set(username, userId);
         await tx.insert(users).values({
           id: userId,
           email,
+          ...(username ? { username } : {}),
           displayName: user.displayName || email,
           passwordHash: null,
           locale: user.locale ?? 'en',
@@ -367,6 +384,14 @@ export async function importDocument(
         count(report, 'users');
       } else {
         count(report, 'users', 'skipped');
+        // An account without a username gets the one it had on the source.
+        if (username) {
+          usernames.set(username, userId);
+          await tx
+            .update(users)
+            .set({ username })
+            .where(and(eq(users.id, userId), sql`${users.username} is null`));
+        }
       }
       userIds.set(user.ref, userId);
       const role =

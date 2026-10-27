@@ -389,15 +389,20 @@ export interface LoginRecord {
   passwordHash: string | null;
   status: 'active' | 'invited' | 'suspended' | 'pending';
   isSuperAdmin: boolean;
+  email: string;
 }
 
-/** Looks up login data by email, across sites (no context needed). */
+/**
+ * Looks up login data by email or username (a name without "@"), across
+ * sites (no context needed).
+ */
 export async function findLogin(db: Database, email: string): Promise<LoginRecord | null> {
   const rows = await db.execute<{
     user_id: string;
     password_hash: string | null;
     status: LoginRecord['status'];
     is_super_admin: boolean;
+    email: string;
   }>(sql`select * from cleitext_find_login(${email.trim().toLowerCase()})`);
   const row = rows[0];
   if (!row) return null;
@@ -406,6 +411,7 @@ export async function findLogin(db: Database, email: string): Promise<LoginRecor
     passwordHash: row.password_hash,
     status: row.status,
     isSuperAdmin: row.is_super_admin,
+    email: row.email,
   };
 }
 

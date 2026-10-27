@@ -97,6 +97,7 @@ function DetailsForm({ account, disabled }: { account: MemberAccountView; disabl
   const { t } = useT();
   const [values, setValues] = useState({
     displayName: account.displayName,
+    username: account.username ?? '',
     email: account.email,
     locale: account.locale,
     bio: account.bio,
@@ -125,6 +126,16 @@ function DetailsForm({ account, disabled }: { account: MemberAccountView; disabl
             value={values.displayName}
             onChange={(e) => set('displayName')(e.target.value)}
             {...(fieldError('displayName') ? { error: fieldError('displayName') } : {})}
+          />
+          <TextField
+            label={t('Username')}
+            value={values.username}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            hint={t('Signs in with it or with the email.')}
+            onChange={(e) => set('username')(e.target.value)}
+            {...(fieldError('username') ? { error: fieldError('username') } : {})}
           />
           <TextField
             label={t('Email')}

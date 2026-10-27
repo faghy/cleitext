@@ -37,6 +37,8 @@ import { avatarUrl } from '../profile/avatar.js';
 import { MailService } from '../mail/mail.service.js';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Usernames are global and case-insensitive, as emails. */
+export const USERNAME_TAKEN = 'That username is taken: choose another one.';
 
 const LOCK_MESSAGES = {
   self: 'Change your own account from your profile.',
@@ -71,6 +73,7 @@ export class UsersService {
       return rows.map(({ user, role }) => ({
         id: user.id,
         email: user.email,
+        username: user.username ?? null,
         displayName: user.displayName,
         avatarUrl: avatarUrl(user.avatarKey),
         status: user.status as MemberView['status'],
@@ -89,6 +92,7 @@ export class UsersService {
     auth: AuthContext,
     input: Required<Pick<InviteUserRequest, 'displayName' | 'role'>> & {
       email: string;
+      username?: string | undefined;
       password?: string | undefined;
       sendEmail?: boolean | undefined;
     },
@@ -96,6 +100,9 @@ export class UsersService {
   ): Promise<MemberView> {
     if (input.password) assertPasswordNotBreached(input.password);
     const existing = await findLogin(this.database.db, input.email);
+    // Only for a new account: someone else's account keeps its own.
+    const username = existing ? undefined : input.username;
+    if (username) await this.assertUsernameFree(username, null);
     // A password is only set for new accounts: never for someone else's account.
     const passwordHash =
       input.password && (!existing || existing.status === 'invited')
@@ -133,6 +140,7 @@ export class UsersService {
           await tx.insert(users).values({
             id: userId,
             email: input.email,
+            ...(username ? { username } : {}),
             displayName: input.displayName,
             status: passwordHash ? 'active' : 'invited',
             passwordHash,
@@ -296,6 +304,7 @@ export class UsersService {
     if (taken && taken.userId !== memberId) {
       throw new ConflictException('Another account uses this email address.');
     }
+    if (input.username) await this.assertUsernameFree(input.username, memberId);
     const before = await withContext(
       this.database.db,
       { siteId, userId: auth.userId },
@@ -317,6 +326,7 @@ export class UsersService {
                     : {}),
                 }
               : {}),
+            ...(input.username !== undefined ? { username: input.username || null } : {}),
             ...(input.locale ? { locale: input.locale } : {}),
             ...(input.bio !== undefined ? { bio: input.bio } : {}),
             ...(input.website !== undefined ? { website: input.website || null } : {}),
@@ -333,6 +343,8 @@ export class UsersService {
               throw new ConflictException('That author page address is taken: choose another one.');
             if (cause?.constraint_name?.includes('email'))
               throw new ConflictException('Another account uses this email address.');
+            if (cause?.constraint_name?.includes('username'))
+              throw new ConflictException(USERNAME_TAKEN);
             throw error;
           });
         const changed = [
@@ -382,6 +394,12 @@ export class UsersService {
       }
     }
     return this.account(siteId, auth, memberId);
+  }
+
+  /** Usernames are global, as emails: one taken by another account is refused. */
+  async assertUsernameFree(username: string, userId: string | null): Promise<void> {
+    const taken = await findLogin(this.database.db, username);
+    if (taken && taken.userId !== userId) throw new ConflictException(USERNAME_TAKEN);
   }
 
   /** Why an administrator may not edit an account, or null. */

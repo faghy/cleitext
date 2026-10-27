@@ -2,7 +2,8 @@
  * Accounts of the CLI: `user:set-role` gives a member another role on a
  * site, `user:set-locale` the language of accounts, e.g. after a WordPress
  * site moved to Cleitext (docs/DEPLOYMENT.md, "Roles and language of
- * migrated accounts").
+ * migrated accounts"), `user:set-username` the name an account signs in
+ * with besides its email.
  *
  * The rule of the API (UsersService.changeRole) applies: any role of the
  * site, its own ones included; whoever runs the CLI controls the
@@ -18,7 +19,7 @@ import {
   withSiteContext,
   type Database,
 } from '@cleitext/db';
-import { emailSchema, localeSchema } from '@cleitext/shared';
+import { emailSchema, localeSchema, usernameSchema } from '@cleitext/shared';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { OperationError } from './operations.js';
 
@@ -238,6 +239,50 @@ async function findSite(db: Database, ref: string): Promise<{ id: string; slug: 
     .where(UUID_RE.test(value) ? eq(sites.id, value.toLowerCase()) : eq(sites.slug, value));
   if (!site) throw new OperationError(`No site "${value}".`, 'not_found');
   return site;
+}
+
+export interface SetUsernameResult {
+  email: string;
+  from: string | null;
+  to: string | null;
+}
+
+/** Sets or removes ('') the username of an account (`user:set-username`). */
+export async function setUsername(
+  db: Database,
+  input: { email: string; username: string },
+): Promise<SetUsernameResult> {
+  const user = await findUserByEmail(db, input.email);
+  let to: string | null = null;
+  if (input.username.trim() !== '') {
+    const parsed = usernameSchema.safeParse(input.username);
+    if (!parsed.success) {
+      throw new OperationError(
+        `Invalid username "${input.username}": ${parsed.error.issues[0]?.message ?? ''}`,
+        'invalid_option',
+      );
+    }
+    to = parsed.data;
+    const [other] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.username, to));
+    if (other && other.email !== user.email) {
+      throw new OperationError(`The username "${to}" belongs to ${other.email}.`, 'conflict');
+    }
+  }
+  const [before] = await db
+    .select({ username: users.username })
+    .from(users)
+    .where(eq(users.id, user.id));
+  await db.update(users).set({ username: to }).where(eq(users.id, user.id));
+  return { email: user.email, from: before?.username ?? null, to };
+}
+
+export function setUsernameText(result: SetUsernameResult): string {
+  return result.to
+    ? `${result.email} signs in with "${result.to}" too.`
+    : `${result.email} has no username now: only the email signs in.`;
 }
 
 async function findUserByEmail(db: Database, email: string) {

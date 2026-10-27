@@ -11,6 +11,8 @@ export interface AuthContext {
   userId: string;
   sessionId: string;
   email: string;
+  /** The sign-in name besides the email, if the account has one. */
+  username?: string | null;
   displayName: string;
   locale: string;
   avatarUrl: string | null;

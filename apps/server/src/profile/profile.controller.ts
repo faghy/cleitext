@@ -36,6 +36,7 @@ import { DATABASE } from '../database/database.module.js';
 import { ALLOWED_TYPES, detectType } from '../media/media-types.js';
 import { MediaService } from '../media/media.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
+import { USERNAME_TAKEN } from '../users/users.service.js';
 import { avatarUrl, processAvatar } from './avatar.js';
 
 /** The signed-in user's own profile and sessions (RF-USR-07). */
@@ -135,11 +136,21 @@ export class ProfileController {
       { siteId: site.id, userId: auth.userId },
       (tx) =>
         tx
-          .select({ bio: users.bio, website: users.website, slug: users.slug })
+          .select({
+            username: users.username,
+            bio: users.bio,
+            website: users.website,
+            slug: users.slug,
+          })
           .from(users)
           .where(eq(users.id, auth.userId)),
     );
-    return { bio: user?.bio ?? '', website: user?.website ?? '', slug: user?.slug ?? '' };
+    return {
+      username: user?.username ?? '',
+      bio: user?.bio ?? '',
+      website: user?.website ?? '',
+      slug: user?.slug ?? '',
+    };
   }
 
   @Patch()
@@ -157,6 +168,7 @@ export class ProfileController {
           .update(users)
           .set({
             ...(input.displayName ? { displayName: input.displayName } : {}),
+            ...(input.username !== undefined ? { username: input.username || null } : {}),
             ...(input.locale ? { locale: input.locale } : {}),
             ...(input.bio !== undefined ? { bio: input.bio } : {}),
             ...(input.website !== undefined ? { website: input.website || null } : {}),
@@ -168,11 +180,13 @@ export class ProfileController {
       const cause = (error as { cause?: { constraint_name?: string } }).cause;
       if (cause?.constraint_name?.includes('slug'))
         throw new ConflictException('That author page address is taken: choose another one.');
+      if (cause?.constraint_name?.includes('username')) throw new ConflictException(USERNAME_TAKEN);
       throw error;
     });
     await this.cache.invalidate(site.id, [`author:${auth.userId}`]);
     return {
       email: updated!.email,
+      username: updated!.username ?? null,
       displayName: updated!.displayName,
       locale: updated!.locale,
       avatarUrl: avatarUrl(updated!.avatarKey),

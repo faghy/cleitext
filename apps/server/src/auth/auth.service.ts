@@ -23,7 +23,7 @@ import { TwoFactorService } from './two-factor.service.js';
 import { PasskeyService, type RelyingParty } from './passkey.service.js';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 
-const INVALID_CREDENTIALS = 'The email or password is not correct.';
+const INVALID_CREDENTIALS = 'The email, username or password is not correct.';
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 /** Time to type the 2FA code after a correct password. */
 const TWO_FACTOR_TTL_MS = 5 * 60 * 1000;
@@ -260,6 +260,8 @@ export class AuthService {
   ): Promise<void> {
     const login = await findLogin(this.database.db, email);
     if (!login || login.status !== 'active') return;
+    // Asked with the username: the link goes to the account's email.
+    email = login.email;
 
     await this.tokens.revokePending('password_reset', login.userId);
     const token = await this.tokens.issue({

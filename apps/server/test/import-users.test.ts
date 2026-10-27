@@ -177,6 +177,9 @@ describe('accounts of a WordPress site', () => {
       expect(user.locale, login).toBe('it');
       expect(await memberRole(user.id), login).toBe(role);
     }
+    // WordPress usernames sign in here too, also for accounts that had none.
+    expect((await account('anna@wpu.test')).username).toBe('anna');
+    expect((await account('bruno@wpu.test')).username).toBe('bruno');
     // Existing accounts keep their language; Bruno is raised, Carla is not lowered.
     expect((await account('bruno@wpu.test')).locale).toBe('en');
     expect(await memberRole(ids.bruno!)).toBe('administrator');

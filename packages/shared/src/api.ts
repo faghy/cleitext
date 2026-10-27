@@ -15,12 +15,32 @@ export const emailSchema = z
   .max(254)
   .transform((value) => value.trim().toLowerCase());
 
+/**
+ * A username, as in WordPress: letters, digits, spaces, `_`, `.` and `-`, up
+ * to 60 characters, never `@` (a sign-in name with `@` is an email).
+ * Case-insensitive.
+ */
+export const USERNAME_PATTERN = /^[A-Za-z0-9_.-](?:[A-Za-z0-9_. -]{0,58}[A-Za-z0-9_.-])?$/;
+export const usernameSchema = z
+  .string()
+  .trim()
+  .regex(USERNAME_PATTERN, 'Use letters, digits, spaces, _ . or - (up to 60 characters, no @).');
+
+/** What a person signs in with: the email or the username. */
+export const loginNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(254)
+  .transform((value) => value.toLowerCase());
+
 export const localeSchema = z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/, 'Invalid locale.');
 
 // ---- Auth ----------------------------------------------------------------
 
 export const loginRequestSchema = z.object({
-  email: emailSchema,
+  /** The email or the username. */
+  email: loginNameSchema,
   password: z.string().min(1).max(PASSWORD_MAX_LENGTH),
   remember: z.boolean().default(false),
 });
@@ -179,7 +199,8 @@ export const oauthConsentRequestSchema = z.object({
 });
 export type OAuthConsentRequest = z.infer<typeof oauthConsentRequestSchema>;
 
-export const forgotPasswordRequestSchema = z.object({ email: emailSchema });
+/** `email` may also be the username. */
+export const forgotPasswordRequestSchema = z.object({ email: loginNameSchema });
 export type ForgotPasswordRequest = z.input<typeof forgotPasswordRequestSchema>;
 
 export const resetPasswordRequestSchema = z.object({
@@ -201,6 +222,7 @@ export const meResponseSchema = z.object({
   user: z.object({
     id: z.uuid(),
     email: z.string(),
+    username: z.string().nullable(),
     displayName: z.string(),
     locale: z.string(),
     isSuperAdmin: z.boolean(),
@@ -233,6 +255,8 @@ export type MeResponse = z.infer<typeof meResponseSchema>;
 export const inviteUserRequestSchema = z.object({
   email: emailSchema,
   displayName: z.string().trim().min(1).max(120),
+  /** Optional: the person can then also sign in with it. */
+  username: usernameSchema.optional(),
   role: z.string().min(1).max(64),
   /**
    * Set the password directly, as in WordPress's "Add New User"; without
@@ -250,6 +274,7 @@ export type UpdateMemberRequest = z.input<typeof updateMemberRequestSchema>;
 export interface MemberView {
   id: string;
   email: string;
+  username: string | null;
   displayName: string;
   avatarUrl: string | null;
   status: 'active' | 'invited' | 'suspended';
@@ -288,6 +313,8 @@ export interface CapabilityCatalog {
 
 export const updateProfileRequestSchema = z.object({
   displayName: z.string().trim().min(1).max(120).optional(),
+  /** The sign-in name besides the email; '' removes it. */
+  username: z.union([z.literal(''), usernameSchema]).optional(),
   locale: localeSchema.optional(),
   /** Shown in author boxes and on the author page (RF-THM-11). */
   bio: z.string().trim().max(2000).optional(),
@@ -315,6 +342,7 @@ export const updateProfileRequestSchema = z.object({
 
 /** Bio, website and author page address of the signed-in user. */
 export interface ProfileAboutView {
+  username: string;
   bio: string;
   website: string;
   slug: string;

@@ -313,6 +313,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const authors = assigned.map((a) => ({
     ref: `user:${a.login}`,
     email: a.email,
+    // WordPress logins may be emails: those stay out, the email signs in already.
+    ...(a.login && !a.login.includes('@') ? { username: a.login } : {}),
     displayName: a.displayName,
     role: a.role,
     ...(options.userLocale ? { locale: options.userLocale } : {}),

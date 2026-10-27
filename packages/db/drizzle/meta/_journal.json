@@ -260,6 +260,13 @@
       "when": 1793254844234,
       "tag": "0036_plugin_sites_order",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793254904234,
+      "tag": "0037_usernames",
+      "breakpoints": true
     }
   ]
 }

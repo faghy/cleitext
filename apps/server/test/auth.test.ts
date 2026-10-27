@@ -451,6 +451,99 @@ describe('members', () => {
   });
 });
 
+describe('usernames, as in WordPress', () => {
+  it('signs in with the username or the email, and resets the password from the username', async () => {
+    await seedUser(owner, {
+      email: 'ugo@acme.test',
+      password: PASSWORD,
+      site: acme,
+      role: 'author',
+    });
+    const ugo = new TestClient(app, acme.host, '10.0.7.1');
+    await ugo.login('ugo@acme.test', PASSWORD);
+    expect(
+      (await ugo.request('PATCH', '/api/v1/profile', { username: 'Ugo.Rossi' })).statusCode,
+    ).toBe(200);
+    expect((await ugo.get('/api/v1/profile/about')).json().username).toBe('Ugo.Rossi');
+    expect((await ugo.get('/api/v1/auth/me')).json().user.username).toBe('Ugo.Rossi');
+
+    const guest = new TestClient(app, acme.host, '10.0.7.2');
+    // Case-insensitive, as WordPress usernames are.
+    expect((await guest.login('ugo.rossi', PASSWORD)).statusCode).toBe(200);
+    expect(
+      (await new TestClient(app, acme.host, '10.0.7.3').login('ugo@acme.test', PASSWORD))
+        .statusCode,
+    ).toBe(200);
+    const wrong = await new TestClient(app, acme.host, '10.0.7.4').login(
+      'ugo.rossi',
+      'not the password',
+    );
+    expect(wrong.statusCode).toBe(401);
+    expect(wrong.json().detail).toBe('The email, username or password is not correct.');
+
+    // The reset link goes to the account's email.
+    const before = mail.outbox.length;
+    const forgot = await new TestClient(app, acme.host, '10.0.7.5').post(
+      '/api/v1/auth/password/forgot',
+      { email: 'Ugo.Rossi' },
+    );
+    expect(forgot.statusCode).toBe(202);
+    expect(mail.outbox.length).toBe(before + 1);
+    expect(mail.outbox.at(-1)?.to).toBe('ugo@acme.test');
+  });
+
+  it('refuses a username with "@", or one another account has', async () => {
+    await seedUser(owner, {
+      email: 'vera@acme.test',
+      password: PASSWORD,
+      site: acme,
+      role: 'author',
+    });
+    const vera = new TestClient(app, acme.host, '10.0.7.6');
+    await vera.login('vera@acme.test', PASSWORD);
+    expect(
+      (await vera.request('PATCH', '/api/v1/profile', { username: 'vera@x' })).statusCode,
+    ).toBe(400);
+    const taken = await vera.request('PATCH', '/api/v1/profile', { username: 'UGO.ROSSI' });
+    expect(taken.statusCode).toBe(409);
+    expect(taken.json().detail).toBe('That username is taken: choose another one.');
+    // '' removes it: only the email signs in.
+    expect((await vera.request('PATCH', '/api/v1/profile', { username: 'vera' })).statusCode).toBe(
+      200,
+    );
+    expect((await vera.request('PATCH', '/api/v1/profile', { username: '' })).statusCode).toBe(200);
+    expect(
+      (await new TestClient(app, acme.host, '10.0.7.7').login('vera', PASSWORD)).statusCode,
+    ).toBe(401);
+  });
+
+  it('lets administrators give a username when adding someone, and shows it in the list', async () => {
+    const admin = new TestClient(app, acme.host, '10.0.7.8');
+    await admin.login('admin@acme.test', PASSWORD);
+    const added = await admin.post('/api/v1/users/invite', {
+      email: 'zeno@acme.test',
+      displayName: 'Zeno',
+      username: 'zeno',
+      role: 'author',
+      password: 'zeno has a long password',
+      sendEmail: false,
+    });
+    expect(added.statusCode, added.body).toBe(201);
+    expect(added.json().username).toBe('zeno');
+    const again = await admin.post('/api/v1/users/invite', {
+      email: 'zeno2@acme.test',
+      displayName: 'Zeno 2',
+      username: 'ZENO',
+      role: 'author',
+    });
+    expect(again.statusCode).toBe(409);
+    expect(
+      (await new TestClient(app, acme.host, '10.0.7.9').login('zeno', 'zeno has a long password'))
+        .statusCode,
+    ).toBe(200);
+  });
+});
+
 describe('password reset (RF-USR-02)', () => {
   it('resets the password with a single-use link and signs out other sessions', async () => {
     const email = 'forgetful@acme.test';

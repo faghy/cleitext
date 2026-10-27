@@ -27,6 +27,8 @@ export const transferUserSchema = z.object({
   ref,
   email: z.string().max(320),
   displayName: z.string().max(200),
+  /** The sign-in name besides the email (WordPress's user_login); left out when taken. */
+  username: z.string().max(60).optional(),
   /** Role slug on the site, e.g. `editor`. */
   role: z.string().max(64).optional(),
   locale: z.string().max(10).optional(),

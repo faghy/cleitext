@@ -104,11 +104,12 @@ function DetailsCard() {
   const { t } = useT();
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState(me.user.displayName);
+  const [username, setUsername] = useState(me.user.username ?? '');
   const [locale, setLocale] = useState(me.user.locale);
   const [theme, setTheme] = useState<ThemePreference>(themePreference);
 
   const save = useMutation({
-    mutationFn: () => api('PATCH', '/profile', { displayName, locale }),
+    mutationFn: () => api('PATCH', '/profile', { displayName, username, locale }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY }),
   });
 
@@ -126,6 +127,20 @@ function DetailsCard() {
           label={t('Name')}
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
+        />
+        <TextField
+          label={t('Username')}
+          value={username}
+          autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          hint={t(
+            'You can sign in with it instead of the email. Leave it empty to use only the email.',
+          )}
+          onChange={(e) => setUsername(e.target.value)}
+          {...(save.error instanceof ApiError && save.error.fieldError('username')
+            ? { error: save.error.fieldError('username') }
+            : {})}
         />
         <label className="block space-y-1 text-sm">
           <span className="block font-medium text-slate-800">{t('Admin language')}</span>
