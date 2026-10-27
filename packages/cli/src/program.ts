@@ -62,6 +62,7 @@ import {
   renameImportedMedia,
   renameText,
 } from './media-rename.js';
+import { backfillRawTitles, rawTitlesText } from './raw-titles.js';
 import { jsonMode, report, runCommand, say, type RunIo } from './json.js';
 import { collectStatus, formatStatus } from './status.js';
 import {
@@ -752,6 +753,30 @@ export function buildProgram(json = false): Command {
         );
       }),
     );
+
+  // ---- Titles of old WordPress imports (core 0.90) ------------------------------------------
+
+  program
+    .command('entry:raw-titles')
+    .description(
+      'Give the entries of a site imported from WordPress before core 0.88 their titles as written in WordPress for search results and social networks.',
+    )
+    .requiredOption('--site <site>', 'slug or id of the site')
+    .requiredOption('--wxr <file>', 'the WordPress export (.xml) the site was imported from')
+    .option('--dry-run', 'show what would change, and change nothing')
+    .option('--report <file>', 'where the JSON report goes (default: next to the export)')
+    .action((opts: { site: string; wxr: string; dryRun?: boolean; report?: string }) => {
+      refuseRoot();
+      return withOwner(async (db) => {
+        const result = await backfillRawTitles(db, {
+          site: opts.site,
+          wxr: opts.wxr,
+          dryRun: opts.dryRun,
+          report: opts.report,
+        });
+        report({ ...result }, rawTitlesText(result));
+      });
+    });
 
   // ---- Media of old WordPress imports (core 0.86) -------------------------------------------
 

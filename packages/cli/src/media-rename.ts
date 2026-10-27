@@ -331,7 +331,7 @@ interface SiteMedia {
 class DryRun extends Error {}
 
 /** Finds a site by slug or id. */
-async function findSite(db: Database, ref: string): Promise<{ id: string; slug: string }> {
+export async function findSite(db: Database, ref: string): Promise<{ id: string; slug: string }> {
   const value = ref.trim();
   const [site] = await db
     .select({ id: sites.id, slug: sites.slug })

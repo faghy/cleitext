@@ -18,3 +18,11 @@ export {
   type RenameImportedInput,
   type RenameImportedResult,
 } from './media-rename.js';
+export {
+  backfillRawTitles,
+  rawTitlesText,
+  typedTitle,
+  wxrTitles,
+  type RawTitlesInput,
+  type RawTitlesResult,
+} from './raw-titles.js';
