@@ -257,12 +257,24 @@ export function tokenFromMail(outbox: { to: string; text: string }[], to: string
 /**
  * Lifts Multilingual's limits for the tests that use several languages or
  * sites, as Multilingual Pro does (see multilingual.test.ts for the limits).
- * Call it after the app started, once the plugin is loaded.
+ * Plugins load again whenever another test file installs one, and Multilingual
+ * then sets up its list anew: the answer is added to every new list too.
  */
-export function unlockMultilingual(): void {
-  const api = (
-    globalThis as unknown as Record<symbol, { unlocked: (() => boolean)[] } | undefined>
-  )[Symbol.for('cleitext.multilingual')];
-  if (!api) throw new Error('Multilingual is not loaded.');
-  api.unlocked.push(() => true);
+export function unlockMultilingual(unlocked: () => boolean = () => true): void {
+  type Api = { unlocked: (() => boolean)[] };
+  const key = Symbol.for('cleitext.multilingual');
+  const store = globalThis as unknown as Record<symbol, Api | undefined>;
+  let current = store[key];
+  const add = (api: Api | undefined) => {
+    if (api && !api.unlocked.includes(unlocked)) api.unlocked.push(unlocked);
+  };
+  Object.defineProperty(store, key, {
+    configurable: true,
+    get: () => current,
+    set(api: Api | undefined) {
+      current = api;
+      add(api);
+    },
+  });
+  add(current);
 }

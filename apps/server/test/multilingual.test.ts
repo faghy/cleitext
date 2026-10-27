@@ -32,6 +32,7 @@ import {
   seedUser,
   startTestApp,
   TestClient,
+  unlockMultilingual,
   type SeededSite,
 } from './helpers.js';
 
@@ -89,10 +90,7 @@ beforeAll(async () => {
     appRole: new URL(inject('appUrl')).username,
   });
   app = await startTestApp({ pluginsPath });
-  const pro = (globalThis as unknown as Record<symbol, { unlocked: (() => boolean)[] }>)[
-    Symbol.for('cleitext.multilingual')
-  ];
-  pro!.unlocked.push(() => unlocked);
+  unlockMultilingual(() => unlocked);
 
   ({ site, admin } = await newSite('multi', '10.50.0.1'));
   await seedUser(owner, { email: 'editor@multi.test', password: PASSWORD, site, role: 'editor' });
