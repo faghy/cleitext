@@ -24,6 +24,6 @@
     "vitest": "^5.0.3"
   },
   "dependencies": {
-    "tinymce": "8.10.0"
+    "tinymce": "7.9.3"
   }
 }
