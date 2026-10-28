@@ -3,7 +3,7 @@
  * used here are imported statically, and the skin's styles are registered
  * as resources, so nothing is loaded from other addresses (admin CSP).
  */
-/*! @license TinyMCE 7.9.3 | GPL-2.0-or-later | Copyright (c) 2024 Ephox Corporation DBA Tiny Technologies, Inc.
+/*! @license TinyMCE 8.10.0 | GPL-2.0-or-later | Copyright (c) 2025 Ephox Corporation DBA Tiny Technologies, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free

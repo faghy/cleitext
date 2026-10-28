@@ -880,8 +880,8 @@ importers:
   plugins/classic-editor:
     dependencies:
       tinymce:
-        specifier: 7.9.3
-        version: 7.9.3
+        specifier: 8.10.0
+        version: 8.10.0
     devDependencies:
       '@cleitext/admin-sdk':
         specifier: workspace:*
@@ -6703,8 +6703,8 @@ packages:
     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
     engines: {node: '>=12.0.0'}
 
-  tinymce@7.9.3:
-    resolution: {integrity: sha512-Mtm54U5YJ6Pyo/GaAx+JSHXTGEuxrg2AowVWCD9zy1eBolp5Ub7S1rTtsyQdxhPegfhLuR3VLiTKGw1tacv09g==}
+  tinymce@8.10.0:
+    resolution: {integrity: sha512-/e+/B+VdbzO02hLzfr3EaoYKYdr3phC/yitG7I9vpi2NqYvtb04UxO/Ay4y9VPqDaQHyigdFnHv2zuTgF7mnZQ==}
 
   tinyrainbow@3.2.0:
     resolution: {integrity: sha512-LgO3D9yZJjApUiuUfl9iFAwrtaX4+lok3wJIqttGoKCHlWUqHqbQpnxCf82L8FjgKsh4iGo78hqJwgL8F6To2A==}
@@ -12063,7 +12063,7 @@ snapshots:
       fdir: 6.5.0(picomatch@4.0.7)
       picomatch: 4.0.7
 
-  tinymce@7.9.3: {}
+  tinymce@8.10.0: {}
 
   tinyrainbow@3.2.0: {}
 
