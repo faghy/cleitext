@@ -19,3 +19,11 @@ allowBuilds:
 # A single Fastify version for NestJS and the @fastify plugins.
 overrides:
   fastify: ^5.12.5
+
+# Audit: advisories that cannot reach Cleitext, each with its reason.
+auditConfig:
+  ignoreGhsas:
+    # TinyMCE media plugin (data-mce-object): Classic Editor bundles only lists, link,
+    # charmap, fullscreen and help (plugins/classic-editor/src/tinymce.ts). The fixed
+    # 7.9.4 is not on npm, and TinyMCE 8 is not under GPL alone, so 7.9.3 stays.
+    - GHSA-mf2p-h6hf-fcwm
