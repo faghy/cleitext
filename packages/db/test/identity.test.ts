@@ -105,6 +105,7 @@ describe('login lookup', () => {
       passwordHash: 'hash-m',
       status: 'active',
       isSuperAdmin: false,
+      email: 'member@id.test',
     });
     expect((await findLogin(app.db, 'root@id.test'))?.isSuperAdmin).toBe(true);
     expect(await findLogin(app.db, 'nobody@id.test')).toBeNull();

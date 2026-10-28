@@ -22,6 +22,7 @@
       {
         "ref": "user:marta",
         "email": "marta@old.example.com",
+        "username": "marta",
         "displayName": "Marta Rossi",
         "role": "author"
       }
