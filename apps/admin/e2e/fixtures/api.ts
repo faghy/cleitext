@@ -14,7 +14,7 @@ export const SITE =
 
 export async function signIn(page: Page): Promise<void> {
   await page.goto('/cl-admin/login');
-  await page.locator('input[type="email"]').fill(ADMIN.email);
+  await page.locator('input[autocomplete="username"]').fill(ADMIN.email);
   await page.locator('input[type="password"]').fill(ADMIN.password);
   await page.locator('button[type="submit"]').first().click();
   await page.waitForURL('**/cl-admin/');

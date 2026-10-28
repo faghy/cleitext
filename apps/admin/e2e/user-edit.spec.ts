@@ -26,7 +26,7 @@ test('an administrator edits a member and sets a new password', async ({ page, c
 
   await page.getByRole('link', { name: `Member ${stamp}` }).click();
   await expect(page.getByRole('heading', { name: `Edit Member ${stamp}` })).toBeVisible();
-  await page.getByLabel('Name').fill(`Renamed ${stamp}`);
+  await page.getByLabel('Name', { exact: true }).fill(`Renamed ${stamp}`);
   await page.getByLabel('Biographical info').fill('Writes about the sea.');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Saved.')).toBeVisible();
