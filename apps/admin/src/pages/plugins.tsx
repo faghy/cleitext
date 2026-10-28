@@ -40,10 +40,11 @@ const PERMISSION_LABELS: Record<string, string> = {
   network: 'Send requests to other services',
   'forms:protect': 'Protect forms against bots (can refuse submissions)',
   'users:read': "Read the site's users (names, roles, confirmed email addresses)",
+  'mail:transport': "Deliver the site's emails (sees every email, password resets included)",
 };
 
 /** Permissions over people's data: activating a plugin that asks for them needs consent. */
-const CONSENT_PERMISSIONS = ['users:read'];
+const CONSENT_PERMISSIONS = ['users:read', 'mail:transport'];
 
 /** Plugins → Installed Plugins (RF-PLG-02). Installation is done with the CLI. */
 export function PluginsPage() {
@@ -80,7 +81,7 @@ export function PluginsPage() {
       );
     },
   });
-  /** Asks before activating a plugin that reads people's data (`users:read`). */
+  /** Asks before activating a plugin that reads people's data (`users:read`, `mail:transport`). */
   const consent = (plugin: PluginView): boolean => {
     const sensitive = plugin.permissions.filter((p) => CONSENT_PERMISSIONS.includes(p));
     if (sensitive.length === 0) return true;

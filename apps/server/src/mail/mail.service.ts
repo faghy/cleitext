@@ -1,4 +1,5 @@
 import { settings, siteDomains, sites, withContext, type DatabaseClient } from '@cleitext/db';
+import type { MailDeliverResult, MailDeliverSmtp, OutgoingMail } from '@cleitext/plugin-sdk';
 import type { MailSettingsView } from '@cleitext/shared';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
@@ -36,9 +37,21 @@ export interface MailAttachment {
 /** Messages kept by the `memory://` driver, with the sender actually used. */
 export interface SentMail extends Omit<MailMessage, 'fromOverride'> {
   from: string;
-  /** `site`: sent with the site's own SMTP settings. */
-  via: 'site' | 'server';
+  /**
+   * `site`: sent with the site's own SMTP settings; `plugin`: delivered by a
+   * transport plugin; `plugin-smtp`: through the SMTP server a plugin gave.
+   */
+  via: 'site' | 'server' | 'plugin' | 'plugin-smtp';
 }
+
+/**
+ * Hands a site's email to the transport plugins (`mail.deliver`, plugin API
+ * 1.60); null when none took it.
+ */
+export type MailDeliverer = (
+  message: OutgoingMail,
+  siteId: string,
+) => Promise<MailDeliverResult | null>;
 
 export const MAIL_NAMESPACE = 'mail';
 
@@ -69,6 +82,7 @@ export class MailService {
   private readonly senders = new Map<string, { from: string; expiresAt: number }>();
   /** Messages sent with the `memory://` driver. */
   readonly outbox: SentMail[] = [];
+  private deliverer: MailDeliverer | null = null;
 
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
@@ -88,35 +102,26 @@ export class MailService {
           : createTransport(config.mail.url);
   }
 
-  /** Sends a message; with `siteId`, through the site's SMTP server when it has one. */
+  /** A transport plugin's way in (plugin API 1.60), set by the plugin services. */
+  useDeliverer(deliverer: MailDeliverer): void {
+    this.deliverer = deliverer;
+  }
+
+  /**
+   * Sends a message; with `siteId`, through a transport plugin when one is
+   * active, else the site's SMTP server when it has one.
+   */
   async send(message: MailMessage, siteId?: string): Promise<void> {
     const site = siteId ? await this.siteTransport(siteId) : null;
     const { fromOverride, ...rest } = message;
     const from = senderOf(site?.from ?? (await this.serverSender(siteId)), fromOverride);
+    const chosen = Boolean(fromOverride?.address || fromOverride?.name);
+    if (siteId && (await this.viaPlugin(rest, from, chosen, siteId))) return;
     if (this.driver === 'memory') {
       this.outbox.push({ ...rest, from, via: site ? 'site' : 'server' });
       return;
     }
-    // Only these fields reach the mailer: never options of its own.
-    const mail = {
-      from,
-      to: rest.to,
-      subject: rest.subject,
-      text: rest.text,
-      ...(rest.html !== undefined ? { html: rest.html } : {}),
-      ...(rest.replyTo ? { replyTo: rest.replyTo } : {}),
-      ...(rest.cc?.length ? { cc: rest.cc } : {}),
-      ...(rest.bcc?.length ? { bcc: rest.bcc } : {}),
-      ...(rest.attachments?.length
-        ? {
-            attachments: rest.attachments.map((a) => ({
-              filename: a.filename,
-              content: a.content,
-              contentType: a.contentType,
-            })),
-          }
-        : {}),
-    };
+    const mail = mailFields(from, rest);
     if (site?.transport) {
       await site.transport.sendMail(mail);
       return;
@@ -130,6 +135,84 @@ export class MailService {
       return;
     }
     await this.transport!.sendMail(mail);
+  }
+
+  /**
+   * A transport plugin's turn (`mail.deliver`): true when it delivered the
+   * email or its SMTP server took it. Anything else (no plugin, an error, a
+   * server that refuses) leaves the email to the usual way, so a broken
+   * plugin never stops the site's emails.
+   */
+  private async viaPlugin(
+    rest: Omit<MailMessage, 'fromOverride'>,
+    from: string,
+    chosen: boolean,
+    siteId: string,
+  ): Promise<boolean> {
+    if (!this.deliverer) return false;
+    let result: MailDeliverResult | null;
+    try {
+      result = await this.deliverer(
+        {
+          from,
+          fromChosen: chosen,
+          to: addressList(rest.to),
+          cc: rest.cc ?? [],
+          bcc: rest.bcc ?? [],
+          subject: rest.subject,
+          text: rest.text,
+          ...(rest.html !== undefined ? { html: rest.html } : {}),
+          ...(rest.replyTo ? { replyTo: rest.replyTo } : {}),
+          attachments: (rest.attachments ?? []).map((a) => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: a.contentType,
+          })),
+        },
+        siteId,
+      );
+    } catch (error) {
+      this.logger.warn(`Mail plugin failed, sending the usual way: ${String(error)}`);
+      return false;
+    }
+    if (!result || typeof result !== 'object') return false;
+    const sender =
+      !chosen && typeof result.from === 'string' && result.from.trim()
+        ? senderOf(from, pluginSender(result.from))
+        : from;
+    if ('delivered' in result && result.delivered === true) {
+      if (this.driver === 'memory') this.outbox.push({ ...rest, from: sender, via: 'plugin' });
+      return true;
+    }
+    if (!('smtp' in result)) return false;
+    const smtp = checkSmtp(result.smtp);
+    if (!smtp) {
+      this.logger.warn(
+        'Mail plugin gave an SMTP server that is not allowed: sending the usual way',
+      );
+      return false;
+    }
+    if (this.driver === 'memory') {
+      this.outbox.push({ ...rest, from: sender, via: 'plugin-smtp' });
+      return true;
+    }
+    try {
+      await createTransport({
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.security === 'tls',
+        requireTLS: smtp.security === 'starttls',
+        ignoreTLS: smtp.security === 'none',
+        ...(smtp.user ? { auth: { user: smtp.user, pass: smtp.password ?? '' } } : {}),
+        connectionTimeout: 15_000,
+      }).sendMail(mailFields(sender, rest));
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `SMTP server of the mail plugin (${smtp.host}) failed, sending the usual way: ${String(error)}`,
+      );
+      return false;
+    }
   }
 
   /** Forgets cached site settings (after a change). */
@@ -227,6 +310,74 @@ export class MailService {
     this.sites.set(siteId, result);
     return result;
   }
+}
+
+/** Only these fields reach the mailer: never options of its own. */
+function mailFields(from: string, rest: Omit<MailMessage, 'fromOverride'>) {
+  return {
+    from,
+    to: rest.to,
+    subject: rest.subject,
+    text: rest.text,
+    ...(rest.html !== undefined ? { html: rest.html } : {}),
+    ...(rest.replyTo ? { replyTo: rest.replyTo } : {}),
+    ...(rest.cc?.length ? { cc: rest.cc } : {}),
+    ...(rest.bcc?.length ? { bcc: rest.bcc } : {}),
+    ...(rest.attachments?.length
+      ? {
+          attachments: rest.attachments.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: a.contentType,
+          })),
+        }
+      : {}),
+  };
+}
+
+/** `a@x.it, b@y.it` → the addresses. */
+function addressList(value: string): string[] {
+  return value
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+/** A plugin's sender, `Name <address>` or an address, on one line. */
+function pluginSender(value: string): { address?: string; name?: string } {
+  // eslint-disable-next-line no-control-regex
+  const line = value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
+  const match = /^"?([^"<]*?)"?\s*<([^<>\s]+@[^<>\s]+)>$/.exec(line);
+  if (match) return { name: match[1]!.trim() || undefined, address: match[2]! };
+  return /^[^\s<>"]+@[^\s<>"]+\.[^\s<>"]+$/.test(line) ? { address: line } : {};
+}
+
+/**
+ * The SMTP server a plugin gave, if allowed: a public-looking host name (no
+ * addresses, `localhost` or names without a dot, so a plugin cannot reach
+ * the server's own network) and a valid port.
+ */
+export function checkSmtp(value: unknown): MailDeliverSmtp | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  const host = typeof v.host === 'string' ? v.host.trim().toLowerCase() : '';
+  if (
+    host.length > 253 ||
+    !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ||
+    /\.\d+$/.test(host) ||
+    /(^|\.)localhost$/.test(host)
+  )
+    return null;
+  const port = v.port;
+  if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) return null;
+  const security = v.security === 'tls' || v.security === 'none' ? v.security : 'starttls';
+  return {
+    host,
+    port,
+    security,
+    ...(typeof v.user === 'string' && v.user ? { user: v.user } : {}),
+    ...(typeof v.password === 'string' ? { password: v.password } : {}),
+  };
 }
 
 /**

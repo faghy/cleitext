@@ -2,7 +2,7 @@
 
 > 🇬🇧 Versione di riferimento in inglese: [docs/PLUGINS.md](../PLUGINS.md). Questa traduzione è secondaria e può essere meno aggiornata.
 
-> API dei plugin **1.59**
+> API dei plugin **1.60**
 
 Un plugin estende Cleitext come un plugin di WordPress estende WordPress. Può aggiungere tipi di contenuto con campi personalizzati, blocchi, pagine all'amministrazione, impostazioni, endpoint, indirizzi sul sito pubblico e tabelle proprie nel database, e può reagire a ciò che accade tramite gli hook.
 
@@ -208,6 +208,7 @@ ctx.hooks.filter(
 | `form.challenge`           | markup inserito in un modulo prima del pulsante di invio, ad esempio il widget di un captcha; aggiungilo al valore (richiede `forms:protect`, API 1.38)                                                                                                | `FormChallengeContext`                                                                 |
 | `form.verify`              | `{ ok, message? }` per un invio di un modulo protetto, oppure `null` per lasciarlo passare (richiede `forms:protect`, API 1.38)                                                                                                                        | `FormVerifyContext`                                                                    |
 | `form.sources`             | origini che servono alla verifica dell'accesso all'admin, `{ script, frame }` (solo `https://`), aggiunte alla Content Security Policy dell'admin (richiede `forms:protect`, API 1.38)                                                                 | `{ siteId }`                                                                           |
+| `mail.deliver`             | `{ delivered: true }` dopo che il plugin ha spedito l'email, `{ smtp }` perché il core la spedisca con quel server, oppure `null` per lasciarla (richiede `mail:transport`, API 1.60)                                                                  | `MailDeliverContext`                                                                   |
 | `theme.templateCandidates` | nomi dei template provati in ordine                                                                                                                                                                                                                    | `RenderHookContext`                                                                    |
 | `entry.states`             | etichette accanto ai titoli delle voci nell'admin (`{ key, label }` per id); nessun permesso                                                                                                                                                           | `{ siteId, ids }`                                                                      |
 | `entry.validate`           | problemi di una voce che sta per essere salvata, `{ path, message }[]`: aggiungi i tuoi per rifiutare il salvataggio (nessun permesso, API 1.47; [controlli prima del salvataggio](#controlli-prima-del-salvataggio))                                  | `EntryValidateContext`                                                                 |
@@ -883,6 +884,14 @@ await ctx.mail.send({
 - Limiti: 50 destinatari fra To, Cc e Bcc; 10 allegati, 20 MB in tutto; 2.000.000 di caratteri per `text` e per `html`.
 - Sui core più vecchi questi campi non sono ufficiali: controlla `ctx.apiVersion` (manca prima della 1.41) oppure richiedi `"apiVersion": "^1.41"` nel manifest.
 
+**Consegnare le email del sito** (API dei plugin 1.60, permesso `mail:transport`). Un plugin può prendere in carico la consegna di tutte le email di un sito, per esempio per spedirle con un servizio come turboSMTP. Il suo filtro `mail.deliver` riceve `{ siteId, message }`, l'email come l'ha controllata il core (`from`, `fromChosen`, `to`, `cc`, `bcc` come elenchi di indirizzi, `subject`, `text`, `html?`, `replyTo?`, `attachments` con i loro byte), e restituisce:
+
+- `{ delivered: true }` dopo averla spedita da sé, per esempio con l'API del servizio;
+- `{ smtp: { host, port, security, user?, password? } }` perché il core la spedisca con quel server (`security`: `tls`, `starttls` o `none`); indirizzi IP, `localhost` e nomi senza punto sono rifiutati;
+- `null`, il valore di partenza, per lasciarla alle impostazioni SMTP del sito o a quelle del server.
+
+Entrambi i risultati accettano `from` (`Nome <indirizzo>`), il mittente da usare, rispettato solo se `fromChosen` è falso: un mittente scelto da un altro plugin resta. Conserva il risultato dato da un altro plugin. Se l'invio non riesce, lancia un errore: il core spedisce l'email nel modo solito e lo registra, così un plugin guasto non ferma mai le email del sito. Il filtro ha il limite di tempo dei lavori in background e riguarda solo le email di un sito, mai quelle del server. Il permesso vede ogni email, compresi i link per reimpostare la password, quindi attivare un plugin del genere chiede il consenso dell'amministratore.
+
 ### Commenti di un plugin
 
 `comments` (API dei plugin 1.19): `ctx.comments.post(request, { entryId, type, content, meta?, authorName?, authorEmail? })` pubblica un commento di un tipo del plugin (una recensione, una domanda) per il visitatore di una richiesta pubblica, connesso o ospite, con la moderazione, i controlli antispam, i limiti e le notifiche del core; `meta` contiene i dati del plugin, come un voto. La voce deve essere pubblicata; se li accetta lo decide il plugin. Gli errori hanno un messaggio per il visitatore e uno `status`. `ctx.comments.find(siteId, { entryId?, type?, status?, userId?, authorEmail?, limit?, offset? })` li legge (per default quelli approvati). Si moderano in Commenti come gli altri, non compaiono mai nelle discussioni delle voci e le azioni `comment.created` e `comment.status` ne portano il `meta`.
@@ -1409,24 +1418,25 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 
 ## 12. Permessi
 
-| Permesso        | Consente                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------- |
-| `content:read`  | `ctx.content.find` / `get`, `ctx.terms.find`                                                      |
-| `content:write` | `ctx.content.registerType` / `registerTaxonomy` / `registerFieldGroup` / `copy`, `ctx.terms.copy` |
-| `blocks`        | `ctx.blocks.register`                                                                             |
-| `routes:admin`  | `ctx.routes.api`                                                                                  |
-| `routes:public` | `ctx.routes.public`                                                                               |
-| `settings:own`  | `ctx.settings.define` / `get`, `ctx.storage`                                                      |
-| `languages`     | `ctx.languages` ([plugin delle lingue](#15-lingue-plugin-delle-lingue))                           |
-| `theme:hooks`   | filtri `render.*` e `theme.*`, `ctx.assets.enqueue`, `ctx.themes.extend` (API 1.32)               |
-| `mail:send`     | `ctx.mail.send`                                                                                   |
-| `network`       | `ctx.http.send`                                                                                   |
-| `forms:protect` | filtri `form.challenge` e `form.verify` (API 1.38)                                                |
-| `users:read`    | `ctx.users.find` / `get` (API 1.42); attivare il plugin chiede il consenso dell'amministratore    |
-| `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
-| `media:read`    | `ctx.media.get`                                                                                   |
-| `media:write`   | `ctx.media.fromUrl` (API 1.30)                                                                    |
-| `import`        | `ctx.transfer.importDocument`                                                                     |
+| Permesso         | Consente                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `content:read`   | `ctx.content.find` / `get`, `ctx.terms.find`                                                      |
+| `content:write`  | `ctx.content.registerType` / `registerTaxonomy` / `registerFieldGroup` / `copy`, `ctx.terms.copy` |
+| `blocks`         | `ctx.blocks.register`                                                                             |
+| `routes:admin`   | `ctx.routes.api`                                                                                  |
+| `routes:public`  | `ctx.routes.public`                                                                               |
+| `settings:own`   | `ctx.settings.define` / `get`, `ctx.storage`                                                      |
+| `languages`      | `ctx.languages` ([plugin delle lingue](#15-lingue-plugin-delle-lingue))                           |
+| `theme:hooks`    | filtri `render.*` e `theme.*`, `ctx.assets.enqueue`, `ctx.themes.extend` (API 1.32)               |
+| `mail:send`      | `ctx.mail.send`                                                                                   |
+| `network`        | `ctx.http.send`                                                                                   |
+| `forms:protect`  | filtri `form.challenge` e `form.verify` (API 1.38)                                                |
+| `mail:transport` | filtro `mail.deliver` (API 1.60); attivare il plugin chiede il consenso dell'amministratore       |
+| `users:read`     | `ctx.users.find` / `get` (API 1.42); attivare il plugin chiede il consenso dell'amministratore    |
+| `privacy`        | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
+| `media:read`     | `ctx.media.get`                                                                                   |
+| `media:write`    | `ctx.media.fromUrl` (API 1.30)                                                                    |
+| `import`         | `ctx.transfer.importDocument`                                                                     |
 
 Gli amministratori vedono i permessi richiesti in **Plugins → Details**. Le tue tabelle (`ctx.db`), gli hook sulle azioni, il logging, le capability e l'invalidazione della cache non richiedono permessi.
 

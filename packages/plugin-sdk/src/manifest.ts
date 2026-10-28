@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.59.0';
+export const SDK_VERSION = '1.60.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -36,6 +36,12 @@ export const PLUGIN_PERMISSIONS = [
    * confirmed email addresses, e.g. to mention people and email them.
    */
   'users:read',
+  /**
+   * Deliver the site's emails (plugin API 1.60): the `mail.deliver` filter,
+   * which sees every email of the site, password-reset links included, e.g.
+   * to send them through an email service.
+   */
+  'mail:transport',
 ] as const;
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 

@@ -58,6 +58,8 @@ import {
   type FormVerifyResult,
   type FormReleasedEvent,
   type LanguageProvider,
+  type MailDeliverResult,
+  type OutgoingMail,
   type PersonalDataEraser,
   type PersonalDataExporter,
   type PersonalDataGroup,
@@ -1082,6 +1084,18 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       return { ok: false, ...(message ? { message } : {}) };
     }
     return { ok: true };
+  }
+
+  /**
+   * A site's email for the transport plugins (`mail.deliver`, plugin API
+   * 1.60), with the time limit of background jobs: an email service's API
+   * may take longer than a page's hooks. Null when none took it.
+   */
+  async mailDeliver(message: OutgoingMail, siteId: string): Promise<MailDeliverResult | null> {
+    const result = await this.applyFilter('mail.deliver', null, { siteId, message }, siteId, {
+      timeout: 'job',
+    });
+    return result && typeof result === 'object' ? result : null;
   }
 
   /**

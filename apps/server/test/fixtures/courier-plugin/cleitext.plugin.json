@@ -1,0 +1,10 @@
+{
+  "slug": "courier",
+  "name": "Courier (test fixture)",
+  "version": "1.0.0",
+  "apiVersion": "^1.60",
+  "description": "Delivers the site's emails in fake ways, used by the server tests of mail.deliver.",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "permissions": ["mail:transport"]
+}

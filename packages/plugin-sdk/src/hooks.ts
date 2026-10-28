@@ -381,6 +381,51 @@ export interface FormSources {
   frame: string[];
 }
 
+/**
+ * An email on its way out (`mail.deliver`, plugin API 1.60), as the core
+ * checked it: plain addresses, one-line subject.
+ */
+export interface OutgoingMail {
+  /** The From header the core would use, `"Name" <address>` or an address. */
+  from: string;
+  /** True when the sender was chosen for this message (a plugin's `from`), not the site's. */
+  fromChosen: boolean;
+  to: string[];
+  cc: string[];
+  /** Hidden copies: never put them in a header. */
+  bcc: string[];
+  subject: string;
+  text: string;
+  html?: string;
+  replyTo?: string;
+  attachments: { filename: string; content: Uint8Array; contentType: string }[];
+}
+
+export interface MailDeliverContext {
+  siteId: string;
+  message: OutgoingMail;
+}
+
+/** The SMTP server a plugin hands the core for one message (`mail.deliver`). */
+export interface MailDeliverSmtp {
+  /** A host name: addresses, `localhost` and names without a dot are refused. */
+  host: string;
+  port: number;
+  /** `tls`: encrypted from the start (465); `starttls`: upgraded (587); `none`. */
+  security: 'tls' | 'starttls' | 'none';
+  user?: string;
+  password?: string;
+}
+
+/**
+ * What a transport plugin did with an email (`mail.deliver`):
+ * - `{ delivered: true }`: the plugin sent it itself, e.g. through its service's API;
+ * - `{ smtp }`: the core sends it through that SMTP server;
+ * - `from` (both): the sender to use instead, honored only when `fromChosen` is false.
+ */
+export type MailDeliverResult =
+  { delivered: true; from?: string } | { smtp: MailDeliverSmtp; from?: string };
+
 /** What a protection plugin says of a submission (`form.verify`). */
 export interface FormVerifyResult {
   ok: boolean;
@@ -474,6 +519,17 @@ export interface Filters {
    * protected. Only `https://` origins, with an optional path, are kept.
    */
   'form.sources': [sources: FormSources, context: { siteId: string }];
+  /**
+   * Delivers the site's emails (plugin API 1.60, needs `mail:transport`):
+   * every email of the site goes through it, password resets included.
+   * Return `{ delivered: true }` once sent, or `{ smtp }` to have the core
+   * send it through that server; `null` (the starting value) leaves the email
+   * to the site's own SMTP settings or the server's. Keep a result given by
+   * another plugin. Throw when sending fails: the core then sends the email
+   * the usual way and logs a warning, so the site never stops sending.
+   * Runs with the time limit of background jobs.
+   */
+  'mail.deliver': [result: MailDeliverResult | null, context: MailDeliverContext];
   /** Title, meta tags and extra `<head>` tags of a public page (needs `theme:hooks`). */
   'render.head': [head: HeadData, context: RenderHookContext];
   /** Blocks of an entry before rendering, e.g. to add a details box (needs `theme:hooks`). */

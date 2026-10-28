@@ -290,6 +290,8 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           require('theme:hooks');
         if (name.startsWith('site.')) require('languages');
         if (name.startsWith('form.')) require('forms:protect');
+        // Every email of the site (plugin API 1.60).
+        if (name.startsWith('mail.')) require('mail:transport');
         // The meta of WordPress exports (plugin API 1.48).
         if (name === 'import.wxrMeta') require('import');
         host.addHook(plugin, 'filter', name, handler as never, options?.priority);

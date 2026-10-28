@@ -131,6 +131,8 @@ export class PluginServicesProvider implements PluginServices {
     private readonly optionsService: OptionsPagesService,
   ) {
     host.bind(this);
+    // The site's emails reach the transport plugins (plugin API 1.60).
+    mail.useDeliverer((message, siteId) => host.mailDeliver(message, siteId));
   }
 
   // ---- Options pages (plugin API 1.48) --------------------------------------------------

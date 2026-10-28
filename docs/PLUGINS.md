@@ -1,6 +1,6 @@
 # Developing Cleitext plugins
 
-> Plugin API **1.59** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
+> Plugin API **1.60** · 🇮🇹 [Leggi in italiano](./it/PLUGIN.md)
 
 A plugin extends Cleitext the way a WordPress plugin extends WordPress. It can add content types with custom fields, blocks, pages to the admin, settings, endpoints, addresses on the public site and its own database tables, and it can react to what happens through hooks.
 
@@ -206,6 +206,7 @@ ctx.hooks.filter(
 | `form.challenge`           | markup placed in a form before its submit button, e.g. a captcha widget; add to the value (needs `forms:protect`, API 1.38)                                                                                               | `FormChallengeContext`                                                                   |
 | `form.verify`              | `{ ok, message? }` for a submission of a protected form, or `null` to let it through (needs `forms:protect`, API 1.38)                                                                                                    | `FormVerifyContext`                                                                      |
 | `form.sources`             | origins the admin's sign-in challenge needs, `{ script, frame }` (`https://` only), added to the admin's Content Security Policy (needs `forms:protect`, API 1.38)                                                        | `{ siteId }`                                                                             |
+| `mail.deliver`             | `{ delivered: true }` once the plugin sent the email, `{ smtp }` for the core to send it through that server, or `null` to leave it (needs `mail:transport`, API 1.60)                                                    | `MailDeliverContext`                                                                     |
 | `theme.templateCandidates` | template names tried in order                                                                                                                                                                                             | `RenderHookContext`                                                                      |
 | `entry.states`             | tags next to entry titles in the admin (`{ key, label }` by entry id); no permission                                                                                                                                      | `{ siteId, ids }`                                                                        |
 | `entry.validate`           | problems with an entry about to be saved, `{ path, message }[]`: add yours to refuse the save (no permission, API 1.47; [checks before saving](#checks-before-saving))                                                    | `EntryValidateContext`                                                                   |
@@ -954,6 +955,14 @@ await ctx.mail.send({
 - Limits: 50 recipients in To, Cc and Bcc together; 10 attachments, 20 MB together; 2,000,000 characters for `text` and for `html`.
 - On older cores these fields are not official: check `ctx.apiVersion` (missing before 1.41) or require `"apiVersion": "^1.41"` in the manifest.
 
+**Delivering the site's emails** (plugin API 1.60, permission `mail:transport`). A plugin can take over the delivery of every email of a site, e.g. to send them through an email service such as turboSMTP. Its `mail.deliver` filter gets `{ siteId, message }`, the email as the core checked it (`from`, `fromChosen`, `to`, `cc`, `bcc` as lists of addresses, `subject`, `text`, `html?`, `replyTo?`, `attachments` with their bytes), and returns:
+
+- `{ delivered: true }` once it sent the email itself, e.g. through its service's API;
+- `{ smtp: { host, port, security, user?, password? } }` for the core to send it through that server (`security`: `tls`, `starttls` or `none`); addresses, `localhost` and names without a dot are refused;
+- `null`, the starting value, to leave it to the site's own SMTP settings or the server's.
+
+Both results take `from` (`Name <address>`), the sender to use, honored only when `fromChosen` is false, so a sender chosen by another plugin stays. Keep a result another plugin gave. When sending fails, throw: the core sends the email the usual way and logs it, so a broken plugin never stops a site's emails. The filter runs with the time limit of background jobs, and only for a site's emails, never for the server's own. The permission sees every email, password-reset links included, so activating such a plugin asks the administrator's consent.
+
 ### Comments of a plugin
 
 `comments` (plugin API 1.19): `ctx.comments.post(request, { entryId, type, content, meta?, authorName?, authorEmail? })` posts a comment of the plugin's own type (a review, a question) for the visitor of a public request, signed in or a guest, with the core's moderation, spam checks, limits and notifications; `meta` holds the plugin's data, such as a rating. The entry must be published; whether it takes them is the plugin's call. Errors carry a message for the visitor and a `status`. `ctx.comments.find(siteId, { entryId?, type?, status?, userId?, authorEmail?, limit?, offset? })` reads them (approved ones by default). They are moderated in Comments like the others, never shown in the entries' comment threads, and the `comment.created` and `comment.status` actions carry their `meta`.
@@ -1487,24 +1496,25 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 
 ## 12. Permissions
 
-| Permission      | Allows                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------- |
-| `content:read`  | `ctx.content.find` / `get`, `ctx.terms.find`                                                      |
-| `content:write` | `ctx.content.registerType` / `registerTaxonomy` / `registerFieldGroup` / `copy`, `ctx.terms.copy` |
-| `blocks`        | `ctx.blocks.register`                                                                             |
-| `routes:admin`  | `ctx.routes.api`                                                                                  |
-| `routes:public` | `ctx.routes.public`                                                                               |
-| `settings:own`  | `ctx.settings.define` / `get`, `ctx.storage`                                                      |
-| `languages`     | `ctx.languages` ([language plugins](#15-languages-language-plugins))                              |
-| `theme:hooks`   | filters `render.*` and `theme.*`, `ctx.assets.enqueue`, `ctx.themes.extend` (API 1.32)            |
-| `mail:send`     | `ctx.mail.send`                                                                                   |
-| `network`       | `ctx.http.send`                                                                                   |
-| `forms:protect` | filters `form.challenge` and `form.verify` (API 1.38)                                             |
-| `users:read`    | `ctx.users.find` / `get` (API 1.42); activating the plugin asks the administrator's consent       |
-| `privacy`       | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
-| `media:read`    | `ctx.media.get`                                                                                   |
-| `media:write`   | `ctx.media.fromUrl` (API 1.30)                                                                    |
-| `import`        | `ctx.transfer.importDocument`                                                                     |
+| Permission       | Allows                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `content:read`   | `ctx.content.find` / `get`, `ctx.terms.find`                                                      |
+| `content:write`  | `ctx.content.registerType` / `registerTaxonomy` / `registerFieldGroup` / `copy`, `ctx.terms.copy` |
+| `blocks`         | `ctx.blocks.register`                                                                             |
+| `routes:admin`   | `ctx.routes.api`                                                                                  |
+| `routes:public`  | `ctx.routes.public`                                                                               |
+| `settings:own`   | `ctx.settings.define` / `get`, `ctx.storage`                                                      |
+| `languages`      | `ctx.languages` ([language plugins](#15-languages-language-plugins))                              |
+| `theme:hooks`    | filters `render.*` and `theme.*`, `ctx.assets.enqueue`, `ctx.themes.extend` (API 1.32)            |
+| `mail:send`      | `ctx.mail.send`                                                                                   |
+| `network`        | `ctx.http.send`                                                                                   |
+| `forms:protect`  | filters `form.challenge` and `form.verify` (API 1.38)                                             |
+| `mail:transport` | filter `mail.deliver` (API 1.60); activating the plugin asks the administrator's consent          |
+| `users:read`     | `ctx.users.find` / `get` (API 1.42); activating the plugin asks the administrator's consent       |
+| `privacy`        | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
+| `media:read`     | `ctx.media.get`                                                                                   |
+| `media:write`    | `ctx.media.fromUrl` (API 1.30)                                                                    |
+| `import`         | `ctx.transfer.importDocument`                                                                     |
 
 Administrators see the requested permissions in **Plugins → Details**. Your own tables (`ctx.db`), hooks on actions, logging, capabilities and cache invalidation need no permission.
 

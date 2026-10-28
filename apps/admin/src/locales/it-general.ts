@@ -128,6 +128,8 @@ export const itGeneral: Messages = {
   'Send requests to other services': 'Inviare richieste ad altri servizi',
   "Read the site's users (names, roles, confirmed email addresses)":
     'Leggere gli utenti del sito (nomi, ruoli, indirizzi email confermati)',
+  "Deliver the site's emails (sees every email, password resets included)":
+    'Consegnare le email del sito (vede ogni email, compresi i link per reimpostare la password)',
   '{name} asks to: {permissions}. Activate it?': '{name} chiede di: {permissions}. Attivarlo?',
   'Protect forms against bots (can refuse submissions)':
     'Proteggere i moduli dai bot (può rifiutare gli invii)',
