@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-turbosmtp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Official Cleitext plugin: turboSMTP, the site's emails sent through the turboSMTP service.",
   "license": "GPL-2.0-or-later",

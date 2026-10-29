@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 /* Components of the admin SDK, also used by plugin pages. */
 @source '../../../packages/admin-sdk/src';
+/* Table spacing that plugin pages use and the admin itself may not. */
+@source inline('{pl,pr}-{1,2,3,4,5,6,8}');
 
 /*
  * Dark theme (RF-ADM-04). Utilities read the palette from CSS variables:

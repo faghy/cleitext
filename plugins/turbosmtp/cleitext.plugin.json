@@ -1,7 +1,7 @@
 {
   "slug": "turbosmtp",
   "name": "turboSMTP",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": "^1.60",
   "description": "Sends every email of the site through turboSMTP: password resets, orders, bookings and forms arrive in the inbox, not in spam. Connect your turboSMTP account (API keys or email and password), choose sending by API or by SMTP (European or international servers), set the sender, send a test, and follow deliveries, opens, clicks and bounces.",
   "author": "Cleitext",

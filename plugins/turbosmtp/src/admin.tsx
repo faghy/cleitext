@@ -636,24 +636,24 @@ function StatsPage({ api }: AdminPageProps) {
               <table className="w-full text-left text-sm">
                 <thead className="text-xs text-slate-600 uppercase">
                   <tr>
-                    <th className="py-2 pr-3">{t('Date')}</th>
-                    <th className="py-2 pr-3">{t('Status')}</th>
-                    <th className="py-2 pr-3">{t('To')}</th>
-                    <th className="py-2 pr-3">{t('Subject')}</th>
-                    <th className="py-2 pr-3">{t('From')}</th>
+                    <th className="py-2 pr-4">{t('Date')}</th>
+                    <th className="py-2 pr-4">{t('Status')}</th>
+                    <th className="py-2 pr-4">{t('To')}</th>
+                    <th className="py-2 pr-4">{t('Subject')}</th>
+                    <th className="py-2 pr-4">{t('From')}</th>
                     <th className="py-2">{t('Error')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {messages.data.rows.map((row, i) => (
                     <tr key={i} className="border-t border-slate-100 align-top">
-                      <td className="py-2 pr-3 whitespace-nowrap">{row.sentAt}</td>
-                      <td className="py-2 pr-3" title={row.status}>
+                      <td className="py-2 pr-4 whitespace-nowrap">{row.sentAt ? new Date(row.sentAt).toLocaleString() : ""}</td>
+                      <td className="py-2 pr-4" title={row.status}>
                         {row.group ? t(GROUP_LABELS[row.group]) : row.status}
                       </td>
-                      <td className="py-2 pr-3">{row.to}</td>
-                      <td className="py-2 pr-3">{row.subject}</td>
-                      <td className="py-2 pr-3">{row.from}</td>
+                      <td className="py-2 pr-4">{row.to}</td>
+                      <td className="py-2 pr-4">{row.subject}</td>
+                      <td className="py-2 pr-4">{row.from}</td>
                       <td className="py-2 text-red-700">{row.error}</td>
                     </tr>
                   ))}
