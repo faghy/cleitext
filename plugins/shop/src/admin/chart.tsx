@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 /**
  * A small SVG chart for the shop's reports: the range as a line (or bars)
@@ -13,6 +13,7 @@ export interface ChartSeries {
   points: { date: string; value: number }[];
 }
 
+/** The drawing's width before the box is measured; then the box's own, so text keeps its size. */
 const WIDTH = 720;
 const HEIGHT = 240;
 const PAD = { top: 12, right: 12, bottom: 28, left: 56 };
@@ -43,7 +44,19 @@ export function Chart({
 }) {
   const id = useId();
   const svg = useRef<SVGSVGElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [width, setWidth] = useState(WIDTH);
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      const measured = Math.round(entry?.contentRect.width ?? 0);
+      if (measured > 0) setWidth(measured);
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
   const count = current.points.length;
   const values = [
     ...current.points.map((p) => p.value),
@@ -56,11 +69,13 @@ export function Chart({
   const bottom = min < 0 ? Math.floor(min / step) * step : 0;
   const ticks = useMemo(() => {
     const list: number[] = [];
+    // Nothing in the range: one line at zero, not a scale of tiny steps.
+    if (max === 0 && min === 0) return [0];
     for (let v = bottom; v <= top + step / 2 && list.length < 12; v += step) list.push(v);
     return list;
-  }, [bottom, top, step]);
+  }, [bottom, top, step, max, min]);
 
-  const plotW = WIDTH - PAD.left - PAD.right;
+  const plotW = width - PAD.left - PAD.right;
   const plotH = HEIGHT - PAD.top - PAD.bottom;
   const band = plotW / Math.max(count, 1);
   const x = (i: number) => PAD.left + band * i + band / 2;
@@ -76,7 +91,7 @@ export function Chart({
   const pointAt = (clientX: number) => {
     const box = svg.current?.getBoundingClientRect();
     if (!box || count === 0) return null;
-    const at = ((clientX - box.left) / box.width) * WIDTH;
+    const at = ((clientX - box.left) / box.width) * width;
     return Math.min(count - 1, Math.max(0, Math.floor((at - PAD.left) / band)));
   };
 
@@ -115,10 +130,10 @@ export function Chart({
           )}
         </div>
       </div>
-      <div className="sh-chart-box">
+      <div className="sh-chart-box" ref={boxRef}>
         <svg
           ref={svg}
-          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          viewBox={`0 0 ${width} ${HEIGHT}`}
           role="img"
           aria-label={title}
           onPointerMove={(e) => setHover(pointAt(e.clientX))}
@@ -128,7 +143,7 @@ export function Chart({
             <g key={v}>
               <line
                 x1={PAD.left}
-                x2={WIDTH - PAD.right}
+                x2={width - PAD.right}
                 y1={y(v)}
                 y2={y(v)}
                 stroke="var(--sh-line)"
@@ -236,8 +251,8 @@ export function Chart({
             className="sh-tooltip"
             role="status"
             style={{
-              left: `${(x(shown) / WIDTH) * 100}%`,
-              transform: `translateX(${x(shown) > WIDTH * 0.6 ? 'calc(-100% - 12px)' : '12px'})`,
+              left: `${(x(shown) / width) * 100}%`,
+              transform: `translateX(${x(shown) > width * 0.6 ? 'calc(-100% - 12px)' : '12px'})`,
             }}
           >
             <div>
