@@ -647,7 +647,9 @@ function StatsPage({ api }: AdminPageProps) {
                 <tbody>
                   {messages.data.rows.map((row, i) => (
                     <tr key={i} className="border-t border-slate-100 align-top">
-                      <td className="py-2 pr-4 whitespace-nowrap">{row.sentAt ? new Date(row.sentAt).toLocaleString() : ""}</td>
+                      <td className="py-2 pr-4 whitespace-nowrap">
+                        {row.sentAt ? new Date(row.sentAt).toLocaleString() : ''}
+                      </td>
                       <td className="py-2 pr-4" title={row.status}>
                         {row.group ? t(GROUP_LABELS[row.group]) : row.status}
                       </td>
