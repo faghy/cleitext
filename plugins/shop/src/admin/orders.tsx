@@ -24,7 +24,7 @@ const STATUSES = [
   'refunded',
   'failed',
 ] as const;
-const STATUS_LABEL: Record<string, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending payment',
   processing: 'Processing',
   'on-hold': 'On hold',
@@ -33,7 +33,7 @@ const STATUS_LABEL: Record<string, string> = {
   refunded: 'Refunded',
   failed: 'Failed',
 };
-const STATUS_BADGE: Record<string, string> = {
+export const STATUS_BADGE: Record<string, string> = {
   pending: 'sh-badge-warn',
   processing: 'sh-badge-ok',
   'on-hold': 'sh-badge-warn',

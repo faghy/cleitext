@@ -125,6 +125,30 @@ instructions for the order page and the emails:
   through the provider. The secret keys are stored encrypted and never shown
   again.
 
+**How the shop is going** (Cleishop 1.11):
+
+- **Cleishop** opens on the store's overview: revenue and orders of today,
+  this week and this month against the period before, the revenue of the last
+  30 days, orders to fulfil, products low on stock or sold out, reviews to
+  approve and a "Get started" list (first product, payments, shipping, taxes,
+  a test email). The products list is at **Cleishop → Products**; its old
+  addresses (`/ext/shop?product=…`) still open it.
+- **Cleishop → Analytics**: overview, revenue (gross sales, returns, coupons,
+  net sales, taxes, shipping, total), orders, products, variations,
+  categories, coupons, taxes and stock. Each report has a date range (today,
+  last week, month to date, last quarter… or chosen days), the comparison with
+  the period before or the same days a year earlier, the change of each
+  number, a chart by day, week or month and a table sorted by any column, to
+  download as CSV. Orders count when processing, on hold or completed (and
+  refunded ones, which their refunds bring back to zero), on the day they
+  were paid; pending, failed and cancelled ones never count. A refund counts
+  on its own day and is split as its order was (products, taxes, shipping).
+  Days are those of the site's time zone (Settings → General).
+- **Cleishop → Customers**: people with an account and guests, one row per
+  email: last order, number of orders, total spend, average order, country,
+  city and sign-up date; search, filters, sorting and CSV. A row opens the
+  customer's orders.
+
 **Reviews**: customers rate products from 1 to 5 stars and write a review
 on the product page (no JavaScript). Reviews are comments of type `review`
 for the core: the comment moderation, spam checks and notifications apply. With the free **Captcha** plugin, the review form and (when you turn it on there) the checkout also get the site's captcha.

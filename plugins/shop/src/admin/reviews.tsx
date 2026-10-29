@@ -29,7 +29,11 @@ const TABS: [Status | 'any', string][] = [
 export function ReviewsPage({ api, user }: AdminPageProps) {
   const { t } = useT();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Status | 'any'>('any');
+  // `?status=pending` opens a tab (links from the shop's home).
+  const [tab, setTab] = useState<Status | 'any'>(() => {
+    const wanted = new URLSearchParams(window.location.search).get('status');
+    return TABS.find(([status]) => status === wanted)?.[0] ?? 'any';
+  });
   const list = useQuery({
     queryKey: ['shop', 'reviews', tab],
     queryFn: () => api<{ items: Review[] }>('GET', `/reviews?status=${tab}`),
@@ -127,7 +131,7 @@ export function ReviewsPage({ api, user }: AdminPageProps) {
                   </div>
                 </td>
                 <td className="sh-hide-sm">
-                  <a href={adminUrl(`/ext/shop?product=${r.productId}`)}>{r.product}</a>
+                  <a href={adminUrl(`/ext/shop/products?product=${r.productId}`)}>{r.product}</a>
                 </td>
                 <td>
                   <span

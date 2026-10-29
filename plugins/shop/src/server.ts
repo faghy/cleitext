@@ -15,7 +15,7 @@ import {
   saveProduct,
   saveProductSchema,
 } from './products';
-import { attributes, type OrderStatus } from './schema';
+import { attributes, customers, type OrderStatus } from './schema';
 import { backfill, BRAND, CATEGORY, PRODUCT, syncProduct, watchEntries } from './sync';
 import { eq } from 'drizzle-orm';
 import { orderDetail } from './order-admin';
@@ -36,6 +36,7 @@ import { registerStorefrontBlocks } from './storefront-blocks';
 import { registerCartBlocks } from './cart-blocks';
 import { loadPayments } from './rules-routes';
 import { registerRulesRoutes, TAXES_STORAGE, taxSettingsSchema } from './rules-routes';
+import { registerReportRoutes } from './reports-routes';
 
 /**
  * Shop (official plugin): products are entries of type `product`, with
@@ -315,6 +316,23 @@ export default definePlugin({
     );
     registerOrderRoutes(ctx, CAPABILITY, storeWithNotify, online);
     registerRulesRoutes(ctx, CAPABILITY);
+    registerReportRoutes(ctx, CAPABILITY, async (siteId) => {
+      const { currency, notifyEmails } = await storeWithNotify(siteId);
+      return {
+        currency,
+        notifyEmails,
+        lowStock: Number((await ctx.settings.get(siteId)).lowStock ?? 2),
+      };
+    });
+    // People who sign up are customers from then on (Shop → Customers shows the day).
+    ctx.hooks.on('user.registered', async ({ user }, { siteId }) => {
+      await ctx.db.transaction(siteId, (tx) =>
+        tx
+          .insert(customers)
+          .values({ siteId, userId: user.id, email: user.email })
+          .onConflictDoNothing(),
+      );
+    });
     registerBuyBox(ctx, async (siteId) => {
       const values = await ctx.settings.get(siteId);
       return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };

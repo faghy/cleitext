@@ -1,5 +1,8 @@
 import { addMessages, defineAdminPlugin } from '@cleitext/admin-sdk';
+import { AnalyticsPage } from './admin/analytics';
 import { AttributesPage, PricingPage } from './admin/attributes';
+import { CustomersPage } from './admin/customers';
+import { ShopMainPage } from './admin/home';
 import { EmailsPage } from './admin/emails';
 import { OrdersPage } from './admin/orders';
 import { IT } from './admin/it';
@@ -18,9 +21,18 @@ const capability = 'manage_shop';
 export default defineAdminPlugin({
   pages: [
     {
+      // The store's home ("Overview"); the products list moved to `products` in 1.11.
       path: '',
       title: { en: 'Cleishop', it: 'Cleishop' },
       icon: 'M5 8h14l-1.2 12H6.2z M9 8V6a3 3 0 0 1 6 0v2',
+      capability,
+      component: ShopMainPage,
+    },
+    {
+      path: 'products',
+      parent: '',
+      title: { en: 'Products', it: 'Prodotti' },
+      icon: 'M4 7l8-4 8 4v10l-8 4-8-4z M4 7l8 4 8-4 M12 11v10',
       capability,
       component: ProductsPage,
     },
@@ -31,6 +43,22 @@ export default defineAdminPlugin({
       icon: 'M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6',
       capability,
       component: OrdersPage,
+    },
+    {
+      path: 'customers',
+      parent: '',
+      title: { en: 'Customers', it: 'Clienti' },
+      icon: 'M9 11a3.5 3.5 0 1 0 0-.01 M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6 M16 4.5a3.5 3.5 0 0 1 0 6.5 M18 14c2 .8 3 3 3 6',
+      capability,
+      component: CustomersPage,
+    },
+    {
+      path: 'analytics',
+      parent: '',
+      title: { en: 'Analytics', it: 'Analisi' },
+      icon: 'M4 20V10 M10 20V4 M16 20v-7 M22 20H2',
+      capability,
+      component: AnalyticsPage,
     },
     {
       path: 'reviews',

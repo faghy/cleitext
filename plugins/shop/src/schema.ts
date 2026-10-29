@@ -359,5 +359,7 @@ export const customers = pgTable('customers', {
   shipping: jsonb('shipping').$type<Address | null>(),
   invoice: jsonb('invoice').$type<Invoice | null>(),
   updatedAt: time('updated_at').notNull().defaultNow(),
+  /** When the account joined the shop; null for those saved before 1.11 (0010). */
+  createdAt: time('created_at').defaultNow(),
 });
 export type CustomerRow = typeof customers.$inferSelect;
