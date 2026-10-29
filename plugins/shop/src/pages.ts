@@ -89,7 +89,11 @@ export interface Money {
 }
 
 export function moneyFormatter(locale: string, currency: string): Money {
-  const format = new Intl.NumberFormat(locale, { style: 'currency', currency });
+  const format = new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+    useGrouping: 'always',
+  });
   const fn = ((cents: number) => format.format(cents / 100)) as Money;
   fn.of = (value) => format.format(Number(value));
   return fn;

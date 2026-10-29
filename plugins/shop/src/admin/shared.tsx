@@ -102,7 +102,11 @@ export function formatMoney(
 ): string {
   if (value === null || value === '') return '—';
   try {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(Number(value));
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      useGrouping: 'always',
+    }).format(Number(value));
   } catch {
     return Number(value).toFixed(2);
   }

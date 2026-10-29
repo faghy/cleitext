@@ -199,7 +199,11 @@ export function renderEmail(
   const locale = order.locale;
   const t = translator(locale);
   const defaults = locale.startsWith('it') ? EMAILS[id].it : EMAILS[id].en;
-  const money = new Intl.NumberFormat(locale, { style: 'currency', currency: order.currency });
+  const money = new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: order.currency,
+    useGrouping: 'always',
+  });
   const amount = (value: string | number) => money.format(Number(value));
   const name = `${order.billing.firstName} ${order.billing.lastName}`.trim() || order.email;
   const values = {

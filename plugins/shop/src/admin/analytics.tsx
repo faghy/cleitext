@@ -80,7 +80,7 @@ export function useFormat(currency: string, locale: string) {
   const value = (v: number, kind: 'money' | 'number') =>
     kind === 'money'
       ? formatMoney(v, currency, locale)
-      : v.toLocaleString(locale, { maximumFractionDigits: 2 });
+      : v.toLocaleString(locale, { maximumFractionDigits: 2, useGrouping: 'always' });
   const axis = (kind: 'money' | 'number') => (v: number) => {
     try {
       return new Intl.NumberFormat(locale, {

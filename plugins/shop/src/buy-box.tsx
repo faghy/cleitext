@@ -174,6 +174,7 @@ export function BuyBoxView({ data, locale }: { data: BuyBoxData | null; locale: 
     new Intl.NumberFormat(context.locale, {
       style: 'currency',
       currency: data.currency,
+      useGrouping: 'always',
     }).format(Number(value));
   const { product } = data;
   const variable = product.kind === 'variable';
