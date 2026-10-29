@@ -28,6 +28,7 @@ const IT: Record<string, string> = {
   'Pay now': 'Paga ora',
   'Pay with {method}': 'Paga con {method}',
   'Or pay below': 'Oppure paga qui sotto',
+  'By paying you accept the {terms}.': 'Pagando accetti i {terms}.',
   'The address from your wallet is not complete: check it and try again.':
     'L’indirizzo del tuo wallet non è completo: controllalo e riprova.',
   PayPal: 'PayPal',

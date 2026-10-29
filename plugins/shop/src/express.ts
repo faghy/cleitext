@@ -171,6 +171,14 @@ export function registerExpress(ctx: PluginContext, deps: ExpressDeps): void {
           ...quoted,
           quoteUrl: `${prefix}/checkout/express/quote`,
           orderUrl: `${prefix}/checkout/express/order`,
+          // Paying with a wallet places the order: the terms are accepted by paying.
+          terms: store.termsUrl
+            ? {
+                url: store.termsUrl,
+                text: t('By paying you accept the {terms}.'),
+                link: t('terms and conditions'),
+              }
+            : null,
           texts: {
             error: t('The payment could not start: try again in a moment.'),
             noShipping: t('We do not ship to this address: check it, or write to us.'),

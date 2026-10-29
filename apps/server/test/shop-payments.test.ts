@@ -683,6 +683,7 @@ describe('express buttons (Apple Pay, Google Pay, Link)', () => {
       rates: [{ id: rates.italy, displayName: 'Courier', amount: 700 }],
       quoteUrl: '/checkout/express/quote',
       orderUrl: '/checkout/express/order',
+      terms: null,
     });
     const quoted = await eli.request(
       'POST',

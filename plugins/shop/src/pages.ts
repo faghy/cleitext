@@ -71,7 +71,7 @@ details.shop-more summary{cursor:pointer;font-weight:600}
 .shop-buy__actions input{width:5rem;font:inherit;padding:.6rem;border:1px solid rgba(127,127,127,.4);border-radius:6px;background:transparent;color:inherit}
 .shop-stripe{margin:.75rem 0 0}.shop-stripe .shop-error:empty,.shop-express .shop-error:empty{display:none}
 .shop-express{margin:0 0 1.5rem}.shop-express--cart{max-width:24rem;margin:1rem 0 0 auto}.shop-express--product{margin:.75rem 0 0;max-width:24rem}
-.shop-express__or{display:flex;align-items:center;gap:.75rem;margin:1rem 0 0;font-size:.9em;opacity:.8}
+.shop-express__terms{margin:.5rem 0 0;font-size:.85em;opacity:.8}.shop-express__or{display:flex;align-items:center;gap:.75rem;margin:1rem 0 0;font-size:.9em;opacity:.8}
 .shop-express__or::before,.shop-express__or::after{content:"";flex:1;border-top:1px solid var(--shop-line)}
 `;
 

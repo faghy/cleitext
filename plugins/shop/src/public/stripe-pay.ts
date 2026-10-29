@@ -257,6 +257,7 @@ interface ExpressConfig {
   quoteUrl: string;
   orderUrl: string;
   texts: Texts;
+  terms: { url: string; text: string; link: string } | null;
 }
 
 async function setupExpress(box: HTMLElement): Promise<void> {
@@ -294,6 +295,17 @@ async function setupExpress(box: HTMLElement): Promise<void> {
     buttonType: { applePay: 'buy', googlePay: 'buy' },
   });
   buttons.mount(box.querySelector('.shop-express__buttons')!);
+  if (config.terms) {
+    const note = document.createElement('p');
+    note.className = 'shop-express__terms';
+    const [before, after = ''] = config.terms.text.split('{terms}');
+    const link = document.createElement('a');
+    link.href = config.terms.url;
+    link.target = '_blank';
+    link.textContent = config.terms.link;
+    note.append(before ?? '', link, after);
+    box.querySelector('.shop-express__buttons')!.after(note);
+  }
   const state = {
     rates: config.rates,
     rate: config.rate,
