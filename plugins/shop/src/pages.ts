@@ -69,6 +69,10 @@ details.shop-more summary{cursor:pointer;font-weight:600}
 .shop-buy__form .shop-field{margin:0 0 .75rem;max-width:20rem}
 .shop-buy__actions{display:flex;gap:.6rem;align-items:center;margin:0}
 .shop-buy__actions input{width:5rem;font:inherit;padding:.6rem;border:1px solid rgba(127,127,127,.4);border-radius:6px;background:transparent;color:inherit}
+.shop-stripe{margin:.75rem 0 0}.shop-stripe .shop-error:empty,.shop-express .shop-error:empty{display:none}
+.shop-express{margin:0 0 1.5rem}.shop-express--cart{max-width:24rem;margin:1rem 0 0 auto}.shop-express--product{margin:.75rem 0 0;max-width:24rem}
+.shop-express__or{display:flex;align-items:center;gap:.75rem;margin:1rem 0 0;font-size:.9em;opacity:.8}
+.shop-express__or::before,.shop-express__or::after{content:"";flex:1;border-top:1px solid var(--shop-line)}
 `;
 
 export interface PageUrls {
@@ -201,6 +205,8 @@ export function cartPage(options: {
   notices: { kind: 'ok' | 'error'; text: string }[];
   coupons: CouponView[];
   needsShipping: boolean;
+  /** The express buttons (Apple Pay, Google Pay, Link), when the shop shows them here. */
+  express?: string;
 }): string {
   const { lines, totals, t, money, urls } = options;
   const notices = options.notices.map(
@@ -299,7 +305,8 @@ export function cartPage(options: {
       </table>
       <p class="shop-actions" style="justify-content:flex-end">
         <a class="shop-button" href="${urls.checkout}">${t('Proceed to checkout')}</a>
-      </p>`,
+      </p>
+      ${options.express ? raw(options.express) : ''}`,
   );
 }
 
@@ -446,6 +453,8 @@ export function checkoutPage(options: {
   challenge?: string;
   /** The NewLetter plugin's opt-in box, when it offers one: unchecked unless ticked before. */
   newsletter?: { name: string; label: string } | null;
+  /** Stripe on the page: the Payment Element under the card, the express buttons on top. */
+  stripe?: { element: string; express: string };
 }): string {
   const { values, errors, t, money, locale } = options;
   const { field, addressFields } = formParts({
@@ -531,6 +540,7 @@ export function checkoutPage(options: {
               />
               ${p.title}</label
             >${p.description ? html`<p>${p.description}</p>` : ''}
+            ${p.id === 'stripe' && options.stripe?.element ? raw(options.stripe.element) : ''}
           </div>`,
       )}
       ${errors.payment ? html`<span class="shop-error">${t(errors.payment)}</span>` : ''}
@@ -575,6 +585,7 @@ export function checkoutPage(options: {
   return page(
     html` ${options.notice ? html`<p class="shop-notice shop-notice--error" role="alert">${options.notice}</p>` : ''}
       ${options.loginUrl ? html`<p class="shop-notice">${t('Returning customer?')} <a href="${options.loginUrl}">${t('Sign in')}</a></p>` : ''}
+      ${options.stripe?.express ? raw(options.stripe.express) : ''}
       <form method="post" action="${options.urls.checkout}" novalidate>
         <datalist id="shop-provinces">
           ${Object.entries(IT_PROVINCES).map(([code, name]) => html`<option value="${code}">${name}</option>`)}

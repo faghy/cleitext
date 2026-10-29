@@ -59,6 +59,15 @@ import { couponOf, quote, type Quote, type QuoteInput } from './quote';
 import { coupons, products, type CartItem, type OrderRow } from './schema';
 import type { Destination } from './shipping';
 import { escape } from './html';
+import { registerExpress } from './express';
+import { expressAt, stripeOnPage } from './payments';
+import {
+  expressElement,
+  minorOfCents,
+  STRIPE_SCRIPT,
+  stripeElement,
+  stripeLocale,
+} from './stripe-element';
 import { NEWSLETTER_FIELD, newsletterCheckbox, newsletterSubscribe } from './newsletter-optin';
 import { translator, type Translate } from './strings';
 
@@ -161,6 +170,13 @@ export function registerStorefront(
   /** Online payments: the provider's page where the customer pays a pending order. */
   online?: {
     start: (siteId: string, origin: string, prefix: string, order: OrderRow) => Promise<string>;
+    /** Stripe's PaymentIntent of an order, paid on the site (Payment Element, express buttons). */
+    intent?: (
+      siteId: string,
+      origin: string,
+      prefix: string,
+      order: OrderRow,
+    ) => Promise<{ clientSecret: string; returnUrl: string }>;
   },
 ): void {
   const cookieOf = (token: string) => ({
@@ -302,6 +318,13 @@ export function registerStorefront(
       });
     const money = moneyFormatter(request.locale, values.currency);
     const urls = await urlsFor(request, cart.lines);
+    const express = expressAt(values.payments, values.ready, 'cart')
+      ? expressElement(
+          { url: `${prefixOf(request)}/checkout/express`, place: 'cart' },
+          ctx.assets.url(STRIPE_SCRIPT),
+          t,
+        )
+      : '';
     return {
       t,
       cart,
@@ -320,6 +343,7 @@ export function registerStorefront(
           notices,
           coupons: couponViews(cart.quote),
           needsShipping: cart.quote.shippingSetUp,
+          ...(express ? { express } : {}),
         }),
     };
   };
@@ -751,6 +775,25 @@ export function registerStorefront(
       locale: request.locale,
       source: 'shop',
     });
+    // Stripe on the page (cards, and the express buttons), when the shop chose it.
+    const script = ctx.assets.url(STRIPE_SCRIPT);
+    const stripe = {
+      element: stripeOnPage(store.payments, store.ready)
+        ? stripeElement(
+            {
+              key: store.payments.stripe.publishableKey,
+              locale: stripeLocale(request.locale),
+              currency: store.currency.toLowerCase(),
+              amount: minorOfCents(cart.quote.totals.total, store.currency),
+            },
+            script,
+            t,
+          )
+        : '',
+      express: expressAt(store.payments, store.ready, 'checkout')
+        ? expressElement({ url: `${prefix}/checkout/express`, place: 'checkout' }, script, t)
+        : '',
+    };
     return {
       empty: false as const,
       prefix,
@@ -792,6 +835,7 @@ export function registerStorefront(
         ...(notice ? { notice } : {}),
         ...(challenge ? { challenge } : {}),
         ...(newsletter ? { newsletter } : {}),
+        ...(stripe.element || stripe.express ? { stripe } : {}),
       }),
     };
   };
@@ -863,228 +907,295 @@ export function registerStorefront(
     },
   });
 
+  /**
+   * Places the order of the visitor's cart (or of the items of a "buy now"),
+   * with the prices, coupons, shipping and taxes of now. The answers that are
+   * not an order tell the customer what to look at again: `null` when
+   * products changed.
+   */
+  const placeFrom = async (
+    request: RouteRequest,
+    store: StoreSettings,
+    t: Translate,
+    values: CheckoutValues,
+    method: { id: PaymentId; title: string },
+    source: { cart: string | undefined } | { items: CartItem[] },
+  ) => {
+    const billing = normalizeAddress(values.billing);
+    const shipping = values.differentShipping ? normalizeAddress(values.shipping) : billing;
+    const token = 'cart' in source ? source.cart : undefined;
+    return ctx.db.transaction(request.siteId, async (tx) => {
+      const items = 'items' in source ? source.items : await loadCart(tx, token);
+      const priced = await priceCart(tx, items, request.locale);
+      // Prices or stock changed since the page was shown: the customer looks again.
+      if (priced.lines.length === 0 || priced.dropped.length || priced.lowered.length) {
+        if (token)
+          await saveCart(tx, request.siteId, token, priced.items, request.user?.id ?? null);
+        return null;
+      }
+      const quoted = await quote(tx, quoteSettings(store, t), {
+        locale: request.locale,
+        lines: priced.lines,
+        codes: 'cart' in source ? await loadCoupons(tx, token) : [],
+        to: destinationOf(values, store),
+        shipping: true,
+        rateId: values.rate,
+        payment: method.id,
+        customer: { email: values.email, userId: request.user?.id ?? null },
+      });
+      const rejected = quoted.rejected[0];
+      if (rejected) return { problem: couponMessage(t, rejected.code, rejected.problem) };
+      const allowed = availablePayments(store.payments, {
+        needsShipping: quoted.needsShipping,
+        rateId: quoted.rate?.id ?? null,
+        ready: store.ready,
+      });
+      if (!allowed.includes(method.id))
+        return {
+          problem: t('This way to pay is not available for this order: choose another.'),
+        };
+      // The rates depend on the address: a rate not offered for it is chosen again.
+      if (quoted.shippingSetUp && quoted.rate?.id !== values.rate)
+        return { rate: quoted.rates.length ? 'Choose a shipping method.' : 'No shipping' };
+      const order = await placeOrder(tx, request.siteId, {
+        locale: request.locale,
+        currency: store.currency,
+        pricesIncludeTax: store.pricesIncludeTax,
+        lines: priced.lines,
+        totals: quoted.totals,
+        shippingRate: quoted.rate ? { id: quoted.rate.id, title: quoted.rate.title } : null,
+        coupons: quoted.coupons.map((c) => ({
+          id: c.coupon.id,
+          code: c.coupon.code,
+          discount: c.discount,
+        })),
+        email: values.email.toLowerCase(),
+        billing,
+        shipping,
+        invoice: values.wantsInvoice ? values.invoice : null,
+        customerNote: values.note,
+        customerId: request.user?.id ?? null,
+        payment: { method: method.id, title: method.title },
+        // A bank transfer waits for the money, online payments for the provider;
+        // cash on delivery ships now.
+        status:
+          method.id === 'cod'
+            ? 'processing'
+            : method.id === 'stripe' || method.id === 'paypal'
+              ? 'pending'
+              : 'on-hold',
+        ip: request.ip,
+        userAgent: request.headers['user-agent'] ?? '',
+        ...(request.referrals ? { referrals: request.referrals } : {}),
+      });
+      if ('cart' in source) {
+        await saveCart(tx, request.siteId, token!, [], request.user?.id ?? null);
+        await saveCoupons(tx, request.siteId, token!, [], request.user?.id ?? null);
+      }
+      if (request.user)
+        await saveCustomer(tx, request.siteId, request.user.id, {
+          email: values.email.toLowerCase(),
+          billing,
+          shipping,
+          invoice: values.wantsInvoice ? values.invoice : null,
+        });
+      return { order, products: priced.lines.map((l) => l.productId) };
+    });
+  };
+
+  /** After an order is placed: stock pages, emails, hooks, conversions, newsletter. */
+  const afterPlaced = async (
+    request: RouteRequest,
+    values: CheckoutValues,
+    placed: { order: OrderRow; products: string[] },
+  ) => {
+    await ctx.cache.invalidate(request.siteId, productTags(placed.products));
+    try {
+      await onPlaced(request.siteId, placed.order.id, request.origin);
+    } catch (error) {
+      ctx.log.error('The emails of an order could not be sent', {
+        order: placed.order.number,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    await ctx.hooks.emit(
+      'shop.order.created',
+      { orderId: placed.order.id, number: placed.order.number },
+      { siteId: request.siteId },
+    );
+    // Cash on delivery is paid at once: a conversion (plugin API 1.58).
+    await conversions(ctx).changed(request.siteId, placed.order.id, null, placed.order.status);
+    // The customer ticked "Subscribe me to the newsletter" (opt-in, never by default).
+    if (values.newsletter)
+      await newsletterSubscribe({
+        siteId: request.siteId,
+        source: 'shop',
+        email: values.email.toLowerCase(),
+        ...(values.billing.firstName ? { firstName: values.billing.firstName } : {}),
+        ...(values.billing.lastName ? { lastName: values.billing.lastName } : {}),
+        locale: request.locale,
+        ip: request.ip,
+      });
+  };
+
+  /**
+   * The checkout posted by the Payment Element's script (`stripeOnPage=1`):
+   * the same answers as JSON. The page again becomes its markup (`html`),
+   * a redirect its address (`redirect`); a placed order the PaymentIntent
+   * to confirm (`clientSecret`, `returnUrl`).
+   */
+  const asJson = (response: RouteResponse): RouteResponse => {
+    const headers = { 'cache-control': 'private, no-store' };
+    const cookies = response.cookies ? { cookies: response.cookies } : {};
+    if (response.page)
+      return { status: 200, headers, ...cookies, body: { html: response.page.html } };
+    if (response.status === 303)
+      return { status: 200, headers, ...cookies, body: { redirect: response.headers?.location } };
+    return response;
+  };
+
+  const checkout = async (request: RouteRequest): Promise<RouteResponse> => {
+    const t = translator(request.locale);
+    const store = inLanguage(await settings(request.siteId), request.locale);
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const values = readValues(body);
+    const onPage = text(body, 'stripeOnPage', 1) === '1';
+    // "Update shipping and totals": the page again with the new address.
+    if (text(body, 'refresh', 1) === '1') return renderCheckout(request, values, {});
+    const errors: Record<string, string> = {};
+    if (!EMAIL_RE.test(values.email)) errors.email = 'Not a valid email address';
+    for (const [key, message] of Object.entries(
+      checkAddress(values.billing, { phoneRequired: store.phoneRequired }),
+    ))
+      errors[`billing.${key}`] = message!;
+    if (values.differentShipping)
+      for (const [key, message] of Object.entries(
+        checkAddress(values.shipping, { phoneRequired: false }),
+      ))
+        errors[`shipping.${key}`] = message!;
+    for (const [key, message] of Object.entries(checkInvoice(values.invoice)))
+      errors[`invoice.${key}`] = message!;
+    // Switched on now; whether it suits this cart is checked with its shipping, below.
+    const enabled = store.payments.order.filter((id) => store.payments[id].enabled);
+    const chosen =
+      enabled.find((id) => id === values.payment) ??
+      (enabled.length === 1 ? enabled[0] : undefined);
+    const method = chosen ? { id: chosen, title: paymentTitle(store, chosen, t) } : undefined;
+    if (!method) errors.payment = 'Choose a way to pay.';
+    if (store.termsUrl && !values.terms) errors.terms = 'Accept the terms to place the order.';
+    if (Object.keys(errors).length > 0)
+      return renderCheckout(request, values, errors, t('Please correct the fields marked below.'));
+
+    // The site's bot protection (Captcha plugin), when there is one.
+    const verdict = await ctx.forms?.verify({
+      siteId: request.siteId,
+      form: CHECKOUT_FORM,
+      locale: request.locale,
+      fields: body,
+      ip: request.ip,
+      host: (request.headers.host ?? '').replace(/:\d+$/, ''),
+      signedIn: request.user !== null,
+    });
+    if (verdict && !verdict.ok)
+      return renderCheckout(
+        request,
+        values,
+        {},
+        verdict.message ?? t('The spam check did not pass: please try again.'),
+      );
+
+    const prefix = prefixOf(request);
+    try {
+      const placed = await placeFrom(request, store, t, values, method!, {
+        cart: request.cookies[CART_COOKIE],
+      });
+      if (placed && 'problem' in placed) return renderCheckout(request, values, {}, placed.problem);
+      if (placed && 'rate' in placed)
+        return renderCheckout(
+          request,
+          values,
+          placed.rate === 'No shipping' ? {} : { rate: placed.rate! },
+          placed.rate === 'No shipping'
+            ? t('We do not ship to this address: check it, or write to us.')
+            : t('Please choose how to ship your order.'),
+        );
+      if (!placed)
+        return {
+          status: 303,
+          headers: {
+            location: withQuery(`${prefix}/cart`, {
+              error: t('Some products changed: check your cart.'),
+            }),
+          },
+        };
+      await afterPlaced(request, values, placed);
+      // Online payments: on to the provider's page, or the card in the Payment Element.
+      if (placed.order.status === 'pending' && online) {
+        const pay = `${prefix}/checkout/pay/${placed.order.number}?key=${encodeURIComponent(placed.order.key)}`;
+        try {
+          if (onPage && placed.order.paymentMethod === 'stripe' && online.intent) {
+            const intent = await online.intent(
+              request.siteId,
+              request.origin,
+              prefix,
+              placed.order,
+            );
+            return { headers: { 'cache-control': 'private, no-store' }, body: intent };
+          }
+          const url = await online.start(request.siteId, request.origin, prefix, placed.order);
+          return { status: 303, headers: { location: url } };
+        } catch (error) {
+          ctx.log.error('An online payment could not start', {
+            order: placed.order.number,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return { status: 303, headers: { location: `${pay}&error=1` } };
+        }
+      }
+      return {
+        status: 303,
+        headers: {
+          location: `${prefix}/order-received/${placed.order.number}?key=${placed.order.key}`,
+        },
+      };
+    } catch (error) {
+      if (error instanceof CouponError)
+        return renderCheckout(request, values, {}, couponMessage(t, error.code, 'used_up'));
+      if (error instanceof StockError)
+        return {
+          status: 303,
+          headers: {
+            location: withQuery(`${prefix}/cart`, {
+              error: t('Sorry, “{name}” is not available in that quantity any more.', {
+                name: error.productName,
+              }),
+            }),
+          },
+        };
+      throw error;
+    }
+  };
+
   ctx.routes.public({
     method: 'POST',
     path: '/checkout',
     async handler(request) {
-      const t = translator(request.locale);
-      const store = inLanguage(await settings(request.siteId), request.locale);
+      const response = await checkout(request);
       const body = (request.body ?? {}) as Record<string, unknown>;
-      const values = readValues(body);
-      // "Update shipping and totals": the page again with the new address.
-      if (text(body, 'refresh', 1) === '1') return renderCheckout(request, values, {});
-      const errors: Record<string, string> = {};
-      if (!EMAIL_RE.test(values.email)) errors.email = 'Not a valid email address';
-      for (const [key, message] of Object.entries(
-        checkAddress(values.billing, { phoneRequired: store.phoneRequired }),
-      ))
-        errors[`billing.${key}`] = message!;
-      if (values.differentShipping)
-        for (const [key, message] of Object.entries(
-          checkAddress(values.shipping, { phoneRequired: false }),
-        ))
-          errors[`shipping.${key}`] = message!;
-      for (const [key, message] of Object.entries(checkInvoice(values.invoice)))
-        errors[`invoice.${key}`] = message!;
-      // Switched on now; whether it suits this cart is checked with its shipping, below.
-      const enabled = store.payments.order.filter((id) => store.payments[id].enabled);
-      const chosen =
-        enabled.find((id) => id === values.payment) ??
-        (enabled.length === 1 ? enabled[0] : undefined);
-      const method = chosen ? { id: chosen, title: paymentTitle(store, chosen, t) } : undefined;
-      if (!method) errors.payment = 'Choose a way to pay.';
-      if (store.termsUrl && !values.terms) errors.terms = 'Accept the terms to place the order.';
-      if (Object.keys(errors).length > 0)
-        return renderCheckout(
-          request,
-          values,
-          errors,
-          t('Please correct the fields marked below.'),
-        );
-
-      // The site's bot protection (Captcha plugin), when there is one.
-      const verdict = await ctx.forms?.verify({
-        siteId: request.siteId,
-        form: CHECKOUT_FORM,
-        locale: request.locale,
-        fields: body,
-        ip: request.ip,
-        host: (request.headers.host ?? '').replace(/:\d+$/, ''),
-        signedIn: request.user !== null,
-      });
-      if (verdict && !verdict.ok)
-        return renderCheckout(
-          request,
-          values,
-          {},
-          verdict.message ?? t('The spam check did not pass: please try again.'),
-        );
-
-      const token = request.cookies[CART_COOKIE];
-      const prefix = prefixOf(request);
-      const billing = normalizeAddress(values.billing);
-      const shipping = values.differentShipping ? normalizeAddress(values.shipping) : billing;
-      try {
-        const placed = await ctx.db.transaction(request.siteId, async (tx) => {
-          const items = await loadCart(tx, token);
-          const priced = await priceCart(tx, items, request.locale);
-          // Prices or stock changed since the page was shown: the customer looks again.
-          if (priced.lines.length === 0 || priced.dropped.length || priced.lowered.length) {
-            if (token)
-              await saveCart(tx, request.siteId, token, priced.items, request.user?.id ?? null);
-            return null;
-          }
-          const quoted = await quote(tx, quoteSettings(store, t), {
-            locale: request.locale,
-            lines: priced.lines,
-            codes: await loadCoupons(tx, token),
-            to: destinationOf(values, store),
-            shipping: true,
-            rateId: values.rate,
-            payment: method!.id,
-            customer: { email: values.email, userId: request.user?.id ?? null },
-          });
-          const rejected = quoted.rejected[0];
-          if (rejected) return { problem: couponMessage(t, rejected.code, rejected.problem) };
-          const allowed = availablePayments(store.payments, {
-            needsShipping: quoted.needsShipping,
-            rateId: quoted.rate?.id ?? null,
-            ready: store.ready,
-          });
-          if (!allowed.includes(method!.id))
-            return {
-              problem: t('This way to pay is not available for this order: choose another.'),
-            };
-          // The rates depend on the address: a rate not offered for it is chosen again.
-          if (quoted.shippingSetUp && quoted.rate?.id !== values.rate)
-            return { rate: quoted.rates.length ? 'Choose a shipping method.' : 'No shipping' };
-          const order = await placeOrder(tx, request.siteId, {
-            locale: request.locale,
-            currency: store.currency,
-            pricesIncludeTax: store.pricesIncludeTax,
-            lines: priced.lines,
-            totals: quoted.totals,
-            shippingRate: quoted.rate ? { id: quoted.rate.id, title: quoted.rate.title } : null,
-            coupons: quoted.coupons.map((c) => ({
-              id: c.coupon.id,
-              code: c.coupon.code,
-              discount: c.discount,
-            })),
-            email: values.email.toLowerCase(),
-            billing,
-            shipping,
-            invoice: values.wantsInvoice ? values.invoice : null,
-            customerNote: values.note,
-            customerId: request.user?.id ?? null,
-            payment: { method: method!.id, title: method!.title },
-            // A bank transfer waits for the money, online payments for the provider;
-            // cash on delivery ships now.
-            status:
-              method!.id === 'cod'
-                ? 'processing'
-                : method!.id === 'stripe' || method!.id === 'paypal'
-                  ? 'pending'
-                  : 'on-hold',
-            ip: request.ip,
-            userAgent: request.headers['user-agent'] ?? '',
-            ...(request.referrals ? { referrals: request.referrals } : {}),
-          });
-          await saveCart(tx, request.siteId, token!, [], request.user?.id ?? null);
-          await saveCoupons(tx, request.siteId, token!, [], request.user?.id ?? null);
-          if (request.user)
-            await saveCustomer(tx, request.siteId, request.user.id, {
-              email: values.email.toLowerCase(),
-              billing,
-              shipping,
-              invoice: values.wantsInvoice ? values.invoice : null,
-            });
-          return { order, products: priced.lines.map((l) => l.productId) };
-        });
-        if (placed && 'problem' in placed)
-          return renderCheckout(request, values, {}, placed.problem);
-        if (placed && 'rate' in placed)
-          return renderCheckout(
-            request,
-            values,
-            placed.rate === 'No shipping' ? {} : { rate: placed.rate! },
-            placed.rate === 'No shipping'
-              ? t('We do not ship to this address: check it, or write to us.')
-              : t('Please choose how to ship your order.'),
-          );
-        if (!placed)
-          return {
-            status: 303,
-            headers: {
-              location: withQuery(`${prefix}/cart`, {
-                error: t('Some products changed: check your cart.'),
-              }),
-            },
-          };
-        await ctx.cache.invalidate(request.siteId, productTags(placed.products));
-        try {
-          await onPlaced(request.siteId, placed.order.id, request.origin);
-        } catch (error) {
-          ctx.log.error('The emails of an order could not be sent', {
-            order: placed.order.number,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-        await ctx.hooks.emit(
-          'shop.order.created',
-          { orderId: placed.order.id, number: placed.order.number },
-          { siteId: request.siteId },
-        );
-        // Cash on delivery is paid at once: a conversion (plugin API 1.58).
-        await conversions(ctx).changed(request.siteId, placed.order.id, null, placed.order.status);
-        // The customer ticked "Subscribe me to the newsletter" (opt-in, never by default).
-        if (values.newsletter)
-          await newsletterSubscribe({
-            siteId: request.siteId,
-            source: 'shop',
-            email: values.email.toLowerCase(),
-            ...(values.billing.firstName ? { firstName: values.billing.firstName } : {}),
-            ...(values.billing.lastName ? { lastName: values.billing.lastName } : {}),
-            locale: request.locale,
-            ip: request.ip,
-          });
-        // Online payments: on to the provider's page.
-        if (placed.order.status === 'pending' && online) {
-          const pay = `${prefix}/checkout/pay/${placed.order.number}?key=${encodeURIComponent(placed.order.key)}`;
-          try {
-            const url = await online.start(request.siteId, request.origin, prefix, placed.order);
-            return { status: 303, headers: { location: url } };
-          } catch (error) {
-            ctx.log.error('An online payment could not start', {
-              order: placed.order.number,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            return { status: 303, headers: { location: `${pay}&error=1` } };
-          }
-        }
-        return {
-          status: 303,
-          headers: {
-            location: `${prefix}/order-received/${placed.order.number}?key=${placed.order.key}`,
-          },
-        };
-      } catch (error) {
-        if (error instanceof CouponError)
-          return renderCheckout(request, values, {}, couponMessage(t, error.code, 'used_up'));
-        if (error instanceof StockError)
-          return {
-            status: 303,
-            headers: {
-              location: withQuery(`${prefix}/cart`, {
-                error: t('Sorry, “{name}” is not available in that quantity any more.', {
-                  name: error.productName,
-                }),
-              }),
-            },
-          };
-        throw error;
-      }
+      return text(body, 'stripeOnPage', 1) === '1' ? asJson(response) : response;
     },
   });
+
+  // Apple Pay, Google Pay and Link: orders placed from the wallet's sheet.
+  if (online?.intent)
+    registerExpress(ctx, {
+      settings: async (siteId, locale) => inLanguage(await settings(siteId), locale),
+      quoteSettings,
+      destination: base,
+      placeFrom,
+      afterPlaced,
+      intent: online.intent,
+    });
 
   ctx.routes.public({
     method: 'GET',

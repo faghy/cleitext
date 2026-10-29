@@ -59,6 +59,7 @@ const common = {
 };
 
 const off = { enabled: false, title: '', description: '', instructions: '', translations: {} };
+const EXPRESS_ON = { enabled: true, checkout: true, cart: true, product: true };
 
 export const paymentsSchema = z.object({
   /** The order at checkout. */
@@ -86,7 +87,32 @@ export const paymentsSchema = z.object({
       shippingMethods: [],
       virtual: false,
     }),
-  stripe: z.object({ ...common }).default(off),
+  stripe: z
+    .object({
+      ...common,
+      /** Stripe's publishable key (pk_…): without it, customers pay on Stripe's page. */
+      publishableKey: z
+        .string()
+        .trim()
+        .max(200)
+        .default('')
+        .refine(
+          (v) => v === '' || /^pk_(test|live)_[A-Za-z0-9]{10,}$/.test(v),
+          'This does not look like the right key.',
+        ),
+      /** Where customers type their card: on the site's checkout, or on Stripe's page. */
+      checkout: z.enum(['page', 'redirect']).default('page'),
+      /** Apple Pay, Google Pay and Link buttons, and where they show. */
+      express: z
+        .object({
+          enabled: z.boolean().default(true),
+          checkout: z.boolean().default(true),
+          cart: z.boolean().default(true),
+          product: z.boolean().default(true),
+        })
+        .default(EXPRESS_ON),
+    })
+    .default({ ...off, publishableKey: '', checkout: 'page', express: EXPRESS_ON }),
   paypal: z
     .object({
       ...common,
@@ -151,6 +177,34 @@ export function availablePayments(payments: Payments, cart: PaymentContext): Pay
     return true;
   });
 }
+
+/** Where the express buttons (Apple Pay, Google Pay, Link) can show. */
+export type ExpressPlace = 'checkout' | 'cart' | 'product';
+
+/**
+ * Cards on the site's own checkout (Stripe's Payment Element): Stripe is on,
+ * its keys are set and the shop chose it. Otherwise Stripe's page.
+ */
+export const stripeOnPage = (
+  payments: Payments,
+  ready: Partial<Record<PaymentId, boolean>> | undefined,
+): boolean =>
+  payments.stripe.enabled &&
+  !!ready?.stripe &&
+  !!payments.stripe.publishableKey &&
+  payments.stripe.checkout === 'page';
+
+/** Whether the express buttons show in a place. */
+export const expressAt = (
+  payments: Payments,
+  ready: Partial<Record<PaymentId, boolean>> | undefined,
+  place: ExpressPlace,
+): boolean =>
+  payments.stripe.enabled &&
+  !!ready?.stripe &&
+  !!payments.stripe.publishableKey &&
+  payments.stripe.express.enabled &&
+  payments.stripe.express[place];
 
 /** The ways to pay with their texts in a language (the customer's, or an order's). */
 export function localizePayments(payments: Payments, locale: string): Payments {

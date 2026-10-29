@@ -1,6 +1,6 @@
 import type { PluginContext, RouteRequest, RouteResponse } from '@cleitext/plugin-sdk';
 import { and, eq, lt } from 'drizzle-orm';
-import { productTags } from './buy-box';
+import { PAYMENTS_TAG, productTags } from './buy-box';
 import { prefixOf } from './catalog-routes';
 import {
   decimalAmount,
@@ -12,7 +12,7 @@ import {
   type PaymentOrder,
   type Send,
 } from './gateways';
-import { html } from './html';
+import { html, raw } from './html';
 import { changeStatus, note } from './order-admin';
 import { moneyFormatter, SHOP_CSS } from './pages';
 import {
@@ -24,17 +24,26 @@ import {
   type Payments,
   type SecretName,
   localizePayments,
+  stripeOnPage,
 } from './payments';
 import { orders, type OrderRow } from './schema';
+import { STRIPE_SCRIPT, stripeElement, stripeLocale } from './stripe-element';
 import { translator } from './strings';
 
 /**
  * Online payments: the order is placed as pending, the customer pays on
- * Stripe's or PayPal's pages, and the order becomes processing when the
- * provider confirms — on the way back to the site or through its webhook,
- * whichever comes first. Unpaid orders are cancelled after a while, giving
- * their stock back.
+ * Stripe's or PayPal's pages (or in Stripe's Payment Element and express
+ * buttons on the site), and the order becomes processing when the provider
+ * confirms — on the way back to the site or through its webhook, whichever
+ * comes first. Unpaid orders are cancelled after a while, giving their stock
+ * back.
  */
+
+/** Where Stripe keeps the file Apple Pay reads to check the site's domain. */
+const APPLE_FILE_URL =
+  'https://stripe.com/files/apple-pay/apple-developer-merchantid-domain-association';
+export const APPLE_FILE_PATH = '/.well-known/apple-developer-merchantid-domain-association';
+const APPLE_FILE_STORAGE = 'apple-pay-domain-file';
 
 export type OnlineId = 'stripe' | 'paypal';
 const isOnline = (id: string): id is OnlineId => (ONLINE as readonly string[]).includes(id);
@@ -83,6 +92,42 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
     email: order.email,
     locale: order.locale,
   });
+
+  const returnUrl = (origin: string, prefix: string, order: OrderRow) =>
+    `${origin}${prefix}/checkout/stripe/return?order=${order.number}&key=${encodeURIComponent(order.key)}`;
+
+  /**
+   * The order's PaymentIntent, paid on the site with the Payment Element or
+   * the express buttons: its client secret for the page, and where Stripe
+   * sends the customer back. The same order and amount get the same one.
+   */
+  const intent = async (
+    siteId: string,
+    origin: string,
+    prefix: string,
+    order: OrderRow,
+  ): Promise<{ clientSecret: string; returnUrl: string }> => {
+    if (order.paymentMethod !== 'stripe') throw new GatewayError('Not a card payment.');
+    const t = translator(order.locale);
+    const created = await (
+      await stripe(siteId)
+    ).createIntent(
+      paymentOrder(order),
+      `${t('Order {number}', { number: order.number })} – ${await hooks.siteName(siteId)}`,
+    );
+    if (!created.clientSecret) throw new GatewayError('Stripe: no payment to confirm');
+    await ctx.db.transaction(siteId, (tx) =>
+      tx
+        .update(orders)
+        .set({ paymentRef: created.id, updatedAt: new Date() })
+        .where(eq(orders.id, order.id)),
+    );
+    return { clientSecret: created.clientSecret, returnUrl: returnUrl(origin, prefix, order) };
+  };
+
+  /** Whether cards are paid on the site's pages (the Payment Element). */
+  const onPage = async (siteId: string) =>
+    stripeOnPage(await hooks.payments(siteId), await ready(siteId));
 
   /** The provider's page where the customer pays the order. */
   const start = async (
@@ -179,6 +224,24 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
     return true;
   };
 
+  /** A Stripe payment that did not go through: a pending order becomes failed. */
+  const failed = async (siteId: string, orderId: string, reason: string) => {
+    const productIds = await ctx.db.transaction(siteId, async (tx) => {
+      const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update');
+      if (order?.status !== 'pending' || order.paymentMethod !== 'stripe') return [];
+      const changed = await changeStatus(tx, siteId, orderId, 'failed', 'Stripe');
+      await note(
+        tx,
+        siteId,
+        orderId,
+        reason ? `The Stripe payment failed: ${reason}` : 'The Stripe payment failed.',
+        'Stripe',
+      );
+      return changed.productIds;
+    });
+    if (productIds.length) await ctx.cache.invalidate(siteId, productTags(productIds));
+  };
+
   /** The order of an address with its key, as the customer's links carry it. */
   const orderOf = async (request: RouteRequest) => {
     const number = Number(request.params.number ?? request.query.order);
@@ -206,6 +269,31 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
     const money = moneyFormatter(request.locale, order.currency);
     const method = order.paymentMethod as PaymentId;
     const title = payments[method]?.title || (method === 'stripe' ? t('Card') : 'PayPal');
+    const payable = order.status === 'pending' || order.status === 'failed';
+    // Cards on the page: the Payment Element for the order's PaymentIntent.
+    // Without scripts (or if Stripe does not answer) the button goes to Stripe's page.
+    let element = '';
+    if (payable && method === 'stripe' && (await onPage(request.siteId))) {
+      try {
+        const pay = await intent(request.siteId, request.origin, prefixOf(request), order);
+        element = stripeElement(
+          {
+            key: payments.stripe.publishableKey,
+            locale: stripeLocale(request.locale),
+            currency: order.currency.toLowerCase(),
+            amount: minorUnits(order.total, order.currency),
+            ...pay,
+          },
+          ctx.assets.url(STRIPE_SCRIPT),
+          t,
+        );
+      } catch (error) {
+        ctx.log.warn('A Stripe payment could not be prepared', {
+          order: order.number,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
     const content = html`<style>
         ${SHOP_CSS}
       </style>
@@ -216,11 +304,12 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
           <strong>${money.of(order.total)}</strong>
         </p>
         ${
-          order.status === 'pending' || order.status === 'failed'
+          payable
             ? html`<form
                 method="post"
                 action="${prefixOf(request)}/checkout/pay/${order.number}?key=${encodeURIComponent(order.key)}"
               >
+                ${raw(element)}
                 <p>
                   <button class="shop-button" type="submit">
                     ${t('Pay with {method}', { method: title })}
@@ -337,15 +426,77 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
         else if (typeof value === 'string' && value.trim())
           await ctx.secrets.set(request.siteId, SECRETS[name], value.trim());
       }
-      if (data.stripe.enabled && !(await secret(request.siteId, 'stripeSecretKey')))
+      const stripeKey = await secret(request.siteId, 'stripeSecretKey');
+      if (data.stripe.enabled && !stripeKey)
         return bad('secrets.stripeSecretKey', 'Add the secret key to take card payments.');
+      // Both keys of the same mode: a test publishable key with a live secret key cannot pay.
+      const mode = (key: string) => /_(test|live)_/.exec(key)?.[1];
+      if (
+        data.stripe.publishableKey &&
+        stripeKey &&
+        mode(data.stripe.publishableKey) !== mode(stripeKey)
+      )
+        return bad(
+          'stripe.publishableKey',
+          'The publishable key and the secret key must be both test keys or both live keys.',
+        );
       if (
         data.paypal.enabled &&
         (!data.paypal.clientId || !(await secret(request.siteId, 'paypalSecret')))
       )
         return bad('paypal.clientId', 'Add the client id and the secret of your PayPal app.');
       await ctx.storage.set(request.siteId, PAYMENTS_STORAGE, data);
+      // Product pages show the express buttons or not.
+      await ctx.cache.invalidate(request.siteId, [PAYMENTS_TAG]);
       return { body: await view(request) };
+    });
+
+    // Apple Pay, Google Pay and Link on this site's domain (Stripe's payment method domains).
+    const failure = (error: unknown) => ({
+      status: 400,
+      body: {
+        title: 'Bad Request',
+        status: 400,
+        detail: error instanceof Error ? error.message : String(error),
+      },
+    });
+    const domainOf = (request: RouteRequest) => new URL(request.origin).hostname;
+    const domainView = async (
+      request: RouteRequest,
+      found: Awaited<ReturnType<Awaited<ReturnType<typeof stripe>>['findDomain']>>,
+    ) => ({
+      domain: domainOf(request),
+      registered: !!found,
+      applePay: found?.applePay ?? 'inactive',
+      googlePay: found?.googlePay ?? 'inactive',
+      link: found?.link ?? 'inactive',
+      message: found?.message ?? null,
+      file: !!(await ctx.storage.get(request.siteId, APPLE_FILE_STORAGE)),
+    });
+
+    api('GET', '/payments/stripe/domain', async (request) => {
+      try {
+        const client = await stripe(request.siteId);
+        return { body: await domainView(request, await client.findDomain(domainOf(request))) };
+      } catch (error) {
+        return failure(error);
+      }
+    });
+
+    api('POST', '/payments/stripe/domain', async (request) => {
+      const name = domainOf(request);
+      if (name === 'localhost' || /^[\d.]+$|:/.test(name) || !name.includes('.'))
+        return failure(new Error('Apple Pay needs the site’s public domain, over HTTPS.'));
+      try {
+        const client = await stripe(request.siteId);
+        // Apple reads this file on the domain when Stripe registers it.
+        const file = await send({ url: APPLE_FILE_URL, method: 'GET', timeoutMs: 15_000 });
+        if (file.status < 400 && file.text.trim())
+          await ctx.storage.set(request.siteId, APPLE_FILE_STORAGE, file.text.trim());
+        return { body: await domainView(request, await client.registerDomain(name)) };
+      } catch (error) {
+        return failure(error);
+      }
     });
 
     api('POST', '/payments/check/:method', async (request) => {
@@ -357,6 +508,22 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
   };
 
   const register = () => {
+    // Apple Pay's check of the domain: the file Stripe gives, saved when the domain is registered.
+    ctx.routes.public({
+      method: 'GET',
+      path: APPLE_FILE_PATH,
+      async handler(request) {
+        const file = await ctx.storage.get(request.siteId, APPLE_FILE_STORAGE);
+        if (typeof file !== 'string' || !file)
+          return { status: 404, body: 'Not Found', contentType: 'text/plain; charset=utf-8' };
+        return {
+          body: file,
+          contentType: 'text/plain; charset=utf-8',
+          headers: { 'cache-control': 'public, max-age=3600' },
+        };
+      },
+    });
+
     // The page to pay (again): after cancelling on the provider's page, or from the email.
     ctx.routes.public({
       method: 'GET',
@@ -414,6 +581,38 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
       async handler(request) {
         const order = await orderOf(request);
         if (!order) return { status: 303, headers: { location: `${prefixOf(request)}/cart` } };
+        // Paid on the site (Payment Element, express buttons): Stripe adds the PaymentIntent.
+        const intentId = request.query.payment_intent ?? '';
+        if (intentId) {
+          try {
+            if (['pending', 'failed'].includes(order.status)) {
+              const paid = await (await stripe(request.siteId)).getIntent(intentId);
+              if (paid.orderId === order.id && paid.status === 'succeeded')
+                await complete(request.siteId, request.origin, order.id, {
+                  method: 'stripe',
+                  transactionId: paid.id,
+                  amount: String(paid.amountReceived || paid.amount),
+                  currency: paid.currency,
+                });
+              else if (
+                paid.orderId === order.id &&
+                ['requires_payment_method', 'canceled'].includes(paid.status)
+              )
+                return {
+                  status: 303,
+                  headers: {
+                    location: `${prefixOf(request)}/checkout/pay/${order.number}?key=${encodeURIComponent(order.key)}&cancelled=1`,
+                  },
+                };
+            }
+          } catch (error) {
+            ctx.log.warn('A Stripe payment could not be checked on return', {
+              order: order.number,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          return received(request, order);
+        }
         const sessionId = request.query.session ?? '';
         try {
           if (order.status === 'pending' && sessionId === order.paymentRef) {
@@ -485,6 +684,26 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
           data?: { object?: Record<string, unknown> };
         };
         const object = event.data?.object ?? {};
+        // PaymentIntents (paid on the site; Stripe's page makes one too, for the same order).
+        const intentOrder = (object.metadata as Record<string, unknown> | undefined)?.order_id;
+        if (event.type === 'payment_intent.succeeded' && typeof intentOrder === 'string') {
+          await complete(request.siteId, request.origin, intentOrder, {
+            method: 'stripe',
+            transactionId: String(object.id ?? ''),
+            amount: String(object.amount_received ?? object.amount ?? ''),
+            currency: String(object.currency ?? ''),
+          });
+          return { status: 200, body: { received: true } };
+        }
+        if (event.type === 'payment_intent.payment_failed' && typeof intentOrder === 'string') {
+          const reason = (object.last_payment_error as { message?: unknown } | undefined)?.message;
+          await failed(
+            request.siteId,
+            intentOrder,
+            typeof reason === 'string' ? reason.slice(0, 300) : '',
+          );
+          return { status: 200, body: { received: true } };
+        }
         const orderId =
           typeof object.client_reference_id === 'string' ? object.client_reference_id : null;
         if (
@@ -500,13 +719,7 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
             currency: String(object.currency ?? ''),
           });
         } else if (orderId && event.type === 'checkout.session.async_payment_failed') {
-          await ctx.db.transaction(request.siteId, async (tx) => {
-            const [order] = await tx.select().from(orders).where(eq(orders.id, orderId));
-            if (order?.status === 'pending') {
-              await changeStatus(tx, request.siteId, orderId, 'failed', 'Stripe');
-              await note(tx, request.siteId, orderId, 'The Stripe payment failed.', 'Stripe');
-            }
-          });
+          await failed(request.siteId, orderId, '');
         }
         return { status: 200, body: { received: true } };
       },
@@ -597,5 +810,5 @@ export function onlinePayments(ctx: PluginContext, hooks: OnlineHooks) {
       : (await paypal(siteId)).refund(order.transactionId, amount, order.currency);
   };
 
-  return { ready, start, complete, register, registerAdmin, refund, isOnline };
+  return { ready, start, intent, onPage, complete, register, registerAdmin, refund, isOnline };
 }

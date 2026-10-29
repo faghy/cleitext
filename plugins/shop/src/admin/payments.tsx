@@ -17,7 +17,7 @@ const NAMES: Record<PaymentId, { title: string; about: string }> = {
   },
   stripe: {
     title: 'Stripe',
-    about: 'Cards, Apple Pay, Google Pay and more, on Stripe’s secure page.',
+    about: 'Cards, Apple Pay, Google Pay and Link, on your checkout or on Stripe’s secure page.',
   },
   paypal: {
     title: 'PayPal',
@@ -36,6 +36,23 @@ type View = Payments & {
   secrets: Record<SecretName, boolean>;
   webhooks: { stripe: string; paypal: string };
 };
+
+/** The site's domain for Apple Pay, Google Pay and Link, as Stripe knows it. */
+interface DomainStatus {
+  domain: string;
+  registered: boolean;
+  applePay: string;
+  googlePay: string;
+  link: string;
+  message: string | null;
+  file: boolean;
+}
+
+const PLACES = [
+  { key: 'checkout', label: 'Checkout' },
+  { key: 'cart', label: 'Cart' },
+  { key: 'product', label: 'Product pages (“buy now”)' },
+] as const;
 
 interface ShippingList {
   zones: { name: string; methods: { id?: string; title: string }[] }[];
@@ -62,6 +79,16 @@ export function PaymentsPage({ api, site }: AdminPageProps) {
       api<{ ok: boolean; message: string | null }>('POST', `/payments/check/${method}`),
   });
   const [open, setOpen] = useState<PaymentId | null>(null);
+  const domain = useQuery({
+    queryKey: ['shop', 'payments', 'stripe-domain'],
+    queryFn: () => api<DomainStatus>('GET', '/payments/stripe/domain'),
+    enabled: open === 'stripe' && !!loaded.data?.secrets.stripeSecretKey,
+    retry: false,
+  });
+  const registerDomain = useMutation({
+    mutationFn: () => api<DomainStatus>('POST', '/payments/stripe/domain'),
+    onSuccess: (saved) => queryClient.setQueryData(['shop', 'payments', 'stripe-domain'], saved),
+  });
   useEffect(() => {
     if (loaded.data) setData(loaded.data);
   }, [loaded.data]);
@@ -196,7 +223,7 @@ export function PaymentsPage({ api, site }: AdminPageProps) {
       <h1>{t('Payments')}</h1>
       <p className="sh-muted">
         {t(
-          'The ways customers can pay, in the order shown at checkout. Cards and PayPal are paid on Stripe’s and PayPal’s secure pages: card data never reaches this site.',
+          'The ways customers can pay, in the order shown at checkout. Cards and PayPal are paid in Stripe’s and PayPal’s secure forms and pages: card data never reaches this site.',
         )}
       </p>
       <div className="sh-card" style={{ overflowX: 'auto' }}>
@@ -424,8 +451,134 @@ export function PaymentsPage({ api, site }: AdminPageProps) {
                   'In Stripe’s dashboard: Developers → API keys. A test key (sk_test_…) takes no real money.',
                 )}
               </p>
+              <label className="sh-field">
+                <span>{t('Publishable key')}</span>
+                <input
+                  type="text"
+                  value={data.stripe.publishableKey}
+                  placeholder="pk_live_…"
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(e) => set('stripe', { publishableKey: e.target.value.trim() })}
+                />
+                <small>
+                  {t(
+                    'It starts with pk_test_ or pk_live_, like the secret key. It is not secret: the checkout uses it to show Stripe’s card form.',
+                  )}
+                </small>
+                {errors['stripe.publishableKey'] && (
+                  <small className="sh-error">{t(errors['stripe.publishableKey'])}</small>
+                )}
+              </label>
               {secretField('stripeSecretKey', t('Secret key'), 'sk_live_…')}
               {secretField('stripeWebhookSecret', t('Webhook signing secret'), 'whsec_…')}
+              <fieldset className="sh-field" style={{ border: 0, padding: 0, margin: 0 }}>
+                <span>{t('Where customers type their card')}</span>
+                <label className="sh-check">
+                  <input
+                    type="radio"
+                    name="stripe-checkout"
+                    checked={data.stripe.checkout === 'page'}
+                    onChange={() => set('stripe', { checkout: 'page' })}
+                  />
+                  {t('On your checkout page, in Stripe’s secure form (recommended)')}
+                </label>
+                <label className="sh-check">
+                  <input
+                    type="radio"
+                    name="stripe-checkout"
+                    checked={data.stripe.checkout === 'redirect'}
+                    onChange={() => set('stripe', { checkout: 'redirect' })}
+                  />
+                  {t('On Stripe’s page, after placing the order')}
+                </label>
+                <small>
+                  {t(
+                    'Either way card data never reaches this site. Without the publishable key customers pay on Stripe’s page.',
+                  )}
+                </small>
+              </fieldset>
+              <div className="sh-field">
+                <label className="sh-check">
+                  <input
+                    type="checkbox"
+                    checked={data.stripe.express.enabled}
+                    onChange={(e) =>
+                      set('stripe', {
+                        express: { ...data.stripe.express, enabled: e.target.checked },
+                      })
+                    }
+                  />
+                  {t('Express buttons: Apple Pay, Google Pay and Link')}
+                </label>
+                <small>
+                  {t(
+                    'One tap with the address and card saved in the wallet. They show only to customers whose browser has one, and need the publishable key.',
+                  )}
+                </small>
+                {data.stripe.express.enabled && (
+                  <div className="sh-chips">
+                    {PLACES.map((place) => (
+                      <label key={place.key} className="sh-chip">
+                        <input
+                          type="checkbox"
+                          checked={data.stripe.express[place.key]}
+                          onChange={(e) =>
+                            set('stripe', {
+                              express: { ...data.stripe.express, [place.key]: e.target.checked },
+                            })
+                          }
+                        />
+                        {t(place.label)}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="sh-field">
+                <span>{t('Apple Pay on this site')}</span>
+                {!data.secrets.stripeSecretKey ? (
+                  <small className="sh-muted">{t('Save the secret key first.')}</small>
+                ) : domain.isLoading ? (
+                  <small className="sh-muted">{t('Loading…')}</small>
+                ) : domain.data ? (
+                  <small>
+                    <strong>{domain.data.domain}</strong>{' '}
+                    {domain.data.registered ? (
+                      <span
+                        className={`sh-badge ${domain.data.applePay === 'active' ? 'sh-badge-ok' : 'sh-badge-warn'}`}
+                      >
+                        {domain.data.applePay === 'active'
+                          ? t('Apple Pay active')
+                          : t('Apple Pay not active yet')}
+                      </span>
+                    ) : (
+                      <span className="sh-badge sh-badge-warn">{t('Not registered')}</span>
+                    )}
+                    {domain.data.message && <> {domain.data.message}</>}
+                  </small>
+                ) : (
+                  domain.error && <small className="sh-error">{errorMessage(domain.error)}</small>
+                )}
+                <small className="sh-muted">
+                  {t(
+                    'Apple Pay works only on domains registered with Stripe. The button registers this one (Google Pay and Link too) and publishes the file Apple checks.',
+                  )}
+                </small>
+              </div>
+              <div className="sh-row">
+                <button
+                  type="button"
+                  className="sh-btn"
+                  disabled={!data.secrets.stripeSecretKey || registerDomain.isPending}
+                  onClick={() => registerDomain.mutate()}
+                >
+                  {domain.data?.registered
+                    ? t('Check the domain again')
+                    : t('Register this domain')}
+                </button>
+              </div>
+              {registerDomain.error && <Alert>{errorMessage(registerDomain.error)}</Alert>}
             </>
           ) : (
             <>
@@ -475,7 +628,7 @@ export function PaymentsPage({ api, site }: AdminPageProps) {
             <small>
               {open === 'stripe'
                 ? t(
-                    'Add it in Stripe (Developers → Webhooks) with the events checkout.session.completed, checkout.session.async_payment_succeeded and checkout.session.async_payment_failed. Payments are also confirmed when customers come back to the site.',
+                    'Add it in Stripe (Developers → Webhooks) with the events payment_intent.succeeded, payment_intent.payment_failed, checkout.session.completed, checkout.session.async_payment_succeeded and checkout.session.async_payment_failed. Payments are also confirmed when customers come back to the site.',
                   )
                 : t(
                     'Add it to your PayPal app (Webhooks) with the events Checkout order approved and Payment capture completed. Payments are also confirmed when customers come back to the site.',

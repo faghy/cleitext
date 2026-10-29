@@ -478,15 +478,15 @@ export const IT: Record<string, string> = {
     'Mostrati ai clienti dopo l’ordine, con il numero d’ordine come causale.',
   Surcharge: 'Supplemento',
   'The surcharge is taxable': 'Il supplemento è soggetto a imposte',
-  'The ways customers can pay, in the order shown at checkout. Cards and PayPal are paid on Stripe’s and PayPal’s secure pages: card data never reaches this site.':
-    'I modi in cui i clienti possono pagare, nell’ordine mostrato alla cassa. Carte e PayPal si pagano sulle pagine sicure di Stripe e PayPal: i dati delle carte non arrivano mai a questo sito.',
+  'The ways customers can pay, in the order shown at checkout. Cards and PayPal are paid in Stripe’s and PayPal’s secure forms and pages: card data never reaches this site.':
+    'I modi in cui i clienti possono pagare, nell’ordine mostrato alla cassa. Carte e PayPal si pagano nei moduli e nelle pagine sicure di Stripe e PayPal: i dati delle carte non arrivano mai a questo sito.',
   Title: 'Titolo',
   'Under the title at checkout.': 'Sotto il titolo, alla cassa.',
   'What customers see at checkout. Empty: the default, in their language.':
     'Quello che i clienti vedono alla cassa. Vuoto: quello predefinito, nella loro lingua.',
   'A PayPal account, or a card through PayPal.': 'Un conto PayPal, o una carta tramite PayPal.',
-  'Add it in Stripe (Developers → Webhooks) with the events checkout.session.completed, checkout.session.async_payment_succeeded and checkout.session.async_payment_failed. Payments are also confirmed when customers come back to the site.':
-    'Aggiungilo in Stripe (Sviluppatori → Webhook) con gli eventi checkout.session.completed, checkout.session.async_payment_succeeded e checkout.session.async_payment_failed. I pagamenti si confermano anche quando i clienti tornano sul sito.',
+  'Add it in Stripe (Developers → Webhooks) with the events payment_intent.succeeded, payment_intent.payment_failed, checkout.session.completed, checkout.session.async_payment_succeeded and checkout.session.async_payment_failed. Payments are also confirmed when customers come back to the site.':
+    'Aggiungilo in Stripe (Sviluppatori → Webhook) con gli eventi payment_intent.succeeded, payment_intent.payment_failed, checkout.session.completed, checkout.session.async_payment_succeeded e checkout.session.async_payment_failed. I pagamenti si confermano anche quando i clienti tornano sul sito.',
   'Add it to your PayPal app (Webhooks) with the events Checkout order approved and Payment capture completed. Payments are also confirmed when customers come back to the site.':
     'Aggiungilo alla tua app PayPal (Webhooks) con gli eventi Checkout order approved e Payment capture completed. I pagamenti si confermano anche quando i clienti tornano sul sito.',
   'Add the account customers pay into.': 'Aggiungi il conto su cui pagano i clienti.',
@@ -497,8 +497,38 @@ export const IT: Record<string, string> = {
   'Add the secret key.': 'Aggiungi la chiave segreta.',
   'Cancel unpaid online orders after (minutes)':
     'Annulla gli ordini online non pagati dopo (minuti)',
-  'Cards, Apple Pay, Google Pay and more, on Stripe’s secure page.':
-    'Carte, Apple Pay, Google Pay e altro, sulla pagina sicura di Stripe.',
+  'Cards, Apple Pay, Google Pay and Link, on your checkout or on Stripe’s secure page.':
+    'Carte, Apple Pay, Google Pay e Link, nella tua cassa o sulla pagina sicura di Stripe.',
+  // Stripe on the checkout page, express buttons and Apple Pay's domain (Cleishop 1.12).
+  'Publishable key': 'Chiave pubblicabile',
+  'It starts with pk_test_ or pk_live_, like the secret key. It is not secret: the checkout uses it to show Stripe’s card form.':
+    'Inizia con pk_test_ o pk_live_, come la chiave segreta. Non è segreta: la cassa la usa per mostrare il modulo della carta di Stripe.',
+  'The publishable key and the secret key must be both test keys or both live keys.':
+    'La chiave pubblicabile e quella segreta devono essere entrambe di test o entrambe live.',
+  'Where customers type their card': 'Dove i clienti inseriscono la carta',
+  'On your checkout page, in Stripe’s secure form (recommended)':
+    'Nella pagina della tua cassa, nel modulo sicuro di Stripe (consigliato)',
+  'On Stripe’s page, after placing the order': 'Sulla pagina di Stripe, dopo aver fatto l’ordine',
+  'Either way card data never reaches this site. Without the publishable key customers pay on Stripe’s page.':
+    'In entrambi i casi i dati delle carte non arrivano mai a questo sito. Senza la chiave pubblicabile i clienti pagano sulla pagina di Stripe.',
+  'Express buttons: Apple Pay, Google Pay and Link':
+    'Pulsanti rapidi: Apple Pay, Google Pay e Link',
+  'One tap with the address and card saved in the wallet. They show only to customers whose browser has one, and need the publishable key.':
+    'Un tocco, con l’indirizzo e la carta salvati nel wallet. Compaiono solo ai clienti il cui browser ne ha uno, e richiedono la chiave pubblicabile.',
+  Checkout: 'Cassa',
+  Cart: 'Carrello',
+  'Product pages (“buy now”)': 'Pagine dei prodotti («Compra subito»)',
+  'Apple Pay on this site': 'Apple Pay su questo sito',
+  'Save the secret key first.': 'Salva prima la chiave segreta.',
+  'Apple Pay active': 'Apple Pay attivo',
+  'Apple Pay not active yet': 'Apple Pay non ancora attivo',
+  'Not registered': 'Non registrato',
+  'Apple Pay works only on domains registered with Stripe. The button registers this one (Google Pay and Link too) and publishes the file Apple checks.':
+    'Apple Pay funziona solo sui domini registrati in Stripe. Il pulsante registra questo (anche per Google Pay e Link) e pubblica il file che Apple controlla.',
+  'Check the domain again': 'Verifica di nuovo il dominio',
+  'Register this domain': 'Registra questo dominio',
+  'Apple Pay needs the site’s public domain, over HTTPS.':
+    'Apple Pay richiede il dominio pubblico del sito, in HTTPS.',
   'Check the keys': 'Verifica le chiavi',
   'Client id': 'Client ID',
   'Credit or debit card': 'Carta di credito o di debito',

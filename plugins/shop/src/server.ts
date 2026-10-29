@@ -35,6 +35,7 @@ import { onlinePayments } from './online-payments';
 import { registerStorefrontBlocks } from './storefront-blocks';
 import { registerCartBlocks } from './cart-blocks';
 import { loadPayments } from './rules-routes';
+import { expressAt } from './payments';
 import { registerRulesRoutes, TAXES_STORAGE, taxSettingsSchema } from './rules-routes';
 import { registerReportRoutes } from './reports-routes';
 
@@ -333,10 +334,16 @@ export default definePlugin({
           .onConflictDoNothing(),
       );
     });
-    registerBuyBox(ctx, async (siteId) => {
+    // The buy box, with the express buttons ("buy now") when Shop → Payments shows them there.
+    const buyBoxSettings = async (siteId: string) => {
       const values = await ctx.settings.get(siteId);
-      return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
-    });
+      return {
+        currency: String(values.currency ?? 'EUR'),
+        lowStock: Number(values.lowStock ?? 2),
+        express: expressAt(await loadPayments(ctx, siteId), await online.ready(siteId), 'product'),
+      };
+    };
+    registerBuyBox(ctx, buyBoxSettings);
     const currency = async (siteId: string) => ({
       currency: String((await ctx.settings.get(siteId)).currency ?? 'EUR'),
     });
@@ -344,10 +351,7 @@ export default definePlugin({
     // WooCommerce products from the WordPress importer.
     registerWooImport(ctx);
     registerAccount(ctx, store);
-    registerStorefrontBlocks(ctx, currency, async (siteId) => {
-      const values = await ctx.settings.get(siteId);
-      return { currency: String(values.currency ?? 'EUR'), lowStock: Number(values.lowStock ?? 2) };
-    });
+    registerStorefrontBlocks(ctx, currency, buyBoxSettings);
     // The cart and the checkout as blocks, for page builders.
     registerCartBlocks(ctx);
     registerPrivacy(ctx);

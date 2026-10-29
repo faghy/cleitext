@@ -124,6 +124,19 @@ instructions for the order page and the emails:
   and their stock goes back. Refunds from the order give the money back
   through the provider. The secret keys are stored encrypted and never shown
   again.
+- Stripe on the site (Cleishop 1.12.0): with the publishable key, customers
+  type their card in Stripe's Payment Element right in the checkout (a
+  PaymentIntent per order; 3-D Secure comes back to the site), and the Apple
+  Pay, Google Pay and Link buttons show at the top of the checkout, in the
+  cart and on the product page ("buy now"). The wallet gives the address:
+  the shop answers with its own shipping zones, methods and taxes, and places
+  the order with the wallet's name, email and addresses. Card data stays in
+  Stripe's frames. "Stripe's page" keeps the redirect to Stripe Checkout, and
+  without the publishable key (or without JavaScript) customers pay there.
+  A button registers the site's domain with Stripe for Apple Pay and serves
+  `/.well-known/apple-developer-merchantid-domain-association`. Stripe's
+  webhook needs the events `payment_intent.succeeded` and
+  `payment_intent.payment_failed` as well.
 
 **How the shop is going** (Cleishop 1.11):
 

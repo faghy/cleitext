@@ -27,6 +27,9 @@ const IT: Record<string, string> = {
   'Pay for your order': 'Paga il tuo ordine',
   'Pay now': 'Paga ora',
   'Pay with {method}': 'Paga con {method}',
+  'Or pay below': 'Oppure paga qui sotto',
+  'The address from your wallet is not complete: check it and try again.':
+    'L’indirizzo del tuo wallet non è completo: controllalo e riprova.',
   PayPal: 'PayPal',
   'The payment could not start: try again in a moment.':
     'Il pagamento non è partito: riprova tra un momento.',

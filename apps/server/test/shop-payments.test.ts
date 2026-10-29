@@ -1,9 +1,10 @@
 /**
  * The Shop plugin: Stripe and PayPal. The customer pays on the provider's
- * pages; the order waits as pending until the provider confirms, on the way
- * back or through a signed webhook. Refunds go back through the provider;
- * unpaid orders are cancelled. The providers are played by a stub of the
- * plugins' outgoing requests.
+ * pages, or in Stripe's Payment Element and express buttons on the site; the
+ * order waits as pending until the provider confirms, on the way back or
+ * through a signed webhook. Refunds go back through the provider; unpaid
+ * orders are cancelled. Apple Pay's domain is registered and its file served.
+ * The providers are played by a stub of the plugins' outgoing requests.
  */
 import { createHmac } from 'node:crypto';
 import { cp, mkdtemp } from 'node:fs/promises';
@@ -106,7 +107,11 @@ beforeAll(async () => {
       };
       calls.push(call);
       const { status, body } = answer(call);
-      return { status, type: 'application/json', text: JSON.stringify(body) };
+      return {
+        status,
+        type: typeof body === 'string' ? 'text/plain' : 'application/json',
+        text: typeof body === 'string' ? body : JSON.stringify(body),
+      };
     },
   );
   site = await seedSite(owner, 'shop-pay');
@@ -425,5 +430,491 @@ describe('unpaid orders', () => {
     expect((await admin.get(ext(`/products/${lamp}`))).json().stock).toBe(stock + 3);
     // Paid orders stay as they are.
     expect((await orderByEmail('ugo@example.test')).order.status).toBe('processing');
+  });
+});
+
+describe('paying on the site (Payment Element)', () => {
+  const PK = 'pk_test_abcdefghijklmnop';
+  let ada: TestClient;
+  let adaOrder: { id: string; number: number; key: string };
+  /** Stripe's answer to a new PaymentIntent, for the order in the request. */
+  const intentAnswer = (id: string) => (call: (typeof calls)[number]) => {
+    if (call.url.endsWith('/v1/payment_intents')) {
+      const form = new URLSearchParams(call.body);
+      return {
+        status: 200,
+        body: {
+          id,
+          client_secret: `${id}_secret_abc`,
+          status: 'requires_payment_method',
+          amount: Number(form.get('amount')),
+          currency: form.get('currency'),
+          metadata: { order_id: form.get('metadata[order_id]') },
+        },
+      };
+    }
+    return { status: 404, body: {} };
+  };
+  const paidIntent = (id: string, orderId: string, amount: number, status = 'succeeded') => ({
+    id,
+    object: 'payment_intent',
+    status,
+    amount,
+    amount_received: status === 'succeeded' ? amount : 0,
+    currency: 'eur',
+    metadata: { order_id: orderId },
+  });
+
+  it('takes the publishable key, checked against the secret key', async () => {
+    const wrong = await admin.request('PUT', ext('/payments'), {
+      stripe: { enabled: true, publishableKey: 'sk_test_abcdefghijklmnop' },
+    });
+    expect(wrong.statusCode).toBe(400);
+    expect(wrong.json().errors[0].path).toBe('stripe.publishableKey');
+    const live = await admin.request('PUT', ext('/payments'), {
+      stripe: { enabled: true, publishableKey: 'pk_live_abcdefghijklmnop' },
+    });
+    expect(live.statusCode).toBe(400);
+    expect(live.json().errors[0].message).toContain('both test keys');
+    const saved = await admin.request('PUT', ext('/payments'), {
+      stripe: { enabled: true, publishableKey: PK },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().stripe).toMatchObject({
+      publishableKey: PK,
+      checkout: 'page',
+      express: { enabled: true, checkout: true, cart: true, product: true },
+    });
+  });
+
+  it('shows the Payment Element and creates the PaymentIntent when the order is sent', async () => {
+    ada = new TestClient(app, site.host, '10.95.0.20');
+    await ada.postForm('/cart/add', { product: lamp, quantity: '1' });
+    const page = (await ada.get('/checkout')).body;
+    expect(page).toContain('data-shop-stripe=');
+    expect(page).toContain(PK);
+    expect(page).toContain('&quot;amount&quot;:2550');
+    expect(page).toMatch(/<script src="[^"]*stripe-pay\.js[^"]*" defer>/);
+    expect(page).toContain('data-shop-express=');
+    // No secret key on the page.
+    expect(page).not.toContain('sk_test_');
+    // Public pages let stripe.js and its frames load (no script or frame sources set).
+    const policy = String((await ada.get('/checkout')).headers['content-security-policy']);
+    expect(policy).not.toMatch(/script-src|frame-src|default-src|connect-src/);
+
+    // A field to correct: the checkout's markup again, as JSON.
+    const missing = await ada.postForm('/checkout', {
+      ...billing('', 'stripe'),
+      stripeOnPage: '1',
+    });
+    expect(missing.statusCode).toBe(200);
+    expect(missing.json().html).toContain('Please correct the fields marked below.');
+
+    calls.length = 0;
+    answer = intentAnswer('pi_page_1');
+    const placed = await ada.postForm('/checkout', {
+      ...billing('ada@example.test', 'stripe'),
+      stripeOnPage: '1',
+    });
+    expect(placed.statusCode).toBe(200);
+    const detail = await orderByEmail('ada@example.test');
+    adaOrder = detail.order;
+    expect(placed.json()).toEqual({
+      clientSecret: 'pi_page_1_secret_abc',
+      returnUrl: `http://${site.host}/checkout/stripe/return?order=${adaOrder.number}&key=${encodeURIComponent(adaOrder.key)}`,
+    });
+    expect(calls.some((c) => c.url.includes('/checkout/sessions'))).toBe(false);
+    const asked = calls.find((c) => c.url.endsWith('/v1/payment_intents'))!;
+    expect(asked.headers['idempotency-key']).toBe(`intent-${adaOrder.id}-2550`);
+    const form = new URLSearchParams(asked.body);
+    expect(form.get('amount')).toBe('2550');
+    expect(form.get('currency')).toBe('eur');
+    expect(form.get('automatic_payment_methods[enabled]')).toBe('true');
+    expect(form.get('metadata[order_id]')).toBe(adaOrder.id);
+    expect(detail.order).toMatchObject({ status: 'pending', paymentRef: 'pi_page_1' });
+  });
+
+  it('confirms the payment once, back from 3-D Secure, and not again with the webhook', async () => {
+    // A PaymentIntent of another order does not count.
+    answer = (call) =>
+      call.url.endsWith('/v1/payment_intents/pi_other')
+        ? { status: 200, body: paidIntent('pi_other', 'another-order', 2550) }
+        : call.url.endsWith('/v1/payment_intents/pi_page_1')
+          ? { status: 200, body: paidIntent('pi_page_1', adaOrder.id, 2550) }
+          : { status: 404, body: {} };
+    const base = `/checkout/stripe/return?order=${adaOrder.number}&key=${encodeURIComponent(adaOrder.key)}`;
+    await ada.get(`${base}&payment_intent=pi_other&redirect_status=succeeded`);
+    expect((await orderByEmail('ada@example.test')).order.status).toBe('pending');
+    const back = await ada.get(
+      `${base}&payment_intent=pi_page_1&payment_intent_client_secret=pi_page_1_secret_abc&redirect_status=succeeded`,
+    );
+    expect(back.headers.location).toBe(
+      `/order-received/${adaOrder.number}?key=${encodeURIComponent(adaOrder.key)}`,
+    );
+    expect((await orderByEmail('ada@example.test')).order).toMatchObject({
+      status: 'processing',
+      transactionId: 'pi_page_1',
+    });
+    const outbox = app.get(MailService).outbox;
+    expect(outbox.filter((m) => m.to === 'ada@example.test')).toHaveLength(1);
+    const before = outbox.length;
+    const late = await stripeWebhook({
+      type: 'payment_intent.succeeded',
+      data: { object: paidIntent('pi_page_1', adaOrder.id, 2550) },
+    });
+    expect(late.statusCode).toBe(200);
+    expect(outbox.length).toBe(before);
+  });
+
+  it('marks a failed payment, offers the card again, and takes the payment later', async () => {
+    const bo = new TestClient(app, site.host, '10.95.0.21');
+    await bo.postForm('/cart/add', { product: lamp, quantity: '1' });
+    answer = intentAnswer('pi_page_2');
+    await bo.postForm('/checkout', { ...billing('bo@example.test', 'stripe'), stripeOnPage: '1' });
+    const { order } = await orderByEmail('bo@example.test');
+    const declined = {
+      ...paidIntent('pi_page_2', order.id, 2550, 'requires_payment_method'),
+      last_payment_error: { message: 'Your card was declined.' },
+    };
+    const failed = await stripeWebhook({
+      type: 'payment_intent.payment_failed',
+      data: { object: declined },
+    });
+    expect(failed.statusCode).toBe(200);
+    const detail = await orderByEmail('bo@example.test');
+    expect(detail.order.status).toBe('failed');
+    expect(JSON.stringify(detail)).toContain('Your card was declined.');
+
+    // Back from a 3-D Secure that did not pass: the page to pay, with the card form.
+    answer = (call) =>
+      call.url.endsWith('/v1/payment_intents/pi_page_2')
+        ? { status: 200, body: declined }
+        : intentAnswer('pi_page_2')(call);
+    const key = encodeURIComponent(order.key);
+    const back = await bo.get(
+      `/checkout/stripe/return?order=${order.number}&key=${key}&payment_intent=pi_page_2&redirect_status=failed`,
+    );
+    expect(back.headers.location).toBe(`/checkout/pay/${order.number}?key=${key}&cancelled=1`);
+    const again = await bo.get(back.headers.location as string);
+    expect(again.body).toContain('The payment was not completed: you can try again.');
+    expect(again.body).toContain('pi_page_2_secret_abc');
+
+    const paid = await stripeWebhook({
+      type: 'payment_intent.succeeded',
+      data: { object: paidIntent('pi_page_2', order.id, 2550) },
+    });
+    expect(paid.statusCode).toBe(200);
+    expect((await orderByEmail('bo@example.test')).order).toMatchObject({
+      status: 'processing',
+      transactionId: 'pi_page_2',
+    });
+  });
+
+  it('refunds through the PaymentIntent', async () => {
+    calls.length = 0;
+    answer = () => ({ status: 200, body: { id: 're_page_1' } });
+    const done = await admin.post(ext(`/orders/${adaOrder.id}/refunds`), { amount: '5' });
+    expect(done.statusCode).toBe(201);
+    const asked = new URLSearchParams(calls[0]!.body);
+    expect(calls[0]!.url).toBe('https://api.stripe.com/v1/refunds');
+    expect(asked.get('payment_intent')).toBe('pi_page_1');
+    expect(asked.get('amount')).toBe('500');
+  });
+
+  it('still goes to Stripe’s page without the script, or when the shop chose it', async () => {
+    const cy = new TestClient(app, site.host, '10.95.0.22');
+    await cy.postForm('/cart/add', { product: lamp, quantity: '1' });
+    answer = () => ({
+      status: 200,
+      body: { id: 'cs_test_page', url: 'https://checkout.stripe.com/c/pay/cs_test_page' },
+    });
+    const placed = await cy.postForm('/checkout', billing('cy@example.test', 'stripe'));
+    expect(placed.headers.location).toBe('https://checkout.stripe.com/c/pay/cs_test_page');
+
+    await admin.request('PUT', ext('/payments'), {
+      stripe: { enabled: true, publishableKey: PK, checkout: 'redirect' },
+    });
+    const dan = new TestClient(app, site.host, '10.95.0.23');
+    await dan.postForm('/cart/add', { product: lamp, quantity: '1' });
+    expect((await dan.get('/checkout')).body).not.toContain('data-shop-stripe=');
+    await admin.request('PUT', ext('/payments'), {
+      stripe: { enabled: true, publishableKey: PK, checkout: 'page' },
+    });
+  });
+});
+
+describe('express buttons (Apple Pay, Google Pay, Link)', () => {
+  let rates: { islands: string; italy: string };
+
+  beforeAll(async () => {
+    const saved = await admin.request('PUT', ext('/shipping'), {
+      zones: [
+        {
+          name: 'Islands',
+          regions: [{ country: 'IT', province: 'CA' }],
+          methods: [{ title: 'Courier (islands)', settings: { kind: 'flat', cost: '12' } }],
+        },
+        {
+          name: 'Italy',
+          regions: [{ country: 'IT' }],
+          methods: [{ title: 'Courier', settings: { kind: 'flat', cost: '7' } }],
+        },
+      ],
+      rest: [],
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    const zones = (await admin.get(ext('/shipping'))).json().zones as {
+      methods: { id: string }[];
+    }[];
+    rates = { islands: zones[0]!.methods[0]!.id, italy: zones[1]!.methods[0]!.id };
+  });
+
+  it('gives the wallet the shop’s rates and total for its address, and places the order', async () => {
+    const eli = new TestClient(app, site.host, '10.95.0.30');
+    await eli.postForm('/cart/add', { product: lamp, quantity: '1' });
+    expect((await eli.get('/cart')).body).toContain('class="shop-express shop-express--cart"');
+
+    const config = (await eli.get('/checkout/express?place=cart')).json();
+    expect(config).toMatchObject({
+      key: 'pk_test_abcdefghijklmnop',
+      currency: 'eur',
+      amount: 3250,
+      needsShipping: true,
+      rates: [{ id: rates.italy, displayName: 'Courier', amount: 700 }],
+      quoteUrl: '/checkout/express/quote',
+      orderUrl: '/checkout/express/order',
+    });
+    const quoted = await eli.request(
+      'POST',
+      '/checkout/express/quote',
+      { address: { country: 'IT', state: 'CA', postal_code: '09100', city: 'Cagliari' } },
+      { csrf: false },
+    );
+    expect(quoted.json()).toMatchObject({
+      amount: 3750,
+      rates: [{ id: rates.islands, displayName: 'Courier (islands)', amount: 1200 }],
+      rate: rates.islands,
+    });
+
+    // A wallet without the street: refused.
+    const wallet = {
+      rate: rates.islands,
+      email: 'eli@example.test',
+      phone: '+39 070 123456',
+      billing: {
+        name: 'Eli Sanna',
+        email: 'eli@example.test',
+        phone: '+39 070 123456',
+        address: { postal_code: '09100', country: 'IT' },
+      },
+      shipping: {
+        name: 'Eli Sanna',
+        address: {
+          line1: 'Via Roma 1',
+          city: 'Cagliari',
+          state: 'CA',
+          postal_code: '09100',
+          country: 'IT',
+        },
+      },
+    };
+    const incomplete = await eli.request(
+      'POST',
+      '/checkout/express/order',
+      { ...wallet, shipping: { name: 'Eli Sanna', address: { country: 'IT' } } },
+      { csrf: false },
+    );
+    expect(incomplete.statusCode).toBe(400);
+
+    calls.length = 0;
+    answer = (call) =>
+      call.url.endsWith('/v1/payment_intents')
+        ? {
+            status: 200,
+            body: {
+              id: 'pi_express_1',
+              client_secret: 'pi_express_1_secret',
+              status: 'requires_payment_method',
+            },
+          }
+        : { status: 404, body: {} };
+    const placed = await eli.request('POST', '/checkout/express/order', wallet, { csrf: false });
+    expect(placed.statusCode, placed.body).toBe(200);
+    expect(placed.json().clientSecret).toBe('pi_express_1_secret');
+    expect(placed.json().returnUrl).toContain('/checkout/stripe/return?order=');
+    expect(new URLSearchParams(calls[0]!.body).get('amount')).toBe('3750');
+    const detail = await orderByEmail('eli@example.test');
+    expect(detail.order).toMatchObject({
+      status: 'pending',
+      paymentMethod: 'stripe',
+      paymentRef: 'pi_express_1',
+      total: '37.50',
+    });
+    // The billing address is the shipping one when the wallet gives only the postcode.
+    expect(detail.order.billing).toMatchObject({
+      firstName: 'Eli',
+      lastName: 'Sanna',
+      address1: 'Via Roma 1',
+      city: 'Cagliari',
+      province: 'CA',
+      phone: '+39 070 123456',
+    });
+    expect(detail.order.shipping).toMatchObject({ city: 'Cagliari', province: 'CA' });
+    // The cart is emptied, as at checkout.
+    expect((await eli.get('/cart/count')).json().count).toBe(0);
+
+    // Paid: the webhook confirms it as any PaymentIntent.
+    await stripeWebhook({
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_express_1',
+          amount: 3750,
+          amount_received: 3750,
+          currency: 'eur',
+          metadata: { order_id: detail.order.id },
+        },
+      },
+    });
+    expect((await orderByEmail('eli@example.test')).order.status).toBe('processing');
+  });
+
+  it('buys one product from its page, leaving the cart as it is', async () => {
+    const flo = new TestClient(app, site.host, '10.95.0.31');
+    await flo.postForm('/cart/add', { product: lamp, quantity: '2' });
+    const page = (await flo.get('/product/lamp')).body;
+    expect(page).toContain('class="shop-express shop-express--product"');
+    expect(page).toMatch(/stripe-pay\.js/);
+
+    const config = (
+      await flo.get(`/checkout/express?place=product&product=${lamp}&quantity=1`)
+    ).json();
+    expect(config.amount).toBe(3250);
+    answer = (call) =>
+      call.url.endsWith('/v1/payment_intents')
+        ? { status: 200, body: { id: 'pi_express_2', client_secret: 'pi_express_2_secret' } }
+        : { status: 404, body: {} };
+    const placed = await flo.request(
+      'POST',
+      '/checkout/express/order',
+      {
+        product: lamp,
+        quantity: '1',
+        rate: rates.italy,
+        email: 'flo@example.test',
+        billing: {
+          name: 'Flo Neri',
+          email: 'flo@example.test',
+          phone: '011 765432',
+          address: {
+            line1: 'Via Po 2',
+            city: 'Torino',
+            state: 'Torino',
+            postal_code: '10123',
+            country: 'IT',
+          },
+        },
+        shipping: {
+          name: 'Flo Neri',
+          address: {
+            line1: 'Via Po 2',
+            city: 'Torino',
+            state: 'TO',
+            postal_code: '10123',
+            country: 'IT',
+          },
+        },
+      },
+      { csrf: false },
+    );
+    expect(placed.statusCode, placed.body).toBe(200);
+    const detail = await orderByEmail('flo@example.test');
+    expect(detail.order.total).toBe('32.50');
+    expect(detail.order.billing.province).toBe('TO');
+    expect(detail.items.filter((i: { kind: string }) => i.kind === 'product')).toHaveLength(1);
+    expect((await flo.get('/cart/count')).json().count).toBe(2);
+  });
+
+  it('shows no buttons when they are turned off there', async () => {
+    await admin.request('PUT', ext('/payments'), {
+      stripe: {
+        enabled: true,
+        publishableKey: 'pk_test_abcdefghijklmnop',
+        express: { enabled: true, checkout: true, cart: false, product: true },
+      },
+    });
+    const gil = new TestClient(app, site.host, '10.95.0.32');
+    await gil.postForm('/cart/add', { product: lamp, quantity: '1' });
+    expect((await gil.get('/cart')).body).not.toContain('class="shop-express shop-express--cart"');
+    expect((await gil.get('/checkout/express?place=cart')).json()).toEqual({ key: null });
+    expect((await gil.get('/checkout')).body).toContain(
+      'class="shop-express shop-express--checkout"',
+    );
+  });
+});
+
+describe('Apple Pay’s domain', () => {
+  const FILE = '/.well-known/apple-developer-merchantid-domain-association';
+
+  it('registers the site’s domain with Stripe and serves Apple’s file', async () => {
+    const visitor = new TestClient(app, site.host, '10.95.0.40');
+    expect((await visitor.get(FILE)).statusCode).toBe(404);
+    answer = () => ({ status: 200, body: { data: [] } });
+    const before = await admin.get(ext('/payments/stripe/domain'));
+    expect(before.json()).toMatchObject({ domain: site.host, registered: false, file: false });
+
+    calls.length = 0;
+    answer = (call) => {
+      if (
+        call.url ===
+        'https://stripe.com/files/apple-pay/apple-developer-merchantid-domain-association'
+      )
+        return { status: 200, body: '7B2270737022' };
+      if (call.url.includes('/v1/payment_method_domains?'))
+        return { status: 200, body: { data: [] } };
+      if (call.url.endsWith('/v1/payment_method_domains'))
+        return {
+          status: 200,
+          body: {
+            id: 'pmd_1',
+            domain_name: site.host,
+            enabled: true,
+            apple_pay: { status: 'active' },
+            google_pay: { status: 'active' },
+            link: { status: 'active' },
+          },
+        };
+      return { status: 404, body: {} };
+    };
+    const registered = await admin.post(ext('/payments/stripe/domain'));
+    expect(registered.statusCode, registered.body).toBe(200);
+    expect(registered.json()).toMatchObject({
+      domain: site.host,
+      registered: true,
+      applePay: 'active',
+      file: true,
+    });
+    const created = calls.find((c) => c.url.endsWith('/v1/payment_method_domains'))!;
+    expect(new URLSearchParams(created.body).get('domain_name')).toBe(site.host);
+
+    const file = await visitor.get(FILE);
+    expect(file.statusCode).toBe(200);
+    expect(file.headers['content-type']).toContain('text/plain');
+    expect(file.body).toBe('7B2270737022');
+
+    // Registered already: Stripe checks it again.
+    calls.length = 0;
+    answer = (call) => {
+      if (call.url.includes('/v1/payment_method_domains?'))
+        return { status: 200, body: { data: [{ id: 'pmd_1', domain_name: site.host }] } };
+      if (call.url.endsWith('/v1/payment_method_domains/pmd_1/validate'))
+        return {
+          status: 200,
+          body: { id: 'pmd_1', domain_name: site.host, apple_pay: { status: 'active' } },
+        };
+      return { status: 200, body: '7B2270737022' };
+    };
+    expect((await admin.post(ext('/payments/stripe/domain'))).statusCode).toBe(200);
+    expect(calls.some((c) => c.url.endsWith('/pmd_1/validate'))).toBe(true);
   });
 });

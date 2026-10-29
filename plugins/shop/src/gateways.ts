@@ -1,8 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
- * Stripe (Checkout) and PayPal (Orders v2) for the shop: the customer pays on
- * the provider's pages, so card data never reaches the site. Plain requests
+ * Stripe (Checkout, or PaymentIntents for the Payment Element on the site's
+ * own checkout) and PayPal (Orders v2) for the shop: card data is typed on
+ * the provider's pages or in Stripe's frames, so it never reaches the site.
+ * Plain requests
  * through `send` (the plugin's `ctx.http.send`), so tests can answer for the
  * providers.
  */
@@ -83,6 +85,28 @@ export interface StripeSession {
   currency: string;
 }
 
+export interface StripeIntent {
+  id: string;
+  status: string;
+  clientSecret: string;
+  orderId: string | null;
+  amount: number;
+  amountReceived: number;
+  currency: string;
+}
+
+/** A Stripe payment method domain: where Apple Pay, Google Pay and Link may show. */
+export interface StripeDomain {
+  id: string;
+  domain: string;
+  enabled: boolean;
+  applePay: string;
+  googlePay: string;
+  link: string;
+  /** Why Apple Pay is not active, when Stripe says. */
+  message: string | null;
+}
+
 export function stripeClient(send: Send, secretKey: string) {
   const call = async (
     method: 'GET' | 'POST',
@@ -124,7 +148,73 @@ export function stripeClient(send: Send, secretKey: string) {
     amount: Number(data.amount_total ?? 0),
     currency: String(data.currency ?? '').toUpperCase(),
   });
+  const intent = (data: Record<string, unknown>): StripeIntent => ({
+    id: String(data.id ?? ''),
+    status: String(data.status ?? ''),
+    clientSecret: String(data.client_secret ?? ''),
+    orderId: (data.metadata as Record<string, string> | undefined)?.order_id ?? null,
+    amount: Number(data.amount ?? 0),
+    amountReceived: Number(data.amount_received ?? 0),
+    currency: String(data.currency ?? '').toUpperCase(),
+  });
+  const domain = (data: Record<string, unknown>): StripeDomain => {
+    const status = (name: string) =>
+      String((data[name] as { status?: string } | undefined)?.status ?? 'inactive');
+    const apple = (data.apple_pay ?? {}) as { status_details?: { error_message?: string } };
+    return {
+      id: String(data.id ?? ''),
+      domain: String(data.domain_name ?? ''),
+      enabled: data.enabled !== false,
+      applePay: status('apple_pay'),
+      googlePay: status('google_pay'),
+      link: status('link'),
+      message: apple.status_details?.error_message ?? null,
+    };
+  };
+  /** The site's domain as Stripe knows it, or null when it is not registered. */
+  const findDomain = async (name: string): Promise<StripeDomain | null> => {
+    const data = await call(
+      'GET',
+      `/payment_method_domains?domain_name=${encodeURIComponent(name)}&limit=1`,
+    );
+    const found = ((data.data as Record<string, unknown>[] | undefined) ?? [])[0];
+    return found ? domain(found) : null;
+  };
   return {
+    /**
+     * A PaymentIntent for the order's total, paid with the Payment Element or
+     * the express buttons on the site: the same one for the same order and
+     * amount (Stripe's idempotency), so paying again reuses it.
+     */
+    async createIntent(order: PaymentOrder, description: string): Promise<StripeIntent> {
+      const amount = minorUnits(order.total, order.currency);
+      return intent(
+        await call(
+          'POST',
+          '/payment_intents',
+          {
+            amount,
+            currency: order.currency.toLowerCase(),
+            automatic_payment_methods: { enabled: true },
+            description: description.slice(0, 1000),
+            metadata: { order_id: order.id, order_number: order.number },
+          },
+          `intent-${order.id}-${amount}`,
+        ),
+      );
+    },
+    async getIntent(id: string): Promise<StripeIntent> {
+      if (!/^pi_[A-Za-z0-9_]+$/.test(id)) throw new GatewayError('Stripe: not a payment');
+      return intent(await call('GET', `/payment_intents/${id}`));
+    },
+    findDomain,
+    /** Registers the domain for Apple Pay, Google Pay and Link, or checks it again. */
+    async registerDomain(name: string): Promise<StripeDomain> {
+      const found = await findDomain(name);
+      if (!found)
+        return domain(await call('POST', '/payment_method_domains', { domain_name: name }));
+      return domain(await call('POST', `/payment_method_domains/${found.id}/validate`, {}));
+    },
     /** A Checkout Session for the order's total; the customer goes to its `url`. */
     async createSession(
       order: PaymentOrder,

@@ -12,6 +12,7 @@ import {
   type VariationRow,
 } from './schema';
 import { SHOP_CSS } from './pages';
+import { STRIPE_SCRIPT } from './stripe-element';
 import { translator } from './strings';
 
 /**
@@ -25,6 +26,16 @@ export const productTag = (id: string) => `shop:product:${id}`;
 export const CATALOG_TAG = 'shop:catalog';
 /** What to refresh when products' prices or stock change. */
 export const productTags = (ids: string[]) => [...new Set(ids)].map(productTag).concat(CATALOG_TAG);
+/** Pages with the express buttons: they refresh when Shop → Payments changes. */
+export const PAYMENTS_TAG = 'shop:payments';
+
+/** What the buy box needs from the shop's settings. */
+export interface BuyBoxSettings {
+  currency: string;
+  lowStock: number;
+  /** The express buttons (Apple Pay, Google Pay, Link) show on product pages. */
+  express?: boolean;
+}
 
 interface Option {
   key: string;
@@ -46,6 +57,8 @@ export interface BuyBoxData {
   anyAvailable: boolean;
   currency: string;
   action: string;
+  /** "Buy now" with the express buttons: where their script asks for the amount. */
+  express?: string;
 }
 
 function availabilityOf(
@@ -61,12 +74,13 @@ function availabilityOf(
 /** What the buy box shows for the product of a page. */
 export async function loadBuyBox(
   ctx: PluginContext,
-  settings: (siteId: string) => Promise<{ currency: string; lowStock: number }>,
+  settings: (siteId: string) => Promise<BuyBoxSettings>,
   context: BlockLoadContext,
 ): Promise<BuyBoxData | null> {
   const id = context.entry?.id;
   if (!id) return null;
   context.tag(productTag(id));
+  context.tag(PAYMENTS_TAG);
   const values = await settings(context.siteId);
   // The cart of the page's language: `/it/cart/add` under `/it/`.
   const base = context.page.site.home.replace(/^https?:\/\/[^/]+/, '').replace(/\/$/, '');
@@ -143,6 +157,10 @@ export async function loadBuyBox(
       anyAvailable: enabled.some((v) => v.stockStatus !== 'outofstock'),
       currency: values.currency,
       action: `${base}/cart/add`,
+      // Simple products only: a variation is chosen in the form first.
+      ...(values.express && product.kind !== 'variable'
+        ? { express: `${base}/checkout/express` }
+        : {}),
     };
   });
 }
@@ -230,6 +248,20 @@ export function BuyBoxView({ data, locale }: { data: BuyBoxData | null; locale: 
               {t('Add to cart')}
             </button>
           </p>
+          {data.express && !variable && (
+            <div
+              className="shop-express shop-express--product"
+              data-shop-express={JSON.stringify({
+                url: data.express,
+                place: 'product',
+                product: product.entryId,
+              })}
+              hidden
+            >
+              <div className="shop-express__buttons" />
+              <p className="shop-error" role="alert" data-shop-express-error="" />
+            </div>
+          )}
         </form>
       ) : (
         variable && <p className="shop-buy__stock shop-stock--outofstock">{t('Out of stock')}</p>
@@ -240,8 +272,13 @@ export function BuyBoxView({ data, locale }: { data: BuyBoxData | null; locale: 
 
 export function registerBuyBox(
   ctx: PluginContext,
-  settings: (siteId: string) => Promise<{ currency: string; lowStock: number }>,
+  settings: (siteId: string) => Promise<BuyBoxSettings>,
 ): void {
+  // The express buttons' script, on pages that show them ("buy now").
+  ctx.assets.enqueue({
+    file: STRIPE_SCRIPT,
+    when: ({ html }) => html.includes('data-shop-express'),
+  });
   ctx.blocks.register(
     defineBlock<Record<string, never>, BuyBoxData | null>({
       type: 'shop/buy-box',

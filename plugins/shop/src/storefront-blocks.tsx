@@ -1,6 +1,13 @@
 import { defineBlock, type PluginContext } from '@cleitext/plugin-sdk';
 import { eq } from 'drizzle-orm';
-import { BuyBoxView, CATALOG_TAG, loadBuyBox, productTag, type BuyBoxData } from './buy-box';
+import {
+  BuyBoxView,
+  CATALOG_TAG,
+  loadBuyBox,
+  productTag,
+  type BuyBoxData,
+  type BuyBoxSettings,
+} from './buy-box';
 import {
   breadcrumbData,
   breadcrumbs,
@@ -55,7 +62,7 @@ interface GridData {
 export function registerStorefrontBlocks(
   ctx: PluginContext,
   settings: (siteId: string) => Promise<{ currency: string }>,
-  buyBoxSettings: (siteId: string) => Promise<{ currency: string; lowStock: number }>,
+  buyBoxSettings: (siteId: string) => Promise<BuyBoxSettings>,
 ): void {
   const cardsMarkup = (data: GridData, locale: string, heading: 'h2' | 'h3' = 'h3') =>
     productCards(data.cards, {
