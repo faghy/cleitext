@@ -21,6 +21,7 @@ let site: SeededSite;
 let author: TestClient;
 let contributor: TestClient;
 let stranger: TestClient;
+let admin: TestClient;
 
 const png = (width: number, height: number) =>
   sharp({ create: { width, height, channels: 3, background: '#3366cc' } })
@@ -40,6 +41,12 @@ beforeAll(async () => {
     role: 'contributor',
   });
   await seedUser(owner, {
+    email: 'admin@media.test',
+    password: PASSWORD,
+    site,
+    role: 'administrator',
+  });
+  await seedUser(owner, {
     email: 'admin@media-other.test',
     password: PASSWORD,
     site: other,
@@ -48,6 +55,8 @@ beforeAll(async () => {
   author = new TestClient(app, site.host, '10.8.0.1');
   contributor = new TestClient(app, site.host, '10.8.0.2');
   stranger = new TestClient(app, other.host, '10.8.0.3');
+  admin = new TestClient(app, site.host, '10.8.0.4');
+  await admin.login('admin@media.test', PASSWORD);
   await author.login('author@media.test', PASSWORD);
   await contributor.login('contrib@media.test', PASSWORD);
   await stranger.login('admin@media-other.test', PASSWORD);
@@ -230,6 +239,40 @@ describe('duplicates, usage and focal point', () => {
     expect((await author.upload('/api/v1/media', 'x.svg', svg, 'image/svg+xml')).statusCode).toBe(
       415,
     );
+  });
+
+  it('accepts sanitized SVG when the site allows it, served so that it cannot run anything', async () => {
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="10" height="10">' +
+        '<defs><linearGradient id="g"><stop offset="0" stop-color="#22d3ee"/></linearGradient></defs>' +
+        '<script>alert(1)</script><rect width="10" height="10" fill="url(#g)" onclick="alert(2)"/>' +
+        '<foreignObject><div>x</div></foreignObject><use href="https://evil.example/x.svg#a"/></svg>',
+    );
+    // Only administrators change the setting.
+    expect(
+      (await author.request('PATCH', '/api/v1/settings/core', { allowSvg: true })).statusCode,
+    ).toBe(403);
+    expect(
+      (await admin.request('PATCH', '/api/v1/settings/core', { allowSvg: true })).statusCode,
+    ).toBe(200);
+    try {
+      const res = await author.upload('/api/v1/media', 'logo.svg', svg, 'image/svg+xml');
+      expect(res.statusCode).toBe(201);
+      const media = res.json();
+      expect(media.mime).toBe('image/svg+xml');
+      const file = await author.get(media.url);
+      const body = file.body;
+      expect(body).toContain('linearGradient');
+      expect(body).toContain('stop-color="#22d3ee"');
+      expect(body).not.toMatch(/script|onclick|foreignObject|evil\.example/);
+      expect(file.headers['content-security-policy']).toContain('sandbox');
+      // Another site keeps refusing them.
+      expect(
+        (await stranger.upload('/api/v1/media', 'logo.svg', svg, 'image/svg+xml')).statusCode,
+      ).toBe(415);
+    } finally {
+      await admin.request('PATCH', '/api/v1/settings/core', { allowSvg: false });
+    }
   });
 });
 

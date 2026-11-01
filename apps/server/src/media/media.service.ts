@@ -29,6 +29,7 @@ import { DATABASE } from '../database/database.module.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { ALLOWED_TYPES, detectType, looksLikeSvg, RESIZABLE, sanitizeSvg } from './media-types.js';
+import { SettingsService } from '../settings/settings.service.js';
 import {
   claimStorageKey,
   claimVariantKey,
@@ -59,6 +60,7 @@ export class MediaService {
     private readonly audit: AuditService,
     private readonly cache: PageCacheService,
     private readonly plugins: PluginHost,
+    private readonly settings: SettingsService,
   ) {
     this.storage = new DiskStorage(config.media.path);
   }
@@ -77,8 +79,12 @@ export class MediaService {
     options: { date?: Date | undefined; keepName?: boolean | undefined } = {},
   ): Promise<MediaView> {
     let mime = await detectType(file.data);
-    // SVG only when the server allows it, and always sanitized (RF-MED-09).
-    if (!mime && this.config.media.allowSvg && looksLikeSvg(file.data)) {
+    // SVG only when the server or the site allows it, and always sanitized (RF-MED-09).
+    if (
+      !mime &&
+      looksLikeSvg(file.data) &&
+      (this.config.media.allowSvg || (await this.settings.getCore(siteId)).allowSvg)
+    ) {
       file = { ...file, data: Buffer.from(sanitizeSvg(file.data.toString('utf8'))) };
       mime = 'image/svg+xml';
     }

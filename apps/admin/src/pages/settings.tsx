@@ -532,6 +532,26 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
             </span>
           </label>
         </Card>
+        <Card id="media" title={t('Media')}>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={values.allowSvg}
+              onChange={(e) => set('allowSvg', e.target.checked)}
+            />
+            <span>
+              <span className="block font-medium text-slate-800">
+                {t('Allow SVG files in the media library')}
+              </span>
+              <span className="block text-xs text-slate-500">
+                {t(
+                  'Logos and icons in SVG stay sharp at any size. Each file is cleaned when it is uploaded: scripts, event handlers, styles and links to other sites are removed. Off by default, as in WordPress: turn it on only if the people who upload media are trusted.',
+                )}
+              </span>
+            </span>
+          </label>
+        </Card>
         <Card id="install-report" title={t('Installation report')}>
           <label className="flex items-start gap-2 text-sm">
             <input

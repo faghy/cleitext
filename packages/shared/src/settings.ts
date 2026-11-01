@@ -69,6 +69,14 @@ const coreSettingsFields = {
    */
   webFonts: z.enum(['local', 'provider', 'theme']),
 
+  // ---- Media ----
+  /**
+   * SVG files can be uploaded to the media library, sanitized (RF-MED-09).
+   * Off by default, as in WordPress: an SVG is a text file that could carry
+   * scripts. The server's `MEDIA_ALLOW_SVG` turns it on for every site.
+   */
+  allowSvg: z.boolean(),
+
   // ---- Membership (RF-USR-11) ----
   /** Anyone can create an account on the site. */
   registration: z.boolean(),
@@ -143,6 +151,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   backToTopColor: null,
   backToTopPosition: 'right',
   webFonts: 'local',
+  allowSvg: false,
   registration: false,
   defaultRole: 'subscriber',
   verifyEmail: true,

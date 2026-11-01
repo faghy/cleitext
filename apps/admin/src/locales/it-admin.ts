@@ -124,6 +124,9 @@ export const itAdmin: Messages = {
   'Visitors’ browsers load the fonts from the service, which receives their IP address as soon as a page opens: in the EU this needs their consent (LG München, 2022).':
     'I browser dei visitatori caricano i font dal servizio, che riceve il loro indirizzo IP appena si apre una pagina: nell’UE serve il loro consenso (LG München, 2022).',
   'Installation report': 'Resoconto delle installazioni',
+  'Allow SVG files in the media library': 'Consenti i file SVG nella libreria media',
+  'Logos and icons in SVG stay sharp at any size. Each file is cleaned when it is uploaded: scripts, event handlers, styles and links to other sites are removed. Off by default, as in WordPress: turn it on only if the people who upload media are trusted.':
+    'Loghi e icone in SVG restano nitidi a qualsiasi dimensione. Ogni file viene ripulito al caricamento: script, gestori di eventi, stili e link ad altri siti vengono tolti. Spento di default, come in WordPress: attivalo solo se chi carica i media è affidabile.',
   'Tell cleitext.com which versions this site runs':
     'Comunica a cleitext.com quali versioni usa questo sito',
   "About once a day, as WordPress does with wordpress.org: the site's address, the version of Cleitext, the themes and plugins installed with their versions and whether they are active, and a random identifier of the server. Nothing about content, users or visitors. It helps the maintainers know which versions are in use and warn the sites hit by a broken update; sites not seen for 180 days are deleted from the registry.":
