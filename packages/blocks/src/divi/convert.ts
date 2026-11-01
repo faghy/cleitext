@@ -88,6 +88,12 @@ export interface DiviContext {
   presets?: DiviPresets;
   /** Modules without a counterpart (their text is kept), by type, once per conversion. */
   unconverted?(type: string, count: number): void;
+  /** A WordPress term by id (`taxonomy` empty: any): its taxonomy and slug on this site. */
+  term?(taxonomy: string, id: number): { taxonomy: string; slug: string } | undefined;
+  /** A WordPress content type (`project`) → this site's (portfolio modules show its entries). */
+  typeSlug?(type: string): string | undefined;
+  /** The site's language (texts the conversion writes, such as "Load more"). */
+  locale?: string;
 }
 
 /** Divi's column widths by gutter: the margin between columns, in % of the row. */
@@ -1606,6 +1612,223 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
     return c.node('container', out, [inner]);
   };
 
+  // ---- Loops, media and forms ---------------------------------------------------------------
+
+  /** Divi's term ids (`include_categories`) → this site's taxonomy and term slugs. */
+  const terms = (attrs: DiviAttrs, taxonomy: string) => {
+    const found = str(attrs.include_categories)
+      .split(',')
+      .map((id) => Number(id.trim()))
+      .filter((id) => id > 0)
+      .map((id) => ctx.term?.(taxonomy, id))
+      .filter((t): t is { taxonomy: string; slug: string } => Boolean(t));
+    return found.length ? { taxonomy: found[0]!.taxonomy, slugs: found.map((t) => t.slug) } : null;
+  };
+
+  /** How many entries a loop shows: Divi's number, within Fresco Pro's 100 a page. */
+  const loopSize = (out: Settings, attrs: DiviAttrs, fallback: number) => {
+    const wanted = Number(str(attrs.posts_number)) || fallback;
+    out.per_page = Math.min(Math.max(wanted, 1), 100);
+    if (wanted > 100) {
+      // Divi showed them all on one page: the rest come with a button.
+      out.pagination = 'more';
+      if (ctx.locale?.startsWith('it')) out.more_text = 'Carica altri';
+      c.note(
+        'portfolios set to show more than 100 entries show 100 at a time, with a Load more button',
+      );
+    } else if (str(attrs.show_pagination) !== 'off') out.pagination = 'numbers';
+  };
+
+  /**
+   * Portfolios (`et_pb_portfolio`, `et_pb_filterable_portfolio`,
+   * `et_pb_fullwidth_portfolio`): the entries of Divi's projects, as Fresco
+   * Pro's portfolio, each with its featured image and a link to it.
+   */
+  const portfolio = (tag: string, attrs: DiviAttrs, gap: Record<DiviDevice, string> | null) => {
+    const out: Settings = { source: ctx.typeSlug?.('project') ?? 'project' };
+    const chosen = terms(attrs, 'project_category');
+    if (chosen) {
+      out.taxonomy = chosen.taxonomy;
+      out.terms = chosen.slugs.join(',');
+    }
+    loopSize(out, attrs, 10);
+    // The filter bar only when there is something to choose from.
+    out.filter_bar = tag === 'et_pb_filterable_portfolio' && (chosen?.slugs.length ?? 0) !== 1;
+    if (chosen) out.filter_taxonomy = chosen.taxonomy;
+    if (out.filter_bar && ctx.locale?.startsWith('it')) out.filter_all = 'Tutte';
+    if (/masonry/i.test(str(attrs.module_class))) {
+      out.masonry = true;
+      out.columns = 3;
+    } else if (tag === 'et_pb_fullwidth_portfolio' || str(attrs.fullwidth) !== 'off') {
+      out.columns = tag === 'et_pb_fullwidth_portfolio' ? 4 : 1;
+    } else out.columns = 4;
+    if (Number(out.columns) > 1) {
+      out['columns@tablet'] = 2;
+      out['columns@mobile'] = 1;
+    }
+    c.note('portfolio modules became Fresco Pro portfolios: they show when Fresco Pro is active');
+    moduleCommon(out, attrs, gap);
+    return c.node('fresco-pro/portfolio', out);
+  };
+
+  /** The blog module: Fresco Pro's posts, of the same categories. */
+  const blog = (attrs: DiviAttrs, gap: Record<DiviDevice, string> | null) => {
+    const out: Settings = { source: 'article' };
+    const chosen = terms(attrs, 'category');
+    if (chosen) {
+      out.taxonomy = chosen.taxonomy;
+      out.terms = chosen.slugs.join(',');
+    }
+    loopSize(out, attrs, 10);
+    if (str(attrs.fullwidth) !== 'off') out.columns = 1;
+    else {
+      out.columns = 3;
+      out['columns@tablet'] = 2;
+      out['columns@mobile'] = 1;
+    }
+    if (str(attrs.show_thumbnail) === 'off') out.show_image = false;
+    if (str(attrs.show_content) !== 'on' && str(attrs.show_excerpt) === 'off')
+      out.show_excerpt = false;
+    if (str(attrs.show_more) === 'on')
+      out.read_more = ctx.locale?.startsWith('it') ? 'Leggi tutto' : 'Read more';
+    else out.read_more = '';
+    if (str(attrs.show_author) === 'off' && str(attrs.show_date) === 'off') out.show_meta = false;
+    c.note('blog modules became Fresco Pro posts: they show when Fresco Pro is active');
+    moduleCommon(out, attrs, gap);
+    return c.node('fresco-pro/posts', out);
+  };
+
+  /** A video: YouTube and Vimeo by address, a file of the library otherwise. */
+  const video = (attrs: DiviAttrs, gap: Record<DiviDevice, string> | null) => {
+    const src = str(attrs.src) || str(attrs.src_webm);
+    if (!src) return [];
+    const out: Settings = {};
+    if (/youtu\.?be/i.test(src)) {
+      out.source = 'youtube';
+      out.url = src;
+    } else if (/vimeo\.com/i.test(src)) {
+      out.source = 'vimeo';
+      out.url = src;
+    } else {
+      out.source = 'hosted';
+      const ref = ctx.mediaByUrl?.(src);
+      out.file = { id: ref ?? null, url: src };
+    }
+    moduleCommon(out, attrs, gap);
+    return [c.node('video', out)];
+  };
+
+  /** Accordions and toggles: each item a container with its title and text. */
+  const accordion = (node: DiviNode, attrs: DiviAttrs, gap: Record<DiviDevice, string> | null) => {
+    const toggle = node.tag === 'et_pb_toggle';
+    const items = toggle
+      ? [node]
+      : node.children.filter((child) => child.tag === 'et_pb_accordion_item');
+    if (items.length === 0) return [];
+    const children = items.map((item) =>
+      c.node('container', { _title: plainText(str(item.attrs.title)), content_width: 'full' }, [
+        c.node('text', { content: paragraphs(item.content) }),
+      ]),
+    );
+    const out: Settings = {};
+    const openIndex = items.findIndex((item) => str(item.attrs.open) === 'on');
+    if (toggle) {
+      out.multiple = true;
+      out.open = openIndex === 0 ? 'first' : 'none';
+    } else out.open = openIndex > 0 ? 'none' : 'first';
+    moduleCommon(out, attrs, gap);
+    return [c.node('accordion', out, children)];
+  };
+
+  /** A map: its address (or position) and zoom, as Fresco's Google Maps. */
+  const map = (attrs: DiviAttrs, gap: Record<DiviDevice, string> | null) => {
+    const lat = str(attrs.address_lat);
+    const lng = str(attrs.address_lng);
+    const address = str(attrs.address) || (lat && lng ? `${lat},${lng}` : '');
+    if (!address) return [];
+    const out: Settings = { address, zoom: Number(str(attrs.zoom_level)) || 12 };
+    moduleCommon(out, attrs, gap);
+    return [c.node('google-maps', out)];
+  };
+
+  /** A contact form: Fresco Pro's form, with the same fields, sent to the same address. */
+  const FORM_TYPES: Record<string, string> = {
+    input: 'text',
+    email: 'email',
+    text: 'textarea',
+    select: 'select',
+    checkbox: 'checkbox',
+    radio: 'radio',
+  };
+  const contactForm = (
+    node: DiviNode,
+    attrs: DiviAttrs,
+    gap: Record<DiviDevice, string> | null,
+  ) => {
+    const fields = node.children.filter((child) => child.tag === 'et_pb_contact_field');
+    const list = (
+      fields.length
+        ? fields.map((f) => f.attrs)
+        : [
+            { field_id: 'Name', field_title: 'Name', field_type: 'input' },
+            { field_id: 'Email', field_title: 'Email Address', field_type: 'email' },
+            {
+              field_id: 'Message',
+              field_title: 'Message',
+              field_type: 'text',
+              fullwidth_field: 'on',
+            },
+          ]
+    ) as DiviAttrs[];
+    const out: Settings = {
+      form_name: plainText(str(attrs.title)) || plainText(str(attrs.admin_label)) || 'Contact',
+      fields: list.map((f, i) => {
+        const type = FORM_TYPES[str(f.field_type) || 'input'] ?? 'text';
+        const options = str(f.checkbox_options || f.radio_options || f.select_options);
+        // Divi saves the choices as JSON with its own escapes (%22 for ").
+        let values: string[];
+        try {
+          const parsed = options
+            ? (JSON.parse(
+                options.replace(/%22/g, '"').replace(/%91/g, '[').replace(/%93/g, ']'),
+              ) as { value?: string }[])
+            : [];
+          values = Array.isArray(parsed) ? parsed.map((o) => str(o.value)).filter(Boolean) : [];
+        } catch {
+          values = [];
+        }
+        return {
+          _id: `f${i}`,
+          type,
+          label: plainText(str(f.field_title)) || str(f.field_id) || `Field ${i + 1}`,
+          field_id: (str(f.field_id) || `field_${i + 1}`)
+            .toLowerCase()
+            .replace(/[^a-z0-9_]+/g, '_'),
+          ...(str(f.required_mark) !== 'off' ? { required: true } : {}),
+          ...(values.length ? { options: values.join('\n') } : {}),
+          width: str(f.fullwidth_field) === 'on' || type === 'textarea' ? '100' : '50',
+        };
+      }),
+      button_text:
+        plainText(str(attrs.submit_button_text)) ||
+        (ctx.locale?.startsWith('it') ? 'Invia' : 'Submit'),
+      act_email: true,
+    };
+    if (str(attrs.email)) out.email_to = str(attrs.email);
+    if (str(attrs.success_message)) out.msg_success = plainText(str(attrs.success_message));
+    if (str(attrs.use_redirect) === 'on' && str(attrs.redirect_url)) {
+      out.act_redirect = true;
+      out.redirect_url = str(attrs.redirect_url);
+    }
+    c.note('contact forms became Fresco Pro forms: they show when Fresco Pro is active');
+    moduleCommon(out, attrs, gap);
+    const blocks: CxdBlock[] = [];
+    if (str(attrs.title))
+      blocks.push(c.node('heading', { title: plainText(str(attrs.title)), tag: 'h2' }));
+    blocks.push(c.node('fresco-pro/form', out));
+    return blocks;
+  };
+
   /** One module (with the space Divi leaves under it, or none for the last of a column). */
   const module = (
     node: DiviNode,
@@ -1644,6 +1867,26 @@ export function convertDivi(tree: DiviNode[], ctx: DiviContext): CxdBlock[] {
       case 'et_pb_fullwidth_header':
         return [fullwidthHeader(attrs, node.content)];
       case 'et_pb_split_track':
+        return [];
+      case 'et_pb_portfolio':
+      case 'et_pb_filterable_portfolio':
+      case 'et_pb_fullwidth_portfolio':
+        return [portfolio(node.tag, attrs, gap)];
+      case 'et_pb_blog':
+        return [blog(attrs, gap)];
+      case 'et_pb_video':
+        return video(attrs, gap);
+      case 'et_pb_accordion':
+      case 'et_pb_toggle':
+        return accordion(node, attrs, gap);
+      case 'et_pb_map':
+      case 'et_pb_fullwidth_map':
+        return map(attrs, gap);
+      case 'et_pb_contact_form':
+        return contactForm(node, attrs, gap);
+      case 'et_pb_sidebar':
+        // Widget areas: Cleitext's themes show their own; the sidebar's widgets are not in the page.
+        c.note('sidebars were left out (widget areas belong to the theme)');
         return [];
       // Structure found where modules go (e.g. a library item): converted as such.
       case 'et_pb_section':

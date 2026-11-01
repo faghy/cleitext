@@ -105,6 +105,10 @@ export interface DiviSiteInput {
   attachment(id: number): { ref?: string; url: string } | undefined;
   /** A post's address as a path of this site. */
   postLink(id: number): string | undefined;
+  /** A WordPress term by id → its taxonomy and slug here (portfolio and blog modules). */
+  term?(taxonomy: string, id: number): { taxonomy: string; slug: string } | undefined;
+  /** A WordPress content type → this site's (Divi's projects). */
+  typeSlug?(type: string): string | undefined;
   /** WordPress menus: id → slug, in the export's order. */
   menus: { id: number; slug: string; items: number }[];
   conditions: Omit<DiviConditionContext, 'note'>;
@@ -155,6 +159,9 @@ export function prepareDivi(input: DiviSiteInput): DiviSite {
     font: input.font,
     menuLocation,
     postLink: input.postLink,
+    ...(input.term ? { term: input.term } : {}),
+    ...(input.typeSlug ? { typeSlug: input.typeSlug } : {}),
+    locale: input.locale,
     ...(title ? { title } : {}),
     ...(gutter ? { gutter } : {}),
     ...(site ? { layout: site.layout } : {}),

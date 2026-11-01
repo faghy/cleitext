@@ -480,6 +480,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
 
   // ---- Divi: what pages and templates share ---------------------------------------------
   const diviFamilies = new Set<string>();
+  // Terms and content types as the Elementor conversion names them (portfolio and blog modules).
+  const lookups = elementor.context(() => {});
   const divi = prepareDivi({
     items: items
       .filter((item) => !['attachment', 'nav_menu_item'].includes(text(item['wp:post_type'])))
@@ -493,6 +495,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       const url = ref ? mediaUrls.get(ref) : undefined;
       return url ? { ref, url } : undefined;
     },
+    term: (taxonomy, id) => lookups.term?.(taxonomy, id),
+    typeSlug: (type) => lookups.typeSlug?.(type),
     postLink: (id) => {
       const item = itemsById.get(id);
       const link = item ? text(item.link) : '';
@@ -722,7 +726,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     const rest = placed.reduce((text, shortcode) => text.replace(shortcode, ''), content);
     if (
       document.editor?.id !== 'fresco' &&
-      /\[(?!gallery\b)[a-z_-]+[^\]]*\]/i.test(rest) &&
+      /\[(?!gallery\b|caption\b|wp_caption\b)[a-z_-]+[^\]]*\]/i.test(rest) &&
       !/<!--\s+wp:shortcode/.test(rest)
     ) {
       warnings.push(`${title || `#${id}`}: contains shortcodes, left as text.`);

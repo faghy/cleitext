@@ -49,12 +49,40 @@ export interface ConvertOptions {
  * WordPress does (blank lines) and block elements become blocks. What has
  * no equivalent keeps its text and is reported.
  */
-export function htmlToCxd(html: string, options: ConvertOptions = {}): CxdDocument {
+export function htmlToCxd(source: string, options: ConvertOptions = {}): CxdDocument {
   const warn = options.warn ?? (() => {});
+  const html = captionShortcodes(source);
   const blocks = /<!--\s+wp:/.test(html)
     ? parseBlocks(html).flatMap((b) => fromWpBlock(b, options, warn))
     : fromClassic(html, options, warn);
   return { schema: CXD_SCHEMA_VERSION, blocks };
+}
+
+/**
+ * WordPress's `[caption]` shortcode (images with a caption in the classic
+ * editor): `[caption id="attachment_7" align="alignright" width="300"]<img …>
+ * The caption[/caption]`, also with the image in a link, becomes the figure
+ * WordPress shows, so the image keeps its caption and alignment.
+ */
+export function captionShortcodes(html: string): string {
+  if (!/\[(?:wp_)?caption\b/i.test(html)) return html;
+  return html.replace(
+    /\[(wp_caption|caption)\b([^\]]*)\]([\s\S]*?)\[\/\1\]/gi,
+    (all, _tag: string, attrs: string, body: string) => {
+      const image = /^\s*((?:<a\b[^>]*>\s*)?<img\b[^>]*>(?:\s*<\/a>)?)([\s\S]*)$/i.exec(body);
+      if (!image) return all;
+      // The caption: the text after the image, or the attribute of old WordPress versions.
+      const after = image[2]!.trim();
+      const attribute = /\bcaption=(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
+      const caption = after || (attribute ? (attribute[1] ?? attribute[2] ?? '') : '');
+      const align = /\balign=["']?(align(?:left|right|center|none))/i.exec(attrs)?.[1];
+      return (
+        `\n\n<figure class="wp-caption${align ? ` ${align}` : ''}">${image[1]}` +
+        (caption ? `<figcaption>${caption}</figcaption>` : '') +
+        '</figure>\n\n'
+      );
+    },
+  );
 }
 
 // ---- Block markup ----------------------------------------------------------------------
@@ -891,8 +919,13 @@ function imageBlock(
   const ref = attachment !== undefined ? options.mediaRef?.(attachment) : undefined;
   const href = link?.getAttribute('href');
   const src = img?.getAttribute('src');
+  // WordPress's alignment classes (classic editor, captions): the image floats as there.
+  const classes = `${node.getAttribute('class') ?? ''} ${img?.getAttribute('class') ?? ''}`;
+  const align =
+    base.align === undefined ? /\balign(left|right|center)\b/.exec(classes)?.[1] : undefined;
   return make('core/image', {
     ...base,
+    ...(align ? { align } : {}),
     ...(ref ? { id: ref } : {}),
     ...(src ? { url: src } : {}),
     alt: decode(img?.getAttribute('alt') ?? ''),

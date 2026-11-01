@@ -364,6 +364,16 @@ export const REPORT_IT: Record<string, string> = {
     'le immagini delle gallerie mancanti nell’esportazione sono state tralasciate',
   'galleries split into pages show all their images at once':
     'le gallerie divise in pagine mostrano tutte le immagini insieme',
+  'portfolios set to show more than 100 entries show 100 at a time, with a Load more button':
+    'i portfolio impostati per mostrare più di 100 voci ne mostrano 100 alla volta, con il pulsante Carica altri',
+  'portfolio modules became Fresco Pro portfolios: they show when Fresco Pro is active':
+    'i moduli portfolio sono diventati portfolio di Fresco Pro: si vedono con Fresco Pro attivo',
+  'blog modules became Fresco Pro posts: they show when Fresco Pro is active':
+    'i moduli blog sono diventati elenchi di articoli di Fresco Pro: si vedono con Fresco Pro attivo',
+  'contact forms became Fresco Pro forms: they show when Fresco Pro is active':
+    'i moduli di contatto sono diventati moduli di Fresco Pro: si vedono con Fresco Pro attivo',
+  'sidebars were left out (widget areas belong to the theme)':
+    'le barre laterali sono state tralasciate (le aree widget appartengono al tema)',
   'the post information under titles (author, date) was left out':
     'le informazioni dell’articolo sotto i titoli (autore, data) sono state tralasciate',
   'menus with the logo in their middle show it before the links':
