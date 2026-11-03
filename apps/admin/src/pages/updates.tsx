@@ -200,19 +200,19 @@ function AutomaticUpdates() {
     mutationFn: (body: {
       core?: CorePolicy;
       item?: { type: 'plugin' | 'theme'; slug: string; enabled: boolean };
+      items?: { type: 'plugin' | 'theme'; slug: string; enabled: boolean }[];
     }) => api<AutoUpdatesView>('PUT', '/updates/auto', body),
     // The choice shows at once; the server's answer replaces it (or the old one comes back).
     onMutate: (body) => {
       const previous = queryClient.getQueryData<AutoUpdatesView>(['updates', 'auto']);
       if (previous) {
-        const items = body.item
-          ? [
-              ...previous.items.filter(
-                (i) => !(i.type === body.item!.type && i.slug === body.item!.slug),
-              ),
-              ...(body.item.enabled ? [{ type: body.item.type, slug: body.item.slug }] : []),
-            ]
-          : previous.items;
+        let items = previous.items;
+        for (const item of [...(body.item ? [body.item] : []), ...(body.items ?? [])]) {
+          items = [
+            ...items.filter((i) => !(i.type === item.type && i.slug === item.slug)),
+            ...(item.enabled ? [{ type: item.type, slug: item.slug }] : []),
+          ];
+        }
         queryClient.setQueryData(['updates', 'auto'], {
           ...previous,
           ...(body.core ? { core: body.core } : {}),
@@ -238,6 +238,8 @@ function AutomaticUpdates() {
   const installed = (catalog.data?.items ?? []).filter((item) => item.installed);
   const on = (type: string, slug: string) =>
     Boolean(view?.items.some((i) => i.type === type && i.slug === slug));
+  const allOn = installed.length > 0 && installed.every((item) => on(item.type, item.slug));
+  const someOn = installed.some((item) => on(item.type, item.slug));
   const date = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString(language, { dateStyle: 'medium', timeStyle: 'short' }) : '';
   const policies: { value: CorePolicy; label: string; help: string }[] = [
@@ -288,6 +290,28 @@ function AutomaticUpdates() {
               </p>
             ) : (
               <ul className="space-y-1">
+                <li className="border-b border-slate-200 pb-1">
+                  <label className="flex items-center gap-2 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={allOn}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someOn && !allOn;
+                      }}
+                      disabled={change.isPending}
+                      onChange={(e) =>
+                        change.mutate({
+                          items: installed.map((item) => ({
+                            type: item.type,
+                            slug: item.slug,
+                            enabled: e.target.checked,
+                          })),
+                        })
+                      }
+                    />
+                    <span>{t('Select all')}</span>
+                  </label>
+                </li>
                 {installed.map((item) => (
                   <li key={`${item.type}-${item.slug}`}>
                     <label className="flex items-center gap-2">

@@ -56,7 +56,10 @@ export class UpdatesController {
   ): AutoUpdatesView {
     const input = parseBody(autoUpdatesRequestSchema, body);
     return this.auto.change(
-      { ...(input.core ? { core: input.core } : {}), ...(input.item ? { item: input.item } : {}) },
+      {
+        ...(input.core ? { core: input.core } : {}),
+        items: [...(input.item ? [input.item] : []), ...(input.items ?? [])],
+      },
       { siteId: site.id, userId: auth.userId!, origin: siteOrigin(request) },
     );
   }

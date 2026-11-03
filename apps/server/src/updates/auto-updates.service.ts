@@ -127,9 +127,9 @@ export class AutoUpdatesService implements OnApplicationBootstrap, OnApplication
     };
   }
 
-  /** The core policy, or one plugin or theme on or off; `actor` is who chose. */
+  /** The core policy, and plugins or themes on or off (one, or all at once); `actor` is who chose. */
   change(
-    input: { core?: CorePolicy; item?: AutoUpdateItem & { enabled: boolean } },
+    input: { core?: CorePolicy; items?: (AutoUpdateItem & { enabled: boolean })[] },
     actor: Actor,
   ): AutoUpdatesView {
     const stored = this.read();
@@ -137,8 +137,7 @@ export class AutoUpdatesService implements OnApplicationBootstrap, OnApplication
       stored.core = input.core;
       stored.coreBy = actor;
     }
-    if (input.item) {
-      const { type, slug, enabled } = input.item;
+    for (const { type, slug, enabled } of input.items ?? []) {
       if (!/^[a-z][a-z0-9-]{1,39}$/.test(slug)) throw new BadRequestException('Unknown slug.');
       stored.items = stored.items.filter((i) => !(i.type === type && i.slug === slug));
       if (enabled) stored.items.push({ type, slug, ...actor });

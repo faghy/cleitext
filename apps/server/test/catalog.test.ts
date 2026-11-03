@@ -288,6 +288,32 @@ describe('automatic updates', () => {
     expect(app.get(AutoUpdatesService).view().items).toEqual([]);
   });
 
+  it('turn several plugins and themes on or off at once (Select all)', async () => {
+    const all = [
+      { type: 'plugin', slug: 'tiny' },
+      { type: 'theme', slug: 'sparkle' },
+    ];
+    const on = await root.request('PUT', '/api/v1/updates/auto', {
+      items: all.map((i) => ({ ...i, enabled: true })),
+    });
+    expect(on.statusCode).toBe(200);
+    expect(on.json().items).toEqual(
+      expect.arrayContaining(all.map((i) => expect.objectContaining(i))),
+    );
+    expect(on.json().items).toHaveLength(2);
+    const off = await root.request('PUT', '/api/v1/updates/auto', {
+      items: all.map((i) => ({ ...i, enabled: false })),
+    });
+    expect(off.json().items).toEqual([]);
+    expect(
+      (
+        await root.request('PUT', '/api/v1/updates/auto', {
+          items: [{ type: 'plugin', slug: '../x', enabled: true }],
+        })
+      ).statusCode,
+    ).toBe(400);
+  });
+
   it('take core releases by the chosen policy', () => {
     expect(allowed('patch', '0.26.0', '0.26.1')).toBe(true);
     expect(allowed('patch', '0.26.1', '0.27.0')).toBe(false);

@@ -98,15 +98,20 @@ export interface AutoUpdatesView {
   log: AutoUpdateResult[];
 }
 
+const autoUpdateItemSchema = z.object({
+  type: z.enum(['plugin', 'theme']),
+  slug: z.string().regex(/^[a-z][a-z0-9-]{1,39}$/),
+  enabled: z.boolean(),
+});
+
 export const autoUpdatesRequestSchema = z
   .object({
     core: z.enum(['off', 'patch', 'all']).optional(),
-    item: z
-      .object({
-        type: z.enum(['plugin', 'theme']),
-        slug: z.string().regex(/^[a-z][a-z0-9-]{1,39}$/),
-        enabled: z.boolean(),
-      })
-      .optional(),
+    item: autoUpdateItemSchema.optional(),
+    /** Several at once ("Select all"). */
+    items: z.array(autoUpdateItemSchema).max(500).optional(),
   })
-  .refine((v) => v.core !== undefined || v.item !== undefined, 'Nothing to change.');
+  .refine(
+    (v) => v.core !== undefined || v.item !== undefined || v.items !== undefined,
+    'Nothing to change.',
+  );
