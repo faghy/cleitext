@@ -370,10 +370,10 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
           {controls && (
             <aside
               aria-label={t('Customize')}
-              className="flex w-[300px] shrink-0 flex-col border-r border-slate-300 bg-[#f0f0f1]"
+              className="flex w-[300px] shrink-0 flex-col border-r border-slate-300 bg-slate-100"
             >
               {/* Top bar: close, more actions, publish. */}
-              <div className="flex h-[45px] shrink-0 items-stretch border-b border-slate-300 bg-[#f0f0f1]">
+              <div className="flex h-[45px] shrink-0 items-stretch border-b border-slate-300 bg-slate-100">
                 <button
                   type="button"
                   aria-label={t('Close customizer')}
@@ -569,7 +569,7 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
                 )}
 
                 {search === null && section && tabs.length > 1 && (
-                  <div role="tablist" className="flex bg-[#f0f0f1] px-2.5 pt-2.5">
+                  <div role="tablist" className="flex bg-slate-100 px-2.5 pt-2.5">
                     {tabs.map((item) => (
                       <button
                         key={item.id}
@@ -662,7 +662,7 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
               </div>
 
               {/* Bottom: hide the panel, devices. */}
-              <div className="flex h-[45px] shrink-0 items-stretch border-t border-slate-300 bg-[#f0f0f1] text-xs">
+              <div className="flex h-[45px] shrink-0 items-stretch border-t border-slate-300 bg-slate-100 text-xs">
                 <button
                   type="button"
                   onClick={() => setControls(false)}
@@ -711,7 +711,7 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
             {builder && (
               <section
                 aria-label={labelText(builder.label, locale)}
-                className="shrink-0 border-t border-slate-300 bg-[#eeeeee]"
+                className="shrink-0 border-t border-slate-300 bg-slate-100"
               >
                 {builderOpen && (
                   <div className="max-h-[45vh] overflow-y-auto px-[30px] py-6">
@@ -867,7 +867,7 @@ function SectionList({
           <button
             type="button"
             onClick={() => onOpen(s.id)}
-            className="flex w-full items-center justify-between px-6 py-3 text-left text-[13px] font-semibold text-slate-800 hover:bg-[#f6f7f7] hover:text-[#2271b1]"
+            className="flex w-full items-center justify-between px-6 py-3 text-left text-[13px] font-semibold text-slate-800 hover:bg-slate-50 hover:text-[#2271b1]"
           >
             {labelText(s.label, locale)}
             <span aria-hidden="true" className="text-lg leading-none text-slate-500">
