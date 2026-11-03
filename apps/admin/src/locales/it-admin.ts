@@ -124,6 +124,21 @@ export const itAdmin: Messages = {
   'Visitors’ browsers load the fonts from the service, which receives their IP address as soon as a page opens: in the EU this needs their consent (LG München, 2022).':
     'I browser dei visitatori caricano i font dal servizio, che riceve il loro indirizzo IP appena si apre una pagina: nell’UE serve il loro consenso (LG München, 2022).',
   'Installation report': 'Resoconto delle installazioni',
+  'Revisions to keep per entry': 'Revisioni da conservare per ogni voce',
+  'The newest ones; older revisions are deleted when an entry is saved. The current and the published one always stay. 0 keeps them all.':
+    'Le più recenti; quelle più vecchie vengono eliminate quando si salva una voce. La revisione attuale e quella pubblicata restano sempre. 0 le conserva tutte.',
+  'Old revisions': 'Revisioni vecchie',
+  'Deletes the old revisions of every entry now, keeping the newest ones of each. The current and the published revision always stay. To keep fewer from now on, see “Revisions to keep per entry” below.':
+    'Elimina adesso le revisioni vecchie di tutte le voci, conservando le più recenti di ciascuna. La revisione attuale e quella pubblicata restano sempre. Per conservarne meno d’ora in poi, vedi «Revisioni da conservare per ogni voce» più sotto.',
+  'Revisions to keep for each entry': 'Revisioni da conservare per ogni voce',
+  'I understand that deleted revisions cannot be brought back.':
+    'Ho capito che le revisioni eliminate non si possono recuperare.',
+  'Delete old revisions': 'Elimina le revisioni vecchie',
+  'Delete the old revisions of every entry? It cannot be undone.':
+    'Eliminare le revisioni vecchie di tutte le voci? Non si può annullare.',
+  'Delete the old revisions of this entry? The current and the published one stay. It cannot be undone.':
+    'Eliminare le revisioni vecchie di questa voce? Quella attuale e quella pubblicata restano. Non si può annullare.',
+  '{n} revisions deleted.': '{n} revisioni eliminate.',
   'Allow SVG files in the media library': 'Consenti i file SVG nella libreria media',
   'Logos and icons in SVG stay sharp at any size. Each file is cleaned when it is uploaded: scripts, event handlers, styles and links to other sites are removed. Off by default, as in WordPress: turn it on only if the people who upload media are trusted.':
     'Loghi e icone in SVG restano nitidi a qualsiasi dimensione. Ogni file viene ripulito al caricamento: script, gestori di eventi, stili e link ad altri siti vengono tolti. Spento di default, come in WordPress: attivalo solo se chi carica i media è affidabile.',

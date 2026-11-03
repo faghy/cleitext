@@ -1233,6 +1233,16 @@ function DocumentPanel({
       api<EntryView>('POST', `/entries/${entry.id}/revisions/${revisionId}/restore`),
     onSuccess: onRestored,
   });
+  // Old revisions of this entry, deleted on request (the current and published ones stay).
+  const revisionsClient = useQueryClient();
+  const cleanRevisions = useMutation({
+    mutationFn: () =>
+      api<{ deleted: number }>('POST', `/entries/${entry.id}/revisions/cleanup`, {
+        keep: 1,
+        confirm: true,
+      }),
+    onSuccess: () => revisionsClient.invalidateQueries({ queryKey: ['revisions', entry.id] }),
+  });
 
   // Like WordPress's Author box: members who can write (RF-CNT-18).
   const writers = useQuery({
@@ -1255,7 +1265,7 @@ function DocumentPanel({
   const [position, setPosition] = useState(String(entry.position));
   useEffect(() => setPosition(String(entry.position)), [entry.position]);
 
-  const panelError = saveSettings.error ?? restore.error;
+  const panelError = saveSettings.error ?? restore.error ?? cleanRevisions.error;
 
   return (
     <div className="space-y-5 p-4 text-sm">
@@ -1499,6 +1509,27 @@ function DocumentPanel({
               </li>
             ))}
           </ul>
+          {!readOnly &&
+            entry.permissions.edit &&
+            (revisions.data ?? []).some((r) => !r.current && !r.published) && (
+              <button
+                type="button"
+                className="text-xs text-red-700 hover:underline"
+                disabled={cleanRevisions.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      t(
+                        'Delete the old revisions of this entry? The current and the published one stay. It cannot be undone.',
+                      ),
+                    )
+                  )
+                    cleanRevisions.mutate();
+                }}
+              >
+                {t('Delete old revisions')}
+              </button>
+            )}
           {comparing && (
             <RevisionDiff entry={entry} revisionId={comparing} onClose={() => setComparing(null)} />
           )}

@@ -207,6 +207,80 @@ describe('revisions (RF-CNT-05/07)', () => {
   });
 });
 
+describe('old revisions (limit and clean-up)', () => {
+  const titles = async (client: TestClient, id: string) =>
+    ((await client.get(`/api/v1/entries/${id}/revisions`)).json() as { title: string }[]).map(
+      (r) => r.title,
+    );
+
+  it('keep only the newest ones when a limit is set, the published one always', async () => {
+    const admin = as.administrator!;
+    const entry = await createArticle(admin, 'v1');
+    await admin.post(`/api/v1/entries/${entry.id}/publish`);
+    expect(
+      (await admin.request('PATCH', '/api/v1/settings/core', { revisionsToKeep: 2 })).statusCode,
+    ).toBe(200);
+    try {
+      for (const title of ['v2', 'v3', 'v4']) {
+        await admin.request('PATCH', `/api/v1/entries/${entry.id}`, { title });
+      }
+      // The newest two, and v1 that is still the published one.
+      expect(await titles(admin, entry.id)).toEqual(['v4', 'v3', 'v1']);
+      await admin.post(`/api/v1/entries/${entry.id}/publish`);
+      await admin.request('PATCH', `/api/v1/entries/${entry.id}`, { title: 'v5' });
+      expect(await titles(admin, entry.id)).toEqual(['v5', 'v4']);
+    } finally {
+      await admin.request('PATCH', '/api/v1/settings/core', { revisionsToKeep: 0 });
+    }
+  });
+
+  it('are deleted on request, for one entry or the whole site, after a confirmation', async () => {
+    const admin = as.administrator!;
+    const one = await createArticle(as.author!, 'a1');
+    const two = await createArticle(admin, 'b1');
+    for (const title of ['a2', 'a3']) {
+      await as.author!.request('PATCH', `/api/v1/entries/${one.id}`, { title });
+    }
+    for (const title of ['b2', 'b3']) {
+      await admin.request('PATCH', `/api/v1/entries/${two.id}`, { title });
+    }
+
+    const unconfirmed = await as.author!.post(`/api/v1/entries/${one.id}/revisions/cleanup`, {
+      keep: 1,
+    });
+    expect(unconfirmed.statusCode).toBe(400);
+    const mine = await as.author!.post(`/api/v1/entries/${one.id}/revisions/cleanup`, {
+      keep: 1,
+      confirm: true,
+    });
+    expect(mine.json()).toEqual({ deleted: 2 });
+    expect(await titles(as.author!, one.id)).toEqual(['a3']);
+    // Not someone else's entry, nor the whole site, without the rights.
+    expect(
+      (
+        await as.author!.post(`/api/v1/entries/${two.id}/revisions/cleanup`, {
+          keep: 0,
+          confirm: true,
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (await as.editor!.post('/api/v1/revisions/cleanup', { keep: 0, confirm: true })).statusCode,
+    ).toBe(403);
+
+    const all = await admin.post('/api/v1/revisions/cleanup', { keep: 0, confirm: true });
+    expect(all.statusCode).toBe(200);
+    expect(all.json().deleted).toBeGreaterThanOrEqual(2);
+    // The current revision always stays: the entry is unchanged.
+    expect(await titles(admin, two.id)).toEqual(['b3']);
+    expect((await admin.get(`/api/v1/entries/${two.id}`)).json().title).toBe('b3');
+    const audit = await withSiteContext(owner.db, site.id, (tx) =>
+      tx.select().from(auditLog).where(eq(auditLog.action, 'entry.revisions.cleaned')),
+    );
+    expect(audit.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe('workflow and permissions', () => {
   it('lets a contributor write and submit, but not publish', async () => {
     const entry = await createArticle(as.contributor!, 'For review');

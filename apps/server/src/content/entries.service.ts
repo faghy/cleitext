@@ -58,6 +58,7 @@ import { sanitizeDocument } from './html-sanitize.js';
 import { entryPath, localePrefixes } from './paths.js';
 import { LanguagesService } from './languages.service.js';
 import { FieldGroupsService } from '../fields/field-groups.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 
 type EntryRow = typeof entries.$inferSelect;
 type ContentTypeRow = typeof contentTypes.$inferSelect;
@@ -89,6 +90,7 @@ export class EntriesService {
     private readonly plugins: PluginHost,
     private readonly languages: LanguagesService,
     private readonly fieldGroups: FieldGroupsService,
+    private readonly settings: SettingsService,
   ) {}
 
   private run<T>(siteId: string, auth: AuthContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
@@ -1321,7 +1323,84 @@ export class EntriesService {
         .set({ currentRevisionId: revision!.id })
         .where(eq(entries.id, entryId));
     }
+    if (kind !== 'autosave') {
+      const keep = (await this.settings.core(tx)).revisionsToKeep;
+      if (keep > 0) await this.pruneRevisions(tx, siteId, keep, entryId);
+    }
     return revision!;
+  }
+
+  /**
+   * Deletes the revisions of an entry (or of every entry) older than the
+   * newest `keep` ones; 0 keeps only the current and the published one.
+   * Autosaves are left to their own rules; the revision an entry shows in the
+   * editor and the published one always stay. Returns how many were deleted.
+   */
+  private async pruneRevisions(
+    tx: Tx,
+    siteId: string,
+    keep: number,
+    entryId?: string,
+  ): Promise<number> {
+    const only = entryId ? sql`and r.entry_id = ${entryId}` : sql``;
+    const old = (await tx.execute(sql`
+      select ranked.id from (
+        select r.id, row_number() over (partition by r.entry_id order by r.created_at desc, r.id desc) as n
+        from revisions r
+        where r.site_id = ${siteId} and r.kind <> 'autosave' ${only}
+      ) ranked
+      where ranked.n > ${keep}
+      and not exists (
+        select 1 from entries e
+        where e.current_revision_id = ranked.id or e.published_revision_id = ranked.id
+      )
+    `)) as unknown as { id: string }[];
+    let deleted = 0;
+    for (let i = 0; i < old.length; i += 500) {
+      const ids = old.slice(i, i + 500).map((row) => row.id);
+      const gone = await tx
+        .delete(revisions)
+        .where(inArray(revisions.id, ids))
+        .returning({ id: revisions.id });
+      deleted += gone.length;
+    }
+    return deleted;
+  }
+
+  /**
+   * Settings → Maintenance and an entry's revisions: deletes old revisions
+   * now, keeping the newest `keep` of each entry (plus the current and the
+   * published one). Every entry needs `manage_settings`; one entry, the right
+   * to edit it. It cannot be undone.
+   */
+  cleanRevisions(
+    siteId: string,
+    auth: AuthContext,
+    options: { keep: number; entryId?: string },
+    ip: string,
+  ): Promise<{ deleted: number }> {
+    return this.run(siteId, auth, async (tx) => {
+      if (options.entryId) {
+        const entry = await this.load(tx, options.entryId);
+        assertAllowed(canEdit(auth, entry), 'You cannot edit this entry.');
+      } else {
+        assertAllowed(
+          auth.capabilities.includes('manage_settings'),
+          'You cannot clean up the revisions of the site.',
+        );
+      }
+      const deleted = await this.pruneRevisions(tx, siteId, options.keep, options.entryId);
+      await this.audit.record(tx, {
+        siteId,
+        userId: auth.userId,
+        action: 'entry.revisions.cleaned',
+        targetType: options.entryId ? 'entry' : 'site',
+        targetId: options.entryId ?? siteId,
+        ip,
+        meta: { keep: options.keep, deleted },
+      });
+      return { deleted };
+    });
   }
 
   private async revisionRow(tx: Tx, id: string | null): Promise<RevisionRow | null> {

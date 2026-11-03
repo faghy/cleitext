@@ -16,6 +16,7 @@ import {
   type RevisionView,
 } from '@cleitext/shared';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -293,6 +294,36 @@ export class EntriesController {
     return this.entries.getRevision(site.id, auth, id, revisionId);
   }
 
+  /** Deletes an entry's old revisions, keeping the newest `keep` (plus the current and published one). */
+  @Post('entries/:id/revisions/cleanup')
+  @HttpCode(200)
+  cleanEntryRevisions(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', uuid) id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<{ deleted: number }> {
+    return this.entries.cleanRevisions(
+      site.id,
+      auth,
+      { keep: keepOf(body), entryId: id },
+      request.ip,
+    );
+  }
+
+  /** Settings → Maintenance: the same for every entry of the site. */
+  @Post('revisions/cleanup')
+  @HttpCode(200)
+  cleanRevisions(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<{ deleted: number }> {
+    return this.entries.cleanRevisions(site.id, auth, { keep: keepOf(body) }, request.ip);
+  }
+
   @Post('entries/:id/revisions/:revisionId/restore')
   @HttpCode(200)
   restoreRevision(
@@ -304,4 +335,14 @@ export class EntriesController {
   ): Promise<EntryView> {
     return this.entries.restoreRevision(site.id, auth, id, revisionId, request.ip);
   }
+}
+
+/** How many revisions to keep: a whole number from 0 to 1000, and a confirmation. */
+function keepOf(body: unknown): number {
+  const { keep, confirm } = (body ?? {}) as { keep?: unknown; confirm?: unknown };
+  if (confirm !== true) throw new BadRequestException('Confirm the deletion: it cannot be undone.');
+  if (typeof keep !== 'number' || !Number.isInteger(keep) || keep < 0 || keep > 1000) {
+    throw new BadRequestException('Keep from 0 to 1000 revisions.');
+  }
+  return keep;
 }

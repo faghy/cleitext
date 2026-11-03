@@ -21,6 +21,12 @@ const coreSettingsFields = {
   trailingSlash: z.boolean(),
   /** Days before trashed entries are deleted; 0 keeps them (RF-CNT-14). */
   trashDays: z.number().int().min(0).max(3650),
+  /**
+   * Revisions kept per entry (autosaves aside), the newest; older ones are
+   * deleted when an entry is saved. The current and the published revision
+   * always stay. 0 keeps them all, as in WordPress.
+   */
+  revisionsToKeep: z.number().int().min(0).max(1000),
   /** IANA time zone of the site, e.g. Europe/Rome (dates, scheduling). */
   timezone: z.string().min(1).max(64).refine(isTimeZone, 'Choose a time zone from the list'),
   /** How dates are written on the site. */
@@ -141,6 +147,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   discourageSearchEngines: false,
   trailingSlash: false,
   trashDays: 30,
+  revisionsToKeep: 0,
   timezone: 'UTC',
   dateStyle: 'long',
   dateFormat: '',

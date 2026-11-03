@@ -37,10 +37,74 @@ export function SettingsPage() {
       <h1 className="text-2xl font-semibold">{t('Settings')}</h1>
       {settings.error && <Alert>{errorMessage(settings.error)}</Alert>}
       <MaintenanceCard />
+      {settings.data && <RevisionsCleanupCard />}
       {settings.data && <SettingsForm initial={settings.data} />}
       <MailCard />
       <PluginSettings />
     </div>
+  );
+}
+
+/**
+ * Old revisions of every entry, deleted at once: the newest few of each are
+ * kept, with the current and the published one. A second confirmation, as
+ * it cannot be undone. Only for people who manage the settings.
+ */
+function RevisionsCleanupCard() {
+  const { t } = useT();
+  const me = useMe();
+  const [keep, setKeep] = useState(5);
+  const [sure, setSure] = useState(false);
+  const clean = useMutation({
+    mutationFn: () =>
+      api<{ deleted: number }>('POST', '/revisions/cleanup', { keep, confirm: true }),
+    onSuccess: () => setSure(false),
+  });
+  if (!me.capabilities.includes('manage_settings')) return null;
+  const valid = Number.isInteger(keep) && keep >= 0 && keep <= 1000;
+  return (
+    <Card id="revisions-cleanup" title={t('Old revisions')}>
+      <div className="space-y-3 text-sm">
+        <p className="text-slate-600">
+          {t(
+            'Deletes the old revisions of every entry now, keeping the newest ones of each. The current and the published revision always stay. To keep fewer from now on, see “Revisions to keep per entry” below.',
+          )}
+        </p>
+        <TextField
+          label={t('Revisions to keep for each entry')}
+          type="number"
+          min={0}
+          max={1000}
+          value={keep}
+          onChange={(e) => setKeep(Number(e.target.value))}
+        />
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={sure}
+            onChange={(e) => setSure(e.target.checked)}
+          />
+          <span>{t('I understand that deleted revisions cannot be brought back.')}</span>
+        </label>
+        <Button
+          variant="danger"
+          disabled={!sure || !valid || clean.isPending}
+          onClick={() => {
+            if (window.confirm(t('Delete the old revisions of every entry? It cannot be undone.')))
+              clean.mutate();
+          }}
+        >
+          {t('Delete old revisions')}
+        </Button>
+        {clean.data && (
+          <p role="status" className="text-emerald-700">
+            {t('{n} revisions deleted.', { n: String(clean.data.deleted) })}
+          </p>
+        )}
+        {clean.error && <Alert>{errorMessage(clean.error)}</Alert>}
+      </div>
+    </Card>
   );
 }
 
@@ -392,6 +456,18 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
               onChange={(e) => set('trashDays', Number(e.target.value))}
               hint={t('Trashed entries are deleted after this many days. 0 keeps them.')}
               {...(fieldError('trashDays') ? { error: fieldError('trashDays')! } : {})}
+            />
+            <TextField
+              label={t('Revisions to keep per entry')}
+              type="number"
+              min={0}
+              max={1000}
+              value={values.revisionsToKeep}
+              onChange={(e) => set('revisionsToKeep', Number(e.target.value))}
+              hint={t(
+                'The newest ones; older revisions are deleted when an entry is saved. The current and the published one always stay. 0 keeps them all.',
+              )}
+              {...(fieldError('revisionsToKeep') ? { error: fieldError('revisionsToKeep')! } : {})}
             />
             {pageSelect(
               'errorPage',
