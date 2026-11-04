@@ -1,7 +1,7 @@
 /** Core updates (RF-SYS-UPD): download, verification, switch, rollback on failure. */
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
-import { mkdir, mkdtemp, readlink, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as tar from 'tar';
@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   findRelease,
   isNewer,
+  readableTree,
   rollbackUpdate,
   runUpdate,
   trialRun,
@@ -246,5 +247,31 @@ describe('trying the new version before switching', () => {
     await expect(trialRun({ staging, env: {}, host: 'site.test' })).rejects.toThrow(
       'the home page answered 500',
     );
+  });
+});
+
+describe('readableTree', () => {
+  it('gives an unpacked release the usual modes, whatever the umask', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cx-modes-'));
+    await mkdir(path.join(root, 'public', 'assets'), { recursive: true });
+    await writeFile(path.join(root, 'public', '.htaccess'), 'x');
+    await writeFile(path.join(root, 'public', 'assets', 'a.css'), 'x');
+    await mkdir(path.join(root, 'bin'));
+    await writeFile(path.join(root, 'bin', 'cleitext'), '#!/bin/sh');
+    await symlink('missing', path.join(root, 'link'));
+    // As with umask 077.
+    await chmod(path.join(root, 'public', '.htaccess'), 0o600);
+    await chmod(path.join(root, 'public', 'assets', 'a.css'), 0o600);
+    await chmod(path.join(root, 'bin', 'cleitext'), 0o700);
+    await chmod(path.join(root, 'public', 'assets'), 0o700);
+    await chmod(path.join(root, 'public'), 0o700);
+    await readableTree(root);
+    const mode = async (p: string) => (await stat(path.join(root, p))).mode & 0o777;
+    expect(await mode('public')).toBe(0o755);
+    expect(await mode('public/assets')).toBe(0o755);
+    expect(await mode('public/.htaccess')).toBe(0o644);
+    expect(await mode('public/assets/a.css')).toBe(0o644);
+    expect(await mode('bin/cleitext')).toBe(0o755);
+    expect(await mode('.')).toBe(0o755);
   });
 });

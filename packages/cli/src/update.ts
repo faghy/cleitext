@@ -8,6 +8,7 @@ import {
   mkdir,
   readdir,
   readFile,
+  lstat,
   readlink,
   rename,
   rm,
@@ -27,6 +28,27 @@ import { OperationError } from './operations.js';
  * to check that it works, and only then switched in. The previous version
  * stays on disk for `cleitext rollback`.
  */
+
+/**
+ * Folders 755 and files 644 (executables 755) under `dir`, as a release
+ * unpacked with the usual umask: others may read, nobody but the owner
+ * writes. Links are left as they are. The configuration (`.env`) comes
+ * later and keeps its own mode.
+ */
+export async function readableTree(dir: string): Promise<void> {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      await chmod(full, 0o755);
+      await readableTree(full);
+    } else if (entry.isFile()) {
+      const { mode } = await lstat(full);
+      await chmod(full, mode & 0o100 ? 0o755 : 0o644);
+    }
+  }
+  await chmod(dir, 0o755);
+}
 
 export interface ReleaseInfo {
   version: string;
@@ -208,6 +230,9 @@ export async function runUpdate(options: UpdateOptions): Promise<UpdateResult> {
     step('unpack');
     await mkdir(staging, { recursive: true });
     await tar.x({ file: archive, cwd: staging, strip: 1 });
+    // Readable by the web server whatever the umask of the shell that runs the
+    // update (077 gave 0600 files, and the site answered 403 once switched).
+    await readableTree(staging);
     const unpacked = JSON.parse(await readFile(path.join(staging, 'package.json'), 'utf8')) as {
       version?: string;
     };
