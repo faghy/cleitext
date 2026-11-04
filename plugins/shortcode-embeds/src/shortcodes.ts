@@ -62,13 +62,14 @@ export function safeUrl(value: unknown): string {
 
 /** The provider slug of a video address, as Gutenberg names it (`youtube`, `facebook`, `vimeo`), or ''. */
 export function providerOf(url: string): string {
-  let host = '';
+  let host: string;
   try {
     host = new URL(url).hostname.replace(/^(www|m|mobile)\./, '');
   } catch {
     return '';
   }
-  if (host === 'youtube.com' || host === 'youtu.be' || host === 'youtube-nocookie.com') return 'youtube';
+  if (host === 'youtube.com' || host === 'youtu.be' || host === 'youtube-nocookie.com')
+    return 'youtube';
   if (host === 'facebook.com' || host === 'fb.watch' || host === 'fb.com') return 'facebook';
   if (host === 'vimeo.com' || host === 'player.vimeo.com') return 'vimeo';
   if (host === 'dailymotion.com' || host === 'dai.ly') return 'dailymotion';
@@ -93,7 +94,9 @@ export function spreakerAttrs(attrs: Record<string, unknown>): SpreakerAttrs {
   const resource = String(attrs.resource ?? '').trim();
   const height = Number.parseInt(String(attrs.height ?? '200'), 10);
   const options: Record<string, boolean> = {};
-  const given = (attrs.options && typeof attrs.options === 'object' ? attrs.options : attrs) as Record<string, unknown>;
+  const given = (
+    attrs.options && typeof attrs.options === 'object' ? attrs.options : attrs
+  ) as Record<string, unknown>;
   for (const flag of FLAGS) {
     const v = given[flag];
     if (v === true || v === 'true') options[flag] = true;

@@ -37,7 +37,14 @@ export default definePlugin({
               it: 'episode_id=…, show_id=… o playlist_id=…, come nel codice di condivisione di Spreaker.',
             },
           },
-          { name: 'height', type: 'number', min: 80, max: 1000, default: 200, label: { en: 'Height (px)', it: 'Altezza (px)' } },
+          {
+            name: 'height',
+            type: 'number',
+            min: 80,
+            max: 1000,
+            default: 200,
+            label: { en: 'Height (px)', it: 'Altezza (px)' },
+          },
           {
             name: 'theme',
             type: 'select',
@@ -56,7 +63,10 @@ export default definePlugin({
             options: [
               { value: 'false', label: { en: 'None', it: 'Nessuna' } },
               { value: 'show', label: { en: 'The show’s episodes', it: 'Gli episodi dello show' } },
-              { value: 'user', label: { en: 'The author’s episodes', it: 'Gli episodi dell’autore' } },
+              {
+                value: 'user',
+                label: { en: 'The author’s episodes', it: 'Gli episodi dell’autore' },
+              },
             ],
           },
         ],

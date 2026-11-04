@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { blockFromSpreaker, embedFromFve, providerOf, safeUrl, spreakerAttrs, spreakerSrc } from './shortcodes';
+import {
+  blockFromSpreaker,
+  embedFromFve,
+  providerOf,
+  safeUrl,
+  spreakerAttrs,
+  spreakerSrc,
+} from './shortcodes';
 
 describe('[fve]', () => {
   it('makes an Embed block of a YouTube or Facebook address', () => {
@@ -11,8 +18,13 @@ describe('[fve]', () => {
       type: 'video',
       responsive: true,
     });
-    expect(embedFromFve('https://www.facebook.com/problemidivolley/videos/1234/')?.attrs.providerNameSlug).toBe('facebook');
-    expect(embedFromFve(' <a href="x">https://youtu.be/abc</a> ')?.attrs.url).toBe('https://youtu.be/abc');
+    expect(
+      embedFromFve('https://www.facebook.com/problemidivolley/videos/1234/')?.attrs
+        .providerNameSlug,
+    ).toBe('facebook');
+    expect(embedFromFve(' <a href="x">https://youtu.be/abc</a> ')?.attrs.url).toBe(
+      'https://youtu.be/abc',
+    );
     expect(embedFromFve('https://www.youtube.com/watch?v=r7E0ttQ0S7Q&amp;t=11s')?.attrs.url).toBe(
       'https://www.youtube.com/watch?v=r7E0ttQ0S7Q&t=11s',
     );
