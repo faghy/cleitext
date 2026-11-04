@@ -1,0 +1,11 @@
+{
+  "slug": "shortcode-embeds",
+  "name": "Shortcode Embeds",
+  "version": "1.0.0",
+  "apiVersion": "^1.36",
+  "description": "Turns the [fve] video shortcodes and the [spreaker] player shortcodes of WordPress sites into embeds on import, with a Spreaker player block for the block editor and Fresco. Players of other sites wait for the visitor's consent with the Privacy plugin.",
+  "author": "Faghy",
+  "license": "GPL-3.0-or-later",
+  "server": "dist/server.js",
+  "permissions": ["blocks", "theme:hooks"]
+}
