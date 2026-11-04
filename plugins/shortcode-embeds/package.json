@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Cleitext plugin: [fve] and [spreaker] shortcodes of WordPress imports become embeds; a Spreaker player block.",
-  "license": "GPL-3.0-or-later",
+  "license": "GPL-2.0-or-later",
   "type": "module",
   "scripts": {
     "build": "cleitext plugin:build .",
