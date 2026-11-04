@@ -286,6 +286,9 @@ export const TEXTS = {
     thisSite: 'This site',
     consentCookie: 'Remembers your cookie choices.',
     months: 'months',
+    sessionCookie:
+      'Only for people who sign in to the admin: keep them signed in and protect forms.',
+    sessionDuration: 'Session or 30 days',
   },
   it: {
     title: 'La tua privacy',
@@ -328,6 +331,9 @@ export const TEXTS = {
     noCookies: 'Nessun cookie ancora elencato.',
     thisSite: 'Questo sito',
     consentCookie: 'Ricorda le tue scelte sui cookie.',
+    sessionCookie:
+      'Solo per chi accede all’amministrazione: mantengono l’accesso e proteggono i moduli.',
+    sessionDuration: 'Sessione o 30 giorni',
     months: 'mesi',
   },
   de: {
@@ -371,6 +377,9 @@ export const TEXTS = {
     noCookies: 'Noch keine Cookies aufgeführt.',
     thisSite: 'Diese Website',
     consentCookie: 'Speichert Ihre Cookie-Auswahl.',
+    sessionCookie:
+      'Nur für Personen, die sich in der Verwaltung anmelden: halten sie angemeldet und schützen Formulare.',
+    sessionDuration: 'Sitzung oder 30 Tage',
     months: 'Monate',
   },
 };

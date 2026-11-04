@@ -276,6 +276,11 @@ function privacyPolicy(
   return blocks;
 }
 
+/** An external consent manager (Cookiebot, iubenda…) shows its own banner. */
+function activeCmpInPolicy(config: PrivacyConfig): boolean {
+  return Boolean(config.cmp?.provider) && config.cmp.provider !== 'none';
+}
+
 function cookiePolicy(
   config: PrivacyConfig,
   it: boolean,
@@ -287,6 +292,32 @@ function cookiePolicy(
     ? `<a href="${escape(links.privacy)}">privacy policy</a>`
     : 'privacy policy';
   const offered = config.banner.categories;
+  // Only technical cookies: no banner, no consent to ask, no choice to change.
+  const technicalOnly =
+    !config.banner.enabled || (offered.length === 0 && !activeCmpInPolicy(config));
+  if (technicalOnly) {
+    return it
+      ? [
+          paragraph(
+            `I cookie sono piccoli file che un sito salva nel browser per ricordare informazioni. <strong>${siteName}</strong> usa solo cookie tecnici, necessari al funzionamento del sito: non richiedono consenso (art. 122 del Codice privacy), quindi non compare nessun banner. Per il resto del trattamento dei dati vedi la ${privacyLink}.`,
+          ),
+          heading('Cookie usati da questo sito'),
+          pluginBlock('privacy/cookie-table'),
+          paragraph(
+            'Puoi cancellare o bloccare i cookie dalle impostazioni del browser; in questo caso alcune funzioni del sito potrebbero non funzionare.',
+          ),
+        ]
+      : [
+          paragraph(
+            `Cookies are small files a site saves in the browser to remember information. <strong>${siteName}</strong> only uses technical cookies, needed for the site to work: they need no consent, so no banner is shown. For the rest of the processing of your data see the ${privacyLink}.`,
+          ),
+          heading('Cookies used by this site'),
+          pluginBlock('privacy/cookie-table'),
+          paragraph(
+            'You can delete or block cookies in your browser settings; some features of the site may then not work.',
+          ),
+        ];
+  }
   if (it) {
     return [
       paragraph(

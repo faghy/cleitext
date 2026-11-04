@@ -14,6 +14,7 @@ import {
   CMP_PROVIDERS,
   cmpProblems,
   cookieyesKey,
+  DEFAULT_CONFIG,
   textsFor,
   withDefaults,
   type Category,
@@ -271,7 +272,20 @@ function cookieRows(e: Effective, locale: string): CookieRow[] {
     });
   }
   rows.push(
-    ...e.cfg.cookies.filter((row) => row.name !== 'cx_consent' && row.name !== cmpRow?.name),
+    ...e.cfg.cookies
+      .filter((row) => row.name !== 'cx_consent' && row.name !== cmpRow?.name)
+      // The admin's session cookies, as listed by default: in the page's language.
+      .map((row) =>
+        row.purpose === DEFAULT_CONFIG.cookies[0]!.purpose
+          ? {
+              ...row,
+              purpose: t.sessionCookie,
+              ...(row.duration === DEFAULT_CONFIG.cookies[0]!.duration
+                ? { duration: t.sessionDuration }
+                : {}),
+            }
+          : row,
+      ),
   );
   for (const tracker of e.trackers) {
     for (const cookie of tracker.cookies) {
@@ -550,7 +564,14 @@ export default definePlugin({
         },
         icon: 'admin-generic',
         category: 'widgets',
-        render({ context }) {
+        async load(_attrs, context) {
+          context.tag(CACHE_TAG);
+          const e = await effective(ctx, context.siteId);
+          // Only technical cookies: no banner to open, so no button.
+          return { shown: bannerShown(e) || Boolean(cmpOf(e.cfg)) };
+        },
+        render({ data, context }) {
+          if (data && !data.shown) return null;
           return (
             <p className="privacy-preferences">
               <a className="wp-element-button" href="#cookie-preferences" data-cx-open="">
