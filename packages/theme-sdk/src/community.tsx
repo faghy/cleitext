@@ -229,6 +229,8 @@ export function Comments({ entry }: { entry?: PublicEntry }) {
   const current = entry ?? page.entry;
   const comments = current?.comments;
   if (!current || !comments) return null;
+  // Closed with nothing to show: no section, not even its title.
+  if (!comments.open && comments.items.length === 0 && !comments.notice) return null;
   const t = communityStrings(page.locale);
   const viewer = page.viewer ?? null;
   const dateFormat = new Intl.DateTimeFormat(page.locale, {

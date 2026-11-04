@@ -150,6 +150,19 @@ describe('sign-ups', () => {
 });
 
 describe('comments', () => {
+  it('leave no empty section when closed without comments', async () => {
+    const created = (
+      await admin.post('/api/v1/entries', { type: 'article', title: 'Quiet', slug: 'quiet' })
+    ).json();
+    await admin.post(`/api/v1/entries/${created.id}/publish`);
+    await admin.request('PATCH', `/api/v1/entries/${created.id}/comments`, { status: 'closed' });
+    const page = await new TestClient(app, host, '10.51.0.30').get(
+      `/${new Date().getFullYear()}/quiet`,
+    );
+    expect(page.statusCode).toBe(200);
+    expect(page.body).not.toContain('id="comments"');
+  });
+
   it('are shown under posts with a form, and held for approval the first time', async () => {
     resetLimits();
     const guest = new TestClient(app, host, '10.51.0.7');
