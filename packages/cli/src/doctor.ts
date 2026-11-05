@@ -152,6 +152,19 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
   }, 'document_root');
 
   await add(() => {
+    // A copy of WordPress's wp-content left in public/ by a migration: the
+    // library and its 301s should answer the old addresses, not the copy.
+    const leftover = path.join(current, 'public', 'wp-content');
+    return existsSync(leftover)
+      ? warn(
+          'wp_content',
+          `${leftover} is a leftover of a WordPress migration: it is carried into every version, and its files answer instead of the media library.`,
+          `bin/cleitext media:import-addresses --site <site> --folder ${leftover} [--wxr <export.xml>] --dry-run, then without --dry-run; remove the folder when it reports that every file answers 301.`,
+        )
+      : ok('wp_content', 'No wp-content folder left in public/.');
+  }, 'wp_content');
+
+  await add(() => {
     const token = path.join(current, 'tmp', 'setup-token');
     return existsSync(token)
       ? warn('setup_token', `A setup token was left in ${token}.`, `rm ${token}`)

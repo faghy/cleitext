@@ -632,6 +632,7 @@ describe('plugins, themes, migrations, doctor', () => {
       'env_file',
       'document_root',
       'setup_token',
+      'wp_content',
       'trust_proxy',
       'database',
       'https',

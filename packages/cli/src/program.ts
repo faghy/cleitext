@@ -69,6 +69,7 @@ import {
   renameImportedMedia,
   renameText,
 } from './media-rename.js';
+import { importAddresses, importAddressesText } from './media-addresses.js';
 import { backfillRawTitles, rawTitlesText } from './raw-titles.js';
 import { jsonMode, report, runCommand, say, type RunIo } from './json.js';
 import { collectStatus, formatStatus } from './status.js';
@@ -847,6 +848,26 @@ export function buildProgram(json = false): Command {
         });
       },
     );
+
+  program
+    .command('media:import-addresses')
+    .description(
+      'Make the old WordPress addresses (/wp-content/uploads/…) of an imported site answer 301 to its media, and tell which files of a leftover wp-content folder still need it.',
+    )
+    .requiredOption('--site <site>', 'slug or id of the site')
+    .option('--wxr <file>', 'the WordPress export (.xml) the site was imported from')
+    .option(
+      '--folder <folder>',
+      "a wp-content or wp-content/uploads folder (as the site's public/wp-content): its files are found in the library by their content (only read)",
+    )
+    .option('--dry-run', 'show what would change, and change nothing')
+    .action((opts: { site: string; wxr?: string; folder?: string; dryRun?: boolean }) => {
+      refuseRoot();
+      return withOwner(async (db) => {
+        const result = await importAddresses(db, opts);
+        report({ ...result }, importAddressesText(result));
+      });
+    });
 
   program
     .command('media:purge-renamed')

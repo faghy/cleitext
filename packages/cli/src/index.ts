@@ -19,6 +19,12 @@ export {
   type RenameImportedResult,
 } from './media-rename.js';
 export {
+  importAddresses,
+  importAddressesText,
+  isCovered,
+  type ImportAddressesResult,
+} from './media-addresses.js';
+export {
   backfillRawTitles,
   rawTitlesText,
   typedTitle,
