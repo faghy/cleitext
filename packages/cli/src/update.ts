@@ -5,6 +5,7 @@ import {
   chmod,
   copyFile,
   cp,
+  link,
   mkdir,
   readdir,
   readFile,
@@ -466,10 +467,32 @@ async function carryConfiguration(current: string, staging: string, final: strin
   if (existsSync(publicDir)) {
     for (const name of await readdir(publicDir)) {
       const target = path.join(staging, 'public', name);
-      if (!existsSync(target)) {
-        await cp(path.join(publicDir, name), target, { recursive: true });
-      }
+      if (!existsSync(target)) await carryPublic(path.join(publicDir, name), target);
     }
+  }
+}
+
+/**
+ * A file or folder added to `public/` (a copy of WordPress's wp-content, a
+ * verification file…) into the new version. Files are hard links to the old
+ * version's: a folder of gigabytes takes no new space at each update, and
+ * stays a plain folder for the web server. A copy where links cannot be made.
+ */
+export async function carryPublic(from: string, to: string): Promise<void> {
+  const stat = lstatSync(from);
+  if (stat.isDirectory()) {
+    await mkdir(to, { recursive: true });
+    await chmod(to, stat.mode & 0o7777);
+    for (const name of await readdir(from))
+      await carryPublic(path.join(from, name), path.join(to, name));
+  } else if (stat.isFile()) {
+    try {
+      await link(from, to);
+    } catch {
+      await copyFile(from, to);
+    }
+  } else {
+    await cp(from, to, { recursive: true });
   }
 }
 

@@ -1,12 +1,13 @@
 /** Core updates (RF-SYS-UPD): download, verification, switch, rollback on failure. */
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as tar from 'tar';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  carryPublic,
   findRelease,
   isNewer,
   readableTree,
@@ -120,6 +121,17 @@ describe('core updates', () => {
     );
     expect(previous.version).toBe('1.0.0');
     expect(existsSync(path.join(base, '.cleitext-update-9.9.9'))).toBe(false);
+  });
+
+  it('carries folders added to public/ as hard links, not copies', async () => {
+    const from = path.join(base, 'carry-from');
+    await mkdir(path.join(from, 'uploads', '2020'), { recursive: true });
+    await writeFile(path.join(from, 'uploads', '2020', 'clip.mp4'), 'video');
+    await carryPublic(from, path.join(base, 'carry-to'));
+    const a = statSync(path.join(from, 'uploads', '2020', 'clip.mp4'));
+    const b = statSync(path.join(base, 'carry-to', 'uploads', '2020', 'clip.mp4'));
+    expect(b.ino).toBe(a.ino);
+    expect(lstatSync(path.join(base, 'carry-to', 'uploads')).isDirectory()).toBe(true);
   });
 
   it('moves the cleitext link of a releases/ layout', async () => {
