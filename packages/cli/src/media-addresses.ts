@@ -22,7 +22,7 @@ import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { importRefs, media, withSiteContext } from '@cleitext/db';
 import { mediaUrlKey, sourceUrlPaths } from '@cleitext/shared';
-import { and, eq, like } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { findSite, refuseRoot, wxrMedia } from './media-rename.js';
 import { OperationError } from './operations.js';
 
