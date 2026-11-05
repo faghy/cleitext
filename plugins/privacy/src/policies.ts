@@ -15,6 +15,14 @@ import type { PrivacyConfig } from './config';
 
 export type PolicyKind = 'privacy' | 'cookies';
 
+/** The languages the policies are written in (others get English). */
+type Lang = 'it' | 'es' | 'en';
+
+const langOf = (locale: string): Lang => {
+  const lang = locale.toLowerCase().slice(0, 2);
+  return lang === 'it' || lang === 'es' ? lang : 'en';
+};
+
 const escape = (value: string) => value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 const id = () => globalThis.crypto.randomUUID();
@@ -47,15 +55,17 @@ const list = (items: string[]): CxdBlock => ({
 });
 const pluginBlock = (type: string): CxdBlock => ({ id: id(), type, v: 1, attrs: {} });
 
-function controllerLines(config: PrivacyConfig, it: boolean): string[] {
+function controllerLines(config: PrivacyConfig, lang: Lang): string[] {
   const c = config.controller;
-  const missing = it ? '[da completare]' : '[to complete]';
+  const missing = { it: '[da completare]', es: '[por completar]', en: '[to complete]' }[lang];
+  const vat = { it: 'P. IVA / C.F.', es: 'NIF', en: 'VAT number' }[lang];
+  const phone = { it: 'Telefono', es: 'Teléfono', en: 'Phone' }[lang];
   return [
     `<strong>${escape(c.name || missing)}</strong>`,
     c.address ? escape(c.address) : '',
-    c.vat ? `${it ? 'P. IVA / C.F.' : 'VAT number'}: ${escape(c.vat)}` : '',
+    c.vat ? `${vat}: ${escape(c.vat)}` : '',
     `Email: ${c.email ? `<a href="mailto:${escape(c.email)}">${escape(c.email)}</a>` : missing}`,
-    c.phone ? `${it ? 'Telefono' : 'Phone'}: ${escape(c.phone)}` : '',
+    c.phone ? `${phone}: ${escape(c.phone)}` : '',
   ].filter(Boolean);
 }
 
@@ -68,27 +78,36 @@ export function policy(
   trackers: TrackerDeclaration[] = [],
   sections: PolicySection[] = [],
 ): { title: string; slug: string; document: CxdDocument } {
-  const it = locale.toLowerCase().startsWith('it');
-  const today = new Date().toLocaleDateString(it ? 'it-IT' : 'en-GB', {
+  const lang = langOf(locale);
+  const today = new Date().toLocaleDateString({ it: 'it-IT', es: 'es-ES', en: 'en-GB' }[lang], {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
   const blocks =
     kind === 'privacy'
-      ? privacyPolicy(config, it, site, links, trackers, sections)
-      : cookiePolicy(config, it, site, links);
-  blocks.push(paragraph(`<em>${it ? 'Ultimo aggiornamento' : 'Last updated'}: ${today}</em>`));
+      ? privacyPolicy(config, lang, site, links, trackers, sections)
+      : cookiePolicy(config, lang, site, links);
+  const updated = { it: 'Ultimo aggiornamento', es: 'Última actualización', en: 'Last updated' }[
+    lang
+  ];
+  blocks.push(paragraph(`<em>${updated}: ${today}</em>`));
   return {
-    title: kind === 'privacy' ? 'Privacy policy' : 'Cookie policy',
+    title: policyTitle(kind, lang),
     slug: kind === 'privacy' ? 'privacy-policy' : 'cookie-policy',
     document: { schema: 1, blocks } as CxdDocument,
   };
 }
 
+/** The title of a new policy page (Italian sites call them by their English names). */
+function policyTitle(kind: PolicyKind, lang: Lang): string {
+  if (lang === 'es') return kind === 'privacy' ? 'Política de privacidad' : 'Política de cookies';
+  return kind === 'privacy' ? 'Privacy policy' : 'Cookie policy';
+}
+
 function privacyPolicy(
   config: PrivacyConfig,
-  it: boolean,
+  lang: Lang,
   site: { name: string; url: string },
   links: { cookies?: string },
   trackers: TrackerDeclaration[],
@@ -97,18 +116,19 @@ function privacyPolicy(
   const p = config.processing;
   const c = config.controller;
   const siteName = escape(site.name);
+  const cookieName = lang === 'es' ? 'política de cookies' : 'cookie policy';
   const cookieLink = links.cookies
-    ? `<a href="${escape(links.cookies)}">cookie policy</a>`
-    : 'cookie policy';
+    ? `<a href="${escape(links.cookies)}">${cookieName}</a>`
+    : cookieName;
   const blocks: CxdBlock[] = [];
 
-  if (it) {
+  if (lang === 'it') {
     blocks.push(
       paragraph(
         `Questa informativa spiega come vengono trattati i dati personali di chi visita <strong>${siteName}</strong> (${escape(site.url)}), ai sensi dell’art. 13 del Regolamento (UE) 2016/679 (GDPR).`,
       ),
       heading('Titolare del trattamento'),
-      paragraph(controllerLines(config, true).join('<br>')),
+      paragraph(controllerLines(config, 'it').join('<br>')),
     );
     if (c.dpoEmail)
       blocks.push(
@@ -158,7 +178,7 @@ function privacyPolicy(
           `Alcune pagine includono contenuti di altri siti, come video o mappe. Vengono caricati solo con il tuo consenso alla categoria “Marketing”, perché questi siti possono raccogliere dati su di te. I dettagli sono nella ${cookieLink}.`,
         ),
       );
-    blocks.push(...trackerBlocks(trackers, true), ...sectionBlocks(sections));
+    blocks.push(...trackerBlocks(trackers, 'it'), ...sectionBlocks(sections));
     blocks.push(
       heading('Cookie'),
       paragraph(
@@ -187,13 +207,98 @@ function privacyPolicy(
         'Fornire i dati è facoltativo, ma senza alcuni di essi non possiamo rispondere alle tue richieste. Non prendiamo decisioni basate unicamente su trattamenti automatizzati. Questa informativa può cambiare: la data dell’ultima modifica è indicata qui sotto.',
       ),
     );
+  } else if (lang === 'es') {
+    blocks.push(
+      paragraph(
+        `Esta información explica cómo se tratan los datos personales de quienes visitan <strong>${siteName}</strong> (${escape(site.url)}), según el artículo 13 del Reglamento (UE) 2016/679 (RGPD).`,
+      ),
+      heading('Responsable del tratamiento'),
+      paragraph(controllerLines(config, 'es').join('<br>')),
+    );
+    if (c.dpoEmail)
+      blocks.push(
+        paragraph(
+          `Delegado de protección de datos (DPD): <a href="mailto:${escape(c.dpoEmail)}">${escape(c.dpoEmail)}</a>`,
+        ),
+      );
+    blocks.push(heading('Qué datos tratamos y por qué'));
+    blocks.push(heading('Datos de navegación', 3));
+    blocks.push(
+      paragraph(
+        'Los sistemas que hacen funcionar el sitio registran algunos datos técnicos, como la dirección IP, el navegador, las páginas visitadas y la hora. Sirven para que el sitio funcione y para protegerlo de abusos, sobre la base del interés legítimo del responsable (art. 6.1.f RGPD), y se conservan solo el tiempo necesario.',
+      ),
+    );
+    if (p.contactForms)
+      blocks.push(
+        heading('Formularios de contacto', 3),
+        paragraph(
+          'Si nos escribes mediante un formulario, usamos tu nombre, tu email, tu teléfono (si lo indicas) y el mensaje solo para responderte, a petición tuya (art. 6.1.b RGPD). Los mensajes se conservan el tiempo necesario para gestionarlos y, en todo caso, no más de 24 meses.',
+        ),
+      );
+    if (p.accounts)
+      blocks.push(
+        heading('Cuentas', 3),
+        paragraph(
+          'Quien tiene una cuenta facilita su email y su nombre; la contraseña solo se guarda cifrada. Los datos sirven para dar acceso al servicio (art. 6.1.b RGPD) y se conservan mientras exista la cuenta.',
+        ),
+      );
+    if (p.newsletter)
+      blocks.push(
+        heading('Newsletter', 3),
+        paragraph(
+          'Con tu consentimiento (art. 6.1.a RGPD) usamos tu email para enviarte la newsletter, hasta que te des de baja con el enlace que aparece en cada mensaje.',
+        ),
+      );
+    if (p.analytics && trackers.length === 0)
+      blocks.push(
+        heading('Estadísticas', 3),
+        paragraph(
+          `Solo con tu consentimiento usamos <strong>${escape(p.analytics)}</strong> para medir de forma agregada cómo se usa el sitio (art. 6.1.a RGPD). Los detalles están en la ${cookieLink}.`,
+        ),
+      );
+    if (p.embeds)
+      blocks.push(
+        heading('Contenidos de otros sitios', 3),
+        paragraph(
+          `Algunas páginas incluyen contenidos de otros sitios, como vídeos o mapas. Solo se cargan con tu consentimiento a la categoría “Marketing”, porque esos sitios pueden recoger datos sobre ti. Los detalles están en la ${cookieLink}.`,
+        ),
+      );
+    blocks.push(...trackerBlocks(trackers, 'es'), ...sectionBlocks(sections));
+    blocks.push(
+      heading('Cookies'),
+      paragraph(
+        `Usamos cookies técnicas, necesarias para el funcionamiento, y otras cookies solo con tu consentimiento. La lista, y la forma de cambiar tus elecciones, están en la ${cookieLink}.`,
+      ),
+      heading('A quién comunicamos los datos'),
+      paragraph(
+        `Los datos los tratan personas autorizadas por el responsable y proveedores que nos ayudan a gestionar el sitio${p.hosting ? `, como el proveedor de alojamiento <strong>${escape(p.hosting)}</strong>` : ''}, designados encargados del tratamiento (art. 28 RGPD). No vendemos ni difundimos los datos. Si un proveedor está fuera de la Unión Europea, la transferencia solo se realiza con las garantías de los artículos 44–49 RGPD, como una decisión de adecuación o las cláusulas contractuales tipo.`,
+      ),
+      heading('Tus derechos'),
+      paragraph('En cualquier momento puedes pedir al responsable:'),
+      list([
+        'el acceso a tus datos y una copia de ellos (art. 15)',
+        'la rectificación de los datos inexactos (art. 16)',
+        'la supresión de los datos (art. 17)',
+        'la limitación del tratamiento (art. 18)',
+        'la portabilidad de los datos en un formato legible (art. 20)',
+        'oponerte al tratamiento basado en el interés legítimo (art. 21)',
+        'retirar el consentimiento dado, sin que afecte a los tratamientos anteriores (art. 7.3)',
+      ]),
+      paragraph(
+        `Para ejercerlos escribe a ${c.email ? `<a href="mailto:${escape(c.email)}">${escape(c.email)}</a>` : 'la dirección de email indicada arriba'}: respondemos en el plazo de un mes. También tienes derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (<a href="https://www.aepd.es">www.aepd.es</a>) o ante la autoridad del país en el que vives.`,
+      ),
+      heading('Otra información'),
+      paragraph(
+        'Facilitar los datos es voluntario, pero sin algunos de ellos no podemos responder a tus peticiones. No tomamos decisiones basadas únicamente en tratamientos automatizados. Esta información puede cambiar: la fecha de la última modificación figura más abajo.',
+      ),
+    );
   } else {
     blocks.push(
       paragraph(
         `This notice explains how the personal data of visitors of <strong>${siteName}</strong> (${escape(site.url)}) is processed, under Article 13 of Regulation (EU) 2016/679 (GDPR).`,
       ),
       heading('Data controller'),
-      paragraph(controllerLines(config, false).join('<br>')),
+      paragraph(controllerLines(config, 'en').join('<br>')),
     );
     if (c.dpoEmail)
       blocks.push(
@@ -243,7 +348,7 @@ function privacyPolicy(
           `Some pages include content from other sites, such as videos or maps. It is loaded only with your consent to the “Marketing” category, since those sites may collect data about you. Details are in the ${cookieLink}.`,
         ),
       );
-    blocks.push(...trackerBlocks(trackers, false), ...sectionBlocks(sections));
+    blocks.push(...trackerBlocks(trackers, 'en'), ...sectionBlocks(sections));
     blocks.push(
       heading('Cookies'),
       paragraph(
@@ -283,20 +388,33 @@ function activeCmpInPolicy(config: PrivacyConfig): boolean {
 
 function cookiePolicy(
   config: PrivacyConfig,
-  it: boolean,
+  lang: Lang,
   site: { name: string },
   links: { privacy?: string },
 ): CxdBlock[] {
   const siteName = escape(site.name);
+  const privacyName = lang === 'es' ? 'política de privacidad' : 'privacy policy';
   const privacyLink = links.privacy
-    ? `<a href="${escape(links.privacy)}">privacy policy</a>`
-    : 'privacy policy';
+    ? `<a href="${escape(links.privacy)}">${privacyName}</a>`
+    : privacyName;
   const offered = config.banner.categories;
   // Only technical cookies: no banner, no consent to ask, no choice to change.
   const technicalOnly =
     !config.banner.enabled || (offered.length === 0 && !activeCmpInPolicy(config));
+  if (technicalOnly && lang === 'es') {
+    return [
+      paragraph(
+        `Las cookies son pequeños archivos que un sitio guarda en el navegador para recordar información. <strong>${siteName}</strong> solo usa cookies técnicas, necesarias para que el sitio funcione: no requieren consentimiento, por eso no aparece ningún banner. Para el resto del tratamiento de tus datos consulta la ${privacyLink}.`,
+      ),
+      heading('Cookies que usa este sitio'),
+      pluginBlock('privacy/cookie-table'),
+      paragraph(
+        'Puedes borrar o bloquear las cookies desde la configuración del navegador; en ese caso algunas funciones del sitio podrían no funcionar.',
+      ),
+    ];
+  }
   if (technicalOnly) {
-    return it
+    return lang === 'it'
       ? [
           paragraph(
             `I cookie sono piccoli file che un sito salva nel browser per ricordare informazioni. <strong>${siteName}</strong> usa solo cookie tecnici, necessari al funzionamento del sito: non richiedono consenso (art. 122 del Codice privacy), quindi non compare nessun banner. Per il resto del trattamento dei dati vedi la ${privacyLink}.`,
@@ -318,7 +436,47 @@ function cookiePolicy(
           ),
         ];
   }
-  if (it) {
+  if (lang === 'es') {
+    return [
+      paragraph(
+        `Las cookies son pequeños archivos que un sitio guarda en el navegador para recordar información. Esta página explica qué cookies y herramientas similares usa <strong>${siteName}</strong> y cómo puedes elegir. Para el resto del tratamiento de tus datos consulta la ${privacyLink}.`,
+      ),
+      heading('Tipos de cookies'),
+      list([
+        '<strong>Necesarias</strong>: son necesarias para que el sitio funcione, por ejemplo para recordar tus elecciones sobre las cookies. No requieren consentimiento.',
+        ...(offered.includes('preferences')
+          ? [
+              '<strong>Preferencias</strong>: recuerdan opciones como el idioma. Solo con tu consentimiento.',
+            ]
+          : []),
+        ...(offered.includes('statistics')
+          ? [
+              '<strong>Estadísticas</strong>: miden de forma agregada cómo se usa el sitio. Solo con tu consentimiento.',
+            ]
+          : []),
+        ...(offered.includes('marketing')
+          ? [
+              '<strong>Marketing</strong>: muestran publicidad personalizada o contenidos de otros sitios, como vídeos y mapas. Solo con tu consentimiento.',
+            ]
+          : []),
+      ]),
+      heading('Cookies que usa este sitio'),
+      pluginBlock('privacy/cookie-table'),
+      heading('Cómo elegir'),
+      paragraph(
+        'En tu primera visita un banner te pide aceptar, rechazar o elegir las categorías; si lo cierras con la X continúas sin aceptar. Tu elección vale 6 meses, pero puedes cambiarla cuando quieras:',
+      ),
+      pluginBlock('privacy/preferences'),
+      paragraph(
+        'También puedes borrar o bloquear las cookies desde la configuración del navegador; en ese caso algunas funciones del sitio podrían no funcionar.',
+      ),
+      heading('Cookies de terceros'),
+      paragraph(
+        'Las cookies de los servicios de otras empresas las gestionan ellas según sus propias políticas, indicadas en la tabla de arriba con el nombre del proveedor. Solo se activan después de tu consentimiento a la categoría correspondiente.',
+      ),
+    ];
+  }
+  if (lang === 'it') {
     return [
       paragraph(
         `I cookie sono piccoli file che un sito salva nel browser per ricordare informazioni. Questa pagina spiega quali cookie e strumenti simili usa <strong>${siteName}</strong> e come puoi scegliere. Per il resto del trattamento dei dati vedi la ${privacyLink}.`,
@@ -412,7 +570,9 @@ function sectionBlocks(sections: PolicySection[]): CxdBlock[] {
 }
 
 /** One section per tracking service added by a plugin (Analytics…), with its rules. */
-function trackerBlocks(trackers: TrackerDeclaration[], it: boolean): CxdBlock[] {
+function trackerBlocks(trackers: TrackerDeclaration[], lang: Lang): CxdBlock[] {
+  if (lang === 'es') return trackerBlocksEs(trackers);
+  const it = lang === 'it';
   const category = (t: TrackerDeclaration) =>
     it
       ? { preferences: 'Preferenze', statistics: 'Statistiche', marketing: 'Marketing' }[t.category]
@@ -445,6 +605,30 @@ function trackerBlocks(trackers: TrackerDeclaration[], it: boolean): CxdBlock[] 
   });
 }
 
+/** The tracker sections, in Spanish. */
+function trackerBlocksEs(trackers: TrackerDeclaration[]): CxdBlock[] {
+  const category = (t: TrackerDeclaration) =>
+    ({ preferences: 'Preferencias', statistics: 'Estadísticas', marketing: 'Marketing' })[
+      t.category
+    ];
+  return trackers.flatMap((t) => {
+    const parts = [
+      escape(labelText(t.purpose, 'es')),
+      `El servicio lo presta <strong>${escape(t.provider)}</strong>.`,
+      t.requiresConsent
+        ? `Solo se activa con tu consentimiento a la categoría “${category(t)}” (art. 6.1.a RGPD), que puedes retirar en cualquier momento desde las preferencias de cookies.`
+        : 'Funciona sin cookies y de forma anónima, solo para estadísticas agregadas de este sitio, sobre la base del interés legítimo del responsable (art. 6.1.f RGPD).',
+      t.transfersOutsideEu
+        ? 'Los datos pueden transferirse fuera del Espacio Económico Europeo, también a Estados Unidos, con las garantías del RGPD (EU-U.S. Data Privacy Framework o cláusulas contractuales tipo).'
+        : '',
+      t.privacyPolicyUrl
+        ? `Política de privacidad del proveedor: <a href="${escape(t.privacyPolicyUrl)}">${escape(t.privacyPolicyUrl)}</a>.`
+        : '',
+    ].filter(Boolean);
+    return [heading(escape(t.name), 3), paragraph(parts.join(' '))];
+  });
+}
+
 /**
  * A policy page kept by iubenda: its policy, in the page's language, with
  * the cookie preferences button under the cookie policy.
@@ -453,21 +637,23 @@ export function cmpPolicy(
   kind: PolicyKind,
   locale: string,
 ): { title: string; slug: string; document: CxdDocument } {
-  const it = locale.toLowerCase().startsWith('it');
+  const lang = langOf(locale);
   const blocks: CxdBlock[] = [{ id: id(), type: 'privacy/cmp-policy', v: 1, attrs: { kind } }];
   if (kind === 'cookies') {
     blocks.push(
-      heading(it ? 'Come scegliere' : 'How to choose'),
+      heading({ it: 'Come scegliere', es: 'Cómo elegir', en: 'How to choose' }[lang]),
       paragraph(
-        it
-          ? 'Puoi cambiare la tua scelta sui cookie in qualsiasi momento:'
-          : 'You can change your cookie choice at any time:',
+        {
+          it: 'Puoi cambiare la tua scelta sui cookie in qualsiasi momento:',
+          es: 'Puedes cambiar tu elección sobre las cookies en cualquier momento:',
+          en: 'You can change your cookie choice at any time:',
+        }[lang],
       ),
       pluginBlock('privacy/preferences'),
     );
   }
   return {
-    title: kind === 'privacy' ? 'Privacy policy' : 'Cookie policy',
+    title: policyTitle(kind, lang),
     slug: kind === 'privacy' ? 'privacy-policy' : 'cookie-policy',
     document: { schema: 1, blocks } as CxdDocument,
   };

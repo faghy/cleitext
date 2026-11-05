@@ -382,6 +382,53 @@ export const TEXTS = {
     sessionDuration: 'Sitzung oder 30 Tage',
     months: 'Monate',
   },
+  es: {
+    title: 'Tu privacidad',
+    message:
+      'Este sitio usa cookies técnicas necesarias para funcionar y, solo con tu consentimiento, otras cookies como se describe en la política de cookies. Elige “Aceptar todas”, “Rechazar todas” o selecciona las categorías en “Personalizar”. Puedes cambiar tu elección en cualquier momento.',
+    accept: 'Aceptar todas',
+    reject: 'Rechazar todas',
+    customize: 'Personalizar',
+    save: 'Guardar selección',
+    close: 'Cerrar y continuar sin aceptar',
+    preferences: 'Preferencias de cookies',
+    privacyPolicy: 'Política de privacidad',
+    cookiePolicy: 'Política de cookies',
+    alwaysOn: 'Siempre activas',
+    necessary: 'Necesarias',
+    necessaryHelp:
+      'Son necesarias para que el sitio funcione, por ejemplo para recordar esta elección.',
+    preferencesLabel: 'Preferencias',
+    preferencesHelp: 'Recuerdan opciones como el idioma.',
+    statistics: 'Estadísticas',
+    statisticsHelp: 'Ayudan a entender, de forma agregada, cómo se usa el sitio.',
+    marketing: 'Marketing',
+    marketingHelp:
+      'Muestran publicidad personalizada, o contenidos de otros sitios como vídeos, mapas y publicaciones de redes sociales.',
+    embed: {
+      title: (name: string) => `Contenido de ${name}`,
+      map: (name: string, category = 'Marketing') =>
+        `Para ver el mapa, acepta las cookies “${category}”: ${name} puede usar cookies y recoger datos.`,
+      other: (name: string, category = 'Marketing') =>
+        `Para verlo, acepta las cookies “${category}”: ${name} puede usar cookies y recoger datos.`,
+      accept: 'Aceptar y mostrar',
+      open: (name: string) => `Abrir en ${name}`,
+    },
+    table: {
+      name: 'Nombre',
+      provider: 'Proveedor',
+      purpose: 'Finalidad',
+      category: 'Categoría',
+      duration: 'Duración',
+    },
+    noCookies: 'Todavía no hay cookies en la lista.',
+    thisSite: 'Este sitio',
+    consentCookie: 'Recuerda tus elecciones sobre las cookies.',
+    sessionCookie:
+      'Solo para quien entra en la administración: mantienen la sesión iniciada y protegen los formularios.',
+    sessionDuration: 'Sesión o 30 días',
+    months: 'meses',
+  },
 };
 
 export type Texts = (typeof TEXTS)['en'];
@@ -389,7 +436,7 @@ export type Texts = (typeof TEXTS)['en'];
 /** The language of the built-in texts for a locale (`it-IT` → `it`), English when there are none. */
 export function textsLang(locale: string): keyof typeof TEXTS {
   const lang = locale.toLowerCase().slice(0, 2);
-  return lang === 'it' || lang === 'de' ? lang : 'en';
+  return lang === 'it' || lang === 'de' || lang === 'es' ? lang : 'en';
 }
 
 export function textsFor(locale: string): Texts {

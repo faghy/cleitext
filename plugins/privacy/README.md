@@ -10,7 +10,7 @@ It follows the GDPR and, for Italy, the Garante's cookie guidelines of 10 June 2
 - With no optional category the site only uses technical cookies, and no banner is shown.
 - The choice lasts 6 months (up to 12), then it is asked again; it is also asked again when the categories or the cookie list change, or with **Save and ask everyone again**.
 - People change their choice from a small button in a corner of every page, from a menu item with the address `#cookie-preferences`, or from the **Cookie preferences button** block.
-- Texts in English and Italian, or your own per language; bar or box; your color. Keyboard accessible.
+- Texts in English, Italian, Spanish and German, or your own per language; bar or box; your color. Keyboard accessible.
 
 ### Services of other plugins
 
@@ -64,7 +64,7 @@ Every choice is recorded as proof (GDPR art. 7.1): a random id kept in the visit
 
 ## Policies
 
-**Privacy → Policies** asks who the data controller is and what the site does (contact forms, accounts, newsletter, analytics, embedded content, hosting), then creates **Privacy policy** and **Cookie policy** drafts in each language of the site, made of ordinary blocks to edit in the editor. The cookie policy includes the **Cookie table** block, always in step with **Privacy → Cookies**, and the **Cookie preferences button**. Once published, the banner links to them, and the pages list marks them with a _Privacy policy_ or _Cookie policy_ tag.
+**Privacy → Policies** asks who the data controller is and what the site does (contact forms, accounts, newsletter, analytics, embedded content, hosting), then creates **Privacy policy** and **Cookie policy** drafts in each language of the site (written in Italian, Spanish or English; other languages get English to translate), made of ordinary blocks to edit in the editor. The cookie policy includes the **Cookie table** block, always in step with **Privacy → Cookies**, and the **Cookie preferences button**; a site with only technical cookies (no banner) gets a short cookie policy that says so, without the button. Once published, the banner links to them, and the pages list marks them with a _Privacy policy_ or _Cookie policy_ tag.
 
 Through the API, `GET /api/v1/ext/privacy/policy/{privacy|cookies}?locale=…` writes a policy from the **saved** settings: save the controller and the processing with `PUT /api/v1/ext/privacy/config` first (the admin does it for you when it creates the pages), or the text keeps the old data.
 
