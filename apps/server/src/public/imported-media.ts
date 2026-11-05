@@ -19,7 +19,7 @@ export async function importedMediaAddress(
 ): Promise<string | null> {
   if (!UPLOADS.test(path) || path.length > 1_000) return null;
   const key = mediaUrlKey(path);
-  const refs = [...new Set([path, key])].map((p) => `path:${p}`);
+  const refs = [...new Set([path, key, ...webpOriginals(key)])].map((p) => `path:${p}`);
   const rows = await tx
     .select({ ref: importRefs.ref, mediaId: media.id, storageKey: media.storageKey })
     .from(importRefs)
@@ -46,6 +46,19 @@ export async function importedMediaAddress(
     if (variant) return mediaAddress(variant.storageKey);
   }
   return mediaAddress(found.storageKey);
+}
+
+/**
+ * The originals a WebP or AVIF copy made by WordPress or its plugins stands
+ * for: `photo.jpg.webp` (WebP Express) and `photo.webp` next to `photo.jpg`
+ * or `photo.png` (core 0.95.7). The library serves its own WebP and AVIF
+ * variants, so such a request goes to the media.
+ */
+export function webpOriginals(path: string): string[] {
+  const m = /^(.*?)(\.(?:jpe?g|png|gif))?\.(webp|avif)$/i.exec(path);
+  if (!m) return [];
+  if (m[2]) return [`${m[1]}${m[2]}`];
+  return ['.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'].map((ext) => `${m[1]}${ext}`);
 }
 
 /**

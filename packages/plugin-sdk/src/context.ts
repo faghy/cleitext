@@ -506,6 +506,14 @@ export interface MediaApi {
     url: string,
     options: { userId: string; alt?: string; filename?: string },
   ): Promise<PluginMedia>;
+  /**
+   * The library addresses of files an import brought from another site, by
+   * their old paths (`/wp-content/uploads/2015/07/photo.jpg`, also resized
+   * copies and WebP copies), so that content points to the library at once
+   * instead of through the old address's redirect (needs `media:read`,
+   * plugin API 1.61). Paths with no such file are left out; at most 1000.
+   */
+  importedUrls(siteId: string, paths: readonly string[]): Promise<Record<string, string>>;
 }
 
 /**

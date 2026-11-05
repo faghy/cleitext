@@ -994,6 +994,8 @@ if (res.status >= 400) ctx.log.warn('Webhook refused', { status: res.status });
 
 `media:write` (API 1.30): `await ctx.media.fromUrl(siteId, url, { userId, alt?, filename? })` downloads a picture or a document from a public http(s) address into the library, as uploaded by that user (who needs `upload_media`); addresses of the server's own network are refused, the size limit of uploads applies and a file already in the library is reused. Imports use it for the pictures of other platforms. Since core 0.85 a file is stored under its name made safe (lowercase, accents transliterated, `a-z 0-9 - _ .`, at most 100 characters; `filename`, else the address's), in the folder of the month (`/media/<site>/2026/10/photo.jpg`, `photo-1.jpg` when taken), its variants beside it (`photo-thumb.webp`). In a transfer document whose `source.kind` is `wordpress`, a media item keeps its `filename` exactly, case and extension included, when it is safe (core 0.87: only characters other than `A-Z a-z 0-9 . _ - @` are replaced, never a leading dot or `..`; the real type's extension when the name's is another type's), as WordPress's addresses are case-sensitive; files of other kinds and `fromUrl` keep the lowercase name. A media item's optional `date` names the year and month of its folder (the WordPress Importer gives the one of `/wp-content/uploads/<yyyy>/<mm>/`), and its `urls` are recorded in `import_refs` so that their paths redirect (301) to the new file.
 
+`media:read` (API 1.61): `await ctx.media.importedUrls(siteId, paths)` gives the library addresses of files an import brought from another site, by their old paths or addresses (`/wp-content/uploads/2015/07/photo.jpg`, also WordPress's resized copies, which get the closest variant, and WebP copies such as `photo.webp` or `photo.jpg.webp`), as `{ [path]: address }`; paths with no such file are left out, at most 1000 per call. Importers of layouts use it to write the library's address in the content, instead of the old one that only redirects.
+
 ### Site members (plugin API 1.42)
 
 `users:read`: `ctx.users` reads the site's members, e.g. to @mention people in notes and email them. It is read-only and sees only the site's own members (row-level security), and only active accounts (not invited, pending or suspended ones).
@@ -1512,7 +1514,7 @@ Any other dependency (installed in your plugin's `node_modules`) is bundled by `
 | `mail:transport` | filter `mail.deliver` (API 1.60); activating the plugin asks the administrator's consent          |
 | `users:read`     | `ctx.users.find` / `get` (API 1.42); activating the plugin asks the administrator's consent       |
 | `privacy`        | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
-| `media:read`     | `ctx.media.get`                                                                                   |
+| `media:read`     | `ctx.media.get`, `ctx.media.importedUrls` (API 1.61)                                              |
 | `media:write`    | `ctx.media.fromUrl` (API 1.30)                                                                    |
 | `import`         | `ctx.transfer.importDocument`                                                                     |
 

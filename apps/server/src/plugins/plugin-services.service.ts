@@ -82,6 +82,7 @@ import { DATABASE, PLUGIN_DATABASE } from '../database/database.module.js';
 import { MailService, type MailMessage } from '../mail/mail.service.js';
 import { MediaService } from '../media/media.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
+import { importedMediaAddress } from '../public/imported-media.js';
 import {
   isPublished,
   isTypeAvailable,
@@ -1121,6 +1122,30 @@ export class PluginServicesProvider implements PluginServices {
     const item = await this.mediaItem(siteId, view.id);
     if (!item) throw new Error('The file could not be added.');
     return item;
+  }
+
+  /** Library addresses of imported files by their old paths (plugin API 1.61). */
+  async importedMediaUrls(
+    siteId: string,
+    paths: readonly string[],
+  ): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    await withContext(this.database.db, { siteId }, async (tx) => {
+      for (const raw of paths) {
+        // An address of the old site, or a path: its path, decoded.
+        let path: string;
+        try {
+          path = decodeURIComponent(
+            raw.replace(/^(?:https?:)?\/\/[^/]+/i, '').replace(/[?#].*$/, ''),
+          );
+        } catch {
+          continue;
+        }
+        const found = await importedMediaAddress(tx, path);
+        if (found) out[raw] = found;
+      }
+    });
+    return out;
   }
 
   async mediaItem(siteId: string, id: string): Promise<PluginMedia | null> {

@@ -923,6 +923,8 @@ if (res.status >= 400) ctx.log.warn('Webhook rifiutato', { status: res.status })
 
 `media:write` (API 1.30): `await ctx.media.fromUrl(siteId, url, { userId, alt?, filename? })` scarica un'immagine o un documento da un indirizzo pubblico http(s) nella libreria, come caricato da quell'utente (che deve avere `upload_media`); gli indirizzi della rete del server sono rifiutati, vale il limite di dimensione dei caricamenti e un file già presente viene riusato. Gli import lo usano per le immagini di altre piattaforme. Dal core 0.85 un file è salvato con il suo nome reso sicuro (minuscole, accenti traslitterati, `a-z 0-9 - _ .`, al massimo 100 caratteri; `filename`, altrimenti quello dell'indirizzo), nella cartella del mese (`/media/<sito>/2026/10/foto.jpg`, `foto-1.jpg` se è già preso), con le varianti accanto (`foto-thumb.webp`). In un documento di trasferimento con `source.kind` uguale a `wordpress`, un media conserva il suo `filename` identico, maiuscole ed estensione comprese, quando è sicuro (core 0.87: si sostituiscono solo i caratteri diversi da `A-Z a-z 0-9 . _ - @`, mai un punto iniziale o `..`; l'estensione del tipo reale se quella del nome indica un altro tipo), perché gli indirizzi di WordPress distinguono maiuscole e minuscole; i file di altre provenienze e `fromUrl` mantengono il nome in minuscolo. Il `date` facoltativo di un media indica anno e mese della sua cartella (il WordPress Importer dà quelli di `/wp-content/uploads/<aaaa>/<mm>/`), e i suoi `urls` sono registrati in `import_refs` così che i loro percorsi facciano un redirect (301) al nuovo file.
 
+`media:read` (API 1.61): `await ctx.media.importedUrls(siteId, paths)` dà gli indirizzi nella libreria dei file portati da un'importazione da un altro sito, partendo dai loro vecchi percorsi o indirizzi (`/wp-content/uploads/2015/07/foto.jpg`, anche le copie ridimensionate di WordPress, che ricevono la variante più vicina, e le copie WebP come `foto.webp` o `foto.jpg.webp`), come `{ [percorso]: indirizzo }`; i percorsi senza un file corrispondente sono tralasciati, al massimo 1000 per chiamata. Gli importatori di layout lo usano per scrivere nel contenuto l'indirizzo della libreria, invece del vecchio che fa solo un redirect.
+
 ### Membri del sito (API dei plugin 1.42)
 
 `users:read`: `ctx.users` legge i membri del sito, ad esempio per @menzionare le persone nelle note e scrivere loro un'email. È in sola lettura e vede soltanto i membri del sito (row-level security), e solo gli account attivi (non quelli invitati, in attesa o sospesi).
@@ -1434,7 +1436,7 @@ Qualsiasi altra dipendenza (installata nei `node_modules` del tuo plugin) viene 
 | `mail:transport` | filtro `mail.deliver` (API 1.60); attivare il plugin chiede il consenso dell'amministratore       |
 | `users:read`     | `ctx.users.find` / `get` (API 1.42); attivare il plugin chiede il consenso dell'amministratore    |
 | `privacy`        | `ctx.privacy.exportPersonalData` / `erasePersonalData`                                            |
-| `media:read`     | `ctx.media.get`                                                                                   |
+| `media:read`     | `ctx.media.get`, `ctx.media.importedUrls` (API 1.61)                                              |
 | `media:write`    | `ctx.media.fromUrl` (API 1.30)                                                                    |
 | `import`         | `ctx.transfer.importDocument`                                                                     |
 

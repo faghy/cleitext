@@ -137,6 +137,8 @@ export interface PluginServices {
   /** A message checked by `pluginMail` (plugin API 1.41). */
   sendMail(message: MailMessage, siteId?: string): Promise<void>;
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
+  /** Library addresses of imported files by their old paths (plugin API 1.61). */
+  importedMediaUrls(siteId: string, paths: readonly string[]): Promise<Record<string, string>>;
   /** Active members of a site (`ctx.users`, plugin API 1.42); the query is checked. */
   findUsers(
     siteId: string,
@@ -600,6 +602,14 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         assertSiteId(siteId);
         if (!UUID_RE.test(options.userId)) throw new Error('A user id is needed.');
         return services().mediaFromUrl(plugin, siteId, url, options);
+      },
+      async importedUrls(siteId, paths) {
+        require('media:read');
+        assertSiteId(siteId);
+        if (!Array.isArray(paths)) throw new TypeError('A list of paths is needed.');
+        const wanted = [...new Set(paths.filter((p): p is string => typeof p === 'string'))];
+        if (wanted.length > 1000) throw new RangeError('At most 1000 paths.');
+        return services().importedMediaUrls(siteId, wanted);
       },
     },
 

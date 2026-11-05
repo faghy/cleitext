@@ -23,6 +23,7 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { APP_CONFIG, type AppConfig } from '../src/config/config.js';
 import { MediaService } from '../src/media/media.service.js';
+import { PluginServicesProvider } from '../src/plugins/plugin-services.service.js';
 import {
   mediaFolder,
   storageBaseName,
@@ -438,6 +439,36 @@ describe('WordPress imports', () => {
     );
     expect(scaled.headers.location).toBe(`${folder}/2015/07/web_marketing_significato.png`);
     expect((await visitor.get(exact.headers.location as string)).statusCode).toBe(200);
+    // WebP copies made by WordPress or its plugins: to the media too.
+    for (const webp of [
+      '/wp-content/uploads/2015/07/web_marketing_significato.webp',
+      '/wp-content/uploads/2015/07/web_marketing_significato.png.webp',
+    ]) {
+      const res = await visitor.get(webp);
+      expect(res.statusCode, webp).toBe(301);
+      expect(res.headers.location).toBe(`${folder}/2015/07/web_marketing_significato.png`);
+    }
+    const webpCopy = await visitor.get(
+      '/wp-content/uploads/2015/07/web_marketing_significato-300x150.webp',
+    );
+    expect(webpCopy.headers.location).toBe(
+      `${folder}/2015/07/web_marketing_significato-thumb.webp`,
+    );
+  });
+
+  it('gives plugins the library addresses of old paths (plugin API 1.61)', async () => {
+    const folder = `/media/${imported.id}`;
+    const urls = await app
+      .get(PluginServicesProvider)
+      .importedMediaUrls(imported.id, [
+        '/wp-content/uploads/2015/07/web_marketing_significato.png',
+        'https://old.example/wp-content/uploads/2015/07/web_marketing_significato-300x150.png',
+        '/wp-content/uploads/2015/07/missing.png',
+      ]);
+    expect(urls).toEqual({
+      '/wp-content/uploads/2015/07/web_marketing_significato.png': `${folder}/2015/07/web_marketing_significato.png`,
+      'https://old.example/wp-content/uploads/2015/07/web_marketing_significato-300x150.png': `${folder}/2015/07/web_marketing_significato-thumb.webp`,
+    });
   });
 
   it('leaves other addresses and other sites alone', async () => {
