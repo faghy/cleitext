@@ -1185,6 +1185,22 @@ export default definePlugin({
       return { body: { ok: true } };
     });
 
+    // How many sites a license is for (0: no limit): more sites for a customer, or fewer.
+    // Sites already activated stay; activations beyond the new number are refused.
+    admin('POST', '/admin/licenses/:id/seats', async (request) => {
+      const seats = Math.round(Number((request.body as { seats?: unknown })?.seats));
+      if (!(seats >= 0 && seats <= 10_000)) return fail(400, 'Sites: 0 (no limit) to 10000.');
+      const updated = await ctx.db.transaction(request.siteId, (tx) =>
+        tx
+          .update(licenses)
+          .set({ seats })
+          .where(eq(licenses.id, request.params.id ?? ''))
+          .returning({ id: licenses.id }),
+      );
+      if (updated.length === 0) return fail(404, 'Unknown license.');
+      return { body: { ok: true, seats } };
+    });
+
     admin('GET', '/admin/licenses/:id/activations', async (request) => ({
       body: await ctx.db.transaction(request.siteId, (tx) =>
         tx

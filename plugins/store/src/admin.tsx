@@ -124,6 +124,8 @@ const T = {
     revoke: 'Revoke',
     restore: 'Restore',
     extend: '+12 months',
+    changeSeats: 'Number of sites',
+    askSeats: 'How many sites for this license? (0: no limit)',
     showSites: 'Sites',
     deactivate: 'Free this seat',
     noSites: 'No site has activated it.',
@@ -200,6 +202,8 @@ const T = {
     revoke: 'Revoca',
     restore: 'Ripristina',
     extend: '+12 mesi',
+    changeSeats: 'Numero di siti',
+    askSeats: 'Per quanti siti vale questa licenza? (0: senza limite)',
     showSites: 'Siti',
     deactivate: 'Libera il posto',
     noSites: 'Nessun sito l’ha attivata.',
@@ -627,6 +631,11 @@ function StorePage({ api, user }: AdminPageProps) {
     mutationFn: (id: string) => api('POST', `/admin/licenses/${id}/extend`, { months: 12 }),
     onSuccess: refresh,
   });
+  const changeSeats = useMutation({
+    mutationFn: (v: { id: string; seats: number }) =>
+      api('POST', `/admin/licenses/${v.id}/seats`, { seats: v.seats }),
+    onSuccess: refresh,
+  });
 
   const base = `${window.location.origin}/api/v1/ext/store/v1`;
   const data = overview.data;
@@ -640,6 +649,7 @@ function StorePage({ api, user }: AdminPageProps) {
     removeVariant.error ??
     setStatus.error ??
     extend.error ??
+    changeSeats.error ??
     savePeople.error;
   const nameOf = (slug: string) => data?.products.find((p) => p.slug === slug)?.name ?? slug;
 
@@ -1067,6 +1077,17 @@ function StorePage({ api, user }: AdminPageProps) {
                   }
                 >
                   {t.editPeople}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    const answer = window.prompt(t.askSeats, String(l.seats));
+                    const seats = answer === null ? NaN : Number(answer.trim());
+                    if (Number.isInteger(seats) && seats >= 0)
+                      changeSeats.mutate({ id: l.id, seats });
+                  }}
+                >
+                  {t.changeSeats}
                 </Button>
                 {l.updatesUntil && (
                   <Button variant="secondary" onClick={() => extend.mutate(l.id)}>

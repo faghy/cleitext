@@ -457,6 +457,31 @@ describe('Store', () => {
     expect(listed[0]).not.toHaveProperty('keyHash');
   });
 
+  it('changes the number of sites of a license', async () => {
+    const made = (
+      await shopAdmin.post(ext('/admin/licenses'), {
+        productSlug: 'vivid',
+        email: 'agency@example.com',
+        seats: 1,
+        send: false,
+      })
+    ).json();
+    const more = await shopAdmin.post(ext(`/admin/licenses/${made.id}/seats`), { seats: 10 });
+    expect(more.statusCode, more.body).toBe(200);
+    const listed = (await shopAdmin.get(ext('/admin/licenses?q=agency'))).json();
+    expect(listed[0]).toMatchObject({ seats: 10 });
+    expect(
+      (await shopAdmin.post(ext(`/admin/licenses/${made.id}/seats`), { seats: -1 })).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await shopAdmin.post(ext('/admin/licenses/00000000-0000-0000-0000-000000000000/seats'), {
+          seats: 3,
+        })
+      ).statusCode,
+    ).toBe(404);
+  });
+
   it('keeps the reports of the sites: plugins and themes by version and site', async () => {
     const report = {
       installId: '0b6f2a8e-3c1d-4e5f-8a9b-0c1d2e3f4a5b',
