@@ -332,17 +332,29 @@ async function policySections(
 }
 
 /** Addresses of the policy pages in a language, or in the default one. */
-async function policyLinks(
+export async function policyLinks(
   ctx: PluginContext,
   siteId: string,
   cfg: PrivacyConfig,
   locale: string,
 ): Promise<{ privacy?: string; cookies?: string }> {
-  const ids = cfg.pages[locale] ?? Object.values(cfg.pages)[0] ?? {};
+  // The pages of this language (`es` or `es-ES`), else those of another, followed to
+  // their translation in this language when the language plugin knows one (1.9.1).
+  const lang = locale.toLowerCase().slice(0, 2);
+  const own =
+    cfg.pages[locale] ??
+    Object.entries(cfg.pages).find(([key]) => key.toLowerCase().slice(0, 2) === lang)?.[1];
+  const ids = own ?? Object.values(cfg.pages)[0] ?? {};
   const links: { privacy?: string; cookies?: string } = {};
   for (const kind of ['privacy', 'cookies'] as const) {
-    const id = ids[kind];
+    let id = ids[kind];
     if (!id) continue;
+    if (!own) {
+      const translated = (await ctx.content.translations(siteId, id).catch(() => [])).find(
+        (t) => t.locale.toLowerCase().slice(0, 2) === lang,
+      );
+      if (translated) id = translated.id;
+    }
     const entry = await ctx.content.get(siteId, id);
     if (entry?.status === 'published') links[kind] = new URL(entry.url, 'http://x').pathname;
   }
