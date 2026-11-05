@@ -28,6 +28,7 @@ import { PageCacheService } from './public/page-cache.service.js';
 import { PluginHost } from './plugins/plugin-host.service.js';
 import { InstallReportService } from './catalog/install-report.service.js';
 import { PluginRoutes } from './plugins/plugin-routes.js';
+import { safeLocation } from './common/location.js';
 import { adminCsp, inlineScriptHashes, securityHeaders } from './common/security-headers.js';
 import { servePluginAsset } from './plugins/plugin-assets.js';
 
@@ -160,6 +161,7 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
     .getInstance()
     .addHook('onSend', async (request, reply, payload) => {
       securityHeaders(request, reply);
+      safeLocation(reply);
       return payload;
     });
 

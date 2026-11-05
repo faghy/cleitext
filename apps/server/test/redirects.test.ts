@@ -2,6 +2,7 @@
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { asciiLocation } from '../src/common/location.js';
 import { parseCsvLine } from '../src/settings/redirects.controller.js';
 import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
 
@@ -86,6 +87,29 @@ describe('redirects', () => {
 
     expect((await admin.request('DELETE', `/api/v1/redirects/${id}`)).statusCode).toBe(204);
     expect((await visitor.get('/old-page')).statusCode).toBe(404);
+  });
+
+  it('sends accented targets percent-encoded in UTF-8', async () => {
+    await admin.post('/api/v1/redirects', {
+      from: '/old-photo',
+      to: '/media/s/2020/cè-posta-per-te.jpg',
+    });
+    const res = await visitor.get('/old-photo');
+    expect([res.statusCode, res.headers.location]).toEqual([
+      301,
+      '/media/s/2020/c%C3%A8-posta-per-te.jpg',
+    ]);
+    await admin.post('/api/v1/redirects', { from: '/old-done', to: '/media/c%C3%A8.jpg' });
+    expect((await visitor.get('/old-done')).headers.location).toBe('/media/c%C3%A8.jpg');
+  });
+
+  it('encodes only what is not already ASCII', () => {
+    expect(asciiLocation('/città/perché?q=è ok#più')).toBe(
+      '/citt%C3%A0/perch%C3%A9?q=%C3%A8%20ok#pi%C3%B9',
+    );
+    expect(asciiLocation('/a%C3%A8/100%')).toBe('/a%C3%A8/100%25');
+    expect(asciiLocation('https://example.com/ok?a=1&b=2')).toBe('https://example.com/ok?a=1&b=2');
+    expect(asciiLocation('/日本/😀')).toBe('/%E6%97%A5%E6%9C%AC/%F0%9F%98%80');
   });
 
   it('follows pages that move, with their subpages', async () => {
