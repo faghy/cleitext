@@ -8,7 +8,16 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { importAddresses, isCovered } from '@cleitext/cli';
-import { importRefs, media, newId, withSiteContext, type DatabaseClient } from '@cleitext/db';
+import {
+  importRefs,
+  media,
+  mediaVariants,
+  newId,
+  settings,
+  withSiteContext,
+  type DatabaseClient,
+} from '@cleitext/db';
+import { and, eq } from 'drizzle-orm';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ownerDatabase, seedSite, startTestApp, TestClient, type SeededSite } from './helpers.js';
@@ -65,6 +74,28 @@ beforeAll(async () => {
         row(ids.clip, 'clip.mp4', sha256('clip')),
       ]),
   );
+  await withSiteContext(owner.db, site.id, async (tx) => {
+    await tx.insert(mediaVariants).values({
+      siteId: site.id,
+      mediaId: ids.logo,
+      variant: 'md',
+      format: 'webp',
+      storageKey: `${site.id}/2018/04/logo-md.webp`,
+      width: 768,
+      height: 512,
+      sizeBytes: 5,
+    });
+    await tx.insert(settings).values({
+      siteId: site.id,
+      namespace: 'theme',
+      key: 'chrome',
+      value: {
+        html: '<img src="https://www.old.example.org/wp-content/uploads/2018/04/c%C3%A8-posta.jpg"> <img src="/wp-content/uploads/2018/04/logo-300x200.jpg?v=2">',
+        css: 'body{background:url(/wp-content/uploads/2019/01/video-sfondo.mp4)}',
+        keep: 'https://other.example.net/wp-content/uploads/2018/04/logo.jpg /wp-content/uploads/2019/01/lost.pdf',
+      },
+    });
+  });
   await writeFile(join(work, 'old.xml'), WXR);
   const wp = join(work, 'public', 'wp-content');
   await put(join(wp, 'uploads/2018/04/logo.jpg'), 'logo');
@@ -133,5 +164,32 @@ describe('media:import-addresses', () => {
       folder: join(work, 'public', 'wp-content'),
     });
     expect(again.added).toBe(0);
+  });
+
+  it('writes the library addresses in the content with --rewrite', async () => {
+    const value = () =>
+      withSiteContext(owner.db, site.id, async (tx) => {
+        const [row] = await tx
+          .select({ value: settings.value })
+          .from(settings)
+          .where(and(eq(settings.namespace, 'theme'), eq(settings.key, 'chrome')));
+        return row!.value as Record<string, string>;
+      });
+    const before = await value();
+    const dry = await importAddresses(owner.db, { site: site.id, rewrite: true, dryRun: true });
+    expect(dry.rewritten).toEqual({ settings: { rows: 1, addresses: 3 } });
+    expect(await value()).toEqual(before);
+
+    const r = await importAddresses(owner.db, { site: site.id, rewrite: true });
+    expect(r.rewritten).toEqual({ settings: { rows: 1, addresses: 3 } });
+    const after = await value();
+    expect(after.html).toBe(
+      `<img src="/media/${site.id}/2018/04/c%C3%A8-posta.jpg"> <img src="/media/${site.id}/2018/04/logo-md.webp?v=2">`,
+    );
+    expect(after.css).toBe(`body{background:url(/media/${site.id}/2018/04/clip.mp4)}`);
+    expect(after.keep).toBe(before.keep);
+    expect((await importAddresses(owner.db, { site: site.id, rewrite: true })).rewritten).toEqual(
+      {},
+    );
   });
 });

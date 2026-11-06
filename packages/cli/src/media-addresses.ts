@@ -20,10 +20,17 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { importRefs, media, withSiteContext } from '@cleitext/db';
+import {
+  importRefs,
+  media,
+  mediaVariants,
+  siteDomains,
+  withSiteContext,
+  type SiteTransaction,
+} from '@cleitext/db';
 import { mediaUrlKey, sourceUrlPaths } from '@cleitext/shared';
-import { eq } from 'drizzle-orm';
-import { findSite, refuseRoot, wxrMedia } from './media-rename.js';
+import { and, eq, like } from 'drizzle-orm';
+import { findSite, refuseRoot, rewriteStoredText, wxrMedia } from './media-rename.js';
 import { OperationError } from './operations.js';
 
 export interface ImportAddressesInput {
@@ -31,6 +38,8 @@ export interface ImportAddressesInput {
   wxr?: string;
   folder?: string;
   dryRun?: boolean;
+  /** Also write the library's addresses in the stored content (core 0.95.8). */
+  rewrite?: boolean;
 }
 
 export interface ImportAddressesResult {
@@ -44,6 +53,8 @@ export interface ImportAddressesResult {
   byChecksum: number;
   /** With --folder: files that still answer only from the folder. */
   folder: { files: number; covered: number; uncovered: string[] } | null;
+  /** With --rewrite: rows and addresses changed (or that would be), by table. */
+  rewritten: Record<string, { rows: number; addresses: number }> | null;
 }
 
 /** Copies WordPress or its plugins made of an original (`photo.jpg.webp`, `photo.webp`). */
@@ -85,9 +96,9 @@ export async function importAddresses(
   input: ImportAddressesInput,
 ): Promise<ImportAddressesResult> {
   refuseRoot();
-  if (!input.wxr && !input.folder) {
+  if (!input.wxr && !input.folder && !input.rewrite) {
     throw new OperationError(
-      'Give the export (--wxr), the old files (--folder), or both.',
+      'Give the export (--wxr), the old files (--folder), or --rewrite.',
       'invalid_option',
     );
   }
@@ -155,6 +166,7 @@ export async function importAddresses(
     attachments: { found: 0, missing: 0 },
     byChecksum: 0,
     folder: null,
+    rewritten: null,
   };
 
   let source = 'wordpress:';
@@ -214,19 +226,123 @@ export async function importAddresses(
   }
 
   result.added = adding.size;
-  if (!dryRun && adding.size) {
-    await withSiteContext(db, site.id, async (tx) => {
-      const rows = [...adding].map(([ref, mediaId]) => ({ siteId: site.id, source, ref, mediaId }));
-      for (let i = 0; i < rows.length; i += 1000) {
-        await tx
-          .insert(importRefs)
-          .values(rows.slice(i, i + 1000))
-          .onConflictDoNothing();
-      }
-    });
+  const hosts = new Set<string>();
+  if (input.rewrite) {
+    for (const d of await db
+      .select({ host: siteDomains.host })
+      .from(siteDomains)
+      .where(eq(siteDomains.siteId, site.id))) {
+      hosts.add(bareHost(d.host));
+    }
   }
+  await withSiteContext(db, site.id, async (tx) => {
+    const rows = [...adding].map(([ref, mediaId]) => ({ siteId: site.id, source, ref, mediaId }));
+    for (let i = 0; i < rows.length; i += 1000) {
+      await tx
+        .insert(importRefs)
+        .values(rows.slice(i, i + 1000))
+        .onConflictDoNothing();
+    }
+    if (input.rewrite) {
+      // The old site's hosts: those of its imports, and the site's own.
+      const sources = await tx
+        .selectDistinct({ source: importRefs.source })
+        .from(importRefs)
+        .where(eq(importRefs.siteId, site.id));
+      for (const { source: s } of sources) {
+        const host = /^wordpress:(.+)$/.exec(s)?.[1];
+        if (host) hosts.add(bareHost(host));
+      }
+      result.rewritten = await rewriteUploads(tx, site.id, hosts);
+    }
+    if (dryRun) throw new DryRun();
+  }).catch((error: unknown) => {
+    if (!(error instanceof DryRun)) throw error;
+  });
   return result;
 }
+
+class DryRun extends Error {}
+
+const bareHost = (host: string) =>
+  host
+    .toLowerCase()
+    .replace(/^www\./, '')
+    .replace(/:\d+$/, '');
+
+/** An old uploads address in stored text: its host (when absolute) and path. */
+const UPLOAD_ADDRESS =
+  /(?:(?:https?:)?\/\/([a-z0-9.-]+(?::\d+)?))?(\/wp-content\/uploads\/[^\s"'<>()?#\\]+\.[a-z0-9]{1,5})/gi;
+
+/**
+ * Writes the library's address (`/media/…`) for each old uploads address in
+ * the site's stored content that the server would redirect, as
+ * `importedMediaAddress` does: the exact file, the original of a resized or
+ * WebP copy, and for a resized copy the smallest WebP variant at least as
+ * wide. Absolute addresses only of the old site's or the site's own hosts.
+ */
+async function rewriteUploads(
+  tx: SiteTransaction,
+  siteId: string,
+  hosts: ReadonlySet<string>,
+): Promise<Record<string, { rows: number; addresses: number }>> {
+  const refs = new Map<string, string>();
+  for (const r of await tx
+    .select({ ref: importRefs.ref, mediaId: importRefs.mediaId })
+    .from(importRefs)
+    .where(and(eq(importRefs.siteId, siteId), like(importRefs.ref, 'path:%')))) {
+    if (r.mediaId) refs.set(r.ref.slice(5), r.mediaId);
+  }
+  const keys = new Map(
+    (
+      await tx
+        .select({ id: media.id, key: media.storageKey })
+        .from(media)
+        .where(eq(media.siteId, siteId))
+    ).map((m) => [m.id, m.key]),
+  );
+  const variants = await tx
+    .select({
+      mediaId: mediaVariants.mediaId,
+      key: mediaVariants.storageKey,
+      width: mediaVariants.width,
+    })
+    .from(mediaVariants)
+    .where(and(eq(mediaVariants.siteId, siteId), eq(mediaVariants.format, 'webp')));
+  const address = (key: string) => encodeURI(`/media/${key}`);
+  const resolve = (raw: string): string | null => {
+    let p: string;
+    try {
+      p = decodeURIComponent(raw);
+    } catch {
+      return null;
+    }
+    const exact = refs.get(p);
+    if (exact) return keys.has(exact) ? address(keys.get(exact)!) : null;
+    const key = mediaUrlKey(p);
+    const id = [key, ...webpOriginals(key)].map((c) => refs.get(c)).find(Boolean);
+    if (!id || !keys.has(id)) return null;
+    const width = Number(/-(\d{1,5})x\d{1,5}\.[a-z0-9]+$/i.exec(p)?.[1] ?? NaN);
+    if (Number.isFinite(width)) {
+      const fit = variants
+        .filter((v) => v.mediaId === id && v.width >= width)
+        .sort((a, b) => a.width - b.width)[0];
+      if (fit) return address(fit.key);
+    }
+    return address(keys.get(id)!);
+  };
+  return rewriteStoredText(tx, siteId, '%/wp-content/uploads/%', UPLOAD_ADDRESS, (match) => {
+    UPLOAD_ONE.lastIndex = 0;
+    const m = UPLOAD_ONE.exec(match);
+    if (!m) return null;
+    const [, host, p] = m;
+    if (host !== undefined && !hosts.has(bareHost(host))) return null;
+    return resolve(p!);
+  });
+}
+
+/** The same, for one match (the groups of a global replace are not passed on reliably). */
+const UPLOAD_ONE = new RegExp(`^${UPLOAD_ADDRESS.source}$`, 'i');
 
 /** The result for people. */
 export function importAddressesText(r: ImportAddressesResult): string[] {
@@ -254,6 +370,14 @@ export function importAddressesText(r: ImportAddressesResult): string[] {
     } else {
       lines.push('Every file of the folder answers 301: the folder can be removed.');
     }
+  }
+  if (r.rewritten) {
+    const tables = Object.entries(r.rewritten);
+    lines.push(
+      tables.length
+        ? `${r.dryRun ? 'Would rewrite' : 'Rewrote'} in the content: ${tables.map(([t, c]) => `${t} ${c.addresses} address(es) in ${c.rows} row(s)`).join(', ')}.`
+        : 'No old uploads address left in the content that the library can answer.',
+    );
   }
   return lines;
 }

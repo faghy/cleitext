@@ -865,13 +865,31 @@ async function rewriteContent(
   siteId: string,
   keys: Map<string, string>,
 ): Promise<Record<string, { rows: number; addresses: number }>> {
-  const counts: Record<string, { rows: number; addresses: number }> = {};
-  if (keys.size === 0) return counts;
+  if (keys.size === 0) return {};
   const address = new RegExp(
     `/media/(${siteId}/\\d{4}/\\d{2}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:-[a-z0-9_-]+)?\\.[a-z0-9]+)`,
     'g',
   );
-  const needle = `%/media/${siteId}/%`;
+  return rewriteStoredText(tx, siteId, `%/media/${siteId}/%`, address, (match, key) => {
+    const to = keys.get(key);
+    return to ? `/media/${to}` : null;
+  });
+}
+
+/**
+ * Replaces the matches of `pattern` in the site's stored content (the
+ * tables of CONTENT), with what `replace` gives (null: left as it is); only
+ * rows whose text is `like` the needle are read. Rows and matches changed,
+ * by table.
+ */
+export async function rewriteStoredText(
+  tx: SiteTransaction,
+  siteId: string,
+  needle: string,
+  pattern: RegExp,
+  replace: (match: string, ...groups: string[]) => string | null,
+): Promise<Record<string, { rows: number; addresses: number }>> {
+  const counts: Record<string, { rows: number; addresses: number }> = {};
   for (const target of CONTENT) {
     const columns = target.columns.map((c) =>
       c.json ? sql`${sql.identifier(c.name)}::text` : sql.identifier(c.name),
@@ -909,11 +927,11 @@ async function rewriteContent(
         const before = row[`c${target.key.length + i}`];
         if (typeof before !== 'string') continue;
         let n = 0;
-        const after = before.replace(address, (match, key: string) => {
-          const to = keys.get(key);
-          if (!to) return match;
+        const after = before.replace(pattern, (match: string, ...groups: unknown[]) => {
+          const to = replace(match, ...groups.filter((g): g is string => typeof g === 'string'));
+          if (to === null || to === match) return match;
           n++;
-          return `/media/${to}`;
+          return to;
         });
         if (n === 0) continue;
         replaced += n;

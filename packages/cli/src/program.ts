@@ -860,14 +860,26 @@ export function buildProgram(json = false): Command {
       '--folder <folder>',
       "a wp-content or wp-content/uploads folder (as the site's public/wp-content): its files are found in the library by their content (only read)",
     )
+    .option(
+      '--rewrite',
+      'also write the library addresses in the content (current and published revisions, settings, menus, terms, patterns, option pages) in place of the old ones',
+    )
     .option('--dry-run', 'show what would change, and change nothing')
-    .action((opts: { site: string; wxr?: string; folder?: string; dryRun?: boolean }) => {
-      refuseRoot();
-      return withOwner(async (db) => {
-        const result = await importAddresses(db, opts);
-        report({ ...result }, importAddressesText(result));
-      });
-    });
+    .action(
+      (opts: {
+        site: string;
+        wxr?: string;
+        folder?: string;
+        dryRun?: boolean;
+        rewrite?: boolean;
+      }) => {
+        refuseRoot();
+        return withOwner(async (db) => {
+          const result = await importAddresses(db, opts);
+          report({ ...result }, importAddressesText(result));
+        });
+      },
+    );
 
   program
     .command('media:purge-renamed')
