@@ -32,3 +32,4 @@ export {
   type RawTitlesInput,
   type RawTitlesResult,
 } from './raw-titles.js';
+export { rewriteHost } from './site-copy.js';

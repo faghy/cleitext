@@ -70,6 +70,7 @@ import {
   renameText,
 } from './media-rename.js';
 import { importAddresses, importAddressesText } from './media-addresses.js';
+import { rewriteHost } from './site-copy.js';
 import { backfillRawTitles, rawTitlesText } from './raw-titles.js';
 import { jsonMode, report, runCommand, say, type RunIo } from './json.js';
 import { collectStatus, formatStatus } from './status.js';
@@ -557,19 +558,32 @@ export function buildProgram(json = false): Command {
 
   program
     .command('site:update')
-    .description("Change a site's name, slug, default language or time zone.")
+    .description(
+      "Change a site's name, slug, default language, time zone or whether search engines index it.",
+    )
     .requiredOption('--site <slug>')
     .option('--name <name>')
     .option('--slug <slug>', 'new slug')
     .option('--locale <code>', 'default language (already enabled on the site)')
     .option('--timezone <tz>', 'IANA time zone')
+    .option(
+      '--search-engines <on|off>',
+      'off asks search engines not to index the site (a copy for tests), on lets them again',
+    )
     .action((opts) =>
       withOwner(async (db) => {
+        let searchEngines: boolean | undefined;
+        if (opts.searchEngines !== undefined) {
+          if (!['on', 'off'].includes(opts.searchEngines))
+            throw new OperationError('--search-engines: on or off.', 'invalid_option');
+          searchEngines = opts.searchEngines === 'on';
+        }
         await updateSite(db, opts.site, {
           name: opts.name,
           slug: opts.slug,
           locale: opts.locale,
           timezone: opts.timezone,
+          searchEngines,
         });
         report({ site: opts.slug ?? opts.site }, `Site ${opts.slug ?? opts.site} updated.`);
       }),
@@ -650,12 +664,27 @@ export function buildProgram(json = false): Command {
     .requiredOption('--from <host>')
     .requiredOption('--to <host>')
     .option('--site <slug>', 'only if the domain belongs to this site')
-    .action((opts: { from: string; to: string; site?: string }) =>
+    .option(
+      '--content',
+      'also rewrite the absolute addresses of the old domain written in the content',
+    )
+    .action((opts: { from: string; to: string; site?: string; content?: boolean }) =>
       withOwner(async (db) => {
         const result = await replaceDomain(db, opts);
+        const content = opts.content
+          ? await rewriteHost(db, result.site, opts.from, opts.to)
+          : undefined;
+        const addresses = content ? Object.values(content).reduce((n, t) => n + t.addresses, 0) : 0;
         report(
-          { site: result.site, from: opts.from, to: opts.to, primary: result.primary },
-          `Domain ${opts.from} is now ${opts.to} (${result.site}).`,
+          {
+            site: result.site,
+            from: opts.from,
+            to: opts.to,
+            primary: result.primary,
+            ...(content ? { content } : {}),
+          },
+          `Domain ${opts.from} is now ${opts.to} (${result.site}).` +
+            (content ? ` Addresses rewritten in the content: ${addresses}.` : ''),
         );
       }),
     );

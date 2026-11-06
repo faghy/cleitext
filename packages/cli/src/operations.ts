@@ -6,6 +6,7 @@ import {
   entries,
   roles,
   seedSiteDefaults,
+  settings,
   siteDomains,
   siteMembers,
   sites,
@@ -227,9 +228,17 @@ export interface UpdateSiteInput {
   /** New default language: must already be enabled on the site. */
   locale?: string;
   timezone?: string;
+  /**
+   * False asks search engines not to index the site (Settings → General,
+   * `discourageSearchEngines`), as a copy for tests should; true lets them again.
+   */
+  searchEngines?: boolean;
 }
 
-/** Changes a site's name, slug, default language or time zone (RF-SIT-03). */
+/**
+ * Changes a site's name, slug, default language, time zone or whether search
+ * engines may index it (RF-SIT-03).
+ */
 export async function updateSite(
   db: Database,
   slug: string,
@@ -254,8 +263,14 @@ export async function updateSite(
       throw new OperationError(`Unknown time zone "${input.timezone}".`);
     changes.timezone = input.timezone;
   }
-  if (Object.keys(changes).length === 0 && input.locale === undefined) {
-    throw new OperationError('Nothing to change: give --name, --slug, --locale or --timezone.');
+  if (
+    Object.keys(changes).length === 0 &&
+    input.locale === undefined &&
+    input.searchEngines === undefined
+  ) {
+    throw new OperationError(
+      'Nothing to change: give --name, --slug, --locale, --timezone or --search-engines.',
+    );
   }
   await withSiteContext(db, site.id, async (tx) => {
     if (input.locale !== undefined && input.locale !== site.defaultLocale) {
@@ -274,6 +289,16 @@ export async function updateSite(
     }
     if (Object.keys(changes).length > 0)
       await tx.update(sites).set(changes).where(eq(sites.id, site.id));
+    if (input.searchEngines !== undefined) {
+      const value = !input.searchEngines;
+      await tx
+        .insert(settings)
+        .values({ siteId: site.id, namespace: 'core', key: 'discourageSearchEngines', value })
+        .onConflictDoUpdate({
+          target: [settings.siteId, settings.namespace, settings.key],
+          set: { value },
+        });
+    }
   });
   await notifySiteChanged(db, site.id);
 }

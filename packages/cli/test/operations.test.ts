@@ -1,6 +1,7 @@
 import {
   createDatabase,
   entries,
+  settings,
   siteMembers,
   sites,
   superAdmins,
@@ -9,7 +10,7 @@ import {
   type DatabaseClient,
 } from '@cleitext/db';
 import { verify } from '@node-rs/argon2';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -24,9 +25,11 @@ import {
   listSites,
   normalizeHost,
   OperationError,
+  replaceDomain,
   setPassword,
   updateSite,
 } from '../src/operations.js';
+import { rewriteHost } from '../src/site-copy.js';
 import { uninstallTheme } from '../src/themes.js';
 
 let owner: DatabaseClient;
@@ -108,6 +111,71 @@ describe('sites', () => {
     expect((await listSites(owner.db)).find((s) => s.slug === 'secondo')?.status).toBe('active');
     await expect(archiveSite(owner.db, 'missing')).rejects.toThrow(/No site/);
   });
+
+  it('keeps a copy out of search engines, and lets them in again', async () => {
+    const value = async () => {
+      const [site] = await owner.db.select().from(sites).where(eq(sites.slug, 'secondo'));
+      const [row] = await withSiteContext(owner.db, site!.id, (tx) =>
+        tx
+          .select()
+          .from(settings)
+          .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'discourageSearchEngines'))),
+      );
+      return row?.value;
+    };
+    await updateSite(owner.db, 'secondo', { searchEngines: false });
+    expect(await value()).toBe(true);
+    await updateSite(owner.db, 'secondo', { searchEngines: true });
+    expect(await value()).toBe(false);
+  });
+
+  it('moves a site to another domain, with the addresses written in its content', async () => {
+    await createSite(owner.db, { slug: 'copy', name: 'Copy', host: 'shop.example.org' });
+    const [site] = await owner.db.select().from(sites).where(eq(sites.slug, 'copy'));
+    const text = [
+      'https://shop.example.org/chi-siamo/',
+      'http://www.shop.example.org/?p=1',
+      '//shop.example.org/media/a.jpg',
+      'https://shop.example.org',
+      'https://shop.example.org.au/',
+      'https://shop.example.org-outlet.it/',
+      'https://other.shop.example.org/',
+      'mailto:info@shop.example.org',
+    ].join(' ');
+    await withSiteContext(owner.db, site!.id, (tx) =>
+      tx.insert(settings).values({
+        siteId: site!.id,
+        namespace: 'theme',
+        key: 'footer',
+        value: { html: text },
+      }),
+    );
+    expect(
+      await replaceDomain(owner.db, { from: 'shop.example.org', to: 'staging.example.org' }),
+    ).toEqual({
+      site: 'copy',
+      primary: true,
+    });
+    expect(await rewriteHost(owner.db, 'copy', 'shop.example.org', 'staging.example.org')).toEqual({
+      settings: { rows: 1, addresses: 4 },
+    });
+    const [row] = await withSiteContext(owner.db, site!.id, (tx) =>
+      tx
+        .select()
+        .from(settings)
+        .where(and(eq(settings.namespace, 'theme'), eq(settings.key, 'footer'))),
+    );
+    expect((row?.value as { html: string }).html.split(' ')).toEqual([
+      'https://staging.example.org/chi-siamo/',
+      'http://staging.example.org/?p=1',
+      '//staging.example.org/media/a.jpg',
+      'https://staging.example.org',
+      'https://shop.example.org.au/',
+      'https://shop.example.org-outlet.it/',
+      'https://other.shop.example.org/',
+      'mailto:info@shop.example.org',
+    ]);
+  });
 });
 
 describe('users', () => {
@@ -133,7 +201,7 @@ describe('users', () => {
       site: 'main',
       role: 'editor',
     });
-    const [site] = await listSites(owner.db);
+    const site = (await listSites(owner.db)).find((s) => s.slug === 'main');
     const members = await withSiteContext(owner.db, site!.id, (tx) =>
       tx.select().from(siteMembers).where(eq(siteMembers.userId, id)),
     );
