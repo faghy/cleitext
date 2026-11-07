@@ -28,4 +28,4 @@ pnpm --filter @cleitext/plugin-shortcode-embeds build
 
 ## License
 
-GPL-2.0-or-later. Spreaker is a trademark of Spreaker Inc., YouTube of Google LLC, Facebook of Meta Platforms, Inc.: this plugin is not made or endorsed by them.
+GPL-2.0-or-later. Copyright (C) 2026 Serafino Christian. Spreaker is a trademark of Spreaker Inc., YouTube of Google LLC, Facebook of Meta Platforms, Inc.: this plugin is not made or endorsed by them.

@@ -71,4 +71,4 @@ Plugin API 1.26: an admin page only, with no server part and no permissions of i
 
 ## License
 
-GPL-2.0-or-later.
+GPL-2.0-or-later. Copyright (C) 2026 Serafino Christian.

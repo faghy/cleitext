@@ -43,4 +43,4 @@ pnpm --filter @cleitext/plugin-turbosmtp build
 
 ## Licenza
 
-GPL-2.0-or-later. turboSMTP è un marchio del suo titolare.
+GPL-2.0-or-later. Copyright (C) 2026 Serafino Christian. turboSMTP è un marchio del suo titolare.

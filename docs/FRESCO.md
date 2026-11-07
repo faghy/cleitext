@@ -349,4 +349,4 @@ onFresco((fresco) => {
 
 ## Licenses
 
-Fresco is GPL-3.0-or-later. Fresco Pro is GPL-3.0-or-later too, sold with access to downloads and updates. Icons come from Font Awesome Free (CC BY 4.0); Lottie animations play with lottie-web (MIT).
+Fresco is GPL-3.0-or-later. Fresco Pro is GPL-3.0-or-later too, sold with access to downloads and updates. Icons come from Font Awesome Free (CC BY 4.0); Lottie animations play with lottie-web (MIT). Copyright (C) 2026 Serafino Christian.

@@ -99,3 +99,5 @@ Cleitext is the successor of **Cleito CMS**, a private PHP + PostgreSQL CMS. It 
 ## License
 
 Cleitext is free software, released under the [GNU General Public License v2.0 or later](./LICENSE).
+
+Copyright (C) 2026 Serafino Christian.

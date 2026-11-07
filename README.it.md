@@ -79,3 +79,5 @@ Cleitext nasce come successore di **Cleito CMS**, un CMS privato in PHP + Postgr
 ## Licenza
 
 Cleitext è software libero, rilasciato con licenza [GNU General Public License v2.0 o successiva](./LICENSE).
+
+Copyright (C) 2026 Serafino Christian.

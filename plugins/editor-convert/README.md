@@ -27,4 +27,4 @@ Plugin API 1.26: the plugin reads the site's editors through `editors()` of the 
 
 ## License
 
-GPL-2.0-or-later.
+GPL-2.0-or-later. Copyright (C) 2026 Serafino Christian.
