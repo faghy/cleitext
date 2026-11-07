@@ -178,6 +178,62 @@ describe('analytics', () => {
     );
   });
 
+  it('loads the Google Ads tag under Marketing, with its cookie and conversions', async () => {
+    const saved = await analytics({
+      googleAds: {
+        enabled: true,
+        conversionId: 'aw-16857002921',
+        phoneLabel: 'AbC-123_x',
+        whatsappLabel: '',
+        formLabel: 'Form9z',
+      },
+    });
+    expect(saved.problems).toEqual([]);
+    expect(saved.config.googleAds).toMatchObject({ conversionId: 'AW-16857002921' });
+    const html = await home();
+    expect(html).toContain(
+      '<script type="text/plain" data-cx-category="marketing" async src="https://www.googletagmanager.com/gtag/js?id=AW-16857002921">',
+    );
+    expect(html).toContain("gtag('config','AW-16857002921');");
+    expect(html).toContain('{"phone":"AW-16857002921/AbC-123_x","form":"AW-16857002921/Form9z"}');
+    // The inline script is valid JavaScript.
+    const inline =
+      /<script type="text\/plain" data-cx-category="marketing">(window\.dataLayer[^<]*AW-16857002921[^<]*)<\/script>/.exec(
+        html,
+      )![1]!;
+    expect(() => new Function(inline)).not.toThrow();
+    // Google Analytics keeps its own tag under Statistics.
+    expect(html).toContain(
+      'data-cx-category="statistics" async src="https://www.googletagmanager.com/gtag/js?id=G-ABC123XYZ"',
+    );
+    const trackers = (await admin.get('/api/v1/ext/privacy/trackers')).json();
+    expect(trackers.trackers.map((t: { id: string }) => t.id)).toContain('analytics.ads');
+    // The cookie table of the page made above.
+    expect((await visitor.get('/cookies')).body).toContain('<code>_gcl_au</code>');
+
+    const wrong = await analytics({
+      googleAds: {
+        enabled: true,
+        conversionId: 'AW-16857002921',
+        phoneLabel: 'no spaces',
+        whatsappLabel: '',
+        formLabel: '',
+      },
+    });
+    expect(wrong.problems).toEqual(['googleAds']);
+    // The base tag stays (the ID is valid); the wrong label is not sent.
+    expect(await home()).not.toContain('no spaces');
+    await analytics({
+      googleAds: {
+        enabled: false,
+        conversionId: '',
+        phoneLabel: '',
+        whatsappLabel: '',
+        formLabel: '',
+      },
+    });
+  });
+
   it('keeps invalid services off and says which', async () => {
     const saved = await analytics({
       gtm: { enabled: true, containerId: 'nope', category: 'marketing' },

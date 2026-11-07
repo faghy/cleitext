@@ -293,6 +293,56 @@ function AnalyticsForm({
         </div>
       </Card>
 
+      <Card title="Google Ads">
+        <div className="space-y-3">
+          <Toggle
+            label={tr('Use the Google Ads tag', 'Usa il tag di Google Ads')}
+            checked={cfg.googleAds.enabled}
+            onChange={(v) => set('googleAds', { enabled: v })}
+          />
+          {cfg.googleAds.enabled && (
+            <>
+              {wrong('googleAds')}
+              <TextField
+                label={tr('Conversion ID', 'ID di conversione')}
+                placeholder="AW-123456789"
+                value={cfg.googleAds.conversionId}
+                onChange={(e) => set('googleAds', { conversionId: e.target.value })}
+              />
+              <p className="text-xs text-slate-600">
+                {tr(
+                  'Conversions (optional): the label of a conversion action of Google Ads (the part after the slash in send_to), sent when a visitor does this.',
+                  'Conversioni (facoltative): l’etichetta di un’azione di conversione di Google Ads (la parte dopo la barra in send_to), inviata quando un visitatore fa questo.',
+                )}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <TextField
+                  label={tr('Click on a phone number', 'Clic su un numero di telefono')}
+                  value={cfg.googleAds.phoneLabel}
+                  onChange={(e) => set('googleAds', { phoneLabel: e.target.value })}
+                />
+                <TextField
+                  label={tr('Click on WhatsApp', 'Clic su WhatsApp')}
+                  value={cfg.googleAds.whatsappLabel}
+                  onChange={(e) => set('googleAds', { whatsappLabel: e.target.value })}
+                />
+                <TextField
+                  label={tr('A form sent', 'Invio di un modulo')}
+                  value={cfg.googleAds.formLabel}
+                  onChange={(e) => set('googleAds', { formLabel: e.target.value })}
+                />
+              </div>
+              <Rule consent>
+                {tr(
+                  'GDPR: loaded only after consent to “Marketing”, with Google Consent Mode v2 (ad_storage, ad_user_data, ad_personalization); cookie _gcl_au in the cookie table; the privacy policy mentions Google Ads and the transfer of data outside the EU.',
+                  'GDPR: caricato solo dopo il consenso a “Marketing”, con il Consent Mode v2 di Google (ad_storage, ad_user_data, ad_personalization); cookie _gcl_au nella tabella dei cookie; la privacy policy cita Google Ads e il trasferimento dei dati fuori dall’UE.',
+                )}
+              </Rule>
+            </>
+          )}
+        </div>
+      </Card>
+
       <Card title={tr('Search engines', 'Motori di ricerca')}>
         <div className="space-y-3">
           <Toggle

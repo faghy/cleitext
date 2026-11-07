@@ -1,6 +1,6 @@
 # Analytics
 
-The official Cleitext plugin to connect measurement and webmaster services: **Matomo**, **Google Analytics 4**, **Google Tag Manager**, the **Meta Pixel**, and the site verification of **Google Search Console** and **Bing Webmaster Tools**. Turn on as many as you use. It is not in the base package: download `cleitext-plugin-analytics-<version>.zip` from the Releases page and upload it in **Plugins → Upload Plugin**.
+The official Cleitext plugin to connect measurement and webmaster services: **Matomo**, **Google Analytics 4**, **Google Tag Manager**, the **Meta Pixel**, **Google Ads**, and the site verification of **Google Search Console** and **Bing Webmaster Tools**. Turn on as many as you use. It is not in the base package: download `cleitext-plugin-analytics-<version>.zip` from the Releases page and upload it in **Plugins → Upload Plugin**.
 
 ## Privacy rules, applied for you
 
@@ -13,6 +13,7 @@ Each service tells the **Privacy & GDPR** plugin what it does, and that plugin a
 | Google Analytics 4                   | needed     | Statistics              | `_ga`, `_ga_<id>`                                 | consent, Google, transfer to the USA (Data Privacy Framework), Consent Mode v2 |
 | Google Tag Manager                   | needed     | Statistics or Marketing | those of its tags (add them in Privacy → Cookies) | consent, Consent Mode v2                                                       |
 | Meta Pixel                           | needed     | Marketing               | `_fbp`, `fr`                                      | consent, Meta, transfer outside the EU                                         |
+| Google Ads                           | needed     | Marketing               | `_gcl_au`                                         | consent, Google, Consent Mode v2, transfer outside the EU                      |
 | Search Console, Bing                 | not needed | —                       | none (a meta tag)                                 | —                                                                              |
 
 - The banner offers the categories the services need, even when the site itself offers none; it asks visitors again when the services change.
@@ -33,3 +34,7 @@ bin/cleitext plugin:install plugins/analytics
 ```
 
 or upload the zip in **Plugins → Upload Plugin**, then activate it with **Privacy & GDPR**. The settings are in **Analytics** in the admin menu. It needs Cleitext 0.13 or later (plugin API 1.4).
+
+## Google Ads (1.1.0)
+
+The base tag of an `AW-` conversion ID, loaded only after consent to Marketing, with Google Consent Mode v2 (`ad_storage`, `ad_user_data`, `ad_personalization`, set by Privacy & GDPR). It has its own copy of `gtag.js`, so with Google Analytics 4 each service loads only with the consent to its own category. Optional conversion labels (the part after the slash in `send_to`) are sent as `conversion` events on a click on a phone number (`tel:`), on a WhatsApp link (`wa.me`, `api.whatsapp.com`, `whatsapp:`) and when a form is sent (search forms aside).

@@ -15,6 +15,18 @@ export interface AnalyticsConfig {
   ga4: { enabled: boolean; measurementId: string };
   gtm: { enabled: boolean; containerId: string; category: 'statistics' | 'marketing' };
   metaPixel: { enabled: boolean; pixelId: string };
+  /**
+   * Google Ads (1.1.0): the base tag of an AW- conversion ID, and conversion
+   * labels to send on a click on a phone number, on a WhatsApp link and when
+   * a form is sent (empty: none).
+   */
+  googleAds: {
+    enabled: boolean;
+    conversionId: string;
+    phoneLabel: string;
+    whatsappLabel: string;
+    formLabel: string;
+  };
   searchConsole: { enabled: boolean; token: string };
   bing: { enabled: boolean; token: string };
 }
@@ -24,6 +36,7 @@ export const DEFAULT_CONFIG: AnalyticsConfig = {
   ga4: { enabled: false, measurementId: '' },
   gtm: { enabled: false, containerId: '', category: 'statistics' },
   metaPixel: { enabled: false, pixelId: '' },
+  googleAds: { enabled: false, conversionId: '', phoneLabel: '', whatsappLabel: '', formLabel: '' },
   searchConsole: { enabled: false, token: '' },
   bing: { enabled: false, token: '' },
 };
@@ -35,6 +48,7 @@ export function withDefaults(saved: Partial<AnalyticsConfig> | null): AnalyticsC
     ga4: { ...DEFAULT_CONFIG.ga4, ...value.ga4 },
     gtm: { ...DEFAULT_CONFIG.gtm, ...value.gtm },
     metaPixel: { ...DEFAULT_CONFIG.metaPixel, ...value.metaPixel },
+    googleAds: { ...DEFAULT_CONFIG.googleAds, ...value.googleAds },
     searchConsole: { ...DEFAULT_CONFIG.searchConsole, ...value.searchConsole },
     bing: { ...DEFAULT_CONFIG.bing, ...value.bing },
   };
@@ -44,6 +58,8 @@ export const PATTERNS = {
   ga4: /^G-[A-Z0-9]{4,20}$/,
   gtm: /^GTM-[A-Z0-9]{4,20}$/,
   pixel: /^\d{6,20}$/,
+  ads: /^AW-\d{6,15}$/,
+  adsLabel: /^[A-Za-z0-9_-]{4,40}$/,
   matomoSite: /^\d{1,9}$/,
   token: /^[A-Za-z0-9_.-]{8,128}$/,
 };

@@ -9,7 +9,7 @@ import {
 
 /**
  * Analytics (official plugin, shipped on its own): Matomo, Google Analytics 4,
- * Google Tag Manager, Meta Pixel, and the verification of Google Search
+ * Google Tag Manager, Meta Pixel, Google Ads, and the verification of Google Search
  * Console and Bing Webmaster Tools. Each service declares its privacy rules;
  * Privacy & GDPR applies them (consent category, cookies, policy, Consent
  * Mode). Services that need consent are only loaded through its banner.
@@ -138,7 +138,50 @@ export function trackersOf(cfg: AnalyticsConfig): TrackerDeclaration[] {
       privacyPolicyUrl: 'https://www.facebook.com/privacy/policy/',
     });
   }
+  if (cfg.googleAds.enabled && PATTERNS.ads.test(cfg.googleAds.conversionId)) {
+    trackers.push({
+      id: 'analytics.ads',
+      name: 'Google Ads',
+      provider: 'Google Ireland Ltd',
+      category: 'marketing',
+      requiresConsent: true,
+      cookies: [
+        {
+          name: '_gcl_au',
+          duration: '3 months',
+          purpose: {
+            en: 'Links visits to the site with clicks on our Google ads, to measure their results.',
+            it: 'Collega le visite al sito ai clic sui nostri annunci Google, per misurarne i risultati.',
+          },
+        },
+      ],
+      purpose: {
+        en: 'We use Google Ads to measure the results of our ads on Google (visits and contacts that come from them) and to show them to people who visited the site.',
+        it: 'Usiamo Google Ads per misurare i risultati dei nostri annunci su Google (visite e contatti che ne derivano) e mostrarli a chi ha visitato il sito.',
+      },
+      transfersOutsideEu: true,
+      privacyPolicyUrl: 'https://policies.google.com/privacy',
+      googleConsentMode: true,
+    });
+  }
   return trackers;
+}
+
+/** The labels of the conversions sent by the page, when valid. */
+function adsConversions(cfg: AnalyticsConfig): {
+  phone?: string;
+  whatsapp?: string;
+  form?: string;
+} {
+  const id = cfg.googleAds.conversionId;
+  const label = (value: string) =>
+    PATTERNS.adsLabel.test(value.trim()) ? `${id}/${value.trim()}` : undefined;
+  const out = {
+    phone: label(cfg.googleAds.phoneLabel),
+    whatsapp: label(cfg.googleAds.whatsappLabel),
+    form: label(cfg.googleAds.formLabel),
+  };
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v)) as typeof out;
 }
 
 /** A script that runs at once, or waits in the page for the consent to its category. */
@@ -191,6 +234,21 @@ export function headTags(cfg: AnalyticsConfig, consentBanner: boolean): string {
           category,
         ),
       );
+    } else if (tracker.id === 'analytics.ads') {
+      // Its own copy of gtag.js under Marketing: with Google Analytics too, each
+      // service loads only with the consent to its own category.
+      const id = cfg.googleAds.conversionId;
+      const conversions = adsConversions(cfg);
+      const events = Object.keys(conversions).length
+        ? `(function(c){function s(t){gtag('event','conversion',{send_to:t});}document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;var h=a.getAttribute('href')||'';if(c.phone&&/^tel:/i.test(h))s(c.phone);else if(c.whatsapp&&/^(https?:)?\\/\\/(wa\\.me|api\\.whatsapp\\.com|web\\.whatsapp\\.com)\\b|^whatsapp:/i.test(h))s(c.whatsapp);},true);if(c.form)document.addEventListener('submit',function(e){var f=e.target;if(f&&f.getAttribute&&f.getAttribute('role')!=='search'&&!/search/i.test(f.getAttribute('action')||''))s(c.form);},true);})(${JSON.stringify(conversions)});`
+        : '';
+      tags.push(
+        script('', category, `https://www.googletagmanager.com/gtag/js?id=${id}`),
+        script(
+          `window.dataLayer=window.dataLayer||[];window.gtag=window.gtag||function(){dataLayer.push(arguments);};gtag('js',new Date());gtag('config','${id}');${events}`,
+          category,
+        ),
+      );
     } else if (tracker.id === 'analytics.meta') {
       const id = cfg.metaPixel.pixelId;
       tags.push(
@@ -227,6 +285,13 @@ function cleanConfig(input: unknown): AnalyticsConfig {
       category: body.gtm.category === 'marketing' ? 'marketing' : 'statistics',
     },
     metaPixel: { enabled: bool(body.metaPixel.enabled), pixelId: text(body.metaPixel.pixelId, 20) },
+    googleAds: {
+      enabled: bool(body.googleAds.enabled),
+      conversionId: text(body.googleAds.conversionId, 20).toUpperCase(),
+      phoneLabel: text(body.googleAds.phoneLabel, 40),
+      whatsappLabel: text(body.googleAds.whatsappLabel, 40),
+      formLabel: text(body.googleAds.formLabel, 40),
+    },
     searchConsole: {
       enabled: bool(body.searchConsole.enabled),
       token: verificationToken(text(body.searchConsole.token, 300)),
@@ -249,6 +314,14 @@ function problems(cfg: AnalyticsConfig): string[] {
   if (cfg.ga4.enabled && !PATTERNS.ga4.test(cfg.ga4.measurementId)) list.push('ga4');
   if (cfg.gtm.enabled && !PATTERNS.gtm.test(cfg.gtm.containerId)) list.push('gtm');
   if (cfg.metaPixel.enabled && !PATTERNS.pixel.test(cfg.metaPixel.pixelId)) list.push('metaPixel');
+  if (
+    cfg.googleAds.enabled &&
+    (!PATTERNS.ads.test(cfg.googleAds.conversionId) ||
+      [cfg.googleAds.phoneLabel, cfg.googleAds.whatsappLabel, cfg.googleAds.formLabel].some(
+        (label) => label.trim() !== '' && !PATTERNS.adsLabel.test(label.trim()),
+      ))
+  )
+    list.push('googleAds');
   if (cfg.searchConsole.enabled && !PATTERNS.token.test(cfg.searchConsole.token))
     list.push('searchConsole');
   if (cfg.bing.enabled && !PATTERNS.token.test(cfg.bing.token)) list.push('bing');
