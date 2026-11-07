@@ -13,8 +13,16 @@ export interface DatabaseClient {
   db: Database;
   /** Closes the connection pool. */
   close(): Promise<void>;
-  /** PostgreSQL LISTEN on a channel; returns a function that stops listening. */
-  listen(channel: string, onMessage: (payload: string) => void): Promise<() => Promise<void>>;
+  /**
+   * PostgreSQL LISTEN on a channel; returns a function that stops listening.
+   * `onListen` runs each time the subscription is made again after its
+   * connection dropped (notifications sent meanwhile were lost).
+   */
+  listen(
+    channel: string,
+    onMessage: (payload: string) => void,
+    onListen?: () => void,
+  ): Promise<() => Promise<void>>;
   /** PostgreSQL NOTIFY (delivered to every listener, this process included). */
   notify(channel: string, payload: string): Promise<void>;
 }
@@ -238,8 +246,13 @@ export function createDatabase(url: string, options: CreateDatabaseOptions = {})
   return {
     db,
     close: () => client.end({ timeout: 5 }),
-    async listen(channel, onMessage) {
-      const subscription = await client.listen(channel, onMessage);
+    async listen(channel, onMessage, onListen) {
+      let first = true;
+      const subscription = await client.listen(channel, onMessage, () => {
+        // postgres.js calls it on the first LISTEN and after every reconnection.
+        if (first) first = false;
+        else onListen?.();
+      });
       return () => subscription.unlisten();
     },
     async notify(channel, payload) {

@@ -26,6 +26,8 @@ export interface CachedPage {
 }
 
 const CHANNEL = 'cleitext_cache';
+/** How often each process checks that it still hears the channel (a NOTIFY to itself). */
+export const CACHE_PING_MS = 30_000;
 
 /**
  * Full-page cache for anonymous visitors (docs/ARCHITECTURE.md §15).
@@ -43,6 +45,14 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   private readonly byTag = new Map<string, Set<string>>();
   private readonly processId = randomUUID();
   private unlisten: (() => Promise<void>) | null = null;
+  /**
+   * False while this process may have missed invalidations (its own ping did
+   * not come back): it serves and stores no cached page until it hears again.
+   */
+  private hearing = true;
+  private pingSent = 0;
+  private pingHeard = 0;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
   private readonly siteListeners = new Set<() => void>();
   private readonly invalidateListeners = new Set<(siteId: string, tags: string[]) => void>();
   private readonly pluginListeners = new Set<() => void>();
@@ -66,18 +76,68 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   async onApplicationBootstrap(): Promise<void> {
     // Always listen: site and plugin changes travel on the same channel.
     try {
-      this.unlisten = await this.database.listen(CHANNEL, (payload) =>
-        this.onNotification(payload),
-      );
+      await this.subscribe();
     } catch (error) {
       // Without notifications a process could serve stale pages: disable caching.
       this.logger.error(`LISTEN failed, page cache disabled: ${String(error)}`);
       this.config.pageCache.maxEntries = 0;
+      return;
     }
+    this.pingTimer = setInterval(() => void this.ping(), CACHE_PING_MS);
+    this.pingTimer.unref?.();
   }
 
   async onApplicationShutdown(): Promise<void> {
+    if (this.pingTimer) clearInterval(this.pingTimer);
     await this.unlisten?.().catch(() => {});
+  }
+
+  private async subscribe(): Promise<void> {
+    this.unlisten = await this.database.listen(
+      CHANNEL,
+      (payload) => this.onNotification(payload),
+      () => {
+        // The connection dropped and came back: what was sent meanwhile is lost.
+        this.logger.warn('LISTEN reconnected: cached pages dropped');
+        this.clearLocal();
+      },
+    );
+  }
+
+  /**
+   * A NOTIFY to this process itself. When the previous one never came back,
+   * the listening connection may be dead without knowing it (a dropped TCP
+   * connection): the cached pages are dropped, none is served until a ping
+   * comes back, and the subscription is made again.
+   */
+  async ping(): Promise<void> {
+    if (this.pingSent > this.pingHeard) {
+      if (this.hearing) {
+        this.logger.warn('No notification heard for a while: page cache paused, LISTEN again');
+        this.hearing = false;
+        this.clearLocal();
+      }
+      try {
+        await this.unlisten?.().catch(() => {});
+        await this.subscribe();
+      } catch (error) {
+        this.logger.error(`LISTEN again failed: ${String(error)}`);
+      }
+    }
+    this.pingSent++;
+    try {
+      await this.database.notify(
+        CHANNEL,
+        JSON.stringify({ ping: this.processId, n: this.pingSent }),
+      );
+    } catch (error) {
+      this.logger.error(`NOTIFY failed: ${String(error)}`);
+    }
+  }
+
+  /** Whether this process caches pages now (on, and hearing the invalidations). */
+  get active(): boolean {
+    return this.enabled && this.hearing;
   }
 
   key(siteId: string, host: string, pathAndQuery: string): string {
@@ -85,6 +145,10 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   }
 
   get(key: string): CachedPage | null {
+    if (!this.hearing) {
+      this.stats.misses++;
+      return null;
+    }
     const page = this.pages.get(key);
     if (!page) {
       this.stats.misses++;
@@ -120,7 +184,7 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
       storedAt: Date.now(),
       expiresAt: Date.now() + ttl * 1000,
     };
-    if (!this.enabled) return entry;
+    if (!this.active) return entry;
     this.drop(key);
     this.pages.set(key, entry);
     for (const tag of page.tags) {
@@ -198,6 +262,8 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
   private onNotification(payload: string): void {
     try {
       const message = JSON.parse(payload) as {
+        ping?: string;
+        n?: number;
         siteId?: string;
         tags?: string[];
         from?: string;
@@ -205,6 +271,16 @@ export class PageCacheService implements OnApplicationBootstrap, OnApplicationSh
         plugins?: boolean;
         themes?: boolean;
       };
+      if (message.ping !== undefined) {
+        if (message.ping === this.processId && typeof message.n === 'number') {
+          this.pingHeard = Math.max(this.pingHeard, message.n);
+          if (!this.hearing && this.pingHeard >= this.pingSent) {
+            this.hearing = true;
+            this.logger.log('Notifications heard again: page cache back on');
+          }
+        }
+        return;
+      }
       if (message.plugins === true) for (const listener of this.pluginListeners) listener();
       if (message.themes === true) for (const listener of this.themeListeners) listener();
       if (message.from === this.processId) return; // already applied locally
