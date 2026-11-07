@@ -209,7 +209,10 @@ describe('analytics', () => {
     const trackers = (await admin.get('/api/v1/ext/privacy/trackers')).json();
     expect(trackers.trackers.map((t: { id: string }) => t.id)).toContain('analytics.ads');
     // The cookie table of the page made above.
-    expect((await visitor.get('/cookies')).body).toContain('<code>_gcl_au</code>');
+    const table = (await visitor.get('/cookies')).body;
+    expect(table).toContain('<code>_gcl_au</code>');
+    // The service is named with its company.
+    expect(table).toContain('Google Ads (Google Ireland Ltd)');
 
     const wrong = await analytics({
       googleAds: {

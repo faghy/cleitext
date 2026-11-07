@@ -16,6 +16,7 @@ import {
   cookieyesKey,
   DEFAULT_CONFIG,
   textsFor,
+  durationText,
   withDefaults,
   type Category,
   type CmpConfig,
@@ -291,10 +292,14 @@ function cookieRows(e: Effective, locale: string): CookieRow[] {
     for (const cookie of tracker.cookies) {
       rows.push({
         name: cookie.name,
-        provider: tracker.provider,
+        // The service as well as its company: "Google Ads (Google Ireland Ltd)".
+        provider:
+          tracker.name && tracker.name !== tracker.provider
+            ? `${tracker.name} (${tracker.provider})`
+            : tracker.provider,
         category: tracker.category,
         purpose: labelText(cookie.purpose, locale),
-        duration: cookie.duration,
+        duration: durationText(cookie.duration, locale),
       });
     }
   }

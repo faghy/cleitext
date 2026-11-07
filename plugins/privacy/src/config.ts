@@ -443,6 +443,63 @@ export function textsFor(locale: string): Texts {
   return TEXTS[textsLang(locale)];
 }
 
+const UNITS: Record<'en' | 'it' | 'de' | 'es', Record<string, [string, string]>> = {
+  en: {
+    minute: ['minute', 'minutes'],
+    hour: ['hour', 'hours'],
+    day: ['day', 'days'],
+    week: ['week', 'weeks'],
+    month: ['month', 'months'],
+    year: ['year', 'years'],
+  },
+  it: {
+    minute: ['minuto', 'minuti'],
+    hour: ['ora', 'ore'],
+    day: ['giorno', 'giorni'],
+    week: ['settimana', 'settimane'],
+    month: ['mese', 'mesi'],
+    year: ['anno', 'anni'],
+  },
+  de: {
+    minute: ['Minute', 'Minuten'],
+    hour: ['Stunde', 'Stunden'],
+    day: ['Tag', 'Tage'],
+    week: ['Woche', 'Wochen'],
+    month: ['Monat', 'Monate'],
+    year: ['Jahr', 'Jahre'],
+  },
+  es: {
+    minute: ['minuto', 'minutos'],
+    hour: ['hora', 'horas'],
+    day: ['día', 'días'],
+    week: ['semana', 'semanas'],
+    month: ['mes', 'meses'],
+    year: ['año', 'años'],
+  },
+};
+const SESSION: Record<'en' | 'it' | 'de' | 'es', string> = {
+  en: 'Session',
+  it: 'Sessione',
+  de: 'Sitzung',
+  es: 'Sesión',
+};
+
+/**
+ * A cookie's duration in the page's language, when it is written as plugins
+ * declare it ("2 years", "30 minutes", "Session"); any other text as it is.
+ */
+export function durationText(value: string, locale: string): string {
+  const lang = textsLang(locale) as 'en' | 'it' | 'de' | 'es';
+  const units = UNITS[lang] ?? UNITS.en;
+  const text = value.trim();
+  if (/^session$/i.test(text)) return SESSION[lang] ?? SESSION.en;
+  const m = /^(\d+)\s+(minute|hour|day|week|month|year)s?$/i.exec(text);
+  if (!m) return value;
+  const n = Number(m[1]);
+  const [one, many] = units[m[2]!.toLowerCase()]!;
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 export function categoryLabel(texts: Texts, category: CookieRow['category']): string {
   return category === 'necessary'
     ? texts.necessary
