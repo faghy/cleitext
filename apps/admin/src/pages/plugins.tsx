@@ -7,6 +7,7 @@ import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, useT } from '../components/ui';
 import { PackageUpload } from '../components/package-upload';
 import { CatalogBrowser, CatalogUpdateButton } from '../components/catalog';
+import { AutoUpdatesAll, AutoUpdateToggle } from '../components/auto-updates';
 import { LicenseBox } from '../components/license';
 import { pagePath, usePluginAdmin, type LoadedAdminPlugin } from '../plugins';
 
@@ -154,6 +155,7 @@ export function PluginsPage() {
           {t('No plugins are installed.')}
         </p>
       )}
+      <AutoUpdatesAll type="plugin" />
       <ul className="space-y-3" aria-label={t('Installed plugins')}>
         {plugins.data?.map((plugin) => (
           <li
@@ -228,6 +230,7 @@ export function PluginsPage() {
                       ) : null;
                     })()}
                   <CatalogUpdateButton type="plugin" slug={plugin.slug} />
+                  <AutoUpdateToggle type="plugin" slug={plugin.slug} />
                   {!plugin.network && !plugin.mustUse && (
                     <Button
                       variant={plugin.active ? 'secondary' : 'primary'}

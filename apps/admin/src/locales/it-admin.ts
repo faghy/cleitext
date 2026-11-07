@@ -253,6 +253,12 @@ export const itAdmin: Messages = {
     'Questa è la demo di un tema a pagamento: inserisci una chiave di licenza per attivarlo.',
   // Automatic updates
   'Automatic updates': 'Aggiornamenti automatici',
+  'Automatic updates for all the plugins from the catalog':
+    'Aggiornamenti automatici per tutti i plugin del catalogo',
+  'Automatic updates for all the themes from the catalog':
+    'Aggiornamenti automatici per tutti i temi del catalogo',
+  'Updating {done} of {total}…': 'Aggiornamento {done} di {total}…',
+  'Update the selected ({count})': 'Aggiorna i selezionati ({count})',
   'You update Cleitext from this page.': 'Aggiorni Cleitext da questa pagina.',
   'Fix releases only (recommended)': 'Solo versioni di correzione (consigliato)',
   'Security and bug fixes, such as 0.26.0 → 0.26.1.':

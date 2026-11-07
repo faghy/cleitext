@@ -1,8 +1,9 @@
-import type { AutoUpdatesView, CorePolicy } from '@cleitext/shared';
+import type { CorePolicy } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
 import { Alert, Button, Card, useT } from '../components/ui';
 import { CatalogUpdateButton, useCatalog, useCatalogUpdates } from '../components/catalog';
+import { BulkUpdates, useAutoUpdates } from '../components/auto-updates';
 
 interface UpdateCheck {
   current: string;
@@ -182,11 +183,6 @@ export function UpdatesPage() {
   );
 }
 
-const AUTO_QUERY = {
-  queryKey: ['updates', 'auto'],
-  queryFn: () => api<AutoUpdatesView>('GET', '/updates/auto'),
-};
-
 /**
  * Automatic updates, as in WordPress: the core (off, fix releases, all) and
  * the plugins and themes chosen one by one, about twice a day.
@@ -194,38 +190,8 @@ const AUTO_QUERY = {
 function AutomaticUpdates() {
   const { t, language } = useT();
   const queryClient = useQueryClient();
-  const auto = useQuery(AUTO_QUERY);
+  const { auto, change, on } = useAutoUpdates();
   const catalog = useCatalog();
-  const change = useMutation({
-    mutationFn: (body: {
-      core?: CorePolicy;
-      item?: { type: 'plugin' | 'theme'; slug: string; enabled: boolean };
-      items?: { type: 'plugin' | 'theme'; slug: string; enabled: boolean }[];
-    }) => api<AutoUpdatesView>('PUT', '/updates/auto', body),
-    // The choice shows at once; the server's answer replaces it (or the old one comes back).
-    onMutate: (body) => {
-      const previous = queryClient.getQueryData<AutoUpdatesView>(['updates', 'auto']);
-      if (previous) {
-        let items = previous.items;
-        for (const item of [...(body.item ? [body.item] : []), ...(body.items ?? [])]) {
-          items = [
-            ...items.filter((i) => !(i.type === item.type && i.slug === item.slug)),
-            ...(item.enabled ? [{ type: item.type, slug: item.slug }] : []),
-          ];
-        }
-        queryClient.setQueryData(['updates', 'auto'], {
-          ...previous,
-          ...(body.core ? { core: body.core } : {}),
-          items,
-        });
-      }
-      return { previous };
-    },
-    onError: (_error, _body, context) => {
-      if (context?.previous) queryClient.setQueryData(['updates', 'auto'], context.previous);
-    },
-    onSuccess: (data) => queryClient.setQueryData(['updates', 'auto'], data),
-  });
   const runNow = useMutation({
     mutationFn: () => api('POST', '/updates/auto/run'),
     onSettled: () =>
@@ -236,8 +202,6 @@ function AutomaticUpdates() {
   });
   const view = auto.data;
   const installed = (catalog.data?.items ?? []).filter((item) => item.installed);
-  const on = (type: string, slug: string) =>
-    Boolean(view?.items.some((i) => i.type === type && i.slug === slug));
   const allOn = installed.length > 0 && installed.every((item) => on(item.type, item.slug));
   const someOn = installed.some((item) => on(item.type, item.slug));
   const date = (iso: string | null) =>
@@ -407,17 +371,20 @@ function ExtensionUpdates() {
       {updates.length === 0 ? (
         <p className="text-sm text-slate-600">{t('Plugins and themes are up to date.')}</p>
       ) : (
-        <ul className="space-y-3 text-sm">
-          {updates.map((item) => (
-            <li key={`${item.type}-${item.slug}`} className="flex flex-wrap items-center gap-3">
-              <span className="font-medium">{item.name}</span>
-              <span className="text-slate-600">
-                {item.installed} → {item.version}
-              </span>
-              <CatalogUpdateButton type={item.type} slug={item.slug} />
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-3">
+          <BulkUpdates updates={updates} />
+          {/* Paid updates past the license: renew first. */}
+          <ul className="space-y-2 text-sm">
+            {updates
+              .filter((item) => item.renew)
+              .map((item) => (
+                <li key={`${item.type}-${item.slug}`} className="flex flex-wrap items-center gap-3">
+                  <span className="font-medium">{item.name}</span>
+                  <CatalogUpdateButton type={item.type} slug={item.slug} />
+                </li>
+              ))}
+          </ul>
+        </div>
       )}
     </Card>
   );
