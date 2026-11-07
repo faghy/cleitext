@@ -159,6 +159,20 @@ export async function settingsOf(ctx: PluginContext, siteId: string): Promise<Se
 
 const POSTS = ['article', 'post'];
 
+/**
+ * The page's full address, so that the links work without the page script
+ * and for crawlers: the site's address comes with plugin API 1.62; on older
+ * cores the path stays and the script completes it.
+ */
+export function absolute(path: string, origin: string | undefined): string {
+  if (!origin) return path;
+  try {
+    return new URL(path, origin).href;
+  } catch {
+    return path;
+  }
+}
+
 export default definePlugin({
   setup(ctx) {
     ctx.settings.define(FIELDS, { title: { en: 'Share Buttons', it: 'Pulsanti di condivisione' } });
@@ -180,7 +194,7 @@ export default definePlugin({
           return (
             <ShareButtons
               config={data ?? DEFAULT_CONFIG}
-              url={entry?.url ?? context.page.site.home}
+              url={absolute(entry?.url ?? context.page.site.home, context.page.site.origin)}
               title={entry?.title ?? context.page.site.title}
               locale={context.locale}
               uid={block.id.replace(/[^\w-]/g, '')}

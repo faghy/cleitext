@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-share-buttons",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Cleitext plugin: share buttons for social networks and the fediverse, with their icons.",
   "license": "GPL-2.0-or-later",

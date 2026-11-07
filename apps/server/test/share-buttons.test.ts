@@ -109,6 +109,10 @@ describe('share buttons', () => {
     ])
       expect(html).toContain(`sb-link sb-${id}"`);
     expect(html).toContain('https://app.disbigle.com/share?text=');
+    // Full addresses already in the page (without the script, and for crawlers).
+    expect(html).toContain(
+      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`http://${site.host}${postPath}`)}`,
+    );
     expect(html).toContain('window.__sbReady');
   });
 

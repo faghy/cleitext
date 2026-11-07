@@ -1,7 +1,7 @@
 {
   "slug": "share-buttons",
   "name": "Share Buttons",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": "^1.36",
   "description": "Buttons to share pages on social networks (Facebook, X, LinkedIn, Instagram, WhatsApp, Telegram, Bluesky, Threads, Reddit, Pinterest and more) and on the fediverse (Disbigle, Diaspora, Mastodon and other servers), by email or by copying the link, each with its icon: under the posts and as a block. No tracking.",
   "author": "Cleitext",

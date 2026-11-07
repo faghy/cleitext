@@ -2406,6 +2406,7 @@ export class PublicService {
         title: scope.siteTitle,
         tagline: scope.settings.tagline,
         home: scope.data.urls.home(scope.locale),
+        origin: scope.origin,
         ...(logo
           ? {
               logo: {
@@ -2668,6 +2669,7 @@ export class PublicService {
         title: scope.siteTitle,
         tagline: scope.settings.tagline,
         home: scope.data.urls.home(scope.locale),
+        origin: scope.origin,
       },
       ...(props.kind === 'entry' ? { entry: props.entry } : {}),
       ...(props.kind === 'archive'

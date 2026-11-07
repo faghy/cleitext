@@ -745,6 +745,12 @@ export interface BlockPage {
     home: string;
     /** The logo chosen in the theme's settings (plugin API 1.41), when there is one. */
     logo?: BlockPageLogo;
+    /**
+     * The site's address as the visitor reached it, e.g. `https://example.com`
+     * (plugin API 1.62; missing on older cores): to write full addresses, such
+     * as the page's own in share links (`new URL(entry.url, origin)`).
+     */
+    origin?: string;
   };
   /**
    * The signed-in visitor (plugin API 1.41), missing for everyone else. Pages
