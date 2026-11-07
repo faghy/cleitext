@@ -127,5 +127,14 @@ test('Fresco full screen: add a heading from the add area, Ctrl+S in the canvas 
   expect(view.revision.document.blocks).toHaveLength(1);
   expect(types(view.revision.document.blocks)).toContain('fresco/heading');
 
+  // The entry's settings and the plugins' boxes (SEO…) open from a button of the top bar.
+  await page
+    .locator('.fre-bar')
+    .getByRole('button', { name: /^(Entry settings and SEO|Impostazioni della voce e SEO)$/ })
+    .click();
+  await expect(
+    page.getByRole('complementary', { name: /^(Settings|Impostazioni)$/ }),
+  ).toBeVisible();
+
   expect(appErrors(errors)).toEqual([]);
 });

@@ -262,6 +262,16 @@ export function TopBar({
         >
           <Svg path={ICONS.structure} size={18} />
         </button>
+        {/* The entry's settings and the plugins' boxes (SEO…), as beside the block editor. */}
+        <button
+          type="button"
+          className="fre-bar__btn"
+          title={t('Entry settings and SEO')}
+          aria-label={t('Entry settings and SEO')}
+          onClick={openSettings}
+        >
+          <Svg path={ICONS.entry} size={18} />
+        </button>
         <button
           type="button"
           className="fre-bar__btn"

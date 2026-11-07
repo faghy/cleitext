@@ -11,6 +11,7 @@ addMessages('it', {
   'Site settings': 'Impostazioni del sito',
   'Theme builder': 'Theme builder',
   'Entry settings': 'Impostazioni della voce',
+  'Entry settings and SEO': 'Impostazioni della voce e SEO',
   Help: 'Aiuto',
   'Exit to {list}': 'Esci a {list}',
   'Add element': 'Aggiungi elemento',
