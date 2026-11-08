@@ -286,6 +286,63 @@ describe('SEO', () => {
     expect(JSON.stringify(website.potentialAction)).toContain('/search?q={search_term_string}');
     const org = graph.find((g) => g['@type'] === 'Organization')!;
     expect(org.sameAs).toEqual(['https://www.linkedin.com/company/official']);
+
+    // A local business: a schema.org subtype, with contacts, hours and the towns served.
+    const local = await admin.request('PUT', '/api/v1/ext/seo/config', {
+      representation: {
+        kind: 'organization',
+        name: 'Assistenza Savona',
+        logo: '',
+        sameAs: [],
+        businessType: 'HomeAndConstructionBusiness',
+        business: {
+          telephone: ' +39 019 123456 ',
+          address: {
+            streetAddress: 'Via Roma 1',
+            postalCode: '17100',
+            addressLocality: 'Savona',
+            addressRegion: 'SV',
+            addressCountry: 'it',
+          },
+          areaServed: ['Savona', 'Albisola Superiore', 'Savona', ''],
+          openingHours: ['Mo-Fr 08:30-18:30', 'every day', 'Sa 09:00-12:30'],
+          priceRange: '€€',
+          vatID: 'IT01234567890',
+        },
+      },
+    });
+    expect(local.statusCode).toBe(200);
+    const localJson = /<script type="application\/ld\+json">(.*?)<\/script>/.exec(
+      (await visitor.get('/')).body,
+    )![1]!;
+    const business = (JSON.parse(localJson)['@graph'] as Record<string, unknown>[]).find(
+      (g) => g['@id'] === 'http://official.test/#organization',
+    )!;
+    expect(business).toMatchObject({
+      '@type': 'HomeAndConstructionBusiness',
+      name: 'Assistenza Savona',
+      telephone: '+39 019 123456',
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: 'Via Roma 1',
+        postalCode: '17100',
+        addressLocality: 'Savona',
+        addressRegion: 'SV',
+        addressCountry: 'IT',
+      },
+      areaServed: [
+        { '@type': 'City', name: 'Savona' },
+        { '@type': 'City', name: 'Albisola Superiore' },
+      ],
+      openingHours: ['Mo-Fr 08:30-18:30', 'Sa 09:00-12:30'],
+      priceRange: '€€',
+      vatID: 'IT01234567890',
+    });
+    // A type schema.org does not have is not kept: a plain Organization.
+    const bogus = await admin.request('PUT', '/api/v1/ext/seo/config', {
+      representation: { kind: 'organization', name: 'X', businessType: 'ApplianceRepair' },
+    });
+    expect(bogus.json().representation.businessType).toBe('');
     await admin.request('PUT', '/api/v1/ext/seo/config', {});
   });
 

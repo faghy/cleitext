@@ -46,6 +46,7 @@ beforeAll(async () => {
   owner = ownerDatabase();
   const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
   await install('setax', pluginsPath);
+  await install('seo', pluginsPath);
   app = await startTestApp({ pluginsPath });
   site = await seedSite(owner, 'setax', { locale: 'it' });
   await seedUser(owner, {
@@ -59,6 +60,8 @@ beforeAll(async () => {
   visitor = new TestClient(app, site.host, '10.44.0.2');
   const activated = await admin.post('/api/v1/plugins/setax/activate');
   expect(activated.statusCode, activated.body).toBe(200);
+  const seo = await admin.post('/api/v1/plugins/seo/activate');
+  expect(seo.statusCode, seo.body).toBe(200);
 
   // As imported from WordPress: a taxonomy of the theme on pages, and the place field.
   expect(
@@ -153,6 +156,35 @@ describe('Setax', () => {
     expect((await visitor.get('/zone?tipo=xxx&comune=albenga')).body).toMatch(
       /<meta name="robots" content="noindex, follow"/,
     );
+  });
+
+  it('describes each page with a place as a service in its town, by the business', async () => {
+    const ld = (html: string) =>
+      [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map(
+        (m) => JSON.parse(m[1]!) as Record<string, unknown>,
+      );
+    const service = (html: string) => ld(html).find((d) => d['@type'] === 'Service');
+    const before = service((await visitor.get('/riparazione-lavatrici-albenga')).body);
+    expect(before).toMatchObject({
+      '@type': 'Service',
+      name: 'Riparazione lavatrici Albenga',
+      serviceType: 'Lavatrici',
+      areaServed: { '@type': 'City', name: 'Albenga' },
+    });
+    // With the SEO plugin describing the business, it is the provider.
+    const seo = await admin.request('PUT', '/api/v1/ext/seo/config', {
+      representation: {
+        kind: 'organization',
+        name: 'Assistenza',
+        businessType: 'HomeAndConstructionBusiness',
+      },
+    });
+    expect(seo.statusCode).toBe(200);
+    const after = service((await visitor.get('/riparazione-lavatrici-albenga')).body);
+    expect(after?.provider).toEqual({ '@id': 'http://setax.test/#organization' });
+    await admin.request('PUT', '/api/v1/ext/seo/config', {});
+    // The page with the filter is not a service.
+    expect(service((await visitor.get('/zone')).body)).toBeUndefined();
   });
 
   it('lists the choices with results in the sitemap', async () => {

@@ -2,6 +2,10 @@ import { Resolver, resolveTxt } from 'node:dns/promises';
 import { defineBlock, definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
 import {
   applyTemplate,
+  businessProperties,
+  cleanBusiness,
+  EMPTY_BUSINESS,
+  isBusinessType,
   DEFAULT_TITLE,
   pageVariable,
   searchTitle,
@@ -599,6 +603,9 @@ export default definePlugin({
             sameAs: Array.isArray(rep.sameAs)
               ? rep.sameAs.map(url).filter(Boolean).slice(0, 20)
               : [],
+            businessType:
+              rep.kind !== 'person' && isBusinessType(rep.businessType) ? rep.businessType : '',
+            business: cleanBusiness(rep.business),
           },
         };
         await ctx.storage.set(request.siteId, 'config', next);
@@ -665,8 +672,11 @@ export function schemaGraph(input: GraphInput): Record<string, unknown> | null {
           caption: rep.name,
         }
       : null;
+    // A local business is an Organization of a more specific type (LocalBusiness or a
+    // subtype), with its contacts and the area it serves; its @id stays the same.
+    const business = rep.kind === 'organization' && isBusinessType(rep.businessType);
     graph.push({
-      '@type': rep.kind === 'person' ? 'Person' : 'Organization',
+      '@type': rep.kind === 'person' ? 'Person' : business ? rep.businessType : 'Organization',
       '@id': repId,
       name: rep.name,
       ...(rep.kind === 'organization' ? { url: `${origin}/` } : {}),
@@ -676,6 +686,7 @@ export function schemaGraph(input: GraphInput): Record<string, unknown> | null {
           : { logo, image: { '@id': logoId } }
         : {}),
       ...(rep.sameAs.length > 0 ? { sameAs: rep.sameAs } : {}),
+      ...(business ? businessProperties(rep.business ?? EMPTY_BUSINESS) : {}),
     });
   }
 

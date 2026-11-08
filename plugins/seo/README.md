@@ -74,5 +74,6 @@ Every page gets one schema.org graph, linked by `@id`:
 
 - **WebSite**, with a search action for the sitelinks search box;
 - **Organization** or **Person**, with logo and social profiles;
+- a **local business** (since 2.5.0): an organization of a schema.org `LocalBusiness` type chosen from a list of the real ones (e.g. `HomeAndConstructionBusiness`, `Plumber`, `Restaurant`; there is no `ApplianceRepair`), with phone, postal address, towns served (`areaServed`, as `City`), opening hours in schema.org's form (`Mo-Fr 08:30-18:30`), price range and VAT number, all optional. It keeps the organization's `@id`, so other plugins can name it as the provider of their services (Setax does);
 - **WebPage**, with its primary image and its **BreadcrumbList**;
 - **Article** for posts, with author, publisher and categories.

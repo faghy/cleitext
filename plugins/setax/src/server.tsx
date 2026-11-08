@@ -85,6 +85,72 @@ function firstTaxonomy(terms: Record<string, unknown[] | undefined>[]): string {
   return '';
 }
 
+interface Head extends Record<string, unknown> {
+  canonical?: string | null;
+  og?: Record<string, string>;
+  tags?: { tag: string; data?: unknown }[];
+}
+
+/** The @id of the business the SEO plugin's graph describes (an Organization or LocalBusiness), if any. */
+export function providerId(tags: { tag: string; data?: unknown }[] | undefined): string | null {
+  for (const tag of tags ?? []) {
+    if (tag.tag !== 'json-ld') continue;
+    const data = tag.data as { '@graph'?: { '@id'?: unknown }[] } | null;
+    for (const node of data?.['@graph'] ?? []) {
+      if (typeof node['@id'] === 'string' && node['@id'].endsWith('/#organization'))
+        return node['@id'];
+    }
+  }
+  return null;
+}
+
+/**
+ * schema.org Service of a page with a place: its type (the page's terms of
+ * the first taxonomy besides categories and tags, else its title), the town
+ * it serves and, when the SEO plugin describes the business, its provider.
+ */
+export function serviceData(
+  entry: {
+    title: string;
+    terms?: Record<string, { name: string }[] | undefined>;
+    fields?: unknown;
+  },
+  url: string,
+  provider: string | null,
+): Record<string, unknown> | null {
+  const place = placeOf(entry.fields);
+  if (!place || !url) return null;
+  const terms = entry.terms ?? {};
+  const taxonomy = firstTaxonomy([terms]);
+  const types = (taxonomy ? (terms[taxonomy] ?? []) : []).map((t) => t.name).filter(Boolean);
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    '@id': `${url}#service`,
+    name: entry.title,
+    url,
+    serviceType: types.length === 1 ? types[0] : types.length ? types : entry.title,
+    areaServed: { '@type': 'City', name: place },
+    ...(provider ? { provider: { '@id': provider } } : {}),
+  };
+}
+
+function withService<H>(
+  head: H,
+  entry: {
+    title: string;
+    url?: string;
+    terms?: Record<string, { name: string }[] | undefined>;
+    fields?: unknown;
+  },
+): H {
+  const h = head as unknown as Head;
+  const url = h.canonical || h.og?.['og:url'] || '';
+  const data = serviceData(entry, url, providerId(h.tags));
+  if (!data) return head;
+  return { ...h, tags: [...(h.tags ?? []), { tag: 'json-ld', data }] } as unknown as H;
+}
+
 /** The entries of the filter, read on the server (for the page's head and the sitemap). */
 async function itemsOf(
   ctx: PluginContext,
@@ -296,9 +362,12 @@ export default definePlugin({
       'render.head',
       async (head, context) => {
         const entry = context.entry;
-        if (context.route !== 'entry' || !entry || !context.params) return head;
+        if (context.route !== 'entry' || !entry) return head;
         const raw = findFilter(entry.document);
-        if (!raw) return head;
+        // A page with a place is a service in that town (schema.org Service), by the
+        // business the SEO plugin describes, when it does.
+        if (!raw) return withService(head, entry);
+        if (!context.params) return head;
         const { items, attrs } = await itemsOf(ctx, context.siteId, context.locale, attrsOf(raw));
         const options = choices(items);
         const { type, place, asked, invalid } = chosen(attrs, context.params, options);

@@ -11,7 +11,13 @@ import {
 } from '@cleitext/admin-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { DEFAULT_TITLE, TITLE_VARIABLES, type SeoConfig } from './config';
+import {
+  BUSINESS_TYPES,
+  DEFAULT_TITLE,
+  TITLE_VARIABLES,
+  type LocalBusinessData,
+  type SeoConfig,
+} from './config';
 import { SeoAnalysisPanel } from './panel';
 
 interface TypeView {
@@ -230,6 +236,8 @@ function SeoForm({ api, initial, tr, user }: AdminPageProps & { initial: SeoConf
   const queryClient = useQueryClient();
   const [cfg, setCfg] = useState(initial);
   const [profiles, setProfiles] = useState(initial.representation.sameAs.join('\n'));
+  const [areas, setAreas] = useState(initial.representation.business.areaServed.join('\n'));
+  const [hours, setHours] = useState(initial.representation.business.openingHours.join('\n'));
   const types = useQuery({
     queryKey: ['content-types'],
     queryFn: () => coreApi<TypeView[]>('GET', '/content-types'),
@@ -248,6 +256,11 @@ function SeoForm({ api, initial, tr, user }: AdminPageProps & { initial: SeoConf
             .split('\n')
             .map((l) => l.trim())
             .filter(Boolean),
+          business: {
+            ...cfg.representation.business,
+            areaServed: areas.split('\n'),
+            openingHours: hours.split('\n'),
+          },
         },
       }),
     onSuccess: async (next) => {
@@ -263,6 +276,12 @@ function SeoForm({ api, initial, tr, user }: AdminPageProps & { initial: SeoConf
   const rep = cfg.representation;
   const setRep = (change: Partial<SeoConfig['representation']>) =>
     setCfg((c) => ({ ...c, representation: { ...c.representation, ...change } }));
+  const biz = rep.business;
+  const setBiz = (change: Partial<LocalBusinessData>) =>
+    setRep({ business: { ...rep.business, ...change } });
+  const setAddress = (change: Partial<LocalBusinessData['address']>) =>
+    setBiz({ address: { ...rep.business.address, ...change } });
+  const it = user.locale.startsWith('it');
   const name = (n: TypeView['name']) => labelText(n, user.locale);
 
   return (
@@ -402,6 +421,121 @@ function SeoForm({ api, initial, tr, user }: AdminPageProps & { initial: SeoConf
             value={rep.logo}
             onChange={(e) => setRep({ logo: e.target.value })}
           />
+          {rep.kind === 'organization' && (
+            <label className="block space-y-1">
+              <span className="block font-medium text-slate-800">
+                {tr('Kind of organization', 'Tipo di organizzazione')}
+              </span>
+              <select
+                className="w-full rounded border border-slate-300 bg-white px-2 py-1.5"
+                value={rep.businessType}
+                onChange={(e) => setRep({ businessType: e.target.value })}
+              >
+                <option value="">
+                  {tr(
+                    'Organization (not a local business)',
+                    'Organizzazione (non un’attività locale)',
+                  )}
+                </option>
+                {BUSINESS_TYPES.map((b) => (
+                  <option key={b.type} value={b.type}>
+                    {it ? b.it : b.en} ({b.type})
+                  </option>
+                ))}
+              </select>
+              <span className="block text-xs text-slate-500">
+                {tr(
+                  'A business with a place or an area its customers know: Google reads its address, phone, hours and the towns it serves (schema.org LocalBusiness).',
+                  'Un’attività con una sede o una zona servita: Google ne legge indirizzo, telefono, orari e i comuni serviti (schema.org LocalBusiness).',
+                )}
+              </span>
+            </label>
+          )}
+          {rep.kind === 'organization' && rep.businessType && (
+            <div className="space-y-3 rounded border border-slate-200 bg-slate-50 p-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField
+                  label={tr('Phone', 'Telefono')}
+                  placeholder="+39 019 123456"
+                  value={biz.telephone}
+                  onChange={(e) => setBiz({ telephone: e.target.value })}
+                />
+                <TextField
+                  label={tr('VAT number', 'Partita IVA')}
+                  placeholder="IT01234567890"
+                  value={biz.vatID}
+                  onChange={(e) => setBiz({ vatID: e.target.value })}
+                />
+                <TextField
+                  label={tr('Street and number', 'Via e numero')}
+                  value={biz.address.streetAddress}
+                  onChange={(e) => setAddress({ streetAddress: e.target.value })}
+                />
+                <TextField
+                  label={tr('Postal code', 'CAP')}
+                  value={biz.address.postalCode}
+                  onChange={(e) => setAddress({ postalCode: e.target.value })}
+                />
+                <TextField
+                  label={tr('Town', 'Comune')}
+                  value={biz.address.addressLocality}
+                  onChange={(e) => setAddress({ addressLocality: e.target.value })}
+                />
+                <TextField
+                  label={tr('Province or region', 'Provincia o regione')}
+                  placeholder="SV"
+                  value={biz.address.addressRegion}
+                  onChange={(e) => setAddress({ addressRegion: e.target.value })}
+                />
+                <TextField
+                  label={tr('Country (two letters)', 'Paese (due lettere)')}
+                  placeholder="IT"
+                  maxLength={2}
+                  value={biz.address.addressCountry}
+                  onChange={(e) => setAddress({ addressCountry: e.target.value })}
+                />
+                <TextField
+                  label={tr('Price range', 'Fascia di prezzo')}
+                  placeholder="€€"
+                  value={biz.priceRange}
+                  onChange={(e) => setBiz({ priceRange: e.target.value })}
+                />
+              </div>
+              <label className="block space-y-1">
+                <span className="block font-medium text-slate-800">
+                  {tr('Towns served', 'Comuni serviti')}
+                </span>
+                <textarea
+                  rows={3}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5"
+                  placeholder={'Savona\nAlbisola Superiore'}
+                  value={areas}
+                  onChange={(e) => setAreas(e.target.value)}
+                />
+                <span className="block text-xs text-slate-500">
+                  {tr('One per line.', 'Uno per riga.')}
+                </span>
+              </label>
+              <label className="block space-y-1">
+                <span className="block font-medium text-slate-800">
+                  {tr('Opening hours', 'Orari di apertura')}
+                </span>
+                <textarea
+                  rows={3}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 font-mono"
+                  placeholder={'Mo-Fr 08:30-18:30\nSa 09:00-12:30'}
+                  value={hours}
+                  onChange={(e) => setHours(e.target.value)}
+                />
+                <span className="block text-xs text-slate-500">
+                  {tr(
+                    'One per line, as schema.org writes them: days Mo Tu We Th Fr Sa Su, e.g. “Mo-Fr 08:30-12:30” and “Mo-Fr 14:30-18:30”. Other lines are left out.',
+                    'Uno per riga, come li scrive schema.org: giorni Mo Tu We Th Fr Sa Su (lun–dom), es. «Mo-Fr 08:30-12:30» e «Mo-Fr 14:30-18:30». Le altre righe vengono scartate.',
+                  )}
+                </span>
+              </label>
+            </div>
+          )}
           <label className="block space-y-1">
             <span className="block font-medium text-slate-800">
               {tr('Social profiles', 'Profili social')}
