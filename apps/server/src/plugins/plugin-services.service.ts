@@ -1078,7 +1078,7 @@ export class PluginServicesProvider implements PluginServices {
       binary?: boolean;
       userAgent?: string;
     },
-  ): Promise<{ status: number; type: string; text: string; base64?: string }> {
+  ): Promise<{ status: number; type: string; text: string; base64?: string; location?: string }> {
     const res = await sendPublic(request.url, {
       method: request.method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
       ...(request.headers ? { headers: request.headers } : {}),
@@ -1088,9 +1088,16 @@ export class PluginServicesProvider implements PluginServices {
       timeoutMs: request.timeoutMs,
       userAgent: request.userAgent ?? `Cleitext-Plugin/${plugin.slug}`,
     });
+    const location = res.location ? { location: res.location } : {};
     if (request.binary)
-      return { status: res.status, type: res.type, text: '', base64: res.data.toString('base64') };
-    return { status: res.status, type: res.type, text: res.data.toString('utf8') };
+      return {
+        status: res.status,
+        type: res.type,
+        text: '',
+        base64: res.data.toString('base64'),
+        ...location,
+      };
+    return { status: res.status, type: res.type, text: res.data.toString('utf8'), ...location };
   }
 
   /** A file from a public address into the site's library (plugin API 1.30). */

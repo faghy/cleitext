@@ -184,7 +184,7 @@ export interface PluginServices {
       binary?: boolean;
       userAgent?: string;
     },
-  ): Promise<{ status: number; type: string; text: string; base64?: string }>;
+  ): Promise<{ status: number; type: string; text: string; base64?: string; location?: string }>;
   /** What the core keeps about an email on a site: account, sessions, activity. */
   corePersonalData(siteId: string, email: string): Promise<PersonalDataGroup[]>;
   /** Anonymizes the comments and removes the likes of an email (art. 17). */

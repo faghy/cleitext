@@ -1258,7 +1258,17 @@ export interface HttpApi {
      * `Cleitext-Plugin/<slug>` when left out, or on older cores.
      */
     userAgent?: string;
-  }): Promise<{ status: number; type: string; text: string; base64?: string }>;
+  }): Promise<{
+    status: number;
+    type: string;
+    text: string;
+    base64?: string;
+    /**
+     * Where a redirect (3xx) points, absolute (plugin API 1.64). Redirects are
+     * not followed: the plugin decides, e.g. a feed that moved to `https://`.
+     */
+    location?: string;
+  }>;
 }
 
 // ---- Import -------------------------------------------------------------------------

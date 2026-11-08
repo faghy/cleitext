@@ -223,7 +223,7 @@ export async function fetchPublic(
 export async function sendPublic(
   address: string,
   options: PublicFetchOptions,
-): Promise<{ status: number; type: string; data: Buffer }> {
+): Promise<{ status: number; type: string; data: Buffer; location?: string }> {
   let url: URL;
   try {
     url = new URL(address);
@@ -231,5 +231,11 @@ export async function sendPublic(
     throw new PublicFetchError('Not a valid address.');
   }
   const res = await get(url, options);
-  return { status: res.status, type: res.type.split(';')[0]!.trim().toLowerCase(), data: res.data };
+  return {
+    status: res.status,
+    type: res.type.split(';')[0]!.trim().toLowerCase(),
+    data: res.data,
+    // A redirect's target, absolute: the caller decides whether to follow it.
+    ...(res.location ? { location: new URL(res.location, url).toString() } : {}),
+  };
 }
