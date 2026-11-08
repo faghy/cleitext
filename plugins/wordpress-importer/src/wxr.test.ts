@@ -180,6 +180,27 @@ ${links
     ).not.toContain(hint);
   });
 
+  it('sets the front page WordPress showed: the page whose link is the site address', () => {
+    const site = (links: string[]) => `<?xml version="1.0"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel><title>Site</title><link>https://site.example</link><wp:wxr_version>1.2</wp:wxr_version><wp:base_blog_url>https://site.example</wp:base_blog_url>
+${links
+  .map(
+    (link, i) =>
+      `<item><title>P${i}</title><link>${link}</link><wp:post_id>${i + 1}</wp:post_id><wp:post_name>p${i}</wp:post_name><wp:post_type>page</wp:post_type><wp:status>publish</wp:status><content:encoded><![CDATA[<p>x</p>]]></content:encoded></item>`,
+  )
+  .join('')}
+</channel></rss>`;
+    const front = (links: string[]) =>
+      wxrToDocument(site(links), { locale: 'it' }).document.site.frontPageRef;
+    expect(front(['https://site.example/chi-siamo/', 'https://site.example/'])).toBe('post:2');
+    expect(front(['http://site.example'])).toBe('post:1');
+    // Latest posts on the front page: no page has the site's address.
+    expect(
+      front(['https://site.example/home/', 'https://site.example/?page_id=2']),
+    ).toBeUndefined();
+  });
+
   it('keeps SEO data, featured images and the types and taxonomies of themes', () => {
     const meta = (key: string, value: string) =>
       `<wp:postmeta><wp:meta_key>${key}</wp:meta_key><wp:meta_value><![CDATA[${value}]]></wp:meta_value></wp:postmeta>`;

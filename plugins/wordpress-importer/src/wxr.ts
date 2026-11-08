@@ -1139,6 +1139,23 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   const newsletterLine = newsletterEmbedsWarning(newsletterEmbeds);
   if (newsletterLine) warnings.push(newsletterLine);
 
+  // The page WordPress showed on its front page (Settings → Reading, `page_on_front`,
+  // not in the export): get_permalink() gives it the site's own address.
+  const siteRoot = (url: string) =>
+    url
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/+$/, '')
+      .toLowerCase();
+  const frontPageRef = baseUrl
+    ? entries.find(
+        (e) =>
+          e.type === 'page' &&
+          e.status === 'published' &&
+          !e.parentRef &&
+          siteRoot(sources.get(e.ref)?.link ?? '') === siteRoot(baseUrl),
+      )?.ref
+    : undefined;
+
   return {
     warnings,
     users: assigned
@@ -1163,6 +1180,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       },
       site: {
         ...(text(channel.title) ? { title: decode(text(channel.title)) } : {}),
+        // The static front page: WordPress exports its link as the site's own address.
+        ...(frontPageRef ? { frontPageRef } : {}),
         ...(text(channel.description) ? { tagline: decode(text(channel.description)) } : {}),
         ...(additionalCss.css ? { additionalCss: { site: additionalCss.css } } : {}),
         // WordPress themes (Divi, Elementor's, most others) have no automatic dark
