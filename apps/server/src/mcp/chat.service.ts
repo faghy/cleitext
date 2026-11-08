@@ -240,6 +240,65 @@ tell them to reload the editor to see it.`
     emit({ type: 'done', messages });
   }
 
+  /**
+   * One answer of the site's AI provider for a plugin (`ctx.ai.complete`,
+   * plugin API 1.64): messages in, text out, without tools. The provider and
+   * its key stay the core's; the plugin never sees them.
+   */
+  async generate(
+    siteId: string,
+    input: {
+      messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+      maxTokens?: number;
+      temperature?: number;
+    },
+  ): Promise<{ text: string; model: string; usage: { input: number; output: number } | null }> {
+    const provider = await this.load(siteId);
+    if (!provider) {
+      throw new Error('No AI provider is set for this site (Admin → Chriss → Settings).');
+    }
+    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        messages: input.messages,
+        ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
+        ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+      }),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      let detail = text.slice(0, 500);
+      try {
+        const parsed = JSON.parse(text) as { error?: { message?: string } | string };
+        detail =
+          typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message ?? detail);
+      } catch {
+        // Not JSON: the start of the body is shown.
+      }
+      throw new Error(`The AI provider answered ${response.status}: ${detail}`);
+    }
+    const data = JSON.parse(text) as {
+      model?: string;
+      choices?: { message?: { content?: string | null } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    const content = data.choices?.[0]?.message?.content;
+    if (typeof content !== 'string') throw new Error('The AI provider gave no answer.');
+    return {
+      text: content,
+      model: data.model ?? provider.model,
+      usage: data.usage
+        ? { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 }
+        : null,
+    };
+  }
+
   private async complete(
     provider: Provider,
     messages: AssistantChatMessage[] | Record<string, unknown>[],

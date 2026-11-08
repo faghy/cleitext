@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.63.0';
+export const SDK_VERSION = '1.64.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -42,6 +42,11 @@ export const PLUGIN_PERMISSIONS = [
    * to send them through an email service.
    */
   'mail:transport',
+  /**
+   * Ask the site's AI provider for texts (plugin API 1.64, `ctx.ai.complete`):
+   * the provider set by a super admin for Chriss; the plugin never sees its key.
+   */
+  'ai',
 ] as const;
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 

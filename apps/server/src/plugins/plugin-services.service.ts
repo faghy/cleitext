@@ -104,6 +104,8 @@ import { withPluginCssClasses, withThemeImport } from '../transfer/theme-import.
 import { emptyWxrMetaResult, withWxrMeta } from '../transfer/wxr-meta.js';
 import { phpMetaValue, phpUnserialize } from '@cleitext/plugin-sdk';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
+import { ChatService } from '../mcp/chat.service.js';
+import type { AiCompleteInput, AiCompleteResult } from '@cleitext/plugin-sdk';
 import { themeDirectories, themeFor } from '../public/themes.js';
 import { readThemeFile, themeFiles } from '../themes/theme-files.js';
 
@@ -130,10 +132,17 @@ export class PluginServicesProvider implements PluginServices {
     private readonly userFieldsService: UserFieldsService,
     private readonly dynamicService: DynamicSourcesService,
     private readonly optionsService: OptionsPagesService,
+    private readonly chat: ChatService,
   ) {
     host.bind(this);
     // The site's emails reach the transport plugins (plugin API 1.60).
     mail.useDeliverer((message, siteId) => host.mailDeliver(message, siteId));
+  }
+
+  // ---- AI (plugin API 1.64) ------------------------------------------------------------
+
+  aiComplete(siteId: string, input: AiCompleteInput): Promise<AiCompleteResult> {
+    return this.chat.generate(siteId, input);
   }
 
   // ---- Options pages (plugin API 1.48) --------------------------------------------------

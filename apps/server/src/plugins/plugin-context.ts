@@ -25,6 +25,8 @@ import {
   type DocumentImportOptions,
   type DynamicContext,
   type DynamicSourceInfo,
+  type AiCompleteInput,
+  type AiCompleteResult,
 } from '@cleitext/plugin-sdk';
 import type {
   FieldDefinition,
@@ -44,6 +46,8 @@ import { pluginMail } from '../mail/plugin-mail.js';
 
 /** What plugin contexts need from the core, implemented by `PluginServices`. */
 export interface PluginServices {
+  /** A text from the site's AI provider (plugin API 1.64). */
+  aiComplete(siteId: string, input: AiCompleteInput): Promise<AiCompleteResult>;
   /** Custom fields (plugin API 1.47). */
   fieldGroups(siteId: string, object?: FieldObject): Promise<FieldGroupView[]>;
   /** The fields of a plugin block (plugin API 1.49). */
@@ -863,6 +867,31 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       },
       registerTool(definition) {
         host.addAiTool(plugin, definition);
+      },
+      async complete(siteId, input) {
+        require('ai');
+        assertSiteId(siteId);
+        const messages = (Array.isArray(input?.messages) ? input.messages : [])
+          .filter(
+            (m) =>
+              m &&
+              ['system', 'user', 'assistant'].includes(m.role) &&
+              typeof m.content === 'string',
+          )
+          .slice(0, 50)
+          .map((m) => ({ role: m.role, content: m.content.slice(0, 200_000) }));
+        if (messages.length === 0) throw new Error('ctx.ai.complete: give at least one message.');
+        const maxTokens = Number(input.maxTokens);
+        const temperature = Number(input.temperature);
+        return services().aiComplete(siteId, {
+          messages,
+          ...(Number.isFinite(maxTokens) && maxTokens > 0
+            ? { maxTokens: Math.min(Math.round(maxTokens), 32_000) }
+            : {}),
+          ...(Number.isFinite(temperature)
+            ? { temperature: Math.min(Math.max(temperature, 0), 2) }
+            : {}),
+        });
       },
     },
 

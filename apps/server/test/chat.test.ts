@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ChatService } from '../src/mcp/chat.service.js';
 import {
   ownerDatabase,
   seedSite,
@@ -24,6 +25,8 @@ let provider: Server;
 let providerUrl: string;
 /** What the provider received, request by request. */
 const received: { authorization?: string; body: Record<string, unknown> }[] = [];
+/** The requests without tools (plugins, plugin API 1.64). */
+const plain: Record<string, unknown>[] = [];
 
 const MARKUP =
   '<!-- wp:heading --><h2>Opening hours</h2><!-- /wp:heading --><!-- wp:paragraph --><p>Open every day.</p><!-- /wp:paragraph -->';
@@ -67,6 +70,19 @@ beforeAll(async () => {
         return;
       }
       const body = JSON.parse(data) as Record<string, unknown>;
+      if (!body.tools) {
+        // A plugin's request (ctx.ai.complete): no tools, one text back.
+        plain.push(body);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            model: 'test-model-2026',
+            choices: [{ message: { role: 'assistant', content: 'A plain answer.' } }],
+            usage: { prompt_tokens: 12, completion_tokens: 4 },
+          }),
+        );
+        return;
+      }
       const round = received.length;
       received.push({ authorization: req.headers.authorization, body });
       res.writeHead(200, { 'content-type': 'application/json' });
@@ -209,5 +225,44 @@ describe('admin chat', () => {
     expect(String(error?.message)).toContain('The AI provider answered 404');
     expect((await root.request('DELETE', '/api/v1/assistants/provider')).statusCode).toBe(204);
     expect((await root.get('/api/v1/assistants/provider')).json()).toBeNull();
+  });
+});
+
+describe('ctx.ai.complete (plugin API 1.64)', () => {
+  it("answers with the site's provider, without tools", async () => {
+    await root.request('PUT', '/api/v1/assistants/provider', {
+      baseUrl: providerUrl,
+      model: 'test-model',
+    });
+    const chat = app.get(ChatService);
+    const answer = await chat.generate(site.id, {
+      messages: [
+        { role: 'system', content: 'Write short.' },
+        { role: 'user', content: 'Sum up the notes.' },
+      ],
+      maxTokens: 300,
+      temperature: 0.4,
+    });
+    expect(answer).toEqual({
+      text: 'A plain answer.',
+      model: 'test-model-2026',
+      usage: { input: 12, output: 4 },
+    });
+    expect(plain.at(-1)).toEqual({
+      model: 'test-model',
+      messages: [
+        { role: 'system', content: 'Write short.' },
+        { role: 'user', content: 'Sum up the notes.' },
+      ],
+      max_tokens: 300,
+      temperature: 0.4,
+    });
+  });
+
+  it('fails clearly on a site without a provider', async () => {
+    const other = await seedSite(owner, 'chat-none');
+    await expect(
+      app.get(ChatService).generate(other.id, { messages: [{ role: 'user', content: 'Hi' }] }),
+    ).rejects.toThrow('No AI provider is set for this site');
   });
 });

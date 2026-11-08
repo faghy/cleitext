@@ -1679,6 +1679,29 @@ export interface AiApi {
   addContext(section: AiContextSection): void;
   /** A tool of the plugin. */
   registerTool(definition: AiToolDefinition): void;
+  /**
+   * A text from the site's AI provider (plugin API 1.64, needs `ai`): the
+   * provider set for Chriss (any OpenAI-compatible service), whose key the
+   * plugin never sees. Throws when the site has no provider or it fails.
+   * Missing on older cores.
+   */
+  complete?(siteId: string, input: AiCompleteInput): Promise<AiCompleteResult>;
+}
+
+export interface AiCompleteInput {
+  messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+  /** At most this many tokens in the answer. */
+  maxTokens?: number;
+  /** 0 to 2; the provider's default when left out. */
+  temperature?: number;
+}
+
+export interface AiCompleteResult {
+  text: string;
+  /** The model that answered. */
+  model: string;
+  /** Tokens used, when the provider says. */
+  usage: { input: number; output: number } | null;
 }
 
 export interface PluginContext {
