@@ -263,7 +263,9 @@ describe('Prisma blocks', () => {
       'Block uagb/unknown-thing has no equivalent (1×)',
     );
 
-    const html = (await visitor.get('/home')).body;
+    // WordPress showed this page on its front page (its link is the site's address):
+    // it is the front page here too (WordPress Importer 1.37.1).
+    const html = (await visitor.get('/')).body;
     expect(html).toContain(
       'class="wp-block-prisma-container pr-container pr-block-9ccf5722 alignfull pr-is-root"',
     );

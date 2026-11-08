@@ -192,7 +192,7 @@ ${links
   .join('')}
 </channel></rss>`;
     const front = (links: string[]) =>
-      wxrToDocument(site(links), { locale: 'it' }).document.site.frontPageRef;
+      wxrToDocument(site(links), { locale: 'it' }).document.site?.frontPageRef;
     expect(front(['https://site.example/chi-siamo/', 'https://site.example/'])).toBe('post:2');
     expect(front(['http://site.example'])).toBe('post:1');
     // Latest posts on the front page: no page has the site's address.
