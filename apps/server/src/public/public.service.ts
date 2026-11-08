@@ -2316,6 +2316,8 @@ export class PublicService {
       locale: scope.locale,
       route: route as RenderHookContext['route'],
       path: scope.path,
+      // The address's query parameters (plugin API 1.63), e.g. a filter's choices.
+      ...(scope.params && Object.keys(scope.params).length ? { params: scope.params } : {}),
       ...(entry ? { entry } : {}),
       ...(scope.editorFrame ? { editorFrame: true } : {}),
       ...(scope.viewer ? { signedIn: true } : {}),

@@ -265,6 +265,12 @@ export interface RenderHookContext {
   locale: string;
   route: 'entry' | 'archive' | 'search' | '404' | 'maintenance';
   path: string;
+  /**
+   * The address's query parameters (plugin API 1.63; missing when there are
+   * none and on older cores), e.g. the choices of a filter block, so that a
+   * plugin gives such a page its own title, description and canonical address.
+   */
+  params?: Record<string, string>;
   /** Set on single entries. */
   entry?: PublicEntry;
   /** Adds a page-cache tag, so the page refreshes when that data changes. */
