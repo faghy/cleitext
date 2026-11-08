@@ -7,5 +7,12 @@
   "author": "Cleitext",
   "license": "GPL-2.0-or-later",
   "server": "dist/server.js",
-  "permissions": ["blocks", "settings:own", "theme:hooks", "content:read", "content:write", "import"]
+  "permissions": [
+    "blocks",
+    "settings:own",
+    "theme:hooks",
+    "content:read",
+    "content:write",
+    "import"
+  ]
 }
