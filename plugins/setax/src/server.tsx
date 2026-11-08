@@ -358,6 +358,20 @@ export default definePlugin({
     );
 
     // Each choice with results is a page of its own for search engines; the others stay out.
+    // With a valid choice the page's own heading names it too ("Lavatrici a Savona"),
+    // as its <title>; otherwise the page keeps its title (plugin API 1.65).
+    ctx.hooks.filter('render.title', async (title, context) => {
+      const entry = context.entry;
+      if (context.route !== 'entry' || !entry || !context.params) return title;
+      const raw = findFilter(entry.document);
+      if (!raw) return title;
+      const { items, attrs } = await itemsOf(ctx, context.siteId, context.locale, attrsOf(raw));
+      const { type, place, asked, invalid } = chosen(attrs, context.params, choices(items));
+      if (!asked || invalid || (!type && !place)) return title;
+      if (select(items, type?.slug ?? null, place?.slug ?? null).length === 0) return title;
+      return headingOf(wordingOf(attrs), type, place) || title;
+    });
+
     ctx.hooks.filter(
       'render.head',
       async (head, context) => {

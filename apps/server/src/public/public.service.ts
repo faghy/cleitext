@@ -1569,6 +1569,14 @@ export class PublicService {
         scope.siteId,
       );
       publicEntry.document = { ...publicEntry.document, blocks };
+      // The title the page shows (the theme's heading); the <title> stays render.head's.
+      const title = await this.plugins.applyFilter(
+        'render.title',
+        publicEntry.title,
+        { ...this.hookContext(scope, 'entry', publicEntry), entry: publicEntry },
+        scope.siteId,
+      );
+      if (typeof title === 'string' && title.trim()) publicEntry.title = title;
     }
 
     const alternates = [

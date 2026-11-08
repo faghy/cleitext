@@ -136,6 +136,12 @@ describe('Setax', () => {
     expect(html).toContain('Riparazione lavatrici Albenga');
     expect(html).not.toContain('>Riparazione frigoriferi Albenga<');
     expect(html).toMatch(/<title>Lavatrici ad Albenga/);
+    // The page's own heading names the choice too (plugin API 1.65).
+    expect(html).toMatch(/<h1[^>]*>Lavatrici ad Albenga<\/h1>/);
+    expect((await visitor.get('/zone')).body).toMatch(/<h1[^>]*>Tipo e Zone<\/h1>/);
+    expect((await visitor.get('/zone?tipo=xxx&comune=albenga')).body).toMatch(
+      /<h1[^>]*>Tipo e Zone<\/h1>/,
+    );
     expect(html).toContain(
       '<link rel="canonical" href="http://setax.test/zone?tipo=lavatrici&amp;comune=albenga"',
     );

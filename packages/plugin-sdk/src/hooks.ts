@@ -541,6 +541,12 @@ export interface Filters {
   /** Blocks of an entry before rendering, e.g. to add a details box (needs `theme:hooks`). */
   'render.blocks': [blocks: CxdBlock[], context: RenderHookContext & { entry: PublicEntry }];
   /**
+   * The title of an entry as its page shows it, e.g. in the theme's heading
+   * (plugin API 1.65, needs `theme:hooks`): a filter page can show its
+   * choice ("Washing machines in Savona"). The `<title>` is `render.head`'s.
+   */
+  'render.title': [title: string, context: RenderHookContext & { entry: PublicEntry }];
+  /**
    * Content for the theme's locations (header, footer, single, archive),
    * replacing what the theme shows there, e.g. templates of a theme builder
    * (needs `theme:hooks`). Themes mark them with `<Location>`. Since plugin
