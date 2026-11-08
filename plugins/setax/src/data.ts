@@ -124,3 +124,13 @@ export function choiceUrl(
   ].join('&');
   return query ? `${base}?${query}` : base;
 }
+
+/** Fills `{n}` with how many, with the noun after it in the singular for one ("1 risultato"). */
+export function fillCount(text: string, n: number): string {
+  const filled = text.replace(/\{n\}/g, String(n));
+  if (n !== 1) return filled;
+  return filled
+    .replace(/(^|[^\d])1 risultati\b/g, '$11 risultato')
+    .replace(/(^|[^\d])1 results\b/g, '$11 result')
+    .replace(/(^|[^\d])1 servizi\b/g, '$11 servizio');
+}

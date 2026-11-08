@@ -149,6 +149,10 @@ describe('Setax', () => {
     expect(page.body).toContain('Nessun risultato trovato.');
     expect(page.body).toMatch(/<meta name="robots" content="noindex, follow"/);
     expect((await visitor.get('/zone?tipo=sconosciuto')).body).toMatch(/noindex, follow/);
+    // A choice with a value that does not exist, even next to a valid one.
+    expect((await visitor.get('/zone?tipo=xxx&comune=albenga')).body).toMatch(
+      /<meta name="robots" content="noindex, follow"/,
+    );
   });
 
   it('lists the choices with results in the sitemap', async () => {

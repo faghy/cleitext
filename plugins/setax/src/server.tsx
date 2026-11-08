@@ -8,6 +8,7 @@ import {
   choiceUrl,
   choices,
   combinations,
+  fillCount,
   fillTemplate,
   headingOf,
   select,
@@ -300,11 +301,11 @@ export default definePlugin({
         if (!raw) return head;
         const { items, attrs } = await itemsOf(ctx, context.siteId, context.locale, attrsOf(raw));
         const options = choices(items);
-        const { type, place, asked } = chosen(attrs, context.params, options);
+        const { type, place, asked, invalid } = chosen(attrs, context.params, options);
         if (!asked) return head;
         const results = type || place ? select(items, type?.slug ?? null, place?.slug ?? null) : [];
-        if (results.length === 0) {
-          // A choice that does not exist or has no results: out of search, the links still followed.
+        if (invalid || results.length === 0) {
+          // A choice that does not exist (even in part) or has no results: out of search, the links still followed.
           return { ...head, robots: 'noindex, follow' };
         }
         const base = (head.canonical ?? '').split('?')[0] || entry.url;
@@ -316,9 +317,10 @@ export default definePlugin({
         );
         const heading = headingOf(wordingOf(attrs), type, place);
         const description = text(
-          fillTemplate(attrs.description, type, place)
-            .replace(/\{n\}/g, String(results.length))
-            .replace(/^[:\s]+/, ''),
+          fillCount(fillTemplate(attrs.description, type, place), results.length).replace(
+            /^[:\s]+/,
+            '',
+          ),
           160,
         );
         const siteName = head.og['og:site_name'] ?? '';

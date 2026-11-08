@@ -92,13 +92,17 @@ export function chosen(
   a: FilterAttrs,
   params: Record<string, string> | undefined,
   options: { types: Choice[]; places: Choice[] },
-): { type: Choice | null; place: Choice | null; asked: boolean } {
+): { type: Choice | null; place: Choice | null; asked: boolean; invalid: boolean } {
   const rawType = params?.[a.paramType]?.trim() ?? '';
   const rawPlace = params?.[a.paramPlace]?.trim() ?? '';
+  const type = options.types.find((t) => t.slug === rawType) ?? null;
+  const place = options.places.find((p) => p.slug === rawPlace) ?? null;
   return {
-    type: options.types.find((t) => t.slug === rawType) ?? null,
-    place: options.places.find((p) => p.slug === rawPlace) ?? null,
+    type,
+    place,
     asked: rawType !== '' || rawPlace !== '',
+    // A value given that names no type or place, e.g. `?tipo=xxx&zona=albenga`.
+    invalid: (rawType !== '' && !type) || (rawPlace !== '' && !place),
   };
 }
 

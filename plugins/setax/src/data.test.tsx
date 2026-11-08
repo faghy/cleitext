@@ -1,6 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { choiceUrl, choices, combinations, headingOf, select, slugify, type Item } from './data';
+import {
+  choiceUrl,
+  choices,
+  combinations,
+  fillCount,
+  headingOf,
+  select,
+  slugify,
+  type Item,
+} from './data';
 import { attrsOf, Filter } from './render';
 
 const item = (id: string, title: string, types: string[], place: string): Item => ({
@@ -114,5 +123,18 @@ describe('the import from WordPress', () => {
     expect(out.entries).toEqual({ 'post:1': { setax: { place: 'Albenga' } } });
     expect(out.warnings).toEqual(['Setax: the place (comune) of 1 entries was imported.']);
     expect(importPlaces(empty, [], 'comune', 'setax')).toBe(empty);
+  });
+});
+
+describe('the count in the description', () => {
+  it('is singular for one result', () => {
+    expect(fillCount('Lavatrici ad Albenga: {n} risultati.', 1)).toBe(
+      'Lavatrici ad Albenga: 1 risultato.',
+    );
+    expect(fillCount('Lavatrici ad Albenga: {n} risultati.', 11)).toBe(
+      'Lavatrici ad Albenga: 11 risultati.',
+    );
+    expect(fillCount('{n} results', 1)).toBe('1 result');
+    expect(fillCount('{n} risultati', 21)).toBe('21 risultati');
   });
 });
