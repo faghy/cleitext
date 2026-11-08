@@ -33,7 +33,40 @@ interface Settings extends Record<string, unknown> {
   showTagline?: boolean;
   showSearch?: boolean;
   footerText?: string;
+  /** The credit after the footer text (default on): Cleitext's, or `creditText`. */
+  showPoweredBy?: boolean;
+  creditText?: string;
+  creditUrl?: string;
   colorScheme?: string;
+}
+
+/** Cleitext's site, where the default credit leads. */
+export const CLEITEXT_URL = 'https://cleitext.com';
+
+/**
+ * The credit after the footer text: “powered by Cleitext” linking to
+ * cleitext.com, or the site's own (e.g. its web agency), or nothing.
+ */
+export function Credit({ settings, poweredBy }: { settings: Settings; poweredBy: string }) {
+  if (settings.showPoweredBy === false) return null;
+  const text = typeof settings.creditText === 'string' ? settings.creditText.trim() : '';
+  const url =
+    typeof settings.creditUrl === 'string' && /^https?:\/\//i.test(settings.creditUrl.trim())
+      ? settings.creditUrl.trim()
+      : '';
+  if (text)
+    return (
+      <>
+        {' · '}
+        {url ? <a href={url}>{text}</a> : text}
+      </>
+    );
+  return (
+    <>
+      {' · '}
+      {poweredBy} <a href={CLEITEXT_URL}>Cleitext</a>
+    </>
+  );
 }
 
 /**
@@ -161,8 +194,8 @@ function Layout({ head, css, children }: LayoutProps) {
                 </nav>
               )}
               <p>
-                {settings.footerText || `© ${new Date().getFullYear()} ${page.site.title}`} ·{' '}
-                {t.poweredBy} <a href="https://github.com/faghy/cleitext">Cleitext</a>
+                {settings.footerText || `© ${new Date().getFullYear()} ${page.site.title}`}
+                <Credit settings={settings} poweredBy={t.poweredBy} />
               </p>
             </div>
           </footer>
@@ -397,6 +430,34 @@ export const theme = defineTheme({
       type: 'text',
       label: { en: 'Footer text', it: 'Testo del piè di pagina' },
       maxLength: 200,
+    },
+    {
+      name: 'showPoweredBy',
+      type: 'boolean',
+      label: {
+        en: 'Show “powered by Cleitext” in the footer',
+        it: 'Mostra «realizzato con Cleitext» nel piè di pagina',
+      },
+      default: true,
+    },
+    {
+      name: 'creditText',
+      type: 'text',
+      label: { en: 'Credit in its place', it: 'Credito al suo posto' },
+      help: {
+        en: 'E.g. “Website by Studio Rossi”: replaces “powered by Cleitext”. Empty: Cleitext’s.',
+        it: 'Es. «Sito realizzato da Studio Rossi»: sostituisce «realizzato con Cleitext». Vuoto: quello di Cleitext.',
+      },
+      maxLength: 120,
+    },
+    {
+      name: 'creditUrl',
+      type: 'url',
+      label: { en: 'Link of the credit', it: 'Link del credito' },
+      help: {
+        en: 'The address the credit in its place links to (optional).',
+        it: 'L’indirizzo a cui porta il credito al suo posto (facoltativo).',
+      },
     },
   ],
   areas: { footer: 'Footer' },

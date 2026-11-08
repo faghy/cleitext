@@ -102,6 +102,34 @@ describe('theme settings and areas', () => {
     expect(home.body).toContain('Made in Rome');
     expect(home.body).toContain('role="search"');
     expect(home.body).toContain('--accent: #aa3300');
+    // The credit leads to Cleitext's site.
+    expect(home.body).toContain('powered by <a href="https://cleitext.com">Cleitext</a>');
+  });
+
+  it('lets the site replace or hide the credit in the footer', async () => {
+    const put = (values: Record<string, unknown>) =>
+      admin.request('PUT', '/api/v1/themes/active/settings', { values });
+    await put({
+      footerText: 'Made in Rome',
+      creditText: 'Website by Studio Rossi',
+      creditUrl: 'https://studiorossi.example',
+    });
+    let home = (await visitor.get('/')).body;
+    expect(home).toContain(
+      'Made in Rome · <a href="https://studiorossi.example">Website by Studio Rossi</a>',
+    );
+    expect(home).not.toContain('>Cleitext</a>');
+    await put({
+      footerText: 'Made in Rome',
+      showPoweredBy: false,
+      creditText: 'Website by Studio Rossi',
+    });
+    home = (await visitor.get('/')).body;
+    expect(home).not.toContain('Studio Rossi');
+    expect(home).not.toContain('>Cleitext</a>');
+    expect(home).toContain('Made in Rome</p>');
+    // Back to the settings the next tests expect.
+    await put({ showSearch: true, footerText: 'Made in Rome', accentColor: '#aa3300' });
   });
 
   it('previews unsaved settings without saving them', async () => {
