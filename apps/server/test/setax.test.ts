@@ -77,12 +77,25 @@ beforeAll(async () => {
     (await admin.post('/api/v1/taxonomies/elettrodomestici/terms', { name })).json() as {
       id: string;
     };
+  // A second taxonomy on the same pages, as the brands of assistenzasavona.it: never the type.
+  expect(
+    (
+      await admin.post('/api/v1/taxonomies', {
+        slug: 'marche',
+        name: { it: 'Marche' },
+        contentTypes: ['page'],
+      })
+    ).statusCode,
+  ).toBe(201);
+  const aeg = (await admin.post('/api/v1/taxonomies/marche/terms', { name: 'Aeg' })).json() as {
+    id: string;
+  };
   const lavatrici = await term('Lavatrici');
   const frigo = await term('Frigoriferi a incasso');
   const page = async (title: string, terms: string[], place: string) => {
     const created = (await admin.post('/api/v1/entries', { type: 'page', title })).json();
     const saved = await admin.request('PATCH', `/api/v1/entries/${created.id}`, {
-      terms: { elettrodomestici: terms },
+      terms: { marche: [aeg.id], elettrodomestici: terms },
       fields: { setax: { place } },
     });
     expect(saved.statusCode, saved.body).toBe(200);
@@ -136,6 +149,20 @@ describe('Setax', () => {
     expect(html).toContain('Riparazione lavatrici Albenga');
     expect(html).not.toContain('>Riparazione frigoriferi Albenga<');
     expect(html).toMatch(/<title>Lavatrici ad Albenga/);
+    // One graph (the SEO plugin's): its page is the choice, with one breadcrumb ending in it.
+    const blocks = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map(
+      (m) => JSON.parse(m[1]!) as Record<string, unknown>,
+    );
+    const nodes = blocks.flatMap((b) => (b['@graph'] as Record<string, unknown>[]) ?? [b]);
+    const crumbs = nodes.filter((n) => n['@type'] === 'BreadcrumbList');
+    expect(crumbs).toHaveLength(1);
+    const choiceUrl = 'http://setax.test/zone?tipo=lavatrici&comune=albenga';
+    const webPage = nodes.find((n) => n['@type'] === 'WebPage');
+    expect(webPage).toMatchObject({ '@id': choiceUrl, url: choiceUrl });
+    expect(String(webPage!.name)).toMatch(/^Lavatrici ad Albenga/);
+    const steps = crumbs[0]!.itemListElement as { name: string; item?: string }[];
+    expect(steps.at(-1)).toMatchObject({ name: 'Lavatrici ad Albenga' });
+    expect(steps.at(-2)).toMatchObject({ name: 'Tipo e Zone', item: 'http://setax.test/zone' });
     // The page's own heading names the choice too (plugin API 1.65).
     expect(html).toMatch(/<h1[^>]*>Lavatrici ad Albenga<\/h1>/);
     expect((await visitor.get('/zone')).body).toMatch(/<h1[^>]*>Tipo e Zone<\/h1>/);

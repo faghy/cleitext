@@ -1,6 +1,6 @@
 {
   "name": "@cleitext/plugin-setax",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Cleitext plugin: a filter by type and place, each choice a page of its own for search engines.",
   "license": "GPL-2.0-or-later",

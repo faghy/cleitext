@@ -16,6 +16,7 @@ import {
   type Item,
 } from './data';
 import { importPlaces } from './import';
+import { choiceTags } from './schema';
 import { attrsOf, chosen, DEFAULT_ATTRS, Filter, wordingOf, type FilterAttrs } from './render';
 
 /**
@@ -45,6 +46,17 @@ const SETTINGS: FieldDefinition[] = [
     help: {
       en: 'Its value becomes the Place of each page on import (an ACF field or any post meta), e.g. comune.',
       it: 'Il suo valore diventa la Località di ogni pagina all’importazione (un campo ACF o qualsiasi meta), es. comune.',
+    },
+  },
+  {
+    name: 'type_taxonomy',
+    type: 'text',
+    maxLength: 64,
+    default: '',
+    label: { en: 'Taxonomy of the types', it: 'Tassonomia dei tipi' },
+    help: {
+      en: 'Its slug, e.g. elettrodomestici: the type of service of each page, for search engines. Empty: the one of the filter block.',
+      it: 'Il suo slug, es. elettrodomestici: il tipo di servizio di ogni pagina, per i motori di ricerca. Vuoto: quella del blocco filtro.',
     },
   },
 ];
@@ -106,7 +118,7 @@ export function providerId(tags: { tag: string; data?: unknown }[] | undefined):
 
 /**
  * schema.org Service of a page with a place: its type (the page's terms of
- * the first taxonomy besides categories and tags, else its title), the town
+ * the taxonomy of the types, else its title), the town
  * it serves and, when the SEO plugin describes the business, its provider.
  */
 export function serviceData(
@@ -117,11 +129,13 @@ export function serviceData(
   },
   url: string,
   provider: string | null,
+  /** The taxonomy of the types (Settings → Setax, or the filter's); else the first one. */
+  typeTaxonomy = '',
 ): Record<string, unknown> | null {
   const place = placeOf(entry.fields);
   if (!place || !url) return null;
   const terms = entry.terms ?? {};
-  const taxonomy = firstTaxonomy([terms]);
+  const taxonomy = typeTaxonomy || firstTaxonomy([terms]);
   const types = (taxonomy ? (terms[taxonomy] ?? []) : []).map((t) => t.name).filter(Boolean);
   return {
     '@context': 'https://schema.org',
@@ -143,10 +157,11 @@ function withService<H>(
     terms?: Record<string, { name: string }[] | undefined>;
     fields?: unknown;
   },
+  typeTaxonomy: string,
 ): H {
   const h = head as unknown as Head;
   const url = h.canonical || h.og?.['og:url'] || '';
-  const data = serviceData(entry, url, providerId(h.tags));
+  const data = serviceData(entry, url, providerId(h.tags), typeTaxonomy);
   if (!data) return head;
   return { ...h, tags: [...(h.tags ?? []), { tag: 'json-ld', data }] } as unknown as H;
 }
@@ -358,6 +373,19 @@ export default definePlugin({
     );
 
     // Each choice with results is a page of its own for search engines; the others stay out.
+    // The taxonomy of the types: the one set in Settings → Setax, else the one of the
+    // filter (remembered when its page is shown), else each page's first.
+    const typeTaxonomy = async (siteId: string): Promise<string> => {
+      const chosenTaxonomy = String((await ctx.settings.get(siteId)).type_taxonomy ?? '').trim();
+      if (chosenTaxonomy) return chosenTaxonomy;
+      return (await ctx.storage.get<string>(siteId, 'typeTaxonomy')) ?? '';
+    };
+    const rememberTaxonomy = async (siteId: string, taxonomy: string) => {
+      if (!taxonomy) return;
+      if ((await ctx.storage.get<string>(siteId, 'typeTaxonomy')) !== taxonomy)
+        await ctx.storage.set(siteId, 'typeTaxonomy', taxonomy);
+    };
+
     // With a valid choice the page's own heading names it too ("Lavatrici a Savona"),
     // as its <title>; otherwise the page keeps its title (plugin API 1.65).
     ctx.hooks.filter('render.title', async (title, context) => {
@@ -380,9 +408,13 @@ export default definePlugin({
         const raw = findFilter(entry.document);
         // A page with a place is a service in that town (schema.org Service), by the
         // business the SEO plugin describes, when it does.
-        if (!raw) return withService(head, entry);
-        if (!context.params) return head;
+        if (!raw) return withService(head, entry, await typeTaxonomy(context.siteId));
+        if (!context.params) {
+          await rememberTaxonomy(context.siteId, attrsOf(raw).taxonomy);
+          return head;
+        }
         const { items, attrs } = await itemsOf(ctx, context.siteId, context.locale, attrsOf(raw));
+        await rememberTaxonomy(context.siteId, attrs.taxonomy);
         const options = choices(items);
         const { type, place, asked, invalid } = chosen(attrs, context.params, options);
         if (!asked) return head;
@@ -418,7 +450,15 @@ export default definePlugin({
           robots: head.robots && /noindex/.test(head.robots) ? head.robots : 'index, follow',
           og: { ...head.og, 'og:title': heading, 'og:description': description, 'og:url': url },
           tags: [
-            ...(head.tags ?? []),
+            ...choiceTags(head.tags, {
+              pageUrl: head.canonical ?? '',
+              url,
+              title,
+              heading,
+              description,
+              // The page's own title (the entry shows the choice since render.title).
+              pageTitle: (await ctx.content.get(context.siteId, entry.id))?.title ?? entry.title,
+            }),
             {
               tag: 'json-ld',
               data: {
@@ -433,17 +473,6 @@ export default definePlugin({
                   url: absolute(item.url),
                   name: item.title,
                 })),
-              },
-            },
-            {
-              tag: 'json-ld',
-              data: {
-                '@context': 'https://schema.org',
-                '@type': 'BreadcrumbList',
-                itemListElement: [
-                  { '@type': 'ListItem', position: 1, name: entry.title, item: absolute(base) },
-                  { '@type': 'ListItem', position: 2, name: heading, item: url },
-                ],
               },
             },
           ],
