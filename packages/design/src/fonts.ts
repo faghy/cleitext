@@ -85,18 +85,20 @@ export function isBunnyCssUrl(value: string): boolean {
   );
 }
 
-/** A Bunny font file address: https, fonts.bunny.net, `/<family>/files/<file>.woff2` or `.woff`. */
+/**
+ * A Bunny font file address: https, fonts.bunny.net, `/<family>/files/<file>.woff2`
+ * or `.woff`; or, for the families Bunny now serves from Fontsource (Cormorant,
+ * EB Garamond…), cdn.jsdelivr.net `/fontsource/fonts/<family>@<version>/<file>`.
+ */
 export function isBunnyFileUrl(value: string): boolean {
   const url = parse(value);
-  return (
-    !!url &&
-    url.protocol === 'https:' &&
-    url.hostname === 'fonts.bunny.net' &&
-    !url.port &&
-    !url.username &&
-    /^\/[a-z0-9-]+\/files\/[\w.-]+\.(woff2|woff)$/.test(url.pathname) &&
-    !url.pathname.includes('..')
-  );
+  if (!url || url.protocol !== 'https:' || url.port || url.username || url.search) return false;
+  if (url.pathname.includes('..')) return false;
+  if (url.hostname === 'fonts.bunny.net')
+    return /^\/[a-z0-9-]+\/files\/[\w.-]+\.(woff2|woff)$/.test(url.pathname);
+  if (url.hostname === 'cdn.jsdelivr.net')
+    return /^\/fontsource\/fonts\/[a-z0-9-]+@[\d.]+\/[\w.-]+\.(woff2|woff)$/.test(url.pathname);
+  return false;
 }
 
 /** A stylesheet of a font service whose copies a site may keep: Google Fonts or Bunny Fonts. */

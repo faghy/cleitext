@@ -58,6 +58,26 @@ describe('Bunny Fonts and family stylesheets', () => {
     );
     expect(isBunnyFileUrl('https://fonts.bunny.net/inter/files/../x.woff2')).toBe(false);
     expect(isBunnyFileUrl('https://evil.example/inter/files/a.woff2')).toBe(false);
+    // Families Bunny serves from Fontsource on jsDelivr (Cormorant, EB Garamond).
+    const fontsource =
+      'https://cdn.jsdelivr.net/fontsource/fonts/cormorant-garamond@5.3.0/latin-400-normal.woff2';
+    expect(isBunnyFileUrl(fontsource)).toBe(true);
+    expect(isBunnyFileUrl(fontsource.replace('.woff2', '.woff'))).toBe(true);
+    expect(isBunnyFileUrl('https://cdn.jsdelivr.net/npm/evil@1.0.0/a.woff2')).toBe(false);
+    expect(isBunnyFileUrl(`${fontsource}?x=1`)).toBe(false);
+    expect(
+      cssFileUrls(
+        `@font-face{src:url(${fontsource}) format('woff2')}`,
+        fontFileCheck('https://fonts.bunny.net/css?family=cormorant-garamond:400')!,
+      ),
+    ).toEqual([fontsource]);
+    // A Google stylesheet never names them.
+    expect(
+      cssFileUrls(
+        `@font-face{src:url(${fontsource}) format('woff2')}`,
+        fontFileCheck('https://fonts.googleapis.com/css2?family=Lora')!,
+      ),
+    ).toBe(null);
     // Each service's stylesheet names files of that service only.
     const bunnyCss =
       "@font-face{src:url(https://fonts.gstatic.com/s/a/v1/b.woff2) format('woff2')}";
