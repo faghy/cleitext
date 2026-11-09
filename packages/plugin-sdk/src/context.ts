@@ -1717,6 +1717,11 @@ export interface AiCompleteResult {
   model: string;
   /** Tokens used, when the provider says. */
   usage: { input: number; output: number } | null;
+  /**
+   * Why the answer ended, as the provider says (plugin API 1.68): `stop`, or
+   * `length` when it was cut at `maxTokens`. Missing on older cores.
+   */
+  finishReason?: string;
 }
 
 export interface PluginContext {

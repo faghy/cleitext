@@ -302,7 +302,12 @@ tell them to reload the editor to see it.`
       /** Another model of the provider (plugin API 1.67); the site's when left out. */
       model?: string;
     },
-  ): Promise<{ text: string; model: string; usage: { input: number; output: number } | null }> {
+  ): Promise<{
+    text: string;
+    model: string;
+    usage: { input: number; output: number } | null;
+    finishReason?: string;
+  }> {
     const provider = await this.load(siteId);
     if (!provider) {
       throw new Error('No AI provider is set for this site (Admin → Chriss → Settings).');
@@ -334,13 +339,16 @@ tell them to reload the editor to see it.`
     }
     const data = JSON.parse(text) as {
       model?: string;
-      choices?: { message?: { content?: string | null } }[];
+      choices?: { message?: { content?: string | null }; finish_reason?: string | null }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== 'string') throw new Error('The AI provider gave no answer.');
+    const finish = data.choices?.[0]?.finish_reason;
     return {
       text: content,
+      // `length`: the answer was cut at maxTokens (plugin API 1.68).
+      ...(typeof finish === 'string' && finish ? { finishReason: finish } : {}),
       model: data.model ?? (input.model || provider.model),
       usage: data.usage
         ? { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 }

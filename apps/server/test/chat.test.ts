@@ -92,7 +92,9 @@ beforeAll(async () => {
         res.end(
           JSON.stringify({
             model: 'test-model-2026',
-            choices: [{ message: { role: 'assistant', content: 'A plain answer.' } }],
+            choices: [
+              { message: { role: 'assistant', content: 'A plain answer.' }, finish_reason: 'stop' },
+            ],
             usage: { prompt_tokens: 12, completion_tokens: 4 },
           }),
         );
@@ -262,6 +264,7 @@ describe('ctx.ai.complete (plugin API 1.64)', () => {
       text: 'A plain answer.',
       model: 'test-model-2026',
       usage: { input: 12, output: 4 },
+      finishReason: 'stop',
     });
     expect(plain.at(-1)).toEqual({
       model: 'test-model',
