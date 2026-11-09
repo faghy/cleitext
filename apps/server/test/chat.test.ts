@@ -259,6 +259,39 @@ describe('ctx.ai.complete (plugin API 1.64)', () => {
     });
   });
 
+  it('uses another model of the provider when the plugin asks (plugin API 1.67)', async () => {
+    await app.get(ChatService).generate(site.id, {
+      messages: [{ role: 'user', content: 'Hi' }],
+      model: 'cheap-model',
+    });
+    expect(plain.at(-1)!.model).toBe('cheap-model');
+  });
+
+  it('tests the connection, with a clear error for a wrong address', async () => {
+    const ok = (await root.post('/api/v1/assistants/provider/test', {})).json();
+    expect(ok).toMatchObject({ ok: true, model: 'test-model-2026' });
+    await root.request('PUT', '/api/v1/assistants/provider', {
+      baseUrl: `${providerUrl.replace(/\/v1$/, '')}/wrong`,
+      model: 'test-model',
+    });
+    const wrong = (await root.post('/api/v1/assistants/provider/test', {})).json();
+    expect(wrong.ok).toBe(false);
+    expect(wrong.error).toContain('The AI provider answered 404');
+    expect(wrong.error).toContain('usually ending in /v1');
+    await root.request('PUT', '/api/v1/assistants/provider', {
+      baseUrl: 'http://127.0.0.1:9/v1',
+      model: 'test-model',
+    });
+    const down = (await root.post('/api/v1/assistants/provider/test', {})).json();
+    expect(down.error).toMatch(/could not be reached at http:\/\/127\.0\.0\.1:9\/v1/);
+    // Editors cannot test (nor see) the provider.
+    expect((await admin.post('/api/v1/assistants/provider/test', {})).statusCode).toBe(403);
+    await root.request('PUT', '/api/v1/assistants/provider', {
+      baseUrl: providerUrl,
+      model: 'test-model',
+    });
+  });
+
   it('fails clearly on a site without a provider', async () => {
     const other = await seedSite(owner, 'chat-none');
     await expect(

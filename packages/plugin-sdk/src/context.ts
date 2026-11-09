@@ -1704,6 +1704,11 @@ export interface AiCompleteInput {
   maxTokens?: number;
   /** 0 to 2; the provider's default when left out. */
   temperature?: number;
+  /**
+   * Another model of the same provider (plugin API 1.67), e.g. a cheaper one
+   * for long texts; the site's model when left out, or on older cores.
+   */
+  model?: string;
 }
 
 export interface AiCompleteResult {

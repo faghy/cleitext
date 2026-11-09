@@ -60,6 +60,20 @@ export class ChatController {
     return this.chat.view(site.id);
   }
 
+  /** Asks the saved provider a short question: its error, as the provider gives it, when it fails. */
+  @Post('provider/test')
+  @HttpCode(200)
+  @RequireCapability('manage_plugins')
+  async testProvider(
+    @CurrentSite() site: SiteContext,
+  ): Promise<{ ok: boolean; model?: string; answer?: string; error?: string }> {
+    try {
+      return await this.chat.test(site.id);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   @Delete('provider')
   @HttpCode(204)
   @RequireCapability('manage_plugins')

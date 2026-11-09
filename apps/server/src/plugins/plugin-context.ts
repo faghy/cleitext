@@ -881,10 +881,15 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           .slice(0, 50)
           .map((m) => ({ role: m.role, content: m.content.slice(0, 200_000) }));
         if (messages.length === 0) throw new Error('ctx.ai.complete: give at least one message.');
+        const model =
+          typeof input.model === 'string' && /^[\w.:/@-]{1,100}$/.test(input.model.trim())
+            ? input.model.trim()
+            : undefined;
         const maxTokens = Number(input.maxTokens);
         const temperature = Number(input.temperature);
         return services().aiComplete(siteId, {
           messages,
+          ...(model ? { model } : {}),
           ...(Number.isFinite(maxTokens) && maxTokens > 0
             ? { maxTokens: Math.min(Math.round(maxTokens), 32_000) }
             : {}),

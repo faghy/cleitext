@@ -326,7 +326,15 @@ function ProviderForm({
     mutationFn: () => api<void>('DELETE', '/assistants/provider'),
     onSuccess: onSaved,
   });
-  const problem = error ?? save.error ?? remove.error;
+  const test = useMutation({
+    mutationFn: () =>
+      api<{ ok: boolean; model?: string; answer?: string; error?: string }>(
+        'POST',
+        '/assistants/provider/test',
+        {},
+      ),
+  });
+  const problem = error ?? save.error ?? remove.error ?? test.error;
 
   return (
     <Card title={t('AI provider for the chat')}>
@@ -339,11 +347,21 @@ function ProviderForm({
       >
         <p className="text-slate-600">
           {t(
-            'Any service with an OpenAI-compatible chat completions API: for example https://api.openai.com/v1, https://openrouter.ai/api/v1, or http://localhost:11434/v1 for Ollama on this server. Choose a model that can use tools (function calling). The provider bills the use to the account of the key.',
+            'Any service with an OpenAI-compatible chat completions API: for example https://api.openai.com/v1 (model gpt-5), https://api.anthropic.com/v1 (model claude-sonnet-5-5), https://openrouter.ai/api/v1, or http://localhost:11434/v1 for Ollama on this server. Choose a model that can use tools (function calling). The provider bills the use to the account of the key.',
           )}
         </p>
         {problem && <Alert>{errorMessage(problem)}</Alert>}
         {save.isSuccess && <Alert kind="success">{t('Saved.')}</Alert>}
+        {test.data &&
+          (test.data.ok ? (
+            <Alert kind="success">
+              {t('The provider answers: the model {model} works.', {
+                model: test.data.model ?? '',
+              })}
+            </Alert>
+          ) : (
+            <Alert>{test.data.error}</Alert>
+          ))}
         <TextField
           label={t('API address')}
           placeholder="https://api.openai.com/v1"
@@ -371,6 +389,16 @@ function ProviderForm({
           <Button type="submit" disabled={save.isPending || !baseUrl.trim() || !model.trim()}>
             {t('Save')}
           </Button>
+          {initial && (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={test.isPending || save.isPending}
+              onClick={() => test.mutate()}
+            >
+              {test.isPending ? t('Testing…') : t('Test the connection')}
+            </Button>
+          )}
           {initial && (
             <Button
               type="button"

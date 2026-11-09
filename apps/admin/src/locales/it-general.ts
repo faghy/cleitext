@@ -320,8 +320,12 @@ export const itGeneral: Messages = {
   'In the chat of your assistant, ask what you need: the ready requests above are a good start.':
     'Nella chat del tuo assistente chiedi quello che ti serve: le richieste pronte qui sopra sono un buon inizio.',
   'AI provider for the chat': 'Fornitore di IA per la chat',
-  'Any service with an OpenAI-compatible chat completions API: for example https://api.openai.com/v1, https://openrouter.ai/api/v1, or http://localhost:11434/v1 for Ollama on this server. Choose a model that can use tools (function calling). The provider bills the use to the account of the key.':
-    'Qualunque servizio con un’API chat completions compatibile con OpenAI: per esempio https://api.openai.com/v1, https://openrouter.ai/api/v1, oppure http://localhost:11434/v1 per Ollama su questo server. Scegli un modello che sappia usare gli strumenti (function calling). Il fornitore addebita l’uso all’account della chiave.',
+  'Any service with an OpenAI-compatible chat completions API: for example https://api.openai.com/v1 (model gpt-5), https://api.anthropic.com/v1 (model claude-sonnet-5-5), https://openrouter.ai/api/v1, or http://localhost:11434/v1 for Ollama on this server. Choose a model that can use tools (function calling). The provider bills the use to the account of the key.':
+    'Qualunque servizio con un’API chat completions compatibile con OpenAI: per esempio https://api.openai.com/v1 (modello gpt-5), https://api.anthropic.com/v1 (modello claude-sonnet-5-5), https://openrouter.ai/api/v1, oppure http://localhost:11434/v1 per Ollama su questo server. Scegli un modello che sappia usare gli strumenti (function calling). Il fornitore addebita l’uso all’account della chiave.',
+  'The provider answers: the model {model} works.':
+    'Il fornitore risponde: il modello {model} funziona.',
+  'Testing…': 'Provo…',
+  'Test the connection': 'Prova la connessione',
   'API address': 'Indirizzo dell’API',
   Model: 'Modello',
   'API key': 'Chiave API',

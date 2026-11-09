@@ -46,6 +46,46 @@ export interface ChatEntry {
 }
 const PROVIDER_TIMEOUT_MS = 180_000;
 
+/** The provider's chat completions, or a clear error when its address cannot be reached. */
+async function reach(baseUrl: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${baseUrl}/chat/completions`, init);
+  } catch (error) {
+    const cause = (error as { cause?: { code?: string; message?: string } }).cause;
+    const why =
+      (error as Error).name === 'TimeoutError'
+        ? 'it did not answer in time'
+        : (cause?.code ?? cause?.message ?? (error as Error).message);
+    throw new Error(
+      `The AI provider could not be reached at ${baseUrl} (${why}): check the address.`,
+    );
+  }
+}
+
+/**
+ * An error of the provider, with its own message and, for the usual
+ * mistakes, what to check: a wrong address answers 404, a wrong key 401.
+ */
+export function providerFailure(status: number, text: string, baseUrl: string): Error {
+  let detail = text.slice(0, 500);
+  try {
+    const parsed = JSON.parse(text) as { error?: { message?: string } | string };
+    detail = typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message ?? detail);
+  } catch {
+    // Not JSON: the start of the body is shown.
+  }
+  const hint =
+    status === 404 && !/model/i.test(detail)
+      ? ` The address ${baseUrl} has no chat completions API: use the API's base address, usually ending in /v1 (e.g. https://api.openai.com/v1, https://api.anthropic.com/v1, https://openrouter.ai/api/v1).`
+      : status === 401 || status === 403
+        ? ' Check the API key.'
+        : /model/i.test(detail)
+          ? ' Check the model name: it must be one the provider lists (e.g. gpt-5, claude-sonnet-5-5).'
+          : '';
+  const said = detail.trim().replace(/\.$/, '') || 'no details';
+  return new Error(`The AI provider answered ${status}: ${said}.${hint}`);
+}
+
 interface Provider {
   baseUrl: string;
   model: string;
@@ -251,20 +291,22 @@ tell them to reload the editor to see it.`
       messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
       maxTokens?: number;
       temperature?: number;
+      /** Another model of the provider (plugin API 1.67); the site's when left out. */
+      model?: string;
     },
   ): Promise<{ text: string; model: string; usage: { input: number; output: number } | null }> {
     const provider = await this.load(siteId);
     if (!provider) {
       throw new Error('No AI provider is set for this site (Admin → Chriss → Settings).');
     }
-    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+    const response = await reach(provider.baseUrl, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
       },
       body: JSON.stringify({
-        model: provider.model,
+        model: input.model || provider.model,
         messages: input.messages,
         ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
         ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
@@ -273,15 +315,7 @@ tell them to reload the editor to see it.`
     });
     const text = await response.text();
     if (!response.ok) {
-      let detail = text.slice(0, 500);
-      try {
-        const parsed = JSON.parse(text) as { error?: { message?: string } | string };
-        detail =
-          typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message ?? detail);
-      } catch {
-        // Not JSON: the start of the body is shown.
-      }
-      throw new Error(`The AI provider answered ${response.status}: ${detail}`);
+      throw providerFailure(response.status, text, provider.baseUrl);
     }
     const data = JSON.parse(text) as {
       model?: string;
@@ -292,11 +326,20 @@ tell them to reload the editor to see it.`
     if (typeof content !== 'string') throw new Error('The AI provider gave no answer.');
     return {
       text: content,
-      model: data.model ?? provider.model,
+      model: data.model ?? (input.model || provider.model),
       usage: data.usage
         ? { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 }
         : null,
     };
+  }
+
+  /** A short question to the saved provider (Admin → Chriss → Test the connection). */
+  async test(siteId: string): Promise<{ ok: true; model: string; answer: string }> {
+    const { text, model } = await this.generate(siteId, {
+      messages: [{ role: 'user', content: 'Reply with the single word OK.' }],
+      maxTokens: 16,
+    });
+    return { ok: true, model, answer: text.trim().slice(0, 100) };
   }
 
   private async complete(
@@ -304,7 +347,7 @@ tell them to reload the editor to see it.`
     messages: AssistantChatMessage[] | Record<string, unknown>[],
     tools: unknown[],
   ): Promise<{ content?: string | null; tool_calls?: ToolCall[] }> {
-    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+    const response = await reach(provider.baseUrl, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -315,15 +358,7 @@ tell them to reload the editor to see it.`
     });
     const text = await response.text();
     if (!response.ok) {
-      let detail = text.slice(0, 500);
-      try {
-        const parsed = JSON.parse(text) as { error?: { message?: string } | string };
-        detail =
-          typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message ?? detail);
-      } catch {
-        // Not JSON: the start of the body is shown.
-      }
-      throw new Error(`The AI provider answered ${response.status}: ${detail}`);
+      throw providerFailure(response.status, text, provider.baseUrl);
     }
     const data = JSON.parse(text) as {
       choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[];
