@@ -77,12 +77,17 @@ export function providerFailure(status: number, text: string, baseUrl: string): 
   } catch {
     // Not JSON: the start of the body is shown.
   }
+  // A model the provider does not know (not every message that names "model").
+  const unknownModel =
+    /(model[^.]{0,80}(not found|does not exist|not exist|unknown|invalid|not available|not supported))|((no such|unknown|invalid) model)/i.test(
+      detail,
+    );
   const hint =
-    status === 404 && !/model/i.test(detail)
+    status === 404 && !unknownModel
       ? ` The address ${baseUrl} has no chat completions API: use the API's base address, usually ending in /v1 (e.g. https://api.openai.com/v1, https://api.anthropic.com/v1, https://openrouter.ai/api/v1).`
       : status === 401 || status === 403
         ? ' Check the API key.'
-        : /model/i.test(detail)
+        : unknownModel
           ? ' Check the model name: it must be one the provider lists (e.g. gpt-5, claude-sonnet-5-5).'
           : '';
   const said = detail.trim().replace(/\.$/, '') || 'no details';
@@ -302,21 +307,28 @@ tell them to reload the editor to see it.`
     if (!provider) {
       throw new Error('No AI provider is set for this site (Admin → Chriss → Settings).');
     }
-    const response = await reach(provider.baseUrl, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        model: input.model || provider.model,
-        messages: input.messages,
-        ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
-        ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
-      }),
-      signal: AbortSignal.timeout(GENERATE_TIMEOUT_MS),
-    });
-    const text = await response.text();
+    const send = (temperature: number | undefined) =>
+      reach(provider.baseUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model: input.model || provider.model,
+          messages: input.messages,
+          ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
+          ...(temperature !== undefined ? { temperature } : {}),
+        }),
+        signal: AbortSignal.timeout(GENERATE_TIMEOUT_MS),
+      });
+    let response = await send(input.temperature);
+    let text = await response.text();
+    // Some models refuse a temperature (e.g. the latest Claude models): asked again without it.
+    if (response.status === 400 && input.temperature !== undefined && /temperature/i.test(text)) {
+      response = await send(undefined);
+      text = await response.text();
+    }
     if (!response.ok) {
       throw providerFailure(response.status, text, provider.baseUrl);
     }

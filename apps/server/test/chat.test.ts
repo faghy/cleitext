@@ -73,6 +73,21 @@ beforeAll(async () => {
       if (!body.tools) {
         // A plugin's request (ctx.ai.complete): no tools, one text back.
         plain.push(body);
+        // As the latest Claude models: a temperature is refused.
+        if (body.model === 'no-temperature' && 'temperature' in body) {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(
+            JSON.stringify({ error: { message: '`temperature` is deprecated for this model.' } }),
+          );
+          return;
+        }
+        if (body.model === 'missing-model') {
+          res.writeHead(404, { 'content-type': 'application/json' });
+          res.end(
+            JSON.stringify({ error: { message: 'The model `missing-model` does not exist.' } }),
+          );
+          return;
+        }
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(
           JSON.stringify({
@@ -265,6 +280,25 @@ describe('ctx.ai.complete (plugin API 1.64)', () => {
       model: 'cheap-model',
     });
     expect(plain.at(-1)!.model).toBe('cheap-model');
+  });
+
+  it('asks again without a temperature when the model refuses one', async () => {
+    const chat = app.get(ChatService);
+    const before = plain.length;
+    const answer = await chat.generate(site.id, {
+      messages: [{ role: 'user', content: 'Hi' }],
+      model: 'no-temperature',
+      temperature: 0.6,
+    });
+    expect(answer.text).toBe('A plain answer.');
+    expect(plain.slice(before).map((b) => 'temperature' in b)).toEqual([true, false]);
+    // A wrong model is named as such; other refusals keep the provider's own words only.
+    await expect(
+      chat.generate(site.id, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        model: 'missing-model',
+      }),
+    ).rejects.toThrow(/does not exist\. Check the model name/);
   });
 
   it('tests the connection, with a clear error for a wrong address', async () => {
