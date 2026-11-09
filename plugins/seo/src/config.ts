@@ -5,6 +5,12 @@ export interface SeoConfig {
   hiddenTypes: string[];
   /** Taxonomies whose archives are kept out of search results. */
   hiddenTaxonomies: string[];
+  /**
+   * Per taxonomy, the fewest published entries an archive needs to be shown
+   * to search engines (since 2.6.0): below it, noindex and out of the
+   * sitemap, e.g. tags with one post. Missing or 0: no minimum.
+   */
+  minTermEntries: Record<string, number>;
   /** Images of the pages in the XML sitemaps. */
   sitemapImages: boolean;
   /** Title templates by content type, e.g. `%%title%% %%sep%% %%sitename%%`. */
@@ -234,6 +240,7 @@ export function businessProperties(b: LocalBusinessData): Record<string, unknown
 export const DEFAULT_CONFIG: SeoConfig = {
   hiddenTypes: [],
   hiddenTaxonomies: [],
+  minTermEntries: {},
   sitemapImages: true,
   titles: {},
   representation: {
@@ -323,4 +330,15 @@ export function searchTitle(title: string, rawTitle: unknown): string {
   return typeof rawTitle === 'string' && rawTitle.trim() && typed(rawTitle) === typed(title)
     ? rawTitle
     : title;
+}
+
+/** The minimums as saved: taxonomy slugs, whole numbers from 2 to 100 (1 is no minimum). */
+export function cleanMinimums(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>)
+      .filter(([slug]) => /^[a-z0-9_-]{1,64}$/.test(slug))
+      .map(([slug, value]) => [slug, Math.min(Math.trunc(Number(value) || 0), 100)] as const)
+      .filter(([, n]) => n >= 2),
+  );
 }

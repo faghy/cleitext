@@ -293,7 +293,12 @@ export interface RenderHookContext {
    * 1.57; missing on older cores), for titles such as Yoast SEO's
    * "Page 2 of 22".
    */
-  pagination?: { page: number; pages: number };
+  pagination?: {
+    page: number;
+    pages: number;
+    /** How many entries the list has in all (plugin API 1.66; missing on older cores). */
+    total?: number;
+  };
   /**
    * The visitor is signed in (plugin API 1.33). Their pages are never
    * cached, so content may depend on it.

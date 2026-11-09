@@ -333,8 +333,40 @@ function SeoForm({ api, initial, tr, user }: AdminPageProps & { initial: SeoConf
                   `Show ${name(t.name)} archives in search results`,
                   `Mostra gli archivi di ${name(t.name)} nei risultati`,
                 )}
+                {!cfg.hiddenTaxonomies.includes(t.slug) && (
+                  <span className="ml-2 flex items-center gap-1 text-slate-600">
+                    {tr('when they have at least', 'quando hanno almeno')}
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      aria-label={tr(
+                        `Fewest entries for ${name(t.name)} archives`,
+                        `Numero minimo di contenuti per gli archivi di ${name(t.name)}`,
+                      )}
+                      className="w-16 rounded border border-slate-300 px-1.5 py-0.5"
+                      value={cfg.minTermEntries[t.slug] ?? 1}
+                      onChange={(e) =>
+                        setCfg((c) => ({
+                          ...c,
+                          minTermEntries: {
+                            ...c.minTermEntries,
+                            [t.slug]: Math.max(1, Math.trunc(Number(e.target.value) || 1)),
+                          },
+                        }))
+                      }
+                    />
+                    {tr('entries', 'contenuti')}
+                  </span>
+                )}
               </label>
             ))}
+            <p className="text-xs text-slate-500">
+              {tr(
+                'Archives with fewer entries get a noindex and leave the sitemap until they grow, e.g. tags used by one post only.',
+                'Gli archivi con meno contenuti ricevono un noindex ed escono dalla sitemap finché non crescono, per esempio i tag usati da un solo articolo.',
+              )}
+            </p>
           </fieldset>
           <label className="flex items-center gap-2">
             <input

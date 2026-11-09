@@ -346,6 +346,37 @@ describe('SEO', () => {
     await admin.request('PUT', '/api/v1/ext/seo/config', {});
   });
 
+  it('keeps archives with fewer entries than the minimum out of search', async () => {
+    const tag = async (name: string) =>
+      ((await admin.post('/api/v1/taxonomies/tag/terms', { name })).json() as { id: string }).id;
+    const lonely = await tag('Lonely');
+    const busy = await tag('Busy');
+    const tagged = async (title: string, tags: string[]) => {
+      const created = (await admin.post('/api/v1/entries', { type: 'article', title })).json();
+      await admin.request('PATCH', `/api/v1/entries/${created.id}`, { terms: { tag: tags } });
+      expect((await admin.post(`/api/v1/entries/${created.id}/publish`)).statusCode).toBe(200);
+    };
+    await tagged('One', [lonely, busy]);
+    await tagged('Two', [busy]);
+    const robots = async (path: string) =>
+      /<meta name="robots" content="([^"]*)"/.exec((await visitor.get(path)).body)?.[1];
+    const sitemap = async () => (await visitor.get('/sitemap-tax-tag-en.xml')).body;
+    // No minimum: both are shown.
+    expect(await robots('/tag/lonely')).not.toContain('noindex');
+    expect(await sitemap()).toContain('/tag/lonely</loc>');
+
+    const saved = await admin.request('PUT', '/api/v1/ext/seo/config', {
+      minTermEntries: { tag: 2, category: 1, 'Bad Slug': 5 },
+    });
+    expect(saved.json().minTermEntries).toEqual({ tag: 2 });
+    expect(await robots('/tag/lonely')).toBe('noindex, follow');
+    expect(await robots('/tag/busy')).not.toContain('noindex');
+    const xml = await sitemap();
+    expect(xml).not.toContain('/tag/lonely</loc>');
+    expect(xml).toContain('/tag/busy</loc>');
+    await admin.request('PUT', '/api/v1/ext/seo/config', {});
+  });
+
   it('adds breadcrumbs, title templates and a social image', async () => {
     const parent = await publish('page', 'Services');
     const child = await publish('page', 'Design', {

@@ -175,6 +175,8 @@ export interface PublicEntry extends PublicEntrySummary {
 export interface Pagination {
   page: number;
   totalPages: number;
+  /** How many entries the list has in all (core 0.96.9; missing on older cores). */
+  total?: number;
   prevUrl: string | null;
   nextUrl: string | null;
 }

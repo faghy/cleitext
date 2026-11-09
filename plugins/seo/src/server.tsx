@@ -3,6 +3,7 @@ import { defineBlock, definePlugin, type PluginContext } from '@cleitext/plugin-
 import {
   applyTemplate,
   businessProperties,
+  cleanMinimums,
   cleanBusiness,
   EMPTY_BUSINESS,
   isBusinessType,
@@ -235,7 +236,19 @@ export default definePlugin({
 
     ctx.hooks.filter('sitemap.urls', async (urls, { siteId }) => {
       const cfg = await config(ctx, siteId);
+      // Terms with fewer entries than their taxonomy's minimum stay out, as their archives.
+      const thin = new Set<string>();
+      const counted = urls.filter(
+        (u) => u.term && (cfg.minTermEntries?.[u.term.taxonomy] ?? 0) > 0,
+      );
+      for (let i = 0; i < counted.length; i += 500) {
+        const ids = counted.slice(i, i + 500).map((u) => u.term!.id);
+        const terms = await ctx.terms.find(siteId, { ids, withCounts: true, limit: 500 });
+        for (const t of terms)
+          if ((t.count ?? 0) < (cfg.minTermEntries[t.taxonomy] ?? 0)) thin.add(t.id);
+      }
       return urls
+        .filter((url) => !(url.term && thin.has(url.term.id)))
         .filter((url) => {
           const seo = (url.entry?.fields.seo ?? {}) as SeoFields;
           if (seo.noindex) return false;
@@ -385,10 +398,21 @@ export default definePlugin({
           cfg.hiddenTaxonomies.some((t) =>
             new RegExp(`^(/[a-z]{2,3}(-[a-z]{2,4})?)?/${t}/[^/]+`).test(context.path),
           );
+        // A term's archive with fewer entries than its taxonomy asks for (e.g. a tag with one post).
+        const minimum = context.archive?.taxonomy
+          ? (cfg.minTermEntries?.[context.archive.taxonomy] ?? 0)
+          : 0;
+        const thinArchive =
+          context.route === 'archive' &&
+          Boolean(context.archive?.term) &&
+          minimum > 0 &&
+          typeof context.pagination?.total === 'number' &&
+          context.pagination.total < minimum;
         const hidden =
           Boolean(seo.noindex) ||
           Boolean(entry && cfg.hiddenTypes.includes(entry.type)) ||
-          taxonomyArchive;
+          taxonomyArchive ||
+          thinArchive;
         if (hidden) {
           next.robots = 'noindex, follow';
           next.canonical = null;
@@ -590,6 +614,7 @@ export default definePlugin({
         const next: SeoConfig = {
           hiddenTypes: slugs(body.hiddenTypes),
           hiddenTaxonomies: slugs(body.hiddenTaxonomies),
+          minTermEntries: cleanMinimums(body.minTermEntries),
           sitemapImages: body.sitemapImages !== false,
           titles: Object.fromEntries(
             Object.entries((body.titles ?? {}) as Record<string, unknown>)

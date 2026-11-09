@@ -64,6 +64,7 @@ When a published page changes its address or its parent, Cleitext redirects the 
 
 - **SEO page:**
   - which content types and taxonomy archives appear in search results;
+  - for each taxonomy, the fewest entries its archives need to appear (since 2.6.0, Cleitext 0.96.9): a tag used by one post only gets a noindex and leaves the sitemap until it has as many as you set;
   - whether images are listed in the sitemaps;
   - who the site represents (organization or person, with name, logo and social profiles).
 - **Settings → SEO:** the title separator, the default description and the X account.

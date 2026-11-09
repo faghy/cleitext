@@ -1696,6 +1696,7 @@ export class PublicService {
       pagination: {
         page: options.page,
         totalPages,
+        total,
         prevUrl: options.page > 1 ? data.urls.page(options.base, options.page - 1) : null,
         nextUrl: options.page < totalPages ? data.urls.page(options.base, options.page + 1) : null,
       },
@@ -2346,6 +2347,8 @@ export class PublicService {
             pagination: {
               page: props.pagination.page,
               pages: Math.max(props.pagination.totalPages, props.pagination.page),
+              // How many entries in all (plugin API 1.66), e.g. to keep thin archives out of search.
+              ...(props.pagination.total !== undefined ? { total: props.pagination.total } : {}),
             },
           }
         : {}),
