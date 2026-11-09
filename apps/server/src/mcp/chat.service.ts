@@ -60,6 +60,7 @@ async function reach(baseUrl: string, init: RequestInit): Promise<Response> {
         : (cause?.code ?? cause?.message ?? (error as Error).message);
     throw new Error(
       `The AI provider could not be reached at ${baseUrl} (${why}): check the address.`,
+      { cause: error },
     );
   }
 }
