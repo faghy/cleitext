@@ -45,6 +45,8 @@ export interface ChatEntry {
   editor: string;
 }
 const PROVIDER_TIMEOUT_MS = 180_000;
+/** Plugins' long texts (ctx.ai.complete), written in the background: a long article with a large model. */
+const GENERATE_TIMEOUT_MS = 300_000;
 
 /** The provider's chat completions, or a clear error when its address cannot be reached. */
 async function reach(baseUrl: string, init: RequestInit): Promise<Response> {
@@ -311,7 +313,7 @@ tell them to reload the editor to see it.`
         ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
         ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
       }),
-      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      signal: AbortSignal.timeout(GENERATE_TIMEOUT_MS),
     });
     const text = await response.text();
     if (!response.ok) {
