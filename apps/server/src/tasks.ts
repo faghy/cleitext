@@ -7,17 +7,21 @@ import { writeFile } from 'node:fs/promises';
 import {
   createDatabase,
   settings,
+  siteDomains,
   sites,
+  superAdmins,
   withContext,
   withSiteContext,
   type DatabaseClient,
 } from '@cleitext/db';
 import { licenseStorageKey } from '@cleitext/shared';
 import { AuditService } from './audit/audit.service.js';
+import { IdentityService } from './auth/identity.service.js';
+import { CatalogService } from './catalog/catalog.service.js';
 import { LICENSES_NAMESPACE } from './catalog/licenses.service.js';
 import { defaultLocaleIn, LanguagesService } from './content/languages.service.js';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { createApp } from './app.js';
 import { loadConfig, type AppConfig } from './config/config.js';
 import { DiskStorage } from './media/storage.js';
@@ -208,6 +212,104 @@ export async function activatePluginTask(
     }),
   );
   return { ...result, alreadyActive: false };
+}
+
+export interface CatalogUpdate {
+  type: 'plugin' | 'theme';
+  slug: string;
+  name: string;
+  from: string;
+  to: string;
+  /** Works with this Cleitext; otherwise the core must be updated first. */
+  compatible: boolean;
+  /** A paid item whose license no longer covers this version. */
+  renew: boolean;
+  /** After `--apply`: whether it was installed, and why not. */
+  ok?: boolean;
+  error?: string;
+}
+
+/**
+ * `cleitext catalog:update [--check]` (core 0.97): the plugins and themes of
+ * the catalog with a newer version, and with `apply` their update, as the
+ * admin's Updates page does (compatible ones only, paid ones while the
+ * license covers them; one that does not start goes back to its version).
+ * Runs as the first super admin on the oldest active site, whose licenses
+ * are used for paid items.
+ */
+export async function catalogUpdateTask(
+  context: TaskContext,
+  options: {
+    apply: boolean;
+    only?: { type: 'plugin' | 'theme'; slug: string }[];
+    /** The site whose licenses are used; the oldest active one otherwise. */
+    site?: string;
+  },
+): Promise<{ updates: CatalogUpdate[] }> {
+  const [admin] = await context.owner.db
+    .select({ id: superAdmins.userId })
+    .from(superAdmins)
+    .orderBy(asc(superAdmins.createdAt))
+    .limit(1);
+  const [site] = await context.owner.db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(
+      options.site
+        ? and(eq(sites.status, 'active'), eq(sites.slug, options.site))
+        : eq(sites.status, 'active'),
+    )
+    .orderBy(asc(sites.createdAt))
+    .limit(1);
+  if (!admin || !site) throw new Error('No super admin or no active site.');
+  const auth = await context.app.get(IdentityService).load(site.id, admin.id, '');
+  if (!auth) throw new Error('The super admin cannot be loaded.');
+  const catalog = context.app.get(CatalogService);
+  const view = await catalog.view(site.id, auth, true);
+  if (view.error && view.items.length === 0) throw new Error(`Catalog: ${view.error}`);
+  const wanted = (type: string, slug: string) =>
+    !options.only?.length || options.only.some((o) => o.type === type && o.slug === slug);
+  const updates: CatalogUpdate[] = view.items
+    .filter((i) => i.installed && i.update && wanted(i.type, i.slug))
+    .map((i) => ({
+      type: i.type,
+      slug: i.slug,
+      name: i.name,
+      from: i.installed!,
+      to: i.version,
+      compatible: i.compatible,
+      renew: i.renew,
+    }));
+  if (!options.apply) return { updates };
+  const origin = `https://${(await primaryHost(context, site.id)) ?? 'localhost'}`;
+  for (const update of updates) {
+    if (!update.compatible || update.renew) {
+      update.ok = false;
+      update.error = update.renew
+        ? 'The license does not cover this version: renew it.'
+        : 'It needs a newer Cleitext: update Cleitext first.';
+      continue;
+    }
+    try {
+      await catalog.install(update.type, update.slug, { id: site.id, auth, origin });
+      update.ok = true;
+      context.log(`Updated ${update.name} ${update.from} → ${update.to}.`);
+    } catch (error) {
+      update.ok = false;
+      update.error = error instanceof Error ? error.message : String(error);
+      context.log(`${update.name}: ${update.error}`);
+    }
+  }
+  return { updates };
+}
+
+async function primaryHost(context: TaskContext, siteId: string): Promise<string | undefined> {
+  const [row] = await context.owner.db
+    .select({ host: siteDomains.host })
+    .from(siteDomains)
+    .where(and(eq(siteDomains.siteId, siteId), eq(siteDomains.isPrimary, true)))
+    .limit(1);
+  return row?.host;
 }
 
 /** Human-readable report; the full one can be saved as JSON. */

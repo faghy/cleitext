@@ -28,3 +28,23 @@ export declare function activatePluginTask(
   context: TaskContext,
   options: { slug: string; site: string },
 ): Promise<{ slug: string; site: string; version: string; alreadyActive: boolean }>;
+
+export interface CatalogUpdate {
+  type: 'plugin' | 'theme';
+  slug: string;
+  name: string;
+  from: string;
+  to: string;
+  compatible: boolean;
+  renew: boolean;
+  ok?: boolean;
+  error?: string;
+}
+export declare function catalogUpdateTask(
+  context: TaskContext,
+  options: {
+    apply: boolean;
+    only?: { type: 'plugin' | 'theme'; slug: string }[];
+    site?: string;
+  },
+): Promise<{ updates: CatalogUpdate[] }>;

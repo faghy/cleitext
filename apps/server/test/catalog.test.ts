@@ -9,6 +9,9 @@ import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { strToU8, zipSync } from 'fflate';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { loadConfig } from '../src/config/config.js';
+import { catalogUpdateTask } from '../src/tasks.js';
+import { PluginHost } from '../src/plugins/plugin-host.service.js';
 import { MailService } from '../src/mail/mail.service.js';
 import { allowed, AutoUpdatesService } from '../src/updates/auto-updates.service.js';
 import { UpdatesService } from '../src/updates/updates.service.js';
@@ -410,5 +413,45 @@ export default sdk.defineTheme({ slug: '${slug}', name: '${slug}', version: '${v
       (await root.get('/api/v1/themes')).json().find((t: { slug: string }) => t.slug === 'mama')
         .version,
     ).toBe('1.0.0');
+  });
+});
+
+describe('catalog:update (the CLI, for panels such as the Plesk Toolkit)', () => {
+  it('lists the updates, then installs the ones that work here', async () => {
+    const context = {
+      app,
+      config: loadConfig({ NODE_ENV: 'test', DATABASE_URL: inject('appUrl') }),
+      owner,
+      log: () => {},
+    };
+    const installed = app.get(PluginHost).get('tiny')!.version;
+    const next = `1.${Number(installed.split('.')[1]) + 1}.0`;
+    publish([
+      item('plugin', 'tiny', next, pluginZip(next)),
+      item('theme', 'sparkle', '9.0.0', themeZip('9.0.0'), { requires: '>=99.0.0' }),
+    ]);
+    const checked = await catalogUpdateTask(context, { apply: false, site: 'catalog' });
+    expect(checked.updates.find((u) => u.slug === 'tiny')).toMatchObject({
+      from: installed,
+      to: next,
+      compatible: true,
+    });
+    expect(checked.updates.find((u) => u.slug === 'tiny')?.ok).toBeUndefined();
+    const sparkle = checked.updates.find((u) => u.slug === 'sparkle');
+    if (sparkle) expect(sparkle.compatible).toBe(false);
+    const applied = await catalogUpdateTask(context, { apply: true, site: 'catalog' });
+    expect(applied.updates.find((u) => u.slug === 'tiny')).toMatchObject({ ok: true });
+    if (sparkle)
+      expect(applied.updates.find((u) => u.slug === 'sparkle')).toMatchObject({ ok: false });
+    expect((await catalog()).items.find((i: { slug: string }) => i.slug === 'tiny')).toMatchObject({
+      installed: next,
+      update: false,
+    });
+    const only = await catalogUpdateTask(context, {
+      apply: false,
+      site: 'catalog',
+      only: [{ type: 'plugin', slug: 'tiny' }],
+    });
+    expect(only.updates).toEqual([]);
   });
 });

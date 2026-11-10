@@ -1125,6 +1125,51 @@ export function buildProgram(json = false): Command {
   // ---- Themes (RF-THM-01) -----------------------------------------------------------------
 
   program
+    .command('catalog:update')
+    .description(
+      'Update the plugins and themes installed from the catalog (all, or those named as plugin:<slug> / theme:<slug>).',
+    )
+    .argument('[items...]', 'plugin:<slug> or theme:<slug>; none means all')
+    .option('--check', 'only list the updates available')
+    .option('--site <slug>', 'the site whose licenses are used (default: the oldest)')
+    .action((items: string[], opts: { check?: boolean; site?: string }) => {
+      const only = items.map((item) => {
+        const match = /^(plugin|theme):([a-z][a-z0-9-]{1,39})$/.exec(item);
+        if (!match) throw new OperationError(`"${item}": write plugin:<slug> or theme:<slug>.`);
+        return { type: match[1] as 'plugin' | 'theme', slug: match[2]! };
+      });
+      return withTasks(async (module, context) => {
+        const { updates } = await module.catalogUpdateTask(context, {
+          apply: !opts.check,
+          only,
+          ...(opts.site ? { site: opts.site } : {}),
+        });
+        const line = (u: (typeof updates)[number]) =>
+          `  ${u.name} ${u.from} → ${u.to}${
+            opts.check
+              ? u.renew
+                ? ' (license to renew)'
+                : u.compatible
+                  ? ''
+                  : ' (needs a newer Cleitext)'
+              : u.ok
+                ? ' updated'
+                : ` not updated: ${u.error ?? ''}`
+          }`;
+        const failed = updates.filter((u) => u.ok === false).length;
+        report(
+          { updates, updated: updates.filter((u) => u.ok).length, failed },
+          updates.length
+            ? [
+                opts.check ? `${updates.length} update(s) available:` : 'Catalog updates:',
+                ...updates.map(line),
+              ]
+            : 'Plugins and themes are up to date.',
+        );
+      });
+    });
+
+  program
     .command('theme:build')
     .description('Bundle a theme (TypeScript/JSX) into the entry named in its theme.json.')
     .argument('[dir]', 'theme folder', '.')
