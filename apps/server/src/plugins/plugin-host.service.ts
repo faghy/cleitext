@@ -775,7 +775,11 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         () => producer.produce(siteId, request),
         { timeout: 'long' },
       );
-      if (!outcome.ok) throw new PluginError(`The producer ${producerId} failed: see the log.`);
+      if (!outcome.ok) {
+        // The plugin's own message (its last error), for the calendar that asked.
+        const reason = plugin.stats.lastError?.replace(/^producer [^:]+: /, '') ?? 'see the log';
+        throw new PluginError(`${producerId}: ${reason}`);
+      }
       const value = outcome.value;
       if (value === null || value === undefined) return null;
       if (typeof value.entryId !== 'string') {
