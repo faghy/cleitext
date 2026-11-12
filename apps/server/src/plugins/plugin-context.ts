@@ -130,7 +130,7 @@ export interface PluginServices {
   copyTerm(
     siteId: string,
     id: string,
-    options: CopyOptions & { name?: string; parentId?: string | null },
+    options: CopyOptions & { name?: string; slug?: string; parentId?: string | null },
   ): Promise<PluginTerm>;
   languageUsage(siteId: string): Promise<Record<string, LanguageUsage>>;
   setDefaultLocale(siteId: string, code: string): Promise<void>;

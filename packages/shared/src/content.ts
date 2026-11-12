@@ -72,6 +72,12 @@ export const updateEntryRequestSchema = z.object({
    * Needs `edit_others_entries`; not saved as a revision.
    */
   authorId: z.uuid().optional(),
+  /**
+   * The publication date (core 0.99), as WordPress's: shown on the entry and
+   * used by addresses with {year}/{month}, which redirect when it changes.
+   * Needs the right to publish the entry; not in the future once published.
+   */
+  publishedAt: z.iso.datetime({ offset: true }).optional(),
 });
 export type UpdateEntryRequest = z.input<typeof updateEntryRequestSchema>;
 
@@ -87,6 +93,8 @@ export type AutosaveRequest = z.input<typeof autosaveRequestSchema>;
 /** `private`: visible only to users who may read private entries (RF-CNT-16). */
 export const publishRequestSchema = z.object({
   visibility: z.enum(['public', 'private']).default('public'),
+  /** Published with this date instead of now or the one it has (core 0.99), e.g. an imported post. */
+  publishedAt: z.iso.datetime({ offset: true }).optional(),
 });
 
 export const scheduleRequestSchema = z.object({ scheduledAt: z.iso.datetime({ offset: true }) });

@@ -868,7 +868,7 @@ function routes(ctx: PluginContext, pro: MultilingualServerApi): void {
     capability: 'manage_terms',
     handler: handle(async (request) => {
       const id = request.params.id ?? '';
-      const body = (request.body ?? {}) as { locale?: unknown; name?: unknown };
+      const body = (request.body ?? {}) as { locale?: unknown; name?: unknown; slug?: unknown };
       if (!UUID_RE.test(id) || typeof body.locale !== 'string') {
         throw new HttpError(400, 'Invalid request.');
       }
@@ -886,6 +886,10 @@ function routes(ctx: PluginContext, pro: MultilingualServerApi): void {
         locale: body.locale,
         ...(typeof body.name === 'string' && body.name.trim()
           ? { name: body.name.trim().slice(0, 200) }
+          : {}),
+        // The slug asked for (Cleitext 0.99); older cores make it from the name.
+        ...(typeof body.slug === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(body.slug.trim())
+          ? { slug: body.slug.trim().slice(0, 200) }
           : {}),
         parentId,
       });

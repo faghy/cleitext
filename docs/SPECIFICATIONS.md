@@ -340,27 +340,27 @@ Base: `/api/v1`. The format is JSON. Errors follow RFC 9457. Pagination is curso
 
 ### 6.2 Content
 
-| Method                | Path                                                            | Description                                                                   |
-| --------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| GET                   | `/content-types`                                                | List of the site's types.                                                     |
-| POST · PATCH · DELETE | `/content-types[/:slug]`                                        | Type management (`manage_content_types`).                                     |
-| GET                   | `/entries`                                                      | Filters: `type`, `status`, `locale`, `author`, `term`, `q`, `parent`, `sort`. |
-| POST                  | `/entries`                                                      | Creates an entry (draft).                                                     |
-| GET                   | `/entries/:id`                                                  | Entry plus current revision (`?revision=published` for the published one).    |
-| PATCH                 | `/entries/:id`                                                  | Save: creates a `manual` revision.                                            |
-| GET                   | `/entries/authors`                                              | Who can be chosen as author (`edit_others_entries`).                          |
-| POST                  | `/entries/bulk`                                                 | Bulk actions; `author` + `authorId` changes the author.                       |
-| PUT                   | `/entries/:id/autosave`                                         | Autosave.                                                                     |
-| POST                  | `/entries/:id/publish` · `/unpublish` · `/schedule` · `/submit` | Status transitions.                                                           |
-| POST                  | `/entries/:id/trash` · `/restore`                               | Trash.                                                                        |
-| DELETE                | `/entries/:id`                                                  | Permanent deletion (only if in the trash).                                    |
-| GET                   | `/entries/:id/revisions`                                        | List of revisions.                                                            |
-| GET                   | `/entries/:id/revisions/:rev`                                   | Revision detail.                                                              |
-| POST                  | `/entries/:id/revisions/:rev/restore`                           | Restores a revision.                                                          |
-| GET                   | `/entries/:id/translations`                                     | Translations in the group.                                                    |
-| POST                  | `/entries/:id/translations`                                     | Creates the translation `{ locale }`.                                         |
-| POST                  | `/entries/:id/preview-token`                                    | Expiring preview link.                                                        |
-| POST                  | `/entries/:id/lock` · DELETE `/entries/:id/lock`                | Concurrent editing lock.                                                      |
+| Method                | Path                                                            | Description                                                                                                                                  |
+| --------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET                   | `/content-types`                                                | List of the site's types.                                                                                                                    |
+| POST · PATCH · DELETE | `/content-types[/:slug]`                                        | Type management (`manage_content_types`).                                                                                                    |
+| GET                   | `/entries`                                                      | Filters: `type`, `status`, `locale`, `author`, `term`, `q`, `parent`, `sort`.                                                                |
+| POST                  | `/entries`                                                      | Creates an entry (draft).                                                                                                                    |
+| GET                   | `/entries/:id`                                                  | Entry plus current revision (`?revision=published` for the published one).                                                                   |
+| PATCH                 | `/entries/:id`                                                  | Save: creates a `manual` revision. `publishedAt` changes the publication date (core 0.99, who may publish; old `{year}` addresses redirect). |
+| GET                   | `/entries/authors`                                              | Who can be chosen as author (`edit_others_entries`).                                                                                         |
+| POST                  | `/entries/bulk`                                                 | Bulk actions; `author` + `authorId` changes the author.                                                                                      |
+| PUT                   | `/entries/:id/autosave`                                         | Autosave.                                                                                                                                    |
+| POST                  | `/entries/:id/publish` · `/unpublish` · `/schedule` · `/submit` | Status transitions. `publish` takes `publishedAt` (core 0.99) for a past date. Translations keep the original's date.                        |
+| POST                  | `/entries/:id/trash` · `/restore`                               | Trash.                                                                                                                                       |
+| DELETE                | `/entries/:id`                                                  | Permanent deletion (only if in the trash).                                                                                                   |
+| GET                   | `/entries/:id/revisions`                                        | List of revisions.                                                                                                                           |
+| GET                   | `/entries/:id/revisions/:rev`                                   | Revision detail.                                                                                                                             |
+| POST                  | `/entries/:id/revisions/:rev/restore`                           | Restores a revision.                                                                                                                         |
+| GET                   | `/entries/:id/translations`                                     | Translations in the group.                                                                                                                   |
+| POST                  | `/entries/:id/translations`                                     | Creates the translation `{ locale }`.                                                                                                        |
+| POST                  | `/entries/:id/preview-token`                                    | Expiring preview link.                                                                                                                       |
+| POST                  | `/entries/:id/lock` · DELETE `/entries/:id/lock`                | Concurrent editing lock.                                                                                                                     |
 
 ### 6.3 Taxonomies, media, navigation
 

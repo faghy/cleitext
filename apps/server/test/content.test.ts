@@ -657,3 +657,56 @@ describe('changing the author (RF-CNT-18)', () => {
     expect(byAuthor.statusCode).toBe(403);
   });
 });
+
+describe('publication date (core 0.99)', () => {
+  it('is changed by those who may publish, and old addresses redirect', async () => {
+    const author = as.author!;
+    const created = (
+      await author.post('/api/v1/entries', { type: 'article', title: 'Dated story' })
+    ).json();
+    // Set before publishing: kept when it is published (an imported post).
+    const dated = await author.request('PATCH', `/api/v1/entries/${created.id}`, {
+      publishedAt: '2024-03-10T09:00:00.000Z',
+    });
+    expect(dated.statusCode, dated.body).toBe(200);
+    const published = (await author.post(`/api/v1/entries/${created.id}/publish`, {})).json();
+    expect(published.publishedAt.slice(0, 10)).toBe('2024-03-10');
+    const visitor = new TestClient(app, site.host, '10.12.0.9');
+    expect((await visitor.get(`/2024/${published.slug}`)).statusCode).toBe(200);
+
+    // Moved to another year: the old address redirects to the new one.
+    const moved = await author.request('PATCH', `/api/v1/entries/${created.id}`, {
+      publishedAt: '2025-01-05T10:00:00.000Z',
+    });
+    expect(moved.statusCode, moved.body).toBe(200);
+    const old = await visitor.get(`/2024/${published.slug}`);
+    expect(old.statusCode).toBe(301);
+    expect(old.headers.location).toContain(`/2025/${published.slug}`);
+    expect((await visitor.get(`/2025/${published.slug}`)).statusCode).toBe(200);
+
+    // Not ahead once published, and not for those who cannot publish.
+    const ahead = await author.request('PATCH', `/api/v1/entries/${created.id}`, {
+      publishedAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    });
+    expect(ahead.statusCode).toBe(400);
+    const theirs = (
+      await as.contributor!.post('/api/v1/entries', { type: 'article', title: 'Contributor draft' })
+    ).json();
+    const refused = await as.contributor!.request('PATCH', `/api/v1/entries/${theirs.id}`, {
+      publishedAt: '2024-01-01T00:00:00.000Z',
+    });
+    expect(refused.statusCode).toBe(403);
+  });
+
+  it('can be given when publishing', async () => {
+    const created = (
+      await as.author!.post('/api/v1/entries', { type: 'article', title: 'Given date' })
+    ).json();
+    const published = (
+      await as.author!.post(`/api/v1/entries/${created.id}/publish`, {
+        publishedAt: '2023-06-01T12:00:00.000Z',
+      })
+    ).json();
+    expect(published.publishedAt.slice(0, 10)).toBe('2023-06-01');
+  });
+});

@@ -547,7 +547,7 @@ export class EntriesService {
         tx,
         type.slug,
         locale,
-        input.slug ?? slugify(input.title),
+        input.slug ?? slugify(input.title, undefined, locale),
         null,
       );
 
@@ -592,6 +592,7 @@ export class EntriesService {
       featuredMediaId?: string | null | undefined;
       terms?: Record<string, (string | { name: string })[]> | undefined;
       authorId?: string | undefined;
+      publishedAt?: string | undefined;
     },
     ip: string,
   ): Promise<EntryView> {
@@ -613,6 +614,17 @@ export class EntriesService {
         await this.assertWriter(tx, siteId, newAuthor);
         changes.authorId = newAuthor;
       }
+      if (input.publishedAt !== undefined) {
+        // Like WordPress's date: for those who may publish the entry; once out, not ahead.
+        assertAllowed(canPublish(auth, entry), 'You cannot change the date of this entry.');
+        const at = new Date(input.publishedAt);
+        if (['published', 'private'].includes(entry.status) && at.getTime() > Date.now() + 60_000) {
+          throw new BadRequestException(
+            'A published entry cannot have a date in the future: unpublish it and schedule it.',
+          );
+        }
+        changes.publishedAt = at as never;
+      }
       if (input.title !== undefined) changes.title = input.title;
       if (input.position !== undefined) changes.position = input.position;
       if (input.template !== undefined) changes.template = input.template;
@@ -632,14 +644,14 @@ export class EntriesService {
         input.title !== undefined &&
         input.title !== entry.title &&
         !entry.publishedRevisionId &&
-        isAutomaticSlug(entry.slug, entry.title)
+        isAutomaticSlug(entry.slug, entry.title, entry.locale)
       ) {
         // Like WordPress: until first published, an untouched slug follows the title.
         changes.slug = await this.uniqueSlug(
           tx,
           entry.typeSlug,
           entry.locale,
-          slugify(input.title),
+          slugify(input.title, undefined, entry.locale),
           entry.id,
         );
       }
@@ -649,6 +661,7 @@ export class EntriesService {
       const moving =
         Boolean(entry.publishedRevisionId) &&
         (changes.slug !== undefined ||
+          changes.publishedAt !== undefined ||
           (changes.parentId !== undefined && changes.parentId !== entry.parentId));
       const oldPaths = moving
         ? await this.subtreePaths(tx, siteId, entry.id, type.permalink)
@@ -774,7 +787,11 @@ export class EntriesService {
     id: string,
     ip: string,
     visibility: 'public' | 'private' = 'public',
+    publishedAt?: string,
   ): Promise<EntryView> {
+    if (publishedAt && Date.parse(publishedAt) > Date.now() + 60_000) {
+      throw new BadRequestException('A date in the future: schedule the entry instead.');
+    }
     return this.transition(siteId, auth, id, ip, 'entry.published', async (tx, entry) => {
       assertAllowed(canPublish(auth, entry), 'You cannot publish this entry.');
       if (!['draft', 'pending', 'scheduled', 'published', 'private'].includes(entry.status)) {
@@ -803,7 +820,9 @@ export class EntriesService {
         .set({
           status: visibility === 'private' ? 'private' : 'published',
           publishedRevisionId: entry.currentRevisionId,
-          publishedAt: entry.publishedAt ?? (sql`now()` as never),
+          publishedAt: publishedAt
+            ? (new Date(publishedAt) as never)
+            : (entry.publishedAt ?? (sql`now()` as never)),
           scheduledAt: null,
           updatedAt: sql`now()` as never,
           search: sql`to_tsvector('simple', unaccent(${`${entry.title}\n${text}`}))` as never,
@@ -1091,6 +1110,16 @@ export class EntriesService {
             { ...(hasTerms ? { terms } : {}), position: source.position },
             ip,
           );
+    // A translation keeps the original's date (core 0.99): an old post's
+    // translation comes out with that date, and with it in /{year}/ addresses.
+    if (!sameLocale && source.publishedAt) {
+      await this.run(siteId, auth, (tx) =>
+        tx
+          .update(entries)
+          .set({ publishedAt: new Date(source.publishedAt!) as never })
+          .where(eq(entries.id, done.id)),
+      );
+    }
     // Plugins copy their own data of the entry (e.g. a product's prices).
     await this.emitEntry(siteId, 'entry.copied', done, auth.userId, {
       id: source.id,
@@ -1236,7 +1265,7 @@ export class EntriesService {
     excludeId: string | null,
   ): Promise<string> {
     // Written slugs up to WordPress's 200 characters (core 0.82); titles give shorter ones.
-    const base = slugify(wanted, SLUG_MAX) || 'untitled';
+    const base = slugify(wanted, SLUG_MAX, locale) || 'untitled';
     // Near the limit a suffix shortens the base (`nextFreeSlug`): look for those too.
     const stem = base.length > SLUG_MAX - 8 ? base.slice(0, SLUG_MAX - 8) : `${base}-`;
     // Types with the same kind of address (articles and pages both at /{slug}) share slugs.
@@ -1542,8 +1571,8 @@ export function validateDocument(value: unknown, auth: AuthContext): CxdDocument
 }
 
 /** Whether a slug is the one generated from the title (possibly de-duplicated). */
-function isAutomaticSlug(slug: string, title: string): boolean {
-  const base = slugify(title) || 'untitled';
+function isAutomaticSlug(slug: string, title: string, locale = ''): boolean {
+  const base = slugify(title, undefined, locale) || 'untitled';
   return (
     slug === base || (slug.startsWith(`${base}-`) && /^\d+$/.test(slug.slice(base.length + 1)))
   );

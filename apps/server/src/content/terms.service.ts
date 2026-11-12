@@ -177,7 +177,13 @@ export class TermsService {
     siteId: string,
     auth: AuthContext,
     id: string,
-    input: { locale: string; name?: string | undefined; parentId?: string | null | undefined },
+    input: {
+      locale: string;
+      name?: string | undefined;
+      /** The copy's own slug (core 0.99); otherwise from its name, or the source's. */
+      slug?: string | undefined;
+      parentId?: string | null | undefined;
+    },
   ): Promise<TermView> {
     const view = await this.run(siteId, auth, async (tx) => {
       const source = await this.term(tx, id);
@@ -190,7 +196,11 @@ export class TermsService {
       const term = await this.insertTerm(tx, siteId, taxonomy!, {
         name: input.name ?? source.name,
         // A translated name gets its own slug; otherwise the source's is kept.
-        slug: input.locale === source.locale || input.name ? undefined : source.slug,
+        slug: input.slug
+          ? input.slug
+          : input.locale === source.locale || input.name
+            ? undefined
+            : source.slug,
         parentId: input.parentId ?? null,
         locale: input.locale,
         description: source.description ?? undefined,
@@ -374,7 +384,7 @@ export class TermsService {
           ids.push(value);
         } else {
           // A name without Latin letters gives no slug: the same name is the same term.
-          const slug = slugify(value.name);
+          const slug = slugify(value.name, undefined, entry.locale);
           const [existing] = await tx
             .select()
             .from(terms)
@@ -567,7 +577,7 @@ export class TermsService {
     /** Used when `wanted` gives no slug (a name in a script without Latin letters). */
     fallback?: string,
   ): Promise<string> {
-    const base = slugify(wanted) || (fallback ? slugify(fallback) : '');
+    const base = slugify(wanted, undefined, locale) || (fallback ? slugify(fallback) : '');
     if (!base) throw new ConflictException('The name must contain letters or digits.');
     const rows = await tx
       .select({ slug: terms.slug })

@@ -346,12 +346,13 @@ export interface TermsApi {
   updateFields?(siteId: string, id: string, values: FieldValues): Promise<void>;
   /**
    * Copies a term, e.g. into another language (needs `content:write`).
-   * `parentId` is the parent of the copy, in the copy's language.
+   * `parentId` is the parent of the copy, in the copy's language; `slug`
+   * (plugin API 1.72) its own address, otherwise made from `name`.
    */
   copy(
     siteId: string,
     id: string,
-    options: CopyOptions & { name?: string; parentId?: string | null },
+    options: CopyOptions & { name?: string; slug?: string; parentId?: string | null },
   ): Promise<PluginTerm>;
 }
 

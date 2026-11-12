@@ -157,6 +157,18 @@ describe('translations of entries', () => {
     ).toBe(400);
   });
 
+  it('keep the date of the original (core 0.99)', async () => {
+    const created = (
+      await editor.post('/api/v1/entries', { type: 'article', title: 'Old story' })
+    ).json();
+    await editor.post(`/api/v1/entries/${created.id}/publish`, {
+      publishedAt: '2024-05-20T08:00:00.000Z',
+    });
+    const id = await translate(editor, created.id, 'it');
+    const published = (await editor.post(`/api/v1/entries/${id}/publish`, {})).json();
+    expect(published.publishedAt.slice(0, 10)).toBe('2024-05-20');
+  });
+
   it('are served under the language prefix, linked with hreflang and the switcher', async () => {
     const en = await publish(editor, 'page', 'About us');
     const id = await translate(editor, en.id, 'it');
@@ -259,6 +271,22 @@ describe('translations of entries', () => {
 });
 
 describe('translations of terms', () => {
+  it('take the slug asked for (core 0.99)', async () => {
+    const news = (
+      await admin.post('/api/v1/taxonomies/category/terms', { name: 'Federation' })
+    ).json();
+    const created = await admin.post(`${EXT}/translations/term/${news.id}`, {
+      locale: 'it',
+      name: 'Federazione',
+      slug: 'federazione-notizie',
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const [copy] = (await admin.get('/api/v1/taxonomies/category/terms?locale=it'))
+      .json()
+      .filter((t: { id: string }) => t.id === created.json().id);
+    expect(copy).toMatchObject({ name: 'Federazione', slug: 'federazione-notizie' });
+  });
+
   it('give a name without Latin letters the slug of the source (no 409)', async () => {
     const meditation = (
       await admin.post('/api/v1/taxonomies/category/terms', { name: 'Meditation' })

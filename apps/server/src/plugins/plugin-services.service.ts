@@ -518,7 +518,7 @@ export class PluginServicesProvider implements PluginServices {
   async copyTerm(
     siteId: string,
     id: string,
-    options: CopyOptions & { name?: string; parentId?: string | null },
+    options: CopyOptions & { name?: string; slug?: string; parentId?: string | null },
   ): Promise<PluginTerm> {
     const auth = await this.actor(siteId, options.userId);
     const [source] = await this.findTerms(siteId, { ids: [id], limit: 1 });
@@ -526,6 +526,7 @@ export class PluginServicesProvider implements PluginServices {
     const copy = await this.termsService.copyToLocale(siteId, auth, id, {
       locale: options.locale ?? source.locale,
       name: options.name,
+      ...(options.slug ? { slug: options.slug } : {}),
       parentId: options.parentId ?? null,
     });
     const [term] = await this.findTerms(siteId, { ids: [copy.id], limit: 1 });

@@ -7,9 +7,17 @@ export const SLUG_MAX = 200;
 /** Slugs made from a title, not written by someone. */
 export const TITLE_SLUG_MAX = 80;
 
-/** Slug from a title: transliterated, lowercase, hyphen-separated (RF-CNT-11). */
-export function slugify(input: string, maxLength = TITLE_SLUG_MAX): string {
-  const slug = input
+/** Umlauts as German writes them without (Föderation → Foederation), for German content. */
+const GERMAN: Record<string, string> = { ä: 'ae', ö: 'oe', ü: 'ue', Ä: 'Ae', Ö: 'Oe', Ü: 'Ue' };
+
+/**
+ * Slug from a title: transliterated, lowercase, hyphen-separated (RF-CNT-11).
+ * With a German `locale` (core 0.99), ä ö ü become ae oe ue, as WordPress does
+ * for German sites; elsewhere they lose their dots (Jyväskylä → jyvaskyla).
+ */
+export function slugify(input: string, maxLength = TITLE_SLUG_MAX, locale = ''): string {
+  const text = /^de(-|$)/i.test(locale) ? input.replace(/[äöüÄÖÜ]/g, (c) => GERMAN[c]!) : input;
+  const slug = text
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/ß/g, 'ss')

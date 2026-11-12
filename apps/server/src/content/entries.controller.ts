@@ -152,8 +152,8 @@ export class EntriesController {
     @Req() request: FastifyRequest,
     @Body() body: unknown,
   ) {
-    const { visibility } = parseBody(publishRequestSchema, body ?? {});
-    return this.entries.publish(site.id, auth, id, request.ip, visibility);
+    const { visibility, publishedAt } = parseBody(publishRequestSchema, body ?? {});
+    return this.entries.publish(site.id, auth, id, request.ip, visibility, publishedAt);
   }
 
   @Post('entries/:id/preview')

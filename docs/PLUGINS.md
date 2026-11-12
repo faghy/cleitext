@@ -573,6 +573,7 @@ const copy = await ctx.terms.copy(siteId, id, {
   userId,
   locale: 'it',
   name: 'Viaggi',
+  slug: 'viaggi-e-vacanze', // plugin API 1.72; otherwise from the name
   parentId: null,
 });
 ```
@@ -666,6 +667,7 @@ defineBlock<{ gap: number; image?: string }>({
 - Plugin API 1.65: the `render.title` filter (needs `theme:hooks`) changes the title an entry's page shows, e.g. in the theme's heading, with the same context as `render.blocks`; the `<title>` stays `render.head`'s. Setax uses it to show the visitor's choice (“Washing machines in Savona”).
 - Plugin API 1.66: on archives and searches `context.pagination.total` is how many entries the list has in all, e.g. to keep archives with few entries out of search (the SEO plugin does).
 - Plugin API 1.67: `ctx.ai.complete` takes an optional `model`, another model of the site's provider (e.g. a cheaper one for long texts); the site's model when left out.
+- Plugin API 1.72: `ctx.terms.copy` takes `slug`. Slugs of German content write ä ö ü as ae oe ue (core 0.99).
 - Plugin API 1.71: `ctx.content.create` takes `terms` and `featuredMediaId`.
 - Plugin API 1.70: `ctx.content.create` and `ctx.content.publish` (new permission `content:publish`), and producers of entries for calendar plugins (`registerProducer`, `producers`, `produce`). See [Writing and publishing entries](#writing-and-publishing-entries).
 - Plugin API 1.69: public routes may use `:param.ext`, a segment that ends in `.ext` (given without it), and a handler that answers `null` leaves the address to the site; fixed paths are matched before those with parameters. See [Public addresses](#public-addresses).
