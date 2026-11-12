@@ -644,6 +644,7 @@ defineBlock<{ gap: number; image?: string }>({
 - Plugin API 1.65: the `render.title` filter (needs `theme:hooks`) changes the title an entry's page shows, e.g. in the theme's heading, with the same context as `render.blocks`; the `<title>` stays `render.head`'s. Setax uses it to show the visitor's choice (“Washing machines in Savona”).
 - Plugin API 1.66: on archives and searches `context.pagination.total` is how many entries the list has in all, e.g. to keep archives with few entries out of search (the SEO plugin does).
 - Plugin API 1.67: `ctx.ai.complete` takes an optional `model`, another model of the site's provider (e.g. a cheaper one for long texts); the site's model when left out.
+- Plugin API 1.69: public routes may use `:param.ext`, a segment that ends in `.ext` (given without it), and a handler that answers `null` leaves the address to the site; fixed paths are matched before those with parameters. See [Public addresses](#public-addresses).
 - Plugin API 1.68: `ctx.ai.complete` returns `finishReason` (`length` when the answer was cut at `maxTokens`), and asks again without `temperature` when a model refuses it.
 - `context.query({ type, terms, ids, exclude, orderBy, order, limit, offset })` in `load` (plugin API 1.11) lists published entries in the page's language, complete as themes get them (excerpt, images, terms, fields), with the `total` for pagination; the page refreshes when entries of those types change. `orderBy` is `date` (default), `title`, `modified`, `random` or `order` (the manual order of the admin, as WordPress's `menu_order`, API 1.31); `terms` is `{ taxonomy, slugs }`; `limit` is at most 100. Loops, related posts and portfolios use it.
 - `context.loadMedia(ids)` in `load` (plugin API 1.46; missing on older cores) gives media of the library as `context.media` has them (variants, focal point, alternative text in the page's language), for media named by the plugin's own data rather than by the block's attributes, e.g. the slides of a slider kept in the plugin's tables. At most 200 ids; unknown ones are left out.
@@ -780,6 +781,8 @@ ctx.routes.public({
   },
 });
 ```
+
+Paths have fixed segments, `:param` (a whole segment, in `request.params`), a final `*` and (plugin API 1.69) `:param.ext`, a segment ending in `.ext`, given without it: `/:key.txt` matches `/abc.txt` with `params.key = 'abc'`. Fixed paths are tried before those with parameters, so another plugin's `/ads.txt` comes first. A `GET` handler that returns `null` leaves the address to the site, as if the route did not match (robots.txt, a page): Vetta SEO serves its IndexNow key this way, at `/<key>.txt`, and answers `null` for any other `.txt`. Older cores answer a `null` as an error, so such a plugin asks for `"apiVersion": "^1.69"`.
 
 `POST` public routes receive HTML form posts (`application/x-www-form-urlencoded`, parsed into an object) and are refused when the `Origin` is another site. Paths starting with `/api`, `/admin`, `/cl-admin`, `/media` and `/__preview` are reserved.
 

@@ -1,4 +1,7 @@
-/** Path patterns of plugin routes: literal segments, `:param` and a final `*`. */
+/**
+ * Path patterns of plugin routes: literal segments, `:param`, `:param.ext`
+ * (a segment ending in `.ext`, e.g. `/:key.txt`; plugin API 1.69) and a final `*`.
+ */
 export interface CompiledRoute {
   pattern: string;
   match(path: string): Record<string, string> | null;
@@ -26,7 +29,15 @@ export function compileRoute(pattern: string): CompiledRoute {
           } catch {
             return null;
           }
-          params[segment.slice(1)] = value;
+          // `:name.ext`: only a value with that ending, given without it.
+          const dot = segment.indexOf('.');
+          if (dot > 1) {
+            const suffix = segment.slice(dot);
+            if (value.length <= suffix.length || !value.endsWith(suffix)) return null;
+            params[segment.slice(1, dot)] = value.slice(0, -suffix.length);
+          } else {
+            params[segment.slice(1)] = value;
+          }
         } else if (segment !== part) {
           return null;
         }

@@ -248,6 +248,25 @@ describe('Vetta SEO', () => {
     expect((await admin.get('/api/v1/ext/vetta/not-found')).json()).toEqual([]);
   });
 
+  it('serves the IndexNow key at the root, leaving every other .txt to the site', async () => {
+    const saved = await admin.request('PUT', '/api/v1/ext/vetta/config', {
+      config: { module_indexNow: true, module_robotsTxt: true },
+    });
+    const key = saved.json().config.indexnow_key as string;
+    const root = await visitor.get(`/${key}.txt`);
+    expect(root.statusCode).toBe(200);
+    expect(root.body).toBe(key);
+    // The old address keeps working.
+    expect((await visitor.get(`/indexnow-key/${key}`)).body).toBe(key);
+    // robots.txt is the site's, another key and other .txt files are not found.
+    expect((await visitor.get('/robots.txt')).body).toContain('Sitemap:');
+    expect((await visitor.get('/0123456789abcdef0123456789abcdef.txt')).statusCode).toBe(404);
+    expect((await visitor.get('/ads.txt')).statusCode).toBe(404);
+    expect((await visitor.get('/.txt')).statusCode).toBe(404);
+    await admin.request('PUT', '/api/v1/ext/vetta/config', { config: { module_indexNow: false } });
+    expect((await visitor.get(`/${key}.txt`)).statusCode).toBe(404);
+  });
+
   it('tells editors when a keyword is already used, and gives them the templates', async () => {
     const used = (await admin.get('/api/v1/ext/vetta/keyword-used?keyword=espresso')).json();
     expect(used.title).toBe('Espresso at home');

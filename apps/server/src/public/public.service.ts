@@ -401,67 +401,70 @@ export class PublicService {
           await reply.code(500).type('text/plain; charset=utf-8').send('Internal Server Error');
           return;
         }
-        const result = outcome.value;
-        const status = result.status ?? 200;
-        if (
-          cacheable &&
-          status === 200 &&
-          result.cacheTags &&
-          !result.cookies?.length &&
-          (typeof result.body === 'string' || result.page)
-        ) {
-          // A page in the theme (a shop's catalog) is cached like the theme's own pages.
-          const rendered = result.page
-            ? await this.renderPluginPage(
-                site.id,
-                `${request.protocol}://${request.host}`,
-                url.pathname,
-                null,
-                result.page,
-                status,
-                true,
-              )
-            : null;
-          const body = rendered ? (rendered.html ?? '') : (result.body as string);
-          const contentType = rendered
-            ? (rendered.contentType ?? HTML)
-            : (result.contentType ?? 'text/plain; charset=utf-8');
-          const tags = ['site', ...result.cacheTags, ...(rendered?.tags ?? [])];
-          const headers = {
-            ...rendered?.headers,
-            ...result.headers,
-            ...(await this.cacheHeaders(site.id, request.hostname, url.pathname, status, tags)),
-          };
-          const stored = this.cache.set(key, site.id, {
-            status,
-            html: body,
-            contentType,
-            tags,
-            headers,
-          });
-          for (const [name, value] of Object.entries(headers)) void reply.header(name, value);
-          await this.sendPage(
-            request,
-            reply,
-            status,
-            body,
-            stored.etag,
-            'MISS',
-            contentType,
-            stored,
-          );
-        } else {
-          void reply.header('x-cache', 'BYPASS').header('cache-control', 'private, no-cache');
-          await this.sendPluginResult(
-            request,
-            reply,
-            site.id,
-            pluginRoute.plugin.slug,
-            url.pathname,
-            result,
-          );
+        // A public route that answers null leaves the address to the site (plugin API 1.69).
+        if (outcome.value !== null && outcome.value !== undefined) {
+          const result = outcome.value;
+          const status = result.status ?? 200;
+          if (
+            cacheable &&
+            status === 200 &&
+            result.cacheTags &&
+            !result.cookies?.length &&
+            (typeof result.body === 'string' || result.page)
+          ) {
+            // A page in the theme (a shop's catalog) is cached like the theme's own pages.
+            const rendered = result.page
+              ? await this.renderPluginPage(
+                  site.id,
+                  `${request.protocol}://${request.host}`,
+                  url.pathname,
+                  null,
+                  result.page,
+                  status,
+                  true,
+                )
+              : null;
+            const body = rendered ? (rendered.html ?? '') : (result.body as string);
+            const contentType = rendered
+              ? (rendered.contentType ?? HTML)
+              : (result.contentType ?? 'text/plain; charset=utf-8');
+            const tags = ['site', ...result.cacheTags, ...(rendered?.tags ?? [])];
+            const headers = {
+              ...rendered?.headers,
+              ...result.headers,
+              ...(await this.cacheHeaders(site.id, request.hostname, url.pathname, status, tags)),
+            };
+            const stored = this.cache.set(key, site.id, {
+              status,
+              html: body,
+              contentType,
+              tags,
+              headers,
+            });
+            for (const [name, value] of Object.entries(headers)) void reply.header(name, value);
+            await this.sendPage(
+              request,
+              reply,
+              status,
+              body,
+              stored.etag,
+              'MISS',
+              contentType,
+              stored,
+            );
+          } else {
+            void reply.header('x-cache', 'BYPASS').header('cache-control', 'private, no-cache');
+            await this.sendPluginResult(
+              request,
+              reply,
+              site.id,
+              pluginRoute.plugin.slug,
+              url.pathname,
+              result,
+            );
+          }
+          return;
         }
-        return;
       }
 
       const response = await this.respond(
@@ -2762,12 +2765,16 @@ export class PublicService {
   async matchPluginRoute(siteId: string, method: string, path: string) {
     if (this.plugins.list().length === 0) return null;
     const plugins = await this.plugins.activePlugins(siteId);
+    // Fixed addresses first (`/ads.txt`), then those with parameters (`/:key.txt`).
+    const fixed = (pattern: string) => !/[:*]/.test(pattern);
     const find = (candidate: string) => {
-      for (const plugin of plugins) {
-        for (const route of plugin.publicRoutes) {
-          if (route.method !== method) continue;
-          const params = route.compiled.match(candidate);
-          if (params) return { plugin, route, params };
+      for (const literal of [true, false]) {
+        for (const plugin of plugins) {
+          for (const route of plugin.publicRoutes) {
+            if (route.method !== method || fixed(route.path) !== literal) continue;
+            const params = route.compiled.match(candidate);
+            if (params) return { plugin, route, params };
+          }
         }
       }
       return null;
@@ -3011,6 +3018,11 @@ export class PublicService {
     void reply.header('cache-control', 'private, no-cache').header('x-cache', 'BYPASS');
     if (!outcome.ok) {
       await reply.code(500).type('text/plain; charset=utf-8').send('Internal Server Error');
+      return;
+    }
+    // Null: not this route's address; a POST has nowhere else to go.
+    if (!outcome.value) {
+      await reply.code(404).type('text/plain; charset=utf-8').send('Not Found');
       return;
     }
     await this.sendPluginResult(request, reply, site.id, match.plugin.slug, path, outcome.value);

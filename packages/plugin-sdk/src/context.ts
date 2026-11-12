@@ -1115,6 +1115,14 @@ export interface PluginPageContent {
 }
 
 export type RouteHandler = (request: RouteRequest) => Promise<RouteResponse> | RouteResponse;
+/**
+ * A public route's handler (`ctx.routes.public`): `null` leaves the address
+ * to the site, as if the route did not match (plugin API 1.69), e.g. a
+ * `/:key.txt` route that only answers its own key.
+ */
+export type PublicRouteHandler = (
+  request: RouteRequest,
+) => Promise<RouteResponse | null> | RouteResponse | null;
 
 export interface ApiRoute {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -1136,9 +1144,14 @@ export interface ApiRoute {
 
 export interface PublicRoute {
   method: 'GET' | 'POST';
-  /** Path on the public site, e.g. `/events.ics`. Matched before permalinks. */
+  /**
+   * Path on the public site, e.g. `/events.ics`. Matched before permalinks,
+   * fixed paths before those with parameters. `:param` takes a whole segment;
+   * `:param.ext` only one ending in `.ext`, given without it (`/:key.txt`,
+   * plugin API 1.69).
+   */
   path: string;
-  handler: RouteHandler;
+  handler: PublicRouteHandler;
 }
 
 export interface RouteApi {

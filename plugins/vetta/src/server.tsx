@@ -141,7 +141,8 @@ async function indexNow(
       body: JSON.stringify({
         host: new URL(origin).host,
         key,
-        keyLocation: `${origin}/indexnow-key/${key}`,
+        // At the site's root: a key in a folder only covers the addresses in that folder (422).
+        keyLocation: `${origin}/${key}.txt`,
         urlList: list,
       }),
       timeoutMs: 10_000,
@@ -651,18 +652,31 @@ export default definePlugin({
     ctx.routes.public({
       method: 'GET',
       path: '/indexnow-key/:key',
-      async handler(request) {
-        const config = await configFor(ctx, request.siteId);
-        const key = text(config, 'indexnow_key');
-        return key && request.params.key === key && moduleOn(config, 'indexNow')
-          ? {
-              body: key,
-              contentType: 'text/plain; charset=utf-8',
-              headers: { 'x-robots-tag': 'noindex' },
-            }
-          : { status: 404, body: 'Not Found', contentType: 'text/plain; charset=utf-8' };
-      },
+      handler: async (request) =>
+        (await keyFile(request)) ?? {
+          status: 404,
+          body: 'Not Found',
+          contentType: 'text/plain; charset=utf-8',
+        },
     });
+    // The key at the root, where IndexNow looks for it (plugin API 1.69).
+    ctx.routes.public({
+      method: 'GET',
+      path: '/:key.txt',
+      // Any other .txt (robots.txt, ads.txt…) is left to the site.
+      handler: async (request) => (await keyFile(request)) ?? null,
+    });
+    async function keyFile(request: { siteId: string; params: Record<string, string> }) {
+      const config = await configFor(ctx, request.siteId);
+      const key = text(config, 'indexnow_key');
+      return key && request.params.key === key && moduleOn(config, 'indexNow')
+        ? {
+            body: key,
+            contentType: 'text/plain; charset=utf-8',
+            headers: { 'x-robots-tag': 'noindex' },
+          }
+        : null;
+    }
 
     ctx.hooks.on('entry.published', async ({ entry }, { siteId }) => {
       const config = await configFor(ctx, siteId);
