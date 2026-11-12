@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { installPlugin } from '@cleitext/cli';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { ownerDatabase, seedSite, seedUser, startTestApp, TestClient } from './helpers.js';
 
@@ -32,7 +33,7 @@ async function pluginSource(): Promise<string> {
       slug: SLUG,
       name: 'Producer (test fixture)',
       version: '1.0.0',
-      apiVersion: '^1.70',
+      apiVersion: '^1.71',
       license: 'GPL-2.0-or-later',
       server: 'dist/server.js',
       permissions: ['content:read', 'content:write', 'content:publish', 'routes:admin'],
@@ -67,7 +68,7 @@ export default { setup(ctx) {
       if (body.action === 'publish')
         return { body: await ctx.content.publish(request.siteId, body.id, { userId: body.userId, ...(body.at ? { at: body.at } : {}) }) };
       if (body.action === 'create')
-        return { body: await ctx.content.create(request.siteId, { type: 'article', title: body.title, document: body.document }, { userId: body.userId }) };
+        return { body: await ctx.content.create(request.siteId, { type: 'article', title: body.title, document: body.document, ...(body.terms ? { terms: body.terms } : {}), ...(body.featuredMediaId ? { featuredMediaId: body.featuredMediaId } : {}) }, { userId: body.userId }) };
     } catch (error) {
       return { status: 422, body: { error: String(error && error.message || error) } };
     }
@@ -152,6 +153,35 @@ describe('content producers and publishing (plugin API 1.70)', () => {
       slotAt: 'x',
     });
     expect(unknown.statusCode).toBe(422);
+  });
+
+  it('creates an entry with its categories, tags and featured image (API 1.71)', async () => {
+    const image = await sharp({
+      create: { width: 800, height: 400, channels: 3, background: '#663399' },
+    })
+      .png()
+      .toBuffer();
+    const cover = (await admin.upload('/api/v1/media', 'cover.png', image, 'image/png')).json();
+    const created = await run({
+      action: 'create',
+      title: 'With terms',
+      userId: adminId,
+      terms: { category: [{ name: 'Meditation' }], tag: [{ name: 'breath' }] },
+      featuredMediaId: cover.id,
+    });
+    expect(created.statusCode, created.body).toBe(200);
+    const entry = (await admin.get(`/api/v1/entries/${created.json().id}`)).json();
+    expect(entry.revision.featuredMediaId).toBe(cover.id);
+    expect(entry.terms.category.map((t: { name: string }) => t.name)).toEqual(['Meditation']);
+    expect(entry.terms.tag.map((t: { name: string }) => t.name)).toEqual(['breath']);
+    // A media that is not there is refused, as in the editor.
+    const bad = await run({
+      action: 'create',
+      title: 'Bad cover',
+      userId: adminId,
+      featuredMediaId: '00000000-0000-4000-8000-000000000000',
+    });
+    expect(bad.statusCode).toBe(422);
   });
 
   it('publishes now or schedules, with the rights of the user', async () => {

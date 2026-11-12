@@ -324,9 +324,14 @@ export class PluginServicesProvider implements PluginServices {
         ...(input.excerpt !== undefined ? { excerpt: input.excerpt } : {}),
         ...(input.document !== undefined ? { document: input.document } : {}),
         ...(input.fields !== undefined ? { fields: input.fields } : {}),
+        ...(input.featuredMediaId !== undefined ? { featuredMediaId: input.featuredMediaId } : {}),
       },
       '',
     );
+    // Terms as the editor assigns them (plugin API 1.71): its checks, its rights.
+    if (input.terms && Object.keys(input.terms).length) {
+      await this.entriesService.update(siteId, auth, view.id, { terms: input.terms }, '');
+    }
     const [entry] = await this.findEntries(siteId, { ids: [view.id], status: 'any', limit: 1 });
     return entry!;
   }

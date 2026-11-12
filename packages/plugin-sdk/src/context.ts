@@ -200,6 +200,13 @@ export interface NewEntryInput {
   /** A block document (`{ schema: 1, blocks }`), checked as the editor's. */
   document?: unknown;
   fields?: FieldValues;
+  /**
+   * Terms by taxonomy (plugin API 1.71): ids of existing terms, or `{ name }`
+   * to use or create one by name, as the editor does (e.g. `{ category: [id] }`).
+   */
+  terms?: Record<string, (string | { name: string })[]>;
+  /** The featured image, a media id of the library (plugin API 1.71). */
+  featuredMediaId?: string | null;
 }
 
 /**
