@@ -1,0 +1,14 @@
+{
+  "slug": "palinsest",
+  "name": "Palinsest",
+  "version": "1.0.0",
+  "apiVersion": "^1.70",
+  "description": "The editorial calendar of your site: a week view of what comes out and when, cadences such as once a day or once a week, and slots that you write by hand or that another plugin fills (for example Tell me more). Each slot can be moved or removed; automatic publishing is off until you turn it on.",
+  "author": "Cleitext",
+  "homepage": "https://cleitext.com/plugins/palinsest",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "permissions": ["content:read", "content:write", "content:publish", "routes:admin"],
+  "capabilities": ["manage_palinsest"]
+}
