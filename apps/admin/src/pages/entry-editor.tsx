@@ -744,7 +744,8 @@ function Editor({ initial }: { initial: EntryView }) {
                   return `${url}&frame=1`;
                 }}
                 media={pluginMedia(initial.locale)}
-                openSettings={() => setSettingsOpen(true)}
+                // A second click closes them (the editor's own button acts as a switch).
+                openSettings={() => setSettingsOpen((open) => !open)}
                 host={host}
               />
             )}
@@ -755,7 +756,9 @@ function Editor({ initial }: { initial: EntryView }) {
             editorId === null
               ? 'flex w-80 shrink-0 flex-col border-l border-slate-200 bg-white'
               : settingsOpen
-                ? 'absolute inset-y-0 right-0 z-30 flex w-80 flex-col border-l border-slate-200 bg-white shadow-xl'
+                ? // Below the top bar of an editor that draws its own (48 px, as Fresco's),
+                  // so that the panel's ✕ is never hidden under it.
+                  `absolute ${ownChrome ? 'top-12' : 'top-0'} bottom-0 right-0 z-30 flex w-80 flex-col border-l border-slate-200 bg-white shadow-xl`
                 : 'hidden'
           }
           aria-label={t('Settings')}

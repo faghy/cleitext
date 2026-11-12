@@ -186,7 +186,11 @@ export interface EditorProps extends AdminPageProps {
     upload: (file: File) => Promise<EditorMedia>;
     list: (query: { kind?: 'image'; search?: string }) => Promise<EditorMedia[]>;
   };
-  /** Opens the entry's settings (status, custom fields, revisions…) over the editor. */
+  /**
+   * Opens the entry's settings (status, custom fields, revisions…) over the
+   * editor, or closes them when they are open (core 0.97.1). For an editor
+   * with `chrome: 'none'` they open below its 48 px top bar.
+   */
   openSettings: () => void;
   navigate: (to: string) => void;
   /**

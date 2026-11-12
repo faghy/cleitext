@@ -340,3 +340,21 @@ test('texts are typed in place, with the panel following', async ({ page }) => {
 
   expect(appErrors(errors)).toEqual([]);
 });
+
+test('the entry settings open and close from the top bar, with their ✕ in sight', async ({
+  page,
+}) => {
+  await openPage(page, `Fresco settings ${Date.now().toString(36)}`, [container('s', {})]);
+  const button = page.getByRole('button', { name: 'Entry settings and SEO' });
+  const panel = page.getByRole('complementary', { name: 'Settings' });
+  await button.click();
+  await expect(panel).toBeVisible();
+  // Below Fresco's bar: the ✕ can be clicked (it was hidden under the bar).
+  await panel.getByRole('button', { name: 'Close' }).click();
+  await expect(panel).toBeHidden();
+  // The bar's button is a switch.
+  await button.click();
+  await expect(panel).toBeVisible();
+  await button.click();
+  await expect(panel).toBeHidden();
+});
