@@ -126,6 +126,7 @@ export const itGeneral: Messages = {
   'Saved.': 'Salvato.',
   'Send email': 'Inviare email',
   'Send requests to other services': 'Inviare richieste ad altri servizi',
+  'Publish or schedule entries by itself': 'Pubblicare o programmare contenuti da solo',
   "Read the site's users (names, roles, confirmed email addresses)":
     'Leggere gli utenti del sito (nomi, ruoli, indirizzi email confermati)',
   "Ask the site's AI provider for texts (uses its credit)":

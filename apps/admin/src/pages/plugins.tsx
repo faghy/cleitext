@@ -43,6 +43,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   'users:read': "Read the site's users (names, roles, confirmed email addresses)",
   'mail:transport': "Deliver the site's emails (sees every email, password resets included)",
   ai: "Ask the site's AI provider for texts (uses its credit)",
+  'content:publish': 'Publish or schedule entries by itself',
 };
 
 /** Permissions over people's data: activating a plugin that asks for them needs consent. */

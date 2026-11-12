@@ -2,6 +2,7 @@ import {
   PluginPermissionError,
   SDK_VERSION,
   type CopyOptions,
+  type NewEntryInput,
   type LanguageUsage,
   type PendingLanguages,
   type ImportReport,
@@ -88,6 +89,17 @@ export interface PluginServices {
   pluginSites(slug: string): Promise<string[]>;
   findEntries(siteId: string, query: EntryQuery): Promise<PluginEntry[]>;
   copyEntry(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry>;
+  /** A new draft, and publishing or scheduling (plugin API 1.70). */
+  createEntry(
+    siteId: string,
+    input: NewEntryInput,
+    options: { userId: string },
+  ): Promise<PluginEntry>;
+  publishEntry(
+    siteId: string,
+    id: string,
+    options: { userId: string; at?: string },
+  ): Promise<PluginEntry>;
   entryTranslations(siteId: string, id: string): Promise<TranslationLink[]>;
   updateFields(
     siteId: string,
@@ -362,6 +374,46 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         assertSiteId(siteId);
         if (!UUID_RE.test(id)) return null;
         return services().revisionOf(siteId, id);
+      },
+      async create(siteId, input, options) {
+        require('content:write');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(options?.userId ?? '')) throw new TypeError('Invalid user id');
+        if (!input || typeof input.type !== 'string' || typeof input.title !== 'string') {
+          throw new TypeError('An entry needs a type and a title');
+        }
+        return services().createEntry(siteId, input, { userId: options.userId });
+      },
+      async publish(siteId, id, options) {
+        require('content:publish');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id) || !UUID_RE.test(options?.userId ?? '')) {
+          throw new TypeError('Invalid id');
+        }
+        if (options.at !== undefined && Number.isNaN(Date.parse(options.at))) {
+          throw new TypeError('Invalid date');
+        }
+        return services().publishEntry(siteId, id, options);
+      },
+      registerProducer(producer) {
+        require('content:write');
+        host.addProducer(plugin, producer);
+      },
+      async producers(siteId) {
+        require('content:write');
+        assertSiteId(siteId);
+        return host.producers(siteId);
+      },
+      async produce(siteId, producerId, request) {
+        require('content:write');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(request?.userId ?? '')) throw new TypeError('Invalid user id');
+        return host.produce(siteId, String(producerId), {
+          userId: request.userId,
+          slotAt: String(request.slotAt ?? new Date().toISOString()),
+          ...(request.type ? { type: String(request.type) } : {}),
+          ...(request.locale ? { locale: String(request.locale) } : {}),
+        });
       },
       async get(siteId, id) {
         require('content:read');

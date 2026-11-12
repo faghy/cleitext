@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.69.0';
+export const SDK_VERSION = '1.70.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -47,6 +47,11 @@ export const PLUGIN_PERMISSIONS = [
    * the provider set by a super admin for Chriss; the plugin never sees its key.
    */
   'ai',
+  /**
+   * Publish or schedule entries (plugin API 1.70, `ctx.content.publish`),
+   * as the user it names: e.g. an editorial calendar that publishes on time.
+   */
+  'content:publish',
 ] as const;
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 

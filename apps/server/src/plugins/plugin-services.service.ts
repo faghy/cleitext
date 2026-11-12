@@ -30,6 +30,7 @@ import {
 import {
   pluginSchemaName,
   type CopyOptions,
+  type NewEntryInput,
   type EntryQuery,
   type LanguageUsage,
   type PluginEntry,
@@ -304,6 +305,47 @@ export class PluginServicesProvider implements PluginServices {
   private async siteData(tx: SiteTransaction, siteId: string) {
     const locales = await this.languages.locales(siteId, await defaultLocaleIn(tx, siteId));
     return loadSiteData(tx, await this.host.activeSlugs(siteId), locales);
+  }
+
+  /** A draft written by a plugin, as a user would save it (plugin API 1.70). */
+  async createEntry(
+    siteId: string,
+    input: NewEntryInput,
+    options: { userId: string },
+  ): Promise<PluginEntry> {
+    const auth = await this.actor(siteId, options.userId);
+    const view = await this.entriesService.create(
+      siteId,
+      auth,
+      {
+        type: input.type,
+        title: input.title,
+        ...(input.locale ? { locale: input.locale } : {}),
+        ...(input.excerpt !== undefined ? { excerpt: input.excerpt } : {}),
+        ...(input.document !== undefined ? { document: input.document } : {}),
+        ...(input.fields !== undefined ? { fields: input.fields } : {}),
+      },
+      '',
+    );
+    const [entry] = await this.findEntries(siteId, { ids: [view.id], status: 'any', limit: 1 });
+    return entry!;
+  }
+
+  /** Published now, or scheduled when `at` is in the future (plugin API 1.70). */
+  async publishEntry(
+    siteId: string,
+    id: string,
+    options: { userId: string; at?: string },
+  ): Promise<PluginEntry> {
+    const auth = await this.actor(siteId, options.userId);
+    const at = options.at ? new Date(options.at) : null;
+    if (at && at.getTime() > Date.now() + 60_000) {
+      await this.entriesService.schedule(siteId, auth, id, at, '');
+    } else {
+      await this.entriesService.publish(siteId, auth, id, '');
+    }
+    const [entry] = await this.findEntries(siteId, { ids: [id], status: 'any', limit: 1 });
+    return entry!;
   }
 
   async copyEntry(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry> {

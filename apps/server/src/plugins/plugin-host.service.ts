@@ -48,7 +48,10 @@ import {
   type ContentTypeDefinition,
   type ConversionInput,
   type ConversionReversalInput,
+  type ContentProducer,
+  type ContentProducerInfo,
   type DynamicSource,
+  type ProduceRequest,
   type ReferralCapture,
   type ErasureResult,
   type FieldGroupDefinition,
@@ -106,7 +109,8 @@ const DEFAULT_PRIORITY = 10;
  * such as an import (core 0.82): `{ timeout: 'job' }`.
  */
 export interface HookTimeout {
-  timeout?: 'interactive' | 'job';
+  /** `long`: three times a job's, for producers of entries (plugin API 1.70). */
+  timeout?: 'interactive' | 'job' | 'long';
 }
 /** RF-PLG-05: this many failures on a site within the window deactivate the plugin there. */
 const FAILURE_LIMIT = 10;
@@ -152,6 +156,8 @@ export interface LoadedPlugin {
   optionsPages: OptionsPageInput[];
   /** `ctx.dynamic` (plugin API 1.47). */
   dynamicSources: DynamicSource[];
+  /** Producers of entries for calendar plugins (plugin API 1.70). */
+  producers: ContentProducer[];
   dynamicProviders: ((siteId: string) => DynamicSource[] | Promise<DynamicSource[]>)[];
   blocks: PluginBlockDefinition<Record<string, unknown>, unknown>[];
   apiRoutes: (ApiRoute & { compiled: CompiledRoute })[];
@@ -362,6 +368,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       fieldTypes: [],
       optionsPages: [],
       dynamicSources: [],
+      producers: [],
       dynamicProviders: [],
       blocks: [],
       apiRoutes: [],
@@ -416,6 +423,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         fieldTypes: [],
         optionsPages: [],
         dynamicSources: [],
+        producers: [],
         dynamicProviders: [],
         blocks: [],
         apiRoutes: [],
@@ -725,6 +733,57 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     return (await this.activePlugins(siteId)).flatMap((plugin) =>
       plugin.optionsPages.map((page) => ({ ...page, source: `plugin:${plugin.slug}` as const })),
     );
+  }
+
+  addProducer(plugin: LoadedPlugin, producer: ContentProducer): void {
+    const id = String(producer?.id ?? '');
+    if (!(id === plugin.slug || id.startsWith(`${plugin.slug}:`)) || id.length > 100) {
+      throw new PluginError(`Producer ids are "${plugin.slug}" or start with "${plugin.slug}:"`);
+    }
+    if (typeof producer.produce !== 'function' || !String(producer.label ?? '').trim()) {
+      throw new PluginError(`The producer "${id}" needs a label and produce()`);
+    }
+    plugin.producers = [...plugin.producers.filter((p) => p.id !== id), producer];
+  }
+
+  /** The producers of the plugins active on a site (plugin API 1.70). */
+  async producers(siteId: string): Promise<ContentProducerInfo[]> {
+    return (await this.activePlugins(siteId)).flatMap((plugin) =>
+      plugin.producers.map((p) => ({
+        id: p.id,
+        label: String(p.label).slice(0, 120),
+        description: String(p.description ?? '').slice(0, 500),
+        plugin: plugin.slug,
+      })),
+    );
+  }
+
+  /**
+   * One entry from a producer, with the producer's plugin isolated as for
+   * hooks and up to 15 minutes (an AI writing an article takes a while).
+   */
+  async produce(
+    siteId: string,
+    producerId: string,
+    request: ProduceRequest,
+  ): Promise<{ entryId: string } | null> {
+    for (const plugin of await this.activePlugins(siteId)) {
+      const producer = plugin.producers.find((p) => p.id === producerId);
+      if (!producer) continue;
+      const outcome = await this.runHook(
+        { plugin: plugin.slug, name: `producer ${producerId}`, siteId },
+        () => producer.produce(siteId, request),
+        { timeout: 'long' },
+      );
+      if (!outcome.ok) throw new PluginError(`The producer ${producerId} failed: see the log.`);
+      const value = outcome.value;
+      if (value === null || value === undefined) return null;
+      if (typeof value.entryId !== 'string') {
+        throw new PluginError(`The producer ${producerId} gave no entry.`);
+      }
+      return { entryId: value.entryId };
+    }
+    throw new PluginError(`No active producer "${producerId}" on this site.`);
   }
 
   addDynamicSource(plugin: LoadedPlugin, source: DynamicSource): void {
@@ -1143,6 +1202,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
   /** The time plugin code may take: interactive (default) or in a background job. */
   hookTimeout(options: HookTimeout = {}): number {
     const { hookTimeoutMs = 5_000, jobTimeoutMs = 300_000 } = this.config.plugins;
+    if (options.timeout === 'long') return jobTimeoutMs * 3;
     return options.timeout === 'job' ? jobTimeoutMs : hookTimeoutMs;
   }
 

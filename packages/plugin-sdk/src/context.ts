@@ -189,6 +189,56 @@ export interface CopyOptions {
   locale?: string;
 }
 
+/** A new entry written by a plugin (plugin API 1.70): a draft until it is published. */
+export interface NewEntryInput {
+  /** Content type, e.g. `article`. */
+  type: string;
+  title: string;
+  /** Language; the site's default when omitted. */
+  locale?: string;
+  excerpt?: string | null;
+  /** A block document (`{ schema: 1, blocks }`), checked as the editor's. */
+  document?: unknown;
+  fields?: FieldValues;
+}
+
+/**
+ * What a producer is asked for (plugin API 1.70): one entry for a slot of an
+ * editorial calendar, written as `userId`.
+ */
+export interface ProduceRequest {
+  userId: string;
+  /** When the entry is meant to come out (ISO date). */
+  slotAt: string;
+  /** Content type wanted; the producer's choice when omitted. */
+  type?: string;
+  /** Language wanted; the site's default when omitted. */
+  locale?: string;
+}
+
+/**
+ * A service that writes entries on request (plugin API 1.70), e.g. Tell me
+ * more's articles from the channels a site follows. A calendar plugin lists
+ * them with `producers` and asks one for each slot with `produce`.
+ */
+export interface ContentProducer {
+  /** `<plugin slug>` or `<plugin slug>:<name>`. */
+  id: string;
+  label: string;
+  description?: string;
+  /** Writes one draft and gives its id; null when there is nothing to write now. */
+  produce(siteId: string, request: ProduceRequest): Promise<{ entryId: string } | null>;
+}
+
+/** A producer as other plugins see it. */
+export interface ContentProducerInfo {
+  id: string;
+  label: string;
+  description: string;
+  /** The plugin that provides it. */
+  plugin: string;
+}
+
 export interface ContentApi {
   /** Adds a content type to the sites where the plugin is active (needs `content:write`). */
   registerType(definition: ContentTypeDefinition): void;
@@ -246,6 +296,36 @@ export interface ContentApi {
     siteId: string,
     type: string,
   ): Promise<{ fields: FieldDefinition[]; groups: { id: string; fields: FieldDefinition[] }[] }>;
+  /**
+   * Creates an entry as a draft, as the given user (plugin API 1.70, needs
+   * `content:write`): their rights are checked and the document is validated
+   * as one saved from the editor. Missing on older cores.
+   */
+  create?(siteId: string, input: NewEntryInput, options: { userId: string }): Promise<PluginEntry>;
+  /**
+   * Publishes an entry as the given user, or schedules it when `at` is in the
+   * future (plugin API 1.70, needs `content:publish`); the user must be
+   * allowed to publish it. Missing on older cores.
+   */
+  publish?(
+    siteId: string,
+    id: string,
+    options: { userId: string; at?: string },
+  ): Promise<PluginEntry>;
+  /** Offers a producer of entries to calendar plugins (plugin API 1.70, needs `content:write`). */
+  registerProducer?(producer: ContentProducer): void;
+  /** The producers of the plugins active on a site (plugin API 1.70, needs `content:write`). */
+  producers?(siteId: string): Promise<ContentProducerInfo[]>;
+  /**
+   * Asks a producer for one entry (plugin API 1.70, needs `content:write`),
+   * with up to 15 minutes to write it; null when it had nothing to write.
+   * Throws when the producer is unknown, inactive or fails.
+   */
+  produce?(
+    siteId: string,
+    producerId: string,
+    request: ProduceRequest,
+  ): Promise<{ entryId: string } | null>;
 }
 
 export interface TermsApi {
