@@ -135,6 +135,36 @@ describe('assignments', () => {
     expect(replaced.terms.category).toHaveLength(1);
   });
 
+  it('gives names without Latin letters a slug of their own, and reuses them by name', async () => {
+    const created = await editor.post('/api/v1/taxonomies/category/terms', { name: '冥想' });
+    expect(created.statusCode, created.body).toBe(201);
+    expect(created.json()).toMatchObject({
+      name: '冥想',
+      slug: expect.stringMatching(/^category(-\d+)?$/),
+    });
+    const second = await editor.post('/api/v1/taxonomies/category/terms', { name: '禅' });
+    expect(second.json().slug).not.toBe(created.json().slug);
+    // Tags typed in the editor: the same name is the same tag.
+    const one = await article(author, 'Zen one');
+    const two = await article(author, 'Zen two');
+    const a = (
+      await author.request('PATCH', `/api/v1/entries/${one.id}`, {
+        terms: { tag: [{ name: '禅' }] },
+      })
+    ).json();
+    const b = (
+      await author.request('PATCH', `/api/v1/entries/${two.id}`, {
+        terms: { tag: [{ name: '禅' }] },
+      })
+    ).json();
+    expect(a.terms.tag[0].id).toBe(b.terms.tag[0].id);
+    // A slug written by hand is still checked.
+    const bad = await editor.request('PATCH', `/api/v1/terms/${created.json().id}`, {
+      slug: '冥想',
+    });
+    expect(bad.statusCode).toBeGreaterThanOrEqual(400);
+  });
+
   it('refuses taxonomies that do not apply and terms of another language', async () => {
     const page = (await editor.post('/api/v1/entries', { type: 'page', title: 'About' })).json();
     const category = (

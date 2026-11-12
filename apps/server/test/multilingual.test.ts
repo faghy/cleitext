@@ -259,6 +259,21 @@ describe('translations of entries', () => {
 });
 
 describe('translations of terms', () => {
+  it('give a name without Latin letters the slug of the source (no 409)', async () => {
+    const meditation = (
+      await admin.post('/api/v1/taxonomies/category/terms', { name: 'Meditation' })
+    ).json();
+    const created = await admin.post(`${EXT}/translations/term/${meditation.id}`, {
+      locale: 'it',
+      name: '冥想',
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const [copy] = (await admin.get('/api/v1/taxonomies/category/terms?locale=it'))
+      .json()
+      .filter((t: { id: string }) => t.id === created.json().id);
+    expect(copy).toMatchObject({ name: '冥想', slug: 'meditation' });
+  });
+
   it('copy the term in the other language and link the archives', async () => {
     const world = (await admin.post('/api/v1/taxonomies/category/terms', { name: 'World' })).json();
     const created = await admin.post(`${EXT}/translations/term/${world.id}`, {

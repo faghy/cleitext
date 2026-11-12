@@ -197,6 +197,7 @@ export class TermsService {
         fields: source.fields as Record<string, unknown>,
         position: source.position,
         copy: true,
+        fallbackSlug: source.slug,
       });
       return toView(term, taxonomy!.slug, 0);
     });
@@ -372,6 +373,7 @@ export class TermsService {
         if (typeof value === 'string') {
           ids.push(value);
         } else {
+          // A name without Latin letters gives no slug: the same name is the same term.
           const slug = slugify(value.name);
           const [existing] = await tx
             .select()
@@ -380,7 +382,7 @@ export class TermsService {
               and(
                 eq(terms.taxonomyId, taxonomy.id),
                 eq(terms.locale, entry.locale),
-                eq(terms.slug, slug),
+                slug ? eq(terms.slug, slug) : eq(terms.name, value.name.trim()),
               ),
             );
           if (existing) {
@@ -449,6 +451,11 @@ export class TermsService {
       position?: number | undefined;
       /** A copy (translation): its values are kept as they are. */
       copy?: boolean;
+      /**
+       * The slug when the name gives none (only Chinese, Japanese, Arabic…
+       * characters): a translation's source slug; the taxonomy's otherwise.
+       */
+      fallbackSlug?: string | undefined;
     },
     auth: AuthContext | null = null,
   ): Promise<TermRow> {
@@ -469,7 +476,14 @@ export class TermsService {
         taxonomyId: taxonomy.id,
         locale: input.locale,
         parentId,
-        slug: await this.uniqueSlug(tx, taxonomy.id, input.locale, input.slug ?? name, null),
+        slug: await this.uniqueSlug(
+          tx,
+          taxonomy.id,
+          input.locale,
+          input.slug ?? name,
+          null,
+          input.slug === undefined ? (input.fallbackSlug ?? taxonomy.slug) : undefined,
+        ),
         name,
         description: input.description ?? null,
         fields: await this.validTermFields(siteId, auth, taxonomy, input.fields ?? {}, {
@@ -550,8 +564,10 @@ export class TermsService {
     locale: string,
     wanted: string,
     excludeId: string | null,
+    /** Used when `wanted` gives no slug (a name in a script without Latin letters). */
+    fallback?: string,
   ): Promise<string> {
-    const base = slugify(wanted);
+    const base = slugify(wanted) || (fallback ? slugify(fallback) : '');
     if (!base) throw new ConflictException('The name must contain letters or digits.');
     const rows = await tx
       .select({ slug: terms.slug })
