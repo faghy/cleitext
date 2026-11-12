@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
 import { useId } from 'react';
+import { useT } from './i18n.js';
 
 export function Button({
   variant = 'primary',
@@ -117,17 +118,34 @@ export function LogoMark({ size = 32, className }: { size?: number; className?: 
 
 /** Centered box for the sign-in pages. */
 export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
+  const { t } = useT();
+  // The admin lives on the site's own address: its home page is "/".
+  const host = typeof window === 'undefined' ? '' : window.location.host;
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <div className="w-full max-w-sm">
-        <p className="mb-6 flex items-center justify-center gap-2 text-2xl font-semibold text-slate-900">
-          <LogoMark size={36} />
-          Cleitext
+        <p className="mb-6 flex justify-center">
+          {/* As WordPress's logo leads to wordpress.org. */}
+          <a
+            href="https://cleitext.com"
+            title={t('Cleitext, the CMS this site is made with')}
+            className="flex items-center gap-2 text-2xl font-semibold text-slate-900 no-underline"
+          >
+            <LogoMark size={36} />
+            Cleitext
+          </a>
         </p>
         <div className="rounded border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="mb-4 text-lg font-semibold">{title}</h1>
           {children}
         </div>
+        {host ? (
+          <p className="mt-6 text-center text-sm">
+            <a href="/" className="text-slate-600 hover:text-slate-900 hover:underline">
+              {t('← Back to {site}', { site: host })}
+            </a>
+          </p>
+        ) : null}
       </div>
     </main>
   );

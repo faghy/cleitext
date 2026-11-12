@@ -148,6 +148,8 @@ export const itGeneral: Messages = {
   'Shown with a 404 status for missing addresses.':
     'Mostrata con stato 404 per gli indirizzi inesistenti.',
   'Sign in': 'Accedi',
+  '← Back to {site}': '← Torna a {site}',
+  'Cleitext, the CMS this site is made with': 'Cleitext, il CMS con cui è fatto questo sito',
   'Sign out': 'Esci',
   'Signing in…': 'Accesso in corso…',
   Site: 'Sito',

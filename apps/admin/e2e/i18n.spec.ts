@@ -19,6 +19,16 @@ test.afterEach(async ({ page }) => {
   if (page.url().includes('/cl-admin')) await setLocale(page, 'en');
 });
 
+test('the sign-in page leads back to the site, and its logo to cleitext.com', async ({ page }) => {
+  await page.goto('/cl-admin/login');
+  const back = page.getByRole('link', { name: /^← Back to / });
+  await expect(back).toHaveAttribute('href', '/');
+  await expect(page.getByRole('link', { name: 'Cleitext', exact: true })).toHaveAttribute(
+    'href',
+    'https://cleitext.com',
+  );
+});
+
 test('switches the admin to Italian and back', async ({ page }) => {
   await page.goto('/cl-admin/login');
   await page.getByLabel('Email').fill(ADMIN.email);
