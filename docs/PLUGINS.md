@@ -544,6 +544,31 @@ Every copy, this one or the admin's **Duplicate**, ends with the action `entry.c
 
 **Writing and publishing entries** (plugin API 1.70; missing on older cores, so call them as `ctx.content.create?.(…)`). `ctx.content.create(siteId, { type, title, locale?, excerpt?, document?, fields?, terms?, featuredMediaId? }, { userId })` (`content:write`) creates a draft as that user, with their rights and the editor's checks; `terms` (plugin API 1.71) is `{ <taxonomy>: [id | { name }] }` as the editor sends it, `featuredMediaId` a media id of the library. `ctx.content.publish(siteId, id, { userId, at? })` (the new `content:publish` permission, shown to the administrator before the plugin is activated) publishes the entry now, or schedules it when `at` is more than a minute ahead; the user must be allowed to publish it.
 
+### Services between plugins
+
+Plugin API 1.73 (missing on older cores: call it as `ctx.services?.use(...)`). A plugin offers functions to other plugins under a name: its own slug for what it alone does (Cleishop's `shop`: its orders, products, customers), or an extension point it calls (`shop.taxes`, which Cleishop asks for a tax quote; an AvaTax plugin offers it). Each function takes the site id first.
+
+```ts
+// The plugin that owns the data:
+ctx.services.provide('shop', {
+  async order(siteId, id: string) {
+    /* … */
+  },
+});
+// Another plugin, where Cleishop is active on the site (null otherwise):
+const shop = await ctx.services?.use<{ order(siteId: string, id: string): Promise<Order> }>(
+  siteId,
+  'shop',
+);
+const order = await shop?.order(siteId, id);
+// An extension point: every active plugin's offer, with its slug.
+for (const { plugin, service } of (await ctx.services?.all(siteId, 'shop.taxes')) ?? []) {
+  /* … */
+}
+```
+
+Names are `<owner>` or `<owner>.<point>` (lowercase letters, digits and hyphens). Only plugins active on the site answer. Each call runs isolated as a hook of the providing plugin, with a job's time at most, and its error reaches the caller (`<name>.<function>: <message>`). Arguments and results are passed as they are, in the same process: the provider documents its functions and keeps them compatible.
+
 **Producers of entries** (plugin API 1.70, `content:write`). A plugin that can write an entry on request, such as Tell me more's articles, offers it to calendar plugins such as Palinsest:
 
 ```ts
@@ -667,6 +692,7 @@ defineBlock<{ gap: number; image?: string }>({
 - Plugin API 1.65: the `render.title` filter (needs `theme:hooks`) changes the title an entry's page shows, e.g. in the theme's heading, with the same context as `render.blocks`; the `<title>` stays `render.head`'s. Setax uses it to show the visitor's choice (“Washing machines in Savona”).
 - Plugin API 1.66: on archives and searches `context.pagination.total` is how many entries the list has in all, e.g. to keep archives with few entries out of search (the SEO plugin does).
 - Plugin API 1.67: `ctx.ai.complete` takes an optional `model`, another model of the site's provider (e.g. a cheaper one for long texts); the site's model when left out.
+- Plugin API 1.73: services between plugins, `ctx.services.provide` / `use` / `all`. See [Services between plugins](#services-between-plugins).
 - Plugin API 1.72: `ctx.terms.copy` takes `slug`. Slugs of German content write ä ö ü as ae oe ue (core 0.99).
 - Plugin API 1.71: `ctx.content.create` takes `terms` and `featuredMediaId`.
 - Plugin API 1.70: `ctx.content.create` and `ctx.content.publish` (new permission `content:publish`), and producers of entries for calendar plugins (`registerProducer`, `producers`, `produce`). See [Writing and publishing entries](#writing-and-publishing-entries).

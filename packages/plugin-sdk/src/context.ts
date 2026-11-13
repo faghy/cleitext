@@ -335,6 +335,32 @@ export interface ContentApi {
   ): Promise<{ entryId: string } | null>;
 }
 
+/** Functions a plugin offers to others: each takes the site id first. */
+export type ServiceFunctions = Record<string, (siteId: string, ...args: never[]) => unknown>;
+
+/**
+ * Services between plugins (plugin API 1.73). A plugin offers functions under
+ * a name: its own (`shop`) for what it alone does, or an extension point that
+ * another plugin calls (`shop.taxes`, which Cleishop asks for a tax quote).
+ * Other plugins use them only where the providing plugin is active on the
+ * site. Each call runs isolated as a hook of the providing plugin (a job's
+ * time at most) and throws its error to the caller.
+ */
+export interface ServicesApi {
+  /** Offers functions under a name: `<owner>` or `<owner>.<point>` (lowercase, digits, -). */
+  provide(name: string, functions: ServiceFunctions): void;
+  /** The service of the first plugin active on the site that offers it; null when none. */
+  use<T extends ServiceFunctions = ServiceFunctions>(
+    siteId: string,
+    name: string,
+  ): Promise<T | null>;
+  /** Every active plugin's offer under a name (extension points), with the plugin's slug. */
+  all<T extends ServiceFunctions = ServiceFunctions>(
+    siteId: string,
+    name: string,
+  ): Promise<{ plugin: string; service: T }[]>;
+}
+
 export interface TermsApi {
   /** Reads terms of a site (needs `content:read`). */
   find(siteId: string, query?: TermQuery): Promise<PluginTerm[]>;
@@ -1851,6 +1877,12 @@ export interface PluginContext {
   readonly storage: StorageApi;
   readonly secrets: SecretsApi;
   readonly schedule: ScheduleApi;
+  /**
+   * Services between plugins (plugin API 1.73): functions a plugin offers to
+   * others, e.g. Cleishop's orders for an invoices plugin. Missing on older
+   * cores: call it as `ctx.services?.use(...)`.
+   */
+  readonly services: ServicesApi;
   readonly comments: CommentsApi;
   readonly blocks: BlockApi;
   readonly routes: RouteApi;

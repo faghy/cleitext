@@ -52,6 +52,7 @@ import {
   type ContentProducerInfo,
   type DynamicSource,
   type ProduceRequest,
+  type ServiceFunctions,
   type ReferralCapture,
   type ErasureResult,
   type FieldGroupDefinition,
@@ -158,6 +159,8 @@ export interface LoadedPlugin {
   dynamicSources: DynamicSource[];
   /** Producers of entries for calendar plugins (plugin API 1.70). */
   producers: ContentProducer[];
+  /** Functions offered to other plugins, by service name (plugin API 1.73). */
+  services: Map<string, ServiceFunctions>;
   dynamicProviders: ((siteId: string) => DynamicSource[] | Promise<DynamicSource[]>)[];
   blocks: PluginBlockDefinition<Record<string, unknown>, unknown>[];
   apiRoutes: (ApiRoute & { compiled: CompiledRoute })[];
@@ -369,6 +372,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       optionsPages: [],
       dynamicSources: [],
       producers: [],
+      services: new Map(),
       dynamicProviders: [],
       blocks: [],
       apiRoutes: [],
@@ -424,6 +428,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         optionsPages: [],
         dynamicSources: [],
         producers: [],
+        services: new Map(),
         dynamicProviders: [],
         blocks: [],
         apiRoutes: [],
@@ -733,6 +738,53 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
     return (await this.activePlugins(siteId)).flatMap((plugin) =>
       plugin.optionsPages.map((page) => ({ ...page, source: `plugin:${plugin.slug}` as const })),
     );
+  }
+
+  /** A plugin offers functions under a name (plugin API 1.73). */
+  addService(plugin: LoadedPlugin, name: string, functions: ServiceFunctions): void {
+    if (!/^[a-z][a-z0-9-]{0,39}(\.[a-z0-9-]{1,40})?$/.test(String(name))) {
+      throw new PluginError(`Service names are "<owner>" or "<owner>.<point>": ${name}`);
+    }
+    if (!functions || typeof functions !== 'object') {
+      throw new PluginError(`The service "${name}" needs an object of functions`);
+    }
+    plugin.services.set(name, functions);
+  }
+
+  /**
+   * The offers of a service on a site, from its active plugins: each function
+   * wrapped to run isolated as the providing plugin's (a job's time at most),
+   * throwing the plugin's own error to the caller.
+   */
+  async serviceOffers(
+    siteId: string,
+    name: string,
+  ): Promise<{ plugin: string; service: ServiceFunctions }[]> {
+    const offers: { plugin: string; service: ServiceFunctions }[] = [];
+    for (const plugin of await this.activePlugins(siteId)) {
+      const functions = plugin.services.get(name);
+      if (!functions) continue;
+      const service: ServiceFunctions = {};
+      for (const [key, fn] of Object.entries(functions)) {
+        if (typeof fn !== 'function') continue;
+        service[key] = async (id: string, ...args: never[]) => {
+          if (id !== siteId)
+            throw new PluginError('A service is called for the site it was given for.');
+          const outcome = await this.runHook(
+            { plugin: plugin.slug, name: `service ${name}.${key}`, siteId },
+            () => (fn as (siteId: string, ...rest: never[]) => unknown)(siteId, ...args),
+            { timeout: 'job' },
+          );
+          if (!outcome.ok) {
+            const reason = plugin.stats.lastError?.replace(/^service [^:]+: /, '') ?? 'see the log';
+            throw new PluginError(`${name}.${key}: ${reason}`);
+          }
+          return outcome.value;
+        };
+      }
+      offers.push({ plugin: plugin.slug, service });
+    }
+    return offers;
   }
 
   addProducer(plugin: LoadedPlugin, producer: ContentProducer): void {

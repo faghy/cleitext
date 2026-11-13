@@ -856,6 +856,21 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
       },
     },
 
+    services: {
+      provide(name, functions) {
+        host.addService(plugin, name, functions);
+      },
+      async use(siteId, name) {
+        assertSiteId(siteId);
+        const offers = await host.serviceOffers(siteId, String(name));
+        return (offers[0]?.service ?? null) as never;
+      },
+      async all(siteId, name) {
+        assertSiteId(siteId);
+        return (await host.serviceOffers(siteId, String(name))) as never;
+      },
+    },
+
     privacy: {
       declareTrackers(provider) {
         plugin.trackerProviders.push(provider);
