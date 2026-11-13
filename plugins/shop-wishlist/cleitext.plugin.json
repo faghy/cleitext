@@ -1,0 +1,18 @@
+{
+  "slug": "shop-wishlist",
+  "name": "Wishlist",
+  "version": "1.0.0",
+  "apiVersion": "^1.73",
+  "description": "A Cleishop add-on: customers save products for later with a heart on every product card and page, also without an account (their list joins the account at sign-in). A wishlist page with prices, stock and «Add to cart», a link to share it, a header link with the count, and the import of YITH WooCommerce Wishlist lists.",
+  "author": "Cleitext",
+  "homepage": "https://cleitext.com/plugins/shop-wishlist",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "public": "dist/public",
+  "requires": {
+    "plugins": { "shop": "^1.13.1" }
+  },
+  "permissions": ["content:read", "routes:public", "routes:admin", "blocks", "theme:hooks"],
+  "capabilities": ["manage_wishlist"]
+}
