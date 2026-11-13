@@ -11,7 +11,9 @@ import {
 } from './languages';
 import {
   elementorToFresco,
+  isWpBakeryLayout,
   restoreEmoji,
+  wpbakeryToFresco,
   takeStretched,
   type ElementorContext,
   type ElementorImageInfo,
@@ -529,6 +531,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     warnings,
   });
   let diviPages = 0;
+  let wpbakeryPages = 0;
 
   // ---- Posts and pages ------------------------------------------------------------------
   const entries: NonNullable<TransferDocumentInput['entries']> = [];
@@ -661,6 +664,19 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
           },
         };
         diviPages++;
+      }
+    } else if (useElementor && isWpBakeryLayout(content)) {
+      // Pages built with WPBakery: their rows, columns and elements as a Fresco page.
+      const blocks = wpbakeryToFresco(content, meta(item, '_wpb_shortcodes_custom_css') ?? '', {
+        ...elementor.context((message) => warnings.push(`${title || `#${id}`}: ${message}`)),
+        attachmentUrl: (attachment) => {
+          const ref = attachmentRefs.get(attachment);
+          return ref ? mediaUrls.get(ref) : undefined;
+        },
+      });
+      if (blocks && blocks.length > 0) {
+        document = { schema: 1, blocks, editor: { id: 'fresco' } };
+        wpbakeryPages++;
       }
     }
     // The featured image stays the featured image; when it also opens the content,
@@ -901,6 +917,11 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   if (diviPages) {
     warnings.push(
       `${diviPages} page(s) built with Divi were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
+    );
+  }
+  if (wpbakeryPages) {
+    warnings.push(
+      `${wpbakeryPages} page(s) built with WPBakery were imported as Fresco pages: activate the Fresco plugin to show and edit them.`,
     );
   }
   if (elementorPages) {

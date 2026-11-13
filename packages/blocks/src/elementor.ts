@@ -8,3 +8,4 @@ export * from './elementor/convert.js';
 export * from './elementor/values.js';
 export * from './elementor/atomic.js';
 export { proWidget } from './elementor/pro.js';
+export * from './elementor/wpbakery.js';

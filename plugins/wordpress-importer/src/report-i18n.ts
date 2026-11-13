@@ -150,6 +150,8 @@ export const REPORT_IT: Record<string, string> = {
     'Gli indirizzi di WordPress finiscono con una barra (/mia-pagina/): per mantenerli identici, attiva «Indirizzi con la barra finale» in Impostazioni → Struttura dei contenuti (altrimenti reindirizzano una volta alla forma senza barra).',
   '{n} page(s) built with Divi were imported as Fresco pages: activate the Fresco plugin to show and edit them.':
     '{n} pagine costruite con Divi sono state importate come pagine di Fresco: attiva il plugin Fresco per mostrarle e modificarle.',
+  '{n} page(s) built with WPBakery were imported as Fresco pages: activate the Fresco plugin to show and edit them.':
+    '{n} pagine costruite con WPBakery sono state importate come pagine di Fresco: attiva il plugin Fresco per mostrarle e modificarle.',
   '{n} page(s) built with Elementor were imported as Fresco pages: activate the Fresco plugin to show and edit them.':
     '{n} pagine costruite con Elementor sono state importate come pagine di Fresco: attiva il plugin Fresco per mostrarle e modificarle.',
   '{n} form(s) protected with the site captcha: activate the Captcha plugin and set its keys in Settings → Captcha.':
@@ -291,6 +293,10 @@ export const REPORT_IT: Record<string, string> = {
     'i dati di Elementor non si potevano leggere; è stato importato il contenuto della pagina.',
   '{n} Elementor widget(s) "{type}" have no Fresco counterpart yet: their text was kept.':
     '{n} widget di Elementor "{type}" non hanno ancora un corrispondente in Fresco: il loro testo è stato conservato.',
+  '{n} WPBakery element(s) "{type}" have no Fresco counterpart yet: their text, if any, was kept.':
+    '{n} elementi WPBakery "{type}" non hanno ancora un equivalente in Fresco: il loro testo, se c\'era, è stato mantenuto.',
+  'A WPBakery carousel linked each image to its own address: the images were kept, their links ({links}) were not.':
+    'Un carosello di WPBakery collegava ogni immagine a un suo indirizzo: le immagini sono state mantenute, i loro link ({links}) no.',
   '{n} Divi module(s) "{type}" have no Fresco counterpart yet: their text was kept.':
     '{n} moduli di Divi "{type}" non hanno ancora un corrispondente in Fresco: il loro testo è stato conservato.',
   'a size written as CSS (clamp, calc) was approximated':
