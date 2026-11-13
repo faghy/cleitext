@@ -30,6 +30,8 @@ export interface WooCustomer {
   payingCustomer?: boolean;
   orders?: number;
   paidOrders?: number;
+  /** Failed orders among `orders` (often card tests by bots); exports before 1.1 lack it. */
+  failedOrders?: number;
   newsletter?: boolean;
   billing?: WooAddress;
   shipping?: WooAddress;
@@ -45,6 +47,7 @@ export interface WooItem {
   subtotalTax?: string;
   productId?: number;
   sku?: string;
+  productSlug?: string;
   attributes?: { name: string; value: string }[];
 }
 
@@ -142,7 +145,7 @@ export type CustomerChoice = 'paid' | 'orders' | 'all';
 /** The customers to import: all, those with orders, or those with a paid order. */
 export function pickCustomers(
   customers: WooCustomer[],
-  options: { which: CustomerChoice; verifiedOnly: boolean },
+  options: { which: CustomerChoice; verifiedOnly: boolean; skipFailed?: boolean },
 ): WooCustomer[] {
   return customers.filter((c) => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email ?? '')) return false;
@@ -150,7 +153,9 @@ export function pickCustomers(
     // Site staff are not shop customers.
     if ((c.roles ?? []).some((r) => r === 'administrator' || r === 'shop_manager')) return false;
     if (options.which === 'paid') return (c.paidOrders ?? 0) > 0 || Boolean(c.payingCustomer);
-    if (options.which === 'orders') return (c.orders ?? 0) > 0;
+    // Failed orders do not make a customer when they are left out (bots' card tests).
+    const orders = (c.orders ?? 0) - (options.skipFailed !== false ? (c.failedOrders ?? 0) : 0);
+    if (options.which === 'orders') return orders > 0;
     return true;
   });
 }
@@ -176,6 +181,8 @@ export function toImportedOrder(
   links: {
     customerUserId: string | null;
     productIdBySku: Map<string, string>;
+    /** Products without a SKU, by their slug. */
+    productIdBySlug?: Map<string, string>;
     defaultLocale: string;
   },
 ) {
@@ -191,7 +198,11 @@ export function toImportedOrder(
     name: item.name,
     sku: item.sku ?? '',
     productId:
-      item.type === 'line_item' && item.sku ? (links.productIdBySku.get(item.sku) ?? null) : null,
+      item.type !== 'line_item'
+        ? null
+        : ((item.sku ? links.productIdBySku.get(item.sku) : undefined) ??
+          (item.productSlug ? links.productIdBySlug?.get(item.productSlug) : undefined) ??
+          null),
     quantity: item.quantity ?? 1,
     subtotal: item.subtotal ?? item.total ?? '0',
     subtotalTax: item.subtotalTax ?? item.tax ?? '0',

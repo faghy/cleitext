@@ -39,6 +39,7 @@ if ($since !== '') {
 $orders = [];
 $orderCount = [];
 $paidCount = [];
+$failedCount = [];
 foreach (wc_get_orders($query) as $id) {
     $order = wc_get_order($id);
     if (!$order) {
@@ -59,6 +60,9 @@ foreach (wc_get_orders($query) as $id) {
             $row['productId'] = (int) $item->get_product_id();
             $row['variationId'] = (int) $item->get_variation_id();
             $row['sku'] = $product ? (string) $product->get_sku() : '';
+            // The product's slug, to find it when it has no SKU.
+            $parent = wc_get_product((int) $item->get_product_id());
+            $row['productSlug'] = $parent ? (string) $parent->get_slug() : '';
             $row['subtotal'] = wc_format_decimal($item->get_subtotal(), 2);
             $row['subtotalTax'] = wc_format_decimal($item->get_subtotal_tax(), 2);
             $attributes = [];
@@ -110,6 +114,9 @@ foreach (wc_get_orders($query) as $id) {
     }
     $customer = (int) $order->get_customer_id();
     $status = $order->get_status();
+    if ($customer && $status === 'failed') {
+        $failedCount[$customer] = ($failedCount[$customer] ?? 0) + 1;
+    }
     if ($customer) {
         $orderCount[$customer] = ($orderCount[$customer] ?? 0) + 1;
         if ($order->is_paid()) {
@@ -185,6 +192,7 @@ foreach ($ids as $userId) {
         'payingCustomer' => $get('paying_customer') === '1',
         'orders' => $orderCount[$userId] ?? 0,
         'paidOrders' => $paidCount[$userId] ?? 0,
+        'failedOrders' => $failedCount[$userId] ?? 0,
         'newsletter' => $get('mailchimp_woocommerce_is_subscribed') === '1',
         'billing' => $billing,
         'shipping' => $shipping,

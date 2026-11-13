@@ -10,7 +10,7 @@
   "server": "dist/server.js",
   "admin": "dist/admin.js",
   "requires": {
-    "plugins": { "shop": "^1.13.0" }
+    "plugins": { "shop": "^1.13.1" }
   },
   "permissions": ["import", "routes:admin"],
   "capabilities": ["import_woocommerce"]

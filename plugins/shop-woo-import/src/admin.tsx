@@ -112,7 +112,7 @@ function WooImportPage({ api }: AdminPageProps) {
     }
   };
 
-  const customers = data ? pickCustomers(data.customers, { which, verifiedOnly }) : [];
+  const customers = data ? pickCustomers(data.customers, { which, verifiedOnly, skipFailed }) : [];
   const failed = data ? data.orders.filter((o) => o.status === 'failed').length : 0;
   const orders = data ? data.orders.filter((o) => !(skipFailed && o.status === 'failed')) : [];
 
@@ -214,7 +214,7 @@ function WooImportPage({ api }: AdminPageProps) {
                   '/customers',
                   data.customers,
                   200,
-                  { which, verifiedOnly },
+                  { which, verifiedOnly, skipFailed },
                   'customers',
                 )
               }

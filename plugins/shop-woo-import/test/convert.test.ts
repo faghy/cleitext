@@ -110,3 +110,29 @@ describe('WooCommerce export', () => {
     ).toBeNull();
   });
 });
+
+describe('fixes after the first trial (1.1.0)', () => {
+  it('does not count failed orders when they are left out', () => {
+    const bot = customer({ id: 20, orders: 3, failedOrders: 3 });
+    const real = customer({ id: 21, orders: 2, failedOrders: 1 });
+    const ids = (skipFailed: boolean) =>
+      pickCustomers([bot, real], { which: 'orders', verifiedOnly: false, skipFailed }).map(
+        (c) => c.id,
+      );
+    expect(ids(true)).toEqual([21]);
+    expect(ids(false)).toEqual([20, 21]);
+  });
+
+  it('links lines without a SKU by the product’s slug', () => {
+    const converted = toImportedOrder(
+      { ...order, items: [{ type: 'line_item', name: 'Rose', productSlug: 'rose', total: '1' }] },
+      {
+        customerUserId: null,
+        productIdBySku: new Map(),
+        productIdBySlug: new Map([['rose', 'entry-rose']]),
+        defaultLocale: 'en',
+      },
+    )!;
+    expect(converted.items[0]!.productId).toBe('entry-rose');
+  });
+});

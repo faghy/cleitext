@@ -32,7 +32,10 @@ const MAX_ORDERS = 100;
 interface ShopService {
   [name: string]: (siteId: string, ...args: never[]) => unknown;
   saveCustomer(siteId: string, customer: unknown): Promise<{ created: boolean }>;
-  productsBy(siteId: string, keys: { skus: string[] }): Promise<{ id: string; sku: string }[]>;
+  productsBy(
+    siteId: string,
+    keys: { skus?: string[]; slugs?: string[] },
+  ): Promise<{ id: string; sku: string; slug?: string }[]>;
   importOrder(siteId: string, order: unknown): Promise<{ id: string; created: boolean }>;
 }
 
@@ -136,13 +139,18 @@ export default definePlugin({
         customers?: WooCustomer[];
         which?: CustomerChoice;
         verifiedOnly?: boolean;
+        skipFailed?: boolean;
         dryRun?: boolean;
       };
       const all = Array.isArray(body.customers) ? body.customers.slice(0, MAX_CUSTOMERS) : [];
       const which: CustomerChoice = ['paid', 'orders', 'all'].includes(body.which ?? '')
         ? body.which!
         : 'orders';
-      const chosen = pickCustomers(all, { which, verifiedOnly: body.verifiedOnly === true });
+      const chosen = pickCustomers(all, {
+        which,
+        verifiedOnly: body.verifiedOnly === true,
+        skipFailed: body.skipFailed !== false,
+      });
       const known = await mapOf(
         siteId,
         'customer',
@@ -230,12 +238,21 @@ export default definePlugin({
         'customer',
         fresh.map((o) => String(o.customerId ?? '')).filter((r) => r && r !== '0'),
       );
-      const skus = [
-        ...new Set(fresh.flatMap((o) => o.items.map((i) => i.sku ?? '').filter(Boolean))),
+      const lines = fresh.flatMap((o) => o.items.filter((i) => i.type === 'line_item'));
+      const skus = [...new Set(lines.map((i) => i.sku ?? '').filter(Boolean))];
+      // Products without a SKU are found by their slug (Cleishop 1.13.1).
+      const slugs = [
+        ...new Set(
+          lines
+            .filter((i) => !i.sku)
+            .map((i) => i.productSlug ?? '')
+            .filter(Boolean),
+        ),
       ];
-      const productIdBySku = new Map(
-        (skus.length ? await shop.productsBy(siteId, { skus }) : []).map((p) => [p.sku, p.id]),
-      );
+      const found =
+        skus.length || slugs.length ? await shop.productsBy(siteId, { skus, slugs }) : [];
+      const productIdBySku = new Map(found.filter((p) => p.sku).map((p) => [p.sku, p.id]));
+      const productIdBySlug = new Map(found.filter((p) => p.slug).map((p) => [p.slug!, p.id]));
       let created = 0;
       let skipped = 0;
       const warnings: string[] = [];
@@ -243,6 +260,7 @@ export default definePlugin({
         const converted = toImportedOrder(order, {
           customerUserId: customers.get(String(order.customerId ?? '')) ?? null,
           productIdBySku,
+          productIdBySlug,
           defaultLocale: site.defaultLocale,
         });
         if (!converted) {

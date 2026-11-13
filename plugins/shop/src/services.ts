@@ -145,8 +145,11 @@ export interface ShopService {
       invoice?: Invoice | null;
     },
   ): Promise<{ created: boolean }>;
-  /** Cleishop products (their entry ids) by SKU, for linking imported lines. */
-  productsBy(siteId: string, keys: { skus?: string[] }): Promise<{ id: string; sku: string }[]>;
+  /** Cleishop products (their entry ids) by SKU, or by slug (1.13.1), for linking imported lines. */
+  productsBy(
+    siteId: string,
+    keys: { skus?: string[]; slugs?: string[] },
+  ): Promise<{ id: string; sku: string; slug: string }[]>;
   /** Imports an order as it was; one with the same ref is left as it is. */
   importOrder(siteId: string, order: ImportedOrder): Promise<{ id: string; created: boolean }>;
   /** The id of an order imported with a ref, or null. */
@@ -198,18 +201,27 @@ export function provideShopService(
     },
 
     async productsBy(siteId, keys) {
-      const skus = [...new Set((keys.skus ?? []).map((k) => text(k, 100)).filter(Boolean))].slice(
-        0,
-        5000,
-      );
-      if (!skus.length) return [];
-      const rows = await tx(siteId, (t) =>
-        t
-          .select({ id: products.entryId, sku: products.sku })
-          .from(products)
-          .where(inArray(products.sku, skus)),
-      );
-      return rows.map((r) => ({ id: r.id, sku: r.sku }));
+      const clean = (list?: string[]) =>
+        [...new Set((list ?? []).map((k) => text(k, 200)).filter(Boolean))].slice(0, 5000);
+      const skus = clean(keys.skus);
+      const slugs = clean(keys.slugs);
+      const columns = { id: products.entryId, sku: products.sku, slug: products.slug };
+      const rows: { id: string; sku: string; slug: string }[] = [];
+      if (skus.length) {
+        rows.push(
+          ...(await tx(siteId, (t) =>
+            t.select(columns).from(products).where(inArray(products.sku, skus)),
+          )),
+        );
+      }
+      if (slugs.length) {
+        rows.push(
+          ...(await tx(siteId, (t) =>
+            t.select(columns).from(products).where(inArray(products.slug, slugs)),
+          )),
+        );
+      }
+      return rows;
     },
 
     async orderByRef(siteId, ref) {
