@@ -261,6 +261,7 @@ export const IT: Record<string, string> = {
   'Cancelled, failed and pending orders put their products back in stock; the customer gets an email when the order is processed, completed or refunded.':
     'Gli ordini annullati, non riusciti o in attesa di pagamento rimettono i prodotti in magazzino; il cliente riceve un’email quando l’ordine è in lavorazione, completato o rimborsato.',
   'Change status': 'Cambia stato',
+  Documents: 'Documenti',
   Customer: 'Cliente',
   'Customer note': 'Nota del cliente',
   Date: 'Data',

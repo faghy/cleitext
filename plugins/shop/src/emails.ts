@@ -1,3 +1,4 @@
+import { emailAttachments } from './extensions';
 import type { PaymentInstructions } from './pages';
 import type { PluginContext } from '@cleitext/plugin-sdk';
 import { z } from 'zod';
@@ -403,6 +404,8 @@ export async function sendOrderEmail(
   const to = EMAILS[id].to === 'shop' ? recipients.shop : [detail.order.email];
   if (to.length === 0) return false;
   const message = renderEmail(id, detail, context, custom);
+  // Files of add-ons (e.g. the invoice in PDF), shop.email-attachments (1.14).
+  const attachments = await emailAttachments(ctx, siteId, { orderId: detail.order.id, email: id });
   for (const address of to) {
     await ctx.mail.send({
       to: address,
@@ -410,6 +413,7 @@ export async function sendOrderEmail(
       text: message.text,
       html: message.html,
       siteId,
+      ...(attachments.length ? { attachments } : {}),
       ...(EMAILS[id].to === 'shop' ? { replyTo: detail.order.email } : {}),
     });
   }

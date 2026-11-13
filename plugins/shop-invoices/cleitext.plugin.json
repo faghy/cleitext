@@ -1,0 +1,17 @@
+{
+  "slug": "shop-invoices",
+  "name": "PDF Invoices",
+  "version": "1.0.0",
+  "apiVersion": "^1.73",
+  "description": "A Cleishop add-on: an invoice in PDF for each order, numbered without gaps (prefix, suffix, digits, yearly reset), with your logo and details and the Italian tax data of the customer. Attached to the order emails, downloaded from the customer's account and from the order in the admin; a packing slip; every invoice of a month in one PDF; the numbers of «PDF Invoices & Packing Slips» for orders imported from WooCommerce.",
+  "author": "Cleitext",
+  "homepage": "https://cleitext.com/plugins/shop-invoices",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "requires": {
+    "plugins": { "shop": "^1.14.0" }
+  },
+  "permissions": ["routes:public", "routes:admin", "settings:own"],
+  "capabilities": ["manage_invoices"]
+}

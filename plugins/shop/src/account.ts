@@ -1,3 +1,4 @@
+import { orderDocuments } from './extensions';
 import type {
   PluginContext,
   PluginTransaction,
@@ -187,18 +188,30 @@ export function registerAccount(
       // Only the customer's own orders; others do not exist for them.
       if (!found || found.order.customerId !== request.user!.id)
         return page(t('Order'), `<p>${t('This order does not exist.')}</p>`, 404);
+      // Documents of add-ons (e.g. the invoice), shop.order-documents (1.14).
+      const documents = await orderDocuments(ctx, request.siteId, {
+        orderId: found.order.id,
+        audience: 'customer',
+      });
+      const documentsHtml = documents.length
+        ? `<ul class="shop-documents">${documents
+            .map((d) => `<li><a href="${escapeAttr(d.url)}">${escapeAttr(d.label)}</a></li>`)
+            .join('')}</ul>`
+        : '';
       return {
         headers: { 'cache-control': 'private, no-store' },
         page: {
           title: t('Order {number}', { number: found.order.number }),
-          html: receivedPage({
-            order: found.order,
-            items: found.items,
-            t,
-            locale: request.locale,
-            payment: null,
-            account: { back: `${prefix}/account/orders` },
-          }),
+          html:
+            documentsHtml +
+            receivedPage({
+              order: found.order,
+              items: found.items,
+              t,
+              locale: request.locale,
+              payment: null,
+              account: { back: `${prefix}/account/orders` },
+            }),
         },
       };
     },
@@ -349,4 +362,12 @@ export function registerAccount(
       };
     },
   });
+}
+
+/** Text for an HTML attribute or element. */
+function escapeAttr(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
+  );
 }

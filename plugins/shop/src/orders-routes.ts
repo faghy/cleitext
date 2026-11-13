@@ -1,3 +1,4 @@
+import { orderDocuments } from './extensions';
 import { adminUrl, type PluginContext, type RouteRequest } from '@cleitext/plugin-sdk';
 import { conversions } from './conversions';
 import { desc } from 'drizzle-orm';
@@ -134,7 +135,13 @@ export function registerOrderRoutes(
 
   api('GET', '/orders/:id', async (request) => {
     const detail = await load(request.siteId, request.params.id!);
-    return detail ? { body: detail } : problem(404, 'This order does not exist.');
+    if (!detail) return problem(404, 'This order does not exist.');
+    // Documents of add-ons (e.g. the invoice), shop.order-documents (1.14).
+    const documents = await orderDocuments(ctx, request.siteId, {
+      orderId: detail.order.id,
+      audience: 'admin',
+    });
+    return { body: { ...detail, documents } };
   });
 
   api('PATCH', '/orders/:id/status', async (request) => {

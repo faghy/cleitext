@@ -254,3 +254,12 @@ Cleishop's read-only API on `globalThis[Symbol.for('cleitext.shop')]`:
 event above.
 
 Requires Cleitext 0.30 or later. License: GPL-2.0-or-later.
+
+## For add-ons
+
+Cleishop's add-ons (WooCommerce Import, Wishlist, PDF Invoices…) use its `shop` service (plugin API 1.73): `settings`, `saveCustomer`, `productsBy`, `importOrder`, `orderByRef`, `order`, `importedOrders` (1.14) and `productCards`. Since 1.14 Cleishop also asks add-ons for:
+
+- `shop.email-attachments`: `attachments(siteId, { orderId, email })` returns files attached to an order email (at most 10);
+- `shop.order-documents`: `documents(siteId, { orderId, audience })` returns links (`{ label, url }`) shown with the order, in the customer's account (`customer`) or in the admin (`admin`).
+
+A failing add-on never stops an email or a page: it is left out and logged.

@@ -238,7 +238,8 @@ function OrderView({
   const key = ['shop', 'order', id];
   const detail = useQuery({
     queryKey: key,
-    queryFn: () => api<OrderDetail>('GET', `/orders/${id}`),
+    queryFn: () =>
+      api<OrderDetail & { documents?: { label: string; url: string }[] }>('GET', `/orders/${id}`),
   });
   const [status, setStatus] = useState<string>('');
   const [message, setMessage] = useState<string | null>(null);
@@ -485,6 +486,24 @@ function OrderView({
               )}
             </p>
           </section>
+
+          {(detail.data as { documents?: { label: string; url: string }[] } | undefined)?.documents
+            ?.length ? (
+            <section className="sh-card sh-stack">
+              <h2>{t('Documents')}</h2>
+              <ul className="sh-small" style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                {(detail.data as { documents: { label: string; url: string }[] }).documents.map(
+                  (d) => (
+                    <li key={d.url}>
+                      <a href={d.url} target="_blank" rel="noopener noreferrer">
+                        {d.label}
+                      </a>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </section>
+          ) : null}
 
           <section className="sh-card sh-stack">
             <h2>{t('Customer')}</h2>

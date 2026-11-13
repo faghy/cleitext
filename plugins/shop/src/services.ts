@@ -157,6 +157,14 @@ export interface ShopService {
   /** An order with its lines, notes and refunds. */
   order(siteId: string, id: string): Promise<OrderDetail | null>;
   /**
+   * Imported orders with the data kept from their shop (1.14), a page at a
+   * time by number: e.g. the invoice numbers of a WooCommerce plugin.
+   */
+  importedOrders(
+    siteId: string,
+    options: { after?: number; limit?: number },
+  ): Promise<{ id: string; number: number; meta: Record<string, unknown> }[]>;
+  /**
    * The cards of some products as the catalog shows them (picture, price,
    * stock, add to cart), in the order given, with the CSS they need: e.g. a
    * wishlist. Products not published are left out.
@@ -395,6 +403,19 @@ export function provideShopService(
     async order(siteId, id) {
       if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
       return tx(siteId, (t) => orderDetail(t, id));
+    },
+
+    async importedOrders(siteId, options) {
+      const after = Number.isInteger(options?.after) ? options.after! : 0;
+      const limit = Math.min(500, Math.max(1, Number(options?.limit) || 200));
+      return tx(siteId, (t) =>
+        t
+          .select({ id: orders.id, number: orders.number, meta: orders.meta })
+          .from(orders)
+          .where(sql`${orders.externalRef} IS NOT NULL AND ${orders.number} > ${after}`)
+          .orderBy(orders.number)
+          .limit(limit),
+      );
     },
   };
 
