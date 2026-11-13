@@ -86,7 +86,7 @@ export function registerCatalog(
     currency: string;
     perPage: number;
     defaultSort?: 'latest' | 'position';
-    excerpt?: boolean;
+    excerpt?: false | 'text' | 'html';
   }>,
 ): void {
   const render = async (
@@ -168,7 +168,7 @@ export function registerCatalog(
       money,
       url: (card) => urls.get(card.id) ?? `${prefix}/product/${card.slug}`,
       addAction: `${prefix}/cart/add`,
-      ...(store.excerpt ? { excerpt: true } : {}),
+      ...(store.excerpt ? { excerpt: store.excerpt } : {}),
     };
     const title = term ? term.name : t('Shop');
     return {

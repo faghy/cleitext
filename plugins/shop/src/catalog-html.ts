@@ -1,6 +1,7 @@
 import type { CatalogResult, ProductCard, Sort } from './catalog-query';
 import { SORTS } from './catalog-query';
 import { html, raw, type Html } from './html';
+import { plainExcerpt } from './sync';
 import type { Money } from './pages';
 import type { Translate } from './strings';
 
@@ -107,8 +108,8 @@ export interface CardOptions {
   addAction: string;
   /** For the product names in the headings: h2 on the catalog, h3 in blocks. */
   heading?: 'h2' | 'h3';
-  /** The short description under the name (Cleishop 1.17). */
-  excerpt?: boolean;
+  /** The short description under the name (Cleishop 1.17): as text, or as its HTML (1.17.1). */
+  excerpt?: 'text' | 'html';
 }
 
 export function productCards(cards: ProductCard[], options: CardOptions): Html {
@@ -141,7 +142,9 @@ export function productCards(cards: ProductCard[], options: CardOptions): Html {
         >${raw(`</${heading}>`)} ${stars(t, card.rating, card.ratingCount)}
         ${
           options.excerpt && card.excerpt
-            ? html`<p class="shop-card__excerpt">${card.excerpt}</p>`
+            ? options.excerpt === 'html'
+              ? html`<div class="shop-card__excerpt">${raw(card.excerpt)}</div>`
+              : html`<p class="shop-card__excerpt">${plainExcerpt(card.excerpt)}</p>`
             : ''
         }
         <p class="shop-card__price">${priceHtml(card, money)}</p>

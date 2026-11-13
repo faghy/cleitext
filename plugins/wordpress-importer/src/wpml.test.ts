@@ -104,3 +104,62 @@ describe('WPML translations', () => {
     );
   });
 });
+
+describe('terms of other languages', () => {
+  it('go in the language of the entries using them, linked to their translation', async () => {
+    const { localizeTerms } = await import('./wxr');
+    const terms = [
+      {
+        ref: 'product_cat:perfumes',
+        taxonomy: 'product-category',
+        locale: 'en',
+        slug: 'perfumes',
+        name: 'Perfumes',
+      },
+      {
+        ref: 'product_cat:chinotto-perfumes',
+        taxonomy: 'product-category',
+        locale: 'en',
+        slug: 'chinotto-perfumes',
+        name: 'Chinotto',
+      },
+      {
+        ref: 'product_cat:chinotto',
+        taxonomy: 'product-category',
+        locale: 'en',
+        slug: 'chinotto',
+        name: 'Chinotto',
+      },
+    ];
+    const entry = (ref: string, locale: string, cats: string[]) => ({
+      ref,
+      type: 'product',
+      locale,
+      slug: ref,
+      title: ref,
+      status: 'published' as const,
+      translationRef: 'wpml:1',
+      terms: { 'product-category': cats },
+      document: { schema: 1 as const, blocks: [] },
+    });
+    const result = localizeTerms(
+      terms as never,
+      [
+        entry('post:1', 'en', ['product_cat:perfumes', 'product_cat:chinotto-perfumes']),
+        entry('post:2', 'it', ['product_cat:perfumes', 'product_cat:chinotto']),
+      ] as never,
+      'en',
+    );
+    expect(result).toEqual({ moved: 1, linked: 1 });
+    expect(terms[2]).toMatchObject({
+      locale: 'it',
+      translationRef: 'term:product_cat:chinotto-perfumes',
+    });
+    expect(terms[1]).toMatchObject({
+      locale: 'en',
+      translationRef: 'term:product_cat:chinotto-perfumes',
+    });
+    // Used in both languages: stays in the main one, unlinked.
+    expect(terms[0]).toMatchObject({ locale: 'en' });
+  });
+});

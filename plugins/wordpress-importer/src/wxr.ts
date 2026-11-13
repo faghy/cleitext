@@ -826,6 +826,13 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     }
   }
   const translated = recogniseTranslations(entries, sources, locale, candidates, decided.kept);
+  // Terms of other languages (WPML keeps their language outside the export).
+  const localized = localizeTerms(terms, entries, locale);
+  if (localized.moved > 0) {
+    warnings.push(
+      `${localized.moved} categor(ies) or tag(s) used only by content in another language were put in that language, ${localized.linked} linked to their translation: check them in each language.`,
+    );
+  }
   if (translated > 0) {
     warnings.push(
       `${translated} page(s) or post(s) were recognised as WPML translations, with their language guessed from their text: check them in each language.`,
@@ -1903,6 +1910,78 @@ function applyLanguages(
  * translation reference, and only the main-language entry keeps the old
  * address. Returns how many entries got another language.
  */
+/**
+ * The language of terms, which WPML keeps outside the export: a term used only
+ * by entries of another language goes in that language, and is linked to the
+ * term its entries' translations use in the same place (most votes win).
+ */
+export function localizeTerms(
+  terms: NonNullable<TransferDocumentInput['terms']>,
+  entries: NonNullable<TransferDocumentInput['entries']>,
+  main: string,
+): { moved: number; linked: number } {
+  const usedIn = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    for (const refs of Object.values(entry.terms ?? {})) {
+      for (const ref of refs) {
+        const set = usedIn.get(ref) ?? new Set<string>();
+        set.add(entry.locale);
+        usedIn.set(ref, set);
+      }
+    }
+  }
+  const byRef = new Map(terms.map((t) => [t.ref, t]));
+  let moved = 0;
+  for (const term of terms) {
+    const languages = usedIn.get(term.ref);
+    if (!languages || languages.size !== 1) continue;
+    const only = [...languages][0]!;
+    if (only !== main && only !== term.locale) {
+      term.locale = only;
+      moved++;
+    }
+  }
+  if (!moved) return { moved, linked: 0 };
+  // Votes: a term of a translation ↔ the main language's term in the same place.
+  const groups = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    if (!entry.translationRef) continue;
+    groups.set(entry.translationRef, [...(groups.get(entry.translationRef) ?? []), entry]);
+  }
+  const votes = new Map<string, Map<string, number>>();
+  for (const group of groups.values()) {
+    const original = group.find((e) => e.locale === main);
+    if (!original) continue;
+    for (const other of group) {
+      if (other === original) continue;
+      for (const [taxonomy, refs] of Object.entries(other.terms ?? {})) {
+        const theirs = refs.filter((r) => byRef.get(r)?.locale === other.locale);
+        // Terms both versions use (e.g. a parent with one slug) are not translations.
+        const ours = (original.terms?.[taxonomy] ?? []).filter(
+          (r) => byRef.get(r)?.locale === main && !refs.includes(r),
+        );
+        if (!theirs.length || theirs.length !== ours.length) continue;
+        theirs.forEach((ref, i) => {
+          const tally = votes.get(ref) ?? new Map<string, number>();
+          tally.set(ours[i]!, (tally.get(ours[i]!) ?? 0) + 1);
+          votes.set(ref, tally);
+        });
+      }
+    }
+  }
+  let linked = 0;
+  for (const [ref, tally] of votes) {
+    const best = [...tally].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const term = byRef.get(ref);
+    const source = best ? byRef.get(best) : undefined;
+    if (!term || !source || term.translationRef) continue;
+    source.translationRef ??= `term:${source.ref}`;
+    term.translationRef = source.translationRef;
+    linked++;
+  }
+  return { moved, linked };
+}
+
 function recogniseTranslations(
   entries: NonNullable<TransferDocumentInput['entries']>,
   sources: Map<string, { link: string; text: string }>,

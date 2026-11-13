@@ -33,6 +33,48 @@ export function plainExcerpt(value: string | null | undefined): string {
     .slice(0, 500);
 }
 
+const KEPT = new Set([
+  'p',
+  'br',
+  'strong',
+  'b',
+  'em',
+  'i',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ul',
+  'ol',
+  'li',
+  'a',
+]);
+
+/**
+ * A short description's HTML with only simple formatting (paragraphs,
+ * headings, bold, lists, links), as themes such as Shopkeeper print it on
+ * the cards (Cleishop 1.17.1). Other tags keep their text; attributes go,
+ * but a link's address over http(s) or on the site.
+ */
+export function safeExcerpt(value: string | null | undefined): string {
+  return (value ?? '')
+    .replace(/<(script|style|iframe|object|template)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<\/?([a-z][a-z0-9]*)\b([^>]*)>/gi, (tag: string, name: string, attrs: string) => {
+      const lower = name.toLowerCase();
+      if (!KEPT.has(lower)) return '';
+      if (tag.startsWith('</')) return `</${lower}>`;
+      if (lower !== 'a') return `<${lower}>`;
+      const href = /\bhref\s*=\s*["']([^"']*)["']/i.exec(attrs)?.[1] ?? '';
+      return /^(https?:\/\/|\/(?!\/))/i.test(href)
+        ? `<a href="${href.replace(/"/g, '&quot;')}">`
+        : '<a>';
+    })
+    .trim()
+    .slice(0, 5_000);
+}
+
 /**
  * Keeps the shop's copy of a product entry (title, status, categories,
  * brand, image) in step with the entry, creating the product's row the
@@ -52,7 +94,8 @@ export async function syncProduct(
     updatedAt: new Date(),
   };
   if (typeof entry.position === 'number') copy.position = entry.position;
-  if (entry.excerpt !== undefined) copy.excerpt = plainExcerpt(entry.excerpt);
+  // Kept as simple HTML: the cards show it as text, or as HTML when chosen.
+  if (entry.excerpt !== undefined) copy.excerpt = safeExcerpt(entry.excerpt);
   if (entry.terms) {
     copy.categoryIds = entry.terms[CATEGORY] ?? [];
     copy.brandId = entry.terms[BRAND]?.[0] ?? null;

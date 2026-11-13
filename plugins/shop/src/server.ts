@@ -212,6 +212,15 @@ export default definePlugin({
           default: false,
         },
         {
+          name: 'cardExcerptHtml',
+          type: 'boolean',
+          label: {
+            en: 'With its formatting (headings, bold, lists)',
+            it: 'Con la sua formattazione (titoli, grassetti, elenchi)',
+          },
+          default: false,
+        },
+        {
           name: 'shippingInCart',
           type: 'boolean',
           label: { en: 'Shipping in the cart', it: 'Spedizione nel carrello' },
@@ -409,7 +418,12 @@ export default definePlugin({
         perPage: perPage >= 1 && perPage <= 100 ? perPage : 24,
         defaultSort:
           values.catalogSort === 'position' ? ('position' as const) : ('latest' as const),
-        excerpt: values.cardExcerpt === true,
+        excerpt:
+          values.cardExcerpt === true
+            ? values.cardExcerptHtml === true
+              ? ('html' as const)
+              : ('text' as const)
+            : (false as const),
       };
     });
     // WooCommerce products from the WordPress importer.
@@ -442,7 +456,7 @@ export default definePlugin({
     });
     // Once per site (Cleishop 1.17): products' order and short description from their entries.
     ctx.schedule.every('position-excerpt', 5, async (siteId) => {
-      if (await ctx.storage.get(siteId, 'position-excerpt')) return;
+      if (await ctx.storage.get(siteId, 'position-excerpt-2')) return;
       const ids = (
         await ctx.db.transaction(siteId, (tx) =>
           tx.select({ id: productsTable.entryId }).from(productsTable),
@@ -456,7 +470,7 @@ export default definePlugin({
         });
         for (const entry of entries) await syncProduct(ctx, siteId, entry);
       }
-      await ctx.storage.set(siteId, 'position-excerpt', true);
+      await ctx.storage.set(siteId, 'position-excerpt-2', true);
     });
     registerAi(ctx);
     registerReviews(ctx, async (siteId) => {

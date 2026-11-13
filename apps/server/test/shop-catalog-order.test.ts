@@ -97,5 +97,11 @@ describe('the catalog’s order and the cards’ short description', () => {
     const page = await new TestClient(app, site.host, '10.98.0.3').get('/shop');
     expect(titles(page.body)).toEqual(['Charlie', 'Bravo', 'Alpha']);
     expect(page.body).toContain('<p class="shop-card__excerpt">The third one.</p>');
+    // With its formatting (1.17.1): the short description's simple HTML.
+    await admin.request('PATCH', '/api/v1/plugins/shop/settings', { cardExcerptHtml: true });
+    const formatted = await new TestClient(app, site.host, '10.98.0.4').get('/shop');
+    expect(formatted.body).toContain(
+      '<div class="shop-card__excerpt"><p>The <strong>third</strong> one.</p></div>',
+    );
   });
 });
