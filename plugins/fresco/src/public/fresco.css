@@ -347,6 +347,33 @@ a.fr-container {
 .fr-text__body > :last-child {
   margin-bottom: 0;
 }
+/* WordPress's image alignment classes, as its core styles them (imported texts keep them). */
+.fr-text__body .alignleft {
+  float: left;
+  margin: 0.3em 1.5em 1em 0;
+}
+.fr-text__body .alignright {
+  float: right;
+  margin: 0.3em 0 1em 1.5em;
+}
+.fr-text__body .aligncenter {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+.fr-text__body::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+@media (max-width: 575px) {
+  .fr-text__body .alignleft,
+  .fr-text__body .alignright {
+    float: none;
+    display: block;
+    margin: 0 auto 1em;
+  }
+}
 .fr-drop-cap > p:first-child::first-letter {
   float: left;
   font-size: 3.4em;

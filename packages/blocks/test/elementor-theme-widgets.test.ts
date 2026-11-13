@@ -106,6 +106,26 @@ describe('John (john-core) widgets', () => {
     });
   });
 
+  it('keeps the widget’s paddings per device on the container it becomes', () => {
+    const { blocks } = run('john-section-title', {
+      section_title: 'CONSIGLI E ARTICOLI',
+      section_text: 'Testo',
+      _padding: { unit: 'px', top: '0', right: '250', bottom: '0', left: '250', isLinked: false },
+      _padding_tablet: {
+        unit: 'px',
+        top: '0',
+        right: '0',
+        bottom: '0',
+        left: '0',
+        isLinked: false,
+      },
+    });
+    const box = all(blocks).find(
+      (b) => (b.attrs._padding as { right?: number } | undefined)?.right === 250,
+    )!;
+    expect(box.attrs['_padding@tablet']).toMatchObject({ right: 0, left: 0 });
+  });
+
   it('turns contact info into an icon list, with Themify icons as Font Awesome ones', () => {
     const { blocks } = run('john-contactinfo', {
       contact_info_item: [

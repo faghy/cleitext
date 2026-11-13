@@ -544,8 +544,12 @@ export function themeWidget(c: Converter, el: ElementorNode): CxdBlock[] | null 
         content_width: 'full',
         flex_gap: { unit: 'px', size: 0, column: '0', row: '0', isLinked: true },
         padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true },
-        ...(own._margin ? { margin: own._margin } : {}),
-        ...(own._padding ? { padding: own._padding } : {}),
+        // The widget's margins and paddings on every device (`_padding_tablet`…).
+        ...Object.fromEntries(
+          Object.entries(own)
+            .filter(([key]) => /^_(margin|padding)(_|$)/.test(key))
+            .map(([key, value]) => [key.slice(1), value]),
+        ),
         ...(own._element_id ? { _element_id: own._element_id } : {}),
       },
       elements: nodes,
