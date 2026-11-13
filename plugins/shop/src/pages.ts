@@ -56,6 +56,12 @@ details.shop-more summary{cursor:pointer;font-weight:600}
 .shop-inline{display:inline;margin-left:.5rem}
 .shop-coupon-form{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 1.5rem}
 .shop-coupon-form input{font:inherit;padding:.55rem .65rem;border:1px solid var(--shop-line);border-radius:6px;background:transparent;color:inherit}
+.shop-shipping-calc{border:1px solid var(--shop-line);border-radius:6px;padding:.9rem 1rem;margin:0 0 1.5rem;display:flex;flex-direction:column;gap:.6rem}
+.shop-shipping-calc h2{font-size:1em;margin:0}
+.shop-shipping-calc ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem}
+.shop-shipping-calc label{display:flex;gap:.5rem;align-items:baseline}
+.shop-shipping-calc .shop-shipping-to{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.shop-shipping-calc select,.shop-shipping-calc input[type=text]{font:inherit;padding:.5rem .6rem;border:1px solid var(--shop-line);border-radius:6px;background:transparent;color:inherit}
 .shop-received dl{display:grid;grid-template-columns:max-content 1fr;gap:.35rem 1rem}
 .shop-received dt{font-weight:600}
 .shop-addresses{display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))}
@@ -199,6 +205,69 @@ function totalsRows(
 const lineName = (line: CartLine) =>
   html`${line.title}${line.attributes.length ? html`<span class="shop-meta">${line.attributes.map((a) => `${a.name}: ${a.value}`).join(' · ')}</span>` : ''}${line.sku ? html`<span class="shop-meta">${line.sku}</span>` : ''}`;
 
+/** The cart's shipping box: the methods and their price, and where to (country, postcode). */
+function shippingCalcForm(
+  calc: NonNullable<Parameters<typeof cartPage>[0]['shippingCalc']>,
+  t: Translate,
+  money: Money,
+  cartUrl: string,
+): Html {
+  const countries = [...COUNTRIES]
+    .map((code) => ({ code, name: countryName(code, calc.locale) }))
+    .sort((a, b) => a.name.localeCompare(b.name, calc.locale));
+  return html`<form method="post" action="${cartUrl}/shipping" class="shop-shipping-calc">
+    <h2>${t('Shipping')}</h2>
+    ${
+      calc.rates.length
+        ? html`<ul>
+            ${calc.rates.map(
+              (r) =>
+                html`<li>
+                  <label
+                    ><input
+                      type="radio"
+                      name="rate"
+                      value="${r.id}"
+                      ${r.id === calc.rate ? raw('checked') : ''}
+                      onchange="this.form.requestSubmit()"
+                    />
+                    <span
+                      >${r.title}:
+                      <strong>${r.cost > 0 ? money(r.cost) : t('Free')}</strong
+                      >${r.note ? html` <span class="shop-meta">${r.note}</span>` : ''}</span
+                    ></label
+                  >
+                </li>`,
+            )}
+          </ul>`
+        : html`<p>${t('No shipping methods for this address.')}</p>`
+    }
+    <div class="shop-shipping-to">
+      <span>${t('Shipping to')}</span>
+      <label class="shop-sr" for="shop-ship-country">${t('Country')}</label>
+      <select id="shop-ship-country" name="country" autocomplete="country">
+        ${countries.map(
+          (c) =>
+            html`<option value="${c.code}" ${c.code === calc.country ? raw('selected') : ''}>
+              ${c.name}
+            </option>`,
+        )}
+      </select>
+      <label class="shop-sr" for="shop-ship-postcode">${t('Postcode')}</label>
+      <input
+        id="shop-ship-postcode"
+        name="postcode"
+        type="text"
+        maxlength="20"
+        value="${calc.postcode}"
+        placeholder="${t('Postcode')}"
+        autocomplete="postal-code"
+      />
+      <button class="shop-button shop-button--secondary" type="submit">${t('Update')}</button>
+    </div>
+  </form>`;
+}
+
 export function cartPage(options: {
   lines: CartLine[];
   totals: Totals;
@@ -211,6 +280,14 @@ export function cartPage(options: {
   needsShipping: boolean;
   /** The express buttons (Apple Pay, Google Pay, Link), when the shop shows them here. */
   express?: string;
+  /** The shipping methods for a country and postcode (1.15), when the shop shows them here. */
+  shippingCalc?: {
+    rates: { id: string; title: string; cost: number; note?: string }[];
+    rate: string | null;
+    country: string;
+    postcode: string;
+    locale: string;
+  };
 }): string {
   const { lines, totals, t, money, urls } = options;
   const notices = options.notices.map(
@@ -298,10 +375,15 @@ export function cartPage(options: {
           ${t('Apply coupon')}
         </button>
       </form>
+      ${options.shippingCalc ? shippingCalcForm(options.shippingCalc, t, money, urls.cart) : ''}
       <table class="shop-table shop-totals">
         <tbody>
           ${totalsRows(totals, money, t, options.includeTax, {
-            shipping: options.needsShipping ? t('Calculated at checkout') : null,
+            shipping: options.needsShipping
+              ? options.shippingCalc?.rate
+                ? t('Free')
+                : t('Calculated at checkout')
+              : null,
             coupons: options.coupons,
             removeCoupon: `${urls.cart}/coupon`,
           })}

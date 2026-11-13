@@ -6,6 +6,7 @@ import {
   normalizeAddress,
   type Address,
   type Invoice,
+  COUNTRIES,
 } from './address';
 import { productTags } from './buy-box';
 import {
@@ -82,6 +83,8 @@ export interface StoreSettings {
   termsUrl: string;
   /** Where the shop is: taxes until the customer gives an address. */
   baseCountry: string;
+  /** The cart shows the shipping methods for a country and postcode (1.15). */
+  shippingInCart?: boolean;
   taxesEnabled: boolean;
   /** Ways to pay (Shop → Payments). */
   payments: Payments;
@@ -184,6 +187,22 @@ export function registerStorefront(
     value: token,
     maxAge: CART_DAYS * 86_400,
   });
+
+  /**
+   * Where the cart's shipping is worked out for, and the method chosen
+   * (1.15): `country|postcode|rate`, also the checkout's starting point.
+   */
+  const SHIP_COOKIE = 'shop_ship';
+  const shipOf = (request: RouteRequest) => {
+    const [country = '', postcode = '', rate = ''] = (request.cookies[SHIP_COOKIE] ?? '').split(
+      '|',
+    );
+    return {
+      country: (COUNTRIES as readonly string[]).includes(country) ? country : '',
+      postcode: /^[A-Za-z0-9 -]{1,20}$/.test(postcode) ? postcode : '',
+      rate: /^[\w:.-]{1,100}$/.test(rate) ? rate : '',
+    };
+  };
 
   const urlsFor = async (request: RouteRequest, lines: CartLine[]): Promise<PageUrls> => {
     const prefix = prefixOf(request);
@@ -294,7 +313,21 @@ export function registerStorefront(
   const cartView = async (request: RouteRequest) => {
     const t = translator(request.locale);
     const values = inLanguage(await settings(request.siteId), request.locale);
-    const cart = await currentCart(request, values, t);
+    // The shipping methods for where the customer said (or the shop's country), when shown here.
+    const ship = shipOf(request);
+    const to: Destination = {
+      country: ship.country || values.baseCountry,
+      province: '',
+      postcode: ship.postcode,
+    };
+    const cart = await currentCart(
+      request,
+      values,
+      t,
+      values.shippingInCart !== false
+        ? { to, shipping: true, ...(ship.rate ? { rateId: ship.rate } : {}) }
+        : {},
+    );
     const notices: { kind: 'ok' | 'error'; text: string }[] = [];
     if (request.query.added)
       notices.push({
@@ -344,6 +377,22 @@ export function registerStorefront(
           coupons: couponViews(cart.quote),
           needsShipping: cart.quote.shippingSetUp,
           ...(express ? { express } : {}),
+          ...(values.shippingInCart !== false && cart.quote.shippingSetUp
+            ? {
+                shippingCalc: {
+                  rates: cart.quote.rates.map((r) => ({
+                    id: r.id,
+                    title: r.title,
+                    cost: r.cost,
+                    ...(r.note ? { note: r.note } : {}),
+                  })),
+                  rate: cart.quote.rate?.id ?? null,
+                  country: to.country,
+                  postcode: to.postcode,
+                  locale: request.locale,
+                },
+              }
+            : {}),
         }),
     };
   };
@@ -633,6 +682,29 @@ export function registerStorefront(
     handler: (request) => changeItem(request, (items, key) => removeItem(items, key)),
   });
 
+  // The cart's shipping box: where to, and the method chosen (kept for the checkout).
+  ctx.routes.public({
+    method: 'POST',
+    path: '/cart/shipping',
+    async handler(request) {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const before = shipOf(request);
+      const country = text(body, 'country', 2).toUpperCase();
+      const postcode = text(body, 'postcode', 20).trim();
+      const rate = text(body, 'rate', 100);
+      const value = [
+        (COUNTRIES as readonly string[]).includes(country) ? country : before.country,
+        /^[A-Za-z0-9 -]{0,20}$/.test(postcode) ? postcode : before.postcode,
+        /^[\w:.-]{0,100}$/.test(rate) ? rate : before.rate,
+      ].join('|');
+      return {
+        status: 303,
+        cookies: [{ name: SHIP_COOKIE, value, maxAge: CART_DAYS * 86_400 }],
+        headers: { location: `${prefixOf(request)}/cart` },
+      };
+    },
+  });
+
   ctx.routes.public({
     method: 'POST',
     path: '/cart/coupon',
@@ -860,7 +932,13 @@ export function registerStorefront(
     const customer = request.user
       ? await ctx.db.transaction(request.siteId, (tx) => customerOf(tx, request.user!.id))
       : null;
-    const billing = customer?.billing ?? emptyAddress();
+    // A new customer starts from where the cart's shipping was worked out for.
+    const ship = shipOf(request);
+    const billing = customer?.billing ?? {
+      ...emptyAddress(),
+      ...(ship.country ? { country: ship.country } : {}),
+      ...(ship.postcode ? { postcode: ship.postcode } : {}),
+    };
     const shipping = customer?.shipping ?? billing;
     const invoice = customer?.invoice ?? { taxCode: '', vatNumber: '', sdi: '', pec: '' };
     return {
@@ -872,7 +950,7 @@ export function registerStorefront(
       invoice,
       note: '',
       payment: '',
-      rate: '',
+      rate: ship.rate,
       terms: false,
     };
   };

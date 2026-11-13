@@ -175,6 +175,28 @@ export default definePlugin({
           default: 'cm',
         },
         {
+          name: 'perPage',
+          type: 'number',
+          label: { en: 'Products per page', it: 'Prodotti per pagina' },
+          help: {
+            en: 'In the shop, categories and brands.',
+            it: 'Nel negozio, nelle categorie e nei marchi.',
+          },
+          default: 24,
+          min: 1,
+          max: 100,
+        },
+        {
+          name: 'shippingInCart',
+          type: 'boolean',
+          label: { en: 'Shipping in the cart', it: 'Spedizione nel carrello' },
+          help: {
+            en: 'The cart shows the shipping methods and their price for a country and postcode, as WooCommerce does.',
+            it: 'Il carrello mostra i metodi di spedizione e il loro prezzo per un paese e un CAP, come WooCommerce.',
+          },
+          default: true,
+        },
+        {
           name: 'lowStock',
           type: 'number',
           label: { en: 'Low stock below', it: 'Scorta bassa sotto' },
@@ -285,6 +307,7 @@ export default definePlugin({
         phoneRequired: values.phoneRequired !== false,
         termsUrl: str('termsUrl'),
         baseCountry: str('baseCountry') || 'IT',
+        shippingInCart: values.shippingInCart !== false,
         taxesEnabled: (await taxSettings(siteId)).enabled,
         payments: await loadPayments(ctx, siteId),
         ready: await online.ready(siteId),
@@ -353,7 +376,14 @@ export default definePlugin({
     const currency = async (siteId: string) => ({
       currency: String((await ctx.settings.get(siteId)).currency ?? 'EUR'),
     });
-    registerCatalog(ctx, currency);
+    registerCatalog(ctx, async (siteId) => {
+      const values = await ctx.settings.get(siteId);
+      const perPage = Math.trunc(Number(values.perPage ?? 24));
+      return {
+        currency: String(values.currency ?? 'EUR'),
+        perPage: perPage >= 1 && perPage <= 100 ? perPage : 24,
+      };
+    });
     // WooCommerce products from the WordPress importer.
     registerWooImport(ctx);
     registerAccount(ctx, store);

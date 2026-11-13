@@ -19,8 +19,6 @@ import { BRAND, CATEGORY } from './sync';
  * change (`CATALOG_TAG`), shown to search engines.
  */
 
-const PER_PAGE = 24;
-
 /** The language prefix of a public address: `/it` for `/it/shop`. */
 export const prefixOf = (request: Pick<RouteRequest, 'locale' | 'path'>) =>
   request.locale && request.path.startsWith(`/${request.locale}/`) ? `/${request.locale}` : '';
@@ -84,7 +82,7 @@ export async function productUrls(
 
 export function registerCatalog(
   ctx: PluginContext,
-  settings: (siteId: string) => Promise<{ currency: string }>,
+  settings: (siteId: string) => Promise<{ currency: string; perPage: number }>,
 ): void {
   const render = async (
     request: RouteRequest,
@@ -137,7 +135,7 @@ export function registerCatalog(
           attributes: filters.attributes,
           sort: filters.sort,
           page: filters.page,
-          perPage: PER_PAGE,
+          perPage: store.perPage,
         },
         categories,
       ),
@@ -204,7 +202,7 @@ export function registerCatalog(
           base,
           filters,
           result,
-          perPage: PER_PAGE,
+          perPage: store.perPage,
           brands: new Map(brands.map((b) => [b.id, { name: b.name, slug: b.slug }])),
           subcategories: new Map(
             categories.map((c) => [

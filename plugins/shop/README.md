@@ -89,6 +89,7 @@ products, with the catalog features shops expect.
 - `/shop` and the archives `/product-category/<slug>` (with its subcategories)
   and `/brand/<slug>`: a grid of products with filters (brand, attributes,
   price, on sale, in stock), sorting and pages, all without JavaScript.
+  Products per page: 24, or as set in Settings → Cleishop (1.15).
   Cached for visitors and refreshed when products change; filtered pages are
   kept out of search engines.
 - Product pages: breadcrumbs, the gallery, related products (the up-sells,
@@ -103,6 +104,10 @@ products, with the catalog features shops expect.
   a page builder such as Fresco. Pages stay cached: the block fills itself
   with the visitor's cart; in the cart, quantities, removals and coupons
   change it in place. Without JavaScript it links the cart or checkout page.
+- **Shipping in the cart** (1.15, on by default, Settings → Cleishop): the
+  cart lists the shipping methods with their price for the shop's country,
+  or for the country and postcode the customer enters, and the total
+  includes the one chosen; the checkout starts from that address and method.
 - In the visitor's account: their orders and their details, and the
   addresses that fill in the checkout. A signed-in customer finds their cart
   on another device.

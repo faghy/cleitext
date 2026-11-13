@@ -258,8 +258,15 @@ describe('buying with the rules', () => {
     const cart = await anna.get('/cart');
     expect(cart.body).toContain('Coupon: welcome10');
     expect(cart.body).toContain('−€4.40');
-    expect(cart.body).toContain('€39.60');
-    expect(cart.body).toContain('Calculated at checkout');
+    // The cart shows the shipping methods for the shop's country (1.15), and the total with the first.
+    expect(cart.body).toContain('shop-shipping-calc');
+    expect(cart.body).toContain('Courier');
+    expect(cart.body).toContain('€46.60');
+    // Where to is kept for the checkout.
+    const where = await anna.postForm('/cart/shipping', { country: 'IT', postcode: '20100' });
+    expect(where.statusCode).toBe(303);
+    expect(where.headers.location).toBe('/cart');
+    expect((await anna.get('/checkout')).body).toContain('value="20100"');
 
     for (const [code, message] of [
       ['nope', 'Coupon “nope” does not exist.'],
