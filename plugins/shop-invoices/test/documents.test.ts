@@ -172,3 +172,16 @@ describe('numbering and settings', () => {
     ).toBe('3');
   });
 });
+
+describe('paper and tax names', () => {
+  it('draws on Letter paper and names taxes as the order does', () => {
+    const doc = new PdfDocument({ title: 'Invoice', paper: 'Letter' });
+    const data = sample();
+    data.order.taxes = [{ rate: 6.25, amount: '5.00', label: 'Texas State Tax' }];
+    drawInvoice(doc, data, shop, { number: '9', date: new Date('2026-11-11') });
+    expect(doc.width).toBe(612);
+    expect(doc.toBuffer().toString('latin1')).toContain('/MediaBox [0 0 612 792]');
+    if (!tools) return;
+    expect(text(doc.toBuffer()).text).toContain('Texas State Tax');
+  });
+});

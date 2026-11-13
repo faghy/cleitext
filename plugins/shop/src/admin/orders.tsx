@@ -373,9 +373,9 @@ function OrderView({
                   ))}
                 {!includeTax &&
                   order.taxes.map((tax) => (
-                    <tr key={tax.rate} style={{ cursor: 'default' }}>
+                    <tr key={`${tax.rate}:${tax.label ?? ''}`} style={{ cursor: 'default' }}>
                       <td colSpan={2} className="sh-muted">
-                        {t('Tax ({rate}%)', { rate: tax.rate })}
+                        {tax.label || t('Tax ({rate}%)', { rate: tax.rate })}
                       </td>
                       <td className="num">{money(tax.amount)}</td>
                     </tr>

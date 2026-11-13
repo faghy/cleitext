@@ -262,13 +262,15 @@ export function renderEmail(
     ...(includeTax
       ? []
       : order.taxes.map((tax): [string, string] => [
-          t('Tax ({rate}%)', { rate: tax.rate }),
+          tax.label || t('Tax ({rate}%)', { rate: tax.rate }),
           amount(tax.amount),
         ])),
     [t('Total'), amount(order.total)],
     ...(includeTax
       ? order.taxes.map((tax): [string, string] => [
-          t('Taxes included ({rate}%)', { rate: tax.rate }),
+          tax.label
+            ? `${t('Taxes included')}: ${tax.label}`
+            : t('Taxes included ({rate}%)', { rate: tax.rate }),
           amount(tax.amount),
         ])
       : []),

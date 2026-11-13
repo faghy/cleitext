@@ -2,7 +2,7 @@ import { definePlugin, type PluginContext, type PluginTransaction } from '@cleit
 import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { counterOf, formatNumber } from './numbering';
 import { drawInvoice, drawPackingSlip, type OrderData, type ShopIdentity } from './pdf/documents';
-import { PdfDocument } from './pdf/writer';
+import { PdfDocument, picture } from './pdf/writer';
 import { cleanSettings, logoBytes, wooInvoice, type Settings } from './settings';
 import { counters, invoices, type InvoiceRow } from './store';
 import { strings } from './strings';
@@ -123,7 +123,10 @@ export default definePlugin({
     ): Promise<Buffer> {
       const settings = await settingsOf(siteId);
       const shop = identity(settings);
-      const doc = new PdfDocument({ title: kind === 'invoice' ? 'Invoice' : 'Packing slip' });
+      const doc = new PdfDocument({
+        title: kind === 'invoice' ? 'Invoice' : 'Packing slip',
+        paper: settings.paper,
+      });
       for (const { detail, invoice } of list) {
         if (kind === 'invoice' && invoice) {
           drawInvoice(doc, detail, shop, { number: invoice.formatted, date: invoice.date });
@@ -264,6 +267,18 @@ export default definePlugin({
       capability: CAPABILITY,
       handler: async (request) => {
         const settings = cleanSettings(request.body);
+        // A logo the PDFs cannot show is refused now, not left out of every invoice.
+        const logo = logoBytes(settings);
+        if (logo) {
+          try {
+            picture(logo);
+          } catch {
+            return {
+              status: 400,
+              body: { detail: 'This logo cannot be read: save it again as PNG or JPEG.' },
+            };
+          }
+        }
         await ctx.storage.set(request.siteId, 'settings', settings);
         return { body: settings };
       },

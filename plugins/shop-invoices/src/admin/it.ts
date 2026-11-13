@@ -62,4 +62,5 @@ export const IT: Record<string, string> = {
   Order: 'Ordine',
   Customer: 'Cliente',
   Total: 'Totale',
+  'Paper size': 'Formato carta',
 };

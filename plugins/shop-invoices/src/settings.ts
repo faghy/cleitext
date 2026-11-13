@@ -26,6 +26,8 @@ export interface Settings {
   /** Customers download their invoice from their account and the order page. */
   customerDownload: boolean;
   packingSlip: boolean;
+  /** Paper size of the PDFs. */
+  paper: 'A4' | 'Letter' | 'Legal';
 }
 
 export const MAX_LOGO = 400_000;
@@ -41,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   attachTo: ['customer_processing', 'customer_completed'],
   customerDownload: true,
   packingSlip: true,
+  paper: 'A4',
 };
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -69,6 +72,7 @@ export function cleanSettings(raw: unknown): Settings {
     attachTo: list(v.attachTo, EMAILS, DEFAULT_SETTINGS.attachTo),
     customerDownload: v.customerDownload !== false,
     packingSlip: v.packingSlip !== false,
+    paper: v.paper === 'Letter' || v.paper === 'Legal' ? v.paper : 'A4',
   };
 }
 

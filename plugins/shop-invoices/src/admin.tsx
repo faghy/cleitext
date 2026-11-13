@@ -308,6 +308,17 @@ function InvoicesPage({ api }: AdminPageProps) {
           />
           <span>{t('Customers download it from their account')}</span>
         </label>
+        <label className="si-label">
+          {t('Paper size')}{' '}
+          <select
+            value={settings.paper}
+            onChange={(e) => set({ paper: e.target.value as Settings['paper'] })}
+          >
+            <option value="A4">A4</option>
+            <option value="Letter">Letter</option>
+            <option value="Legal">Legal</option>
+          </select>
+        </label>
         <label className="si-check">
           <input
             type="checkbox"

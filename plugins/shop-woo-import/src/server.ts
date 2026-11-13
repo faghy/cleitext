@@ -43,6 +43,12 @@ interface ShopService {
     orderId: string,
     links: { position: number; productId: string }[],
   ): Promise<number>;
+  /** Cleishop 1.15.1. */
+  labelOrderTaxes(
+    siteId: string,
+    orderId: string,
+    labels: { rate: number; label: string }[],
+  ): Promise<boolean>;
 }
 
 class HttpError extends Error {
@@ -311,6 +317,7 @@ export default definePlugin({
       let linked = 0;
       let orders = 0;
       let missing = 0;
+      let labelled = 0;
       for (const order of there) {
         const converted = toImportedOrder(order, {
           customerUserId: null,
@@ -325,12 +332,21 @@ export default definePlugin({
             : [],
         );
         missing += converted.items.filter((i) => i.kind === 'product' && !i.productId).length;
+        const orderId = known.get(String(order.id))!;
+        // The taxes' names (e.g. AvaTax's jurisdictions), kept from Cleishop 1.15.1.
+        const labels = converted.taxes.filter((t) => t.label);
+        if (
+          labels.length &&
+          typeof (shop as { labelOrderTaxes?: unknown }).labelOrderTaxes === 'function' &&
+          (await shop.labelOrderTaxes(siteId, orderId, labels))
+        )
+          labelled++;
         if (!links.length) continue;
-        const n = await shop.linkOrderItems(siteId, known.get(String(order.id))!, links);
+        const n = await shop.linkOrderItems(siteId, orderId, links);
         linked += n;
         if (n) orders++;
       }
-      return { chosen: list.length, imported: there.length, orders, linked, missing };
+      return { chosen: list.length, imported: there.length, orders, linked, missing, labelled };
     });
   },
 });

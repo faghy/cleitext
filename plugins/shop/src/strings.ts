@@ -148,6 +148,7 @@ const IT: Record<string, string> = {
   'No shipping methods for this address.': 'Nessun metodo di spedizione per questo indirizzo.',
   Update: 'Aggiorna',
   'Taxes included ({rate}%)': 'di cui IVA ({rate}%)',
+  'Taxes included': 'di cui imposte',
   'Tax ({rate}%)': 'IVA ({rate}%)',
   Remove: 'Rimuovi',
   'Update cart': 'Aggiorna il carrello',

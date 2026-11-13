@@ -905,7 +905,7 @@ export function receivedPage(options: {
               : order.taxes.map(
                   (tax) =>
                     html`<tr>
-                      <th scope="row">${t('Tax ({rate}%)', { rate: tax.rate })}</th>
+                      <th scope="row">${tax.label || t('Tax ({rate}%)', { rate: tax.rate })}</th>
                       <td class="num">${money.of(tax.amount)}</td>
                     </tr>`,
                 )
@@ -920,7 +920,13 @@ export function receivedPage(options: {
                   (tax) =>
                     html`<tr>
                       <th scope="row">
-                        <small>${t('Taxes included ({rate}%)', { rate: tax.rate })}</small>
+                        <small
+                          >${
+                            tax.label
+                              ? `${t('Taxes included')}: ${tax.label}`
+                              : t('Taxes included ({rate}%)', { rate: tax.rate })
+                          }</small
+                        >
                       </th>
                       <td class="num"><small>${money.of(tax.amount)}</small></td>
                     </tr>`,

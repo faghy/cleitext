@@ -7,6 +7,13 @@
 import { deflateSync, inflateSync } from 'node:zlib';
 
 export const A4 = { width: 595.28, height: 841.89 };
+/** Paper sizes, in points. */
+export const PAPER = {
+  A4,
+  Letter: { width: 612, height: 792 },
+  Legal: { width: 612, height: 1008 },
+};
+export type PaperSize = keyof typeof PAPER;
 
 // Widths of the standard fonts (Adobe's AFM), in thousandths of the size, for ASCII.
 const HELVETICA = [
@@ -135,18 +142,17 @@ function jpeg(data: Buffer): Picture {
   throw new Error('Not a JPEG this writer can read.');
 }
 
-/** The rows of a PNG, unfiltered (8 bits per channel, not interlaced). */
-function pngRows(raw: Buffer, width: number, channels: number, height: number): Buffer {
-  const stride = width * channels;
+/** Rows of a PNG image (or of an interlaced pass), unfiltered: `stride` bytes each. */
+function unfilter(raw: Buffer, offset: number, stride: number, height: number, bpp: number) {
   const out = Buffer.alloc(stride * height);
   for (let y = 0; y < height; y++) {
-    const filter = raw[y * (stride + 1)]!;
-    const row = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    const at = offset + y * (stride + 1);
+    const filter = raw[at]!;
     for (let x = 0; x < stride; x++) {
-      const a = x >= channels ? out[y * stride + x - channels]! : 0;
+      const a = x >= bpp ? out[y * stride + x - bpp]! : 0;
       const b = y > 0 ? out[(y - 1) * stride + x]! : 0;
-      const c = x >= channels && y > 0 ? out[(y - 1) * stride + x - channels]! : 0;
-      let v = row[x]!;
+      const c = x >= bpp && y > 0 ? out[(y - 1) * stride + x - bpp]! : 0;
+      let v = raw[at + 1 + x]!;
       if (filter === 1) v += a;
       else if (filter === 2) v += b;
       else if (filter === 3) v += Math.floor((a + b) / 2);
@@ -158,6 +164,62 @@ function pngRows(raw: Buffer, width: number, channels: number, height: number): 
         v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
       }
       out[y * stride + x] = v & 0xff;
+    }
+  }
+  return { rows: out, next: offset + height * (stride + 1) };
+}
+
+/** One sample of a row, as 8 bits (palette indexes as they are). */
+function sample(row: Buffer, index: number, depth: number, palette: boolean): number {
+  if (depth === 8) return row[index]!;
+  if (depth === 16) return row[index * 2]!;
+  const perByte = 8 / depth;
+  const byte = row[Math.floor(index / perByte)]!;
+  const shift = 8 - depth * ((index % perByte) + 1);
+  const value = (byte >> shift) & ((1 << depth) - 1);
+  return palette ? value : Math.round((value * 255) / ((1 << depth) - 1));
+}
+
+/** Adam7's passes: start and step of columns and rows. */
+const ADAM7 = [
+  [0, 0, 8, 8],
+  [4, 0, 8, 8],
+  [0, 4, 4, 8],
+  [2, 0, 4, 4],
+  [0, 2, 2, 4],
+  [1, 0, 2, 2],
+  [0, 1, 1, 2],
+] as const;
+
+/** The pixels of a PNG, 8 bits per channel: any bit depth, interlaced or not. */
+function pngPixels(
+  raw: Buffer,
+  width: number,
+  height: number,
+  channels: number,
+  depth: number,
+  palette: boolean,
+  interlaced: boolean,
+): Buffer {
+  const out = Buffer.alloc(width * height * channels);
+  const bits = channels * depth;
+  const bpp = Math.max(1, bits / 8);
+  const passes = interlaced ? ADAM7 : ([[0, 0, 1, 1]] as const);
+  let offset = 0;
+  for (const [x0, y0, dx, dy] of passes) {
+    const w = Math.ceil((width - x0) / dx);
+    const h = Math.ceil((height - y0) / dy);
+    if (w <= 0 || h <= 0) continue;
+    const stride = Math.ceil((w * bits) / 8);
+    const { rows, next } = unfilter(raw, offset, stride, h, bpp);
+    offset = next;
+    for (let y = 0; y < h; y++) {
+      const row = rows.subarray(y * stride, (y + 1) * stride);
+      for (let x = 0; x < w; x++) {
+        const target = ((y0 + y * dy) * width + x0 + x * dx) * channels;
+        for (let k = 0; k < channels; k++)
+          out[target + k] = sample(row, x * channels + k, depth, palette);
+      }
     }
   }
   return out;
@@ -190,11 +252,18 @@ function png(data: Buffer): Picture {
     else if (name === 'IEND') break;
     i += 12 + length;
   }
-  if (depth !== 8 || interlace)
-    throw new Error('Use a PNG with 8 bits per channel, not interlaced, or a JPEG.');
   const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[type as 0 | 2 | 3 | 4 | 6];
-  if (!channels) throw new Error('This PNG cannot be read.');
-  const pixels = pngRows(inflateSync(Buffer.concat(idat)), width, channels, height);
+  if (!channels || ![1, 2, 4, 8, 16].includes(depth) || (type === 3 && !palette))
+    throw new Error('This PNG cannot be read.');
+  const pixels = pngPixels(
+    inflateSync(Buffer.concat(idat)),
+    width,
+    height,
+    channels,
+    depth,
+    type === 3,
+    interlace === 1,
+  );
   const count = width * height;
   const colors = type === 0 || type === 4 ? 1 : 3;
   const color = Buffer.alloc(count * colors);
@@ -259,7 +328,15 @@ export class PdfDocument {
   private pictures: Picture[] = [];
   private current: string[] = [];
 
-  constructor(private readonly info: { title: string; author?: string } = { title: '' }) {
+  readonly width: number;
+  readonly height: number;
+
+  constructor(
+    private readonly info: { title: string; author?: string; paper?: PaperSize } = { title: '' },
+  ) {
+    const paper = PAPER[info.paper ?? 'A4'] ?? A4;
+    this.width = paper.width;
+    this.height = paper.height;
     this.addPage();
   }
 
@@ -292,7 +369,7 @@ export class PdfDocument {
       options.align === 'right' ? x - width : options.align === 'center' ? x - width / 2 : x;
     const gray = options.gray ?? 0;
     this.current.push(
-      `BT /${bold ? 'F2' : 'F1'} ${num(size)} Tf ${num(gray)} g ${num(left)} ${num(A4.height - y - size)} Td ${pdfString(winAnsi(value))} Tj ET`,
+      `BT /${bold ? 'F2' : 'F1'} ${num(size)} Tf ${num(gray)} g ${num(left)} ${num(this.height - y - size)} Td ${pdfString(winAnsi(value))} Tj ET`,
     );
   }
 
@@ -304,13 +381,13 @@ export class PdfDocument {
     options: { width?: number; gray?: number } = {},
   ): void {
     this.current.push(
-      `${num(options.width ?? 0.5)} w ${num(options.gray ?? 0.75)} G ${num(x1)} ${num(A4.height - y1)} m ${num(x2)} ${num(A4.height - y2)} l S`,
+      `${num(options.width ?? 0.5)} w ${num(options.gray ?? 0.75)} G ${num(x1)} ${num(this.height - y1)} m ${num(x2)} ${num(this.height - y2)} l S`,
     );
   }
 
   box(x: number, y: number, width: number, height: number, gray = 0.95): void {
     this.current.push(
-      `${num(gray)} g ${num(x)} ${num(A4.height - y - height)} ${num(width)} ${num(height)} re f 0 g`,
+      `${num(gray)} g ${num(x)} ${num(this.height - y - height)} ${num(width)} ${num(height)} re f 0 g`,
     );
   }
 
@@ -328,7 +405,7 @@ export class PdfDocument {
     const width = pic.width * scale;
     const height = pic.height * scale;
     this.current.push(
-      `q ${num(width)} 0 0 ${num(height)} ${num(x)} ${num(A4.height - y - height)} cm /Im${this.pictures.length} Do Q`,
+      `q ${num(width)} 0 0 ${num(height)} ${num(x)} ${num(this.height - y - height)} cm /Im${this.pictures.length} Do Q`,
     );
     return { width, height };
   }
@@ -366,7 +443,7 @@ export class PdfDocument {
         stream('/Filter /FlateDecode', deflateSync(Buffer.from(content.join('\n'), 'latin1'))),
       );
       return add(
-        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${A4.width} ${A4.height}] /Resources ${resources} /Contents ${contentId} 0 R >>`,
+        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${this.width} ${this.height}] /Resources ${resources} /Contents ${contentId} 0 R >>`,
       );
     });
     objects[catalog - 1] = Buffer.from(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`, 'latin1');

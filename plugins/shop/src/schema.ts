@@ -204,7 +204,11 @@ export const orders = pgTable('orders', {
   feeTotal: amount('fee_total').notNull().default('0'),
   taxTotal: amount('tax_total').notNull().default('0'),
   total: amount('total').notNull().default('0'),
-  taxes: jsonb('taxes').$type<{ rate: number; amount: string }[]>().notNull().default([]),
+  /** Each rate's tax; `label` is the name the shop gave it (e.g. an imported jurisdiction, 1.15.1). */
+  taxes: jsonb('taxes')
+    .$type<{ rate: number; amount: string; label?: string }[]>()
+    .notNull()
+    .default([]),
   paymentMethod: text('payment_method').notNull().default(''),
   paymentTitle: text('payment_title').notNull().default(''),
   transactionId: text('transaction_id').notNull().default(''),

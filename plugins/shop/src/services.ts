@@ -167,6 +167,15 @@ export interface ShopService {
     links: { position: number; productId: string }[],
   ): Promise<number>;
   /**
+   * Names the taxes of an imported order that have none (1.15.1), by rate:
+   * e.g. the jurisdictions of an order imported before names were kept.
+   */
+  labelOrderTaxes(
+    siteId: string,
+    orderId: string,
+    labels: { rate: number; label: string }[],
+  ): Promise<boolean>;
+  /**
    * Imported orders with the data kept from their shop (1.14), a page at a
    * time by number: e.g. the invoice numbers of a WooCommerce plugin.
    */
@@ -301,6 +310,8 @@ export function provideShopService(
             taxes: (input.taxes ?? []).map((x) => ({
               rate: Number(x.rate) || 0,
               amount: money(x.amount),
+              // The name the shop gave it, e.g. a jurisdiction of AvaTax (1.15.1).
+              ...(text(x.label, 100).trim() ? { label: text(x.label, 100).trim() } : {}),
             })),
             paymentMethod: text(input.paymentMethod, 100),
             paymentTitle: text(input.paymentTitle, 200),
@@ -449,6 +460,32 @@ export function provideShopService(
           linked += done.length;
         }
         return linked;
+      });
+    },
+
+    async labelOrderTaxes(siteId, orderId, labels) {
+      if (!/^[0-9a-f-]{36}$/i.test(orderId)) return false;
+      return tx(siteId, async (t) => {
+        const [order] = await t
+          .select({ ref: orders.externalRef, taxes: orders.taxes })
+          .from(orders)
+          .where(eq(orders.id, orderId));
+        if (!order?.ref) return false;
+        let changed = false;
+        const used = new Set<number>();
+        const taxes = order.taxes.map((tax) => {
+          if (tax.label) return tax;
+          const i = (labels ?? []).findIndex(
+            (l, k) =>
+              !used.has(k) && Number(l.rate) === Number(tax.rate) && text(l.label, 100).trim(),
+          );
+          if (i === -1) return tax;
+          used.add(i);
+          changed = true;
+          return { ...tax, label: text(labels[i]!.label, 100).trim() };
+        });
+        if (changed) await t.update(orders).set({ taxes }).where(eq(orders.id, orderId));
+        return changed;
       });
     },
 

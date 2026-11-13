@@ -138,7 +138,14 @@ describe('WooCommerce Import', () => {
     expect(saved.statusCode, saved.body).toBe(200);
     const done = await admin.post(`${EXT}/relink`, { orders });
     expect(done.statusCode, done.body).toBe(200);
-    expect(done.json()).toEqual({ chosen: 3, imported: 2, orders: 2, linked: 2, missing: 0 });
+    expect(done.json()).toEqual({
+      chosen: 3,
+      imported: 2,
+      orders: 2,
+      linked: 2,
+      missing: 0,
+      labelled: 0,
+    });
     const list = (await admin.get('/api/v1/ext/shop/orders')).json();
     const detail = (await admin.get(`/api/v1/ext/shop/orders/${list.items[0].id}`)).json();
     expect(detail.items[0].productId).toBe(id);
