@@ -120,7 +120,7 @@ function encodePng(options: {
       let bits = 0;
       for (let x = 0; x < w; x++) {
         for (const v of options.samples(x0! + x * dx!, y0! + y * dy!)) {
-          acc = (acc << depth) | v;
+          acc = ((acc << depth) | v) & 0xffff;
           bits += depth;
           while (bits >= 8) {
             bytes.push((acc >> (bits - 8)) & 0xff);
@@ -129,7 +129,6 @@ function encodePng(options: {
         }
       }
       if (bits > 0) bytes.push((acc << (8 - bits)) & 0xff);
-      acc = 0;
     }
   }
   const ihdr = Buffer.alloc(13);
