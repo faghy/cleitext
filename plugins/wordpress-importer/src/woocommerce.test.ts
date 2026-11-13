@@ -116,3 +116,11 @@ describe('WooCommerce products', () => {
     expect(text).not.toContain('product_variation');
   });
 });
+
+describe('brand taxonomies', () => {
+  it('maps the brands of WooCommerce, its plugins and Shopkeeper to Cleishop’s', async () => {
+    const { WOO_TAXONOMIES } = await import('./woocommerce');
+    for (const taxonomy of ['product_brand', 'pwb-brand', 'yith_product_brand', 'product_brands'])
+      expect(WOO_TAXONOMIES[taxonomy]).toBe('brand');
+  });
+});

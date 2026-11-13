@@ -16,6 +16,8 @@ export const WOO_TAXONOMIES: Record<string, string> = {
   product_brand: 'brand',
   'pwb-brand': 'brand',
   yith_product_brand: 'brand',
+  // Shopkeeper's (getbowtied) brands.
+  product_brands: 'brand',
 };
 
 function text(value: unknown): string {
