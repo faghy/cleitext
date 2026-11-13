@@ -1289,7 +1289,8 @@ function DocumentPanel({
             ` · ${formatDate(entry.publishedAt)}`}
           {entry.scheduledAt && ` · ${formatDate(entry.scheduledAt)}`}
         </p>
-        {entry.permissions.publish && entry.status !== 'scheduled' && (
+        {/* Published entries only: a draft has Schedule (a past date for drafts: the API). */}
+        {entry.permissions.publish && ['published', 'private'].includes(entry.status) && (
           <label className="mt-2 block">
             <span className="text-xs text-slate-600">{t('Publication date')}</span>
             <span className="flex gap-2">
@@ -1311,9 +1312,7 @@ function DocumentPanel({
               </Button>
             </span>
             <span className="text-xs text-slate-500">
-              {['published', 'private'].includes(entry.status)
-                ? t('Addresses with the year move with it; the old one redirects.')
-                : t('Kept when it is published, e.g. for an older post.')}
+              {t('Addresses with the year move with it; the old one redirects.')}
             </span>
           </label>
         )}
