@@ -166,6 +166,8 @@ function johnHero(src: Settings): ElementorNode {
         merge(
           { title, header_size: 'h2', align: 'center' },
           colorFrom(src, 'banner_title_color', 'title_color', '#ffffff'),
+          // The theme's phones: 38px (its responsive.css), unless the widget sets its own.
+          { typography_font_size_mobile: px(38) },
           typography(src, 'banner_title', 'typography', {
             family: 'Poppins',
             size: 55,
@@ -574,7 +576,7 @@ export function themeWidget(c: Converter, el: ElementorNode): CxdBlock[] | null 
       if (
         src.john_post_blog_queryby === 'categories' &&
         categories.length &&
-        !categories.some((id) => num(id) !== null && c.ctx.term?.('', num(id)!))
+        !categories.some((id) => num(id) !== null && c.ctx.term?.('category', num(id)!))
       ) {
         c.note(
           'John blog widgets of categories that no longer exist showed nothing and were left out',

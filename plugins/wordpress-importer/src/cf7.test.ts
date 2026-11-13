@@ -36,8 +36,8 @@ describe('Contact Form 7 tags', () => {
       template:
         '<div class="row"><div class="col-md-6">[text* name placeholder "Name"]</div><div class="col-md-6">[email* email placeholder "Email"]</div>' +
         '<div class="col-lg-12">[textarea message placeholder "Message"]</div>' +
-        '<div class="col-12"><label>[acceptance acceptance-720] Acconsento al trattamento dei dati <a href="/privacy-policy">Privacy Policy</a></label></div>' +
-        '<div class="col-12"><button type="submit" class="send_btn">Send Message</button></div></div>',
+        '<div class="col-sm-12">[acceptance acceptance-720] Acconsento al trattamento dei dati <a href="/privacy-policy">Privacy Policy</a>\n' +
+        '    <button type="submit" class="send_btn">Send Message</button></div></div>',
       mail: null,
       messages: null,
     } as never);

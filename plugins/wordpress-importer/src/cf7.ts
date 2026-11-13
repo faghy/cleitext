@@ -87,7 +87,10 @@ function columnWidth(markup: string): FormsField['width'] {
 /** The text after a tag up to the end of its paragraph or label, or the next tag (an acceptance's text). */
 function textAfter(template: string, from: number, to: number): string {
   const after = template.slice(from, to);
-  const end = after.search(/<\/(?:p|div|label|li|span)>|\n\s*\n/i);
+  // Up to the end of its block, or a button or field written after it in the same block.
+  const end = after.search(
+    /<\/(?:p|div|label|li|span)>|<(?:button|input|select|textarea)\b|\n\s*\n/i,
+  );
   return plain(end >= 0 ? after.slice(0, end) : after, true);
 }
 
