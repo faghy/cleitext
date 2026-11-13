@@ -191,6 +191,24 @@ foreach ($ids as $userId) {
     ];
 }
 
+// YITH WooCommerce Wishlist lists, for the Wishlist add-on (when the plugin's tables are there).
+global $wpdb;
+$wishlists = [];
+$listsTable = $wpdb->prefix . 'yith_wcwl_lists';
+$itemsTable = $wpdb->prefix . 'yith_wcwl';
+if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $listsTable)) === $listsTable) {
+    foreach ($wpdb->get_results("SELECT ID, user_id, wishlist_token FROM {$listsTable}") as $list) {
+        $saved = [];
+        foreach ($wpdb->get_results($wpdb->prepare("SELECT prod_id, dateadded FROM {$itemsTable} WHERE wishlist_id = %d", $list->ID)) as $row) {
+            $product = wc_get_product((int) $row->prod_id);
+            $saved[] = ['productId' => (int) $row->prod_id, 'sku' => $product ? (string) $product->get_sku() : '', 'dateAdded' => $row->dateadded];
+        }
+        if ($saved) {
+            $wishlists[] = ['userId' => (int) $list->user_id, 'token' => (string) $list->wishlist_token, 'items' => $saved];
+        }
+    }
+}
+
 echo wp_json_encode([
     'format' => 'cleitext-woo-export',
     'version' => 1,
@@ -199,4 +217,5 @@ echo wp_json_encode([
     'generatedAt' => gmdate(DATE_ATOM),
     'customers' => $customers,
     'orders' => $orders,
+    'wishlists' => $wishlists,
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), "\n";

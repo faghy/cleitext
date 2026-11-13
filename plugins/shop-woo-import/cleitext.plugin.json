@@ -1,7 +1,7 @@
 {
   "slug": "shop-woo-import",
   "name": "WooCommerce Import",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "apiVersion": "^1.73",
   "description": "Moves a WooCommerce shop's customers and orders into Cleishop: customer accounts without passwords (they choose one with «Forgot your password?») with their addresses, and every order as it was, with its number, lines, taxes, coupons, notes and refunds. No email is sent and no stock moves. Reads the export of a small WordPress script; works with WooCommerce's classic tables and HPOS.",
   "author": "Cleitext",

@@ -102,6 +102,18 @@ export default definePlugin({
         },
       });
 
+    // For other add-ons (the Wishlist's YITH import): the accounts of imported customers.
+    ctx.services?.provide('shop-woo-import', {
+      async customers(siteId: string, ids: string[]) {
+        const map = await mapOf(
+          siteId,
+          'customer',
+          (Array.isArray(ids) ? ids : []).map(String).slice(0, 5000),
+        );
+        return Object.fromEntries(map);
+      },
+    });
+
     route('GET', '/state', async (request) => {
       const counts = await tx(request.siteId, (t) =>
         t
