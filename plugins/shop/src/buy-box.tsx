@@ -184,7 +184,7 @@ export function BuyBoxView({ data, locale }: { data: BuyBoxData | null; locale: 
     ? data.anyAvailable && min !== null
     : product.price !== null && product.availability !== 'outofstock';
   return (
-    <div className="shop-buy">
+    <div className="shop-buy" data-product={product.entryId}>
       <p className="shop-buy__price">
         {variable ? (
           min === null ? null : min === max ? (

@@ -10,7 +10,12 @@ import { randomBytes } from 'node:crypto';
 import type { PluginContext, PluginTransaction } from '@cleitext/plugin-sdk';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { Address, Invoice } from './address';
+import { CATALOG_CSS, productCards } from './catalog-html';
+import { queryCatalog } from './catalog-query';
+import { productUrls } from './catalog-routes';
 import { orderDetail, type OrderDetail } from './order-admin';
+import { moneyFormatter, SHOP_CSS } from './pages';
+import { translator } from './strings';
 import {
   counters,
   customers,
@@ -148,6 +153,15 @@ export interface ShopService {
   orderByRef(siteId: string, ref: string): Promise<string | null>;
   /** An order with its lines, notes and refunds. */
   order(siteId: string, id: string): Promise<OrderDetail | null>;
+  /**
+   * The cards of some products as the catalog shows them (picture, price,
+   * stock, add to cart), in the order given, with the CSS they need: e.g. a
+   * wishlist. Products not published are left out.
+   */
+  productCards(
+    siteId: string,
+    options: { ids: string[]; locale: string; prefix: string },
+  ): Promise<{ html: string; css: string; ids: string[] }>;
 }
 
 export function provideShopService(
@@ -339,6 +353,31 @@ export function provideShopService(
           });
         return { id, created: true };
       });
+    },
+
+    async productCards(siteId, options) {
+      const ids = (options.ids ?? []).filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+      const prefix = /^(\/[a-z]{2,3}(-[a-z]{2,4})?)?$/i.test(options.prefix ?? '')
+        ? options.prefix
+        : '';
+      if (!ids.length) return { html: '', css: SHOP_CSS + CATALOG_CSS, ids: [] };
+      const locale = text(options.locale, 10) || 'en';
+      const result = await tx(siteId, (t) =>
+        queryCatalog(t, { locale, ids, sort: 'default', page: 1, perPage: ids.length }, []),
+      );
+      const cards = ids
+        .map((id) => result.cards.find((c) => c.id === id))
+        .filter((c): c is (typeof result.cards)[number] => Boolean(c));
+      const urls = await productUrls(ctx, siteId, cards);
+      const { currency: code } = await currency(siteId);
+      const html = productCards(cards, {
+        t: translator(locale),
+        money: moneyFormatter(locale, code),
+        url: (card) => urls.get(card.id) ?? `${prefix}/product/${card.slug}`,
+        addAction: `${prefix}/cart/add`,
+        heading: 'h3',
+      });
+      return { html: String(html), css: SHOP_CSS + CATALOG_CSS, ids: cards.map((c) => c.id) };
     },
 
     async order(siteId, id) {

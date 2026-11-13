@@ -130,7 +130,7 @@ export function productCards(cards: ProductCard[], options: CardOptions): Html {
                   ${t('Add to cart')}<span class="shop-sr">: ${card.title}</span>
                 </button>
               </form>`;
-      return html`<li class="shop-card">
+      return html`<li class="shop-card" data-product="${card.id}">
         <a class="shop-card__image" href="${url}" tabindex="-1" aria-hidden="true"
           >${image ? html`<img src="${image.src}" ${image.srcset ? raw(` srcset="${image.srcset}" sizes="(min-width: 900px) 18rem, 50vw"`) : ''} alt="" loading="lazy" decoding="async" />` : ''}</a
         >
