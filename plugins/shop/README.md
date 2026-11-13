@@ -90,6 +90,8 @@ products, with the catalog features shops expect.
   and `/brand/<slug>`: a grid of products with filters (brand, attributes,
   price, on sale, in stock), sorting and pages, all without JavaScript.
   Products per page: 24, or as set in Settings → Cleishop (1.15).
+  The default order (1.17): featured then newest, or the manual order of the
+  products (WordPress's menu order); the cards may show the short description.
   Cached for visitors and refreshed when products change; filtered pages are
   kept out of search engines.
 - Product pages: breadcrumbs, the gallery, related products (the up-sells,

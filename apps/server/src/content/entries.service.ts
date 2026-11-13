@@ -222,9 +222,13 @@ export class EntriesService {
       | 'entry.trashed'
       | 'entry.deleted',
     view: Pick<EntryView, 'id' | 'type' | 'locale' | 'slug' | 'title' | 'status'> &
-      Partial<Pick<EntryView, 'terms'>> & {
+      Partial<Pick<EntryView, 'terms' | 'position'>> & {
         fields?: Record<string, unknown>;
-        revision?: { fields: Record<string, unknown>; featuredMediaId?: string | null } | null;
+        revision?: {
+          fields: Record<string, unknown>;
+          featuredMediaId?: string | null;
+          excerpt?: string | null;
+        } | null;
       },
     userId?: string,
     from?: { id: string; locale: string },
@@ -254,6 +258,11 @@ export class EntriesService {
             : {}),
           ...(view.revision?.featuredMediaId !== undefined
             ? { featuredMediaId: view.revision.featuredMediaId }
+            : {}),
+          // Plugin API 1.74.
+          ...(typeof view.position === 'number' ? { position: view.position } : {}),
+          ...(view.revision && view.revision.excerpt !== undefined
+            ? { excerpt: view.revision.excerpt }
             : {}),
         },
       },

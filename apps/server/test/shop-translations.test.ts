@@ -234,6 +234,30 @@ describe('products in several languages', () => {
     });
   });
 
+  it('saves the versions of a product imported in two languages before they are linked', async () => {
+    // As a WPML shop arrives: an entry per language, same code, linked as translations later.
+    const en = (await admin.post('/api/v1/entries', { type: 'product', title: 'Absinthe' })).json();
+    const it = (
+      await admin.post('/api/v1/entries', { type: 'product', title: 'Assenzio', locale: 'it' })
+    ).json();
+    const long =
+      'Fresh Absinthe combined with green Iranian galbanum, the opulence of Lily of the Valley, lotus flower, jasmine and ylang ylang, and the noble, spicy warmth of nutmeg and Ceylon cardamom.';
+    const data = {
+      product: { sku: 'ABS-50', regularPrice: '120' },
+      attributes: [{ name: 'Heart notes', values: [long] }],
+    };
+    await save(en.id, data);
+    await save(it.id, data);
+    expect(await product(en.id)).toMatchObject({ sku: 'ABS-50' });
+    expect(await product(it.id)).toMatchObject({ sku: 'ABS-50' });
+    // In one language the code stays unique.
+    const other = (await admin.post('/api/v1/entries', { type: 'product', title: 'Other' })).json();
+    const refused = await admin.request('PUT', ext(`/products/${other.id}`), {
+      product: { sku: 'abs-50' },
+    });
+    expect(refused.statusCode).toBe(400);
+  });
+
   it('shows the texts entered in the admin in the customer’s language', async () => {
     // A shared attribute and a product's own one, with their Italian names.
     const colour = await admin.post(ext('/attributes'), {

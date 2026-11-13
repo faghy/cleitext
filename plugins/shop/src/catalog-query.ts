@@ -38,6 +38,8 @@ export interface CatalogQuery {
   sort: Sort;
   page: number;
   perPage: number;
+  /** What the default order means (Cleishop 1.17): featured then newest, or the manual order. */
+  defaultSort?: 'latest' | 'position';
 }
 
 export interface ProductCard {
@@ -46,6 +48,8 @@ export interface ProductCard {
   slug: string;
   kind: 'simple' | 'variable';
   imageUrl: string | null;
+  /** The short description, as plain text (Cleishop 1.17). */
+  excerpt: string;
   price: string | null;
   priceMax: string | null;
   regularPrice: string | null;
@@ -124,7 +128,10 @@ export async function queryCatalog(
     );
 
   const order: SQL[] = {
-    default: [desc(products.featured), desc(products.createdAt)],
+    default:
+      query.defaultSort === 'position'
+        ? [asc(products.position), desc(products.featured), desc(products.createdAt)]
+        : [desc(products.featured), desc(products.createdAt)],
     popularity: [desc(products.totalSales)],
     rating: [desc(products.rating), desc(products.ratingCount)],
     date: [desc(products.createdAt)],
@@ -219,6 +226,7 @@ export async function queryCatalog(
       slug: row.slug,
       kind: row.kind,
       imageUrl: row.imageUrl,
+      excerpt: row.excerpt,
       price: min,
       priceMax: max,
       regularPrice: row.regularPrice,

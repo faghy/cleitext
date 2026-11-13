@@ -135,6 +135,10 @@ export interface PluginEntry {
   terms: Record<string, string[]>;
   /** Its featured image (plugin API 1.13). */
   featuredMediaId: string | null;
+  /** Manual order among entries of its type (WordPress's `menu_order`; plugin API 1.74). */
+  position?: number;
+  /** Its short summary (a product's short description; plugin API 1.74). */
+  excerpt?: string | null;
   /** The block document (with `withDocument` in the query): the published one, or the latest. */
   document?: CxdDocument;
 }

@@ -39,6 +39,9 @@ export const products = pgTable('products', {
   brandId: uuid('brand_id'),
   imageId: uuid('image_id'),
   imageUrl: text('image_url'),
+  /** From the entry (plugin API 1.74, Cleishop 1.17): manual order and short description. */
+  position: integer('position').notNull().default(0),
+  excerpt: text('excerpt').notNull().default(''),
   kind: text('kind').$type<'simple' | 'variable'>().notNull().default('simple'),
   sku: text('sku').notNull().default(''),
   gtin: text('gtin').notNull().default(''),

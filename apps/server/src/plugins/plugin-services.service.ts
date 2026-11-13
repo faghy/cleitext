@@ -1332,6 +1332,7 @@ export class PluginServicesProvider implements PluginServices {
           fields: revisions.fields,
           document: revisions.document,
           featuredMediaId: revisions.featuredMediaId,
+          excerpt: revisions.excerpt,
         })
         .from(entries)
         .innerJoin(
@@ -1366,7 +1367,7 @@ export class PluginServicesProvider implements PluginServices {
         (own[t.taxonomy] ??= []).push(t.termId);
         termsOf.set(t.entryId, own);
       }
-      return rows.map(({ row, title, fields, document, featuredMediaId }) => ({
+      return rows.map(({ row, title, fields, document, featuredMediaId, excerpt }) => ({
         id: row.id,
         type: row.typeSlug,
         locale: row.locale,
@@ -1379,6 +1380,8 @@ export class PluginServicesProvider implements PluginServices {
         fields: (fields as FieldValues) ?? {},
         terms: termsOf.get(row.id) ?? {},
         featuredMediaId: featuredMediaId ?? null,
+        position: row.position,
+        excerpt: excerpt ?? null,
         ...(query.withDocument ? { document: document as PluginEntry['document'] } : {}),
       }));
     });

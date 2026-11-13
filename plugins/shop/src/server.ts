@@ -15,7 +15,7 @@ import {
   saveProduct,
   saveProductSchema,
 } from './products';
-import { attributes, customers, type OrderStatus } from './schema';
+import { attributes, customers, products as productsTable, type OrderStatus } from './schema';
 import { backfill, BRAND, CATEGORY, PRODUCT, syncProduct, watchEntries } from './sync';
 import { eq } from 'drizzle-orm';
 import { orderDetail } from './order-admin';
@@ -185,6 +185,31 @@ export default definePlugin({
           default: 24,
           min: 1,
           max: 100,
+        },
+        {
+          name: 'catalogSort',
+          type: 'select',
+          label: { en: 'Default order of products', it: 'Ordine predefinito dei prodotti' },
+          options: [
+            {
+              value: 'latest',
+              label: { en: 'Featured, then newest', it: 'In evidenza, poi i più recenti' },
+            },
+            {
+              value: 'position',
+              label: { en: 'Manual order (position)', it: 'Ordine manuale (posizione)' },
+            },
+          ],
+          default: 'latest',
+        },
+        {
+          name: 'cardExcerpt',
+          type: 'boolean',
+          label: {
+            en: 'Short description on product cards',
+            it: 'Descrizione breve nelle schede dei prodotti',
+          },
+          default: false,
         },
         {
           name: 'shippingInCart',
@@ -382,6 +407,9 @@ export default definePlugin({
       return {
         currency: String(values.currency ?? 'EUR'),
         perPage: perPage >= 1 && perPage <= 100 ? perPage : 24,
+        defaultSort:
+          values.catalogSort === 'position' ? ('position' as const) : ('latest' as const),
+        excerpt: values.cardExcerpt === true,
       };
     });
     // WooCommerce products from the WordPress importer.
@@ -411,6 +439,24 @@ export default definePlugin({
         entries.map((e) => e.id),
       );
       await ctx.storage.set(siteId, GROUPED, true);
+    });
+    // Once per site (Cleishop 1.17): products' order and short description from their entries.
+    ctx.schedule.every('position-excerpt', 5, async (siteId) => {
+      if (await ctx.storage.get(siteId, 'position-excerpt')) return;
+      const ids = (
+        await ctx.db.transaction(siteId, (tx) =>
+          tx.select({ id: productsTable.entryId }).from(productsTable),
+        )
+      ).map((r) => r.id);
+      for (let i = 0; i < ids.length; i += 200) {
+        const entries = await ctx.content.find(siteId, {
+          ids: ids.slice(i, i + 200),
+          status: 'any',
+          limit: 200,
+        });
+        for (const entry of entries) await syncProduct(ctx, siteId, entry);
+      }
+      await ctx.storage.set(siteId, 'position-excerpt', true);
     });
     registerAi(ctx);
     registerReviews(ctx, async (siteId) => {

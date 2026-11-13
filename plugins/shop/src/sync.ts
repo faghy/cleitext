@@ -17,7 +17,21 @@ export const BRAND = 'brand';
 type Source = Pick<EntryEvent, 'id' | 'locale' | 'title' | 'slug' | 'status'> & {
   terms?: Record<string, string[]> | undefined;
   featuredMediaId?: string | null | undefined;
+  /** Plugin API 1.74. */
+  position?: number | undefined;
+  excerpt?: string | null | undefined;
 };
+
+/** A short description as plain text, for the cards. */
+export function plainExcerpt(value: string | null | undefined): string {
+  return (value ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500);
+}
 
 /**
  * Keeps the shop's copy of a product entry (title, status, categories,
@@ -37,6 +51,8 @@ export async function syncProduct(
     status: entry.status,
     updatedAt: new Date(),
   };
+  if (typeof entry.position === 'number') copy.position = entry.position;
+  if (entry.excerpt !== undefined) copy.excerpt = plainExcerpt(entry.excerpt);
   if (entry.terms) {
     copy.categoryIds = entry.terms[CATEGORY] ?? [];
     copy.brandId = entry.terms[BRAND]?.[0] ?? null;

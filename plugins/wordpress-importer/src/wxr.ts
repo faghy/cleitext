@@ -385,6 +385,9 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         continue;
       }
       const parent = text(t['wp:term_parent']);
+      // Their order (WooCommerce's `order`, brand plugins' `tax_position`).
+      const termMeta = metaOf((t['wp:termmeta'] as Node[] | undefined) ?? []);
+      const position = Number(termMeta.order ?? termMeta.tax_position ?? NaN);
       terms.push({
         ref: `${taxonomy}:${slug}`,
         taxonomy: woo!,
@@ -393,6 +396,7 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         name,
         description: text(t['wp:term_description']) || null,
         ...(parent ? { parentRef: `${taxonomy}:${parent}` } : {}),
+        ...(Number.isInteger(position) && position >= 0 ? { position } : {}),
       });
       continue;
     }
@@ -900,7 +904,29 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
   // Elementor's templates (Theme Builder, popups, saved sections, global widgets).
   const plugins: Record<string, unknown> = {};
   // WooCommerce products' commercial data, for Cleishop.
-  if (shopProducts.length > 0) plugins.shop = { products: shopProducts };
+  // Brands' logos (Perfect Brands' `_pbf_wc_meta` and `pwb_brand_image`, `thumbnail_id`).
+  const brandLogos: { slug: string; logo: { id: string; url: string } }[] = [];
+  for (const t of (channel['wp:term'] as Node[] | undefined) ?? []) {
+    if (WOO_TAXONOMIES[text(t['wp:term_taxonomy'])] !== 'brand') continue;
+    const termMeta = metaOf((t['wp:termmeta'] as Node[] | undefined) ?? []);
+    const pbf = asSettings(metaValue(termMeta._pbf_wc_meta ?? ''));
+    const attachment = Number(
+      pbf.thumbnail_id ?? termMeta.pwb_brand_image ?? termMeta.thumbnail_id ?? NaN,
+    );
+    const ref = attachmentRefs.get(attachment);
+    if (ref) {
+      brandLogos.push({
+        slug: text(t['wp:term_slug']),
+        logo: { id: ref, url: mediaUrlOf.get(ref) ?? '' },
+      });
+    }
+  }
+  if (shopProducts.length > 0 || brandLogos.length > 0) {
+    plugins.shop = {
+      products: shopProducts,
+      ...(brandLogos.length ? { brands: brandLogos } : {}),
+    };
+  }
   if (useElementor) {
     entries.push(...elementor.templates());
     Object.assign(plugins, elementor.plugins());

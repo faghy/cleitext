@@ -82,7 +82,12 @@ export async function productUrls(
 
 export function registerCatalog(
   ctx: PluginContext,
-  settings: (siteId: string) => Promise<{ currency: string; perPage: number }>,
+  settings: (siteId: string) => Promise<{
+    currency: string;
+    perPage: number;
+    defaultSort?: 'latest' | 'position';
+    excerpt?: boolean;
+  }>,
 ): void {
   const render = async (
     request: RouteRequest,
@@ -136,6 +141,7 @@ export function registerCatalog(
           sort: filters.sort,
           page: filters.page,
           perPage: store.perPage,
+          ...(store.defaultSort ? { defaultSort: store.defaultSort } : {}),
         },
         categories,
       ),
@@ -162,6 +168,7 @@ export function registerCatalog(
       money,
       url: (card) => urls.get(card.id) ?? `${prefix}/product/${card.slug}`,
       addAction: `${prefix}/cart/add`,
+      ...(store.excerpt ? { excerpt: true } : {}),
     };
     const title = term ? term.name : t('Shop');
     return {

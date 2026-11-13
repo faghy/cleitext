@@ -109,7 +109,8 @@ const measure = z.union([z.number().min(0).max(1_000_000), z.null()]).default(nu
 export const attributeInputSchema = z.object({
   attributeId: z.uuid().nullable().default(null),
   name: z.string().trim().max(120).default(''),
-  values: z.array(z.string().trim().min(1).max(120)).max(200),
+  // Values may be long sentences (WooCommerce keeps them as terms, e.g. «advice for use»).
+  values: z.array(z.string().trim().min(1).max(500)).max(200),
   visible: z.boolean().default(true),
   variation: z.boolean().default(false),
   /** Own attributes in other languages: `{ it: { name, "value:<value>": … } }`. */
@@ -118,7 +119,7 @@ export const attributeInputSchema = z.object({
 
 export const variationInputSchema = z.object({
   id: z.uuid().optional(),
-  attributes: z.record(z.string().max(120), z.string().max(120)),
+  attributes: z.record(z.string().max(120), z.string().max(500)),
   enabled: z.boolean().default(true),
   sku: z.string().trim().max(100).default(''),
   gtin: z
@@ -150,30 +151,54 @@ export const saveProductSchema = z.object({
 });
 export type SaveProductInput = z.output<typeof saveProductSchema>;
 
-/** Codes must be unique among the products and variations of the site. */
+/**
+ * Codes must be unique among the products and variations of the site in a
+ * language (as the database's index): the versions of a product in other
+ * languages share its codes, also before they are linked as translations
+ * (e.g. while a multilingual shop is imported).
+ */
 async function assertFreeSku(
   tx: PluginTransaction,
   sku: string,
   owner: { product?: string; variation?: string },
 ): Promise<void> {
   if (!sku) return;
-  // The versions of a product in other languages share its codes.
   const versions = owner.product ? await versionsOf(tx, [owner.product]) : [];
+  const ownerProduct =
+    owner.product ??
+    (owner.variation
+      ? (
+          await tx
+            .select({ id: variations.productId })
+            .from(variations)
+            .where(eq(variations.id, owner.variation))
+        )[0]?.id
+      : undefined);
+  const [own] = ownerProduct
+    ? await tx
+        .select({ locale: products.locale })
+        .from(products)
+        .where(eq(products.entryId, ownerProduct))
+    : [];
+  const sameLocale = own ? eq(products.locale, own.locale) : undefined;
   const [product] = await tx
     .select({ id: products.entryId })
     .from(products)
     .where(
       and(
         sql`lower(${products.sku}) = lower(${sku})`,
+        sameLocale,
         versions.length > 0 ? notInArray(products.entryId, versions) : undefined,
       ),
     );
   const [variation] = await tx
     .select({ id: variations.id })
     .from(variations)
+    .innerJoin(products, eq(products.entryId, variations.productId))
     .where(
       and(
         sql`lower(${variations.sku}) = lower(${sku})`,
+        sameLocale,
         owner.variation ? ne(variations.id, owner.variation) : undefined,
         versions.length > 0 ? notInArray(variations.productId, versions) : undefined,
       ),
@@ -450,8 +475,8 @@ export const attributeSchema = z.object({
     .array(
       z.object({
         id: z.uuid().optional(),
-        name: z.string().trim().min(1).max(120),
-        slug: z.string().trim().max(120).optional(),
+        name: z.string().trim().min(1).max(500),
+        slug: z.string().trim().max(200).optional(),
         color: z
           .string()
           .regex(/^#[0-9a-f]{6}$/i)

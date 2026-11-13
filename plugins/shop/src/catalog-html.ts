@@ -47,7 +47,7 @@ export const CATALOG_CSS = `
 .shop-card__image:hover img{transform:scale(1.03)}
 .shop-card__title{font-size:1em;font-weight:600;margin:.25rem 0 0;line-height:1.35}
 .shop-card__title a{color:inherit;text-decoration:none}.shop-card__title a:hover{text-decoration:underline}
-.shop-card__price{margin:0;font-weight:700}.shop-card__price del{opacity:.6;font-weight:400;margin-right:.35rem}.shop-card__price ins{text-decoration:none}
+.shop-card__excerpt{margin:0;font-size:.875em;opacity:.8;line-height:1.45}.shop-card__price{margin:0;font-weight:700}.shop-card__price del{opacity:.6;font-weight:400;margin-right:.35rem}.shop-card__price ins{text-decoration:none}
 .shop-card__badge{position:absolute;top:.5rem;left:.5rem;font-size:.75em;font-weight:700;padding:.15rem .55rem;border-radius:999px;background:#b42318;color:#fff}
 .shop-card__out{margin:0;font-size:.85em;color:#b42318;font-weight:600}
 .shop-card form{margin:auto 0 0}.shop-card .shop-button{padding:.5rem 1rem;font-size:.9em}
@@ -107,6 +107,8 @@ export interface CardOptions {
   addAction: string;
   /** For the product names in the headings: h2 on the catalog, h3 in blocks. */
   heading?: 'h2' | 'h3';
+  /** The short description under the name (Cleishop 1.17). */
+  excerpt?: boolean;
 }
 
 export function productCards(cards: ProductCard[], options: CardOptions): Html {
@@ -137,6 +139,11 @@ export function productCards(cards: ProductCard[], options: CardOptions): Html {
         ${card.onSale ? html`<span class="shop-card__badge">${t('Sale!')}</span>` : ''}
         ${raw(`<${heading} class="shop-card__title">`)}<a href="${url}">${card.title}</a
         >${raw(`</${heading}>`)} ${stars(t, card.rating, card.ratingCount)}
+        ${
+          options.excerpt && card.excerpt
+            ? html`<p class="shop-card__excerpt">${card.excerpt}</p>`
+            : ''
+        }
         <p class="shop-card__price">${priceHtml(card, money)}</p>
         ${out ? html`<p class="shop-card__out">${t('Out of stock')}</p>` : ''} ${action}
       </li>`;

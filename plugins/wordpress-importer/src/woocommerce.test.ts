@@ -14,6 +14,7 @@ const XML = `<?xml version="1.0" encoding="UTF-8"?>
 <wp:term><wp:term_id>5</wp:term_id><wp:term_taxonomy><![CDATA[product_cat]]></wp:term_taxonomy><wp:term_slug><![CDATA[cancelleria]]></wp:term_slug><wp:term_name><![CDATA[Cancelleria]]></wp:term_name></wp:term>
 <wp:term><wp:term_id>6</wp:term_id><wp:term_taxonomy><![CDATA[product_cat]]></wp:term_taxonomy><wp:term_slug><![CDATA[scuola]]></wp:term_slug><wp:term_parent><![CDATA[cancelleria]]></wp:term_parent><wp:term_name><![CDATA[Scuola]]></wp:term_name></wp:term>
 <wp:term><wp:term_id>7</wp:term_id><wp:term_taxonomy><![CDATA[product_brand]]></wp:term_taxonomy><wp:term_slug><![CDATA[tintaunita]]></wp:term_slug><wp:term_name><![CDATA[TintaUNITA]]></wp:term_name></wp:term>
+<wp:term><wp:term_id>17</wp:term_id><wp:term_taxonomy><![CDATA[product_brands]]></wp:term_taxonomy><wp:term_slug><![CDATA[abaton]]></wp:term_slug><wp:term_name><![CDATA[Abaton]]></wp:term_name><wp:termmeta><wp:meta_key><![CDATA[_pbf_wc_meta]]></wp:meta_key><wp:meta_value><![CDATA[a:1:{s:12:"thumbnail_id";s:3:"101";}]]></wp:meta_value></wp:termmeta><wp:termmeta><wp:meta_key><![CDATA[tax_position]]></wp:meta_key><wp:meta_value><![CDATA[6]]></wp:meta_value></wp:termmeta></wp:term>
 <wp:term><wp:term_id>8</wp:term_id><wp:term_taxonomy><![CDATA[pa_colore]]></wp:term_taxonomy><wp:term_slug><![CDATA[rosso]]></wp:term_slug><wp:term_name><![CDATA[Rosso]]></wp:term_name></wp:term>
 <wp:term><wp:term_id>9</wp:term_id><wp:term_taxonomy><![CDATA[pa_colore]]></wp:term_taxonomy><wp:term_slug><![CDATA[blu-notte]]></wp:term_slug><wp:term_name><![CDATA[Blu notte]]></wp:term_name></wp:term>
 ${item(`<title>Astuccio</title><link>https://shop.example/wp-content/uploads/a.jpg</link><wp:post_id>101</wp:post_id><wp:post_type><![CDATA[attachment]]></wp:post_type><wp:status><![CDATA[inherit]]></wp:status><wp:attachment_url><![CDATA[https://shop.example/wp-content/uploads/a.jpg]]></wp:attachment_url>`)}
@@ -114,6 +115,22 @@ describe('WooCommerce products', () => {
     expect(text).toContain('2 WooCommerce product(s) were imported for Cleishop');
     expect(text).toContain('shop type "shop_order" (orders, coupons)');
     expect(text).not.toContain('product_variation');
+  });
+});
+
+describe('brand logos and order', () => {
+  it('keeps a brand’s position and its logo for Cleishop', () => {
+    const { document } = wxrToDocument(XML, { locale: 'it' });
+    expect(document.terms!.find((t) => t.slug === 'abaton')).toMatchObject({
+      taxonomy: 'brand',
+      position: 6,
+    });
+    expect((document.plugins as { shop: { brands: unknown[] } }).shop.brands).toEqual([
+      {
+        slug: 'abaton',
+        logo: { id: 'att:101', url: 'https://shop.example/wp-content/uploads/a.jpg' },
+      },
+    ]);
   });
 });
 

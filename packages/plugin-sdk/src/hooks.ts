@@ -35,6 +35,9 @@ export interface EntryEvent {
   terms?: Record<string, string[]>;
   /** Its featured image, when known (plugin API 1.13). */
   featuredMediaId?: string | null;
+  /** Its manual order and short summary, when known (plugin API 1.74). */
+  position?: number;
+  excerpt?: string | null;
 }
 
 /** A taxonomy term as hooks see it. */

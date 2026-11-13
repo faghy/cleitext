@@ -1,6 +1,6 @@
 import type { PluginContext } from '@cleitext/plugin-sdk';
 import { saveProduct, saveProductSchema } from './products';
-import { PRODUCT, syncProduct } from './sync';
+import { BRAND, PRODUCT, syncProduct } from './sync';
 
 /** An id of the new site; pictures that could not be downloaded keep their old reference. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,6 +19,11 @@ export function registerWooImport(ctx: PluginContext): void {
     const products = (data as { products?: unknown } | null)?.products;
     if (!Array.isArray(products)) return result;
     const warnings: string[] = [...(result?.warnings ?? [])];
+    // A product as the report names it: its title, language and code, not its id.
+    const nameOf = async (id: string) => {
+      const entry = await ctx.content.get(siteId, id).catch(() => null);
+      return entry ? `"${entry.title}" (${entry.locale})` : id;
+    };
     let saved = 0;
     for (const raw of products as Record<string, unknown>[]) {
       const id = isId(raw.entry) ? raw.entry : null;
@@ -45,7 +50,7 @@ export function registerWooImport(ctx: PluginContext): void {
       });
       if (!parsed.success) {
         warnings.push(
-          `Cleishop: the data of product ${id} were not valid (${parsed.error.issues[0]?.message ?? 'invalid'}).`,
+          `Cleishop: the data of product ${await nameOf(id)} were not valid (${parsed.error.issues[0]?.path.join('.') ?? ''}: ${parsed.error.issues[0]?.message ?? 'invalid'}).`,
         );
         continue;
       }
@@ -58,11 +63,31 @@ export function registerWooImport(ctx: PluginContext): void {
         saved++;
       } catch (error) {
         warnings.push(
-          `Cleishop: product ${id} not saved: ${error instanceof Error ? error.message : String(error)}`,
+          `Cleishop: product ${await nameOf(id)} not saved: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
     warnings.push(`Cleishop: prices, codes, stock and pictures of ${saved} product(s) saved.`);
+    // Brands' logos, from the media just imported (the brands are the import's terms).
+    const brands = (data as { brands?: unknown } | null)?.brands;
+    if (Array.isArray(brands) && brands.length && ctx.terms.updateFields) {
+      const known = await ctx.terms.find(siteId, { taxonomy: BRAND, limit: 500 });
+      let logos = 0;
+      for (const raw of brands as { slug?: unknown; logo?: { id?: unknown } }[]) {
+        const term = known.find((t) => t.slug === raw.slug);
+        const media = raw.logo?.id;
+        if (!term || !isId(media)) continue;
+        await ctx.terms
+          .updateFields(siteId, term.id, { logo: media })
+          .then(() => logos++)
+          .catch((error) =>
+            warnings.push(
+              `Cleishop: the logo of the brand "${term.name}" was not saved: ${String(error)}`,
+            ),
+          );
+      }
+      if (logos) warnings.push(`Cleishop: the logos of ${logos} brand(s) saved.`);
+    }
     return { warnings };
   });
 }
