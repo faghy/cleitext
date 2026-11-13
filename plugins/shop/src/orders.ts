@@ -166,7 +166,11 @@ export async function placeOrder(
       feeTotal: decimal(totals.fees.reduce((sum, f) => sum + f.net, 0)),
       taxTotal: decimal(totals.taxTotal),
       total: decimal(totals.total),
-      taxes: totals.taxes.map((t) => ({ rate: t.rate, amount: decimal(t.amount) })),
+      taxes: totals.taxes.map((t) => ({
+        rate: t.rate,
+        amount: decimal(t.amount),
+        ...(t.label ? { label: t.label } : {}),
+      })),
       paymentMethod: order.payment.method,
       paymentTitle: order.payment.title,
       shippingMethod: order.shippingRate?.title ?? '',

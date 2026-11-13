@@ -149,6 +149,10 @@ const IT: Record<string, string> = {
   Update: 'Aggiorna',
   'Taxes included ({rate}%)': 'di cui IVA ({rate}%)',
   'Taxes included': 'di cui imposte',
+  'The taxes could not be worked out right now: they are not in the total yet.':
+    'Non è stato possibile calcolare le imposte in questo momento: non sono ancora nel totale.',
+  'The taxes of this order could not be worked out: please try again in a moment.':
+    'Non è stato possibile calcolare le imposte di questo ordine: riprova tra un momento.',
   'Tax ({rate}%)': 'IVA ({rate}%)',
   Remove: 'Rimuovi',
   'Update cart': 'Aggiorna il carrello',

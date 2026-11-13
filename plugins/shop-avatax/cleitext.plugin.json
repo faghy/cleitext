@@ -1,0 +1,17 @@
+{
+  "slug": "shop-avatax",
+  "name": "AvaTax",
+  "version": "1.0.0",
+  "apiVersion": "^1.73",
+  "description": "A Cleishop add-on: US sales taxes worked out by Avalara AvaTax in the cart and at checkout, by jurisdiction on the order and the invoice, with the address checked at checkout. Paid orders recorded in Avalara (committed), voided and refunded with the order, when you turn it on. Without an answer from Avalara no order is placed with taxes missing.",
+  "author": "Cleitext",
+  "homepage": "https://cleitext.com/plugins/shop-avatax",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "requires": {
+    "plugins": { "shop": "^1.16.0" }
+  },
+  "permissions": ["routes:admin", "settings:own", "network"],
+  "capabilities": ["manage_avatax"]
+}

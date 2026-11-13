@@ -35,6 +35,14 @@ declare module '@cleitext/plugin-sdk' {
   interface Actions {
     /** An order changed status (from the admin, or a payment). */
     'shop.order.status': { orderId: string; number: number; from: string; to: string };
+    /** A refund was made (1.16): its amount, and the lines and quantities given back. */
+    'shop.order.refunded': {
+      orderId: string;
+      number: number;
+      refundId: string;
+      amount: string;
+      reason: string;
+    };
   }
 }
 
@@ -212,6 +220,17 @@ export function registerOrderRoutes(
       await ctx.cache.invalidate(request.siteId, productTags(result.productIds));
     conversions(ctx).refunded(request.siteId, id, result.amount);
     const detail = (await load(request.siteId, id))!;
+    await ctx.hooks.emit(
+      'shop.order.refunded',
+      {
+        orderId: id,
+        number: detail.order.number,
+        refundId: detail.refunds[0]?.id ?? '',
+        amount: result.amount,
+        reason: detail.refunds[0]?.reason ?? '',
+      },
+      { siteId: request.siteId },
+    );
     await mail.send(request.siteId, request.origin, 'customer_refunded', detail, {
       amount: result.amount,
     });

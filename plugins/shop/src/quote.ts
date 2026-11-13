@@ -19,7 +19,8 @@ import {
 } from './schema';
 import { rateFor, zoneFor, type Destination, type Rate } from './shipping';
 import { ratesFor, type TaxRateInput } from './taxes';
-import { computeTotals, type Totals } from './totals';
+import { TaxServiceError, type TaxQuote, type TaxRequest } from './extensions';
+import { computeTotals, type TaxOverride, type Totals, type TotalsInput } from './totals';
 
 /**
  * A cart priced in full: coupons checked and applied, the shipping rates for
@@ -40,6 +41,8 @@ export interface QuoteSettings {
     shippingMethods: string[];
     virtual: boolean;
   };
+  /** A tax service (`shop.taxes`, 1.16) working out the taxes instead of the rates. */
+  taxService?: { find: () => Promise<TaxQuote | null>; siteId: string; currency: string } | null;
 }
 
 export interface QuoteInput {
@@ -56,6 +59,10 @@ export interface QuoteInput {
   now?: Date;
   /** The customer's language: names of shipping methods and taxes are shown in it. */
   locale?: string;
+  /** The full address, at checkout (a tax service needs the street and city). */
+  address?: { line1: string; line2: string; city: string };
+  /** At checkout the taxes are what the order charges; elsewhere an estimate. */
+  stage?: 'cart' | 'checkout';
 }
 
 export interface Quote {
@@ -68,6 +75,8 @@ export interface Quote {
   rate: Rate | null;
   coupons: { coupon: Coupon; discount: number }[];
   rejected: { code: string; problem: CouponProblem | 'unknown' }[];
+  /** The tax service could not answer (1.16): no order without its taxes. */
+  taxError?: string;
 }
 
 export function couponOf(row: CouponRow): Coupon {
@@ -200,7 +209,7 @@ export async function quote(
         name: textIn(r.translations, input.locale ?? '', 'name', r.name),
       }))
     : [];
-  const totals = computeTotals({
+  const totalsInput: TotalsInput = {
     lines: input.lines.map((l) => ({
       key: l.key,
       unitPrice: l.unitPrice,
@@ -222,8 +231,22 @@ export async function quote(
         ? [{ name: settings.cod.title, amount: settings.cod.fee, taxable: settings.cod.taxable }]
         : [],
     discounts: applied.discounts,
-  });
+  };
+  let totals = computeTotals(totalsInput);
+  // A tax service's taxes instead of the rates, on the amounts after the discounts.
+  let taxError: string | undefined;
+  const service = settings.taxService ? await settings.taxService.find() : null;
+  if (service) {
+    try {
+      const override = await serviceTaxes(service, settings, input, totalsInput, totals, rate);
+      if (override) totals = computeTotals({ ...totalsInput, taxes: override });
+    } catch (error) {
+      if (!(error instanceof TaxServiceError)) throw error;
+      taxError = error.message || 'The taxes could not be worked out.';
+    }
+  }
   return {
+    ...(taxError ? { taxError } : {}),
     totals,
     needsShipping,
     shippingSetUp,
@@ -255,4 +278,68 @@ async function usesBy(
       ),
     );
   return row?.n ?? 0;
+}
+
+/** The taxes of a tax service for this cart, or null when it does not handle it. */
+async function serviceTaxes(
+  quoteTaxes: TaxQuote,
+  settings: QuoteSettings,
+  input: QuoteInput,
+  totalsInput: TotalsInput,
+  totals: Totals,
+  rate: Rate | null,
+): Promise<TaxOverride | null> {
+  const service = settings.taxService!;
+  const byKey = new Map(totals.lines.map((l) => [l.key, l]));
+  const request: TaxRequest = {
+    stage: input.stage ?? (input.customer ? 'checkout' : 'cart'),
+    locale: input.locale ?? '',
+    currency: service.currency,
+    pricesIncludeTax: settings.pricesIncludeTax,
+    address: {
+      line1: input.address?.line1 ?? '',
+      line2: input.address?.line2 ?? '',
+      city: input.address?.city ?? '',
+      region: input.to.province,
+      postcode: input.to.postcode,
+      country: input.to.country,
+    },
+    customer: input.customer ?? null,
+    lines: input.lines.map((l) => {
+      const line = byKey.get(l.key);
+      return {
+        key: l.key,
+        productId: l.productId,
+        sku: l.sku,
+        name: l.title,
+        quantity: l.quantity,
+        // As entered (with the tax when prices include it), after the discount.
+        amount: line ? line.gross - (settings.pricesIncludeTax ? 0 : line.tax) : 0,
+        taxable: l.taxStatus === 'taxable',
+        taxClass: l.taxClass,
+      };
+    }),
+    shipping:
+      totalsInput.shipping && rate
+        ? { amount: Math.round(Number(totalsInput.shipping.cost) * 100), method: rate.title }
+        : null,
+    fees: (totalsInput.fees ?? []).map((f) => ({
+      name: f.name,
+      amount: Math.round(Number(f.amount) * 100),
+    })),
+  };
+  const answer = await quoteTaxes(service.siteId, request);
+  if (!answer) return null;
+  return {
+    lines: answer.lines ?? {},
+    shipping: Number(answer.shipping) || 0,
+    fees: Array.isArray(answer.fees) ? answer.fees.map((f) => Number(f) || 0) : [],
+    summary: Array.isArray(answer.summary)
+      ? answer.summary.map((t) => ({
+          label: String(t.label ?? '').slice(0, 100),
+          rate: Number(t.rate) || 0,
+          amount: Number(t.amount) || 0,
+        }))
+      : [],
+  };
 }

@@ -70,6 +70,7 @@ import {
   stripeLocale,
 } from './stripe-element';
 import { NEWSLETTER_FIELD, newsletterCheckbox, newsletterSubscribe } from './newsletter-optin';
+import { taxService } from './extensions';
 import { translator, type Translate } from './strings';
 
 /** The checkout's id for the site's bot protection (`ctx.forms`, plugin API 1.38). */
@@ -269,7 +270,7 @@ export function registerStorefront(
       }
       const priced = await priceCart(tx, items, request.locale);
       const codes = await loadCoupons(tx, token);
-      const quoted = await quote(tx, quoteSettings(store, t), {
+      const quoted = await quote(tx, quoteSettings(store, t, request.siteId), {
         locale: request.locale,
         lines: priced.lines,
         codes,
@@ -291,7 +292,17 @@ export function registerStorefront(
     });
   };
 
-  const quoteSettings = (store: StoreSettings, t: Translate) => ({
+  const quoteSettings = (store: StoreSettings, t: Translate, siteId?: string) => ({
+    // An add-on's tax service (shop.taxes, 1.16), looked up when the cart is priced.
+    ...(siteId
+      ? {
+          taxService: {
+            find: () => taxService(ctx, siteId),
+            siteId,
+            currency: store.currency,
+          },
+        }
+      : {}),
     pricesIncludeTax: store.pricesIncludeTax,
     taxesEnabled: store.taxesEnabled,
     cod: {
@@ -344,6 +355,11 @@ export function registerStorefront(
       });
     for (const r of cart.quote.rejected)
       notices.push({ kind: 'error', text: couponMessage(t, r.code, r.problem) });
+    if (cart.quote.taxError)
+      notices.push({
+        kind: 'error',
+        text: t('The taxes could not be worked out right now: they are not in the total yet.'),
+      });
     for (const name of [...cart.dropped, ...cart.lowered])
       notices.push({
         kind: 'error',
@@ -804,6 +820,12 @@ export function registerStorefront(
   };
 
   /** Where the order goes: the shipping address, or the billing one. */
+  /** The street and city of where the order goes, for a tax service. */
+  const addressLineOf = (values: CheckoutValues) => {
+    const address = values.differentShipping ? values.shipping : values.billing;
+    return { line1: address.address1, line2: address.address2, city: address.city };
+  };
+
   const destinationOf = (values: CheckoutValues, store: StoreSettings): Destination => {
     const address = values.differentShipping ? values.shipping : values.billing;
     return {
@@ -825,12 +847,16 @@ export function registerStorefront(
     const money = moneyFormatter(request.locale, store.currency);
     const cart = await currentCart(request, store, t, {
       to: destinationOf(values, store),
+      address: addressLineOf(values),
+      stage: 'checkout',
       shipping: true,
       rateId: values.rate,
       payment: values.payment,
     });
     const prefix = prefixOf(request);
     if (cart.lines.length === 0) return { empty: true as const, prefix };
+    // The tax service did not answer: said before the customer fills in everything.
+    if (cart.quote.taxError && !notice) notice = cart.quote.taxError;
     // The site's bot protection, when a plugin gives one (e.g. Captcha).
     const challenge =
       (await ctx.forms
@@ -1011,16 +1037,25 @@ export function registerStorefront(
           await saveCart(tx, request.siteId, token, priced.items, request.user?.id ?? null);
         return null;
       }
-      const quoted = await quote(tx, quoteSettings(store, t), {
+      const quoted = await quote(tx, quoteSettings(store, t, request.siteId), {
         locale: request.locale,
         lines: priced.lines,
         codes: 'cart' in source ? await loadCoupons(tx, token) : [],
         to: destinationOf(values, store),
+        address: addressLineOf(values),
+        stage: 'checkout',
         shipping: true,
         rateId: values.rate,
         payment: method.id,
         customer: { email: values.email, userId: request.user?.id ?? null },
       });
+      // The tax service did not answer: no order with taxes missing.
+      if (quoted.taxError)
+        return {
+          problem:
+            quoted.taxError ||
+            t('The taxes of this order could not be worked out: please try again in a moment.'),
+        };
       const rejected = quoted.rejected[0];
       if (rejected) return { problem: couponMessage(t, rejected.code, rejected.problem) };
       const allowed = availablePayments(store.payments, {

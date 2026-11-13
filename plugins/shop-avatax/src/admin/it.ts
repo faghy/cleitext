@@ -1,0 +1,47 @@
+/** Italian texts of the AvaTax admin page. */
+export const IT: Record<string, string> = {
+  'US sales taxes worked out by Avalara AvaTax in the cart and at checkout, by jurisdiction on the order. If Avalara does not answer, the checkout stops: no order is placed with taxes missing.':
+    'Le imposte sulle vendite USA calcolate da Avalara AvaTax nel carrello e al checkout, per giurisdizione nell’ordine. Se Avalara non risponde il checkout si ferma: nessun ordine senza le sue imposte.',
+  'Activate Cleishop 1.16 or later first.': 'Attiva prima Cleishop 1.16 o successivo.',
+  Account: 'Account',
+  'AvaTax works out the taxes': 'AvaTax calcola le imposte',
+  Environment: 'Ambiente',
+  Production: 'Produzione',
+  'Company code': 'Codice azienda',
+  'Account number': 'Numero di account',
+  'License key': 'Chiave di licenza',
+  'Saved: write it again to change it': 'Salvato: riscrivilo per cambiarlo',
+  'Test the connection': 'Prova la connessione',
+  'Connected to Avalara ({environment}).': 'Collegato ad Avalara ({environment}).',
+  'Company: {name} ({code}). Nexus: {nexus}.': 'Azienda: {name} ({code}). Nexus: {nexus}.',
+  'The company code was not found in this account.':
+    'Il codice azienda non esiste in questo account.',
+  'Where the goods leave from': 'Da dove parte la merce',
+  Street: 'Via',
+  'Street (line 2)': 'Via (riga 2)',
+  City: 'Città',
+  State: 'Stato',
+  'ZIP code': 'CAP',
+  Country: 'Paese',
+  Calculation: 'Calcolo',
+  'Countries (comma separated)': 'Paesi (separati da virgola)',
+  'Product tax code': 'Codice fiscale dei prodotti',
+  'Shipping tax code': 'Codice fiscale della spedizione',
+  'Also in the cart (an estimate from the ZIP code)': 'Anche nel carrello (una stima dal CAP)',
+  'Check US addresses at checkout and refuse those not found':
+    'Verifica gli indirizzi USA al checkout e rifiuta quelli non trovati',
+  'Record orders in Avalara': 'Registrazione degli ordini in Avalara',
+  'With this on, every paid order becomes a committed document in Avalara (your tax returns use it), cancelled orders are voided and refunds are recorded. Turn it on only when the site is live.':
+    'Con questa opzione ogni ordine pagato diventa un documento registrato (committed) in Avalara, usato per le dichiarazioni fiscali; gli ordini annullati vengono stornati e i rimborsi registrati. Attivala solo quando il sito è online.',
+  'Record paid orders (commit)': 'Registra gli ordini pagati (commit)',
+  'Keep a log of the calls (without names or payment data)':
+    'Tieni un registro delle chiamate (senza nomi né dati di pagamento)',
+  Save: 'Salva',
+  'Settings saved.': 'Impostazioni salvate.',
+  'Last calls': 'Ultime chiamate',
+  When: 'Quando',
+  Call: 'Chiamata',
+  About: 'Riguarda',
+  Result: 'Esito',
+  'Clear the log': 'Svuota il registro',
+};

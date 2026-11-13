@@ -270,4 +270,8 @@ Cleishop's add-ons (WooCommerce Import, Wishlist, PDF Invoices…) use its `shop
 - `shop.email-attachments`: `attachments(siteId, { orderId, email })` returns files attached to an order email (at most 10);
 - `shop.order-documents`: `documents(siteId, { orderId, audience })` returns links (`{ label, url }`) shown with the order, in the customer's account (`customer`) or in the admin (`admin`).
 
-A failing add-on never stops an email or a page: it is left out and logged.
+- `shop.taxes` (1.16): `quote(siteId, request)` works out the taxes of the cart and the checkout instead of the shop's rates (e.g. AvaTax): the request has the address, the lines (amounts in cents after the discounts), the shipping and the fees; the answer, the tax per line, for the shipping and each fee, and the summary by jurisdiction, which the order keeps. `null` leaves the address to the rates. When it throws, the cart says the taxes are missing and the checkout refuses the order with its message: no order is placed without its taxes.
+
+Cleishop also announces `shop.order.created`, `shop.order.status` and (1.16) `shop.order.refunded` (`{ orderId, number, refundId, amount, reason }`).
+
+A failing add-on never stops an email or a page: it is left out and logged (a tax service is the exception above).

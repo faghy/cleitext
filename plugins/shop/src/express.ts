@@ -32,7 +32,11 @@ type Placed = { order: OrderRow; products: string[] };
 
 export interface ExpressDeps {
   settings: (siteId: string, locale: string) => Promise<StoreSettings>;
-  quoteSettings: (store: StoreSettings, t: Translate) => Parameters<typeof quote>[1];
+  quoteSettings: (
+    store: StoreSettings,
+    t: Translate,
+    siteId?: string,
+  ) => Parameters<typeof quote>[1];
   /** Where the shop is: the rates before the wallet gives an address. */
   destination: (store: StoreSettings) => Destination;
   placeFrom: (
@@ -118,7 +122,7 @@ export function registerExpress(ctx: PluginContext, deps: ExpressDeps): void {
     return ctx.db.transaction(request.siteId, async (tx) => {
       const priced = await priceCart(tx, items ?? (await loadCart(tx, token)), request.locale);
       if (priced.lines.length === 0 || priced.dropped.length || priced.lowered.length) return null;
-      const quoted = await quote(tx, deps.quoteSettings(store, t), {
+      const quoted = await quote(tx, deps.quoteSettings(store, t, request.siteId), {
         locale: request.locale,
         lines: priced.lines,
         codes: items ? [] : await loadCoupons(tx, token),

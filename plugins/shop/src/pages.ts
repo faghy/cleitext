@@ -178,7 +178,7 @@ function totalsRows(
         : totals.taxes.map(
             (tax) =>
               html`<tr>
-                <th scope="row">${t('Tax ({rate}%)', { rate: tax.rate })}</th>
+                <th scope="row">${tax.label || t('Tax ({rate}%)', { rate: tax.rate })}</th>
                 <td class="num">${money(tax.amount)}</td>
               </tr>`,
           )
@@ -193,7 +193,13 @@ function totalsRows(
             (tax) =>
               html`<tr>
                 <th scope="row">
-                  <small>${t('Taxes included ({rate}%)', { rate: tax.rate })}</small>
+                  <small
+                    >${
+                      tax.label
+                        ? `${t('Taxes included')}: ${tax.label}`
+                        : t('Taxes included ({rate}%)', { rate: tax.rate })
+                    }</small
+                  >
                 </th>
                 <td class="num"><small>${money(tax.amount)}</small></td>
               </tr>`,
