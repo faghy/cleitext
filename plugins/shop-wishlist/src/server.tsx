@@ -336,14 +336,8 @@ export default definePlugin({
         // Products by SKU, and by slug when they have none (as WooCommerce Import's orders).
         const wanted = wishlists.flatMap((w) => w.items ?? []);
         const skus = [...new Set(wanted.map((i) => i.sku ?? '').filter(Boolean))];
-        const slugs = [
-          ...new Set(
-            wanted
-              .filter((i) => !i.sku)
-              .map((i) => i.productSlug ?? '')
-              .filter(Boolean),
-          ),
-        ];
+        // Every slug: a SKU may be missing in Cleishop while the slug is there.
+        const slugs = [...new Set(wanted.map((i) => i.productSlug ?? '').filter(Boolean))];
         const found = await shop.productsBy(siteId, { skus, slugs });
         const bySku = new Map(found.filter((p) => p.sku).map((p) => [p.sku, p.id]));
         const bySlug = new Map(found.filter((p) => p.slug).map((p) => [p.slug!, p.id]));
@@ -359,12 +353,22 @@ export default definePlugin({
         let imported = 0;
         let saved = 0;
         let skipped = 0;
+        // Why lists are left out, and products not found (1.0.2).
+        const reasons = { guest: 0, customer: 0, products: 0 };
+        let missing = 0;
         for (const w of wishlists) {
-          const userId = users[String(w.userId ?? '')];
           const productIds = (w.items ?? [])
             .map(productOf)
             .filter((id): id is string => Boolean(id));
+          missing += (w.items ?? []).length - productIds.length;
+          if (!w.userId || Number(w.userId) <= 0) {
+            reasons.guest++;
+            skipped++;
+            continue;
+          }
+          const userId = users[String(w.userId)];
           if (!userId || !productIds.length) {
+            reasons[userId ? 'products' : 'customer']++;
             skipped++;
             continue;
           }
@@ -388,7 +392,7 @@ export default definePlugin({
           imported++;
         }
         return {
-          body: { imported, saved, skipped, linked: Boolean(woo) },
+          body: { imported, saved, skipped, reasons, missing, linked: Boolean(woo) },
         };
       },
     });

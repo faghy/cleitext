@@ -19,4 +19,12 @@ export const IT: Record<string, string> = {
     '{imported} liste importate ({saved} prodotti), {skipped} escluse (cliente o prodotti non trovati).',
   'WooCommerce Import is not active: lists cannot be linked to customers.':
     'WooCommerce Import non è attivo: le liste non si possono collegare ai clienti.',
+  '{n} of guests without an account: they cannot be linked to anyone.':
+    '{n} di ospiti senza account: non si possono collegare a nessuno.',
+  '{n} of customers not imported by WooCommerce Import.':
+    '{n} di clienti non importati da Import da WooCommerce.',
+  '{n} with none of their products found in Cleishop.':
+    '{n} senza nessuno dei loro prodotti in Cleishop.',
+  '{n} saved products not found in Cleishop (by SKU or slug).':
+    '{n} prodotti salvati non trovati in Cleishop (per SKU o slug).',
 };

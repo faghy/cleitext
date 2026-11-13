@@ -126,10 +126,18 @@ describe('Wishlist', () => {
           items: [{ sku: 'ROSE-50' }, { sku: 'GONE' }, { productSlug: 'rose-perfume' }],
         },
         { userId: 999, items: [{ sku: 'ROSE-50' }] },
+        { userId: 0, token: 'guest', items: [{ sku: 'ROSE-50' }] },
       ],
     });
     expect(imported.statusCode, imported.body).toBe(200);
-    expect(imported.json()).toEqual({ imported: 1, saved: 1, skipped: 1, linked: true });
+    expect(imported.json()).toEqual({
+      imported: 1,
+      saved: 1,
+      skipped: 2,
+      reasons: { guest: 1, customer: 1, products: 0 },
+      missing: 1,
+      linked: true,
+    });
     const statsRes = await admin.get('/api/v1/ext/shop-wishlist/stats');
     expect(statsRes.statusCode, statsRes.body).toBe(200);
     const stats = statsRes.json();

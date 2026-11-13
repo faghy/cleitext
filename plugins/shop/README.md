@@ -214,7 +214,10 @@ little as it can:
 - **Only a page the visitor opens.** Browsers say what a request is for: a
   picture, a script or a background request from another site, a prefetch,
   a `HEAD`, a search engine or a link preview only get the redirect, and
-  nothing is added.
+  nothing is added. Robots are told by their user agent (`bot`, `crawl`,
+  `spider`, `preview`, `headless`, `lighthouse`, `curl/`, `wget/`,
+  `python-`…): automated tests that open these links in a headless browser
+  must give it a normal browser user agent, or the cart stays empty.
 - **Never cached, never indexed** (`Cache-Control: private, no-store`,
   `X-Robots-Tag: noindex, nofollow`), and the only thing that changes is the
   visitor's own cart: no coupons, no checkout, no account. The redirect goes
@@ -257,7 +260,7 @@ Requires Cleitext 0.30 or later. License: GPL-2.0-or-later.
 
 ## For add-ons
 
-Cleishop's add-ons (WooCommerce Import, Wishlist, PDF Invoices…) use its `shop` service (plugin API 1.73): `settings`, `saveCustomer`, `productsBy`, `importOrder`, `orderByRef`, `order`, `importedOrders` (1.14) and `productCards`. Since 1.14 Cleishop also asks add-ons for:
+Cleishop's add-ons (WooCommerce Import, Wishlist, PDF Invoices…) use its `shop` service (plugin API 1.73): `settings`, `saveCustomer`, `productsBy`, `importOrder`, `orderByRef`, `order`, `importedOrders` (1.14), `linkOrderItems` (1.15) and `productCards`. Since 1.14 Cleishop also asks add-ons for:
 
 - `shop.email-attachments`: `attachments(siteId, { orderId, email })` returns files attached to an order email (at most 10);
 - `shop.order-documents`: `documents(siteId, { orderId, audience })` returns links (`{ label, url }`) shown with the order, in the customer's account (`customer`) or in the admin (`admin`).

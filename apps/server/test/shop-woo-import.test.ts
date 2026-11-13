@@ -127,4 +127,22 @@ describe('WooCommerce Import', () => {
     const state = (await admin.get(`${EXT}/state`)).json();
     expect(state).toMatchObject({ shop: true, customers: 1, orders: 2 });
   });
+
+  it('links the lines of orders already imported to products created later', async () => {
+    const { id } = (
+      await admin.post('/api/v1/entries', { type: 'product', title: 'Cologne' })
+    ).json();
+    const saved = await admin.request('PUT', `/api/v1/ext/shop/products/${id}`, {
+      product: { sku: 'COL-1', regularPrice: '40.00' },
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    const done = await admin.post(`${EXT}/relink`, { orders });
+    expect(done.statusCode, done.body).toBe(200);
+    expect(done.json()).toEqual({ chosen: 3, imported: 2, orders: 2, linked: 2, missing: 0 });
+    const list = (await admin.get('/api/v1/ext/shop/orders')).json();
+    const detail = (await admin.get(`/api/v1/ext/shop/orders/${list.items[0].id}`)).json();
+    expect(detail.items[0].productId).toBe(id);
+    // Again: nothing left to link.
+    expect((await admin.post(`${EXT}/relink`, { orders })).json()).toMatchObject({ linked: 0 });
+  });
 });

@@ -157,6 +157,16 @@ export interface ShopService {
   /** An order with its lines, notes and refunds. */
   order(siteId: string, id: string): Promise<OrderDetail | null>;
   /**
+   * Links lines of an imported order to products (1.15), e.g. after the
+   * products were imported: only product lines still without one, by their
+   * position. Totals, stock and emails are untouched. Returns how many.
+   */
+  linkOrderItems(
+    siteId: string,
+    orderId: string,
+    links: { position: number; productId: string }[],
+  ): Promise<number>;
+  /**
    * Imported orders with the data kept from their shop (1.14), a page at a
    * time by number: e.g. the invoice numbers of a WooCommerce plugin.
    */
@@ -403,6 +413,43 @@ export function provideShopService(
     async order(siteId, id) {
       if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
       return tx(siteId, (t) => orderDetail(t, id));
+    },
+
+    async linkOrderItems(siteId, orderId, links) {
+      if (!/^[0-9a-f-]{36}$/i.test(orderId)) return 0;
+      const valid = (links ?? []).filter(
+        (l) => Number.isInteger(l?.position) && /^[0-9a-f-]{36}$/i.test(String(l?.productId)),
+      );
+      if (!valid.length) return 0;
+      return tx(siteId, async (t) => {
+        const [order] = await t
+          .select({ ref: orders.externalRef })
+          .from(orders)
+          .where(eq(orders.id, orderId));
+        if (!order?.ref) return 0;
+        const ids = [...new Set(valid.map((l) => l.productId))];
+        const existing = new Set(
+          (
+            await t
+              .select({ id: products.entryId })
+              .from(products)
+              .where(inArray(products.entryId, ids))
+          ).map((p) => p.id),
+        );
+        let linked = 0;
+        for (const link of valid) {
+          if (!existing.has(link.productId)) continue;
+          const done = await t
+            .update(orderItems)
+            .set({ productId: link.productId })
+            .where(
+              sql`${orderItems.orderId} = ${orderId} AND ${orderItems.position} = ${link.position} AND ${orderItems.kind} = 'product' AND ${orderItems.productId} IS NULL`,
+            )
+            .returning({ id: orderItems.id });
+          linked += done.length;
+        }
+        return linked;
+      });
     },
 
     async importedOrders(siteId, options) {

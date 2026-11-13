@@ -50,6 +50,11 @@ function WooImportPage({ api }: AdminPageProps) {
     null,
   );
   const [result, setResult] = useState<{ label: string; result: Result } | null>(null);
+  const [relinked, setRelinked] = useState<{
+    orders: number;
+    linked: number;
+    missing: number;
+  } | null>(null);
 
   const load = () =>
     api<{ shop: boolean; customers: number; orders: number }>('GET', '/state')
@@ -109,6 +114,31 @@ function WooImportPage({ api }: AdminPageProps) {
     } finally {
       setProgress(null);
       void load();
+    }
+  };
+
+  /** Links the lines of orders already imported to products found now. */
+  const relink = async (list: WooExport['orders']) => {
+    setError('');
+    setRelinked(null);
+    const total = { orders: 0, linked: 0, missing: 0 };
+    try {
+      for (let i = 0; i < list.length; i += 100) {
+        setProgress({ label: t('Lines'), done: i, total: list.length });
+        const r = await api<{ orders: number; linked: number; missing: number }>(
+          'POST',
+          '/relink',
+          { orders: list.slice(i, i + 100) },
+        );
+        total.orders += r.orders;
+        total.linked += r.linked;
+        total.missing += r.missing;
+      }
+      setRelinked(total);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setProgress(null);
     }
   };
 
@@ -252,8 +282,28 @@ function WooImportPage({ api }: AdminPageProps) {
               }
             >
               {t('Import the orders')}
+            </Button>{' '}
+            <Button
+              variant="secondary"
+              disabled={Boolean(progress) || !state?.shop || orders.length === 0}
+              onClick={() => void relink(orders)}
+            >
+              {t('Link the lines again')}
             </Button>
           </div>
+          <p className="wi-muted">
+            {t(
+              'For orders already imported: lines without a product are linked to the products found now, by SKU or slug. Totals, stock and emails do not change.',
+            )}
+          </p>
+          {relinked && (
+            <Alert kind="success">
+              {t(
+                '{linked} lines linked in {orders} orders; {missing} lines still without a product.',
+                relinked,
+              )}
+            </Alert>
+          )}
         </section>
       )}
 

@@ -9,6 +9,8 @@ A Cleishop add-on (official plugin, free): moves a WooCommerce shop's **customer
 
 The export also holds the lists of YITH WooCommerce Wishlist, for the Wishlist add-on.
 
-No email is sent, no stock moves, no payment service is called. Importing again adds only what is new. Products, categories and pages come with the WordPress Importer: import them first.
+No email is sent, no stock moves, no payment service is called. Importing again adds only what is new.
+
+**Link the lines again** (1.2, with Cleishop 1.15): for orders already imported, lines without a product are linked to the products found now (by SKU, else by slug), e.g. after importing more products. Totals, stock and emails do not change. Products, categories and pages come with the WordPress Importer: import them first.
 
 Needs Cleitext 0.100 or later and Cleishop 1.13 or later (its `shop` service, plugin API 1.73).

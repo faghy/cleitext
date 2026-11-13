@@ -34,4 +34,10 @@ export const IT: Record<string, string> = {
   '{label}: {done} of {total}…': '{label}: {done} di {total}…',
   '{label}: {imported} imported, {already} already there, {skipped} left out.':
     '{label}: {imported} importati, {already} già presenti, {skipped} esclusi.',
+  Lines: 'Righe',
+  'Link the lines again': 'Ricollega le righe',
+  'For orders already imported: lines without a product are linked to the products found now, by SKU or slug. Totals, stock and emails do not change.':
+    'Per gli ordini già importati: le righe senza prodotto vengono collegate ai prodotti trovati ora, per SKU o slug. Totali, magazzino ed email non cambiano.',
+  '{linked} lines linked in {orders} orders; {missing} lines still without a product.':
+    '{linked} righe collegate in {orders} ordini; {missing} righe ancora senza prodotto.',
 };

@@ -39,6 +39,8 @@ function WishlistPage({ api }: AdminPageProps) {
     imported: number;
     saved: number;
     skipped: number;
+    missing: number;
+    reasons: { guest: number; customer: number; products: number };
     linked: boolean;
   } | null>(null);
 
@@ -72,15 +74,25 @@ function WishlistPage({ api }: AdminPageProps) {
     if (!data) return;
     setBusy(true);
     setError('');
-    const total = { imported: 0, saved: 0, skipped: 0, linked: true };
+    const total = {
+      imported: 0,
+      saved: 0,
+      skipped: 0,
+      missing: 0,
+      reasons: { guest: 0, customer: 0, products: 0 },
+      linked: true,
+    };
     try {
       for (let i = 0; i < data.wishlists.length; i += 200) {
-        const r = await api<typeof total>('POST', '/import', {
+        const r = await api<Partial<typeof total> & typeof total>('POST', '/import', {
           wishlists: data.wishlists.slice(i, i + 200),
         });
         total.imported += r.imported;
         total.saved += r.saved;
         total.skipped += r.skipped;
+        total.missing += r.missing ?? 0;
+        for (const k of ['guest', 'customer', 'products'] as const)
+          total.reasons[k] += r.reasons?.[k] ?? 0;
         total.linked = r.linked;
       }
       setDone(total);
@@ -158,6 +170,32 @@ function WishlistPage({ api }: AdminPageProps) {
             {t(
               '{imported} lists imported ({saved} products), {skipped} left out (customer or products not found).',
               { imported: done.imported, saved: done.saved, skipped: done.skipped },
+            )}
+            {done.skipped > 0 && (
+              <ul>
+                <li>
+                  {t('{n} of guests without an account: they cannot be linked to anyone.', {
+                    n: done.reasons.guest,
+                  })}
+                </li>
+                <li>
+                  {t('{n} of customers not imported by WooCommerce Import.', {
+                    n: done.reasons.customer,
+                  })}
+                </li>
+                <li>
+                  {t('{n} with none of their products found in Cleishop.', {
+                    n: done.reasons.products,
+                  })}
+                </li>
+              </ul>
+            )}
+            {done.missing > 0 && (
+              <p>
+                {t('{n} saved products not found in Cleishop (by SKU or slug).', {
+                  n: done.missing,
+                })}
+              </p>
             )}
           </Alert>
         )}

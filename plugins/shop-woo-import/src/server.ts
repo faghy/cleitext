@@ -37,6 +37,12 @@ interface ShopService {
     keys: { skus?: string[]; slugs?: string[] },
   ): Promise<{ id: string; sku: string; slug?: string }[]>;
   importOrder(siteId: string, order: unknown): Promise<{ id: string; created: boolean }>;
+  /** Cleishop 1.15. */
+  linkOrderItems(
+    siteId: string,
+    orderId: string,
+    links: { position: number; productId: string }[],
+  ): Promise<number>;
 }
 
 class HttpError extends Error {
@@ -212,6 +218,20 @@ export default definePlugin({
       };
     });
 
+    /** Cleishop's products for the lines of some orders: by SKU, else by slug (1.13.1). */
+    const productLinks = async (siteId: string, shop: ShopService, list: WooOrder[]) => {
+      const lines = list.flatMap((o) => o.items.filter((i) => i.type === 'line_item'));
+      const skus = [...new Set(lines.map((i) => i.sku ?? '').filter(Boolean))];
+      // Every slug: a line's SKU may be missing in Cleishop while its slug is there.
+      const slugs = [...new Set(lines.map((i) => i.productSlug ?? '').filter(Boolean))];
+      const found =
+        skus.length || slugs.length ? await shop.productsBy(siteId, { skus, slugs }) : [];
+      return {
+        productIdBySku: new Map(found.filter((p) => p.sku).map((p) => [p.sku, p.id])),
+        productIdBySlug: new Map(found.filter((p) => p.slug).map((p) => [p.slug!, p.id])),
+      };
+    };
+
     // A batch of orders, as they were: no email, no stock, no payment.
     route('POST', '/orders', async (request) => {
       const siteId = request.siteId;
@@ -238,21 +258,7 @@ export default definePlugin({
         'customer',
         fresh.map((o) => String(o.customerId ?? '')).filter((r) => r && r !== '0'),
       );
-      const lines = fresh.flatMap((o) => o.items.filter((i) => i.type === 'line_item'));
-      const skus = [...new Set(lines.map((i) => i.sku ?? '').filter(Boolean))];
-      // Products without a SKU are found by their slug (Cleishop 1.13.1).
-      const slugs = [
-        ...new Set(
-          lines
-            .filter((i) => !i.sku)
-            .map((i) => i.productSlug ?? '')
-            .filter(Boolean),
-        ),
-      ];
-      const found =
-        skus.length || slugs.length ? await shop.productsBy(siteId, { skus, slugs }) : [];
-      const productIdBySku = new Map(found.filter((p) => p.sku).map((p) => [p.sku, p.id]));
-      const productIdBySlug = new Map(found.filter((p) => p.slug).map((p) => [p.slug!, p.id]));
+      const { productIdBySku, productIdBySlug } = await productLinks(siteId, shop, fresh);
       let created = 0;
       let skipped = 0;
       const warnings: string[] = [];
@@ -282,6 +288,49 @@ export default definePlugin({
         skipped,
         warnings,
       };
+    });
+
+    // Orders already imported: their lines without a product are linked now
+    // (e.g. products imported later, or found by slug). Nothing else changes.
+    route('POST', '/relink', async (request) => {
+      const siteId = request.siteId;
+      const body = (request.body ?? {}) as { orders?: WooOrder[] };
+      const list = Array.isArray(body.orders) ? body.orders.slice(0, MAX_ORDERS) : [];
+      const shop = await shopOf(siteId);
+      if (typeof (shop as { linkOrderItems?: unknown }).linkOrderItems !== 'function') {
+        throw new HttpError(409, 'Update Cleishop to 1.15 or later first.');
+      }
+      const known = await mapOf(
+        siteId,
+        'order',
+        list.map((o) => String(o.id)),
+      );
+      const there = list.filter((o) => known.has(String(o.id)));
+      const site = await ctx.site(siteId);
+      const { productIdBySku, productIdBySlug } = await productLinks(siteId, shop, there);
+      let linked = 0;
+      let orders = 0;
+      let missing = 0;
+      for (const order of there) {
+        const converted = toImportedOrder(order, {
+          customerUserId: null,
+          productIdBySku,
+          productIdBySlug,
+          defaultLocale: site.defaultLocale,
+        });
+        if (!converted) continue;
+        const links = converted.items.flatMap((item, position) =>
+          item.kind === 'product' && item.productId
+            ? [{ position, productId: item.productId }]
+            : [],
+        );
+        missing += converted.items.filter((i) => i.kind === 'product' && !i.productId).length;
+        if (!links.length) continue;
+        const n = await shop.linkOrderItems(siteId, known.get(String(order.id))!, links);
+        linked += n;
+        if (n) orders++;
+      }
+      return { chosen: list.length, imported: there.length, orders, linked, missing };
     });
   },
 });

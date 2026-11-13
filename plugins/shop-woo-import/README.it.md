@@ -11,4 +11,6 @@ L'export contiene anche le liste di YITH WooCommerce Wishlist, per il componente
 
 Non parte nessuna email, il magazzino non si muove, nessun servizio di pagamento viene chiamato. Importare di nuovo aggiunge solo ciò che è nuovo. Prodotti, categorie e pagine arrivano con il WordPress Importer: importali prima.
 
+**Ricollega le righe** (1.2, con Cleishop 1.15): per gli ordini già importati, le righe senza prodotto vengono collegate ai prodotti trovati ora (per SKU, altrimenti per slug), ad esempio dopo aver importato altri prodotti. Totali, magazzino ed email non cambiano.
+
 Richiede Cleitext 0.100 o successivo e Cleishop 1.13 o successivo (il suo servizio `shop`, API dei plugin 1.73).
