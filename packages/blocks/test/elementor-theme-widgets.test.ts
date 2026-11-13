@@ -189,11 +189,63 @@ describe('John (john-core) widgets', () => {
     });
   });
 
+  it('leaves out a blog of categories that no longer exist, as WordPress shows nothing', () => {
+    const { blocks, warnings } = run('john-blog', {
+      john_post_blog_queryby: 'categories',
+      john_post_blog_categories: ['99'],
+    });
+    expect(find(blocks, 'fresco-pro/posts')).toEqual([]);
+    expect(warnings.join(' ')).toContain('categories that no longer exist');
+  });
+
   it('turns the contact form into its Contact Form 7 shortcode', () => {
     const { blocks } = run('john-contact', {
       cf_shortcode: '[contact-form-7 id="2077" title="Contact form 1"]',
       form_button_bg: '#6CADFF',
     });
     expect(JSON.stringify(blocks)).toContain('"tag":"contact-form-7"');
+    // John's form look and the widget's button color, as the block's own CSS.
+    const css = JSON.stringify(blocks);
+    expect(css).toContain('button[type=submit]{justify-self:start');
+    expect(css).toContain('background:#6CADFF');
+  });
+});
+
+describe('captions and theme icons', () => {
+  it('writes the media library caption into images that show the attachment’s', () => {
+    const blocks = elementorToFresco(
+      JSON.stringify([
+        {
+          id: 'i',
+          elType: 'widget',
+          widgetType: 'image',
+          settings: {
+            image: { id: 44, url: 'https://example.com/ferrara.jpg' },
+            caption_source: 'attachment',
+          },
+          elements: [],
+        },
+      ]),
+      {
+        mediaRef: (id) => `att:${id}`,
+        imageInfo: (id) => (id === 44 ? { width: 0, height: 0, caption: 'Ferrara' } : undefined),
+        warn: () => {},
+      },
+    )!;
+    expect(find(blocks, 'fresco/image')[0]!.attrs).toMatchObject({
+      caption_source: 'custom',
+      caption: 'Ferrara',
+    });
+  });
+
+  it('shows Themify icons as their Font Awesome counterparts in any widget', () => {
+    const { blocks } = run('social-icons', {
+      social_icon_list: [
+        { _id: 'a', social_icon: { value: 'ti ti-instagram', library: 'john_core_themify_icons' } },
+      ],
+    });
+    expect(find(blocks, 'fresco/social-icons')[0]!.attrs.items).toEqual([
+      expect.objectContaining({ icon: { set: 'brands', name: 'instagram' } }),
+    ]);
   });
 });

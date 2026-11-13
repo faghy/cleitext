@@ -33,6 +33,7 @@ import {
   themeDefaults,
   themeHeadingFonts,
   withHeadingFonts,
+  withThemeTexts,
   type ConditionContext,
   type ElementorDefaults,
   type KitResult,
@@ -2084,6 +2085,12 @@ function prepareElementor(
       themeHeadingFonts(css ? text(css['content:encoded']) : '', globalStyles),
       font,
     );
+    // A classic theme's own text styles, when it is one Cleitext knows (its CSS is not exported).
+    kit.kit = withThemeTexts(
+      kit.kit,
+      typeof theme === 'string' ? theme : css ? text(css.title) : undefined,
+      font,
+    );
   }
 
   // Images as WordPress made them (Elementor's image sizes): dimensions and sizes by attachment.
@@ -2095,14 +2102,15 @@ function prepareElementor(
     const data = item ? asSettings(metaValue(meta(item, '_wp_attachment_metadata'))) : {};
     const width = num(data.width);
     const height = num(data.height);
-    if (!width || !height) return undefined;
+    const caption = item ? stripTags(text(item['excerpt:encoded'])).trim() : '';
+    if (!width || !height) return caption ? { width: 0, height: 0, caption } : undefined;
     const sizes: Record<string, { width: number; height: number }> = {};
     for (const [name, value] of Object.entries(asSettings(data.sizes))) {
       const w = num(asSettings(value).width);
       const h = num(asSettings(value).height);
       if (w && h) sizes[name] = { width: w, height: h };
     }
-    return { width, height, sizes };
+    return { width, height, sizes, ...(caption ? { caption } : {}) };
   };
   // A theme's custom shape divider: an SVG of the media library with its name, when there is one.
   const svgs = new Map<string, number>();

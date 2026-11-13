@@ -28,6 +28,32 @@ describe('Contact Form 7 tags', () => {
     expect(fieldName('Your Name!')).toBe('your-name');
   });
 
+  it('keeps grid columns, a consent written after its tag and a button written in HTML', () => {
+    const { attrs } = convertCf7({
+      id: 2,
+      title: 'Contact form 1',
+      hash: '',
+      template:
+        '<div class="row"><div class="col-md-6">[text* name placeholder "Name"]</div><div class="col-md-6">[email* email placeholder "Email"]</div>' +
+        '<div class="col-lg-12">[textarea message placeholder "Message"]</div>' +
+        '<div class="col-12"><label>[acceptance acceptance-720] Acconsento al trattamento dei dati <a href="/privacy-policy">Privacy Policy</a></label></div>' +
+        '<div class="col-12"><button type="submit" class="send_btn">Send Message</button></div></div>',
+      mail: null,
+      messages: null,
+    } as never);
+    const fields = attrs.fields as { name: string; width: string; label: string }[];
+    expect(fields.map((f) => [f.name, f.width])).toEqual([
+      ['name', '1/2'],
+      ['email', '1/2'],
+      ['message', 'full'],
+      ['acceptance-720', 'full'],
+    ]);
+    expect(fields[3]!.label).toBe(
+      'Acconsento al trattamento dei dati <a href="/privacy-policy">Privacy Policy</a>',
+    );
+    expect(attrs.buttonLabel).toBe('Send Message');
+  });
+
   it('become Forms fields, with labels from the markup around them', () => {
     const { attrs, warnings } = convertCf7(
       {

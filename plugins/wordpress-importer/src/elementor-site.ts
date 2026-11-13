@@ -474,6 +474,87 @@ export function withHeadingFonts(
   return { ...kit, theme: { ...theme, texts } };
 }
 
+/**
+ * Text styles of classic themes whose style sheet is not in the export (only
+ * their name is): what their pages looked like around Elementor's widgets,
+ * e.g. headings and paragraphs inside a Text Editor widget.
+ */
+const THEME_TEXTS: Record<string, Record<string, Settings>> = {
+  // John (wethemez): Bootstrap 4's headings under Poppins; Poppins 16/30 grey text.
+  john: {
+    body: {
+      family: 'Poppins',
+      size: { size: 16, unit: 'px' },
+      line: { size: 30, unit: 'px' },
+      color: '#797979',
+    },
+    h1: {
+      family: 'Poppins',
+      weight: '500',
+      size: { size: 40, unit: 'px' },
+      line: { size: 1.2, unit: 'em' },
+      color: '#222d39',
+    },
+    h2: {
+      family: 'Poppins',
+      weight: '500',
+      size: { size: 32, unit: 'px' },
+      line: { size: 1.2, unit: 'em' },
+      color: '#222d39',
+    },
+    h3: {
+      family: 'Poppins',
+      weight: '500',
+      size: { size: 28, unit: 'px' },
+      line: { size: 1.2, unit: 'em' },
+      color: '#222d39',
+    },
+    h4: {
+      family: 'Poppins',
+      weight: '500',
+      size: { size: 24, unit: 'px' },
+      line: { size: 1.2, unit: 'em' },
+      color: '#222d39',
+    },
+    h5: {
+      family: 'Poppins',
+      weight: '500',
+      size: { size: 20, unit: 'px' },
+      line: { size: 1.2, unit: 'em' },
+      color: '#222d39',
+    },
+    h6: {
+      family: 'Poppins',
+      weight: '500',
+      size: { size: 16, unit: 'px' },
+      line: { size: 1.2, unit: 'em' },
+      color: '#222d39',
+    },
+  },
+};
+
+/** The kit with a known classic theme's text styles, where the kit has none of its own. */
+export function withThemeTexts(
+  kit: Settings,
+  theme: string | undefined,
+  font: (family: string) => void,
+): Settings {
+  const known = theme ? THEME_TEXTS[theme.toLowerCase()] : undefined;
+  if (!known) return kit;
+  const style = asSettings(kit.theme);
+  const texts = { ...asSettings(style.texts) };
+  for (const [tag, values] of Object.entries(known)) {
+    const current = asSettings(texts[tag]);
+    if (current.font) continue;
+    const next: Settings = { ...current };
+    for (const [key, value] of Object.entries(values))
+      if (next[key] === undefined) next[key] = value;
+    if (typeof next.family === 'string') font(next.family);
+    texts[tag] = next;
+  }
+  return { ...kit, theme: { ...style, texts } };
+}
+
 /** The optional breakpoints of an Elementor kit, with Elementor's default values. */
 const EXTRA_BREAKPOINTS: [string, number][] = [
   ['mobile_extra', 880],

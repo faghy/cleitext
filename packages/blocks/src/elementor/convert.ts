@@ -88,6 +88,8 @@ export interface ElementorImageInfo {
   height: number;
   /** WordPress's image sizes made of it (`medium`, `large`, a theme's own…). */
   sizes?: Record<string, { width: number; height: number }>;
+  /** Its caption in the media library, when it has one. */
+  caption?: string;
 }
 
 export interface ElementorContext {
@@ -1329,7 +1331,15 @@ export function convertElements(input: ElementorNode[], ctx: ElementorContext): 
         if (src.caption_source === 'custom') {
           out.caption_source = 'custom';
           out.caption = str(src.caption);
-        } else if (src.caption_source === 'attachment') out.caption_source = 'attachment';
+        } else if (src.caption_source === 'attachment') {
+          // The library's caption as it was, written in: pages do not depend on the media's.
+          const id = num(asSettings(src.image).id);
+          const own = id !== null ? ctx.imageInfo?.(id)?.caption?.trim() : undefined;
+          if (own) {
+            out.caption_source = 'custom';
+            out.caption = own;
+          } else out.caption_source = 'attachment';
+        }
         // The caption's look.
         alignTo(out, src, 'caption_align', 'caption_align');
         color(out, src, 'text_color', 'caption_color');

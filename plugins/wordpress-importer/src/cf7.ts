@@ -32,7 +32,7 @@ export interface FormsField {
   label: string;
   placeholder?: string;
   required?: boolean;
-  width: 'full';
+  width: 'full' | '1/2' | '1/3' | '1/4' | '1/6';
   options?: string;
   min?: string;
   max?: string;
@@ -73,6 +73,22 @@ interface Tag {
   content: string | null;
   start: number;
   end: number;
+}
+
+/** A field's width from the grid column around it (`col-md-6` → half), in the markup since the last field. */
+function columnWidth(markup: string): FormsField['width'] {
+  const columns = [
+    ...markup.matchAll(/class\s*=\s*["'][^"']*\bcol-(?:(?:xs|sm|md|lg|xl)-)?(\d{1,2})\b/gi),
+  ];
+  const n = Number(columns.at(-1)?.[1] ?? 12);
+  return n === 6 ? '1/2' : n === 4 ? '1/3' : n === 3 ? '1/4' : n === 2 ? '1/6' : 'full';
+}
+
+/** The text after a tag up to the end of its paragraph or label, or the next tag (an acceptance's text). */
+function textAfter(template: string, from: number, to: number): string {
+  const after = template.slice(from, to);
+  const end = after.search(/<\/(?:p|div|label|li|span)>|\n\s*\n/i);
+  return plain(end >= 0 ? after.slice(0, end) : after, true);
 }
 
 /** CF7's tags in a template, in order. */
@@ -212,7 +228,7 @@ export function convertCf7(form: Cf7Form, siteTitle = ''): ConvertedForm {
   let buttonLabel = '';
   const tags = parseTags(form.template);
   let previous = 0;
-  for (const tag of tags) {
+  for (const [index, tag] of tags.entries()) {
     const from = previous;
     previous = tag.end;
     if (tag.type === 'submit') {
@@ -235,7 +251,12 @@ export function convertCf7(form: Cf7Form, siteTitle = ''): ConvertedForm {
     const placeholder = tag.options.includes('placeholder') || tag.options.includes('watermark');
     // Fields with a placeholder take no heading from a paragraph above as their label.
     const label = labelBefore(form.template, from, tag.start, !placeholder);
-    const field: FormsField = { name, type, label, width: 'full' };
+    const field: FormsField = {
+      name,
+      type,
+      label,
+      width: columnWidth(form.template.slice(from, tag.start)),
+    };
     if (tag.required) field.required = true;
     const classes = tag.options
       .filter((o) => o.startsWith('class:'))
@@ -266,7 +287,11 @@ export function convertCf7(form: Cf7Form, siteTitle = ''): ConvertedForm {
         break;
       }
       case 'acceptance': {
-        const text = plain(tag.content ?? '', true) || label;
+        // Its text inside `[acceptance]…[/acceptance]`, or written after the tag.
+        const text =
+          plain(tag.content ?? '', true) ||
+          textAfter(form.template, tag.end, tags[index + 1]?.start ?? form.template.length) ||
+          label;
         field.label = text;
         // Forms' consents are required; an optional one is a checkbox.
         if (tag.options.includes('optional')) field.type = 'checkbox';
@@ -294,6 +319,15 @@ export function convertCf7(form: Cf7Form, siteTitle = ''): ConvertedForm {
     fields.push(field);
   }
 
+  // A button written in HTML instead of [submit] ("<button type="submit">Send Message</button>").
+  if (!buttonLabel) {
+    const html =
+      /<button\b[^>]*>([\s\S]*?)<\/button>/i.exec(form.template)?.[1] ??
+      /<input\b[^>]*type\s*=\s*["']submit["'][^>]*value\s*=\s*["']([^"']+)["']/i.exec(
+        form.template,
+      )?.[1];
+    if (html) buttonLabel = plain(html);
+  }
   const names = new Set(fields.map((f) => f.name));
   const attrs: Record<string, unknown> = {
     formName: form.title.slice(0, 80) || 'Contact',

@@ -437,6 +437,48 @@ export interface IconValue {
   id?: string | null;
 }
 
+/** Themify icons (the theme's own set) → Font Awesome ones of the same meaning. */
+const THEMIFY: Record<string, string> = {
+  'location-pin': 'fas fa-map-marker-alt',
+  'map-alt': 'fas fa-map',
+  map: 'fas fa-map',
+  email: 'far fa-envelope',
+  envelope: 'far fa-envelope',
+  tag: 'fas fa-tag',
+  mobile: 'fas fa-mobile-alt',
+  'headphone-alt': 'fas fa-headset',
+  headphone: 'fas fa-headphones',
+  world: 'fas fa-globe',
+  time: 'far fa-clock',
+  'alarm-clock': 'far fa-clock',
+  user: 'far fa-user',
+  link: 'fas fa-link',
+  home: 'fas fa-home',
+  'comment-alt': 'far fa-comment-alt',
+  facebook: 'fab fa-facebook-f',
+  instagram: 'fab fa-instagram',
+  twitter: 'fab fa-twitter',
+  youtube: 'fab fa-youtube',
+  linkedin: 'fab fa-linkedin-in',
+  pinterest: 'fab fa-pinterest-p',
+};
+
+/** A Themify icon (`ti ti-…`) → its Font Awesome counterpart; undefined for other icons. */
+export function themifyIcon(value: unknown): Settings | undefined {
+  const v = asSettings(value);
+  const themify = /\bti-([\w-]+)/.exec(str(v.value));
+  if (themify) {
+    const fa = THEMIFY[themify[1]!] ?? 'fas fa-circle';
+    const library = fa.startsWith('fab')
+      ? 'fa-brands'
+      : fa.startsWith('far')
+        ? 'fa-regular'
+        : 'fa-solid';
+    return { value: fa, library };
+  }
+  return undefined;
+}
+
 /** Elementor icon `{ value: 'fas fa-star', library }` (or an SVG file) → Fresco icon. */
 export function icon(
   value: unknown,
@@ -450,6 +492,9 @@ export function icon(
     const ref = num(file.id) !== null ? mediaRef?.(num(file.id)!) : undefined;
     return { set: 'custom', name: 'svg', url, id: ref ?? null };
   }
+  // Themify icons (themes' own set, e.g. John's) as their Font Awesome counterparts.
+  const themify = themifyIcon(v);
+  if (themify) return icon(themify, mediaRef);
   const match = /\bfa([srb]|-solid|-regular|-brands)?\s+fa-([\w-]+)/.exec(str(v.value));
   if (!match) return undefined;
   // `fa fa-…` alone: a Font Awesome 4 name (Elementor's old icons).

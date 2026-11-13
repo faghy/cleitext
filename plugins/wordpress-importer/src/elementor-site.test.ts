@@ -7,6 +7,7 @@ import {
   themeDefaults,
   themeHeadingFonts,
   withHeadingFonts,
+  withThemeTexts,
   type ConditionContext,
 } from './elementor-site';
 import { metaValue, unserialize } from './php';
@@ -990,5 +991,26 @@ ${extra}
       ),
     );
     expect(hello.kit).toMatchObject({ themeColors: false });
+  });
+});
+
+describe('known classic themes', () => {
+  it('gives the kit John’s headings and text, keeping what the kit sets', () => {
+    const fonts: string[] = [];
+    const kit = withThemeTexts(
+      { theme: { texts: { h2: { size: { size: 50, unit: 'px' } } } } },
+      'john',
+      (f) => fonts.push(f),
+    );
+    const texts = (kit.theme as { texts: Record<string, Record<string, unknown>> }).texts;
+    expect(texts.h3).toMatchObject({
+      family: 'Poppins',
+      weight: '500',
+      size: { size: 28, unit: 'px' },
+    });
+    expect(texts.h2).toMatchObject({ size: { size: 50, unit: 'px' }, family: 'Poppins' });
+    expect(texts.body).toMatchObject({ color: '#797979' });
+    expect(fonts).toContain('Poppins');
+    expect(withThemeTexts({}, 'twentytwenty', () => {})).toEqual({});
   });
 });

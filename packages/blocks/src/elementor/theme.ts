@@ -10,7 +10,7 @@
  */
 import type { CxdBlock } from '../cxd.js';
 import type { Converter, ElementorNode } from './convert.js';
-import { asSettings, list, num, str, type Settings } from './values.js';
+import { asSettings, colorOf, list, num, str, type Settings } from './values.js';
 
 let counter = 0;
 const id = () => `th${(counter++).toString(36)}`;
@@ -122,47 +122,6 @@ function merge(...parts: Settings[]): Settings {
     }
   }
   return out;
-}
-
-/** Themify icons (the theme's own set) → Font Awesome ones of the same meaning. */
-const THEMIFY: Record<string, string> = {
-  'location-pin': 'fas fa-map-marker-alt',
-  'map-alt': 'fas fa-map',
-  map: 'fas fa-map',
-  email: 'far fa-envelope',
-  envelope: 'far fa-envelope',
-  tag: 'fas fa-tag',
-  mobile: 'fas fa-mobile-alt',
-  'headphone-alt': 'fas fa-headset',
-  headphone: 'fas fa-headphones',
-  world: 'fas fa-globe',
-  time: 'far fa-clock',
-  'alarm-clock': 'far fa-clock',
-  user: 'far fa-user',
-  link: 'fas fa-link',
-  home: 'fas fa-home',
-  'comment-alt': 'far fa-comment-alt',
-  facebook: 'fab fa-facebook-f',
-  instagram: 'fab fa-instagram',
-  twitter: 'fab fa-twitter',
-  youtube: 'fab fa-youtube',
-  linkedin: 'fab fa-linkedin-in',
-  pinterest: 'fab fa-pinterest-p',
-};
-
-function iconOf(value: unknown): Settings {
-  const v = asSettings(value);
-  const themify = /\bti-([\w-]+)/.exec(str(v.value));
-  if (themify) {
-    const fa = THEMIFY[themify[1]!] ?? 'fas fa-circle';
-    const library = fa.startsWith('fab')
-      ? 'fa-brands'
-      : fa.startsWith('far')
-        ? 'fa-regular'
-        : 'fa-solid';
-    return { value: fa, library };
-  }
-  return v;
 }
 
 /** The enabled parts of a John ordering repeater (`<prefix>_ordering_data`), in order. */
@@ -405,7 +364,7 @@ function johnContactInfo(src: Settings): ElementorNode {
           return {
             _id: str(item._id) || id(),
             text: title ? `<strong>${title}</strong><br>${text}` : text,
-            selected_icon: iconOf(item.contact_icon),
+            selected_icon: item.contact_icon,
             ...(str(asSettings(item.contact_link).url) ? { link: item.contact_link } : {}),
           };
         }),
@@ -523,12 +482,38 @@ function johnBlog(src: Settings): ElementorNode {
 }
 
 /** Contact form: its Contact Form 7 shortcode, converted like any other. */
-function johnContact(src: Settings, c: Converter): ElementorNode | null {
+function johnContact(src: Settings): ElementorNode | null {
   const shortcode = str(src.cf_shortcode).trim();
   if (!shortcode) return null;
-  if (str(src.form_button_bg) || str(src.button_font_color))
-    c.note('the button colors of John contact forms were left to the form plugin');
-  return widget('shortcode', { shortcode });
+  // John's form look (its .form_class rules and the widget's colors), on the form it becomes.
+  const color = (key: string, fallback: string) => colorOf(src, key) ?? fallback;
+  const radius = num(asSettings(src.form_button_border_radius).size);
+  const border = asSettings(src.form_button_border_width);
+  const borderColor = colorOf(src, 'form_button_border_color');
+  const field =
+    'selector .contact-form .cf-field input:not([type=checkbox]):not([type=radio]),' +
+    'selector .contact-form .cf-field select,selector .contact-form .cf-field textarea';
+  const css = [
+    `${field}{font:400 14px/24px "Poppins",sans-serif;color:${color('Input_color', '#494949')};` +
+      `background:${color('input_bg_color', '#ffffff')};border:1px solid #ededed;border-radius:` +
+      `${num(asSettings(src.input_border_radius).size) ?? 0}px;padding:10px 20px;min-height:44px;box-shadow:none}`,
+    `selector .contact-form .cf-field textarea{height:142px;resize:none}`,
+    `selector .contact-form ::placeholder{color:${color('Input_placeholder_color', '#797979')}}`,
+    `selector .contact-form .cf-field input:focus,selector .contact-form .cf-field textarea:focus{border-color:#ff4a4a;outline:none}`,
+    `selector .contact-form button[type=submit]{justify-self:start;font:500 16px "Montserrat",sans-serif;` +
+      `background:${color('form_button_bg', '#494949')};color:${color('button_font_color', '#ffffff')};` +
+      `padding:14px 38px 14px 42px;cursor:pointer;` +
+      (str(src.form_button_border_border) && str(src.form_button_border_border) !== 'none'
+        ? `border:${num(border.top) ?? 1}px ${str(src.form_button_border_border)} ${borderColor ?? 'currentColor'};`
+        : 'border:0;') +
+      `border-radius:${radius ?? 0}px}`,
+    `selector .contact-form button[type=submit]:hover{` +
+      `${colorOf(src, 'button_hover_color') ? `color:${colorOf(src, 'button_hover_color')};` : ''}` +
+      `${colorOf(src, 'form_button_hover_bg') ? `background:${colorOf(src, 'form_button_hover_bg')};` : ''}}`,
+  ]
+    .filter((rule) => !rule.endsWith('{}'))
+    .join('\n');
+  return widget('shortcode', { shortcode, custom_css: css });
 }
 
 /**
@@ -581,10 +566,25 @@ export function themeWidget(c: Converter, el: ElementorNode): CxdBlock[] | null 
       return wrap([johnContactInfo(src)]);
     case 'john-testimonial':
       return wrap([johnTestimonial(src)]);
-    case 'john-blog':
+    case 'john-blog': {
+      // Categories that no longer exist: WordPress shows an empty grid, so nothing here either.
+      const categories = Array.isArray(src.john_post_blog_categories)
+        ? (src.john_post_blog_categories as unknown[])
+        : [];
+      if (
+        src.john_post_blog_queryby === 'categories' &&
+        categories.length &&
+        !categories.some((id) => num(id) !== null && c.ctx.term?.('', num(id)!))
+      ) {
+        c.note(
+          'John blog widgets of categories that no longer exist showed nothing and were left out',
+        );
+        return null;
+      }
       return wrap([johnBlog(src)]);
+    }
     case 'john-contact': {
-      const node = johnContact(src, c);
+      const node = johnContact(src);
       return node ? c.element(node) : null;
     }
     default:
