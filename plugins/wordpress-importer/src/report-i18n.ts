@@ -182,6 +182,12 @@ export const REPORT_IT: Record<string, string> = {
     'Il kit di Elementor ha ancora i colori di Elementor, quindi i suoi colori e font predefiniti sono stati considerati disattivati (Elementor → Impostazioni → Disattiva colori e font predefiniti): i widget senza i propri usano quelli del tema, e i colori e i font globali del kit sono conservati nelle impostazioni del sito di Fresco, non applicati come predefiniti. Se i widget usavano quelli del kit, importa di nuovo con «Colori e font dei widget di Elementor: Kit di Elementor», oppure disattiva Colori / font del tema come predefiniti nelle impostazioni del sito di Fresco.',
   'a "not found" template became a section template: place it on the site\'s 404 page.':
     'un modello «non trovato» è diventato un modello di sezione: mettilo nella pagina 404 del sito.',
+  '{n} header(s) or footer(s) of the WordPress theme, made with Elementor, became Fresco Pro templates that are not shown yet: the theme chose them in its own options, which are not in the export. Apply the one the site used in Fresco Pro → Theme Builder (Display conditions).':
+    '{n} header o footer del tema WordPress, fatti con Elementor, sono diventati modelli di Fresco Pro non ancora mostrati: il tema li sceglieva nelle sue opzioni, che non sono nell’esportazione. Applica quello che usava il sito in Fresco Pro → Theme Builder (Condizioni di visualizzazione).',
+  'the button colors of John contact forms were left to the form plugin':
+    'i colori del pulsante dei moduli di contatto di John sono lasciati al plugin dei moduli',
+  'John heroes of the «Freelancer» and «Developer» presets became the parallax banner':
+    'gli hero di John con le impostazioni «Freelancer» e «Developer» sono diventati il banner con parallasse',
   '{n} Elementor template(s) ({list}) were imported as Fresco Pro theme templates: Fresco Pro must be active when importing to keep them.':
     '{n} modelli di Elementor ({list}) sono stati importati come modelli del tema di Fresco Pro: Fresco Pro deve essere attivo durante l’importazione per mantenerli.',
   '{n} Elementor template(s) of the type "{type}" have no Fresco counterpart and were not imported.':

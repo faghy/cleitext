@@ -12,6 +12,7 @@ import type { CxdBlock } from '../cxd.js';
 import { shortcodePlaceholder, splitShortcodes } from '../html/shortcodes.js';
 import { atomicElement, isAtomic, type ComponentInfo } from './atomic.js';
 import { proWidget } from './pro.js';
+import { themeWidget } from './theme.js';
 import {
   asSettings,
   DEVICE_NAMES,
@@ -2074,6 +2075,9 @@ export function convertElements(input: ElementorNode[], ctx: ElementorContext): 
         return [c.node('fresco-pro/template', { template: { $entry: ref } })];
       }
       default: {
+        // Widgets of themes' companion plugins (John…): rewritten as Elementor's own.
+        const themed = themeWidget(c, el);
+        if (themed !== undefined) return themed ?? [];
         const converted = proWidget(c, el, src);
         if (converted !== undefined) {
           if (converted === null) return [];

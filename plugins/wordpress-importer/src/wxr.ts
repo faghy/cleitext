@@ -563,6 +563,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     if (type === 'product_variation') continue;
     const status = STATUS[text(item['wp:status'])];
     if (type === 'attachment' || type === 'nav_menu_item') continue;
+    // Themes' Elementor headers and footers: templates (below), not content.
+    if (themePart(item)) continue;
     const custom =
       type !== 'post' &&
       type !== 'page' &&
@@ -1279,6 +1281,20 @@ function metaOf(rows: Node[]): Record<string, string> {
   return out;
 }
 
+/**
+ * Headers and footers some themes keep as their own post type, built with
+ * Elementor (e.g. John's `footer`): Fresco Pro templates of that kind, not
+ * content with addresses of its own.
+ */
+const THEME_PART_TYPES: Record<string, 'header' | 'footer'> = {
+  header: 'header',
+  footer: 'footer',
+};
+function themePart(item: Node): 'header' | 'footer' | null {
+  const kind = THEME_PART_TYPES[text(item['wp:post_type'])];
+  return kind && meta(item, '_elementor_data') ? kind : null;
+}
+
 function meta(item: Node, key: string): string | undefined {
   const entry = ((item['wp:postmeta'] as Node[] | undefined) ?? []).find(
     (m) => text(m['wp:meta_key']) === key,
@@ -1951,6 +1967,7 @@ function prepareElementor(
 
   // Entries the import will have (pages, posts, templates): references to them stay.
   const library = items.filter((item) => typeOf(item) === 'elementor_library');
+  const themeParts = items.filter((item) => themePart(item) && STATUS[text(item['wp:status'])]);
   const kinds = new Map<number, ReturnType<typeof templateKind>>();
   const importable = new Set<number>();
   for (const item of items) {
@@ -1961,6 +1978,9 @@ function prepareElementor(
         kinds.set(idOf(item), kind);
         importable.add(idOf(item));
       }
+    } else if (themePart(item)) {
+      kinds.set(idOf(item), themePart(item)!);
+      importable.add(idOf(item));
     } else if (ownType(typeOf(item))) importable.add(idOf(item));
   }
   const entryRef = (post: number) => (importable.has(post) ? `post:${post}` : undefined);
@@ -2172,8 +2192,9 @@ function prepareElementor(
     const out: TransferEntryInput[] = [];
     const skipped = new Map<string, number>();
     const counts = new Map<string, number>();
-    for (const item of library) {
-      const type = meta(item, '_elementor_template_type') ?? '';
+    for (const item of [...library, ...themeParts]) {
+      const part = themePart(item);
+      const type = part ?? meta(item, '_elementor_template_type') ?? '';
       const status = STATUS[text(item['wp:status'])];
       if (!type || type === 'kit' || !status) continue;
       const kind = kinds.get(idOf(item));
@@ -2191,7 +2212,9 @@ function prepareElementor(
       const data: Settings = {
         template: {
           kind,
-          conditions: conditions(metaValue(meta(item, '_elementor_conditions')), warn),
+          // A theme's own header or footer is chosen in the theme's options, not in the export:
+          // kept without conditions, to be applied in Fresco Pro's Theme Builder.
+          conditions: part ? [] : conditions(metaValue(meta(item, '_elementor_conditions')), warn),
         },
       };
       if (kind === 'popup') {
@@ -2220,6 +2243,11 @@ function prepareElementor(
         document: { schema: 1, blocks, editor: { id: 'fresco', data } },
       });
       counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    }
+    if (themeParts.length) {
+      warnings.push(
+        `${themeParts.length} header(s) or footer(s) of the WordPress theme, made with Elementor, became Fresco Pro templates that are not shown yet: the theme chose them in its own options, which are not in the export. Apply the one the site used in Fresco Pro → Theme Builder (Display conditions).`,
+      );
     }
     if (out.length) {
       const list = [...counts].map(([kind, n]) => `${n} ${kind}`).join(', ');

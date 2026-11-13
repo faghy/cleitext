@@ -425,12 +425,24 @@ ${item({
     ]),
   ),
 })}
+${item({ id: 60, title: 'Footer Style One', type: 'footer', name: 'footer-style-one', metas: builder([heading('© 2022 Studio')]) })}
 ${item({ id: 50, title: 'Header', type: 'nav_menu_item', metas: meta('_menu_item_type', 'custom') + meta('_menu_item_url', 'https://studio.example/') + meta('_menu_item_menu_item_parent', '0') }).replace('</item>', '<category domain="nav_menu" nicename="main-menu"><![CDATA[Main menu]]></category></item>')}
 </channel></rss>`;
 
 describe('An Elementor site in a WordPress export', () => {
   const { document, warnings } = wxrToDocument(site, { locale: 'en' });
   const entry = (ref: string) => document.entries!.find((e) => e.ref === ref)!;
+
+  it('keeps a theme’s own Elementor footer as a Fresco Pro footer that is not applied yet', () => {
+    expect(entry('post:60')).toMatchObject({ type: 'fresco_template', title: 'Footer Style One' });
+    expect(entry('post:60').document.editor).toEqual({
+      id: 'fresco',
+      data: { template: { kind: 'footer', conditions: [] } },
+    });
+    // Not content with an address of its own.
+    expect(JSON.stringify(document.contentTypes ?? [])).not.toContain('"footer"');
+    expect(warnings.join(' ')).toContain('1 header(s) or footer(s) of the WordPress theme');
+  });
 
   it('turns the Theme Builder templates and popups into Fresco Pro templates', () => {
     const header = entry('post:20');
@@ -468,7 +480,7 @@ describe('An Elementor site in a WordPress export', () => {
     // Templates of other kinds (shop) are reported, the kit is not a template.
     expect(document.entries!.some((e) => e.ref === 'post:23' || e.ref === 'post:2')).toBe(false);
     const report = warnings.join('\n');
-    expect(report).toContain('3 Elementor template(s) (1 header, 1 popup, 1 section)');
+    expect(report).toContain('4 Elementor template(s) (1 header, 1 popup, 1 section, 1 footer)');
     expect(report).toContain('type "product"');
   });
 
