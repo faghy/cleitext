@@ -445,6 +445,19 @@ describe('other widgets', () => {
       ],
     });
     expect(out).toContain('style="background-color:#ff0000;color:#00ff00"');
+    // A global color of the kit, as imported from Elementor's globals.
+    expect(
+      html(socialIcons, {
+        items: [
+          {
+            _id: 'b',
+            icon: { set: 'brands', name: 'instagram' },
+            item_color: 'custom',
+            item_primary: 'var(--fr-c-primary)',
+          },
+        ],
+      }),
+    ).toContain('style="background-color:var(--fr-c-primary)"');
     expect(css(socialIcons, { columns: 3, hover_border_color: '#000000' })).toContain(
       'display:inline-grid;grid-template-columns:repeat(3, auto)',
     );

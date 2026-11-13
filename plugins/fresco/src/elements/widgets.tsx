@@ -574,8 +574,10 @@ const BRAND: Record<string, string> = {
 };
 
 /** A color for an inline style: hex or rgb() only. */
+/** A color written on an item: hex, rgb(a), or a global color of the kit (`var(--fr-c-primary)`). */
 const safeHex = (value: unknown): string | undefined =>
-  typeof value === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(value.trim())
+  typeof value === 'string' &&
+  /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|var\(--fr-c-[a-z0-9_-]{1,40}\))$/i.test(value.trim())
     ? value.trim()
     : undefined;
 
