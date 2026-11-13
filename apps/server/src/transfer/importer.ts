@@ -1062,6 +1062,9 @@ export async function importDocument(
     }
   }
   await options.cache.invalidate(siteId, ['site']);
+  // The account of each user of the document, created or found (core 0.100):
+  // the importing plugin links its own data to them (e.g. a shop's customers).
+  if (userIds.size) report.users = Object.fromEntries(userIds);
   return report;
 }
 

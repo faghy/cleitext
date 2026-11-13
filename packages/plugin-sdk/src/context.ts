@@ -1408,6 +1408,8 @@ export interface ImportReport {
   warnings: string[];
   /** Blocking for that record: it was not imported. */
   errors: string[];
+  /** The account of each user of the document, by its `ref`: created or found (core 0.100). */
+  users?: Record<string, string>;
 }
 
 /**
