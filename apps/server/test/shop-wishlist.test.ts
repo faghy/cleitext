@@ -121,7 +121,10 @@ describe('Wishlist', () => {
     });
     const imported = await admin.post('/api/v1/ext/shop-wishlist/import', {
       wishlists: [
-        { userId: 501, items: [{ sku: 'ROSE-50' }, { sku: 'GONE' }] },
+        {
+          userId: 501,
+          items: [{ sku: 'ROSE-50' }, { sku: 'GONE' }, { productSlug: 'rose-perfume' }],
+        },
         { userId: 999, items: [{ sku: 'ROSE-50' }] },
       ],
     });

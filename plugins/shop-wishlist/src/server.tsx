@@ -31,7 +31,10 @@ interface ShopService {
     siteId: string,
     options: { ids: string[]; locale: string; prefix: string },
   ): Promise<{ html: string; css: string; ids: string[] }>;
-  productsBy(siteId: string, keys: { skus: string[] }): Promise<{ id: string; sku: string }[]>;
+  productsBy(
+    siteId: string,
+    keys: { skus?: string[]; slugs?: string[] },
+  ): Promise<{ id: string; sku: string; slug?: string }[]>;
 }
 
 type List = typeof lists.$inferSelect;
@@ -320,7 +323,7 @@ export default definePlugin({
           wishlists?: {
             userId?: number;
             token?: string;
-            items?: { sku?: string; productId?: number }[];
+            items?: { sku?: string; productSlug?: string; productId?: number }[];
           }[];
         };
         const shop = await ctx.services?.use<ShopService>(siteId, 'shop');
@@ -330,12 +333,23 @@ export default definePlugin({
         }>(siteId, 'shop-woo-import');
         if (!shop) return { status: 409, body: { error: 'Activate Cleishop first.' } };
         const wishlists = (Array.isArray(body.wishlists) ? body.wishlists : []).slice(0, 500);
-        const skus = [
+        // Products by SKU, and by slug when they have none (as WooCommerce Import's orders).
+        const wanted = wishlists.flatMap((w) => w.items ?? []);
+        const skus = [...new Set(wanted.map((i) => i.sku ?? '').filter(Boolean))];
+        const slugs = [
           ...new Set(
-            wishlists.flatMap((w) => (w.items ?? []).map((i) => i.sku ?? '')).filter(Boolean),
+            wanted
+              .filter((i) => !i.sku)
+              .map((i) => i.productSlug ?? '')
+              .filter(Boolean),
           ),
         ];
-        const bySku = new Map((await shop.productsBy(siteId, { skus })).map((p) => [p.sku, p.id]));
+        const found = await shop.productsBy(siteId, { skus, slugs });
+        const bySku = new Map(found.filter((p) => p.sku).map((p) => [p.sku, p.id]));
+        const bySlug = new Map(found.filter((p) => p.slug).map((p) => [p.slug!, p.id]));
+        const productOf = (i: { sku?: string; productSlug?: string }) =>
+          (i.sku ? bySku.get(i.sku) : undefined) ??
+          (i.productSlug ? bySlug.get(i.productSlug) : undefined);
         const users = woo
           ? await woo.customers(
               siteId,
@@ -348,7 +362,7 @@ export default definePlugin({
         for (const w of wishlists) {
           const userId = users[String(w.userId ?? '')];
           const productIds = (w.items ?? [])
-            .map((i) => bySku.get(i.sku ?? ''))
+            .map(productOf)
             .filter((id): id is string => Boolean(id));
           if (!userId || !productIds.length) {
             skipped++;

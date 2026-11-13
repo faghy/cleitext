@@ -209,7 +209,7 @@ if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $listsTable)) === $list
         $saved = [];
         foreach ($wpdb->get_results($wpdb->prepare("SELECT prod_id, dateadded FROM {$itemsTable} WHERE wishlist_id = %d", $list->ID)) as $row) {
             $product = wc_get_product((int) $row->prod_id);
-            $saved[] = ['productId' => (int) $row->prod_id, 'sku' => $product ? (string) $product->get_sku() : '', 'dateAdded' => $row->dateadded];
+            $saved[] = ['productId' => (int) $row->prod_id, 'sku' => $product ? (string) $product->get_sku() : '', 'productSlug' => $product ? (string) $product->get_slug() : '', 'dateAdded' => $row->dateadded];
         }
         if ($saved) {
             $wishlists[] = ['userId' => (int) $list->user_id, 'token' => (string) $list->wishlist_token, 'items' => $saved];
