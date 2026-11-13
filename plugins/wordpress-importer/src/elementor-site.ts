@@ -480,7 +480,7 @@ export function withHeadingFonts(
  * e.g. headings and paragraphs inside a Text Editor widget.
  */
 const THEME_TEXTS: Record<string, Record<string, Settings>> = {
-  // John (wethemez): Bootstrap 4's headings under Poppins; Poppins 16/30 grey text.
+  // John (wethemez): Bootstrap 4's headings under Poppins (h1–h4 at 600, as its pages measure); Poppins 16/30 grey text.
   john: {
     body: {
       family: 'Poppins',
@@ -490,28 +490,28 @@ const THEME_TEXTS: Record<string, Record<string, Settings>> = {
     },
     h1: {
       family: 'Poppins',
-      weight: '500',
+      weight: '600',
       size: { size: 40, unit: 'px' },
       line: { size: 1.2, unit: 'em' },
       color: '#222d39',
     },
     h2: {
       family: 'Poppins',
-      weight: '500',
+      weight: '600',
       size: { size: 32, unit: 'px' },
       line: { size: 1.2, unit: 'em' },
       color: '#222d39',
     },
     h3: {
       family: 'Poppins',
-      weight: '500',
+      weight: '600',
       size: { size: 28, unit: 'px' },
       line: { size: 1.2, unit: 'em' },
       color: '#222d39',
     },
     h4: {
       family: 'Poppins',
-      weight: '500',
+      weight: '600',
       size: { size: 24, unit: 'px' },
       line: { size: 1.2, unit: 'em' },
       color: '#222d39',

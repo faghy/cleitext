@@ -269,3 +269,23 @@ describe('captions and theme icons', () => {
     ]);
   });
 });
+
+describe('players in texts', () => {
+  it('turns a YouTube iframe of a text into a video element, keeping the text around it', () => {
+    const { blocks } = run('text-editor', {
+      editor:
+        '<p>Guarda il video:</p><p><iframe src="https://www.youtube.com/embed/divz5RP4gNU" width="260" height="315" frameborder="0"></iframe></p><p>Grazie.</p>',
+    });
+    const video = find(blocks, 'fresco/video')[0]!;
+    expect(video.attrs).toMatchObject({
+      source: 'youtube',
+      url: 'https://www.youtube.com/watch?v=divz5RP4gNU',
+      _width: 'custom',
+      _width_custom: { size: 260, unit: 'px' },
+    });
+    expect(find(blocks, 'fresco/text').map((b) => b.attrs.content)).toEqual([
+      '<p>Guarda il video:</p>',
+      '<p>Grazie.</p>',
+    ]);
+  });
+});

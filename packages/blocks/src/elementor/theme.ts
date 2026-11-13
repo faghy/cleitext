@@ -150,7 +150,8 @@ function johnHero(src: Settings): ElementorNode {
       widget(
         'heading',
         merge(
-          { title: subtitle, header_size: 'h5', align: 'center' },
+          // The theme's entrance animations (wow.js classes on the banner).
+          { title: subtitle, header_size: 'h5', align: 'center', _animation: 'fadeInUp' },
           colorFrom(src, 'banner_subtitle_color', 'title_color', '#ffffff'),
           typography(src, 'banner_subtitle', 'typography', { size: 20, weight: '400', letter: 1 }),
           { _margin: bottom(sizeOf(src.banner_subtitle_spacing, 32)) },
@@ -164,7 +165,7 @@ function johnHero(src: Settings): ElementorNode {
       widget(
         'heading',
         merge(
-          { title, header_size: 'h2', align: 'center' },
+          { title, header_size: 'h2', align: 'center', _animation: 'fadeInLeft' },
           colorFrom(src, 'banner_title_color', 'title_color', '#ffffff'),
           // The theme's phones: 38px (its responsive.css), unless the widget sets its own.
           { typography_font_size_mobile: px(38) },
@@ -184,7 +185,7 @@ function johnHero(src: Settings): ElementorNode {
       widget(
         'text-editor',
         merge(
-          { editor: `<p>${text}</p>`, align: 'center' },
+          { editor: `<p>${text}</p>`, align: 'center', _animation: 'fadeInUp' },
           colorFrom(src, 'banner_content_color', 'text_color', '#ffffff'),
           typography(src, 'banner_content', 'typography', {
             size: 24,
@@ -227,6 +228,8 @@ function johnHero(src: Settings): ElementorNode {
     if (match && match[1] !== 'background') background[`background_${match[1]}`] = value;
   }
   if (!background.background_size) background.background_size = 'cover';
+  // «Parallax banner»: the picture stays while the page scrolls.
+  if (!background.background_attachment) background.background_attachment = 'fixed';
   if (!background.background_position) background.background_position = 'center center';
   const overlay: Settings = {};
   if (str(asSettings(src.banner_overlay_bg_image).url)) {
@@ -436,9 +439,10 @@ function johnTestimonial(src: Settings): ElementorNode {
         size: 16,
         line: 30,
       }),
+      // The slide's title is an h3 of the theme: 28px.
       typography(src, 'testimonial_title', 'name_typography', {
         family: 'Poppins',
-        size: 20,
+        size: 28,
         weight: '600',
       }),
     ),

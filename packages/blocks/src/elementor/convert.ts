@@ -251,6 +251,48 @@ export function addCss(out: Settings, css: string): void {
  * widget stays a widget of its own; a shortcode no plugin takes stays the
  * widget it was. Null when the widget has no such shortcode.
  */
+const PLAYER =
+  /<iframe\b[^>]*\bsrc=["']((?:https?:)?\/\/(?:www\.)?(?:youtube(?:-nocookie)?\.com\/embed\/([\w-]{6,})|player\.vimeo\.com\/video\/(\d+))[^"']*)["'][^>]*>\s*(?:<\/iframe>)?/gi;
+
+/**
+ * A text with YouTube or Vimeo players in it (iframes, which texts do not
+ * keep): the text around them, and a video element for each, as wide as
+ * the frame was. Null when there is none.
+ */
+export function withVideos(c: Converter, element: CxdBlock): CxdBlock[] | null {
+  const value = element.attrs.content;
+  if (typeof value !== 'string' || !/<iframe\b/i.test(value) || element.attrs.__dynamic)
+    return null;
+  const out: CxdBlock[] = [];
+  let last = 0;
+  let found = false;
+  const text = (html: string) => {
+    // The paragraph that held the frame is cut in two: its halves, and empty ones, are dropped.
+    const kept = html
+      .replace(/<p[^>]*>\s*$/i, '')
+      .replace(/^\s*<\/p>/i, '')
+      .replace(/<p[^>]*>\s*(?:&nbsp;|\s)*<\/p>/gi, '')
+      .trim();
+    if (kept)
+      out.push({ ...element, id: newBlockId(), attrs: { ...element.attrs, content: kept } });
+  };
+  for (const match of value.matchAll(PLAYER)) {
+    found = true;
+    text(value.slice(last, match.index));
+    last = match.index + match[0].length;
+    const width = num(/\bwidth=["']?(\d+)/i.exec(match[0])?.[1]);
+    const attrs: Settings = match[2]
+      ? { source: 'youtube', url: `https://www.youtube.com/watch?v=${match[2]}` }
+      : { source: 'vimeo', url: `https://vimeo.com/${match[3]}` };
+    if (width && width < 1000) attrs._width = 'custom';
+    if (width && width < 1000) attrs._width_custom = { size: width, unit: 'px' };
+    out.push(c.node('video', attrs));
+  }
+  if (!found) return null;
+  text(value.slice(last));
+  return out;
+}
+
 export function withShortcodes(element: CxdBlock, field: 'content' | 'code'): CxdBlock[] | null {
   const value = element.attrs[field];
   if (typeof value !== 'string' || element.attrs.__dynamic) return null;
@@ -2113,6 +2155,11 @@ export function convertElements(input: ElementorNode[], ctx: ElementorContext): 
       }
     }
     widgetCommon(c, result.attrs, src);
+    // YouTube and Vimeo players pasted in a text (iframes): Fresco's video elements.
+    if (type === 'text-editor') {
+      const pieces = withVideos(c, result);
+      if (pieces) return pieces;
+    }
     if (type === 'text-editor' || type === 'html' || type === 'shortcode') {
       const pieces = withShortcodes(result, type === 'html' ? 'code' : 'content');
       if (pieces) return pieces;

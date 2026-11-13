@@ -1005,7 +1005,7 @@ describe('known classic themes', () => {
     const texts = (kit.theme as { texts: Record<string, Record<string, unknown>> }).texts;
     expect(texts.h3).toMatchObject({
       family: 'Poppins',
-      weight: '500',
+      weight: '600',
       size: { size: 28, unit: 'px' },
     });
     expect(texts.h2).toMatchObject({ size: { size: 50, unit: 'px' }, family: 'Poppins' });
