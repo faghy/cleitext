@@ -149,6 +149,12 @@ export const itGeneral: Messages = {
   'Shown with a 404 status for missing addresses.':
     'Mostrata con stato 404 per gli indirizzi inesistenti.',
   'Sign in': 'Accedi',
+  'Publication date': 'Data di pubblicazione',
+  Set: 'Imposta',
+  'Addresses with the year move with it; the old one redirects.':
+    'Gli indirizzi con l’anno si spostano con lei; il vecchio reindirizza.',
+  'Kept when it is published, e.g. for an older post.':
+    'Viene mantenuta alla pubblicazione, per esempio per un articolo più vecchio.',
   '← Back to {site}': '← Torna a {site}',
   'Cleitext, the CMS this site is made with': 'Cleitext, il CMS con cui è fatto questo sito',
   'Sign out': 'Esci',

@@ -44,7 +44,7 @@ import {
 } from '../plugins';
 import { descendantsOf, entryTree } from '../entry-tree';
 import { diffWords, documentLines, type DiffPart } from '../diff';
-import { zonedTimeToIso } from '../time';
+import { isoToZonedTime, zonedTimeToIso } from '../time';
 import { FieldGroupSections, useFieldScreen } from '../components/field-groups';
 
 const AUTOSAVE_INTERVAL_MS = 30_000;
@@ -1223,6 +1223,7 @@ function DocumentPanel({
       template?: string | null;
       position?: number;
       authorId?: string;
+      publishedAt?: string;
     }) => api<EntryView>('PATCH', `/entries/${entry.id}`, changes),
     onSuccess: onSaved,
   });
@@ -1268,6 +1269,11 @@ function DocumentPanel({
   const [position, setPosition] = useState(String(entry.position));
   useEffect(() => setPosition(String(entry.position)), [entry.position]);
 
+  // The publication date, as WordPress's (core 0.99): in the site's time zone.
+  const shownDate = entry.publishedAt ? isoToZonedTime(entry.publishedAt, siteTimezone) : '';
+  const [date, setDate] = useState(shownDate);
+  useEffect(() => setDate(shownDate), [shownDate]);
+
   const panelError = saveSettings.error ?? restore.error ?? cleanRevisions.error;
 
   return (
@@ -1283,6 +1289,34 @@ function DocumentPanel({
             ` · ${formatDate(entry.publishedAt)}`}
           {entry.scheduledAt && ` · ${formatDate(entry.scheduledAt)}`}
         </p>
+        {entry.permissions.publish && entry.status !== 'scheduled' && (
+          <label className="mt-2 block">
+            <span className="text-xs text-slate-600">{t('Publication date')}</span>
+            <span className="flex gap-2">
+              <input
+                type="datetime-local"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!date || date === shownDate || saveSettings.isPending}
+                onClick={() =>
+                  saveSettings.mutate({ publishedAt: zonedTimeToIso(date, siteTimezone) })
+                }
+              >
+                {t('Set')}
+              </Button>
+            </span>
+            <span className="text-xs text-slate-500">
+              {['published', 'private'].includes(entry.status)
+                ? t('Addresses with the year move with it; the old one redirects.')
+                : t('Kept when it is published, e.g. for an older post.')}
+            </span>
+          </label>
+        )}
         {entry.permissions.publish && (
           <label className="mt-2 block">
             <span className="text-xs text-slate-600">{t('Visibility')}</span>
