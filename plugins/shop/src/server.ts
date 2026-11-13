@@ -27,6 +27,7 @@ import { COUNTRIES } from './address';
 import { registerAccount } from './account';
 import { registerCatalog } from './catalog-routes';
 import { registerWooImport } from './import-woocommerce';
+import { provideShopService } from './services';
 import { registerReviews } from './reviews';
 import { registerPrivacy } from './privacy';
 import { groupTranslations } from './translations';
@@ -289,6 +290,11 @@ export default definePlugin({
         ready: await online.ready(siteId),
       };
     };
+    // Cleishop's service for its add-ons (plugin API 1.73; missing on older cores).
+    provideShopService(ctx, async (siteId) => {
+      const settings = await store(siteId);
+      return { currency: settings.currency, pricesIncludeTax: settings.pricesIncludeTax };
+    });
     const storeWithNotify = async (siteId: string) => {
       const values = await ctx.settings.get(siteId);
       const notifyEmails = String(values.notifyEmail ?? '')

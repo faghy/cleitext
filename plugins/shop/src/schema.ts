@@ -223,6 +223,10 @@ export const orders = pgTable('orders', {
   /** Referral codes by capturing plugin (plugin API 1.58), for the order's conversion. */
   referrals: jsonb('referrals').$type<Record<string, string>>().notNull().default({}),
   stockReduced: boolean('stock_reduced').notNull().default(false),
+  /** Its reference in the shop it was imported from (1.13), e.g. `wc:1234`. */
+  externalRef: text('external_ref'),
+  /** Data kept from that shop as they were (payment ids, tax details…). */
+  meta: jsonb('meta').$type<Record<string, unknown>>().notNull().default({}),
   paidAt: time('paid_at'),
   completedAt: time('completed_at'),
   createdAt: time('created_at').notNull().defaultNow(),
