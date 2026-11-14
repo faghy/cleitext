@@ -17,6 +17,7 @@ Out of the box the form asks for name, email and message (and the phone, if you 
 - The **email subject** is yours: `{form}` is the form name and `{field-name}` the value of a field, e.g. `Booking from {your-name}`. Left empty, it stays `[form name] name`.
 - **Reply-To** is the visitor's email field: the first one, or the one you name.
 - The email lists every field with its label, in the form's order, and **Messages** shows them the same way.
+- In **Messages** (1.8.0) you can choose several messages, or all of them, and delete them at once (after a confirmation), e.g. a wave of spam; **Compact view** shows one line per message, opened with a click.
 
 The server checks every message again, whatever the browser did: required fields, email addresses, numbers and dates within their limits, options that exist, lengths. Fields the form does not have are ignored. Spam is kept out by a hidden field, by a limit of five messages every ten minutes per visitor and, with the **Captcha** plugin, by Turnstile or reCAPTCHA. With the **Antispam** plugin, messages it takes for spam are kept in its spam queue instead of being sent; **Not spam** there stores and emails them as if they had just arrived.
 

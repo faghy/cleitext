@@ -1,5 +1,5 @@
 import { defineBlock, definePlugin, type PluginContext } from '@cleitext/plugin-sdk';
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, inArray } from 'drizzle-orm';
 import type { ReactNode } from 'react';
 import {
   checkValues,
@@ -949,6 +949,29 @@ export default definePlugin({
           tx.delete(submissions).where(eq(submissions.id, request.params.id!)),
         );
         return { status: 204 };
+      },
+    });
+
+    // Several at once (1.8.0): the messages chosen in the list, e.g. spam.
+    ctx.routes.api({
+      method: 'POST',
+      path: '/submissions/delete',
+      capability: 'manage_forms',
+      async handler(request) {
+        const ids = (request.body as { ids?: unknown } | null)?.ids;
+        if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500)
+          return { status: 400, body: { message: 'ids: from 1 to 500 message ids.' } };
+        const valid = ids.filter(
+          (id): id is string => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id),
+        );
+        if (valid.length !== ids.length) return { status: 400, body: { message: 'Invalid id.' } };
+        const deleted = await ctx.db.transaction(request.siteId, (tx) =>
+          tx
+            .delete(submissions)
+            .where(inArray(submissions.id, valid))
+            .returning({ id: submissions.id }),
+        );
+        return { body: { deleted: deleted.length } };
       },
     });
   },

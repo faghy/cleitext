@@ -404,6 +404,19 @@ describe('the Forms plugin', () => {
     expect(sent.headers.location).toBe(`${contactPath}#form-c1-sent`);
     expect((await admin.get('/api/v1/ext/forms/submissions')).json()).toHaveLength(2);
   });
+
+  it('deletes the messages chosen in the list at once (Forms 1.8.0)', async () => {
+    const ids = ((await admin.get('/api/v1/ext/forms/submissions')).json() as { id: string }[]).map(
+      (m) => m.id,
+    );
+    expect(
+      (await admin.post('/api/v1/ext/forms/submissions/delete', { ids: ['nope'] })).statusCode,
+    ).toBe(400);
+    const deleted = await admin.post('/api/v1/ext/forms/submissions/delete', { ids });
+    expect(deleted.statusCode, deleted.body).toBe(200);
+    expect(deleted.json()).toEqual({ deleted: ids.length });
+    expect((await admin.get('/api/v1/ext/forms/submissions')).json()).toHaveLength(0);
+  });
 });
 
 describe("Prisma's form", () => {
