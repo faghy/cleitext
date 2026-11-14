@@ -21,7 +21,7 @@ import { CatalogService } from './catalog/catalog.service.js';
 import { LICENSES_NAMESPACE } from './catalog/licenses.service.js';
 import { defaultLocaleIn, LanguagesService } from './content/languages.service.js';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { createApp } from './app.js';
 import { loadConfig, type AppConfig } from './config/config.js';
 import { DiskStorage } from './media/storage.js';
@@ -251,17 +251,25 @@ export async function catalogUpdateTask(
     .from(superAdmins)
     .orderBy(asc(superAdmins.createdAt))
     .limit(1);
+  // Any site that is not archived: an active one first, else one in maintenance
+  // (a site being built or paused still has its plugins and licenses).
   const [site] = await context.owner.db
     .select({ id: sites.id })
     .from(sites)
     .where(
       options.site
-        ? and(eq(sites.status, 'active'), eq(sites.slug, options.site))
-        : eq(sites.status, 'active'),
+        ? and(ne(sites.status, 'archived'), eq(sites.slug, options.site))
+        : ne(sites.status, 'archived'),
     )
-    .orderBy(asc(sites.createdAt))
+    .orderBy(sql`${sites.status} = 'active' desc`, asc(sites.createdAt))
     .limit(1);
-  if (!admin || !site) throw new Error('No super admin or no active site.');
+  if (!admin) throw new Error('No super admin.');
+  if (!site)
+    throw new Error(
+      options.site
+        ? `No site "${options.site}" (or it is archived).`
+        : 'No site that is not archived.',
+    );
   const auth = await context.app.get(IdentityService).load(site.id, admin.id, '');
   if (!auth) throw new Error('The super admin cannot be loaded.');
   const catalog = context.app.get(CatalogService);

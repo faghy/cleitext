@@ -5,7 +5,8 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
-import type { DatabaseClient } from '@cleitext/db';
+import { sites, type DatabaseClient } from '@cleitext/db';
+import { eq } from 'drizzle-orm';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { strToU8, zipSync } from 'fflate';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
@@ -453,5 +454,29 @@ describe('catalog:update (the CLI, for panels such as the Plesk Toolkit)', () =>
       only: [{ type: 'plugin', slug: 'tiny' }],
     });
     expect(only.updates).toEqual([]);
+  });
+
+  it('updates also when the only site is in maintenance', async () => {
+    const context = {
+      app,
+      config: loadConfig({ NODE_ENV: 'test', DATABASE_URL: inject('appUrl') }),
+      owner,
+      log: () => {},
+    };
+    await owner.db.update(sites).set({ status: 'maintenance' }).where(eq(sites.slug, 'catalog'));
+    try {
+      const checked = await catalogUpdateTask(context, { apply: false, site: 'catalog' });
+      expect(Array.isArray(checked.updates)).toBe(true);
+    } finally {
+      await owner.db.update(sites).set({ status: 'active' }).where(eq(sites.slug, 'catalog'));
+    }
+    await owner.db.update(sites).set({ status: 'archived' }).where(eq(sites.slug, 'catalog'));
+    try {
+      await expect(catalogUpdateTask(context, { apply: false, site: 'catalog' })).rejects.toThrow(
+        'No site "catalog" (or it is archived).',
+      );
+    } finally {
+      await owner.db.update(sites).set({ status: 'active' }).where(eq(sites.slug, 'catalog'));
+    }
   });
 });
