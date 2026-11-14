@@ -158,4 +158,57 @@ describe('WPBakery → Fresco', () => {
       primary_color: '#5472d2',
     });
   });
+
+  it('turns percentages of padding into pixels of the column on each device', () => {
+    const out = convert(
+      '[vc_row][vc_column width="1/2" css=".vc_custom_9{padding-top: 75px !important;padding-right: 10% !important;padding-left: 10% !important;}"][vc_column_text]A[/vc_column_text][/vc_column][vc_column width="1/2"][/vc_column][/vc_row]',
+    );
+    const column = out[0]!.children![0]!;
+    expect(column.attrs._padding).toMatchObject({ top: 75, right: 59, left: 59 });
+    expect(column.attrs['_padding@tablet']).toMatchObject({ right: 51, left: 51 });
+    expect(column.attrs['_padding@mobile']).toMatchObject({ right: 39, left: 39 });
+  });
+
+  it('centres the content of equal columns, and wraps rows wider than a line', () => {
+    const out = convert(
+      '[vc_row equal_height="yes" content_placement="middle"][vc_column width="1/2"][/vc_column][vc_column width="1/2"][/vc_column][/vc_row][vc_row][vc_column width="2/3"][/vc_column][vc_column width="2/3"][/vc_column][/vc_row]',
+    );
+    expect(out[0]!.children![0]!.attrs.justify_content).toBe('center');
+    expect(out[1]!.attrs.flex_wrap).toBe('wrap');
+    expect(out[0]!.attrs.flex_wrap).toBeUndefined();
+  });
+
+  it('reads sizes written with more after them, and keeps the space of missing pictures', () => {
+    const warnings: string[] = [];
+    const out = convert(
+      '[vc_row][vc_column][vc_single_image image="2" img_size="400x557,91"][vc_single_image image="99"][/vc_column][/vc_row]',
+      '',
+      warnings,
+    );
+    expect(JSON.stringify(of(out, 'image')[0]!.attrs)).toMatch(/400/);
+    expect(of(out, 'spacer')[0]!.attrs.space).toEqual({ size: 24, unit: 'px' });
+    expect(warnings).toContain(
+      '1 WPBakery image(s) have no picture in the export: their space was kept.',
+    );
+  });
+
+  it('makes shortcodes inside a text elements of their own', () => {
+    const out = convert(
+      '[vc_row][vc_column][vc_column_text]<h3>Stay in touch</h3>\n<div id="news">[mc4wp_form id="5"]</div>\n<p>No spam.</p>[/vc_column_text][/vc_column][/vc_row]',
+    );
+    const column = out[0]!.children![0]!;
+    expect(column.children!.map((b) => b.type)).toEqual([
+      'fresco/heading',
+      'core/imported',
+      'fresco/text',
+    ]);
+    expect(JSON.stringify(column.children![1])).toContain('mc4wp_form');
+  });
+
+  it('shows Linecons icons as the closest Font Awesome ones', () => {
+    const out = convert(
+      '[vc_row][vc_column][vc_icon type="linecons" icon_linecons="vc_li vc_li-location"][/vc_column][/vc_row]',
+    );
+    expect(of(out, 'icon')[0]!.attrs.icon).toEqual({ set: 'solid', name: 'location-dot' });
+  });
 });

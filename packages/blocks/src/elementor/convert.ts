@@ -2200,6 +2200,8 @@ export function convertElements(input: ElementorNode[], ctx: ElementorContext): 
           extra['flex_wrap@mobile'] = 'wrap';
         }
         if (size(src.content_width)) extra.boxed_width = size(src.content_width, c);
+        // Columns wider together than the row go on the next line (WPBakery's rows).
+        if (src.flex_wrap === 'wrap') extra.flex_wrap = 'wrap';
         const heightKey = el.isInner ? 'height_inner' : 'height';
         if (src[heightKey] === 'min-height') {
           copy(

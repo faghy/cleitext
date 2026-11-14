@@ -112,15 +112,21 @@ const px = (value: string | undefined) => {
   const m = /^(-?\d+(?:\.\d+)?)(px|em|rem|%|vh|vw)?$/.exec((value ?? '').trim());
   return m ? { size: Number(m[1]), unit: m[2] ?? 'px' } : undefined;
 };
-const box = (top?: string, right?: string, bottom?: string, left?: string) => {
+const box = (
+  top?: string,
+  right?: string,
+  bottom?: string,
+  left?: string,
+  /** Pixels a percentage is of (the element's width on a device). */
+  reference = 1140,
+) => {
   let sides = [top, right, bottom, left].map((v) => px(v));
   if (sides.every((s) => !s)) return undefined;
-  // One unit for the four sides: with px and %, the percentages are taken on
-  // the default content width (1140px), as WPBakery's rows are.
-  if (new Set(sides.filter((s) => s && s.size).map((s) => s!.unit)).size > 1)
-    sides = sides.map((s) =>
-      s && s.unit === '%' ? { size: Math.round(s.size * 11.4), unit: 'px' } : s,
-    );
+  // Percentages are of the element's own width in WPBakery, of its parent's in
+  // Fresco: pixels of the width it has on the device.
+  sides = sides.map((s) =>
+    s && s.unit === '%' ? { size: Math.round((s.size * reference) / 100), unit: 'px' } : s,
+  );
   const unit = sides.find((s) => s && s.size)?.unit ?? sides.find(Boolean)!.unit;
   return {
     unit,
@@ -230,6 +236,64 @@ function loneHeading(html: string) {
   };
 }
 
+/** A shortcode inside a text, with its content and closing tag when it has them. */
+const INLINE_SHORTCODE =
+  /\[([a-z][\w-]*)\b(?:[^\]"']|"[^"]*"|'[^']*')*\](?:(?:(?!\[\/?\1\b)[\s\S])*\[\/\1\])?/gi;
+/** WPBakery's Linecons icons → the closest Font Awesome ones (regular when it has one, as Linecons are outlines). */
+const LINECONS: Record<string, string> = {
+  heart: 'far fa-heart',
+  cloud: 'fas fa-cloud',
+  star: 'far fa-star',
+  tv: 'fas fa-tv',
+  sound: 'fas fa-volume-high',
+  video: 'fas fa-video',
+  trash: 'far fa-trash-can',
+  user: 'far fa-user',
+  key: 'fas fa-key',
+  search: 'fas fa-magnifying-glass',
+  settings: 'fas fa-gear',
+  camera: 'fas fa-camera',
+  tag: 'fas fa-tag',
+  lock: 'fas fa-lock',
+  bulb: 'far fa-lightbulb',
+  pen: 'fas fa-pen',
+  diamond: 'far fa-gem',
+  display: 'fas fa-desktop',
+  location: 'fas fa-location-dot',
+  eye: 'far fa-eye',
+  bubble: 'far fa-comment',
+  stack: 'fas fa-layer-group',
+  cup: 'fas fa-mug-hot',
+  phone: 'fas fa-phone',
+  news: 'far fa-newspaper',
+  mail: 'far fa-envelope',
+  like: 'far fa-thumbs-up',
+  photo: 'far fa-image',
+  note: 'far fa-note-sticky',
+  clock: 'far fa-clock',
+  paperplane: 'far fa-paper-plane',
+  params: 'fas fa-sliders',
+  banknote: 'far fa-money-bill-1',
+  data: 'fas fa-database',
+  music: 'fas fa-music',
+  megaphone: 'fas fa-bullhorn',
+  study: 'fas fa-graduation-cap',
+  lab: 'fas fa-flask',
+  food: 'fas fa-utensils',
+  't-shirt': 'fas fa-shirt',
+  fire: 'fas fa-fire',
+  clip: 'fas fa-paperclip',
+  shop: 'fas fa-bag-shopping',
+  calendar: 'far fa-calendar',
+  wallet: 'fas fa-wallet',
+  vynil: 'fas fa-record-vinyl',
+  truck: 'fas fa-truck',
+  world: 'fas fa-earth-europe',
+};
+
+/** Shortcodes that are part of a text (WordPress's own). */
+const KEPT_IN_TEXT = new Set(['caption', 'wp_caption', 'embed', 'audio', 'video', 'playlist']);
+
 /** WPBakery's color names (buttons, separators, icons) → their color. */
 const VC_COLORS: Record<string, string> = {
   blue: '#5472d2',
@@ -313,6 +377,7 @@ export function wpbakeryToFresco(
   if (!tree.length) return null;
   const rules = customCss(css);
   const unknown = new Map<string, number>();
+  let missingImages = 0;
 
   const image = (value: string | undefined): Settings | undefined => {
     const n = Number((value ?? '').split(',')[0]);
@@ -330,6 +395,8 @@ export function wpbakeryToFresco(
     prefix = '',
     widget = false,
     defaults: { margin?: string[]; padding?: string[] } = {},
+    /** The element's share of the row (columns), for percentages. */
+    share = 1,
   ): Settings => {
     const name = /vc_custom_\d+/.exec(attrs.css ?? '')?.[0];
     // The rules are in the page's custom CSS, and written in the attribute too.
@@ -341,12 +408,23 @@ export function wpbakeryToFresco(
       const sides = (['top', 'right', 'bottom', 'left'] as const).map(
         (s, i) => r[`${kind}-${s}`] ?? short[i] ?? defaults[kind]?.[i],
       );
-      return box(...sides);
+      // Percentages: pixels of the element's width on each device (columns stack on phones).
+      const percent = sides.some((v) => /%\s*$/.test(v ?? ''));
+      const [t, ri, b, l] = sides;
+      return {
+        base: box(t, ri, b, l, 1170 * share),
+        ...(percent
+          ? { tablet: box(t, ri, b, l, 1024 * share), mobile: box(t, ri, b, l, 390) }
+          : {}),
+      };
     };
-    const padding = side('padding');
-    const margin = side('margin');
-    if (padding) out[`${widget ? '_' : prefix}padding`] = padding;
-    if (margin) out[`${widget ? '_' : prefix}margin`] = margin;
+    for (const kind of ['padding', 'margin'] as const) {
+      const value = side(kind);
+      const key = `${widget ? '_' : prefix}${kind}`;
+      if (value.base) out[key] = value.base;
+      if (value.tablet) out[`${key}_tablet`] = value.tablet;
+      if (value.mobile) out[`${key}_mobile`] = value.mobile;
+    }
     const bgColor =
       r['background-color'] ?? (/^#|^rgb/.test(r.background ?? '') ? r.background : undefined);
     const bgUrl = /url\(["']?([^"')]+)["']?\)/.exec(
@@ -420,6 +498,27 @@ export function wpbakeryToFresco(
       .join('\n')
       .trim();
 
+  /** A text: a heading when it is just one, otherwise the text with its paragraphs. */
+  const textElement = (content: string, a: Record<string, string>): ElementorNode[] => {
+    const html = vcAutop(content);
+    if (!html) return [];
+    const heading = loneHeading(content.replace(/^(\s*<\/p>)+|(<p>\s*)+$/gi, ''));
+    if (heading)
+      return [
+        widget('heading', {
+          title: heading.title,
+          header_size: heading.tag,
+          ...(heading.align ? { align: heading.align } : {}),
+          ...(heading.color ? { title_color: heading.color } : {}),
+          ...(heading.bold
+            ? { typography_typography: 'custom', typography_font_weight: '700' }
+            : {}),
+          ...common(a),
+        }),
+      ];
+    return [widget('text-editor', { editor: html, ...common(a) })];
+  };
+
   const element = (node: WpBakeryNode): ElementorNode[] => {
     const a = node.attrs;
     switch (node.tag) {
@@ -428,24 +527,25 @@ export function wpbakeryToFresco(
       case 'vc_section':
         return [row(node)];
       case 'vc_column_text': {
-        const html = vcAutop(node.content);
-        if (!html) return [];
-        // A text that is one heading is a heading.
-        const heading = loneHeading(node.content.replace(/^(\s*<\/p>)+|(<p>\s*)+$/gi, ''));
-        if (heading)
-          return [
-            widget('heading', {
-              title: heading.title,
-              header_size: heading.tag,
-              ...(heading.align ? { align: heading.align } : {}),
-              ...(heading.color ? { title_color: heading.color } : {}),
-              ...(heading.bold
-                ? { typography_typography: 'custom', typography_font_weight: '700' }
-                : {}),
-              ...common(a),
-            }),
-          ];
-        return [widget('text-editor', { editor: html, ...common(a) })];
+        // Shortcodes written inside the text (a form, products…) are elements of their own,
+        // between the parts of the text; the wrapper they were written in stays out.
+        const parts: ElementorNode[] = [];
+        let last = 0;
+        const textPart = (html: string, first: boolean) => {
+          const cleaned = html.replace(/<(div|p)\b[^>]*>\s*$|^\s*<\/(div|p)>/gi, '').trim();
+          if (!cleaned.replace(/<[^>]+>|&nbsp;|\s/g, '')) return;
+          parts.push(...textElement(cleaned, first ? a : {}));
+        };
+        for (const m of node.content.matchAll(INLINE_SHORTCODE)) {
+          const tag = m[1]!.toLowerCase();
+          if (KEPT_IN_TEXT.has(tag) || tag.startsWith('vc_')) continue;
+          textPart(node.content.slice(last, m.index), parts.length === 0);
+          parts.push(widget('shortcode', { shortcode: m[0], ...common({}) }));
+          last = m.index + m[0].length;
+        }
+        if (last === 0) return textElement(node.content, a);
+        textPart(node.content.slice(last), parts.length === 0);
+        return parts;
       }
       case 'vc_custom_heading': {
         const font = fontContainer(a.font_container);
@@ -476,7 +576,12 @@ export function wpbakeryToFresco(
       case 'vc_single_image': {
         const picture =
           image(a.image) ?? (a.source === 'external_link' ? image(a.custom_src) : undefined);
-        if (!picture) return [];
+        // A missing picture: WordPress still shows its empty frame (and the space under it).
+        if (!picture) {
+          missingImages++;
+          return [widget('spacer', { space: { size: 24, unit: 'px' }, ...common(a) })];
+        }
+        const crop = /^(\d+)x(\d+)/.exec((a.img_size ?? '').trim());
         const link =
           a.link && (a.onclick === 'custom_link' || !a.onclick)
             ? { url: a.link, is_external: /_blank/.test(a.img_link_target ?? '') ? 'on' : '' }
@@ -485,13 +590,11 @@ export function wpbakeryToFresco(
           widget('image', {
             image: picture,
             // WPBakery's size: a name of WordPress's sizes, or a crop `600x700`.
-            ...(/^\d+x\d+$/.test(a.img_size ?? '')
+            // (also `400x557,91`: a size WPBakery wrote with more after it).
+            ...(crop
               ? {
                   image_size: 'custom',
-                  image_custom_dimension: {
-                    width: Number(a.img_size!.split('x')[0]),
-                    height: Number(a.img_size!.split('x')[1]),
-                  },
+                  image_custom_dimension: { width: Number(crop[1]), height: Number(crop[2]) },
                 }
               : { image_size: a.img_size || 'thumbnail' }),
             align: a.alignment === 'center' || a.alignment === 'right' ? a.alignment : 'left',
@@ -712,12 +815,17 @@ export function wpbakeryToFresco(
       case 'vc_raw_html':
         return [widget('html', { html: rawHtml(node.content), ...common(a) })];
       case 'vc_icon': {
-        // WPBakery's default icon is Font Awesome's "adjust"; other sets show the closest.
+        // WPBakery's default icon is Font Awesome's "adjust"; Linecons become the closest.
+        const linecon =
+          a.type === 'linecons'
+            ? LINECONS[/vc_li-([\w-]+)/.exec(a.icon_linecons ?? 'vc_li vc_li-heart')?.[1] ?? '']
+            : undefined;
         const value =
-          a.type && a.type !== 'fontawesome'
+          linecon ??
+          (a.type && a.type !== 'fontawesome'
             ? 'fa fa-circle'
-            : (a.icon_fontawesome ?? 'fa fa-adjust');
-        if (a.type && a.type !== 'fontawesome')
+            : (a.icon_fontawesome ?? 'fa fa-adjust'));
+        if (a.type && a.type !== 'fontawesome' && !linecon)
           ctx.warn(
             `A WPBakery icon of the set "${a.type}" became a Font Awesome circle: choose its icon in Fresco.`,
           );
@@ -802,14 +910,20 @@ export function wpbakeryToFresco(
     const round = (n: number) => Math.round(n * 1000) / 1000;
     const gutter = place.spacing === 'none' ? '0' : '15px';
     const top = place.fill || filled(node.attrs) ? '35px' : '0';
-    const own = cssOf(node.attrs, '', false, {
-      padding: [
-        top,
-        place.spacing === 'edges' && place.last ? '0' : gutter,
-        '0',
-        place.spacing === 'edges' && place.first ? '0' : gutter,
-      ],
-    });
+    const own = cssOf(
+      node.attrs,
+      '',
+      false,
+      {
+        padding: [
+          top,
+          place.spacing === 'edges' && place.last ? '0' : gutter,
+          '0',
+          place.spacing === 'edges' && place.first ? '0' : gutter,
+        ],
+      },
+      size / 100,
+    );
     const phone = place.spacing === 'edges' && (place.first || place.last);
     return {
       id: id(),
@@ -821,7 +935,7 @@ export function wpbakeryToFresco(
         ...(mobile !== undefined ? { _inline_size_mobile: round(mobile) } : {}),
         space_between_widgets: { size: 0, unit: 'px' },
         ...own,
-        ...(phone && !/padding/.test(JSON.stringify(cssOf(node.attrs)))
+        ...(phone && !own.padding_mobile && !/padding/.test(JSON.stringify(cssOf(node.attrs)))
           ? {
               padding_mobile: {
                 unit: 'px',
@@ -845,7 +959,7 @@ export function wpbakeryToFresco(
     };
   };
 
-  const row = (node: WpBakeryNode): ElementorNode => {
+  const row = (node: WpBakeryNode, afterFill = false): ElementorNode => {
     const a = node.attrs;
     const inner = node.tag === 'vc_row_inner';
     const columns = node.children.filter((c) => /^vc_column(_inner)?$/.test(c.tag));
@@ -860,7 +974,12 @@ export function wpbakeryToFresco(
         : a.full_width === 'stretch_row_content'
           ? 'gutters'
           : 'edges';
-    const fill = filled(a) || Boolean(a.parallax_image) || a.video_bg === 'yes';
+    const fill = filled(a) || Boolean(a.parallax_image) || a.video_bg === 'yes' || afterFill;
+    // More columns than a line holds: WPBakery's floats go on the next line.
+    const total = columns.reduce(
+      (sum, c) => sum + (offsetWidth(c.attrs.offset, 'lg') ?? fraction(c.attrs.width)),
+      0,
+    );
     const list = columns.length
       ? columns
       : [{ tag: 'vc_column', attrs: {}, children: others, content: node.content }];
@@ -870,6 +989,7 @@ export function wpbakeryToFresco(
       ...(inner ? { isInner: true } : {}),
       settings: {
         ...(stretched ? { stretch_section: 'section-stretched' } : {}),
+        ...(total > 100.1 ? { flex_wrap: 'wrap' } : {}),
         layout:
           a.full_width === 'stretch_row_content' || a.full_width === 'stretch_row_content_no_spaces'
             ? 'full_width'
@@ -916,9 +1036,14 @@ export function wpbakeryToFresco(
   // Columns outside a row (WPBakery shows them as one) share a row.
   const elements: ElementorNode[] = [];
   let loose: WpBakeryNode[] = [];
+  // The row after one with a background has 35px above its content too (WPBakery's CSS).
+  let previousFilled = false;
+  const add = (node: WpBakeryNode) => {
+    elements.push(row(node, previousFilled));
+    previousFilled = filled(node.attrs) || Boolean(node.attrs.parallax_image);
+  };
   const flush = () => {
-    if (loose.length)
-      elements.push(row({ tag: 'vc_row', attrs: {}, children: loose, content: '' }));
+    if (loose.length) add({ tag: 'vc_row', attrs: {}, children: loose, content: '' });
     loose = [];
   };
   for (const node of tree) {
@@ -927,9 +1052,17 @@ export function wpbakeryToFresco(
       continue;
     }
     flush();
-    elements.push(...(/^vc_(row|section)$/.test(node.tag) ? [row(node)] : element(node)));
+    if (/^vc_(row|section)$/.test(node.tag)) add(node);
+    else {
+      elements.push(...element(node));
+      previousFilled = false;
+    }
   }
   flush();
+  if (missingImages)
+    ctx.warn(
+      `${missingImages} WPBakery image(s) have no picture in the export: their space was kept.`,
+    );
   for (const [tag, n] of unknown) {
     ctx.warn(
       `${n} WPBakery element(s) "${tag}" have no Fresco counterpart yet: their text, if any, was kept.`,
