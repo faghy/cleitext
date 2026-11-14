@@ -1,6 +1,8 @@
 import type { PluginContext } from '@cleitext/plugin-sdk';
 import { saveProduct, saveProductSchema } from './products';
-import { BRAND, PRODUCT, syncProduct } from './sync';
+import { and, eq } from 'drizzle-orm';
+import { products as shopProducts } from './schema';
+import { BRAND, PRODUCT, safeExcerpt, syncProduct } from './sync';
 
 /** An id of the new site; pictures that could not be downloaded keep their old reference. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -60,6 +62,17 @@ export function registerWooImport(ctx: PluginContext): void {
         if (!entry || entry.type !== PRODUCT) continue;
         await syncProduct(ctx, siteId, entry);
         await saveProduct(ctx, siteId, id, parsed.data);
+        // The short description with its formatting (the entry's is plain text).
+        if (typeof raw.excerpt === 'string' && /</.test(raw.excerpt)) {
+          const formatted = safeExcerpt(raw.excerpt);
+          if (formatted.trim())
+            await ctx.db.transaction(siteId, (tx) =>
+              tx
+                .update(shopProducts)
+                .set({ excerpt: formatted })
+                .where(and(eq(shopProducts.siteId, siteId), eq(shopProducts.entryId, id))),
+            );
+        }
         saved++;
       } catch (error) {
         warnings.push(

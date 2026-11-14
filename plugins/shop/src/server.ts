@@ -27,6 +27,7 @@ import { COUNTRIES } from './address';
 import { registerAccount } from './account';
 import { registerCatalog } from './catalog-routes';
 import { registerWooImport } from './import-woocommerce';
+import { productsFromShortcode } from './import-shortcodes';
 import { provideShopService } from './services';
 import { registerReviews } from './reviews';
 import { registerPrivacy } from './privacy';
@@ -428,6 +429,11 @@ export default definePlugin({
     });
     // WooCommerce products from the WordPress importer.
     registerWooImport(ctx);
+    // WooCommerce's product shortcodes of imported pages become Products blocks.
+    ctx.hooks.filter(
+      'import.shortcode',
+      (blocks, { tag, attrs }) => blocks ?? productsFromShortcode(tag, attrs),
+    );
     registerAccount(ctx, store);
     registerStorefrontBlocks(ctx, currency, buyBoxSettings);
     // The cart and the checkout as blocks, for page builders.

@@ -65,7 +65,7 @@ import {
 import { wxrAdditionalCss } from './additional-css.js';
 import { DIVI_TAXONOMIES, DIVI_TYPES, prepareDivi, type DiviItem } from './divi-site.js';
 import { diviPageCss, diviToFresco } from '@cleitext/blocks/divi';
-import { WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
+import { shortcodeSkus, WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
 import type { CxdBlock } from '@cleitext/blocks';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
 import type { WxrMetaAuthor, WxrMetaInput, WxrMetaItem, WxrMetaTerm } from '@cleitext/plugin-sdk';
@@ -600,7 +600,16 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     // WordPress shows titles and content with curly quotes and dashes (wptexturize).
     const title = texturizeText(decode(text(item.title)));
     // Emoji pasted as WordPress's images are characters again.
-    const content = texturizeHtml(restoreEmoji(text(item['content:encoded'])));
+    // WooCommerce's shortcodes choosing products by id choose them by code (ids change).
+    const content = shortcodeSkus(
+      texturizeHtml(restoreEmoji(text(item['content:encoded']))),
+      (product) => {
+        const found = itemsById.get(product);
+        return found && text(found['wp:post_type']) === 'product'
+          ? meta(found, '_sku') || undefined
+          : undefined;
+      },
+    );
     // Newsletter forms pasted in the classic editor are kept as HTML blocks.
     let document = htmlToCxd(wrapClassicEmbeds(content), {
       // Blocks of other plugins (e.g. block libraries) are left to active plugins.

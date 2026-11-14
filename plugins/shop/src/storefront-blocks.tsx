@@ -1,5 +1,5 @@
 import { defineBlock, type PluginContext } from '@cleitext/plugin-sdk';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   BuyBoxView,
   CATALOG_TAG,
@@ -103,7 +103,14 @@ export function registerStorefrontBlocks(
 
   ctx.blocks.register(
     defineBlock<
-      { heading: string; show: string; category: string; brand: string; limit: number },
+      {
+        heading: string;
+        show: string;
+        category: string;
+        brand: string;
+        skus: string;
+        limit: number;
+      },
       GridData
     >({
       type: 'shop/products',
@@ -139,6 +146,14 @@ export function registerStorefrontBlocks(
           label: { en: 'Brand (its slug, optional)', it: 'Marchio (slug, facoltativo)' },
         },
         {
+          name: 'skus',
+          type: 'text',
+          label: {
+            en: 'Only these products (their codes, separated by commas; optional)',
+            it: 'Solo questi prodotti (i loro codici, separati da virgole; facoltativo)',
+          },
+        },
+        {
           name: 'limit',
           type: 'number',
           label: { en: 'How many', it: 'Quanti' },
@@ -161,6 +176,28 @@ export function registerStorefrontBlocks(
         const brand = await bySlug(BRAND, attrs.brand);
         const sort: Sort =
           attrs.show === 'popular' ? 'popularity' : attrs.show === 'rated' ? 'rating' : 'date';
+        // Chosen products, by their codes (in this language).
+        const skus = (attrs.skus ?? '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const chosen = skus.length
+          ? (
+              await ctx.db.transaction(context.siteId, (tx) =>
+                tx
+                  .select({ id: products.entryId })
+                  .from(products)
+                  .where(
+                    and(
+                      eq(products.siteId, context.siteId),
+                      eq(products.locale, locale),
+                      inArray(products.sku, skus),
+                    ),
+                  ),
+              )
+            ).map((row) => row.id)
+          : undefined;
+        if (chosen && !chosen.length) return { cards: [], urls: {}, currency: '', prefix: '' };
         return grid(context.siteId, locale, prefixOf(context.page.site.home), {
           sort,
           perPage: Math.min(48, Math.max(1, Number(attrs.limit) || 8)),
@@ -168,6 +205,7 @@ export function registerStorefrontBlocks(
           brandIds: brand ? [brand.id] : [],
           featured: attrs.show === 'featured',
           onSale: attrs.show === 'sale',
+          ...(chosen ? { ids: chosen } : {}),
         });
       },
       css: () => SHOP_CSS + CATALOG_CSS,

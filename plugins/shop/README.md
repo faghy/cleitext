@@ -198,6 +198,17 @@ customer's data include their orders and saved addresses. Erasing deletes the
 saved addresses and carts and anonymizes orders that never became a sale;
 sales are kept for tax and accounting records, without IP address and browser.
 
+**Pages imported from WooCommerce** (Cleishop 1.18): with the WordPress
+Importer, WooCommerce's product shortcodes in pages (`[products]`,
+`[recent_products]`, `[featured_products]`, `[sale_products]`,
+`[best_selling_products]`, `[top_rated_products]`, `[product_category]`,
+`[add_to_cart]`) become **Products** blocks with the same choice, number and
+category. Products chosen one by one show by their codes (the block's
+"Only these products" field); the importer writes the codes of the
+WordPress ids. Short descriptions keep their formatting for the cards
+(Settings → Cleishop → "With its formatting"); the entry's own excerpt stays
+plain text, as pages use it for their description.
+
 **Add-to-cart links** (Cleishop 1.8): a link can put a product in the
 visitor's cart, as WooCommerce's `?add-to-cart=` links do, e.g. in a
 newsletter, a button or a page imported from WooCommerce:

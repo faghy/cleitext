@@ -35,6 +35,8 @@ ${item(11, 'attachment', 'bottle', '', '<wp:attachment_url>https://shop.example/
 ${item(20, 'page', 'home', PAGE, meta('_wpb_vc_js_status', 'true'))}
 ${item(21, 'page', 'loose', '[vc_column width="1/2"][vc_column_text]Left[/vc_column_text][/vc_column][vc_column width="1/2"][vc_column_text]Right[/vc_column_text][/vc_column][vc_row][vc_column][vc_column_text]Row[/vc_column_text][/vc_column][/vc_row]')}
 ${item(22, 'page', 'plain', '<p>No builder [vc_column_text]</p>')}
+${item(30, 'product', 'bottle', '<p>A bottle.</p>', `<excerpt:encoded>${cdata('<p>Soft <strong>notes</strong></p>')}</excerpt:encoded>${meta('_sku', 'BOT-1')}${meta('_regular_price', '10')}`)}
+${item(23, 'page', 'chosen', '[vc_row][vc_column][products ids="30" columns="1"][add_to_cart id="31"][/vc_column][/vc_row]')}
 </channel></rss>`;
 
 const find = (blocks: CxdBlock[], type: string): CxdBlock[] =>
@@ -92,8 +94,18 @@ describe('a WPBakery site', () => {
       warnings.some((w) => w.includes('https://shop.example/a/, https://shop.example/b/')),
     ).toBe(true);
     expect(warnings).toContain(
-      '2 page(s) built with WPBakery were imported as Fresco pages: activate the Fresco plugin to show and edit them.',
+      '3 page(s) built with WPBakery were imported as Fresco pages: activate the Fresco plugin to show and edit them.',
     );
+  });
+
+  it('chooses products by their codes, and keeps formatted short descriptions for Cleishop', () => {
+    const text = JSON.stringify(page('chosen').document!.blocks);
+    expect(text).toContain('[products skus=\\"BOT-1\\" columns=\\"1\\"]');
+    // A product that is not in the export keeps its id.
+    expect(text).toContain('[add_to_cart id=\\"31\\"]');
+    expect(page('bottle').excerpt).toBe('Soft notes');
+    const shop = (document.plugins as { shop: { products: { excerpt?: string }[] } }).shop;
+    expect(shop.products[0]!.excerpt).toBe('<p>Soft <strong>notes</strong></p>');
   });
 
   it('puts columns outside a row in one row, and leaves other pages as they were', () => {

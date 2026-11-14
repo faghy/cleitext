@@ -27,21 +27,23 @@ let owner: DatabaseClient;
 let site: SeededSite;
 let admin: TestClient;
 
-async function product(title: string, position: number, excerpt: string) {
+async function product(title: string, position: number, excerpt: string, sku = '') {
   const { id } = (await admin.post('/api/v1/entries', { type: 'product', title })).json() as {
     id: string;
   };
   expect(
     (
       await admin.request('PUT', `/api/v1/ext/shop/products/${id}`, {
-        product: { regularPrice: '10' },
+        product: { regularPrice: '10', ...(sku ? { sku } : {}) },
       })
     ).statusCode,
   ).toBe(200);
   const patched = await admin.request('PATCH', `/api/v1/entries/${id}`, { position, excerpt });
   expect(patched.statusCode, patched.body).toBe(200);
   expect((await admin.post(`/api/v1/entries/${id}/publish`)).statusCode).toBe(200);
+  return id;
 }
+let charlie = '';
 
 beforeAll(async () => {
   owner = ownerDatabase();
@@ -68,8 +70,8 @@ beforeAll(async () => {
   admin = new TestClient(app, site.host, '10.98.0.1');
   await admin.login('admin@shop-order.test', PASSWORD);
   expect((await admin.post('/api/v1/plugins/shop/activate')).statusCode).toBe(200);
-  await product('Charlie', 1, '<p>The <strong>third</strong> one.</p>');
-  await product('Alpha', 3, 'The first one.');
+  charlie = await product('Charlie', 1, '<p>The <strong>third</strong> one.</p>', 'C-3');
+  await product('Alpha', 3, 'The first one.', 'A-1');
   await product('Bravo', 2, 'The second one.');
 });
 
@@ -103,5 +105,44 @@ describe('the catalog’s order and the cards’ short description', () => {
     expect(formatted.body).toContain(
       '<div class="shop-card__excerpt"><p>The <strong>third</strong> one.</p></div>',
     );
+  });
+
+  it('keeps a formatted short description while the entry says the same in plain text', async () => {
+    const plain = await admin.request('PATCH', `/api/v1/entries/${charlie}`, {
+      excerpt: 'The third one.',
+    });
+    expect(plain.statusCode, plain.body).toBe(200);
+    await admin.post(`/api/v1/entries/${charlie}/publish`);
+    const kept = await new TestClient(app, site.host, '10.98.0.5').get('/shop');
+    expect(kept.body).toContain('<p>The <strong>third</strong> one.</p>');
+    await admin.request('PATCH', `/api/v1/entries/${charlie}`, { excerpt: 'Now different.' });
+    await admin.post(`/api/v1/entries/${charlie}/publish`);
+    const changed = await new TestClient(app, site.host, '10.98.0.6').get('/shop');
+    expect(changed.body).toContain('Now different.');
+    expect(changed.body).not.toContain('<strong>third</strong>');
+  });
+
+  it('shows chosen products by their codes in a Products block', async () => {
+    const { id } = (
+      await admin.post('/api/v1/entries', {
+        type: 'page',
+        title: 'Chosen',
+        document: {
+          schema: 1,
+          blocks: [
+            {
+              id: 'b_chosen',
+              type: 'shop/products',
+              v: 1,
+              attrs: { show: 'latest', skus: 'A-1, C-3', limit: 8 },
+            },
+          ],
+        },
+      })
+    ).json() as { id: string };
+    expect((await admin.post(`/api/v1/entries/${id}/publish`)).statusCode).toBe(200);
+    const page = await new TestClient(app, site.host, '10.98.0.7').get('/chosen');
+    expect(page.statusCode, page.body).toBe(200);
+    expect(titles(page.body).sort()).toEqual(['Alpha', 'Charlie']);
   });
 });

@@ -218,5 +218,35 @@ export function wooProduct(
     ...(kind === 'variable' && ownVariations.length ? { variations: ownVariations } : {}),
     upsells: related('_upsell_ids'),
     crossSells: related('_crosssell_ids'),
+    // The short description with its formatting, for Cleishop's cards (the entry's is plain text).
+    ...(/</.test(text(item['excerpt:encoded']))
+      ? { excerpt: text(item['excerpt:encoded']).slice(0, 20_000) }
+      : {}),
   };
+}
+
+/**
+ * WooCommerce's shortcodes that choose products by their WordPress ids
+ * (`[products ids="12,13"]`, `[add_to_cart id="12"]`, `[product id="12"]`)
+ * choose them by their codes (`skus`, `sku`, which WooCommerce also
+ * reads): the ids do not survive the import, the codes do. Products without
+ * a code keep their id.
+ */
+export function shortcodeSkus(content: string, skuOf: (id: number) => string | undefined): string {
+  if (!/\[(products|add_to_cart|product)\b/i.test(content)) return content;
+  return content.replace(
+    /\[(products|add_to_cart|product)\b([^\]]*)\]/gi,
+    (whole, tag: string, attrs: string) => {
+      const many = tag.toLowerCase() === 'products';
+      const m = (many ? /\bids\s*=\s*["']([^"']*)["']/i : /\bid\s*=\s*["']?(\d+)["']?/i).exec(
+        attrs,
+      );
+      if (!m) return whole;
+      const ids = m[1]!.split(',').map((v) => Number(v.trim()));
+      const skus = ids.map((id) => skuOf(id));
+      if (!skus.length || skus.some((s) => !s)) return whole;
+      const value = skus.map((s) => s!.replace(/"/g, '')).join(',');
+      return `[${tag}${attrs.replace(m[0], many ? `skus="${value}"` : `sku="${value}"`)}]`;
+    },
+  );
 }

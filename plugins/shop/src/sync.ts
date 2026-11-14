@@ -57,6 +57,18 @@ const KEPT = new Set([
  * the cards (Cleishop 1.17.1). Other tags keep their text; attributes go,
  * but a link's address over http(s) or on the site.
  */
+/** Whether two short descriptions say the same, whatever their formatting. */
+export function sameText(a: string, b: string): boolean {
+  const words = (v: string) =>
+    v
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&#0?39;|&#8217;|&rsquo;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, '');
+  return words(a) === words(b);
+}
+
 export function safeExcerpt(value: string | null | undefined): string {
   return (value ?? '')
     .replace(/<(script|style|iframe|object|template)\b[\s\S]*?<\/\1>/gi, '')
@@ -96,6 +108,19 @@ export async function syncProduct(
   if (typeof entry.position === 'number') copy.position = entry.position;
   // Kept as simple HTML: the cards show it as text, or as HTML when chosen.
   if (entry.excerpt !== undefined) copy.excerpt = safeExcerpt(entry.excerpt);
+  // A formatted short description (imported from WooCommerce) stays while the
+  // entry's plain one says the same (the entry's is plain text: pages use it as
+  // their description).
+  if (copy.excerpt && !/</.test(copy.excerpt)) {
+    const read = (t: PluginTransaction) =>
+      t
+        .select({ excerpt: products.excerpt })
+        .from(products)
+        .where(and(eq(products.siteId, siteId), eq(products.entryId, entry.id)));
+    const [current] = await (tx ? read(tx) : ctx.db.transaction(siteId, read));
+    if (current && /</.test(current.excerpt) && sameText(current.excerpt, copy.excerpt))
+      copy.excerpt = current.excerpt;
+  }
   if (entry.terms) {
     copy.categoryIds = entry.terms[CATEGORY] ?? [];
     copy.brandId = entry.terms[BRAND]?.[0] ?? null;

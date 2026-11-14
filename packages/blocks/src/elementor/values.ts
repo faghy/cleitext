@@ -363,6 +363,7 @@ const RENAMED: Record<string, string> = {
   'long-arrow-right': 'arrow-right-long',
   'long-arrow-left': 'arrow-left-long',
   'angle-double-right': 'angles-right',
+  adjust: 'circle-half-stroke',
   'angle-double-left': 'angles-left',
   'angle-double-down': 'angles-down',
   'angle-double-up': 'angles-up',
