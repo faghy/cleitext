@@ -186,6 +186,8 @@ export function breadcrumbData(origin: string, crumbs: Crumb[]) {
 }
 
 export interface Filters {
+  /** Words searched in the products' titles, codes and short descriptions (1.19). */
+  q: string;
   brands: string[];
   min: string;
   max: string;
@@ -200,6 +202,7 @@ export interface Filters {
 export function filterUrl(base: string, f: Filters, changes: Partial<Filters> = {}): string {
   const next = { ...f, ...changes };
   const params = new URLSearchParams();
+  if (next.q) params.set('q', next.q);
   for (const brand of next.brands) params.append('brand', brand);
   if (next.min) params.set('min_price', next.min);
   if (next.max) params.set('max_price', next.max);
@@ -246,117 +249,132 @@ export function catalogPage(options: {
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const sidebar = html`<details ${active ? raw(' open') : ''}>
-    <summary>${t('Filters')}</summary>
-    ${
-      brandList.length > 0
-        ? html`<fieldset>
-            <legend>${t('Brand')}</legend>
+  // The search field sits above the filters, always in view (1.19).
+  const search = html`<div class="shop-search-field" role="search">
+    <label class="shop-sr" for="shop-q">${t('Search products')}</label>
+    <input
+      form="shop-filters"
+      id="shop-q"
+      type="search"
+      name="q"
+      value="${f.q}"
+      placeholder="${t('Search products')}…"
+      maxlength="100"
+    />
+    <button form="shop-filters" type="submit">${t('Search')}</button>
+  </div>`;
+  const sidebar = html`${search}
+    <details ${active ? raw(' open') : ''}>
+      <summary>${t('Filters')}</summary>
+      ${
+        brandList.length > 0
+          ? html`<fieldset>
+              <legend>${t('Brand')}</legend>
+              <ul>
+                ${brandList.map(
+                  (b) =>
+                    html`<li>
+                      <label
+                        ><input
+                          form="shop-filters"
+                          type="checkbox"
+                          name="brand"
+                          value="${b.slug}"
+                          ${f.brands.includes(b.slug) ? raw(' checked') : ''}
+                        />
+                        ${b.name} <span class="shop-count">(${b.count})</span></label
+                      >
+                    </li>`,
+                )}
+              </ul>
+            </fieldset>`
+          : ''
+      }
+      ${result.attributeFacets.map(
+        (attribute) =>
+          html`<fieldset>
+            <legend>${attribute.name}</legend>
             <ul>
-              ${brandList.map(
-                (b) =>
+              ${attribute.values.map(
+                (value) =>
                   html`<li>
                     <label
                       ><input
                         form="shop-filters"
                         type="checkbox"
-                        name="brand"
-                        value="${b.slug}"
-                        ${f.brands.includes(b.slug) ? raw(' checked') : ''}
+                        name="filter_${attribute.slug}"
+                        value="${value.slug}"
+                        ${(f.attributes[attribute.slug] ?? []).includes(value.slug) ? raw(' checked') : ''}
                       />
-                      ${b.name} <span class="shop-count">(${b.count})</span></label
+                      ${value.name}</label
                     >
                   </li>`,
               )}
             </ul>
-          </fieldset>`
-        : ''
-    }
-    ${result.attributeFacets.map(
-      (attribute) =>
-        html`<fieldset>
-          <legend>${attribute.name}</legend>
-          <ul>
-            ${attribute.values.map(
-              (value) =>
-                html`<li>
-                  <label
-                    ><input
-                      form="shop-filters"
-                      type="checkbox"
-                      name="filter_${attribute.slug}"
-                      value="${value.slug}"
-                      ${(f.attributes[attribute.slug] ?? []).includes(value.slug) ? raw(' checked') : ''}
-                    />
-                    ${value.name}</label
-                  >
-                </li>`,
-            )}
-          </ul>
-        </fieldset>`,
-    )}
-    <fieldset>
-      <legend>${t('Price')}</legend>
-      <div class="shop-prices">
-        <label class="shop-sr" for="shop-min">${t('Minimum price')}</label>
-        <input
-          form="shop-filters"
-          id="shop-min"
-          type="number"
-          name="min_price"
-          min="0"
-          step="1"
-          inputmode="numeric"
-          value="${f.min}"
-          placeholder="${result.priceRange ? String(result.priceRange.min) : ''}"
-        />
-        –
-        <label class="shop-sr" for="shop-max">${t('Maximum price')}</label>
-        <input
-          form="shop-filters"
-          id="shop-max"
-          type="number"
-          name="max_price"
-          min="0"
-          step="1"
-          inputmode="numeric"
-          value="${f.max}"
-          placeholder="${result.priceRange ? String(result.priceRange.max) : ''}"
-        />
-      </div>
-    </fieldset>
-    <fieldset>
-      <legend>${t('Availability')}</legend>
-      <ul>
-        <li>
-          <label
-            ><input
-              form="shop-filters"
-              type="checkbox"
-              name="on_sale"
-              value="1"
-              ${f.sale ? raw(' checked') : ''}
-            />
-            ${t('On sale')}</label
-          >
-        </li>
-        <li>
-          <label
-            ><input
-              form="shop-filters"
-              type="checkbox"
-              name="in_stock"
-              value="1"
-              ${f.stock ? raw(' checked') : ''}
-            />
-            ${t('In stock')}</label
-          >
-        </li>
-      </ul>
-    </fieldset>
-    <p><button class="shop-button" type="submit" form="shop-filters">${t('Filter')}</button></p>
-    ${active ? html`<p><a href="${base}">${t('Clear filters')}</a></p>` : ''}
-  </details>`;
+          </fieldset>`,
+      )}
+      <fieldset>
+        <legend>${t('Price')}</legend>
+        <div class="shop-prices">
+          <label class="shop-sr" for="shop-min">${t('Minimum price')}</label>
+          <input
+            form="shop-filters"
+            id="shop-min"
+            type="number"
+            name="min_price"
+            min="0"
+            step="1"
+            inputmode="numeric"
+            value="${f.min}"
+            placeholder="${result.priceRange ? String(result.priceRange.min) : ''}"
+          />
+          –
+          <label class="shop-sr" for="shop-max">${t('Maximum price')}</label>
+          <input
+            form="shop-filters"
+            id="shop-max"
+            type="number"
+            name="max_price"
+            min="0"
+            step="1"
+            inputmode="numeric"
+            value="${f.max}"
+            placeholder="${result.priceRange ? String(result.priceRange.max) : ''}"
+          />
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>${t('Availability')}</legend>
+        <ul>
+          <li>
+            <label
+              ><input
+                form="shop-filters"
+                type="checkbox"
+                name="on_sale"
+                value="1"
+                ${f.sale ? raw(' checked') : ''}
+              />
+              ${t('On sale')}</label
+            >
+          </li>
+          <li>
+            <label
+              ><input
+                form="shop-filters"
+                type="checkbox"
+                name="in_stock"
+                value="1"
+                ${f.stock ? raw(' checked') : ''}
+              />
+              ${t('In stock')}</label
+            >
+          </li>
+        </ul>
+      </fieldset>
+      <p><button class="shop-button" type="submit" form="shop-filters">${t('Filter')}</button></p>
+      ${active ? html`<p><a href="${base}">${t('Clear filters')}</a></p>` : ''}
+    </details>`;
 
   const sortLabels: Record<Sort, string> = {
     default: t('Default sorting'),
@@ -456,7 +474,13 @@ export function catalogPage(options: {
           ${
             result.cards.length
               ? productCards(result.cards, options.cards)
-              : html`<p>${t('No products match these filters.')}</p>`
+              : html`<p>
+                  ${
+                    f.q
+                      ? t('No products match “{q}”.', { q: f.q })
+                      : t('No products match these filters.')
+                  }
+                </p>`
           }
           ${pageLinks}
         </div>

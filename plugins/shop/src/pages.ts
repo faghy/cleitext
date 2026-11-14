@@ -218,9 +218,7 @@ function shippingCalcForm(
   money: Money,
   cartUrl: string,
 ): Html {
-  const countries = [...COUNTRIES]
-    .map((code) => ({ code, name: countryName(code, calc.locale) }))
-    .sort((a, b) => a.name.localeCompare(b.name, calc.locale));
+  const countries = countryOptions(calc.countries ?? {}, calc.locale, calc.country);
   return html`<form method="post" action="${cartUrl}/shipping" class="shop-shipping-calc">
     <h2>${t('Shipping')}</h2>
     ${
@@ -293,6 +291,7 @@ export function cartPage(options: {
     country: string;
     postcode: string;
     locale: string;
+    countries?: CountryChoice;
   };
 }): string {
   const { lines, totals, t, money, urls } = options;
@@ -418,6 +417,34 @@ export interface CheckoutValues {
   newsletter?: boolean;
 }
 
+export interface CountryChoice {
+  /** The shop's country: first in the list. */
+  base?: string;
+  /** The countries the shop ships to; null or missing: every country. */
+  allowed?: string[] | null;
+}
+
+/**
+ * The countries of an address's list (1.18.1): those the shop ships to (all
+ * when it ships everywhere), the shop's own first, and the address's own
+ * even when it is not one of them (an address saved before).
+ */
+export function countryOptions(
+  choice: CountryChoice,
+  locale: string,
+  current = '',
+): { code: string; name: string }[] {
+  const base = choice.base || 'IT';
+  const codes = choice.allowed?.length
+    ? [...new Set([...choice.allowed, ...(current ? [current] : [])])]
+    : [...COUNTRIES];
+  return codes
+    .map((code) => ({ code, name: countryName(code, locale) }))
+    .sort((a, b) =>
+      a.code === base ? -1 : b.code === base ? 1 : a.name.localeCompare(b.name, locale),
+    );
+}
+
 export const emptyAddress = (country = 'IT'): Address => ({
   firstName: '',
   lastName: '',
@@ -451,17 +478,16 @@ export function formParts({
   errors,
   locale,
   phoneRequired,
+  countries: choice = {},
 }: {
   t: Translate;
   errors: Record<string, string>;
   locale: string;
   phoneRequired: boolean;
+  /** The shop's country (first) and the countries it ships to (all when null). */
+  countries?: CountryChoice;
 }) {
-  const countries = [...COUNTRIES]
-    .map((code) => ({ code, name: countryName(code, locale) }))
-    .sort((a, b) =>
-      a.code === 'IT' ? -1 : b.code === 'IT' ? 1 : a.name.localeCompare(b.name, locale),
-    );
+  const countriesFor = (current: string) => countryOptions(choice, locale, current);
   const field = (
     name: string,
     label: string,
@@ -505,7 +531,7 @@ export function formParts({
           autocomplete="${autocomplete} country"
           required
         >
-          ${countries.map((c) => html`<option value="${c.code}" ${c.code === address.country ? raw(' selected') : ''}>${c.name}</option>`)}
+          ${countriesFor(address.country).map((c) => html`<option value="${c.code}" ${c.code === address.country ? raw(' selected') : ''}>${c.name}</option>`)}
         </select>
         ${errors[`${prefix}.country`] ? html`<span class="shop-error">${t(errors[`${prefix}.country`]!)}</span>` : ''}
       </p>
@@ -547,6 +573,8 @@ export function checkoutPage(options: {
   newsletter?: { name: string; label: string } | null;
   /** Stripe on the page: the Payment Element under the card, the express buttons on top. */
   stripe?: { element: string; express: string };
+  /** The countries of the address lists (1.18.1). */
+  countries?: CountryChoice;
 }): string {
   const { values, errors, t, money, locale } = options;
   const { field, addressFields } = formParts({
@@ -554,6 +582,7 @@ export function checkoutPage(options: {
     errors,
     locale,
     phoneRequired: options.phoneRequired,
+    ...(options.countries ? { countries: options.countries } : {}),
   });
 
   const summary = html`<div class="shop-box">

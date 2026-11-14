@@ -79,6 +79,25 @@ export interface Quote {
   taxError?: string;
 }
 
+/**
+ * The countries the shop ships to (1.18.1): those of the zones with an
+ * enabled method, the shop's own country first; null when it ships
+ * everywhere ("everywhere else" has a method) or shipping is not set up.
+ */
+export async function shippingCountries(tx: PluginTransaction): Promise<string[] | null> {
+  const methods = await tx
+    .select({ zoneId: shippingMethods.zoneId })
+    .from(shippingMethods)
+    .where(eq(shippingMethods.enabled, true));
+  if (!methods.length || methods.some((m) => m.zoneId === null)) return null;
+  const used = new Set(methods.map((m) => m.zoneId));
+  const zones = await tx.select().from(shippingZones);
+  const countries = new Set(
+    zones.filter((z) => used.has(z.id)).flatMap((z) => z.regions.map((r) => r.country)),
+  );
+  return countries.size ? [...countries] : null;
+}
+
 export function couponOf(row: CouponRow): Coupon {
   const settings = row.settings as Partial<Coupon>;
   return {

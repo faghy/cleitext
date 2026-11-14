@@ -43,6 +43,7 @@ export function readFilters(request: Pick<RouteRequest, 'query' | 'queryAll'>): 
   }
   const sort = request.query.orderby as Sort;
   return {
+    q: (request.query.q ?? '').replace(/\s+/g, ' ').trim().slice(0, 100),
     brands: slugs(request.queryAll.brand),
     min: amount(request.query.min_price),
     max: amount(request.query.max_price),
@@ -133,6 +134,7 @@ export function registerCatalog(
           locale,
           categoryId: scope?.taxonomy === CATEGORY ? term!.id : null,
           brandIds: scope?.taxonomy === BRAND ? [term!.id] : chosenBrands,
+          ...(filters.q ? { search: filters.q } : {}),
           minPrice: filters.min ? Number(filters.min) : null,
           maxPrice: filters.max ? Number(filters.max) : null,
           onSale: filters.sale,

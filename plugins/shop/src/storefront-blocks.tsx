@@ -280,10 +280,10 @@ export function registerStorefrontBlocks(
       render({ attrs, data, context }) {
         const t = translator(context.locale);
         const label = attrs.placeholder || t('Search products');
+        // The shop's own search (1.19): the products with their price and cart button.
         return (
-          <form className="shop-search" role="search" method="get" action={`${data.prefix}/search`}>
+          <form className="shop-search" role="search" method="get" action={`${data.prefix}/shop`}>
             <input type="search" name="q" placeholder={label} aria-label={label} />
-            <input type="hidden" name="type" value={PRODUCT} />
             <button type="submit" aria-label={t('Search')}>
               <svg
                 width="18"

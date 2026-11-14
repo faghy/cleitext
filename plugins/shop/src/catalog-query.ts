@@ -35,6 +35,8 @@ export interface CatalogQuery {
   attributes?: Record<string, string[]>;
   ids?: string[];
   featured?: boolean;
+  /** Words that must all be in the title, code or short description (1.19). */
+  search?: string;
   sort: Sort;
   page: number;
   perPage: number;
@@ -119,6 +121,19 @@ export async function queryCatalog(
         )
       : undefined,
     featured: query.featured ? eq(products.featured, true) : undefined,
+    search: query.search
+      ? and(
+          ...query.search
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, 8)
+            .map((word) => {
+              const like = `%${word.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+              return sql`(${products.title} ILIKE ${like} OR ${products.sku} ILIKE ${like}
+                OR ${products.excerpt} ILIKE ${like})`;
+            }),
+        )
+      : undefined,
   };
   const where = (...without: string[]) =>
     and(

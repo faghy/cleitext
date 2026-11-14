@@ -56,7 +56,7 @@ import {
   type PaymentId,
   type Payments,
 } from './payments';
-import { couponOf, quote, type Quote, type QuoteInput } from './quote';
+import { couponOf, quote, shippingCountries, type Quote, type QuoteInput } from './quote';
 import { coupons, products, type CartItem, type OrderRow } from './schema';
 import type { Destination } from './shipping';
 import { escape } from './html';
@@ -320,6 +320,12 @@ export function registerStorefront(
 
   // ---- Cart ------------------------------------------------------------------------
 
+  /** The shop's country and the countries it ships to, for the address lists (1.18.1). */
+  const countriesOf = async (siteId: string, base: string) => ({
+    base,
+    allowed: await ctx.db.transaction(siteId, (tx) => shippingCountries(tx)),
+  });
+
   /** The cart page's content for a request: its lines, totals, notices and markup. */
   const cartView = async (request: RouteRequest) => {
     const t = translator(request.locale);
@@ -367,6 +373,7 @@ export function registerStorefront(
       });
     const money = moneyFormatter(request.locale, values.currency);
     const urls = await urlsFor(request, cart.lines);
+    const countries = await countriesOf(request.siteId, values.baseCountry);
     const express = expressAt(values.payments, values.ready, 'cart')
       ? expressElement(
           { url: `${prefixOf(request)}/checkout/express`, place: 'cart' },
@@ -406,6 +413,7 @@ export function registerStorefront(
                   country: to.country,
                   postcode: to.postcode,
                   locale: request.locale,
+                  countries,
                 },
               }
             : {}),
@@ -930,6 +938,7 @@ export function registerStorefront(
         }),
         termsUrl: store.termsUrl,
         phoneRequired: store.phoneRequired,
+        countries: await countriesOf(request.siteId, store.baseCountry),
         ...(notice ? { notice } : {}),
         ...(challenge ? { challenge } : {}),
         ...(newsletter ? { newsletter } : {}),
@@ -960,8 +969,10 @@ export function registerStorefront(
       : null;
     // A new customer starts from where the cart's shipping was worked out for.
     const ship = shipOf(request);
+    const store = await settings(request.siteId);
     const billing = customer?.billing ?? {
-      ...emptyAddress(),
+      // The shop's own country (1.18.1), as WooCommerce's default customer location.
+      ...emptyAddress(store.baseCountry),
       ...(ship.country ? { country: ship.country } : {}),
       ...(ship.postcode ? { postcode: ship.postcode } : {}),
     };

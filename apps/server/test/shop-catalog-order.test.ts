@@ -145,4 +145,41 @@ describe('the catalog’s order and the cards’ short description', () => {
     expect(page.statusCode, page.body).toBe(200);
     expect(titles(page.body).sort()).toEqual(['Alpha', 'Charlie']);
   });
+
+  it('finds products by a word of their title, code or short description', async () => {
+    const visitor = new TestClient(app, site.host, '10.98.0.8');
+    expect(titles((await visitor.get('/shop?q=bravo')).body)).toEqual(['Bravo']);
+    expect(titles((await visitor.get('/shop?q=c-3')).body)).toEqual(['Charlie']);
+    expect(titles((await visitor.get('/shop?q=first')).body)).toEqual(['Alpha']);
+    const none = await visitor.get('/shop?q=zebra');
+    expect(none.body).toContain('No products match “zebra”.');
+    // The search field keeps the words.
+    expect(none.body).toContain('value="zebra"');
+  });
+
+  it('starts the checkout from the shop’s country and lists only where it ships', async () => {
+    expect(
+      (await admin.request('PATCH', '/api/v1/plugins/shop/settings', { baseCountry: 'US' }))
+        .statusCode,
+    ).toBe(200);
+    const shipping = await admin.request('PUT', '/api/v1/ext/shop/shipping', {
+      zones: [
+        {
+          name: 'United States',
+          regions: [{ country: 'US' }],
+          methods: [{ title: 'Ground', settings: { kind: 'flat', cost: '9' } }],
+        },
+      ],
+      rest: [],
+    });
+    expect(shipping.statusCode, shipping.body).toBe(200);
+    const buyer = new TestClient(app, site.host, '10.98.0.9');
+    await buyer.postForm('/cart/add', { product: charlie, quantity: '1' });
+    const page = (await buyer.get('/checkout')).body;
+    const select =
+      /<select[^>]*name="billing\.country"[^>]*>([\s\S]*?)<\/select>/.exec(page)?.[1] ?? '';
+    expect(select).toMatch(/^\s*<option value="US"\s+selected>/);
+    expect(select).not.toContain('value="IT"');
+    expect(page).not.toContain('We do not ship to this address');
+  });
 });

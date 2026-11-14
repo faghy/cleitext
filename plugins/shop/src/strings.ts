@@ -63,6 +63,7 @@ const IT: Record<string, string> = {
   'Minimum price': 'Prezzo minimo',
   Next: 'Successiva',
   'No products match these filters.': 'Nessun prodotto corrisponde a questi filtri.',
+  'No products match “{q}”.': 'Nessun prodotto corrisponde a «{q}».',
   'Not found': 'Non trovata',
   'On hold': 'In attesa',
   'On sale': 'In offerta',

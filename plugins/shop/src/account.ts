@@ -1,3 +1,4 @@
+import { shippingCountries } from './quote';
 import { orderDocuments } from './extensions';
 import type {
   PluginContext,
@@ -74,7 +75,11 @@ const sameAddress = (a: Address | null | undefined, b: Address | null | undefine
 
 export function registerAccount(
   ctx: PluginContext,
-  settings: (siteId: string) => Promise<{ currency: string; phoneRequired: boolean }>,
+  settings: (siteId: string) => Promise<{
+    currency: string;
+    phoneRequired: boolean;
+    baseCountry: string;
+  }>,
 ): void {
   ctx.hooks.filter('account.links', (links, context) => {
     const t = translator(context.locale);
@@ -233,6 +238,10 @@ export function registerAccount(
       errors,
       locale: request.locale,
       phoneRequired: store.phoneRequired,
+      countries: {
+        base: store.baseCountry,
+        allowed: await ctx.db.transaction(request.siteId, (tx) => shippingCountries(tx)),
+      },
     });
     const content = html`<p><a href="${prefix}/account">← ${t('Your account')}</a></p>
       ${notice ? html`<p class="shop-notice${notice.kind === 'error' ? ' shop-notice--error' : ''}" role="${notice.kind === 'error' ? 'alert' : 'status'}">${notice.text}</p>` : ''}
@@ -278,7 +287,8 @@ export function registerAccount(
       const customer = await ctx.db.transaction(request.siteId, (tx) =>
         customerOf(tx, request.user!.id),
       );
-      const billing = customer?.billing ?? emptyAddress();
+      const base = (await settings(request.siteId)).baseCountry;
+      const billing = customer?.billing ?? emptyAddress(base);
       return addressesPage(
         request,
         {

@@ -198,6 +198,8 @@ customer's data include their orders and saved addresses. Erasing deletes the
 saved addresses and carts and anonymizes orders that never became a sale;
 sales are kept for tax and accounting records, without IP address and browser.
 
+**Search and countries** (Cleishop 1.19): the catalog has a search field (`/shop?q=…`, also with the other filters), which finds products by the words of their title, code or short description and shows them with price and cart button; the **Product search** block searches there. The checkout's and the account's address forms start from the shop's country (Settings → Cleishop) and list only the countries the shipping zones reach, the shop's first; every country when "everywhere else" has a method (as WooCommerce's selling and shipping locations).
+
 **Pages imported from WooCommerce** (Cleishop 1.18): with the WordPress
 Importer, WooCommerce's product shortcodes in pages (`[products]`,
 `[recent_products]`, `[featured_products]`, `[sale_products]`,
