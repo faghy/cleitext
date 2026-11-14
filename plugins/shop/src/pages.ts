@@ -417,6 +417,11 @@ export interface CheckoutValues {
   newsletter?: boolean;
 }
 
+/** The European Union's countries (the right of withdrawal of distance sales). */
+const EU = new Set(
+  'AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE'.split(' '),
+);
+
 export interface CountryChoice {
   /** The shop's country: first in the list. */
   base?: string;
@@ -666,9 +671,14 @@ export function checkoutPage(options: {
       )}
       ${errors.payment ? html`<span class="shop-error">${t(errors.payment)}</span>` : ''}
     </fieldset>
-    <p class="shop-meta">
-      ${t('You can withdraw from the purchase within 14 days of receiving the goods.')}
-    </p>
+    ${
+      // The EU's right of withdrawal: shops based in the EU (1.19.2).
+      EU.has(options.countries?.base || 'IT')
+        ? html`<p class="shop-meta">
+            ${t('You can withdraw from the purchase within 14 days of receiving the goods.')}
+          </p>`
+        : ''
+    }
     ${
       options.termsUrl
         ? html`<label class="shop-check"
@@ -718,16 +728,21 @@ export function checkoutPage(options: {
               ${field('email', t('Email'), values.email, { type: 'email', autocomplete: 'email', wide: true, required: true })}
               ${addressFields('billing', values.billing, 'billing')}
             </div>
-            <details class="shop-more" ${values.wantsInvoice ? raw(' open') : ''}>
-              <summary>${t('I need an invoice')}</summary>
-              <input type="hidden" name="wantsInvoice" value="1" />
-              <div class="shop-fields" style="margin-top:.75rem">
-                ${field('invoice.taxCode', t('Tax code (codice fiscale)'), values.invoice.taxCode)}
-                ${field('invoice.vatNumber', t('VAT number (partita IVA)'), values.invoice.vatNumber)}
-                ${field('invoice.sdi', t('Recipient code (SDI)'), values.invoice.sdi)}
-                ${field('invoice.pec', t('PEC'), values.invoice.pec, { type: 'email' })}
-              </div>
-            </details>
+            ${
+              // Italy's electronic invoice (codice fiscale, SDI, PEC): Italian shops only (1.19.2).
+              (options.countries?.base || 'IT') !== 'IT'
+                ? ''
+                : html`<details class="shop-more" ${values.wantsInvoice ? raw(' open') : ''}>
+                    <summary>${t('I need an invoice')}</summary>
+                    <input type="hidden" name="wantsInvoice" value="1" />
+                    <div class="shop-fields" style="margin-top:.75rem">
+                      ${field('invoice.taxCode', t('Tax code (codice fiscale)'), values.invoice.taxCode)}
+                      ${field('invoice.vatNumber', t('VAT number (partita IVA)'), values.invoice.vatNumber)}
+                      ${field('invoice.sdi', t('Recipient code (SDI)'), values.invoice.sdi)}
+                      ${field('invoice.pec', t('PEC'), values.invoice.pec, { type: 'email' })}
+                    </div>
+                  </details>`
+            }
             <details class="shop-more" ${values.differentShipping ? raw(' open') : ''}>
               <summary>${t('Ship to a different address')}</summary>
               <label class="shop-check"

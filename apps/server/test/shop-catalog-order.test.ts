@@ -181,6 +181,9 @@ describe('the catalog’s order and the cards’ short description', () => {
     expect(select).toMatch(/^\s*<option value="US"\s+selected>/);
     expect(select).not.toContain('value="IT"');
     expect(page).not.toContain('We do not ship to this address');
+    // Italy's e-invoice fields and the EU's withdrawal line: not for a US shop (1.19.2).
+    expect(page).not.toContain('I need an invoice');
+    expect(page).not.toContain('withdraw from the purchase');
   });
 
   it('takes formatted short descriptions for products already there, by code', async () => {
