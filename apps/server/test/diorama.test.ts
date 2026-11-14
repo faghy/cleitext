@@ -288,6 +288,91 @@ describe('Diorama', () => {
     expect(list.sliders[0].title).toBe('Imported');
   });
 
+  it('takes MetaSlider sliders of a WordPress import, as many as the site may have', async () => {
+    const host = app.get(PluginHost);
+    const metaslider = (id: number, title: string) => ({
+      id: '',
+      title,
+      alias: `metaslider-${id}`,
+      from: 'metaslider',
+      data: {
+        v: 1,
+        type: 'slider',
+        slides: [{ name: 'One', background: { kind: 'color', color: '#123456' } }],
+      },
+    });
+    const run = () =>
+      host.applyFilter(
+        'import.pluginData',
+        null,
+        {
+          siteId: site.id,
+          slug: 'diorama',
+          data: { version: 1, sliders: [metaslider(12, 'Spring'), metaslider(13, 'Summer')] },
+          idMap: { entries: {}, terms: {}, media: {} },
+          userId: '',
+        },
+        site.id,
+      );
+    // The site has its one slider already: none fits without Diorama Pro.
+    const refused = await run();
+    expect(refused?.warnings).toContain(
+      'Diorama: 2 slider(s) not imported, as the site may have 1 without Diorama Pro: Spring, Summer. Activate Diorama Pro, then import again.',
+    );
+    const api = (globalThis as unknown as Record<symbol, { sliderLimit: (() => number)[] }>)[
+      Symbol.for('cleitext.diorama')
+    ]!;
+    api.sliderLimit.push(() => Infinity);
+    try {
+      expect((await run())?.warnings).toContain('Diorama: 2 sliders imported.');
+      // Again: the same sliders, updated.
+      await run();
+      const list = (await admin.get(ext('/sliders'))).json();
+      expect(list.sliders.map((s: { alias: string }) => s.alias).sort()).toEqual(
+        expect.arrayContaining(['metaslider-12', 'metaslider-13']),
+      );
+      expect(list.count).toBe(3);
+      // MetaSlider's shortcode and block find them.
+      const blocks = await host.applyFilter(
+        'import.shortcode',
+        null,
+        {
+          siteId: site.id,
+          tag: 'metaslider',
+          attrs: { id: '12' },
+          content: null,
+          text: '[metaslider id=12]',
+        },
+        site.id,
+      );
+      expect(blocks?.[0]).toMatchObject({
+        type: 'diorama/slider',
+        attrs: { slider: 'metaslider-12', alias: 'metaslider-12' },
+      });
+      const block = await host.applyFilter(
+        'import.block',
+        null,
+        {
+          siteId: site.id,
+          name: 'metaslider/slider',
+          attrs: { slideshowId: 13 },
+          html: '',
+          children: [],
+        },
+        site.id,
+      );
+      expect(block?.[0]?.attrs).toMatchObject({ slider: 'metaslider-13' });
+    } finally {
+      api.sliderLimit.pop();
+      for (const s of (await admin.get(ext('/sliders'))).json().sliders as {
+        id: string;
+        alias: string;
+      }[])
+        if (s.alias.startsWith('metaslider-'))
+          await admin.request('DELETE', ext(`/sliders/${s.id}`));
+    }
+  });
+
   it('moves sliders and their pictures to another site through an archive', async () => {
     const host = app.get(PluginHost);
     const storage = new DiskStorage(app.get<AppConfig>(APP_CONFIG).media.path);

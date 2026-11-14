@@ -405,6 +405,18 @@ export const REPORT_IT: Record<string, string> = {
     'Le impostazioni del sito di Fresco (colori e font globali, layout, stile del tema) sono state aggiornate dal sito importato.',
   'Diorama: {n} slider imported.': 'Diorama: {n} slider importato.',
   'Diorama: {n} sliders imported.': 'Diorama: {n} slider importati.',
+  'Diorama: {n} slider(s) not imported, as the site may have {limit} without Diorama Pro: {titles}. Activate Diorama Pro, then import again.':
+    'Diorama: {n} slider non importati, perché senza Diorama Pro il sito può averne {limit}: {titles}. Attiva Diorama Pro, poi importa di nuovo.',
+  '{n} MetaSlider slider(s) were converted for Diorama ({types}), with their pictures, captions, links, effect, timing and navigation: activate Diorama before importing to keep them.':
+    '{n} slider di MetaSlider sono stati convertiti per Diorama ({types}), con immagini, didascalie, link, effetto, tempi e navigazione: attiva Diorama prima di importare per conservarli.',
+  "{n} MetaSlider slider(s) are not shown by any imported content (they may be in a theme's options or a widget): {titles}.":
+    '{n} slider di MetaSlider non sono mostrati da nessun contenuto importato (potrebbero stare nelle opzioni del tema o in un widget): {titles}.',
+  "Nivo and Coin sliders' effects became Diorama's closest transitions (fade or slide).":
+    'Gli effetti degli slider Nivo e Coin sono diventati le transizioni più vicine di Diorama (dissolvenza o scorrimento).',
+  '{n} MetaSlider slide(s) were left out: their picture is not in the export.':
+    "{n} slide di MetaSlider sono state escluse: la loro immagine non è nell'esportazione.",
+  '{n} MetaSlider slide(s) of the kind "{kind}" were left out: Diorama has no counterpart yet.':
+    '{n} slide di MetaSlider del tipo "{kind}" sono state escluse: Diorama non ha ancora un equivalente.',
   'Cleishop: the data of product {id} were not valid ({error}).':
     'Cleishop: i dati del prodotto {id} non erano validi ({error}).',
   'Cleishop: product {id} not saved: {error}': 'Cleishop: prodotto {id} non salvato: {error}',

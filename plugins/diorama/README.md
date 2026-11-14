@@ -45,6 +45,8 @@ The free version keeps **one slider per site**, with as many slides as you like 
    - the shortcode `[diorama alias="home"]` (or `id="…"`) alone in a paragraph, anywhere blocks go: WordPress pages imported with it get the block;
    - in a theme, the same block in a block area or a template.
 
+**From MetaSlider** (Diorama 1.4, with the WordPress Importer 1.40): a WordPress site's MetaSlider slideshows (Flex, Nivo, Responsive and Coin) become Diorama sliders, with their pictures, captions, links, alternative texts, effect, timing, autoplay, arrows, dots and size; `[metaslider id="…"]`, `[ml-slider id="…"]` and MetaSlider's block show the imported slider (its alias is `metaslider-<id>`). The import keeps as many sliders as the site may have (one without Diorama Pro), the ones pages show first; the report lists the others, and importing again updates the sliders already imported.
+
 Sliders are kept in the plugin's table, so they are in Cleitext's **backups**, and `cleitext export` / `import` move them with the site (plugin API 1.46): pictures and the pages buttons lead to are remapped to the new site's. A second slider is refused only when it is made: what you have keeps working and stays editable.
 
 ## For developers: extending Diorama (Diorama Pro)

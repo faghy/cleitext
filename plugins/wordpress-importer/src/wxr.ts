@@ -66,6 +66,7 @@ import { wxrAdditionalCss } from './additional-css.js';
 import { DIVI_TAXONOMIES, DIVI_TYPES, prepareDivi, type DiviItem } from './divi-site.js';
 import { diviPageCss, diviToFresco } from '@cleitext/blocks/divi';
 import { shortcodeSkus, WOO_TAXONOMIES, wooProduct } from './woocommerce.js';
+import { METASLIDER_TYPES, metasliderIds, metasliderToDiorama } from './metaslider.js';
 import type { CxdBlock } from '@cleitext/blocks';
 import type { TransferDocumentInput, TransferMenuItem } from '@cleitext/blocks/transfer';
 import type { WxrMetaAuthor, WxrMetaInput, WxrMetaItem, WxrMetaTerm } from '@cleitext/plugin-sdk';
@@ -958,6 +959,33 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       });
     }
   }
+  // ---- MetaSlider → Diorama -------------------------------------------------------------
+  const shown = new Set<number>();
+  for (const item of items) {
+    if (METASLIDER_TYPES.has(text(item['wp:post_type']))) continue;
+    for (const source of [text(item['content:encoded']), meta(item, '_elementor_data') ?? '']) {
+      if (/metaslider|ml-slider/.test(source)) for (const n of metasliderIds(source)) shown.add(n);
+    }
+  }
+  const metaslider = metasliderToDiorama(items, shown, {
+    media: (attachment) => {
+      const ref = attachmentRefs.get(attachment);
+      const url = ref ? mediaUrls.get(ref) : undefined;
+      const found = itemsById.get(attachment);
+      if (!ref || !url) return undefined;
+      return {
+        id: ref,
+        url,
+        caption: found ? stripTags(text(found['excerpt:encoded'])).trim() : '',
+        alt: found ? (meta(found, '_wp_attachment_image_alt') ?? '') : '',
+      };
+    },
+    link: (url) => relativeTo(url, baseUrl),
+  });
+  if (metaslider.data) {
+    plugins.diorama = metaslider.data;
+    warnings.push(...metaslider.warnings);
+  }
   if (shopProducts.length > 0 || brandLogos.length > 0) {
     plugins.shop = {
       products: shopProducts,
@@ -1445,6 +1473,9 @@ const INTERNAL_TYPES = new Set([
   'user_request',
   'elementor_library',
   'elementor_snippet',
+  // MetaSlider's slideshows and slides: Diorama's sliders (plugin data), not content.
+  'ml-slider',
+  'ml-slide',
   'elementor_font',
   'elementor_icons',
   // Elementor 4: components and global classes (imported into Fresco, not as content).

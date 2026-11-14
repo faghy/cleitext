@@ -35,6 +35,7 @@ import {
   blockFromShortcode,
   exportSliders,
   importedSliders,
+  metasliderBlock,
   replaceShortcodes,
 } from './transfer';
 
@@ -401,6 +402,15 @@ export default definePlugin({
               const block = blockFromShortcode(attrs, `b_${randomBytes(8).toString('hex')}`);
               return block ? [block] : null;
             })()
+          : metasliderBlock(tag, attrs)),
+    );
+    // MetaSlider's block (the WordPress importer brings its sliders as `metaslider-<id>`).
+    ctx.hooks.filter(
+      'import.block',
+      (blocks, { name, attrs }) =>
+        blocks ??
+        (name === 'metaslider/slider'
+          ? metasliderBlock('metaslider', { id: String(attrs.slideshowId ?? '') })
           : null),
     );
 
@@ -413,8 +423,32 @@ export default definePlugin({
       if (slug !== ctx.plugin.slug) return result;
       const warnings: string[] = [];
       let count = 0;
+      const limit = await sliderLimit(api, siteId, warn);
+      const over: string[] = [];
       for (const item of importedSliders(data)) {
         const sliderData = normalizeSlider(item.data);
+        // Sliders of another plugin (a WordPress import): again on a new import, and as
+        // many as the site may have.
+        if (item.from) {
+          const same = item.alias ? await store.byAlias(siteId, item.alias) : null;
+          if (same?.alias === item.alias) {
+            await store.update(siteId, same.id, { title: item.title, data: sliderData });
+            count++;
+            continue;
+          }
+          if ((await store.count(siteId)) >= limit) {
+            over.push(item.title);
+            continue;
+          }
+          await store.create(siteId, {
+            title: item.title,
+            alias: item.alias,
+            data: sliderData,
+            userId: userId || null,
+          });
+          count++;
+          continue;
+        }
         const existing = UUID.test(item.id) ? await store.get(siteId, item.id) : null;
         if (existing) {
           await store.update(siteId, existing.id, { title: item.title, data: sliderData });
@@ -444,6 +478,10 @@ export default definePlugin({
       }
       await invalidate(siteId);
       warnings.push(`Diorama: ${count} slider${count === 1 ? '' : 's'} imported.`);
+      if (over.length)
+        warnings.push(
+          `Diorama: ${over.length} slider(s) not imported, as the site may have ${limit} without Diorama Pro: ${over.join(', ')}. Activate Diorama Pro, then import again.`,
+        );
       return { warnings: [...(result?.warnings ?? []), ...warnings] };
     });
 

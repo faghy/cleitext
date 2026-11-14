@@ -15,6 +15,8 @@ export interface ExportedSlider {
   title: string;
   alias: string;
   data: unknown;
+  /** Converted from another plugin's slider (`metaslider`): found again by its alias. */
+  from?: string;
 }
 
 export interface ExportData {
@@ -63,6 +65,7 @@ export function importedSliders(data: unknown): ExportedSlider[] {
         title: typeof o.title === 'string' ? o.title : 'Slider',
         alias: typeof o.alias === 'string' ? o.alias : '',
         data: o.data,
+        ...(typeof o.from === 'string' && o.from ? { from: o.from } : {}),
       },
     ];
   });
@@ -81,6 +84,22 @@ export function parseShortcode(text: string): Record<string, string> | null {
     attrs[a[1]!.toLowerCase()] = (a[2] ?? a[3] ?? a[4] ?? '').trim();
   }
   return attrs;
+}
+
+/** MetaSlider's shortcode (`[metaslider id="12"]`, `[ml-slider id=12]`) → the imported slider's block. */
+export function metasliderBlock(tag: string, attrs: Record<string, string>): CxdBlock[] | null {
+  if (!/^(metaslider|ml-slider)$/i.test(tag)) return null;
+  const id = /^\d+$/.test((attrs.id ?? '').trim()) ? attrs.id!.trim() : '';
+  if (!id) return null;
+  const alias = `metaslider-${id}`;
+  return [
+    {
+      id: `b_${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16).slice(-8)}`,
+      type: BLOCK_TYPE,
+      v: 1,
+      attrs: { slider: alias, alias },
+    },
+  ];
 }
 
 /** The slider block a shortcode stands for. */
