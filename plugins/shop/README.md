@@ -207,7 +207,7 @@ Importer, WooCommerce's product shortcodes in pages (`[products]`,
 `[add_to_cart]`) become **Products** blocks with the same choice, number and
 category. Products chosen one by one show by their codes (the block's
 "Only these products" field); the importer writes the codes of the
-WordPress ids. Short descriptions keep their formatting for the cards
+WordPress ids. Products imported before can get theirs with `POST /api/v1/ext/shop/products/excerpts` (1.19.1: `{ items: [{ sku | slug | id, html }] }`, up to 500, simple HTML kept). Short descriptions keep their formatting for the cards
 (Settings → Cleishop → "With its formatting"); the entry's own excerpt stays
 plain text, as pages use it for their description.
 

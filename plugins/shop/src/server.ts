@@ -16,8 +16,8 @@ import {
   saveProductSchema,
 } from './products';
 import { attributes, customers, products as productsTable, type OrderStatus } from './schema';
-import { backfill, BRAND, CATEGORY, PRODUCT, syncProduct, watchEntries } from './sync';
-import { eq } from 'drizzle-orm';
+import { backfill, BRAND, CATEGORY, PRODUCT, safeExcerpt, syncProduct, watchEntries } from './sync';
+import { and, eq } from 'drizzle-orm';
 import { orderDetail } from './order-admin';
 import { orderMail, registerOrderRoutes } from './orders-routes';
 import { productTags, registerBuyBox } from './buy-box';
@@ -629,6 +629,63 @@ export default definePlugin({
         }
       }
       return { body: { images } };
+    });
+
+    /**
+     * Short descriptions with their formatting (1.19.1), for products already
+     * there (e.g. imported before 1.18): by id, code or address name. The
+     * entry's own excerpt stays plain text (pages use it as their description);
+     * the cards show these when "With its formatting" is on.
+     */
+    api('POST', '/products/excerpts', async (request) => {
+      const input = z
+        .object({
+          locale: z.string().max(20).optional(),
+          items: z
+            .array(
+              z
+                .object({
+                  id: z.string().regex(UUID_RE).optional(),
+                  sku: z.string().trim().min(1).max(100).optional(),
+                  slug: z.string().trim().min(1).max(200).optional(),
+                  html: z.string().max(20_000),
+                })
+                .refine((i) => i.id || i.sku || i.slug, 'id, sku or slug'),
+            )
+            .min(1)
+            .max(500),
+        })
+        .safeParse(request.body ?? {});
+      if (!input.success) return invalid(input.error);
+      const { locale, items } = input.data;
+      return {
+        body: await ctx.db.transaction(request.siteId, async (tx) => {
+          let updated = 0;
+          const missing: string[] = [];
+          const ids: string[] = [];
+          for (const item of items) {
+            const where = and(
+              item.id
+                ? eq(productsTable.entryId, item.id)
+                : item.sku
+                  ? eq(productsTable.sku, item.sku)
+                  : eq(productsTable.slug, item.slug!),
+              ...(locale ? [eq(productsTable.locale, locale)] : []),
+            );
+            const rows = await tx
+              .update(productsTable)
+              .set({ excerpt: safeExcerpt(item.html), updatedAt: new Date() })
+              .where(where)
+              .returning({ id: productsTable.entryId });
+            if (rows.length) {
+              updated += rows.length;
+              ids.push(...rows.map((r) => r.id));
+            } else missing.push(item.id ?? item.sku ?? item.slug!);
+          }
+          await refresh(request.siteId, ids);
+          return { updated, missing };
+        }),
+      };
     });
 
     api('GET', '/products/:id', async (request) => {

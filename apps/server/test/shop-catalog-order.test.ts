@@ -182,4 +182,22 @@ describe('the catalog’s order and the cards’ short description', () => {
     expect(select).not.toContain('value="IT"');
     expect(page).not.toContain('We do not ship to this address');
   });
+
+  it('takes formatted short descriptions for products already there, by code', async () => {
+    const saved = await admin.post('/api/v1/ext/shop/products/excerpts', {
+      items: [
+        { sku: 'A-1', html: '<h2>Notes</h2><p>The <em>first</em> one.</p><script>x</script>' },
+        { sku: 'ZZ-9', html: '<p>Nobody</p>' },
+      ],
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(saved.json()).toEqual({ updated: 1, missing: ['ZZ-9'] });
+    await admin.request('PATCH', '/api/v1/plugins/shop/settings', {
+      cardExcerpt: true,
+      cardExcerptHtml: true,
+    });
+    const page = (await new TestClient(app, site.host, '10.98.0.10').get('/shop')).body;
+    expect(page).toContain('<h2>Notes</h2><p>The <em>first</em> one.</p>');
+    expect(page).not.toContain('<script>x');
+  });
 });
