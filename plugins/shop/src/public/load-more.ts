@@ -19,6 +19,16 @@ async function more(link: HTMLAnchorElement): Promise<void> {
     const cards = next.querySelectorAll('.shop-catalog .shop-grid > li');
     const first = cards[0] as HTMLElement | undefined;
     for (const card of Array.from(cards)) grid.appendChild(document.importNode(card, true));
+    // "Showing 1–48 of 60": from this page's first product to the new page's last.
+    const count = document.querySelector<HTMLElement>('.shop-result-count');
+    const to = next.querySelector<HTMLElement>('.shop-result-count')?.dataset.to;
+    if (count && to) {
+      const { from = '1', total = '', some = '', all = '' } = count.dataset;
+      count.dataset.to = to;
+      const fill = (template: string) =>
+        template.replace('{from}', from).replace('{to}', to).replace('{n}', total);
+      count.textContent = from === '1' && to === total ? fill(all) : fill(some);
+    }
     const nextLink = next.querySelector<HTMLAnchorElement>('[data-shop-more]');
     if (nextLink) {
       link.href = nextLink.getAttribute('href') ?? link.href;

@@ -408,7 +408,15 @@ export function catalogPage(options: {
     title: t('Sort by name'),
   };
   const toolbar = html`<div class="shop-toolbar">
-    <p style="margin:0">
+    <p
+      style="margin:0"
+      class="shop-result-count"
+      data-from="${String(from)}"
+      data-to="${String(to)}"
+      data-total="${String(result.total)}"
+      data-some="${t('Showing {from}–{to} of {n} products')}"
+      data-all="${t('Showing all {n} products')}"
+    >
       ${
         result.total === 0
           ? ''
