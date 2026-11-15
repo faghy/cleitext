@@ -16,6 +16,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { DEFAULTS, MODULES, moduleOn, type Config } from './config.js';
+import { boxFieldType } from './box.js';
 import { AnalysisPanel } from './panel.js';
 import {
   breadcrumbFields,
@@ -461,6 +462,8 @@ function IndexNowBox(props: AdminPageProps & { tr: (en: string, it: string) => s
 }
 
 export default defineAdminPlugin({
+  // Vetta's box in the editor and on the term screens (plugin API 1.49).
+  fieldTypes: [boxFieldType],
   editorPanels: [
     {
       id: 'vetta-analysis',

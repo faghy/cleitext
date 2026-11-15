@@ -9,6 +9,8 @@ import { lines, moduleOn, text, typeValue, value, type Config } from './config.j
 export interface Crumb {
   title: string;
   url: string;
+  /** The whole title, when the crumb shows a shorter name (the link's tooltip). */
+  fullTitle?: string;
 }
 
 export interface GraphInput {

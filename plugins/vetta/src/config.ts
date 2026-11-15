@@ -297,3 +297,28 @@ export function searchTitle(title: string, rawTitle: unknown): string {
     ? rawTitle
     : title;
 }
+
+/** The field group of Vetta's fields on terms (categories, tags and other taxonomies). */
+export const TERM_GROUP = 'vetta-term';
+
+/**
+ * A term's Vetta fields (field group `vetta-term`), in the shape of an
+ * entry's: search title and description, keywords, robots, canonical and
+ * the social card.
+ */
+export function termSeo(fields: Record<string, unknown> | undefined): EntrySeo {
+  const own = (fields?.[TERM_GROUP] ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const bool = (v: unknown) => (typeof v === 'boolean' ? v : null);
+  return {
+    title: str(own.title),
+    description: str(own.description),
+    keywords: str(own.keywords),
+    noindex: bool(own.noindex),
+    nofollow: bool(own.nofollow),
+    canonical: str(own.canonical),
+    ogTitle: str(own.ogTitle),
+    ogDescription: str(own.ogDescription),
+    ogImage: str(own.ogImage),
+  };
+}

@@ -1,17 +1,31 @@
 /**
- * The analysis in the editor's sidebar: a Google preview, the score out of
- * 100 for each keyword and the checklist, following the page as it is
- * written (the unsaved draft, API 1.24).
+ * The analysis in the editor: a Google preview, the score out of 100 for
+ * each keyword and the checklist, following the page as it is written (the
+ * unsaved draft, API 1.24). It shows in Vetta's box, under the keywords,
+ * title and description (`box.tsx`); the editor panel gives the box the
+ * draft, and shows the whole analysis itself only where there is no box.
  */
-import type { EditorPanelProps } from '@cleitext/admin-sdk';
+import type {
+  AdminPageProps,
+  EditorDraft,
+  EditorEntry,
+  EditorPanelProps,
+} from '@cleitext/admin-sdk';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
-import { analyze, scoreLevel, type Group, type Status, type TestResult } from './analysis.js';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import {
+  analyze,
+  scoreLevel,
+  type Analysis,
+  type Group,
+  type Status,
+  type TestResult,
+} from './analysis.js';
 import { entrySeo, keywordsOf, moduleOn, text, typeValue, type Config } from './config.js';
 import { plainDescription, replaceVariables } from './variables.js';
 
-const LEVEL_COLORS = { great: '#047857', good: '#b45309', bad: '#b91c1c' } as const;
-const STATUS_ICON: Record<Status, string> = {
+export const LEVEL_COLORS = { great: '#047857', good: '#b45309', bad: '#b91c1c' } as const;
+export const STATUS_ICON: Record<Status, string> = {
   pass: '✓',
   good: '◐',
   ok: '◐',
@@ -19,7 +33,7 @@ const STATUS_ICON: Record<Status, string> = {
   fail: '✕',
   info: 'ℹ',
 };
-const STATUS_COLOR: Record<Status, string> = {
+export const STATUS_COLOR: Record<Status, string> = {
   pass: '#047857',
   good: '#b45309',
   ok: '#b45309',
@@ -44,7 +58,7 @@ function useSettled<T>(value: T, ms = 400): T {
   return settled;
 }
 
-function Score({ score, size = 44 }: { score: number; size?: number }) {
+export function Score({ score, size = 44 }: { score: number; size?: number }) {
   const color = LEVEL_COLORS[scoreLevel(score)];
   return (
     <span
@@ -67,60 +81,124 @@ function Score({ score, size = 44 }: { score: number; size?: number }) {
   );
 }
 
-export function AnalysisPanel(props: EditorPanelProps) {
-  const { entry } = props;
-  const it = props.user.locale.startsWith('it');
-  const tr = (en: string, itText: string) => (it ? itText : en);
-  const draft = useSettled(props.draft);
+// ---- The editor as the panel sees it, for Vetta's box -----------------------------------
+
+/** What the editor panel knows and the box (a field, which gets only its values) does not. */
+export interface EditorSnapshot {
+  entry: EditorEntry;
+  draft: EditorDraft;
+  api: AdminPageProps['api'];
+}
+
+let snapshot: EditorSnapshot | null = null;
+let boxes = 0;
+const listeners = new Set<() => void>();
+const notify = () => {
+  for (const listener of listeners) listener();
+};
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+/** The entry being edited, as the editor panel last saw it (null without one). */
+export function useEditorSnapshot(): EditorSnapshot | null {
+  return useSyncExternalStore(subscribe, () => snapshot);
+}
+
+/** Vetta's box is on screen: the panel then leaves the analysis to it. */
+export function useBoxMounted(): void {
+  useEffect(() => {
+    boxes++;
+    notify();
+    return () => {
+      boxes--;
+      notify();
+    };
+  }, []);
+}
+
+const useBoxShown = () => useSyncExternalStore(subscribe, () => boxes > 0);
+
+/** Asks the box to open and scroll into view. */
+export const OPEN_BOX_EVENT = 'vetta:open-box';
+
+// ---- The analysis -----------------------------------------------------------------------
+
+export interface AnalysisState {
+  /** False when the analysis module is switched off. */
+  enabled: boolean;
+  preview: { title: string; description: string; path: string } | null;
+  result: Analysis | null;
+}
+
+/**
+ * The analysis of the entry being edited. `values` are Vetta's fields as
+ * typed (the box has them before the draft does).
+ */
+export function useAnalysis(
+  source: EditorSnapshot | null,
+  values?: Record<string, unknown>,
+): AnalysisState {
+  const draft = useSettled(source?.draft);
+  // As typed, a moment after the last key: the analysis does not run on every key.
+  const typed = useSettled(values);
+  const entry = source?.entry;
+  const api = source?.api;
   const editorConfig = useQuery({
     queryKey: ['vetta', 'editor-config'],
-    queryFn: () => props.api<{ config: Config; siteName: string }>('GET', '/editor-config'),
+    queryFn: () => api!<{ config: Config; siteName: string }>('GET', '/editor-config'),
+    enabled: Boolean(api),
     staleTime: 60_000,
   });
-  const seo = entrySeo(draft?.fields);
+  const fields = useMemo(
+    () => (typed ? { ...draft?.fields, vetta: typed } : draft?.fields),
+    [draft?.fields, typed],
+  );
+  const seo = entrySeo(fields);
   const keywords = keywordsOf(seo);
+  const keywordsKey = keywords.join(',');
   const main = keywords[0] ?? '';
   const used = useQuery({
-    queryKey: ['vetta', 'keyword-used', main, entry.id],
+    queryKey: ['vetta', 'keyword-used', main, entry?.id],
     queryFn: () =>
-      props.api<{ title: string; url: string } | null>(
+      api!<{ title: string; url: string } | null>(
         'GET',
-        `/keyword-used?keyword=${encodeURIComponent(main)}&id=${encodeURIComponent(entry.id)}&locale=${encodeURIComponent(entry.locale)}`,
+        `/keyword-used?keyword=${encodeURIComponent(main)}&id=${encodeURIComponent(entry!.id)}&locale=${encodeURIComponent(entry!.locale)}`,
       ),
-    enabled: Boolean(main),
+    enabled: Boolean(main && api && entry),
     staleTime: 60_000,
   });
-  const [open, setOpen] = useState<Group | null>('basic');
 
-  const config = editorConfig.data?.config ?? {};
+  const config = editorConfig.data?.config;
   const siteName = editorConfig.data?.siteName ?? '';
   const preview = useMemo(() => {
-    if (!draft) return null;
+    if (!draft || !entry) return null;
+    const c = config ?? {};
     const vars = {
-      sep: text(config, 'separator') || '–',
+      sep: text(c, 'separator') || '–',
       sitename: siteName,
       title: draft.title,
       excerpt: plainDescription(draft.excerpt ?? ''),
-      keywords,
+      keywords: keywordsKey ? keywordsKey.split(',') : [],
       locale: entry.locale,
     };
     const title =
-      replaceVariables(seo.title || String(typeValue(config, entry.type, 'title') ?? ''), vars) ||
+      replaceVariables(seo.title || String(typeValue(c, entry.type, 'title') ?? ''), vars) ||
       draft.title;
     const description = plainDescription(
       replaceVariables(
-        seo.description || String(typeValue(config, entry.type, 'description') ?? ''),
+        seo.description || String(typeValue(c, entry.type, 'description') ?? ''),
         vars,
       ),
     );
-    const path = `/${draft.slug}`;
-    return { title, description, path };
-  }, [draft, config, siteName, seo.title, seo.description, keywords, entry.locale, entry.type]);
+    return { title, description, path: `/${draft.slug}` };
+  }, [draft, entry, config, siteName, seo.title, seo.description, keywordsKey]);
 
   const result = useMemo(() => {
-    if (!draft || !preview || keywords.length === 0) return null;
+    if (!draft || !preview || !entry || !keywordsKey) return null;
     return analyze({
-      keywords,
+      keywords: keywordsKey.split(','),
       title: preview.title,
       description: preview.description,
       url: preview.path,
@@ -130,19 +208,27 @@ export function AnalysisPanel(props: EditorPanelProps) {
       host: window.location.host,
       usedBy: used.data ?? null,
     });
-  }, [draft, preview, keywords, entry.locale, used.data]);
+  }, [draft, preview, keywordsKey, entry, used.data]);
 
-  if (!props.draft) {
-    return (
-      <p className="text-sm text-slate-600">
-        {tr(
-          'Update Cleitext to see the analysis while you write.',
-          'Aggiorna Cleitext per vedere l’analisi mentre scrivi.',
-        )}
-      </p>
-    );
-  }
-  if (editorConfig.data && !moduleOn(config, 'analysis')) {
+  return { enabled: !config || moduleOn(config, 'analysis'), preview, result };
+}
+
+/** The Google preview, the score of each keyword and the checklist. */
+export function AnalysisView({
+  analysis,
+  locale,
+  showScore = true,
+}: {
+  analysis: AnalysisState;
+  locale: string;
+  /** The box shows the score in its header already. */
+  showScore?: boolean;
+}) {
+  const it = locale.startsWith('it');
+  const tr = (en: string, itText: string) => (it ? itText : en);
+  const [open, setOpen] = useState<Group | null>('basic');
+  const { preview, result } = analysis;
+  if (!analysis.enabled) {
     return (
       <p className="text-sm text-slate-600">
         {tr(
@@ -152,12 +238,11 @@ export function AnalysisPanel(props: EditorPanelProps) {
       </p>
     );
   }
-
   return (
     <div className="space-y-3 text-sm">
       {preview && (
         <div
-          className="rounded border border-slate-200 p-2"
+          className="rounded border border-slate-200 bg-white p-2"
           aria-label={tr('Preview in Google', 'Anteprima su Google')}
         >
           <div className="truncate text-xs text-slate-600">
@@ -190,27 +275,29 @@ export function AnalysisPanel(props: EditorPanelProps) {
       {!result && (
         <p className="text-slate-600">
           {tr(
-            'Write the keywords in the SEO fields of this page (the first is the main one): the analysis checks the page against them.',
-            'Scrivi le parole chiave nei campi SEO di questa pagina (la prima è la principale): l’analisi controlla la pagina su queste.',
+            'Write the keywords (the first is the main one): the analysis checks the page against them.',
+            'Scrivi le parole chiave (la prima è la principale): l’analisi controlla la pagina su queste.',
           )}
         </p>
       )}
       {result && (
         <>
-          <div className="flex items-center gap-3">
-            <Score score={result.score} />
-            <div>
-              <div className="font-medium">{tr('SEO score', 'Punteggio SEO')}</div>
-              <div className="text-xs text-slate-600">
-                {result.words} {tr('words', 'parole')}
+          {showScore && (
+            <div className="flex items-center gap-3">
+              <Score score={result.score} />
+              <div>
+                <div className="font-medium">{tr('SEO score', 'Punteggio SEO')}</div>
+                <div className="text-xs text-slate-600">
+                  {result.words} {tr('words', 'parole')}
+                </div>
               </div>
             </div>
-          </div>
+          )}
           <div className="flex flex-wrap gap-1">
             {result.keywords.map((k, i) => (
               <span
                 key={k.keyword}
-                className="rounded-full border px-2 py-0.5 text-xs"
+                className="rounded-full border bg-white px-2 py-0.5 text-xs"
                 style={{
                   borderColor: LEVEL_COLORS[scoreLevel(k.score)],
                   color: LEVEL_COLORS[scoreLevel(k.score)],
@@ -227,7 +314,7 @@ export function AnalysisPanel(props: EditorPanelProps) {
             if (tests.length === 0) return null;
             const failing = tests.filter((t) => t.status !== 'pass' && t.status !== 'info').length;
             return (
-              <div key={group} className="rounded border border-slate-200">
+              <div key={group} className="rounded border border-slate-200 bg-white">
                 <button
                   type="button"
                   className="flex w-full items-center justify-between px-2 py-1.5 text-left font-medium"
@@ -239,21 +326,7 @@ export function AnalysisPanel(props: EditorPanelProps) {
                     {failing ? `${failing} ✕` : '✓'}
                   </span>
                 </button>
-                {open === group && (
-                  <ul className="space-y-1 px-2 pb-2">
-                    {tests.map((t: TestResult) => (
-                      <li key={t.id} className="flex gap-2">
-                        <span
-                          aria-hidden="true"
-                          style={{ color: STATUS_COLOR[t.status], fontWeight: 700 }}
-                        >
-                          {STATUS_ICON[t.status]}
-                        </span>
-                        <span>{it ? t.text.it : t.text.en}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {open === group && <Checklist tests={tests} locale={locale} />}
               </div>
             );
           })}
@@ -261,4 +334,76 @@ export function AnalysisPanel(props: EditorPanelProps) {
       )}
     </div>
   );
+}
+
+export function Checklist({ tests, locale }: { tests: TestResult[]; locale: string }) {
+  const it = locale.startsWith('it');
+  return (
+    <ul className="space-y-1 px-2 pb-2">
+      {tests.map((t) => (
+        <li key={t.id} className="flex gap-2">
+          <span aria-hidden="true" style={{ color: STATUS_COLOR[t.status], fontWeight: 700 }}>
+            {STATUS_ICON[t.status]}
+          </span>
+          <span>{it ? t.text.it : t.text.en}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The editor panel: it gives Vetta's box the draft; with the box on screen
+ * it shows only the score and a link to the box, otherwise the analysis.
+ */
+export function AnalysisPanel(props: EditorPanelProps) {
+  const it = props.user.locale.startsWith('it');
+  const tr = (en: string, itText: string) => (it ? itText : en);
+  const { entry, draft, api } = props;
+  const source = useMemo(() => (draft ? { entry, draft, api } : null), [entry, draft, api]);
+  useEffect(() => {
+    snapshot = source;
+    notify();
+  }, [source]);
+  useEffect(
+    () => () => {
+      snapshot = null;
+      notify();
+    },
+    [],
+  );
+  const boxShown = useBoxShown();
+  const analysis = useAnalysis(source);
+
+  if (!draft) {
+    return (
+      <p className="text-sm text-slate-600">
+        {tr(
+          'Update Cleitext to see the analysis while you write.',
+          'Aggiorna Cleitext per vedere l’analisi mentre scrivi.',
+        )}
+      </p>
+    );
+  }
+  if (boxShown) {
+    return (
+      <div className="flex items-center gap-3 text-sm">
+        {analysis.result && <Score score={analysis.result.score} size={32} />}
+        <p className="flex-1 text-slate-600">
+          {tr(
+            'Keywords, titles and the whole analysis are in the Vetta SEO section.',
+            'Parole chiave, titoli e l’analisi completa sono nella sezione Vetta SEO.',
+          )}{' '}
+          <button
+            type="button"
+            className="text-sky-700 hover:underline"
+            onClick={() => window.dispatchEvent(new Event(OPEN_BOX_EVENT))}
+          >
+            {tr('Go there', 'Vai alla sezione')}
+          </button>
+        </p>
+      </div>
+    );
+  }
+  return <AnalysisView analysis={analysis} locale={props.user.locale} />;
 }
