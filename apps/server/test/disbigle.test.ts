@@ -340,7 +340,7 @@ describe('Disbigle', () => {
     firstId = await article(
       'Hello fediverse',
       'hello-fediverse',
-      'Thanks @anna@fedi.example and @bob@mastodon.social, and hi carla@nowhere.example.',
+      'Thanks @anna@fedi.example and @bob@mastodon.social, and write to carla@nowhere.example (an email address, not a mention).',
     );
     await admin.request('PATCH', `/api/v1/entries/${firstId}`, {
       terms: { category: [category.id], tag: [{ name: 'Cleitext 2026' }] },
@@ -363,7 +363,7 @@ describe('Disbigle', () => {
         },
       },
       language: 'en',
-      mentions: ['anna@fedi.example', 'bob@mastodon.social', 'carla@nowhere.example'],
+      mentions: ['anna@fedi.example', 'bob@mastodon.social'],
       tags: ['OpenSourceWeb', 'Cleitext2026'],
     });
 
