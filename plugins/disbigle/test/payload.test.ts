@@ -98,11 +98,11 @@ describe('summary', () => {
 });
 
 describe('mentions', () => {
-  it('finds user@server with or without @, each once, in lowercase', () => {
+  it('finds @user@server each once, in lowercase; email addresses are not mentions', () => {
     expect(
       findMentions([
-        'Thanks @Anna@Disbigle.com and bob@mastodon.social!',
-        'Again @anna@disbigle.com, and carla_b@sub.example.org.',
+        'Thanks @Anna@Disbigle.com and @bob@mastodon.social! Write to info@example.com.',
+        'Again @anna@disbigle.com, and @carla_b@sub.example.org.',
       ]),
     ).toEqual(['anna@disbigle.com', 'bob@mastodon.social', 'carla_b@sub.example.org']);
   });
@@ -126,7 +126,7 @@ describe('mentions', () => {
     const payload = buildPayload(
       [
         version('en', { text: 'Hello @anna@disbigle.com' }),
-        version('it', { excerpt: 'Ciao luca@mastodon.uno' }),
+        version('it', { excerpt: 'Ciao @luca@mastodon.uno' }),
       ],
       [],
     )!;

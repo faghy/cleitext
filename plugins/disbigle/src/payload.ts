@@ -98,8 +98,11 @@ const HOST = '(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,63}';
 /** Not after a letter, a digit or part of an address (`/@user`, `x.y@host`). */
 const BEFORE = '(?<![\\p{L}\\p{N}_@/.+:-])';
 
-/** `@user@server`, the leading `@` optional (spec: written with or without). */
-export const MENTION_RE = new RegExp(`${BEFORE}@?(${USER})@(${HOST})(?![\\p{L}\\p{N}_-])`, 'giu');
+/**
+ * `@user@server` with its leading `@`, as people write mentions: a plain
+ * `name@example.com` in the text is an email address, never a mention.
+ */
+export const MENTION_RE = new RegExp(`${BEFORE}@(${USER})@(${HOST})(?![\\p{L}\\p{N}_-])`, 'giu');
 /** `@user@server` with its `@`: what is linked in the article. */
 export const LINKED_MENTION_RE = new RegExp(
   `${BEFORE}@(${USER})@(${HOST})(?![\\p{L}\\p{N}_-])`,
