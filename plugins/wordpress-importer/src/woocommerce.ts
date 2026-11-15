@@ -216,6 +216,10 @@ export function wooProduct(
     product,
     ...(attributes.length ? { attributes } : {}),
     ...(kind === 'variable' && ownVariations.length ? { variations: ownVariations } : {}),
+    // Its sales in WooCommerce, for Cleishop's best sellers.
+    ...(number(meta(item, 'total_sales')) !== null
+      ? { totalSales: Math.max(0, Math.round(number(meta(item, 'total_sales'))!)) }
+      : {}),
     upsells: related('_upsell_ids'),
     crossSells: related('_crosssell_ids'),
     // The short description with its formatting, for Cleishop's cards (the entry's is plain text).
