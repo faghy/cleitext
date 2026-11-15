@@ -21,14 +21,46 @@ export function UsersPage() {
   const roles = useQuery({ queryKey: ['roles'], queryFn: () => api<RoleView[]>('GET', '/roles') });
   const canPromote = me.capabilities.includes('promote_users');
 
-  // As in WordPress: All users, Add New User (and Roles) in the Users submenu.
-  const [tab, setTab] = useTabParam<'list' | 'add' | 'roles'>('list');
+  // As in WordPress: All users, Administrators, Add New User (and Roles) in the Users submenu.
+  const [tab, setTab] = useTabParam<'list' | 'admins' | 'add' | 'roles'>('list');
   const [notice, setNotice] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<{ by: SortKey; desc: boolean }>({ by: 'name', desc: false });
+  const all = members.data ?? [];
+  const admins = all.filter((m) => m.role.slug === 'administrator');
   const tabs = [
-    { id: 'list' as const, label: t('All users') },
+    { id: 'list' as const, label: `${t('All users')} (${all.length})` },
+    { id: 'admins' as const, label: `${t('Administrators')} (${admins.length})` },
     ...(canPromote ? [{ id: 'add' as const, label: t('Add New User') }] : []),
     { id: 'roles' as const, label: t('Roles') },
   ];
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (tab === 'admins' ? admins : all)
+    .filter((m) => {
+      const text = `${m.displayName} ${m.username ?? ''} ${m.email} ${m.role.name}`.toLowerCase();
+      return words.every((w) => text.includes(w));
+    })
+    .sort((a, b) => {
+      const order = compareMembers(a, b, sort.by) || compareMembers(a, b, 'name');
+      return sort.desc ? -order : order;
+    });
+  const header = (key: SortKey, label: string) => (
+    <th
+      className="py-2 font-medium"
+      aria-sort={sort.by === key ? (sort.desc ? 'descending' : 'ascending') : 'none'}
+    >
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 hover:text-slate-900"
+        onClick={() => setSort({ by: key, desc: sort.by === key ? !sort.desc : false })}
+      >
+        {label}
+        <span aria-hidden="true" className="text-xs">
+          {sort.by === key ? (sort.desc ? '▼' : '▲') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
 
   return (
     <div className="space-y-6">
@@ -58,27 +90,45 @@ export function UsersPage() {
           }}
         />
       )}
-      {tab === 'list' && notice && <Alert kind="success">{notice}</Alert>}
+      {(tab === 'list' || tab === 'admins') && notice && <Alert kind="success">{notice}</Alert>}
       {tab === 'roles' && <RolesCard />}
-      {tab === 'list' && (
-        <Card title={t('Members')}>
+      {(tab === 'list' || tab === 'admins') && (
+        <Card title={tab === 'admins' ? t('Administrators') : t('Members')}>
           {members.isPending && <p className="text-sm text-slate-600">{t('Loading…')}</p>}
           {members.error && <Alert>{errorMessage(members.error)}</Alert>}
           {members.data && (
+            <div className="mb-3">
+              <label className="sr-only" htmlFor="users-search">
+                {t('Search users')}
+              </label>
+              <input
+                id="users-search"
+                type="search"
+                className="w-full max-w-sm rounded border border-slate-300 px-3 py-1.5 text-sm"
+                placeholder={t('Search users')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          )}
+          {members.data && shown.length === 0 && (
+            <p className="text-sm text-slate-600">{t('No users found.')}</p>
+          )}
+          {members.data && shown.length > 0 && (
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 text-slate-600">
                 <tr>
-                  <th className="py-2 font-medium">{t('Name')}</th>
-                  <th className="py-2 font-medium">{t('Email')}</th>
-                  <th className="py-2 font-medium">{t('Role')}</th>
-                  <th className="py-2 font-medium">{t('Status')}</th>
+                  {header('name', t('Name'))}
+                  {header('email', t('Email'))}
+                  {header('role', t('Role'))}
+                  {header('status', t('Status'))}
                   <th className="py-2 font-medium">
                     <span className="sr-only">{t('Actions')}</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {members.data.map((member) => (
+                {shown.map((member) => (
                   <MemberRow
                     key={member.id}
                     member={member}
@@ -94,6 +144,24 @@ export function UsersPage() {
       )}
     </div>
   );
+}
+
+type SortKey = 'name' | 'email' | 'role' | 'status';
+
+/** WordPress's roles from the most powerful; others (the site's own) after them, by name. */
+const ROLE_RANK = ['administrator', 'editor', 'author', 'contributor', 'subscriber'];
+
+function compareMembers(a: MemberView, b: MemberView, by: SortKey): number {
+  if (by === 'role') {
+    const rank = (m: MemberView) => {
+      const i = ROLE_RANK.indexOf(m.role.slug);
+      return i < 0 ? ROLE_RANK.length : i;
+    };
+    return rank(a) - rank(b) || a.role.name.localeCompare(b.role.name);
+  }
+  const value = (m: MemberView) =>
+    by === 'name' ? m.displayName : by === 'email' ? m.email : m.status;
+  return value(a).localeCompare(value(b), undefined, { sensitivity: 'base' });
 }
 
 /** Users → Add New: an invitation, or an account with a password (as in WordPress). */

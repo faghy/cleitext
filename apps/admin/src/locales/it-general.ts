@@ -33,6 +33,7 @@ export const itGeneral: Messages = {
   'Change public pages': 'Modificare le pagine pubbliche',
   'Choose a new password': 'Scegli una nuova password',
   'Choose image': 'Scegli immagine',
+  'Upload image': 'Carica immagine',
   Code: 'Codice',
   'Content types': 'Tipi di contenuto',
   'Content, media and themes arrive in the next milestones.':

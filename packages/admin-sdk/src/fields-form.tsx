@@ -15,7 +15,9 @@ import {
   type TypographyValue,
   type ZonesValue,
 } from '@cleitext/shared';
-import { useContext, useId, useState } from 'react';
+import { useContext, useId, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { errorMessage, uploadFile } from './api.js';
 import {
   adminFieldType,
   FormOptionsContext,
@@ -1003,6 +1005,24 @@ function MediaPicker({
   const [open, setOpen] = useState(false);
   const picker = useMediaPicker(open, value);
   const { selected, items } = picker;
+  // A new picture from the computer, straight into the library and chosen (as WordPress's "Upload files").
+  const queryClient = useQueryClient();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [upload, setUpload] = useState<{ progress: number } | { error: string } | null>(null);
+  const uploadPicture = async (file: File) => {
+    setUpload({ progress: 0 });
+    try {
+      const media = await uploadFile<{ id: string }>(file, {
+        onProgress: (progress) => setUpload({ progress }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['media'] });
+      onChange(media.id);
+      setUpload(null);
+      setOpen(false);
+    } catch (error) {
+      setUpload({ error: errorMessage(error) });
+    }
+  };
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -1019,6 +1039,29 @@ function MediaPicker({
         >
           {value ? t('Change image') : t('Choose image')}
         </button>
+        <button
+          type="button"
+          disabled={disabled || (upload !== null && 'progress' in upload)}
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm hover:bg-slate-50"
+          onClick={() => fileInput.current?.click()}
+        >
+          {upload && 'progress' in upload
+            ? `${t('Uploading…')} ${Math.round(upload.progress * 100)}%`
+            : t('Upload image')}
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void uploadPicture(file);
+          }}
+        />
         {value && (
           <button
             type="button"
@@ -1030,6 +1073,11 @@ function MediaPicker({
           </button>
         )}
       </div>
+      {upload && 'error' in upload && (
+        <p role="alert" className="text-sm text-red-700">
+          {upload.error}
+        </p>
+      )}
       {open && (
         <div className="space-y-2 rounded border border-slate-200 p-2">
           <input

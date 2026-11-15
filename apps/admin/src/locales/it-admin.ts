@@ -282,6 +282,9 @@ export const itAdmin: Messages = {
   '{name} {version} needs Cleitext {requires}: update Cleitext first.':
     '{name} {version} richiede Cleitext {requires}: aggiorna prima Cleitext.',
   'All users': 'Tutti gli utenti',
+  Administrators: 'Amministratori',
+  'Search users': 'Cerca utenti',
+  'No users found.': 'Nessun utente trovato.',
   Roles: 'Ruoli',
   Tools: 'Strumenti',
   'Available tools': 'Strumenti disponibili',
