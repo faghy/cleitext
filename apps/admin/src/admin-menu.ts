@@ -113,3 +113,20 @@ export function currentTop(nodes: MenuNode[], pathname: string): MenuNode | unde
   }
   return best?.node;
 }
+
+/**
+ * The top entries in the site's order (core 0.105): each has a position, its
+ * default one (10, 20, 30… as they come) unless the site chose another;
+ * lower first, ties in the default order.
+ */
+export function inSiteOrder(nodes: MenuNode[], order: Record<string, number> = {}): MenuNode[] {
+  return nodes
+    .map((node, i) => ({ node, i, at: order[node.to] ?? (i + 1) * 10 }))
+    .sort((a, b) => a.at - b.at || a.i - b.i)
+    .map((x) => x.node);
+}
+
+/** The positions shown when the menu is reordered: the chosen ones, else 10, 20, 30… */
+export function menuPositions(nodes: MenuNode[], order: Record<string, number> = {}) {
+  return Object.fromEntries(nodes.map((n, i) => [n.to, order[n.to] ?? (i + 1) * 10]));
+}

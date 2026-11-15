@@ -503,4 +503,20 @@ describe('AI assistants and editors', () => {
     const refused = await call('ai_helper_secret', {}, editorToken);
     expect(refused.isError).toBe(true);
   });
+
+  it("keeps the admin menu's order chosen for the site", async () => {
+    const saved = await admin.request('PATCH', '/api/v1/settings/core', {
+      menuOrder: { '/plugins/shop': 15, '/posts': 50 },
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect((await admin.get('/api/v1/auth/me')).json().site.menuOrder).toEqual({
+      '/plugins/shop': 15,
+      '/posts': 50,
+    });
+    expect(
+      (await admin.request('PATCH', '/api/v1/settings/core', { menuOrder: { '/x': 0 } }))
+        .statusCode,
+    ).toBe(400);
+    await admin.request('PATCH', '/api/v1/settings/core', { menuOrder: {} });
+  });
 });

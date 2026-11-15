@@ -283,6 +283,12 @@ export const itAdmin: Messages = {
     '{name} {version} richiede Cleitext {requires}: aggiorna prima Cleitext.',
   'All users': 'Tutti gli utenti',
   Administrators: 'Amministratori',
+  'Menu order': 'Ordine del menu',
+  'Reorder menu': 'Riordina il menu',
+  'Default order': 'Ordine predefinito',
+  'Position of {name}': 'Posizione di {name}',
+  'Lower numbers come first. Entries added later go by their place.':
+    'I numeri più bassi vengono prima. Le voci aggiunte dopo prendono il loro posto in fondo.',
   'Search users': 'Cerca utenti',
   'No users found.': 'Nessun utente trovato.',
   Roles: 'Ruoli',

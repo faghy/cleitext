@@ -240,6 +240,8 @@ export const meResponseSchema = z.object({
     locales: z.array(z.object({ code: z.string(), name: z.string(), isDefault: z.boolean() })),
     /** The editor new entries open with, by content type (the block editor when missing). */
     defaultEditors: z.record(z.string(), z.string()),
+    /** The admin menu's order chosen for the site (core 0.105): position by address. */
+    menuOrder: z.record(z.string(), z.number()).optional(),
   }),
   role: z.object({ slug: z.string(), name: z.string() }).nullable(),
   /** Core capabilities, plus those of the plugins active on the site. */

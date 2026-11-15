@@ -125,6 +125,14 @@ const coreSettingsFields = {
   likes: z.enum(['off', 'everyone', 'users']),
   /** Links to share entries on social networks, under entries with comments. */
   shareButtons: z.boolean(),
+
+  // ---- Admin (core 0.105) ----
+  /**
+   * The position of the admin menu's top entries, by address (`/posts`,
+   * `/plugins/shop`…): lower first; entries without one keep their place
+   * after the numbered ones' neighbours (the default order is 10, 20, 30…).
+   */
+  menuOrder: z.record(z.string().min(1).max(200), z.number().int().min(1).max(9999)),
 };
 
 /** A time zone known to the runtime (IANA name). */
@@ -179,6 +187,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   avatars: 'initials',
   likes: 'everyone',
   shareButtons: true,
+  menuOrder: {},
 } as const;
 
 export const coreSettingsSchema = z.object(coreSettingsFields);

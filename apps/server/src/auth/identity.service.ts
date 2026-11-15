@@ -121,7 +121,7 @@ export class IdentityService {
 
   /** Payload of `GET /auth/me` (and of a successful login). */
   async me(siteId: string, auth: AuthContext): Promise<MeResponse> {
-    const { site, timezone, defaultEditors, mySites } = await withContext(
+    const { site, timezone, defaultEditors, menuOrder, mySites } = await withContext(
       this.database.db,
       { siteId, userId: auth.userId },
       async (tx) => ({
@@ -137,6 +137,12 @@ export class IdentityService {
             .select({ value: settings.value })
             .from(settings)
             .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'defaultEditors')))
+        )[0],
+        menuOrder: (
+          await tx
+            .select({ value: settings.value })
+            .from(settings)
+            .where(and(eq(settings.namespace, 'core'), eq(settings.key, 'menuOrder')))
         )[0],
         mySites: await listMySites(tx),
       }),
@@ -164,6 +170,7 @@ export class IdentityService {
         timezone: typeof timezone?.value === 'string' ? timezone.value : (site?.timezone ?? 'UTC'),
         locales,
         defaultEditors: editorsByType(defaultEditors?.value),
+        menuOrder: positions(menuOrder?.value),
       },
       role: auth.role ? { slug: auth.role.slug, name: auth.role.name } : null,
       capabilities: auth.capabilities,
@@ -193,4 +200,15 @@ function appVersion(): string {
 function editorsByType(value: unknown): Record<string, string> {
   const parsed = coreSettingsSchema.shape.defaultEditors.safeParse(value);
   return parsed.success ? parsed.data : {};
+}
+
+/** The admin menu's positions stored for the site: numbers by address, nothing else. */
+function positions(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).filter(
+      (entry): entry is [string, number] =>
+        typeof entry[1] === 'number' && Number.isInteger(entry[1]),
+    ),
+  );
 }

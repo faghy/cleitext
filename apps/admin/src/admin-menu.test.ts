@@ -63,3 +63,27 @@ describe('the admin sidebar', () => {
     expect(itemActive(appearance[0]!, '/appearance', 'menus', appearance)).toBe(false);
   });
 });
+
+describe("the site's menu order", () => {
+  const nodes = ['/', '/posts', '/pages', '/plugins/shop'].map((to) => ({
+    to,
+    label: to,
+    children: [],
+  }));
+  it('keeps the default order, and moves the entries given a position', async () => {
+    const { inSiteOrder, menuPositions } = await import('./admin-menu');
+    expect(inSiteOrder(nodes).map((n) => n.to)).toEqual(['/', '/posts', '/pages', '/plugins/shop']);
+    expect(inSiteOrder(nodes, { '/plugins/shop': 15 }).map((n) => n.to)).toEqual([
+      '/',
+      '/plugins/shop',
+      '/posts',
+      '/pages',
+    ]);
+    expect(menuPositions(nodes, { '/pages': 5 })).toEqual({
+      '/': 10,
+      '/posts': 20,
+      '/pages': 5,
+      '/plugins/shop': 40,
+    });
+  });
+});

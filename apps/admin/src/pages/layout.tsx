@@ -12,7 +12,14 @@ import { taxonomiesQuery, taxonomyLabel } from './terms';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
 import { usePluginMenu } from '../plugins';
-import { currentTop, itemActive, withPluginPages, type MenuNode } from '../admin-menu';
+import {
+  currentTop,
+  inSiteOrder,
+  itemActive,
+  menuPositions,
+  withPluginPages,
+  type MenuNode,
+} from '../admin-menu';
 import { MenuIcon } from '../components/menu-icons';
 import { UPDATES_QUERY } from './updates';
 import { useCatalogUpdates } from '../components/catalog';
@@ -198,7 +205,19 @@ export function AdminLayout() {
         })
       : []),
   ]);
-  const menu = withPluginPages(top, pluginMenu.pages);
+  const defaultMenu = withPluginPages(top, pluginMenu.pages);
+  const menu = inSiteOrder(defaultMenu, me.site.menuOrder);
+  // Reordering the menu (core 0.105): a position for each top entry, saved for the site.
+  const canReorder = me.capabilities.includes('manage_settings');
+  const [reorder, setReorder] = useState<Record<string, number> | null>(null);
+  const saveOrder = useMutation({
+    mutationFn: (menuOrder: Record<string, number>) =>
+      api('PATCH', '/settings/core', { menuOrder }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
+      setReorder(null);
+    },
+  });
   const items = menu.flatMap((node) => [node, ...node.children]);
 
   // The browser tab names the screen and the site, as in WordPress: "Pages ‹ My site".
@@ -259,7 +278,63 @@ export function AdminLayout() {
             {me.site.name}
           </p>
         </div>
-        <nav aria-label={t('Main')}>
+        {reorder && (
+          <form
+            className="space-y-2 px-4 py-3 text-xs text-slate-300"
+            aria-label={t('Menu order')}
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveOrder.mutate(reorder);
+            }}
+          >
+            <p>{t('Lower numbers come first. Entries added later go by their place.')}</p>
+            <ul className="space-y-1">
+              {inSiteOrder(defaultMenu, reorder).map((section) => (
+                <li key={section.to} className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={9999}
+                    className="w-16 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-right text-white"
+                    aria-label={t('Position of {name}', { name: section.label })}
+                    value={reorder[section.to] ?? ''}
+                    onChange={(e) =>
+                      setReorder({
+                        ...reorder,
+                        [section.to]: Math.max(1, Math.min(9999, Number(e.target.value) || 1)),
+                      })
+                    }
+                  />
+                  <span className="truncate">{section.label}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={saveOrder.isPending}
+                className="rounded bg-sky-700 px-2 py-1 text-white hover:bg-sky-600"
+              >
+                {t('Save')}
+              </button>
+              <button
+                type="button"
+                className="rounded border border-slate-600 px-2 py-1 hover:bg-slate-800"
+                onClick={() => setReorder(menuPositions(defaultMenu))}
+              >
+                {t('Default order')}
+              </button>
+              <button
+                type="button"
+                className="rounded px-2 py-1 hover:bg-slate-800"
+                onClick={() => setReorder(null)}
+              >
+                {t('Cancel')}
+              </button>
+            </div>
+          </form>
+        )}
+        <nav aria-label={t('Main')} hidden={reorder !== null}>
           <ul>
             {menu.map((section) => {
               const isOpen = section === open;
@@ -347,6 +422,15 @@ export function AdminLayout() {
             })}
           </ul>
         </nav>
+        {canReorder && !reorder && (
+          <button
+            type="button"
+            className="block px-4 pt-3 text-xs text-slate-400 hover:text-sky-200"
+            onClick={() => setReorder(menuPositions(defaultMenu, me.site.menuOrder))}
+          >
+            {t('Reorder menu')}
+          </button>
+        )}
         <p className="px-4 py-3 text-xs text-slate-400" title={t('Cleitext version')}>
           Cleitext {me.version}
         </p>
