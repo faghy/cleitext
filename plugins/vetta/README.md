@@ -6,9 +6,19 @@ Needs Cleitext 0.35 (plugin API 1.24).
 
 ## In the editor
 
-Every content type gets an **SEO** section: keywords (the first is the main one, up to five), search title and description (with variables), and under **Advanced** noindex, nofollow, noarchive, noimageindex, nosnippet, canonical address, the name in the breadcrumbs, the structured data type and pillar content; under **Social networks** the title, description and image used when the page is shared.
+Every content type gets a **Vetta SEO** section in the editor's sidebar, on a light blue background so it stands apart from Cleitext's own settings. It opens and closes with one click (the choice is remembered), and its header shows the SEO score even while closed. Inside, in this order: keywords (the first is the main one, up to five), search title and description (with variables), then the analysis right under them, then **Advanced** (noindex, nofollow, noarchive, noimageindex, nosnippet, canonical address, the name in the breadcrumbs, the structured data type and pillar content) and **Social networks** (the title, description and image used when the page is shared), each closed until opened and showing how many of its settings are set. The stored fields keep their names (`fields.vetta.*`), so nothing changes for existing pages, the REST API or assistants.
 
-The **SEO analysis** section follows the page as it is written: a Google preview, a score out of 100 for the main keyword (and one for each other keyword), and a checklist in four groups: basic SEO (keyword in the title, description, address, beginning and content; length), more checks (subheadings, image texts, keyword density, address length, links to the site and to other sites, keyword already used by another page), title readability (keyword at the beginning, a striking word, a number) and content readability (table of contents, short paragraphs, images and videos).
+The analysis follows the page as it is written: a Google preview, a score out of 100 for the main keyword (and one for each other keyword), and a checklist in four groups: basic SEO (keyword in the title, description, address, beginning and content; length), more checks (subheadings, image texts, keyword density, address length, links to the site and to other sites, keyword already used by another page), title readability (keyword at the beginning, a striking word, a number) and content readability (table of contents, short paragraphs, images and videos). Lower in the sidebar, the small **SEO analysis** section shows the score with a link that opens the Vetta SEO section.
+
+## Categories, tags and other taxonomies
+
+Since 1.3.0 the edit screen of every term (categories, tags and the taxonomies of plugins and imports) has its own **Vetta SEO** section: keywords, search title and description, under **Advanced** noindex, nofollow and the canonical address, under **Social networks** the title, description and image when shared (field group `vetta-term`). On the term's archive they come before the taxonomy's templates (**Categories and tags** in the settings), and the term's own noindex and nofollow before the taxonomy's robots; a term out of search leaves the sitemap. Variables such as `%term%`, `%term_description%`, `%focuskw%` and `%page%` work. Quick checks give a score out of 100 for the main keyword in the title (near its start) and in the description and for their lengths: a term has no content to analyse like a page. A WordPress import brings Rank Math's SEO of categories and tags over (title, description, focus keyword, robots, canonical, social title, description and image); Yoast SEO keeps its term values in an option that WordPress exports do not include.
+
+The archive looks the term up among the first 500 terms of its taxonomy in that language (the plugin API finds terms by taxonomy, not by address).
+
+## Breadcrumbs
+
+The links of the **Breadcrumbs** block carry the whole title of their page as a tooltip (`title`), also when the crumb shows a shorter name.
 
 ## Settings (Vetta SEO in the admin menu)
 

@@ -30,12 +30,14 @@ let admin: TestClient;
 let visitor: TestClient;
 
 async function install(slug: string, pluginsPath: string) {
+  // The WordPress Importer is built in place: it bundles its own dependencies.
+  if (slug === 'wordpress-importer') await buildPlugin(join(pluginsRoot, slug));
   const source = join(await mkdtemp(join(tmpdir(), `${slug}-src-`)), slug);
   await cp(join(pluginsRoot, slug), source, {
     recursive: true,
     filter: (file) => !file.includes('node_modules'),
   });
-  await buildPlugin(source);
+  if (slug !== 'wordpress-importer') await buildPlugin(source);
   await installPlugin(owner.db, {
     source,
     pluginsPath,
@@ -69,6 +71,7 @@ beforeAll(async () => {
   const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
   await install('vetta', pluginsPath);
   await install('seo', pluginsPath);
+  await install('wordpress-importer', pluginsPath);
   app = await startTestApp({ pluginsPath });
   site = await seedSite(owner, 'vetta');
   await seedUser(owner, {
@@ -81,6 +84,7 @@ beforeAll(async () => {
   await admin.login('admin@vetta.test', PASSWORD);
   visitor = new TestClient(app, site.host, '10.9.1.2');
   expect((await admin.post('/api/v1/plugins/vetta/activate')).statusCode).toBe(200);
+  expect((await admin.post('/api/v1/plugins/wordpress-importer/activate')).statusCode).toBe(200);
 });
 
 afterAll(async () => {
@@ -265,6 +269,159 @@ describe('Vetta SEO', () => {
     expect((await visitor.get('/.txt')).statusCode).toBe(404);
     await admin.request('PUT', '/api/v1/ext/vetta/config', { config: { module_indexNow: false } });
     expect((await visitor.get(`/${key}.txt`)).statusCode).toBe(404);
+  });
+
+  it('gives categories and tags their own search title, description, robots and canonical', async () => {
+    const screen = (await admin.get('/api/v1/field-screens/term')).json() as {
+      groups: { id: string; fields: { name: string; type: string }[] }[];
+    };
+    const group = screen.groups.find((g) => g.id === 'vetta-term')!;
+    expect(group.fields.map((f) => f.name).slice(0, 4)).toEqual([
+      'vettaBox',
+      'keywords',
+      'title',
+      'description',
+    ]);
+    const created = await admin.post('/api/v1/taxonomies/category/terms', {
+      name: 'Roasts',
+      description: 'Light and dark roasts.',
+      fields: {
+        'vetta-term': {
+          keywords: 'coffee roasts',
+          title: '%focuskw%: %term% %sep% %sitename%',
+          description: 'Every %term% we make. %term_description%',
+          ogTitle: 'Our roasts',
+        },
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const roasts = created.json() as { id: string; slug: string };
+    const plain = (
+      await admin.post('/api/v1/taxonomies/category/terms', { name: 'Grinders' })
+    ).json() as { id: string; slug: string };
+    const post = await publish('article', 'Dark roast');
+    await admin.request('PATCH', `/api/v1/entries/${post.id}`, {
+      terms: { category: [roasts.id, plain.id] },
+    });
+    await admin.post(`/api/v1/entries/${post.id}/publish`);
+
+    const html = (await visitor.get(`/category/${roasts.slug}`)).body;
+    expect(html).toMatch(/<title>coffee roasts: Roasts \S Site vetta<\/title>/);
+    expect(meta(html, 'description')).toBe('Every Roasts we make. Light and dark roasts.');
+    expect(meta(html, 'og:title')).toBe('Our roasts');
+    // Without its own: the taxonomy's template.
+    expect((await visitor.get(`/category/${plain.slug}`)).body).toMatch(
+      /<title>Grinders \S Site vetta<\/title>/,
+    );
+
+    // Out of search: noindex, no canonical, out of the sitemap.
+    const categories = '/sitemap-tax-category-en.xml';
+    expect((await visitor.get(categories)).body).toContain(`/category/${plain.slug}`);
+    expect(
+      (
+        await admin.request('PATCH', `/api/v1/terms/${plain.id}`, {
+          fields: { 'vetta-term': { noindex: true } },
+        })
+      ).statusCode,
+    ).toBe(200);
+    const hidden = (await visitor.get(`/category/${plain.slug}`)).body;
+    expect(meta(hidden, 'robots')).toBe('noindex, follow');
+    expect(hidden).not.toContain('rel="canonical"');
+    const after = (await visitor.get(categories)).body;
+    expect(after).not.toContain(`/category/${plain.slug}`);
+    expect(after).toContain(`/category/${roasts.slug}`);
+
+    // A canonical address elsewhere.
+    await admin.request('PATCH', `/api/v1/terms/${roasts.id}`, {
+      fields: { 'vetta-term': { canonical: 'https://elsewhere.example/roasts' } },
+    });
+    expect((await visitor.get(`/category/${roasts.slug}`)).body).toContain(
+      '<link rel="canonical" href="https://elsewhere.example/roasts"',
+    );
+  });
+
+  it('gives the links of the breadcrumbs the whole title', async () => {
+    const parent = await publish('page', 'Our coffee bar in the old town', {
+      fields: { vetta: { breadcrumbTitle: 'The bar' } },
+    });
+    const child = await publish('page', 'Opening hours', {
+      parentId: parent.id,
+      document: {
+        schema: 1,
+        blocks: [{ id: 'b_crumbs', type: 'vetta/breadcrumbs', v: 1, attrs: {} }],
+      },
+    });
+    const html = (await visitor.get(`/${parent.slug}/${child.slug}`)).body;
+    expect(html).toMatch(/<a href="\/[^"]*" title="Our coffee bar in the old town">The bar<\/a>/);
+    expect(html).toMatch(/<a href="\/" title="Home">Home<\/a>/);
+  });
+
+  it('imports the SEO of categories written with Rank Math', async () => {
+    const cdata = (value: string) => `<![CDATA[${value}]]>`;
+    const termMeta = Object.entries({
+      rank_math_title: '%term% beans to buy %sep% %sitename%',
+      rank_math_description: 'Beans from Brazil and Ethiopia.',
+      rank_math_focus_keyword: 'coffee beans',
+      rank_math_robots: 'a:1:{i:0;s:8:"nofollow";}',
+    })
+      .map(
+        ([key, value]) =>
+          `<wp:termmeta><wp:meta_key>${cdata(key)}</wp:meta_key><wp:meta_value>${cdata(value)}</wp:meta_value></wp:termmeta>`,
+      )
+      .join('');
+    const wxr = `<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel>
+<title>Beans</title>
+<link>https://beans.example.com</link>
+<wp:wxr_version>1.2</wp:wxr_version>
+<wp:base_blog_url>https://beans.example.com</wp:base_blog_url>
+<wp:author><wp:author_id>1</wp:author_id><wp:author_login>${cdata('ada')}</wp:author_login><wp:author_email>${cdata('ada@beans.example.com')}</wp:author_email><wp:author_display_name>${cdata('Ada')}</wp:author_display_name></wp:author>
+<wp:category><wp:term_id>7</wp:term_id><wp:category_nicename>${cdata('beans')}</wp:category_nicename><wp:category_parent>${cdata('')}</wp:category_parent><wp:cat_name>${cdata('Beans')}</wp:cat_name>${termMeta}</wp:category>
+<item>
+<title>${cdata('Arabica')}</title>
+<link>https://beans.example.com/arabica/</link>
+<dc:creator>${cdata('ada')}</dc:creator>
+<content:encoded>${cdata('<p>Sweet.</p>')}</content:encoded>
+<excerpt:encoded>${cdata('')}</excerpt:encoded>
+<wp:post_id>70</wp:post_id>
+<wp:post_date_gmt>${cdata('2024-05-01 08:00:00')}</wp:post_date_gmt>
+<wp:post_name>${cdata('arabica')}</wp:post_name>
+<wp:status>${cdata('publish')}</wp:status>
+<wp:post_parent>0</wp:post_parent>
+<wp:menu_order>0</wp:menu_order>
+<wp:post_type>${cdata('post')}</wp:post_type>
+<category domain="category" nicename="beans">${cdata('Beans')}</category>
+</item>
+</channel>
+</rss>`;
+    const started = await admin.upload(
+      '/api/v1/ext/wordpress-importer/imports?locale=en',
+      'beans.xml',
+      Buffer.from(wxr),
+      'text/xml',
+    );
+    expect(started.statusCode, started.body).toBe(202);
+    await eventually(async () => {
+      const { job } = (await admin.get('/api/v1/ext/wordpress-importer/status')).json();
+      if (job.status === 'running') return false;
+      expect(job.error ?? job.status).toBe('done');
+      return true;
+    }, 20_000);
+    const terms = (await admin.get('/api/v1/taxonomies/category/terms')).json() as {
+      slug: string;
+      fields: Record<string, unknown>;
+    }[];
+    expect(terms.find((t) => t.slug === 'beans')!.fields['vetta-term']).toEqual({
+      keywords: 'coffee beans',
+      title: '%term% beans to buy %sep% %sitename%',
+      description: 'Beans from Brazil and Ethiopia.',
+      nofollow: true,
+    });
+    const html = (await visitor.get('/category/beans')).body;
+    // (The import gave the site the export's name.)
+    expect(html).toMatch(/<title>Beans beans to buy \S Beans<\/title>/);
+    expect(meta(html, 'robots')).toMatch(/^index, nofollow/);
   });
 
   it('tells editors when a keyword is already used, and gives them the templates', async () => {

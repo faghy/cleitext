@@ -61,6 +61,11 @@ export interface HeadInput {
    * Rank Math does on the posts page.
    */
   postsPage?: { id: string; title: string; url: string; excerpt: string };
+  /**
+   * Term archives: the term shown, when found; `seo` then holds its own
+   * Vetta fields (search title, description, robots, canonical, social).
+   */
+  term?: { name: string; description: string | null };
   /** Archives and searches: the page shown and how many there are (core plugin API 1.57). */
   pagination?: { page: number; pages: number };
   seo: EntrySeo;
@@ -116,7 +121,10 @@ function globalRobots(c: Config): Robots {
 }
 
 export function robotsFor(
-  input: Pick<HeadInput, 'config' | 'route' | 'path' | 'archive' | 'entry' | 'seo' | 'postsPage'>,
+  input: Pick<
+    HeadInput,
+    'config' | 'route' | 'path' | 'archive' | 'entry' | 'seo' | 'postsPage' | 'term'
+  >,
 ): Robots {
   const c = input.config;
   let r = globalRobots(c);
@@ -154,6 +162,14 @@ export function robotsFor(
         ...r,
         noindex: taxonomyValue(c, tax, 'robots_noindex') === true,
         nofollow: taxonomyValue(c, tax, 'robots_nofollow') === true,
+      };
+    }
+    // The term's own choices win (Vetta's fields of the term).
+    if (input.term) {
+      r = {
+        ...r,
+        noindex: input.seo.noindex ?? r.noindex,
+        nofollow: input.seo.nofollow ?? r.nofollow,
       };
     }
   } else if (
@@ -269,19 +285,26 @@ export function buildHead(input: HeadInput): Head {
     if (text(c, 'home_description'))
       description = replaceVariables(text(c, 'home_description'), base);
   } else if (input.route === 'archive' && input.archive?.taxonomy) {
-    const vars = {
+    const vars: VariableContext = {
       ...base,
-      term: namePart(head.title, siteName),
-      termDescription: head.description,
+      term: input.term?.name || namePart(head.title, siteName),
+      termDescription: input.term
+        ? plainDescription(input.term.description ?? '')
+        : head.description,
+      keywords: keywordsOf(seo),
     };
+    // The term's own search title and description, then the taxonomy's templates.
     title =
+      (seo.title ? replaceVariables(seo.title, vars) : '') ||
       replaceVariables(String(taxonomyValue(c, input.archive.taxonomy, 'title') ?? ''), vars) ||
       head.title;
     description =
+      (seo.description ? replaceVariables(seo.description, vars) : '') ||
       replaceVariables(
         String(taxonomyValue(c, input.archive.taxonomy, 'description') ?? ''),
         vars,
-      ) || head.description;
+      ) ||
+      head.description;
   } else if (input.route === 'archive' && input.postsPage) {
     const vars: VariableContext = {
       ...base,
@@ -339,7 +362,10 @@ export function buildHead(input: HeadInput): Head {
   const robots = robotsFor(input);
   next.robots = robotsContent(robots, c);
   if (robots.noindex) next.canonical = null;
-  else if (input.route === 'entry' && httpUrl(seo.canonical))
+  else if (
+    (input.route === 'entry' || (input.route === 'archive' && input.term)) &&
+    httpUrl(seo.canonical)
+  )
     next.canonical = httpUrl(seo.canonical);
 
   // Open Graph and X.

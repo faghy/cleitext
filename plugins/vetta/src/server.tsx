@@ -17,12 +17,16 @@ import {
   sanitizeConfig,
   searchTitle,
   taxonomyValue,
+  TERM_GROUP,
+  termSeo,
   text,
   typeValue,
   value,
   type Config,
 } from './config.js';
+import { BOX_TYPE, ENTRY_FIELDS, TERM_FIELDS } from './fields.js';
 import { buildHead } from './head.js';
+import { termSeoFromWxr } from './import.js';
 import { schemaGraph, type Crumb } from './jsonld.js';
 import { indexnowLog, notFound } from './schema.js';
 import {
@@ -65,6 +69,27 @@ async function originOf(ctx: PluginContext, siteId: string): Promise<string | nu
   );
 }
 
+/**
+ * The term of an archive, by its taxonomy and slug in the page's language.
+ * The plugin API finds terms by taxonomy only: the first 500 are looked at.
+ */
+async function findTerm(
+  ctx: PluginContext,
+  siteId: string,
+  where: { taxonomy: string; slug: string; locale: string },
+) {
+  try {
+    const terms = await ctx.terms.find(siteId, {
+      taxonomy: where.taxonomy,
+      locale: where.locale,
+      limit: 500,
+    });
+    return terms.find((t) => t.slug === where.slug) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const homeLabel = (config: Config, locale: string) =>
   text(config, 'breadcrumbs_home_label') || (locale.startsWith('it') ? 'Home' : 'Home');
 
@@ -98,7 +123,11 @@ async function trail(
       const parent = await ctx.content.get(siteId, current.parentId);
       if (!parent || parent.status !== 'published') break;
       const parentSeo = entrySeo(parent.fields);
-      middle.unshift({ title: parentSeo.breadcrumbTitle || parent.title, url: parent.url });
+      middle.unshift({
+        title: parentSeo.breadcrumbTitle || parent.title,
+        url: parent.url,
+        fullTitle: parent.title,
+      });
       current = parent;
     }
   }
@@ -108,8 +137,20 @@ async function trail(
       ? [{ title: homeLabel(config, entry.locale), url: home }]
       : []),
     ...middle,
-    ...(entry.url === home ? [] : [{ title: entry.crumbTitle || entry.title, url: entry.url }]),
+    ...(entry.url === home
+      ? []
+      : [{ title: entry.crumbTitle || entry.title, url: entry.url, fullTitle: entry.title }]),
   ];
+}
+
+/** Values added to other plugins' values of the same terms (each keeps its own groups). */
+function mergeTerms(
+  current: Record<string, Record<string, unknown>>,
+  added: Record<string, Record<string, unknown>>,
+): Record<string, Record<string, unknown>> {
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const [ref, values] of Object.entries(added)) out[ref] = { ...current[ref], ...values };
+  return out;
 }
 
 /** Sends addresses to the search engines that share IndexNow (Bing, Yandex, Seznam…). */
@@ -205,7 +246,12 @@ Longer values are refused.
   \`nosnippet\`, \`canonical\` (only for copies of a page elsewhere), \`schema\` ("auto",
   "Article", "BlogPosting", "NewsArticle", "none") and \`pillar\`.
 
-Write them in the entry's language; a translation gets its own.`;
+Write them in the entry's language; a translation gets its own.
+
+Categories, tags and other terms have the field group \`vetta-term\` (in a term's \`fields\`):
+\`keywords\`, \`title\` (variables such as \`%term%\`, \`%sep%\`, \`%sitename%\`),
+\`description\`, \`noindex\`, \`nofollow\`, \`canonical\`, \`ogTitle\`, \`ogDescription\` and
+\`ogImage\`, used on the term's archive. Empty: the taxonomy's templates.`;
 
 export default definePlugin({
   setup(ctx) {
@@ -218,142 +264,21 @@ export default definePlugin({
     });
 
     // ---- Fields of every entry -------------------------------------------------------
-    const l = (en: string, it: string) => ({ en, it });
+    // A layout field (plugin API 1.49): it holds no value, the admin draws Vetta's box with it.
+    ctx.fields.registerType({ type: BOX_TYPE, kind: 'text' });
     ctx.content.registerFieldGroup({
       id: 'vetta',
-      title: 'SEO',
+      title: 'Vetta SEO',
       types: ['*'],
-      fields: [
-        {
-          name: 'keywords',
-          type: 'text',
-          maxLength: 300,
-          label: l('Keywords', 'Parole chiave'),
-          help: l(
-            'What people search to find this page; the first is the main one, then up to four more, separated by commas. The analysis checks the page against them.',
-            'Ciò che le persone cercano per trovare questa pagina: la prima è la principale, poi fino a quattro altre, separate da virgole. L’analisi controlla la pagina su queste.',
-          ),
-        },
-        {
-          name: 'title',
-          type: 'text',
-          maxLength: 200,
-          label: l('Search title', 'Titolo per i motori di ricerca'),
-          help: l(
-            'Empty: from the template of the content type. Variables such as %title% %sep% %sitename% work.',
-            'Vuoto: dal modello del tipo di contenuto. Funzionano variabili come %title% %sep% %sitename%.',
-          ),
-        },
-        {
-          name: 'description',
-          type: 'text',
-          multiline: true,
-          maxLength: 400,
-          label: l('Search description', 'Descrizione per i motori di ricerca'),
-          help: l(
-            'About 150 characters. Empty: from the template (the excerpt by default).',
-            'Circa 150 caratteri. Vuota: dal modello (il riassunto, normalmente).',
-          ),
-        },
-        {
-          name: 'noindex',
-          type: 'boolean',
-          group: l('Advanced', 'Avanzate'),
-          label: l('Hide from search engines (noindex)', 'Nascondi ai motori di ricerca (noindex)'),
-        },
-        {
-          name: 'nofollow',
-          type: 'boolean',
-          group: l('Advanced', 'Avanzate'),
-          label: l('Do not follow its links (nofollow)', 'Non seguire i suoi link (nofollow)'),
-        },
-        {
-          name: 'noarchive',
-          type: 'boolean',
-          group: l('Advanced', 'Avanzate'),
-          label: l('No cached copy (noarchive)', 'Nessuna copia in cache (noarchive)'),
-        },
-        {
-          name: 'noimageindex',
-          type: 'boolean',
-          group: l('Advanced', 'Avanzate'),
-          label: l('Do not index its images', 'Non indicizzare le sue immagini'),
-        },
-        {
-          name: 'nosnippet',
-          type: 'boolean',
-          group: l('Advanced', 'Avanzate'),
-          label: l(
-            'No text preview in results (nosnippet)',
-            'Nessuna anteprima nei risultati (nosnippet)',
-          ),
-        },
-        {
-          name: 'canonical',
-          type: 'url',
-          group: l('Advanced', 'Avanzate'),
-          label: l('Canonical address', 'Indirizzo canonico'),
-          help: l(
-            'Only when this content is a copy of a page elsewhere: its full address.',
-            'Solo se questo contenuto è una copia di una pagina altrove: il suo indirizzo completo.',
-          ),
-        },
-        {
-          name: 'breadcrumbTitle',
-          type: 'text',
-          maxLength: 100,
-          group: l('Advanced', 'Avanzate'),
-          label: l('Name in the breadcrumbs', 'Nome nelle briciole di pane'),
-        },
-        {
-          name: 'schema',
-          type: 'select',
-          group: l('Advanced', 'Avanzate'),
-          label: l('Structured data', 'Dati strutturati'),
-          default: 'auto',
-          options: [
-            { value: 'auto', label: l('As the content type', 'Come il tipo di contenuto') },
-            { value: 'Article', label: l('Article', 'Articolo') },
-            { value: 'BlogPosting', label: l('Blog post', 'Articolo di blog') },
-            { value: 'NewsArticle', label: l('News article', 'Notizia') },
-            { value: 'none', label: l('None', 'Nessuno') },
-          ],
-        },
-        {
-          name: 'pillar',
-          type: 'boolean',
-          group: l('Advanced', 'Avanzate'),
-          label: l(
-            'Pillar content (one of the main pages of the site)',
-            'Contenuto pilastro (una delle pagine principali del sito)',
-          ),
-        },
-        {
-          name: 'ogTitle',
-          type: 'text',
-          maxLength: 200,
-          group: l('Social networks', 'Social network'),
-          label: l('Title when shared', 'Titolo quando è condivisa'),
-        },
-        {
-          name: 'ogDescription',
-          type: 'text',
-          multiline: true,
-          maxLength: 400,
-          group: l('Social networks', 'Social network'),
-          label: l('Description when shared', 'Descrizione quando è condivisa'),
-        },
-        {
-          name: 'ogImage',
-          type: 'media',
-          group: l('Social networks', 'Social network'),
-          label: l('Image when shared', 'Immagine quando è condivisa'),
-          help: l(
-            '1200×630 pixels is best. Empty: the featured image, then the site’s.',
-            '1200×630 pixel è l’ideale. Vuota: l’immagine in evidenza, poi quella del sito.',
-          ),
-        },
-      ],
+      fields: ENTRY_FIELDS,
+    });
+
+    // ---- Fields of every term (categories, tags, other taxonomies; plugin API 1.47) ------
+    ctx.fields.addGroup({
+      id: TERM_GROUP,
+      title: 'Vetta SEO',
+      location: [[{ param: 'taxonomy', operator: '==', value: '*' }]],
+      fields: TERM_FIELDS,
     });
 
     // ---- AI assistants (plugin API 1.40; missing on older cores) -----------------------
@@ -371,7 +296,16 @@ export default definePlugin({
           !entry && context.route === 'archive' && !context.archive?.taxonomy
             ? context.postsPage
             : undefined;
-        const seo = entrySeo((entry ?? postsPage)?.fields);
+        // A term archive: the term's own Vetta fields.
+        const term =
+          !entry && context.route === 'archive' && context.archive?.taxonomy && context.archive.term
+            ? await findTerm(ctx, context.siteId, {
+                taxonomy: context.archive.taxonomy,
+                slug: context.archive.term,
+                locale: context.locale,
+              })
+            : null;
+        const seo = term ? termSeo(term.fields) : entrySeo((entry ?? postsPage)?.fields);
         const pageUrl = head.canonical ?? head.og['og:url'] ?? null;
         if (pageUrl) await rememberOrigin(ctx, context.siteId, new URL(pageUrl).origin);
 
@@ -428,6 +362,7 @@ export default definePlugin({
           path: context.path,
           isFrontPage: context.isFrontPage === true,
           ...(context.archive ? { archive: context.archive } : {}),
+          ...(term ? { term: { name: term.name, description: term.description } } : {}),
           // Plugin API 1.57: "Page 2 of 22" (older cores: "Page 2").
           ...(context.pagination ? { pagination: context.pagination } : {}),
           ...(postsPage
@@ -584,16 +519,32 @@ export default definePlugin({
       if (!moduleOn(config, 'sitemap')) return urls;
       const exclude = new Set(lines(text(config, 'sitemap_exclude').replace(/,/g, '\n')));
       const images = value(config, 'sitemap_images') !== false;
+      // Terms carry no fields here: theirs are read, 500 at a time.
+      const termIds = [...new Set(urls.flatMap((u) => (u.term ? [u.term.id] : [])))];
+      const termFields = new Map<string, Record<string, unknown>>();
+      for (let i = 0; i < termIds.length; i += 500) {
+        const ids = termIds.slice(i, i + 500);
+        for (const t of await ctx.terms.find(siteId, { ids, limit: 500 }))
+          termFields.set(t.id, t.fields);
+      }
       return urls
         .filter((url) => {
           if (url.entry && exclude.has(url.entry.id)) return false;
           if (url.term && exclude.has(url.term.id)) return false;
-          const seo = entrySeo(url.entry?.fields);
+          const seo = url.term ? termSeo(termFields.get(url.term.id)) : entrySeo(url.entry?.fields);
           if (seo.noindex) return false;
           const canonical = seo.canonical?.trim();
           return !canonical || canonical.replace(/\/+$/, '') === url.loc.replace(/\/+$/, '');
         })
         .map((url) => (images ? url : { ...url, images: [] }));
+    });
+
+    // ---- WordPress import: Rank Math's SEO of categories and tags ------------------------
+    ctx.hooks.filter('import.wxrMeta', (result, { terms, metaValue }) => {
+      const values = termSeoFromWxr(terms, metaValue);
+      return Object.keys(values).length
+        ? { ...result, terms: { ...result.terms, ...mergeTerms(result.terms, values) } }
+        : result;
     });
 
     // ---- robots.txt and llms.txt ------------------------------------------------------
@@ -799,7 +750,9 @@ export default definePlugin({
                     </li>
                   ) : (
                     <li key={crumb.url} data-sep={data.separator}>
-                      <a href={crumb.url}>{crumb.title}</a>
+                      <a href={crumb.url} title={crumb.fullTitle ?? crumb.title}>
+                        {crumb.title}
+                      </a>
                     </li>
                   ),
                 )}
