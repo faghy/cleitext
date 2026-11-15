@@ -1,6 +1,6 @@
 import type { CatalogResult, ProductCard, Sort } from './catalog-query';
 import { SORTS } from './catalog-query';
-import { html, raw, type Html } from './html';
+import { escape, html, raw, type Html } from './html';
 import { plainExcerpt } from './sync';
 import type { Money } from './pages';
 import type { Translate } from './strings';
@@ -56,6 +56,8 @@ export const CATALOG_CSS = `
 .shop-pages{display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;list-style:none;margin:0;padding:0}
 .shop-pages a,.shop-pages span{display:inline-block;min-width:2.4rem;text-align:center;padding:.4rem .6rem;border:1px solid rgba(127,127,127,.35);border-radius:6px;text-decoration:none;color:inherit}
 .shop-pages [aria-current=page]{background:var(--shop-accent-bg,#1f2937);color:var(--shop-accent-fg,#fff);border-color:var(--shop-accent-bg,#1f2937)}
+.shop-more{text-align:center;margin:0}.shop-more[aria-busy=true] a{opacity:.6;pointer-events:none}
+.shop-tile .shop-count{opacity:.65;font-weight:400;font-size:.85em}
 .shop-subcats{display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;margin:0 0 1.5rem;padding:0}
 .shop-subcats a{display:inline-block;padding:.35rem .8rem;border:1px solid rgba(127,127,127,.35);border-radius:999px;text-decoration:none;color:inherit}
 .shop-gallery{display:grid;gap:.5rem;grid-template-columns:repeat(auto-fill,minmax(5.5rem,1fr));list-style:none;margin:1rem 0;padding:0}
@@ -112,46 +114,56 @@ export interface CardOptions {
   excerpt?: 'text' | 'html';
 }
 
+/**
+ * Closing tags the formatter wrapped (`</a\n  >`) on one line: browsers
+ * accept them, but they read `</a >` once the page's spaces are collapsed.
+ */
+const tidy = (markup: string) => markup.replace(/<\/(a|h[23]|span|p|label)\s+>/g, '</$1>');
+
 export function productCards(cards: ProductCard[], options: CardOptions): Html {
   const { t, money } = options;
   const heading = options.heading ?? 'h2';
-  return html`<ul class="shop-grid">
-    ${cards.map((card) => {
-      const image = thumbnail(card.imageUrl);
-      const url = options.url(card);
-      const out = card.stockStatus === 'outofstock';
-      const action =
-        card.price === null || out
-          ? ''
-          : card.kind === 'variable'
-            ? html`<a class="shop-button shop-button--secondary" href="${url}"
-                >${t('Choose options')}</a
-              >`
-            : html`<form method="post" action="${options.addAction}">
-                <input type="hidden" name="product" value="${card.id}" />
-                <button class="shop-button" type="submit">
-                  ${t('Add to cart')}<span class="shop-sr">: ${card.title}</span>
-                </button>
-              </form>`;
-      return html`<li class="shop-card" data-product="${card.id}">
-        <a class="shop-card__image" href="${url}" tabindex="-1" aria-hidden="true"
-          >${image ? html`<img src="${image.src}" ${image.srcset ? raw(` srcset="${image.srcset}" sizes="(min-width: 900px) 18rem, 50vw"`) : ''} alt="" loading="lazy" decoding="async" />` : ''}</a
-        >
-        ${card.onSale ? html`<span class="shop-card__badge">${t('Sale!')}</span>` : ''}
-        ${raw(`<${heading} class="shop-card__title">`)}<a href="${url}">${card.title}</a
-        >${raw(`</${heading}>`)} ${stars(t, card.rating, card.ratingCount)}
-        ${
-          options.excerpt && card.excerpt
-            ? options.excerpt === 'html'
-              ? html`<div class="shop-card__excerpt">${raw(card.excerpt)}</div>`
-              : html`<p class="shop-card__excerpt">${plainExcerpt(card.excerpt)}</p>`
-            : ''
-        }
-        <p class="shop-card__price">${priceHtml(card, money)}</p>
-        ${out ? html`<p class="shop-card__out">${t('Out of stock')}</p>` : ''} ${action}
-      </li>`;
-    })}
-  </ul>`;
+  return raw(
+    tidy(
+      html`<ul class="shop-grid">
+        ${cards.map((card) => {
+          const image = thumbnail(card.imageUrl);
+          const url = options.url(card);
+          const out = card.stockStatus === 'outofstock';
+          const action =
+            card.price === null || out
+              ? ''
+              : card.kind === 'variable'
+                ? html`<a class="shop-button shop-button--secondary" href="${url}"
+                    >${t('Choose options')}</a
+                  >`
+                : html`<form method="post" action="${options.addAction}">
+                    <input type="hidden" name="product" value="${card.id}" />
+                    <button class="shop-button" type="submit">
+                      ${t('Add to cart')}<span class="shop-sr">: ${card.title}</span>
+                    </button>
+                  </form>`;
+          return html`<li class="shop-card" data-product="${card.id}">
+            <a class="shop-card__image" href="${url}" tabindex="-1" aria-hidden="true"
+              >${image ? html`<img src="${image.src}" ${image.srcset ? raw(` srcset="${image.srcset}" sizes="(min-width: 900px) 18rem, 50vw"`) : ''} alt="" loading="lazy" decoding="async" />` : ''}</a
+            >
+            ${card.onSale ? html`<span class="shop-card__badge">${t('Sale!')}</span>` : ''}
+            ${raw(`<${heading} class="shop-card__title">`)}<a href="${url}">${card.title}</a
+            >${raw(`</${heading}>`)} ${stars(t, card.rating, card.ratingCount)}
+            ${
+              options.excerpt && card.excerpt
+                ? options.excerpt === 'html'
+                  ? html`<div class="shop-card__excerpt">${raw(card.excerpt)}</div>`
+                  : html`<p class="shop-card__excerpt">${plainExcerpt(card.excerpt)}</p>`
+                : ''
+            }
+            <p class="shop-card__price">${priceHtml(card, money)}</p>
+            ${out ? html`<p class="shop-card__out">${t('Out of stock')}</p>` : ''} ${action}
+          </li>`;
+        })}
+      </ul>`.value,
+    ),
+  );
 }
 
 export interface Crumb {
@@ -230,6 +242,16 @@ export function catalogPage(options: {
   subcategories: Map<string, { name: string; url: string }>;
   cards: CardOptions;
   css: string;
+  /**
+   * The category shows only its subcategories (WooCommerce's "Display type:
+   * Subcategories", 1.21): their tiles instead of products and filters.
+   */
+  tiles?: { name: string; url: string; imageUrl: string | null; count: number }[];
+  /**
+   * A "Load more" button instead of the numbered pages (1.21): the script
+   * that fetches the next page's cards; without it, a link to that page.
+   */
+  loadMore?: { script: string };
 }): string {
   const { t, filters: f, result, base } = options;
   const pages = Math.max(1, Math.ceil(result.total / options.perPage));
@@ -408,8 +430,14 @@ export function catalogPage(options: {
     </p>
   </div>`;
 
-  const pageLinks =
-    pages > 1
+  const pageLinks = options.loadMore
+    ? f.page < pages
+      ? html`<p class="shop-more">
+            ${raw(`<a class="shop-button shop-button--secondary" href="${escape(filterUrl(base, f, { page: f.page + 1 }))}" rel="next" data-shop-more="">${escape(t('Load more'))}</a>`)}
+          </p>
+          <script src="${options.loadMore.script}" defer></script>`
+      : ''
+    : pages > 1
       ? html`<nav aria-label="${t('Pages')}">
           <ul class="shop-pages">
             ${
@@ -448,42 +476,68 @@ export function catalogPage(options: {
     return term ? [{ ...term, count: c.count }] : [];
   });
 
-  return html`<style>
-      ${raw(options.css)}
-    </style>
-    <div class="shop-page shop-wide">
-      ${breadcrumbs(t, options.crumbs)}
-      ${options.description ? html`<div class="shop-intro">${options.description}</div>` : ''}
-      ${
-        subcategories.length
-          ? html`<ul class="shop-subcats">
-              ${subcategories.map(
-                (c) =>
-                  html`<li>
-                    <a href="${c.url}">${c.name} <span class="shop-count">(${c.count})</span></a>
-                  </li>`,
-              )}
-            </ul>`
-          : ''
-      }
-      <form id="shop-filters" method="get" action="${base}"></form>
-      <div class="shop-catalog">
-        <aside class="shop-filters">${sidebar}</aside>
-        <div>
-          ${toolbar}
-          ${
-            result.cards.length
-              ? productCards(result.cards, options.cards)
-              : html`<p>
-                  ${
-                    f.q
-                      ? t('No products match “{q}”.', { q: f.q })
-                      : t('No products match these filters.')
-                  }
-                </p>`
-          }
-          ${pageLinks}
+  if (options.tiles?.length)
+    return tidy(
+      html`<style>
+          ${raw(options.css)}
+        </style>
+        <div class="shop-page shop-wide">
+          ${breadcrumbs(t, options.crumbs)}
+          ${options.description ? html`<div class="shop-intro">${options.description}</div>` : ''}
+          <ul class="shop-grid shop-tiles">
+            ${options.tiles.map((tile) => {
+              const image = thumbnail(tile.imageUrl);
+              return html`<li class="shop-card shop-tile">
+                <a class="shop-card__image" href="${tile.url}" tabindex="-1" aria-hidden="true"
+                  >${image ? html`<img src="${image.src}" ${image.srcset ? raw(` srcset="${image.srcset}" sizes="(min-width: 900px) 18rem, 50vw"`) : ''} alt="" loading="lazy" decoding="async" />` : ''}</a
+                >
+                <h2 class="shop-card__title">
+                  ${raw(`<a href="${escape(tile.url)}">${escape(tile.name)} <span class="shop-count">(${tile.count})</span></a>`)}
+                </h2>
+              </li>`;
+            })}
+          </ul>
+        </div>`.value,
+    );
+
+  return tidy(
+    html`<style>
+        ${raw(options.css)}
+      </style>
+      <div class="shop-page shop-wide">
+        ${breadcrumbs(t, options.crumbs)}
+        ${options.description ? html`<div class="shop-intro">${options.description}</div>` : ''}
+        ${
+          subcategories.length
+            ? html`<ul class="shop-subcats">
+                ${subcategories.map(
+                  (c) =>
+                    html`<li>
+                      <a href="${c.url}">${c.name} <span class="shop-count">(${c.count})</span></a>
+                    </li>`,
+                )}
+              </ul>`
+            : ''
+        }
+        <form id="shop-filters" method="get" action="${base}"></form>
+        <div class="shop-catalog">
+          <aside class="shop-filters">${sidebar}</aside>
+          <div>
+            ${toolbar}
+            ${
+              result.cards.length
+                ? productCards(result.cards, options.cards)
+                : html`<p>
+                    ${
+                      f.q
+                        ? t('No products match “{q}”.', { q: f.q })
+                        : t('No products match these filters.')
+                    }
+                  </p>`
+            }
+            ${pageLinks}
+          </div>
         </div>
-      </div>
-    </div>`.value;
+      </div>`.value,
+  );
 }

@@ -187,6 +187,9 @@ export function registerStorefrontBlocks(
             : undefined;
         const category = await bySlug(CATEGORY, attrs.category);
         const brand = await bySlug(BRAND, attrs.brand);
+        // A category or brand that does not exist in this language: no products, not all (1.21).
+        if ((attrs.category?.trim() && !category) || (attrs.brand?.trim() && !brand))
+          return { cards: [], urls: {}, currency: '', prefix: '' };
         const sort: Sort =
           attrs.show === 'popular' ? 'popularity' : attrs.show === 'rated' ? 'rating' : 'date';
         // Chosen products, by their codes (in this language).

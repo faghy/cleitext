@@ -24,14 +24,20 @@ describe("WooCommerce's shortcodes on import", () => {
     expect(attrsOf('products', { skus: 'A-1, B-2', columns: '1' })).toEqual([
       { type: 'shop/products', attrs: { show: 'latest', skus: 'A-1, B-2', limit: 2 } },
     ]);
-    expect(attrsOf('add_to_cart', { sku: 'A-1' })![0]!.attrs).toEqual({
-      show: 'latest',
-      skus: 'A-1',
-      limit: 1,
-    });
     expect(attrsOf('products', { ids: '809' })).toBeNull();
     expect(attrsOf('add_to_cart', { id: '809' })).toBeNull();
-    expect(attrsOf('woocommerce_order_tracking', {})).toBeNull();
+  });
+
+  it('give a chosen product its buy box, and the order tracking its form', () => {
+    expect(attrsOf('add_to_cart', { sku: 'A-1', show_price: 'true' })).toEqual([
+      { type: 'shop/buy-box', attrs: { sku: 'A-1' } },
+    ]);
+    expect(attrsOf('product', { sku: ' B-2 ' })).toEqual([
+      { type: 'shop/buy-box', attrs: { sku: 'B-2' } },
+    ]);
+    expect(attrsOf('woocommerce_order_tracking', {})).toEqual([
+      { type: 'shop/order-tracking', attrs: {} },
+    ]);
   });
 
   it('compares short descriptions by their words', () => {

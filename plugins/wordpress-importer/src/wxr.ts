@@ -400,6 +400,10 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
         description: text(t['wp:term_description']) || null,
         ...(parent ? { parentRef: `${taxonomy}:${parent}` } : {}),
         ...(Number.isInteger(position) && position >= 0 ? { position } : {}),
+        // "Display type: Subcategories": Cleishop's category shows only its subcategories.
+        ...(woo === 'product-category' && termMeta.display_type === 'subcategories'
+          ? { fields: { display: 'subcategories' } }
+          : {}),
       });
       continue;
     }

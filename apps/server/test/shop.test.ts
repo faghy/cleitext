@@ -120,7 +120,7 @@ describe('setup', () => {
     const taxonomies = (await admin.get('/api/v1/taxonomies')).json();
     expect(taxonomies.find((t: { slug: string }) => t.slug === 'product-category')).toMatchObject({
       hierarchical: true,
-      fields: [{ name: 'image' }],
+      fields: [{ name: 'image' }, { name: 'display' }],
     });
     expect(taxonomies.find((t: { slug: string }) => t.slug === 'brand')).toMatchObject({
       fields: [{ name: 'logo' }, { name: 'website' }],

@@ -865,6 +865,8 @@ export function receivedPage(options: {
   locale: string;
   /** In the account: no thanks, the status instead, and a way back. */
   account?: { back: string };
+  /** Found by the order tracking form (1.21): the status, and a way to track another. */
+  tracking?: { back: string };
   /** Online payments not confirmed yet: where to pay. */
   unpaid?: { payUrl: string };
   /** What the customer does to pay: bank accounts while a transfer is awaited, instructions. */
@@ -886,9 +888,11 @@ export function receivedPage(options: {
       ${
         options.account
           ? html`<p><a href="${options.account.back}">← ${t('Your orders')}</a></p>`
-          : html`<p class="shop-notice" role="status">
-              ${t('Thank you: we received your order.')}
-            </p>`
+          : options.tracking
+            ? html`<p><a href="${options.tracking.back}">← ${t('Track another order')}</a></p>`
+            : html`<p class="shop-notice" role="status">
+                ${t('Thank you: we received your order.')}
+              </p>`
       }
       ${
         options.unpaid
@@ -906,7 +910,7 @@ export function receivedPage(options: {
         <dt>${t('Date')}</dt>
         <dd>${date}</dd>
         ${
-          options.account
+          options.account || options.tracking
             ? html`<dt>${t('Status')}</dt>
                 <dd>${statusLabel(t, order.status)}</dd>`
             : ''

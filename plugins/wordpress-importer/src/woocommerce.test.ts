@@ -11,7 +11,7 @@ const XML = `<?xml version="1.0" encoding="UTF-8"?>
 <title>Shop</title><link>https://shop.example</link><wp:wxr_version>1.2</wp:wxr_version>
 <wp:base_site_url>https://shop.example</wp:base_site_url><wp:base_blog_url>https://shop.example</wp:base_blog_url>
 <wp:author><wp:author_login><![CDATA[marina]]></wp:author_login><wp:author_email><![CDATA[m@shop.example]]></wp:author_email></wp:author>
-<wp:term><wp:term_id>5</wp:term_id><wp:term_taxonomy><![CDATA[product_cat]]></wp:term_taxonomy><wp:term_slug><![CDATA[cancelleria]]></wp:term_slug><wp:term_name><![CDATA[Cancelleria]]></wp:term_name></wp:term>
+<wp:term><wp:term_id>5</wp:term_id><wp:term_taxonomy><![CDATA[product_cat]]></wp:term_taxonomy><wp:term_slug><![CDATA[cancelleria]]></wp:term_slug><wp:term_name><![CDATA[Cancelleria]]></wp:term_name><wp:termmeta><wp:meta_key><![CDATA[display_type]]></wp:meta_key><wp:meta_value><![CDATA[subcategories]]></wp:meta_value></wp:termmeta></wp:term>
 <wp:term><wp:term_id>6</wp:term_id><wp:term_taxonomy><![CDATA[product_cat]]></wp:term_taxonomy><wp:term_slug><![CDATA[scuola]]></wp:term_slug><wp:term_parent><![CDATA[cancelleria]]></wp:term_parent><wp:term_name><![CDATA[Scuola]]></wp:term_name></wp:term>
 <wp:term><wp:term_id>7</wp:term_id><wp:term_taxonomy><![CDATA[product_brand]]></wp:term_taxonomy><wp:term_slug><![CDATA[tintaunita]]></wp:term_slug><wp:term_name><![CDATA[TintaUNITA]]></wp:term_name></wp:term>
 <wp:term><wp:term_id>17</wp:term_id><wp:term_taxonomy><![CDATA[product_brands]]></wp:term_taxonomy><wp:term_slug><![CDATA[abaton]]></wp:term_slug><wp:term_name><![CDATA[Abaton]]></wp:term_name><wp:termmeta><wp:meta_key><![CDATA[_pbf_wc_meta]]></wp:meta_key><wp:meta_value><![CDATA[a:1:{s:12:"thumbnail_id";s:3:"101";}]]></wp:meta_value></wp:termmeta><wp:termmeta><wp:meta_key><![CDATA[tax_position]]></wp:meta_key><wp:meta_value><![CDATA[6]]></wp:meta_value></wp:termmeta></wp:term>
@@ -26,7 +26,7 @@ ${item(`<title>Pastelli 110 colori</title><link>https://shop.example/prodotto/pa
 <category domain="product_type" nicename="simple"><![CDATA[simple]]></category><category domain="product_visibility" nicename="featured"><![CDATA[featured]]></category><category domain="product_visibility" nicename="outofstock"><![CDATA[outofstock]]></category>
 ${meta('_sku', 'TU110')}${meta('_regular_price', '59.90')}${meta('_sale_price', '49.90')}${meta('_sale_price_dates_from', '1735689600')}${meta('_sale_price_dates_to', '1738368000')}
 ${meta('_manage_stock', 'yes')}${meta('_stock', '0')}${meta('_stock_status', 'outofstock')}${meta('_backorders', 'no')}${meta('_weight', '0,4')}${meta('_length', '30')}
-${meta('_thumbnail_id', '101')}${meta('_product_image_gallery', '102,999')}${meta('_upsell_ids', 'a:1:{i:0;i:800;}')}${meta('_tax_status', 'taxable')}`)}
+${meta('_thumbnail_id', '101')}${meta('_product_image_gallery', '102,999')}${meta('_upsell_ids', 'a:1:{i:0;i:800;}')}${meta('_tax_status', 'taxable')}${meta('total_sales', '37')}`)}
 ${item(`<title>Penna gel</title><link>https://shop.example/prodotto/penna-gel/</link><dc:creator><![CDATA[marina]]></dc:creator>
 <content:encoded><![CDATA[<p>Scrive morbida.</p>]]></content:encoded><excerpt:encoded><![CDATA[]]></excerpt:encoded>
 <wp:post_id>800</wp:post_id><wp:post_name><![CDATA[penna-gel]]></wp:post_name><wp:status><![CDATA[publish]]></wp:status><wp:post_parent>0</wp:post_parent><wp:post_type><![CDATA[product]]></wp:post_type>
@@ -61,6 +61,8 @@ describe('WooCommerce products', () => {
       ['cancelleria', null],
       ['scuola', 'product_cat:cancelleria'],
     ]);
+    // "Display type: Subcategories" (only the parent has it).
+    expect(categories.map((c) => c.fields)).toEqual([{ display: 'subcategories' }, undefined]);
     expect(document.terms!.find((t) => t.taxonomy === 'brand')?.name).toBe('TintaUNITA');
   });
 
@@ -87,6 +89,7 @@ describe('WooCommerce products', () => {
         ],
       },
       upsells: [{ $entry: 'post:800' }],
+      totalSales: 37,
     });
   });
 
