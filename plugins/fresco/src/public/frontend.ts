@@ -116,9 +116,22 @@ function interactions(root: ParentNode = document): void {
 
 // ---- Videos behind an image -----------------------------------------------------------
 
-/** Background videos from YouTube or Vimeo: their 16:9 frame covers the container. */
+/** Whether the Privacy plugin (its banner or a CMP) decides about embeds on this page. */
+const consentManaged = () =>
+  Boolean(
+    document.getElementById('cx-consent') ||
+    (window as unknown as { cleitextConsent?: unknown }).cleitextConsent,
+  );
+
+/**
+ * Background videos from YouTube or Vimeo: their 16:9 frame covers the
+ * container. The frame comes without its address (`data-cx-src`): with the
+ * Privacy plugin it waits for the visitor's consent (the plugin gives it its
+ * address then), without it the address is given here. Until it plays, the
+ * background image shows (Fresco 2.12).
+ */
 function backgroundEmbeds(): void {
-  const boxes = document.querySelectorAll<HTMLElement>('[data-fr-video-bg]');
+  const boxes = [...document.querySelectorAll<HTMLElement>('[data-fr-video-bg]')];
   if (boxes.length === 0) return;
   const fit = () => {
     for (const box of boxes) {
@@ -131,22 +144,44 @@ function backgroundEmbeds(): void {
       frame.style.height = `${Math.ceil(wide ? (width * 9) / 16 : height)}px`;
     }
   };
-  fit();
-  window.addEventListener('resize', fit);
   // The frame shows once the video plays: until then (and if it never does,
   // e.g. autoplay blocked) the background image stays visible, not a black box.
-  const frames = [...boxes]
-    .map((box) => box.querySelector('iframe'))
-    .filter(Boolean) as HTMLIFrameElement[];
-  for (const frame of frames) {
-    if (!/youtube/.test(frame.src)) {
-      frame.addEventListener('load', () => frame.classList.add('is-playing'));
-      continue;
-    }
+  const wired = new WeakSet<HTMLIFrameElement>();
+  const wire = (frame: HTMLIFrameElement) => {
+    if (wired.has(frame)) return;
+    wired.add(frame);
     frame.addEventListener('load', () => {
-      frame.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: frame.src }), '*');
+      if (!frame.getAttribute('src')) return;
+      if (/youtube/.test(frame.src)) {
+        frame.contentWindow?.postMessage(
+          JSON.stringify({ event: 'listening', id: frame.src }),
+          '*',
+        );
+      } else frame.classList.add('is-playing');
     });
+  };
+  const managed = consentManaged();
+  for (const box of boxes) {
+    const frame = box.querySelector('iframe');
+    if (!frame) continue;
+    wire(frame);
+    const src = frame.getAttribute('data-cx-src');
+    // Hidden (phones, when the video is not for them): nothing is loaded.
+    if (src && !frame.getAttribute('src') && !managed && box.offsetParent !== null) {
+      if (/^https:\/\/(www\.youtube-nocookie\.com|player\.vimeo\.com)\//.test(src)) {
+        frame.src = src;
+        frame.removeAttribute('data-cx-src');
+      }
+    }
+    // The Privacy plugin puts a new frame in place of the held one on consent.
+    new MutationObserver(() => {
+      const next = box.querySelector('iframe');
+      if (next) wire(next);
+      fit();
+    }).observe(box, { childList: true });
   }
+  fit();
+  window.addEventListener('resize', fit);
   window.addEventListener('message', (event) => {
     if (!/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(event.origin)) return;
     let data: { event?: string; info?: unknown } | null;
@@ -160,8 +195,9 @@ function backgroundEmbeds(): void {
       (data?.event === 'onStateChange' && info === 1) ||
       (data?.event === 'infoDelivery' && typeof info === 'object' && info?.playerState === 1);
     if (!playing) return;
-    for (const frame of frames) {
-      if (frame.contentWindow === event.source) frame.classList.add('is-playing');
+    for (const box of boxes) {
+      const frame = box.querySelector('iframe');
+      if (frame && frame.contentWindow === event.source) frame.classList.add('is-playing');
     }
   });
 }
@@ -720,6 +756,32 @@ register('bg-slideshow', (root) => {
     });
     observer.observe(root);
   } else begin();
+});
+
+/**
+ * Flip boxes (2.12): hover and focus turn them in CSS; a tap (touch, pen)
+ * turns them and a second tap turns them back; Escape turns them back.
+ * Taps on the back's button follow its link.
+ */
+register('flip-box', (root) => {
+  const card = root.querySelector<HTMLElement>('.fr-flip');
+  if (!card) return;
+  const back = () => {
+    card.classList.remove('is-flipped');
+    if (card.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+  };
+  card.addEventListener('pointerup', (event) => {
+    if (event.pointerType === 'mouse') return;
+    if ((event.target as Element | null)?.closest('a')) return;
+    if (card.classList.contains('is-flipped')) back();
+    else card.classList.add('is-flipped');
+  });
+  card.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') back();
+  });
+  document.addEventListener('pointerdown', (event) => {
+    if (!card.contains(event.target as Node)) card.classList.remove('is-flipped');
+  });
 });
 
 // ---- Start --------------------------------------------------------------------------------

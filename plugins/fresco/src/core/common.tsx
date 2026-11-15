@@ -39,6 +39,14 @@ export const UNITS = {
   height: ['px', 'vh', 'em', 'rem'],
 };
 
+/**
+ * A size written as CSS (Fresco 2.12), the "Custom" unit of a slider:
+ * `calc(100% - 40px)`, `min(…)`, `max(…)`, `clamp(…)`, numbers, lengths and
+ * operators only.
+ */
+export const CSS_SIZE_PATTERN =
+  '(?:calc|min|max|clamp)\\((?:[\\d\\s.+*/,()-]|px|%|em|rem|vw|vh|svh|dvh)+\\)';
+
 /** Controls of the Advanced tab, for every element. */
 export function advancedControls(options: { container?: boolean } = {}): Control[] {
   const tab = 'advanced' as const;

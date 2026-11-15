@@ -81,7 +81,12 @@ describe('a WPBakery site', () => {
       /^[AB]$/.test(String(b.attrs.content).replace(/<[^>]+>/g, '')),
     );
     expect(inner).toHaveLength(2);
-    expect(find(blocks, 'fresco/image-carousel')[0]!.attrs.images).toHaveLength(2);
+    // Each image of the carousel keeps its own link (Fresco 2.12).
+    const carousel = find(blocks, 'fresco/image-carousel')[0]!.attrs.images as {
+      link?: { url: string };
+    }[];
+    expect(carousel).toHaveLength(2);
+    expect(carousel.map((image) => image.link?.url)).toEqual(['/a/', '/b/']);
     expect(find(blocks, 'fresco/gallery')[0]!.attrs.images).toHaveLength(2);
     expect(find(blocks, 'fresco/google-maps')[0]!.attrs.address).toBe('Via Roma 1, Genova');
     expect(find(blocks, 'fresco/tabs')).toHaveLength(1);
@@ -90,9 +95,7 @@ describe('a WPBakery site', () => {
     expect(warnings).toContain(
       'home: 1 WPBakery element(s) "vc_widget_sidebar" have no Fresco counterpart yet: their text, if any, was kept.',
     );
-    expect(
-      warnings.some((w) => w.includes('https://shop.example/a/, https://shop.example/b/')),
-    ).toBe(true);
+    expect(warnings.some((w) => w.includes('shop.example/a/'))).toBe(false);
     expect(warnings).toContain(
       '3 page(s) built with WPBakery were imported as Fresco pages: activate the Fresco plugin to show and edit them.',
     );

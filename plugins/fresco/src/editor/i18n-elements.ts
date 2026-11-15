@@ -81,8 +81,8 @@ addMessages('it', {
   'Background on hover': 'Sfondo al passaggio del mouse',
   'Video (MP4 or WebM)': 'Video (MP4 o WebM)',
   'Background video': 'Video di sfondo',
-  'Plays muted, in a loop, behind the content. The background image shows while it loads, and instead of it on phones and for visitors who prefer less motion.':
-    'Parte senza audio, in loop, dietro al contenuto. L’immagine di sfondo si vede mentre carica, e al suo posto sui telefoni e per chi preferisce meno animazioni.',
+  'Plays muted, in a loop, behind the content. The background image shows while it loads, until visitors accept YouTube or Vimeo (with the Privacy plugin), and instead of it on phones.':
+    'Parte senza audio, in loop, dietro al contenuto. L’immagine di sfondo si vede mentre carica, finché i visitatori non accettano YouTube o Vimeo (con il plugin Privacy) e al suo posto sui telefoni.',
   'Play on phones too': 'Riproduci anche sui telefoni',
   'Overlay color': 'Colore della sovrapposizione',
   'Background overlay': 'Sovrapposizione dello sfondo',
@@ -603,6 +603,20 @@ addMessages('it', {
   '{count} elements': '{count} elementi',
   Insert: 'Inserisci',
   'Export to a file': 'Esporta in un file',
+
+  // ---- Fresco 2.12 ----------------------------------------------------------------------------
+  'Flip box': 'Flip box',
+  'Front side': 'Lato frontale',
+  'Back side': 'Lato posteriore',
+  'Button text': 'Testo del pulsante',
+  Flip: 'Rotazione',
+  Up: 'Su',
+  Down: 'Giù',
+  'Duration (s)': 'Durata (s)',
+  'Vertical position': 'Posizione verticale',
+  'Each image can link to its own address.': 'Ogni immagine può avere un suo link.',
+  'For all images; an image with a link of its own (under Images) goes there instead.':
+    'Per tutte le immagini; un’immagine con un suo link (in Immagini) porta invece lì.',
 
   // ---- Plugin blocks ------------------------------------------------------------------------
   'This block’s plugin is not active: the block is kept, but it shows nothing on the page.':

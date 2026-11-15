@@ -127,6 +127,24 @@ describe('WPBakery → Fresco', () => {
     expect(carousels[1]!.attrs).toMatchObject({ effect: 'fade', interval: 3000 });
   });
 
+  it('links each image of a carousel to its own custom link', () => {
+    const warnings: string[] = [];
+    const links = 'https://old.example/a/,,/c/';
+    const out = convert(
+      `[vc_row][vc_column][vc_images_carousel images="1,2,1" onclick="custom_link" custom_links_target="_blank" custom_links="#E-8_${Buffer.from(encodeURIComponent(links)).toString('base64')}"][/vc_column][/vc_row]`,
+      '',
+      warnings,
+    );
+    const carousel = of(out, 'image-carousel')[0]!.attrs;
+    const images = carousel.images as { url: string; link?: unknown }[];
+    expect(images).toHaveLength(3);
+    expect(images[0]!.link).toEqual({ url: 'https://old.example/a/', newTab: true });
+    expect(images[1]!.link).toBeUndefined();
+    expect(images[2]!.link).toEqual({ url: '/c/', newTab: true });
+    expect(carousel.link_to).toBeUndefined();
+    expect(warnings).toEqual([]);
+  });
+
   it('offers other plugins’ shortcodes and reports elements without a counterpart', () => {
     const warnings: string[] = [];
     const out = convert(

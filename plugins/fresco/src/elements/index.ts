@@ -5,6 +5,7 @@ import { button, divider, heading, image, spacer, text } from './basic.js';
 import { ATOMIC_ELEMENTS } from './atomic.js';
 import { componentInstance } from './component.js';
 import { floatingButtons, linkInBio } from './contact.js';
+import { flipBox } from './flip-box.js';
 import { container } from './container.js';
 import { navMenu } from './menu.js';
 import { pluginBlock } from './plugin-block.js';
@@ -39,6 +40,7 @@ export const FREE_ELEMENTS: ElementDefinition[] = [
   icon,
   iconBox,
   imageBox,
+  flipBox,
   iconList,
   counter,
   progress,

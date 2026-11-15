@@ -393,6 +393,26 @@ function toBlock(node: FrescoNode): CxdBlock[] {
         ...imageBlock(a.image as { url?: string } | undefined),
         ...textBlocks(a, { heading: 'title', html: ['description'] }),
       ];
+    case 'fresco/flip-box':
+      return [
+        ...textBlocks(a, { heading: 'front_title', text: ['front_text'] }),
+        ...textBlocks(a, { heading: 'back_title', text: ['back_text'] }),
+        ...(text(a.button_text) && linkAttrs(a.link, 'url').url
+          ? [
+              block(
+                'core/buttons',
+                {},
+                {
+                  children: [
+                    block('core/button', linkAttrs(a.link, 'url'), {
+                      content: [{ text: text(a.button_text) }],
+                    }),
+                  ],
+                },
+              ),
+            ]
+          : []),
+      ];
     case 'fresco/alert':
       return textBlocks(a, { heading: 'title', html: ['description'] });
     case 'fresco/icon-list': {
