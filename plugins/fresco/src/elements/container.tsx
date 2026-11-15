@@ -1,5 +1,6 @@
 import {
   advancedControls,
+  CSS_SIZE_PATTERN,
   ElementRoot,
   hoverBorderControls,
   transitionControl,
@@ -138,6 +139,7 @@ const controls: Control[] = [
     responsive: true,
     units: UNITS.length,
     max: 1600,
+    pattern: CSS_SIZE_PATTERN,
     help: 'Empty: the width set in Site settings.',
     condition: { content_width: 'boxed' },
     selectors: { [IN]: 'max-width: {{value}}' },
@@ -146,6 +148,8 @@ const controls: Control[] = [
     responsive: true,
     units: UNITS.length,
     max: 1600,
+    // Fresco 2.12: also a size written as CSS, e.g. calc(100% - 40px).
+    pattern: CSS_SIZE_PATTERN,
     selectors: {
       // The width is the basis in a row (shrinking for the gap, as in other builders); in a column it stays a width.
       '{{el}}': 'width: {{value}}; flex: 0 1 auto',
@@ -317,7 +321,7 @@ const controls: Control[] = [
     section: 'Background video',
     accept: 'video',
     noCss: true,
-    help: 'Plays muted, in a loop, behind the content. The background image shows while it loads, and instead of it on phones and for visitors who prefer less motion.',
+    help: 'Plays muted, in a loop, behind the content. The background image shows while it loads, until visitors accept YouTube or Vimeo (with the Privacy plugin), and instead of it on phones.',
   },
   {
     name: 'background_video_mobile',
@@ -719,7 +723,16 @@ export const container: ElementDefinition = {
             aria-hidden="true"
             data-fr-video-bg=""
           >
-            <iframe src={embed} title="" tabIndex={-1} allow="autoplay; encrypted-media" />
+            {/* Fresco 2.12: on pages the frame waits for the visitor's consent
+                (Privacy plugin) or frontend.js; the background image shows until then. */}
+            <iframe
+              {...(context.editing
+                ? { src: embed }
+                : { 'data-cx-src': embed, 'data-cx-category': 'marketing' })}
+              title=""
+              tabIndex={-1}
+              allow="autoplay; encrypted-media"
+            />
           </div>
         )}
         {shapeDivider(settings, 'top')}

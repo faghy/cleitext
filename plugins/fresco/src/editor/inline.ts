@@ -34,6 +34,13 @@ export const INLINE_FIELDS: Record<string, InlineField[]> = {
     { selector: '.fr-box__title', setting: 'title' },
     { selector: '.fr-box__description', setting: 'description' },
   ],
+  'fresco/flip-box': [
+    { selector: '.fr-flip__front .fr-flip__title', setting: 'front_title' },
+    { selector: '.fr-flip__front .fr-flip__text', setting: 'front_text' },
+    { selector: '.fr-flip__back .fr-flip__title', setting: 'back_title' },
+    { selector: '.fr-flip__back .fr-flip__text', setting: 'back_text' },
+    { selector: '.fr-flip__button', setting: 'button_text' },
+  ],
   'fresco/icon-list': [{ selector: '.fr-list__text', setting: 'items[].text' }],
   'fresco/counter': [
     { selector: '.fr-counter__title', setting: 'title' },

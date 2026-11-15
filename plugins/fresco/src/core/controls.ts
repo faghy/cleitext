@@ -133,7 +133,9 @@ export function sizeControls(
       responsive: true,
       units: UNITS.length,
       max: 1600,
-      selectors: { [selector]: 'max-width: {{value}}' },
+      // Never wider than its box (Fresco 2.12): a maximum of its own does not
+      // undo the responsive `max-width: 100%`, so the image keeps its proportions.
+      selectors: { [selector]: 'max-width: min(100%, {{value}})' },
     }),
     make2.slider(`${prefix}height`, 'Height', section, {
       responsive: true,

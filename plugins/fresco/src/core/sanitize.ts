@@ -58,8 +58,13 @@ const BY_TAG: Record<string, Set<string>> = {
   img: new Set(['src', 'alt', 'width', 'height', 'loading']),
   td: new Set(['colspan', 'rowspan']),
   th: new Set(['colspan', 'rowspan', 'scope']),
-  ol: new Set(['start', 'reversed']),
+  ol: new Set(['start', 'reversed', 'type']),
+  ul: new Set(['type']),
+  li: new Set(['value', 'type']),
 };
+
+/** List markers (Fresco 2.12): `<ol type>`, `<ul type>` and `<li type>` values. */
+const LIST_TYPE = /^(1|a|A|i|I|disc|circle|square|none)$/;
 
 const SAFE_URL = /^(https?:\/\/|mailto:|tel:|\/(?!\/)|#|\?)/i;
 const SAFE_SRC = /^(https?:\/\/|\/(?!\/))/i;
@@ -84,8 +89,24 @@ const STYLE_RULES: Record<string, RegExp> = {
 const LENGTH = /^(0|auto|-?\d{1,4}(\.\d{1,3})?(px|em|rem|%|vw))$/;
 const COLOR_VALUE = STYLE_RULES.color!;
 
-/** Rules (Fresco 2.11.2) only some tags keep: the size, spacing and color of a rule (`<hr>`). */
+/** The marker of a list (Fresco 2.12): `list-style-type`, its position, or both. */
+const LIST_STYLE_TYPE =
+  /^(none|disc|circle|square|decimal|decimal-leading-zero|lower-roman|upper-roman|lower-greek|lower-alpha|upper-alpha|lower-latin|upper-latin|armenian|georgian|disclosure-open|disclosure-closed)$/;
+const LIST_RULES: Record<string, RegExp> = {
+  'list-style-type': LIST_STYLE_TYPE,
+  'list-style-position': /^(inside|outside)$/,
+  'list-style':
+    /^(none|disc|circle|square|decimal|decimal-leading-zero|lower-roman|upper-roman|lower-greek|lower-alpha|upper-alpha|lower-latin|upper-latin|armenian|georgian|disclosure-open|disclosure-closed)(\s+(inside|outside))?$|^(inside|outside)(\s+(none|disc|circle|square|decimal|lower-roman|upper-roman|lower-alpha|upper-alpha|lower-latin|upper-latin))?$/,
+};
+
+/**
+ * Rules (Fresco 2.11.2) only some tags keep: the size, spacing and color of a
+ * rule (`<hr>`); the markers of lists (2.12).
+ */
 const TAG_STYLE_RULES: Record<string, Record<string, RegExp>> = {
+  ul: LIST_RULES,
+  ol: LIST_RULES,
+  li: LIST_RULES,
   hr: {
     width: LENGTH,
     'max-width': LENGTH,
@@ -125,6 +146,8 @@ function attribute(tag: string, name: string, value: string): string | null {
   if (key === 'href' && !SAFE_URL.test(value.trim())) return null;
   if (key === 'src' && !SAFE_SRC.test(value.trim())) return null;
   if (key === 'target' && value !== '_blank') return null;
+  if (key === 'type' && !LIST_TYPE.test(value.trim())) return null;
+  if (key === 'value' && !/^-?\d{1,6}$/.test(value.trim())) return null;
   if (key === 'class' && !/^[\w\s-]{0,200}$/.test(value)) return null;
   if (key === 'id' && !/^[A-Za-z][\w-]{0,63}$/.test(value)) return null;
   return `${key}="${escapeAttr(value)}"`;

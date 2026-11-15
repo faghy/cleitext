@@ -1007,7 +1007,11 @@ export const imageCarousel: ElementDefinition = {
   keywords: ['slider', 'carousel', 'gallery', 'slideshow'],
   handler: 'carousel',
   controls: [
-    galleryControl('images'),
+    // Fresco 2.12: each image may have a link of its own (`link`), over the carousel's.
+    {
+      ...galleryControl('images'),
+      fields: [content.url('link', 'Link', 'Images')],
+    },
     content.select('image_size', 'Image size', 'Images', {
       default: 'large',
       options: IMAGE_SIZES,
@@ -1060,6 +1064,7 @@ export const imageCarousel: ElementDefinition = {
         { value: 'file', label: 'Media file (lightbox)' },
         { value: 'custom', label: 'Custom URL' },
       ],
+      help: 'For all images; an image with a link of its own (under Images) goes there instead.',
       noCss: true,
     }),
     content.url('link', 'Link', 'Carousel', { condition: { link_to: 'custom' } }),
@@ -1261,6 +1266,8 @@ export const imageCarousel: ElementDefinition = {
               );
               const item = image.id ? context.media.get(image.id) : undefined;
               const href = image.id ? (item?.url ?? image.url) : image.url;
+              // The image's own link (2.12) wins over the carousel's.
+              const own = linkProps((image as { link?: unknown }).link);
               const caption =
                 settings.caption_type === 'attachment'
                   ? attachmentCaption(image, item)
@@ -1275,7 +1282,9 @@ export const imageCarousel: ElementDefinition = {
                   aria-roledescription="slide"
                   aria-label={`${i + 1} / ${images.length}`}
                 >
-                  {lightbox ? (
+                  {own ? (
+                    <a {...own}>{img}</a>
+                  ) : lightbox ? (
                     <a
                       href={href}
                       data-fr-lightbox={`c-${node.id}`}

@@ -381,7 +381,16 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
     case 'slider':
       return (
         <Row control={control} env={env} reset={reset}>
-          <Slider control={control} value={value} inherited={inherited} onChange={(v) => set(v)} />
+          {control.pattern ? (
+            <CustomSize control={control} value={value} inherited={inherited} onChange={set} />
+          ) : (
+            <Slider
+              control={control}
+              value={value}
+              inherited={inherited}
+              onChange={(v) => set(v)}
+            />
+          )}
         </Row>
       );
     case 'box':
@@ -418,6 +427,7 @@ export function ControlField({ control, env }: { control: Control; env: ControlE
           <GalleryInput
             value={Array.isArray(value) ? value : []}
             env={env}
+            links={Boolean(control.fields?.some((f) => f.name === 'link' && f.type === 'url'))}
             onChange={(v) => set(v, false)}
           />
         </Row>
@@ -801,6 +811,60 @@ function Slider({
   );
 }
 
+/**
+ * A slider that also takes a size written as CSS (Fresco 2.12): its "Custom"
+ * unit turns it into a text field for `calc(100% - 40px)` and the like.
+ */
+function CustomSize({
+  control,
+  value,
+  inherited,
+  onChange,
+}: {
+  control: Control;
+  value: unknown;
+  inherited: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  const [custom, setCustom] = useState(typeof value === 'string');
+  if (!custom && typeof value !== 'string') {
+    return (
+      <div className="fre-custom-size">
+        <Slider control={control} value={value} inherited={inherited} onChange={onChange} />
+        <button type="button" className="fre-custom-size__switch" onClick={() => setCustom(true)}>
+          {t('Custom')}
+        </button>
+      </div>
+    );
+  }
+  const text = typeof value === 'string' ? value : '';
+  const valid = !text || new RegExp(`^(?:${control.pattern})$`, 'i').test(text.trim());
+  return (
+    <div className="fre-custom-size">
+      <input
+        className={`fre-input${valid ? '' : ' is-invalid'}`}
+        type="text"
+        value={text}
+        placeholder="calc(100% - 40px)"
+        spellCheck={false}
+        aria-label={t('{control} value', { control: t(control.label) })}
+        aria-invalid={!valid}
+        onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}
+      />
+      <button
+        type="button"
+        className="fre-custom-size__switch is-on"
+        onClick={() => {
+          setCustom(false);
+          if (typeof value === 'string') onChange(undefined);
+        }}
+      >
+        {t('Custom')}
+      </button>
+    </div>
+  );
+}
+
 function BoxInput({
   control,
   value,
@@ -985,14 +1049,26 @@ function MediaInput({
 function GalleryInput({
   value,
   env,
+  links = false,
   onChange,
 }: {
   value: unknown[];
   env: ControlEnv;
+  /** Fresco 2.12: a link of its own for each image (Image carousel). */
+  links?: boolean;
   onChange: (v: unknown) => void;
 }) {
   const [picking, setPicking] = useState(false);
   const items = value.filter(isMedia);
+  const setLink = (i: number, link: LinkValue | undefined) =>
+    onChange(
+      items.map((item, j) => {
+        if (j !== i) return item;
+        const rest: Record<string, unknown> = { ...item };
+        delete rest.link;
+        return link ? { ...rest, link } : rest;
+      }),
+    );
   return (
     <div className="fre-gallery">
       <div className="fre-gallery__grid">
@@ -1009,6 +1085,20 @@ function GalleryInput({
           </span>
         ))}
       </div>
+      {links && items.length > 0 ? (
+        <div className="fre-gallery__links">
+          <p className="fre-help">{t('Each image can link to its own address.')}</p>
+          {items.map((item, i) => (
+            <div key={`${item.id ?? item.url}-${i}`} className="fre-gallery__link">
+              <img src={item.url} alt="" />
+              <LinkInput
+                value={(item as typeof item & { link?: LinkValue }).link}
+                onChange={(link) => setLink(i, link)}
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
       <button type="button" className="fre-button" onClick={() => setPicking(true)}>
         {items.length ? t('Add images') : t('Choose images')}
       </button>

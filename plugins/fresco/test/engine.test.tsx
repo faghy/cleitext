@@ -209,9 +209,22 @@ describe('rendering', () => {
     expect(youtube).not.toContain('<video');
     expect(youtube).toContain('fr-has-video');
     expect(youtube).toContain('data-fr-video-bg=""');
+    // Held until consent (Privacy plugin) or frontend.js: no address of its own yet.
     expect(youtube).toContain(
-      'src="https://www.youtube-nocookie.com/embed/J01iDyHq2p0?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=J01iDyHq2p0&amp;controls=0&amp;rel=0&amp;enablejsapi=1"',
+      'data-cx-src="https://www.youtube-nocookie.com/embed/J01iDyHq2p0?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=J01iDyHq2p0&amp;controls=0&amp;rel=0&amp;enablejsapi=1" data-cx-category="marketing"',
     );
+    expect(youtube).not.toMatch(/<iframe[^>]* src=/);
+    // In the editor it plays at once.
+    const editing = renderToStaticMarkup(
+      container.render({
+        node: node('fresco/container', {}),
+        settings: withDefaults(container, {
+          background_video: { url: 'https://vimeo.com/76979871' },
+        }),
+        context: { ...context, editing: true },
+      }),
+    );
+    expect(editing).toMatch(/<iframe src="https:\/\/player\.vimeo\.com\/video\/76979871\?/);
   });
 
   it('draws shape dividers and gradient overlays over the background', () => {
