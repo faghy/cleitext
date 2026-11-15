@@ -313,6 +313,8 @@ describe('Cleishop 1.21: WooCommerce’s catalog habits', () => {
         siteId: site.id,
         slug: 'shop',
         data: { products: [{ entry: bravo, product: { regularPrice: '10' }, totalSales: 37 }] },
+        idMap: { entries: {}, terms: {}, media: {} },
+        userId: '',
       },
       site.id,
     )) as { warnings: string[] } | null;

@@ -457,7 +457,9 @@ export function registerStorefrontBlocks(
         }
         for (const image of row?.gallery ?? [])
           pictures.push({ url: image.url, alt: image.caption });
-        return { buy, pictures, excerpt: withExcerpt ? (row?.excerpt ?? '') : '' };
+        // The shop's formatted copy, else the entry's own excerpt (e.g. a translation's).
+        const excerpt = row?.excerpt || context.page.entry?.excerpt || '';
+        return { buy, pictures, excerpt: withExcerpt ? excerpt : '' };
       },
       css: () => SHOP_CSS + CATALOG_CSS + SUMMARY_CSS,
       render({ data, context }) {
