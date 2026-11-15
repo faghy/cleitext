@@ -6,11 +6,7 @@
  * networks, closed until opened. It draws the fields with the form's own
  * `layout.render`, so labels, help, errors and saving stay the core's.
  */
-import {
-  labelText,
-  type AdminFieldTypeDefinition,
-  type FieldControlProps,
-} from '@cleitext/admin-sdk';
+import { type AdminFieldTypeDefinition, type FieldControlProps } from '@cleitext/admin-sdk';
 import type { FieldDefinition } from '@cleitext/plugin-sdk';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BOX_TYPE } from './fields.js';
@@ -58,36 +54,9 @@ const isSet = (field: FieldDefinition, value: unknown) =>
   value !== false &&
   !(field.name === 'schema' && value === 'auto');
 
-interface Section {
-  key: string;
-  title: string;
-  fields: FieldDefinition[];
-}
+import { splitFields, type Section } from './box-split.js';
 
-/** The fields by their `group` (Advanced, Social networks), without it: the box shows the titles. */
-export function splitFields(
-  fields: readonly FieldDefinition[],
-  locale: string,
-): { main: FieldDefinition[]; sections: Section[] } {
-  const main: FieldDefinition[] = [];
-  const sections: Section[] = [];
-  for (const field of fields) {
-    if (field.group === undefined) {
-      main.push(field);
-      continue;
-    }
-    const key = labelText(field.group, 'en');
-    let section = sections.find((s) => s.key === key);
-    if (!section) {
-      section = { key, title: labelText(field.group, locale), fields: [] };
-      sections.push(section);
-    }
-    const rest = { ...field } as Partial<FieldDefinition>;
-    delete rest.group;
-    section.fields.push(rest as FieldDefinition);
-  }
-  return { main, sections };
-}
+export { splitFields };
 
 const tint = {
   background: 'var(--color-sky-50, #f0f9ff)',

@@ -202,7 +202,7 @@ describe('the import of Rank Math’s term SEO', () => {
 
 describe('Vetta’s box', () => {
   it('shows the main fields first, then Advanced and Social networks without their headings', async () => {
-    const { splitFields } = await import('./box');
+    const { splitFields } = await import('./box-split');
     const { main, sections } = splitFields(ENTRY_FIELDS.slice(1), 'it');
     expect(main.map((f) => f.name)).toEqual(['keywords', 'title', 'description']);
     expect(sections.map((s) => [s.title, s.fields.length])).toEqual([
