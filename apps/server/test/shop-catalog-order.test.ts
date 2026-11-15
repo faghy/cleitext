@@ -203,4 +203,18 @@ describe('the catalog’s order and the cards’ short description', () => {
     expect(page).toContain('<h2>Notes</h2><p>The <em>first</em> one.</p>');
     expect(page).not.toContain('<script>x');
   });
+
+  it("follows the site's redirects on the shop's addresses it does not have", async () => {
+    const created = await admin.post('/api/v1/redirects', {
+      from: '/product-category/gone',
+      to: '/shop',
+    });
+    expect(created.statusCode, created.body).toBeLessThan(300);
+    const visitor = new TestClient(app, site.host, '10.98.0.11');
+    const moved = await visitor.get('/product-category/gone');
+    expect(moved.statusCode).toBe(301);
+    expect(moved.headers.location).toMatch(/\/shop$/);
+    // Without a redirect, the shop's own 404.
+    expect((await visitor.get('/product-category/never-was')).statusCode).toBe(404);
+  });
 });

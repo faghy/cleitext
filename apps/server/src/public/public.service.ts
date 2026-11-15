@@ -405,6 +405,16 @@ export class PublicService {
         if (outcome.value !== null && outcome.value !== undefined) {
           const result = outcome.value;
           const status = result.status ?? 200;
+          // An address the plugin does not have (a deleted category…) still follows the
+          // site's redirects, as the site's own addresses do (core 0.105).
+          if (status === 404) {
+            const moved = await this.redirectOf(site.id, url.pathname, url.searchParams);
+            if (moved) {
+              void reply.header('cache-control', 'no-cache');
+              await reply.code(moved.status).header('location', moved.target).send();
+              return;
+            }
+          }
           if (
             cacheable &&
             status === 200 &&
@@ -2762,6 +2772,48 @@ export class PublicService {
    * A public address of an active plugin (`ctx.routes.public`), also behind
    * a language prefix (`/it/cart` for `/cart`), with the address's language.
    */
+  /**
+   * The site's redirect for an address, if it has one (status and target, in
+   * the site's own form): for plugins' addresses that answer 404. Counted as
+   * the site's own redirects are; 410 ("gone") is left to the plugin's 404.
+   */
+  async redirectOf(
+    siteId: string,
+    rawPath: string,
+    query: URLSearchParams,
+  ): Promise<{ status: number; target: string } | null> {
+    let path: string;
+    try {
+      path = decodeURIComponent(rawPath);
+    } catch {
+      return null;
+    }
+    return withContext(this.database.db, { siteId }, async (tx) => {
+      const trailingSlash = await trailingSlashIn(tx);
+      const bare = path.replace(/\/+$/, '') || '/';
+      const search = query.toString();
+      const forms = [...new Set([path, bare, bare === '/' ? '/' : `${bare}/`])];
+      const candidates = forms.flatMap((p) => (search ? [`${p}?${search}`, p] : [p]));
+      const found = await tx
+        .select()
+        .from(redirects)
+        .where(inArray(redirects.fromPath, candidates));
+      const redirect = found.sort(
+        (a, b) => candidates.indexOf(a.fromPath) - candidates.indexOf(b.fromPath),
+      )[0];
+      if (!redirect || redirect.status === 410) return null;
+      const target = /^\/(?!\/)/.test(redirect.toPath)
+        ? canonicalUrl(redirect.toPath, trailingSlash)
+        : redirect.toPath;
+      if (target === canonicalPath(path, trailingSlash)) return null;
+      await tx
+        .update(redirects)
+        .set({ hits: sql`${redirects.hits} + 1` })
+        .where(eq(redirects.id, redirect.id));
+      return { status: redirect.status, target };
+    });
+  }
+
   async matchPluginRoute(siteId: string, method: string, path: string) {
     if (this.plugins.list().length === 0) return null;
     const plugins = await this.plugins.activePlugins(siteId);
